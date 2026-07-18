@@ -5,6 +5,23 @@
 //! rank-2 seeded map. An independent rank-1 map compresses that short
 //! commitment envelope before one Poseidon2 digest enters Fiat–Shamir.
 //! Carried accumulator chains remain outside this module.
+//!
+//! Owns: canonical field-to-message encoding and both verifier-recomputed SIS
+//! binding layers.
+//!
+//! Does not own: which claim fields are authoritative or transcript scheduling.
+//!
+//! Emits constraints: yes.
+//!
+//! Authority boundary: fields are inputs; commitments and digests are derived.
+//!
+//! | Constraint family | Equation/obligation | Per source field |
+//! |---|---|---:|
+//! | Digit alphabet | `d(d-1)=2q`, `q(d+1)=0` | 82 rows |
+//! | Reconstruction | `x = sum d_i 3^i` | 1 row |
+//! | Canonical borrow | shifted word is below Goldilocks `p` | 41 rows |
+//! | Seeded Φ81 map | `A_seed · digits = commitment` | `D·kappa` rows per map |
+//! | Digest envelope | Poseidon2 of domain/shape/short binding | input-dependent |
 
 use neo_ajtai::{commit_row_major_seeded, seeded_pp_chunk_seeds, Commitment};
 use neo_ccs::{Mat, SeededPhi81LinearBlock};
@@ -13,7 +30,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 use crate::engine::r1cs_circuit::builder::{ShiftedTernaryCanonicalTrace, BALANCED_TERNARY_DIGITS};
-use crate::engine::r1cs_circuit::{enforce_poseidon2_hash, Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::{enforce_poseidon2_hash, BalancedTernaryOpeningTraceEntry, Lc, R1csBuilder, Var};
 use crate::paper::digest::pack_bytes_as_fields;
 use crate::paper::relations::product_commitment_circuit::{alloc_commitment, CommitmentWires};
 
@@ -281,18 +298,29 @@ fn decompose_var_to_balanced_ternary(builder: &mut R1csBuilder, field: Var) -> [
         reconstruction.add_term(digit, power);
         power *= F::from_u64(3);
     }
+    let digit_rows_end = builder.rows();
+    let reconstruction_row = builder.rows();
     builder.enforce_eq(&Lc::from_var(field), &reconstruction);
     let transition_rows_start = builder.rows();
-    let borrow_columns_start = builder.cols();
-    enforce_shifted_base3_canonical(builder, &digits, &negative_indicators);
+    let borrows = enforce_shifted_base3_canonical(builder, &digits, &negative_indicators);
+    let transition_rows_end = builder.rows();
     builder.record_shifted_ternary_canonical_trace(ShiftedTernaryCanonicalTrace {
         digit_columns_start: digits[0].col(),
         negative_columns_start: negative_indicators[0].col(),
-        borrow_columns_start,
+        borrow_columns_start: borrows[0].col(),
         digit_rows_start,
         transition_rows_start,
     });
     builder.record_balanced_ternary_decomposition(field, digits);
+    builder.record_balanced_ternary_opening_encoding(BalancedTernaryOpeningTraceEntry {
+        field_col: field.col(),
+        digit_cols: digits.map(Var::col),
+        negative_cols: negative_indicators.map(Var::col),
+        borrow_cols: borrows.map(Var::col),
+        digit_rows: digit_rows_start..digit_rows_end,
+        reconstruction_row,
+        transition_rows: transition_rows_start..transition_rows_end,
+    });
     digits
 }
 
@@ -311,10 +339,11 @@ fn enforce_shifted_base3_canonical(
     builder: &mut R1csBuilder,
     digits: &[Var; BALANCED_TERNARY_DIGITS],
     negative_indicators: &[Var; BALANCED_TERNARY_DIGITS],
-) {
+) -> [Var; BALANCED_TERNARY_DIGITS - 1] {
     let mut bound = F::ORDER_U64 - 1;
     let mut borrow_value = false;
     let mut borrow = Lc::zero();
+    let mut borrow_vars = Vec::with_capacity(BALANCED_TERNARY_DIGITS - 1);
 
     for index in 0..BALANCED_TERNARY_DIGITS {
         let bound_digit = bound % 3;
@@ -330,14 +359,16 @@ fn enforce_shifted_base3_canonical(
             2
         };
         let next_borrow_value = trit + u64::from(borrow_value) > bound_digit;
-        let next_borrow = if index + 1 == BALANCED_TERNARY_DIGITS {
+        let next_borrow_var = if index + 1 == BALANCED_TERNARY_DIGITS {
             debug_assert!(!next_borrow_value, "honest shifted-base-3 opening must be below p");
-            Lc::zero()
+            None
         } else {
             let next = builder.alloc(if next_borrow_value { F::ONE } else { F::ZERO });
             builder.record_boolean(next);
-            Lc::from_var(next)
+            borrow_vars.push(next);
+            Some(next)
         };
+        let next_borrow = next_borrow_var.map_or_else(Lc::zero, Lc::from_var);
 
         let negative = Lc::from_var(negative_indicators[index]);
         let positive = Lc::from_var(digits[index]).add_scaled(&negative, F::ONE);
@@ -366,6 +397,9 @@ fn enforce_shifted_base3_canonical(
         borrow_value = next_borrow_value;
     }
     debug_assert_eq!(bound, 0, "41 base-3 digits must cover p-1");
+    borrow_vars
+        .try_into()
+        .expect("one borrow variable per non-terminal ternary digit")
 }
 
 fn balanced_ternary_digits(value: F) -> [F; BALANCED_TERNARY_DIGITS] {

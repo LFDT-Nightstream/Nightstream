@@ -1,5 +1,22 @@
 //! SplitNcV1 — engine-parity transcript driving.
 //!
+//! Owns: the exact Poseidon2 absorb/squeeze schedule inside Pi_CCS.V.
+//!
+//! Does not own: pre-Pi_CCS cursor authority or FE/NC algebra.
+//!
+//! Emits constraints: yes.
+//!
+//! Authority boundary: header, instance, and accumulator-handle wires must
+//! already be verifier-bound before this module absorbs them.
+//!
+//! | Constraint family | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | header/instance absorb | Bind verifier header and public instance | yes | `absorb_engine_header_bundle_*` | transcript bridge open |
+//! | running-handle absorb | Bind the checked-parent accumulator handle | yes | `absorb_engine_me_inputs_accumulator_handle` | authority bridge open |
+//! | engine challenges | Derive alpha, beta_a, beta_r, and gamma | yes | `sample_engine_challenges` | transcript bridge open |
+//! | beta_m | Derive the NC column challenge | yes | `sample_engine_beta_m` | transcript bridge open |
+//! | header catch-up | Reproduce `digest32()` cursor advancement | yes | `enforce_header_digest_catch_up_wires` | transcript bridge open |
+//!
 //! Mirrors the binding-and-sampling phases of
 //! `optimized_verify_with_cache_and_public_instance_digest_impl`:
 //!
@@ -7,7 +24,7 @@
 //!    `[11, hb…]` and `[12, id…]`).
 //! 2. `bind_me_inputs_accumulator_handle` (raw absorbs of `[4]`,
 //!    `[5, count]`, and the verified-parent accumulator handle with leading
-//!    tag `[6, …]`).
+//!    tag `[13, …]`).
 //! 3. `sample_challenges` (raw `[2]` then K-batch squeeze for α/β_a/β_r/γ).
 //! 4. `sample_beta_m` (raw `[3]` then K-batch squeeze for β_m).
 //!
@@ -178,11 +195,8 @@ pub fn absorb_engine_header_bundle_wires_and_instance_digest(
 ///    the single 4-lane handle replaces the per-claim ME-input
 ///    projection digest stream the retired bind variant used.
 ///
-/// The handle wires must already be bound by the caller to a digest
-/// recomputed from authoritative running-CE-claim data (e.g. the
-/// accumulator-digest gadget in
-/// [`crate::paper::reductions::accumulator_digest_circuit`]). It is not
-/// a prover-supplied value.
+/// The handle wires must already be bound by the caller to the full digest of
+/// the validated Π_RLC parent authority. It is not a prover-supplied value.
 pub fn absorb_engine_me_inputs_accumulator_handle(
     builder: &mut R1csBuilder,
     transcript: &mut TranscriptGadget,
@@ -247,7 +261,7 @@ pub fn header_digest_bytes_to_fields(bytes: &[u8]) -> Result<[F; 4], Error> {
 ///    `absorb_const_elem(F::ONE) → permute → take first 4 lanes` squeeze the
 ///    native sponge applies.
 /// 2. Each observed digest lane is constrained equal to the proof's recorded
-///    header-digest lane.
+///    header-digest witness wire.
 ///
 /// After this call, downstream Π_RLC.V ρ-sampling sees the same transcript
 /// state as the native verifier does, so the two-side challenges agree.

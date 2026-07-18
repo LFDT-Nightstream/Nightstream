@@ -1,4 +1,4 @@
-//! Prover lifecycle for the generic authoritative R1CS IVC relation.
+//! Prover lifecycle for the generic implementation R1CS IVC relation.
 
 use neo_ccs::Mat;
 use neo_math::{D, F};

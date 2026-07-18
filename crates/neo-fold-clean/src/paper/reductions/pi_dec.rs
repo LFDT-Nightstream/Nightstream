@@ -201,7 +201,7 @@ pub fn prove_from_split_material(
 /// Π_DEC boundary for accelerator-owned child witnesses.
 ///
 /// Complete public claims are verified canonically here while the backend
-/// retains authority over the private witness contents.
+/// retains ownership of the private witness buffers.
 #[doc(hidden)]
 pub fn prove_from_accelerator_claims(
     pp: &Params,

@@ -1,5 +1,20 @@
 //! SplitNcV1 — FE channel (claimed initial, sumcheck driver, terminal identity).
 //!
+//! Owns: FE claimed-sum, SumCheck, and terminal-identity arithmetic.
+//!
+//! Does not own: transcript prefix authority or output/input continuity.
+//!
+//! Emits constraints: yes.
+//!
+//! Authority boundary: challenges and claim wires are caller-constrained;
+//! this leaf proves only the FE equations they parameterize.
+//!
+//! | Constraint family | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | claimed initial | Derive the running-evaluation weighted sum | yes | `enforce_fe_claimed_initial` | FE bridge open |
+//! | SumCheck | Replay FE rounds and derive `r_prime`, `alpha_prime` | yes | `enforce_fe_sumcheck_driver` | SumCheck bridge open |
+//! | terminal identity | Match CCS polynomial and output evaluations | yes | `enforce_fe_terminal_identity` | terminal bridge open |
+//!
 //! Mirrors:
 //! - `claimed_initial_sum_from_inputs_with_k_mcs` in
 //!   `neo_reductions::engines::paper_exact_engine` (computes T).

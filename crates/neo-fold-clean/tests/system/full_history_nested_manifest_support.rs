@@ -36,12 +36,14 @@ const PI_CCS_FAMILIES: &[&str] = &[
     "nifs.pi_ccs.running_authority",
     "nifs.pi_ccs.transcript",
     "nifs.pi_ccs.fe_initial",
+    "nifs.pi_ccs.fe_claim_and_sumcheck.optional_claim",
     "nifs.pi_ccs.fe_sumcheck",
     "nifs.pi_ccs.nc_sumcheck",
     "nifs.pi_ccs.output_binding",
     "nifs.pi_ccs.fe_terminal",
     "nifs.pi_ccs.nc_terminal",
     "nifs.pi_ccs.catchup",
+    "nifs.pi_ccs.output_message_hashes",
 ];
 
 const PI_RLC_FAMILIES: &[&str] = &[

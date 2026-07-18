@@ -1008,6 +1008,11 @@ impl AjtaiSModule {
     /// this accessor exists for proof systems that must encode the same
     /// linear map as arithmetic constraints.
     pub fn verification_pp(&self) -> Result<Arc<PP<RqEl>>, AjtaiError> {
+        self.materialize_pp()
+    }
+
+    /// Return the underlying Ajtai PP, loading a seeded global entry if needed.
+    pub fn materialize_pp(&self) -> Result<Arc<PP<RqEl>>, AjtaiError> {
         match &self.pp {
             PpSource::Owned(pp) => Ok(pp.clone()),
             PpSource::Global { d, m } => get_or_load_global_pp_for_dims(*d, *m),

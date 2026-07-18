@@ -10,16 +10,16 @@ set_option maxRecDepth 1048576
 set_option maxHeartbeats 0
 
 def block10 : SeededPhi81.Block :=
-  { rowStart := 1324042
-    wordStarts := (List.range 1650).map fun index => 1163100 + index * 122
+  { rowStart := 3302897
+    wordStarts := (List.range 3616).map fun index => 2702121 + index * 122
     wordWidth := 41
     kappa := 2
-    messageCols := 1253
-    outputColumns := (List.range 108).map fun index => 1162992 + index * 1
+    messageCols := 2746
+    outputColumns := (List.range 108).map fun index => 2702013 + index * 1
     superneoTransformedColumns := false
     schedule :=
-      { chunkSize := 1253
-        seedsByOutput := [[[86, 42, 148, 207, 25, 79, 16, 47, 196, 116, 40, 120, 217, 88, 154, 122, 30, 23, 140, 56, 187, 143, 93, 162, 220, 95, 239, 73, 250, 113, 225, 105]], [[141, 244, 128, 208, 147, 79, 116, 194, 51, 31, 25, 137, 234, 142, 110, 234, 203, 26, 211, 3, 150, 158, 227, 214, 198, 230, 165, 130, 138, 231, 94, 41]]]
+      { chunkSize := 2746
+        seedsByOutput := [[[155, 172, 141, 237, 241, 37, 62, 48, 231, 186, 174, 92, 253, 182, 136, 23, 144, 88, 194, 62, 72, 86, 244, 81, 95, 5, 239, 244, 206, 198, 155, 18]], [[40, 94, 19, 184, 73, 118, 112, 98, 82, 191, 229, 41, 224, 250, 187, 145, 78, 35, 9, 84, 198, 101, 115, 56, 83, 48, 154, 186, 218, 107, 125, 19]]]
         rejectionFuel := rejectionFuel } }
 
 theorem block10_certified :

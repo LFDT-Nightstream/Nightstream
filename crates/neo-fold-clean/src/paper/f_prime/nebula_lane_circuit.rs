@@ -1,26 +1,24 @@
-//! In-circuit mirrors of the Nebula lane transition — spec §13 step 9's
-//! circuit content, ahead of the `enc(F′)` regime decision.
+//! R1CS mirror of the Nebula lane state transition used by `F'`.
 //!
-//! Owns: the R1CS twins of the lane's Poseidon2 material
-//! ([`crate::paper::digest::nebula_lane_leaf_digests`],
-//! [`crate::paper::digest::nebula_chain_link`],
-//! [`crate::paper::digest::nebula_lane_digest`]) and of the §6.3
-//! transition itself — [`enforce_nebula_advance_circuit`] (the per-claim
-//! equalities and `D_seen` chain updates) and
-//! [`enforce_nebula_close_circuit`] (the segment-close equalities,
-//! including the product equation as two in-circuit K-mults, and the
-//! reset that never touches `ts`).
+//! Owns: lane wire allocation, delayed-input decoding, verifier-driven gamma
+//! transcript derivation, lane digests, and open/advance/close constraints.
 //!
-//! Does not own: the segment-open γ squeeze (that composes the sponge
-//! transcript circuit and lands with the F′ transcript wiring), lane
-//! *commitment* semantics (`relations/lanes.rs`), or any native
-//! authority — today the lifecycle enforces §6.3 natively
-//! (`construction2::nebula_lane`); these gadgets are the rows that
-//! obligation transfers onto when F′ instances become foldable.
+//! Does not own: native lane semantics, outer `F'` branch orchestration, or lane
+//! commitment semantics.
 //!
-//! **Soundness Invariant I-5** (same as `digest_circuit`): every mirror
-//! here moves in lockstep with its native twin, enforced byte-for-byte
-//! by the parity tests in `tests/f_prime/nebula_lane_circuit.rs`.
+//! Emits constraints: yes, including Poseidon2, transcript, range, equality,
+//! selector, chain, and extension-field product rows.
+//!
+//! Authority boundary: lane state and gamma are authoritative only when the
+//! outer relation binds context/input wires and these rows recompute every
+//! digest and validate the transition.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Lane representation | [`alloc_nebula_lane_wires`] and decoders | yes | Bound native/input values |
+//! | Segment open | [`enforce_nebula_maybe_open_circuit`] | yes | Verifier-bound context transcript |
+//! | Advance and close | [`enforce_nebula_advance_circuit`], [`enforce_nebula_close_circuit`] | yes | Checked carried lane and claim wires |
+//! | Lane digest | `enforce_nebula_*digest*_circuit` | yes | Recomputed lane fields |
 
 use neo_math::field::KExtensions;
 use neo_math::{F, K};
@@ -32,7 +30,7 @@ use crate::engine::r1cs_circuit::field_ext::{enforce_k_mul, KLc, KVar};
 use crate::engine::r1cs_circuit::mux::enforce_mux_var;
 use crate::engine::r1cs_circuit::poseidon2::{enforce_poseidon2_hash, DIGEST_LEN};
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
-use crate::paper::construction2::nebula_lane::{NebulaLane, NEBULA_GAMMA_TRANSCRIPT_LABEL};
+use crate::paper::construction2::nebula_lane::{DelayedNebulaStepX, NebulaLane, NEBULA_GAMMA_TRANSCRIPT_LABEL};
 use crate::paper::construction2::nebula_lane::{K_LIMB_BITS, MAX_STACKS, SEG_IDX_BITS, STEP_IDX_BITS, TS_BITS};
 use crate::paper::construction2::StackShape;
 use crate::paper::digest::{
@@ -198,10 +196,8 @@ pub enum NebulaStepXDecodeError {
     Length { expected: usize, got: usize },
 }
 
-pub const NEBULA_D_PRE_BITS: usize = 3 * DIGEST_LEN * K_LIMB_BITS;
-
 pub const fn delayed_nebula_public_suffix_len(stacks: StackShape) -> usize {
-    stacks.x_bits() + 1 + NEBULA_D_PRE_BITS
+    DelayedNebulaStepX::encoded_len(stacks)
 }
 
 /// Previous fresh claim data needed by the delayed Nebula transition.

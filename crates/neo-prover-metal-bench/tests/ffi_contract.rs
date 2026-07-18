@@ -50,6 +50,7 @@ fn ffi_rejects_invalid_output_pointers() {
 }
 
 #[test]
+#[cfg(target_vendor = "apple")]
 fn ffi_returns_a_parity_checked_smoke_report() {
     let configuration =
         serde_json::to_vec(&neo_prover_metal_bench::BenchmarkConfig::smoke()).expect("serialize smoke configuration");

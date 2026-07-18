@@ -14,12 +14,16 @@
 
 pub mod compiler;
 pub mod encoder;
+pub mod full_relation;
 pub mod instance;
 pub mod ivc;
 pub mod lifecycle;
 pub mod lowering;
 mod selective;
 mod selective_audit;
+mod selective_census;
+mod selective_row_artifact;
+mod selective_selector_coverage;
 pub mod structure;
 mod ternary_encoding;
 
@@ -28,6 +32,10 @@ pub use compiler::{
     R1csFPrimeStepInput, R1csFoldForStep,
 };
 pub use encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
+pub use full_relation::{
+    semantic_state_digest_fields, FullFPrimeBranchExecution, FullFPrimeContext, FullFPrimeError, FullFPrimeExecution,
+    FullFPrimeRelation, FullFPrimeShape,
+};
 pub use instance::build_instance;
 pub use lifecycle::{prove_encoded_steps, R1csChainBuilder};
 pub use lowering::{
@@ -47,7 +55,21 @@ pub use selective::{
     build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
 };
 pub use selective_audit::{
-    SelectiveArmWidthAudit, SelectiveFamilyWidthAudit, SelectiveLowNormWidthAudit, SelectiveTraceWidthAudit,
+    SelectiveArmRowMappingAudit, SelectiveArmWidthAudit, SelectiveCompilerAudit, SelectiveEmittedRowFamily,
+    SelectiveEmittedRowRunAudit, SelectiveFamilyWidthAudit, SelectiveLayoutAudit, SelectiveLowNormWidthAudit,
+    SelectiveRewriteAudit, SelectiveRewriteId, SelectiveRewriteKind, SelectiveRowMappingAudit,
+    SelectiveSourceRowDisposition, SelectiveSourceRowRunAudit, SelectiveTraceWidthAudit,
+};
+pub use selective_census::{
+    SelectiveMatrixTag, SelectivePortCensus, SelectiveStructureCensus, SelectiveStructureCensusError,
+};
+pub use selective_row_artifact::{
+    SelectiveMatrixRow, SelectiveRowArtifact, SelectiveRowArtifactError, SelectiveRowTerm,
+    SELECTIVE_ROW_ARTIFACT_SCHEMA_VERSION,
+};
+pub use selective_selector_coverage::{
+    SelectiveGatePort, SelectiveSelectorGateCoverage, SelectiveSelectorGateCoverageError, SelectiveSelectorGateRun,
+    SelectiveSelectorPolynomialTerm, SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION,
 };
 pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
 

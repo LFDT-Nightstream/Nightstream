@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.ShiftedTernary.Generated.ShiftedTernaryArtifact
+import Nightstream.Implementation.R1CS.Artifacts.ShiftedTernary
 
 /-!
 Contract: semantic compiler for the canonical 41-trit SIS field encoding.
@@ -152,7 +152,7 @@ private theorem goldilocks_negative_product :
           (((18446744069414584321 - 1) +
             (18446744069414584321 - 1)) % 18446744069414584321) %
         18446744069414584321 = 2 := by
-  native_decide
+  decide
 
 theorem digitRows_sound
     (prime : EuclidPrime goldilocksP)

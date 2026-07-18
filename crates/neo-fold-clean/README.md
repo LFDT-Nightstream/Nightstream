@@ -5,7 +5,7 @@ A paper-faithful, audit-first re-implementation of the SuperNeo IVC integrator.
 ## What this crate is
 
 The integrator on top of the protocol-primitive crates (`neo-reductions`,
-`neo-ccs`, `neo-ajtai`, `neo-transcript`, `neo-math`, `neo-params`, `spartan2`).
+`neo-ccs`, `neo-ajtai`, `neo-transcript`, `neo-math`, and `neo-params`).
 It owns:
 
 - The three reductions Π_CCS / Π_RLC / Π_DEC, in paper order, as a thin facade

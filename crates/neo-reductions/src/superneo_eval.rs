@@ -965,14 +965,6 @@ impl SuperneoZBlocks {
         self.imag_all_zero
     }
 
-    /// Packed positive/negative masks when the real plane is signed-unit.
-    pub fn signed_unit_masks(&self) -> Option<(&[u64], &[u64])> {
-        match &self.re {
-            RealBlockStorage::SignedUnit { positive, negative } => Some((positive, negative)),
-            _ => None,
-        }
-    }
-
     /// Real coefficient plane as canonical words in `[block][D]` layout.
     pub fn re_plane_words(&self) -> Vec<u64> {
         let mut words = vec![0; self.re.len() * D];

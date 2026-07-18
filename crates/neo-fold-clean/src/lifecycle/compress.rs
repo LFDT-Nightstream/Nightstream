@@ -121,6 +121,11 @@ fn finish_uncompressed_with_audit_inner(
     }
     check_trailing_latest_batch_size(prep, &state)?;
 
+    let lanes = prep.nebula().map(|cfg| &cfg.scheme);
+    let delayed_nebula = prep
+        .enforces_terminal_induction()
+        .then(|| prep.nebula())
+        .flatten();
     let (post_state, final_fold) = if let Some(adapter) = adapter {
         construction2::prove_final_fold_with_adapter(
             adapter,
@@ -132,10 +137,8 @@ fn finish_uncompressed_with_audit_inner(
             prep.mix_rhos_commits,
             prep.combine_b_pows,
             &prep.vk,
-            prep.nebula().map(|cfg| &cfg.scheme),
-            prep.enforces_terminal_induction()
-                .then(|| prep.nebula())
-                .flatten(),
+            lanes,
+            delayed_nebula,
             state,
             prep.semantic_state_mode,
         )?
@@ -150,10 +153,8 @@ fn finish_uncompressed_with_audit_inner(
             prep.mix_rhos_commits,
             prep.combine_b_pows,
             &prep.vk,
-            prep.nebula().map(|cfg| &cfg.scheme),
-            prep.enforces_terminal_induction()
-                .then(|| prep.nebula())
-                .flatten(),
+            lanes,
+            delayed_nebula,
             state,
             prep.semantic_state_mode,
         )?

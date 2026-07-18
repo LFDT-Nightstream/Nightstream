@@ -60,12 +60,15 @@ pub fn decompose_var_to_u64_bits(builder: &mut R1csBuilder, var: Var) -> [Var; U
         return bits;
     }
 
-    let bits = decompose_var_to_u64_bits_inner(builder, var);
-    builder.record_canonical_u64_decomposition(var, bits);
+    let row_start = builder.rows();
+    let (bits, high_is_max, inverse) = decompose_var_to_u64_bits_inner(builder, var);
+    let source_rows = row_start..builder.rows();
+    debug_assert_eq!(source_rows.len(), 69, "canonical-u64 source schedule changed");
+    builder.record_canonical_u64_decomposition(var, bits, high_is_max, inverse, source_rows);
     bits
 }
 
-fn decompose_var_to_u64_bits_inner(builder: &mut R1csBuilder, var: Var) -> [Var; U64_BITS] {
+fn decompose_var_to_u64_bits_inner(builder: &mut R1csBuilder, var: Var) -> ([Var; U64_BITS], Var, Var) {
     // 1. Take canonical u64 from the witness value.
     let raw: F = builder.witness()[var.col()];
     use p3_field::PrimeField64;
@@ -130,7 +133,7 @@ fn decompose_var_to_u64_bits_inner(builder: &mut R1csBuilder, var: Var) -> [Var;
     // Constraint C: `hi_is_max * lo == 0` — the canonicity gate.
     builder.enforce(&Lc::from_var(hi_is_max), &lo_lc, &Lc::zero());
 
-    bits
+    (bits, hi_is_max, inv)
 }
 
 /// Enforce that a previously-allocated bit array represents valid bits.

@@ -4,9 +4,19 @@ use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{
-    split_chi_coeffs, DenseBlockStore, RingEvalScratch, SuperneoEvalCache, SuperneoMatrixCache,
-    SuperneoRingLinearBlock, SuperneoRingLinearForm,
+    split_chi_coeffs, DenseBlockStore, RealBlockStorage, RingEvalScratch, SuperneoEvalCache, SuperneoMatrixCache,
+    SuperneoRingLinearBlock, SuperneoRingLinearForm, SuperneoZBlocks,
 };
+
+impl SuperneoZBlocks {
+    /// Packed positive/negative masks when the real plane is signed-unit.
+    pub fn signed_unit_masks(&self) -> Option<(&[u64], &[u64])> {
+        match &self.re {
+            RealBlockStorage::SignedUnit { positive, negative } => Some((positive, negative)),
+            _ => None,
+        }
+    }
+}
 
 impl SuperneoMatrixCache {
     /// Whether this matrix has a compact seeded Phi81 component.

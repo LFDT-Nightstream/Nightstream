@@ -1,20 +1,22 @@
-//! Circuit view of [`FPrimeSourceImage`].
+//! R1CS interpretation of [`FPrimeSourceImage`] boundary bits.
 //!
-//! Allocates one bit-valued witness wire per source-image coordinate,
-//! enforces bitness on each, and exposes decoded `u64`/Goldilocks words
-//! as *linear combinations* over those bits.
+//! Owns: bit allocation, word decoding, Goldilocks canonicality, and local
+//! base/extension-field arithmetic over typed image ranges.
 //!
-//! Use this for values that are intentionally part of a low-norm
-//! **boundary** encoding — e.g., the `enc_inst(x_out)` bits that become a
-//! fresh CCS instance's public input, or the u64 counters that flow into
-//! the same instance. Do **not** treat this module as permission to
-//! bit-route every internal F' field value. Internal field values may
-//! remain ordinary computed values until the separate `enc(F')` design
-//! (see `encoding.md`) says how the private F' witness is represented as
-//! a low-norm CCS assignment.
+//! Does not own: native image layout, the complete `F'` relation, or authority
+//! of values that consume the decoded linear combinations.
 //!
-//! Goldilocks canonicality (`v < p = 2^64 - 2^32 + 1`) is enforced
-//! separately via [`enforce_goldilocks_word_canonical`].
+//! Emits constraints: yes, for bitness, canonicality, multiplication, equality,
+//! and affine arithmetic.
+//!
+//! Authority boundary: decoded values are authoritative only after their source
+//! bits are constrained and an outer relation binds the resulting combinations.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Bit allocation and decoding | [`SourceImageWires`] | yes | Typed source-image ranges |
+//! | Canonical field words | [`enforce_goldilocks_word_canonical`] | yes | Constrained 64-bit decomposition |
+//! | Word and K arithmetic | `enforce_*word*` helpers | yes | Bound decoded operands |
 
 use neo_math::{Fq, KExtensions, F, K};
 use p3_field::extension::BinomiallyExtendable;

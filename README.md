@@ -13,7 +13,7 @@ Nightstream is a **post-quantum** proving system built around a lattice-based fo
 - SuperNeo folding pipeline Π_CCS → Π_RLC → Π_DEC (`neo-reductions`, optimized + paper-exact engines)
 - IVC lifecycle in `neo-fold-clean`: `prove` / `extend` a chain of CCS step instances, `finish_uncompressed` or `compress`, then `verify`
 - F′ recursive-step shell: a low-norm bit-image layout, mixed-gate CCS structure, encoder, and R1CS compiler for stateful step functions
-- Spartan2-backed decider and terminal-CE relation checks
+- Decider statement synthesis and terminal-CE relation checks; compact backend wiring is pending
 - Red-team suites (`crates/neo-fold-clean/tests/system/lifecycle_redteam.rs` and friends) for tamper resistance on the lifecycle path
 
 ---
@@ -82,7 +82,7 @@ crates/neo-fold-clean/src/
                     stateful R1CS step compiler, recursive plan
     r1cs_f_prime/   Bellpepper-style R1CS → F′ instance builder
   engine/           Optimized execution: Π wrappers, CCS-native Poseidon2
-                    gadgets, R1CS circuit builder, Spartan2 decider
+                    gadgets, R1CS circuit builder, decider synthesis
 ```
 
 ### Per-chunk Folding Flow
@@ -128,7 +128,9 @@ let proof = lifecycle::finish_uncompressed(&prep, audit)?;  // close the chain
 lifecycle::verify_uncompressed(&prep, &proof)?;
 ```
 
-`lifecycle::compress` produces the Spartan2-compressed form checked by `lifecycle::verify`.
+`lifecycle::compress` currently builds and validates the terminal statement, then
+fails closed because no compact backend is connected. `toy-spartan` and its WHIR PCS
+remain standalone by design.
 
 ---
 
@@ -142,7 +144,7 @@ lifecycle::verify_uncompressed(&prep, &proof)?;
 | [`docs/architecture/`](docs/architecture/)                    | Design notes: terminal-CE proof, accumulator openings, perf   |
 | [`docs/audits/`](docs/audits/)                                | Internal soundness-audit reports                              |
 | [`docs/plans/`](docs/plans/)                                  | Design and implementation plans                               |
-| [`formal/superneo-lean/README.md`](formal/superneo-lean/README.md) | Lean theorem-facing model (mathematical source of truth) |
+| [`formal/nightstream-lean/README.md`](formal/nightstream-lean/README.md) | Active assurance-first Lean model and evidence boundaries |
 
 ### 2. Run Tests
 
@@ -180,7 +182,7 @@ cargo test -p neo-reductions --release
 | **F′**             | Augmented recursive-step relation (HyperNova §6)            | `neo-fold-clean/src/frontends/f_prime/`                        |
 | **Construction 2** | IVC chain state + per-step fold proof                       | `neo-fold-clean/src/paper/construction2/`                      |
 | **Decider**        | Terminal check of the folded accumulator                    | `neo-fold-clean/src/engine/decider.rs`, `paper/terminal_ce/`   |
-| **Spartan2**       | Backend for compressed final proofs                         | `crates/spartan2`                                              |
+| **Toy Spartan**    | Standalone Spartan/WHIR backend; not lifecycle-connected    | `crates/toy-spartan`                                           |
 
 ---
 
@@ -212,13 +214,17 @@ For CPU/memory profiling see [`scripts/profile_for_ai.sh`](scripts/profile_for_a
 
 ### Formal (Lean)
 
-| Subproject                                                                 | Purpose                                                  |
-|-----------------------------------------------------------------------------|----------------------------------------------------------|
-| [`formal/superneo-lean/`](formal/superneo-lean/)                            | Main SuperNeo theorem-facing model (source of truth)     |
-| [`formal/direct-ccs-fprime-lean/`](formal/direct-ccs-fprime-lean/)          | Direct-CCS F′ model                                      |
-| [`formal/twist-shout-lean/`](formal/twist-shout-lean/)                      | Twist/Shout memory-argument model                        |
+[`formal/nightstream-lean/`](formal/nightstream-lean/) is the active formal
+project. Its specification, assurance tiers, generated-artifact policy, and
+validation commands are documented in that project's
+[`README.md`](formal/nightstream-lean/README.md) and
+[`AGENTS.md`](formal/nightstream-lean/AGENTS.md).
 
-See [`CLAUDE.md`](CLAUDE.md) for the spec/interface/implementation layout and closure standard.
+The sibling Lean packages under `formal/` are legacy reference material. The
+active project imports no theorem from them; any useful lemma or
+counterexample must be reviewed and re-established inside
+`formal/nightstream-lean` before it contributes assurance. Those directories
+are therefore not semantic authorities for Rust or R1CS changes.
 
 ---
 
@@ -250,7 +256,7 @@ Specific caveats:
 crates/
   neo-params/      Parameter bundles + Poseidon2 config
   neo-math/        Field/ring utilities, extension field, norms
-  spartan2/        Vendored Spartan2 backend
+  toy-spartan/     Standalone Spartan backend with WHIR PCS
   neo-transcript/  Poseidon2 transcript (Fiat-Shamir)
   neo-ajtai/       Ajtai (lattice) commitments; module-SIS binding
   neo-ccs/         CCS/MCS/ME relations, matrices, arithmetization
@@ -295,7 +301,7 @@ See [`TODO.md`](TODO.md) for in-flight work.
 
 - **Neo**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields](https://eprint.iacr.org/2025/294)" (ePrint 2025/294).
 - **HyperNova**: Abhiram Kothapalli & Srinath Setty, "HyperNova: Recursive arguments for customizable constraint systems". Local text: [`docs/hypernova-paper/`](docs/hypernova-paper/).
-- **Spartan2**: Srinath Setty, "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020). Vendored in [`crates/spartan2`](crates/spartan2).
+- **Toy Spartan**: fork of Srinath Setty's "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020), with a standalone WHIR PCS. See [`crates/toy-spartan`](crates/toy-spartan).
 - **Plonky3**: Goldilocks field and Poseidon2 primitives used by Nightstream.
 
 ---

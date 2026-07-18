@@ -1,31 +1,22 @@
-//! In-circuit mirrors of the Construction-2 hash-chain digests.
+//! Poseidon2 R1CS mirrors of the native `F'` digest functions.
 //!
-//! Each gadget here is the R1CS twin of a function in
-//! [`crate::paper::digest`]. The native side hashes a specific preimage
-//! layout via Poseidon2; the in-circuit side builds the same layout from
-//! wire-allocated inputs and constants and invokes
-//! [`enforce_poseidon2_hash`] to produce a `[Var; 4]` digest.
+//! Owns: exact in-circuit preimage construction, domain constants, and digest
+//! rows for the `F'` public and state links.
 //!
-//! **Soundness Invariant I-5**: any change here must move in lockstep with
-//! the native `digest::*` it mirrors. Parity is enforced by the tests in
-//! `tests/f_prime/digest_circuit.rs`.
+//! Does not own: caller input authority, native digest semantics, or outer
+//! recursive-step orchestration.
 //!
-//! ## Domain constants
+//! Emits constraints: yes, through the Poseidon2 and canonical-u64 gadgets.
 //!
-//! The hot canonical `state_x_out` hash uses a compact single-field
-//! domain ID instead of a byte-packed ASCII tag. The legacy
-//! `boundary_update` helper uses the same compact-domain convention, even
-//! though the canonical F' image no longer emits that trace.
+//! Authority boundary: every digest is recomputed from supplied wires and is
+//! authoritative only when those inputs are verifier-bound; a carried digest is
+//! never accepted by itself.
 //!
-//! Legacy helpers that are no longer emitted in the canonical F' image
-//! still mirror native `pack_bytes_as_fields(bytes)`, where the static tag
-//! is laid out as:
-//!
-//!   - `F[0] = bytes.len() as u64`
-//!   - `F[i+1] = u64::from_le_bytes([bytes[7i..7i+7], 0])` for i = 0..ceil(len/7)
-//!
-//! Since those tags are `&'static [u8]`, we precompute this F-sequence at
-//! gadget-emit time and bind each entry to a constant wire.
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Chunk public digest | [`enforce_f_prime_chunk_public_digest_circuit`] | yes | Verifier-owned shape and start index |
+//! | State/public links | update-digest gadgets | yes | Bound prior state and chunk wires |
+//! | Public `x_out` | [`enforce_state_x_out_digest_circuit`] | yes | Bound state and accumulator inputs |
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -37,6 +28,9 @@ use crate::paper::digest::{
     StateXOutDigestMode, F_PRIME_BOUNDARY_UPDATE_DOMAIN, F_PRIME_CHUNK_CLAIM_DIGEST_TAG,
     F_PRIME_CHUNK_PUBLIC_DIGEST_TAG, F_PRIME_STATE_X_OUT_DOMAIN, NEBULA_ADV_PRESENT_MARKER,
 };
+use crate::paper::params::Params;
+
+const VK_FS_TAG: &[u8] = b"neo.fold.clean/vk_fs/v2";
 
 /// Recompute the F' step/shape digest from verifier-owned claim geometry and
 /// the in-circuit start index. The native digest deliberately excludes claim
@@ -98,6 +92,42 @@ pub fn enforce_public_trace_update_digest_circuit(
     input.extend_from_slice(&prev);
     input.extend_from_slice(&chunk_digest);
     enforce_poseidon2_hash(builder, &input)
+}
+
+/// Recompute the Construction-2 verifier-key digest from fixed-shape key
+/// wires. The matrix-dependent structure/header values and the initial state
+/// are witness data that this relation consumes and binds; none is embedded
+/// as an R1CS coefficient. Parameters and public-input width remain static
+/// capacity choices.
+pub fn enforce_vk_fs_digest_circuit(
+    builder: &mut R1csBuilder,
+    params: &Params,
+    structure_digest: [Var; DIGEST_LEN],
+    pi_ccs_header_bundle: [Var; DIGEST_LEN],
+    public_input_len: Option<usize>,
+    initial_semantic_state_digest: [Var; DIGEST_LEN],
+) -> [Var; DIGEST_LEN] {
+    let mut preimage = alloc_const_tag(builder, VK_FS_TAG);
+    preimage.extend_from_slice(&structure_digest);
+    preimage.extend_from_slice(&pi_ccs_header_bundle);
+    push_u64_halves_const(builder, &mut preimage, params.q());
+    preimage.push(alloc_constant(builder, F::from_u64(params.eta() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.d() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.kappa() as u64)));
+    push_u64_halves_const(builder, &mut preimage, params.m());
+    preimage.push(alloc_constant(builder, F::from_u64(params.b() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.k_rho() as u64)));
+    push_u64_halves_const(builder, &mut preimage, params.big_b());
+    preimage.push(alloc_constant(builder, F::from_u64(params.T() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.extension_degree() as u64)));
+    preimage.push(alloc_constant(builder, F::from_u64(params.lambda() as u64)));
+    push_u64_halves_const(
+        builder,
+        &mut preimage,
+        public_input_len.map_or(u64::MAX, |value| value as u64),
+    );
+    preimage.extend_from_slice(&initial_semantic_state_digest);
+    enforce_poseidon2_hash(builder, &preimage)
 }
 
 /// Inputs to [`enforce_state_x_out_digest_circuit`]. Mirrors the argument
@@ -195,11 +225,6 @@ fn enforce_state_x_out_digest_inner(
     enforce_poseidon2_hash(builder, &preimage)
 }
 
-// Accumulator-digest circuit lives in
-// `crate::paper::reductions::accumulator_digest_circuit` — see that module
-// for the verified-parent Construction-2 handle that binds HyperNova's `U_i`
-// as child CE-claim digests plus the Π_RLC parent-authority digest.
-
 // ── Internal helpers ──────────────────────────────────────────────────────
 
 /// Allocate constant wires for a packed domain tag — `pack_bytes_as_fields`
@@ -221,6 +246,11 @@ pub(crate) fn alloc_constant(builder: &mut R1csBuilder, c: F) -> Var {
     let v = builder.alloc(c);
     builder.enforce_eq(&Lc::from_var(v), &Lc::from_const(c));
     v
+}
+
+fn push_u64_halves_const(builder: &mut R1csBuilder, out: &mut Vec<Var>, value: u64) {
+    out.push(alloc_constant(builder, F::from_u64(value & 0xffff_ffff)));
+    out.push(alloc_constant(builder, F::from_u64(value >> 32)));
 }
 
 /// Split an F-valued Var (canonical u64 < p) into `(lo, hi)` 32-bit halves

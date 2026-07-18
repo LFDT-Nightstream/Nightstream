@@ -1,45 +1,23 @@
-//! App-agnostic recursive-step enforcement plan.
+//! Declarative image and hash-routing plan for one recursive `F'` step.
 //!
-//! Given a base image config (region sizes), produces the full
-//! [`FPrimeImageConfig`] for a real F' recursive step: every one-shot
-//! Poseidon hash is enforced with preimage sources read from the
-//! committed F' image regions, and the resulting digest is bound to the
-//! corresponding state-out lane. App frontends
-//! ([`fibonacci_f_prime`],
-//! [`crate::frontends::r1cs_f_prime`]) supply the per-app
-//! [`RecursiveStepImagePlan`] and reuse this builder.
+//! Owns: canonical state-lane indices, Poseidon preimage sources, digest-target
+//! bindings, and construction of [`FPrimeImageConfig`].
 //!
-//! Currently emits enforcements for the state-output hash whose
-//! preimage routes fully through F' image regions plus the protocol's
-//! compact domain constant:
+//! Does not own: trace witness generation, CCS row formulas, NIFS verification,
+//! or application semantics.
 //!
-//! 1. `state_x_out`: `H(vk_fs, state, new_acc_digest, …) → public_x_out`
+//! Emits constraints: no. The structure builder consumes this plan and emits
+//! the corresponding rows.
 //!
-//! The local chunk-shape coordinate `new_z_i` is constrained linearly to
-//! `chunk_digest` by the structure builder. Content authority lives on
-//! the NIFS accumulator path (`new_acc_digest`), so canonical unified
-//! mode does not spend a producer-side Poseidon trace on
-//! `H(prev_z_i, chunk_digest)`.
+//! Authority boundary: lane routes and constants are declarative; digest values
+//! become authoritative only when the consuming relation verifies their traces
+//! and binds their targets.
 //!
-//! The recursive accumulator handle (`new_acc_digest`) is deliberately not
-//! recomputed by a producer-side `H(parent.c_data...)` trace in this image.
-//! The composed decider consumes it at the next recursive step (or terminal
-//! fold) and checks it against the actual NIFS.V running accumulator.
-//!
-//! ## Invariants this module relies on
-//!
-//! Lane indices within `state_lanes` (28 state-in digest lanes + 18
-//! state-out lanes + 4 chunk-digest lanes = 50 total):
-//!
-//! - state-in digests: vk_fs (0..4), structure (4..8), z_0 (8..12),
-//!   z_i_in (12..16), semantic_state_digest_in (16..20),
-//!   acc_digest_in (20..24), public_trace_in (24..28)
-//! - state-out: new_chunk_count (28), new_step_count (29), new_z_i
-//!   (30..34), new_public_trace (34..38), new_semantic_state_digest
-//!   (38..42), new_acc_digest (42..46)
-//! - chunk_digest: (46..50)
-//!
-//! These match `fibonacci_structure::collect_state_lane_slots`.
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | State layout | `STATE_LANE_*` constants | no | Canonical image schema |
+//! | Hash preimages | `*_preimage_sources` | no | Verifier-owned domains and typed lanes |
+//! | Image config | [`build_recursive_step_image_config`] | no | [`RecursiveStepImagePlan`] |
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;

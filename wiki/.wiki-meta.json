@@ -36,7 +36,7 @@
     "crates/neo-ccs.md",
     "crates/neo-reductions.md",
     "crates/neo-fold-clean.md",
-    "crates/spartan2.md",
+    "crates/toy-spartan.md",
     "development/testing.md",
     "development/profiling.md",
     "formal/index.md",

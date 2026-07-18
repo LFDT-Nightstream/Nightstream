@@ -676,10 +676,10 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
 ///    constant term of `y_ring`, then `ct == M_j z(r)` transitively.
 /// 6. If `s_col/y_zcol` are present, `claim.y_zcol == Z · chi(s_col)`.
 ///    These are implementation-side NC-channel fields, not part of
-///    Definition 13's CE tuple. `y_zcol` is deliberately not recursive
-///    accumulator-handle authority, but when it is present in the
-///    terminal claim it still must be recomputed from the opened witness
-///    rather than trusted as sidecar data.
+///    Definition 13's CE tuple. The current recursive accumulator handle
+///    omits `y_zcol`; this is a known old-point authority gap, not a proved
+///    safe boundary. When `y_zcol` is present in the terminal claim it must
+///    still be recomputed from the opened witness rather than trusted.
 /// 7. Unsupported sidecar metadata (`aux_openings`, Pattern-A coordinates,
 ///    `u_offset/u_len`) must be absent. This clean SplitNc path does not
 ///    implement those fields, and accumulator-digested data cannot remain

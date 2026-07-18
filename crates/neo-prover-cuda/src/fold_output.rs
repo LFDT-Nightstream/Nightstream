@@ -11,7 +11,9 @@ use std::sync::{Arc, Mutex};
 use cuda_core::{CudaStream, DeviceBuffer};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_fold_clean::paper::digest::{ce_claim_digest, digest32_as_fields, AccumulatorHandle};
+use neo_fold_clean::paper::digest::{
+    accumulator_ce_claim_digest, ce_claim_digest, digest32_as_fields, AccumulatorHandle,
+};
 use neo_fold_clean::paper::nifs::{DeferredNifsRunningMaterializer, Error, NifsRunningCarrier};
 use neo_fold_clean::{CeClaim, RunningInstance};
 use neo_math::{D, F};
@@ -89,12 +91,13 @@ impl DeviceFoldOutput {
         if child_public_x.claims() != claim_shells.len() {
             return Err(backend_unavailable("device fold-output public X count mismatch"));
         }
-        // Nebula's v2 accumulator handle is authority over the Pi_RLC
-        // parent plus the child count. The parent is fully materialized by
-        // the adapter's projection-binding bridge before entering here.
+        // A valid nonempty Construction-2 handle is the checked parent's full
+        // accumulator CE digest directly. The child count only preserves the
+        // empty/malformed shape behavior.
         let parent_ce_digest = ce_claim_digest(&parent_shell);
+        let parent_accumulator_digest = accumulator_ce_claim_digest(&parent_shell);
         let accumulator_digest =
-            AccumulatorHandle::from_parent_digest(claim_shells.len(), Some(parent_ce_digest)).digest();
+            AccumulatorHandle::from_parent_digest(claim_shells.len(), Some(parent_accumulator_digest)).digest();
         let parent_authority = DeviceClaimAuthority::new(
             parent_shell,
             parent_surfaces,
@@ -132,10 +135,6 @@ impl DeviceFoldOutput {
 
     pub(crate) fn parent_authority(&self) -> &CeClaim {
         self.parent_authority.shell()
-    }
-
-    pub(crate) fn parent_ce_digest_fields(&self) -> [F; 4] {
-        self.parent_authority.ce_digest()
     }
 
     pub(crate) fn child_count(&self) -> usize {
@@ -229,10 +228,6 @@ impl DeviceClaimAuthority {
 
     fn shell(&self) -> &CeClaim {
         &self.shell
-    }
-
-    fn ce_digest(&self) -> [F; 4] {
-        self.ce_digest
     }
 
     fn materialize(&self) -> Result<CeClaim, Error> {

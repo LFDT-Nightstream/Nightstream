@@ -5,9 +5,12 @@
 
 use neo_ajtai::Commitment;
 use neo_ccs::LaneCommitments;
+use neo_fold_clean::frontends::nebula::layout::encode_delayed_f_prime_suffix;
 use neo_fold_clean::paper::construction2::{NebulaConfig, NebulaError, NebulaLane, NebulaStepX, StackShape};
 use neo_fold_clean::paper::digest;
-use neo_fold_clean::paper::relations::{LaneRanges, LaneScheme};
+use neo_fold_clean::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
+use neo_fold_clean::paper::f_prime::r1cs::{FPrimePublicInputLayout, F_PRIME_PUBLIC_INPUT_LEN};
+use neo_fold_clean::paper::relations::{CcsClaim, LaneRanges, LaneScheme};
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 
@@ -109,6 +112,41 @@ fn walk_honest_segment() -> (NebulaConfig, NebulaLane) {
         lane.advance(&cfg, &x, Some(tuple)).expect("honest advance");
     }
     (cfg, lane)
+}
+
+#[test]
+fn delayed_claim_decode_excludes_ring_carrier_padding() {
+    let advs: Vec<_> = (0..N).map(adv).collect();
+    let d_pre = honest_d_pre(&advs);
+    let cfg = config(d_pre[1]);
+
+    let mut opened = NebulaLane::base(&cfg);
+    open(&mut opened, &cfg, d_pre);
+    let step = honest_x(&opened);
+    let suffix = encode_delayed_f_prime_suffix(&step, cfg.stacks, Some(d_pre)).expect("encode delayed suffix");
+    let layout = FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(cfg.stacks));
+    assert!(
+        layout.carrier_padding_len() > 0,
+        "fixture must exercise carrier padding"
+    );
+
+    let mut x = vec![F::ZERO; F_PRIME_PUBLIC_INPUT_LEN];
+    x[0] = F::ONE;
+    x.extend(suffix);
+    x.resize(layout.total_len(), F::ZERO);
+    let claim = CcsClaim {
+        c: commitment(0),
+        x,
+        m_in: layout.total_len(),
+        adv: Some(advs[0].clone()),
+    };
+
+    let mut replayed = NebulaLane::base(&cfg);
+    replayed
+        .advance_for_delayed_claims(&cfg, [3; 32], [4; 32], [5; 32], F_PRIME_PUBLIC_INPUT_LEN, &[claim])
+        .expect("carrier padding is outside the delayed suffix");
+    assert_eq!(replayed.idx, 1);
+    assert_eq!(replayed.ts, 1);
 }
 
 #[test]

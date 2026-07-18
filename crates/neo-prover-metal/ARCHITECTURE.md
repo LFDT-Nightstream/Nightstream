@@ -2,20 +2,20 @@
 
 ## Scope and authority
 
-`neo-prover-metal` accelerates the prover-side `NifsProverAdapter` path on Apple GPUs. It owns device resources, resident prover state, and phase execution. It does not own transcript order, claim algebra, proof formats, or verification; those remain in `neo-fold-clean` (`src/lib.rs:1`, `src/adapter.rs:36`).
+`neo-prover-metal` accelerates the prover-side `NifsProverAdapter` path on Apple GPUs. It owns device resources, resident prover state, and phase execution. It does not own transcript order, claim algebra, proof formats, or verification; those remain in `neo-fold-clean`.
 
-A Metal result is never verifier authority by itself. Deferred carriers eventually materialize an ordinary `NifsProof`, and the canonical verifier recomputes protocol-binding digests from claims (`src/fold_output.rs:37`, `src/fold_output.rs:66`).
+A Metal result is never verifier authority by itself. Deferred carriers eventually materialize an ordinary `NifsProof`, and the canonical verifier recomputes protocol-binding digests from claims.
 
 ## Public entry points
 
 | Entry point | Location | Responsibility |
 |---|---|---|
-| `MetalNifsProver::new` | `src/adapter.rs:87` | Create one prover and its device session. |
-| `MetalNifsProver::prepare_static` | `src/adapter.rs:109` | Prepare reusable Ajtai, lane, FE-oracle, and DEC-form plans. |
+| `MetalNifsProver::new` | `src/adapter.rs` | Create one prover and its device session. |
+| `MetalNifsProver::prepare_static` | `src/adapter.rs` | Prepare reusable Ajtai, lane, FE-oracle, and DEC-form plans. |
 | `NifsProverAdapter::build_fresh_instances` | `src/adapter.rs` | Pack low-norm witnesses and construct canonical fresh claims. |
 | `NifsProverAdapter::prove` | `src/adapter.rs` | Delegate one online fold to the phase flow. |
 | `MetalNifsProver::last_profile` | `src/adapter.rs` | Expose measurements and routing decisions for the last fold. |
-| `MetalSession` primitive methods | `src/session.rs:163` | Run arithmetic and hashing primitives used by tests and higher layers. |
+| `MetalSession` primitive methods | `src/session.rs` | Run arithmetic and hashing primitives used by tests and higher layers. |
 
 ## Module ownership
 
@@ -36,7 +36,7 @@ A Metal result is never verifier authority by itself. Deferred carriers eventual
 | `src/session/dec/forms.rs` | Static and per-fold ring-form construction | Child witness lifecycle |
 | `src/session/dec/split.rs` | Split, projection, validation, and child residency | Claim construction |
 | `src/session/carrier.rs` | Device-resident running-child ownership | Public proof carrier |
-| `src/fold_output.rs` | Shared deferred proof/running authority | GPU buffers |
+| `src/fold_output.rs` | Shared deferred proof/running materialization state | GPU buffers |
 | `src/unsupported.rs` | Type-compatible unavailable implementation | Apple execution |
 | `shaders/*.metal` | Arithmetic kernels | Scheduling and protocol decisions |
 
@@ -48,47 +48,85 @@ fresh assignments
        └─ Π_CCS
             FE: resident row state / Ajtai Y evaluation
             NC: the same witness masks, compact column state
+            canonical transcript and proof assembly in neo-fold-clean
              └─ Π_RLC
                   resident random linear combination
-                  Poseidon2/SIS parent digest
+                  canonical SIS/Ajtai + Poseidon2 projection digest
+                  canonical Poseidon2 accumulator_ce_claim_digest
                    └─ Π_DEC
                         resident base-2 split
                         range + recomposition validation
                         child projections + commitments
                          └─ shared MetalFoldOutput
+                              consistent Pi_RLC parent and Pi_DEC children
+                              session ownership + generation id
                               deferred canonical proof
                               deferred resident running carrier
+                              verifier-visible post-fold summary
 ```
 
-The short orchestration is in `src/adapter/fold.rs:61`. Named phase results make ownership explicit: Π_CCS passes its NC backend into Π_RLC so shared masks remain usable, Π_RLC passes one resident mixed witness into Π_DEC, and Π_DEC returns the next running generation.
+The short orchestration is in `src/adapter/fold.rs`. Named phase results make ownership explicit: Π_CCS passes its NC backend into Π_RLC so shared masks remain usable, Π_RLC passes one resident mixed witness into Π_DEC, and Π_DEC returns the next running generation.
 
 ## Residency and transfers
+
+The next Pi_CCS call uses virtual host witness shells for shape and reads the
+carried assignment from session-owned resident sign masks. Fresh inputs remain
+host-supplied. The backend-owned child witness planes remain resident for the
+next recursive fold.
 
 - `MetalSession` owns buffers and recycling slots; protocol code handles opaque plans rather than raw Metal objects.
 - Fresh signed-unit masks are uploaded once and reused by FE, NC, Π_RLC, and lane commitments when shapes match.
 - Π_RLC returns a resident witness, not a host matrix.
 - Π_DEC retains child witness planes through carrier egress and returns an opaque generation id that the next fold can reuse.
-- Host materialization is deferred until proof egress, audit, or a stale/mismatched carrier requires the canonical path.
-- Activity counters report allocation, upload, download, dispatch, command-buffer, and wait totals (`src/lib.rs:91`, `src/session.rs:1138`).
+- Public proof surfaces materialize at egress; private running witnesses materialize only at an explicit CPU or audit boundary. Cross-session, stale, and shape-mismatched carriers fail closed before virtual witness shells enter proving.
+- Ajtai commitment plans are reused only when dimensions and the exact seed or materialized setup identity match.
+- Activity counters report allocation, upload, download, dispatch, command-buffer, and wait totals.
 
-The primary and independent Metal queues are session-owned (`src/session.rs:58`). Queue choice stays inside the device layer. Independent proof chains are parallelized above a session; the two-chain WASM benchmark is the current integration check.
+## Authority and cache identity
+
+The verifier never trusts a Metal-only digest, buffer, or generation id.
+Every Metal-produced proof materializes as an ordinary `NifsProof` and is
+checked by the canonical CPU verifier. The resident accumulator shortcut
+carries exactly the Poseidon2 `accumulator_ce_claim_digest` of its Pi_RLC
+parent; the SIS-backed `ce_claim_digest` is never substituted in that slot. The
+post-fold summary derives from the same canonical parent digest. The v1 accumulator
+CE-core digest omits `y_zcol`, and Metal residency does not close the known
+old-point authority gap. Binding that delayed parent projection into
+accumulator authority remains open.
+
+The proof and running carriers share one materialization state with a
+consistent Pi_RLC parent and Pi_DEC children. The proof reconstructs those
+surfaces from the shared object rather than retaining duplicate claims; the
+canonical NIFS verifier subsequently authenticates them. `MetalSession` owns
+the current reusable device generation, while `MetalFoldOutput` retains an
+immutable mask snapshot for explicit materialization. A stale or branched
+generation cannot select the wrong buffer: it is rejected before the virtual
+witness shells enter the prover. Terminal finalization consumes the same
+carrier before materializing the final protocol object.
+
+Fresh Ajtai plans bind dimensions and kappa to the exact setup seed or
+materialized public-parameter allocation. FE and DEC plans bind cache identity
+and matrix digest. Lane plans bind seeds and ranges, are prepared even for an
+empty fresh batch, and are revalidated at Pi_DEC entry.
+
+The primary and independent Metal queues are session-owned. Queue choice stays inside the device layer. Parallel proof chains use independent sessions; the two-chain WASM benchmark is the current integration check.
 
 ## Build and target selection
 
-`build.rs` selects the Apple SDK from Cargo's target, compiles the shader entry source with Metal 3.0, links `nightstream-metal.metallib`, and emits canonical Poseidon2 constants (`build.rs:5`). Apple builds with a compiled shader library use `session`; other targets use `unsupported` while preserving the Rust API surface (`src/lib.rs:19`).
+`build.rs` selects the Apple SDK from Cargo's target, compiles the shader entry source with Metal 3.0, links `nightstream-metal.metallib`, and emits canonical Poseidon2 constants. Apple builds with the Cargo `metal` feature and compiled shaders use `session`; feature-disabled or shaderless builds use `unsupported` while preserving the Rust API surface. Enabling `metal` on a non-Apple target is rejected at compile time.
 
-There are no runtime feature flags or environment variables owned by this crate. Xcode selection follows `xcode-select`, then the standard Xcode application path (`build.rs:81`).
+There are no crate-owned runtime flags or environment variables. Xcode selection follows `xcode-select`, then the standard Xcode application path.
 
 ## Tests and performance gates
 
 | Check | Location | Protects |
 |---|---|---|
 | Arithmetic parity | `tests/metal_arithmetic.rs` | Goldilocks, extension, Poseidon2, and primitive execution |
-| NIFS parity and tamper rejection | `tests/nifs_adapter.rs` | Exact CPU/Metal claims, proof bytes, residency, canonical rejection |
+| NIFS parity and tamper rejection | `tests/nifs_adapter.rs` | Exact CPU/Metal authority and reduction-log parity, residency, canonical rejection |
 | Compact NC reference checks | `tests/nc_compact_window.rs` | Window folding and signed-mask equivalence |
-| Digest parity | `tests/sis_digest.rs` | Canonical protocol preimages and Poseidon2/SIS output |
+| Projection-digest parity | `tests/sis_digest.rs` | Metal SIS/Ajtai + Poseidon2 projection digest matches the canonical implementation |
 | Lifecycle crossover/sustained gate | `../neo-prover-metal-bench/tests/benchmark_contract.rs` | End-to-end performance with proof validity |
-| Authentic WASM + Nebula gate | `../neo-prover-metal-bench/tests/wasm_nebula.rs` | Wasmtime trace through Nebula proving and canonical verification |
+| Authentic WASM + Nebula diagnostic | `../neo-prover-metal-bench/tests/wasm_nebula.rs` | Ignored integration benchmark from Wasmtime trace through Nebula proving and canonical verification |
 
 Performance numbers are deliberately not embedded here because they are machine- and revision-specific. The benchmark JSON and raw ordered samples are the source of truth.
 

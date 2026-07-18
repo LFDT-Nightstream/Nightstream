@@ -118,8 +118,9 @@ pub enum Error {
     #[error(
         "verify_uncompressed: recorded final accumulator claim {index} optional NC channel \
          `y_zcol` does not equal the projection `Z · chi(s_col)` from the opened witness. \
-         `y_zcol` is not recursive accumulator-handle authority, but when present in the \
-         terminal claim it must be recomputed from terminal witness authority rather than trusted."
+         the current recursive accumulator handle does not bind `y_zcol`; this is a known \
+         old-point authority gap. At the terminal claim it must be recomputed from witness \
+         authority rather than trusted."
     )]
     FinalAccumulatorNcChannelMismatch { index: usize },
     #[error(
@@ -249,7 +250,7 @@ pub struct Preprocessing {
     /// [`Preprocessing::with_nebula`]; every extend on a Nebula
     /// preprocessing runs the §6.3 lane transition.
     pub(crate) nebula: Option<std::sync::Arc<crate::paper::construction2::NebulaConfig>>,
-    /// Optional prover backend for NIFS.P.
+    /// Selected prover backend for NIFS.P.
     ///
     /// Defaults to [`NifsProverBackend::Cpu`]. This is a prover-side
     /// selection only; verifiers always replay NIFS.V from proof material and
@@ -318,9 +319,11 @@ pub struct Preprocessing {
     /// computed once at preprocess time; protocol code reads this field
     /// instead of recomputing the digest on every step.
     structure_digest: [F; 4],
-    /// SplitNc transcript header derived from `(params, structure, dims,
-    /// matrix_digest)`. It is part of `vk_fs` and enters folded F' as
-    /// witness data, never as a self-referential matrix constant.
+    /// Canonical SplitNc Π_CCS transcript header for this exact
+    /// `(params, structure)`. It is part of `vk_fs` and enters folded F' as
+    /// verifier-key data, never as a self-referential matrix constant.
+    /// It is part of `vk_fs` because the in-circuit NIFS verifier consumes it
+    /// rather than baking its matrix-dependent value into the relation.
     pi_ccs_header_bundle: [F; 4],
     /// Memoized optimized-engine cache for this structure (sparse + SuperNeo
     /// eval tables + matrix digest). Verifier-derived; built once at

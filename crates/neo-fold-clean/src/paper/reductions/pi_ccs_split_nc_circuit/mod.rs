@@ -1,5 +1,23 @@
 //! Π_CCS.V in-circuit verifier — SplitNcV1 variant.
 //!
+//! Owns: the public module boundary and shared wire helpers.
+//!
+//! Does not own: native Pi_CCS semantics or downstream Pi_RLC verification.
+//!
+//! Emits constraints: only through shared allocation helpers.
+//!
+//! Authority boundary: [`verifier`] composes the leaves; this module only
+//! exports their narrow public surface.
+//!
+//! | Child module | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | `verifier` | Ordered Pi_CCS verification | yes | `verifier.rs` | end-to-end bridge open |
+//! | `digests` | Claim, instance, and output binding | yes | `digests.rs` | digest bridges open |
+//! | `transcript` | Exact Poseidon2 absorb/squeeze schedule | yes | `transcript.rs` | transcript bridge open |
+//! | `fe` | FE initial claim, SumCheck, terminal identity | yes | `fe.rs` | FE bridge open |
+//! | `nc` | NC SumCheck and terminal identity | yes | `nc.rs` | NC bridge open |
+//! | `stage` | Stable diagnostic ownership | no | `stage.rs` | no theorem claim |
+//!
 //! Owns the byte-for-byte mirror of the verifier path that
 //! [`crate::engine::optimized::verify_pi_ccs`] runs natively. That path is:
 //!
@@ -19,21 +37,6 @@
 //! Every `nifs::prove` proof flows through that exact path on the native
 //! side, so F'-side recursion must replicate it bit-for-bit (transcript
 //! state) and identity-for-identity (algebraic checks).
-//!
-//! ## Submodule layout
-//!
-//! - [`transcript`] — `EngineChallenges`, K-batch sampling, raw absorbs for
-//!   header / instance digest / ME-input accumulator handle.
-//! - [`digests`] — the three authoritative per-claim digest gadgets
-//!   (`enforce_ccs_claim_digest`, `enforce_ce_claim_digest`,
-//!   `enforce_pi_ccs_instance_digest`). The retired per-claim ME-input
-//!   projection digest is gone; the ME-input transcript binding is now
-//!   the single 4-lane accumulator handle absorbed by
-//!   [`absorb_engine_me_inputs_accumulator_handle`].
-//! - [`fe`] — FE channel: `claimed_initial`, sumcheck driver, sparse-poly
-//!   eval, terminal identity.
-//! - [`nc`] — NC channel: `range_product`, sumcheck driver, terminal
-//!   identity. (Lands in sub-step G/H.)
 //!
 //! ## Soundness contract
 //!
@@ -59,6 +62,7 @@ use crate::engine::r1cs_circuit::R1csBuilder;
 pub mod digests;
 pub mod fe;
 pub mod nc;
+pub mod stage;
 pub mod transcript;
 pub mod verifier;
 
@@ -68,7 +72,7 @@ pub mod verifier;
 pub use digests::{
     enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest,
     enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest,
-    AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, PiCcsOutputClaimDigestInputs,
+    AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, PiCcsOutputMessageDigestInputs,
 };
 pub use fe::{
     enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity, FeClaimedInitialInputs,

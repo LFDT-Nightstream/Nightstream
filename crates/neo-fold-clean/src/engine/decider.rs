@@ -22,29 +22,32 @@
 //! pins, and terminal CE rows against NIFS-output children. Completeness
 //! is summarized by [`DeciderR1csSynthesis`]; it is an audit marker, not a
 //! production-compression claim.
+//!
+//! | CE boundary | Constraint ownership | Lean authority result |
+//! |---|---|---|
+//! | child -> next running | CE core only; `y_zcol` omitted | current no-read behavior only; not soundness permission |
+//! | Pi_RLC parent -> running parent | Parent `y_zcol` is carried but omitted from the accumulator digest | open authority gap |
+//! | terminal child | A newly computed `y_zcol` is checked against the opened witness | insufficient to bind the prior parent projection |
 
 mod terminal;
 
 pub use terminal::{synthesize_last_step_terminal_r1cs, LastStepTerminalSynthesis};
 
-use neo_math::F;
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use neo_math::{KExtensions, F};
+use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget, Var};
 use crate::lifecycle::Preprocessing;
 use crate::paper::construction2::finalization::FINAL_FOLD_TRANSCRIPT_LABEL;
-use crate::paper::construction2::{self, FoldProof, ProofState, SemanticStateMode, State, StepProof, TRIVIAL_PC};
+use crate::paper::construction2::{self, FoldProof, ProofState, State, StepProof, TRIVIAL_PC};
 use crate::paper::decider::{self, PublicImage, Statement};
 use crate::paper::digest::{
     digest32_as_fields, f_prime_chunk_public_digest, initial_boundary_digest, public_trace_seed_digest,
-    state_x_out_digest_with_mode, AccumulatorHandle, StateXOutDigestMode,
+    AccumulatorHandle,
 };
-use crate::paper::f_prime::digest_circuit::{enforce_state_x_out_digest_circuit, StateXOutDigestInputs};
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
-use crate::paper::f_prime::nebula_lane_circuit::{
-    delayed_nebula_public_suffix_len, enforce_nebula_lane_equality_circuit,
-};
+use crate::paper::f_prime::nebula_lane_circuit::enforce_nebula_lane_equality_circuit;
 use crate::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs,
     FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStateWires, FPrimeStepConfig,
@@ -54,13 +57,18 @@ use crate::paper::f_prime::r1cs::{
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::nifs::NifsProof;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_ce_claim_digest, CeClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
+    enforce_accumulator_ce_claim_digest, AccumulatorCeClaimDigestInputs, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
 };
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 use crate::paper::relations::product_commitment_circuit::enforce_adv_equality;
-use crate::paper::relations::CcsClaim;
+use crate::paper::relations::{CcsClaim, CeClaim};
+
+mod public_image;
+
+use public_image::{
+    f_prime_public_input_layout, pin_digest32, pin_public_image, pin_u64, state_x_out_digest_mode, state_x_out_lanes,
+};
 
 /// Full-history audit R1CS output plus completeness tracking.
 pub struct DeciderR1csSynthesis {
@@ -320,12 +328,14 @@ fn synthesize_statement_r1cs_inner(
             cross_step_links += 1;
         }
 
-        // CE-claim continuity: previous step's NIFS children must equal
-        // this step's NIFS running, wire-for-wire (not just by digest).
-        // Skipped if either side has no NIFS.V (base step).
+        // CE-core continuity: previous step's NIFS children must equal this
+        // step's NIFS running wire-for-wire (not just by digest). Π_DEC's
+        // currently unbound child y_zcol sidecar is absent on both sides;
+        // this is the known delayed-projection authority gap. Skipped if
+        // either side has no NIFS.V (base step).
         if let (Some(prev_children), Some(curr_running)) = (previous_children.as_ref(), output.nifs_running.as_ref()) {
             let continuity_start = builder.rows();
-            enforce_children_equal_running(&mut builder, prev_children, curr_running)
+            enforce_child_core_equal_running(&mut builder, prev_children, curr_running)
                 .map_err(|e| decider::Error::WalkFailed(format!("CE continuity step {idx}: {e}")))?;
             builder.record_row_family("decider.ce_continuity", continuity_start);
             accumulator_claim_links += 1;
@@ -334,7 +344,7 @@ fn synthesize_statement_r1cs_inner(
             (previous_parent.as_ref(), output.nifs_running_parent_authority.as_ref())
         {
             let parent_continuity_start = builder.rows();
-            enforce_children_equal_running(
+            enforce_parent_authority_equal(
                 &mut builder,
                 std::slice::from_ref(prev_parent),
                 std::slice::from_ref(curr_parent),
@@ -393,7 +403,7 @@ fn synthesize_statement_r1cs_inner(
     // the last recursive F' step's children.
     if let Some(prev_children) = previous_children.as_ref() {
         let terminal_continuity_start = builder.rows();
-        enforce_children_equal_running(&mut builder, prev_children, &terminal_running)
+        enforce_child_core_equal_running(&mut builder, prev_children, &terminal_running)
             .map_err(|e| decider::Error::WalkFailed(format!("CE continuity terminal fold: {e}")))?;
         builder.record_row_family("decider.terminal_continuity", terminal_continuity_start);
         accumulator_claim_links += 1;
@@ -431,10 +441,10 @@ fn synthesize_statement_r1cs_inner(
             "statement.witness.final_state must be Active after finalization".into(),
         ));
     };
+    let terminal_ce_start = builder.rows();
     let final_running = final_running
         .materialize()
         .map_err(|e| decider::Error::WalkFailed(format!("materialize final running: {e}")))?;
-    let terminal_ce_start = builder.rows();
     crate::paper::decider_ce_relation::enforce_final_ce_relations(
         &mut builder,
         prep,
@@ -737,20 +747,48 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; 4], b: &[Var; 4]) {
     }
 }
 
-/// Full CE-claim continuity: pin every wire of `children[i]` equal to the
-/// corresponding wire of `running[i]`, for all `i`. Returns an error if
-/// the shapes don't line up (length mismatch, or per-claim shape constants
-/// disagree).
+/// CE-core continuity: pin every strict-Π_DEC child wire equal to the
+/// corresponding next-running wire, for all `i`. Returns an error if the
+/// shapes don't line up.
 ///
 /// `children` is the Π_DEC output (next-running) view; `running` is the
 /// Π_CCS verifier's input-running view. They carry the same data in two
 /// representations:
 ///   - both share Vec<Var> for c_data / x.
 ///   - both share Vec<KVar> for r / s_col / ct.
-///   - children's y_ring / y_zcol are flattened K_LIMBS=2 base-field
-///     limbs (Vec<Var>); running's are Vec<KVar>. The helper expands
-///     each KVar back into (c0, c1) and pins limb-by-limb.
-fn enforce_children_equal_running(
+///   - children's y_ring is flattened into K_LIMBS=2 base-field limbs
+///     (`Vec<Var>`); running's is `Vec<KVar>`. The helper expands each KVar
+///     back into `(c0, c1)` and pins limb-by-limb.
+///
+/// Child/running `y_zcol` is absent on both sides in the current relation.
+/// Strict Π_DEC does not read it, but the NC authority audit shows that a
+/// state-bound parent old-point projection still needs an independent delayed
+/// validation before this continuity boundary can be considered sound.
+fn enforce_child_core_equal_running(
+    builder: &mut R1csBuilder,
+    children: &[CeClaimWires],
+    running: &[SplitNcPiCcsOutputWires],
+) -> Result<(), String> {
+    if children.len() != running.len() {
+        return Err(format!(
+            "CE continuity length mismatch: children={} running={}",
+            children.len(),
+            running.len()
+        ));
+    }
+    for (idx, (child, run)) in children.iter().zip(running.iter()).enumerate() {
+        if !child.y_zcol.is_empty() || !run.y_zcol.is_empty() {
+            return Err(format!(
+                "CE core continuity unexpectedly received y_zcol wires at {idx}: child={} run={}",
+                child.y_zcol.len(),
+                run.y_zcol.len()
+            ));
+        }
+    }
+    enforce_common_ce_fields_equal(builder, children, running)
+}
+
+fn enforce_common_ce_fields_equal(
     builder: &mut R1csBuilder,
     children: &[CeClaimWires],
     running: &[SplitNcPiCcsOutputWires],
@@ -817,8 +855,6 @@ fn enforce_children_equal_running(
         for (j, (child_row, run_row)) in child.y_ring.iter().zip(run.y_ring.iter()).enumerate() {
             enforce_flat_limbs_vs_kvar_row(builder, child_row, run_row, "y_ring", idx, Some(j))?;
         }
-        // y_zcol similar but single-row.
-        enforce_flat_limbs_vs_kvar_row(builder, &child.y_zcol, &run.y_zcol, "y_zcol", idx, None)?;
         // fold_digest_fields: [Var; 4] in both.
         for k in 0..4 {
             builder.enforce_eq(
@@ -826,6 +862,20 @@ fn enforce_children_equal_running(
                 &Lc::from_var(run.fold_digest_fields[k]),
             );
         }
+    }
+    Ok(())
+}
+
+/// Full Π_RLC-parent continuity. Parent `y_zcol` remains authoritative and
+/// therefore extends the common CE-core equality with a sidecar equality.
+fn enforce_parent_authority_equal(
+    builder: &mut R1csBuilder,
+    previous: &[CeClaimWires],
+    current: &[SplitNcPiCcsOutputWires],
+) -> Result<(), String> {
+    enforce_common_ce_fields_equal(builder, previous, current)?;
+    for (idx, (parent, running_parent)) in previous.iter().zip(current.iter()).enumerate() {
+        enforce_flat_limbs_vs_kvar_row(builder, &parent.y_zcol, &running_parent.y_zcol, "y_zcol", idx, None)?;
     }
     Ok(())
 }
@@ -974,7 +1024,7 @@ fn emit_terminal_fold(
         nifs_outputs.running_parent_authority.as_ref(),
     ) {
         let parent_link_start = builder.rows();
-        enforce_children_equal_running(
+        enforce_parent_authority_equal(
             builder,
             std::slice::from_ref(prev_parent),
             std::slice::from_ref(curr_parent),
@@ -995,12 +1045,14 @@ fn emit_terminal_fold(
     )?;
     builder.record_row_family("terminal.latest_link", latest_link_start);
 
-    // NIFS.V has just enforced strict Pi_DEC(parent, children), so the
-    // parent CE digest is the post-fold accumulator authority.
+    // Pi_DEC has already checked every output child against this parent. The
+    // parent is the compact recursive authority, so no second child hash is
+    // part of the terminal state handle.
     let accumulator_start = builder.rows();
-    let parent_digest = enforce_dec_ce_claim_digest(builder, &nifs_outputs.parent)?;
-    let post_fold_acc_digest =
-        enforce_accumulator_digest_from_parent_circuit(builder, nifs_outputs.children.len(), Some(parent_digest));
+    let post_fold_acc_digest = enforce_dec_ce_claim_accumulator_digest(builder, &nifs_outputs.parent)?;
+    let mut terminal_children = nifs_outputs.children;
+    attach_terminal_children_y_zcol(builder, &mut terminal_children, &final_fold_nifs.pi_dec.children)
+        .map_err(|e| decider::Error::WalkFailed(format!("terminal child y_zcol attachment: {e}")))?;
     builder.record_row_family("terminal.accumulator", accumulator_start);
     builder.record_row_family("terminal.total", terminal_start);
 
@@ -1010,16 +1062,53 @@ fn emit_terminal_fold(
         terminal_parent_authority_link,
         post_fold_acc_digest,
         nifs_outputs.running,
-        nifs_outputs.children,
+        terminal_children,
     ))
 }
 
-fn enforce_dec_ce_claim_digest(builder: &mut R1csBuilder, claim: &CeClaimWires) -> Result<[Var; 4], decider::Error> {
+/// Reattach terminal-child `y_zcol` only where the direct terminal CE
+/// relation validates it against the opened witness. Ordinary Π_DEC children
+/// intentionally carry no such wires.
+fn attach_terminal_children_y_zcol(
+    builder: &mut R1csBuilder,
+    children: &mut [CeClaimWires],
+    claims: &[CeClaim],
+) -> Result<(), String> {
+    if children.len() != claims.len() {
+        return Err(format!(
+            "terminal child count mismatch: wires={} claims={}",
+            children.len(),
+            claims.len()
+        ));
+    }
+    for (idx, (child, claim)) in children.iter_mut().zip(claims.iter()).enumerate() {
+        if !child.y_zcol.is_empty() || child.y_zcol_lanes != 0 {
+            return Err(format!(
+                "terminal child {idx} already carries y_zcol: limbs={} lanes={}",
+                child.y_zcol.len(),
+                child.y_zcol_lanes
+            ));
+        }
+        child.y_zcol.reserve(claim.y_zcol.len() * 2);
+        for value in &claim.y_zcol {
+            let [c0, c1] = value.as_coeffs();
+            child.y_zcol.push(builder.alloc(c0));
+            child.y_zcol.push(builder.alloc(c1));
+        }
+        child.y_zcol_lanes = claim.y_zcol.len();
+    }
+    Ok(())
+}
+
+fn enforce_dec_ce_claim_accumulator_digest(
+    builder: &mut R1csBuilder,
+    claim: &CeClaimWires,
+) -> Result<[Var; 4], decider::Error> {
     let y_ring = dec_y_ring_kvars(claim)
-        .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator parent CE digest y_ring: {e}")))?;
-    enforce_ce_claim_digest(
+        .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest y_ring: {e}")))?;
+    enforce_accumulator_ce_claim_digest(
         builder,
-        &CeClaimDigestInputs {
+        &AccumulatorCeClaimDigestInputs {
             c_d: claim.c_d,
             c_kappa: claim.c_kappa,
             c_data: &claim.c_data,
@@ -1027,13 +1116,15 @@ fn enforce_dec_ce_claim_digest(builder: &mut R1csBuilder, claim: &CeClaimWires) 
             x_cols: claim.x_cols,
             x_flat_row_major: &claim.x,
             r: &claim.r,
+            s_col: &claim.s_col,
             y_ring: &y_ring,
+            ct: &claim.ct,
             m_in: claim.m_in,
             fold_digest_fields: claim.fold_digest_fields,
             adv: claim.adv.as_ref(),
         },
     )
-    .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator parent CE digest: {e}")))
+    .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest: {e}")))
 }
 
 fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, String> {
@@ -1089,173 +1180,6 @@ fn enforce_terminal_latest_link(
         }
     }
     Ok(())
-}
-
-/// Pin every terminal field of `statement.public` to chain-derived
-/// wires. The initial semantic-state digest is pinned in
-/// `enforce_base_state_constants`, because it is part of the base seed.
-/// Returns [`REQUIRED_PUBLIC_IMAGE_PINS`].
-fn pin_public_image(
-    builder: &mut R1csBuilder,
-    public: &PublicImage,
-    prep: &Preprocessing,
-    last: &FPrimeStepOutput,
-    final_acc_digest: &[Var; 4],
-) -> usize {
-    let so = &last.state_out;
-    enforce_public_preprocessing_anchors(builder, prep, public);
-    // 1. vk_fs_digest.
-    pin_digest32(builder, &so.vk_fs_digest, public.vk_fs_digest);
-    // 2. chunk_count — final-fold does not advance counters.
-    pin_u64(builder, so.chunk_count, public.chunk_count);
-    // 3. step_count — same.
-    pin_u64(builder, so.step_count, public.step_count);
-    // 4. z_0.
-    pin_digest32(builder, &so.z_0, public.z_0);
-    // 5. z_i — last F' step's value; final-fold does not update it.
-    pin_digest32(builder, &so.z_i, public.z_i);
-    // 6. pc.
-    pin_u64(builder, so.pc, public.pc);
-    // 7. semantic_state_digest — final app / VM state.
-    pin_digest32(builder, &so.semantic_state_digest, public.semantic_state_digest);
-    if matches!(prep.semantic_state_mode(), SemanticStateMode::Stateless) {
-        // Stateless finalization does not advance the semantic coordinate:
-        // it remains the pre-terminal accumulator digest carried by the last
-        // F' step. The stateless `state_x_out` preimage omits the duplicate
-        // semantic lanes, so this equality is load-bearing for public-image
-        // binding.
-        enforce_digest_eq(builder, &so.semantic_state_digest, &so.acc_digest);
-    }
-    // 8. acc_digest — post-final-fold Construction-2 accumulator.
-    pin_digest32(builder, final_acc_digest, public.acc_digest);
-    // 9. public_trace — last F' step's value.
-    pin_digest32(builder, &so.public_trace, public.public_trace);
-    // 10. x_out — recomputed in-circuit from the post-fold state.
-    let terminal_x_out_inputs = StateXOutDigestInputs {
-        mode: state_x_out_digest_mode(prep),
-        vk_fs_digest: so.vk_fs_digest,
-        pi_ccs_header_bundle: so.pi_ccs_header_bundle,
-        structure_digest: so.pi_ccs_header_bundle,
-        chunk_count: so.chunk_count,
-        step_count: so.step_count,
-        initial_boundary: so.z_0,
-        current_boundary: so.z_i,
-        pc: so.pc,
-        semantic_acc: so.semantic_state_digest,
-        construction2_acc: *final_acc_digest,
-        public_trace: so.public_trace,
-    };
-    let terminal_x_out = enforce_state_x_out_digest_circuit(builder, &terminal_x_out_inputs);
-    pin_digest32(builder, &terminal_x_out, public.x_out.digest_bytes);
-    // Belt-and-braces: pin the SplitNc header to preprocessing.
-    let header_bundle = prep.pi_ccs_header_bundle();
-    for k in 0..4 {
-        builder.enforce_eq(
-            &Lc::from_var(so.pi_ccs_header_bundle[k]),
-            &Lc::from_const(header_bundle[k]),
-        );
-    }
-    REQUIRED_PUBLIC_IMAGE_PINS
-}
-
-fn enforce_public_preprocessing_anchors(builder: &mut R1csBuilder, prep: &Preprocessing, public: &PublicImage) {
-    let structure_lanes = *prep.structure_digest();
-    let expected_z_0 = initial_boundary_digest(&structure_lanes, prep.public_input_len);
-
-    enforce_digest32_const_eq(builder, public.vk_fs_digest, prep.vk.digest());
-    enforce_digest32_const_eq(builder, public.z_0, expected_z_0);
-    enforce_digest32_const_eq(
-        builder,
-        public.initial_semantic_state_digest,
-        prep.initial_semantic_state_digest(),
-    );
-}
-
-fn enforce_digest32_const_eq(builder: &mut R1csBuilder, actual: [u8; 32], expected: [u8; 32]) {
-    let Some(actual) = canonical_digest32_fields(actual) else {
-        enforce_unsat(builder);
-        return;
-    };
-    let Some(expected) = canonical_digest32_fields(expected) else {
-        enforce_unsat(builder);
-        return;
-    };
-    for k in 0..4 {
-        builder.enforce_eq(&Lc::from_const(actual[k]), &Lc::from_const(expected[k]));
-    }
-}
-
-fn pin_digest32(builder: &mut R1csBuilder, wires: &[Var; 4], expected: [u8; 32]) {
-    let Some(expected_lanes) = canonical_digest32_fields(expected) else {
-        enforce_unsat(builder);
-        return;
-    };
-    for k in 0..4 {
-        builder.enforce_eq(&Lc::from_var(wires[k]), &Lc::from_const(expected_lanes[k]));
-    }
-}
-
-fn pin_u64(builder: &mut R1csBuilder, wire: Var, expected: u64) {
-    // Public u64s are pinned to single Goldilocks state wires. Values
-    // outside the canonical field range would alias through F::from_u64.
-    if expected >= F::ORDER_U64 {
-        enforce_unsat(builder);
-        return;
-    }
-    builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(F::from_u64(expected)));
-}
-
-fn canonical_digest32_fields(bytes: [u8; 32]) -> Option<[F; 4]> {
-    let mut fields = [F::ZERO; 4];
-    for (lane, out) in fields.iter_mut().enumerate() {
-        let start = lane * 8;
-        let value = u64::from_le_bytes(
-            bytes[start..start + 8]
-                .try_into()
-                .expect("8-byte digest limb"),
-        );
-        if value >= F::ORDER_U64 {
-            return None;
-        }
-        *out = F::from_u64(value);
-    }
-    Some(fields)
-}
-
-fn enforce_unsat(builder: &mut R1csBuilder) {
-    builder.enforce_eq(&Lc::zero(), &Lc::from_const(F::ONE));
-}
-
-fn state_x_out_lanes(prep: &Preprocessing, state: &State) -> [F; 4] {
-    digest32_as_fields(state_x_out_digest_with_mode(
-        state_x_out_digest_mode(prep),
-        prep.vk.digest(),
-        prep.pi_ccs_header_bundle(),
-        prep.structure_digest(),
-        state.chunk_count,
-        state.step_count,
-        state.z_0,
-        state.z_i,
-        state.pc,
-        state.semantic_state_digest,
-        state.acc_digest,
-        state.public_trace,
-        state.nebula.as_ref().map(|lane| lane.digest()),
-    ))
-}
-
-fn state_x_out_digest_mode(prep: &Preprocessing) -> StateXOutDigestMode {
-    match prep.semantic_state_mode() {
-        SemanticStateMode::Stateless => StateXOutDigestMode::Stateless,
-        SemanticStateMode::Stateful => StateXOutDigestMode::Stateful,
-    }
-}
-
-fn f_prime_public_input_layout(prep: &Preprocessing) -> FPrimePublicInputLayout {
-    match prep.nebula() {
-        None => FPrimePublicInputLayout::plain(),
-        Some(config) => FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(config.stacks)),
-    }
 }
 
 fn split_nc_config(prep: &Preprocessing) -> Result<SplitNcPiCcsVConfig<'_>, String> {

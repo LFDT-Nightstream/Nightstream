@@ -1,4 +1,4 @@
-#![cfg(target_vendor = "apple")]
+#![cfg(all(feature = "metal", target_vendor = "apple", neo_metal_shaders))]
 
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{accumulator_digest, PI_RLC_PROJECTION_SIS_CONFIG};
 use neo_math::F;

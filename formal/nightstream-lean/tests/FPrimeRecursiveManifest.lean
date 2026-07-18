@@ -7,13 +7,13 @@ open Nightstream.Implementation.R1CS.FPrimeRecursiveManifest
 example : covers 0 totalRows topLevelFamilies = true :=
   topLevel_covers_program
 
-example : covers 20038 2592246 nifsFamilies = true :=
+example : covers nifsRowStart nifsRowEnd nifsFamilies = true :=
   nifs_covers_block
 
-example : (topLevelFamilies.map RowRange.rowCount).sum = 2640071 :=
+example : (topLevelFamilies.map RowRange.rowCount).sum = totalRows :=
   topLevel_row_count
 
-example : (nifsFamilies.map RowRange.rowCount).sum = 2572208 :=
+example : (nifsFamilies.map RowRange.rowCount).sum = nifsRowCount :=
   nifs_row_count
 
 example : projectionIdentityRanges.length = 31 := by
@@ -43,7 +43,7 @@ def forgedOverlap : List RowRange :=
 example : covers 0 totalRows forgedGap = false := by
   decide
 
-example : covers 20038 2592246 forgedOverlap = false := by
+example : covers nifsRowStart nifsRowEnd forgedOverlap = false := by
   decide
 
 #check Nightstream.Assurance.FPrimeConcreteNifs.recursive_rows_sound

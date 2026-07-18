@@ -1,21 +1,21 @@
-//! Bit-backed layout + encoder + decoder for one SuperNeo ring-action
-//! gadget invocation (`Rq(ρ).mul(&Rq(c))`) inside the Phase 1 `enc(F')`
-//! source/witness image.
+//! Bit-backed native trace for one SuperNeo ring-action multiplication.
 //!
-//! Owns: the contract between one ring multiplication and the F' source
-//! image — how many bits each of {ρ, c, product, output} subregions
-//! contributes, where each lane lives, and how to decode the output back
-//! to `[F; D]` for parity against `neo_math::ring::Rq::mul`.
+//! Owns: low-norm lane encoding, trace offsets, native product materialization,
+//! and output decoding for `Rq(rho) * Rq(c)`.
 //!
-//! Does not own: in-circuit constraint emission. The Phase 0D perf
-//! prototype (`tests/perf/ring_action_low_norm_prototype.rs`) measures
-//! R1CS satisfaction cost; this module is the data-only surface that
-//! locks the layout for mini-5+ encoder integration.
+//! Does not own: ring-action constraint emission, transcript derivation of rho,
+//! or binding operands to protocol claims.
 //!
-//! Phase 0D measured 39,853 cols/pair (SignedDigit{5/8/12/20}) and
-//! 200,071 cols/pair (U64) including bridge alloc cols. This module
-//! produces the *source-image* size only (drop the bridge cols): per
-//! pair, `1 + D·rho_bits + D·c_bits + D²·prod_bits + D·out_bits`.
+//! Emits constraints: no.
+//!
+//! Authority boundary: decomposition and product lanes are witness data until a
+//! consuming relation constrains the multiplication and binds both operands.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Lane encoding | [`LowNormEncoding`] | no | Supplied field value |
+//! | Trace layout | [`RingActionTraceLayout`] | no | Fixed ring degree and encoding |
+//! | Product trace | [`encode_ring_action_trace`] | no | Supplied rho and claim element |
 
 use neo_math::ring::{Rq, D};
 use neo_math::F;

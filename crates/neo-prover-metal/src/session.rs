@@ -39,6 +39,7 @@ use sis::MetalSisMap;
 
 static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/nightstream-metal.metallib"));
 static POSEIDON2_CONSTANT_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/poseidon2.constants"));
+static NEXT_SESSION_OWNERSHIP_ID: AtomicU64 = AtomicU64::new(1);
 
 type Device = Retained<ProtocolObject<dyn MTLDevice>>;
 type Queue = Retained<ProtocolObject<dyn MTLCommandQueue>>;
@@ -56,6 +57,7 @@ struct ActivityCounters {
 }
 
 pub struct MetalSession {
+    ownership_id: u64,
     device: Device,
     queue: Queue,
     independent_queue: Queue,
@@ -237,6 +239,7 @@ impl MetalSession {
         let ajtai_lane_ring_sum_chunks = pipeline(&device, &library, "ajtai_lane_ring_sum_chunks")?;
         let ajtai_lane_ring_reduce_phi81 = pipeline(&device, &library, "ajtai_lane_ring_reduce_phi81")?;
         Ok(Self {
+            ownership_id: NEXT_SESSION_OWNERSHIP_ID.fetch_add(1, Ordering::Relaxed),
             device,
             queue,
             independent_queue,
@@ -315,6 +318,10 @@ impl MetalSession {
             nc_sumcheck_duration: Cell::new(Duration::ZERO),
             activity: ActivityCounters::default(),
         })
+    }
+
+    pub(crate) fn ownership_id(&self) -> u64 {
+        self.ownership_id
     }
 
     pub fn goldilocks_ops(&self, lhs: &[u64], rhs: &[u64]) -> Result<Vec<GoldilocksOps>, MetalError> {

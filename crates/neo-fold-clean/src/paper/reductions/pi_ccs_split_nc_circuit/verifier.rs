@@ -14,7 +14,7 @@
 //!    then recompute that parent CE digest
 //! 4. Compute pi_ccs_instance_digest from authoritative digests
 //! 5. Absorb header bundle + instance digest (raw [11, …]/[12, …])
-//! 6. Absorb ME inputs (raw [4]/[5,count]/[6, digests])
+//! 6. Absorb the checked-parent ME handle (raw [4]/[5,count]/[13, handle])
 //! 7. Sample α, β_a, β_r, γ, β_m
 //! 8. FE claimed_initial
 //! 9. FE sumcheck driver → r_prime, alpha_prime, fe_final
@@ -26,6 +26,8 @@
 //! 13. NC terminal identity, pin to nc_final
 //! 14. header_digest catch-up squeeze + bind every output.fold_digest
 //!     to the caught-up transcript digest
+//! 15. Recompute and verify the wire-format `outputs_digest` that NIFS.V
+//!     carries into Π_RLC
 //! ```
 //!
 //! ## Soundness rules
@@ -38,26 +40,49 @@
 //!   witness; constraints reference the wires, so the same `verifier.rs`
 //!   can be reused inside F' where the inputs are *also* witness wires
 //!   rather than test-time constants.
+//!
+//! Owns: ordered Pi_CCS verifier orchestration and its derived wire surface.
+//!
+//! Does not own: leaf digest, transcript, FE, or NC arithmetic.
+//!
+//! Emits constraints: yes, by composing the child phases below.
+//!
+//! Authority boundary: fresh claims and the checked running parent are
+//! authoritative; carried output/header digests are recomputed or replayed.
+//!
+//! | Child phase | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | allocation | Fixed-shape claim materialization | yes | `verifier` | concrete refinement open |
+//! | running authority | Pi_DEC consistency and canonical views | yes | `verifier`, `pi_dec_circuit` | authority bridge open |
+//! | running `y_zcol` elision | Current implementation omits the old-point projection; this is not semantic permission and leaves the NC authority chain open | no | `validate_ce_shape_without_y_zcol`, `alloc_ce_wires_without_y_zcol` | `PiCcsNc/Authority/ProjectionNecessity.lean` gives a counterexample; delayed refinement open |
+//! | claim hashes | Fresh and running-parent bindings | yes | `digests` | digest bridge open |
+//! | transcript | Instance, handle, and challenge schedule | yes | `transcript` | transcript bridge open |
+//! | FE | Claimed initial, SumCheck, terminal identity | yes | `fe` | FE bridge open |
+//! | NC | SumCheck and terminal identity | yes | `nc` | NC bridge open |
+//! | outputs | Input continuity, header, and Pi_RLC message | yes | `verifier`, `digests` | output bridge open |
 
 use neo_ccs::{CcsStructure, SparsePoly};
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 
+use super::stage;
 use super::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,
-    absorb_engine_me_inputs_accumulator_handle, enforce_ccs_claim_digest, enforce_ce_claim_digest,
-    enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity,
+    absorb_engine_me_inputs_accumulator_handle, alloc_constant_var, enforce_accumulator_ce_claim_digest,
+    enforce_ccs_claim_digest, enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity,
     enforce_header_digest_catch_up_wires, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity,
-    enforce_pi_ccs_instance_digest_parent_authority, header_digest_bytes_to_fields, sample_engine_beta_m,
-    sample_engine_challenges, CeClaimDigestInputs, Error, FeClaimedInitialInputs, FeTerminalInputs, NcTerminalInputs,
+    enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields,
+    sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs, Error, FeClaimedInitialInputs,
+    FeTerminalInputs, NcTerminalInputs, PiCcsOutputMessageDigestInputs,
 };
+use crate::engine::r1cs_circuit::boolean;
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::R1csBuilder;
+use crate::paper::digest::AccumulatorHandle;
 use crate::paper::params::Params;
-use crate::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
 use crate::paper::reductions::pi_dec_circuit::{
     enforce_dec_v_strict, enforce_split_nc_d_pad_shape, CeClaimWires as DecCeClaimWires, DecInputWires,
 };
@@ -149,6 +174,14 @@ pub struct SplitNcPiCcsVMessages<'a> {
     pub running: &'a [CeClaim],
     pub running_parent_authority: Option<&'a CeClaim>,
     pub outputs: &'a [CeClaim],
+    /// Redundant wire-format digest checked by native `pi_ccs::verify`.
+    /// The circuit recomputes it from `outputs`; this field is never treated
+    /// as authority.
+    pub outputs_digest: [F; 4],
+    /// Optional prover copy of the FE claimed initial sum. Native verification
+    /// accepts absence and, when present, requires equality to the value
+    /// derived from the public inputs.
+    pub sc_initial_sum: Option<K>,
     pub sumcheck_rounds_fe: &'a [Vec<K>],
     pub sumcheck_rounds_nc: &'a [Vec<K>],
     pub header_digest: &'a [u8],
@@ -205,6 +238,10 @@ pub struct SplitNcPiCcsVDerived {
     pub r_prime: Vec<KVar>,
     pub s_col_prime: Vec<KVar>,
     pub outputs: Vec<SplitNcPiCcsOutputWires>,
+    /// Π_CCS output digest recomputed from the constrained output wires and
+    /// checked against the redundant proof field. NIFS.V appends these same
+    /// wires before sampling Π_RLC challenges.
+    pub output_claims_digest: [Var; 4],
     /// `fresh_x[i]` = the `m_in` public-input `F`-wires of `fresh[i]`.
     pub fresh_x: Vec<Vec<Var>>,
     /// Product-commitment coordinates of those same fresh claims. Each
@@ -212,11 +249,11 @@ pub struct SplitNcPiCcsVDerived {
     pub fresh_adv: Vec<Option<AdvCommitmentWires>>,
     /// `running_c_data[i]` = the `D * kappa` commitment-data wires of `running[i]`.
     pub running_c_data: Vec<Vec<Var>>,
-    /// Full per-running-claim CE-claim wire bundles (c, x, r, y_ring, ct,
-    /// y_zcol, s_col, shape, fold_digest_fields). Surfaced for the
-    /// decider's CE-continuity gate: `prev.children == next.running`
-    /// must hold wire-to-wire, and compact-handle continuity (via
-    /// `running_acc_digest`) is intentionally weaker.
+    /// Per-running-claim CE core wires (c, x, r, y_ring, ct, s_col, shape,
+    /// fold_digest_fields). `y_zcol` is empty in the current relation because
+    /// strict Π_DEC and cross-step continuity do not read it. The NC
+    /// projection-authority audit shows that this erasure is unsafe unless a
+    /// state-bound parent projection is validated before the point changes.
     pub running: Vec<SplitNcPiCcsOutputWires>,
     /// Π_RLC parent whose Π_DEC children form `running`. This parent is the
     /// running-side Fiat-Shamir authority for this Π_CCS invocation.
@@ -279,6 +316,24 @@ impl CeClaimWires {
         (0..self.m_in)
             .map(|c| self.x[(c % D) * self.x_cols + (c / D)])
             .collect()
+    }
+}
+
+fn accumulator_digest_inputs(claim: &CeClaimWires) -> AccumulatorCeClaimDigestInputs<'_> {
+    AccumulatorCeClaimDigestInputs {
+        c_d: claim.c_d,
+        c_kappa: claim.c_kappa,
+        c_data: &claim.c_data,
+        x_rows: claim.x_rows,
+        x_cols: claim.x_cols,
+        x_flat_row_major: &claim.x,
+        r: &claim.r,
+        s_col: &claim.s_col,
+        y_ring: &claim.y_ring,
+        ct: &claim.ct,
+        m_in: claim.m_in,
+        fold_digest_fields: claim.fold_digest_fields,
+        adv: claim.adv.as_ref(),
     }
 }
 
@@ -357,7 +412,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
         validate_fresh_shape(cfg, i, f)?;
     }
     for (i, r) in msg.running.iter().enumerate() {
-        validate_ce_shape(cfg, &format!("running[{i}]"), r)?;
+        validate_ce_shape_without_y_zcol(cfg, &format!("running[{i}]"), r)?;
     }
     match (k_me, msg.running_parent_authority) {
         (0, None) => {}
@@ -366,7 +421,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
                 "running parent authority present while running is empty".into(),
             ))
         }
-        (_, Some(parent)) => validate_ce_shape(cfg, "running_parent_authority", parent)?,
+        (_, Some(parent)) => validate_running_parent_authority_shape(cfg, parent)?,
         (_, None) => {
             return Err(Error::Shape(
                 "non-empty running accumulator missing Pi_RLC parent authority".into(),
@@ -384,28 +439,36 @@ fn enforce_split_nc_pi_ccs_v_inner(
 
     // ── 1. Allocate fresh / running / output wires once ──────────────────
     let allocation_start = builder.rows();
+    builder.begin_encoding_stage(stage::ROOT);
+    builder.begin_encoding_stage(stage::ALLOCATE_AND_NORMALIZE);
+    builder.begin_encoding_stage(stage::ALLOCATE_FRESH);
     let fresh_wires: Vec<CcsClaimWires> = msg
         .fresh
         .iter()
         .map(|f| alloc_fresh_wires(builder, f))
         .collect();
+    builder.begin_encoding_stage(stage::ALLOCATE_RUNNING);
     let running_wires: Vec<CeClaimWires> = msg
         .running
         .iter()
-        .map(|r| alloc_ce_wires(builder, r))
+        .map(|r| alloc_ce_wires_without_y_zcol(builder, r))
         .collect::<Result<_, _>>()?;
+    builder.begin_encoding_stage(stage::ALLOCATE_RUNNING_PARENT);
     let running_parent_authority_wires = msg
         .running_parent_authority
-        .map(|parent| alloc_ce_wires(builder, parent))
+        .map(|parent| alloc_ce_wires_with_canonical_y_zcol(builder, parent, d_pad))
         .transpose()?;
+    builder.begin_encoding_stage(stage::ALLOCATE_OUTPUTS);
     let output_wires: Vec<CeClaimWires> = msg
         .outputs
         .iter()
         .map(|o| alloc_ce_wires(builder, o))
         .collect::<Result<_, _>>()?;
-    builder.record_row_family("nifs.pi_ccs.allocation", allocation_start);
+    builder.record_row_family(stage::ROW_ALLOCATION, allocation_start);
 
     let authority_start = builder.rows();
+    builder.begin_encoding_stage(stage::RUNNING_AUTHORITY);
+    builder.begin_encoding_stage(stage::RUNNING_AUTHORITY_PARENT_DEC);
     // The compact accumulator handle below is valid only after the running
     // children have been checked as a strict Pi_DEC reduction of their
     // parent. Keep that precondition in this verifier, beside the handle,
@@ -420,13 +483,19 @@ fn enforce_split_nc_pi_ccs_v_inner(
     // Output `ct` is a denormalized scalar/constant-term view of `y_ring`.
     // Running `ct` and padding are already covered by strict Pi_DEC above.
     for (idx, ow) in output_wires.iter().enumerate() {
+        builder.begin_encoding_stage(stage::RUNNING_AUTHORITY_OUTPUT_CT);
         enforce_ct_from_y_ring(builder, &format!("outputs[{idx}]"), ow)?;
+        builder.begin_encoding_stage(stage::RUNNING_AUTHORITY_OUTPUT_Y_RING_PADDING);
         enforce_y_ring_padding_zero(builder, ow);
+        builder.begin_encoding_stage(stage::RUNNING_AUTHORITY_OUTPUT_Y_ZCOL_PADDING);
+        enforce_y_zcol_padding_zero(builder, ow);
     }
-    builder.record_row_family("nifs.pi_ccs.authority", authority_start);
+    builder.record_row_family(stage::ROW_AUTHORITY, authority_start);
 
     // ── 2. Fresh CCS digests (from allocated wires) ──────────────────────
     let fresh_digests_start = builder.rows();
+    builder.begin_encoding_stage(stage::FRESH_CLAIM_HASHES);
+    builder.begin_encoding_stage(stage::FRESH_CLAIM_HASHES_DIGEST);
     let mut fresh_digests: Vec<[Var; 4]> = Vec::with_capacity(k_mcs);
     for fw in &fresh_wires {
         fresh_digests.push(enforce_ccs_claim_digest(
@@ -439,7 +508,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
             fw.adv.as_ref(),
         ));
     }
-    builder.record_row_family("nifs.pi_ccs.fresh_digests", fresh_digests_start);
+    builder.record_row_family(stage::ROW_FRESH_DIGESTS, fresh_digests_start);
 
     // ── 3. Running parent digest + shared-r check ────────────────────────
     let running_authority_start = builder.rows();
@@ -448,6 +517,8 @@ fn enforce_split_nc_pi_ccs_v_inner(
     // children form `running`, not the child claims themselves. The children
     // remain the algebraic ME inputs below; Π_DEC validation in the previous
     // step binds them to this parent.
+    builder.begin_encoding_stage(stage::RUNNING_PARENT_HASH);
+    builder.begin_encoding_stage(stage::RUNNING_PARENT_HASH_SHARED_R);
     for (idx, rw) in running_wires.iter().enumerate() {
         // Shared-r check (mirrors `shared_me_input_r` in the engine): all
         // running ME inputs must carry the same evaluation point.
@@ -461,32 +532,20 @@ fn enforce_split_nc_pi_ccs_v_inner(
             }
         }
     }
+    builder.begin_encoding_stage(stage::RUNNING_PARENT_HASH_DIGEST);
     let running_parent_digest = running_parent_authority_wires
         .as_ref()
-        .map(|parent| {
-            enforce_ce_claim_digest(
-                builder,
-                &CeClaimDigestInputs {
-                    c_d: parent.c_d,
-                    c_kappa: parent.c_kappa,
-                    c_data: &parent.c_data,
-                    x_rows: parent.x_rows,
-                    x_cols: parent.x_cols,
-                    x_flat_row_major: &parent.x,
-                    r: &parent.r,
-                    y_ring: &parent.y_ring,
-                    m_in: parent.m_in,
-                    fold_digest_fields: parent.fold_digest_fields,
-                    adv: parent.adv.as_ref(),
-                },
-            )
-        })
+        .map(|parent| enforce_accumulator_ce_claim_digest(builder, &accumulator_digest_inputs(parent)))
         .transpose()?;
-    builder.record_row_family("nifs.pi_ccs.running_authority", running_authority_start);
+    builder.record_row_family(stage::ROW_RUNNING_AUTHORITY, running_authority_start);
+
     // ── 4-5. Instance digest + header/instance absorbs ───────────────────
     let transcript_start = builder.rows();
+    builder.begin_encoding_stage(stage::INSTANCE_HASH_AND_ABSORB);
+    builder.begin_encoding_stage(stage::INSTANCE_HASH);
     let instance_digest =
         enforce_pi_ccs_instance_digest_parent_authority(builder, &fresh_digests, k_me, running_parent_digest);
+    builder.begin_encoding_stage(stage::INSTANCE_HEADER_ABSORB);
     match header_bundle {
         Some(header_bundle) => {
             absorb_engine_header_bundle_wires_and_instance_digest(builder, transcript, header_bundle, instance_digest)
@@ -498,24 +557,35 @@ fn enforce_split_nc_pi_ccs_v_inner(
 
     // ── 6. ME-input absorb (running-accumulator authority handle mode) ───
     //
-    // Native NIFS.V verifies strict Pi_DEC(parent, running) before Pi_CCS,
-    // and this circuit mirrors that check in
-    // `enforce_running_parent_authority_consistency`. Reuse the same parent
-    // CE digest that already drives the Pi_CCS transcript rather than
-    // re-hashing all children. The CE digest includes c, adv, active X, r,
-    // y_ring, shape, and fold_digest; s_col/ct are derived by the strict
-    // parent-consistency rows and y_zcol is explicitly non-authority.
-    let running_acc_digest =
-        enforce_accumulator_digest_from_parent_circuit(builder, running_wires.len(), running_parent_digest);
+    // Π_DEC already checked every running child against the Π_RLC parent
+    // above. That checked parent is therefore the recursive authority;
+    // hashing the serialized children again would add no statement. Reuse the
+    // same full parent digest for the Π_CCS instance, ME-input transcript, and
+    // F' state.
+    builder.begin_encoding_stage(stage::RUNNING_HANDLE_HASH_AND_ABSORB);
+    builder.begin_encoding_stage(stage::RUNNING_HANDLE_SELECT);
+    let running_acc_digest = match running_parent_digest {
+        Some(digest) => digest,
+        None => {
+            let empty = AccumulatorHandle::empty().digest_fields();
+            std::array::from_fn(|lane| alloc_constant_var(builder, empty[lane]))
+        }
+    };
+    builder.begin_encoding_stage(stage::RUNNING_HANDLE_ABSORB);
     absorb_engine_me_inputs_accumulator_handle(builder, transcript, k_me, running_acc_digest);
 
     // ── 7. Sample engine challenges + β_m ────────────────────────────────
+    builder.begin_encoding_stage(stage::ENGINE_CHALLENGES);
+    builder.begin_encoding_stage(stage::ENGINE_CHALLENGES_MAIN);
     let ch = sample_engine_challenges(builder, transcript, cfg.ell_d, cfg.ell_n);
+    builder.begin_encoding_stage(stage::ENGINE_CHALLENGES_BETA_M);
     let beta_m = sample_engine_beta_m(builder, transcript, cfg.ell_m);
-    builder.record_row_family("nifs.pi_ccs.transcript", transcript_start);
+    builder.record_row_family(stage::ROW_TRANSCRIPT, transcript_start);
 
     // ── 8. FE claimed_initial ────────────────────────────────────────────
     let fe_initial_start = builder.rows();
+    builder.begin_encoding_stage(stage::FE_CLAIM_AND_SUMCHECK);
+    builder.begin_encoding_stage(stage::FE_CLAIMED_INITIAL);
     let running_y_ring_view: Vec<Vec<Vec<KVar>>> = running_wires.iter().map(|rw| rw.y_ring.clone()).collect();
     let claimed_initial = enforce_fe_claimed_initial(
         builder,
@@ -528,15 +598,21 @@ fn enforce_split_nc_pi_ccs_v_inner(
             running_y_ring: &running_y_ring_view,
         },
     )?;
-    builder.record_row_family("nifs.pi_ccs.fe_initial", fe_initial_start);
+    builder.record_row_family(stage::ROW_FE_INITIAL, fe_initial_start);
+    let fe_optional_claim_start = builder.rows();
+    builder.begin_encoding_stage(stage::FE_OPTIONAL_CLAIM);
+    enforce_optional_k_equality(builder, msg.sc_initial_sum, claimed_initial);
+    builder.record_row_family(stage::ROW_FE_OPTIONAL_CLAIM, fe_optional_claim_start);
 
     // ── 9. FE sumcheck driver ────────────────────────────────────────────
     let fe_sumcheck_start = builder.rows();
+    builder.begin_encoding_stage(stage::FE_ROUNDS);
     let fe_rounds: Vec<Vec<KVar>> = msg
         .sumcheck_rounds_fe
         .iter()
         .map(|r| alloc_k_vec(builder, r))
         .collect();
+    builder.begin_encoding_stage(stage::FE_SUMCHECK_DRIVER);
     let fe = enforce_fe_sumcheck_driver(
         builder,
         transcript,
@@ -546,20 +622,25 @@ fn enforce_split_nc_pi_ccs_v_inner(
         claimed_initial,
         &fe_rounds,
     )?;
-    builder.record_row_family("nifs.pi_ccs.fe_sumcheck", fe_sumcheck_start);
+    builder.record_row_family(stage::ROW_FE_SUMCHECK, fe_sumcheck_start);
 
     // ── 10. NC sumcheck driver ───────────────────────────────────────────
     let nc_sumcheck_start = builder.rows();
+    builder.begin_encoding_stage(stage::NC_SUMCHECK);
+    builder.begin_encoding_stage(stage::NC_SUMCHECK_ROUNDS);
     let nc_rounds: Vec<Vec<KVar>> = msg
         .sumcheck_rounds_nc
         .iter()
         .map(|r| alloc_k_vec(builder, r))
         .collect();
+    builder.begin_encoding_stage(stage::NC_SUMCHECK_DRIVER);
     let nc = enforce_nc_sumcheck_driver(builder, transcript, cfg.ell_m, cfg.ell_d, cfg.d_sc, &nc_rounds)?;
-    builder.record_row_family("nifs.pi_ccs.nc_sumcheck", nc_sumcheck_start);
+    builder.record_row_family(stage::ROW_NC_SUMCHECK, nc_sumcheck_start);
 
     // ── 11. Bind outputs to inputs (wire-to-wire) ────────────────────────
     let output_binding_start = builder.rows();
+    builder.begin_encoding_stage(stage::OUTPUT_BINDING_AND_TERMINAL_CHECKS);
+    builder.begin_encoding_stage(stage::OUTPUT_BINDING);
     bind_outputs_to_inputs(
         builder,
         &fresh_wires,
@@ -569,13 +650,14 @@ fn enforce_split_nc_pi_ccs_v_inner(
         &nc.s_col_prime,
         d_pad,
     )?;
-    builder.record_row_family("nifs.pi_ccs.output_binding", output_binding_start);
+    builder.record_row_family(stage::ROW_OUTPUT_BINDING, output_binding_start);
 
     let output_y_ring_view: Vec<Vec<Vec<KVar>>> = output_wires.iter().map(|ow| ow.y_ring.clone()).collect();
     let output_y_zcol_view: Vec<Vec<KVar>> = output_wires.iter().map(|ow| ow.y_zcol.clone()).collect();
 
     // ── 12. FE terminal identity ─────────────────────────────────────────
     let fe_terminal_start = builder.rows();
+    builder.begin_encoding_stage(stage::FE_TERMINAL_IDENTITY);
     let me_input_r: Option<&[KVar]> = running_wires.first().map(|w| w.r.as_slice());
     let rhs_fe = enforce_fe_terminal_identity(
         builder,
@@ -593,11 +675,13 @@ fn enforce_split_nc_pi_ccs_v_inner(
             output_y_ring: &output_y_ring_view,
         },
     )?;
+    builder.begin_encoding_stage(stage::FE_TERMINAL_FINAL_SUM);
     enforce_kvar_eq(builder, fe.final_sum, rhs_fe);
-    builder.record_row_family("nifs.pi_ccs.fe_terminal", fe_terminal_start);
+    builder.record_row_family(stage::ROW_FE_TERMINAL, fe_terminal_start);
 
     // ── 13. NC terminal identity ─────────────────────────────────────────
     let nc_terminal_start = builder.rows();
+    builder.begin_encoding_stage(stage::NC_TERMINAL_IDENTITY);
     let rhs_nc = enforce_nc_terminal_identity(
         builder,
         &NcTerminalInputs {
@@ -610,16 +694,46 @@ fn enforce_split_nc_pi_ccs_v_inner(
             output_y_zcol: &output_y_zcol_view,
         },
     )?;
+    builder.begin_encoding_stage(stage::NC_TERMINAL_FINAL_SUM);
     enforce_kvar_eq(builder, nc.final_sum, rhs_nc);
-    builder.record_row_family("nifs.pi_ccs.nc_terminal", nc_terminal_start);
+    builder.record_row_family(stage::ROW_NC_TERMINAL, nc_terminal_start);
 
     // ── 14. Header digest catch-up squeeze ───────────────────────────────
     let catchup_start = builder.rows();
+    builder.begin_encoding_stage(stage::HEADER_CATCH_UP);
+    builder.begin_encoding_stage(stage::HEADER_FIELDS);
     let header_fields = header_digest_bytes_to_fields(msg.header_digest)?;
     let header_wires = header_fields.map(|value| builder.alloc(value));
+    builder.begin_encoding_stage(stage::HEADER_TRANSCRIPT);
     enforce_header_digest_catch_up_wires(builder, transcript, header_wires);
+    builder.begin_encoding_stage(stage::HEADER_OUTPUT_BINDING);
     enforce_output_fold_digest_matches_header(builder, &output_wires, header_wires);
-    builder.record_row_family("nifs.pi_ccs.catchup", catchup_start);
+    builder.record_row_family(stage::ROW_CATCH_UP, catchup_start);
+
+    // ── 15. Recompute the wire-format Π_CCS output digest ────────────────
+    //
+    // Native `pi_ccs::verify` rejects a stale `Proof::outputs_digest` before
+    // handing the outputs to Π_RLC. Keep the digest computation inside the
+    // Π_CCS verifier and surface the resulting wires so NIFS.V can append the
+    // exact same value without hashing the output surface a second time.
+    let output_message_hashes_start = builder.rows();
+    builder.begin_encoding_stage(stage::OUTPUT_MESSAGE_HASHES);
+    builder.begin_encoding_stage(stage::OUTPUT_MESSAGE_DIGEST);
+    let output_digest_inputs: Vec<_> = output_wires
+        .iter()
+        .map(|output| PiCcsOutputMessageDigestInputs {
+            y_ring: &output.y_ring,
+            y_zcol: &output.y_zcol,
+        })
+        .collect();
+    let output_claims_digest = enforce_pi_ccs_outputs_digest(builder, &output_digest_inputs)?;
+    builder.begin_encoding_stage(stage::OUTPUT_MESSAGE_CLAIM);
+    let claimed_output_digest: [Var; 4] = std::array::from_fn(|lane| builder.alloc(msg.outputs_digest[lane]));
+    builder.begin_encoding_stage(stage::OUTPUT_MESSAGE_BINDING);
+    for lane in 0..4 {
+        enforce_var_eq(builder, output_claims_digest[lane], claimed_output_digest[lane]);
+    }
+    builder.record_row_family(stage::OUTPUT_MESSAGE_HASHES, output_message_hashes_start);
 
     // Surface the full output wire bundle so downstream Π_RLC.V / NIFS.V
     // composition can fold c.data, X, r, s_col, y_ring, ct, y_zcol without
@@ -708,6 +822,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
         r_prime: fe.r_prime,
         s_col_prime: nc.s_col_prime,
         outputs,
+        output_claims_digest,
         fresh_x,
         fresh_adv,
         running_c_data,
@@ -827,12 +942,15 @@ fn validate_fresh_shape(cfg: &SplitNcPiCcsVConfig<'_>, idx: usize, f: &CcsClaim)
     Ok(())
 }
 
-/// Native-mirror shape check for one running CE claim. CE outputs share the
-/// same invariants except that fresh outputs may have a different X.cols
-/// (= fresh.m_in), so output X is checked separately in
-/// `bind_outputs_to_inputs` — but the other CE invariants still apply, so
-/// outputs flow through [`validate_output_ce_shape`].
-fn validate_ce_shape(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeClaim) -> Result<(), Error> {
+/// The Π_RLC parent carried beside a running accumulator is checked through
+/// native Π_DEC.V, which currently excludes `y_zcol` from its authority.
+/// This mirrors production but is a known open NC authority gap, not a claim
+/// that the sidecar is semantically removable.
+fn validate_running_parent_authority_shape(cfg: &SplitNcPiCcsVConfig<'_>, ce: &CeClaim) -> Result<(), Error> {
+    validate_ce_shape_without_y_zcol(cfg, "running_parent_authority", ce)
+}
+
+fn validate_ce_shape_without_y_zcol(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeClaim) -> Result<(), Error> {
     let kappa = cfg.params.kappa() as usize;
     let d_pad = 1usize << cfg.ell_d;
 
@@ -906,7 +1024,8 @@ fn validate_output_ce_shape(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeC
     if ce.X.rows() != D {
         return Err(Error::Shape(format!("{label}.X.rows ({}) != D ({D})", ce.X.rows())));
     }
-    validate_ce_common_shape(cfg, label, ce, d_pad)
+    validate_ce_common_shape(cfg, label, ce, d_pad)?;
+    validate_y_zcol_shape(label, ce, d_pad)
 }
 
 fn validate_ce_common_shape(
@@ -952,6 +1071,10 @@ fn validate_ce_common_shape(
             )));
         }
     }
+    validate_ce_sidecars(label, ce)
+}
+
+fn validate_y_zcol_shape(label: &str, ce: &CeClaim, d_pad: usize) -> Result<(), Error> {
     if ce.y_zcol.len() != d_pad {
         return Err(Error::Shape(format!(
             "{label}.y_zcol.len ({}) != d_pad ({})",
@@ -959,6 +1082,10 @@ fn validate_ce_common_shape(
             d_pad
         )));
     }
+    Ok(())
+}
+
+fn validate_ce_sidecars(label: &str, ce: &CeClaim) -> Result<(), Error> {
     if !ce.aux_openings.is_empty() {
         return Err(Error::Shape(format!(
             "{label}.aux_openings.len ({}) != 0 for clean SplitNc circuit",
@@ -1007,6 +1134,30 @@ fn enforce_output_fold_digest_matches_header(
     }
 }
 
+/// Mirror the native verifier's optional FE-initial-sum check without making
+/// the R1CS relation depend on whether the optional field is present.
+///
+/// `present = 1` enforces `claimed == expected`; `present = 0` accepts absence
+/// and requires the otherwise-unused value wires to use a unique zero padding.
+fn enforce_optional_k_equality(builder: &mut R1csBuilder, claimed: Option<K>, expected: KVar) {
+    let present_value = if claimed.is_some() { F::ONE } else { F::ZERO };
+    let present = builder.alloc(present_value);
+    boolean::enforce_bit(builder, present);
+
+    let claimed = alloc_k(builder, claimed.unwrap_or(K::ZERO));
+    let mut diff_c0 = Lc::from_var(claimed.c0);
+    diff_c0.add_term(expected.c0, -F::ONE);
+    let mut diff_c1 = Lc::from_var(claimed.c1);
+    diff_c1.add_term(expected.c1, -F::ONE);
+    builder.enforce(&Lc::from_var(present), &diff_c0, &Lc::zero());
+    builder.enforce(&Lc::from_var(present), &diff_c1, &Lc::zero());
+
+    let mut absent = Lc::from_const(F::ONE);
+    absent.add_term(present, -F::ONE);
+    builder.enforce(&absent, &Lc::from_var(claimed.c0), &Lc::zero());
+    builder.enforce(&absent, &Lc::from_var(claimed.c1), &Lc::zero());
+}
+
 fn enforce_ct_from_y_ring(builder: &mut R1csBuilder, label: &str, claim: &CeClaimWires) -> Result<(), Error> {
     if claim.ct.len() != claim.y_ring.len() {
         return Err(Error::Shape(format!(
@@ -1032,6 +1183,13 @@ fn enforce_y_ring_padding_zero(builder: &mut R1csBuilder, claim: &CeClaimWires) 
             builder.enforce_eq(&Lc::from_var(lane.c0), &Lc::zero());
             builder.enforce_eq(&Lc::from_var(lane.c1), &Lc::zero());
         }
+    }
+}
+
+fn enforce_y_zcol_padding_zero(builder: &mut R1csBuilder, claim: &CeClaimWires) {
+    for lane in claim.y_zcol.iter().skip(D) {
+        builder.enforce_eq(&Lc::from_var(lane.c0), &Lc::zero());
+        builder.enforce_eq(&Lc::from_var(lane.c1), &Lc::zero());
     }
 }
 
@@ -1074,6 +1232,31 @@ fn alloc_fresh_wires(builder: &mut R1csBuilder, fresh: &CcsClaim) -> CcsClaimWir
 /// `Vec<Var>` of length `x_rows * x_cols`; the SuperNeo-packed view is
 /// derived on demand via [`CeClaimWires::x_packed`].
 fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWires, Error> {
+    alloc_ce_wires_from_y_zcol(builder, ce, &ce.y_zcol)
+}
+
+/// Allocate only the CE core consumed by current strict Π_DEC and
+/// cross-step continuity. The missing old-point `y_zcol` is tracked as an
+/// authority gap; this helper does not justify its semantic erasure.
+fn alloc_ce_wires_without_y_zcol(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWires, Error> {
+    alloc_ce_wires_from_y_zcol(builder, ce, &[])
+}
+
+/// Allocate the current fixed-width parent `y_zcol` view. Native Π_DEC.V does
+/// not yet treat it as authority; missing lanes are padded and extra lanes are
+/// ignored only to reproduce that audited production relation.
+fn alloc_ce_wires_with_canonical_y_zcol(
+    builder: &mut R1csBuilder,
+    ce: &CeClaim,
+    lanes: usize,
+) -> Result<CeClaimWires, Error> {
+    let canonical: Vec<K> = (0..lanes)
+        .map(|lane| ce.y_zcol.get(lane).copied().unwrap_or(K::ZERO))
+        .collect();
+    alloc_ce_wires_from_y_zcol(builder, ce, &canonical)
+}
+
+fn alloc_ce_wires_from_y_zcol(builder: &mut R1csBuilder, ce: &CeClaim, y_zcol: &[K]) -> Result<CeClaimWires, Error> {
     let mut x: Vec<Var> = Vec::with_capacity(ce.X.rows() * ce.X.cols());
     let active_cols = crate::paper::relations::superneo_public_x_cols(ce.m_in);
     let inactive_nonzero = (0..ce.X.rows()).any(|r| (active_cols..ce.X.cols()).any(|c| ce.X[(r, c)] != F::ZERO));
@@ -1104,7 +1287,7 @@ fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWire
         s_col: alloc_k_vec(builder, &ce.s_col),
         y_ring: alloc_k_rows(builder, &ce.y_ring),
         ct: alloc_k_vec(builder, &ce.ct),
-        y_zcol: alloc_k_vec(builder, &ce.y_zcol),
+        y_zcol: alloc_k_vec(builder, y_zcol),
         m_in: ce.m_in,
         m_in_var: alloc_usize(builder, ce.m_in),
         fold_digest_fields: digest32_witness_fields(builder, &ce.fold_digest)?,

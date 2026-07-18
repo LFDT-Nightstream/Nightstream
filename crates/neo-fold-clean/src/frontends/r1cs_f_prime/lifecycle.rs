@@ -1,4 +1,22 @@
-//! Lifecycle helpers for R1CS-encoded-F' chains.
+//! Prover lifecycle for R1CS-encoded `F'` chains.
+//!
+//! Owns: compile-to-instance-to-fold orchestration, chunk batching, semantic
+//! state threading, and final audit/uncompressed handoff.
+//!
+//! Does not own: R1CS compilation rules, NIFS internals, decider verification, or
+//! constraint emission.
+//!
+//! Emits constraints: no. It consumes preprocessed structures and compiled
+//! encoded steps.
+//!
+//! Authority boundary: compiler summaries are orchestration data; the retained
+//! audit state and NIFS proof verification authorize each fold transition.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Stateless batch | [`prove_encoded_steps`] | no | Preprocessed relation and lifecycle proof |
+//! | Stateful append | [`R1csChainBuilder`] append methods | no | Checked prior audit and compiled chunk |
+//! | Final handoff | [`R1csChainBuilder::finish_with_audit`] | no | Completed uncompressed audit |
 
 use crate::frontends::f_prime::compiler::FPrimeFoldPostSummary;
 use crate::frontends::f_prime::encoder::EncodedFPrimeStep;
@@ -335,7 +353,7 @@ impl<'a> R1csChainBuilder<'a> {
                 Some(instances) => {
                     if instances.len() != compiled.len() {
                         return Err(Error::Nifs(crate::paper::nifs::Error::BackendUnavailable {
-                            backend: "cuda",
+                            backend: "adapter",
                             reason: "adapter returned the wrong number of fresh instances",
                         }));
                     }

@@ -50,11 +50,11 @@ structure TerminalRows (assignment : Nat → Nat) : Prop where
 /-- Five literal terminal PiDEC parent-shape pins, after the production
 local-to-owner relabeling. -/
 private def parentShapePins : List AffinePins.Pin :=
-  [ .constant 2611276 54
-  , .constant 2611277 18
-  , .constant 2611278 54
-  , .constant 2611279 257
-  , .constant 2611280 257 ]
+  [ .constant 2676796 54
+  , .constant 2676797 18
+  , .constant 2676798 54
+  , .constant 2676799 257
+  , .constant 2676800 257 ]
 
 private theorem parentShapePins_member :
     ∀ pin ∈ parentShapePins,
@@ -62,11 +62,11 @@ private theorem parentShapePins_member :
   native_decide
 
 private theorem parentShapeColumns :
-    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24391 = 2611276 ∧
-    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24393 = 2611277 ∧
-    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24395 = 2611278 ∧
-    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24397 = 2611279 ∧
-    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24399 = 2611280 := by
+    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24391 = 2676796 ∧
+    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24393 = 2676797 ∧
+    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24395 = 2676798 ∧
+    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24397 = 2676799 ∧
+    Relabel.column FPrimeFullHistoryPiDec.terminalColumnMap 24399 = 2676800 := by
   native_decide
 
 /-- Exact terminal affine rows pin every verifier-normalized parent-shape
@@ -75,15 +75,15 @@ theorem parentShapeAgrees
     {assignment : Nat → Nat}
     (affine : FPrimeFullHistoryAffineSound.Terminal.Holds assignment) :
     FPrimeFullHistoryParentCeSerialization.ShapeAgrees assignment := by
-  have d := affine.piRlcShape (.constant 2611276 54)
+  have d := affine.piRlcShape (.constant 2676796 54)
     (parentShapePins_member _ (by simp [parentShapePins]))
-  have kappa := affine.piRlcShape (.constant 2611277 18)
+  have kappa := affine.piRlcShape (.constant 2676797 18)
     (parentShapePins_member _ (by simp [parentShapePins]))
-  have xRows := affine.piRlcShape (.constant 2611278 54)
+  have xRows := affine.piRlcShape (.constant 2676798 54)
     (parentShapePins_member _ (by simp [parentShapePins]))
-  have xWidth := affine.piRlcShape (.constant 2611279 257)
+  have xWidth := affine.piRlcShape (.constant 2676799 257)
     (parentShapePins_member _ (by simp [parentShapePins]))
-  have mIn := affine.piRlcShape (.constant 2611280 257)
+  have mIn := affine.piRlcShape (.constant 2676800 257)
     (parentShapePins_member _ (by simp [parentShapePins]))
   simp only [AffinePins.Pin.Holds] at d kappa xRows xWidth mIn
   rcases parentShapeColumns with ⟨dColumn, kappaColumn, xRowsColumn,
@@ -126,10 +126,10 @@ structure TerminalFacts (assignment : Nat → Nat) : Prop where
   latestLink : FPrimeFullHistoryTerminalLinkSound.Holds assignment
   accumulator : FPrimeFullHistoryTerminalAccumulatorSound.Facts assignment
   parentShape : FPrimeFullHistoryParentCeSerialization.ShapeAgrees assignment
-  parentSourceDecoded :
-    FPrimeFullHistoryTerminalAccumulator.parentCeClaimSourceColumns.map
+  accumulatorSourceDecoded :
+    FPrimeFullHistoryTerminalAccumulator.accumulatorClaimSourceColumns.map
         assignment =
-      CeClaimDigestV2.noAdvPreimage
+      AccumulatorCeClaimDigestV1.supportedNoAdvPreimage
         (PiDecStrictCompiler.activeColumns FPrimeFullHistoryPiDec.layout)
         FPrimeFullHistoryPiDec.layout.extensionLimbs
         (FPrimeFullHistoryParentCeSerialization.decodedParent assignment)
@@ -161,17 +161,18 @@ theorem sound_or_badRoot
       semantic with exact | bad
   · have shape := parentShapeAgrees exact.affine
     have accumulator := FPrimeFullHistoryTerminalAccumulatorSound.sound
-      prime canonical one rows.accumulator
-    have parentSourceDecoded :
-        FPrimeFullHistoryTerminalAccumulator.parentCeClaimSourceColumns.map
+      canonical one rows.accumulator
+    have accumulatorSourceDecoded :
+        FPrimeFullHistoryTerminalAccumulator.accumulatorClaimSourceColumns.map
             assignment =
-          CeClaimDigestV2.noAdvPreimage
+          AccumulatorCeClaimDigestV1.supportedNoAdvPreimage
             (PiDecStrictCompiler.activeColumns FPrimeFullHistoryPiDec.layout)
             FPrimeFullHistoryPiDec.layout.extensionLimbs
             (FPrimeFullHistoryParentCeSerialization.decodedParent
               assignment) := by
       exact accumulator.parentClaimSource.trans
-        (FPrimeFullHistoryParentCeSerialization.parentPreimage_eq_decoded shape)
+        (FPrimeFullHistoryAccumulatorClaimSerialization.terminalParentPreimage_eq_decoded
+          shape)
     left
     exact {
       nifs := exact
@@ -183,7 +184,7 @@ theorem sound_or_badRoot
         rows.latestLink
       accumulator := accumulator
       parentShape := shape
-      parentSourceDecoded := parentSourceDecoded
+      accumulatorSourceDecoded := accumulatorSourceDecoded
       continuity := FPrimeFullHistoryTerminalContinuitySound.sound canonical
         one rows.continuity
       publicPins := FPrimeFullHistoryPublicPinsSound.Artifact.sound canonical

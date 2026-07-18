@@ -24,3 +24,19 @@ fn ajtai_prg_length_v2() {
         assert_eq!(row.len(), len);
     }
 }
+
+#[test]
+fn ajtai_prg_rejects_distinct_seeds_with_the_same_field_encoding() {
+    let seed_zero = [0u8; 32];
+    let mut seed_modulus = seed_zero;
+    seed_modulus[..8].copy_from_slice(&0xffff_ffff_0000_0001u64.to_le_bytes());
+
+    assert_ne!(seed_zero, seed_modulus, "the setup seeds are byte-distinct");
+
+    let row_zero = expand_row(&seed_zero, 7, 8);
+    let row_modulus = expand_row(&seed_modulus, 7, 8);
+    assert_ne!(
+        row_zero, row_modulus,
+        "distinct Ajtai setup seeds must not collide before Poseidon2 hashing"
+    );
+}

@@ -58,21 +58,26 @@ pub fn permute_state(state: [Goldilocks; WIDTH]) -> [Goldilocks; WIDTH] {
     permutation().permute(state)
 }
 
-/// Round constants and internal diagonal of [`PERM`], as canonical limbs.
-/// Device backends use this to reproduce the permutation bit-for-bit.
+/// Round constants and internal diagonal of [`PERM`], as canonical u64 limbs.
+///
+/// For backends that re-implement the permutation on other hardware (e.g. the
+/// CUDA transcript) and must be bit-identical. Regenerated from `SEED` with
+/// the same draw order as `Poseidon2::new_from_rng_128` (external constants,
+/// then internal); `tests/poseidon2_round_constants.rs` pins the regeneration
+/// against [`PERM`] itself.
 pub struct Poseidon2RoundConstants {
-    /// Constants for the initial external rounds.
+    /// Initial external rounds, one `[u64; WIDTH]` row per round.
     pub initial: Vec<[u64; WIDTH]>,
-    /// Lane-zero constants for the internal rounds.
+    /// Internal rounds, one constant (added to lane 0) per round.
     pub internal: Vec<u64>,
-    /// Constants for the terminal external rounds.
+    /// Terminal external rounds, one `[u64; WIDTH]` row per round.
     pub terminal: Vec<[u64; WIDTH]>,
     /// Diagonal of the internal linear layer `1 + diag(v)`.
     pub diag: [u64; WIDTH],
 }
 
-/// Regenerate the constants of [`PERM`] from the canonical seed and draw
-/// order used by `Poseidon2Goldilocks::new_from_rng_128`.
+/// Regenerate the round constants of [`PERM`] from `SEED`. See
+/// [`Poseidon2RoundConstants`] for the bit-exactness contract.
 pub fn round_constants() -> Poseidon2RoundConstants {
     use p3_field::PrimeField64;
     use p3_poseidon2::ExternalLayerConstants;
@@ -91,13 +96,10 @@ pub fn round_constants() -> Poseidon2RoundConstants {
         .take(rounds_p)
         .collect();
 
-    let row = |values: &[Goldilocks; WIDTH]| core::array::from_fn(|i| values[i].as_canonical_u64());
+    let row = |r: &[Goldilocks; WIDTH]| core::array::from_fn(|i| r[i].as_canonical_u64());
     Poseidon2RoundConstants {
         initial: external.get_initial_constants().iter().map(row).collect(),
-        internal: internal
-            .iter()
-            .map(|constant| constant.as_canonical_u64())
-            .collect(),
+        internal: internal.iter().map(|c| c.as_canonical_u64()).collect(),
         terminal: external.get_terminal_constants().iter().map(row).collect(),
         diag: core::array::from_fn(|i| p3_goldilocks::MATRIX_DIAG_8_GOLDILOCKS[i].as_canonical_u64()),
     }

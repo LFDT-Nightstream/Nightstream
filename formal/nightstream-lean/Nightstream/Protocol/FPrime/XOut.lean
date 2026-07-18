@@ -8,13 +8,27 @@ Directly absorbed coordinates appear in `XOutPreimage`. Coordinates Rust omits
 for cost or fixed-point reasons are not silently treated as hashed: `z0`, the
 initial semantic state, and `publicTrace` are carried by `StatePinned` through
 verifier-derived/transitive or equality constraints. The running/latest proof
-payload is not promoted to digest authority; F' step semantics separately
-requires NIFS verification and recomputation of `accumulatorDigest`.
+payload is not part of this preimage. Therefore F' step semantics must
+separately bind the exact running payload to `accumulatorDigest`; merely
+recomputing a non-injective parent-only handle is insufficient.
 
 The hash is one domain-separated message function. Its message constructors
 make verifier-key, initial-boundary, and state-output domains disjoint without
 introducing a second hash family. A same-output disagreement reduces to an
 explicit collision; no collision-resistance conclusion is assumed locally.
+
+| Stage path | Mathematical obligation | Authority class | Local owner |
+|---|---|---|---|
+| `fprime.x_out.mode` | distinguish stateless and stateful semantic-state layouts | verifier-owned configuration | `Mode` |
+| `fprime.x_out.verifier` | name the exact verifier material absorbed into the verifier digest | direct dataflow | `VerifierPreimage`, `verifierDigest` |
+| `fprime.x_out.initial` | derive the initial boundary and public-trace seed from verifier-owned structure | computed | `InitialBoundaryPreimage`, `PublicTraceSeedPreimage`, `initialBoundary`, `publicTraceSeed` |
+| `fprime.x_out.preimage` | assemble the exact compact state-output absorb sequence | computed | `XOutPreimage`, `preimage` |
+| `fprime.x_out.domain` | separate verifier, initial-boundary, trace-seed, and state-output messages | checked by construction | `Message` |
+| `fprime.x_out.hash` | compute the public output through the sole abstract hash interface | computed | `Semantics`, `compute` |
+| `fprime.x_out.pinning` | retain omitted state coordinates through explicit verifier-derived equalities | checked | `StatePinned` |
+| `fprime.x_out.authority` | project exactly the hashed and transitively pinned fields; this is not a binding claim for the omitted proof payload | computed | `AuthorityView`, `authorityView` |
+| `fprime.x_out.collision` | name hash or Nebula-digest disagreement instead of assuming injectivity | security boundary | `HashCollision`, `NebulaDigestCollision`, `BindingFailure` |
+| `fprime.x_out.reduction` | reduce equal outputs to equal authority views or an explicit binding failure | derived | `xOut_binding_or_collision` |
 
 Maps to:
 - `paper::digest::{vk_fs_digest, initial_boundary_digest,
@@ -180,6 +194,45 @@ def preimage
     | .stateful => some state.semanticState
   construction2Accumulator := state.accumulatorDigest
   nebula := state.nebula.map semantics.nebulaDigest
+
+/-- Two states with equal hash-visible fields have the same state-output
+preimage. The proof payload and the fields owned by `StatePinned` are absent
+because `preimage` does not read them. -/
+theorem preimage_eq_of_visible_fields
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Header : Type uHeader}
+    {Digest : Type uDigest}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Nebula : Type}
+    {NebulaDigest : Type uNebulaDigest}
+    (semantics :
+      Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
+    (mode : Mode)
+    (context : Context Params StructureDigest Header Digest)
+    (left right : State Digest Running Fresh Nebula)
+    (chunkCount : left.chunkCount = right.chunkCount)
+    (stepCount : left.stepCount = right.stepCount)
+    (pc : left.pc = right.pc)
+    (currentBoundary : left.zi = right.zi)
+    (semanticState :
+      (match mode with
+        | .stateless => none
+        | .stateful => some left.semanticState) =
+      (match mode with
+        | .stateless => none
+        | .stateful => some right.semanticState))
+    (accumulatorDigest :
+      left.accumulatorDigest = right.accumulatorDigest)
+    (nebulaDigest :
+      left.nebula.map semantics.nebulaDigest =
+        right.nebula.map semantics.nebulaDigest) :
+    preimage semantics mode context left =
+      preimage semantics mode context right := by
+  rw [XOutPreimage.mk.injEq]
+  exact ⟨rfl, rfl, chunkCount, stepCount, pc, currentBoundary,
+    semanticState, accumulatorDigest, nebulaDigest⟩
 
 def compute
     {Params : Type uParams}

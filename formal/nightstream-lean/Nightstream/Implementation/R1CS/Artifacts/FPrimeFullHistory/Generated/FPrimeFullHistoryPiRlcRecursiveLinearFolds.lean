@@ -6,14 +6,14 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiRlcRecursiveLinearF
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "d724de012fe58e8ddedcd2df33fbf1bd7e9441db1e243f064abb64d512548a2b"
-def rowStart : Nat := 385106
-def rowEnd : Nat := 385128
+def rangeSha256 : String := "bc4baa99637163b4a8af9040b205bd2f1e4de847ffb58593fb2263b55f37f32d"
+def rowStart : Nat := 361575
+def rowEnd : Nat := 361597
 def rowCount : Nat := 22
 
 def pinRuns : List AffinePins.Run :=
-  [ .equal 32773 373516 1 1 18
-  , .equal 373662 33310 1 1 4
+  [ .equal 32773 360265 1 1 18
+  , .equal 33310 360411 1 1 4
   ]
 
 def pins : List AffinePins.Pin := AffinePins.expandRuns pinRuns

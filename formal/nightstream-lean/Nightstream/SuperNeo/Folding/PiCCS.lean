@@ -6,8 +6,22 @@ Model-level Π_CCS reduction (SuperNeo Lemma 3) at the production batch shape.
 
 One execution owns the whole fresh/running input product, the whole CE output
 product, and the two joint FE/NC SumCheck transcripts used by the implementation.
-The independent truth paths establish payload truth and fresh-norm truth for
-every coordinate.  Acceptance never carries either conclusion.
+The independent truth paths establish the two mixed-polynomial SumCheck
+claims.  Recovering every unmixed payload and fresh-norm obligation additionally
+excludes a compression root at the verifier's FE/NC mixing challenges.
+
+| Stage path | Mathematical obligation | Authority class | Local owner |
+|---|---|---|---|
+| `nifs.pi_ccs.input` | preserve the exact fresh/running product and its canonical source order | direct dataflow | `InputProduct`, `InputProduct.source` |
+| `nifs.pi_ccs.attempt` | carry one FE chain, one NC chain, and the complete CE output product | checked payload | `Attempt` |
+| `nifs.pi_ccs.shape` | preserve public source fields and one shared output point | checked | `Shape` |
+| `nifs.pi_ccs.verify` | accept exactly the shape and both abstract SumCheck chains | checked | `Accepted` |
+| `nifs.pi_ccs.semantic` | state independent payload, norm, and ambient-output truth | independent specification | `PayloadsHold`, `NormsHold`, `AmbientOutputsHold` |
+| `nifs.pi_ccs.arithmetization` | connect unmixed semantic truth to the two mixed claims | semantic bridge | `Arithmetization` |
+| `nifs.pi_ccs.bad_event` | expose round collisions and FE/NC compression roots explicitly | security boundary | `BadChallenge`, `FeMixingBad`, `NcMixingBad`, `BadEvent` |
+| `nifs.pi_ccs.completeness` | construct accepted output claims from honest source openings | derived | `honestOutput`, `complete` |
+| `nifs.pi_ccs.extraction` | reduce accepted outputs to valid inputs or one named bad event | derived | `strong_extract_or_bad_event` |
+| `nifs.pi_ccs.commitment` | aggregate the output commitments in canonical product order | computed | `phi`, `repeated_outputs_same_phi` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS
@@ -231,8 +245,64 @@ def relaxedOutput
     CE.Instance Structure PublicInput Point Evaluation Commitment :=
   { statement with stage := .ambient }
 
-/-- Semantic obligations for the two joint SumChecks.  Both are equivalences
-to independently defined truth, never acceptance-implies-validity fields. -/
+/-- Every source payload obligation before FE challenge compression. -/
+def PayloadsHold
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {Challenge : Type uChallenge}
+    {Value : Type uValue}
+    {params : GlobalParams}
+    {arity : BatchArity params}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (attempt : Attempt
+      Structure PublicInput Point Evaluation Commitment Challenge Value params arity)
+    (assignments : Fin arity.total → Assignment) : Prop :=
+  ∀ i, Source.PayloadTruth semantics (attempt.inputs.source i) (assignments i)
+
+/-- Every fresh norm obligation before NC challenge compression. -/
+def NormsHold
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (params : GlobalParams)
+    {arity : BatchArity params}
+    (assignments : Fin arity.total → Assignment) : Prop :=
+  ∀ i, semantics.normBounded params.b (assignments i)
+
+/-- The concrete assignment vector opens the verifier-accepted Π_CCS output
+product at the ambient extraction bound.  This binds any later mixing-root
+witness to the same outputs used by strong extraction. -/
+def AmbientOutputsHold
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {Challenge : Type uChallenge}
+    {Value : Type uValue}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (params : GlobalParams)
+    {arity : BatchArity params}
+    (attempt : Attempt
+      Structure PublicInput Point Evaluation Commitment Challenge Value params arity)
+    (assignments : Fin arity.total → Assignment) : Prop :=
+  ∀ i, CE.Holds semantics params (relaxedOutput (attempt.outputs i)) (assignments i)
+
+/-- Semantic obligations for the two joint SumChecks.  Honest unmixed truth
+implies mixed-claim truth.  The converse is deliberately absent: a sampled
+mixing challenge can be a root even when an individual obligation is false. -/
 structure Arithmetization
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -252,14 +322,13 @@ structure Arithmetization
     (assignments : Fin arity.total → Assignment) : Prop where
   feTruthPath : SumCheck.TruthPath ops attempt.fe
   ncTruthPath : SumCheck.TruthPath ops attempt.nc
-  feClaimTrue_iff :
-    SumCheck.Claim.True attempt.fe ↔
-      ∀ i, Source.PayloadTruth semantics (attempt.inputs.source i) (assignments i)
-  ncClaimTrue_iff :
-    SumCheck.Claim.True attempt.nc ↔
-      ∀ i, semantics.normBounded params.b (assignments i)
+  feClaimTrue_of_payloads :
+    PayloadsHold semantics attempt assignments → SumCheck.Claim.True attempt.fe
+  ncClaimTrue_of_norms :
+    NormsHold semantics params assignments → SumCheck.Claim.True attempt.nc
 
-/-- The phase-tagged bad event exposed by either false accepted joint claim. -/
+/-- A phase-tagged SumCheck round collision.  This excludes FE/NC mixing roots,
+which occur before the corresponding SumCheck polynomial is formed. -/
 inductive BadChallenge
     {Structure : Type uStructure}
     {PublicInput : Type uPublicInput}
@@ -276,6 +345,70 @@ inductive BadChallenge
       (evidence : SumCheck.BadChallenge attempt.fe round)
   | nc (round : SumCheck.Round Challenge Value)
       (evidence : SumCheck.BadChallenge attempt.nc round)
+
+/-- The sampled FE compression hides at least one false payload obligation. -/
+structure FeMixingBad
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {Challenge : Type uChallenge}
+    {Value : Type uValue}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    {params : GlobalParams}
+    {arity : BatchArity params}
+    (attempt : Attempt
+      Structure PublicInput Point Evaluation Commitment Challenge Value params arity)
+    (assignments : Fin arity.total → Assignment) : Prop where
+  mixedClaimTrue : SumCheck.Claim.True attempt.fe
+  payloadsFalse : ¬ PayloadsHold semantics attempt assignments
+
+/-- The sampled NC compression hides at least one false fresh-norm obligation. -/
+structure NcMixingBad
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {Challenge : Type uChallenge}
+    {Value : Type uValue}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (params : GlobalParams)
+    {arity : BatchArity params}
+    (attempt : Attempt
+      Structure PublicInput Point Evaluation Commitment Challenge Value params arity)
+    (assignments : Fin arity.total → Assignment) : Prop where
+  mixedClaimTrue : SumCheck.Claim.True attempt.nc
+  normsFalse : ¬ NormsHold semantics params assignments
+
+/-- Complete model-level Π_CCS failure boundary: either an assignment-free
+SumCheck round collision, or an FE/NC mixing root for an assignment vector that
+opens the accepted output product at the ambient extraction bound. -/
+def BadEvent
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    {Challenge : Type uChallenge}
+    {Value : Type uValue}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (params : GlobalParams)
+    {arity : BatchArity params}
+    (attempt : Attempt
+      Structure PublicInput Point Evaluation Commitment Challenge Value params arity) : Prop :=
+  Nonempty (BadChallenge attempt) ∨
+  ∃ assignments : Fin arity.total → Assignment,
+    AmbientOutputsHold semantics params attempt assignments ∧
+    (FeMixingBad semantics attempt assignments ∨
+      NcMixingBad semantics params attempt assignments)
 
 /-- Canonical output for one source at the verifier's new shared point. -/
 def honestOutput
@@ -479,9 +612,9 @@ private theorem source_holds_of_relaxed_output
         outputOpening.2.1.trans publicInputEq, by
           simpa [statementFresh] using freshNorm⟩, payload.1, payload.2⟩
 
-/-- Strong joint Π_CCS extraction.  Either every source opens, or one of the
-two accepted joint SumChecks exposes a concrete bad sampled challenge. -/
-theorem strong_extract_or_bad_challenge
+/-- Strong joint Π_CCS extraction.  Either every source opens, or the proof
+exposes a SumCheck round collision or an FE/NC compression root. -/
+theorem strong_extract_or_bad_event
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
     {PublicInput : Type uPublicInput}
@@ -500,28 +633,33 @@ theorem strong_extract_or_bad_challenge
     (assignments : Fin arity.total → Assignment)
     (accepted : Accepted ops attempt)
     (arithmetization : Arithmetization semantics params ops attempt assignments)
-    (outputValid : ∀ i,
-      CE.Holds semantics params (relaxedOutput (attempt.outputs i)) (assignments i)) :
+    (outputValid : AmbientOutputsHold semantics params attempt assignments) :
     (∀ i, (attempt.inputs.source i).Holds semantics params (assignments i)) ∨
-      Nonempty (BadChallenge attempt) := by
+      BadEvent semantics params attempt := by
   rcases accepted with ⟨shape, feAccepted, ncAccepted⟩
-  by_cases feTrue : SumCheck.Claim.True attempt.fe
-  · by_cases ncTrue : SumCheck.Claim.True attempt.nc
+  by_cases payloads : PayloadsHold semantics attempt assignments
+  · have feTrue := arithmetization.feClaimTrue_of_payloads payloads
+    by_cases norms : NormsHold semantics params assignments
     · left
       intro i
       exact source_holds_of_relaxed_output semantics params
         (attempt.inputs.source i) (attempt.outputs i) (assignments i)
         (shape.sourceFresh i) (shape.sameCommitment i) (shape.samePublicInput i)
-        (outputValid i) (arithmetization.ncClaimTrue_iff.mp ncTrue i)
-        (arithmetization.feClaimTrue_iff.mp feTrue i)
+        (outputValid i) (norms i) (payloads i)
     · right
-      rcases SumCheck.false_acceptance_implies_bad_challenge ops attempt.nc
-          ncAccepted arithmetization.ncTruthPath ncTrue with ⟨round, evidence⟩
-      exact ⟨BadChallenge.nc round evidence⟩
+      by_cases ncTrue : SumCheck.Claim.True attempt.nc
+      · exact Or.inr ⟨assignments, outputValid, Or.inr ⟨ncTrue, norms⟩⟩
+      · left
+        rcases SumCheck.false_acceptance_implies_bad_challenge ops attempt.nc
+            ncAccepted arithmetization.ncTruthPath ncTrue with ⟨round, evidence⟩
+        exact ⟨BadChallenge.nc round evidence⟩
   · right
-    rcases SumCheck.false_acceptance_implies_bad_challenge ops attempt.fe
-        feAccepted arithmetization.feTruthPath feTrue with ⟨round, evidence⟩
-    exact ⟨BadChallenge.fe round evidence⟩
+    by_cases feTrue : SumCheck.Claim.True attempt.fe
+    · exact Or.inr ⟨assignments, outputValid, Or.inl ⟨feTrue, payloads⟩⟩
+    · left
+      rcases SumCheck.false_acceptance_implies_bad_challenge ops attempt.fe
+          feAccepted arithmetization.feTruthPath feTrue with ⟨round, evidence⟩
+      exact ⟨BadChallenge.fe round evidence⟩
 
 /-- The strong reduction projects the complete vector of output commitments. -/
 def phi

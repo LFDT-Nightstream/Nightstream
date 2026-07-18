@@ -225,15 +225,13 @@ pub fn synthesize_last_step_terminal_r1cs(
 
     // 4b. CE-claim continuity: the last recursive F' step's Π_DEC
     //     children must equal the terminal fold's Π_CCS running input
-    //     wire-for-wire, across every carried CE field (c_data, X, r,
-    //     s_col, y_ring, ct, y_zcol, fold_digest_fields). The accumulator
-    //     digest omits non-authority sidecars such as y_zcol, so this
-    //     direct equality is the terminal-boundary continuity gate. Mirrors
+    //     wire-for-wire across every carried CE-core field (c_data, X, r,
+    //     s_col, y_ring, ct, fold_digest_fields). Mirrors
     //     the analogous check in
     //     `synthesize_statement_r1cs_inner` (full-history audit). Base
     //     last-step has no nifs_children, so this is guarded by `if let Some`.
     if let Some(prev_children) = last_output.nifs_children.as_ref() {
-        enforce_children_equal_running(&mut builder, prev_children, &terminal_running)
+        enforce_child_core_equal_running(&mut builder, prev_children, &terminal_running)
             .map_err(|e| decider::Error::WalkFailed(format!("CE continuity terminal fold (last-step): {e}")))?;
     }
 

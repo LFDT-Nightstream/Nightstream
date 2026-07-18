@@ -1,13 +1,30 @@
-//! Exact export and bit-backed CCS lowering of field-native R1CS synthesis.
+//! Exact sparse export and low-norm CCS lowering of synthesized R1CS relations.
 //!
-//! Owns only column normalization: constant one first, caller-selected
-//! public outputs next, then every remaining synthesized wire in original
-//! allocation order. Matrix rows and coefficients are preserved exactly.
-//! The fixed-shape branch compiler models HyperNova's single augmented
-//! relation: base rows are selected by `is_base`, recursive rows by its
-//! complement, and both branches share one public output prefix.
+//! Owns: normalized column order, bit/balanced encodings, source-row replay,
+//! fixed-shape selector composition, and multi-branch CCS construction.
+//!
+//! Does not own: source synthesis semantics, selective trace elimination, outer
+//! `F'` orchestration, or folding verification.
+//!
+//! Emits constraints: yes. It constructs CCS matrices and polynomials that
+//! decode retained values and preserve the source rows.
+//!
+//! Authority boundary: verifier-selected public columns and the exact source
+//! matrices define the relation; estimates and decoded witness values do not.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Sparse export | [`lower_field_r1cs`] | yes | Synthesized R1CS rows and public columns |
+//! | Low-norm relation | [`lower_sparse_r1cs_to_low_norm`] | yes | Constrained field encodings |
+//! | Branch composition | fixed/multi-branch builders | yes | Constrained selector and branch rows |
 
+mod snapshot;
 mod support;
+
+pub use snapshot::{
+    DerivedProductSumSnapshot, EncodedSlotSnapshot, LinearCombinationSnapshot, ProductFactorSnapshot,
+    SelectiveArmEncodingSnapshot, SelectiveLowNormSnapshot, SelectiveSnapshotError, SourceCoordinateAliasSnapshot,
+};
 
 use std::sync::Arc;
 
@@ -20,12 +37,13 @@ use crate::engine::r1cs_circuit::builder::{
     BalancedTernaryDecomposition, CenteredUnitTrace, PolynomialEvaluationTrace, Poseidon2PermutationTrace,
     Poseidon2SboxTrace, ProductFactorTrace, ProductSumBatchTrace, ProductSumIdentityTrace,
 };
-use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::{finalize_physical_stages, Lc, PhysicalStageError, R1csBuilder, Var};
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::f_prime::structure::MixedGateBuilder;
 use crate::frontends::r1cs_f_prime::SparseR1cs;
 use crate::paper::relations::Structure;
 
+use super::selective_audit::SelectiveCompilerAudit;
 use super::ternary_encoding::{write_balanced_ternary, BALANCED_TERNARY_FIELD_WIDTH};
 use support::{encoded_matrix_rows, eval_source_lc, first_unsatisfied_structure_row, is_structure_satisfied};
 pub(crate) use support::{normalized_field_assignment, normalized_source_column};
@@ -59,6 +77,8 @@ pub enum FieldR1csLoweringError {
     PublicOutputOutOfRange { col: usize, cols: usize },
     #[error("field-R1CS lowering: public output column {col} was listed more than once")]
     DuplicatePublicOutput { col: usize },
+    #[error(transparent)]
+    PhysicalStage(#[from] PhysicalStageError),
     #[error(transparent)]
     Shape(#[from] FrontendError),
     #[error(transparent)]
@@ -125,6 +145,7 @@ pub struct MultiBranchLowNormR1cs {
     arm_equal_aliases: Vec<Vec<CompactIndex>>,
     arm_centered_columns: Vec<Vec<bool>>,
     arm_derived_product_sums: Vec<Vec<DerivedProductSumEncoding>>,
+    selective_compiler_audit: Option<SelectiveCompilerAudit>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -194,6 +215,7 @@ impl MultiBranchLowNormR1cs {
         arm_equal_aliases: Vec<Vec<Option<usize>>>,
         arm_centered_columns: Vec<Vec<bool>>,
         arm_derived_product_sums: Vec<Vec<DerivedProductSumEncoding>>,
+        selective_compiler_audit: Option<SelectiveCompilerAudit>,
     ) -> Self {
         let arm_slots = arm_slots
             .into_iter()
@@ -217,6 +239,7 @@ impl MultiBranchLowNormR1cs {
             arm_equal_aliases,
             arm_centered_columns,
             arm_derived_product_sums,
+            selective_compiler_audit,
         }
     }
 
@@ -234,6 +257,10 @@ impl MultiBranchLowNormR1cs {
 
     pub fn selector_cols(&self) -> &[usize] {
         &self.selector_cols
+    }
+
+    pub fn selective_compiler_audit(&self) -> Option<&SelectiveCompilerAudit> {
+        self.selective_compiler_audit.as_ref()
     }
 
     pub fn field_slot(&self, arm: usize, field_col: usize) -> Option<(usize, usize)> {
@@ -545,6 +572,7 @@ pub fn lower_field_r1cs(
     public_outputs: &[Var],
 ) -> Result<LoweredFieldR1cs, FieldR1csLoweringError> {
     let synthesis = builder.into_synthesis();
+    let physical_stage_ranges = finalize_physical_stages(&synthesis.physical_stage_checkpoints, synthesis.rows)?;
     let cols = synthesis.witness.len();
     let mut selected = vec![false; cols];
     selected[Var::ONE.col()] = true;
@@ -779,6 +807,7 @@ pub fn lower_field_r1cs(
         polynomial_evaluation_traces,
         product_sum_batch_traces,
         synthesis.row_family_ranges,
+        physical_stage_ranges,
     )?;
 
     Ok(LoweredFieldR1cs { shape, assignment })
@@ -1121,6 +1150,7 @@ fn build_multi_branch_low_norm_r1cs_aligned(
         arms.iter().map(|arm| vec![None; arm.m]).collect(),
         arms.iter().map(|arm| vec![false; arm.m]).collect(),
         (0..arms.len()).map(|_| Vec::new()).collect(),
+        None,
     ))
 }
 

@@ -9,9 +9,10 @@ pub use profile::{
     MetalPiDecProfile, MetalPiRlcProfile, MetalResidencyProfile,
 };
 
+use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
-use neo_ajtai::Commitment;
+use neo_ajtai::{Commitment, PP};
 use neo_ccs::{LaneCommitments, Mat};
 use neo_fold_clean::frontends::f_prime::compiler::{nifs_ce_shape_from_claim, FPrimeFoldPostSummary};
 use neo_fold_clean::paper::digest::{self, AccumulatorHandle};
@@ -22,6 +23,7 @@ use neo_fold_clean::paper::pi_ccs;
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::PI_CCS_OUTPUTS_SIS_CONFIG;
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim, LaneRanges, LaneScheme, Structure};
 use neo_fold_clean::{CcsInstance, CcsWitness, RunningInstance};
+use neo_math::ring::Rq;
 use neo_math::{D, F};
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -47,7 +49,23 @@ struct FreshCommitmentPlan {
     d: usize,
     cols: usize,
     kappa: usize,
+    identity: FreshCommitmentPlanIdentity,
     plan: MetalAjtaiLowNormPlan,
+}
+
+enum FreshCommitmentPlanIdentity {
+    Seeded([u8; 32]),
+    Materialized(Weak<PP<Rq>>),
+}
+
+impl FreshCommitmentPlanIdentity {
+    fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Seeded(lhs), Self::Seeded(rhs)) => lhs == rhs,
+            (Self::Materialized(lhs), Self::Materialized(rhs)) => Weak::ptr_eq(lhs, rhs),
+            _ => false,
+        }
+    }
 }
 
 struct FreshLaneCommitmentPlan {
@@ -139,35 +157,45 @@ impl MetalNifsProver {
                 "Ajtai parameter dimensions do not match the Metal witness",
             ));
         }
-        let rebuild = self
-            .fresh_commitment_plan
-            .as_ref()
-            .is_none_or(|cached| cached.d != d || cached.cols != m || cached.kappa != kappa);
+        let (identity, materialized_pp) = if let Some((seeded_kappa, seed)) = log.seeded_params() {
+            if seeded_kappa != kappa {
+                return Err(backend_unavailable("seeded Ajtai parameters have inconsistent kappa"));
+            }
+            (FreshCommitmentPlanIdentity::Seeded(seed), None)
+        } else {
+            let pp = log
+                .verification_pp()
+                .map_err(|error| backend_failure("materialize Ajtai commitment parameters", error))?;
+            let identity = FreshCommitmentPlanIdentity::Materialized(Arc::downgrade(&pp));
+            (identity, Some(pp))
+        };
+        let rebuild = self.fresh_commitment_plan.as_ref().is_none_or(|cached| {
+            cached.d != d || cached.cols != m || cached.kappa != kappa || !cached.identity.matches(&identity)
+        });
         if rebuild {
-            let plan = if let Some((seeded_kappa, seed)) = log.seeded_params() {
-                if seeded_kappa != kappa {
-                    return Err(backend_unavailable("seeded Ajtai parameters have inconsistent kappa"));
+            let plan = match (&identity, materialized_pp) {
+                (FreshCommitmentPlanIdentity::Seeded(seed), None) => {
+                    self.session.prepare_ajtai_low_norm_seeded(*seed, kappa, m)
                 }
-                self.session.prepare_ajtai_low_norm_seeded(seed, kappa, m)
-            } else {
-                let pp = log
-                    .verification_pp()
-                    .map_err(|error| backend_failure("materialize Ajtai commitment parameters", error))?;
-                let matrix = pp
-                    .m_rows
-                    .iter()
-                    .flat_map(|row| {
-                        row.iter()
-                            .flat_map(|value| value.0.iter().map(PrimeField64::as_canonical_u64))
-                    })
-                    .collect::<Vec<_>>();
-                self.session.prepare_ajtai_low_norm(&matrix, kappa, m)
+                (FreshCommitmentPlanIdentity::Materialized(_), Some(pp)) => {
+                    let matrix = pp
+                        .m_rows
+                        .iter()
+                        .flat_map(|row| {
+                            row.iter()
+                                .flat_map(|value| value.0.iter().map(PrimeField64::as_canonical_u64))
+                        })
+                        .collect::<Vec<_>>();
+                    self.session.prepare_ajtai_low_norm(&matrix, kappa, m)
+                }
+                _ => unreachable!("Ajtai plan identity and parameters are constructed together"),
             }
             .map_err(|error| backend_failure("prepare Ajtai commitment parameters", error))?;
             self.fresh_commitment_plan = Some(FreshCommitmentPlan {
                 d,
                 cols: m,
                 kappa,
+                identity,
                 plan,
             });
         }
@@ -248,13 +276,13 @@ impl MetalNifsProver {
     fn post_fold_summary(
         &self,
         running: &RunningInstance,
-        parent_digest: [F; 4],
+        parent_accumulator_digest: [F; 4],
     ) -> Result<NifsPostFoldSummary, Error> {
         let parent = running
             .parent_authority
             .as_ref()
             .ok_or_else(|| backend_unavailable("post-fold running accumulator is missing its Pi_RLC parent"))?;
-        let handle = AccumulatorHandle::from_parent_digest(running.claims.len(), Some(parent_digest));
+        let handle = AccumulatorHandle::from_parent_digest(running.claims.len(), Some(parent_accumulator_digest));
         let f_prime = FPrimeFoldPostSummary {
             parent_shape: nifs_ce_shape_from_claim(parent, 0),
             child_count: running.claims.len() as u64,

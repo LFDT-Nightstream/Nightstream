@@ -3,11 +3,12 @@ import Nightstream.Implementation.R1CS.Ownership.FPrime.FPrimeCeContinuityArtifa
 /-!
 Contract: universal soundness of the exact one-claim CE continuity rows.
 
-Every authority coordinate is equated directly between the prior PiDEC child
-view and the next PiCCS running view: commitments, public projection, shape,
-evaluation points, range point, ring evaluations, constant terms, z-column
-evaluations, and fold digest. Compact digests are not substituted for these
-wire equalities.
+Every retained CE-core coordinate is equated directly between the prior PiDEC
+child view and the next PiCCS running view: commitments, public projection,
+shape, evaluation points, range point, ring evaluations, constant terms, and
+fold digest. Child/running `y_zcol` is intentionally absent under the proved
+PiDEC-child sidecar-erasure theorem. Parent authority and terminal CE validation
+retain it. Compact digests are not substituted for these wire equalities.
 -/
 
 set_option maxRecDepth 32768
@@ -34,7 +35,7 @@ private theorem equality_of_row {z : Nat → Nat}
     goldilocksP] at holds leftLt rightLt
   omega
 
-/-- `CIR-FPR-CE-CONTINUITY`: all 1,297 carried CE coordinates agree for
+/-- `CIR-FPR-CE-CONTINUITY`: all 1,169 carried CE-core coordinates agree for
 every satisfying one-claim continuity assignment. -/
 theorem fPrimeCeContinuity_sound {z : Nat → Nat}
     (hcanon : ∀ column, z column < goldilocksP)

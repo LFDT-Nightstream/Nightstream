@@ -21,7 +21,7 @@ use neo_fold_clean::paper::relations::{superneo_public_x_cols, CcsClaim, LaneRan
 use neo_fold_clean::paper::{pi_dec, pi_rlc};
 use neo_fold_clean::{CeClaim, Preprocessing};
 use neo_math::ring::D;
-use neo_math::F;
+use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 
 const SESSION_LABEL: &[u8] = b"neo.fold.clean/session/v1";
@@ -276,6 +276,22 @@ fn emit_verifier(f: &Fixture) -> Result<(R1csBuilder, NifsVOutputs), neo_fold_cl
     Ok((builder, outputs))
 }
 
+fn native_verifier_accepts(f: &Fixture) -> bool {
+    let mut tr = Transcript::session();
+    nifs::verify(
+        &mut tr,
+        &f.prep.params,
+        f.prep.structure(),
+        f.prep.optimized_cache(),
+        f.prep.mix_rhos_commits(),
+        f.prep.combine_b_pows(),
+        &f.fresh_claims,
+        &f.running,
+        &f.proof,
+    )
+    .is_ok()
+}
+
 #[test]
 fn nifs_v_transcript_phase_accepts_honest_native_tail() {
     let fixture = build_honest_fixture();
@@ -286,12 +302,13 @@ fn nifs_v_transcript_phase_accepts_honest_native_tail() {
     );
     let unconstrained = builder.unconstrained_columns();
     let mut allowed = Vec::new();
-    allowed.extend(
-        outputs
-            .running
+    allowed.extend(outputs.running.iter().flat_map(|claim| {
+        claim
+            .y_zcol
             .iter()
-            .flat_map(|claim| claim.y_zcol.iter().flat_map(|v| [v.c0.col(), v.c1.col()])),
-    );
+            .take(D)
+            .flat_map(|v| [v.c0.col(), v.c1.col()])
+    }));
     if let Some(parent) = &outputs.running_parent_authority {
         allowed.extend(parent.y_zcol.iter().flat_map(|v| [v.c0.col(), v.c1.col()]));
     }
@@ -305,7 +322,7 @@ fn nifs_v_transcript_phase_accepts_honest_native_tail() {
     assert!(
         unconstrained == allowed,
         "composed NIFS.V verifier left unexpected unconstrained columns: got {unconstrained:?}, \
-         expected only non-authority y_zcol sidecar limbs {allowed:?}"
+         expected only currently unbound y_zcol sidecar limbs {allowed:?}"
     );
 }
 
@@ -440,4 +457,233 @@ fn nifs_v_rejects_coherent_dec_adv_parent_unlinked_from_rlc_outputs() {
             "NIFS.V accepted an adv parent/child mutation unrelated to the Pi_CCS outputs"
         );
     }
+}
+
+/// The recursive NIFS verifier must consume every Π_CCS field that the
+/// native NIFS verifier treats as checked proof material. Otherwise a proof
+/// rejected at the native boundary can still satisfy the recursive circuit.
+#[test]
+fn recursive_nifs_v_rejects_native_checked_pi_ccs_fields() {
+    let mut stale_digest = build_honest_fixture();
+    stale_digest.proof.pi_ccs.outputs_digest[0] += F::ONE;
+    let mut native_tr = Transcript::session();
+    assert!(
+        nifs::verify(
+            &mut native_tr,
+            &stale_digest.prep.params,
+            stale_digest.prep.structure(),
+            stale_digest.prep.optimized_cache(),
+            stale_digest.prep.mix_rhos_commits(),
+            stale_digest.prep.combine_b_pows(),
+            &stale_digest.fresh_claims,
+            &stale_digest.running,
+            &stale_digest.proof,
+        )
+        .is_err(),
+        "fixture precondition: native NIFS.V must reject a stale Π_CCS outputs digest"
+    );
+    let digest_builder = emit_verifier(&stale_digest)
+        .expect("recursive verifier synthesizes the malformed digest fixture")
+        .0;
+    let recursive_accepted_stale_digest = digest_builder.is_satisfied();
+
+    let mut wrong_initial_sum = build_honest_fixture();
+    let honest_initial_sum = wrong_initial_sum
+        .proof
+        .pi_ccs
+        .sumcheck
+        .sc_initial_sum
+        .expect("native prover records its FE initial sum");
+    wrong_initial_sum.proof.pi_ccs.sumcheck.sc_initial_sum = Some(honest_initial_sum + neo_math::K::ONE);
+    let mut native_tr = Transcript::session();
+    assert!(
+        nifs::verify(
+            &mut native_tr,
+            &wrong_initial_sum.prep.params,
+            wrong_initial_sum.prep.structure(),
+            wrong_initial_sum.prep.optimized_cache(),
+            wrong_initial_sum.prep.mix_rhos_commits(),
+            wrong_initial_sum.prep.combine_b_pows(),
+            &wrong_initial_sum.fresh_claims,
+            &wrong_initial_sum.running,
+            &wrong_initial_sum.proof,
+        )
+        .is_err(),
+        "fixture precondition: native NIFS.V must reject a contradictory FE initial sum"
+    );
+    let initial_sum_builder = emit_verifier(&wrong_initial_sum)
+        .expect("recursive verifier synthesizes the contradictory initial-sum fixture")
+        .0;
+    let recursive_accepted_wrong_initial_sum = initial_sum_builder.is_satisfied();
+
+    assert!(
+        !recursive_accepted_stale_digest && !recursive_accepted_wrong_initial_sum,
+        "native/recursive differential: recursive NIFS.V accepted native-rejected Π_CCS fields (stale outputs_digest={recursive_accepted_stale_digest}, wrong sc_initial_sum={recursive_accepted_wrong_initial_sum})"
+    );
+}
+
+/// Current native Π_DEC does not read child `y_zcol`. Until the delayed
+/// projection authority bridge is closed, native/recursive parity must retain
+/// this known-gap behavior even when the ignored sidecar uses a shorter shape.
+#[test]
+fn recursive_nifs_v_accepts_native_valid_child_y_zcol_shape() {
+    let honest = build_honest_fixture();
+    let honest_builder = emit_verifier(&honest)
+        .expect("honest recursive verifier synthesis")
+        .0;
+    let mut fixture = build_honest_fixture();
+    assert!(
+        !fixture.proof.pi_dec.children[0].y_zcol.is_empty(),
+        "fixture carries a child y_zcol sidecar"
+    );
+    fixture.proof.pi_dec.children[0].y_zcol.pop();
+    fixture.children[0].y_zcol.pop();
+
+    let mut native_tr = Transcript::session();
+    nifs::verify(
+        &mut native_tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
+        &fixture.fresh_claims,
+        &fixture.running,
+        &fixture.proof,
+    )
+    .expect("native NIFS.V accepts the currently ignored child y_zcol shape");
+
+    let mut canonicalized_builder = None;
+    let rejection = match emit_verifier(&fixture) {
+        Ok((builder, _)) if builder.is_satisfied() => {
+            canonicalized_builder = Some(builder);
+            None
+        }
+        Ok((builder, _)) => Some(format!("unsatisfied row {:?}", builder.first_unsatisfied_row())),
+        Err(err) => Some(err.to_string()),
+    };
+    assert!(
+        rejection.is_none(),
+        "completeness failure: recursive NIFS.V rejected a native-valid Π_DEC child y_zcol shape ({rejection:?})"
+    );
+    assert!(
+        honest_builder
+            .snapshot()
+            .has_same_relation(&canonicalized_builder.expect("accepted builder").snapshot()),
+        "currently ignored child y_zcol shape must not change the recursive verifier relation"
+    );
+}
+
+/// Incoming running `y_zcol` is currently unbound in both native and recursive
+/// Π_CCS. This regression pins the known gap: mutating an ignored padding lane
+/// changes neither verifier acceptance nor the recursive relation/witness.
+#[test]
+fn recursive_nifs_v_omits_running_y_zcol_padding() {
+    let honest = build_honest_fixture();
+    let (honest_builder, _) = emit_verifier(&honest).expect("emit honest verifier");
+    assert!(honest_builder.is_satisfied());
+
+    let mut fixture = build_honest_fixture();
+    assert!(fixture.running.claims[0].y_zcol.len() > D);
+    fixture.running.claims[0].y_zcol[D] += K::ONE;
+
+    let mut native_tr = Transcript::session();
+    nifs::verify(
+        &mut native_tr,
+        &fixture.prep.params,
+        fixture.prep.structure(),
+        fixture.prep.optimized_cache(),
+        fixture.prep.mix_rhos_commits(),
+        fixture.prep.combine_b_pows(),
+        &fixture.fresh_claims,
+        &fixture.running,
+        &fixture.proof,
+    )
+    .expect("native NIFS.V ignores incoming running y_zcol");
+
+    let (builder, outputs) = emit_verifier(&fixture).expect("emit running-y_zcol mutation");
+    assert!(builder.is_satisfied());
+    assert!(outputs.running.iter().all(|claim| claim.y_zcol.is_empty()));
+    let honest = honest_builder.snapshot();
+    let mutated = builder.snapshot();
+    assert!(honest.has_same_relation(&mutated));
+    assert_eq!(
+        honest.witness(),
+        mutated.witness(),
+        "incoming running y_zcol leaked into the recursive NIFS.V witness"
+    );
+}
+
+#[test]
+fn recursive_nifs_v_optional_initial_sum_and_proof_values_keep_one_relation_shape() {
+    let honest = build_honest_fixture();
+    let honest_builder = emit_verifier(&honest).expect("honest verifier synthesis").0;
+    assert!(honest_builder.is_satisfied());
+
+    let mut absent_initial_sum = build_honest_fixture();
+    absent_initial_sum.proof.pi_ccs.sumcheck.sc_initial_sum = None;
+    assert!(
+        native_verifier_accepts(&absent_initial_sum),
+        "native verifier accepts an omitted optional FE initial sum"
+    );
+    let absent_builder = emit_verifier(&absent_initial_sum)
+        .expect("absent optional sum synthesis")
+        .0;
+    assert!(absent_builder.is_satisfied());
+    assert!(
+        honest_builder
+            .snapshot()
+            .has_same_relation(&absent_builder.snapshot()),
+        "optional FE initial-sum presence must be encoded as witness data, not a different relation"
+    );
+
+    let mut forged_values = build_honest_fixture();
+    forged_values.proof.pi_ccs.outputs_digest[0] += F::ONE;
+    let initial = forged_values
+        .proof
+        .pi_ccs
+        .sumcheck
+        .sc_initial_sum
+        .expect("honest proof records FE initial sum");
+    forged_values.proof.pi_ccs.sumcheck.sc_initial_sum = Some(initial + K::ONE);
+    forged_values.proof.pi_ccs.sumcheck.header_digest[0] ^= 1;
+    let forged_builder = emit_verifier(&forged_values)
+        .expect("forged proof values still synthesize the fixed relation")
+        .0;
+    assert!(!forged_builder.is_satisfied());
+    assert!(
+        honest_builder
+            .snapshot()
+            .has_same_relation(&forged_builder.snapshot()),
+        "Π_CCS proof values must change only witness assignments, never the F' verifier matrix"
+    );
+}
+
+#[test]
+fn recursive_nifs_v_records_current_unbound_parent_y_zcol_shape() {
+    let honest = build_honest_fixture();
+    let honest_builder = emit_verifier(&honest).expect("honest verifier synthesis").0;
+
+    let mut shortened = build_honest_fixture();
+    shortened
+        .running
+        .parent_authority
+        .as_mut()
+        .expect("non-empty running has a parent authority")
+        .y_zcol
+        .clear();
+    assert!(
+        native_verifier_accepts(&shortened),
+        "native Π_DEC ignores the running parent authority's y_zcol sidecar"
+    );
+    let shortened_builder = emit_verifier(&shortened)
+        .expect("short parent sidecar synthesis")
+        .0;
+    assert!(shortened_builder.is_satisfied());
+    assert!(
+        honest_builder
+            .snapshot()
+            .has_same_relation(&shortened_builder.snapshot()),
+        "currently unbound parent y_zcol shape must be canonicalized to the fixed verifier width"
+    );
 }

@@ -613,7 +613,7 @@ impl NifsProverAdapter for CudaNifsProver {
             .map(|output| output.accumulator_digest_fields());
         let running_parent_digest = running_device_output
             .as_ref()
-            .map(|output| output.parent_ce_digest_fields());
+            .map(|output| output.accumulator_digest_fields());
         crate::perf_timed!("session.params", {
             self.session.ensure_pp_uploaded(log)?;
         });

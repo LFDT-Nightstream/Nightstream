@@ -1,4 +1,20 @@
-//! NIFS.P — prover-side composition `Π_CCS → Π_RLC → Π_DEC`.
+//! Prover-side NIFS composition `Pi_CCS -> Pi_RLC -> Pi_DEC`.
+//!
+//! Owns: ordered prover orchestration, witness handoff between reductions, and
+//! backend/adapter entrypoints.
+//!
+//! Does not own: reduction arithmetic, verifier checks, or backend kernels.
+//!
+//! Emits constraints: no.
+//!
+//! Authority boundary: returned proofs, accumulators, and backend summaries are
+//! prover outputs; they acquire authority only through NIFS.V.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | CPU composition | [`prove`] | no | Prover witness and protocol transcript |
+//! | Reduction order | `prove_owned` | no | Pi_CCS, Pi_RLC, then Pi_DEC outputs |
+//! | Backend dispatch | [`prove_with_backend`], adapter entrypoints | no | Materialized proof verified by NIFS.V |
 
 use neo_ajtai::AjtaiSModule;
 use neo_reductions::optimized_engine::OptimizedStructureCache;

@@ -1,13 +1,15 @@
-import Nightstream.Implementation.R1CS.Core.Poseidon2Call
+import Nightstream.Implementation.R1CS.Core.TranscriptCertificate
 
 /-!
-Contract: certifying trace semantics for production Poseidon2 sponge calls.
+Contract: soundness and witness completeness for production Poseidon2 sponge
+calls.
 
 Each trace round carries only column wiring.  `Round.Valid` checks that the
 exact global artifact contains the linear absorb/padding rows and the exact
-renamed 600-row permutation call.  The theorem derives the round's functional
-result from R1CS satisfaction; no digest value or hash-success fact is carried
-in the certificate.
+renamed 600-row permutation call.  Soundness derives the round's functional
+result from R1CS satisfaction.  Completeness starts from explicit absorb/pad
+state transitions and independent permutation-interpreter executions; neither
+direction carries a digest value or hash-success fact in the certificate.
 -/
 
 namespace Nightstream.Implementation.R1CS.Poseidon2Sponge
@@ -45,6 +47,11 @@ def Round.expectedDefinitionRows (round : Round) : List Row :=
   | .pad =>
       [builderLinearRow (round.permutationInputColumns.getD 0 0)
         [(round.stateBeforeColumns.getD 0 0, 1), (0, 1)]]
+
+/-- Exact emitted rows owned by one sponge round: its linear absorb/padding
+definitions followed by the canonical renamed Poseidon2 permutation. -/
+def Round.rows (round : Round) : List Row :=
+  round.expectedDefinitionRows ++ round.call.rows
 
 def Round.metadataValid (round : Round) : Prop :=
   round.stateBeforeColumns.length = 8 ∧
@@ -88,6 +95,30 @@ def Round.inputLane (assignment : Nat → Nat) (round : Round) (lane : Nat) : Na
       else
         assignment (round.stateBeforeColumns.getD lane 0)
 
+/-- The semantic state transition materialized before one permutation call.
+Only lanes with emitted absorb/padding definition rows are obligations here;
+the unchanged lanes are wired by `Round.metadataValid`. -/
+def Round.TransitionAccepted (round : Round)
+    (assignment : Nat → Nat) : Prop :=
+  match round.kind with
+  | .absorb chunkColumns =>
+      ∀ lane, lane < chunkColumns.length →
+        assignment (round.permutationInputColumns.getD lane 0) =
+          (assignment (round.stateBeforeColumns.getD lane 0) +
+            assignment (chunkColumns.getD lane 0)) % goldilocksP
+  | .pad =>
+      assignment (round.permutationInputColumns.getD 0 0) =
+        (assignment (round.stateBeforeColumns.getD 0 0) + 1) % goldilocksP
+
+/-- Honest execution evidence for one sponge round.  `transition` is the
+sponge-specific absorb/pad state update.  `permutation` is agreement with the
+independent fixed Poseidon2 SSA interpreter, not R1CS row satisfaction. -/
+structure Round.ExecutionWitness (round : Round)
+    (assignment : Nat → Nat) : Prop where
+  transition : round.TransitionAccepted assignment
+  permutation :
+    TranscriptCertificate.CallAccepted round.call assignment
+
 private theorem expectedRows_satisfy
     {round : Round} {programRows : List Row} {assignment : Nat → Nat}
     (valid : round.Valid programRows)
@@ -99,6 +130,43 @@ private theorem expectedRows_satisfy
 private theorem twoTerm_canonical (left right : Nat) :
     CanonicalTerms [(left, 1), (right, 1)] := by
   simp [CanonicalTerms, goldilocksP]
+
+private theorem definitionRows_complete
+    {round : Round} {assignment : Nat → Nat}
+    (one : assignment 0 = 1)
+    (transition : round.TransitionAccepted assignment) :
+    Satisfies round.expectedDefinitionRows assignment := by
+  cases kind : round.kind with
+  | absorb chunkColumns =>
+      rw [Round.TransitionAccepted, kind] at transition
+      intro row member
+      rw [Round.expectedDefinitionRows, kind] at member
+      rcases List.mem_map.mp member with ⟨lane, laneMember, rfl⟩
+      have laneLt := List.mem_range.mp laneMember
+      apply builderLinearRow_complete one _ _ (twoTerm_canonical _ _)
+      simpa [lcEval, List.foldl] using transition lane laneLt
+  | pad =>
+      rw [Round.TransitionAccepted, kind] at transition
+      intro row member
+      simp only [Round.expectedDefinitionRows, kind, List.mem_singleton] at member
+      subst row
+      apply builderLinearRow_complete one _ _ (twoTerm_canonical _ _)
+      simpa [lcEval, List.foldl, one] using transition
+
+/-- Semantic absorb/pad execution plus the independent permutation interpreter
+construct every exact row emitted for one round. -/
+theorem Round.execution_complete
+    {round : Round} {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (witness : round.ExecutionWitness assignment) :
+    Satisfies round.rows assignment := by
+  intro row member
+  rw [Round.rows, List.mem_append] at member
+  rcases member with definitionMember | permutationMember
+  · exact definitionRows_complete one witness.transition row definitionMember
+  · exact TranscriptCertificate.call_complete round.call canonical one
+      witness.permutation row permutationMember
 
 private theorem getD_eq_of_drop_eq
     {left right : List Nat} {first lane : Nat}
@@ -551,6 +619,48 @@ theorem Trace.valueCheck_eq_true_iff (trace : Trace)
 
 def Trace.zeroDefinitionRows (trace : Trace) : List Row :=
   [builderLinearRow trace.zeroColumn []]
+
+/-- Exact sparse rows reconstructed from a compact sponge trace. -/
+def Trace.rows (trace : Trace) : List Row :=
+  trace.zeroDefinitionRows ++ trace.rounds.flatMap Round.rows
+
+/-- Honest execution evidence for a complete compact sponge trace.  The zero
+state and every round are materialized semantically; no field contains or
+assumes `Satisfies trace.rows assignment`. -/
+structure Trace.ExecutionWitness (trace : Trace)
+    (assignment : Nat → Nat) : Prop where
+  zero : assignment trace.zeroColumn = 0
+  rounds : ∀ round ∈ trace.rounds, round.ExecutionWitness assignment
+
+private theorem zeroDefinitionRows_complete
+    {trace : Trace} {assignment : Nat → Nat}
+    (one : assignment 0 = 1)
+    (zero : assignment trace.zeroColumn = 0) :
+    Satisfies trace.zeroDefinitionRows assignment := by
+  intro row member
+  simp only [Trace.zeroDefinitionRows, List.mem_singleton] at member
+  subst row
+  apply builderLinearRow_complete one trace.zeroColumn []
+  · simp [CanonicalTerms]
+  · simpa [lcEval] using zero
+
+/-- Compiler completeness for a compact sponge trace.  Explicit semantic
+execution witnesses reconstruct the zero row, every absorb/pad definition,
+and every exact renamed 600-row Poseidon2 call. -/
+theorem Trace.execution_complete
+    {trace : Trace} {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (witness : trace.ExecutionWitness assignment) :
+    Satisfies trace.rows assignment := by
+  intro row member
+  rw [Trace.rows, List.mem_append] at member
+  rcases member with zeroMember | roundMember
+  · exact zeroDefinitionRows_complete one witness.zero row zeroMember
+  · rcases List.mem_flatMap.mp roundMember with
+      ⟨round, roundInTrace, rowInRound⟩
+    exact Round.execution_complete canonical one
+      (witness.rounds round roundInTrace) row rowInRound
 
 def Trace.absorbedColumns (trace : Trace) : List Nat :=
   absorbedColumnsOf trace.rounds

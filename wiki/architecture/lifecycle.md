@@ -37,9 +37,9 @@ Audit / decider:
   audit-trail fields (`steps`, `public_batches`, `final_fold.nifs`) that the
   terminal-only verifier ignores by design. Required for multi-chunk chains until the
   compressed decider lands; also the right tool for diagnostics and red-team tests.
-- **`verify`** (compressed): the Spartan2 path. The seam is wired —
-  `compress` finalizes, replay-verifies, builds the decider statement, and calls
-  `decider::prove` — but the PR5 decider itself returns `Unsupported` today.
+- **`verify`** (compressed): `compress` finalizes, replay-verifies, and builds the
+  decider statement, but the backend entrypoint returns `Unsupported` today. The
+  standalone Toy Spartan/WHIR crate is deliberately not connected here.
 
 Beyond replay, `verify_uncompressed` independently re-checks the recorded final
 accumulator: witness shape, commitment match, public-input projection, low-norm bound,

@@ -19,7 +19,8 @@ namespace Nightstream.Implementation.R1CS.FPrimeRecursiveManifest
 theorem topLevel_covers_program : covers 0 totalRows topLevelFamilies = true := by
   decide
 
-theorem nifs_covers_block : covers 20038 2592246 nifsFamilies = true := by
+theorem nifs_covers_block :
+    covers nifsRowStart nifsRowEnd nifsFamilies = true := by
   decide
 
 theorem topLevel_row_count :
@@ -27,7 +28,7 @@ theorem topLevel_row_count :
   decide
 
 theorem nifs_row_count :
-    (nifsFamilies.map RowRange.rowCount).sum = 2572208 := by
+    (nifsFamilies.map RowRange.rowCount).sum = nifsRowCount := by
   decide
 
 theorem nifs_matches_top_level :

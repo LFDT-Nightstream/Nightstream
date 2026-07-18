@@ -11,6 +11,9 @@ crate-type = ["rlib", "staticlib"]
 [lints]
 workspace = true
 
+[target.'cfg(target_vendor = "apple")'.dependencies]
+neo-prover-metal = { path = "../neo-prover-metal", features = ["metal"] }
+
 [dependencies]
 bellpepper = { workspace = true }
 bellpepper-core = { workspace = true }

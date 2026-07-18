@@ -8,9 +8,9 @@ open Nightstream.Implementation.R1CS.OwnerCertificate
 
 set_option maxRecDepth 1048576
 
-def rangeSha256 : String := "ab5aa030a3474a7e842504edb2b063f06ce42923d55eab8ba8f97b089e43ab04"
-def rowStart : Nat := 225920
-def rowEnd : Nat := 225922
+def rangeSha256 : String := "924c4972357f862acccc61dfdb80ab900a626030c43dcd95903d56251481d4c8"
+def rowStart : Nat := 223522
+def rowEnd : Nat := 223524
 def rowCount : Nat := 2
 
 def pieces : List Piece :=

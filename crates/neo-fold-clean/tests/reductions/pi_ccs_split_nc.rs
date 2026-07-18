@@ -20,13 +20,13 @@ use neo_fold_clean::paper::digest::{
     accumulator_ce_claim_digest, accumulator_digest_from_running_parts, ccs_claim_digest, ce_claim_digest,
     digest32_as_fields, pi_ccs_instance_digest, pi_ccs_instance_digest_parent_authority, pi_ccs_outputs_digest,
 };
-use neo_fold_clean::paper::reductions::accumulator_digest_circuit::enforce_accumulator_digest_from_parent_circuit;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_me_inputs_accumulator_handle,
     enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest, enforce_ce_claim_digest, enforce_fe_claimed_initial,
-    enforce_header_digest_catch_up, enforce_pi_ccs_instance_digest, enforce_pi_ccs_instance_digest_parent_authority,
-    enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges,
-    AccumulatorCeClaimDigestInputs, CeClaimDigestInputs, FeClaimedInitialInputs, PiCcsOutputClaimDigestInputs,
+    enforce_header_digest_catch_up_wires, enforce_pi_ccs_instance_digest,
+    enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields,
+    sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs, CeClaimDigestInputs,
+    FeClaimedInitialInputs, PiCcsOutputMessageDigestInputs,
 };
 use neo_math::ring::D;
 use neo_math::{from_complex, KExtensions, F, K};
@@ -783,9 +783,9 @@ fn enforce_ce_claim_digest_rejects_nonzero_inactive_x() {
 fn enforce_accumulator_ce_claim_digest_matches_native_authority_fields() {
     // This is the HyperNova U_i handle's per-claim building block. Unlike
     // the paper-layer `ce_claim_digest`, it must bind implementation-carried
-    // authority fields too: s_col, ct, and fold_digest. It deliberately
-    // omits y_zcol because Π_DEC children do not prove a verifier-checkable
-    // radix-b y_zcol recomposition equation.
+    // authority fields too: s_col, ct, and fold_digest. The current encoding
+    // omits y_zcol because Π_DEC children do not yet prove a verifier-checkable
+    // radix-b y_zcol recomposition equation; this test pins that known gap.
     let claim = build_test_accumulator_ce_claim(0xACCE_551);
     let native_digest = accumulator_ce_claim_digest(&claim);
 
@@ -826,7 +826,7 @@ fn enforce_pi_ccs_outputs_digest_matches_native_new_messages_only() {
         .collect();
     let digest = enforce_pi_ccs_outputs_digest(
         &mut builder,
-        &[PiCcsOutputClaimDigestInputs {
+        &[PiCcsOutputMessageDigestInputs {
             y_ring: &y_ring,
             y_zcol: &y_zcol,
         }],
@@ -849,7 +849,7 @@ fn enforce_pi_ccs_outputs_digest_matches_native_new_messages_only() {
 }
 
 #[test]
-fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
+fn accumulator_ce_claim_digest_records_current_unbound_y_zcol_gap() {
     // y_zcol is consumed by the same-step NC/RLC equations, but child
     // y_zcol is not verifier-checkably recomposed by Π_DEC. If this digest
     // absorbed it, the prover would get an unconstrained Fiat-Shamir salt in
@@ -864,7 +864,7 @@ fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
     assert_eq!(
         accumulator_ce_claim_digest(&c0_tampered),
         digest,
-        "accumulator digest must not absorb c0 of non-authority y_zcol"
+        "current accumulator digest omits c0 of the unbound y_zcol gap"
     );
 
     let mut c1_tampered = claim.clone();
@@ -872,7 +872,7 @@ fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
     assert_eq!(
         accumulator_ce_claim_digest(&c1_tampered),
         digest,
-        "accumulator digest must not absorb c1 of non-authority y_zcol"
+        "current accumulator digest omits c1 of the unbound y_zcol gap"
     );
 
     let mut y_ring_tampered = claim.clone();
@@ -893,11 +893,9 @@ fn accumulator_ce_claim_digest_ignores_y_zcol_non_authority() {
 }
 
 #[test]
-fn enforce_parent_authority_accumulator_digest_matches_native() {
-    // NIFS.V has already established Pi_DEC(parent, children). The compact
-    // HyperNova handle therefore hashes the same parent CE authority used by
-    // the Pi_CCS transcript, plus the child count. Pin that wrapper's exact
-    // native/circuit Poseidon2 preimage independently of the larger verifier.
+fn running_accumulator_handle_is_the_validated_parent_authority() {
+    // Π_DEC validates children against the parent. Recursive state therefore
+    // carries the full parent digest, not a second digest of child bytes.
     let child_a = build_test_accumulator_ce_claim(0xA11CE);
     let child_b = build_test_accumulator_ce_claim(0xB0B);
     let parent = build_test_accumulator_ce_claim(0xFA12_EA7E_u64);
@@ -905,19 +903,14 @@ fn enforce_parent_authority_accumulator_digest_matches_native() {
         &[child_a.clone(), child_b.clone()],
         Some(&parent),
     ));
+    assert_eq!(native_digest, accumulator_ce_claim_digest(&parent));
 
-    let mut b = R1csBuilder::new();
-    let parent_digest = ce_claim_digest(&parent).map(|lane| alloc_witness_var(&mut b, lane));
-    let digest = enforce_accumulator_digest_from_parent_circuit(&mut b, 2, Some(parent_digest));
-
-    for (i, var) in digest.iter().enumerate() {
-        assert_eq!(b.witness()[var.col()], native_digest[i], "lane {i}");
-        b.enforce_eq(&Lc::from_var(*var), &Lc::from_const(native_digest[i]));
-    }
-    assert!(
-        b.is_satisfied(),
-        "parent-authority accumulator digest parity (first bad row: {:?})",
-        b.first_unsatisfied_row()
+    let mut changed_children = [child_a, child_b];
+    changed_children[0].c.data[0] += F::ONE;
+    assert_eq!(
+        digest32_as_fields(accumulator_digest_from_running_parts(&changed_children, Some(&parent))),
+        native_digest,
+        "child serialization is a checked witness, not transcript authority"
     );
 }
 
@@ -1436,7 +1429,8 @@ fn header_digest_catch_up_matches_native_digest32() {
             F::from_u64(8),
         ],
     );
-    enforce_header_digest_catch_up(&mut b, &mut tr, header_fields);
+    let header_wires = std::array::from_fn(|lane| b.alloc(header_fields[lane]));
+    enforce_header_digest_catch_up_wires(&mut b, &mut tr, header_wires);
 
     assert!(
         b.is_satisfied(),
@@ -1459,7 +1453,8 @@ fn header_digest_catch_up_rejects_tampered_digest() {
     let mut b = R1csBuilder::new();
     let mut tr = TranscriptGadget::new(&mut b, APP);
     tr.append_fields_raw_const(&mut b, &[F::from_u64(PI_CCS_HEADER_BUNDLE_RAW_TAG), F::from_u64(42)]);
-    enforce_header_digest_catch_up(&mut b, &mut tr, bad_fields);
+    let bad_wires = std::array::from_fn(|lane| b.alloc(bad_fields[lane]));
+    enforce_header_digest_catch_up_wires(&mut b, &mut tr, bad_wires);
 
     assert!(
         !b.is_satisfied(),

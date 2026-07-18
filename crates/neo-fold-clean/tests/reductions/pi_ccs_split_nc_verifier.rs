@@ -47,6 +47,7 @@ use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
 use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::digest::pi_ccs_outputs_digest;
 use neo_fold_clean::paper::reductions::pi_ccs;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, Error, SplitNcPiCcsVConfig,
@@ -66,49 +67,11 @@ fn k_c1_one() -> K {
     K::from_coeffs([F::ZERO, F::ONE])
 }
 
-fn running_y_zcol_sidecar_columns(derived: &SplitNcPiCcsVDerived) -> BTreeSet<usize> {
-    let mut allowed: BTreeSet<usize> = derived
-        .running
-        .iter()
-        .flat_map(|running| running.y_zcol.iter())
-        .flat_map(|k| [k.c0.col(), k.c1.col()])
-        .collect();
+fn running_parent_y_zcol_sidecar_columns(derived: &SplitNcPiCcsVDerived) -> BTreeSet<usize> {
+    let mut allowed = BTreeSet::new();
     if let Some(parent) = &derived.running_parent_authority {
         allowed.extend(parent.y_zcol.iter().flat_map(|k| [k.c0.col(), k.c1.col()]));
     }
-    allowed
-}
-
-fn fresh_output_deferred_ce_columns(derived: &SplitNcPiCcsVDerived) -> BTreeSet<usize> {
-    let mut allowed = BTreeSet::new();
-    let k_mcs = derived.fresh_x.len();
-
-    for output in derived.outputs.iter().take(k_mcs) {
-        // Native `validate_mcs_output_x_recomposition` pins only scalar
-        // public lanes `x[c]` at `(row=c%D, col=c/D)`. The remaining lanes
-        // in the active packed ring columns are L_in sidecars carried to the
-        // terminal CE relation, where X is bound to the opened Z.
-        let active_x_cols = superneo_public_x_cols(output.m_in);
-        for col in 0..active_x_cols.min(output.x_cols) {
-            for row in 0..output.x_rows {
-                if col * D + row >= output.m_in {
-                    allowed.insert(output.x[row * output.x_cols + col].col());
-                }
-            }
-        }
-
-        // For fresh CCS outputs, Π_CCS.V's FE terminal identity consumes
-        // only `ct(y_j) = y_ring[j][0]` through the CCS polynomial
-        // `f(ct(y_0), ..., ct(y_{t-1}))`. Non-ct ring coefficients are not
-        // immediate Π_CCS verifier authority; they are carried forward and
-        // bound by the terminal CE relation's `y_ring = M·Z(r)` check.
-        for row in &output.y_ring {
-            for lane in row.iter().take(D).skip(1) {
-                insert_kvar_columns(&mut allowed, *lane);
-            }
-        }
-    }
-
     allowed
 }
 
@@ -419,6 +382,8 @@ fn emit_verifier_with_derived(f: &Fixture) -> Result<(R1csBuilder, SplitNcPiCcsV
             running: &f.running.claims,
             running_parent_authority: f.running.parent_authority.as_ref(),
             outputs: &f.proof.outputs,
+            outputs_digest: f.proof.outputs_digest,
+            sc_initial_sum: f.proof.sumcheck.sc_initial_sum,
             sumcheck_rounds_fe: &f.proof.sumcheck.sumcheck_rounds,
             sumcheck_rounds_nc: &f.proof.sumcheck.sumcheck_rounds_nc,
             header_digest: &f.proof.sumcheck.header_digest,
@@ -442,6 +407,8 @@ fn emit_verifier_with_header_witness(f: &Fixture, header: [F; 4]) -> Result<R1cs
             running: &f.running.claims,
             running_parent_authority: f.running.parent_authority.as_ref(),
             outputs: &f.proof.outputs,
+            outputs_digest: f.proof.outputs_digest,
+            sc_initial_sum: f.proof.sumcheck.sc_initial_sum,
             sumcheck_rounds_fe: &f.proof.sumcheck.sumcheck_rounds,
             sumcheck_rounds_nc: &f.proof.sumcheck.sumcheck_rounds_nc,
             header_digest: &f.proof.sumcheck.header_digest,
@@ -520,6 +487,48 @@ fn split_nc_pi_ccs_v_accepts_native_proof() {
 }
 
 #[test]
+fn split_nc_pi_ccs_v_does_not_read_incoming_running_y_zcol() {
+    let baseline_fixture = build_fixture();
+    let (baseline_builder, baseline_derived) =
+        emit_verifier_with_derived(&baseline_fixture).expect("emit baseline verifier");
+    assert!(baseline_builder.is_satisfied());
+    assert!(baseline_derived
+        .running
+        .iter()
+        .all(|claim| claim.y_zcol.is_empty()));
+    let baseline = baseline_builder.snapshot();
+
+    let mut mutated_fixture = build_fixture();
+    mutated_fixture.running.claims[0].y_zcol[0] += K::ONE;
+    let mut native_tr = Transcript::session();
+    pi_ccs::verify(
+        &mut native_tr,
+        &mutated_fixture.prep.params,
+        mutated_fixture.prep.structure(),
+        mutated_fixture.prep.optimized_cache(),
+        &mutated_fixture.fresh_claims,
+        &mutated_fixture.running,
+        &mutated_fixture.proof,
+    )
+    .expect("native Pi_CCS verifier must ignore incoming running y_zcol");
+
+    let (mutated_builder, mutated_derived) =
+        emit_verifier_with_derived(&mutated_fixture).expect("emit running-y_zcol mutation");
+    assert!(mutated_builder.is_satisfied());
+    assert!(mutated_derived
+        .running
+        .iter()
+        .all(|claim| claim.y_zcol.is_empty()));
+    let mutated = mutated_builder.snapshot();
+    assert!(baseline.has_same_relation(&mutated));
+    assert_eq!(
+        baseline.witness(),
+        mutated.witness(),
+        "incoming running y_zcol leaked into the Pi_CCS circuit witness"
+    );
+}
+
+#[test]
 fn folded_header_is_bound_as_witness_without_entering_verifier_matrices() {
     let fixture = build_fixture();
     let honest_header = split_nc_config(&fixture.prep).header_bundle;
@@ -553,15 +562,50 @@ fn folded_header_is_bound_as_witness_without_entering_verifier_matrices() {
 }
 
 #[test]
+fn pi_ccs_output_digest_is_exactly_the_prover_chosen_active_message() {
+    let fixture = build_fixture();
+    let outputs = &fixture.proof.outputs;
+    let expected = pi_ccs_outputs_digest(outputs);
+
+    let mut active_y_ring = outputs.clone();
+    active_y_ring[0].y_ring[0][1] += K::ONE;
+    assert_ne!(
+        pi_ccs_outputs_digest(&active_y_ring),
+        expected,
+        "an active y_ring lane is part of the prover message"
+    );
+
+    let mut active_y_zcol = outputs.clone();
+    active_y_zcol[0].y_zcol[1] += K::ONE;
+    assert_ne!(
+        pi_ccs_outputs_digest(&active_y_zcol),
+        expected,
+        "an active y_zcol lane is part of the prover message"
+    );
+
+    let mut reconstructed = outputs.clone();
+    reconstructed[0].c.data[0] += F::ONE;
+    let old_x = reconstructed[0].X[(0, 0)];
+    reconstructed[0].X.set(0, 0, old_x + F::ONE);
+    reconstructed[0].r[0] += K::ONE;
+    reconstructed[0].s_col[0] += K::ONE;
+    reconstructed[0].ct[0] += K::ONE;
+    reconstructed[0].fold_digest[0] ^= 1;
+    reconstructed[0].y_ring[0][D] += K::ONE;
+    reconstructed[0].y_zcol[D] += K::ONE;
+    assert_eq!(
+        pi_ccs_outputs_digest(&reconstructed),
+        expected,
+        "reconstructed fields and canonical padding are not a second message"
+    );
+}
+
+#[test]
 fn split_nc_pi_ccs_v_leaves_only_documented_deferred_ce_sidecars_unconstrained() {
-    // SplitNc owns the full Π_CCS verifier for fresh/output authority and
-    // the running accumulator handle used by HyperNova's recursive link.
-    // The intentionally floating columns are narrow and paper-grounded:
-    // running-side y_zcol is a Π_DEC sidecar, and fresh-output CE lanes that
-    // Π_CCS.V only carries to the terminal CE relation (packed X sidecars and
-    // non-ct y_ring coefficients) are not consumed by this standalone
-    // verifier. Output y_zcol is not exempt; it is consumed by the NC
-    // terminal identity.
+    // SplitNc owns the full Π_CCS verifier and recomputes the output digest
+    // consumed by Π_RLC. Running-child y_zcol is not allocated. The only
+    // intentionally floating columns are the running parent authority's full
+    // y_zcol; Π_DEC does not consume it, while parent continuity retains it.
     let fixture = build_fixture();
     let (builder, derived) = emit_verifier_with_derived(&fixture).expect("emit verifier");
 
@@ -571,8 +615,14 @@ fn split_nc_pi_ccs_v_leaves_only_documented_deferred_ce_sidecars_unconstrained()
     );
 
     let unconstrained: BTreeSet<_> = builder.unconstrained_columns().into_iter().collect();
-    let mut allowed = running_y_zcol_sidecar_columns(&derived);
-    allowed.extend(fresh_output_deferred_ce_columns(&derived));
+    assert!(
+        derived
+            .running
+            .iter()
+            .all(|running| running.y_zcol.is_empty()),
+        "incoming running claims must not allocate y_zcol"
+    );
+    let allowed = running_parent_y_zcol_sidecar_columns(&derived);
     let unexpected: BTreeSet<_> = unconstrained.difference(&allowed).copied().collect();
     let summary = split_nc_unconstrained_column_summary(&derived, &unexpected);
     assert!(
@@ -598,6 +648,8 @@ fn split_nc_pi_ccs_v_rejects_nonempty_running_without_parent_authority() {
             running: &fixture.running.claims,
             running_parent_authority: None,
             outputs: &fixture.proof.outputs,
+            outputs_digest: fixture.proof.outputs_digest,
+            sc_initial_sum: fixture.proof.sumcheck.sc_initial_sum,
             sumcheck_rounds_fe: &fixture.proof.sumcheck.sumcheck_rounds,
             sumcheck_rounds_nc: &fixture.proof.sumcheck.sumcheck_rounds_nc,
             header_digest: &fixture.proof.sumcheck.header_digest,
@@ -637,6 +689,8 @@ fn split_nc_pi_ccs_v_rejects_empty_running_with_parent_authority() {
             running: &[],
             running_parent_authority: Some(parent),
             outputs: &proof.outputs,
+            outputs_digest: proof.outputs_digest,
+            sc_initial_sum: proof.sumcheck.sc_initial_sum,
             sumcheck_rounds_fe: &proof.sumcheck.sumcheck_rounds,
             sumcheck_rounds_nc: &proof.sumcheck.sumcheck_rounds_nc,
             header_digest: &proof.sumcheck.header_digest,
@@ -1000,12 +1054,10 @@ fn split_nc_pi_ccs_v_rejects_tampered_parent_authority_s_col() {
 }
 
 #[test]
-fn split_nc_pi_ccs_v_accepts_tampered_parent_authority_y_zcol_non_authority() {
-    // Parent-authority y_zcol is an NC sidecar, not part of SuperNeo's CE
-    // tuple. Π_DEC children cannot prove a verifier-checkable radix-b
-    // y_zcol recomposition equation, so the recursive accumulator handle
-    // deliberately omits it. Terminal CE verification binds final y_zcol
-    // against the opened witness instead.
+fn split_nc_pi_ccs_v_records_current_unbound_parent_y_zcol_c0() {
+    // This acceptance records the current missing authority link. The
+    // optimized raw projection is linear and supports radix-b recomposition;
+    // a delayed-parent refinement must eventually make this mutation fail.
     let mut fixture = build_fixture();
     let parent = fixture
         .running
@@ -1018,15 +1070,14 @@ fn split_nc_pi_ccs_v_accepts_tampered_parent_authority_y_zcol_non_authority() {
     let builder = emit_verifier(&fixture).expect("emit verifier");
     assert!(
         builder.is_satisfied(),
-        "SplitNc Π_CCS.V should not treat parent-authority y_zcol as recursive accumulator authority"
+        "current-gap regression: SplitNc Π_CCS.V unexpectedly started binding parent y_zcol; update the delayed-authority audit"
     );
 }
 
 #[test]
-fn split_nc_pi_ccs_v_accepts_tampered_parent_authority_y_zcol_c1_limb_non_authority() {
-    // Same non-authority boundary as the c0-limb test, but perturb only c1
-    // so an accidental limb-selective absorb would be caught by the digest
-    // regression tests rather than hidden here.
+fn split_nc_pi_ccs_v_records_current_unbound_parent_y_zcol_c1() {
+    // Same known gap as the c0-limb test, but perturb only c1 so a future
+    // binding cannot accidentally cover just one extension-field limb.
     let mut fixture = build_fixture();
     let parent = fixture
         .running
@@ -1050,7 +1101,7 @@ fn split_nc_pi_ccs_v_accepts_tampered_parent_authority_y_zcol_c1_limb_non_author
     let builder = emit_verifier(&fixture).expect("emit verifier");
     assert!(
         builder.is_satisfied(),
-        "SplitNc Π_CCS.V should not treat c1 of parent-authority y_zcol as recursive accumulator authority"
+        "current-gap regression: SplitNc Π_CCS.V unexpectedly started binding parent y_zcol.c1; update the delayed-authority audit"
     );
 }
 

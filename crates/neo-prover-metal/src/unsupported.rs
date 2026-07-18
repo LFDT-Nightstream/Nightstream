@@ -12,6 +12,12 @@ pub struct MetalPoseidonUniformPlan;
 
 pub(crate) struct MetalResidentWitness;
 
+impl MetalResidentWitness {
+    pub(crate) fn cols(&self) -> usize {
+        0
+    }
+}
+
 pub(crate) struct MetalResidentWitnessSnapshot;
 
 impl MetalResidentWitnessSnapshot {
@@ -35,8 +41,15 @@ impl MetalWitnessMasks {
 
 pub(crate) struct MetalResidentChildren;
 
+impl MetalResidentChildren {
+    pub(crate) fn snapshot(&self) -> MetalResidentWitnessSnapshot {
+        MetalResidentWitnessSnapshot
+    }
+}
+
 pub(crate) struct MetalDecFormPlan;
 
+#[allow(dead_code)]
 pub(crate) struct MetalDecPublicProjection<'a> {
     pub active_rows: usize,
     pub s_col: &'a [neo_math::K],
@@ -47,6 +60,12 @@ pub(crate) struct MetalAjtaiRingForms;
 pub(crate) struct MetalFeOraclePlan;
 
 pub(crate) struct MetalDeferredEvalTable;
+
+impl MetalDeferredEvalTable {
+    pub(crate) fn matches(&self, _n_pad: usize) -> bool {
+        false
+    }
+}
 
 pub(crate) struct MetalDeferredMcsRowTables;
 
@@ -97,7 +116,6 @@ impl MetalDeferredMcsRowTables {
 }
 
 pub(crate) struct MetalDecMaterial {
-    pub child_mask_words: Vec<u64>,
     pub child_nonzero: Vec<bool>,
     pub y_words: Vec<u64>,
     pub y_zcol_words: Vec<u64>,
@@ -116,6 +134,7 @@ impl MetalNcSumcheckPlan {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) struct MetalFeSumcheckInputs<'a> {
     pub tables: &'a [MetalFeTableInput<'a>],
     pub shape: &'a [u64],
@@ -128,6 +147,7 @@ pub(crate) struct MetalFeSumcheckInputs<'a> {
     pub coefficient_count: usize,
 }
 
+#[allow(dead_code)]
 pub(crate) enum MetalFeTableInput<'a> {
     Host(&'a [neo_math::K]),
     TensorPoint(&'a [neo_math::K]),
@@ -138,6 +158,7 @@ pub(crate) enum MetalFeTableInput<'a> {
     DeferredEval(&'a MetalDeferredEvalTable),
 }
 
+#[allow(dead_code)]
 pub(crate) struct MetalNcSumcheckInputs<'a> {
     pub eq_point: &'a [u64],
     pub digits: MetalNcDigitInput<'a>,
@@ -149,6 +170,7 @@ pub(crate) struct MetalNcSumcheckInputs<'a> {
     pub dense: bool,
 }
 
+#[allow(dead_code)]
 pub(crate) enum MetalNcDigitInput<'a> {
     Table(&'a [u64]),
     SignedMasks {
@@ -180,6 +202,10 @@ pub(crate) struct MetalNcSumcheckTrace {
 impl MetalSession {
     pub fn new() -> Result<Self, MetalError> {
         Err(MetalError::Unavailable)
+    }
+
+    pub(crate) fn ownership_id(&self) -> u64 {
+        0
     }
 
     pub fn goldilocks_ops(&self, _lhs: &[u64], _rhs: &[u64]) -> Result<Vec<GoldilocksOps>, MetalError> {
@@ -336,6 +362,14 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
+    pub(crate) fn sis_accumulator_digest_resident(
+        &self,
+        _config: neo_fold_clean::paper::reductions::accumulator_sis_circuit::SisAccumulatorConfig,
+        _fields: &[neo_math::F],
+    ) -> Result<[neo_math::F; 4], MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
     pub fn fold_k_table(&self, _table: &[KWords], _challenge: KWords) -> Result<Vec<KWords>, MetalError> {
         Err(MetalError::Unavailable)
     }
@@ -361,6 +395,12 @@ impl MetalSession {
     }
 
     pub fn reset_activity(&self) {}
+
+    pub(crate) fn reset_sumcheck_durations(&self) {}
+
+    pub(crate) fn sumcheck_durations(&self) -> (Duration, Duration) {
+        (Duration::ZERO, Duration::ZERO)
+    }
 
     pub(crate) fn prepare_fe_sumcheck(
         &self,
@@ -518,9 +558,9 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
-    pub(crate) fn mix_rlc_witnesses_resident(
+    pub(crate) fn enqueue_rlc_witness_mix(
         &self,
-        _rhos: &[u64],
+        _rhos: &[i8],
         _witnesses: &[u64],
         _input_count: usize,
         _cols: usize,
@@ -528,9 +568,9 @@ impl MetalSession {
         Err(MetalError::Unavailable)
     }
 
-    pub(crate) fn mix_rlc_witnesses_with_resident_id(
+    pub(crate) fn enqueue_rlc_witness_mix_with_resident_id(
         &self,
-        _rhos: &[u64],
+        _rhos: &[i8],
         _fresh_witnesses: &[u64],
         _fresh_count: usize,
         _input_count: usize,
@@ -544,9 +584,35 @@ impl MetalSession {
         None
     }
 
+    pub(crate) fn resident_child_masks(
+        &self,
+        _children: &MetalResidentChildren,
+        _active_rows: usize,
+    ) -> Result<MetalWitnessMasks, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
+    pub(crate) fn materialize_resident_child_masks(&self, _children: &MetalResidentChildren) -> Vec<u64> {
+        Vec::new()
+    }
+
+    pub(crate) fn resident_child_mask_prefix(
+        &self,
+        _children: &MetalResidentChildren,
+        _prefix_cols: usize,
+    ) -> Result<Vec<u64>, MetalError> {
+        Err(MetalError::Unavailable)
+    }
+
     pub(crate) fn retain_running_children(&self, _children: MetalResidentChildren) -> u64 {
         0
     }
+
+    pub(crate) fn recycle_nc_sumcheck(&self, _plan: MetalNcSumcheckPlan) {}
+
+    pub(crate) fn recycle_ajtai_ring_forms(&self, _forms: MetalAjtaiRingForms) {}
+
+    pub(crate) fn recycle_dec_children(&self, _children: MetalResidentChildren) {}
 
     pub(crate) fn split_dec_base2_with_ring_forms(
         &self,

@@ -1,5 +1,22 @@
 //! SplitNcV1 — per-claim digest gadgets.
 //!
+//! Owns: exact Poseidon2/SIS preimages for Pi_CCS claim and message bindings.
+//!
+//! Does not own: claim validation, transcript placement, or digest authority.
+//!
+//! Emits constraints: yes.
+//!
+//! Authority boundary: callers must supply already-constrained claim wires;
+//! carried prover digests are comparison values, never authority.
+//!
+//! | Constraint family | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
+//! |---|---|---|---|---|
+//! | fresh CCS digest | Bind commitment, advice, public input, and shape | yes | `enforce_ccs_claim_digest` | concrete bridge open |
+//! | CE digest | Bind the complete CE message | yes | `enforce_ce_claim_digest` | concrete bridge open |
+//! | checked-parent digest | Bind authoritative accumulator fields | yes | `enforce_accumulator_ce_claim_digest` | authority bridge open |
+//! | instance digest | Bind fresh claims and checked running parent | yes | `enforce_pi_ccs_instance_digest_parent_authority` | authority bridge open |
+//! | output digest | Bind the Pi_CCS message consumed by Pi_RLC | yes | `enforce_pi_ccs_outputs_digest` | projection bridge open |
+//!
 //! Mirrors:
 //! - `crate::paper::digest::ccs_claim_digest` (per-fresh CCS claim).
 //! - `crate::paper::digest::ce_claim_digest` (per-running CE claim).
@@ -12,10 +29,11 @@
 //! accept a prover-supplied digest as authority.
 //!
 //! The per-running-claim ME-input *projection* digest has been retired.
-//! The Π_CCS verifier now absorbs a single ME-input accumulator handle.
+//! The Π_CCS verifier now absorbs the full digest of the validated Π_RLC
+//! parent authority via [`super::absorb_engine_me_inputs_accumulator_handle`].
 //! NIFS.V first checks strict Π_DEC consistency between the running children
-//! and their Π_RLC parent; the handle then reuses that parent's CE digest via
-//! [`super::absorb_engine_me_inputs_accumulator_handle`].
+//! and that parent, so child serialization is not an independent transcript
+//! authority.
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -38,7 +56,7 @@ use crate::paper::relations::product_commitment_circuit::AdvCommitmentWires;
 const CCS_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ccs_claim_digest/v1";
 const CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ce_claim_digest/v2";
 const ACCUMULATOR_CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator_ce_claim_digest/v1";
-const PI_CCS_OUTPUT_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_challenge_digest/v2";
+const PI_CCS_OUTPUT_MESSAGE_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_message_digest/v2";
 const PI_CCS_OUTPUTS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_outputs_digest/v2";
 const PI_CCS_INSTANCE_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_instance_digest/v1";
 const PI_CCS_PARENT_AUTHORITY_INSTANCE_DIGEST_DOMAIN: &[u8] =
@@ -129,10 +147,10 @@ pub struct AccumulatorCeClaimDigestInputs<'a> {
     pub adv: Option<&'a AdvCommitmentWires>,
 }
 
-/// New Π_CCS output messages that must enter Fiat-Shamir before Π_RLC samples
-/// rho. Forwarded fields are already bound by the Π_CCS input transcript and
-/// wire equalities; only the newly sent evaluation rows remain here.
-pub struct PiCcsOutputClaimDigestInputs<'a> {
+/// Prover-chosen Π_CCS output message. Every omitted CE field is reconstructed
+/// or constrained by the verifier before this projection is used to sample
+/// Π_RLC's `ρ`.
+pub struct PiCcsOutputMessageDigestInputs<'a> {
     pub y_ring: &'a [Vec<KVar>],
     pub y_zcol: &'a [KVar],
 }
@@ -305,15 +323,13 @@ pub fn enforce_accumulator_ce_claim_digest(
 /// or derived challenges by wire equality. Rehashing them here is redundant.
 pub fn enforce_pi_ccs_outputs_digest(
     builder: &mut R1csBuilder,
-    inputs: &[PiCcsOutputClaimDigestInputs<'_>],
+    inputs: &[PiCcsOutputMessageDigestInputs<'_>],
 ) -> Result<[Var; 4], Error> {
     let mut preimage = Vec::new();
     extend_packed_bytes_as_fields_wires(builder, &mut preimage, PI_CCS_OUTPUTS_DIGEST_DOMAIN);
     preimage.push(alloc_constant_var(builder, F::from_u64(inputs.len() as u64)));
     for input in inputs {
-        extend_packed_bytes_as_fields_wires(builder, &mut preimage, PI_CCS_OUTPUT_CLAIM_DIGEST_DOMAIN);
-        extend_kvar_rows(builder, &mut preimage, input.y_ring);
-        extend_kvar_slice(builder, &mut preimage, input.y_zcol);
+        extend_pi_ccs_output_message(builder, &mut preimage, input)?;
     }
 
     Ok(
@@ -334,6 +350,39 @@ fn enforce_unique_inactive_x_zero(builder: &mut R1csBuilder, x: &[Var], rows: us
         }
     }
 }
+
+fn extend_pi_ccs_output_message(
+    builder: &mut R1csBuilder,
+    preimage: &mut Vec<Var>,
+    input: &PiCcsOutputMessageDigestInputs<'_>,
+) -> Result<(), Error> {
+    if input.y_ring.iter().any(|row| row.len() < neo_math::ring::D) {
+        return Err(Error::Shape(
+            "Π_CCS output message y_ring row shorter than active ring degree".into(),
+        ));
+    }
+    if input.y_zcol.len() < neo_math::ring::D {
+        return Err(Error::Shape(
+            "Π_CCS output message y_zcol shorter than active ring degree".into(),
+        ));
+    }
+
+    extend_packed_bytes_as_fields_wires(builder, preimage, PI_CCS_OUTPUT_MESSAGE_DIGEST_DOMAIN);
+    preimage.push(alloc_constant_var(builder, F::from_u64(input.y_ring.len() as u64)));
+    for row in input.y_ring {
+        extend_kvar_slice(builder, preimage, &row[..neo_math::ring::D]);
+    }
+    extend_kvar_slice(builder, preimage, &input.y_zcol[..neo_math::ring::D]);
+
+    Ok(())
+}
+
+// The fields deliberately absent above are all pinned before this digest is
+// used: commitment/X by `bind_outputs_to_inputs`, r/s_col by verifier
+// challenges, ct by `enforce_ct_from_y_ring`, fold_digest by the header
+// catch-up, and structural or padding fields by shape/canonicality checks.
+// Keeping that reconstruction at the call site is the soundness condition for
+// this projection.
 
 fn extend_kvar_slice(builder: &mut R1csBuilder, preimage: &mut Vec<Var>, values: &[KVar]) {
     preimage.push(alloc_constant_var(builder, F::from_u64(values.len() as u64)));

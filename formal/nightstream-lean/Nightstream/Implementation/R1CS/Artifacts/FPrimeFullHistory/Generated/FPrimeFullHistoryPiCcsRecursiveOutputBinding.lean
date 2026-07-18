@@ -6,22 +6,22 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryPiCcsRecursiveOutputB
 
 open Nightstream.Implementation.R1CS
 
-def rangeSha256 : String := "8663f6162a11e16c3f961c8d0c72d5fb958f5da36b5db74c6def977950e0a100"
-def rowStart : Nat := 269842
-def rowEnd : Nat := 271097
+def rangeSha256 : String := "9378696a0ee32f8655d29535c12ec498dc97de00cdf2dc5b385a35d385be1590"
+def rowStart : Nat := 267449
+def rowEnd : Nat := 268704
 def rowCount : Nat := 1255
 
 def pinRuns : List AffinePins.Run :=
-  [ .equal 32771 229377 1 1 2
-  , .equal 32773 244146 1 1 2
-  , .equal 32775 245976 1 1 2
-  , .equal 32777 247806 1 1 2
-  , .equal 32779 249636 1 1 2
-  , .equal 32781 251466 1 1 2
-  , .equal 32783 253296 1 1 2
-  , .equal 32785 255126 1 1 2
-  , .equal 32787 256956 1 1 2
-  , .equal 32789 258786 1 1 2
+  [ .equal 32771 226962 1 1 2
+  , .equal 32773 241731 1 1 2
+  , .equal 32775 243561 1 1 2
+  , .equal 32777 245391 1 1 2
+  , .equal 32779 247221 1 1 2
+  , .equal 32781 249051 1 1 2
+  , .equal 32783 250881 1 1 2
+  , .equal 32785 252711 1 1 2
+  , .equal 32787 254541 1 1 2
+  , .equal 32789 256371 1 1 2
   , .zero 31524 0 1
   , .equal 31795 30292 1 1 2
   , .constant 32769 0 54 0 1

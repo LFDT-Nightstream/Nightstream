@@ -20,13 +20,14 @@ open Nightstream.Implementation.R1CS.Program
 open Nightstream.Implementation.R1CS.CheckedProgram
 
 set_option maxRecDepth 262144
+set_option maxHeartbeats 8000000
 
 private theorem poseidonRows_reference_known :
     ∀ row ∈ Poseidon2Permutation.rows,
       ∀ column ∈ rowRefs row,
         column ∈ knownAfter Poseidon2Permutation.inputColumns
           Poseidon2Permutation.definitions := by
-  native_decide
+  decide
 
 /-- Independent executable semantics for one renamed production permutation:
 the assignment agrees with the fixed SSA interpreter on all input and derived

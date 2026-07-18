@@ -16,12 +16,29 @@
 //!
 //! Every `enforce(a, b, c)` call appends one row to A, B, C. A "linear
 //! constraint" `lhs == rhs` is encoded as `(lhs - rhs) · 1 = 0`.
+//!
+//! | Surface | Mathematical content | Semantic authority |
+//! |---|---|---|
+//! | `enforce` | `(A·z)(B·z)=C·z` | emitted row |
+//! | Seeded Φ81 block | deterministic linear A-matrix rows | emitted block plus B/C rows |
+//! | Encoding traces | row/column ownership only | none; consumers revalidate rows |
 
 use std::collections::HashMap;
 
 use neo_ccs::SeededPhi81LinearBlock;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
+
+use super::encoding_trace::{
+    AcceptanceTraceEntry, BalancedTernaryOpeningTraceEntry, CanonicalU64TraceEntry, FirstAcceptedSelectionTraceEntry,
+    KMulTraceEntry, Mod5TraceEntry, PolynomialEvaluationTraceEntry, PoseidonHashTraceEntry,
+    PoseidonPermutationTraceEntry, ProjectionIdentityTraceEntry, R1csEncodingTrace, R1csStageCheckpoint,
+    RingMulToom3TraceEntry, Sbox7TraceEntry,
+};
+pub use super::encoding_trace::{ProjectionIdentityRole, ProjectionNebulaCoordinate};
+use super::stage_provenance::PhysicalStageCheckpoint;
+pub(crate) type PolynomialEvaluationTrace = PolynomialEvaluationTraceEntry;
+pub use super::relation::{R1csRelation, R1csSnapshot};
 
 /// A witness column index. Allocated by [`R1csBuilder::alloc`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -33,6 +50,10 @@ impl Var {
 
     pub fn col(self) -> usize {
         self.0
+    }
+
+    pub(crate) fn from_column_for_trace(column: usize) -> Self {
+        Self(column)
     }
 }
 
@@ -113,7 +134,7 @@ pub(crate) struct CanonicalU64Decomposition {
     pub(crate) bit_cols: [usize; 64],
 }
 
-pub(crate) const BALANCED_TERNARY_DIGITS: usize = 41;
+pub const BALANCED_TERNARY_DIGITS: usize = 41;
 
 #[derive(Clone, Debug)]
 pub(crate) struct BalancedTernaryDecomposition {
@@ -234,17 +255,6 @@ pub struct Poseidon2HashAudit {
 pub struct CanonicalU64Audit {
     pub field_col: usize,
     pub bit_cols: [usize; 64],
-}
-
-/// Direct CCS view of one `p(beta)` evaluation in the projection checker.
-#[derive(Clone, Debug)]
-pub(crate) struct PolynomialEvaluationTrace {
-    pub(crate) row_start: usize,
-    pub(crate) row_end: usize,
-    pub(crate) allocated_columns: Vec<usize>,
-    pub(crate) coefficient_cols: Vec<usize>,
-    pub(crate) power_cols: Vec<[usize; 2]>,
-    pub(crate) output_cols: [usize; 2],
 }
 
 /// One identity inside a selectively lowered batch: `result = sum(a_i*b_i)`.
@@ -440,38 +450,6 @@ pub struct ProjectionLadderAudit {
 /// Semantic owner of one production PiRLC projection identity.
 ///
 /// The variants follow the native verifier's projection schedule. `Standalone`
-/// is reserved for isolated gadget calls; the NIFS compiler replaces it with
-/// one of the protocol roles before exposing its audit trail.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProjectionIdentityRole {
-    Standalone,
-    CommitmentLane {
-        lane: usize,
-    },
-    NebulaCommitmentLane {
-        coordinate: ProjectionNebulaCoordinate,
-        lane: usize,
-    },
-    ActiveXColumn {
-        column: usize,
-    },
-    YRingLimb {
-        row: usize,
-        limb: usize,
-    },
-    YZColLimb {
-        limb: usize,
-    },
-}
-
-/// Native order of the three optional Nebula commitment coordinates.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ProjectionNebulaCoordinate {
-    Ops,
-    Is,
-    Fs,
-}
-
 /// Semantic owner of affine rows emitted between projection identities.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProjectionGlueRole {
@@ -559,7 +537,7 @@ pub struct R1csBuilder {
     seeded_phi81_a_blocks: Vec<SeededPhi81LinearBlock>,
     poseidon2_traces: Vec<Poseidon2PermutationTrace>,
     poseidon2_hash_traces: Vec<Poseidon2HashTrace>,
-    polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
+    polynomial_evaluation_traces: Vec<PolynomialEvaluationTraceEntry>,
     product_sum_batch_traces: Vec<ProductSumBatchTrace>,
     centered_unit_traces: Vec<CenteredUnitTrace>,
     shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
@@ -574,6 +552,9 @@ pub struct R1csBuilder {
     projection_glue_audits: Vec<ProjectionGlueAudit>,
     indexed_row_family_ranges: Vec<IndexedRowFamilyRange>,
     column_family_ranges: Vec<ColumnFamilyRange>,
+    physical_stage_checkpoints: Vec<PhysicalStageCheckpoint>,
+    encoding_trace_enabled: bool,
+    encoding_trace: R1csEncodingTrace,
 }
 
 /// Immutable output of one completed R1CS synthesis.
@@ -594,12 +575,13 @@ pub(crate) struct R1csSynthesis {
     pub(crate) centered_unit_columns: Vec<usize>,
     pub(crate) seeded_phi81_a_blocks: Vec<SeededPhi81LinearBlock>,
     pub(crate) poseidon2_traces: Vec<Poseidon2PermutationTrace>,
-    pub(crate) polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
+    pub(crate) polynomial_evaluation_traces: Vec<PolynomialEvaluationTraceEntry>,
     pub(crate) product_sum_batch_traces: Vec<ProductSumBatchTrace>,
     pub(crate) centered_unit_traces: Vec<CenteredUnitTrace>,
     pub(crate) shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
     pub(crate) equality_pairs: Vec<(usize, usize, usize)>,
     pub(crate) row_family_ranges: Vec<RowFamilyRange>,
+    pub(crate) physical_stage_checkpoints: Vec<PhysicalStageCheckpoint>,
 }
 
 impl Default for R1csBuilder {
@@ -655,6 +637,120 @@ impl R1csBuilder {
             projection_glue_audits: Vec::new(),
             indexed_row_family_ranges: Vec::new(),
             column_family_ranges: Vec::new(),
+            physical_stage_checkpoints: Vec::new(),
+            encoding_trace_enabled: false,
+            encoding_trace: R1csEncodingTrace::default(),
+        }
+    }
+
+    /// Record high-level gadget provenance for low-norm compilation.
+    ///
+    /// This does not alter the emitted R1CS. It must be enabled before the
+    /// relevant gadgets run; an encoder rejects incomplete provenance when a
+    /// traced temporary escapes its recorded row range.
+    pub fn enable_encoding_trace(&mut self) {
+        self.encoding_trace_enabled = true;
+    }
+
+    pub fn encoding_trace(&self) -> &R1csEncodingTrace {
+        &self.encoding_trace
+    }
+
+    /// Begin a named physical stage at the current row frontier.
+    ///
+    /// A structure builder starts lightweight row provenance only when its
+    /// first marker is at row zero. Once started, every later marker is
+    /// retained. A nested staged gadget entered after an unmarked prefix does
+    /// not invent a partial ownership tree. Detailed encoding traces retain
+    /// their original opt-in row/column behavior independently.
+    pub fn begin_encoding_stage(&mut self, label: &'static str) {
+        if self.record_structure && (self.rows() == 0 || !self.physical_stage_checkpoints.is_empty()) {
+            self.physical_stage_checkpoints
+                .push(PhysicalStageCheckpoint::new(label, self.rows()));
+        }
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_stage(R1csStageCheckpoint {
+                label,
+                row: self.rows(),
+                col: self.cols(),
+            });
+        }
+    }
+
+    /// Append a retroactive row-stage checkpoint for negative compiler tests.
+    ///
+    /// Normal synthesis must use [`Self::begin_encoding_stage`]. This narrow
+    /// seam permits an external test to place a boundary inside an already
+    /// recorded trace and verify that selective lowering fails closed.
+    #[doc(hidden)]
+    pub fn append_physical_stage_checkpoint_for_test(&mut self, label: &'static str, row: usize) {
+        assert!(self.record_structure, "stage checkpoints require a structure builder");
+        assert!(row <= self.rows(), "test stage checkpoint exceeds the row frontier");
+        assert!(
+            self.physical_stage_checkpoints
+                .last()
+                .is_none_or(|checkpoint| checkpoint.row() <= row),
+            "test stage checkpoints must remain monotone"
+        );
+        self.physical_stage_checkpoints
+            .push(PhysicalStageCheckpoint::new(label, row));
+    }
+
+    pub(crate) fn encoding_trace_enabled(&self) -> bool {
+        self.encoding_trace_enabled
+    }
+
+    pub(crate) fn record_sbox7_encoding(&mut self, entry: Sbox7TraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_sbox7(entry);
+        }
+    }
+
+    pub(crate) fn record_k_mul_encoding(&mut self, entry: KMulTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_k_mul(entry);
+        }
+    }
+
+    pub(crate) fn record_poseidon_permutation_encoding(&mut self, entry: PoseidonPermutationTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_poseidon_permutation(entry);
+        }
+    }
+
+    pub(crate) fn record_poseidon_hash_encoding(&mut self, entry: PoseidonHashTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_poseidon_hash(entry);
+        }
+    }
+
+    pub(crate) fn record_ring_mul_toom3_encoding(&mut self, entry: RingMulToom3TraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_ring_mul_toom3(entry);
+        }
+    }
+
+    pub(crate) fn record_first_accepted_selection_encoding(&mut self, entry: FirstAcceptedSelectionTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_first_accepted_selection(entry);
+        }
+    }
+
+    pub(crate) fn record_mod5_chunk_encoding(&mut self, entry: Mod5TraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_mod5_chunk(entry);
+        }
+    }
+
+    pub(crate) fn record_acceptance_chunk_encoding(&mut self, entry: AcceptanceTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_acceptance_chunk(entry);
+        }
+    }
+
+    pub(crate) fn record_balanced_ternary_opening_encoding(&mut self, entry: BalancedTernaryOpeningTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_balanced_ternary_opening(entry);
         }
     }
 
@@ -701,7 +797,14 @@ impl R1csBuilder {
         }
     }
 
-    pub(crate) fn record_canonical_u64_decomposition(&mut self, field: Var, bits: [Var; 64]) {
+    pub(crate) fn record_canonical_u64_decomposition(
+        &mut self,
+        field: Var,
+        bits: [Var; 64],
+        high_is_max: Var,
+        inverse: Var,
+        source_rows: std::ops::Range<usize>,
+    ) {
         self.canonical_u64_decomposition_by_field
             .insert(field.col(), bits);
         if self.record_structure {
@@ -709,6 +812,16 @@ impl R1csBuilder {
                 .push(CanonicalU64Decomposition {
                     field_col: field.col(),
                     bit_cols: bits.map(Var::col),
+                });
+        }
+        if self.encoding_trace_enabled {
+            self.encoding_trace
+                .push_canonical_u64_decomposition(CanonicalU64TraceEntry {
+                    field,
+                    bits,
+                    high_is_max,
+                    inverse,
+                    source_rows,
                 });
         }
     }
@@ -898,6 +1011,12 @@ impl R1csBuilder {
         }
     }
 
+    pub(crate) fn record_projection_identity_trace(&mut self, trace: ProjectionIdentityTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_projection_identity(trace);
+        }
+    }
+
     pub(crate) fn assign_projection_identity_roles(&mut self, first: usize, roles: &[ProjectionIdentityRole]) {
         if !self.record_structure {
             return;
@@ -909,6 +1028,16 @@ impl R1csBuilder {
         assert_eq!(identities.len(), roles.len(), "projection identity role census");
         for (identity, role) in identities.iter_mut().zip(roles) {
             identity.role = *role;
+        }
+        if self.encoding_trace_enabled {
+            let trace_first = self
+                .encoding_trace
+                .projection_identities()
+                .len()
+                .checked_sub(roles.len())
+                .expect("projection identity trace role count exceeds trace");
+            self.encoding_trace
+                .assign_projection_identity_roles(trace_first, roles);
         }
     }
 
@@ -1072,7 +1201,11 @@ impl R1csBuilder {
         }
     }
 
-    pub(crate) fn record_polynomial_evaluation(&mut self, trace: PolynomialEvaluationTrace) {
+    pub(crate) fn record_polynomial_evaluation(&mut self, trace: PolynomialEvaluationTraceEntry) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace
+                .push_polynomial_evaluation(trace.clone());
+        }
         if self.record_structure {
             debug_assert_eq!(trace.row_end, self.rows);
             self.polynomial_evaluation_traces.push(trace);
@@ -1080,6 +1213,9 @@ impl R1csBuilder {
     }
 
     pub(crate) fn record_product_sum_batch(&mut self, trace: ProductSumBatchTrace) {
+        if self.encoding_trace_enabled {
+            self.encoding_trace.push_product_sum_batch(trace.clone());
+        }
         if self.record_structure {
             debug_assert_eq!(trace.row_end, self.rows);
             self.product_sum_batch_traces.push(trace);
@@ -1244,7 +1380,26 @@ impl R1csBuilder {
             shifted_ternary_canonical_traces: self.shifted_ternary_canonical_traces,
             equality_pairs: self.equality_pairs,
             row_family_ranges: self.row_family_ranges,
+            physical_stage_checkpoints: self.physical_stage_checkpoints,
         }
+    }
+
+    /// Freeze the current relation and witness for deterministic encoding.
+    /// Duplicate terms in a linear combination are coalesced, so equivalent
+    /// builder call patterns yield the same row representation.
+    pub fn snapshot(&self) -> R1csSnapshot {
+        assert!(
+            self.record_structure,
+            "witness-only builder cannot snapshot R1CS structure"
+        );
+        R1csSnapshot::from_builder_parts(
+            &self.a_trips,
+            &self.b_trips,
+            &self.c_trips,
+            &self.seeded_phi81_a_blocks,
+            self.rows,
+            self.witness.clone(),
+        )
     }
 
     /// Allocated witness columns that do not appear in any A/B/C row.

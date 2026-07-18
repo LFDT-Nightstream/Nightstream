@@ -1,4 +1,4 @@
-#![cfg(all(target_vendor = "apple", neo_metal_shaders))]
+#![cfg(all(feature = "metal", target_vendor = "apple", neo_metal_shaders))]
 
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
 use neo_math::{from_complex, KExtensions, Rq, D, F, K};

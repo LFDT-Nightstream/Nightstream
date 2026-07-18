@@ -35,6 +35,9 @@ use crate::engine::r1cs_circuit::builder::{
     Lc, Poseidon2HashRoundKind, Poseidon2HashRoundTrace, Poseidon2HashTrace, Poseidon2PermutationTrace,
     Poseidon2SboxTrace, R1csBuilder, Var,
 };
+use crate::engine::r1cs_circuit::encoding_trace::{
+    PoseidonHashTraceEntry, PoseidonPermutationTraceEntry, Sbox7TraceEntry,
+};
 
 const WIDTH: usize = 8;
 const HALF_FULL_ROUNDS: usize = 4;
@@ -133,6 +136,7 @@ fn enforce_sbox_x7(
     selective_input: &Lc,
     trace: &mut Vec<Poseidon2SboxTrace>,
 ) -> Var {
+    let first_row = builder.rows();
     let x2 = builder.alloc_mul(x_lc, x_lc);
     let x4 = builder.alloc_mul(&Lc::from_var(x2), &Lc::from_var(x2));
     let x6 = builder.alloc_mul(&Lc::from_var(x2), &Lc::from_var(x4));
@@ -140,6 +144,12 @@ fn enforce_sbox_x7(
     trace.push(Poseidon2SboxTrace {
         input: selective_input.clone(),
         output_col: output.col(),
+    });
+    builder.record_sbox7_encoding(Sbox7TraceEntry {
+        input: x_lc.clone(),
+        intermediates: [x2, x4, x6],
+        output,
+        source_rows: first_row..builder.rows(),
     });
     output
 }
@@ -363,6 +373,12 @@ pub fn enforce_poseidon2_permutation(builder: &mut R1csBuilder, state_in: &[Var;
         output_cols,
         output_linear_forms: selective_state,
     });
+    builder.record_poseidon_permutation_encoding(PoseidonPermutationTraceEntry {
+        input_columns: state_in.map(Var::col),
+        allocated_columns: column_start..builder.cols(),
+        output_columns: output_cols,
+        source_rows: row_start..builder.rows(),
+    });
     out
 }
 
@@ -391,6 +407,7 @@ pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var;
     let row_start = builder.rows();
     let input_cols = input.iter().map(|wire| wire.col()).collect::<Vec<_>>();
     let mut rounds = Vec::with_capacity(input.len().div_ceil(RATE) + 1);
+    let first_permutation = builder.encoding_trace().poseidon_permutations().len();
     // Allocate one zero wire and constrain it.
     let zero_var = builder.alloc(F::ZERO);
     let zero_row = builder.rows();
@@ -461,11 +478,20 @@ pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var;
     builder.record_poseidon2_hash(Poseidon2HashTrace {
         row_start,
         row_end: builder.rows(),
-        input_cols,
+        input_cols: input_cols.clone(),
         zero_col: zero_var.col(),
         zero_row,
         rounds,
         output_cols: out.map(Var::col),
+    });
+    let final_permutation = builder.encoding_trace().poseidon_permutations().len();
+    builder.record_poseidon_hash_encoding(PoseidonHashTraceEntry {
+        input_len: input.len(),
+        input_columns: input_cols,
+        zero_column: zero_var.col(),
+        output_columns: out.map(Var::col),
+        permutation_range: first_permutation..final_permutation,
+        source_rows: row_start..builder.rows(),
     });
     out
 }

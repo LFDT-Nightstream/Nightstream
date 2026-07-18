@@ -2,13 +2,19 @@ import Nightstream.SuperNeo.Relations
 import Nightstream.SuperNeo.Concrete.Algebra
 
 /-!
-Concrete, executable model of SuperNeo Definitions 11–13.
+Concrete, executable relation model using the SuperNeo algebraic vocabulary.
 
 The CCS predicate checks a well-formed collection of Goldilocks matrices and a
-sparse polynomial row by row. CE evaluates each matrix image as a coefficient-
-packed multilinear extension over the production quadratic/cyclotomic ring.
-Commitment and public-input authority come from the concrete Ajtai action and
-prefix projection in `Algebra.lean`.
+sparse polynomial row by row. The current CE model first computes the scalar
+row vector `M * z`, then packs consecutive rows into coefficient lanes before
+multilinear evaluation. This is not the paper Phi81 coefficient-matrix
+construction; `Concrete.Necessity.Phi81OutputMismatch` gives an exact
+counterexample to identifying the two interpretations.
+Commitment and model-level public-input authority come from the concrete Ajtai
+action and caller-parameterized prefix projection in `Algebra.lean`. This file
+does not prove that an arbitrary prefix width satisfies the paper precondition
+`n_F,in = d * n_R,in`, nor that `take publicWidth` refines Definition 13's
+ring-module `L_in`. Those are separate production-refinement obligations.
 
 Non-goals: optimized Rust arithmetic refinement, sparse-matrix serialization,
 cryptographic Ajtai binding, and sumcheck soundness.
@@ -93,7 +99,9 @@ def coefficientLane (values : List F) (point : Point)
   (List.range (2 ^ point.length)).map
     (fun block => values.getD (block * ringDegree + rho.val) 0)
 
-/-- Ring-valued CE opening: one MLE per cyclotomic coefficient lane. -/
+/-- Current ring-valued CE opening: compute scalar matrix rows, split those
+rows by residue modulo `ringDegree`, then evaluate one MLE per residue. This is
+deliberately not documented as the paper Phi81 CE construction. -/
 def ringMle (values : List F) (point : Point) : RingK :=
   fun rho => mleEval (coefficientLane values point rho) point
 
@@ -108,7 +116,9 @@ structure Context where
   publicWidth : Nat
   ajtaiKey : AjtaiKey
 
-/-- The concrete operations plugged into the generic paper relation. -/
+/-- Executable operations plugged into the generic relation interface. A
+production SuperNeo instantiation additionally needs the aligned `L_in`
+refinement described in the module contract. -/
 def relationSemantics (context : Context) :
     RelationSemantics Structure Assignment PublicInput Point Evaluation Commitment where
   commit := ajtaiCommit context.ajtaiKey

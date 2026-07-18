@@ -10,7 +10,7 @@ use std::time::Instant;
 use neo_ccs::Mat;
 use neo_fold_clean::paper::digest::{self, AccumulatorHandle};
 use neo_fold_clean::paper::nifs::{Error, NifsProverOutput, NifsProverRequest, NifsRunningCarrier};
-use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{CE_CLAIM_SIS_CONFIG, PI_RLC_PROJECTION_SIS_CONFIG};
+use neo_fold_clean::paper::reductions::accumulator_sis_circuit::PI_RLC_PROJECTION_SIS_CONFIG;
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_fold_clean::paper::{pi_ccs, pi_dec, pi_rlc};
 use neo_fold_clean::{CcsWitness, RunningInstance};
@@ -27,7 +27,7 @@ use crate::sumcheck::{MetalFeBackend, MetalNcBackend};
 use crate::{MetalAjtaiRingForms, MetalResidentWitness, MetalResidentWitnessSnapshot, MetalWitnessMasks};
 
 struct RunningInput {
-    parent_digest: Option<[F; 4]>,
+    parent_accumulator_digest: Option<[F; 4]>,
     accumulator_handle: Option<[F; 4]>,
     resident_id: Option<u64>,
 }
@@ -44,7 +44,7 @@ struct PiRlcPhase {
     claim: CeClaim,
     witness: MetalResidentWitness,
     proof: pi_rlc::Proof,
-    parent_digest: [F; 4],
+    parent_accumulator_digest: [F; 4],
     profile: MetalPiRlcProfile,
     witness_masks_reused: bool,
 }
@@ -115,7 +115,7 @@ impl MetalNifsProver {
             && pi_rlc.witness_masks_reused;
 
         let pi_dec = self.prove_pi_dec(&request, pi_rlc.claim, pi_rlc.witness, forms_on_metal, ajtai_forms)?;
-        let post_fold_summary = self.post_fold_summary(&pi_dec.running, pi_rlc.parent_digest)?;
+        let post_fold_summary = self.post_fold_summary(&pi_dec.running, pi_rlc.parent_accumulator_digest)?;
         let activity = activity_delta(activity_before, self.session.activity());
         let resident_running_output = pi_dec.resident_id.is_some();
         self.last_profile = Some(MetalNifsProfile {
@@ -141,9 +141,10 @@ impl MetalNifsProver {
         );
         let output = Arc::new(MetalFoldOutput::new(
             pi_dec.running,
+            self.session.ownership_id(),
             resident_id,
             pi_dec.witness_snapshot,
-            pi_rlc.parent_digest,
+            pi_rlc.parent_accumulator_digest,
         ));
         let proof = metal_proof_carrier(pi_ccs_proof, pi_rlc.proof, pi_dec.proof, Arc::clone(&output))?;
         Ok(NifsProverOutput::deferred(
@@ -189,15 +190,22 @@ impl MetalNifsProver {
         running: &RunningInstance,
     ) -> Result<RunningInput, Error> {
         let carrier = metal_running_carrier(carrier);
-        let parent_digest = carrier.map(MetalRunningCarrier::parent_digest);
-        let accumulator_handle = parent_digest.map(|parent_digest| {
-            AccumulatorHandle::from_parent_digest(running.claims.len(), Some(parent_digest)).digest_fields()
+        if carrier.is_some_and(|carrier| carrier.session_ownership_id() != self.session.ownership_id()) {
+            return Err(backend_unavailable(
+                "Metal running carrier belongs to a different session",
+            ));
+        }
+        let parent_accumulator_digest = carrier.map(MetalRunningCarrier::parent_accumulator_digest);
+        let accumulator_handle = parent_accumulator_digest.map(|parent_accumulator_digest| {
+            AccumulatorHandle::from_parent_digest(running.claims.len(), Some(parent_accumulator_digest)).digest_fields()
         });
-        let resident_id = carrier
-            .and_then(MetalRunningCarrier::resident_id)
-            .filter(|&id| self.session.resident_running_shape(id).is_some());
+        let resident_id = carrier.and_then(MetalRunningCarrier::resident_id);
 
-        if let Some((child_count, cols)) = resident_id.and_then(|id| self.session.resident_running_shape(id)) {
+        if let Some(id) = resident_id {
+            let (child_count, cols) = self
+                .session
+                .resident_running_shape(id)
+                .ok_or_else(|| backend_unavailable("Metal running carrier generation is stale"))?;
             if child_count != running.witnesses.len()
                 || running
                     .witnesses
@@ -210,7 +218,7 @@ impl MetalNifsProver {
             }
         }
         Ok(RunningInput {
-            parent_digest,
+            parent_accumulator_digest,
             accumulator_handle,
             resident_id,
         })
@@ -264,7 +272,7 @@ impl MetalNifsProver {
             Some(&mut fe_backend),
             Some(&mut nc_backend),
             BackendTranscriptMode::DeviceSnapshot,
-            running.parent_digest,
+            running.parent_accumulator_digest,
             running.accumulator_handle,
             Some(&mut outputs_digest_backend),
         )?;
@@ -338,16 +346,13 @@ impl MetalNifsProver {
         let witness = output
             .witness
             .map_err(|error| backend_failure("Pi_RLC witness mixing", error))?;
-        let parent_digest = self
-            .session
-            .sis_accumulator_digest_resident(CE_CLAIM_SIS_CONFIG, &digest::ce_claim_digest_preimage(&output.claim))
-            .map_err(|error| backend_failure("compute Pi_RLC parent digest", error))?;
+        let parent_accumulator_digest = digest::accumulator_ce_claim_digest(&output.claim);
         let masks_reused = witness_masks_reused.get();
         Ok(PiRlcPhase {
             claim: output.claim,
             witness,
             proof,
-            parent_digest,
+            parent_accumulator_digest,
             profile: MetalPiRlcProfile {
                 elapsed: started.elapsed(),
                 activity: activity_delta(activity_before, self.session.activity()),

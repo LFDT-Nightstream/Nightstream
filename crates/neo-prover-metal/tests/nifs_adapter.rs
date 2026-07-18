@@ -1,4 +1,4 @@
-#![cfg(target_vendor = "apple")]
+#![cfg(all(feature = "metal", target_vendor = "apple", neo_metal_shaders))]
 
 use neo_ccs::Mat;
 use neo_fold_clean::engine::transcript::Transcript;

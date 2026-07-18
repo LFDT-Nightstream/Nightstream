@@ -22,7 +22,7 @@ import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHis
 Contract: the exact manifest-ordered sparse-row list for the supported
 plain/stateless `[1,1]` full-history artifact.
 
-This is the missing structural bridge between the Rust-generated 4,076,614-row
+This is the missing structural bridge between the Rust-generated 4,193,134-row
 artifact and the semantic owner theorems.  The recursive counter is handled
 carefully: its first 138 rows occur in the recursive prelude, while only its
 remaining 522 rows are emitted by the later counter owner.  No row is inserted
@@ -71,7 +71,7 @@ def recursiveNifsPieces : List (List Row) :=
 
 def recursiveNifsRows : List Row := recursiveNifsPieces.flatten
 
-theorem recursiveNifsRows_length : recursiveNifsRows.length = 851397 := by
+theorem recursiveNifsRows_length : recursiveNifsRows.length = 827866 := by
   simp [recursiveNifsRows, recursiveNifsPieces,
     FPrimeFullHistoryNestedOwners.recursivePiCcsRows_length,
     FPrimeFullHistoryNestedOwners.recursivePiRlcRows_length,
@@ -92,7 +92,7 @@ def recursivePieces : List (List Row) :=
 
 def recursiveRows : List Row := recursivePieces.flatten
 
-theorem recursiveRows_length : recursiveRows.length = 918660 := by
+theorem recursiveRows_length : recursiveRows.length = 1112745 := by
   simp [recursiveRows, recursivePieces, recursiveNifsRows_length,
     counterTransitionRows_length,
     FPrimeFullHistoryRecursivePrelude.rows_length,
@@ -116,7 +116,7 @@ def terminalNifsPieces : List (List Row) :=
 
 def terminalNifsRows : List Row := terminalNifsPieces.flatten
 
-theorem terminalNifsRows_length : terminalNifsRows.length = 2572220 := by
+theorem terminalNifsRows_length : terminalNifsRows.length = 2278831 := by
   simp [terminalNifsRows, terminalNifsPieces,
     FPrimeFullHistoryTerminalTranscriptArtifact.ownerRows_length,
     FPrimeFullHistoryTerminalTranscriptArtifact.rowCount,
@@ -137,7 +137,7 @@ def terminalPieces : List (List Row) :=
 
 def terminalRows : List Row := terminalPieces.flatten
 
-theorem terminalRows_length : terminalRows.length = 2625173 := by
+theorem terminalRows_length : terminalRows.length = 2549400 := by
   simp [terminalRows, terminalPieces, terminalNifsRows_length,
     FPrimeFullHistoryTerminalRunningLink.rows_length,
     FPrimeFullHistoryTerminalParentLink.rows_length,

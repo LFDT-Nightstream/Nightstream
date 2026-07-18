@@ -403,6 +403,7 @@ fn assert_same_terminal_authority(cpu: &WasmNebulaProof, metal: &WasmNebulaProof
     assert_eq!(cpu.state.step_count, metal.state.step_count);
     assert_eq!(cpu.state.z_0, metal.state.z_0);
     assert_eq!(cpu.state.z_i, metal.state.z_i);
+    assert_eq!(cpu.state.pc, metal.state.pc);
     assert_eq!(
         cpu.state.initial_semantic_state_digest,
         metal.state.initial_semantic_state_digest

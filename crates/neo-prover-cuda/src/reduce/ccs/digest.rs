@@ -7,7 +7,7 @@
 use cuda_core::{DeviceBuffer, PinnedHostBuffer};
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
-use neo_math::{F, K};
+use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 use crate::device::{uninit_u64_device_buffer, upload_u64_device_buffer, Device};
@@ -19,7 +19,7 @@ use crate::sis::DeviceSisCache;
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::PI_CCS_OUTPUTS_SIS_CONFIG;
 
 const OUTPUTS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_outputs_digest/v2";
-const OUTPUT_CLAIM_CHALLENGE_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_challenge_digest/v2";
+const OUTPUT_CLAIM_MESSAGE_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_message_digest/v2";
 const BYTES_PER_PACKED_LIMB: usize = 7;
 
 pub(crate) fn pi_ccs_outputs_digest_field_count(
@@ -29,8 +29,9 @@ pub(crate) fn pi_ccs_outputs_digest_field_count(
     include_y_zcol: bool,
 ) -> usize {
     let output_domain_len = pack_bytes_as_words(OUTPUTS_DIGEST_DOMAIN).len();
-    let claim_domain_len = pack_bytes_as_words(OUTPUT_CLAIM_CHALLENGE_DOMAIN).len();
-    let surface_span = 1 + 2 * d_pad;
+    let claim_domain_len = pack_bytes_as_words(OUTPUT_CLAIM_MESSAGE_DOMAIN).len();
+    let active_lanes = d_pad.min(D);
+    let surface_span = 1 + 2 * active_lanes;
     let claim_len = claim_domain_len + 1 + t_core * surface_span + if include_y_zcol { surface_span } else { 1 };
     output_domain_len + 1 + claims * claim_len
 }
@@ -118,11 +119,12 @@ impl DevicePiCcsOutputsDigest {
     ) -> Result<Self, CcsDeviceError> {
         validate_v2_surface_count(&plan, surfaces)?;
         let output_domain = pack_bytes_as_words(OUTPUTS_DIGEST_DOMAIN);
-        let claim_domain = pack_bytes_as_words(OUTPUT_CLAIM_CHALLENGE_DOMAIN);
+        let claim_domain = pack_bytes_as_words(OUTPUT_CLAIM_MESSAGE_DOMAIN);
         let mut domains = Vec::with_capacity(output_domain.len() + claim_domain.len());
         domains.extend_from_slice(&output_domain);
         domains.extend_from_slice(&claim_domain);
         let domains = upload_u64_device_buffer(device.stream(), &domains)?;
+        let active_lanes = surfaces.d_pad().min(D);
         let field_count = pi_ccs_outputs_digest_field_count(
             surfaces.claims(),
             surfaces.t_core(),
@@ -137,6 +139,7 @@ impl DevicePiCcsOutputsDigest {
             surfaces.claims(),
             surfaces.t_core(),
             surfaces.d_pad(),
+            active_lanes,
             surfaces.include_y_zcol(),
             &domains,
             output_domain.len(),

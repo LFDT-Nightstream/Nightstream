@@ -12,6 +12,10 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders/seeded_ajtai.metal");
     println!("cargo:rerun-if-changed=shaders/lane_commitments.metal");
 
+    if env::var_os("CARGO_FEATURE_METAL").is_none() {
+        return;
+    }
+
     let target = env::var("TARGET").expect("Cargo sets TARGET");
     if !target.contains("apple") {
         return;

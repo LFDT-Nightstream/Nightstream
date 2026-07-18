@@ -1,12 +1,13 @@
 //! Ajtai commitment opening + X projection as R1CS rows.
 //!
 //! Ports the matrix-row coefficient computation from the prototype's
-//! `enforce_ajtai_commitment` (`get_global_pp_for_dims` +
-//! `precompute_rot_columns`) into the clean's `R1csBuilder` world.
+//! `enforce_ajtai_commitment` into the clean's `R1csBuilder` world. The
+//! coefficient matrix comes from the verifier-owned [`AjtaiSModule`], not
+//! process-global state.
 
 use std::ops::Range;
 
-use neo_ajtai::{get_global_pp_for_dims, precompute_rot_columns, PP};
+use neo_ajtai::{precompute_rot_columns, AjtaiSModule, PP};
 use neo_math::ring::Rq;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
@@ -31,6 +32,7 @@ pub(crate) enum AjtaiOpeningError {
 
 pub(crate) fn enforce_ajtai_opening(
     builder: &mut R1csBuilder,
+    log: &AjtaiSModule,
     witness: &FinalWitnessWires,
     c_data: &[Var],
     c_d: usize,
@@ -57,7 +59,24 @@ pub(crate) fn enforce_ajtai_opening(
             got: c_data.len(),
         });
     }
-    let pp = get_global_pp_for_dims(rows, cols).map_err(|_| AjtaiOpeningError::SetupMissing { d: rows, cols })?;
+    let (log_rows, log_cols) = log.dims();
+    if log_rows != rows {
+        return Err(AjtaiOpeningError::Shape {
+            what: "verifier-owned Ajtai row count",
+            expected: rows,
+            got: log_rows,
+        });
+    }
+    if log_cols != cols {
+        return Err(AjtaiOpeningError::Shape {
+            what: "verifier-owned Ajtai column count",
+            expected: cols,
+            got: log_cols,
+        });
+    }
+    let pp = log
+        .materialize_pp()
+        .map_err(|_| AjtaiOpeningError::SetupMissing { d: rows, cols })?;
     enforce_ajtai_opening_with_pp(builder, witness, c_data, c_d, c_kappa, 0..cols, &pp)
 }
 

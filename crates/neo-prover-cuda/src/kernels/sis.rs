@@ -52,12 +52,14 @@ pub fn launch_pi_ccs_outputs_preimage(
     claims: usize,
     t_core: usize,
     d_pad: usize,
+    active_lanes: usize,
     include_y_zcol: bool,
     domains: &DeviceBuffer<u64>,
     output_domain_len: usize,
     claim_domain_len: usize,
     out: &mut DeviceBuffer<u64>,
 ) -> Result<(), DriverError> {
+    assert!(active_lanes <= d_pad, "Pi_CCS active lanes exceed resident stride");
     let surface_count = t_core + usize::from(include_y_zcol);
     assert_eq!(
         surfaces.len(),
@@ -76,6 +78,7 @@ pub fn launch_pi_ccs_outputs_preimage(
         claims as u32,
         t_core as u32,
         d_pad as u32,
+        active_lanes as u32,
         u32::from(include_y_zcol),
         domains,
         output_domain_len as u32,
@@ -132,6 +135,7 @@ mod sis_kernels {
         claims: u32,
         t_core: u32,
         d_pad: u32,
+        active_lanes: u32,
         include_y_zcol: u32,
         domains: &[u64],
         output_domain_len: u32,
@@ -147,9 +151,10 @@ mod sis_kernels {
         let claims = claims as usize;
         let t_core = t_core as usize;
         let d_pad = d_pad as usize;
+        let active_lanes = active_lanes as usize;
         let include_y_zcol = include_y_zcol != 0;
         let outer_len = output_domain_len + 1;
-        let surface_span = 1 + 2 * d_pad;
+        let surface_span = 1 + 2 * active_lanes;
         let surface_count = t_core + usize::from(include_y_zcol);
         let claim_len = claim_domain_len + 1 + t_core * surface_span + if include_y_zcol { surface_span } else { 1 };
 
@@ -186,7 +191,7 @@ mod sis_kernels {
                         let surface = local / surface_span;
                         let slot = local % surface_span;
                         if slot == 0 {
-                            d_pad as u64
+                            active_lanes as u64
                         } else {
                             let surface_word = ((claim * surface_count + surface) * d_pad * 2) + slot - 1;
                             if surface_word >= surfaces.len() {

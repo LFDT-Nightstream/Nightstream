@@ -50,7 +50,7 @@ use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessa
 use neo_fold_clean::paper::nifs::NifsProof;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const TRANSCRIPT_LABEL: &[u8] = b"neo.test.f_prime/step/v1";
@@ -974,11 +974,13 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
     let unconstrained = b.unconstrained_columns();
     let mut allowed = Vec::new();
     if let Some(running) = &out.nifs_running {
-        allowed.extend(
-            running
+        allowed.extend(running.iter().flat_map(|claim| {
+            claim
+                .y_zcol
                 .iter()
-                .flat_map(|claim| claim.y_zcol.iter().flat_map(|v| [v.c0.col(), v.c1.col()])),
-        );
+                .take(D)
+                .flat_map(|v| [v.c0.col(), v.c1.col()])
+        }));
     }
     if let Some(parent) = &out.nifs_running_parent_authority {
         allowed.extend(parent.y_zcol.iter().flat_map(|v| [v.c0.col(), v.c1.col()]));
@@ -994,7 +996,7 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
     assert!(
         unconstrained == allowed,
         "recursive F' step left unexpected unconstrained columns: got {unconstrained:?}, \
-         expected only non-authority y_zcol sidecar limbs {allowed:?}"
+         expected only currently unbound y_zcol sidecar limbs {allowed:?}"
     );
 }
 

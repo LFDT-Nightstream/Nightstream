@@ -1,0 +1,55 @@
+{
+  "artifact_kind": "r1cs/pi-rlc-packed-mod5",
+  "artifact_schema": 1,
+  "property_id": "CIR-PIRLC-PACKED-MOD5",
+  "profile": "isolated-one-rho-64-chunk-alphabet-sampler-fixture",
+  "shape": {
+    "source_rows": 20,
+    "source_allocated_roles": 19,
+    "coordinates": 15,
+    "decoder_definitions": 6,
+    "active_rows": 8,
+    "polynomial_terms": 12,
+    "polynomial_arity": 56,
+    "matrix_roles": [0, 44, 45, 54, 55]
+  },
+  "invariant": "generated source rows, role-point polynomials, and isolated high-bit decoder match the independent packed Mod-5 leaf semantics",
+  "evidence_state": "artifact-checked",
+  "hashes": {
+    "model": "34764733618cf154fe4580d6ac8b868bdcf7ac6e07e4af29faba8341524cd2b4",
+    "artifact_refinement": "34c6c8d9d20301f9156396ddbd7023b9086adf21f481d2fe7c49046acd5cd611",
+    "decoder_image_refinement": "55842f1006a0914e0db538fac2c8a59b4a404062f99a27ce2715a77fdc1a98fa",
+    "generated_artifact": "bb8de04372747b9d22733b556ba708ec9f9827227d3be7b15d3c939122a2a9f8",
+    "rust_drift_test": "57b0231ade73d563756fb726aac789b14a0a3a44a04be310ea7dcec39de1ba39"
+  },
+  "theorems": [
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.packedRows_iff_directRows",
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generated_shape_exact",
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generated_polynomial_degrees_exact",
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generated_polynomial_degree_at_most_eight",
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generated_source_rows_exact",
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generatedSourceAccepts_iff_candidateZero",
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generated_bit_polynomial",
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generated_residue_polynomial",
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generatedHighDecoder_fieldTerms_exact",
+    "Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generatedHighDecoder_output_eq_derived"
+  ],
+  "runtime_regressions": [
+    "packed_mod5_lean_artifact_matches_exact_production"
+  ],
+  "assumptions": [
+    "SevenNonresidue for the model-level 8-to-16 equivalence"
+  ],
+  "open_bridges": [
+    "recursive production discharge of the low-coordinate alias predicate",
+    "recursive transitive sparse outer-image placement",
+    "physical active-row role-point refinement",
+    "selector and inactive-row placement",
+    "full 960-chunk/full-F-prime image"
+  ],
+  "non_goals": [
+    "row deletion",
+    "full-F-prime Rust conformance",
+    "cryptographic security reduction"
+  ]
+}

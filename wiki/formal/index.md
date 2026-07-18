@@ -1,27 +1,22 @@
-# Formal (Lean) Subprojects
+# Formal (Lean)
 
-Three standalone Lean 4 projects live under `formal/`, deliberately outside the Rust
-workspace. Lean-specific build/maintenance instructions live in each subproject's
-`AGENTS.md` / `README.md`.
+`formal/nightstream-lean/` is the active assurance-first Lean 4 project. Its
+own `README.md`, `AGENTS.md`, property specification, and evidence ledger
+define the maintained proof surface and the exact meaning of model-level,
+artifact-checked, Rust-conformant, and security-reduced claims.
 
-| Project | Role | Status |
-|---|---|---|
-| `superneo-lean/` | The theorem-facing model of core SuperNeo math: ring/field/norm primitives, Definition 7/8 embeddings, Theorem 4/5 evaluation homomorphism, strong-sampling sets, Π_CCS/Π_RLC/Π_DEC protocol relations. Module structure mirrors paper §4–§7 via barrel files (Primitives, EmbeddingTheory, SecurityModel, FoldingProtocol). | **Authoritative** — Lean is the mathematical source of truth for these surfaces. Maintenance boundary is Lean-only; Rust-generated conformance vectors are currently out of the maintained build path. |
-| `direct-ccs-fprime-lean/` | Direct-CCS F′ protocol-boundary checks; first module proves the `DecAuthorization` wiring theorem. | Active, narrow scope |
-| `twist-shout-lean/` | Paper-faithful formalization of Setty–Thaler Twist/Shout (memory arguments), as a standalone mathematical artifact — not a SuperNeo specialization. | Standalone; relevant to the Nebula memory-checking roadmap |
-
-Two retired packages were removed from the tree and live only in git history
-(removal commit notes the recovery point): `opening-convergence-lean` (opening
-convergence pipeline, locally closed) and `nightstream-lean` (prototype-era
-published-boundary composition layer, incl. the Chip8/RV64IM VM models).
+The other packages under `formal/` are legacy reference material pending
+deletion. They are not dependencies of the active project and are not
+authoritative merely because a theorem kernel-checks there. Reusable algebra
+lemmas or counterexamples must be copied selectively, restated with the active
+types and assumptions, and validated through the active project's gates.
 
 ## How the formal work relates to the Rust code
 
-- The Rust crates' `specs/*.spec.md` files state MUST/SHOULD contracts; the Lean
-  projects prove the mathematical content behind the load-bearing ones (bar-transform
-  identities, split_b round-trips, evaluation homomorphism, sampling-set bounds).
-- When Rust behavior and a Lean theorem disagree, the Lean statement wins — fix the
-  code or the spec, not the theorem.
-- For the SuperNeo project specifically, read `formal/superneo-lean/AGENTS.md` before
-  touching anything; it defines the spec/interface/implementation layout and the
-  closure standard.
+- The Rust crates' specifications state implementation contracts. Independent
+  paper semantics in `formal/nightstream-lean` define what must be proved; a
+  generated artifact or historical circuit is never semantic authority.
+- A Lean theorem authorizes a Rust/R1CS change only after the theorem is tied to
+  the exact production data through the stated refinement and conformance gate.
+- Read `formal/nightstream-lean/AGENTS.md` before changing the active project;
+  use its bounded validation wrapper rather than invoking Lean directly.

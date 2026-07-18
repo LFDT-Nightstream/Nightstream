@@ -19,6 +19,7 @@ use crate::engine::r1cs_circuit::builder::{
     BalancedTernaryDecomposition, CanonicalU64Decomposition, CenteredUnitTrace, Lc, PolynomialEvaluationTrace,
     Poseidon2PermutationTrace, ProductSumBatchTrace, R1csBuilder, RowFamilyRange, ShiftedTernaryCanonicalTrace, Var,
 };
+use crate::engine::r1cs_circuit::PhysicalStageRange;
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::direct_ccs::R1cs;
 use crate::frontends::f_prime::image::{FPrimeImageLayout, PoseidonPreimageLaneSource};
@@ -48,6 +49,7 @@ pub struct SparseR1cs {
     polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
     product_sum_batch_traces: Vec<ProductSumBatchTrace>,
     row_family_ranges: Vec<RowFamilyRange>,
+    physical_stage_ranges: Vec<PhysicalStageRange>,
 }
 
 impl SparseR1cs {
@@ -66,6 +68,7 @@ impl SparseR1cs {
             n,
             m,
             m_in,
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -100,6 +103,7 @@ impl SparseR1cs {
         polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
         product_sum_batch_traces: Vec<ProductSumBatchTrace>,
         row_family_ranges: Vec<RowFamilyRange>,
+        physical_stage_ranges: Vec<PhysicalStageRange>,
     ) -> Result<Self, FrontendError> {
         let out = Self {
             a,
@@ -120,6 +124,7 @@ impl SparseR1cs {
             polynomial_evaluation_traces,
             product_sum_batch_traces,
             row_family_ranges,
+            physical_stage_ranges,
         };
         out.validate_shape()?;
         Ok(out)
@@ -176,6 +181,15 @@ impl SparseR1cs {
     /// Assurance-only ownership ranges preserved from the field-R1CS builder.
     pub fn row_family_ranges(&self) -> &[RowFamilyRange] {
         &self.row_family_ranges
+    }
+
+    /// Exact sequential row intervals preserved across column lowering.
+    ///
+    /// Paths are caller-supplied diagnostic labels. A consumer claiming an
+    /// exact semantic ledger must reject an empty slice and separately check
+    /// its expected root and complete path universe.
+    pub fn physical_stage_ranges(&self) -> &[PhysicalStageRange] {
+        &self.physical_stage_ranges
     }
 
     pub fn validate_shape(&self) -> Result<(), FrontendError> {
@@ -925,13 +939,13 @@ fn bit_width_for_max(max: u128) -> usize {
     width.clamp(1, POSEIDON2_GOLDILOCKS_BITS)
 }
 
-struct R1csCoeffRows {
-    a: Vec<Vec<(usize, F)>>,
-    b: Vec<Vec<(usize, F)>>,
-    c: Vec<Vec<(usize, F)>>,
+pub(crate) struct R1csCoeffRows {
+    pub(crate) a: Vec<Vec<(usize, F)>>,
+    pub(crate) b: Vec<Vec<(usize, F)>>,
+    pub(crate) c: Vec<Vec<(usize, F)>>,
 }
 
-fn r1cs_coeff_rows(r1cs: &R1csShape) -> R1csCoeffRows {
+pub(crate) fn r1cs_coeff_rows(r1cs: &R1csShape) -> R1csCoeffRows {
     match r1cs {
         R1csShape::Dense(r1cs) => R1csCoeffRows {
             a: dense_coeff_rows(&r1cs.a),

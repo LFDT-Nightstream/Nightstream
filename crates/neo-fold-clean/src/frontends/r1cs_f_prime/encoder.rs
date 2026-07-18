@@ -1,21 +1,21 @@
-//! R1CS F' step encoder.
+//! Image filling for one R1CS-backed encoded `F'` step.
 //!
-//! Mirrors [`crate::frontends::f_prime::encoder::encode_f_prime_step`]
-//! but consumes a cached, R1CS-aware [`FPrimeStructure`] for the final
-//! satisfaction check, so the resulting encoded step also enforces every
-//! R1CS constraint.
+//! Owns: assignment bit encoding, R1CS-specific image fill, and satisfaction
+//! against the cached [`FPrimeStructure`].
 //!
-//! The image region is the same; only the appended structure rows differ.
-//! `app_private` is repurposed as the app-assignment region: callers pass
-//! the bit-decomposed R1CS variable assignment `z = [x | w]` in fill
-//! order via [`R1csEncoderInput::assignment_bits`]. The encoder writes
-//! those bits into `image.app_private` verbatim.
+//! Does not own: structure construction, source-R1CS validation, chain state, or
+//! folding proof verification.
 //!
-//! The structure is **not** rebuilt per call: every chain in a given
-//! preprocessing shares one [`Arc<FPrimeStructure>`] held on
-//! [`crate::frontends::r1cs_f_prime::R1csFPrimePreprocessing`]. For
-//! R1CS shapes the size of SHA-256 this saves rebuilding the sparse
-//! app rows plus the shared shell rows per step.
+//! Emits constraints: no. It reuses a verifier-owned cached structure.
+//!
+//! Authority boundary: assignment bits and trace images are prover data; the
+//! cached structure and its verified satisfaction determine acceptance.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Assignment bits | [`assignment_to_bits`] | no | Canonical field assignment |
+//! | Image fill | [`encode_r1cs_f_prime_step`] | no | Typed encoder inputs |
+//! | Relation check | cached [`FPrimeStructure`] | no | Verifier preprocessing |
 
 use std::sync::Arc;
 

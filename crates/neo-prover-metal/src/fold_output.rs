@@ -81,23 +81,26 @@ pub(crate) fn metal_proof_carrier(
 
 pub(crate) struct MetalFoldOutput {
     running: RunningInstance,
+    session_ownership_id: u64,
     resident_id: Option<u64>,
     witness_snapshot: Option<MetalResidentWitnessSnapshot>,
-    parent_digest: [F; 4],
+    parent_accumulator_digest: [F; 4],
 }
 
 impl MetalFoldOutput {
     pub(crate) fn new(
         running: RunningInstance,
+        session_ownership_id: u64,
         resident_id: Option<u64>,
         witness_snapshot: Option<MetalResidentWitnessSnapshot>,
-        parent_digest: [F; 4],
+        parent_accumulator_digest: [F; 4],
     ) -> Self {
         Self {
             running,
+            session_ownership_id,
             resident_id,
             witness_snapshot,
-            parent_digest,
+            parent_accumulator_digest,
         }
     }
 
@@ -132,8 +135,12 @@ impl MetalRunningCarrier {
         self.output.resident_id
     }
 
-    pub(crate) fn parent_digest(&self) -> [F; 4] {
-        self.output.parent_digest
+    pub(crate) fn session_ownership_id(&self) -> u64 {
+        self.output.session_ownership_id
+    }
+
+    pub(crate) fn parent_accumulator_digest(&self) -> [F; 4] {
+        self.output.parent_accumulator_digest
     }
 }
 

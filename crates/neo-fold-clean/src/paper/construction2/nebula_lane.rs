@@ -200,12 +200,17 @@ impl NebulaStepX {
 }
 
 impl DelayedNebulaStepX {
+    /// Exact logical width of `[step_x_bits || open || bits(D_pre)]`.
+    pub const fn encoded_len(stacks: StackShape) -> usize {
+        const D_PRE_BITS: usize = 3 * 4 * K_LIMB_BITS;
+        stacks.x_bits() + 1 + D_PRE_BITS
+    }
+
     /// Decode `[step_x_bits || open || bits(D_pre)]`. All coordinates are
     /// canonical bits, and an inactive `D_pre` must be all zero, matching the
     /// authoritative circuit decoder.
     pub fn decode_suffix(suffix: &[F], stacks: StackShape) -> Result<Self, NebulaXError> {
-        const D_PRE_BITS: usize = 3 * 4 * K_LIMB_BITS;
-        let expected = stacks.x_bits() + 1 + D_PRE_BITS;
+        let expected = Self::encoded_len(stacks);
         if suffix.len() != expected {
             return Err(NebulaXError::Length {
                 label: "delayed F' suffix",
@@ -593,16 +598,17 @@ impl NebulaLane {
         suffix_offset: usize,
         claims: &[neo_ccs::CcsClaim<Commitment, F>],
     ) -> Result<(), crate::paper::construction2::Error> {
+        let suffix_end = suffix_offset + DelayedNebulaStepX::encoded_len(cfg.stacks);
         for claim in claims {
-            if claim.x.len() < suffix_offset {
+            if claim.x.len() < suffix_end {
                 return Err(NebulaXError::Length {
-                    label: "folded F' claim public input",
-                    want: suffix_offset,
+                    label: "folded F' claim through delayed suffix",
+                    want: suffix_end,
                     got: claim.x.len(),
                 }
                 .into());
             }
-            let delayed = DelayedNebulaStepX::decode_suffix(&claim.x[suffix_offset..], cfg.stacks)?;
+            let delayed = DelayedNebulaStepX::decode_suffix(&claim.x[suffix_offset..suffix_end], cfg.stacks)?;
             if let Some(d_pre) = delayed.d_pre {
                 self.open_segment(cfg, vk_digest, z_i, acc_digest, d_pre)?;
             }

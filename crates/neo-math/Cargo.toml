@@ -35,7 +35,6 @@ serde_json = { workspace = true }
 [features]
 default = []
 serde = ["dep:serde"]
-spartan2-compat = []
 
 # Spec-derived tests (lean oracles + invariant obligations)
 [[test]]
@@ -53,6 +52,10 @@ path = "spec-tests/norms.rs"
 [[test]]
 name = "spec_bar_transform"
 path = "spec-tests/bar_transform.rs"
+
+[[test]]
+name = "phi81_bar_lean_artifact"
+path = "tests/phi81_bar_lean_artifact.rs"
 
 [[test]]
 name = "spec_s_action"

@@ -22,13 +22,23 @@ The generator families are:
 
 | Generated owner | Rust drift/regeneration target |
 |---|---|
+| Phi81 runtime bar matrix | `cargo test -p neo-math --release --test phi81_bar_lean_artifact` |
+| SplitNc packed-carrier counterexample | `cargo test -p neo-reductions --release --test pi_ccs_nc_carrier_lean_artifact` |
+| Fixed F' carrier-fixture NIFS/F' counterexample | `cargo test -p neo-fold-clean --release --test f_prime_fixed_carrier_nifs_lean_artifact` |
 | Canonical-u64 | `gadgets_lean_artifact` |
 | Seeded Phi81 | `gadgets_seeded_phi81_lean_artifact` |
-| Shifted ternary | `gadgets_shifted_ternary_lean_artifact` |
+| Shifted ternary source and schema-3 isolated shared-slot lowering (20 residual pairs, one tail, 82 products) | `gadgets_shifted_ternary_lean_artifact` |
+| Packed PiRLC Mod-5 leaf (20 source rows, six projected definitions, eight active rows, exact sparse polynomial) | `gadgets_packed_mod5_lean_artifact` |
+| PiRLC aggregate-acceptance leaf (arity 56, 40 role bindings, nine active rows, exact 25-term polynomial) | `gadgets_aggregate_acceptance_lean_artifact` |
+| Fixed recursive PiRLC aggregate outer image (15 challenge shards, 960 chunks, 720 source definitions, 16,560 selected physical rows) | `cargo test -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest -- aggregate_acceptance_outer_image::recursive_aggregate_acceptance_lean_outer_image_matches_sparse_production --exact --nocapture` |
+| Selective compiler 270-coordinate public-carrier slice (exact layout and 13 final public-padding rows) | `cargo test -p neo-fold-clean --release --test f_prime_selective_snapshot -- selective_carrier_270_lean_artifact_matches_compiler --exact --nocapture` |
+| Three-arm selective-compiler selector-coverage fixture (compact owner/gate intervals and exact 27-term polynomial) | `cargo test -p neo-fold-clean --release --test f_prime_selective_snapshot -- selective_snapshot_selector_gate_coverage_matches_final_matrices --exact --nocapture` |
 | U64 increment/addition | `gadgets_u64_increment_lean_artifact`, `gadgets_u64_add_lean_artifact` |
 | F' counter, encoding, links, base pins | `gadgets_f_prime_counter_lean_artifact`, `gadgets_f_prime_encoding_lean_artifact`, `gadgets_f_prime_terminal_link_lean_artifact`, `gadgets_f_prime_state_link_lean_artifact`, `gadgets_f_prime_base_state_lean_artifact` |
 | Poseidon2, F' digest, base program, CE continuity | `gadgets_poseidon2_lean_artifact`, `gadgets_f_prime_chunk_digest_lean_artifact`, `gadgets_f_prime_base_program_lean_artifact`, `gadgets_f_prime_ce_continuity_lean_artifact` |
 | Steady-recursive manifest | `gadgets_f_prime_recursive_manifest` |
+| Fixed F' base/recursive source-role census and compact ordinary source-loop placement metadata | `cargo test -p neo-fold-clean --release --test f_prime_full_relation -- --nocapture` |
+| Output-authority Poseidon2 S-box call manifest | `gadgets_f_prime_recursive_manifest output_authority_sbox_lean::output_authority_sbox_lean_manifest_matches_audited_production -- --exact` |
 | NIFS/SumCheck compiler artifact | `gadgets_nifs_compiler_conformance` |
 | PiRLC projection boundary | `gadgets_pi_rlc_projection_boundary` |
 | Full-history M4 manifest and owner shards | `system_decider_r1cs` targeted tests listed below |

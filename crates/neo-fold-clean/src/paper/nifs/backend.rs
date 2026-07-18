@@ -1,7 +1,21 @@
-//! Prover backend selector for NIFS.P.
+//! Prover-backend boundary for NIFS.P.
 //!
-//! This module owns only backend selection policy. Backend implementations
-//! live where their dependencies live; the CPU path remains canonical here.
+//! Owns: backend selection, prover requests, deferred proof/running carriers,
+//! post-fold summaries, and the adapter interface.
+//!
+//! Does not own: reduction semantics, backend kernels, or verifier acceptance.
+//!
+//! Emits constraints: no.
+//!
+//! Authority boundary: deferred carriers and summaries are prover-side storage
+//! optimizations; the ordinary materialized proof and NIFS verifier remain the
+//! authority boundary.
+//!
+//! | Obligation | Local owner | Emits constraints? | Authority source |
+//! |---|---|---|---|
+//! | Backend request | [`NifsProverRequest`] | no | Caller-validated protocol inputs |
+//! | Deferred egress | [`NifsProofCarrier`], [`NifsRunningCarrier`] | no | Materialized ordinary proof/state |
+//! | Backend adapter | [`NifsProverAdapter`] | no | Final NIFS verification |
 
 use std::any::Any;
 use std::fmt;

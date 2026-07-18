@@ -12,7 +12,8 @@ use crate::paper::relations::CcsInstance;
 /// The step's CCS structure (`step.structure.ccs`) must match the
 /// preprocessing's structure by `structure_digest`. The witness is
 /// committed via `prep.log` under the canonical public-input split
-/// (`step.public_input_len()` = `1 + boundary_bits`).
+/// (`step.public_input_len()` is the `D`-aligned SuperNeo carrier containing
+/// `[1 | boundary_bits | fixed-zero padding]`).
 ///
 /// Fast path: if `step.structure` is the same [`Arc`] as
 /// `prep.structure` (the normal in-chain case), the digest check is

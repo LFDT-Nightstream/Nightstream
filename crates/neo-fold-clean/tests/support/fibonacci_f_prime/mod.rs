@@ -199,7 +199,7 @@ pub fn preprocess_seeded_with_params(
 /// `preprocess` and `preprocess_seeded` share one derivation.
 fn derive_canonical_structure(plan: &RecursiveStepImagePlan) -> (Arc<FPrimeStructure>, usize) {
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
-    let public_input_len = 1 + layout.boundary.bits;
+    let public_input_len = layout.public_input_len();
     let structure = Arc::new(build_f_prime_structure(layout));
     (structure, public_input_len)
 }

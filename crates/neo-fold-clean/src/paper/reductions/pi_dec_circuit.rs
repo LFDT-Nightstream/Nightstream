@@ -23,7 +23,7 @@
 //! | Allocation/shape | Parent and children have the fixed CE carrier shape | yes | this file | concrete refinement open |
 //! | Commitment/X/y recomposition | `parent = sum_i b^i child_i` lane-wise | yes | this file | PiDEC semantics |
 //! | Shared fields | Parent/children agree on non-decomposed fields | yes | this file | PiDEC semantics |
-//! | `y_zcol` recomposition | `parent = sum_i b^i child_i` for the raw optimized projection | **not currently emitted** | allocation omits child sidecars | delayed parent-projection refinement open |
+//! | `y_zcol` source binding | Relate the delayed-NC projection to authoritative witness data | **not currently emitted** | — | delayed-NC refinement open |
 //! | Advice recomposition | Product-commitment advice follows the same radix map | yes | `product_commitment_circuit` | concrete refinement open |
 //!
 //! ## What this gadget owns
@@ -134,9 +134,7 @@ pub struct CeClaimWires {
     /// Flattened `y_zcol` sidecar, indexed as
     /// `y_zcol[lane * s + limb]`. The authoritative Π_RLC parent retains its
     /// full fixed-width sidecar. Ordinary Π_DEC children leave this vector
-    /// empty because strict Π_DEC neither reads nor validates child `y_zcol`.
-    /// Terminal-decider children reattach the sidecar at the terminal CE
-    /// relation, where it is checked directly against the opened witness.
+    /// empty because the current Π_DEC relation has no proved equation for it.
     pub y_zcol: Vec<Var>,
     pub y_zcol_lanes: usize,
     /// `fold_digest` field of the CE claim, projected to four base-field
@@ -323,11 +321,10 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///      transcript digest as their Π_DEC parent.
 ///
 /// Notably absent (and absent on the native side):
-///   - **No `y_zcol` b-ary check.** The optimized NC table stores raw packed
-///     witness coordinates, so its projection is linear and does telescope
-///     through Π_RLC and Π_DEC. Omitting the check is a known authority gap,
-///     not a semantic impossibility. The planned delayed-parent refinement
-///     must bind this projection before the old point is discarded.
+///   - **No `y_zcol` b-ary check.** The tempting scalar-radix equation is not a
+///     law of the current producer and rejects honest optimized folds. A
+///     theorem-backed source relation must be defined before constraints are
+///     added here.
 ///   - **No unsigned x bitness check.** `decompose_balanced_fixed_d_digits_k`
 ///     produces signed digits (e.g. -1 ↦ p-1 in F), so an unsigned
 ///     `{0..b-1}` check would reject honest provers. Strict mode enforces the
@@ -708,8 +705,8 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
     alloc_ce_claim_from_y_zcol(builder, claim, &claim.y_zcol)
 }
 
-/// Allocate the strict-Π_DEC child core. Child `y_zcol` is deliberately not
-/// materialized because it is outside the Π_DEC acceptance predicate.
+/// Allocate the strict-Π_DEC child carrier. `y_zcol` is deliberately not
+/// materialized because no sound child-source equation is currently proved.
 pub(crate) fn alloc_dec_child_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
     alloc_ce_claim_from_y_zcol(builder, claim, &[])
 }

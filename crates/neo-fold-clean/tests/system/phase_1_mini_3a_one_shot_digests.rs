@@ -305,103 +305,60 @@ fn phase_1_mini_3a_accumulator_from_parent_c_data_digest() {
 }
 
 #[test]
-fn phase_1_mini_3a_live_accumulator_handle_uses_verified_parent_authority() {
+fn phase_1_mini_3a_live_accumulator_handle_binds_exact_ordered_children() {
     let fixture = build_nifs_fixture();
     let baseline =
         AccumulatorHandle::from_running_parts(&fixture.running_claims, Some(&fixture.parent_authority)).digest();
 
-    // The compact handle does not duplicate the children. NIFS.V verifies
-    // strict Pi_DEC(parent, children) before deriving or consuming it; the
-    // lifecycle red-team suite pins that mutating a child and rebuilding this
-    // handle still fails those algebraic rows.
-    macro_rules! assert_child_mutation_does_not_rehash {
+    macro_rules! assert_child_mutation_changes {
         ($label:literal, $mutate:expr) => {{
             let mut claims = fixture.running_claims.clone();
             ($mutate)(&mut claims[0]);
-            assert_eq!(
+            assert_ne!(
                 AccumulatorHandle::from_running_parts(&claims, Some(&fixture.parent_authority)).digest(),
                 baseline,
-                "child {} belongs to strict Pi_DEC verification, not the duplicate compact hash",
+                "exact Construction-2 accumulator handle must bind child {}",
                 $label
             );
         }};
     }
 
-    macro_rules! assert_parent_mutation_changes {
-        ($label:literal, $mutate:expr) => {{
-            let mut parent = fixture.parent_authority.clone();
-            ($mutate)(&mut parent);
-            assert_ne!(
-                AccumulatorHandle::from_running_parts(&fixture.running_claims, Some(&parent)).digest(),
-                baseline,
-                "live Construction-2 handle must bind parent CE authority {}",
-                $label
-            );
-        }};
-    }
-
-    macro_rules! assert_parent_derived_field_is_not_rehashed {
+    macro_rules! assert_parent_mutation_does_not_rehash {
         ($label:literal, $mutate:expr) => {{
             let mut parent = fixture.parent_authority.clone();
             ($mutate)(&mut parent);
             assert_eq!(
                 AccumulatorHandle::from_running_parts(&fixture.running_claims, Some(&parent)).digest(),
                 baseline,
-                "derived/non-authority parent field {} must stay outside the CE authority digest",
+                "checked parent field {} is a cache, not the paper accumulator",
                 $label
             );
         }};
     }
 
-    assert_child_mutation_does_not_rehash!("c.data", |claim: &mut CeClaim| {
+    assert_child_mutation_changes!("c.data", |claim: &mut CeClaim| {
         claim.c.data[0] += F::ONE;
     });
-    assert_child_mutation_does_not_rehash!("fold_digest", |claim: &mut CeClaim| {
+    assert_child_mutation_changes!("fold_digest", |claim: &mut CeClaim| {
         claim.fold_digest[0] ^= 0xA5;
     });
+    let mut sidecar_only = fixture.running_claims.clone();
+    sidecar_only[0].y_zcol[0] += K::ONE;
+    assert_eq!(
+        AccumulatorHandle::from_running_parts(&sidecar_only, Some(&fixture.parent_authority)).digest(),
+        baseline,
+        "paper-level exact-child handle must not disguise the open y_zcol source relation as solved"
+    );
     assert_ne!(
         AccumulatorHandle::from_running_parts(&fixture.running_claims[1..], Some(&fixture.parent_authority)).digest(),
         baseline,
-        "the handle must still bind the verifier-owned child count"
+        "the handle must bind child count and order"
     );
 
-    assert_parent_mutation_changes!("c.data", |claim: &mut CeClaim| {
+    assert_parent_mutation_does_not_rehash!("c.data", |claim: &mut CeClaim| {
         claim.c.data[0] += F::ONE;
     });
-    assert_parent_mutation_changes!("X", |claim: &mut CeClaim| {
-        claim.X[(0, 0)] += F::ONE;
-    });
-    assert_parent_mutation_changes!("r", |claim: &mut CeClaim| {
-        assert!(!claim.r.is_empty(), "fixture parent must carry r");
-        claim.r[0] += K::ONE;
-    });
-    assert_parent_mutation_changes!("y_ring", |claim: &mut CeClaim| {
-        assert!(
-            !claim.y_ring.is_empty() && !claim.y_ring[0].is_empty(),
-            "fixture parent must carry y_ring"
-        );
-        claim.y_ring[0][0] += K::ONE;
-    });
-    assert_parent_mutation_changes!("m_in", |claim: &mut CeClaim| {
-        claim.m_in += 1;
-    });
-    assert_parent_mutation_changes!("fold_digest", |claim: &mut CeClaim| {
-        claim.fold_digest[0] ^= 0x5A;
-    });
-
-    assert_parent_derived_field_is_not_rehashed!("s_col", |claim: &mut CeClaim| {
-        claim.s_col.push(K::ONE);
-    });
-    assert_parent_derived_field_is_not_rehashed!("ct", |claim: &mut CeClaim| {
-        claim.ct.push(K::ONE);
-    });
-    assert_parent_derived_field_is_not_rehashed!("y_zcol", |claim: &mut CeClaim| {
-        claim.y_zcol.push(K::ONE);
-    });
-    assert_parent_derived_field_is_not_rehashed!("unsupported metadata", |claim: &mut CeClaim| {
-        claim.aux_openings.push(K::ONE);
-        claim.c_step_coords.push(F::ONE);
-        claim.u_offset += 1;
-        claim.u_len += 1;
+    assert_parent_mutation_does_not_rehash!("y_zcol", |claim: &mut CeClaim| {
+        claim.y_zcol[0] += K::ONE;
     });
 }

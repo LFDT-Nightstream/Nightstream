@@ -150,10 +150,11 @@ fn phase_1_4a_structure_shape_matches_image_layout() {
     assert_eq!(
         structure.ccs.n,
         structure.semantic_boolean_row_count()
+            + structure.carrier_padding_row_count()
             + structure.is_base_counter_link_row_count()
             + structure.ring_action_product_row_count()
             + structure.ring_action_output_row_count(),
-        "structure.n must equal semantic Boolean rows + is_base↔counter link rows + ring_action product rows + ring_action output rows"
+        "structure.n must include Boolean, carrier-padding, control, and ring-action rows"
     );
     // Mixed-gate F' CCS: 8 matrices for (bit, prod_l, prod_r, prod_out,
     // sbox_in, sbox_out, lin_l, lin_r); polynomial arity matches.
@@ -174,6 +175,27 @@ fn phase_1_4a_structure_shape_matches_image_layout() {
         structure.lane_slots.state_lanes.len(),
         structure.lane_slots.kmul_lanes.len(),
         structure.lane_slots.ring_action_lanes.len(),
+    );
+}
+
+#[test]
+fn phase_1_4a_carrier_padding_is_public_and_fixed_to_zero() {
+    let mut config = small_test_image_config();
+    config.boundary_bits = 256;
+    let layout = FPrimeImageLayout::new(config);
+    assert_eq!(layout.public_input_len(), 270);
+    assert_eq!(layout.carrier_padding.offset, 257);
+    assert_eq!(layout.carrier_padding.bits, 13);
+
+    let structure = build_f_prime_structure(layout.clone());
+    let image = FPrimeImage::new(layout.clone());
+    assert!(structure.is_satisfied(&structure.extend_witness_from_image(&image)));
+
+    let mut tampered = image;
+    tampered.values[layout.carrier_padding.offset] = F::ONE;
+    assert!(
+        !structure.is_satisfied(&structure.extend_witness_from_image(&tampered)),
+        "source relation accepted a nonzero verifier-fixed carrier coordinate"
     );
 }
 

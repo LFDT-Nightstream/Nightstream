@@ -19,8 +19,9 @@
 //!   - **CE-claim continuity links** wiring every recursive step's
 //!     NIFS children to the next step's (or terminal fold's) running
 //!     (`accumulator_claim_links == recursive_step_count`). This is an
-//!     explicit wire-for-wire continuity check for every CE field, not a
-//!     substitute for the full-running `acc_digest` handle.
+//!     explicit wire-for-wire continuity check for the paper-level CE core,
+//!     not a substitute for the exact-running `acc_digest` handle. The
+//!     optimized `y_zcol` source relation remains open.
 //!   - **Parent-authority continuity links** wiring every recursive step's
 //!     Π_RLC parent authority to the next step's (or terminal fold's)
 //!     running parent (`parent_authority_links == recursive_step_count`).
@@ -65,7 +66,9 @@ use neo_fold_clean::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, initial_boundary_digest, public_trace_seed_digest,
     state_x_out_digest_with_mode, structure_digest, AccumulatorHandle, StateXOutDigestMode,
 };
-use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_public_input, F_PRIME_PUBLIC_INPUT_LEN};
+use neo_fold_clean::paper::f_prime::r1cs::{
+    encode_f_prime_superneo_public_input, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
+};
 use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
 use neo_math::{D, F, K};
@@ -90,10 +93,10 @@ const FULL_HISTORY_TOP_LEVEL: &[&str] = &[
 
 fn bit_carrier_r1cs() -> R1cs {
     R1cs {
-        a: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        b: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        c: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        a: Mat::zero(1, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        b: Mat::zero(1, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        c: Mat::zero(1, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        m_in: F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     }
 }
 
@@ -182,8 +185,7 @@ fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
 }
 
 fn build_link_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, x_out_target: [F; 4]) -> CcsInstance {
-    let mut z = encode_f_prime_public_input(x_out_target);
-    z.resize(prep.structure().m, F::ZERO);
+    let z = encode_f_prime_superneo_public_input(x_out_target);
     direct_ccs::build_instance(prep, r1cs, &z).expect("recursive-link instance")
 }
 
@@ -1365,9 +1367,10 @@ fn decider_state_link_rejects_tampered_state_field_wires() {
 fn decider_terminal_latest_link_rejects_tampered_second_fresh_bit() {
     let last_bits = vec![F::ZERO; F_PRIME_PUBLIC_INPUT_LEN - 1];
     let honest_fresh = {
-        let mut x = Vec::with_capacity(F_PRIME_PUBLIC_INPUT_LEN);
+        let mut x = Vec::with_capacity(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
         x.push(F::ONE);
         x.extend(last_bits.iter().copied());
+        x.resize(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
         x
     };
     let mut fresh_batch = vec![honest_fresh.clone(), honest_fresh.clone(), honest_fresh];
@@ -1396,9 +1399,10 @@ fn decider_terminal_latest_link_rejects_tampered_second_fresh_bit() {
 fn decider_terminal_latest_link_rejects_tampered_fresh_one_slot() {
     let last_bits = vec![F::ZERO; F_PRIME_PUBLIC_INPUT_LEN - 1];
     let honest_fresh = {
-        let mut x = Vec::with_capacity(F_PRIME_PUBLIC_INPUT_LEN);
+        let mut x = Vec::with_capacity(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
         x.push(F::ONE);
         x.extend(last_bits.iter().copied());
+        x.resize(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
         x
     };
     let mut fresh_batch = vec![honest_fresh.clone(), honest_fresh];
@@ -1418,6 +1422,23 @@ fn decider_terminal_latest_link_rejects_tampered_fresh_one_slot() {
     assert!(
         !bad.is_satisfied(),
         "terminal latest link accepted a fresh public input with x[0] != 1"
+    );
+}
+
+#[test]
+fn decider_terminal_latest_link_rejects_nonzero_carrier_padding() {
+    let last_bits = vec![F::ZERO; F_PRIME_PUBLIC_INPUT_LEN - 1];
+    let mut fresh = vec![F::ZERO; F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN];
+    fresh[0] = F::ONE;
+
+    let honest = enforce_terminal_latest_link_against(&last_bits, &[fresh.clone()]).expect("emit latest-link rows");
+    assert!(honest.is_satisfied(), "zero-padded terminal carrier must satisfy");
+
+    fresh[F_PRIME_PUBLIC_INPUT_LEN] = F::ONE;
+    let bad = enforce_terminal_latest_link_against(&last_bits, &[fresh]).expect("emit padding rows");
+    assert!(
+        !bad.is_satisfied(),
+        "terminal latest link accepted a nonzero verifier-fixed carrier coordinate"
     );
 }
 

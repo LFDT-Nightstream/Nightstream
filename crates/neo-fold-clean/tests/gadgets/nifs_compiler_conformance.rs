@@ -22,7 +22,7 @@ use neo_fold_clean::paper::digest::{
     digest32_as_fields, initial_boundary_digest, public_trace_seed_digest, state_x_out_digest_with_mode,
     structure_digest, AccumulatorHandle, StateXOutDigestMode,
 };
-use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_public_input, F_PRIME_PUBLIC_INPUT_LEN};
+use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_superneo_public_input, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN};
 use neo_fold_clean::CcsInstance;
 use neo_math::{KExtensions, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -51,10 +51,10 @@ fn alloc_k(builder: &mut R1csBuilder, value: K) -> KVar {
 
 fn bit_carrier_r1cs() -> R1cs {
     R1cs {
-        a: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        b: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        c: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        a: Mat::zero(1, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        b: Mat::zero(1, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        c: Mat::zero(1, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO),
+        m_in: F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     }
 }
 
@@ -85,8 +85,7 @@ fn base_state(prep: &neo_fold_clean::Preprocessing) -> State {
 }
 
 fn build_link_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, x_out_target: [F; 4]) -> CcsInstance {
-    let mut z = encode_f_prime_public_input(x_out_target);
-    z.resize(prep.structure().m, F::ZERO);
+    let z = encode_f_prime_superneo_public_input(x_out_target);
     direct_ccs::build_instance(prep, r1cs, &z).expect("recursive-link instance")
 }
 

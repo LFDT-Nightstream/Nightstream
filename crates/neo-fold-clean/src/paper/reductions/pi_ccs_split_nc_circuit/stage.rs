@@ -17,7 +17,7 @@
 //! | `fresh_claim_hashes` | Bind fresh CCS claims to Poseidon2 digests | yes | `digests` | concrete digest bridge open |
 //! | `running_parent_hash` | Bind the checked parent and shared point | yes | `digests`, `verifier` | authority bridge open |
 //! | `instance_hash_and_absorb` | Derive and absorb the public-instance digest | yes | `digests`, `transcript` | transcript bridge open |
-//! | `running_handle_hash_and_absorb` | Absorb the checked-parent handle | yes | `transcript` | transcript bridge open |
+//! | `running_handle_hash_and_absorb` | Hash the exact ordered children and absorb their handle | yes | `digests`, `transcript` | exact-child bridge open |
 //! | `engine_challenges` | Derive FE and NC challenges | yes | `transcript` | transcript bridge open |
 //! | `fe_claim_and_sumcheck` | Check the FE initial claim and SumCheck | yes | `fe` | FE bridge open |
 //! | `nc_sumcheck` | Check the NC SumCheck | yes | `nc` | NC bridge open |
@@ -53,7 +53,8 @@ pub const INSTANCE_HASH: &str = "nifs.pi_ccs.instance_hash_and_absorb.instance_d
 pub const INSTANCE_HEADER_ABSORB: &str = "nifs.pi_ccs.instance_hash_and_absorb.header_absorb";
 
 pub const RUNNING_HANDLE_HASH_AND_ABSORB: &str = "nifs.pi_ccs.running_handle_hash_and_absorb";
-pub const RUNNING_HANDLE_SELECT: &str = "nifs.pi_ccs.running_handle_hash_and_absorb.select";
+pub const RUNNING_HANDLE_CHILD_DIGESTS: &str = "nifs.pi_ccs.running_handle_hash_and_absorb.child_digests";
+pub const RUNNING_HANDLE_AGGREGATE: &str = "nifs.pi_ccs.running_handle_hash_and_absorb.aggregate";
 pub const RUNNING_HANDLE_ABSORB: &str = "nifs.pi_ccs.running_handle_hash_and_absorb.absorb";
 
 pub const ENGINE_CHALLENGES: &str = "nifs.pi_ccs.engine_challenges";
@@ -109,7 +110,8 @@ pub const ALL: &[&str] = &[
     INSTANCE_HASH,
     INSTANCE_HEADER_ABSORB,
     RUNNING_HANDLE_HASH_AND_ABSORB,
-    RUNNING_HANDLE_SELECT,
+    RUNNING_HANDLE_CHILD_DIGESTS,
+    RUNNING_HANDLE_AGGREGATE,
     RUNNING_HANDLE_ABSORB,
     ENGINE_CHALLENGES,
     ENGINE_CHALLENGES_MAIN,
@@ -183,7 +185,11 @@ pub const HIERARCHY: &[(&str, &[&str])] = &[
     (INSTANCE_HASH_AND_ABSORB, &[INSTANCE_HASH, INSTANCE_HEADER_ABSORB]),
     (
         RUNNING_HANDLE_HASH_AND_ABSORB,
-        &[RUNNING_HANDLE_SELECT, RUNNING_HANDLE_ABSORB],
+        &[
+            RUNNING_HANDLE_CHILD_DIGESTS,
+            RUNNING_HANDLE_AGGREGATE,
+            RUNNING_HANDLE_ABSORB,
+        ],
     ),
     (ENGINE_CHALLENGES, &[ENGINE_CHALLENGES_MAIN, ENGINE_CHALLENGES_BETA_M]),
     (

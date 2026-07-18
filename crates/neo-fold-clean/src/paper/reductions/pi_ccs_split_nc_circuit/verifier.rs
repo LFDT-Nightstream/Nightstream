@@ -11,10 +11,10 @@
 //! 1. Allocate fresh/running/output wires (once)
 //! 2. Recompute per-fresh CCS claim digests from those wires
 //! 3. Strictly verify the running children against their Pi_DEC parent,
-//!    then recompute that parent CE digest
+//!    hash the parent cache, and independently hash the exact child CE core
 //! 4. Compute pi_ccs_instance_digest from authoritative digests
 //! 5. Absorb header bundle + instance digest (raw [11, …]/[12, …])
-//! 6. Absorb the checked-parent ME handle (raw [4]/[5,count]/[13, handle])
+//! 6. Absorb the exact-child ME handle (raw [4]/[5,count]/[13, handle])
 //! 7. Sample α, β_a, β_r, γ, β_m
 //! 8. FE claimed_initial
 //! 9. FE sumcheck driver → r_prime, alpha_prime, fe_final
@@ -47,15 +47,16 @@
 //!
 //! Emits constraints: yes, by composing the child phases below.
 //!
-//! Authority boundary: fresh claims and the checked running parent are
-//! authoritative; carried output/header digests are recomputed or replayed.
+//! Authority boundary: fresh claims and the exact ordered running CE cores are
+//! authoritative; the checked parent is a cache. The optimized `y_zcol`
+//! sidecar still has an open delayed-NC source-binding obligation.
 //!
 //! | Child phase | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
 //! |---|---|---|---|---|
 //! | allocation | Fixed-shape claim materialization | yes | `verifier` | concrete refinement open |
-//! | running authority | Pi_DEC consistency and canonical views | yes | `verifier`, `pi_dec_circuit` | authority bridge open |
-//! | running `y_zcol` elision | Current implementation omits the old-point projection; this is not semantic permission and leaves the NC authority chain open | no | `validate_ce_shape_without_y_zcol`, `alloc_ce_wires_without_y_zcol` | `PiCcsNc/Authority/ProjectionNecessity.lean` gives a counterexample; delayed refinement open |
-//! | claim hashes | Fresh and running-parent bindings | yes | `digests` | digest bridge open |
+//! | running authority | Exact child-core binding, Pi_DEC consistency, and canonical views | yes | `verifier`, `pi_dec_circuit` | authority bridge open |
+//! | running `y_zcol` elision | Do not pretend an unproved sidecar equation is authority | no | `alloc_ce_wires_without_y_zcol` | delayed-NC refinement open |
+//! | claim hashes | Fresh claims, exact child handle, and parent-cache binding | yes | `digests` | digest bridge open |
 //! | transcript | Instance, handle, and challenge schedule | yes | `transcript` | transcript bridge open |
 //! | FE | Claimed initial, SumCheck, terminal identity | yes | `fe` | FE bridge open |
 //! | NC | SumCheck and terminal identity | yes | `nc` | NC bridge open |
@@ -70,11 +71,12 @@ use super::stage;
 use super::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,
     absorb_engine_me_inputs_accumulator_handle, alloc_constant_var, enforce_accumulator_ce_claim_digest,
-    enforce_ccs_claim_digest, enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity,
-    enforce_header_digest_catch_up_wires, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity,
-    enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields,
-    sample_engine_beta_m, sample_engine_challenges, AccumulatorCeClaimDigestInputs, Error, FeClaimedInitialInputs,
-    FeTerminalInputs, NcTerminalInputs, PiCcsOutputMessageDigestInputs,
+    enforce_accumulator_claims_digest, enforce_ccs_claim_digest, enforce_fe_claimed_initial,
+    enforce_fe_sumcheck_driver, enforce_fe_terminal_identity, enforce_header_digest_catch_up_wires,
+    enforce_nc_sumcheck_driver, enforce_nc_terminal_identity, enforce_pi_ccs_instance_digest_parent_authority,
+    enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges,
+    AccumulatorCeClaimDigestInputs, Error, FeClaimedInitialInputs, FeTerminalInputs, NcTerminalInputs,
+    PiCcsOutputMessageDigestInputs,
 };
 use crate::engine::r1cs_circuit::boolean;
 use crate::engine::r1cs_circuit::builder::{Lc, Var};
@@ -249,19 +251,14 @@ pub struct SplitNcPiCcsVDerived {
     pub fresh_adv: Vec<Option<AdvCommitmentWires>>,
     /// `running_c_data[i]` = the `D * kappa` commitment-data wires of `running[i]`.
     pub running_c_data: Vec<Vec<Var>>,
-    /// Per-running-claim CE core wires (c, x, r, y_ring, ct, s_col, shape,
-    /// fold_digest_fields). `y_zcol` is empty in the current relation because
-    /// strict Π_DEC and cross-step continuity do not read it. The NC
-    /// projection-authority audit shows that this erasure is unsafe unless a
-    /// state-bound parent projection is validated before the point changes.
+    /// Per-running-claim CE core wires used by the exact ordered accumulator
+    /// binding. `y_zcol` remains absent until its source relation is proved.
     pub running: Vec<SplitNcPiCcsOutputWires>,
-    /// Π_RLC parent whose Π_DEC children form `running`. This parent is the
-    /// running-side Fiat-Shamir authority for this Π_CCS invocation.
+    /// Π_RLC parent whose Π_DEC children form `running`. It is a separately
+    /// checked transcript input, not the Construction-2 accumulator handle.
     pub running_parent_authority: Option<SplitNcPiCcsOutputWires>,
-    /// Four-lane Poseidon2 handle of the strict Π_DEC parent authority.
-    /// This verifier checks every running child against that parent before
-    /// deriving the handle. Surfaced so F' can reuse the same authority
-    /// boundary for `acc_digest_in`.
+    /// Four-lane Poseidon2 handle of the exact ordered running child vector.
+    /// The checked parent is only a recomposition cache.
     pub running_acc_digest: [Var; 4],
 }
 
@@ -513,10 +510,9 @@ fn enforce_split_nc_pi_ccs_v_inner(
     // ── 3. Running parent digest + shared-r check ────────────────────────
     let running_authority_start = builder.rows();
     //
-    // The running-side Fiat-Shamir authority is the Π_RLC parent whose Π_DEC
-    // children form `running`, not the child claims themselves. The children
-    // remain the algebraic ME inputs below; Π_DEC validation in the previous
-    // step binds them to this parent.
+    // Bind the checked Π_RLC parent cache independently. This digest enters
+    // the instance header; the exact child vector enters through the separate
+    // accumulator handle below. Neither binding substitutes for the other.
     builder.begin_encoding_stage(stage::RUNNING_PARENT_HASH);
     builder.begin_encoding_stage(stage::RUNNING_PARENT_HASH_SHARED_R);
     for (idx, rw) in running_wires.iter().enumerate() {
@@ -555,21 +551,23 @@ fn enforce_split_nc_pi_ccs_v_inner(
         }
     }
 
-    // ── 6. ME-input absorb (running-accumulator authority handle mode) ───
+    // ── 6. ME-input absorb (exact ordered accumulator handle) ────────────
     //
-    // Π_DEC already checked every running child against the Π_RLC parent
-    // above. That checked parent is therefore the recursive authority;
-    // hashing the serialized children again would add no statement. Reuse the
-    // same full parent digest for the Π_CCS instance, ME-input transcript, and
-    // F' state.
+    // Strict Π_DEC recomposition is not injective in the child vector. Hash
+    // every paper-level child core in order; the parent digest above remains
+    // only an independently checked cache used by the instance transcript.
     builder.begin_encoding_stage(stage::RUNNING_HANDLE_HASH_AND_ABSORB);
-    builder.begin_encoding_stage(stage::RUNNING_HANDLE_SELECT);
-    let running_acc_digest = match running_parent_digest {
-        Some(digest) => digest,
-        None => {
-            let empty = AccumulatorHandle::empty().digest_fields();
-            std::array::from_fn(|lane| alloc_constant_var(builder, empty[lane]))
-        }
+    builder.begin_encoding_stage(stage::RUNNING_HANDLE_CHILD_DIGESTS);
+    let child_digests = running_wires
+        .iter()
+        .map(|child| enforce_accumulator_ce_claim_digest(builder, &accumulator_digest_inputs(child)))
+        .collect::<Result<Vec<_>, _>>()?;
+    builder.begin_encoding_stage(stage::RUNNING_HANDLE_AGGREGATE);
+    let running_acc_digest = if child_digests.is_empty() {
+        let empty = AccumulatorHandle::empty().digest_fields();
+        std::array::from_fn(|lane| alloc_constant_var(builder, empty[lane]))
+    } else {
+        enforce_accumulator_claims_digest(builder, &child_digests)
     };
     builder.begin_encoding_stage(stage::RUNNING_HANDLE_ABSORB);
     absorb_engine_me_inputs_accumulator_handle(builder, transcript, k_me, running_acc_digest);
@@ -942,10 +940,8 @@ fn validate_fresh_shape(cfg: &SplitNcPiCcsVConfig<'_>, idx: usize, f: &CcsClaim)
     Ok(())
 }
 
-/// The Π_RLC parent carried beside a running accumulator is checked through
-/// native Π_DEC.V, which currently excludes `y_zcol` from its authority.
-/// This mirrors production but is a known open NC authority gap, not a claim
-/// that the sidecar is semantically removable.
+/// The checked Π_RLC parent retains a fixed-width `y_zcol` view for the
+/// current verifier, but that view is not yet semantic accumulator authority.
 fn validate_running_parent_authority_shape(cfg: &SplitNcPiCcsVConfig<'_>, ce: &CeClaim) -> Result<(), Error> {
     validate_ce_shape_without_y_zcol(cfg, "running_parent_authority", ce)
 }
@@ -1235,16 +1231,16 @@ fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWire
     alloc_ce_wires_from_y_zcol(builder, ce, &ce.y_zcol)
 }
 
-/// Allocate only the CE core consumed by current strict Π_DEC and
-/// cross-step continuity. The missing old-point `y_zcol` is tracked as an
-/// authority gap; this helper does not justify its semantic erasure.
+/// Allocate the paper-level CE core consumed by strict Π_DEC and the exact
+/// Construction-2 child handle. The optimized `y_zcol` sidecar is omitted
+/// until a verifier-owned source relation is proved for it.
 fn alloc_ce_wires_without_y_zcol(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWires, Error> {
     alloc_ce_wires_from_y_zcol(builder, ce, &[])
 }
 
 /// Allocate the current fixed-width parent `y_zcol` view. Native Π_DEC.V does
-/// not yet treat it as authority; missing lanes are padded and extra lanes are
-/// ignored only to reproduce that audited production relation.
+/// not treat it as accumulator authority; canonicalizing the shape only keeps
+/// the verifier relation fixed while the delayed-NC bridge remains open.
 fn alloc_ce_wires_with_canonical_y_zcol(
     builder: &mut R1csBuilder,
     ce: &CeClaim,

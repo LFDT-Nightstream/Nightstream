@@ -226,12 +226,11 @@ pub fn encode_f_prime_step_with_structure(
 }
 
 impl EncodedFPrimeStep {
-    /// Canonical CCS public-input length for this encoded F' instance:
-    /// the constant slot `z[0] = 1` plus the boundary public bits
-    /// (`enc_inst(x_out)` body). Everything past this index is private
-    /// witness `w`.
+    /// Canonical CCS public-input length for this encoded F' instance: the
+    /// constant slot, boundary bits, and verifier-fixed zero coordinates that
+    /// complete the public carrier to whole SuperNeo ring columns.
     pub fn public_input_len(&self) -> usize {
-        1 + self.image.layout.boundary.bits
+        self.image.layout.public_input_len()
     }
 
     /// Convert this encoded F' step into one foldable [`CcsInstance`].

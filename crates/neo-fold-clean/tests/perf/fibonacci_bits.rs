@@ -20,7 +20,7 @@ use neo_fold_clean::paper::digest::{
     digest32_as_fields, initial_boundary_digest, public_trace_seed_digest, state_x_out_digest_with_mode,
     structure_digest, AccumulatorHandle, StateXOutDigestMode,
 };
-use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_public_input, F_PRIME_PUBLIC_INPUT_LEN};
+use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_superneo_public_input, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN};
 use neo_fold_clean::paper::nifs::NifsProof;
 use neo_fold_clean::{
     extend, finish_uncompressed_with_audit, prove, verify_uncompressed_audit, CcsInstance, FoldSchedule,
@@ -194,7 +194,7 @@ fn fibonacci_value_count_from_env(default: usize) -> usize {
 }
 
 fn f_prime_active_assignment_capacity() -> usize {
-    F_PRIME_PUBLIC_INPUT_LEN.div_ceil(D) * D
+    F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN
 }
 
 fn assert_fibonacci_values_fit_limbs(values: &[u64], limbs: usize) {
@@ -203,7 +203,7 @@ fn assert_fibonacci_values_fit_limbs(values: &[u64], limbs: usize) {
         max < (1u64 << limbs),
         "{DECIDER_VALUE_COUNT_ENV}={} produces max Fibonacci value {max}, which does not fit DECIDER_LIMBS={limbs}. \
          Increase DECIDER_LIMBS only if the F'-active witness capacity still holds: \
-         F_PRIME_PUBLIC_INPUT_LEN + 4*limbs <= {}.",
+         F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN + 4*limbs <= {}.",
         values.len(),
         f_prime_active_assignment_capacity()
     );
@@ -235,20 +235,20 @@ fn fibonacci_transition_assignment(prev: u64, curr: u64, next: u64) -> Vec<F> {
 }
 
 fn f_prime_fib_a_bit(j: usize) -> usize {
-    F_PRIME_PUBLIC_INPUT_LEN + j
+    F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN + j
 }
 
 fn f_prime_fib_b_bit(j: usize) -> usize {
-    F_PRIME_PUBLIC_INPUT_LEN + DECIDER_LIMBS + j
+    F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN + DECIDER_LIMBS + j
 }
 
 fn f_prime_fib_c_bit(j: usize) -> usize {
-    F_PRIME_PUBLIC_INPUT_LEN + 2 * DECIDER_LIMBS + j
+    F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN + 2 * DECIDER_LIMBS + j
 }
 
 fn f_prime_fib_carry_bit(j: usize) -> usize {
     debug_assert!(j < DECIDER_LIMBS);
-    F_PRIME_PUBLIC_INPUT_LEN + 3 * DECIDER_LIMBS + j
+    F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN + 3 * DECIDER_LIMBS + j
 }
 
 fn f_prime_fib_private_width() -> usize {
@@ -256,7 +256,7 @@ fn f_prime_fib_private_width() -> usize {
 }
 
 fn f_prime_fib_width() -> usize {
-    F_PRIME_PUBLIC_INPUT_LEN + f_prime_fib_private_width()
+    F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN + f_prime_fib_private_width()
 }
 
 fn f_prime_fibonacci_addition_r1cs() -> R1cs {
@@ -307,7 +307,7 @@ fn f_prime_fibonacci_addition_r1cs() -> R1cs {
         a,
         b,
         c,
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        m_in: F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
     }
 }
 
@@ -316,7 +316,7 @@ fn f_prime_fibonacci_transition_assignment(prev: u64, curr: u64, next: u64, x_ou
     assert_eq!((prev + curr) % modulus, next);
     assert!(next < (1 << DECIDER_LIMBS));
 
-    let mut z = encode_f_prime_public_input(x_out_target);
+    let mut z = encode_f_prime_superneo_public_input(x_out_target);
     z.resize(f_prime_fib_width(), F::ZERO);
 
     for j in 0..DECIDER_LIMBS {
@@ -695,7 +695,7 @@ fn fibonacci_decider_r1cs_shape_snapshot() {
     kv("transitions", transitions);
 
     section("Application R1CS");
-    kv("public vars (F' link)", F_PRIME_PUBLIC_INPUT_LEN);
+    kv("public vars (F' carrier)", F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     kv("private Fibonacci vars", f_prime_fib_private_width());
     kv("total vars", f_prime_fib_width());
     kv("constraints", r1cs.n());

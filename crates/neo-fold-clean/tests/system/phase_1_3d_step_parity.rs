@@ -93,14 +93,41 @@ struct RecursiveSourceFixture {
     public_x_out_bits: BitRange,
 }
 
-fn bit_carrier_r1cs(public_input_len: usize) -> R1cs {
-    let m = public_input_len;
-    R1cs {
-        a: Mat::zero(1, m, F::ZERO),
-        b: Mat::zero(1, m, F::ZERO),
-        c: Mat::zero(1, m, F::ZERO),
-        m_in: public_input_len,
+fn bit_carrier_r1cs(layout: FPrimePublicInputLayout) -> R1cs {
+    let m = layout.total_len();
+    let mut a = Mat::zero(layout.carrier_padding_len(), m, F::ZERO);
+    let mut b = Mat::zero(layout.carrier_padding_len(), m, F::ZERO);
+    for row in 0..layout.carrier_padding_len() {
+        a[(row, layout.carrier_padding_offset() + row)] = F::ONE;
+        b[(row, 0)] = F::ONE;
     }
+    R1cs {
+        a,
+        b,
+        c: Mat::zero(layout.carrier_padding_len(), m, F::ZERO),
+        m_in: m,
+    }
+}
+
+#[test]
+fn bit_carrier_uses_physical_width_and_pins_only_completion_padding() {
+    let layout = FPrimePublicInputLayout::with_suffix(4);
+    let relation = bit_carrier_r1cs(layout);
+    assert_eq!(relation.m_in, layout.total_len());
+    assert_eq!(relation.a.rows(), layout.carrier_padding_len());
+
+    let mut assignment = vec![F::ZERO; layout.total_len()];
+    assignment[0] = F::ONE;
+    assignment[layout.suffix_offset()] = F::ONE;
+    relation
+        .is_satisfied_by(&assignment)
+        .expect("application suffix remains unconstrained by carrier completion");
+
+    assignment[layout.carrier_padding_offset()] = F::ONE;
+    assert!(
+        relation.is_satisfied_by(&assignment).is_err(),
+        "first completed-carrier padding coordinate must be zero"
+    );
 }
 
 fn rand_digest(seed: u64) -> [F; 4] {
@@ -130,12 +157,14 @@ fn build_fixture() -> Fixture {
 }
 
 fn build_fixture_with_public_suffix(public_suffix: &[F]) -> Fixture {
-    let public_input_len = F_PRIME_PUBLIC_INPUT_LEN + public_suffix.len();
-    let r1cs = bit_carrier_r1cs(public_input_len);
+    let layout = FPrimePublicInputLayout::with_suffix(public_suffix.len());
+    let public_input_len = layout.total_len();
+    let r1cs = bit_carrier_r1cs(layout);
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("preprocess");
 
     // First fold: seed the running accumulator.
-    let zero_assignment = vec![F::ZERO; prep.structure().m];
+    let mut zero_assignment = vec![F::ZERO; prep.structure().m];
+    zero_assignment[0] = F::ONE;
     let first = direct_ccs::build_instance(&prep, &r1cs, &zero_assignment).expect("first instance");
     let mut first_tr = Transcript::session();
     let (running, _) = neo_fold_clean::paper::nifs::prove(
@@ -171,7 +200,7 @@ fn build_fixture_with_public_suffix(public_suffix: &[F]) -> Fixture {
     let prior_x_out = native_prior_x_out(&state);
     let mut z = encode_f_prime_public_input(prior_x_out);
     z.extend_from_slice(public_suffix);
-    assert_eq!(z.len(), public_input_len);
+    assert_eq!(z.len(), layout.logical_len());
     assert_eq!(prep.structure().m, public_input_len);
     z.resize(prep.structure().m, F::ZERO);
 
@@ -622,13 +651,20 @@ fn recursive_f_prime_surfaces_transcript_bound_fresh_public_suffix() {
 fn authoritative_recursive_f_prime_enforces_delayed_nebula_transition() {
     let stacks = StackShape::NONE;
     let suffix_len = delayed_nebula_public_suffix_len(stacks);
-    let public_input_len = F_PRIME_PUBLIC_INPUT_LEN + suffix_len;
-    let first_lane_col = public_input_len.div_ceil(D);
+    let layout = FPrimePublicInputLayout::with_suffix(suffix_len);
+    let public_input_len = layout.total_len();
+    let first_lane_col = public_input_len / D;
     let m = (first_lane_col + 3) * D;
+    let mut a = Mat::zero(layout.carrier_padding_len(), m, F::ZERO);
+    let mut b = Mat::zero(layout.carrier_padding_len(), m, F::ZERO);
+    for row in 0..layout.carrier_padding_len() {
+        a[(row, layout.carrier_padding_offset() + row)] = F::ONE;
+        b[(row, 0)] = F::ONE;
+    }
     let r1cs = R1cs {
-        a: Mat::zero(1, m, F::ZERO),
-        b: Mat::zero(1, m, F::ZERO),
-        c: Mat::zero(1, m, F::ZERO),
+        a,
+        b,
+        c: Mat::zero(layout.carrier_padding_len(), m, F::ZERO),
         m_in: public_input_len,
     };
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0xD8).expect("preprocess Nebula carrier");

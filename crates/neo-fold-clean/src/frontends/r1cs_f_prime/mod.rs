@@ -650,7 +650,7 @@ fn derive_structure(
 ) -> Result<(Arc<FPrimeStructure>, R1csRowAnchors, usize), Error> {
     validate_plan(plan, r1cs)?;
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(plan));
-    let public_input_len = 1 + layout.boundary.bits;
+    let public_input_len = layout.public_input_len();
     let (structure, anchors) = structure::build_r1cs_f_prime_structure(layout, r1cs);
     Ok((Arc::new(structure), anchors, public_input_len))
 }

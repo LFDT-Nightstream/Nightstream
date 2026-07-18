@@ -21,7 +21,7 @@ use neo_fold_clean::paper::digest::{
 };
 use neo_fold_clean::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeStateIn, FPrimeStateWires,
-    FPrimeStepConfig, F_PRIME_PUBLIC_INPUT_LEN,
+    FPrimeStepConfig,
 };
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::NifsVCircuitConfig;
@@ -59,11 +59,18 @@ struct BuiltBase {
 }
 
 fn bit_carrier_r1cs() -> R1cs {
+    let layout = FPrimePublicInputLayout::plain();
+    let mut a = Mat::zero(layout.carrier_padding_len(), layout.total_len(), F::ZERO);
+    let mut b = Mat::zero(layout.carrier_padding_len(), layout.total_len(), F::ZERO);
+    for row in 0..layout.carrier_padding_len() {
+        a[(row, layout.carrier_padding_offset() + row)] = F::ONE;
+        b[(row, 0)] = F::ONE;
+    }
     R1cs {
-        a: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        b: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        c: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        a,
+        b,
+        c: Mat::zero(layout.carrier_padding_len(), layout.total_len(), F::ZERO),
+        m_in: layout.total_len(),
     }
 }
 

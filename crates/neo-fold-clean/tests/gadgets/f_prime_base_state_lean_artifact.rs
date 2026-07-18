@@ -11,7 +11,7 @@ use lean_artifact_support::{lean_nat_list, lean_rows, lean_witness, sha256_hex, 
 use neo_ccs::Mat;
 use neo_fold_clean::engine::decider::__test_isolation::enforce_base_state_constants_against;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_PUBLIC_INPUT_LEN;
+use neo_fold_clean::paper::f_prime::r1cs::FPrimePublicInputLayout;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -31,11 +31,18 @@ const PINNED_COLUMNS: [usize; 31] = [
 ];
 
 fn bit_carrier_r1cs() -> R1cs {
+    let layout = FPrimePublicInputLayout::plain();
+    let mut a = Mat::zero(layout.carrier_padding_len(), layout.total_len(), F::ZERO);
+    let mut b = Mat::zero(layout.carrier_padding_len(), layout.total_len(), F::ZERO);
+    for row in 0..layout.carrier_padding_len() {
+        a[(row, layout.carrier_padding_offset() + row)] = F::ONE;
+        b[(row, 0)] = F::ONE;
+    }
     R1cs {
-        a: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        b: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        c: Mat::zero(1, F_PRIME_PUBLIC_INPUT_LEN, F::ZERO),
-        m_in: F_PRIME_PUBLIC_INPUT_LEN,
+        a,
+        b,
+        c: Mat::zero(layout.carrier_padding_len(), layout.total_len(), F::ZERO),
+        m_in: layout.total_len(),
     }
 }
 

@@ -18,7 +18,8 @@ use std::sync::Arc;
 /// preprocessing's structure by `structure_digest` — every step in one
 /// chain must share the same CCS shape. The witness is committed via
 /// `prep.log` under the canonical public-input split
-/// (`step.public_input_len()` = `1 + boundary_bits`).
+/// (`step.public_input_len()` is the `D`-aligned SuperNeo carrier containing
+/// `[1 | boundary_bits | fixed-zero padding]`).
 pub fn build_instance(prep: &FibonacciFPrimePreprocessing, step: &EncodedFPrimeStep) -> Result<CcsInstance, Error> {
     if !Arc::ptr_eq(&prep.structure, &step.structure) {
         let prep_digest = *prep.prep.structure_digest();

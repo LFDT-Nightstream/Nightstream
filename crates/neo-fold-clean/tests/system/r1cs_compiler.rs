@@ -39,11 +39,12 @@ use neo_fold_clean::frontends::r1cs_f_prime::{
 };
 use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
 use neo_fold_clean::paper::digest::structure_digest;
+use neo_fold_clean::paper::f_prime::r1cs::{F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN};
 use neo_params::goldilocks_paper_b2;
 
 use support::r1cs_compiler_fixtures::{
     assignment_one_product, fibonacci_r1cs, make_small_plan, make_tiny_lifecycle_plan, one_product_r1cs, tiny_params,
-    two_product_r1cs, BOUNDARY_BITS,
+    two_product_r1cs,
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -67,7 +68,13 @@ fn r1cs_compiler_accepts_satisfying_witness() {
     // got here, the encoded step satisfies its R1CS-F' structure.
     let inst = r1cs_f_prime::build_instance(&prep, &compiled.encoded).expect("build_instance");
     // Public-input split must match preprocessing.
-    assert_eq!(inst.claim.m_in, 1 + BOUNDARY_BITS);
+    assert_eq!(inst.claim.m_in, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
+    assert!(
+        inst.claim.x[F_PRIME_PUBLIC_INPUT_LEN..]
+            .iter()
+            .all(|value| *value == F::ZERO),
+        "compiled fresh carrier padding must be canonical zero"
+    );
 }
 
 #[test]
@@ -93,7 +100,7 @@ fn r1cs_chain_builder_appends_base_step_and_tracks_audit() {
         "builder must fold the emitted base instance through lifecycle::prove"
     );
     let inst = r1cs_f_prime::build_instance(&prep, &compiled.encoded).expect("build_instance");
-    assert_eq!(inst.claim.m_in, 1 + BOUNDARY_BITS);
+    assert_eq!(inst.claim.m_in, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
 }
 
 #[test]

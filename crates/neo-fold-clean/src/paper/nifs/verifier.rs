@@ -1,21 +1,22 @@
 //! Verifier-side NIFS composition `Pi_CCS -> Pi_RLC -> Pi_DEC`.
 //!
-//! Owns: checked-parent validation, ordered verifier replay, and construction of
-//! the claims-only output accumulator.
+//! Owns: checked-parent-cache validation, ordered verifier replay, and
+//! construction of the exact claims-only output accumulator.
 //!
 //! Does not own: reduction arithmetic, transcript implementation, or in-circuit
 //! lowering.
 //!
 //! Emits constraints: no.
 //!
-//! Authority boundary: the running parent is first revalidated through Pi_DEC;
-//! each supplied proof is then checked before its output feeds the next phase.
+//! Authority boundary: the ordered child vector is the Construction-2
+//! accumulator; its Pi_RLC parent cache is independently revalidated through
+//! Pi_DEC before each supplied proof feeds the next phase.
 //!
 //! | Obligation | Local owner | Emits constraints? | Authority source |
 //! |---|---|---|---|
-//! | Running parent | `validate_running_parent_authority` | no | Pi_DEC recomposition |
+//! | Running parent cache | `validate_running_parent_authority` | no | Pi_DEC recomposition |
 //! | Reduction replay | [`verify`] | no | Pi_CCS, Pi_RLC, and Pi_DEC verifiers |
-//! | Output accumulator | [`verify`] | no | Checked child claims and parent authority |
+//! | Output accumulator | [`verify`] | no | Exact ordered child claims |
 
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 

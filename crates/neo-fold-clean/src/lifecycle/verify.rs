@@ -123,7 +123,10 @@ use crate::paper::construction2::{
 };
 use crate::paper::decider;
 use crate::paper::digest::{digest_fields_as_digest32, initial_boundary_digest, AccumulatorHandle};
-use crate::paper::f_prime::r1cs::{F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_PUBLIC_ONE_OFFSET};
+use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
+use crate::paper::f_prime::r1cs::{
+    FPrimePublicInputLayout, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_ONE_OFFSET, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
+};
 use crate::paper::relations::{CeClaim, WitnessMat};
 use neo_ajtai::Commitment;
 
@@ -402,7 +405,9 @@ fn verify_hypernova_terminal_case(
 }
 
 fn check_latest_instances_authority(prep: &Preprocessing, latest: &LatestInstance) -> Result<(), Error> {
-    let expected_m_in = prep.public_input_len.unwrap_or(F_PRIME_PUBLIC_INPUT_LEN);
+    let expected_m_in = prep
+        .public_input_len
+        .unwrap_or(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     for (index, instance) in latest.instances.iter().enumerate() {
         let fail = |reason: String| Error::TerminalLatestAuthority { index, reason };
         let claim = &instance.claim;
@@ -571,10 +576,17 @@ fn check_terminal_latest_link(prep: &Preprocessing, pre_state: &State, latest: &
         prep.semantic_state_mode,
     )
     .bits();
-    let expected_public_input_len = prep.public_input_len.unwrap_or(F_PRIME_PUBLIC_INPUT_LEN);
+    let layout = match prep.nebula() {
+        None => FPrimePublicInputLayout::plain(),
+        Some(config) => FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(config.stacks)),
+    };
+    let expected_public_input_len = prep.public_input_len.unwrap_or(layout.total_len());
     for (index, instance) in latest.instances.iter().enumerate() {
         let claim = &instance.claim;
-        if claim.m_in != expected_public_input_len || claim.x.len() != expected_public_input_len {
+        if expected_public_input_len != layout.total_len()
+            || claim.m_in != expected_public_input_len
+            || claim.x.len() != expected_public_input_len
+        {
             return Err(Error::TerminalLatestPublicInputMismatch { index });
         }
         if claim.x[F_PRIME_PUBLIC_ONE_OFFSET] != F::ONE {
@@ -585,6 +597,12 @@ fn check_terminal_latest_link(prep: &Preprocessing, pre_state: &State, latest: &
             if claim.x[F_PRIME_ENC_INST_OFFSET + offset] != expected_bit {
                 return Err(Error::TerminalLatestPublicInputMismatch { index });
             }
+        }
+        if claim.x[layout.carrier_padding_offset()..layout.total_len()]
+            .iter()
+            .any(|&value| value != F::ZERO)
+        {
+            return Err(Error::TerminalLatestPublicInputMismatch { index });
         }
     }
     Ok(())

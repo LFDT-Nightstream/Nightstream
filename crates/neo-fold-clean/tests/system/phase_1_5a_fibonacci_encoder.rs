@@ -41,7 +41,8 @@ use neo_fold_clean::paper::f_prime::r1cs::encode_x_out_public_bits;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use support::fibonacci_f_prime::{build_honest_step_input, BOUNDARY_BITS};
+use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
+use support::fibonacci_f_prime::build_honest_step_input;
 
 // State-lane base indices inside `FPrimeLaneSlots::state_lanes`:
 // state_in occupies lanes 0..28, state_out lanes 28..46, chunk_digest lanes 46..50.
@@ -165,10 +166,8 @@ fn phase_1_5a_encoder_witness_is_strict_low_norm_image_bits() {
 
 // ── Phase 1.5b — encoded F' → foldable CcsInstance ───────────────────────
 
-/// F' public-input length: the CCS constant slot `z[0] = 1` plus the
-/// `BOUNDARY_BITS` boundary lanes the recursive F' verifier exposes as
-/// `enc_inst(x_out)`. Everything past this is private witness `w`.
-const ENCODED_F_PRIME_M_IN: usize = 1 + BOUNDARY_BITS;
+/// Complete public carrier: `[1 | enc_inst(x_out) | 13 fixed zeros]`.
+const ENCODED_F_PRIME_M_IN: usize = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
 
 #[test]
 fn phase_1_5b_encoded_f_prime_converts_to_ccs_instance() {
@@ -189,9 +188,12 @@ fn phase_1_5b_encoded_f_prime_converts_to_ccs_instance() {
 
     assert_eq!(instance.claim.m_in, ENCODED_F_PRIME_M_IN);
     assert_eq!(instance.claim.x.len(), ENCODED_F_PRIME_M_IN);
-    assert_eq!(instance.witness.w.len(), encoded.witness.len() - ENCODED_F_PRIME_M_IN);
+    assert!(
+        instance.witness.w.is_empty(),
+        "the packed Z matrix is the sole authoritative assignment copy"
+    );
     // The first field element is the CCS constant slot; the remaining
-    // ENCODED_F_PRIME_M_IN - 1 entries are the boundary public-x_out bits.
+    // Public coordinates contain the boundary bits and fixed ring padding.
     assert_eq!(instance.claim.x[0], F::ONE);
     assert_eq!(instance.claim.x, encoded.witness[..ENCODED_F_PRIME_M_IN]);
 }

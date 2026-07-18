@@ -224,7 +224,7 @@ impl MetalSession {
                 else {
                     return Err(MetalError::Shape("streaming MCS table is not device-owned"));
                 };
-                if *source_table != table || !tables.matches(mcs, current_len, table_count) {
+                if *source_table != table || !tables.matches(mcs, active_len, current_len, table_count) {
                     return Err(MetalError::Shape("streaming MCS table source is stale"));
                 }
                 if deferred.is_some_and(|first| !std::ptr::eq(first, *tables)) {
@@ -354,7 +354,7 @@ impl MetalSession {
             partials: self.buffer(contribution_count * max_groups * inputs.coefficient_count * 2 * size_of::<u64>())?,
             round_shapes: self.buffer(max_rounds * ROUND_SHAPE_WORDS * size_of::<u64>())?,
             round_eval_shapes: self.buffer(max_rounds * ROUND_SHAPE_WORDS * size_of::<u64>())?,
-            round_fold_shapes: self.buffer(max_rounds * 2 * size_of::<u64>())?,
+            round_fold_shapes: self.buffer(max_rounds * 3 * size_of::<u64>())?,
             round_reduction_shapes: self.buffer(max_rounds * 2 * size_of::<u64>())?,
             output: self.buffer(max_rounds * inputs.coefficient_count * 2 * size_of::<u64>())?,
             challenge_log: self.buffer(max_rounds * 2 * size_of::<u64>())?,
@@ -409,7 +409,7 @@ impl MetalSession {
         let gamma_to_k = [base_shape[11], base_shape[12]];
         let mut round_shapes = Vec::with_capacity(rounds * ROUND_SHAPE_WORDS);
         let mut eval_shapes = Vec::with_capacity(rounds * ROUND_SHAPE_WORDS);
-        let mut fold_shapes = Vec::with_capacity(rounds * 2);
+        let mut fold_shapes = Vec::with_capacity(rounds * 3);
         let mut reduction_shapes = Vec::with_capacity(rounds * 2);
         let mut current_len = plan.current_len;
         let mut active_len = plan.active_len;
@@ -434,7 +434,7 @@ impl MetalSession {
                 gamma_to_k[0],
                 gamma_to_k[1],
             ]);
-            fold_shapes.extend_from_slice(&[plan.mcs_table_count as u64, current_len as u64]);
+            fold_shapes.extend_from_slice(&[plan.mcs_table_count as u64, current_len as u64, active_len as u64]);
             reduction_shapes
                 .extend_from_slice(&[(groups * plan.contribution_count) as u64, plan.coefficient_count as u64]);
             current_len /= 2;
@@ -556,18 +556,15 @@ impl MetalSession {
             )?;
 
             for tables in &plan.mcs_tables {
-                let elements = plan.mcs_table_count * (current_len / 2);
+                let elements = plan.mcs_table_count * active_len.div_ceil(2);
+                let fold_shape_offset = round * 3 * size_of::<u64>();
                 if base_mode {
                     let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
                     encoder.setComputePipelineState(&self.fe_fold_base_tables_in_place);
                     unsafe {
                         encoder.setBuffer_offset_atIndex(Some(tables), 0, 0);
                         encoder.setBuffer_offset_atIndex(Some(&plan.challenge_log), challenge_offset, 1);
-                        encoder.setBuffer_offset_atIndex(
-                            Some(&plan.round_fold_shapes),
-                            round * 2 * size_of::<u64>(),
-                            2,
-                        );
+                        encoder.setBuffer_offset_atIndex(Some(&plan.round_fold_shapes), fold_shape_offset, 2);
                     }
                     self.dispatch(&encoder, &self.fe_fold_base_tables_in_place, elements);
                     encoder.endEncoding();
@@ -578,22 +575,34 @@ impl MetalSession {
                     } else {
                         (&plan.mcs_scratch, tables)
                     };
-                    self.encode_streaming_k_fold(
+                    self.encode_streaming_mcs_k_fold(
                         &command,
                         input,
                         output,
                         &plan.challenge_log,
                         challenge_offset,
+                        &plan.round_fold_shapes,
+                        fold_shape_offset,
                         elements,
                     )?;
                     mcs_slot = output_slot;
                 } else {
-                    self.encode_streaming_k_fold_and_copy(
+                    self.encode_streaming_mcs_k_fold(
                         &command,
                         tables,
                         &plan.mcs_scratch,
                         &plan.challenge_log,
                         challenge_offset,
+                        &plan.round_fold_shapes,
+                        fold_shape_offset,
+                        elements,
+                    )?;
+                    self.encode_streaming_mcs_k_copy(
+                        &command,
+                        &plan.mcs_scratch,
+                        tables,
+                        &plan.round_fold_shapes,
+                        fold_shape_offset,
                         elements,
                     )?;
                 }
@@ -628,24 +637,48 @@ impl MetalSession {
         )
     }
 
-    fn encode_streaming_k_fold_and_copy(
+    #[allow(clippy::too_many_arguments)]
+    fn encode_streaming_mcs_k_fold(
         &self,
         command: &objc2::runtime::ProtocolObject<dyn objc2_metal::MTLCommandBuffer>,
         tables: &Buffer,
-        scratch: &Buffer,
+        output: &Buffer,
         challenges: &Buffer,
         challenge_offset: usize,
+        shapes: &Buffer,
+        shape_offset: usize,
         elements: usize,
     ) -> Result<(), MetalError> {
-        self.encode_streaming_k_fold(command, tables, scratch, challenges, challenge_offset, elements)?;
-
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.copy_k_words);
+        encoder.setComputePipelineState(&self.fe_fold_k_tables_live);
         unsafe {
-            encoder.setBuffer_offset_atIndex(Some(scratch), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(tables), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(tables), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(challenges), challenge_offset, 1);
+            encoder.setBuffer_offset_atIndex(Some(shapes), shape_offset, 2);
+            encoder.setBuffer_offset_atIndex(Some(output), 0, 3);
         }
-        self.dispatch(&encoder, &self.copy_k_words, elements);
+        self.dispatch(&encoder, &self.fe_fold_k_tables_live, elements);
+        encoder.endEncoding();
+        Ok(())
+    }
+
+    fn encode_streaming_mcs_k_copy(
+        &self,
+        command: &objc2::runtime::ProtocolObject<dyn objc2_metal::MTLCommandBuffer>,
+        tables: &Buffer,
+        output: &Buffer,
+        shapes: &Buffer,
+        shape_offset: usize,
+        elements: usize,
+    ) -> Result<(), MetalError> {
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&self.fe_copy_k_tables_live);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(tables), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(shapes), shape_offset, 1);
+            encoder.setBuffer_offset_atIndex(Some(output), 0, 2);
+        }
+        self.dispatch(&encoder, &self.fe_copy_k_tables_live, elements);
         encoder.endEncoding();
         Ok(())
     }

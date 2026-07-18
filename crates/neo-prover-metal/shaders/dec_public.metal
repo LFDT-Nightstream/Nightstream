@@ -2,7 +2,7 @@
 // Partials are child-major, ring-row-major, then column chunk.
 
 constant ulong DEC_PUBLIC_CHUNK_BLOCKS = 512;
-constant ushort DEC_PUBLIC_CHILDREN_PER_THREAD = 4;
+constant ushort DEC_PUBLIC_CHILDREN_PER_THREAD = 7;
 
 kernel void dec_y_zcol_partials(
     device const ulong *parent [[buffer(0)]],

@@ -502,7 +502,8 @@ impl NcOracle {
         }
         self.challenges.push(challenge);
         self.cur_len = self.cur_len.div_ceil(2);
-        self.dense = self.dense || 2 * self.width > D;
+        let keep_mask_native = self.initial_masks.is_some() && self.width == 32 && self.cur_len > 1;
+        self.dense = self.dense || (2 * self.width > D && !keep_mask_native);
         self.width = if self.dense { D } else { 2 * self.width };
         Ok(())
     }

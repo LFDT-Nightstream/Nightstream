@@ -272,7 +272,7 @@ pub(super) fn split_dec_on_metal(
     let resident_id = if retain_resident {
         Some(session.retain_running_children(material.resident_children))
     } else {
-        session.recycle_dec_children(material.resident_children);
+        drop(material.resident_children);
         None
     };
     Ok(MetalDecOutput {

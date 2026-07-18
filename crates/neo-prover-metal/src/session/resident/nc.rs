@@ -2,7 +2,8 @@
 //!
 //! A compact row stores only its cyclic nonzero window. Folding doubles that
 //! window until it overlaps itself, at which point the plan becomes a dense
-//! 54-lane row and remains dense.
+//! 54-lane row and remains dense. Digit work may crop to its live prefix, but
+//! equality tables always fold across their full padded domain.
 
 mod mask;
 
@@ -16,12 +17,13 @@ use crate::session::{Buffer, MetalSession};
 use crate::{KWords, MetalError};
 
 const NC_THREADS: usize = 64;
-const NC_DENSE_PAIRS_PER_GROUP: usize = 2;
-const NC_MASK_DENSE_CROSSOVER: usize = 64;
+const NC_DENSE_THREADS: usize = 256;
+const NC_DENSE_PAIRS_PER_GROUP: usize = 8;
+const NC_MASK_DENSE_CROSSOVER: usize = 128;
 
-fn nc_partial_groups(rows: usize, dense: bool) -> usize {
+fn nc_partial_groups(live_rows: usize, dense: bool) -> usize {
     let pairs_per_group = if dense { NC_DENSE_PAIRS_PER_GROUP } else { NC_THREADS };
-    (rows / 2).div_ceil(pairs_per_group).max(1)
+    live_rows.div_ceil(2).div_ceil(pairs_per_group).max(1)
 }
 
 pub(crate) struct MetalNcSumcheckInputs<'a> {
@@ -84,6 +86,8 @@ pub(crate) struct MetalNcSumcheckPlan {
     active_witness_count: usize,
     max_rounds: usize,
     rows: usize,
+    // Buffers stay power-of-two padded; rows after this prefix are structurally zero.
+    live_rows: usize,
     width: usize,
     dense: bool,
     current_slot: usize,
@@ -284,8 +288,8 @@ impl MetalSession {
             active_witnesses.push(0);
         }
         let active_witness_count = active_witnesses.len();
-        // Large domains stay as immutable masks plus a small folded basis. We
-        // materialize rows only at the fixed 64-to-54 lane crossover.
+        // Large domains stay as immutable masks plus a folded basis through
+        // width 64, then materialize width 128 into dense 54-lane rows.
         let direct_compact = mask_input.is_some() && inputs.rows >= NC_MASK_DENSE_CROSSOVER;
         let workspace_values_per_witness = if direct_compact {
             (inputs.rows / NC_MASK_DENSE_CROSSOVER) * D
@@ -357,6 +361,7 @@ impl MetalSession {
                 source.folded = false;
                 plan.active_witness_count = active_witness_count;
                 plan.rows = inputs.rows;
+                plan.live_rows = active_rows;
                 plan.width = inputs.width;
                 plan.dense = inputs.dense;
                 plan.current_slot = 0;
@@ -402,12 +407,14 @@ impl MetalSession {
             }
         };
         let groups = nc_partial_groups(inputs.rows, inputs.dense);
+        let live_rows = mask_input.map_or(inputs.rows, |(_, _, active_rows)| active_rows);
         let shape = [
             inputs.rows as u64,
             active_witness_count as u64,
             inputs.width as u64,
             u64::from(inputs.dense),
             values_per_witness as u64,
+            live_rows as u64,
         ];
         let plan = MetalNcSumcheckPlan {
             eq_tables: [self.buffer(eq_bytes)?, self.buffer(eq_bytes)?],
@@ -415,13 +422,13 @@ impl MetalSession {
             mask_source,
             weights: self.buffer_from_slice(&active_weights)?,
             shape: self.buffer_from_slice(&shape)?,
-            fold_shape: self.buffer_from_slice(&[0u64; 4])?,
+            fold_shape: self.buffer_from_slice(&[0u64; 5])?,
             challenge: self.buffer_from_slice(&[0u64; 2])?,
             partials: self.buffer(groups * 5 * 2 * size_of::<u64>())?,
             reduction_shape: self.buffer_from_slice(&[groups as u64, 5])?,
             output: self.buffer(max_rounds * 10 * size_of::<u64>())?,
-            round_shapes: self.buffer(max_rounds * 5 * size_of::<u64>())?,
-            round_fold_shapes: self.buffer(max_rounds * 4 * size_of::<u64>())?,
+            round_shapes: self.buffer(max_rounds * 6 * size_of::<u64>())?,
+            round_fold_shapes: self.buffer(max_rounds * 5 * size_of::<u64>())?,
             round_reduction_shapes: self.buffer(max_rounds * 2 * size_of::<u64>())?,
             challenge_log: self.buffer(max_rounds * 2 * size_of::<u64>())?,
             transcript_state: self.buffer(9 * size_of::<u64>())?,
@@ -430,6 +437,7 @@ impl MetalSession {
             active_witness_count,
             max_rounds,
             rows: inputs.rows,
+            live_rows,
             width: inputs.width,
             dense: inputs.dense,
             current_slot: 0,
@@ -502,8 +510,9 @@ impl MetalSession {
             plan.width as u64,
             u64::from(plan.dense),
             values_per_witness as u64,
+            plan.live_rows as u64,
         ];
-        let groups = nc_partial_groups(plan.rows, plan.dense);
+        let groups = nc_partial_groups(plan.live_rows, plan.dense);
         self.write_shared(&plan.shape, &device_shape)?;
         self.write_shared(&plan.reduction_shape, &[groups as u64, 5])?;
 
@@ -523,18 +532,19 @@ impl MetalSession {
                 encoder.setBuffer_offset_atIndex(Some(&plan.weights), 0, 3);
                 encoder.setBuffer_offset_atIndex(Some(&plan.partials), 0, 4);
             }
-            self.dispatch_threadgroups(&encoder, &self.nc_round_partials, groups, NC_THREADS);
+            let threads = if plan.dense { NC_DENSE_THREADS } else { NC_THREADS };
+            self.dispatch_threadgroups(&encoder, &self.nc_round_partials, groups, threads);
             encoder.endEncoding();
         }
 
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.sumcheck_reduce_partials);
+        encoder.setComputePipelineState(&self.nc_reduce_partials);
         unsafe {
             encoder.setBuffer_offset_atIndex(Some(&plan.partials), 0, 0);
             encoder.setBuffer_offset_atIndex(Some(&plan.reduction_shape), 0, 1);
             encoder.setBuffer_offset_atIndex(Some(&plan.output), 0, 2);
         }
-        self.dispatch(&encoder, &self.sumcheck_reduce_partials, 5);
+        self.dispatch_threadgroups(&encoder, &self.nc_reduce_partials, 5, 256);
         encoder.endEncoding();
         self.finish(&command)?;
 
@@ -571,12 +581,21 @@ impl MetalSession {
         if rounds == 0 || rounds > plan.max_rounds || transcript_absorbed > 4 || plan.rows >> rounds != 1 {
             return Err(MetalError::Shape("resident NC trace dimensions are invalid"));
         }
-        let mut shapes = Vec::with_capacity(rounds * 5);
-        let mut fold_shapes = Vec::with_capacity(rounds * 4);
+        let mut shapes = Vec::with_capacity(rounds * 6);
+        let mut fold_shapes = Vec::with_capacity(rounds * 5);
         let mut reductions = Vec::with_capacity(rounds * 2);
         let mut rows = plan.rows;
+        let mut live_rows = plan.live_rows;
         let mut width = plan.width;
         let mut dense = plan.dense;
+        let mut mask_native = plan
+            .mask_source
+            .as_ref()
+            .is_some_and(|source| !source.folded);
+        let direct_compact = plan
+            .mask_source
+            .as_ref()
+            .is_some_and(|source| source.direct_compact);
         for _ in 0..rounds {
             let values_per_witness = if dense { rows * D } else { rows * width };
             shapes.extend_from_slice(&[
@@ -585,17 +604,31 @@ impl MetalSession {
                 width as u64,
                 u64::from(dense),
                 values_per_witness as u64,
+                live_rows as u64,
             ]);
             fold_shapes.extend_from_slice(&[
                 plan.active_witness_count as u64,
                 rows as u64,
                 width as u64,
                 u64::from(dense),
+                live_rows as u64,
             ]);
-            reductions.extend_from_slice(&[nc_partial_groups(rows, dense) as u64, 5]);
+            reductions.extend_from_slice(&[nc_partial_groups(live_rows, dense) as u64, 5]);
             rows /= 2;
-            dense = dense || 2 * width > D;
-            width = if dense { D } else { 2 * width };
+            live_rows = live_rows.div_ceil(2);
+            if mask_native {
+                let materialized = !direct_compact || 2 * width == NC_MASK_DENSE_CROSSOVER;
+                if materialized {
+                    mask_native = false;
+                    dense = direct_compact;
+                    width = if direct_compact { D } else { 2 };
+                } else {
+                    width *= 2;
+                }
+            } else {
+                dense = dense || 2 * width > D;
+                width = if dense { D } else { 2 * width };
+            }
         }
         self.write_shared(&plan.round_shapes, &shapes)?;
         self.write_shared(&plan.round_fold_shapes, &fold_shapes)?;
@@ -623,23 +656,24 @@ impl MetalSession {
                 encoder.setComputePipelineState(&self.nc_round_partials);
                 unsafe {
                     encoder.setBuffer_offset_atIndex(Some(&plan.eq_tables[plan.current_slot]), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.round_shapes), round * 5 * size_of::<u64>(), 1);
+                    encoder.setBuffer_offset_atIndex(Some(&plan.round_shapes), round * 6 * size_of::<u64>(), 1);
                     encoder.setBuffer_offset_atIndex(Some(&plan.digit_values[plan.current_slot]), 0, 2);
                     encoder.setBuffer_offset_atIndex(Some(&plan.weights), 0, 3);
                     encoder.setBuffer_offset_atIndex(Some(&plan.partials), 0, 4);
                 }
-                self.dispatch_threadgroups(&encoder, &self.nc_round_partials, groups, NC_THREADS);
+                let threads = if plan.dense { NC_DENSE_THREADS } else { NC_THREADS };
+                self.dispatch_threadgroups(&encoder, &self.nc_round_partials, groups, threads);
                 encoder.endEncoding();
             }
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.sumcheck_reduce_partials);
+            encoder.setComputePipelineState(&self.nc_reduce_partials);
             unsafe {
                 encoder.setBuffer_offset_atIndex(Some(&plan.partials), 0, 0);
                 encoder.setBuffer_offset_atIndex(Some(&plan.round_reduction_shapes), round * 2 * size_of::<u64>(), 1);
                 encoder.setBuffer_offset_atIndex(Some(&plan.output), coeff_offset, 2);
             }
-            self.dispatch(&encoder, &self.sumcheck_reduce_partials, 5);
+            self.dispatch_threadgroups(&encoder, &self.nc_reduce_partials, 5, 256);
             encoder.endEncoding();
 
             self.encode_transcript_challenge(
@@ -661,6 +695,7 @@ impl MetalSession {
             } else {
                 let next_slot = plan.current_slot ^ 1;
                 let next_rows = plan.rows / 2;
+                let next_live_rows = plan.live_rows.div_ceil(2);
                 let next_dense = plan.dense || 2 * plan.width > D;
                 let next_width = if next_dense { D } else { 2 * plan.width };
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
@@ -678,18 +713,19 @@ impl MetalSession {
                 unsafe {
                     encoder.setBuffer_offset_atIndex(Some(&plan.digit_values[plan.current_slot]), 0, 0);
                     encoder.setBuffer_offset_atIndex(Some(&plan.challenge_log), challenge_offset, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.round_fold_shapes), round * 4 * size_of::<u64>(), 2);
+                    encoder.setBuffer_offset_atIndex(Some(&plan.round_fold_shapes), round * 5 * size_of::<u64>(), 2);
                     encoder.setBuffer_offset_atIndex(Some(&plan.digit_values[next_slot]), 0, 3);
                 }
                 self.dispatch(
                     &encoder,
                     &self.nc_fold_compact,
-                    plan.active_witness_count * next_rows * next_width,
+                    plan.active_witness_count * next_live_rows * next_width,
                 );
                 encoder.endEncoding();
 
                 plan.current_slot = next_slot;
                 plan.rows = next_rows;
+                plan.live_rows = next_live_rows;
                 plan.width = next_width;
                 plan.dense = next_dense;
             }
@@ -797,9 +833,11 @@ impl MetalSession {
             plan.rows as u64,
             plan.width as u64,
             u64::from(plan.dense),
+            plan.live_rows as u64,
         ];
         self.write_shared(&plan.fold_shape, &fold_shape)?;
-        let output_elements = plan.active_witness_count * next_rows * next_width;
+        let next_live_rows = plan.live_rows.div_ceil(2);
+        let output_elements = plan.active_witness_count * next_live_rows * next_width;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         encoder.setComputePipelineState(&self.nc_fold_compact);
         unsafe {
@@ -813,6 +851,7 @@ impl MetalSession {
 
         plan.current_slot = next_slot;
         plan.rows = next_rows;
+        plan.live_rows = next_live_rows;
         plan.width = next_width;
         plan.dense = next_dense;
         Ok(())

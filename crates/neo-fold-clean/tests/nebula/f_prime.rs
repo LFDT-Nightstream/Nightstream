@@ -231,6 +231,11 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
     .expect("witness-only composed base F'");
     assert_eq!(witness_only.rows(), builder.rows(), "witness-only row schedule drifted");
     assert_eq!(
+        witness_only.cols(),
+        builder.cols(),
+        "witness-only column schedule drifted"
+    );
+    assert_eq!(
         witness_only.witness(),
         builder.witness(),
         "witness-only assignment drifted"

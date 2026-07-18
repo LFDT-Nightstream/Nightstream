@@ -68,12 +68,13 @@ kernel void fe_build_mcs_row_tables(
     ulong table_count = shape[5];
     ulong witness_kind = shape[6];
     ulong witness_index = shape[7];
-    ulong elements = table_count * n_pad;
+    ulong live_len = shape[8];
+    ulong elements = table_count * live_len;
     if ((ulong)index >= elements) {
         return;
     }
-    ulong table = index / n_pad;
-    ulong row = index % n_pad;
+    ulong table = index / live_len;
+    ulong row = index % live_len;
     ulong value = 0;
     if (row < n_eff) {
         ulong matrix = selected_matrices[table];
@@ -97,7 +98,10 @@ kernel void fe_build_mcs_row_tables(
             }
         }
     }
-    output[index] = value;
+    output[table * n_pad + row] = value;
+    if (row + 1 == live_len && live_len < n_pad) {
+        output[table * n_pad + live_len] = 0;
+    }
 }
 
 // Seeded work is split into independent chunks, then reduced per logical output.
@@ -217,6 +221,8 @@ kernel void fe_seeded_k_reduce(
 }
 
 // Streaming rounds read each independently owned MCS buffer in place.
+// Row-invariant channel weights are applied only after threadgroup reduction.
+// Cropped producers keep row `live_len` as the zero high-half sentinel.
 inline Kx fe_stream_load_mcs(
     device const ulong *tables,
     ulong table,
@@ -357,7 +363,6 @@ kernel void fe_stream_mcs_round_partials(
     ulong table_count = shape[4];
     bool base_mode = shape[5] != 0;
     ulong term_count = shape[6];
-    Kx gamma = Kx{gamma_words[0], gamma_words[1]};
     threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
     Kx local[SUMCHECK_MAX_COEFFS];
     for (uint degree = 0; degree < SUMCHECK_MAX_COEFFS; ++degree) {
@@ -392,9 +397,6 @@ kernel void fe_stream_mcs_round_partials(
                 kx_mul(eq0, inner[coefficient]),
                 kx_mul(eq1, inner[coefficient - 1]));
         }
-        for (uint coefficient = 0; coefficient < active_coefficients; ++coefficient) {
-            local[coefficient] = kx_mul(local[coefficient], gamma);
-        }
     }
     for (uint coefficient = 0; coefficient < active_coefficients; ++coefficient) {
         shared[lane * SUMCHECK_MAX_COEFFS + coefficient] = local[coefficient];
@@ -411,8 +413,9 @@ kernel void fe_stream_mcs_round_partials(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
     if (lane == 0) {
+        Kx gamma = Kx{gamma_words[0], gamma_words[1]};
         for (uint coefficient = 0; coefficient < coefficient_count; ++coefficient) {
-            Kx value = coefficient < active_coefficients ? shared[coefficient] : Kx{0, 0};
+            Kx value = coefficient < active_coefficients ? kx_mul(shared[coefficient], gamma) : Kx{0, 0};
             ulong output = group * coefficient_count + coefficient;
             partials[2 * output] = value.c0;
             partials[2 * output + 1] = value.c1;
@@ -440,7 +443,6 @@ kernel void fe_stream_mcs_factored_round_partials(
     ulong table_count = shape[4];
     bool base_mode = shape[5] != 0;
     ulong factor_group_count = shape[6];
-    Kx gamma = Kx{gamma_words[0], gamma_words[1]};
     threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
     Kx local[SUMCHECK_MAX_COEFFS];
     for (uint degree = 0; degree < SUMCHECK_MAX_COEFFS; ++degree) {
@@ -454,11 +456,21 @@ kernel void fe_stream_mcs_factored_round_partials(
         Kx factor[SUMCHECK_MAX_COEFFS];
         Kx term_poly[SUMCHECK_MAX_COEFFS];
         for (ulong factor_group = 0; factor_group < factor_group_count; ++factor_group) {
+            ulong header = 3 * factor_group;
+            ulong selector = group_headers[header];
+            // Keep the selector endpoints out of the long term-program live range.
+            // Active groups reload them below; zero groups skip all factor work.
+            {
+                Kx selector_low = fe_stream_load_mcs(mcs_tables, selector, index, table_len, base_mode);
+                Kx selector_high = fe_stream_load_mcs(mcs_tables, selector, index + 1, table_len, base_mode);
+                if (selector_low.c0 == 0 && selector_low.c1 == 0
+                    && selector_high.c0 == 0 && selector_high.c1 == 0) {
+                    continue;
+                }
+            }
             for (uint degree = 0; degree < SUMCHECK_MAX_COEFFS; ++degree) {
                 factor[degree] = Kx{0, 0};
             }
-            ulong header = 3 * factor_group;
-            ulong selector = group_headers[header];
             fe_stream_accumulate_terms(
                 factor,
                 term_poly,
@@ -491,9 +503,6 @@ kernel void fe_stream_mcs_factored_round_partials(
                 kx_mul(eq1, local[coefficient - 1]));
         }
         local[0] = kx_mul(eq0, local[0]);
-        for (uint coefficient = 0; coefficient < active_coefficients; ++coefficient) {
-            local[coefficient] = kx_mul(local[coefficient], gamma);
-        }
     }
     for (uint coefficient = 0; coefficient < active_coefficients; ++coefficient) {
         shared[lane * SUMCHECK_MAX_COEFFS + coefficient] = local[coefficient];
@@ -510,8 +519,9 @@ kernel void fe_stream_mcs_factored_round_partials(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
     if (lane == 0) {
+        Kx gamma = Kx{gamma_words[0], gamma_words[1]};
         for (uint coefficient = 0; coefficient < coefficient_count; ++coefficient) {
-            Kx value = coefficient < active_coefficients ? shared[coefficient] : Kx{0, 0};
+            Kx value = coefficient < active_coefficients ? kx_mul(shared[coefficient], gamma) : Kx{0, 0};
             ulong output = group * coefficient_count + coefficient;
             partials[2 * output] = value.c0;
             partials[2 * output + 1] = value.c1;
@@ -532,7 +542,6 @@ kernel void fe_stream_eval_round_partials(
     uint active_coefficients = min(coefficient_count, 3u);
     ulong inputs_slot = shape[3];
     ulong eval_slot = shape[4];
-    Kx gamma_to_k = Kx{shape[5], shape[6]};
     threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
     Kx local[SUMCHECK_MAX_COEFFS];
     for (uint degree = 0; degree < SUMCHECK_MAX_COEFFS; ++degree) {
@@ -545,9 +554,9 @@ kernel void fe_stream_eval_round_partials(
         Kx r1 = kx_sub(load_k(special_tables, inputs_slot * table_len + index + 1), r0);
         Kx v0 = load_k(special_tables, eval_slot * table_len + index);
         Kx v1 = kx_sub(load_k(special_tables, eval_slot * table_len + index + 1), v0);
-        local[0] = kx_mul(gamma_to_k, kx_mul(r0, v0));
-        local[1] = kx_mul(gamma_to_k, kx_add(kx_mul(r0, v1), kx_mul(r1, v0)));
-        local[2] = kx_mul(gamma_to_k, kx_mul(r1, v1));
+        local[0] = kx_mul(r0, v0);
+        local[1] = kx_add(kx_mul(r0, v1), kx_mul(r1, v0));
+        local[2] = kx_mul(r1, v1);
     }
     for (uint coefficient = 0; coefficient < active_coefficients; ++coefficient) {
         shared[lane * SUMCHECK_MAX_COEFFS + coefficient] = local[coefficient];
@@ -564,8 +573,9 @@ kernel void fe_stream_eval_round_partials(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
     if (lane == 0) {
+        Kx gamma_to_k = Kx{shape[5], shape[6]};
         for (uint coefficient = 0; coefficient < coefficient_count; ++coefficient) {
-            Kx value = coefficient < active_coefficients ? shared[coefficient] : Kx{0, 0};
+            Kx value = coefficient < active_coefficients ? kx_mul(gamma_to_k, shared[coefficient]) : Kx{0, 0};
             ulong output = group * coefficient_count + coefficient;
             partials[2 * output] = value.c0;
             partials[2 * output + 1] = value.c1;
@@ -585,7 +595,6 @@ kernel void fe_stream_constant_round_partials(
     ulong active_len = shape[1];
     uint coefficient_count = (uint)shape[2];
     uint active_coefficients = min(coefficient_count, 2u);
-    Kx constant_value = Kx{constant_words[0], constant_words[1]};
     threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
     Kx local[SUMCHECK_MAX_COEFFS];
     for (uint degree = 0; degree < SUMCHECK_MAX_COEFFS; ++degree) {
@@ -596,8 +605,8 @@ kernel void fe_stream_constant_round_partials(
         ulong index = 2 * pair;
         Kx eq0 = load_k(special_tables, index);
         Kx eq1 = kx_sub(load_k(special_tables, index + 1), eq0);
-        local[0] = kx_mul(eq0, constant_value);
-        local[1] = kx_mul(eq1, constant_value);
+        local[0] = eq0;
+        local[1] = eq1;
     }
     for (uint coefficient = 0; coefficient < active_coefficients; ++coefficient) {
         shared[lane * SUMCHECK_MAX_COEFFS + coefficient] = local[coefficient];
@@ -614,8 +623,9 @@ kernel void fe_stream_constant_round_partials(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
     if (lane == 0) {
+        Kx constant_value = Kx{constant_words[0], constant_words[1]};
         for (uint coefficient = 0; coefficient < coefficient_count; ++coefficient) {
-            Kx value = coefficient < active_coefficients ? shared[coefficient] : Kx{0, 0};
+            Kx value = coefficient < active_coefficients ? kx_mul(shared[coefficient], constant_value) : Kx{0, 0};
             ulong output = group * coefficient_count + coefficient;
             partials[2 * output] = value.c0;
             partials[2 * output + 1] = value.c1;
@@ -631,13 +641,15 @@ kernel void fe_fold_base_tables_in_place(
     uint index [[thread_position_in_grid]]) {
     ulong table_count = shape[0];
     ulong table_len = shape[1];
+    ulong live_len = shape[2];
     ulong next_len = table_len / 2;
-    ulong elements = table_count * next_len;
+    ulong next_live_len = (live_len + 1) / 2;
+    ulong elements = table_count * next_live_len;
     if ((ulong)index >= elements) {
         return;
     }
-    ulong table = index / next_len;
-    ulong pair = index % next_len;
+    ulong table = index / next_live_len;
+    ulong pair = index % next_live_len;
     ulong input = table * table_len + 2 * pair;
     ulong low = gl_from_word(tables[input]);
     ulong high = gl_from_word(tables[input + 1]);
@@ -646,4 +658,55 @@ kernel void fe_fold_base_tables_in_place(
     ulong output = 2 * (table * next_len + pair);
     tables[output] = folded.c0;
     tables[output + 1] = folded.c1;
+    if (pair + 1 == next_live_len && next_live_len < next_len) {
+        ulong sentinel = 2 * (table * next_len + next_live_len);
+        tables[sentinel] = 0;
+        tables[sentinel + 1] = 0;
+    }
+}
+
+kernel void fe_fold_k_tables_live(
+    device const ulong *tables [[buffer(0)]],
+    device const ulong *challenge_words [[buffer(1)]],
+    device const ulong *shape [[buffer(2)]],
+    device ulong *output [[buffer(3)]],
+    uint index [[thread_position_in_grid]]) {
+    ulong table_len = shape[1];
+    ulong live_len = shape[2];
+    ulong next_len = table_len / 2;
+    ulong next_live_len = (live_len + 1) / 2;
+    ulong table = (ulong)index / next_live_len;
+    ulong pair = (ulong)index % next_live_len;
+    ulong input = table * table_len + 2 * pair;
+    Kx low = load_k(tables, input);
+    Kx high = load_k(tables, input + 1);
+    Kx challenge = Kx{gl_from_word(challenge_words[0]), gl_from_word(challenge_words[1])};
+    Kx folded = kx_add(low, kx_mul(challenge, kx_sub(high, low)));
+    ulong destination = table * next_len + pair;
+    output[2 * destination] = folded.c0;
+    output[2 * destination + 1] = folded.c1;
+    if (pair + 1 == next_live_len && next_live_len < next_len) {
+        ulong sentinel = table * next_len + next_live_len;
+        output[2 * sentinel] = 0;
+        output[2 * sentinel + 1] = 0;
+    }
+}
+
+kernel void fe_copy_k_tables_live(
+    device const ulong *tables [[buffer(0)]],
+    device const ulong *shape [[buffer(1)]],
+    device ulong *output [[buffer(2)]],
+    uint index [[thread_position_in_grid]]) {
+    ulong next_len = shape[1] / 2;
+    ulong next_live_len = (shape[2] + 1) / 2;
+    ulong table = (ulong)index / next_live_len;
+    ulong row = (ulong)index % next_live_len;
+    ulong source = table * next_len + row;
+    output[2 * source] = tables[2 * source];
+    output[2 * source + 1] = tables[2 * source + 1];
+    if (row + 1 == next_live_len && next_live_len < next_len) {
+        ulong sentinel = table * next_len + next_live_len;
+        output[2 * sentinel] = 0;
+        output[2 * sentinel + 1] = 0;
+    }
 }

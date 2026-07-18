@@ -87,6 +87,61 @@ fn poseidon2_gadget_matches_native_on_random_inputs() {
 }
 
 #[test]
+fn poseidon2_witness_only_matches_structure_schedule_and_values() {
+    let permutation_input = std::array::from_fn(|i| F::from_u64((i * 97 + 13) as u64));
+    let mut structure = R1csBuilder::new();
+    let structure_input = alloc_input(&mut structure, &permutation_input);
+    let structure_output = enforce_poseidon2_permutation(&mut structure, &structure_input);
+    let mut witness_only = R1csBuilder::new_witness_only();
+    let witness_input = alloc_input(&mut witness_only, &permutation_input);
+    let witness_output = enforce_poseidon2_permutation(&mut witness_only, &witness_input);
+
+    assert!(structure.is_satisfied(), "structure permutation witness");
+    assert_eq!(witness_output.map(Var::col), structure_output.map(Var::col));
+    assert_eq!(witness_only.rows(), structure.rows(), "permutation row schedule");
+    assert_eq!(witness_only.cols(), structure.cols(), "permutation column schedule");
+    assert_eq!(
+        witness_only.witness(),
+        structure.witness(),
+        "permutation witness values"
+    );
+
+    for len in [0, 1, 4, 5, 17] {
+        let hash_input = (0..len)
+            .map(|i| F::from_u64((i * 131 + 29) as u64))
+            .collect::<Vec<_>>();
+        let mut structure = R1csBuilder::new();
+        let structure_input = alloc_var_vec(&mut structure, &hash_input);
+        let structure_output = enforce_poseidon2_hash(&mut structure, &structure_input);
+        let mut witness_only = R1csBuilder::new_witness_only();
+        let witness_input = alloc_var_vec(&mut witness_only, &hash_input);
+        let witness_output = enforce_poseidon2_hash(&mut witness_only, &witness_input);
+
+        assert!(structure.is_satisfied(), "structure hash witness at length {len}");
+        assert_eq!(
+            witness_output.map(Var::col),
+            structure_output.map(Var::col),
+            "hash output schedule at length {len}"
+        );
+        assert_eq!(
+            witness_only.rows(),
+            structure.rows(),
+            "hash row schedule at length {len}"
+        );
+        assert_eq!(
+            witness_only.cols(),
+            structure.cols(),
+            "hash column schedule at length {len}"
+        );
+        assert_eq!(
+            witness_only.witness(),
+            structure.witness(),
+            "hash witness values at length {len}"
+        );
+    }
+}
+
+#[test]
 fn poseidon2_gadget_rejects_tampered_output() {
     let input = [F::from_u64(7); WIDTH];
 

@@ -388,7 +388,8 @@ pub trait FeSumcheckBackend {
 
     /// Optionally build one non-zero MCS witness's f-var row tables
     /// (`m_j(row) = (M_j z)[row]` for each `f_var_indices` entry, each table
-    /// `n_pad` long). `None` keeps the host build.
+    /// `n_pad` long). `crop` is true only when the compiled CCS polynomial is
+    /// zero at the all-zero input. `None` keeps the host build.
     ///
     /// `Host` returns canonical host tables. `Deferred` means the backend has
     /// already retained the corresponding tables in its own device-resident
@@ -401,9 +402,10 @@ pub trait FeSumcheckBackend {
         f_var_indices: &[usize],
         z_blocks: &crate::superneo_eval::SuperneoZBlocks,
         n_eff: usize,
+        crop: bool,
         n_pad: usize,
     ) -> Option<FeMcsRowTables> {
-        let _ = (cache, mcs_idx, f_var_indices, z_blocks, n_eff, n_pad);
+        let _ = (cache, mcs_idx, f_var_indices, z_blocks, n_eff, crop, n_pad);
         None
     }
 

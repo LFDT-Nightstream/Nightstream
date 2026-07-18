@@ -20,6 +20,7 @@ use crate::{MetalAjtaiYProfile, MetalError};
 
 const PARALLEL_FORM_LIST_THRESHOLD: usize = 128;
 const FORM_REDUCTION_THREADS: usize = 256;
+const FORM_TILE_ENTRIES: usize = 16 * 1024;
 
 /// Resident sparse-form ABI shared by Pi_CCS opening and Pi_DEC projection.
 ///
@@ -36,6 +37,10 @@ pub(crate) struct MetalDecFormPlan {
     pub(super) entry_rows: Buffer,
     pub(super) entry_coefficients: Buffer,
     pub(super) parallel_form_lists: Buffer,
+    pub(super) tiled_form_lists: Buffer,
+    pub(super) tiled_form_tile_offsets: Buffer,
+    pub(super) tiled_form_tiles: Buffer,
+    pub(super) tiled_form_partials: Buffer,
     pub(super) seeded_forms: Option<DeviceSeededFormPlan>,
     pub(super) active_blocks_host: Vec<u32>,
     pub(super) matrix_active_offsets_host: Vec<u32>,
@@ -47,6 +52,9 @@ pub(crate) struct MetalDecFormPlan {
     pub(super) max_explicit_form_list_entries: usize,
     pub(super) parallel_form_list_count: usize,
     pub(super) parallel_form_entry_count: usize,
+    pub(super) medium_form_list_count: usize,
+    pub(super) tiled_form_list_count: usize,
+    pub(super) tiled_form_tile_count: usize,
     pub(super) matrix_count: usize,
     pub(super) blocks: usize,
     pub(super) cache_identity: usize,
@@ -112,6 +120,17 @@ pub(super) struct DeviceFormBuild<'a> {
     pub(super) chi: Buffer,
     pub(super) shape: Buffer,
     pub(super) seeded: Option<DeviceSeededFormPatch>,
+}
+
+struct AjtaiYTailBuffers {
+    masks: Buffer,
+    partials: Buffer,
+    sums: Buffer,
+    output: Buffer,
+    witnesses: Buffer,
+    shape: Buffer,
+    active_witnesses: Vec<u32>,
+    output_words: usize,
 }
 
 impl MetalSession {
@@ -241,6 +260,9 @@ impl MetalSession {
         let mut explicit_form_list_histogram = [0usize; 8];
         let mut max_explicit_form_list_entries = 0usize;
         let mut parallel_form_lists = Vec::new();
+        let mut tiled_form_lists = Vec::new();
+        let mut tiled_form_tile_offsets = vec![0u32];
+        let mut tiled_form_tiles = Vec::new();
         let mut parallel_form_entry_count = 0usize;
         for (matrix_index, layout) in layouts.iter().enumerate() {
             matrix_identity.push(u32::from(layout.identity));
@@ -296,13 +318,31 @@ impl MetalSession {
                         _ => 7,
                     };
                     explicit_form_list_histogram[bucket] += 1;
-                    // Long coefficient lists get a cooperative threadgroup;
-                    // short lists remain one-thread contractions in the main kernel.
+                    // Medium lists use one cooperative group. Very long lists
+                    // are tiled so a single sparse coordinate cannot serialize
+                    // the GPU; short lists stay in the main kernel.
                     if entries >= PARALLEL_FORM_LIST_THRESHOLD {
-                        parallel_form_lists.push(
-                            u32::try_from(active_index * D + local)
-                                .map_err(|_| MetalError::Shape("Pi_DEC parallel form list index exceeds u32"))?,
-                        );
+                        let encoded = u32::try_from(active_index * D + local)
+                            .map_err(|_| MetalError::Shape("Pi_DEC parallel form list index exceeds u32"))?;
+                        if entries <= FORM_TILE_ENTRIES {
+                            parallel_form_lists.push(encoded);
+                        } else {
+                            tiled_form_lists.push(encoded);
+                            for relative_start in (0..entries).step_by(FORM_TILE_ENTRIES) {
+                                let tile_entries = (entries - relative_start).min(FORM_TILE_ENTRIES);
+                                tiled_form_tiles.extend([
+                                    encoded,
+                                    u32::try_from(relative_start)
+                                        .map_err(|_| MetalError::Shape("Pi_DEC form tile start exceeds u32"))?,
+                                    u32::try_from(tile_entries)
+                                        .map_err(|_| MetalError::Shape("Pi_DEC form tile length exceeds u32"))?,
+                                ]);
+                            }
+                            tiled_form_tile_offsets.push(
+                                u32::try_from(tiled_form_tiles.len() / 3)
+                                    .map_err(|_| MetalError::Shape("Pi_DEC form tile count exceeds u32"))?,
+                            );
+                        }
                         parallel_form_entry_count = parallel_form_entry_count
                             .checked_add(entries)
                             .ok_or(MetalError::Shape("Pi_DEC parallel form entry count overflow"))?;
@@ -377,9 +417,20 @@ impl MetalSession {
             })
             .sum::<Result<usize, _>>()?;
         self.record_host_write(total_coefficients * (size_of::<u32>() + size_of::<u64>()));
-        let parallel_form_list_count = parallel_form_lists.len();
+        let medium_form_list_count = parallel_form_lists.len();
+        let tiled_form_list_count = tiled_form_lists.len();
+        let tiled_form_tile_count = tiled_form_tiles.len() / 3;
+        let parallel_form_list_count = medium_form_list_count
+            .checked_add(tiled_form_list_count)
+            .ok_or(MetalError::Shape("Pi_DEC parallel form list count overflow"))?;
         if parallel_form_lists.is_empty() {
             parallel_form_lists.push(0);
+        }
+        if tiled_form_lists.is_empty() {
+            tiled_form_lists.push(0);
+        }
+        if tiled_form_tiles.is_empty() {
+            tiled_form_tiles.extend([0, 0, 0]);
         }
         let active_block_count = active_blocks_host.len();
         if active_block_count == 0 {
@@ -422,6 +473,10 @@ impl MetalSession {
             entry_rows,
             entry_coefficients,
             parallel_form_lists: self.buffer_from_slice(&parallel_form_lists)?,
+            tiled_form_lists: self.buffer_from_slice(&tiled_form_lists)?,
+            tiled_form_tile_offsets: self.buffer_from_slice(&tiled_form_tile_offsets)?,
+            tiled_form_tiles: self.buffer_from_slice(&tiled_form_tiles)?,
+            tiled_form_partials: self.buffer(tiled_form_tile_count.max(1) * 2 * size_of::<u64>())?,
             seeded_forms,
             active_blocks_host,
             matrix_active_offsets_host,
@@ -433,6 +488,9 @@ impl MetalSession {
             max_explicit_form_list_entries,
             parallel_form_list_count,
             parallel_form_entry_count,
+            medium_form_list_count,
+            tiled_form_list_count,
+            tiled_form_tile_count,
             matrix_count: matrices.len(),
             blocks,
             cache_identity: cache as *const SuperneoEvalCache as usize,
@@ -506,6 +564,150 @@ impl MetalSession {
         }))
     }
 
+    fn prepare_ajtai_y_tail(
+        &self,
+        plan: &MetalDecFormPlan,
+        mask_words: &[u64],
+        resident_masks: Option<&MetalWitnessMasks>,
+        witness_count: usize,
+        form_rows: usize,
+    ) -> Result<Option<AjtaiYTailBuffers>, MetalError> {
+        let active_witnesses = match resident_masks {
+            Some(masks) => masks.active_witnesses().to_vec(),
+            None => mask_words
+                .chunks_exact(2 * plan.blocks)
+                .enumerate()
+                .filter(|(_, masks)| masks.iter().any(|&mask| mask != 0))
+                .map(|(witness, _)| {
+                    u32::try_from(witness).map_err(|_| MetalError::Shape("Pi_CCS Y_eval witness count exceeds u32"))
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        };
+        if active_witnesses
+            .iter()
+            .any(|&witness| witness as usize >= witness_count)
+            || active_witnesses.windows(2).any(|pair| pair[0] >= pair[1])
+        {
+            return Err(MetalError::Shape("Pi_CCS Y_eval active witnesses are not canonical"));
+        }
+        if active_witnesses.is_empty() {
+            return Ok(None);
+        }
+
+        let active_count = active_witnesses.len();
+        let groups = checked_product(&[active_count, form_rows], "Pi_CCS Y_eval output dimensions overflow")?;
+        let partial_words = checked_product(
+            &[active_count, plan.active_chunk_count, 2, PRODUCT_COEFFICIENTS],
+            "Pi_CCS Y_eval partial dimensions overflow",
+        )?;
+        let sum_words = checked_product(&[groups, PRODUCT_COEFFICIENTS], "Pi_CCS Y_eval sum dimensions overflow")?;
+        let output_words = checked_product(&[groups, D], "Pi_CCS Y_eval output dimensions overflow")?;
+        let masks = match resident_masks {
+            Some(masks) => masks.words().clone(),
+            None => self.buffer_from_slice(mask_words)?,
+        };
+        Ok(Some(AjtaiYTailBuffers {
+            masks,
+            partials: self.buffer(partial_words * size_of::<u64>())?,
+            sums: self.buffer(sum_words * size_of::<u64>())?,
+            output: self.buffer(output_words * size_of::<u64>())?,
+            witnesses: self.buffer_from_slice(&active_witnesses)?,
+            shape: self.buffer_from_slice(&[
+                plan.active_block_count as u64,
+                active_count as u64,
+                form_rows as u64,
+                plan.blocks as u64,
+                plan.active_chunk_count as u64,
+                0,
+            ])?,
+            active_witnesses,
+            output_words,
+        }))
+    }
+
+    fn encode_ajtai_y_tail(
+        &self,
+        command: &objc2::runtime::ProtocolObject<dyn MTLCommandBuffer>,
+        plan: &MetalDecFormPlan,
+        forms: &Buffer,
+        tail: &AjtaiYTailBuffers,
+    ) -> Result<(), MetalError> {
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.y_eval.partials")));
+        encoder.setComputePipelineState(&self.dec_sparse_ring_partials);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(forms), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&tail.masks), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&tail.shape), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(&tail.partials), 0, 3);
+            encoder.setBuffer_offset_atIndex(Some(&tail.witnesses), 0, 4);
+            encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 5);
+            encoder.setBuffer_offset_atIndex(Some(&plan.active_chunk_bases), 0, 6);
+            encoder.setBuffer_offset_atIndex(Some(&plan.active_chunk_matrices), 0, 7);
+            encoder.setBuffer_offset_atIndex(Some(&plan.matrix_active_offsets), 0, 8);
+            encoder.setBuffer_offset_atIndex(Some(&tail.witnesses), 0, 9);
+        }
+        self.dispatch(
+            &encoder,
+            &self.dec_sparse_ring_partials,
+            tail.partials.length() as usize / size_of::<u64>(),
+        );
+        encoder.endEncoding();
+
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.y_eval.sum_chunks")));
+        encoder.setComputePipelineState(&self.dec_sparse_ring_sum_chunks);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(&tail.partials), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&tail.shape), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&tail.sums), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(&plan.matrix_chunk_offsets), 0, 3);
+        }
+        self.dispatch(
+            &encoder,
+            &self.dec_sparse_ring_sum_chunks,
+            tail.sums.length() as usize / size_of::<u64>(),
+        );
+        encoder.endEncoding();
+
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.y_eval.reduce_phi81")));
+        encoder.setComputePipelineState(&self.dec_ring_reduce_phi81);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(&tail.sums), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&tail.shape), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&tail.output), 0, 2);
+        }
+        self.dispatch(&encoder, &self.dec_ring_reduce_phi81, tail.output_words);
+        encoder.endEncoding();
+        Ok(())
+    }
+
+    fn read_canonical_ajtai_y(
+        &self,
+        tail: Option<&AjtaiYTailBuffers>,
+        witness_count: usize,
+        form_rows: usize,
+    ) -> Result<Vec<u64>, MetalError> {
+        let words_per_witness = checked_product(&[form_rows, D], "Pi_CCS Y_eval output dimensions overflow")?;
+        let canonical_words = checked_product(
+            &[witness_count, words_per_witness],
+            "Pi_CCS Y_eval output dimensions overflow",
+        )?;
+        let mut canonical = vec![0u64; canonical_words];
+        let Some(tail) = tail else {
+            return Ok(canonical);
+        };
+        let compact = self.read_buffer::<u64>(&tail.output, tail.output_words);
+        for (active, &witness) in tail.active_witnesses.iter().enumerate() {
+            let source = active * words_per_witness;
+            let destination = witness as usize * words_per_witness;
+            canonical[destination..destination + words_per_witness]
+                .copy_from_slice(&compact[source..source + words_per_witness]);
+        }
+        Ok(canonical)
+    }
+
     /// Builds point-specific ring forms from an existing equality tensor and
     /// evaluates every signed-mask witness while retaining the forms for Pi_DEC.
     pub(crate) fn eval_ajtai_y_from_signed_masks(
@@ -548,13 +750,6 @@ impl MetalSession {
             &[plan.active_block_count, 2, D],
             "Pi_CCS Y_eval form dimensions overflow",
         )?;
-        let groups = checked_product(&[witness_count, form_rows], "Pi_CCS Y_eval output dimensions overflow")?;
-        let partial_words = checked_product(
-            &[witness_count, plan.active_chunk_count, 2, PRODUCT_COEFFICIENTS],
-            "Pi_CCS Y_eval partial dimensions overflow",
-        )?;
-        let sum_words = checked_product(&[groups, PRODUCT_COEFFICIENTS], "Pi_CCS Y_eval sum dimensions overflow")?;
-        let output_words = checked_product(&[groups, D], "Pi_CCS Y_eval output dimensions overflow")?;
 
         let form_bytes = form_words * size_of::<u64>();
         let forms = self.take_recycled_buffer(&self.recycled_ajtai_forms, form_bytes)?;
@@ -565,77 +760,22 @@ impl MetalSession {
             n_eff as u64,
             chi_r.len() as u64,
         ])?;
-        let masks = match resident_masks {
-            Some(masks) => masks.words().clone(),
-            None => self.buffer_from_slice(mask_words)?,
-        };
-        let partials = self.buffer(partial_words * size_of::<u64>())?;
-        let sums = self.buffer(sum_words * size_of::<u64>())?;
-        let output = self.buffer(output_words * size_of::<u64>())?;
-        let witnesses = (0..witness_count)
-            .map(|witness| {
-                u32::try_from(witness).map_err(|_| MetalError::Shape("Pi_CCS Y_eval witness count exceeds u32"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let witnesses = self.buffer_from_slice(&witnesses)?;
-        let shape = self.buffer_from_slice(&[
-            plan.active_block_count as u64,
-            witness_count as u64,
-            form_rows as u64,
-            plan.blocks as u64,
-            plan.active_chunk_count as u64,
-        ])?;
+        let tail = self.prepare_ajtai_y_tail(plan, mask_words, resident_masks, witness_count, form_rows)?;
 
         let device_started = Instant::now();
         let command = self.command_buffer("nightstream.pi_ccs.ajtai_y_eval")?;
         let seeded_scratch = self.encode_dec_form_build(&command, plan, &chi, &form_shape, &forms, seeded.as_ref())?;
-
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.y_eval.partials")));
-        encoder.setComputePipelineState(&self.dec_sparse_ring_partials);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&forms), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&masks), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&partials), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&witnesses), 0, 4);
-            encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 5);
-            encoder.setBuffer_offset_atIndex(Some(&plan.active_chunk_bases), 0, 6);
-            encoder.setBuffer_offset_atIndex(Some(&plan.active_chunk_matrices), 0, 7);
-            encoder.setBuffer_offset_atIndex(Some(&plan.matrix_active_offsets), 0, 8);
+        if let Some(tail) = tail.as_ref() {
+            self.encode_ajtai_y_tail(&command, plan, &forms, tail)?;
         }
-        self.dispatch(&encoder, &self.dec_sparse_ring_partials, partial_words);
-        encoder.endEncoding();
-
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.y_eval.sum_chunks")));
-        encoder.setComputePipelineState(&self.dec_sparse_ring_sum_chunks);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&partials), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&sums), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&plan.matrix_chunk_offsets), 0, 3);
-        }
-        self.dispatch(&encoder, &self.dec_sparse_ring_sum_chunks, sum_words);
-        encoder.endEncoding();
-
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.y_eval.reduce_phi81")));
-        encoder.setComputePipelineState(&self.dec_ring_reduce_phi81);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&sums), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&output), 0, 2);
-        }
-        self.dispatch(&encoder, &self.dec_ring_reduce_phi81, output_words);
-        encoder.endEncoding();
         self.finish(&command)?;
         if let Some(scratch) = seeded_scratch {
             Self::recycle_largest_buffer(&self.recycled_seeded_forms, scratch);
         }
+        let output = self.read_canonical_ajtai_y(tail.as_ref(), witness_count, form_rows)?;
 
         Ok((
-            self.read_buffer::<u64>(&output, output_words),
+            output,
             MetalAjtaiRingForms {
                 words: forms,
                 form_rows,
@@ -716,13 +856,6 @@ impl MetalSession {
             &[plan.active_block_count, 2, D],
             "Pi_CCS Y_eval form dimensions overflow",
         )?;
-        let groups = checked_product(&[witness_count, form_rows], "Pi_CCS Y_eval output dimensions overflow")?;
-        let partial_words = checked_product(
-            &[witness_count, plan.active_chunk_count, 2, PRODUCT_COEFFICIENTS],
-            "Pi_CCS Y_eval partial dimensions overflow",
-        )?;
-        let sum_words = checked_product(&[groups, PRODUCT_COEFFICIENTS], "Pi_CCS Y_eval sum dimensions overflow")?;
-        let output_words = checked_product(&[groups, D], "Pi_CCS Y_eval output dimensions overflow")?;
 
         let form_bytes = form_words * size_of::<u64>();
         let forms = self.take_recycled_buffer(&self.recycled_ajtai_forms, form_bytes)?;
@@ -738,26 +871,7 @@ impl MetalSession {
             n_eff as u64,
             chi_len as u64,
         ])?;
-        let masks = match resident_masks {
-            Some(masks) => masks.words().clone(),
-            None => self.buffer_from_slice(mask_words)?,
-        };
-        let partials = self.buffer(partial_words * size_of::<u64>())?;
-        let sums = self.buffer(sum_words * size_of::<u64>())?;
-        let output = self.buffer(output_words * size_of::<u64>())?;
-        let witnesses = (0..witness_count)
-            .map(|witness| {
-                u32::try_from(witness).map_err(|_| MetalError::Shape("Pi_CCS Y_eval witness count exceeds u32"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let witnesses = self.buffer_from_slice(&witnesses)?;
-        let shape = self.buffer_from_slice(&[
-            plan.active_block_count as u64,
-            witness_count as u64,
-            form_rows as u64,
-            plan.blocks as u64,
-            plan.active_chunk_count as u64,
-        ])?;
+        let tail = self.prepare_ajtai_y_tail(plan, mask_words, resident_masks, witness_count, form_rows)?;
 
         let device_started = Instant::now();
         // Submit the dependent tensor -> form chain without waiting. The queue
@@ -777,46 +891,9 @@ impl MetalSession {
 
         let command = self.command_buffer("nightstream.pi_ccs.ajtai_y_eval_from_row_challenges")?;
         self.encode_seeded_form_patch(&command, &forms, seeded.as_ref())?;
-
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.y_eval.partials")));
-        encoder.setComputePipelineState(&self.dec_sparse_ring_partials);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&forms), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&masks), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&partials), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&witnesses), 0, 4);
-            encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 5);
-            encoder.setBuffer_offset_atIndex(Some(&plan.active_chunk_bases), 0, 6);
-            encoder.setBuffer_offset_atIndex(Some(&plan.active_chunk_matrices), 0, 7);
-            encoder.setBuffer_offset_atIndex(Some(&plan.matrix_active_offsets), 0, 8);
+        if let Some(tail) = tail.as_ref() {
+            self.encode_ajtai_y_tail(&command, plan, &forms, tail)?;
         }
-        self.dispatch(&encoder, &self.dec_sparse_ring_partials, partial_words);
-        encoder.endEncoding();
-
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.y_eval.sum_chunks")));
-        encoder.setComputePipelineState(&self.dec_sparse_ring_sum_chunks);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&partials), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&sums), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&plan.matrix_chunk_offsets), 0, 3);
-        }
-        self.dispatch(&encoder, &self.dec_sparse_ring_sum_chunks, sum_words);
-        encoder.endEncoding();
-
-        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.y_eval.reduce_phi81")));
-        encoder.setComputePipelineState(&self.dec_ring_reduce_phi81);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&sums), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&output), 0, 2);
-        }
-        self.dispatch(&encoder, &self.dec_ring_reduce_phi81, output_words);
-        encoder.endEncoding();
         self.finish(&command)?;
         if let Some(error) = tensor_command.error() {
             return Err(MetalError::Execution(format!("{error:?}")));
@@ -827,8 +904,9 @@ impl MetalSession {
         if let Some(scratch) = seeded_scratch {
             Self::recycle_largest_buffer(&self.recycled_seeded_forms, scratch);
         }
+        let output = self.read_canonical_ajtai_y(tail.as_ref(), witness_count, form_rows)?;
         Ok((
-            self.read_buffer::<u64>(&output, output_words),
+            output,
             MetalAjtaiRingForms {
                 words: forms,
                 form_rows,
@@ -914,7 +992,7 @@ impl MetalSession {
         self.dispatch(&encoder, &self.dec_build_ring_forms, form_work_items);
         encoder.endEncoding();
 
-        if plan.parallel_form_list_count != 0 {
+        if plan.medium_form_list_count != 0 {
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("nightstream.forms.parallel_explicit")));
             encoder.setComputePipelineState(&self.dec_build_parallel_original_forms);
@@ -931,7 +1009,47 @@ impl MetalSession {
             self.dispatch_threadgroups(
                 &encoder,
                 &self.dec_build_parallel_original_forms,
-                plan.parallel_form_list_count * 2,
+                plan.medium_form_list_count * 2,
+                FORM_REDUCTION_THREADS,
+            );
+            encoder.endEncoding();
+        }
+
+        if plan.tiled_form_list_count != 0 {
+            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setLabel(Some(&NSString::from_str("nightstream.forms.tiled_explicit")));
+            encoder.setComputePipelineState(&self.dec_build_parallel_original_form_tiles);
+            unsafe {
+                encoder.setBuffer_offset_atIndex(Some(&plan.active_local_offsets), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&plan.active_entry_bases), 0, 1);
+                encoder.setBuffer_offset_atIndex(Some(&plan.entry_rows), 0, 3);
+                encoder.setBuffer_offset_atIndex(Some(&plan.entry_coefficients), 0, 4);
+                encoder.setBuffer_offset_atIndex(Some(chi), 0, 5);
+                encoder.setBuffer_offset_atIndex(Some(shape), 0, 6);
+                encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_tiles), 0, 9);
+                encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_partials), 0, 10);
+            }
+            self.dispatch_threadgroups(
+                &encoder,
+                &self.dec_build_parallel_original_form_tiles,
+                plan.tiled_form_tile_count * 2,
+                FORM_REDUCTION_THREADS,
+            );
+            encoder.endEncoding();
+
+            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setLabel(Some(&NSString::from_str("nightstream.forms.reduce_tiled_explicit")));
+            encoder.setComputePipelineState(&self.dec_reduce_parallel_original_form_tiles);
+            unsafe {
+                encoder.setBuffer_offset_atIndex(Some(forms), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_lists), 0, 1);
+                encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_tile_offsets), 0, 2);
+                encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_partials), 0, 3);
+            }
+            self.dispatch_threadgroups(
+                &encoder,
+                &self.dec_reduce_parallel_original_form_tiles,
+                plan.tiled_form_list_count * 2,
                 FORM_REDUCTION_THREADS,
             );
             encoder.endEncoding();

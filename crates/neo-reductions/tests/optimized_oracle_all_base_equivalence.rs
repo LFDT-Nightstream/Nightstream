@@ -5,6 +5,7 @@ use neo_ccs::{CcsStructure, CcsWitness, Mat};
 use neo_math::{from_complex, D, F, K};
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_reductions::engines::optimized_engine::oracle::{OptimizedOracle, SparseCache};
+use neo_reductions::engines::optimized_engine::{FeMcsRowTables, FeSumcheckBackend};
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use neo_reductions::Challenges;
 use p3_field::PrimeCharacteristicRing;
@@ -193,6 +194,90 @@ fn build_zero_mcs_constant_term_oracle() -> OptimizedOracle<'static, F> {
     )
 }
 
+#[derive(Default)]
+struct RecordingMcsLiveLenBackend {
+    live_lengths: Vec<usize>,
+}
+
+impl FeSumcheckBackend for RecordingMcsLiveLenBackend {
+    fn start(&mut self, _snapshot: &neo_reductions::engines::optimized_engine::oracle::RowPhaseSnapshot<'_>) -> bool {
+        false
+    }
+
+    fn round_coeffs(&mut self) -> Vec<K> {
+        unreachable!("recording backend only observes row-table construction")
+    }
+
+    fn fold(&mut self, _r: K) {
+        unreachable!("recording backend only observes row-table construction")
+    }
+
+    fn mcs_row_tables(
+        &mut self,
+        _cache: &neo_reductions::superneo_eval::SuperneoEvalCache,
+        _mcs_idx: usize,
+        _f_var_indices: &[usize],
+        _z_blocks: &neo_reductions::superneo_eval::SuperneoZBlocks,
+        n_eff: usize,
+        crop: bool,
+        n_pad: usize,
+    ) -> Option<FeMcsRowTables> {
+        self.live_lengths.push(if crop { n_eff } else { n_pad });
+        None
+    }
+}
+
+fn recorded_mcs_live_len(constant: F) -> usize {
+    let n = 2 * D;
+    let f = SparsePoly::new(
+        1,
+        vec![
+            Term {
+                coeff: constant,
+                exps: vec![0],
+            },
+            Term {
+                coeff: F::ONE,
+                exps: vec![1],
+            },
+        ],
+    );
+    let s = Box::leak(Box::new(CcsStructure::new(vec![Mat::identity(n)], f).expect("CCS")));
+    let params = Box::leak(Box::new(build_params_for_b(2, n)));
+    let witness = Box::leak(Box::new(vec![CcsWitness {
+        w: vec![F::ZERO; n],
+        Z: Mat::from_row_major(D, 2, vec![F::ONE; 2 * D]),
+    }]));
+    let challenges = Challenges {
+        alpha: (1..=6).map(|value| K::from(F::from_u64(value))).collect(),
+        beta_a: (11..=16).map(|value| K::from(F::from_u64(value))).collect(),
+        beta_r: (21..=27).map(|value| K::from(F::from_u64(value))).collect(),
+        beta_m: Vec::new(),
+        gamma: K::from(F::from_u64(7)),
+    };
+    let sparse = Arc::new(SparseCache::build(s));
+    let cache = build_superneo_eval_cache(s)
+        .map(Arc::new)
+        .expect("D-compatible superneo cache");
+    let mut backend = RecordingMcsLiveLenBackend::default();
+    let _oracle = OptimizedOracle::new_with_sparse_and_superneo_cache_and_backend(
+        s,
+        params,
+        witness,
+        &[],
+        challenges,
+        6,
+        7,
+        5,
+        None,
+        sparse,
+        cache,
+        Some(&mut backend),
+    );
+    assert_eq!(backend.live_lengths.len(), 1);
+    backend.live_lengths[0]
+}
+
 #[test]
 fn optimized_oracle_all_base_matches_generic_b2() {
     let oracle = build_oracle(2);
@@ -359,6 +444,12 @@ fn optimized_oracle_zero_mcs_keeps_f_at_zero_constant_term() {
 
     assert_eq!(fast, expected);
     assert_eq!(generic, expected);
+}
+
+#[test]
+fn mcs_live_prefix_requires_zero_polynomial_constant() {
+    assert_eq!(recorded_mcs_live_len(F::ZERO), 2 * D);
+    assert_eq!(recorded_mcs_live_len(F::from_u64(5)), 128);
 }
 
 #[test]

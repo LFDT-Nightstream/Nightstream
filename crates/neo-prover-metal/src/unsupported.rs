@@ -98,7 +98,7 @@ impl MetalFeOraclePlan {
 }
 
 impl MetalDeferredMcsRowTables {
-    pub(crate) fn matches(&self, _mcs_idx: usize, _n_pad: usize, _table_count: usize) -> bool {
+    pub(crate) fn matches(&self, _mcs_idx: usize, _live_len: usize, _n_pad: usize, _table_count: usize) -> bool {
         false
     }
 
@@ -426,6 +426,7 @@ impl MetalSession {
         _z_blocks: &neo_reductions::superneo_eval::SuperneoZBlocks,
         _witness_masks: Option<&MetalWitnessMasks>,
         _n_eff: usize,
+        _live_len: usize,
         _n_pad: usize,
     ) -> Result<MetalDeferredMcsRowTables, MetalError> {
         Err(MetalError::Unavailable)
@@ -611,8 +612,6 @@ impl MetalSession {
     pub(crate) fn recycle_nc_sumcheck(&self, _plan: MetalNcSumcheckPlan) {}
 
     pub(crate) fn recycle_ajtai_ring_forms(&self, _forms: MetalAjtaiRingForms) {}
-
-    pub(crate) fn recycle_dec_children(&self, _children: MetalResidentChildren) {}
 
     pub(crate) fn split_dec_base2_with_ring_forms(
         &self,

@@ -42,7 +42,9 @@ use crate::paper::f_prime::r1cs::{
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::NifsVCircuitMessages;
-use crate::paper::nifs::{NifsFreshInstancesRequest, NifsProof, NifsProverAdapter};
+use crate::paper::nifs::{
+    NifsFreshInstancesRequest, NifsFreshSignedUnitInstancesRequest, NifsProof, NifsProverAdapter,
+};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, LaneSchemeError, RelationError};
 
@@ -404,14 +406,6 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             let assignment = assignments
                 .next()
                 .expect("application trace has one assignment per memory step");
-            application
-                .shape()
-                .is_satisfied_by(assignment)
-                .map_err(|error| {
-                    NebulaFPrimeRelationError::Application(
-                        crate::frontends::nebula::application::ApplicationError::App(error),
-                    )
-                })?;
             let semantic =
                 crate::frontends::r1cs_f_prime::ivc::shape::semantic_values(application.recursive_plan(), assignment)
                     .map_err(NebulaFPrimeRelationError::from)?;
@@ -897,25 +891,41 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             let assignment = self
                 .prep
                 .relation
-                .encode_for_deferred_nifs(branch, &field_assignment)?;
+                .encode_signed_unit_for_deferred_nifs(branch, &field_assignment)?;
             #[cfg(feature = "perf-timers")]
             let encode_elapsed = encode_started.elapsed();
-            let assignments = [assignment.as_slice()];
+            let assignments = [assignment];
             #[cfg(feature = "perf-timers")]
             let adapter_started = std::time::Instant::now();
-            let accelerated = adapter
-                .build_fresh_instances(NifsFreshInstancesRequest {
+            let mut accelerated = adapter
+                .build_fresh_signed_unit_instances(NifsFreshSignedUnitInstancesRequest {
                     pp: &self.prep.prep.params,
                     s: self.prep.prep.structure(),
                     cache: self.prep.prep.optimized_cache(),
                     log: &self.prep.prep.log,
                     m_in: self.prep.relation.public_input_len(),
                     assignments: &assignments,
-                    image_overlay: None,
                     lane_scheme: Some(&self.prep.relation.nebula_config().scheme),
                 })
                 .map_err(crate::paper::construction2::Error::from)
                 .map_err(lifecycle::Error::from)?;
+            if accelerated.is_none() {
+                let dense = assignments[0].to_dense();
+                let dense_assignments = [dense.as_slice()];
+                accelerated = adapter
+                    .build_fresh_instances(NifsFreshInstancesRequest {
+                        pp: &self.prep.prep.params,
+                        s: self.prep.prep.structure(),
+                        cache: self.prep.prep.optimized_cache(),
+                        log: &self.prep.prep.log,
+                        m_in: self.prep.relation.public_input_len(),
+                        assignments: &dense_assignments,
+                        image_overlay: None,
+                        lane_scheme: Some(&self.prep.relation.nebula_config().scheme),
+                    })
+                    .map_err(crate::paper::construction2::Error::from)
+                    .map_err(lifecycle::Error::from)?;
+            }
             #[cfg(feature = "perf-timers")]
             eprintln!(
                 "[fprime-metal-instance] branch={branch:?} encode={:.3}s adapter={:.3}s",

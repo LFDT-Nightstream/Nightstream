@@ -336,7 +336,7 @@ impl RowStreamState {
 
         #[cfg(feature = "perf-timers")]
         let t_f_var_tables = std::time::Instant::now();
-        // f-var tables: m_j(row) = (M_j * z_i)[row] for each used variable and each MCS slot.
+        let crop = f_at_zero == K::ZERO;
         let mut f_var_tables_by_mcs: Vec<Vec<RowTable>> = Vec::with_capacity(k_mcs);
         let mut zero_mcs = Vec::with_capacity(k_mcs);
         let mut deferred_mcs = Vec::with_capacity(k_mcs);
@@ -351,7 +351,7 @@ impl RowStreamState {
             zero_mcs.push(false);
             if let Some(tables) = fe_backend
                 .as_mut()
-                .and_then(|b| b.mcs_row_tables(superneo_cache, mcs_idx, &f_var_indices, z_blocks, n_eff, n_pad))
+                .and_then(|b| b.mcs_row_tables(superneo_cache, mcs_idx, &f_var_indices, z_blocks, n_eff, crop, n_pad))
             {
                 match tables {
                     FeMcsRowTables::Host(tables) => {

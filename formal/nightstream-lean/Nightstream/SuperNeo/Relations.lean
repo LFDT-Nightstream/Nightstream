@@ -113,6 +113,28 @@ def Holds
   semantics.projectPublicInput assignment = publicInput ∧
   semantics.normBounded normBound assignment
 
+/-- Two distinct bounded openings of one commitment. This is the common
+model-level event that concrete commitment schemes must reduce to their
+binding assumption; it does not itself assert computational hardness. -/
+structure BindingCollision
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    (semantics : RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (normBound : Nat)
+    (commitment : Commitment) where
+  leftOpening : Assignment
+  rightOpening : Assignment
+  leftCommits : semantics.commit leftOpening = commitment
+  rightCommits : semantics.commit rightOpening = commitment
+  leftNorm : semantics.normBounded normBound leftOpening
+  rightNorm : semantics.normBounded normBound rightOpening
+  different : leftOpening ≠ rightOpening
+
 end Opening
 
 namespace CCS

@@ -1,5 +1,6 @@
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.PaddedIdentityEvaluation
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Algebra
+import Nightstream.SuperNeo.Folding.PiDEC.CanonicalChildren
 import Nightstream.SuperNeo.Folding.PiDEC.CanonicalParent
 
 /-!
@@ -29,7 +30,8 @@ cannot make a parent-only digest authoritative for its children.
 | `pi_dec.necessity.child_substitution.assignments` | two distinct strict-2 child vectors recompose identically | counterexample | `recomposedAssignments_eq`, `assignments_ne` |
 | `pi_dec.necessity.child_substitution.openings` | every child is a valid fresh Phi81 CE opening | derived | `leftChildrenValid`, `rightChildrenValid` |
 | `pi_dec.necessity.child_substitution.parent` | both vectors compute the exact same combined parent statement | derived | `parents_eq` |
-| `pi_dec.necessity.child_substitution.acceptance` | strict production PiDEC accepts both vectors under that parent | counterexample | `leftAccepted`, `rightAccepted` |
+| `pi_dec.necessity.child_substitution.canonical` | the left vector is the deterministic split of the fixed valid parent opening | derived | `leftCanonical` |
+| `pi_dec.necessity.child_substitution.acceptance` | strict production PiDEC also accepts a vector that is not that canonical split | counterexample | `rightAccepted_but_notCanonical` |
 | `pi_dec.necessity.child_substitution.handle` | no function of only the parent binds the accepted child vector | impossibility theorem | `no_parentOnlyHandle_binds` |
 -/
 
@@ -118,6 +120,34 @@ theorem recomposedAssignments_eq :
   funext column
   simp only [PiDECAlgebra.Radix.recomposeAssignment_apply]
   exact recomposedScalar_eq
+
+/-- The common valid parent opening is the exact recomposition of the
+canonical left digit family. -/
+def parentOpening : Assignment :=
+  PiDECAlgebra.Radix.recomposeAssignment leftAssignments
+
+@[simp] theorem parentOpening_apply
+    (column : Fin (Phi81Relation.Shape.carrierWidth Shape)) :
+    parentOpening column = (1 : F) := by
+  change PiDECAlgebra.Radix.recomposeScalar leftDigit = (1 : F)
+  decide
+
+/-- Production's deterministic signed split of coefficient one is exactly
+the left `(1,0,...)` family. -/
+theorem splitOne_eq_leftDigit :
+    forall child : Child,
+      PiDECAlgebra.Radix.splitScalar (1 : F) child = leftDigit child := by
+  decide
+
+/-- The full 270-coordinate deterministic split of the parent opening is the
+left assignment family. -/
+theorem splitParentOpening_eq_leftAssignments :
+    PiDECAlgebra.Radix.splitAssignment parentOpening = leftAssignments := by
+  funext child column
+  change PiDECAlgebra.Radix.splitScalar (parentOpening column) child =
+    leftDigit child
+  rw [parentOpening_apply]
+  exact splitOne_eq_leftDigit child
 
 /-- The child assignment families themselves are visibly different. -/
 theorem assignments_ne : leftAssignments ≠ rightAssignments := by
@@ -275,6 +305,38 @@ theorem rightAccepted :
   simpa [parent, parents_eq] using
     (CanonicalParent.accepted_of_compatible algebra kPositive rightChildren
       rightCompatible)
+
+/-- The left family is the exact canonical split of the fixed valid parent
+opening, not merely a publicly recomposing family. -/
+theorem leftChildren_eq_canonical :
+    leftChildren = PiDEC.childrenOf algebra parent parentOpening := by
+  have split : algebra.splitAssignment parentOpening = leftAssignments := by
+    simpa [algebra] using splitParentOpening_eq_leftAssignments
+  funext child
+  simp only [PiDEC.childrenOf]
+  rw [congrFun split child]
+  rfl
+
+/-- Complete canonical-child authority for the fixed parent opening. -/
+def leftCanonical :
+    CanonicalChildren.ForOpening algebra parent parentOpening leftChildren := {
+  parentCombined := rfl
+  parentValid := leftParentValid
+  childrenEq := leftChildren_eq_canonical
+}
+
+/-- Strict public PiDEC accepts the substituted right family even though it
+is not the deterministic split of the same valid parent opening. -/
+theorem rightAccepted_but_notCanonical :
+    PiDEC.Accepted algebra {
+      parent := parent
+      children := rightChildren
+    } /\
+      ¬ CanonicalChildren.ForOpening algebra parent parentOpening
+        rightChildren := by
+  refine ⟨rightAccepted, ?_⟩
+  intro rightCanonical
+  exact children_ne (leftCanonical.children_eq rightCanonical)
 
 end Fixture
 

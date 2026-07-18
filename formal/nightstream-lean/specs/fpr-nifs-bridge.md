@@ -439,18 +439,24 @@ current_gap_boundary:
     refinement. Its dimensions, digest, decoded values, and acceptance flags
     remain diagnostic artifact evidence only; they are neither semantic
     authority nor permission to remove rows.
-  - Public-input carrier: fresh CCS claims expose 257 field inputs, while the
-    production CE path carries five complete ring columns (270 coefficients).
+  - Public-input carrier: the logical F-prime instance exposes 257 field
+    inputs, while the production CE path carries five complete ring columns
+    (270 coefficients).
     The final 13 coefficients are not generic zero padding after PiRLC: ring
     multiplication may make them nonzero and PiDEC intentionally recomposes
     them. The active Phi81 relation now owns a typed 270-field public carrier,
     inserts thirteen verifier-fixed zeros in fresh assignments and matrices,
     and proves exact scalar CCS residual/zero-set preservation. This does not
     preserve nonconstant coefficient images or commitments: old private column
-    257 changes block/lane under the repair. Rust still exposes the 257-field
-    source. A production adapter must therefore construct the 270-field source,
-    recompute CE images and Ajtai commitments, and prove exact refinement;
-    neither truncation nor claim reuse closes the bridge.
+    257 changes block/lane under the repair. Rust's selective fixed-point path
+    now constructs the physical 270-field source, pins coordinates `257..269`
+    to zero, shifts the private suffix, and uses 270 as the SuperNeo public
+    width. `AlignedCompiler.ProductionCarrier` artifact-checks the emitted
+    public layout and all thirteen padding rows against the typed zero-pin
+    semantics. This closes only the public-carrier slice. The complete private
+    assignment and matrix map, CE coefficient images, aligned verifier-owned
+    Ajtai key, commitments, and full decoder refinement remain open; neither
+    truncation nor claim reuse closes those bridges.
   - PiCCS paper erratum boundary: Section 7.3 and Appendix D.4 define the
     carried-evaluation terms in `Q` at absolute exponent `2K+k+I`, but define
     `T(C)` at unshifted exponent `I`. Read literally, coefficient independence
@@ -914,6 +920,226 @@ lean_theorems:
     duplicate semantic authority from the model. It does not yet authorize
     deleting arithmetic that computes recomposition, nor any production row;
     exact Rust/R1CS refinement and row ownership remain required.
+  - Proved (model-level security partition): Construction-2's exact typed
+    prior/next hash preimages contain the complete ordered running product.
+    Given the lifecycle public-input link, the current running product equals
+    the previous output product unless either the instance encoding aliases two
+    digests or the hash aliases two distinct typed preimages
+    (`Paper.PriorLink.{preimage_eq_or_securityFailure,
+    running_eq_or_securityFailure}`). The concrete Phi81 projection combines
+    that complete-child equality with canonical PiDEC children to recover the
+    exact rich running slot. This refutes parent-only authority at the model
+    boundary; it does not yet prove that Rust's nested accumulator digest and
+    outer `state_x_out` Poseidon2 serialization instantiate the typed preimage
+    or bound either collision event.
+  - Proved (model-level obligation reduction): for strict PiDEC children, the
+    child-specific authority is exactly commitment, the complete 270-coordinate
+    public input, and the complete ordered evaluation array. Structure and
+    evaluation point are inherited by every child and need occur only once per
+    family; fresh stage is verifier-fixed and need not be serialized. Equality
+    of this compact family carrier recovers both the exact ordered children and
+    the checked parent cache
+    (`ChildPayloadAuthority.parent_children_eq_of_familyPayload_eq`,
+    `ConcretePhi81.AccumulatorBinding.parent_children_eq_or_failure`). The
+    active prior-link theorem lifts this
+    to exact rich-slot equality or one named encoding/hash failure
+    (`ActiveSemantics.PriorLink.slot_eq_or_familyDigest_failure`). This result
+    rules out blindly rehashing every inherited field in every child, but it
+    does not yet classify Rust-only sidecars or prove a concrete serializer;
+    therefore it authorizes no production row removal yet.
+  - Proved (model-level conditional authority reduction): when relation
+    structure is separately bound to verifier-owned setup and both candidate
+    child families have explicit valid CE openings, the direct per-step state
+    carrier reduces further to the evaluation point once plus the exact
+    type-level ordered child commitment vector. Equal carriers recover every
+    child public input and evaluation from the openings and then recover the
+    strict PiDEC parent, or identify one child index with two distinct
+    `b`-bounded openings of the same commitment
+    (`ChildCommitmentAuthority.{children_eq_or_freshBindingCollision,
+    parent_children_eq_or_freshBindingCollision}`). The nested-hash and active
+    prior-link lifts preserve an exhaustive failure partition between concrete
+    encoding/hash failure and that indexed opening collision
+    (`ConcretePhi81.AccumulatorBinding.parent_children_eq_or_commitmentFailure`,
+    `ActiveSemantics.PriorLink.slot_eq_or_commitmentDigest_failure`). Arity and
+    relation structure are deliberately absent from this payload: arity is in
+    the type and structure is a separate setup obligation. This is the smallest
+    direct paper carrier presently justified under arbitrary valid child
+    openings. It does not prove that the
+    current recursive verifier extracts the required current child openings,
+    reduce the collision to the production Ajtai/MSIS game, classify Rust-only
+    sidecars, instantiate Poseidon2, or authorize row removal.
+  - Proved (model-level stronger conditional reduction): if both child families
+    are not merely valid but are the deterministic radix split of explicit
+    valid combined parent openings, the complete family collapses further to
+    one per-step evaluation point plus one combined parent commitment. Equal
+    carriers recover the exact parent opening, parent statement, and ordered
+    children, or expose two distinct `B`-bounded openings of the same parent
+    commitment (`CanonicalParentAuthority.{parent_opening_eq_or_bindingCollision,
+    parent_children_eq_or_bindingCollision}`). The nested-hash and active
+    prior-link lifts retain separate compression and parent-opening failures
+    (`ConcretePhi81.AccumulatorBinding.parent_children_eq_or_canonicalParentFailure`,
+    `ActiveSemantics.PriorLink.slot_eq_or_canonicalParentDigest_failure`). This
+    is the smallest direct paper carrier currently proved, but its premise is
+    intentionally stronger than public PiDEC acceptance: the current verifier
+    does not establish canonical private child openings, and Lean already proves
+    signed-digit substitutions pass public recomposition. No implementation
+    should select this carrier until the canonical-opening check is refined to
+    production wires and shown cheaper than hashing the ordered child
+    commitments.
+    The active prior-link composition now removes the free
+    `currentCanonical` proposition from this candidate boundary: an
+    opening-derived NIFS context plus exact child-source validity derives the
+    canonical family and therefore reduces equal parent handles to exact slot
+    equality or the named compression/parent-opening failure
+    (`ActiveSemantics.PriorLink.slot_eq_or_canonicalParentDigest_failure_of_openingSources`).
+    This states the proof-backed contract precisely; it does not show that the
+    present public-only Rust NIFS certificate establishes child-source validity
+    for the computed split.
+  - Proved (model-level obligation exactness and minimality): a canonical-parent
+    opening verifier now accepts a point-plus-parent-commitment carrier and one
+    private combined assignment, computes the parent public input, evaluation
+    array, combined stage, and all fourteen radix-split children, and checks
+    only obligations not true by construction
+    (`PiDEC.CanonicalChildren.OpeningVerifier`). The generic relation retains
+    commitment equality, the verifier-owned `B`-norm, and point validity. In
+    the typed Phi81 specialization, point validity is intrinsic to
+    `Point shape`, so exact parent CE membership and canonical PiDEC children
+    follow from exactly two semantic leaves: typed Ajtai commitment equality
+    and the complete-assignment combined norm
+    (`CanonicalParentVerifier.parentHolds_iff_commitment_and_norm` and
+    `CanonicalParentVerifier.canonicalChildren_of_commitment_and_norm`).
+    Concrete Boolean-commitment
+    and magnitude-`16_384` countermodels over a small typed Phi81 fixture show
+    that deleting either retained family uniformly admits an invalid parent opening
+    (`CanonicalParentVerifier.Minimality.plan_inclusionMinimalSound`). This
+    closes the semantic specification of the canonical-opening check. It does
+    not extract the opening from the current certificate, prove Ajtai/MSIS
+    binding, materialize the computed fields in R1CS, or establish their cost.
+  - Observed (source-level implementation diagnostic, not formal conformance):
+    the current `NifsProof` serializes the PiCCS, PiRLC, and PiDEC public
+    messages only. `pi_rlc::Output.witness` and `pi_dec::Children.witnesses`
+    remain prover-side, and `NifsVCircuitMessages` supplies the combined claim
+    and child claims without the combined assignment. The current recursive
+    circuit therefore cannot instantiate the proved canonical-opening verifier
+    without adding an opening witness or a proof-backed opening boundary. A
+    complete cost comparison must include that new boundary; the parent hash
+    cost alone is not an implementation candidate.
+  - Proved (model-level carrier reduction): one point-plus-complete-assignment
+    payload deterministically computes the combined parent and all fourteen
+    ordered children under a verifier-owned key and relation structure. Every
+    independent fixed-active NIFS result has such a payload and reconstructs
+    both public result surfaces exactly
+    (`CanonicalOpening.{OpeningPayload.children_ofCanonical,
+    resultCarrier_complete}`). In the opening-derived incoming context, CE
+    validity of the fourteen computed child sources implies the combined norm,
+    canonical children, strict public PiDEC, and the existing running-authority
+    interface (`CanonicalOpening.{combinedNorm,canonicalChildren,
+    piDecAccepted,runningAuthority}`). The norm obligation is not deleted: its
+    owner moves to child source validation. This is semantic representation
+    completeness, not a compact public encoding: the assignment has the full
+    CCS/CE carrier width, not the 270-field public width. Hashing that raw
+    opening would scale with the entire recursive relation and may leak a
+    low-norm private witness. It is therefore rejected as the accumulator
+    handle; the useful result is the derived-check theorem, not a serializer.
+    This is not Rust/R1CS refinement or permission to remove rows.
+  - Proved (model-level): the ordered-child-commitment carrier does not need a
+    second opening witness at the outer F' boundary. One accepted independent
+    NIFS result contains a single source witness whose running assignments
+    open all fourteen incoming CE children
+    (`ResultTransition.inputRunningOpenings`), and the same realization
+    exposes strict PiDEC recomposition for the exact carried parent
+    (`FixedActive.ResultTransition.inputRunningPiDec`). The active F' context
+    maps those values definitionally to the selected current slot
+    (`Obligations.selectedInputAuthority`). Consequently, equal ordered-family
+    handles recover the exact prior slot or one named compression/child-opening
+    failure without accepting extra outer opening evidence
+    (`PriorLink.slot_eq_or_commitmentDigest_failure_of_selectedNifs`). Its
+    previous-family authority is likewise derived from the previous NIFS
+    result transition under an explicit same-verifier-key equation, never
+    supplied as an independent canonicality claim. This is still conditional
+    on reaching both independent NIFS semantic transitions; it does not
+    discharge physical transcript extraction, Ajtai/MSIS binding, Poseidon2
+    collision bounds, Rust/R1CS refinement, or authorize row removal.
+  - Proved (model-level representation refinement): the two reduced carriers
+    now have one exact field order independent of Rust's legacy full-claim
+    serializer. Point coordinates are encoded as ordered `(c0, c1)` pairs;
+    commitments are child-major, row-major, then coefficient-major. Both
+    encoders are injective for every typed shape, arity, and verifier-row count,
+    including the zero-row edge case
+    (`CarrierCodec.encodeCommitmentFamily_injective` and
+    `CarrierCodec.encodeCanonicalParent_injective`). At the
+    fixed Phi81 profile the carrier-only lengths are exactly
+    `2 * rowVariables + 13_608` fields for the ordered fourteen-child
+    commitment family and `2 * rowVariables + 972` fields for the canonical
+    parent. Instantiating the generic accumulator scheme with either encoder
+    proves that its serialization-collision branch is impossible; equal claim
+    digests reduce directly to exact payload equality or the still-explicit
+    hash-collision boundary
+    (`{commitmentFamily,canonicalParent}_claim_eq_or_hashCollision`). These
+    carrier-codec theorems alone do not choose a domain tag or establish
+    Poseidon2/Rust/R1CS conformance.
+  - Proved (model-level representation refinement): the ordered-child carrier
+    now has one exact field-hash message independent of all legacy full-CE and
+    nested-child-digest serializers. Its unique tag is
+    `neo.fold.clean/f_prime/accumulator/ordered_child_commitments/v1`, packed
+    exactly as Rust's length-prefixed seven-byte little-endian field words,
+    followed immediately by the injective point-plus-fourteen-commitment
+    carrier. Commitment width, child count, and point length are verifier-owned
+    by the specialized profile/type and are not redundantly serialized. The
+    complete message is injective, has exactly
+    `10 + 2 * rowVariables + 13_608` fields, and equal supplied field-hash
+    outputs imply exact carrier equality or a collision on two distinct field
+    lists (`OrderedCommitmentMessage.{serialize_injective,
+    digest_eq_or_fieldHashCollision}`). Composing this result with independent
+    selected-NIFS input authority recovers the exact prior rich slot outside
+    only that field-hash collision and one indexed Ajtai opening collision
+    (`OrderedCommitmentPriorLink.slot_eq_or_failure_of_selectedNifs`). This
+    closes the model-level message boundary; it does not prove that native Rust
+    or R1CS recomputes this message, nor bound either cryptographic event.
+  - Proved (artifact-checked layout plus model-level decoding): a prospective
+    direct hash owner over the committed full-history PiDEC layout must read
+    exactly ten domain constants, the relabeled parent `r` pairs, and all
+    relabeled child `c_data` blocks in child order
+    (`OrderedCommitmentSourceLayout.expectedSourceColumns_values`). The
+    currently committed artifact has one extension-field point coordinate, so
+    this source list is 13,620 fields: `10 + 2 + 14 * 972`. This is deliberately
+    distinct from the 13,642-field formula at the separate twelve-variable
+    Fibonacci diagnostic shape. The current Rust owner still emits fourteen
+    conservative full-CE child hashes plus an aggregate hash, so this source
+    layout is a checked implementation contract, not a claim of present
+    call-site conformance. Exact-length decoding now maps the artifact's parent
+    point and every 972-field child block into the independent typed ordered
+    carrier without padding or default reads, and reserialization is proved
+    equal to the complete raw field message
+    (`OrderedCommitmentTypedDecoder.serialize_decodedPayload`). This theorem is
+    deliberately shape-parameterized by an explicit point-dimension proof: it
+    does not identify the one-coordinate/three-evaluation diagnostic artifact
+    with the active production relation. Emitted Rust/R1CS trace membership and
+    selected-NIFS semantic instantiation remain open.
+  - Proved (artifact-checked primitive profile plus model-level composition):
+    the existing generated width-eight Poseidon2 permutation contains exactly
+    600 raw R1CS rows/fresh columns, partitioned into 344 S-box product rows and
+    256 linear rows. The rate-four hash wrapper therefore has, for `L`
+    already-materialized input fields and
+    `P = ceil(L / 4) + 1`, exactly `L + 2` wrapper-linear rows,
+    `344 * P` product rows, `256 * P` permutation-linear rows, and
+    `L + 2 + 600 * P` total raw rows/fresh columns
+    (`FPrimeFullHistory.Accumulator.Poseidon2Cost`). The cost leaf specializes
+    the ordered carrier to its exact ten-field domain message; the
+    canonical-parent candidate still keeps `domainFields` explicit because it
+    has no approved concrete message. It deliberately excludes
+    domain-constant allocation, carrier wire materialization, actual call-site
+    emission, native parity, and gadget-native lowering, so it is not an
+    end-to-end production count. For the current Fibonacci diagnostic
+    `rowVariables = 12`, the ordered-message formula has 13,642 input fields,
+    3,412 permutations, and 2,060,844 raw rows. The zero-domain
+    canonical-parent diagnostic remains 150,998 raw rows. A raw-opening hash
+    is intentionally absent: its input length would use the complete
+    assignment carrier, and substituting the 270-field public width there is a
+    category error. The canonical-parent candidate omits
+    R1CS lowering and cost accounting for the now-specified two-check
+    canonical-opening verifier and all computed downstream fields; it is
+    therefore not yet the cheaper complete design.
   - Proved (model-level): one explicit 270-coordinate honest-baseline source
     satisfies the independent CCS, norm, and carried-evaluation statement
     (`HonestBaseline.Sources.paperHolds`); a valid combined opening with its
@@ -1008,6 +1234,23 @@ lean_theorems:
     concrete Rust snapshot is checked yet, and matrix payloads, assignment
     ordering, compiler convergence, and exact layout padding remain outside
     this theorem. Fixed-three-row artifacts therefore remain diagnostics.
+  - Proved (model-level active output representation):
+    `PiCcsOutputDigest.ActiveSemantics` encodes the complete typed SplitNc
+    output tree in source, matrix, Phi81-lane, and `(c0,c1)` limb order and
+    proves that the resulting pre-SIS field serialization is injective. The
+    fixed-active arity derives exactly fifteen sources. `ActiveProfile`
+    constructs the canonical batch shape directly from that arity and the
+    independent thirteen-port selective relation, proves that forgetting batch
+    counts recovers the exact independent relation shape, and derives a complete
+    23,033-field message without a caller-supplied source or matrix count
+    (`relationShape_eq`, `selective_serialize_length`). It also proves that the
+    legacy three-matrix projection cannot inhabit this active shape
+    (`selectiveShape_not_legacyProfile`). This is a typed representation length,
+    not a row/column count. Shared domain tags and the active fixed-width vector
+    codec have one owner in
+    `PiCcsOutputDigest.Encoding`; the old 6,683-field three-matrix serializer
+    remains a diagnostic compatibility path rather than an active authority
+    surface.
   - Proved (model-level payload placement boundary): semantic matrix roles are
     now bijective with physical ports `0..12`; a successfully decoded compact
     bundle can be dimension-matched to the fixed-point header and transported
@@ -1046,9 +1289,23 @@ lean_theorems:
     authority, root counting, complete-carrier and concrete-stream/
     fixed-bound/strong-set/distribution production sampler refinement, and
     Poseidon2/Rust/R1CS refinement.
-  - Missing: Construction-2 hash-binding and full recursive NIVC
-    knowledge-soundness theorem over the explicit NIFS bad events.
+  - Missing: concrete serialization for the unconditional public-payload
+    family carrier; exact domain-tag/message serialization for the conditional
+    canonical-parent codec; refinement from Rust's currently nested full-claim
+    accumulator serialization into the ordered-message codec; allocation and
+    call-site ownership for every resulting wire; extraction of the combined
+    parent opening from the current certificate; R1CS lowering and exact cost
+    ownership for the proved commitment/norm canonical-opening plan and its
+    computed parent/children; reduction of each fresh- or combined-bound
+    opening collision to the production Ajtai/MSIS game;
+    Construction-2 Poseidon2/instance-encoding binding; and the full recursive
+    NIVC knowledge-soundness theorem over the explicit NIFS bad events.
   - Missing: production PiCCS Accepted refinement.
+  - Missing: proof that the production fixed-NIFS context and Rust relation
+    instantiate `ActiveProfile.selectiveShape`, plus the exact Rust/R1CS
+    source-column decoder for its shape-indexed output serialization. Until
+    both close, the representation and legacy-mismatch theorems authorize no
+    output-hash row removal.
   - Missing: production PiRLC Accepted refinement.
   - Missing: R1CS-satisfaction-to-strict-production-PiDEC acceptance,
     zero-tail authority, commitment/evaluation decoding, and private-opening
@@ -1057,21 +1314,37 @@ lean_theorems:
   - Missing: concrete Composition.fold_knowledge_or_bad_event instantiation.
   - Missing: Rust/R1CS decoder refinement into the canonical fixed-one physical
     evaluator and exact ownership of every resulting row. The production
-    lifecycle still has an empty-running bootstrap arm, a 257/270 carrier
-    mismatch, omitted `y_zcol` authority, and no single typed Rust invocation
-    matching the Lean canonical `Context`.
+    lifecycle still has an empty-running bootstrap arm; the implemented
+    logical-257-to-physical-270 carrier cutover is only locally artifact-checked;
+    exact `y_zcol` authority and refinement remain open; and no single typed
+    Rust invocation yet matches the Lean canonical `Context`.
 
 axiom_report:
   The independent NIFS and partial replay theorems are in
   `tests/Axioms/Paper.lean`; finite SumCheck, generic first-accepted sampling,
   and PaperJoint have dedicated fail-closed guards in
   `tests/Axioms/{SumCheckFinite,FirstAccepted,PiCCSPaperJoint}.lean`.
-  Fixed-active F' evaluator, semantic-boundary, exact-plan, and conditional
-  necessity theorems, together with the honest-baseline source, strict running
-  authority, and semantic-premise theorems, are guarded in
-  `tests/Axioms/Protocol.lean`. All are imported by the aggregate axioms gate.
-  The bounded `validate.sh static`, `build`, `axioms`, and `check` gates passed
-  with this model-level milestone present. The Rust/R1CS bridge report remains
+  Fixed-active F' evaluator, semantic-boundary, exact-plan, conditional
+  necessity, full-child prior-link, canonical-PiDEC-child, conditional
+  ordered-child-commitment authority, opening-derived authority,
+  honest-baseline source, strict running
+  authority, and semantic-premise theorems are guarded in
+  `tests/Axioms/Protocol.lean`. Reduced-carrier codec, exact ordered-message,
+  exact ordered-message prior-link, and Poseidon2-cost theorems, plus the
+  canonical-parent opening exactness/minimality theorems, have dedicated guards in
+  `tests/Axioms/FPrimeAccumulatorCarrierCodec.lean` and
+  `tests/Axioms/FPrimeAccumulatorOrderedCommitmentMessage.lean`,
+  `tests/Axioms/FPrimeAccumulatorOrderedCommitmentPriorLink.lean`,
+  `tests/Axioms/FPrimeAccumulatorOrderedCommitmentSourceLayout.lean`,
+  `tests/Axioms/FPrimeAccumulatorOrderedCommitmentTypedDecoder.lean`,
+  `tests/Axioms/FPrimeAccumulatorPoseidon2Cost.lean`,
+  `tests/Axioms/NifsConcretePhi81CanonicalOpening.lean`, and
+  `tests/Axioms/PiDecCanonicalParentOpeningVerifier.lean`. The complete active
+  PiCCS output serializer and fixed-active profile bridge are guarded by
+  `tests/Axioms/Implementation/PiCcsOutputActiveSemantics.lean`. All are imported by the
+  aggregate axioms gate. The bounded `validate.sh static` and `axioms` gates,
+  plus focused module and interface builds, passed for this slice; the full
+  `build` and `check` gates were not rerun. The Rust/R1CS bridge report remains
   open. Every completed bridge theorem must be added to the gate; local
   protocol conclusions are forbidden as assumptions.
 

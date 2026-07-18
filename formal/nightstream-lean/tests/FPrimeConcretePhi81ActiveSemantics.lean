@@ -37,6 +37,7 @@ open Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics
 #check Obligations.priorPcValid
 #check Obligations.selectedIndex_eq
 #check Obligations.selectedStructures_eq_expected
+#check Obligations.selectedInputAuthority
 #check Holds
 #check HonestNifs.SemanticPremises
 #check HonestNifs.SemanticPremises.exists_resultTransition_or_samplerShortfall

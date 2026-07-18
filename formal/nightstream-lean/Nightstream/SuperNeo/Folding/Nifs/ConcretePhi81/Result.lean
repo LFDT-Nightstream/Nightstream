@@ -13,8 +13,8 @@ Assurance tier: model-level.
 Owns: the one parent-plus-children result carrier; deterministic projection
 from one shared physical execution; the certificate-independent semantic
 transition over that carrier; the physical-refinement handoff; child
-projection; source/output structure preservation; and uniqueness of the
-derived parent given accepted children.
+projection; coherent incoming running openings; source/output structure
+preservation; and uniqueness of the derived parent given accepted children.
 
 Does not own: bootstrap or active arity selection, incoming-parent authority,
 an executable checker, outer F-prime state, Rust/R1CS lowering, rows, costs,
@@ -36,7 +36,10 @@ challenge vector. `resultOf` remains the physical projection, and
 | `nifs.result.obligation_plan` | open the result relation into the exact nine-leaf semantic plan | exact model theorem | `resultTransition_iff_exists_obligationPlan` |
 | `nifs.result.refinement` | a certificate-indexed physical result instantiates the independent relation | derived | `resultOf_refines` |
 | `nifs.result.parent_opening` | the cached parent has the canonical challenge-folded private opening | derived | `ResultTransition.parentOpening` |
+| `nifs.result.canonical_children` | the complete child vector is the deterministic split of that same opening | derived | `ResultTransition.canonicalChildren` |
 | `nifs.result.child_opening` | every canonical child has its radix-split private opening | derived | `ResultTransition.childOpening` |
+| `nifs.result.input.running_authority` | expose the checked incoming-parent authority used by the same fold | derived | `ResultTransition.runningAuthority` |
+| `nifs.result.input.running_openings` | one source witness opens the complete incoming running family | derived | `ResultTransition.inputRunningOpenings` |
 | `nifs.result.input.running_structure` | every running source shares the sole fresh-source structure | derived | `ResultTransition.runningStructure_eq_fresh` |
 | `nifs.result.child_structure` | every output child shares the sole fresh-source structure | derived | `ResultTransition.childStructure_eq_fresh` |
 | `nifs.result.parent_unique` | equal accepted children determine the same derived parent | derived | `ResultTransition.parent_eq_of_children_eq` |
@@ -214,6 +217,30 @@ theorem resultOf_refines
   refine ⟨data, ?_⟩
   simpa [resultOf] using refinement.toSemanticFold
 
+/-- Every independent semantic result binds its complete public child vector
+to one valid combined parent opening. This is the exact semantic carrier that
+an F-prime prior-link commitment or proof must preserve. -/
+theorem ResultTransition.canonicalChildren
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {arity : BatchArity productionGlobalParams}
+    {context :
+      ConcretePhi81.Context shape State publicRingColumns publicFits
+        verifierRows arity}
+    {result : FoldResult shape publicRingColumns publicFits verifierRows}
+    (transition : ResultTransition context result) :
+    ∃ assignment :
+        Phi81Relation.Assignment
+          (RelationShape shape publicRingColumns publicFits),
+      PiDEC.CanonicalChildren.ForOpening
+        (ConcretePhi81.decAlgebra context.key) result.parent assignment
+        result.children := by
+  rcases transition with ⟨data, holds⟩
+  exact holds.canonicalChildren
+
 /-- The cached public parent in any semantic result has the canonical private
 opening obtained by folding the independently authorized source assignments. -/
 theorem ResultTransition.parentOpening
@@ -233,8 +260,8 @@ theorem ResultTransition.parentOpening
           (RelationShape shape publicRingColumns publicFits),
       CE.Holds (ConcretePhi81.semantics context.key) productionGlobalParams
         result.parent assignment := by
-  rcases transition with ⟨data, holds⟩
-  exact holds.parentOpening
+  rcases transition.canonicalChildren with ⟨assignment, canonical⟩
+  exact ⟨assignment, canonical.parentValid⟩
 
 /-- Every public child in a semantic result retains the corresponding
 canonical radix-split opening. The physical refinement that establishes
@@ -257,8 +284,10 @@ theorem ResultTransition.childOpening
           (RelationShape shape publicRingColumns publicFits),
       CE.Holds (ConcretePhi81.semantics context.key) productionGlobalParams
         (result.children child) assignment := by
-  rcases transition with ⟨data, holds⟩
-  exact holds.childOpening child
+  rcases transition.canonicalChildren with ⟨assignment, canonical⟩
+  exact ⟨(ConcretePhi81.decAlgebra context.key).splitAssignment
+      assignment child,
+    canonical.complete.2 child⟩
 
 /-- Project the complete semantic result to the public child relation. -/
 theorem ResultTransition.children_transition
@@ -305,6 +334,58 @@ theorem transition_iff_exists_resultTransition
   · rintro ⟨result, childrenEq, ⟨data, holds⟩⟩
     refine ⟨data, result.parent, ?_⟩
     simpa [childrenEq] using holds
+
+/-- One semantic transition supplies a coherent opening function for the
+complete incoming running family. All assignments come from the same
+independent source witness; this theorem neither chooses fourteen unrelated
+existential witnesses nor adds prover-authoritative inputs. -/
+theorem ResultTransition.inputRunningOpenings
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {arity : BatchArity productionGlobalParams}
+    {context :
+      ConcretePhi81.Context shape State publicRingColumns publicFits
+        verifierRows arity}
+    {result : FoldResult shape publicRingColumns publicFits verifierRows}
+    (transition : ResultTransition context result) :
+    ∃ inputAssignments :
+        Fin (arity.mode.count productionGlobalParams) ->
+          Phi81Relation.Assignment
+            (RelationShape shape publicRingColumns publicFits),
+      ∀ running,
+        CE.Holds (ConcretePhi81.semantics context.key) productionGlobalParams
+          (context.input.running running) (inputAssignments running) := by
+  rcases transition with ⟨data, witness, realized⟩
+  refine ⟨fun running =>
+    data.runningAssignments
+      (context.alignment.semanticRunningIndex running), ?_⟩
+  intro running
+  exact InputAuthority.runningSource_holds publicRingColumns publicFits
+    (commit context.key) data context.alignment context.input
+    production_norm_stages.1 realized.paper running
+    (realized.input.sources.running running)
+
+/-- The same semantic realization also retains the exact checked incoming
+parent authority. This is public recomposition consistency; the coherent
+private openings are exposed separately by `inputRunningOpenings`. -/
+theorem ResultTransition.runningAuthority
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {arity : BatchArity productionGlobalParams}
+    {context :
+      ConcretePhi81.Context shape State publicRingColumns publicFits
+        verifierRows arity}
+    {result : FoldResult shape publicRingColumns publicFits verifierRows}
+    (transition : ResultTransition context result) :
+    RunningAuthority.Accepted context := by
+  rcases transition with ⟨_data, _witness, realized⟩
+  exact realized.running
 
 /-- Every running source shares the first fresh source's structure. Bootstrap
 specializes this theorem to an empty index type. -/

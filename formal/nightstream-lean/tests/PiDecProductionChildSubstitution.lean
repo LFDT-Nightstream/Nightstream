@@ -6,6 +6,8 @@ open Nightstream.SuperNeo.Folding.PiDEC.Necessity.ProductionChildSubstitution
 
 #check Fixture.recomposedScalar_eq
 #check Fixture.recomposedAssignments_eq
+#check Fixture.parentOpening
+#check Fixture.splitParentOpening_eq_leftAssignments
 #check Fixture.assignments_ne
 #check Fixture.leftChildrenValid
 #check Fixture.rightChildrenValid
@@ -13,6 +15,8 @@ open Nightstream.SuperNeo.Folding.PiDEC.Necessity.ProductionChildSubstitution
 #check Fixture.children_ne
 #check Fixture.leftAccepted
 #check Fixture.rightAccepted
+#check Fixture.leftCanonical
+#check Fixture.rightAccepted_but_notCanonical
 #check Witness
 #check Witness.sameHandle
 #check witness

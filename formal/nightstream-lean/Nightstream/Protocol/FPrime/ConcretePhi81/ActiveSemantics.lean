@@ -28,6 +28,7 @@ output, next counter, and output digest are computed rather than checked.
 | `fprime.active.structure` | fresh structure is the verifier-owned selected structure | checked | `Obligations.expectedStructure` |
 | `fprime.active.structure.running` | all selected running/output structures follow from fresh structure plus NIFS semantics | derived | `Obligations.selectedStructures_eq_expected` |
 | `fprime.active.nifs` | selected source transition yields one complete fold result | checked | `Obligations.selectedNifs` |
+| `fprime.active.nifs.incoming_authority` | selected NIFS semantics supplies strict incoming recomposition and one coherent opening family | derived | `Obligations.selectedInputAuthority` |
 | `fprime.active.dispatch` | verifier control selects this fixed `F_j` | checked | `Obligations.dispatch` |
 | `fprime.active.output` | update one slot and compute `pcNext`, `zNext`, and `x` | computed | `outputOf` |
 -/
@@ -464,6 +465,67 @@ theorem selectedStructures_eq_expected
           using sameFresh
       _ = setup.expectedStructure input.verifierKey selected :=
         obligations.expectedStructure
+
+/-- The selected semantic NIFS transition already supplies every premise
+needed to treat the current running family as an opened strict `Pi_DEC` view.
+All private assignments come from one independent source witness; none is a
+new outer input. -/
+theorem selectedInputAuthority
+    {OuterKey : Type uOuterKey}
+    {Digest : Type uDigest}
+    {AppState : Type uAppState}
+    {Witness : Type uWitness}
+    {TranscriptState : Type uTranscriptState}
+    {shape : SemanticShape}
+    {publicRingColumns verifierRows slotCount : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows slotCount}
+    {machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows slotCount}
+    {functionIndex : Fin slotCount}
+    {input :
+      Input OuterKey AppState Witness shape publicRingColumns publicFits
+        verifierRows slotCount}
+    {selected : Fin slotCount}
+    {selectedNext :
+      Slot shape publicRingColumns publicFits verifierRows}
+    (obligations :
+      Obligations setup machine functionIndex input selected selectedNext) :
+    ∃ inputAssignments : Fin productionGlobalParams.k ->
+        Phi81Relation.Assignment
+          (RelationShape shape publicRingColumns publicFits),
+      PiDEC.Accepted
+          (ConcretePhi81.decAlgebra (contextAt setup input selected).key) {
+            parent := (input.running selected).parent
+            children := (input.running selected).children
+          } ∧
+        ∀ child,
+          CE.Holds
+            (ConcretePhi81.semantics
+              (contextAt setup input selected).key)
+            productionGlobalParams
+            ((input.running selected).children child)
+            (inputAssignments child) := by
+  rcases obligations.selectedNifs.inputRunningOpenings with
+    ⟨inputAssignments, openings⟩
+  refine ⟨inputAssignments, ?_, ?_⟩
+  · have currentPiDec :=
+      obligations.selectedNifs.inputRunningPiDec
+        (input.running selected).parent
+        (contextAt_runningParent setup input selected)
+    simpa [contextAt, invocationAt,
+      Nightstream.Protocol.FPrime.ConcretePhi81.Context.Template.build,
+      Nightstream.Protocol.FPrime.ConcretePhi81.Context.Invocation.sourceProduct]
+      using currentPiDec
+  · intro child
+    simpa [contextAt, invocationAt,
+      Nightstream.Protocol.FPrime.ConcretePhi81.Context.Template.build,
+      Nightstream.Protocol.FPrime.ConcretePhi81.Context.Invocation.sourceProduct]
+      using openings child
 
 end Obligations
 

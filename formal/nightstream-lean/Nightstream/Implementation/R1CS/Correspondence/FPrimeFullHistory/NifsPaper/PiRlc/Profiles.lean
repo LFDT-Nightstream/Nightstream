@@ -115,15 +115,14 @@ bindings stay explicit at their owners. -/
 theorem terminalSampler_refines_decodedBatchChallenges
     (prime : EuclidPrime goldilocksP)
     {shape : PiCCS.SplitNc.SemanticShape}
-    {domain : PiCCS.SplitNc.FlatNcDomain}
     {publicRingColumns verifierRows : Nat}
     {publicFits :
       ringDegree * publicRingColumns <= shape.carrierWidth}
     {context :
-      ConcretePhi81.Context shape domain PiRlcChallenge.TranscriptMachine.State
+      ConcretePhi81.Context shape PiRlcChallenge.TranscriptMachine.State
         publicRingColumns publicFits verifierRows terminalArity}
     {certificate :
-      ConcretePhi81.Certificate (domain := domain) (arity := terminalArity)
+      ConcretePhi81.Certificate (arity := terminalArity)
         publicRingColumns publicFits verifierRows context.piCcsInput}
     (profile : PiCcsOutputDigest.Projection.SplitNc.Profile shape)
     (contextBinding :
@@ -143,8 +142,8 @@ theorem terminalSampler_refines_decodedBatchChallenges
         profile certificate.piCcs.output assignment canonical)
     (postNcBoundary :
       PiCcsOutputDigest.SemanticHandoff.CatchupInputBound
-        (PiCCS.SplitNc.Verifier.Protocol.derive context.feMachine
-          context.ncMachine context.initialState certificate.piCcs).finalState
+        (PiRlcChallenge.Sampler.Refinement.Terminal.Certificate.postNcState
+          context certificate)
         assignment canonical) :
     ConcretePhi81.Sampler.CertificateAccepted context
         (PiRlcChallenge.Sampler.Refinement.Terminal.Certificate.withDecodedChallenges

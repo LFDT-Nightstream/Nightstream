@@ -113,6 +113,9 @@ import Nightstream.Implementation.R1CS.Correspondence.Projection.PiRLCProjection
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsMatrix
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc
+import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Encoding
+import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.ActiveSemantics
+import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.ActiveProfile
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Semantics
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Projection.FixedProfile
 import Nightstream.Implementation.R1CS.Correspondence.PiCcsOutputDigest.Projection.Necessity

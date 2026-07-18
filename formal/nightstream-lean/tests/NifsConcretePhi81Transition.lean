@@ -30,8 +30,11 @@ namespace Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check resultOf
 #check ResultTransition
 #check ResultTransition.children_transition
+#check ResultTransition.canonicalChildren
 #check ResultTransition.parentOpening
 #check ResultTransition.childOpening
+#check ResultTransition.inputRunningOpenings
+#check ResultTransition.inputRunningPiDec
 #check ResultTransition.runningStructure_eq_fresh
 #check ResultTransition.childStructure_eq_fresh
 #check ResultTransition.parent_eq_of_children_eq
@@ -74,6 +77,8 @@ end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check SemanticFold.Holds
 #check SemanticFold.complete
 #check SemanticFold.Holds.outputsHold
+#check SemanticFold.Realization.canonicalChildren
+#check SemanticFold.Holds.canonicalChildren
 #check SemanticFold.Holds.parentOpening
 #check SemanticFold.Holds.childOpening
 #check SemanticFold.Holds.piDecAccepted
@@ -167,6 +172,8 @@ end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 #check CertificateRefinement.toSemanticRealization
 #check CertificateRefinement.toSemanticFold
 #check Result.resultOf_refines
+#check Result.ResultTransition.inputRunningOpenings
+#check Result.ResultTransition.runningAuthority
 #check Result.resultTransition_iff_exists_obligationPlan
 #check HonestSamplerShortfall
 #check complete_of_paperObligations

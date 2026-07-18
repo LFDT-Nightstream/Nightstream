@@ -14,3 +14,9 @@ import tests.Axioms.Support
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.PiDEC.Necessity.ProductionChildSubstitution.no_parentOnlyHandle_binds
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiDEC.Necessity.ProductionChildSubstitution.Fixture.rightAccepted_but_notCanonical' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.SuperNeo.Folding.PiDEC.Necessity.ProductionChildSubstitution.Fixture.rightAccepted_but_notCanonical

@@ -8,7 +8,8 @@ F-prime consequence of the production Phi81 child-substitution witness.
 Assurance tier: model-level.
 
 Owns: two distinct complete active running slots with the same checked
-PiRLC parent; strict incoming PiDEC acceptance for both slots; inequality of
+PiRLC parent; one canonical child family for the fixed valid parent opening;
+strict incoming PiDEC acceptance of a noncanonical substitute; inequality of
 their paper-visible child products; and equality of every parent-only
 Construction-2 accumulator handle and resulting `x_out` message.
 
@@ -18,15 +19,17 @@ lifecycle exploit, probability, costs, or row removal.
 Emits constraints: no.
 
 Authority boundary: the two `x_out` messages below are definitionally equal.
-This is not a hash collision. The omitted running-child vectors are distinct,
-but both are valid strict-PiDEC decompositions of the exact same parent.
+This is not a hash collision. The omitted running-child vectors are distinct.
+Both pass strict public PiDEC recomposition, but only the left vector is the
+verifier-owned split of the fixed valid parent opening.
 
-| Stage path | Mathematical obligation | Authority class | Rust owner | Lean owner | Status |
-|---|---|---|---|---|---|
-| `fprime.recursive.running.children` | retain the exact fourteen-child accumulator | public authority | `AccumulatorHandle::from_running_parts` caller | `paperRunning_ne` | omitted by parent-only handle |
-| `fprime.recursive.running.parent_dec` | both substituted child vectors pass strict incoming PiDEC | checked | `nifs::circuit` | `leftIncomingAccepted`, `rightIncomingAccepted` | retained but insufficient |
-| `fprime.recursive.running.handle` | a function of only the common parent cannot bind the child vector | impossibility | `accumulator_digest_from_running_parts` | `no_parentOnlyAccumulator_binds` | unsafe boundary |
-| `fprime.x_out.preimage.construction2_accumulator` | parent-only handles produce identical state-output messages | computed | `state_x_out_digest_with_mode` | `stateOutputMessages_eq` | exact alias |
+| Stage path | Mathematical obligation | Authority class | Rust owner | Lean owner |
+|---|---|---|---|---|
+| `fprime.recursive.running.children` | retain the exact fourteen-child accumulator | public authority omitted by parent-only handle | `AccumulatorHandle::from_running_parts` caller | `paperRunning_ne` |
+| `fprime.recursive.running.parent_dec` | both substituted child vectors pass strict incoming PiDEC | checked consistency, insufficient for binding | `nifs::circuit` | `leftIncomingAccepted`, `rightIncomingAccepted` |
+| `fprime.recursive.running.canonical_children` | bind the running vector to the deterministic split of the valid parent opening | missing semantic/security boundary | absent from parent-only handle | `leftIncomingCanonical`, `rightIncomingAccepted_but_notCanonical` |
+| `fprime.recursive.running.handle` | a function of only the common parent cannot bind the child vector | impossibility | `accumulator_digest_from_running_parts` | `no_parentOnlyAccumulator_binds` |
+| `fprime.x_out.preimage.construction2_accumulator` | parent-only handles produce identical state-output messages | exact computed alias | `state_x_out_digest_with_mode` | `stateOutputMessages_eq` |
 -/
 
 namespace Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.PriorLink.ParentOnlyAuthority
@@ -83,21 +86,40 @@ theorem slots_ne : leftSlot ≠ rightSlot := by
   apply Fixture.children_ne
   exact congrArg (fun slot : Slot => slot.children) equal
 
-/-- Strict incoming PiDEC accepts the left running slot. -/
+/-- The left running slot is the exact canonical split of the fixed valid
+parent opening. -/
+theorem leftIncomingCanonical :
+    PiDEC.CanonicalChildren.ForOpening Fixture.algebra leftSlot.parent
+      Fixture.parentOpening leftSlot.children := by
+  simpa [leftSlot] using Fixture.leftCanonical
+
+/-- Strict incoming PiDEC accepts the canonical left running slot. -/
 theorem leftIncomingAccepted :
     PiDEC.Accepted Fixture.algebra {
       parent := leftSlot.parent
       children := leftSlot.children
     } := by
-  simpa [leftSlot] using Fixture.leftAccepted
+  exact leftIncomingCanonical.complete.1
 
-/-- Strict incoming PiDEC also accepts the substituted right running slot. -/
+/-- Strict incoming PiDEC accepts the substituted right running slot even
+though it is not the canonical split of the same valid parent opening. -/
+theorem rightIncomingAccepted_but_notCanonical :
+    PiDEC.Accepted Fixture.algebra {
+      parent := rightSlot.parent
+      children := rightSlot.children
+    } /\
+      ¬ PiDEC.CanonicalChildren.ForOpening Fixture.algebra rightSlot.parent
+        Fixture.parentOpening rightSlot.children := by
+  simpa [rightSlot] using Fixture.rightAccepted_but_notCanonical
+
+/-- Public incoming PiDEC acceptance is retained as a named projection for
+the parent-only binding counterexample below. -/
 theorem rightIncomingAccepted :
     PiDEC.Accepted Fixture.algebra {
       parent := rightSlot.parent
       children := rightSlot.children
-    } := by
-  simpa [rightSlot] using Fixture.rightAccepted
+    } :=
+  rightIncomingAccepted_but_notCanonical.1
 
 /-- A one-slot outer running product is enough to expose the F-prime state
 alias. -/

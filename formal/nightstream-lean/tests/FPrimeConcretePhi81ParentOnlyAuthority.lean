@@ -4,6 +4,9 @@ namespace Tests.FPrimeConcretePhi81ParentOnlyAuthority
 
 open Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.PriorLink.ParentOnlyAuthority
 
+#check Substitution.leftIncomingCanonical
+#check Substitution.rightIncomingAccepted_but_notCanonical
+
 example : Substitution.leftSlot ≠ Substitution.rightSlot :=
   Substitution.slots_ne
 

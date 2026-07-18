@@ -125,9 +125,11 @@ theorem runningAccepted (data : Sources.Data Sources.shape) :
     Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestBaseline.RunningAuthority.accepted_of_combinedOpening
       (context data) Context.zeroAssignment (parent data)
   · rfl
-  · rfl
-  · exact parentHolds data
-  · rfl
+  · exact {
+      parentCombined := rfl
+      parentValid := parentHolds data
+      childrenEq := rfl
+    }
 
 /-- Bind the complete public product to the same source data. Running truth is
 used only to identify prior claim arrays with canonical zero-opening

@@ -19,6 +19,7 @@ import tests.Axioms.Implementation.FPrimeFullHistorySelectiveFixedPointShape
 import tests.Axioms.Implementation.FPrimeFullHistoryPiRlcClaimEvaluationCarrier
 import tests.Axioms.Implementation.FPrimeFullHistoryPiRlcClaimShapeAlignment
 import tests.Axioms.Implementation.PiCcsOutputDigestPoseidon
+import tests.Axioms.Implementation.PiCcsOutputActiveSemantics
 import tests.Axioms.Implementation.PiCcsOutputSemanticHandoff
 import tests.Axioms.Implementation.PiCcsOutputProjection
 import tests.Axioms.Implementation.PiDecStrict

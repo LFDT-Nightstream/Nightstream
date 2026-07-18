@@ -1,4 +1,7 @@
 import tests.Axioms.Paper
+import tests.Axioms.FPrimePaperPriorLink
+import tests.Axioms.FPrimeAccumulatorBinding
+import tests.Axioms.FPrimeConcretePhi81AccumulatorBinding
 import tests.Axioms.FirstAccepted
 import tests.Axioms.PiCCSPaperJoint
 import tests.Axioms.PiCCSPaperJointConcreteCarrierNoZeroDivisors
@@ -54,6 +57,17 @@ import tests.Axioms.PiCcsSplitNcVerifierProtocolOutputRefinement
 import tests.Axioms.NifsConcretePhi81Sampler
 import tests.Axioms.NifsConcretePhi81PiCcsDomains
 import tests.Axioms.NifsConcretePhi81Transition
+import tests.Axioms.NifsConcretePhi81ChildPayloadAuthority
+import tests.Axioms.NifsConcretePhi81ChildCommitmentAuthority
+import tests.Axioms.NifsConcretePhi81CanonicalParentAuthority
+import tests.Axioms.NifsConcretePhi81CanonicalOpening
+import tests.Axioms.FPrimeAccumulatorCarrierCodec
+import tests.Axioms.FPrimeAccumulatorOrderedCommitmentMessage
+import tests.Axioms.FPrimeAccumulatorOrderedCommitmentPriorLink
+import tests.Axioms.FPrimeAccumulatorOrderedCommitmentSourceLayout
+import tests.Axioms.FPrimeAccumulatorOrderedCommitmentTypedDecoder
+import tests.Axioms.FPrimeAccumulatorPoseidon2Cost
+import tests.Axioms.SevenBytePacking
 import tests.Axioms.NifsConcretePhi81Bootstrap
 import tests.Axioms.NifsConcretePhi81SemanticBoundary
 import tests.Axioms.PiRlcTerminalBatch
@@ -62,7 +76,10 @@ import tests.Axioms.PiRlcTerminalSemanticHandoff
 import tests.Axioms.Phi81EvaluationHomomorphism
 import tests.Axioms.Phi81PiDECAlgebra
 import tests.Axioms.Phi81PiDECRecomposition
+import tests.Axioms.Phi81CanonicalParentSourceValidated
 import tests.Axioms.PiDecCanonicalParent
+import tests.Axioms.PiDecCanonicalChildren
+import tests.Axioms.PiDecCanonicalParentOpeningVerifier
 import tests.Axioms.PiDecProductionChildSubstitution
 import tests.Axioms.Phi81PiRLCAlgebra
 import tests.Axioms.Phi81PiRLCNormGrowth
@@ -79,6 +96,7 @@ import tests.Axioms.FPrimeConcretePhi81BaseFixedOneMinimality
 import tests.Axioms.FPrimeConcretePhi81FixedOneCanonical
 import tests.Axioms.FPrimeConcretePhi81FixedOneExecutable
 import tests.Axioms.FPrimeConcretePhi81HonestCompleteness
+import tests.Axioms.FPrimeConcretePhi81PriorLink
 import tests.Axioms.FPrimeConcretePhi81ParentOnlyAuthority
 import tests.Axioms.SumCheckFinite
 import tests.Axioms.SumCheckFixedPolynomial

@@ -6,6 +6,7 @@ import Nightstream.Protocol.FPrime.ConcretePhi81.SelectedNifsSemantics
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Construction2
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestNifs
+import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.PriorLink
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.SemanticBoundary
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical
@@ -35,6 +36,7 @@ Emits constraints: no.
 | `ActiveSemantics` | six retained active obligations and canonical computed output | independent relation |
 | `ActiveSemantics.Construction2` | explicit and canonical selected-NIFS refinement | model-level forward paper soundness; no implementation alias |
 | `ActiveSemantics.HonestNifs` | shared honest paper/source premises and semantic result construction | honest completeness |
+| `ActiveSemantics.PriorLink` | compact shared-context-plus-child-payload cross-step authority and paper compression boundary | model-level exactness or named encoding/hash failure |
 | `ActiveEvaluator` | fail-closed executable checker | exact physical acceptance only |
 | `ActiveEvaluator.SemanticBoundary` | close execution to semantics and construct honest accepted outputs | conditional soundness plus honest completeness |
 | `ActiveEvaluator.FixedOneCanonical` | payload-only carrier, exact physical checks, fail-closed output, and explicit semantic closure | exact physical execution; conditional semantic soundness |

@@ -1,16 +1,16 @@
-import Nightstream.Protocol.FPrime.ConcretePhi81.Context
+import Nightstream.Protocol.FPrime.ConcretePhi81.Outer
 import Nightstream.Protocol.FPrime.Paper.Output
 
 /-!
 Independent fixed-active outer F-prime semantics over the concrete Phi81 NIFS.
 
-Owns: the full per-slot parent-and-children carrier, deterministic construction
-of the selected NIFS context, the irreducible active-branch obligations, and
-the canonical output computed from one semantic NIFS result.
+Owns: deterministic construction of the selected NIFS context, the
+irreducible active-branch obligations, and the canonical output computed from
+one semantic NIFS result.
 
-Does not own: executable certificate checking, the concrete-to-paper NIFS
-bridge, base steps, compact `XOut` hashing, Rust, R1CS, costs, necessity, or row
-removal.
+Does not own: the branch-neutral carrier in `ConcretePhi81.Outer`, executable
+certificate checking, the concrete-to-paper NIFS bridge, base steps, compact
+`XOut` hashing, Rust, R1CS, costs, necessity, or row removal.
 
 Emits constraints: no.
 
@@ -46,225 +46,10 @@ open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier
 
 universe uOuterKey uAppState uWitness uDigest uTranscriptState
 
-/-- Concrete relation structure shared by the outer and selected NIFS views. -/
-abbrev RelationStructure
-    (shape : SemanticShape)
-    (publicRingColumns : Nat)
-    (publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth) :=
-  Phi81Relation.Structure
-    (RelationShape shape publicRingColumns publicFits)
-
-/-- Concrete relation public input shared by CCS and CE statements. -/
-abbrev RelationPublicInput
-    (shape : SemanticShape)
-    (publicRingColumns : Nat)
-    (publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth) :=
-  Phi81Relation.PublicInput
-    (RelationShape shape publicRingColumns publicFits)
-
-/-- Concrete relation evaluation point carried by each CE statement. -/
-abbrev RelationPoint
-    (shape : SemanticShape)
-    (publicRingColumns : Nat)
-    (publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth) :=
-  Phi81Relation.Point
-    (RelationShape shape publicRingColumns publicFits)
-
-/-- One complete selected-slot accumulator: derived parent plus all children. -/
-abbrev Slot
-    (shape : SemanticShape)
-    (publicRingColumns : Nat)
-    (publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth)
-    (verifierRows : Nat) :=
-  FixedActive.FoldResult
-    shape publicRingColumns publicFits verifierRows
-
-/-- The outer product of independently selectable fixed-active accumulators. -/
-abbrev Running
-    (shape : SemanticShape)
-    (publicRingColumns : Nat)
-    (publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth)
-    (verifierRows slotCount : Nat) :=
-  Fin slotCount ->
-    Slot shape publicRingColumns publicFits verifierRows
-
-namespace Running
-
-/-- Project away derived parent caches to the exact paper running product. -/
-def toPaper
-    {shape : SemanticShape}
-    {publicRingColumns verifierRows slotCount : Nat}
-    {publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth}
-    (running :
-      Running shape publicRingColumns publicFits verifierRows slotCount) :
-    Paper.RunningProduct
-      (RelationStructure shape publicRingColumns publicFits)
-      (RelationPublicInput shape publicRingColumns publicFits)
-      (RelationPoint shape publicRingColumns publicFits)
-      Phi81Relation.Evaluation (CommitmentValue verifierRows)
-      productionGlobalParams slotCount :=
-  fun slot child => (running slot).children child
-
-@[simp] theorem toPaper_apply
-    {shape : SemanticShape}
-    {publicRingColumns verifierRows slotCount : Nat}
-    {publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth}
-    (running :
-      Running shape publicRingColumns publicFits verifierRows slotCount)
-    (slot : Fin slotCount)
-    (child : Fin productionGlobalParams.k) :
-    running.toPaper slot child = (running slot).children child := rfl
-
-end Running
-
-/-- Verifier/advice input to one fixed-active augmented-function invocation. -/
-structure Input
-    (OuterKey : Type uOuterKey)
-    (AppState : Type uAppState)
-    (Witness : Type uWitness)
-    (shape : SemanticShape)
-    (publicRingColumns : Nat)
-    (publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth)
-    (verifierRows slotCount : Nat) where
-  verifierKey : OuterKey
-  iteration : Nat
-  z0 : AppState
-  zi : AppState
-  running :
-    Running shape publicRingColumns publicFits verifierRows slotCount
-  fresh :
-    Phi81Relation.CCSStatement
-      (RelationShape shape publicRingColumns publicFits)
-      (CommitmentValue verifierRows)
-  priorPc : Nat
-  witness : Witness
-
-namespace Input
-
-/-- Exact projection to the independent paper carrier. -/
-def toPaper
-    {OuterKey : Type uOuterKey}
-    {AppState : Type uAppState}
-    {Witness : Type uWitness}
-    {shape : SemanticShape}
-    {publicRingColumns verifierRows slotCount : Nat}
-    {publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth}
-    (input :
-      Input OuterKey AppState Witness shape publicRingColumns publicFits
-        verifierRows slotCount) :
-    Paper.Input OuterKey AppState Witness
-      (RelationStructure shape publicRingColumns publicFits)
-      (RelationPublicInput shape publicRingColumns publicFits)
-      (RelationPoint shape publicRingColumns publicFits)
-      Phi81Relation.Evaluation (CommitmentValue verifierRows)
-      productionGlobalParams slotCount where
-  verifierKey := input.verifierKey
-  iteration := input.iteration
-  z0 := input.z0
-  zi := input.zi
-  running := input.running.toPaper
-  fresh := input.fresh
-  priorPc := input.priorPc
-  witness := input.witness
-
-@[simp] theorem toPaper_running
-    {OuterKey : Type uOuterKey}
-    {AppState : Type uAppState}
-    {Witness : Type uWitness}
-    {shape : SemanticShape}
-    {publicRingColumns verifierRows slotCount : Nat}
-    {publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth}
-    (input :
-      Input OuterKey AppState Witness shape publicRingColumns publicFits
-        verifierRows slotCount) :
-    input.toPaper.running = input.running.toPaper := rfl
-
-@[simp] theorem toPaper_fresh
-    {OuterKey : Type uOuterKey}
-    {AppState : Type uAppState}
-    {Witness : Type uWitness}
-    {shape : SemanticShape}
-    {publicRingColumns verifierRows slotCount : Nat}
-    {publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth}
-    (input :
-      Input OuterKey AppState Witness shape publicRingColumns publicFits
-        verifierRows slotCount) :
-    input.toPaper.fresh = input.fresh := rfl
-
-end Input
-
-/-- Rich output computed by the fixed-active verifier. -/
-structure Output
-    (Digest : Type uDigest)
-    (AppState : Type uAppState)
-    (shape : SemanticShape)
-    (publicRingColumns : Nat)
-    (publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth)
-    (verifierRows slotCount : Nat) where
-  zNext : AppState
-  runningNext :
-    Running shape publicRingColumns publicFits verifierRows slotCount
-  pcNext : Paper.ProgramCounter slotCount
-  x : Digest
-
-namespace Output
-
-/-- Project away parent caches to the exact paper output carrier. -/
-def toPaper
-    {Digest : Type uDigest}
-    {AppState : Type uAppState}
-    {shape : SemanticShape}
-    {publicRingColumns verifierRows slotCount : Nat}
-    {publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth}
-    (output :
-      Output Digest AppState shape publicRingColumns publicFits verifierRows
-        slotCount) :
-    Paper.Output Digest AppState
-      (RelationStructure shape publicRingColumns publicFits)
-      (RelationPublicInput shape publicRingColumns publicFits)
-      (RelationPoint shape publicRingColumns publicFits)
-      Phi81Relation.Evaluation (CommitmentValue verifierRows)
-      productionGlobalParams slotCount where
-  zNext := output.zNext
-  runningNext := output.runningNext.toPaper
-  pcNext := output.pcNext
-  x := output.x
-
-end Output
-
-/-- The paper machine specialized to the concrete Phi81 statement carrier.
-
-Its base-only `defaultRunning` field is deliberately unused by this active
-component. -/
-abbrev Machine
-    (OuterKey : Type uOuterKey)
-    (Digest : Type uDigest)
-    (AppState : Type uAppState)
-    (Witness : Type uWitness)
-    (shape : SemanticShape)
-    (publicRingColumns : Nat)
-    (publicFits :
-      ringDegree * publicRingColumns <= shape.carrierWidth)
-    (verifierRows slotCount : Nat) :=
-  Paper.Machine OuterKey Digest AppState Witness
-    (RelationStructure shape publicRingColumns publicFits)
-    (RelationPublicInput shape publicRingColumns publicFits)
-    (RelationPoint shape publicRingColumns publicFits)
-    Phi81Relation.Evaluation (CommitmentValue verifierRows)
-    productionGlobalParams slotCount
+open Nightstream.Protocol.FPrime.ConcretePhi81.Outer
+export Nightstream.Protocol.FPrime.ConcretePhi81.Outer
+  (RelationStructure RelationPublicInput RelationPoint Slot Running Input
+    Output Machine)
 
 /-- Verifier-owned construction of every selected concrete NIFS invocation. -/
 structure Setup

@@ -16,11 +16,11 @@ open Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics
 
 #check Slot
 #check Running
-#check Running.toPaper
+#check Nightstream.Protocol.FPrime.ConcretePhi81.Outer.Running.toPaper
 #check Input
-#check Input.toPaper
+#check Nightstream.Protocol.FPrime.ConcretePhi81.Outer.Input.toPaper
 #check Output
-#check Output.toPaper
+#check Nightstream.Protocol.FPrime.ConcretePhi81.Outer.Output.toPaper
 #check Machine
 #check Setup
 #check invocationAt

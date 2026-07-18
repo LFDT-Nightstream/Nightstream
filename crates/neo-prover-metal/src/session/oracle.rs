@@ -67,6 +67,7 @@ pub(crate) struct MetalFeOraclePlan {
 pub(crate) struct MetalDeferredMcsRowTables {
     words: Buffer,
     mcs_idx: usize,
+    live_len: usize,
     n_pad: usize,
     table_count: usize,
     seeded_build: Duration,
@@ -109,8 +110,9 @@ impl MetalFeOraclePlan {
 }
 
 impl MetalDeferredMcsRowTables {
-    pub(crate) fn matches(&self, mcs_idx: usize, n_pad: usize, table_count: usize) -> bool {
+    pub(crate) fn matches(&self, mcs_idx: usize, live_len: usize, n_pad: usize, table_count: usize) -> bool {
         self.mcs_idx == mcs_idx
+            && self.live_len == live_len
             && self.n_pad == n_pad
             && self.table_count == table_count
             && self.words.length() as usize == table_count * n_pad * size_of::<u64>()
@@ -427,6 +429,7 @@ impl MetalSession {
         z_blocks: &SuperneoZBlocks,
         witness_masks: Option<&MetalWitnessMasks>,
         n_eff: usize,
+        live_len: usize,
         n_pad: usize,
     ) -> Result<MetalDeferredMcsRowTables, MetalError> {
         if !plan.matches(cache) {
@@ -447,7 +450,7 @@ impl MetalSession {
         if n_eff == 0 || n_eff > plan.rows {
             return Err(MetalError::Shape("Pi_CCS MCS row-table active row count is invalid"));
         }
-        if n_pad < n_eff || !n_pad.is_power_of_two() {
+        if n_pad < n_eff || !n_pad.is_power_of_two() || (live_len != n_eff && live_len != n_pad) {
             return Err(MetalError::Shape("Pi_CCS MCS row-table padded row count is invalid"));
         }
         let resident_masks = witness_masks.filter(|masks| masks.contains(mcs_idx, plan.blocks));
@@ -486,6 +489,7 @@ impl MetalSession {
             matrix_indices.len() as u64,
             z_kind,
             z_index,
+            live_len as u64,
         ])?;
         let selected = self.buffer_from_slice(&matrix_words)?;
         let output_words = matrix_indices
@@ -507,7 +511,7 @@ impl MetalSession {
             encoder.setBuffer_offset_atIndex(Some(&shape), 0, 7);
             encoder.setBuffer_offset_atIndex(Some(&output), 0, 8);
         }
-        self.dispatch(&encoder, &self.fe_build_mcs_row_tables, output_words);
+        self.dispatch(&encoder, &self.fe_build_mcs_row_tables, matrix_indices.len() * live_len);
         encoder.endEncoding();
         self.submit(&command);
 
@@ -547,6 +551,7 @@ impl MetalSession {
         Ok(MetalDeferredMcsRowTables {
             words: output,
             mcs_idx,
+            live_len,
             n_pad,
             table_count: matrix_indices.len(),
             seeded_build,
@@ -579,11 +584,19 @@ impl MetalSession {
             return Err(MetalError::Shape("Pi_CCS carried Eval dimensions are invalid"));
         }
         {
+            let expected_mask_bytes = carried_coeffs
+                .len()
+                .checked_mul(plan.blocks)
+                .and_then(|words| words.checked_mul(2 * size_of::<u64>()))
+                .ok_or(MetalError::Shape("Pi_CCS carried mask dimensions overflow"))?;
             let resident = self.resident_running.borrow();
             let Some((stored_id, children)) = resident.as_ref() else {
                 return Err(MetalError::Shape("Pi_CCS resident witnesses are unavailable"));
             };
-            if *stored_id != resident_id || children.child_count != carried_coeffs.len() || children.cols != plan.blocks
+            if *stored_id != resident_id
+                || children.child_count != carried_coeffs.len()
+                || children.cols != plan.blocks
+                || children.masks.length() as usize != expected_mask_bytes
             {
                 return Err(MetalError::Shape(
                     "Pi_CCS resident witnesses do not match the oracle plan",
@@ -644,15 +657,15 @@ impl MetalSession {
                 .expect("resident Pi_CCS witnesses validated before command encoding");
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.carried_eval.combine")));
-            encoder.setComputePipelineState(&self.fe_carried_plane_lin_comb);
+            encoder.setComputePipelineState(&self.fe_carried_mask_lin_comb);
             unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&children.words), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&children.masks), 0, 0);
                 encoder.setBuffer_offset_atIndex(Some(&coeffs), 0, 1);
                 encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
                 encoder.setBuffer_offset_atIndex(Some(&z_re), 0, 3);
                 encoder.setBuffer_offset_atIndex(Some(&z_im), 0, 4);
             }
-            self.dispatch(&encoder, &self.fe_carried_plane_lin_comb, plane_len);
+            self.dispatch(&encoder, &self.fe_carried_mask_lin_comb, plane_len);
             encoder.endEncoding();
         }
 

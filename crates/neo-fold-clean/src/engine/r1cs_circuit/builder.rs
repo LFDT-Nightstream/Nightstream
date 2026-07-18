@@ -700,6 +700,17 @@ impl R1csBuilder {
         self.encoding_trace_enabled
     }
 
+    pub(crate) fn records_structure(&self) -> bool {
+        self.record_structure
+    }
+
+    pub(crate) fn alloc_witness_only_row(&mut self, value: F) -> Var {
+        assert!(!self.record_structure && !self.encoding_trace_enabled);
+        let var = self.alloc(value);
+        self.rows += 1;
+        var
+    }
+
     pub(crate) fn record_sbox7_encoding(&mut self, entry: Sbox7TraceEntry) {
         if self.encoding_trace_enabled {
             self.encoding_trace.push_sbox7(entry);

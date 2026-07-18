@@ -47,7 +47,7 @@ struct PendingRlcMix {
     // that encoded the command has already returned.
     command: Retained<ProtocolObject<dyn MTLCommandBuffer>>,
     _inputs: [Buffer; 3],
-    recycled_children: Option<MetalResidentChildren>,
+    _retained_children: Option<MetalResidentChildren>,
 }
 
 impl MetalResidentWitness {
@@ -55,23 +55,18 @@ impl MetalResidentWitness {
         self.cols
     }
 
-    /// Waits at the first true consumer of a deferred Pi_RLC mix and returns any
-    /// child allocation whose lifetime was transferred into that command.
-    pub(super) fn finish_pending_mix(
-        &mut self,
-        session: &MetalSession,
-    ) -> Result<Option<MetalResidentChildren>, MetalError> {
+    /// Waits at the first true consumer of a deferred Pi_RLC mix. Any prior
+    /// child generation remains alive until the command has finished reading it.
+    pub(super) fn finish_pending_mix(&mut self, session: &MetalSession) -> Result<(), MetalError> {
         if let Some(pending) = self.pending_mix.take() {
             session.wait(&pending.command)?;
-            return Ok(pending.recycled_children);
         }
-        Ok(None)
+        Ok(())
     }
 }
 
-/// Pi_DEC child witnesses in both dense and signed-mask device layouts.
+/// Immutable signed-mask Pi_DEC children retained for the next fold.
 pub(crate) struct MetalResidentChildren {
-    pub(super) words: Buffer,
     pub(super) masks: Buffer,
     pub(super) child_count: usize,
     pub(super) cols: usize,
@@ -383,13 +378,13 @@ impl MetalSession {
             pending_mix: Some(PendingRlcMix {
                 command,
                 _inputs: [rhos, masks, shape],
-                recycled_children: None,
+                _retained_children: None,
             }),
         }))
     }
 
-    /// Mixes fresh signed masks with a retained dense tail and moves ownership
-    /// of the old generation into the pending command's lifetime.
+    /// Mixes the complete composed mask batch and moves ownership of the old
+    /// generation into the pending command's lifetime.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn enqueue_rlc_witness_mix_from_signed_masks_with_resident_id(
         &self,
@@ -403,6 +398,14 @@ impl MetalSession {
         let expected_rhos = input_count
             .checked_mul(RING_DEGREE * RING_DEGREE)
             .ok_or(MetalError::Shape("RLC rho dimensions overflow"))?;
+        let tail_count = input_count
+            .checked_sub(fresh_count)
+            .filter(|&count| fresh_count > 0 && count > 0)
+            .ok_or(MetalError::Shape("RLC resident signed-mask tail is empty"))?;
+        let expected_tail_bytes = tail_count
+            .checked_mul(cols)
+            .and_then(|words| words.checked_mul(2 * size_of::<u64>()))
+            .ok_or(MetalError::Shape("RLC resident signed-mask dimensions overflow"))?;
         let Some(masks) = plan.signed_mask_buffer(input_count, cols) else {
             return Ok(None);
         };
@@ -418,8 +421,9 @@ impl MetalSession {
                 || fresh_count >= input_count
                 || cols == 0
                 || rhos.len() != expected_rhos
-                || resident_tail.child_count != input_count - fresh_count
+                || resident_tail.child_count != tail_count
                 || resident_tail.cols != cols
+                || resident_tail.masks.length() as usize != expected_tail_bytes
             {
                 return Err(MetalError::Shape(
                     "RLC resident signed-mask inputs have inconsistent dimensions",
@@ -428,33 +432,21 @@ impl MetalSession {
         }
 
         let rhos = self.buffer_from_slice(rhos)?;
-        let shape = self.buffer_from_slice(&[input_count as u64, fresh_count as u64, cols as u64])?;
+        let shape = self.buffer_from_slice(&[input_count as u64, cols as u64])?;
         let words = self.buffer(RING_DEGREE * cols * size_of::<u64>())?;
         let command = self.command_buffer("nightstream.pi_rlc.mix_signed_masks_resident")?;
-        {
-            let resident = self.resident_running.borrow();
-            let (_, resident_tail) = resident
-                .as_ref()
-                .expect("resident tail validated before command encoding");
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.rlc_witness_mix_signed_masks_resident_tail);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&rhos), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&masks), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&resident_tail.words), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(&shape), 0, 3);
-                encoder.setBuffer_offset_atIndex(Some(&words), 0, 4);
-            }
-            self.dispatch(
-                &encoder,
-                &self.rlc_witness_mix_signed_masks_resident_tail,
-                RING_DEGREE * cols,
-            );
-            encoder.endEncoding();
+        let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+        encoder.setComputePipelineState(&self.rlc_witness_mix_signed_masks);
+        unsafe {
+            encoder.setBuffer_offset_atIndex(Some(&rhos), 0, 0);
+            encoder.setBuffer_offset_atIndex(Some(&masks), 0, 1);
+            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
+            encoder.setBuffer_offset_atIndex(Some(&words), 0, 3);
         }
+        self.dispatch(&encoder, &self.rlc_witness_mix_signed_masks, RING_DEGREE * cols);
+        encoder.endEncoding();
         // Transfer the old generation into the pending command's lifetime.
-        // Once Pi_RLC completes, Pi_DEC can recycle its dense child storage.
-        let (_, recycled_children) = self
+        let (_, retained_children) = self
             .resident_running
             .borrow_mut()
             .take()
@@ -466,7 +458,7 @@ impl MetalSession {
             pending_mix: Some(PendingRlcMix {
                 command,
                 _inputs: [rhos, masks, shape],
-                recycled_children: Some(recycled_children),
+                _retained_children: Some(retained_children),
             }),
         }))
     }
@@ -511,7 +503,7 @@ impl MetalSession {
             pending_mix: Some(PendingRlcMix {
                 command,
                 _inputs: [rhos, witnesses, shape],
-                recycled_children: None,
+                _retained_children: None,
             }),
         })
     }
@@ -532,6 +524,14 @@ impl MetalSession {
             .checked_mul(RING_DEGREE)
             .and_then(|values| values.checked_mul(cols))
             .ok_or(MetalError::Shape("RLC fresh-witness dimensions overflow"))?;
+        let tail_count = input_count
+            .checked_sub(fresh_count)
+            .filter(|&count| fresh_count > 0 && count > 0)
+            .ok_or(MetalError::Shape("RLC resident mask tail is empty"))?;
+        let expected_tail_bytes = tail_count
+            .checked_mul(cols)
+            .and_then(|words| words.checked_mul(2 * size_of::<u64>()))
+            .ok_or(MetalError::Shape("RLC resident mask dimensions overflow"))?;
         {
             let resident = self.resident_running.borrow();
             let Some((stored_id, resident_tail)) = resident.as_ref() else {
@@ -545,8 +545,9 @@ impl MetalSession {
                 || cols == 0
                 || rhos.len() != expected_rhos
                 || fresh_witnesses.len() != expected_fresh
-                || resident_tail.child_count != input_count - fresh_count
+                || resident_tail.child_count != tail_count
                 || resident_tail.cols != cols
+                || resident_tail.masks.length() as usize != expected_tail_bytes
             {
                 return Err(MetalError::Shape(
                     "RLC resident-tail inputs have inconsistent dimensions",
@@ -565,20 +566,24 @@ impl MetalSession {
                 .as_ref()
                 .expect("resident tail validated before command encoding");
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.rlc_witness_mix_resident_tail);
+            encoder.setComputePipelineState(&self.rlc_witness_mix_dense_fresh_resident_masks);
             unsafe {
                 encoder.setBuffer_offset_atIndex(Some(&rhos), 0, 0);
                 encoder.setBuffer_offset_atIndex(Some(&fresh_witnesses), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&resident_tail.words), 0, 2);
+                encoder.setBuffer_offset_atIndex(Some(&resident_tail.masks), 0, 2);
                 encoder.setBuffer_offset_atIndex(Some(&shape), 0, 3);
                 encoder.setBuffer_offset_atIndex(Some(&words), 0, 4);
             }
-            self.dispatch(&encoder, &self.rlc_witness_mix_resident_tail, RING_DEGREE * cols);
+            self.dispatch(
+                &encoder,
+                &self.rlc_witness_mix_dense_fresh_resident_masks,
+                RING_DEGREE * cols,
+            );
             encoder.endEncoding();
         }
         // The running generation cannot remain addressable after its buffer is
         // consumed by this mix, so ownership moves into the pending command.
-        let (_, recycled_children) = self
+        let (_, retained_children) = self
             .resident_running
             .borrow_mut()
             .take()
@@ -590,7 +595,7 @@ impl MetalSession {
             pending_mix: Some(PendingRlcMix {
                 command,
                 _inputs: [rhos, fresh_witnesses, shape],
-                recycled_children: Some(recycled_children),
+                _retained_children: Some(retained_children),
             }),
         })
     }

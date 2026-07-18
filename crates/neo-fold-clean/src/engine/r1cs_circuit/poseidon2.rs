@@ -304,12 +304,110 @@ fn enforce_internal_round(
     materialize_state(builder, state);
 }
 
+fn apply_mat4_witness_only(state: &mut [F; 4]) {
+    let [x0, x1, x2, x3] = *state;
+    let t01 = x0 + x1;
+    let t23 = x2 + x3;
+    let t0123 = t01 + t23;
+    let t01123 = t0123 + x1;
+    let t01233 = t0123 + x3;
+
+    state[3] = t01233 + F::from_u64(2) * x0;
+    state[1] = t01123 + F::from_u64(2) * x2;
+    state[0] = t01123 + t01;
+    state[2] = t01233 + t23;
+}
+
+fn external_linear_layer_witness_only(state: &mut [F; WIDTH]) {
+    let mut lo = [state[0], state[1], state[2], state[3]];
+    let mut hi = [state[4], state[5], state[6], state[7]];
+    apply_mat4_witness_only(&mut lo);
+    apply_mat4_witness_only(&mut hi);
+    let sums = [lo[0] + hi[0], lo[1] + hi[1], lo[2] + hi[2], lo[3] + hi[3]];
+    for (i, slot) in state.iter_mut().enumerate() {
+        let block = if i < 4 { lo[i] } else { hi[i - 4] };
+        *slot = block + sums[i % 4];
+    }
+}
+
+fn internal_linear_layer_witness_only(state: &mut [F; WIDTH]) {
+    let diag = internal_diag();
+    let sum = state
+        .iter()
+        .copied()
+        .fold(F::ZERO, |acc, value| acc + value);
+    for (i, slot) in state.iter_mut().enumerate() {
+        *slot = sum + diag[i] * *slot;
+    }
+}
+
+fn materialize_state_witness_only(builder: &mut R1csBuilder, state: &[F; WIDTH]) {
+    for &value in state {
+        builder.alloc_witness_only_row(value);
+    }
+}
+
+fn enforce_sbox_x7_witness_only(builder: &mut R1csBuilder, x: F) -> F {
+    let x2 = x * x;
+    builder.alloc_witness_only_row(x2);
+    let x4 = x2 * x2;
+    builder.alloc_witness_only_row(x4);
+    let x6 = x2 * x4;
+    builder.alloc_witness_only_row(x6);
+    let x7 = x * x6;
+    builder.alloc_witness_only_row(x7);
+    x7
+}
+
+fn enforce_poseidon2_permutation_witness_only(builder: &mut R1csBuilder, state_in: &[Var; WIDTH]) -> [Var; WIDTH] {
+    let c = constants();
+    let mut state = std::array::from_fn(|i| builder.witness()[state_in[i].col()]);
+
+    external_linear_layer_witness_only(&mut state);
+    materialize_state_witness_only(builder, &state);
+
+    for rc in &c.initial {
+        for (slot, &constant) in state.iter_mut().zip(rc) {
+            *slot += constant;
+        }
+        for slot in &mut state {
+            *slot = enforce_sbox_x7_witness_only(builder, *slot);
+        }
+        external_linear_layer_witness_only(&mut state);
+        materialize_state_witness_only(builder, &state);
+    }
+
+    for &rc in &c.internal {
+        state[0] += rc;
+        state[0] = enforce_sbox_x7_witness_only(builder, state[0]);
+        internal_linear_layer_witness_only(&mut state);
+        materialize_state_witness_only(builder, &state);
+    }
+
+    for rc in &c.terminal {
+        for (slot, &constant) in state.iter_mut().zip(rc) {
+            *slot += constant;
+        }
+        for slot in &mut state {
+            *slot = enforce_sbox_x7_witness_only(builder, *slot);
+        }
+        external_linear_layer_witness_only(&mut state);
+        materialize_state_witness_only(builder, &state);
+    }
+
+    std::array::from_fn(|i| builder.alloc_witness_only_row(state[i]))
+}
+
 /// Emit the full Poseidon2 permutation circuit for `Goldilocks` WIDTH=8.
 ///
 /// Allocates the output state as fresh wires (so callers can compose multiple
 /// permutations) and returns them. Each output equals the corresponding
 /// native `PERM.permute(input)` lane, byte-for-byte.
 pub fn enforce_poseidon2_permutation(builder: &mut R1csBuilder, state_in: &[Var; WIDTH]) -> [Var; WIDTH] {
+    if !builder.records_structure() && !builder.encoding_trace_enabled() {
+        return enforce_poseidon2_permutation_witness_only(builder, state_in);
+    }
+
     let row_start = builder.rows();
     let column_start = builder.cols();
     let c = constants();
@@ -387,6 +485,27 @@ pub fn enforce_poseidon2_permutation(builder: &mut R1csBuilder, state_in: &[Var;
 pub const DIGEST_LEN: usize = 4;
 const RATE: usize = 4;
 
+fn enforce_poseidon2_hash_witness_only(builder: &mut R1csBuilder, input: &[Var]) -> [Var; DIGEST_LEN] {
+    let zero = builder.alloc_witness_only_row(F::ZERO);
+    let mut state = [zero; WIDTH];
+
+    for chunk in input.chunks(RATE) {
+        let mut next = [zero; WIDTH];
+        for (i, &value) in chunk.iter().enumerate() {
+            let sum = builder.witness()[state[i].col()] + builder.witness()[value.col()];
+            next[i] = builder.alloc_witness_only_row(sum);
+        }
+        next[chunk.len()..].copy_from_slice(&state[chunk.len()..]);
+        state = enforce_poseidon2_permutation_witness_only(builder, &next);
+    }
+
+    let padded = builder.witness()[state[0].col()] + F::ONE;
+    state[0] = builder.alloc_witness_only_row(padded);
+    state = enforce_poseidon2_permutation_witness_only(builder, &state);
+
+    std::array::from_fn(|i| state[i])
+}
+
 /// Variable-length Poseidon2 sponge hash, byte-for-byte parity with
 /// [`neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash`]:
 ///
@@ -404,6 +523,10 @@ const RATE: usize = 4;
 /// chunk: a fresh wire per absorbed lane + one full permutation. Final
 /// padding: one wire + one permutation.
 pub fn enforce_poseidon2_hash(builder: &mut R1csBuilder, input: &[Var]) -> [Var; DIGEST_LEN] {
+    if !builder.records_structure() && !builder.encoding_trace_enabled() {
+        return enforce_poseidon2_hash_witness_only(builder, input);
+    }
+
     let row_start = builder.rows();
     let input_cols = input.iter().map(|wire| wire.col()).collect::<Vec<_>>();
     let mut rounds = Vec::with_capacity(input.len().div_ceil(RATE) + 1);

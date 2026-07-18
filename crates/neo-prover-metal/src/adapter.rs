@@ -20,7 +20,8 @@ use neo_ccs::{LaneCommitments, Mat};
 use neo_fold_clean::frontends::f_prime::compiler::{nifs_ce_shape_from_claim, FPrimeFoldPostSummary};
 use neo_fold_clean::paper::digest::{self, AccumulatorHandle};
 use neo_fold_clean::paper::nifs::{
-    Error, NifsFreshInstancesRequest, NifsPostFoldSummary, NifsProverAdapter, NifsProverOutput, NifsProverRequest,
+    Error, NifsFreshInstancesRequest, NifsFreshSignedUnitAssignment, NifsFreshSignedUnitInstancesRequest,
+    NifsPostFoldSummary, NifsProverAdapter, NifsProverOutput, NifsProverRequest,
 };
 use neo_fold_clean::paper::pi_ccs;
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::PI_CCS_OUTPUTS_SIS_CONFIG;
@@ -280,6 +281,142 @@ impl MetalNifsProver {
         Ok(true)
     }
 
+    fn build_fresh_signed_unit_instances_inner(
+        &mut self,
+        log: &neo_ajtai::AjtaiSModule,
+        s: &Structure,
+        m_in: usize,
+        assignments: &[NifsFreshSignedUnitAssignment],
+        lane_scheme: Option<&LaneScheme>,
+    ) -> Result<Option<Vec<CcsInstance>>, Error> {
+        self.cached_fresh_masks = None;
+        if assignments
+            .iter()
+            .any(|assignment| assignment.len() != s.m || m_in > assignment.len())
+        {
+            return Ok(None);
+        }
+
+        let cols = s.m.div_ceil(D);
+        if log.dims() != (D, cols) {
+            return Ok(None);
+        }
+        self.ensure_ajtai_plan(log, cols)?;
+        if let Some(scheme) = lane_scheme {
+            self.ensure_lane_ajtai_plan(scheme, cols)?;
+        }
+        if assignments.is_empty() {
+            return Ok(Some(Vec::new()));
+        }
+
+        let commit_started = Instant::now();
+        // Layout is witness-major, then ring block, with one positive and one
+        // negative bitset per block. The same upload feeds commitments, FE,
+        // NC, Pi_RLC, and optional Nebula lane commitments.
+        let mut mask_words = Vec::with_capacity(assignments.len() * cols * 2);
+        let mut witnesses = Vec::with_capacity(assignments.len());
+        for assignment in assignments {
+            let positive = assignment.positive_masks();
+            let negative = assignment.negative_masks();
+            for (&positive, &negative) in positive.iter().zip(negative) {
+                mask_words.extend_from_slice(&[positive, negative]);
+            }
+            witnesses.push(
+                Mat::compact_signed_unit_from_column_masks(D, cols, positive, negative)
+                    .map_err(|error| backend_failure("pack fresh witness", error))?,
+            );
+        }
+        let masks = self
+            .session
+            .prepare_witness_masks(&mask_words, assignments.len(), cols, s.m)
+            .map_err(|error| backend_failure("upload fresh witness batch", error))?;
+        let cached_plan = self
+            .fresh_commitment_plan
+            .as_ref()
+            .expect("Ajtai commitment plan installed above");
+        let plan = &cached_plan.plan;
+        let kappa = cached_plan.kappa;
+        let (commitment_words, commit_gpu) = self
+            .session
+            .ajtai_low_norm_many_from_masks(plan, &masks, assignments.len())
+            .map_err(|error| backend_failure("compute batched Ajtai commitments", error))?;
+        let words_per_commitment = kappa * D;
+        if commitment_words.len() != assignments.len() * words_per_commitment {
+            return Err(backend_unavailable(
+                "batched Metal Ajtai commitments have the wrong shape",
+            ));
+        }
+        let commitments = commitment_words
+            .chunks_exact(words_per_commitment)
+            .map(|words| commitment_from_words(words, kappa))
+            .collect::<Vec<_>>();
+        let (lane_commitments, lane_commit_gpu) = if lane_scheme.is_some() {
+            let lane_plan = self
+                .fresh_lane_commitment_plan
+                .as_ref()
+                .expect("Nebula lane commitment plans installed above");
+            let (words, gpu) = self
+                .session
+                .ajtai_lane_commitments_from_masks(
+                    &lane_plan.ops,
+                    &lane_plan.mem,
+                    &masks,
+                    assignments.len(),
+                    cols,
+                    &lane_plan.ranges,
+                )
+                .map_err(|error| backend_failure("compute Nebula lane commitments", error))?;
+            let expected_words = 3 * assignments.len() * words_per_commitment;
+            if words.len() != expected_words {
+                return Err(backend_unavailable(
+                    "batched Metal Nebula lane commitments have the wrong shape",
+                ));
+            }
+            let commitment = |lane: usize, witness: usize| {
+                let start = (lane * assignments.len() + witness) * words_per_commitment;
+                commitment_from_words(&words[start..start + words_per_commitment], kappa)
+            };
+            let lanes = (0..assignments.len())
+                .map(|witness| LaneCommitments {
+                    ops: commitment(0, witness),
+                    is: commitment(1, witness),
+                    fs: commitment(2, witness),
+                })
+                .collect::<Vec<_>>();
+            (Some(lanes), gpu)
+        } else {
+            (None, Duration::ZERO)
+        };
+        let mut instances = Vec::with_capacity(assignments.len());
+        for (index, ((assignment, z), commitment)) in assignments
+            .iter()
+            .zip(witnesses)
+            .zip(commitments.iter().cloned())
+            .enumerate()
+        {
+            instances.push(CcsInstance {
+                claim: CcsClaim {
+                    adv: lane_commitments.as_ref().map(|lanes| lanes[index].clone()),
+                    c: commitment,
+                    x: assignment
+                        .public_input(m_in)
+                        .expect("fresh assignment shape checked above"),
+                    m_in,
+                },
+                witness: CcsWitness { w: Vec::new(), Z: z },
+            });
+        }
+        self.cached_fresh_masks = Some(CachedFreshMasks {
+            host_commitments: commitments,
+            masks,
+            commit_total: commit_started.elapsed(),
+            commit_gpu,
+            lane_commit_gpu,
+            lane_commit_count: lane_commitments.as_ref().map_or(0, Vec::len),
+        });
+        Ok(Some(instances))
+    }
+
     fn post_fold_summary(
         &self,
         running: &RunningInstance,
@@ -312,143 +449,40 @@ impl NifsProverAdapter for MetalNifsProver {
         &mut self,
         request: NifsFreshInstancesRequest<'_>,
     ) -> Result<Option<Vec<CcsInstance>>, Error> {
-        self.cached_fresh_masks = None;
-        let valid = request.assignments.iter().all(|assignment| {
-            assignment.len() == request.s.m
-                && request.m_in <= assignment.len()
-                && assignment
-                    .iter()
-                    .all(|&value| neo_math::balanced::within_nc_bound(value, request.pp.b()))
-        });
-        if !valid {
+        if request.pp.b() < 2 {
             return Ok(None);
         }
-
-        let cols = request.s.m.div_ceil(D);
-        if request.log.dims() != (D, cols) {
-            return Ok(None);
-        }
-        self.ensure_ajtai_plan(request.log, cols)?;
-        if let Some(scheme) = request.lane_scheme {
-            self.ensure_lane_ajtai_plan(scheme, cols)?;
-        }
-        if request.assignments.is_empty() {
-            return Ok(Some(Vec::new()));
-        }
-
-        let commit_started = Instant::now();
-        // Layout is witness-major, then ring block, with one positive and one
-        // negative bitset per block. The same upload feeds commitments, FE,
-        // NC, Pi_RLC, and optional Nebula lane commitments.
-        let mut mask_words = Vec::with_capacity(request.assignments.len() * cols * 2);
-        let mut witnesses = Vec::with_capacity(request.assignments.len());
-        for assignment in request.assignments {
-            let mut positive = vec![0u64; cols];
-            let mut negative = vec![0u64; cols];
-            for (index, &value) in assignment.iter().enumerate() {
-                let digit = neo_math::balanced::to_balanced_i128(value) as i8;
-                if digit == 1 {
-                    positive[index / D] |= 1u64 << (index % D);
-                } else if digit == -1 {
-                    negative[index / D] |= 1u64 << (index % D);
-                }
-            }
-            for (&positive, &negative) in positive.iter().zip(&negative) {
-                mask_words.extend_from_slice(&[positive, negative]);
-            }
-            witnesses.push(
-                Mat::compact_signed_unit_from_column_masks(D, cols, &positive, &negative)
-                    .map_err(|error| backend_failure("pack fresh witness", error))?,
-            );
-        }
-        let masks = self
-            .session
-            .prepare_witness_masks(&mask_words, request.assignments.len(), cols, request.s.m)
-            .map_err(|error| backend_failure("upload fresh witness batch", error))?;
-        let cached_plan = self
-            .fresh_commitment_plan
-            .as_ref()
-            .expect("Ajtai commitment plan installed above");
-        let plan = &cached_plan.plan;
-        let kappa = cached_plan.kappa;
-        let (commitment_words, commit_gpu) = self
-            .session
-            .ajtai_low_norm_many_from_masks(plan, &masks, request.assignments.len())
-            .map_err(|error| backend_failure("compute batched Ajtai commitments", error))?;
-        let words_per_commitment = kappa * D;
-        if commitment_words.len() != request.assignments.len() * words_per_commitment {
-            return Err(backend_unavailable(
-                "batched Metal Ajtai commitments have the wrong shape",
-            ));
-        }
-        let commitments = commitment_words
-            .chunks_exact(words_per_commitment)
-            .map(|words| commitment_from_words(words, kappa))
-            .collect::<Vec<_>>();
-        let (lane_commitments, lane_commit_gpu) = if request.lane_scheme.is_some() {
-            let lane_plan = self
-                .fresh_lane_commitment_plan
-                .as_ref()
-                .expect("Nebula lane commitment plans installed above");
-            let (words, gpu) = self
-                .session
-                .ajtai_lane_commitments_from_masks(
-                    &lane_plan.ops,
-                    &lane_plan.mem,
-                    &masks,
-                    request.assignments.len(),
-                    cols,
-                    &lane_plan.ranges,
-                )
-                .map_err(|error| backend_failure("compute Nebula lane commitments", error))?;
-            let expected_words = 3 * request.assignments.len() * words_per_commitment;
-            if words.len() != expected_words {
-                return Err(backend_unavailable(
-                    "batched Metal Nebula lane commitments have the wrong shape",
-                ));
-            }
-            let commitment = |lane: usize, witness: usize| {
-                let start = (lane * request.assignments.len() + witness) * words_per_commitment;
-                commitment_from_words(&words[start..start + words_per_commitment], kappa)
-            };
-            let lanes = (0..request.assignments.len())
-                .map(|witness| LaneCommitments {
-                    ops: commitment(0, witness),
-                    is: commitment(1, witness),
-                    fs: commitment(2, witness),
-                })
-                .collect::<Vec<_>>();
-            (Some(lanes), gpu)
-        } else {
-            (None, Duration::ZERO)
-        };
-        let mut instances = Vec::with_capacity(request.assignments.len());
-        for (index, ((assignment, z), commitment)) in request
+        let Some(assignments) = request
             .assignments
             .iter()
-            .zip(witnesses)
-            .zip(commitments.iter().cloned())
-            .enumerate()
-        {
-            instances.push(CcsInstance {
-                claim: CcsClaim {
-                    adv: lane_commitments.as_ref().map(|lanes| lanes[index].clone()),
-                    c: commitment,
-                    x: assignment[..request.m_in].to_vec(),
-                    m_in: request.m_in,
-                },
-                witness: CcsWitness { w: Vec::new(), Z: z },
-            });
+            .map(|assignment| NifsFreshSignedUnitAssignment::from_dense(assignment))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Ok(None);
+        };
+        self.build_fresh_signed_unit_instances_inner(
+            request.log,
+            request.s,
+            request.m_in,
+            &assignments,
+            request.lane_scheme,
+        )
+    }
+
+    fn build_fresh_signed_unit_instances(
+        &mut self,
+        request: NifsFreshSignedUnitInstancesRequest<'_>,
+    ) -> Result<Option<Vec<CcsInstance>>, Error> {
+        if request.pp.b() < 2 {
+            return Ok(None);
         }
-        self.cached_fresh_masks = Some(CachedFreshMasks {
-            host_commitments: commitments,
-            masks,
-            commit_total: commit_started.elapsed(),
-            commit_gpu,
-            lane_commit_gpu,
-            lane_commit_count: lane_commitments.as_ref().map_or(0, Vec::len),
-        });
-        Ok(Some(instances))
+        self.build_fresh_signed_unit_instances_inner(
+            request.log,
+            request.s,
+            request.m_in,
+            request.assignments,
+            request.lane_scheme,
+        )
     }
 }
 

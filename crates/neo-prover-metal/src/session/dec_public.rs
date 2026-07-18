@@ -13,7 +13,7 @@ use crate::MetalError;
 
 const RING_DEGREE: usize = 54;
 const CHUNK_COLUMNS: usize = 512;
-const CHILDREN_PER_THREAD: usize = 4;
+const CHILDREN_PER_THREAD: usize = 7;
 
 #[derive(Clone, Copy)]
 pub(crate) struct MetalDecPublicProjection<'a> {

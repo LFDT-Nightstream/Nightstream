@@ -114,9 +114,20 @@ inline Kx kx_sub(Kx lhs, Kx rhs) {
     return Kx{gl_sub(lhs.c0, rhs.c0), gl_sub(lhs.c1, rhs.c1)};
 }
 
+inline ulong gl_mul_by_7(ulong value) {
+    ulong twice = gl_add(value, value);
+    ulong four_times = gl_add(twice, twice);
+    return gl_add(gl_add(four_times, twice), value);
+}
+
 inline Kx kx_mul(Kx lhs, Kx rhs) {
-    ulong c0 = gl_add(gl_mul(lhs.c0, rhs.c0), gl_mul(gl_mul(lhs.c1, rhs.c1), 7ul));
-    ulong c1 = gl_add(gl_mul(lhs.c0, rhs.c1), gl_mul(lhs.c1, rhs.c0));
+    ulong c0_product = gl_mul(lhs.c0, rhs.c0);
+    ulong c1_product = gl_mul(lhs.c1, rhs.c1);
+    ulong cross_product = gl_sub(
+        gl_sub(gl_mul(gl_add(lhs.c0, lhs.c1), gl_add(rhs.c0, rhs.c1)), c0_product),
+        c1_product);
+    ulong c0 = gl_add(c0_product, gl_mul_by_7(c1_product));
+    ulong c1 = cross_product;
     return Kx{c0, c1};
 }
 
@@ -811,8 +822,8 @@ inline void poly_mul_affine(
     }
 }
 
-kernel void fe_carried_plane_lin_comb(
-    device const ulong *children [[buffer(0)]],
+kernel void fe_carried_mask_lin_comb(
+    device const ulong *masks [[buffer(0)]],
     device const ulong *coeffs [[buffer(1)]],
     device const ulong *shape [[buffer(2)]],
     device ulong *z_re [[buffer(3)]],
@@ -826,21 +837,19 @@ kernel void fe_carried_plane_lin_comb(
     }
     ulong block = index / RING_DEGREE;
     ulong lane = index % RING_DEGREE;
+    ulong bit = 1ul << lane;
     ulong re = 0;
     ulong im = 0;
     for (ulong child = 0; child < child_count; ++child) {
-        ulong z = gl_from_word(children[child * plane_len + lane * blocks + block]);
+        ulong mask_base = 2 * (child * blocks + block);
         ulong cr = gl_from_word(coeffs[2 * child]);
         ulong ci = gl_from_word(coeffs[2 * child + 1]);
-        if (z == 1) {
+        if ((masks[mask_base] & bit) != 0) {
             re = gl_add(re, cr);
             im = gl_add(im, ci);
-        } else if (z == GOLDILOCKS_MODULUS - 1) {
+        } else if ((masks[mask_base + 1] & bit) != 0) {
             re = gl_sub(re, cr);
             im = gl_sub(im, ci);
-        } else if (z != 0) {
-            re = gl_add(re, gl_mul(cr, z));
-            im = gl_add(im, gl_mul(ci, z));
         }
     }
     z_re[index] = re;
@@ -943,7 +952,7 @@ inline void accumulate_signed_mask_rhos(
     }
 }
 
-// Pi_RLC consumes either signed masks, dense planes, or a resident dense tail.
+// Pi_RLC consumes either signed masks, dense planes, or a resident mask tail.
 kernel void rlc_witness_mix_signed_masks(
     device const char *rhos [[buffer(0)]],
     device const ulong *masks [[buffer(1)]],
@@ -1000,10 +1009,10 @@ kernel void rlc_witness_mix(
         gl_reduce_sum(negative.lo, negative.hi));
 }
 
-kernel void rlc_witness_mix_signed_masks_resident_tail(
+kernel void rlc_witness_mix_dense_fresh_resident_masks(
     device const char *rhos [[buffer(0)]],
-    device const ulong *fresh_masks [[buffer(1)]],
-    device const ulong *resident_witnesses [[buffer(2)]],
+    device const ulong *fresh_witnesses [[buffer(1)]],
+    device const ulong *resident_masks [[buffer(2)]],
     device const ulong *shape [[buffer(3)]],
     device ulong *output [[buffer(4)]],
     uint index [[thread_position_in_grid]]) {
@@ -1016,22 +1025,21 @@ kernel void rlc_witness_mix_signed_masks_resident_tail(
     WideProduct negative = WideProduct{0, 0};
     for (ulong input = 0; input < input_count; ++input) {
         ulong rho_base = input * RING_DEGREE * RING_DEGREE + row * RING_DEGREE;
-        if (input < fresh_count) {
-            ulong mask_base = 2 * (input * cols + column);
+        if (input >= fresh_count) {
+            ulong mask_base = 2 * ((input - fresh_count) * cols + column);
             accumulate_signed_mask_rhos(
                 rhos,
                 rho_base,
-                fresh_masks[mask_base],
-                fresh_masks[mask_base + 1],
+                resident_masks[mask_base],
+                resident_masks[mask_base + 1],
                 positive,
                 negative);
             continue;
         }
-        ulong witness = input - fresh_count;
-        ulong witness_base = witness * RING_DEGREE * cols + column;
+        ulong witness_base = input * RING_DEGREE * cols + column;
         for (ulong inner = 0; inner < RING_DEGREE; ++inner) {
             accumulate_small_signed(
-                gl_from_word(resident_witnesses[witness_base + inner * cols]),
+                gl_from_word(fresh_witnesses[witness_base + inner * cols]),
                 (int)rhos[rho_base + inner],
                 positive,
                 negative);
@@ -1040,124 +1048,66 @@ kernel void rlc_witness_mix_signed_masks_resident_tail(
     output[index] = gl_sub(
         gl_reduce_sum(positive.lo, positive.hi),
         gl_reduce_sum(negative.lo, negative.hi));
-}
-
-kernel void rlc_witness_mix_resident_tail(
-    device const char *rhos [[buffer(0)]],
-    device const ulong *fresh_witnesses [[buffer(1)]],
-    device const ulong *resident_witnesses [[buffer(2)]],
-    device const ulong *shape [[buffer(3)]],
-    device ulong *output [[buffer(4)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong input_count = shape[0];
-    ulong fresh_count = shape[1];
-    ulong cols = shape[2];
-    ulong row = index / cols;
-    ulong column = index % cols;
-    WideProduct positive = WideProduct{0, 0};
-    WideProduct negative = WideProduct{0, 0};
-    for (ulong input = 0; input < input_count; ++input) {
-        ulong rho_base = input * RING_DEGREE * RING_DEGREE + row * RING_DEGREE;
-        ulong witness_index = input < fresh_count ? input : input - fresh_count;
-        device const ulong *witnesses = input < fresh_count ? fresh_witnesses : resident_witnesses;
-        ulong witness_base = witness_index * RING_DEGREE * cols + column;
-        for (ulong inner = 0; inner < RING_DEGREE; ++inner) {
-            accumulate_small_signed(
-                gl_from_word(witnesses[witness_base + inner * cols]),
-                (int)rhos[rho_base + inner],
-                positive,
-                negative);
-        }
-    }
-    output[index] = gl_sub(
-        gl_reduce_sum(positive.lo, positive.hi),
-        gl_reduce_sum(negative.lo, negative.hi));
-}
-
-// Pi_DEC splits, validates, projects, and commits before host readback.
-kernel void dec_split_base2(
-    device const ulong *parent [[buffer(0)]],
-    device const ulong *shape [[buffer(1)]],
-    device ulong *children [[buffer(2)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong entries = shape[0];
-    ulong child_count = shape[1];
-    ulong word = gl_from_word(parent[index]);
-    long value = word <= (GOLDILOCKS_MODULUS - 1) / 2
-        ? (long)word
-        : -((long)(GOLDILOCKS_MODULUS - word));
-    for (ulong child = 0; child < child_count; ++child) {
-        long digit;
-        if ((value & 1l) == 0) {
-            digit = 0;
-            value >>= 1;
-        } else if (value > 0) {
-            digit = 1;
-            value = (value - 1) >> 1;
-        } else {
-            digit = -1;
-            value = (value + 1) >> 1;
-        }
-        children[child * entries + index] = digit < 0 ? GOLDILOCKS_MODULUS - 1 : (ulong)digit;
-    }
-}
-
-kernel void dec_validate_split(
-    device const ulong *parent [[buffer(0)]],
-    device const ulong *children [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device atomic_uint *status [[buffer(3)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong entries = shape[0];
-    ulong child_count = shape[1];
-    if (index >= entries) {
-        return;
-    }
-    ulong recomposed = 0;
-    ulong power = 1;
-    bool valid = true;
-    for (ulong child = 0; child < child_count; ++child) {
-        ulong digit = gl_from_word(children[child * entries + index]);
-        valid &= digit == 0 || digit == 1 || digit == GOLDILOCKS_MODULUS - 1;
-        recomposed = gl_add(recomposed, gl_mul(power, digit));
-        power = gl_add(power, power);
-    }
-    valid &= recomposed == gl_from_word(parent[index]);
-    if (!valid) {
-        atomic_fetch_or_explicit(status, 1u, memory_order_relaxed);
-    }
 }
 
 #include "dec_forms.metal"
 #include "lane_commitments.metal"
 #include "dec_public.metal"
 
-kernel void dec_binary_masks(
-    device const ulong *children [[buffer(0)]],
+// Pi_DEC writes fourteen child masks per parent scan. The first group also checks
+// that every centered coefficient fits in the fixed base-2 child count.
+constant ushort DEC_SPLIT_CHILDREN_PER_THREAD = 14;
+
+kernel void dec_split_base2_masks(
+    device const ulong *parent [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],
     device ulong *masks [[buffer(2)]],
     device atomic_uint *child_nonzero [[buffer(3)]],
+    device atomic_uint *status [[buffer(4)]],
     uint index [[thread_position_in_grid]]) {
-    ulong entries = shape[0];
     ulong child_count = shape[1];
     ulong cols = shape[3];
-    ulong child = index / cols;
+    ulong first_child = (index / cols) * DEC_SPLIT_CHILDREN_PER_THREAD;
     ulong column = index % cols;
-    if (child >= child_count) {
+    if (first_child >= child_count) {
         return;
     }
-    ulong positive = 0;
-    ulong negative = 0;
-    ulong base = child * entries + column;
-    for (ulong coefficient = 0; coefficient < RING_DEGREE; ++coefficient) {
-        ulong value = gl_from_word(children[base + coefficient * cols]);
-        positive |= (ulong)(value == 1) << coefficient;
-        negative |= (ulong)(value == GOLDILOCKS_MODULUS - 1) << coefficient;
+
+    ulong positive[DEC_SPLIT_CHILDREN_PER_THREAD];
+    ulong negative[DEC_SPLIT_CHILDREN_PER_THREAD];
+    for (ushort local = 0; local < DEC_SPLIT_CHILDREN_PER_THREAD; ++local) {
+        positive[local] = 0;
+        negative[local] = 0;
     }
-    masks[2 * index] = positive;
-    masks[2 * index + 1] = negative;
-    if ((positive | negative) != 0) {
-        atomic_fetch_or_explicit(&child_nonzero[child], 1u, memory_order_relaxed);
+    for (ulong coefficient = 0; coefficient < RING_DEGREE; ++coefficient) {
+        ulong word = gl_from_word(parent[coefficient * cols + column]);
+        bool is_negative = word > (GOLDILOCKS_MODULUS - 1) / 2;
+        ulong magnitude = is_negative ? GOLDILOCKS_MODULUS - word : word;
+        if (first_child == 0 && (magnitude >> child_count) != 0) {
+            atomic_fetch_or_explicit(status, 1u, memory_order_relaxed);
+        }
+        for (ushort local = 0; local < DEC_SPLIT_CHILDREN_PER_THREAD; ++local) {
+            ulong child = first_child + local;
+            if (child < child_count && ((magnitude >> child) & 1ul) != 0) {
+                if (is_negative) {
+                    negative[local] |= 1ul << coefficient;
+                } else {
+                    positive[local] |= 1ul << coefficient;
+                }
+            }
+        }
+    }
+
+    for (ushort local = 0; local < DEC_SPLIT_CHILDREN_PER_THREAD; ++local) {
+        ulong child = first_child + local;
+        if (child < child_count) {
+            ulong mask_index = child * cols + column;
+            masks[2 * mask_index] = positive[local];
+            masks[2 * mask_index + 1] = negative[local];
+            if ((positive[local] | negative[local]) != 0) {
+                atomic_fetch_or_explicit(&child_nonzero[child], 1u, memory_order_relaxed);
+            }
+        }
     }
 }
 
@@ -1168,6 +1118,7 @@ kernel void dec_ring_partials(
     device const ulong *shape [[buffer(2)]],
     device ulong *partials [[buffer(3)]],
     device const uint *active_children [[buffer(4)]],
+    device const uint *child_nonzero [[buffer(5)]],
     uint index [[thread_position_in_grid]]) {
     ulong active_count = shape[1];
     ulong form_rows = shape[2];
@@ -1183,6 +1134,10 @@ kernel void dec_ring_partials(
         return;
     }
     ulong child = active_children[active_child];
+    if (shape[5] != 0 && child_nonzero[child] == 0) {
+        partials[index] = 0;
+        return;
+    }
 
     ulong column_start = chunk * DEC_CHUNK_COLUMNS;
     ulong column_end = min(column_start + DEC_CHUNK_COLUMNS, cols);
@@ -1228,6 +1183,7 @@ kernel void dec_sparse_ring_partials(
     device const uint *active_chunk_bases [[buffer(6)]],
     device const uint *active_chunk_matrices [[buffer(7)]],
     device const uint *matrix_active_offsets [[buffer(8)]],
+    device const uint *child_nonzero [[buffer(9)]],
     uint index [[thread_position_in_grid]]) {
     ulong active_count = shape[1];
     ulong form_rows = shape[2];
@@ -1242,11 +1198,15 @@ kernel void dec_sparse_ring_partials(
     if (active_child >= active_count) {
         return;
     }
+    ulong child = active_children[active_child];
+    if (shape[5] != 0 && child_nonzero[child] == 0) {
+        partials[index] = 0;
+        return;
+    }
     ulong matrix = active_chunk_matrices[chunk];
     if (2 * matrix + component >= form_rows) {
         return;
     }
-    ulong child = active_children[active_child];
     ulong start = active_chunk_bases[chunk];
     ulong end = min(start + DEC_CHUNK_COLUMNS, (ulong)matrix_active_offsets[matrix + 1]);
     ulong term_start = coefficient >= RING_DEGREE ? coefficient - (RING_DEGREE - 1) : 0;

@@ -1191,7 +1191,7 @@ fn check_zero_public_projection(prep: &Preprocessing, index: usize, claim: &CeCl
     if claim.m_in > prep.structure().m || claim.X.rows() != neo_math::D || claim.X.cols() != claim.m_in {
         return Err(Error::FinalAccumulatorPublicInputMismatch { index });
     }
-    if claim.X.as_slice().iter().any(|&value| value != F::ZERO) {
+    if claim.X.nnz() != 0 {
         return Err(Error::FinalAccumulatorPublicInputMismatch { index });
     }
     Ok(())

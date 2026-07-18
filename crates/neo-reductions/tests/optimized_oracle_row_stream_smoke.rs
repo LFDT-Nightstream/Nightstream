@@ -6,8 +6,8 @@ use neo_params::NeoParams;
 use neo_reductions::engines::optimized_engine::oracle::{OptimizedOracle, SparseCache};
 use neo_reductions::engines::optimized_engine::Challenges;
 use neo_reductions::engines::paper_exact_engine::q_eval_at_ext_point_fe_paper_exact_with_inputs;
-use neo_reductions::sumcheck::{poly_eval_k, run_sumcheck_prover};
-use neo_reductions::superneo_eval::build_superneo_eval_cache;
+use neo_reductions::sumcheck::{interpolate_from_evals, poly_eval_k, run_sumcheck_prover, RoundOracle};
+use neo_reductions::superneo_eval::{build_superneo_eval_cache, SuperneoZBlocks};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 
@@ -181,6 +181,46 @@ fn optimized_oracle_row_stream_matches_paper_exact_q_at_challenge_point() {
         Some(&r_inputs),
     );
     assert_eq!(running, q_at_point);
+
+    // A data-only backend must be able to install Y_eval after canonical CPU
+    // row rounds without the row-fold boundary having already computed it.
+    let sparse = Arc::new(SparseCache::build(&s));
+    let mut injected = OptimizedOracle::new_with_sparse(
+        &s,
+        &params,
+        &mcs_witnesses,
+        &me_witnesses,
+        ch,
+        dims.ell_d,
+        dims.ell_n,
+        dims.d_sc,
+        Some(&r_inputs),
+        sparse,
+    );
+    for &challenge in &challenges[..dims.ell_n] {
+        injected.fold(challenge);
+    }
+    assert!(!injected.__test_ajtai_precomp_ready());
+    let y_eval = {
+        let (cache, chi_r, n_eff, witnesses) = injected
+            .ajtai_backend_context()
+            .expect("Ajtai backend context");
+        let blocks = witnesses
+            .iter()
+            .map(|witness| SuperneoZBlocks::from_witness_mat(witness, s.m).expect("packed witness blocks"))
+            .collect::<Vec<_>>();
+        cache.eval_ring_linear_forms_for_real_z_blocks(&chi_r, n_eff, &blocks)
+    };
+    injected.inject_ajtai_y_eval(y_eval);
+    assert!(injected.__test_ajtai_precomp_ready());
+    let xs = (0..=dims.d_sc)
+        .map(|value| K::from(F::from_u64(value as u64)))
+        .collect::<Vec<_>>();
+    for round in dims.ell_n..rounds.len() {
+        let coefficients = interpolate_from_evals(&xs, &injected.evals_at(&xs));
+        assert_eq!(coefficients, rounds[round], "injected Ajtai Y_eval round {round}");
+        injected.fold(challenges[round]);
+    }
 }
 
 #[test]

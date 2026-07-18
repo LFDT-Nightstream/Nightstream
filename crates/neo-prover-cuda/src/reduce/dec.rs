@@ -1303,6 +1303,7 @@ fn child_claim(
     y_zcol: Vec<K>,
 ) -> CeClaim {
     CeClaim {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

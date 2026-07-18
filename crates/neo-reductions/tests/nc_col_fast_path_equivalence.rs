@@ -4,7 +4,7 @@ use neo_ccs::{CcsStructure, CcsWitness, Mat, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils::build_dims_and_policy;
-use neo_reductions::optimized_engine::oracle::NcOracle;
+use neo_reductions::optimized_engine::oracle::{NcDigitTableView, NcOracle};
 use neo_reductions::optimized_engine::Challenges;
 use neo_reductions::sumcheck::{interpolate_from_evals, RoundOracle};
 use p3_field::PrimeCharacteristicRing;
@@ -220,5 +220,69 @@ fn nc_col_phase_fast_path_matches_generic_b2_k_complex() {
         // Fold with a K-complex challenge so digit_tables_all_real flips
         // to false after round 0.
         oracle.fold(k_cplx(900 + round as u64, 31 + round as u64));
+    }
+}
+
+#[test]
+fn deferred_nc_col_tables_materialize_to_eager_state() {
+    let n = D;
+    let m = D;
+    let mut params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    params.b = 2;
+    let s = CcsStructure::new(vec![identity_left(n, m)], SparsePoly::new(1, vec![])).expect("ccs");
+    let dims = build_dims_and_policy(&params, &s).expect("dims");
+    let Z = Mat::from_row_major(D, 1, (0..D).map(|row| F::from_u64((row % 3) as u64)).collect());
+    let mcs_witnesses = vec![CcsWitness { w: vec![F::ZERO; m], Z }];
+    let ch = Challenges {
+        alpha: (0..dims.ell_d).map(|i| k_cplx(100 + i as u64, 3)).collect(),
+        beta_a: (0..dims.ell_d).map(|i| k_cplx(200 + i as u64, 5)).collect(),
+        beta_r: (0..dims.ell_n).map(|i| k_cplx(300 + i as u64, 7)).collect(),
+        beta_m: (0..dims.ell_m)
+            .map(|i| k_cplx(400 + i as u64, 11))
+            .collect(),
+        gamma: k_cplx(777, 13),
+    };
+
+    let mut eager = NcOracle::new(
+        &s,
+        &params,
+        &mcs_witnesses,
+        &[],
+        ch.clone(),
+        dims.ell_d,
+        dims.ell_m,
+        dims.d_sc,
+    );
+    let mut deferred = NcOracle::new_with_deferred_digit_tables(
+        &s,
+        &params,
+        &mcs_witnesses,
+        &[],
+        ch,
+        dims.ell_d,
+        dims.ell_m,
+        dims.d_sc,
+    );
+    let snapshot = deferred.col_phase_snapshot();
+    assert!(snapshot.eq_beta_m_tbl.is_empty());
+    assert!(snapshot
+        .digit_tables
+        .iter()
+        .all(|table| matches!(table, NcDigitTableView::Deferred { .. })));
+
+    deferred.materialize_deferred_col_tables();
+    assert_eq!(
+        deferred.col_phase_snapshot().eq_beta_m_tbl,
+        eager.col_phase_snapshot().eq_beta_m_tbl
+    );
+    for round in 0..dims.ell_m {
+        assert_eq!(
+            deferred.optimized_col_phase_round_coeffs(),
+            eager.optimized_col_phase_round_coeffs(),
+            "deferred NC column state differs after materialization at round {round}"
+        );
+        let challenge = k_cplx(900 + round as u64, 17 + round as u64);
+        deferred.fold(challenge);
+        eager.fold(challenge);
     }
 }

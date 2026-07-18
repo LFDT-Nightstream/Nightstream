@@ -150,6 +150,7 @@ pub fn fresh() {
                 m_in: fixture.m_in,
                 assignments: &assignment_refs,
                 image_overlay: None,
+                lane_scheme: None,
             })
             .expect("adapter build_fresh_instances")
             .expect("adapter must take the GPU path for valid low-norm inputs")
@@ -200,7 +201,7 @@ pub fn fresh_bench() {
 
     let device = Device::open().expect("open CUDA device");
     let (mut dev_ajtai, setup_ms) = timed(|| {
-        let pp = s_module.materialize_pp().expect("materialize seeded PP");
+        let pp = s_module.verification_pp().expect("materialize seeded PP");
         let uploaded = DeviceAjtai::upload(&device, &pp).expect("upload PP");
         device.sync().expect("sync after PP upload");
         uploaded

@@ -15,6 +15,7 @@ use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::nebula::plan::{NebulaPlan, PlanError};
 use neo_fold_clean::frontends::nebula::trace::Memory;
 use neo_fold_clean::lifecycle::{verify_uncompressed, Uncompressed};
+use neo_fold_clean::paper::nifs::NifsProverAdapter;
 use neo_fold_clean::paper::params::Params;
 use thiserror::Error;
 
@@ -33,8 +34,8 @@ use crate::{preload_from_program_artifacts, WasmOpcode};
 
 const WASM_NEBULA_PLAN_SEED: [u8; 32] = [0x57; 32];
 const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
-// Largest fixed instruction batch that keeps the production relation below
-// the 16M committed-coordinate gate.
+// Fixed instruction batch used by the WASM/Nebula profiles. Final relation
+// construction enforces the Road A committed-coordinate gate separately.
 const WASM_NEBULA_BATCH_SIZE: usize = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -374,6 +375,24 @@ pub fn build_application_segment_for_profile(
 }
 
 pub fn prove(prep: &WasmNebulaPreprocessing, trace: &[WasmVmStep]) -> Result<WasmNebulaProof, WasmNebulaError> {
+    prove_inner(prep, trace, None)
+}
+
+/// Prove a WASM execution while routing recursive and terminal NIFS folds
+/// through `adapter`.
+pub fn prove_with_nifs_adapter(
+    prep: &WasmNebulaPreprocessing,
+    adapter: &mut dyn NifsProverAdapter,
+    trace: &[WasmVmStep],
+) -> Result<WasmNebulaProof, WasmNebulaError> {
+    prove_inner(prep, trace, Some(adapter))
+}
+
+fn prove_inner(
+    prep: &WasmNebulaPreprocessing,
+    trace: &[WasmVmStep],
+    mut adapter: Option<&mut dyn NifsProverAdapter>,
+) -> Result<WasmNebulaProof, WasmNebulaError> {
     if trace.is_empty() {
         return Err(WasmNebulaError::EmptyTrace);
     }
@@ -404,9 +423,17 @@ pub fn prove(prep: &WasmNebulaPreprocessing, trace: &[WasmVmStep]) -> Result<Was
             .collect::<Result<Vec<_>, _>>()?;
         debug_assert_eq!(assignments.len(), steps_per_segment);
         let segment = application.trace_segment(&mut memory, assignments)?;
-        chain.append_application_segment(&segment)?;
+        if let Some(adapter) = adapter.as_mut() {
+            chain.append_application_segment_with_nifs_adapter(&segment, &mut **adapter)?;
+        } else {
+            chain.append_application_segment(&segment)?;
+        }
     }
-    Ok(WasmNebulaProof { proof: chain.finish()? })
+    let proof = match adapter {
+        Some(adapter) => chain.finish_with_nifs_adapter(adapter)?,
+        None => chain.finish()?,
+    };
+    Ok(WasmNebulaProof { proof })
 }
 
 fn compact_batched_assignment(rows: &[WasmVmStep]) -> Result<Vec<neo_math::F>, LookupCircuitError> {

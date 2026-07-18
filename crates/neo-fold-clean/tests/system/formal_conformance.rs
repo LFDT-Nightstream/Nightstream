@@ -58,7 +58,9 @@ fn final_running(proof: &Uncompressed) -> RunningInstance {
     match &proof.state.proof {
         ProofState::Active { running, latest } => {
             assert!(latest.instances.is_empty(), "fixture must be finalized");
-            running.clone()
+            running
+                .materialize()
+                .expect("CPU fixture has materialized running state")
         }
         ProofState::Initial => panic!("fixture must be active"),
     }
@@ -164,6 +166,9 @@ fn terminal_ce_native_success_and_each_authority_rejection_are_live() {
     let ProofState::Active { running, .. } = &mut disconnected_child.state.proof else {
         unreachable!("finished fixture is active")
     };
+    let running = running
+        .as_materialized_mut()
+        .expect("CPU fixture has materialized running state");
     running.claims[0].c.data[0] += F::ONE;
     assert!(
         neo_fold_clean::verify_uncompressed(&prep, &disconnected_child).is_err(),

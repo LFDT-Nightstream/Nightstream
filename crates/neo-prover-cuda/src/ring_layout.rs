@@ -9,7 +9,7 @@
 
 use neo_ccs::Mat;
 use neo_math::{D, F};
-use neo_reductions::optimized_engine::oracle::SuperneoRingLinearForm;
+use neo_reductions::superneo_eval::SuperneoRingLinearForm;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::kernels::goldilocks::GOLDILOCKS_MODULUS;

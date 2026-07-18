@@ -30,6 +30,39 @@ fn rq_dot(lhs: &Rq, rhs: &Rq) -> F {
 }
 
 #[test]
+fn column_mask_witness_blocks_match_row_major_signed_unit_blocks() {
+    let cols = 5;
+    let mut values = vec![F::ZERO; D * cols];
+    let mut positive = vec![0u64; cols];
+    let mut negative = vec![0u64; cols];
+    for block in 0..cols {
+        for lane in 0..D {
+            let value = match (block * 11 + lane * 7) % 5 {
+                0 => F::ONE,
+                1 => F::ZERO - F::ONE,
+                _ => F::ZERO,
+            };
+            values[lane * cols + block] = value;
+            if value == F::ONE {
+                positive[block] |= 1u64 << lane;
+            } else if value == F::ZERO - F::ONE {
+                negative[block] |= 1u64 << lane;
+            }
+        }
+    }
+
+    let row_major = Mat::compact_signed_unit(D, cols, values);
+    let column_masks: Mat<F> = Mat::compact_signed_unit_from_column_masks(D, cols, &positive, &negative)
+        .expect("valid signed-unit column masks");
+    let expected_m = D * cols - 3;
+    let row_major_blocks = SuperneoZBlocks::from_witness_mat(&row_major, expected_m).expect("row-major blocks");
+    let column_mask_blocks = SuperneoZBlocks::from_witness_mat(&column_masks, expected_m).expect("column-mask blocks");
+
+    assert_eq!(column_mask_blocks.re_plane_words(), row_major_blocks.re_plane_words());
+    assert_eq!(column_mask_blocks.im_plane_words(), row_major_blocks.im_plane_words());
+}
+
+#[test]
 fn transformed_eval_matches_direct_eval_for_sparse_mats() {
     let n = 8usize;
     let m = 2 * D;

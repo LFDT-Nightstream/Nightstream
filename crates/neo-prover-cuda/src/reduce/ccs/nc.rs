@@ -169,6 +169,7 @@ impl DeviceNcOracle {
         let mut len = 0usize;
         for view in &snapshot.digit_tables {
             let table_len = match view {
+                NcDigitTableView::Zero { len } => *len,
                 NcDigitTableView::Lane0(values) => values.len(),
                 NcDigitTableView::Strided { width: 1, values } => values.len(),
                 NcDigitTableView::Deferred { len } => *len,
@@ -206,6 +207,7 @@ impl DeviceNcOracle {
             let mut words = vec![0u64; num_wits * wit_stride * 2];
             for (wit, view) in snapshot.digit_tables.iter().enumerate() {
                 let values = match view {
+                    NcDigitTableView::Zero { .. } => continue,
                     NcDigitTableView::Lane0(values) | NcDigitTableView::Strided { values, .. } => *values,
                     NcDigitTableView::Dense(_) | NcDigitTableView::Deferred { .. } => {
                         unreachable!("rejected or planes-guarded above")
@@ -230,7 +232,10 @@ impl DeviceNcOracle {
             }
         }
 
-        if tensor_point_len(snapshot.beta_m)? != snapshot.cur_len || snapshot.eq_beta_m_tbl.len() != snapshot.cur_len {
+        if tensor_point_len(snapshot.beta_m)? != snapshot.cur_len
+            || (snapshot.eq_beta_m_tbl.len() != snapshot.cur_len
+                && !(any_deferred && snapshot.eq_beta_m_tbl.is_empty()))
+        {
             return Err(CcsDeviceError::Shape("NC beta point/table length mismatch"));
         }
 

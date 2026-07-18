@@ -86,7 +86,7 @@ pub struct PiCcsReplayTerminalState {
     pub fold_digest: [u8; 32],
     pub perf: PiCcsProvePerf,
     #[doc(hidden)]
-    pub pi_dec_precompute: PiDecProverPrecompute,
+    pub pi_dec_precompute: Option<PiDecProverPrecompute>,
 }
 
 /// Prover-only data shared by adjacent Π_CCS and Π_DEC phases.
@@ -162,6 +162,7 @@ pub use common::{
 };
 pub use rlc::{
     rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized, rlc_reduction_optimized_with_commit_mix,
+    rlc_reduction_optimized_with_mixers,
 };
 pub use terminal_identities::{
     rhs_terminal_identity_fe, rhs_terminal_identity_fe_with_k_mcs, rhs_terminal_identity_nc,

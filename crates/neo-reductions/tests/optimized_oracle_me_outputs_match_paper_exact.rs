@@ -157,6 +157,10 @@ fn optimized_oracle_outputs_match_paper_exact_builder() {
     for &r_i in &r_prime {
         oracle.fold(r_i);
     }
+    assert!(
+        !oracle.__test_ajtai_precomp_ready(),
+        "finishing the row phase must leave Y_eval lazy for a data-only backend"
+    );
 
     let fold_digest = [7u8; 32];
     let out_fast = oracle.build_me_outputs_from_ajtai_precomp(
@@ -166,6 +170,10 @@ fn optimized_oracle_outputs_match_paper_exact_builder() {
         None,
         fold_digest,
         &l,
+    );
+    assert!(
+        oracle.__test_ajtai_precomp_ready(),
+        "the canonical output builder must compute the lazy CPU fallback"
     );
     let out_ref = build_me_outputs_paper_exact(
         &s,

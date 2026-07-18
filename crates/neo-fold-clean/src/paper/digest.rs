@@ -553,6 +553,16 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
 /// sidecars are canonical. Native and recursive verifiers enforce those
 /// reconstruction equations before relying on this projection.
 pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
+    let preimage = pi_ccs_outputs_digest_preimage(claims);
+    sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
+}
+
+/// Canonical Π_CCS output-digest preimage for accelerator backends.
+///
+/// This is the exact input to `PI_CCS_OUTPUTS_SIS_CONFIG`; the verifier still
+/// recomputes [`pi_ccs_outputs_digest`] from the proof's output claims.
+#[doc(hidden)]
+pub fn pi_ccs_outputs_digest_preimage(claims: &[CeClaim<Commitment, F, K>]) -> Vec<F> {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/pi_ccs_outputs_digest/v2");
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
@@ -560,7 +570,7 @@ pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
         append_active_k_rows(&mut preimage, &claim.y_ring);
         append_active_k_slice(&mut preimage, &claim.y_zcol);
     }
-    sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
+    preimage
 }
 
 /// Digest of the compact terminal-CE proof's public statement.
@@ -781,6 +791,19 @@ impl AccumulatorHandle {
         }
     }
 
+    /// Build the same handle when a resident backend already holds the
+    /// authenticated [`accumulator_ce_claim_digest`] of the Pi_RLC parent.
+    ///
+    /// This is a prover-side scheduling shortcut, not authority. The parent
+    /// and its Pi_DEC children must still be verified before the handle is
+    /// consumed across a trust boundary.
+    #[doc(hidden)]
+    pub fn from_parent_digest(child_count: usize, parent_digest: Option<[F; 4]>) -> Self {
+        Self {
+            digest: accumulator_digest_from_parent_digest(child_count, parent_digest),
+        }
+    }
+
     pub fn digest(&self) -> [u8; 32] {
         self.digest
     }
@@ -808,22 +831,30 @@ pub fn accumulator_digest_from_running_parts(
     claims: &[CeClaim<Commitment, F, K>],
     parent_authority: Option<&CeClaim<Commitment, F, K>>,
 ) -> [u8; 32] {
-    if !claims.is_empty() {
-        if let Some(parent) = parent_authority {
-            return digest_fields_as_digest32(accumulator_ce_claim_digest(parent));
+    accumulator_digest_from_parent_digest(claims.len(), parent_authority.map(accumulator_ce_claim_digest))
+}
+
+/// Canonical accumulator handle from an already-authenticated
+/// [`accumulator_ce_claim_digest`]. This is the scheduling form of
+/// [`accumulator_digest_from_running_parts`] for resident backends.
+#[doc(hidden)]
+pub fn accumulator_digest_from_parent_digest(child_count: usize, parent_digest: Option<[F; 4]>) -> [u8; 32] {
+    if child_count > 0 {
+        if let Some(parent_digest) = parent_digest {
+            return digest_fields_as_digest32(parent_digest);
         }
     }
 
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/parent_authority/v2");
-    preimage.push(F::from_u64(claims.len() as u64));
-    match parent_authority {
-        Some(parent) => {
+    preimage.push(F::from_u64(child_count as u64));
+    match parent_digest {
+        Some(parent_digest) => {
             preimage.push(F::ONE);
-            preimage.extend_from_slice(&accumulator_ce_claim_digest(parent));
+            preimage.extend_from_slice(&parent_digest);
         }
         None => preimage.push(F::ZERO),
     }
-    if claims.is_empty() != parent_authority.is_none() {
+    if (child_count == 0) != parent_digest.is_none() {
         preimage.push(F::from_u64(u64::MAX));
     }
     digest_fields_as_digest32(poseidon_digest_fields(&preimage))

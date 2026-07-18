@@ -149,7 +149,7 @@ fn prove_final_fold_with_nifs_prover(
 
     let pre_nebula = nebula.clone();
     let mut terminal_nebula = nebula;
-    let (post_running, nifs_with_inputs, post_acc_digest_override) = match proof {
+    let (post_running_carrier, post_running, nifs_with_inputs, post_acc_digest_override) = match proof {
         ProofState::Initial => {
             return Ok((
                 State {
@@ -169,10 +169,17 @@ fn prove_final_fold_with_nifs_prover(
             ));
         }
         ProofState::Active { running, latest } if latest.instances.is_empty() => {
-            (running.into_materialized()?, None, None)
+            let public = running.materialize_prover_input()?.claims_only();
+            (running, public, None, None)
         }
-        ProofState::Active { running, latest } => {
-            let running = running.into_materialized()?;
+        ProofState::Active {
+            running: running_carrier,
+            latest,
+        } => {
+            let running = match &nifs_prover {
+                FinalFoldNifsProver::Backend(_) => running_carrier.materialize()?,
+                FinalFoldNifsProver::Adapter(_) => running_carrier.materialize_prover_input()?,
+            };
             if let Some(cfg) = delayed_nebula {
                 let lane = terminal_nebula.as_mut().ok_or(Error::BaseCaseMismatch)?;
                 lane.advance_for_delayed_claims(
@@ -195,7 +202,7 @@ fn prove_final_fold_with_nifs_prover(
             };
 
             let mut tr = final_fold_transcript();
-            let (post_running, nifs_proof, post_acc_digest_override) = match &mut nifs_prover {
+            let (post_running_carrier, post_running, nifs_proof, post_acc_digest_override) = match &mut nifs_prover {
                 FinalFoldNifsProver::Backend(backend) => {
                     let (running, proof) = nifs::prove_with_backend(
                         *backend,
@@ -210,10 +217,11 @@ fn prove_final_fold_with_nifs_prover(
                         latest.instances,
                         &running,
                     )?;
-                    (running, proof, None)
+                    let public = running.claims_only();
+                    (nifs::NifsRunningCarrier::materialized(running), public, proof, None)
                 }
                 FinalFoldNifsProver::Adapter(adapter) => {
-                    let output = nifs::prove_terminal_with_adapter_output(
+                    let output = nifs::prove_terminal_with_adapter_output_from_carrier(
                         *adapter,
                         &mut tr,
                         pp,
@@ -224,14 +232,18 @@ fn prove_final_fold_with_nifs_prover(
                         mix_rhos_commits,
                         combine_b_pows,
                         latest.instances,
+                        &running_carrier,
                         &running,
                     )?;
-                    let (running, proof, post_summary) = output.into_materialized_parts_with_summary()?;
+                    let (running, proof, post_summary) = output.into_carriers_with_summary();
+                    let public = running.materialize_prover_input()?.claims_only();
+                    let proof = proof.into_materialized()?;
                     let acc_digest = post_summary.and_then(|summary| summary.acc_digest_override());
-                    (running, proof, acc_digest)
+                    (running, public, proof, acc_digest)
                 }
             };
             (
+                post_running_carrier,
                 post_running,
                 Some((nifs_proof, terminal_inputs)),
                 post_acc_digest_override,
@@ -263,7 +275,7 @@ fn prove_final_fold_with_nifs_prover(
         acc_digest: post_acc_digest,
         public_trace,
         nebula: terminal_nebula,
-        proof: ProofState::active(post_running, LatestInstance::from_instances(Vec::new())),
+        proof: ProofState::active_carrier(post_running_carrier, LatestInstance::from_instances(Vec::new())),
     };
     let final_proof = nifs_with_inputs.map(|(nifs, terminal_inputs)| FinalFoldProof {
         x_out: transition::compute_x_out(vk, pp, structure_digest, &state_after, semantic_mode),
@@ -358,10 +370,10 @@ pub(crate) fn verify_final_fold(
             if proof.is_some() {
                 return Err(Error::UnexpectedFinalFoldProof);
             }
-            running.into_materialized()?
+            running.materialize_prover_input()?.claims_only()
         }
         ProofState::Active { running, latest } => {
-            let running = running.into_materialized()?;
+            let running = running.materialize_prover_input()?.claims_only();
             let proof = proof.ok_or(Error::MissingFinalFoldProof)?;
             if let Some(cfg) = delayed_nebula {
                 let lane = terminal_nebula.as_mut().ok_or(Error::BaseCaseMismatch)?;

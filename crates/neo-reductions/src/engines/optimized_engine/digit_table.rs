@@ -43,7 +43,7 @@ pub enum NcDigitTable {
     Dense(Vec<[K; D]>),
     /// Placeholder when a device backend owns the column phase: the host
     /// never built (and must never read) the values. Any host access
-    /// panics; `NcOracle::materialize_digit_tables` converts back to a
+    /// panics; `NcOracle::materialize_deferred_col_tables` converts back to a
     /// built table if the backend declines.
     Deferred {
         len: usize,
@@ -218,6 +218,12 @@ where
         ));
     }
 
+    if let Some((positive, negative)) = Z.packed_signed_unit_column_masks() {
+        return Ok(build_nc_digit_table_from_column_masks::<Ff>(
+            positive, negative, expected_m,
+        ));
+    }
+
     let active_cols = expected_m.div_ceil(D);
     let all_zero =
         (0..D).all(|rho| (0..active_cols).all(|block| block * D + rho >= expected_m || Z[(rho, block)] == Ff::ZERO));
@@ -287,6 +293,62 @@ where
     } else {
         Ok((NcDigitTable::Lane0(values), NcDigitMasks::Dense(masks)))
     }
+}
+
+fn build_nc_digit_table_from_column_masks<Ff>(
+    positive: &[u64],
+    negative: &[u64],
+    expected_m: usize,
+) -> (NcDigitTable, NcDigitMasks)
+where
+    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
+    K: From<Ff>,
+{
+    let mut values = vec![K::ZERO; expected_m];
+    let mut masks = vec![0u64; expected_m];
+    let positive_value = K::from(Ff::ONE);
+    let negative_value = K::from(Ff::ZERO - Ff::ONE);
+    let mut any_nonzero = false;
+    let mut saw_nonzero_lane = false;
+
+    for (block, (&positive_mask, &negative_mask)) in positive.iter().zip(negative).enumerate() {
+        let base = block * D;
+        if base >= expected_m {
+            break;
+        }
+        let live_lanes = (expected_m - base).min(D);
+        let valid_lanes = (1u64 << live_lanes) - 1;
+        let positive_mask = positive_mask & valid_lanes;
+        let negative_mask = negative_mask & valid_lanes;
+        let mut live = positive_mask | negative_mask;
+        while live != 0 {
+            let lane = live.trailing_zeros() as usize;
+            let bit = 1u64 << lane;
+            let column = base + lane;
+            values[column] = if positive_mask & bit != 0 {
+                positive_value
+            } else {
+                negative_value
+            };
+            masks[column] = bit;
+            any_nonzero = true;
+            saw_nonzero_lane |= lane != 0;
+            live &= live - 1;
+        }
+    }
+
+    if !any_nonzero {
+        return (
+            NcDigitTable::Zero { len: expected_m },
+            NcDigitMasks::Zero { len: expected_m },
+        );
+    }
+    let table = if saw_nonzero_lane {
+        NcDigitTable::Strided { width: 1, values }
+    } else {
+        NcDigitTable::Lane0(values)
+    };
+    (table, NcDigitMasks::Dense(masks))
 }
 
 /// In-place fold of a strided table while merge windows are lane-disjoint

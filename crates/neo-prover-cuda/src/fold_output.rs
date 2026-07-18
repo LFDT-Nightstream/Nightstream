@@ -11,14 +11,16 @@ use std::sync::{Arc, Mutex};
 use cuda_core::{CudaStream, DeviceBuffer};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_fold_clean::paper::digest::{ce_claim_digest, digest32_as_fields, AccumulatorHandle};
+use neo_fold_clean::paper::digest::{
+    accumulator_ce_claim_digest, ce_claim_digest, digest32_as_fields, AccumulatorHandle,
+};
 use neo_fold_clean::paper::nifs::{DeferredNifsRunningMaterializer, Error, NifsRunningCarrier};
 use neo_fold_clean::{CeClaim, RunningInstance};
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::device::{upload_u64_device_buffer, Device};
-use crate::reduce::ccs::{accumulator_digest_from_surfaces, DevicePiCcsKSurfaces, DevicePublicX, SumcheckKernels};
+use crate::reduce::ccs::{DevicePiCcsKSurfaces, DevicePublicX};
 use crate::reduce::dec::DeferredDecStatus;
 use crate::reduce::rlc as device_rlc;
 use crate::session::backend_unavailable;
@@ -70,8 +72,6 @@ pub(crate) struct DeviceFoldOutput {
 
 impl DeviceFoldOutput {
     pub(crate) fn new(
-        device: &Device,
-        kernels: &SumcheckKernels,
         child_surfaces: DevicePiCcsKSurfaces,
         child_commitments: Arc<DeviceCommitments>,
         child_public_x: DevicePublicX,
@@ -91,19 +91,13 @@ impl DeviceFoldOutput {
         if child_public_x.claims() != claim_shells.len() {
             return Err(backend_unavailable("device fold-output public X count mismatch"));
         }
-        let (accumulator_digest, parent_ce_digest) = accumulator_digest_from_surfaces(
-            device,
-            kernels,
-            &claim_shells,
-            &child_surfaces,
-            &child_commitments,
-            &child_public_x,
-            &parent_shell,
-            &parent_surfaces,
-            &parent_commitment,
-            &parent_public_x,
-        )
-        .map_err(|_| backend_unavailable("device fold-output accumulator digest failed"))?;
+        // A valid nonempty Construction-2 handle is the checked parent's full
+        // accumulator CE digest directly. The child count only preserves the
+        // empty/malformed shape behavior.
+        let parent_ce_digest = ce_claim_digest(&parent_shell);
+        let parent_accumulator_digest = accumulator_ce_claim_digest(&parent_shell);
+        let accumulator_digest =
+            AccumulatorHandle::from_parent_digest(claim_shells.len(), Some(parent_accumulator_digest)).digest();
         let parent_authority = DeviceClaimAuthority::new(
             parent_shell,
             parent_surfaces,
@@ -345,10 +339,6 @@ impl DeviceCommitments {
 
     pub(crate) fn d(&self) -> usize {
         self.d
-    }
-
-    pub(crate) fn kappa(&self) -> usize {
-        self.kappa
     }
 
     pub(crate) fn words_per_commitment(&self) -> usize {

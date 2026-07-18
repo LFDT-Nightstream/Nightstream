@@ -2,20 +2,43 @@ use core::ops::{Index, IndexMut};
 use p3_field::PrimeCharacteristicRing;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+enum PackedSignedUnitBits {
+    RowMajor {
+        positive: Vec<u64>,
+        negative: Vec<u64>,
+    },
+    ColumnMasks {
+        positive: Vec<u64>,
+        negative: Vec<u64>,
+    },
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct PackedSignedUnit<T> {
-    positive: Vec<u64>,
-    negative: Vec<u64>,
+    bits: PackedSignedUnitBits,
     values: [T; 3],
+    cols: usize,
 }
 
 impl<T> PackedSignedUnit<T> {
     #[inline]
     fn value(&self, index: usize) -> &T {
-        let word = index / u64::BITS as usize;
-        let bit = 1u64 << (index % u64::BITS as usize);
-        if self.positive[word] & bit != 0 {
+        let (positive, negative, word, bit) = match &self.bits {
+            PackedSignedUnitBits::RowMajor { positive, negative } => (
+                positive,
+                negative,
+                index / u64::BITS as usize,
+                1u64 << (index % u64::BITS as usize),
+            ),
+            PackedSignedUnitBits::ColumnMasks { positive, negative } => {
+                let row = index / self.cols;
+                let column = index % self.cols;
+                (positive, negative, column, 1u64 << row)
+            }
+        };
+        if positive[word] & bit != 0 {
             &self.values[1]
-        } else if self.negative[word] & bit != 0 {
+        } else if negative[word] & bit != 0 {
             &self.values[2]
         } else {
             &self.values[0]
@@ -24,11 +47,23 @@ impl<T> PackedSignedUnit<T> {
 
     #[inline]
     fn nonzero_count(&self) -> usize {
-        self.positive
+        let (positive, negative) = match &self.bits {
+            PackedSignedUnitBits::RowMajor { positive, negative }
+            | PackedSignedUnitBits::ColumnMasks { positive, negative } => (positive, negative),
+        };
+        positive
             .iter()
-            .zip(&self.negative)
+            .zip(negative)
             .map(|(&positive, &negative)| (positive | negative).count_ones() as usize)
             .sum()
+    }
+
+    #[inline]
+    fn column_masks(&self) -> Option<(&[u64], &[u64])> {
+        match &self.bits {
+            PackedSignedUnitBits::ColumnMasks { positive, negative } => Some((positive, negative)),
+            PackedSignedUnitBits::RowMajor { .. } => None,
+        }
     }
 }
 
@@ -137,6 +172,12 @@ impl<T: Clone> Mat<T> {
         self.packed_signed_unit
             .as_ref()
             .map(PackedSignedUnit::nonzero_count)
+    }
+
+    /// Borrow the validated per-column positive and negative row masks when
+    /// this matrix was constructed directly from that representation.
+    pub fn packed_signed_unit_column_masks(&self) -> Option<(&[u64], &[u64])> {
+        self.packed_signed_unit.as_ref()?.column_masks()
     }
 
     /// Return the exact row-major values without changing the matrix storage.
@@ -324,12 +365,61 @@ where
             data: Vec::new(),
             constant_hint: None,
             packed_signed_unit: Some(PackedSignedUnit {
-                positive,
-                negative,
+                bits: PackedSignedUnitBits::RowMajor { positive, negative },
                 values: [F::ZERO, F::ONE, neg_one],
+                cols,
             }),
             identity_hint: false,
         }
+    }
+
+    /// Construct exact `{0, 1, -1}` storage from one positive and negative
+    /// row mask per column. Bit `r` in a column mask represents `(r, column)`.
+    pub fn compact_signed_unit_from_column_masks(
+        rows: usize,
+        cols: usize,
+        positive_columns: &[u64],
+        negative_columns: &[u64],
+    ) -> Result<Self, &'static str> {
+        if rows > u64::BITS as usize {
+            return Err("signed-unit column masks support at most 64 rows");
+        }
+        if positive_columns.len() != cols || negative_columns.len() != cols {
+            return Err("signed-unit column mask count does not match the matrix");
+        }
+        rows.checked_mul(cols)
+            .ok_or("signed-unit matrix dimensions overflow")?;
+        let valid_rows = match rows {
+            0 => 0,
+            64 => u64::MAX,
+            rows => (1u64 << rows) - 1,
+        };
+        for column in 0..cols {
+            let positive_column = positive_columns[column];
+            let negative_column = negative_columns[column];
+            if (positive_column | negative_column) & !valid_rows != 0 {
+                return Err("signed-unit column mask sets a row outside the matrix");
+            }
+            if positive_column & negative_column != 0 {
+                return Err("signed-unit column masks overlap");
+            }
+        }
+        let neg_one = F::ZERO - F::ONE;
+        Ok(Self {
+            rows,
+            cols,
+            data: Vec::new(),
+            constant_hint: None,
+            packed_signed_unit: Some(PackedSignedUnit {
+                bits: PackedSignedUnitBits::ColumnMasks {
+                    positive: positive_columns.to_vec(),
+                    negative: negative_columns.to_vec(),
+                },
+                values: [F::ZERO, F::ONE, neg_one],
+                cols,
+            }),
+            identity_hint: false,
+        })
     }
 }
 

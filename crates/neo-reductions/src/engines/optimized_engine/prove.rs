@@ -139,6 +139,7 @@ pub fn optimized_prove_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphi
         None,
         None,
         ReplayTraceMode::Prove,
+        false,
         None,
         None,
         None,
@@ -175,6 +176,7 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_perf<L: neo_ccs::trait
         Some(public_instance_digest),
         None,
         ReplayTraceMode::Prove,
+        false,
         None,
         None,
         None,
@@ -229,6 +231,7 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
+        true,
         None,
         None,
         None,
@@ -236,13 +239,12 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
     )?;
     let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
     let proof = proof_from_terminal_state(&terminal_state, rounds);
+    let pi_dec_precompute = terminal_state
+        .pi_dec_precompute
+        .clone()
+        .ok_or_else(|| PiCcsError::InvalidInput("CPU Pi_CCS prove did not produce Pi_DEC precomputation".into()))?;
 
-    Ok((
-        terminal_state.me_outputs,
-        proof,
-        terminal_state.perf,
-        terminal_state.pi_dec_precompute,
-    ))
+    Ok((terminal_state.me_outputs, proof, terminal_state.perf, pi_dec_precompute))
 }
 
 /// `optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf`
@@ -277,6 +279,7 @@ pub fn optimized_prove_with_device_backends<L: neo_ccs::traits::SModuleHomomorph
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
+        false,
         None,
         fe_backend,
         nc_backend,
@@ -365,6 +368,7 @@ pub fn optimized_prove_with_phase_backend_and_transcript_mode<L: neo_ccs::traits
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::Prove,
+        false,
         phase_backend,
         fe_backend,
         nc_backend,
@@ -410,6 +414,7 @@ pub fn optimized_defer_prove_with_phase_backend_and_transcript_mode<L: neo_ccs::
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::DeferredProof,
+        false,
         Some(phase_backend),
         None,
         None,
@@ -456,6 +461,7 @@ pub fn optimized_defer_prove_with_device_backends_and_transcript_mode<
         Some(public_instance_digest),
         Some(me_input_accumulator_handle),
         ReplayTraceMode::DeferredProof,
+        false,
         None,
         Some(fe_backend),
         nc_backend,
@@ -480,6 +486,7 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     public_instance_digest: Option<[F; 4]>,
     me_input_accumulator_handle: Option<[F; 4]>,
     mode: ReplayTraceMode,
+    capture_pi_dec_precompute: bool,
     mut phase_backend: Option<&mut dyn PiCcsPhaseBackend>,
     mut fe_backend: Option<&mut dyn FeSumcheckBackend>,
     mut nc_backend: Option<&mut dyn NcSumcheckBackend>,
@@ -845,6 +852,9 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
             None => false,
         }
     };
+    if !backend_active && first_host_round != oracle.num_rounds() {
+        oracle.materialize_deferred_row_equality_tables();
+    }
     if oracle.row_phase_requires_backend() && first_host_round != oracle.num_rounds() && !backend_active {
         return Err(PiCcsError::InvalidInput(
             "FE backend deferred row data but did not accept the row-phase snapshot".into(),
@@ -883,9 +893,14 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
         };
         if let Some(mut trace) = full_trace {
             if trace.ajtai_y_eval.is_none() {
-                if let Some((cache, chi_r, n_eff, witnesses)) = oracle.ajtai_backend_context() {
+                if let Some((cache, row_challenges, n_eff, witnesses)) = oracle.ajtai_backend_challenge_context() {
                     let backend = fe_backend.as_deref_mut().expect("fe backend is active");
-                    trace.ajtai_y_eval = backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses);
+                    trace.ajtai_y_eval =
+                        backend.ajtai_y_eval_from_row_challenges(cache, row_challenges, n_eff, &witnesses);
+                    if trace.ajtai_y_eval.is_none() {
+                        let chi_r = neo_ccs::utils::tensor_point_parallel::<K>(row_challenges);
+                        trace.ajtai_y_eval = backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses);
+                    }
                 }
             }
             let expected_rounds = oracle.num_rounds();
@@ -945,9 +960,15 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     for round_idx in first_host_round..oracle.num_rounds() {
         let backend_row_round = backend_active && round_idx < dims.ell_n;
         if round_idx == dims.ell_n {
-            if let Some((cache, chi_r, n_eff, witnesses)) = oracle.ajtai_backend_context() {
+            if let Some((cache, row_challenges, n_eff, witnesses)) = oracle.ajtai_backend_challenge_context() {
                 if let Some(backend) = fe_backend.as_deref_mut() {
-                    if let Some(y_eval) = backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses) {
+                    let y_eval = backend
+                        .ajtai_y_eval_from_row_challenges(cache, row_challenges, n_eff, &witnesses)
+                        .or_else(|| {
+                            let chi_r = neo_ccs::utils::tensor_point_parallel::<K>(row_challenges);
+                            backend.ajtai_y_eval(cache, &chi_r, n_eff, &witnesses)
+                        });
+                    if let Some(y_eval) = y_eval {
                         oracle.inject_ajtai_y_eval(y_eval);
                     }
                 }
@@ -1133,7 +1154,7 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
         }
     };
     if !nc_backend_active && !phase_nc_trace_applied {
-        oracle_nc.materialize_digit_tables();
+        oracle_nc.materialize_deferred_col_tables();
     }
 
     let mut first_nc_host_round = first_nc_host_round_from_phase.unwrap_or(0);
@@ -1230,9 +1251,9 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
         let p0 = coeffs[0];
         let p1 = crate::sumcheck::poly_eval_k_base(&coeffs, F::ONE);
         if p0 + p1 != running_sum_nc {
-            return Err(PiCcsError::SumcheckError(
-                "NC sumcheck invariant failed: p(0)+p(1) ≠ running_sum".into(),
-            ));
+            return Err(PiCcsError::SumcheckError(format!(
+                "NC sumcheck invariant failed at round {_round_idx}: p(0)+p(1) ≠ running_sum"
+            )));
         }
 
         let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);
@@ -1302,7 +1323,6 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     let output_started = std::time::Instant::now();
     let fold_digest = tr.digest32();
     let (s_col, _alpha_nc) = sumcheck_chals_nc.split_at(dims.ell_m);
-    let terminal_surfaces_supplied = phase_terminal_surfaces.is_some();
     let out_me = if let Some(surfaces) = phase_terminal_surfaces.take() {
         build_me_outputs_from_terminal_surfaces(
             params,
@@ -1326,13 +1346,9 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
             log,
         )
     };
-    let pi_dec_precompute = if terminal_surfaces_supplied {
-        super::PiDecProverPrecompute {
-            row_chals: sumcheck_chals[..dims.ell_n].to_vec(),
-        }
-    } else {
-        oracle.take_pi_dec_precompute()
-    };
+    let pi_dec_precompute = capture_pi_dec_precompute
+        .then(|| oracle.take_pi_dec_precompute())
+        .flatten();
     let output_materialize_ms = output_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
     eprintln!(

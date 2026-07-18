@@ -77,17 +77,22 @@ pub enum Error {
         backend: &'static str,
         reason: &'static str,
     },
+    #[error("NIFS.P backend `{backend}` failed during {phase}: {reason}")]
+    BackendFailure {
+        backend: &'static str,
+        phase: &'static str,
+        reason: String,
+    },
 }
 
 pub use backend::{
     CpuNifsProver, DeferredNifsProofMaterializer, DeferredNifsRunningMaterializer, NifsFPrimeStepContext,
     NifsFreshImageOverlayRequest, NifsFreshImageRegion, NifsFreshImageRegionKind, NifsFreshInstancesRequest,
-    NifsFreshPrefixRequest, NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay,
-    NifsFreshStateXOutOverlay, NifsPostFoldSummary, NifsProofCarrier, NifsProverAdapter, NifsProverBackend,
-    NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
+    NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay, NifsFreshStateXOutOverlay, NifsPostFoldSummary,
+    NifsProofCarrier, NifsProverAdapter, NifsProverBackend, NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
 };
 pub use fixed::{prove_fixed, verify_fixed, FixedNifsAccumulator};
 pub use proof::NifsProof;
 pub use prover::{prove, prove_with_adapter, prove_with_backend};
-pub(crate) use prover::{prove_terminal_with_adapter_output, prove_with_adapter_output_from_carrier};
+pub(crate) use prover::{prove_terminal_with_adapter_output_from_carrier, prove_with_adapter_output_from_carrier};
 pub use verifier::verify;

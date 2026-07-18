@@ -381,6 +381,19 @@ private theorem fallbackDigit_recompose (value : F) :
 def recomposeScalar (values : ChildIndex -> F) : F :=
   combineScalars EvaluationHomomorphism.PiDEC.radixWeight values
 
+/-- Assignment recomposition is coordinatewise scalar recomposition. This
+bridge exposes the exact production operation to necessity proofs without
+duplicating the private finite-fold implementation. -/
+@[simp] theorem recomposeAssignment_apply {shape : Shape}
+    (assignments : ChildIndex -> Assignment shape)
+    (column : Fin shape.carrierWidth) :
+    recomposeAssignment assignments column =
+      recomposeScalar (fun child => assignments child column) := by
+  unfold recomposeAssignment EvaluationHomomorphism.PiDEC.recomposeAssignment
+  unfold recomposeScalar
+  exact combineAssignments_apply
+    EvaluationHomomorphism.PiDEC.radixWeight assignments column
+
 theorem splitScalar_recompose (value : F) :
     recomposeScalar (splitScalar value) = value := by
   unfold recomposeScalar

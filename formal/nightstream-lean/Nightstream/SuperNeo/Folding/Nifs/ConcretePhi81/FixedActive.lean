@@ -79,8 +79,9 @@ abbrev Certificate
 /-- Complete recursive fold result.
 
 The children are the next formal accumulator. The parent is the checked,
-deterministically derived combined statement retained only as the authority
-cache for the next transition. -/
+deterministically derived combined statement retained as a recomposition
+cache for the next transition. It is not a binding commitment to the child
+vector. -/
 abbrev FoldResult
     (shape : SemanticShape)
     (publicRingColumns : Nat)
@@ -156,7 +157,8 @@ theorem ResultTransition.children_transition
   exact Result.ResultTransition.children_transition
     (arity := arity) accepted
 
-/-- The derived parent cache has an authoritative private opening. -/
+/-- The derived parent cache has a valid private opening. This does not make
+the parent an injective encoding of its children. -/
 theorem ResultTransition.parentOpening
     {shape : SemanticShape}
     {State : Type uState}

@@ -29,6 +29,12 @@ witness used by the candidate; it cannot be satisfied by silently choosing a
 different point or challenge vector. Physical transcript and extraction
 checks remain separate refinement/security boundaries.
 
+The incoming-authority leaf validates strict parent/child recomposition for
+the child vector already present in the candidate. It does not prove that a
+parent-only digest binds that vector across F-prime steps; that is a separate
+outer authority obligation and has an exact production-profile
+counterexample.
+
 | Phase | Family | Leaf stage path | Mathematical obligation | Authority class |
 |---|---|---|---|---|
 | `Pi_CCS` | paper relation | `nifs.semantic.pi_ccs.relation.fresh_ccs` | every fresh assignment satisfies CCS | checked |

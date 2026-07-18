@@ -1,4 +1,7 @@
 //! FE row-sumcheck backend, resident execution, and canonical host fallback.
+//!
+//! The canonical engine owns protocol sequencing. This module translates its
+//! snapshots into device plans and retains enough initial state for exact replay.
 
 use std::mem::size_of;
 use std::time::{Duration, Instant};
@@ -59,6 +62,7 @@ impl FeSumcheckProfile {
     }
 }
 
+/// Adapter between the canonical FE backend trait and one Metal session.
 pub(crate) struct MetalFeBackend<'a> {
     session: &'a MetalSession,
     oracle: Option<FeOracle>,
@@ -73,6 +77,10 @@ pub(crate) struct MetalFeBackend<'a> {
     profile: FeSumcheckProfile,
 }
 
+/// Logical FE state mirrored by an optional resident execution plan.
+///
+/// Host tables are kept as the immutable replay source, not updated in lockstep
+/// with successful device folds.
 struct FeOracle {
     cur_len: usize,
     active_len: usize,
@@ -89,6 +97,8 @@ struct FeOracle {
     f_at_zero: K,
     f_terms: Vec<(K, Vec<(usize, u32)>)>,
     resident: Option<MetalFeSumcheckPlan>,
+    // The backend API delivers a challenge after its coefficients. Delaying the
+    // fold lets the next round encode that fold and its own work together.
     pending_challenge: Option<K>,
     challenges: Vec<K>,
     host_fallback: bool,
@@ -440,6 +450,8 @@ impl FeSumcheckBackend for MetalFeBackend<'_> {
 }
 
 impl FeOracle {
+    /// Accepts only a self-consistent canonical snapshot and assigns exactly one
+    /// owner—host, tensor source, or deferred buffer—to every logical table.
     fn from_snapshot(
         snapshot: &RowPhaseSnapshot<'_>,
         session: &MetalSession,
@@ -676,6 +688,8 @@ impl FeOracle {
         coeffs
     }
 
+    /// Translates logical table ownership into the narrow resident-plan ABI while
+    /// preserving the original host state for exact fallback replay.
     fn prepare_resident(&self, session: &MetalSession) -> Result<MetalFeSumcheckPlan, crate::MetalError> {
         let tables = self
             .table_sources
@@ -854,6 +868,9 @@ impl FeOracle {
         if self.host_fallback {
             return;
         }
+        // Rebuild from the immutable initial tables and replay every accepted
+        // challenge. Continuing from partially folded host mirrors would fork
+        // the sumcheck state.
         assert!(
             self.deferred_eval.is_none() && self.deferred_mcs.is_empty(),
             "device-owned FE tables failed during the row phase"

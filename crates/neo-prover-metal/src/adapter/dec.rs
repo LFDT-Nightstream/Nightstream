@@ -16,6 +16,7 @@ use crate::{
     MetalResidentWitness, MetalResidentWitnessSnapshot, MetalSession,
 };
 
+/// Host-visible Pi_DEC material plus ownership handles for resident children.
 pub(super) struct MetalDecOutput {
     pub(super) witnesses: Vec<Mat<F>>,
     pub(super) digit_nonzero: Vec<bool>,
@@ -33,6 +34,8 @@ pub(super) struct MetalDecOutput {
     pub(super) forms_on_metal: bool,
 }
 
+/// Selects the available form source, performs the complete base-2 split and
+/// projections, and materializes witnesses only when residency is not retained.
 pub(super) fn split_dec_on_metal(
     session: &MetalSession,
     params: &Params,
@@ -166,6 +169,9 @@ pub(super) fn split_dec_on_metal(
         .then(|| session.resident_child_mask_prefix(&material.resident_children, public_cols))
         .transpose()?;
     let children = if retain_resident {
+        // These shape-only placeholders keep the ordinary RunningInstance
+        // lightweight. The deferred carrier replaces them from its immutable
+        // mask snapshot whenever execution crosses back to the CPU.
         (0..child_count)
             .map(|_| Mat::virtual_constant(D, parent_cols, F::ZERO))
             .collect::<Vec<_>>()
@@ -244,6 +250,8 @@ pub(super) fn split_dec_on_metal(
             data: words.iter().copied().map(F::from_u64).collect(),
         })
         .collect();
+    // Claims are ordinary protocol values even when their projections came
+    // from Metal; only witness storage remains deferred behind the carrier.
     let resident_claims = if let Some(public_masks) = public_masks {
         let child_x = child_public_x_from_masks(&public_masks, child_count, claim.m_in)?;
         let child_y_zcol = child_y_zcol_from_words(&y_zcol_words, child_count, !claim.s_col.is_empty())?;
@@ -342,6 +350,8 @@ fn child_y_zcol_from_words(words: &[u64], child_count: usize, enabled: bool) -> 
         .collect())
 }
 
+/// Reconstructs canonical child claims from the projections returned by Metal;
+/// no resident buffer or generation id becomes part of these protocol values.
 #[allow(clippy::too_many_arguments)]
 fn build_resident_dec_claims(
     params: &Params,
@@ -385,6 +395,8 @@ fn build_resident_dec_claims(
                 s_col: parent.s_col.clone(),
                 y_ring,
                 ct,
+                // The additive split carries the parent's auxiliary term once;
+                // copying it to every child would change recomposition.
                 aux_openings: if child == 0 {
                     parent.aux_openings.clone()
                 } else {

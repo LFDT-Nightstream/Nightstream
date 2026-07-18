@@ -1,4 +1,7 @@
 //! Static DEC form plans, seeded patches, and Ajtai opening evaluation.
+//!
+//! The plan owns sparse indexing; `MetalAjtaiRingForms` owns one point-specific
+//! evaluation that Pi_CCS may hand directly to Pi_DEC.
 
 use std::mem::size_of;
 use std::time::{Duration, Instant};
@@ -18,6 +21,9 @@ use crate::{MetalAjtaiYProfile, MetalError};
 const PARALLEL_FORM_LIST_THRESHOLD: usize = 128;
 const FORM_REDUCTION_THREADS: usize = 256;
 
+/// Resident sparse-form ABI shared by Pi_CCS opening and Pi_DEC projection.
+///
+/// Cache identity and digest are stale-plan guards only, not protocol authority.
 pub(crate) struct MetalDecFormPlan {
     pub(super) active_local_offsets: Buffer,
     pub(super) active_entry_bases: Buffer,
@@ -47,6 +53,7 @@ pub(crate) struct MetalDecFormPlan {
     pub(super) matrix_digest: [u64; 4],
 }
 
+/// Point-specific ring forms retained between Pi_CCS and Pi_DEC.
 pub(crate) struct MetalAjtaiRingForms {
     pub(super) words: Buffer,
     pub(super) form_rows: usize,
@@ -108,6 +115,8 @@ pub(super) struct DeviceFormBuild<'a> {
 }
 
 impl MetalSession {
+    /// Compiles structure-static sparse matrices into the compact form ABI used
+    /// by both Pi_CCS opening evaluation and Pi_DEC child projection.
     pub(crate) fn prepare_dec_ring_forms(
         &self,
         cache: &SuperneoEvalCache,
@@ -132,6 +141,7 @@ impl MetalSession {
             .try_fold(0usize, |total, count| total.checked_add(count))
             .ok_or(MetalError::Shape("Pi_DEC compact coefficient count overflow"))?;
 
+        // Temporary host layout used once to build compact device indices.
         struct MatrixLayout {
             offsets: Vec<u32>,
             active: Vec<bool>,
@@ -286,6 +296,8 @@ impl MetalSession {
                         _ => 7,
                     };
                     explicit_form_list_histogram[bucket] += 1;
+                    // Long coefficient lists get a cooperative threadgroup;
+                    // short lists remain one-thread contractions in the main kernel.
                     if entries >= PARALLEL_FORM_LIST_THRESHOLD {
                         parallel_form_lists.push(
                             u32::try_from(active_index * D + local)
@@ -494,6 +506,8 @@ impl MetalSession {
         }))
     }
 
+    /// Builds point-specific ring forms from an existing equality tensor and
+    /// evaluates every signed-mask witness while retaining the forms for Pi_DEC.
     pub(crate) fn eval_ajtai_y_from_signed_masks(
         &self,
         plan: &MetalDecFormPlan,
@@ -652,6 +666,8 @@ impl MetalSession {
         ))
     }
 
+    /// Expands the row-challenge tensor on-device before form construction, so
+    /// only final openings—not the full equality table—cross back to the host.
     pub(crate) fn eval_ajtai_y_from_signed_masks_and_row_challenges(
         &self,
         plan: &MetalDecFormPlan,
@@ -744,6 +760,8 @@ impl MetalSession {
         ])?;
 
         let device_started = Instant::now();
+        // Submit the dependent tensor -> form chain without waiting. The queue
+        // preserves their order while the CPU prepares the small seeded patch.
         let tensor_command = self.command_buffer("nightstream.pi_ccs.tensor_point_from_row_challenges")?;
         self.encode_tensor_point_k(&tensor_command, &challenges, &stages, &chi, challenge_count as usize)?;
         self.submit(&tensor_command);
@@ -864,6 +882,8 @@ impl MetalSession {
         Ok(())
     }
 
+    /// Encodes compact and long explicit lists, bar, and seeded contributions in
+    /// dependency order. Returned scratch remains live through command completion.
     pub(super) fn encode_dec_form_build(
         &self,
         command: &objc2::runtime::ProtocolObject<dyn MTLCommandBuffer>,

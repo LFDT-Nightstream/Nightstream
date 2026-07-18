@@ -1,4 +1,7 @@
 //! Mask-native NC rounds before the dense ring-lane crossover.
+//!
+//! The original signed masks are immutable. Challenges fold a small basis
+//! table until one dense materialization is cheaper than further mask lookup.
 
 use std::mem::size_of;
 
@@ -86,6 +89,8 @@ impl MetalSession {
         self.encode_nc_mask_fold_from_buffer(command, plan, Some((round, challenge_offset)))
     }
 
+    /// Advances the mask-native state after one encoded round, folding only the
+    /// shared basis until the fixed crossover requires one dense materialization.
     fn encode_nc_mask_fold_from_buffer(
         &self,
         command: &ProtocolObject<dyn MTLCommandBuffer>,
@@ -132,6 +137,8 @@ impl MetalSession {
         encoder.endEncoding();
 
         if !direct_compact {
+            // Small inputs pay for one direct mask-to-table fold and then use
+            // the ordinary compact table kernels.
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.nc.mask_fold")));
             encoder.setComputePipelineState(&self.nc_fold_signed_masks);
@@ -149,6 +156,8 @@ impl MetalSession {
             );
             encoder.endEncoding();
         } else {
+            // Large inputs fold only the shared basis. At width 32 the next
+            // window would exceed D, so materialize the dense state once.
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.nc.mask_basis")));
             encoder.setComputePipelineState(&self.nc_expand_mask_basis);

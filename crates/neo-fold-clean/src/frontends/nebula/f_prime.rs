@@ -102,7 +102,7 @@ pub enum NebulaFPrimeRelationError {
 
 /// Road A whole-step budget. The selective width census enforces this exact
 /// committed-coordinate ceiling before allocating the rectangular relation.
-pub const ROAD_A_COMMITTED_BIT_BUDGET: usize = 16_000_000;
+pub const ROAD_A_COMMITTED_BIT_BUDGET: usize = 25_000_000;
 
 /// Branches of the single folded relation. Bootstrap-recursive is distinct
 /// because its NIFS input accumulator is empty; steady recursive carries
@@ -180,7 +180,7 @@ impl NebulaFPrimeRelation {
     }
 
     /// Compile an over-budget application relation solely for explicit
-    /// production profiling. Normal constructors retain the 16M gate.
+    /// production profiling. Normal constructors retain the 25M gate.
     #[cfg(feature = "perf-timers")]
     #[doc(hidden)]
     pub fn compile_application_fixed_point_unbounded_for_profile(

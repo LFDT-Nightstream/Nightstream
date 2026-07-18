@@ -1,3 +1,6 @@
+// Build the single Metal translation unit and embed protocol-owned constants.
+// Non-Apple targets intentionally compile only the API-compatible unavailable
+// backend, so this script performs no toolchain discovery for them.
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -21,6 +24,8 @@ fn main() {
         return;
     }
 
+    // The target, not the host, selects the SDK so cross-compiles use the
+    // correct Metal standard library and deployment surface.
     let sdk = if target.contains("apple-ios-sim") || target.contains("x86_64-apple-ios") {
         "iphonesimulator"
     } else if target.contains("apple-ios") {
@@ -30,6 +35,8 @@ fn main() {
     };
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR"));
     let out = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo sets OUT_DIR"));
+    // `goldilocks.metal` is the root translation unit and includes the
+    // phase-specific shader files at its end.
     let source = manifest.join("shaders/goldilocks.metal");
     let air = out.join("goldilocks.air");
     let library = out.join("nightstream-metal.metallib");
@@ -66,6 +73,8 @@ fn main() {
 }
 
 fn write_poseidon2_constants(path: &Path) {
+    // Serialize the canonical Rust constants instead of maintaining a second
+    // shader-side copy of protocol data.
     let constants = neo_ccs::crypto::poseidon2_goldilocks::round_constants();
     let mut words = Vec::with_capacity(
         constants.initial.len() * 8 + constants.internal.len() + constants.terminal.len() * 8 + constants.diag.len(),
@@ -83,6 +92,8 @@ fn write_poseidon2_constants(path: &Path) {
 }
 
 fn developer_dir() -> Option<PathBuf> {
+    // CommandLineTools lacks the Metal compiler. Honor a full selected Xcode,
+    // then try the standard application path without mutating global selection.
     let selected = Command::new("xcode-select").arg("-p").output().ok()?;
     if selected.status.success() {
         let path = PathBuf::from(String::from_utf8_lossy(&selected.stdout).trim());

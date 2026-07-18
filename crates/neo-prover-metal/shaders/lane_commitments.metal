@@ -1,4 +1,5 @@
 // Three Nebula lane commitments over one resident signed-mask batch.
+// The ops matrix serves OPS; the shared memory matrix serves IS and FS ranges.
 
 kernel void ajtai_lane_ring_partials(
     device const ulong *ops_matrix [[buffer(0)]],
@@ -77,6 +78,7 @@ kernel void ajtai_lane_ring_partials(
     partials[index] = gl_sub(gl_reduce_sum(positive_lo, positive_hi), gl_reduce_sum(negative_lo, negative_hi));
 }
 
+// Reduce column chunks independently for every witness, lane, and Ajtai row.
 kernel void ajtai_lane_ring_sum_chunks(
     device const ulong *partials [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],
@@ -108,6 +110,7 @@ kernel void ajtai_lane_ring_sum_chunks(
     sums[index] = value;
 }
 
+// Final output is lane-major, then witness, Ajtai row, and ring coefficient.
 kernel void ajtai_lane_ring_reduce_phi81(
     device const ulong *sums [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],

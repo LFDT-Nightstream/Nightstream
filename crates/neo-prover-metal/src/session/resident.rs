@@ -19,12 +19,18 @@ pub(crate) use nc::{
     MetalNcDigitInput, MetalNcFinalState, MetalNcSumcheckInputs, MetalNcSumcheckPlan, MetalNcSumcheckTrace,
 };
 
+/// A signed-unit witness batch stored as positive/negative ring masks.
+///
+/// Layout is witness-major: each ring block contributes `[positive, negative]`.
+/// Bit `r` represents row `r` in the 54-row block; both bits clear means zero.
 #[derive(Clone)]
 pub(crate) struct MetalWitnessMasks {
     words: Buffer,
     pub(super) witness_count: usize,
     blocks: usize,
     active_rows: usize,
+    // Zero witnesses may be omitted from kernel work, but remain part of the
+    // logical batch and are restored at decoding boundaries.
     pub(super) active_witnesses: Vec<u32>,
 }
 
@@ -77,6 +83,10 @@ impl MetalWitnessMasks {
     }
 }
 
+/// Device-produced round data returned to the canonical sumcheck engine.
+///
+/// This is an execution result, not verifier authority; the protocol layer
+/// owns the initial snapshot, absorb order, and subsequent proof assembly.
 pub(crate) struct MetalSumcheckTrace {
     pub coeffs: Vec<Vec<KWords>>,
     pub challenges: Vec<KWords>,
@@ -85,6 +95,8 @@ pub(crate) struct MetalSumcheckTrace {
 }
 
 impl MetalSession {
+    /// Validates and uploads one signed-mask batch while deriving the compact
+    /// active-witness index once for every downstream kernel.
     pub(crate) fn prepare_witness_masks(
         &self,
         words: &[u64],
@@ -159,6 +171,8 @@ impl MetalSession {
         Ok(())
     }
 
+    /// Appends transcript absorb-and-challenge derivation to the producer's
+    /// command so the next round can consume the challenge without a host wait.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn encode_transcript_challenge(
         &self,
@@ -170,6 +184,8 @@ impl MetalSession {
         challenge_offset: usize,
         transcript_shape: &Buffer,
     ) -> Result<(), MetalError> {
+        // Transcript storage is eight Poseidon words followed by the rate
+        // cursor. Coefficients and challenges use interleaved K words.
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         encoder.setComputePipelineState(&self.transcript_absorb_challenge2);
         unsafe {
@@ -184,6 +200,8 @@ impl MetalSession {
         Ok(())
     }
 
+    /// Performs the single post-trace readback and decodes round coefficients,
+    /// challenges, and the continuation transcript state.
     pub(super) fn read_sumcheck_trace(
         &self,
         coefficient_buffer: &Buffer,

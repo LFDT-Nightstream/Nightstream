@@ -1,4 +1,7 @@
 //! Cached Metal execution of the protocol's fixed-seed SIS digest maps.
+//!
+//! Digests are prover-side compression results, never authority: the canonical
+//! verifier rebuilds the protocol preimage and checks the resulting binding.
 
 use std::mem::size_of;
 
@@ -23,6 +26,7 @@ struct SisMapKey {
     field_count: usize,
 }
 
+/// Seeded Ajtai plan and reusable message scratch for one exact input shape.
 pub(super) struct MetalSisMap {
     key: SisMapKey,
     plan: MetalAjtaiLowNormPlan,
@@ -32,8 +36,7 @@ pub(super) struct MetalSisMap {
 }
 
 impl MetalSession {
-    /// Compute the canonical fixed-seed SIS/Poseidon2 accumulator digest.
-    ///
+    /// Compute the canonical digest with Metal SIS commits and host Poseidon2.
     pub fn sis_accumulator_digest(&self, config: SisAccumulatorConfig, fields: &[F]) -> Result<[F; 4], MetalError> {
         if fields.is_empty() || config.kappa == 0 {
             return Err(MetalError::Shape("SIS digest requires fields and nonzero kappa"));
@@ -45,7 +48,7 @@ impl MetalSession {
         Ok(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&envelope))
     }
 
-    /// Large-message SIS digest with every intermediate kept on device.
+    /// Compute the same digest with every intermediate retained on the device.
     pub(crate) fn sis_accumulator_digest_resident(
         &self,
         config: SisAccumulatorConfig,
@@ -88,6 +91,8 @@ impl MetalSession {
         let envelope = self.buffer_from_slice(&envelope_words)?;
         let envelope_shape = self.buffer_from_slice(&[envelope_words.len() as u64])?;
         let digest = self.buffer(4 * size_of::<u64>())?;
+        // Binding commit, compression commit, envelope assembly, and Poseidon2
+        // execute as one device chain; only four digest words are downloaded.
         let command = self.independent_command_buffer("nightstream.sis.digest")?;
 
         {

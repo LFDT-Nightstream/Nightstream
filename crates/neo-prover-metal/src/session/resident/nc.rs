@@ -1,4 +1,8 @@
 //! Resident buffers and command encoding for the NC column sumcheck.
+//!
+//! A compact row stores only its cyclic nonzero window. Folding doubles that
+//! window until it overlaps itself, at which point the plan becomes a dense
+//! 54-lane row and remains dense.
 
 mod mask;
 
@@ -31,9 +35,12 @@ pub(crate) struct MetalNcSumcheckInputs<'a> {
     pub dense: bool,
 }
 
+/// Initial digit representation at the host/device boundary.
 #[derive(Clone, Copy)]
 pub(crate) enum MetalNcDigitInput<'a> {
+    /// Interleaved extension-field words in compact or dense row layout.
     Table(&'a [u64]),
+    /// Signed-unit values packed as positive/negative ring masks.
     SignedMasks {
         words: &'a [u64],
         blocks: usize,
@@ -41,6 +48,7 @@ pub(crate) enum MetalNcDigitInput<'a> {
     },
 }
 
+/// Original masks and the folded basis used before dense materialization.
 struct MetalNcMaskSource {
     masks: Buffer,
     shape: Buffer,
@@ -54,6 +62,7 @@ struct MetalNcMaskSource {
     folded: bool,
 }
 
+/// Ping-pong NC state, transcript storage, and optional mask-native source.
 pub(crate) struct MetalNcSumcheckPlan {
     eq_tables: [Buffer; 2],
     digit_values: [Buffer; 2],
@@ -174,6 +183,8 @@ impl MetalSession {
         Ok(())
     }
 
+    /// Installs dense rows or an immutable signed-mask source, compacts zero
+    /// witnesses, and reuses a compatible mask-native workspace when available.
     pub(crate) fn prepare_nc_sumcheck(
         &self,
         inputs: MetalNcSumcheckInputs<'_>,
@@ -273,6 +284,8 @@ impl MetalSession {
             active_witnesses.push(0);
         }
         let active_witness_count = active_witnesses.len();
+        // Large domains stay as immutable masks plus a small folded basis. We
+        // materialize rows only at the fixed 64-to-54 lane crossover.
         let direct_compact = mask_input.is_some() && inputs.rows >= NC_MASK_DENSE_CROSSOVER;
         let workspace_values_per_witness = if direct_compact {
             (inputs.rows / NC_MASK_DENSE_CROSSOVER) * D
@@ -532,6 +545,8 @@ impl MetalSession {
             .collect())
     }
 
+    /// Executes every NC round, transcript challenge, and compact-to-dense state
+    /// transition as one resident trace before decoding the final column state.
     pub(crate) fn nc_sumcheck_trace(
         &self,
         plan: &mut MetalNcSumcheckPlan,
@@ -589,6 +604,8 @@ impl MetalSession {
         state_words.push(transcript_absorbed as u64);
         self.write_shared(&plan.transcript_state, &state_words)?;
 
+        // The device derives challenges and folds both equality and digit state
+        // in one ordered command buffer; the CPU receives only the final trace.
         let command = self.command_buffer("nightstream.pi_ccs.nc_trace")?;
         for round in 0..rounds {
             let coeff_offset = round * 10 * size_of::<u64>();
@@ -702,6 +719,8 @@ impl MetalSession {
         if plan.active_witness_count == plan.witness_count {
             return active;
         }
+        // All-zero witnesses are compacted from kernel work (with one sentinel
+        // for an entirely zero batch). Restore every logical slot at egress.
         let indices = &plan
             .mask_source
             .as_ref()

@@ -58,6 +58,8 @@ struct PiDecPhase {
 }
 
 impl MetalNifsProver {
+    /// Runs Pi_CCS, Pi_RLC, and Pi_DEC while handing resident artifacts directly
+    /// from each phase to the next and retaining the resulting child generation.
     pub(super) fn prove_fold(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
         if request.pp.b() != 2 {
             return Err(backend_unavailable(
@@ -100,6 +102,8 @@ impl MetalNifsProver {
             forms_on_metal,
         )?;
 
+        // Pi_CCS deliberately returns its NC backend: Pi_RLC can consume the
+        // same signed-mask buffer before the plan is recycled.
         let pi_rlc = self.prove_pi_rlc(
             &mut request,
             &pi_ccs_proof,
@@ -154,6 +158,8 @@ impl MetalNifsProver {
         .with_post_fold_summary(post_fold_summary))
     }
 
+    /// Consumes the one-shot fresh-mask cache only when both witness shape and
+    /// canonical claim commitments still identify the batch that produced it.
     fn take_fresh_masks(
         &mut self,
         fresh_claims: &[CcsClaim],
@@ -184,6 +190,8 @@ impl MetalNifsProver {
         (cached, profile)
     }
 
+    /// Resolves a deferred running carrier into protocol compression values and,
+    /// independently, a session-local generation that is safe to reuse.
     fn running_input(
         &self,
         carrier: Option<&NifsRunningCarrier>,
@@ -199,6 +207,9 @@ impl MetalNifsProver {
         let accumulator_handle = parent_accumulator_digest.map(|parent_accumulator_digest| {
             AccumulatorHandle::from_parent_digest(running.claims.len(), Some(parent_accumulator_digest)).digest_fields()
         });
+        // A generation id is a session-local capability, not protocol data.
+        // A carrier that supplies one must match the generation currently
+        // retained by this session; invalid capabilities fail closed.
         let resident_id = carrier.and_then(MetalRunningCarrier::resident_id);
 
         if let Some(id) = resident_id {
@@ -224,6 +235,8 @@ impl MetalNifsProver {
         })
     }
 
+    /// Builds shared FE/NC device inputs, then lets the canonical prover own
+    /// transcript order while Metal computes the sumcheck traces.
     #[allow(clippy::too_many_arguments)]
     fn prove_pi_ccs<'session>(
         &'session self,
@@ -260,6 +273,8 @@ impl MetalNifsProver {
 
         let mut outputs_digest_backend = MetalPiCcsOutputsDigest { session: &self.session };
         let started = Instant::now();
+        // The canonical prover owns absorb order. Metal receives its snapshot,
+        // produces the round trace, and returns the final state for continuation.
         let proof = pi_ccs::prove_from_parts_with_backends_and_transcript_mode(
             request.tr,
             request.pp,
@@ -306,6 +321,8 @@ impl MetalNifsProver {
         })
     }
 
+    /// Consumes Pi_CCS's signed masks for witness mixing before recycling the NC
+    /// plan, leaving the mixed witness resident for Pi_DEC.
     #[allow(clippy::too_many_arguments)]
     fn prove_pi_rlc(
         &self,
@@ -365,6 +382,8 @@ impl MetalNifsProver {
         })
     }
 
+    /// Splits and projects the resident Pi_RLC witness, constructs ordinary
+    /// protocol claims, and installs the child buffers as the next generation.
     fn prove_pi_dec(
         &mut self,
         request: &NifsProverRequest<'_>,
@@ -412,6 +431,8 @@ impl MetalNifsProver {
             self.session.recycle_ajtai_ring_forms(forms);
         }
 
+        // Preserve the compact child snapshot for explicit materialization,
+        // while the opaque generation id drives the next device-resident fold.
         let resident_id = material.resident_output_id;
         let witness_snapshot = material.witness_snapshot.take();
         let form_build = material.form_build;

@@ -1,4 +1,7 @@
-//! NIFS prover orchestration over Metal-backed sumcheck state.
+//! NIFS prover construction and static-plan ownership.
+//!
+//! Online Pi_CCS -> Pi_RLC -> Pi_DEC ordering lives in `adapter::fold`; this
+//! module owns reusable plans and fresh-instance construction.
 
 mod dec;
 mod fold;
@@ -35,6 +38,10 @@ use crate::{
 };
 use dec::split_dec_on_metal;
 
+/// Stateful Metal implementation of the canonical NIFS prover adapter.
+///
+/// One instance retains structure-static plans and the most recent running
+/// witness generation so repeated folds avoid rebuilding or re-uploading them.
 pub struct MetalNifsProver {
     session: MetalSession,
     fresh_commitment_plan: Option<FreshCommitmentPlan>,
@@ -330,6 +337,9 @@ impl NifsProverAdapter for MetalNifsProver {
         }
 
         let commit_started = Instant::now();
+        // Layout is witness-major, then ring block, with one positive and one
+        // negative bitset per block. The same upload feeds commitments, FE,
+        // NC, Pi_RLC, and optional Nebula lane commitments.
         let mut mask_words = Vec::with_capacity(request.assignments.len() * cols * 2);
         let mut witnesses = Vec::with_capacity(request.assignments.len());
         for assignment in request.assignments {
@@ -483,6 +493,9 @@ fn mix_witnesses_on_metal(
             }
         }
     }
+    // Prefer the NC plan's existing signed masks. If that representation is
+    // unavailable, upload only fresh witnesses when the running tail still has
+    // a valid resident generation.
     if let Some(witness) = nc_backend.enqueue_rlc_witness_mix_from_resident_masks(
         &rho_coefficients,
         fresh_count,

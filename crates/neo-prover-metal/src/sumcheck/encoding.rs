@@ -1,4 +1,7 @@
 //! Host encodings at the Metal sumcheck boundary.
+//!
+//! Extension elements are always interleaved `[c0, c1]`; signed-unit witnesses
+//! are witness-major `[positive_mask, negative_mask]` pairs per ring block.
 
 use neo_ccs::Mat;
 use neo_math::{from_complex, D, F, K};

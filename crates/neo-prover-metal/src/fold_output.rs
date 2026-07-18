@@ -1,4 +1,7 @@
 //! Cross-fold ownership for resident Pi_DEC child witnesses.
+//!
+//! Proof and running carriers share one `MetalFoldOutput`, preventing their
+//! claims and parent authority from diverging during deferred materialization.
 
 use std::any::Any;
 use std::sync::{Arc, Mutex};
@@ -43,6 +46,8 @@ impl DeferredNifsProofMaterializer for MetalDeferredNifsProof {
         if let MetalDeferredNifsProofState::Ready(proof) = &*state {
             return Ok(proof.clone());
         }
+        // Claim the pending inputs before construction. If construction fails,
+        // the carrier remains terminal instead of attempting a partial replay.
         let pending = std::mem::replace(&mut *state, MetalDeferredNifsProofState::Failed);
         let MetalDeferredNifsProofState::Pending { pi_ccs, output } = pending else {
             return Err(backend_unavailable(
@@ -63,6 +68,8 @@ impl DeferredNifsProofMaterializer for MetalDeferredNifsProof {
     }
 }
 
+/// Joins proof and running carriers only after checking that both describe the
+/// same Pi_RLC parent and Pi_DEC children.
 pub(crate) fn metal_proof_carrier(
     pi_ccs: pi_ccs::Proof,
     pi_rlc: pi_rlc::Proof,
@@ -84,6 +91,8 @@ pub(crate) struct MetalFoldOutput {
     session_ownership_id: u64,
     resident_id: Option<u64>,
     witness_snapshot: Option<MetalResidentWitnessSnapshot>,
+    // Cached compression for the next prover fold. This digest is not verifier
+    // authority; the canonical verifier recomputes its binding from the parent.
     parent_accumulator_digest: [F; 4],
 }
 
@@ -111,6 +120,8 @@ impl MetalFoldOutput {
             .ok_or_else(|| backend_unavailable("Metal fold output is missing its Pi_RLC parent"))
     }
 
+    /// Crosses the explicit device-to-host boundary for a generic consumer;
+    /// Metal-to-Metal folds use the generation id and skip this path.
     fn materialize(&self) -> Result<RunningInstance, Error> {
         let mut running = self.running.clone();
         if let Some(snapshot) = self.witness_snapshot.as_ref() {
@@ -154,6 +165,8 @@ impl DeferredNifsRunningMaterializer for MetalRunningCarrier {
     }
 
     fn materialize_prover_input(&self) -> Result<RunningInstance, Error> {
+        // Keep shape-only witnesses here: a matching resident generation is
+        // consumed by Metal. Generic egress calls `materialize` instead.
         Ok(self.output.running.clone())
     }
 }

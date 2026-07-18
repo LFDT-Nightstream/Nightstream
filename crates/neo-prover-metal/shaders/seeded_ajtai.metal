@@ -1,4 +1,5 @@
 // Canonical ChaCha8 expansion for fixed-seed Ajtai matrices.
+// Rejection candidates set a flag; Rust then materializes the canonical matrix.
 
 inline uint seeded_ajtai_rotl(uint value, uint amount) {
     return (value << amount) | (value >> (32 - amount));

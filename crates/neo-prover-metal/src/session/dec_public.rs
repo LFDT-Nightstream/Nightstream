@@ -21,6 +21,7 @@ pub(crate) struct MetalDecPublicProjection<'a> {
     pub s_col: &'a [K],
 }
 
+/// Independently queued child projection, completed after the main DEC command.
 pub(super) struct PendingDecYzcol {
     command: Retained<ProtocolObject<dyn MTLCommandBuffer>>,
     output: Buffer,
@@ -33,6 +34,8 @@ impl PendingDecYzcol {
         session: &MetalSession,
         predecessor: &ProtocolObject<dyn MTLCommandBuffer>,
     ) -> Result<(Vec<u64>, Duration), MetalError> {
+        // Submit both queues before either wait so the projection can overlap
+        // the split/form/commit tail whenever its parent input is already ready.
         session.submit(predecessor);
         session.submit(&self.command);
         session.wait(predecessor)?;
@@ -86,6 +89,8 @@ impl MetalSession {
         ])?;
         let partials = self.buffer(partial_count * 2 * size_of::<u64>())?;
         let output = self.buffer(output_count * 2 * size_of::<u64>())?;
+        // This reads the immutable Pi_RLC parent, not the newly split children,
+        // so it has no dependency on the main Pi_DEC command buffer.
         let command = self.independent_command_buffer("nightstream.pi_dec.y_zcol")?;
         self.encode_tensor_point_k(&command, &challenges, &stages, &chi, projection.s_col.len())?;
 

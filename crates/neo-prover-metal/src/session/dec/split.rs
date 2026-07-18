@@ -1,4 +1,7 @@
 //! Base-2 DEC split, validation, child projection, commitment, and residency.
+//!
+//! Children remain device-owned; only compact claim material, commitments, and
+//! validation status cross to the host during the normal fold path.
 
 use std::mem::size_of;
 use std::time::Duration;
@@ -14,6 +17,7 @@ use crate::session::carrier::{MetalResidentChildren, MetalResidentWitness};
 use crate::session::{Buffer, MetalAjtaiLowNormPlan, MetalDecPublicProjection, MetalSession};
 use crate::MetalError;
 
+/// Minimal host outputs plus ownership of the complete resident child batch.
 pub(crate) struct MetalDecMaterial {
     pub child_nonzero: Vec<bool>,
     pub y_words: Vec<u64>,
@@ -145,6 +149,8 @@ impl MetalSession {
         )
     }
 
+    /// Encodes form construction, digit split, recomposition checks, projection,
+    /// and child commitments as one dependency chain before minimal readback.
     fn split_dec_base2_with_form_buffer(
         &self,
         parent: &mut MetalResidentWitness,
@@ -164,6 +170,8 @@ impl MetalSession {
                 "Pi_DEC commitment plan does not match the resident witness",
             ));
         }
+        // This is the first consumer of Pi_RLC output, so it is also the single
+        // synchronization point for the pending mix and its recyclable inputs.
         let recycled_children = parent.finish_pending_mix(self)?;
         let entries = checked_product(&[D, parent.cols], "Pi_DEC parent dimensions overflow")?;
         let child_words = checked_product(&[child_count, entries], "Pi_DEC child dimensions overflow")?;
@@ -195,6 +203,8 @@ impl MetalSession {
             parent.cols as u64,
             chunks as u64,
         ])?;
+        // Command-buffer order is the dependency graph: build forms, split,
+        // validate, pack masks, project, and commit before any host readback.
         let command = self.command_buffer("nightstream.pi_dec.split_project_commit")?;
 
         let seeded_scratch = if let Some(build) = form_build {
@@ -405,6 +415,9 @@ impl MetalSession {
             Self::recycle_largest_buffer(&self.recycled_seeded_forms, scratch);
         }
 
+        // Reject if any digit is outside {-1, 0, 1} or the base-2 children fail
+        // to recompose the parent. This accelerator check does not replace the
+        // canonical proof verifier.
         if self.read_buffer::<u32>(&split_status, 1)[0] != 0 {
             return Err(MetalError::Shape(
                 "Metal Pi_DEC digits are out of range or do not recompose",

@@ -1,3 +1,6 @@
+// FE oracle and row-sumcheck kernels, included after common field helpers.
+// Extension tables use interleaved [c0, c1]; base tables use one word per row.
+
 kernel void copy_base_to_k(
     device const ulong *input [[buffer(0)]],
     device ulong *output [[buffer(1)]],
@@ -15,6 +18,7 @@ kernel void fe_add_sparse_base_rows(
     tables[destination] = gl_add(gl_from_word(tables[destination]), gl_from_word(values[index]));
 }
 
+// Witness kind: 0 dense base plane, 1 local signed masks, 2 resident mask batch.
 inline ulong fe_load_real_witness(
     device const ulong *witness,
     ulong blocks,
@@ -96,6 +100,7 @@ kernel void fe_build_mcs_row_tables(
     output[index] = value;
 }
 
+// Seeded work is split into independent chunks, then reduced per logical output.
 constant ulong FE_SEEDED_OUTPUT_HEADER_WORDS = 9;
 constant ulong FE_SEEDED_WORK_HEADER_WORDS = 3;
 
@@ -211,6 +216,7 @@ kernel void fe_seeded_k_reduce(
     output[2 * row + 1] = value.c1;
 }
 
+// Streaming rounds read each independently owned MCS buffer in place.
 inline Kx fe_stream_load_mcs(
     device const ulong *tables,
     ulong table,
@@ -617,6 +623,7 @@ kernel void fe_stream_constant_round_partials(
     }
 }
 
+// Round zero converts base tables to K while folding, avoiding a full copy.
 kernel void fe_fold_base_tables_in_place(
     device ulong *tables [[buffer(0)]],
     device const ulong *challenge_words [[buffer(1)]],

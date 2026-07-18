@@ -1,4 +1,7 @@
 //! Resident buffers and command encoding for the FE row sumcheck.
+//!
+//! Packed plans own one combined table set; streaming plans retain independent
+//! MCS buffers and are implemented in `fe_streaming`.
 
 use std::mem::size_of;
 
@@ -21,21 +24,28 @@ pub(crate) struct MetalFeSumcheckInputs<'a> {
     pub coefficient_count: usize,
 }
 
+/// Source representation for one logical FE table.
 pub(crate) enum MetalFeTableInput<'a> {
+    /// An already materialized extension-field table.
     Host(&'a [K]),
+    /// A tensor point expanded into its equality table on the device.
     TensorPoint(&'a [K]),
+    /// One base-field table retained by its MCS producer.
     DeferredMcs {
         tables: &'a MetalDeferredMcsRowTables,
         table: usize,
     },
+    /// A carried evaluation table retained by the oracle producer.
     DeferredEval(&'a MetalDeferredEvalTable),
 }
 
+/// Device plan selected from the ownership of its source tables.
 pub(crate) enum MetalFeSumcheckPlan {
     Packed(MetalPackedFeSumcheckPlan),
     Streaming(crate::session::fe_streaming::MetalStreamingFePlan),
 }
 
+/// Double-buffered FE tables plus storage for a complete transcript trace.
 pub(crate) struct MetalPackedFeSumcheckPlan {
     tables: [Buffer; 2],
     shape: Buffer,
@@ -61,6 +71,8 @@ pub(crate) struct MetalPackedFeSumcheckPlan {
 }
 
 impl MetalSession {
+    /// Chooses streaming ownership when MCS tables are already separate device
+    /// buffers; otherwise installs all sources into one packed ping-pong plan.
     pub(crate) fn prepare_fe_sumcheck(
         &self,
         inputs: MetalFeSumcheckInputs<'_>,
@@ -113,6 +125,8 @@ impl MetalSession {
         let table_bytes = 2 * current_len * size_of::<u64>();
         let tables_a = self.buffer(expected_words * size_of::<u64>())?;
         let tables_b = self.buffer(expected_words * size_of::<u64>() / 2)?;
+        // Install or expand every logical source in one queue submission. The
+        // first round is ordered after this command without a host wait.
         let command = self.command_buffer("nightstream.pi_ccs.fe_install_tables")?;
         for (slot, source) in inputs.tables.iter().enumerate() {
             let destination_offset = slot * table_bytes;
@@ -265,6 +279,8 @@ impl MetalSession {
             .collect())
     }
 
+    /// Runs the full FE transcript trace through the selected resident plan and
+    /// records the device path as one phase-level duration.
     pub(crate) fn fe_sumcheck_trace(
         &self,
         plan: &mut MetalFeSumcheckPlan,
@@ -323,6 +339,9 @@ impl MetalSession {
         state_words.push(transcript_absorbed as u64);
         self.write_shared(&plan.transcript_state, &state_words)?;
 
+        // All rounds share one command buffer. Each device-derived challenge
+        // feeds the following fold directly, so only the completed trace is
+        // copied back to the canonical engine.
         let command = self.command_buffer("nightstream.pi_ccs.fe_trace")?;
         for round in 0..rounds {
             let groups = reductions[2 * round] as usize;

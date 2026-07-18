@@ -11,6 +11,10 @@ use crate::MetalError;
 
 const SEEDED_OUTPUT_HEADER_WORDS: usize = 9;
 
+/// Seeded-output metadata regrouped by active DEC form block.
+///
+/// `group_segment_offsets` indexes `[output, word]` pairs in `segments`; this
+/// gives each shader work item disjoint output ownership.
 pub(super) struct DeviceSeededFormPlan {
     pub(super) output_headers: Buffer,
     pub(super) word_starts: Buffer,

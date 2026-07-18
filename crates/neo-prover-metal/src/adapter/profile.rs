@@ -1,4 +1,7 @@
 //! Per-phase measurements and routing decisions for one Metal NIFS fold.
+//!
+//! These values are execution evidence for profiling, not proof or verifier
+//! authority. Path booleans are set only after the corresponding work succeeds.
 
 use std::time::Duration;
 

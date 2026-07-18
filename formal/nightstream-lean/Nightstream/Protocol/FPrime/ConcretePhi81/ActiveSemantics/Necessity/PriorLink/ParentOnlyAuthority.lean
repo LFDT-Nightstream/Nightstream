@@ -29,7 +29,7 @@ but both are valid strict-PiDEC decompositions of the exact same parent.
 | `fprime.x_out.preimage.construction2_accumulator` | parent-only handles produce identical state-output messages | computed | `state_x_out_digest_with_mode` | `stateOutputMessages_eq` | exact alias |
 -/
 
-namespace Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.ParentOnlyAuthority
+namespace Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.PriorLink.ParentOnlyAuthority
 
 open Nightstream.HyperNova.Construction2
 open Nightstream.SuperNeo
@@ -316,4 +316,4 @@ theorem xOut_eq
 
 end Substitution
 
-end Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.ParentOnlyAuthority
+end Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.PriorLink.ParentOnlyAuthority

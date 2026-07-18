@@ -15,6 +15,8 @@ inclusion-minimality of the global canonical plan.
 Does not own: production decoding, Poseidon2 refinement, Rust, R1CS, physical
 row ownership, the bounded-sampler construction already owned by
 `HonestBaseline.Context`, costs, global gate-count minimality, or row removal.
+It also does not justify replacing the full running-child carrier with a
+parent-only Construction-2 handle.
 
 Emits constraints: no.
 
@@ -25,6 +27,9 @@ outer field ignored by the verifier-owned context callbacks; the complete
 NIFS context equality is proved. The honest result is obtained from
 `HonestBaseline.Context.exists_resultTransition`, whose centered-zero
 54-of-64 batch is explicitly constructed rather than assumed.
+The inclusion-minimality result is relative to this rich carrier, in which
+the complete child vector is already present; it is not a compression or
+cross-step binding theorem.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|

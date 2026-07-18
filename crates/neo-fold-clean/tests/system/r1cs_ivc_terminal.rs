@@ -42,6 +42,9 @@ fn generic_ivc_verifies_running_accumulator_and_latest_f_prime() {
     let ProofState::Active { running, latest } = &proof.state.proof else {
         panic!("two-step IVC proof must be active");
     };
+    let running = running
+        .materialize()
+        .expect("CPU fixture has materialized running state");
     assert!(!running.claims.is_empty(), "running accumulator covers prior steps");
     assert_eq!(latest.instances.len(), 1, "latest relation remains a fresh F' instance");
     neo_fold_clean::verify_uncompressed(&prep.prep, &proof)
@@ -67,6 +70,9 @@ fn generic_ivc_verifies_running_accumulator_and_latest_f_prime() {
     let ProofState::Active { running, .. } = &mut bad_history.state.proof else {
         unreachable!()
     };
+    let running = running
+        .as_materialized_mut()
+        .expect("CPU fixture has materialized running state");
     running.claims[0].c.data[0] += F::ONE;
     neo_fold_clean::verify_uncompressed(&prep.prep, &bad_history)
         .expect_err("a changed accumulated proof must be rejected");

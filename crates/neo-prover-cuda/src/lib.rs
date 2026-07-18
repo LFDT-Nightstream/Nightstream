@@ -177,6 +177,10 @@ pub mod graph;
 #[doc(hidden)]
 pub mod ingest;
 #[cfg(feature = "cuda")]
+mod lane_commitments;
+#[cfg(feature = "cuda")]
+mod projection;
+#[cfg(feature = "cuda")]
 #[doc(hidden)]
 pub mod reduce;
 #[cfg(feature = "cuda")]
@@ -185,6 +189,8 @@ pub mod ring_forms;
 #[cfg(feature = "cuda")]
 #[doc(hidden)]
 pub mod session;
+#[cfg(feature = "cuda")]
+mod sis;
 #[cfg(feature = "cuda")]
 #[doc(hidden)]
 pub mod transcript;

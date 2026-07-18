@@ -10,7 +10,7 @@ mod fixtures;
 mod gates;
 mod sha256_workload;
 
-const GATES: [(&str, fn()); 34] = [
+const GATES: [(&str, fn()); 36] = [
     ("smoke", gates::smoke),
     ("transcript", gates::transcript),
     ("ajtai", gates::ajtai),
@@ -30,6 +30,8 @@ const GATES: [(&str, fn()); 34] = [
     ("rlc", gates::rlc),
     ("rlc_bench", gates::rlc_bench),
     ("nifs", gates::nifs),
+    ("nifs_nebula", gates::nifs_nebula),
+    ("nebula_lifecycle", gates::nebula_lifecycle),
     ("nifs_whole_phase", gates::nifs_whole_phase),
     ("nifs_bench", gates::nifs_bench),
     ("e2e_bench", gates::e2e_bench),

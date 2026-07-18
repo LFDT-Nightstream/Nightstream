@@ -48,6 +48,23 @@ fn multi_lane_witness() -> Mat<F> {
     multi_lane_witness_cols(COLS)
 }
 
+fn column_mask_witness(source: &Mat<F>) -> Mat<F> {
+    let mut positive = vec![0u64; source.cols()];
+    let mut negative = vec![0u64; source.cols()];
+    let neg_one = F::ZERO - F::ONE;
+    for block in 0..source.cols() {
+        for lane in 0..D {
+            if source[(lane, block)] == F::ONE {
+                positive[block] |= 1u64 << lane;
+            } else if source[(lane, block)] == neg_one {
+                negative[block] |= 1u64 << lane;
+            }
+        }
+    }
+    Mat::compact_signed_unit_from_column_masks(D, source.cols(), &positive, &negative)
+        .expect("valid signed-unit column masks")
+}
+
 /// Witness live only in ring lane 0 (takes the `Lane0` variant).
 fn lane0_witness() -> Mat<F> {
     let mut z = Mat::zero(D, COLS, F::ZERO);
@@ -113,6 +130,11 @@ fn run_parity_at(z: &Mat<F>, m: usize, challenges: &[K]) {
 #[test]
 fn diagonal_table_matches_dense_reference_across_folds() {
     run_parity(&multi_lane_witness());
+}
+
+#[test]
+fn column_mask_table_matches_dense_reference_across_folds() {
+    run_parity(&column_mask_witness(&multi_lane_witness()));
 }
 
 #[test]

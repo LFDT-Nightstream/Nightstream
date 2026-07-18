@@ -112,6 +112,32 @@ pub fn accumulator_digest(config: SisAccumulatorConfig, fields: &[F]) -> Result<
     )))
 }
 
+/// Column-contiguous encoding of the canonical SIS signed-unit message.
+///
+/// [`commit_fields`] fills the logical matrix row-major. Accelerator Ajtai
+/// kernels consume one ring column at a time, so this helper performs that
+/// exact layout transpose and pads the last column with zeroes.
+#[doc(hidden)]
+pub fn accelerator_balanced_ternary_message(fields: &[F]) -> Vec<i8> {
+    let message_cols = (fields.len() * BALANCED_TERNARY_DIGITS).div_ceil(D);
+    let mut message = vec![0i8; D * message_cols];
+    for (field_index, &field) in fields.iter().enumerate() {
+        for (digit_index, digit) in balanced_ternary_digits(field).into_iter().enumerate() {
+            let index = field_index * BALANCED_TERNARY_DIGITS + digit_index;
+            let row = index / message_cols;
+            let column = index % message_cols;
+            message[column * D + row] = if digit == F::ONE {
+                1
+            } else if digit == -F::ONE {
+                -1
+            } else {
+                0
+            };
+        }
+    }
+    message
+}
+
 pub fn commit_fields(config: SisAccumulatorConfig, fields: &[F]) -> Result<Commitment, SisAccumulatorError> {
     validate(config, fields.len())?;
     let message = balanced_ternary_message(fields);
@@ -186,14 +212,23 @@ pub fn enforce_accumulator_digest(
 fn digest_envelope(
     config: SisAccumulatorConfig,
     field_count: usize,
-    binding: &Commitment,
+    _binding: &Commitment,
     digest_compression: &Commitment,
 ) -> Vec<F> {
+    let mut envelope = accumulator_digest_envelope_prefix(config, field_count);
+    envelope.extend_from_slice(&digest_compression.data);
+    envelope
+}
+
+/// Canonical constant prefix placed before the short rank-1 commitment in
+/// an accumulator digest. Accelerator backends use this instead of copying
+/// protocol-domain constants into their own implementation.
+#[doc(hidden)]
+pub fn accumulator_digest_envelope_prefix(config: SisAccumulatorConfig, field_count: usize) -> Vec<F> {
     let mut envelope = pack_bytes_as_fields(SIS_ACCUMULATOR_DIGEST_DOMAIN);
     envelope.push(F::from_u64(config.domain));
     envelope.push(F::from_u64(field_count as u64));
-    envelope.push(F::from_u64(binding.kappa as u64));
-    envelope.extend_from_slice(&digest_compression.data);
+    envelope.push(F::from_u64(config.kappa as u64));
     envelope
 }
 

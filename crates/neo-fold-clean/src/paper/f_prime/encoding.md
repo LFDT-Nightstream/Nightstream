@@ -918,17 +918,17 @@ instead of retaining every per-term K output. SplitNc checks FE over the row
 domain and NC over the assignment domain, so the selective relation does not
 need an identity matrix or square row padding.
 
-The correct-base rerun does not reproduce the older fixed-point claims. The
-reduced-profile test currently exits with `CompileBudgetExceeded` at a
-19,624,600-coordinate candidate (19,624,626 minimum including the public
-boundary) against the 16M cap, before it can reach its embedded
-10,000,318-row / 11,516,688-coordinate snapshot. The production preflight's
-stale expectation is 15,730,104 coordinates; the correct-base census before
-the subsequent authority additions was already 18,376,624, and the current
-census is 28,047,523. Consequently the older 2,486,540 / 9,613,188 and 2,819,360 /
-15,612,210 fixed points are historical, not current passing measurements.
-This is an open selective-lowering regression; the budget must not be raised
-to make it disappear.
+The correct-base rerun does not reproduce the older fixed-point claims. With
+the 25M Road A cap, the authentic reduced WASM/Nebula benchmark stabilizes at
+10,723,174 rows and 20,680,326 committed coordinates; the former 16M cap
+rejected its preflight at a 21,357,594-coordinate minimum. The raised cap is a
+resource accommodation, not cost closure against the former sub-16M target.
+The production preflight's stale expectation is 15,730,104 coordinates; the
+correct-base census before the subsequent authority additions was already
+18,376,624, and the current census is 28,047,523, which remains over the 25M
+cap. Consequently the older 2,486,540 / 9,613,188 and 2,819,360 / 15,612,210
+fixed points are historical, not current passing measurements. The
+selective-lowering cost regression remains open.
 R4's shipped encoder
 and R5's terminal induction are **DONE**: `NebulaFPrimeChainBuilder` deposits
 the fixed relation with serial `K=1`, recursive steps consume the prior claim's
@@ -961,7 +961,7 @@ finding is itself the argument for keeping that flag.
 | B | SignedDigit as measured | — | invalid: operands are full-range commitments |
 | C | Mixed (ρ = SignedDigit{5}, rest U64) | 90.1M | valid; saves 1.6 % — not a lever |
 | D | Digit-decompose c, act on digits | ~260M | valid; strictly worse (14 SignedDigit pairs vs 1 U64 pair, ×2.8) |
-| E | Projection check: verify `Σ_i ρ_i·c_i = out (mod Φ)` as `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` at a post-commitment `β ∈ K` | The primitive is measured at ~21k vs ~196k bits per pair. The current reduced candidate is 19,624,600 coordinates and the production census is 28,047,523; both exceed the 16M cap. The old 14,040,452-bit manual shell remains a non-authoritative reference. | The current NIFS.V/F′ projection implementation covers `c + adv`, X/y projection, delayed lane transition, current `S_mem`, and terminal-only lifecycle induction. Its semantic sufficiency remains an independent Lean refinement obligation. Cost closure remains open: the current correct-base selective tests fail rather than establish the former sub-16M claim. Lemma 5's maximum-geometry census is `P=2,250`, batched `J=150`; conservative `J≤2,250`. |
+| E | Projection check: verify `Σ_i ρ_i·c_i = out (mod Φ)` as `Σ ρ_i(X)c_i(X) = q(X)Φ(X) + out(X)` at a post-commitment `β ∈ K` | The primitive is measured at ~21k vs ~196k bits per pair. The current reduced fixed point is 20,680,326 coordinates and fits the explicit 25M benchmark-enabling cap; the production census is 28,047,523 and still exceeds it. The old 14,040,452-bit manual shell remains a non-authoritative reference. | The current NIFS.V/F′ projection implementation covers `c + adv`, X/y projection, delayed lane transition, current `S_mem`, and terminal-only lifecycle induction. Its semantic sufficiency remains an independent Lean refinement obligation. Cost closure remains open: admitting the reduced candidate under 25M does not establish the former sub-16M claim. Lemma 5's maximum-geometry census is `P=2,250`, batched `J=150`; conservative `J≤2,250`. |
 | F | Fewer pairs (arity/κ trades) | linear only | doesn't touch the 197k/pair |
 | G | SIS accumulators (C14/L2) | A role-specific rank-2 map binds the authoritative 41-trit encoding; an independent short rank-1 map compresses its 108-field output before Poseidon2. | **Adopted for five R2 binding roles**, with compact seeded matrices, native/circuit parity, stage-tamper tests, concrete rank-2/rank-1 estimates, and security-note Lemma 6's hash-then-FS reduction. Replacing the carried `D` chains remains deferred. |
 | H | Terminal-proof regime (PR5): never commit F' | 0 per step | field-native cost once per chain (~1–3M-constraint relation); sidesteps enc(F') entirely |
@@ -971,10 +971,11 @@ the child hash chain in the current implementation, and the SIS/selective
 compiler implements the R2/R3 mechanics. Whether the removed hash family was
 semantically redundant remains open at `FPR-OBLIGATION-NECESSITY`. R4-R6
 consume that relation through the shipped encoder and
-terminal-only memory induction. The current selective compiler does **not** fit
-the unchanged 16M ceiling; its reduced and production cost gates fail. Generic
-gadget-native lowering therefore remains the differential reference for the
-current implementation. The source R1CS trace remains the exact arithmetic
+terminal-only memory induction. The reduced selective compiler fits the
+explicit 25M benchmark accommodation but not the former 16M target; the
+production cost gate still fails. Generic gadget-native lowering therefore
+remains the differential reference for the current implementation. The source
+R1CS trace remains the exact arithmetic
 reference for that implementation only; neither artifact is the protocol
 specification or a safe baseline for retaining checks. The balanced-opening
 and projection-identity reductions each have exact Rust trace validation and
@@ -1007,7 +1008,8 @@ cargo test -p neo-fold-clean --release --test f_prime_full_relation \
   complete_recursive_relation_folds_one_fresh_instance_and_binds_the_application \
   -- --exact --nocapture
 
-# Current reduced cost gate: fails at a 19,624,600-coordinate candidate > 16M.
+# Current reduced cost gate: 20,680,326 coordinates fit the 25M benchmark cap.
+# This does not close the former sub-16M cost target.
 cargo test -p neo-fold-clean --release --test nebula_f_prime \
   road_a_reduced_profile_fixed_point_stabilizes_within_budget -- --exact --nocapture
 

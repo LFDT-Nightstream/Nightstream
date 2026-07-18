@@ -259,7 +259,8 @@ pub(crate) fn prove_with_adapter_output(
     )
 }
 
-pub(crate) fn prove_terminal_with_adapter_output(
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_terminal_with_adapter_output_from_carrier(
     adapter: &mut dyn NifsProverAdapter,
     tr: &mut Transcript,
     pp: &Params,
@@ -270,6 +271,7 @@ pub(crate) fn prove_terminal_with_adapter_output(
     mix_rhos_commits: RlcMixer,
     combine_b_pows: DecMixer,
     fresh: Vec<CcsInstance>,
+    running_carrier: &crate::paper::nifs::NifsRunningCarrier,
     running: &RunningInstance,
 ) -> Result<NifsProverOutput, Error> {
     prove_with_adapter_output_inner(
@@ -283,7 +285,7 @@ pub(crate) fn prove_terminal_with_adapter_output(
         mix_rhos_commits,
         combine_b_pows,
         fresh,
-        None,
+        Some(running_carrier),
         running,
         false,
     )

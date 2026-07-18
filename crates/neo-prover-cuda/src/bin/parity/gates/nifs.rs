@@ -98,6 +98,26 @@ fn assert_pi_ccs_sumcheck_identical(
     );
 }
 
+pub(super) fn assert_nifs_proof_identical(fold: usize, gpu: &NifsProof, cpu: &NifsProof) {
+    assert_eq!(
+        gpu.pi_ccs.outputs, cpu.pi_ccs.outputs,
+        "pi_ccs outputs mismatch at fold {fold}"
+    );
+    assert_eq!(
+        gpu.pi_ccs.outputs_digest, cpu.pi_ccs.outputs_digest,
+        "pi_ccs output digest mismatch at fold {fold}"
+    );
+    assert_pi_ccs_sumcheck_identical(fold, &gpu.pi_ccs.sumcheck, &cpu.pi_ccs.sumcheck);
+    assert_eq!(
+        gpu.pi_rlc.combined, cpu.pi_rlc.combined,
+        "pi_rlc combined mismatch at fold {fold}"
+    );
+    assert_eq!(
+        gpu.pi_dec.children, cpu.pi_dec.children,
+        "pi_dec children mismatch at fold {fold}"
+    );
+}
+
 /// Assert a GPU fold's running instance and proof are field-identical to
 /// the CPU fold's, including full Π_CCS sumcheck bytes (via serde).
 fn assert_nifs_fold_identical(fold: usize, gpu: &(RunningInstance, NifsProof), cpu: &(RunningInstance, NifsProof)) {
@@ -115,23 +135,7 @@ fn assert_nifs_fold_identical(fold: usize, gpu: &(RunningInstance, NifsProof), c
         gpu_running.parent_authority, cpu_running.parent_authority,
         "parent authority mismatch at fold {fold}"
     );
-    assert_eq!(
-        gpu_proof.pi_ccs.outputs, cpu_proof.pi_ccs.outputs,
-        "pi_ccs outputs mismatch at fold {fold}"
-    );
-    assert_eq!(
-        gpu_proof.pi_ccs.outputs_digest, cpu_proof.pi_ccs.outputs_digest,
-        "pi_ccs output digest mismatch at fold {fold}"
-    );
-    assert_pi_ccs_sumcheck_identical(fold, &gpu_proof.pi_ccs.sumcheck, &cpu_proof.pi_ccs.sumcheck);
-    assert_eq!(
-        gpu_proof.pi_rlc.combined, cpu_proof.pi_rlc.combined,
-        "pi_rlc combined mismatch at fold {fold}"
-    );
-    assert_eq!(
-        gpu_proof.pi_dec.children, cpu_proof.pi_dec.children,
-        "pi_dec children mismatch at fold {fold}"
-    );
+    assert_nifs_proof_identical(fold, gpu_proof, cpu_proof);
 }
 
 fn assert_nifs_fold_public_identical(
@@ -207,6 +211,17 @@ impl NifsChainPair {
         batch: &[CcsInstance],
         cache_gpu_output: bool,
     ) -> (f64, f64) {
+        self.fold_with_scheme(fixture, fold, batch, None, cache_gpu_output)
+    }
+
+    fn fold_with_scheme(
+        &mut self,
+        fixture: &Fixture,
+        fold: usize,
+        batch: &[CcsInstance],
+        lanes: Option<&LaneScheme>,
+        cache_gpu_output: bool,
+    ) -> (f64, f64) {
         let (cpu, cpu_ms) = timed(|| {
             nifs_cpu_prove(
                 &mut self.cpu_tr,
@@ -214,7 +229,7 @@ impl NifsChainPair {
                 fixture.structure(),
                 fixture.prep.optimized_cache(),
                 &fixture.prep.log,
-                None,
+                lanes,
                 ajtai_rlc_mixer,
                 ajtai_dec_mixer,
                 batch.to_vec(),
@@ -230,7 +245,7 @@ impl NifsChainPair {
                     s: fixture.structure(),
                     cache: fixture.prep.optimized_cache(),
                     log: &fixture.prep.log,
-                    lanes: None,
+                    lanes,
                     mix_rhos_commits: ajtai_rlc_mixer,
                     combine_b_pows: ajtai_dec_mixer,
                     fresh: batch.to_vec(),
@@ -256,6 +271,44 @@ impl NifsChainPair {
         self.gpu_running = gpu.0;
         (cpu_ms, gpu_ms)
     }
+}
+
+/// Nebula's `adv` tuple is commitment authority carried through all three
+/// reductions. This gate covers an adv-bearing fresh fold followed by a
+/// steady-state fold whose running children must retain and reopen their
+/// lane slices.
+pub fn nifs_nebula() {
+    const K_FRESH: usize = 1;
+    const FOLDS: usize = 2;
+    let fixture = Fixture::r1cs_identity(FIXTURE_N, FIXTURE_M_IN);
+    let mut rng = StdRng::seed_from_u64(0x6e69_6673_5f6e_6562);
+    let mut batches = nifs_fresh_batches(&fixture, FOLDS, K_FRESH, &mut rng);
+    let cols = batches[0][0].witness.Z.cols();
+    assert!(cols >= 3, "Nebula parity fixture needs three lane columns");
+    let scheme = LaneScheme::from_seeds(
+        fixture.prep.params.kappa() as usize,
+        LaneRanges {
+            ops: cols - 3..cols - 2,
+            is: cols - 2..cols - 1,
+            fs: cols - 1..cols,
+        },
+        [0xA7; 32],
+        [0x7A; 32],
+    )
+    .expect("Nebula parity lane scheme");
+    for instance in batches.iter_mut().flatten() {
+        instance.claim.adv = Some(
+            scheme
+                .commit(&instance.witness.Z)
+                .expect("Nebula fresh lane commitment"),
+        );
+    }
+
+    let mut chains = NifsChainPair::new();
+    for (fold, batch) in batches.iter().enumerate() {
+        let _ = chains.fold_with_scheme(&fixture, fold, batch, Some(&scheme), false);
+    }
+    println!("[parity nifs_nebula] OK: {FOLDS} lane-bearing NIFS.P folds identical");
 }
 
 fn nifs_fresh_batches(fixture: &Fixture, folds: usize, k_fresh: usize, rng: &mut StdRng) -> Vec<Vec<CcsInstance>> {

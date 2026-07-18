@@ -109,6 +109,8 @@ pub enum Error {
         client: &'static str,
         identity: usize,
     },
+    #[error("Pi_RLC: accelerator failed to compute the canonical projection SIS digest")]
+    BackendProjectionDigest,
     #[error(transparent)]
     Projection(#[from] crate::paper::reductions::pi_rlc_circuit::Error),
     #[error(transparent)]
@@ -128,6 +130,14 @@ pub struct Output {
     pub witness: Mat<F>,
     /// The Lemma 5 β schedule this fold ran (Road A candidate E) —
     /// prover-side plumbing for the F' image's projection regions.
+    pub projection: ProjectionSchedule,
+}
+
+/// Π_RLC output whose prover witness remains owned by an accelerator.
+#[derive(Clone, Debug)]
+pub struct ResidentOutput<Resident> {
+    pub claim: CeClaim,
+    pub witness: Resident,
     pub projection: ProjectionSchedule,
 }
 
@@ -231,6 +241,127 @@ pub(crate) fn prove_refs(
         Output {
             claim: combined.clone(),
             witness: z_mix,
+            projection,
+        },
+        Proof { combined },
+    ))
+}
+
+/// Π_RLC prover with an accelerator-owned witness random-linear-combination.
+///
+/// The canonical paper layer still validates inputs, samples rho, builds and
+/// validates the public parent, and executes the projection transcript. The
+/// callback owns only `Z_mix = sum_i rho_i * Z_i`.
+pub fn prove_refs_with_witness_mixer<MW>(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
+    claims: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    mix_witnesses: MW,
+) -> Result<(Output, Proof), Error>
+where
+    MW: Fn(&[Mat<F>], &[&Mat<F>]) -> Mat<F>,
+{
+    validate_input_shape(claims, witnesses)?;
+    validate_inputs_before_rho(s, claims)?;
+    let rhos = derive_rhos_for_inputs(tr, pp, claims)?;
+    let (mut combined, z_mix) = engine::prove_pi_rlc_refs_with_witness_mixer(
+        pp,
+        s,
+        &rhos,
+        claims,
+        witnesses,
+        |zs, cs| mix(zs, cs),
+        mix_witnesses,
+    )?;
+    combined.adv = mixed_adv(mix, &rhos, claims)?;
+    validate_nc_sidecars(s, mix, &rhos, claims, &combined)?;
+    let projection = projection_schedule(tr, &rhos, claims, &combined)?;
+    Ok((
+        Output {
+            claim: combined.clone(),
+            witness: z_mix,
+            projection,
+        },
+        Proof { combined },
+    ))
+}
+
+/// Π_RLC prover with a backend-owned resident witness.
+///
+/// The canonical layer validates all inputs, samples ρ, constructs the public
+/// parent, and runs the projection transcript. Only `Z_mix` storage and
+/// computation cross into the callback.
+pub fn prove_refs_with_resident_witness<MW, Resident>(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
+    claims: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    mix_witnesses: MW,
+) -> Result<(ResidentOutput<Resident>, Proof), Error>
+where
+    MW: Fn(&[Mat<F>], &[&Mat<F>]) -> Resident,
+{
+    prove_refs_with_resident_witness_and_projection_digest(
+        tr,
+        pp,
+        s,
+        mix,
+        claims,
+        witnesses,
+        digest::pi_ccs_outputs_digest(claims),
+        mix_witnesses,
+        |preimage| Ok(sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, preimage)?),
+    )
+}
+
+/// Resident-witness prover path with accelerator-owned canonical digests.
+///
+/// `outputs_digest` must be computed from `claims`; a bad value only produces
+/// a proof the canonical verifier rejects because verification recomputes the
+/// digest from the authoritative claims. The protocol layer still constructs
+/// and validates the projection preimage, whose digest the verifier also
+/// recomputes independently.
+#[doc(hidden)]
+pub fn prove_refs_with_resident_witness_and_projection_digest<MW, PD, Resident>(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &crate::paper::relations::Structure,
+    mix: RlcMixer,
+    claims: &[CeClaim],
+    witnesses: &[&Mat<F>],
+    outputs_digest: [F; 4],
+    mix_witnesses: MW,
+    compute_projection_digest: PD,
+) -> Result<(ResidentOutput<Resident>, Proof), Error>
+where
+    MW: Fn(&[Mat<F>], &[&Mat<F>]) -> Resident,
+    PD: FnOnce(&[F]) -> Result<[F; 4], Error>,
+{
+    validate_input_shape(claims, witnesses)?;
+    validate_inputs_before_rho(s, claims)?;
+    begin_rho_sampling_from_outputs_digest(tr, pp, claims.len(), outputs_digest)?;
+    let rhos = engine::sample_rho_n(tr.inner_mut(), pp, claims.len())?;
+    let (mut combined, resident) = engine::prove_pi_rlc_refs_with_resident_witness(
+        pp,
+        s,
+        &rhos,
+        claims,
+        witnesses,
+        |zs, cs| mix(zs, cs),
+        mix_witnesses,
+    )?;
+    combined.adv = mixed_adv(mix, &rhos, claims)?;
+    validate_nc_sidecars(s, mix, &rhos, claims, &combined)?;
+    let projection = projection_schedule_with_digest(tr, &rhos, claims, &combined, compute_projection_digest)?;
+    Ok((
+        ResidentOutput {
+            claim: combined.clone(),
+            witness: resident,
             projection,
         },
         Proof { combined },
@@ -373,6 +504,18 @@ fn projection_schedule(
     inputs: &[CeClaim],
     combined: &CeClaim,
 ) -> Result<ProjectionSchedule, Error> {
+    projection_schedule_with_digest(tr, rhos, inputs, combined, |preimage| {
+        Ok(sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, preimage)?)
+    })
+}
+
+fn projection_schedule_with_digest(
+    tr: &mut Transcript,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+    compute_digest: impl FnOnce(&[F]) -> Result<[F; 4], Error>,
+) -> Result<ProjectionSchedule, Error> {
     #[cfg(feature = "perf-timers")]
     let total_started = std::time::Instant::now();
     let mut binding_preimage = digest::pack_bytes_as_fields(PI_RLC_PROJECTION_BINDING_DOMAIN);
@@ -496,7 +639,7 @@ fn projection_schedule(
 
     #[cfg(feature = "perf-timers")]
     let binding_started = std::time::Instant::now();
-    let binding_digest = sis_accumulator_digest(PI_RLC_PROJECTION_SIS_CONFIG, &binding_preimage)?;
+    let binding_digest = compute_digest(&binding_preimage)?;
     tr.append_fields(PI_RLC_PROJECTION_BINDING_DIGEST_LABEL, &binding_digest);
     let beta = tr.challenge_fields(PI_RLC_PROJECTION_BETA_LABEL, 2);
     #[cfg(feature = "perf-timers")]
@@ -532,6 +675,33 @@ fn projection_schedule(
         y_zcol_q_lanes: y_zcol_lanes.map(|lane| lane.q),
         beta: K::from_coeffs([beta[0], beta[1]]),
     })
+}
+
+/// Replay the post-rho projection binding for a backend-produced combined
+/// claim. The returned schedule is prover metadata; verifiers recompute it
+/// from the public inputs and transcript.
+pub fn bind_backend_projection_schedule(
+    tr: &mut Transcript,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+) -> Result<ProjectionSchedule, Error> {
+    projection_schedule(tr, rhos, inputs, combined)
+}
+
+/// Replay the canonical projection checks while delegating only the final
+/// fixed-seed SIS compression to an accelerator. The callback sees the exact
+/// preimage used by the native prover; the verifier independently rebuilds
+/// and compresses it before accepting the proof.
+#[doc(hidden)]
+pub fn bind_backend_projection_schedule_with_digest(
+    tr: &mut Transcript,
+    rhos: &[neo_reductions::common::RotRho],
+    inputs: &[CeClaim],
+    combined: &CeClaim,
+    compute_digest: impl FnOnce(&[F]) -> Result<[F; 4], Error>,
+) -> Result<ProjectionSchedule, Error> {
+    projection_schedule_with_digest(tr, rhos, inputs, combined, compute_digest)
 }
 
 fn append_projection_binding(preimage: &mut Vec<F>, label: &[u8], fields: &[F]) {

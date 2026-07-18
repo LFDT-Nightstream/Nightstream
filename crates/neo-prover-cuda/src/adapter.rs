@@ -16,7 +16,8 @@ use neo_fold_clean::paper::nifs::{
     DeferredNifsProofMaterializer, Error, NifsFreshInstancesRequest, NifsPostFoldSummary, NifsProof, NifsProofCarrier,
     NifsProverAdapter, NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
 };
-use neo_fold_clean::paper::relations::{ajtai_rlc_mixer, CcsClaim, CeClaim, RlcMixer};
+use neo_fold_clean::paper::params::Params;
+use neo_fold_clean::paper::relations::{ajtai_rlc_mixer, mix_adv, recompose_adv, CcsClaim, CeClaim, RlcMixer};
 use neo_fold_clean::paper::{pi_ccs, pi_rlc};
 use neo_fold_clean::{CcsInstance, CcsWitness, RunningInstance};
 use neo_math::{D, F, K};
@@ -24,21 +25,17 @@ use neo_reductions::common::ct_from_y_ring_for_ccs_m;
 use neo_reductions::optimized_engine::{BackendTranscriptMode, OptimizedStructureCache};
 use p3_field::PrimeCharacteristicRing;
 
-use crate::device::upload_u64_device_buffer;
 use crate::fold_output::{
     device_output_from_carrier, CudaRunningCarrier, DeviceCommitments, DeviceFoldOutput, MixedCommitment,
 };
 use crate::reduce::ccs::{
-    DeviceFeBackend, DeviceFeRowProofLogArchive, DeviceNcBackend, DevicePiCcsKSurfaces, DevicePiCcsOutputsDigest,
-    DevicePiCcsPhaseBackend, DevicePiCcsProofLogExporter, DevicePublicX, FePhaseWorkspace, NcPhaseWorkspace,
-    PiCcsOutputDigestShell,
+    pi_ccs_outputs_digest_field_count, DeviceFeBackend, DeviceFeRowProofLogArchive, DeviceNcBackend,
+    DevicePiCcsKSurfaces, DevicePiCcsOutputsDigest, DevicePiCcsPhaseBackend, DevicePiCcsProofLogExporter,
+    DevicePublicX, FePhaseWorkspace, NcPhaseWorkspace, PiCcsOutputDigestShell,
 };
 use crate::reduce::dec::{DecOutputMode, DecParentWitness, DecRecompositionMode};
 use crate::reduce::rlc as device_rlc;
-use crate::ring_layout;
-use crate::session::{
-    backend_unavailable, CachedDeviceCommitments, CachedDevicePlanes, CachedRunningPlanes, DeviceSession,
-};
+use crate::session::{backend_unavailable, CachedDeviceCommitments, CachedRunningPlanes, DeviceSession};
 
 pub struct CudaNifsProver {
     session: DeviceSession,
@@ -292,10 +289,10 @@ impl PiCcsProofState {
         }
     }
 
-    fn outputs_digest(&self) -> [F; 4] {
+    fn outputs_digest(&self) -> Option<[F; 4]> {
         match self {
-            Self::Ready(proof) => proof.outputs_digest,
-            Self::DeferredRows { proof, .. } | Self::DeferredPhase { proof, .. } => proof.outputs_digest(),
+            Self::Ready(proof) => Some(proof.outputs_digest),
+            Self::DeferredRows { .. } | Self::DeferredPhase { .. } => None,
         }
     }
 
@@ -489,57 +486,32 @@ impl CudaNifsProver {
         NifsPostFoldSummary::new(Some(output.accumulator_digest()), Some(f_prime))
     }
 
-    /// Enable the whole-FE graph path for parity and profiler repro gates.
-    ///
-    /// The default online path intentionally stays on row tracing until the
-    /// whole lifecycle path is profiler-stable. This method gives tests one
-    /// explicit switch for the structural graph migration without using cargo
-    /// features, env vars, or hidden globals.
+    /// Enable whole-FE graph replay with host transcript parity checks.
     pub fn enable_whole_fe_graph_for_parity(&mut self) {
         self.fe_phase_mode = FePhaseMode::WholeTraceGraph(WholeFeMode::Parity);
     }
 
-    /// Enable the whole-FE graph path in fast prover mode.
-    ///
-    /// This adopts the device transcript snapshot after the returned phase
-    /// trace. Parity gates should use [`Self::enable_whole_fe_graph_for_parity`]
-    /// so host replay still checks every absorb and challenge.
+    /// Enable whole-FE graph replay with the device transcript snapshot.
     pub fn enable_whole_fe_graph_fast(&mut self) {
         self.fe_phase_mode = FePhaseMode::WholeTraceGraph(WholeFeMode::Fast);
     }
 
-    /// Enable the whole-FE device path without CUDA graph capture/replay.
-    ///
-    /// This is the structural migration gate for FE rows + Ajtai tail living
-    /// on the device transcript. It is intentionally separate from graph
-    /// replay, which remains profiler-unstable after repeated lifecycle use.
+    /// Enable whole-FE device execution without graph capture or replay.
     pub fn enable_whole_fe_trace_for_parity(&mut self) {
         self.fe_phase_mode = FePhaseMode::WholeTrace(WholeFeMode::Parity);
     }
 
-    /// Enable the whole-FE device path in fast prover mode.
-    ///
-    /// The verifier still recomputes every challenge from the emitted proof;
-    /// this only skips the online host replay used by migration parity gates.
+    /// Enable whole-FE device execution without online host replay.
     pub fn enable_whole_fe_trace_fast(&mut self) {
         self.fe_phase_mode = FePhaseMode::WholeTrace(WholeFeMode::Fast);
     }
 
-    /// Use claims-only terminal output for profiler fast-path gates.
-    ///
-    /// The default full-audit path still downloads terminal witnesses. This
-    /// opt-in mode models the intended GPU-resident terminal contract where
-    /// private terminal planes are consumed by a later device decider instead
-    /// of leaving the device inside the timed online prover window.
+    /// Keep private terminal planes resident for a later device decider.
     pub fn enable_terminal_claims_only_fast(&mut self) {
         self.terminal_claims_only = true;
     }
 
-    /// Enable the whole-FE graph path for a bounded number of folds.
-    ///
-    /// This is a profiler repro tool, not a production mode. It isolates
-    /// whether graph failures come from the first full-lifecycle graph use or
-    /// from repeated capture/replay across the SHA lifecycle.
+    /// Enable parity graph replay for a bounded number of folds.
     pub fn enable_whole_fe_graph_budget_for_parity(&mut self, folds: usize) {
         self.fe_phase_mode = FePhaseMode::WholeTraceGraphBudget {
             remaining: folds,
@@ -555,11 +527,7 @@ impl CudaNifsProver {
         };
     }
 
-    /// Enable whole-FE graph capture for a bounded number of folds without
-    /// replaying a cached graph.
-    ///
-    /// This isolates cached graph replay/lifetime bugs from failures in the
-    /// captured graph body itself. It is a profiler repro mode only.
+    /// Recapture a parity graph for each of a bounded number of folds.
     pub fn enable_whole_fe_graph_recapture_budget_for_parity(&mut self, folds: usize) {
         self.fe_phase_mode = FePhaseMode::WholeTraceGraphRecaptureBudget {
             remaining: folds,
@@ -581,13 +549,40 @@ impl CudaNifsProver {
     /// PP and SuperNeo CSR uploads once during setup. The fold path still
     /// lazily checks these caches, so skipping this method only affects timing,
     /// not correctness.
-    pub fn prepare_static(&mut self, log: &AjtaiSModule, cache: &OptimizedStructureCache) -> Result<(), Error> {
+    pub fn prepare_static(
+        &mut self,
+        pp: &Params,
+        log: &AjtaiSModule,
+        cache: &OptimizedStructureCache,
+        fresh_count: usize,
+    ) -> Result<(), Error> {
         crate::perf_timed!("session.params", {
             self.session.ensure_pp_uploaded(log)?;
         });
         crate::perf_timed!("session.structure", {
             self.session.ensure_structure_uploaded(cache)?;
         });
+        let (_, m, t_core) = cache.shape();
+        let include_y_zcol = m.div_ceil(D) > 1;
+        let claim_counts = [fresh_count, fresh_count + pp.k_rho() as usize];
+        for (index, claims) in claim_counts.into_iter().enumerate() {
+            if claims == 0 || claim_counts[..index].contains(&claims) {
+                continue;
+            }
+            let field_count = pi_ccs_outputs_digest_field_count(claims, t_core, D.next_power_of_two(), include_y_zcol);
+            self.session
+                .sis
+                .prepare_digest(
+                    &self.session.device,
+                    neo_fold_clean::paper::reductions::accumulator_sis_circuit::PI_CCS_OUTPUTS_SIS_CONFIG,
+                    field_count,
+                )
+                .map_err(|_| backend_unavailable("prepare Pi_CCS output SIS map failed"))?;
+        }
+        self.session
+            .device
+            .sync()
+            .map_err(|_| backend_unavailable("synchronize Pi_CCS output SIS maps failed"))?;
         Ok(())
     }
 }
@@ -612,11 +607,6 @@ impl NifsProverAdapter for CudaNifsProver {
             cache_output_for_next_step,
             ..
         } = request;
-        if lanes.is_some() {
-            return Err(backend_unavailable(
-                "CUDA NIFS prover does not support Nebula lane commitments",
-            ));
-        }
         let running_device_output = device_output_from_carrier(running_carrier);
         let running_accumulator_handle = running_device_output
             .as_ref()
@@ -754,6 +744,7 @@ impl NifsProverAdapter for CudaNifsProver {
                             fe_phase.transcript_mode,
                             running_parent_digest,
                             running_accumulator_handle,
+                            None,
                         )?);
                     pi_ccs_y_eval_surface = phase_backend.take_last_y_eval_surface();
                     pi_ccs_nc_final_state = phase_backend.take_last_nc_final_state();
@@ -840,6 +831,7 @@ impl NifsProverAdapter for CudaNifsProver {
                         BackendTranscriptMode::DeviceSnapshot,
                         running_parent_digest,
                         running_accumulator_handle,
+                        None,
                     )?)
                 };
                 pi_ccs_y_eval_surface = fe_backend.take_last_y_eval_surface();
@@ -871,7 +863,11 @@ impl NifsProverAdapter for CudaNifsProver {
         let metadata = pi_ccs_proof_state.claim_shell_metadata()?;
         let include_y_zcol = metadata.has_y_zcol;
         let combined_m_in = metadata.m_in;
-        let kernels = self.session.kernels()?;
+        let kernels = self
+            .session
+            .kernels
+            .as_ref()
+            .ok_or_else(|| backend_unavailable("CUDA kernels not loaded"))?;
         let pi_ccs_output_public_x = if running_device_output.is_some() {
             Some(
                 DevicePublicX::pack_from_planes(
@@ -924,38 +920,49 @@ impl NifsProverAdapter for CudaNifsProver {
         } else {
             None
         };
-        let (device_pi_ccs_outputs_digest, host_pi_ccs_outputs_digest) =
-            match (&pi_ccs_output_commitments, pi_ccs_k_surfaces.as_ref()) {
-                (Some(commitments), Some(surfaces)) => {
-                    let public_x = pi_ccs_output_public_x
-                        .as_ref()
-                        .ok_or_else(|| backend_unavailable("resident Pi_CCS public X unavailable"))?;
-                    let shells = pi_ccs_proof_state
-                        .outputs()
-                        .iter()
-                        .map(PiCcsOutputDigestShell::from_claim)
-                        .collect::<Vec<_>>();
-                    (
-                        Some(
-                            DevicePiCcsOutputsDigest::compute_from_shells_with_authority(
-                                &self.session.device,
-                                kernels,
-                                &shells,
-                                surfaces,
-                                commitments.words(),
-                                commitments.words_per_commitment(),
-                                public_x,
-                            )
-                            .map_err(|_| backend_unavailable("resident Pi_CCS output digest failed"))?,
-                        ),
-                        None,
-                    )
-                }
-                (Some(_), None) => {
-                    return Err(backend_unavailable("resident Pi_CCS output surfaces unavailable"));
-                }
-                (None, _) => (None, Some(pi_ccs_proof_state.outputs_digest())),
-            };
+        if pi_ccs_output_commitments.is_some() && pi_ccs_k_surfaces.is_none() {
+            return Err(backend_unavailable("resident Pi_CCS output surfaces unavailable"));
+        }
+        let (device_pi_ccs_outputs_digest, host_pi_ccs_outputs_digest) = match pi_ccs_proof_state.outputs_digest() {
+            Some(digest) => (None, Some(digest)),
+            None => {
+                let surfaces = pi_ccs_k_surfaces
+                    .as_ref()
+                    .ok_or_else(|| backend_unavailable("deferred Pi_CCS output surfaces unavailable"))?;
+                let shells = pi_ccs_proof_state
+                    .outputs()
+                    .iter()
+                    .map(PiCcsOutputDigestShell::from_claim)
+                    .collect::<Vec<_>>();
+                (
+                    Some(
+                        DevicePiCcsOutputsDigest::compute_from_shells_with_cache(
+                            &self.session.device,
+                            kernels,
+                            &mut self.session.sis,
+                            &shells,
+                            surfaces,
+                        )
+                        .map_err(|_| backend_unavailable("device Pi_CCS output digest failed"))?,
+                    ),
+                    None,
+                )
+            }
+        };
+        // The normal prover replays the complete post-rho projection
+        // schedule. TerminalClaimsOnly is a throughput-only contract: the
+        // verifier/non-timed parity path recomputes this prover self-check,
+        // and neither its digest nor beta is serialized or consumed by DEC.
+        let projection_inputs = if self.terminal_claims_only {
+            None
+        } else {
+            Some(crate::projection::materialize_inputs(
+                pi_ccs_proof_state.outputs(),
+                pi_ccs_output_commitments.as_ref(),
+                pi_ccs_output_public_x.as_ref(),
+                pi_ccs_k_surfaces.as_ref(),
+            )?)
+        };
         let reusable_dec_split_planes;
         crate::perf_timed!("fold.superneo.pi_rlc.combine_claims", {
             let sampling_result;
@@ -1103,6 +1110,22 @@ impl NifsProverAdapter for CudaNifsProver {
             let commitment = commitment_mix.claim_shell_commitment(pp.kappa() as usize);
             combined = device_rlc::claim_shell_from_metadata(metadata, device_rhos.count(), commitment)
                 .map_err(|_| backend_unavailable("device Π_RLC claim shell failed"))?;
+            if pi_ccs_proof_state
+                .outputs()
+                .iter()
+                .any(|claim| claim.adv.is_some())
+            {
+                let rho_mats = device_rhos
+                    .mats(&self.session.device, pp)
+                    .map_err(|_| backend_unavailable("Nebula lane rho materialization failed"))?;
+                let input_advs = pi_ccs_proof_state
+                    .outputs()
+                    .iter()
+                    .map(|claim| claim.adv.clone())
+                    .collect::<Vec<_>>();
+                combined.adv = mix_adv(mix_rhos_commits, &rho_mats, &input_advs)
+                    .map_err(|_| backend_unavailable("Nebula lane presence mismatch in Π_RLC"))?;
+            }
         });
         let x_stream = self
             .session
@@ -1241,6 +1264,51 @@ impl NifsProverAdapter for CudaNifsProver {
             }
             (None, None, None)
         };
+        if combined.adv.is_some() {
+            let lane_scheme = lanes.ok_or_else(|| backend_unavailable("Nebula parent requires a lane scheme"))?;
+            let child_count = children.claims.len();
+            let plane_stride = split_planes.planes().len() / child_count;
+            let child_advs;
+            crate::perf_timed!("fold.superneo.pi_dec.commit_child_lanes", {
+                child_advs = self.session.commit_nebula_child_lanes(
+                    lane_scheme,
+                    split_planes.planes(),
+                    child_count,
+                    plane_stride,
+                )?;
+            });
+            if child_advs.len() != child_count || pi_dec_proof.children.len() != child_count {
+                return Err(backend_unavailable("Nebula child lane commitment count mismatch"));
+            }
+            for ((claim, proof_claim), adv) in children
+                .claims
+                .iter_mut()
+                .zip(pi_dec_proof.children.iter_mut())
+                .zip(child_advs)
+            {
+                claim.adv = Some(adv.clone());
+                proof_claim.adv = Some(adv);
+            }
+            let recomposed = recompose_adv(
+                combine_b_pows,
+                pp.b(),
+                &children
+                    .claims
+                    .iter()
+                    .map(|claim| claim.adv.clone())
+                    .collect::<Vec<_>>(),
+            )
+            .map_err(|_| backend_unavailable("Nebula child lane presence mismatch in Π_DEC"))?;
+            if recomposed != combined.adv {
+                return Err(backend_unavailable("Nebula child lane commitments do not recompose"));
+            }
+        }
+        let projection_combined = crate::projection::materialize_parent(
+            &combined,
+            parent_surfaces.as_ref(),
+            parent_public_x.as_ref(),
+            parent_commitment.as_ref(),
+        )?;
 
         // Accumulate: children become the new running instance; the split
         // planes are retained when the caller staged this output as the next
@@ -1277,8 +1345,6 @@ impl NifsProverAdapter for CudaNifsProver {
         crate::perf_timed!("fold.accumulate.running", {
             if let Some(surfaces) = child_surfaces {
                 device_fold_output = Some(Arc::new(DeviceFoldOutput::new(
-                    &self.session.device,
-                    self.session.kernels()?,
                     surfaces,
                     Arc::clone(
                         device_child_commitments
@@ -1287,7 +1353,7 @@ impl NifsProverAdapter for CudaNifsProver {
                     ),
                     child_public_x.ok_or_else(|| backend_unavailable("device fold-output public X missing"))?,
                     children.claims,
-                    combined.clone(),
+                    projection_combined.clone(),
                     parent_surfaces.ok_or_else(|| backend_unavailable("device parent K surfaces missing"))?,
                     parent_commitment.ok_or_else(|| backend_unavailable("device parent commitment missing"))?,
                     parent_public_x.ok_or_else(|| backend_unavailable("device parent public X missing"))?,
@@ -1305,7 +1371,6 @@ impl NifsProverAdapter for CudaNifsProver {
         });
         let proof_carrier;
         let restored_phase_workspaces;
-        let pi_ccs_outputs_digest;
         crate::perf_timed!("fold.egress.export", {
             let pending_outputs_digest = match device_pi_ccs_outputs_digest.as_ref() {
                 Some(outputs_digest) => Some(
@@ -1319,7 +1384,21 @@ impl NifsProverAdapter for CudaNifsProver {
                 .finish(&self.session.device)
                 .map_err(|_| backend_unavailable("device Π_RLC transcript restore failed"))?;
             tr.restore_snapshot(sampling_end);
-            pi_ccs_outputs_digest = match pending_outputs_digest.as_ref() {
+            if let Some(projection_inputs) = projection_inputs.as_deref() {
+                crate::perf_timed!("fold.superneo.pi_rlc.projection_binding", {
+                    crate::projection::bind_schedule(
+                        tr,
+                        pp,
+                        s,
+                        mix_rhos_commits,
+                        &mut self.session,
+                        &mut device_rhos,
+                        projection_inputs,
+                        &projection_combined,
+                    )?;
+                });
+            }
+            let pi_ccs_outputs_digest = match pending_outputs_digest.as_ref() {
                 Some(words) => DevicePiCcsOutputsDigest::decode_download(words.as_slice())
                     .map_err(|_| backend_unavailable("resident Pi_CCS output digest decode failed"))?,
                 None => host_pi_ccs_outputs_digest
@@ -1406,83 +1485,6 @@ impl NifsProverAdapter for CudaNifsProver {
         &mut self,
         request: NifsFreshInstancesRequest<'_>,
     ) -> Result<Option<Vec<CcsInstance>>, Error> {
-        let b = request.pp.b();
-        let valid = request.assignments.iter().all(|z| {
-            z.len() == request.s.m
-                && request.m_in <= z.len()
-                && z.iter().all(|v| neo_math::balanced::within_nc_bound(*v, b))
-        });
-        if !valid {
-            self.session.cached_fresh_commitments = None;
-            return Ok(None);
-        }
-
-        let cols = request.s.m.div_ceil(D);
-        self.session.ensure_pp_uploaded(request.log)?;
-        let mut instances = Vec::with_capacity(request.assignments.len());
-        let fresh_cache;
-        {
-            let parts = self.session.ajtai_commit_parts()?;
-            if parts.ajtai.cols() != cols {
-                // The session PP is for a different Z width; stay canonical.
-                self.session.cached_fresh_commitments = None;
-                return Ok(None);
-            }
-
-            let commitments;
-            let commitment_words;
-            let assignments_dev;
-            crate::perf_timed!("fold.commit.fresh", {
-                let mut assignment_words = Vec::with_capacity(request.assignments.len() * cols * D);
-                for z in request.assignments {
-                    assignment_words.extend(ring_layout::assignment_to_words(z, cols));
-                }
-                assignments_dev = upload_u64_device_buffer(parts.device.stream(), &assignment_words)
-                    .map_err(|_| backend_unavailable("fresh assignment upload failed"))?;
-                (commitments, commitment_words) = parts
-                    .ajtai
-                    .commit_planes_with_device_output(
-                        parts.device,
-                        &assignments_dev,
-                        request.assignments.len(),
-                        cols * D,
-                    )
-                    .map_err(|_| backend_unavailable("device batched Ajtai commit failed"))?;
-            });
-            for (z, c) in request.assignments.iter().zip(commitments) {
-                instances.push(CcsInstance {
-                    claim: CcsClaim {
-                        c,
-                        x: z[..request.m_in].to_vec(),
-                        m_in: request.m_in,
-                    },
-                    witness: CcsWitness {
-                        w: z[request.m_in..].to_vec(),
-                        Z: ring_layout::assignment_to_mat(z, cols),
-                    },
-                });
-            }
-            let device_commitments = Arc::new(DeviceCommitments::new(
-                Arc::clone(parts.device.stream()),
-                commitment_words,
-                request.assignments.len(),
-                D,
-                parts.ajtai.kappa(),
-            )?);
-            fresh_cache = CachedDeviceCommitments {
-                host: instances
-                    .iter()
-                    .map(|instance| instance.claim.c.clone())
-                    .collect(),
-                device: device_commitments,
-                planes: Some(CachedDevicePlanes {
-                    words: assignments_dev,
-                    plane_len: cols * D,
-                    count: request.assignments.len(),
-                }),
-            };
-        }
-        self.session.cached_fresh_commitments = Some(fresh_cache);
-        Ok(Some(instances))
+        crate::commit::build_fresh_instances(&mut self.session, request)
     }
 }

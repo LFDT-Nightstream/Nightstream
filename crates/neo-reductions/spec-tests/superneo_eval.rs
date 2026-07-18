@@ -255,6 +255,29 @@ fn seeded_phi81_cache_matches_expanded_matrix_on_every_evaluation_surface() {
 
     let compact_ring = compact_cache.build_ring_linear_forms(&chi, rows);
     let expanded_ring = expanded_cache.build_ring_linear_forms(&chi, rows);
+    let seeded_ring = compact_cache.build_seeded_ring_linear_forms(&chi, rows);
+    assert_eq!(
+        seeded_ring[0].to_dense_block_coeffs(),
+        compact_ring[0].to_dense_block_coeffs(),
+        "seeded-only forms must exactly reconstruct a purely seeded matrix"
+    );
+    let row_challenges: Vec<K> = (0..6)
+        .map(|index| {
+            K::from_coeffs([
+                F::from_u64((index * 17 + 2) as u64),
+                F::from_u64((index * 11 + 5) as u64),
+            ])
+        })
+        .collect();
+    let tensor_chi = neo_ccs::utils::tensor_point_parallel::<K>(&row_challenges);
+    let seeded_from_tensor = compact_cache.build_seeded_ring_linear_forms(&tensor_chi, rows);
+    let seeded_from_challenges =
+        compact_cache.build_seeded_ring_linear_forms_from_row_challenges(&row_challenges, rows);
+    assert_eq!(
+        seeded_from_challenges[0].to_dense_block_coeffs(),
+        seeded_from_tensor[0].to_dense_block_coeffs(),
+        "selective seeded-row evaluation must match the full tensor table"
+    );
     let z_blocks = neo_reductions::superneo_eval::SuperneoZBlocks::from_z(&z);
     let mut compact_rows = vec![K::ZERO; rows];
     let mut expanded_rows = vec![K::ZERO; rows];

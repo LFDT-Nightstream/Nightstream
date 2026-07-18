@@ -7,18 +7,12 @@ use rayon::prelude::*;
 
 mod baseline;
 mod cache;
+mod compact;
 mod digit;
 mod parallel;
 mod seeded;
 mod weighted;
 mod weighted_table;
-
-/// The per-lane weighted projection basis forms `(re, im)` derived from the
-/// χ_α weights — the exact forms `eval_weighted_row_table` combines per
-/// entry. Exposed for device backends that replicate that table build.
-pub fn weighted_projection_basis_forms(weights: &[K; D]) -> ([Rq; D], [Rq; D]) {
-    weighted::weighted_projection_basis_forms_from_k(weights)
-}
 
 pub use baseline::{
     eval_all_mats_direct, eval_all_mats_superneo, eval_all_mats_transformed, eval_mle_direct_matrix,
@@ -31,6 +25,13 @@ use digit::{
     accumulate_pair_by_signed_unit_masks, mul_by_digit_block, mul_by_signed_unit_masks,
 };
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
+
+/// The per-lane weighted projection basis forms `(re, im)` derived from the
+/// chi-alpha weights. Device backends use the same forms to build their row
+/// tables without materializing the CPU table first.
+pub fn weighted_projection_basis_forms(weights: &[K; D]) -> ([Rq; D], [Rq; D]) {
+    weighted_projection_basis_forms_from_k(weights)
+}
 
 #[inline]
 fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>, row: usize, col: usize) -> Ff {
@@ -345,32 +346,46 @@ pub struct SuperneoMatrixCache {
     identity: bool,
     seeded_phi81_blocks: Vec<SeededPhi81LinearBlock>,
 }
+
 impl SuperneoMatrixCache {
-    /// CSR shape of the bar-transformed entries, for accelerator backends
-    /// that rebuild the ring linear forms off-CPU: `(rows, cols,
-    /// row_offsets, entry_count)`. Entries are read via [`Self::bar_entry`].
+    /// CSR shape of the explicit bar-transformed entries. Seeded Phi81 blocks
+    /// remain represented separately and are not included in this entry view.
     pub fn bar_shape(&self) -> (usize, usize, Vec<usize>, usize) {
-        let row_offsets = (0..=self.rows)
-            .map(|row| self.row_offsets.get(row) as usize)
-            .collect();
-        (self.rows, self.cols, row_offsets, self.row_blocks.len())
+        if self.identity {
+            return (self.rows, self.cols, (0..=self.rows).collect(), self.rows);
+        }
+        (
+            self.rows,
+            self.cols,
+            (0..=self.rows)
+                .map(|row| self.row_offsets.get(row) as usize)
+                .collect(),
+            self.row_blocks.len(),
+        )
     }
 
-    /// Entry `i` in row order: `(block, bar ring element)` — the exact
-    /// values `build_ring_linear_form_split_chi` aggregates.
+    /// Explicit entry `i` in row order: `(block, bar ring element)`.
     pub fn bar_entry(&self, i: usize) -> (usize, Rq) {
-        let rb = self.expanded_block(self.row_blocks[i]);
-        (rb.blk, rb.bar)
+        if self.identity {
+            let mut orig = [F::ZERO; D];
+            orig[i % D] = F::ONE;
+            return (i / D, Rq(neo_math::superneo_bar_block(orig)));
+        }
+        let row_block = self.expanded_block(self.row_blocks[i]);
+        (row_block.blk, row_block.bar)
     }
 
-    /// Entry `i` in row order: `(block, original ring row)` — the exact
-    /// values `row_dot_with_blocks` dots against the witness blocks.
+    /// Explicit entry `i` in row order: `(block, original ring row)`.
     pub fn orig_entry(&self, i: usize) -> (usize, Rq) {
-        let rb = self.expanded_block(self.row_blocks[i]);
-        (rb.blk, rb.orig)
+        if self.identity {
+            let mut orig = [F::ZERO; D];
+            orig[i % D] = F::ONE;
+            return (i / D, Rq(orig));
+        }
+        let row_block = self.expanded_block(self.row_blocks[i]);
+        (row_block.blk, row_block.orig)
     }
 }
-
 #[derive(Clone, Copy, Debug)]
 struct WeightedRowBlock {
     blk: usize,
@@ -523,8 +538,8 @@ struct SuperneoRingLinearBlock {
 
 impl SuperneoRingLinearForm {
     /// Dense (re, im) coefficient planes over all column blocks, laid out as
-    /// `[block][D]`. For backends (e.g. CUDA) that evaluate this form as a
-    /// flat ring mat-vec instead of walking the sparse entry list.
+    /// `[block][D]`. CUDA evaluates this form as a flat ring mat-vec rather
+    /// than walking the sparse entry list.
     pub fn to_dense_block_coeffs(&self) -> (Vec<F>, Vec<F>) {
         let blocks = self.cols.div_ceil(D);
         let mut re = vec![F::ZERO; blocks * D];
@@ -816,6 +831,19 @@ impl SuperneoZBlocks {
         {
             return Ok(Self::with_block_len(blocks));
         }
+        if let Some((positive, negative)) = z.packed_signed_unit_column_masks() {
+            debug_assert_eq!(positive.len(), blocks);
+            debug_assert_eq!(negative.len(), blocks);
+            return Ok(Self {
+                re: RealBlockStorage::SignedUnit {
+                    positive: positive.to_vec(),
+                    negative: negative.to_vec(),
+                },
+                im: Vec::new(),
+                im_nonzero: vec![false; blocks],
+                imag_all_zero: true,
+            });
+        }
         let mut positive = Vec::with_capacity(blocks);
         let mut negative = Vec::with_capacity(blocks);
         let neg_one = F::ZERO - F::ONE;
@@ -937,11 +965,9 @@ impl SuperneoZBlocks {
         self.imag_all_zero
     }
 
-    #[inline]
-    /// The real coefficient plane as flat canonical words
-    /// (`words[blk * D + lane]`) — the layout device kernels consume.
+    /// Real coefficient plane as canonical words in `[block][D]` layout.
     pub fn re_plane_words(&self) -> Vec<u64> {
-        let mut words = vec![0u64; self.re.len() * D];
+        let mut words = vec![0; self.re.len() * D];
         for block in 0..self.re.len() {
             for lane in 0..D {
                 words[block * D + lane] = self.real_coefficient(block, lane).as_canonical_u64();
@@ -950,25 +976,25 @@ impl SuperneoZBlocks {
         words
     }
 
-    /// The imaginary coefficient plane, same layout. All zeros when the
-    /// blocks are real (`imag_all_zero`).
+    /// Imaginary coefficient plane in `[block][D]` layout.
     pub fn im_plane_words(&self) -> Vec<u64> {
         if self.imag_all_zero {
-            return vec![0u64; self.re.len() * D];
+            return vec![0; self.re.len() * D];
         }
         Self::plane_words(&self.im)
     }
 
     fn plane_words(rings: &[Rq]) -> Vec<u64> {
-        let mut words = vec![0u64; rings.len() * D];
-        for (blk, ring) in rings.iter().enumerate() {
-            for (lane, coeff) in ring.0.iter().enumerate() {
-                words[blk * D + lane] = coeff.as_canonical_u64();
+        let mut words = vec![0; rings.len() * D];
+        for (block, ring) in rings.iter().enumerate() {
+            for (lane, coefficient) in ring.0.iter().enumerate() {
+                words[block * D + lane] = coefficient.as_canonical_u64();
             }
         }
         words
     }
 
+    #[inline]
     pub(crate) fn block_nonzero(&self, blk: usize) -> bool {
         self.real_nonzero(blk) || (!self.imag_all_zero && self.im_nonzero[blk])
     }
@@ -1657,10 +1683,6 @@ impl SuperneoWeightedMatrixCache {
 pub struct SuperneoEvalCache {
     mats: Vec<SuperneoMatrixCache>,
     explicit_matrix_masks: Option<Vec<u16>>,
-    /// The Poseidon2 CCS matrix digest of the structure this cache was built
-    /// from — the strong identity accelerator backends key device-resident
-    /// uploads on. Installed by `OptimizedStructureCache::build`; zero until
-    /// then.
     mat_digest: [F; 4],
 }
 
@@ -1678,6 +1700,11 @@ impl SuperneoEvalCache {
         self.mat_digest = digest;
     }
 
+    /// Per-matrix explicit bar caches, in CCS matrix order.
+    pub fn matrix_caches(&self) -> &[SuperneoMatrixCache] {
+        &self.mats
+    }
+
     #[inline]
     pub fn build_linear_forms(&self, chi_r: &[K], n_eff: usize) -> Vec<SuperneoLinearForm> {
         self.mats
@@ -1687,12 +1714,6 @@ impl SuperneoEvalCache {
     }
 
     #[inline]
-    /// The per-matrix bar caches, for accelerator backends; order matches
-    /// `build_ring_linear_forms` output.
-    pub fn matrix_caches(&self) -> &[SuperneoMatrixCache] {
-        &self.mats
-    }
-
     pub fn build_ring_linear_forms(&self, chi_r: &[K], n_eff: usize) -> Vec<SuperneoRingLinearForm> {
         let (chi_re, chi_im) = split_chi_coeffs(chi_r, n_eff);
         let block_count = self

@@ -11,8 +11,6 @@ pub mod ajtai;
 #[cfg(feature = "cuda")]
 pub mod csr;
 #[cfg(feature = "cuda")]
-pub mod pi_ccs_digest;
-#[cfg(feature = "cuda")]
 pub mod pi_ccs_fe;
 #[cfg(feature = "cuda")]
 pub mod pi_ccs_nc;
@@ -28,5 +26,7 @@ pub mod pi_rlc;
 pub mod poseidon2;
 #[cfg(feature = "cuda")]
 pub mod probe;
+#[cfg(feature = "cuda")]
+pub mod sis;
 #[cfg(feature = "cuda")]
 pub mod sumcheck_common;

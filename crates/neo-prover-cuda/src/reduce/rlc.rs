@@ -625,6 +625,7 @@ pub fn claim_shell_from_metadata(
         return Err(CcsDeviceError::Shape("Π_RLC: claim metadata rho/input mismatch"));
     }
     Ok(CeClaim {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,
@@ -685,6 +686,7 @@ fn claim_shell_from_aux_openings(
         .first()
         .ok_or(CcsDeviceError::Shape("Π_RLC: claim shell needs inputs"))?;
     Ok(CeClaim {
+        adv: None,
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,

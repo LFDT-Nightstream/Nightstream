@@ -360,12 +360,14 @@ impl FeSumcheckBackend for MetalFeBackend<'_> {
         f_var_indices: &[usize],
         z_blocks: &neo_reductions::superneo_eval::SuperneoZBlocks,
         n_eff: usize,
+        crop: bool,
         n_pad: usize,
     ) -> Option<FeMcsRowTables> {
         let plan = self.oracle_plan?;
         if !plan.matches(cache) || !z_blocks.imag_all_zero() || f_var_indices.is_empty() {
             return None;
         }
+        let live_len = if crop { n_eff } else { n_pad };
         match self.session.build_mcs_row_tables(
             plan,
             cache,
@@ -374,6 +376,7 @@ impl FeSumcheckBackend for MetalFeBackend<'_> {
             z_blocks,
             self.witness_masks,
             n_eff,
+            live_len,
             n_pad,
         ) {
             Ok(tables) => {
@@ -550,7 +553,8 @@ impl FeOracle {
                     return None;
                 }
                 let Some((deferred, _)) = deferred_mcs.iter().enumerate().find(|(index, tables)| {
-                    !used_deferred[*index] && tables.matches(mcs_idx, snapshot.cur_len, snapshot.f_var_count)
+                    !used_deferred[*index]
+                        && tables.matches(mcs_idx, snapshot.active_len, snapshot.cur_len, snapshot.f_var_count)
                 }) else {
                     eprintln!(
                         "nightstream Metal FE snapshot rejected: no deferred buffer matches mcs={mcs_idx} n_pad={} f_vars={} candidates={}",

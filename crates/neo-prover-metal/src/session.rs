@@ -91,7 +91,7 @@ pub struct MetalSession {
     // Shared table construction and sumcheck pipelines.
     fold_k_table: Pipeline,
     tensor_point_expand_k: Pipeline,
-    fe_carried_plane_lin_comb: Pipeline,
+    fe_carried_mask_lin_comb: Pipeline,
     fe_weighted_basis_dots: Pipeline,
     fe_weighted_row_table: Pipeline,
     fe_build_mcs_row_tables: Pipeline,
@@ -103,28 +103,30 @@ pub struct MetalSession {
     fe_stream_eval_round_partials: Pipeline,
     fe_stream_constant_round_partials: Pipeline,
     fe_fold_base_tables_in_place: Pipeline,
+    fe_fold_k_tables_live: Pipeline,
+    fe_copy_k_tables_live: Pipeline,
     fe_round_partials: Pipeline,
     nc_round_mask_partials: Pipeline,
     nc_fold_signed_masks: Pipeline,
     nc_expand_mask_basis: Pipeline,
     nc_materialize_mask_dense: Pipeline,
     nc_round_partials: Pipeline,
+    nc_reduce_partials: Pipeline,
     sumcheck_reduce_partials: Pipeline,
     nc_fold_compact: Pipeline,
     // Cross-phase witness mixing and Pi_DEC pipelines.
     rlc_witness_mix: Pipeline,
-    rlc_witness_mix_resident_tail: Pipeline,
+    rlc_witness_mix_dense_fresh_resident_masks: Pipeline,
     rlc_witness_mix_signed_masks: Pipeline,
-    rlc_witness_mix_signed_masks_resident_tail: Pipeline,
-    dec_split_base2: Pipeline,
-    dec_validate_split: Pipeline,
+    dec_split_base2_masks: Pipeline,
     dec_build_ring_forms: Pipeline,
     dec_build_parallel_original_forms: Pipeline,
+    dec_build_parallel_original_form_tiles: Pipeline,
+    dec_reduce_parallel_original_form_tiles: Pipeline,
     dec_bar_ring_forms_in_place: Pipeline,
     dec_build_seeded_ring_forms: Pipeline,
     dec_add_bar_seeded_ring_forms: Pipeline,
     dec_add_sparse_ring_forms: Pipeline,
-    dec_binary_masks: Pipeline,
     dec_ring_partials: Pipeline,
     dec_ring_sum_chunks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
@@ -143,7 +145,6 @@ pub struct MetalSession {
     recycled_ajtai_forms: RefCell<Option<Buffer>>,
     recycled_seeded_forms: RefCell<Option<Buffer>>,
     recycled_dec_partials: RefCell<Option<Buffer>>,
-    recycled_dec_children: RefCell<Option<carrier::MetalResidentChildren>>,
     next_resident_id: Cell<u64>,
     fe_sumcheck_duration: Cell<Duration>,
     nc_sumcheck_duration: Cell<Duration>,
@@ -209,7 +210,7 @@ impl MetalSession {
         let sis_pack_signed_masks = pipeline(&device, &library, "sis_pack_signed_masks")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
-        let fe_carried_plane_lin_comb = pipeline(&device, &library, "fe_carried_plane_lin_comb")?;
+        let fe_carried_mask_lin_comb = pipeline(&device, &library, "fe_carried_mask_lin_comb")?;
         let fe_weighted_basis_dots = pipeline(&device, &library, "fe_weighted_basis_dots")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
         let fe_build_mcs_row_tables = pipeline(&device, &library, "fe_build_mcs_row_tables")?;
@@ -222,28 +223,32 @@ impl MetalSession {
         let fe_stream_eval_round_partials = pipeline(&device, &library, "fe_stream_eval_round_partials")?;
         let fe_stream_constant_round_partials = pipeline(&device, &library, "fe_stream_constant_round_partials")?;
         let fe_fold_base_tables_in_place = pipeline(&device, &library, "fe_fold_base_tables_in_place")?;
+        let fe_fold_k_tables_live = pipeline(&device, &library, "fe_fold_k_tables_live")?;
+        let fe_copy_k_tables_live = pipeline(&device, &library, "fe_copy_k_tables_live")?;
         let fe_round_partials = pipeline(&device, &library, "fe_round_partials")?;
         let nc_round_mask_partials = pipeline(&device, &library, "nc_round_mask_partials")?;
         let nc_fold_signed_masks = pipeline(&device, &library, "nc_fold_signed_masks")?;
         let nc_expand_mask_basis = pipeline(&device, &library, "nc_expand_mask_basis")?;
         let nc_materialize_mask_dense = pipeline(&device, &library, "nc_materialize_mask_dense")?;
         let nc_round_partials = pipeline(&device, &library, "nc_round_partials")?;
+        let nc_reduce_partials = pipeline(&device, &library, "nc_reduce_partials")?;
         let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
         let nc_fold_compact = pipeline(&device, &library, "nc_fold_compact")?;
         let rlc_witness_mix = pipeline(&device, &library, "rlc_witness_mix")?;
-        let rlc_witness_mix_resident_tail = pipeline(&device, &library, "rlc_witness_mix_resident_tail")?;
+        let rlc_witness_mix_dense_fresh_resident_masks =
+            pipeline(&device, &library, "rlc_witness_mix_dense_fresh_resident_masks")?;
         let rlc_witness_mix_signed_masks = pipeline(&device, &library, "rlc_witness_mix_signed_masks")?;
-        let rlc_witness_mix_signed_masks_resident_tail =
-            pipeline(&device, &library, "rlc_witness_mix_signed_masks_resident_tail")?;
-        let dec_split_base2 = pipeline(&device, &library, "dec_split_base2")?;
-        let dec_validate_split = pipeline(&device, &library, "dec_validate_split")?;
+        let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_build_ring_forms = pipeline(&device, &library, "dec_build_ring_forms")?;
         let dec_build_parallel_original_forms = pipeline(&device, &library, "dec_build_parallel_original_forms")?;
+        let dec_build_parallel_original_form_tiles =
+            pipeline(&device, &library, "dec_build_parallel_original_form_tiles")?;
+        let dec_reduce_parallel_original_form_tiles =
+            pipeline(&device, &library, "dec_reduce_parallel_original_form_tiles")?;
         let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
         let dec_build_seeded_ring_forms = pipeline(&device, &library, "dec_build_seeded_ring_forms")?;
         let dec_add_bar_seeded_ring_forms = pipeline(&device, &library, "dec_add_bar_seeded_ring_forms")?;
         let dec_add_sparse_ring_forms = pipeline(&device, &library, "dec_add_sparse_ring_forms")?;
-        let dec_binary_masks = pipeline(&device, &library, "dec_binary_masks")?;
         let dec_ring_partials = pipeline(&device, &library, "dec_ring_partials")?;
         let dec_ring_sum_chunks = pipeline(&device, &library, "dec_ring_sum_chunks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
@@ -279,7 +284,7 @@ impl MetalSession {
             sis_pack_signed_masks,
             fold_k_table,
             tensor_point_expand_k,
-            fe_carried_plane_lin_comb,
+            fe_carried_mask_lin_comb,
             fe_weighted_basis_dots,
             fe_weighted_row_table,
             fe_build_mcs_row_tables,
@@ -291,27 +296,29 @@ impl MetalSession {
             fe_stream_eval_round_partials,
             fe_stream_constant_round_partials,
             fe_fold_base_tables_in_place,
+            fe_fold_k_tables_live,
+            fe_copy_k_tables_live,
             fe_round_partials,
             nc_round_mask_partials,
             nc_fold_signed_masks,
             nc_expand_mask_basis,
             nc_materialize_mask_dense,
             nc_round_partials,
+            nc_reduce_partials,
             sumcheck_reduce_partials,
             nc_fold_compact,
             rlc_witness_mix,
-            rlc_witness_mix_resident_tail,
+            rlc_witness_mix_dense_fresh_resident_masks,
             rlc_witness_mix_signed_masks,
-            rlc_witness_mix_signed_masks_resident_tail,
-            dec_split_base2,
-            dec_validate_split,
+            dec_split_base2_masks,
             dec_build_ring_forms,
             dec_build_parallel_original_forms,
+            dec_build_parallel_original_form_tiles,
+            dec_reduce_parallel_original_form_tiles,
             dec_bar_ring_forms_in_place,
             dec_build_seeded_ring_forms,
             dec_add_bar_seeded_ring_forms,
             dec_add_sparse_ring_forms,
-            dec_binary_masks,
             dec_ring_partials,
             dec_ring_sum_chunks,
             dec_sparse_ring_partials,
@@ -328,7 +335,6 @@ impl MetalSession {
             recycled_ajtai_forms: RefCell::new(None),
             recycled_seeded_forms: RefCell::new(None),
             recycled_dec_partials: RefCell::new(None),
-            recycled_dec_children: RefCell::new(None),
             next_resident_id: Cell::new(1),
             fe_sumcheck_duration: Cell::new(Duration::ZERO),
             nc_sumcheck_duration: Cell::new(Duration::ZERO),

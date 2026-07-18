@@ -22,13 +22,14 @@ use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::field_ext::{enforce_k_dot_product, KVar};
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder};
-use neo_fold_clean::frontends::r1cs_f_prime::lowering::SelectiveSnapshotError;
+use neo_fold_clean::frontends::r1cs_f_prime::lowering::{LowNormR1csError, SelectiveSnapshotError};
 use neo_fold_clean::frontends::r1cs_f_prime::{
     build_multi_branch_low_norm_r1cs, build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs,
     SelectiveEmittedRowFamily, SelectiveGatePort, SelectiveRowArtifact, SelectiveSelectorGateCoverage,
     SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN};
+use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{enforce_commit_fields, CCS_CLAIM_SIS_CONFIG};
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -484,6 +485,10 @@ fn selective_snapshot_interpreter_matches_live_encoder() {
         let live = relation
             .encode(arm, source_assignment)
             .expect("live selective encoding");
+        let packed = relation
+            .encode_signed_unit(arm, source_assignment)
+            .expect("packed selective encoding");
+        assert_eq!(packed.to_dense(), live, "arm {arm} packed encoding drifted");
         let replayed = snapshot
             .encode(arm, source_assignment)
             .expect("snapshot plan encoding");
@@ -537,11 +542,49 @@ fn selective_snapshot_interpreter_matches_live_encoder() {
         let live = relation
             .encode(arm, &negative_balanced)
             .expect("live negative balanced encoding");
+        let packed = relation
+            .encode_signed_unit(arm, &negative_balanced)
+            .expect("packed negative balanced encoding");
+        assert_eq!(packed.to_dense(), live, "arm {arm} packed negative encoding drifted");
         let replayed = snapshot
             .encode(arm, &negative_balanced)
             .expect("snapshot negative balanced encoding");
         assert_eq!(replayed, live, "arm {arm} negative balanced replay drifted");
     }
+}
+
+#[test]
+fn packed_selective_encoder_rejects_non_unit_centered_coordinate() {
+    let fixtures = [3, 5].map(|value| {
+        let mut builder = R1csBuilder::new();
+        let field = builder.alloc(F::from_u64(value));
+        enforce_commit_fields(&mut builder, CCS_CLAIM_SIS_CONFIG, &[field]).expect("synthesize centered digits");
+        lower_field_r1cs(builder, &[])
+            .expect("lower centered fixture")
+            .into_parts()
+    });
+    let shapes = fixtures
+        .iter()
+        .map(|(shape, _)| shape.clone())
+        .collect::<Vec<_>>();
+    let relation =
+        build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, D, 0).expect("compile centered fixture");
+    let snapshot = relation.selective_snapshot().expect("centered snapshot");
+    let centered_field = snapshot
+        .arm(0)
+        .expect("first arm")
+        .centered_columns()
+        .iter()
+        .position(|&centered| centered)
+        .expect("centered coordinate");
+    let mut non_unit = fixtures[0].1.clone();
+    non_unit[centered_field] = F::from_u64(2);
+
+    assert!(relation.encode(0, &non_unit).is_ok(), "dense behavior changed");
+    assert!(matches!(
+        relation.encode_signed_unit(0, &non_unit),
+        Err(LowNormR1csError::PackedNonSignedUnit { .. })
+    ));
 }
 
 #[test]

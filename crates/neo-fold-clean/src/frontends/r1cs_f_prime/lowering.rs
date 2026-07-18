@@ -18,6 +18,7 @@
 //! | Low-norm relation | [`lower_sparse_r1cs_to_low_norm`] | yes | Constrained field encodings |
 //! | Branch composition | fixed/multi-branch builders | yes | Constrained selector and branch rows |
 
+mod signed_unit;
 mod snapshot;
 mod support;
 
@@ -44,8 +45,9 @@ use crate::frontends::r1cs_f_prime::SparseR1cs;
 use crate::paper::relations::Structure;
 
 use super::selective_audit::SelectiveCompilerAudit;
-use super::ternary_encoding::{write_balanced_ternary, BALANCED_TERNARY_FIELD_WIDTH};
-use support::{encoded_matrix_rows, eval_source_lc, first_unsatisfied_structure_row, is_structure_satisfied};
+use super::ternary_encoding::{balanced_ternary_digits, BALANCED_TERNARY_FIELD_WIDTH};
+use signed_unit::LowNormAssignmentWriter;
+use support::{encoded_matrix_rows, first_unsatisfied_structure_row, is_structure_satisfied};
 pub(crate) use support::{normalized_field_assignment, normalized_source_column};
 
 /// Sparse relation and matching assignment produced from one synthesis.
@@ -267,87 +269,6 @@ impl MultiBranchLowNormR1cs {
         self.arm_slots.get(arm)?.get(field_col).copied()?.get()
     }
 
-    pub fn encode(&self, arm: usize, field_assignment: &[F]) -> Result<Vec<F>, LowNormR1csError> {
-        let slots = self
-            .arm_slots
-            .get(arm)
-            .ok_or(LowNormR1csError::ArmIndexOutOfRange {
-                arm,
-                arms: self.arm_slots.len(),
-            })?;
-        if field_assignment.len() != slots.len() {
-            return Err(LowNormR1csError::AssignmentLength {
-                got: field_assignment.len(),
-                expected: slots.len(),
-            });
-        }
-        if field_assignment.first().copied() != Some(F::ONE) {
-            return Err(LowNormR1csError::ConstantOne);
-        }
-
-        let mut assignment = vec![F::ZERO; self.structure.m];
-        assignment[0] = F::ONE;
-        assignment[self.selector_cols[arm]] = F::ONE;
-        for col in 1..self.public_field_count {
-            if slots[col].is_none() {
-                continue;
-            }
-            if let Some(source) = self.arm_equal_aliases[arm][col].get() {
-                if field_assignment[col] != field_assignment[source] {
-                    return Err(LowNormR1csError::AliasedFieldMismatch {
-                        field_col: col,
-                        source_col: source,
-                    });
-                }
-                continue;
-            }
-            write_encoded_value(
-                &mut assignment,
-                slots[col].get(),
-                self.arm_aliases[arm][col].get(),
-                self.arm_centered_columns[arm][col],
-                field_assignment[col],
-                col,
-            )?;
-        }
-        for col in self.public_field_count..slots.len() {
-            if slots[col].is_none() {
-                continue;
-            }
-            if let Some(source) = self.arm_equal_aliases[arm][col].get() {
-                if field_assignment[col] != field_assignment[source] {
-                    return Err(LowNormR1csError::AliasedFieldMismatch {
-                        field_col: col,
-                        source_col: source,
-                    });
-                }
-                continue;
-            }
-            write_encoded_value(
-                &mut assignment,
-                slots[col].get(),
-                self.arm_aliases[arm][col].get(),
-                self.arm_centered_columns[arm][col],
-                field_assignment[col],
-                col,
-            )?;
-        }
-        let mut derived_values = Vec::with_capacity(self.arm_derived_product_sums[arm].len());
-        for derived in &self.arm_derived_product_sums[arm] {
-            let mut value = derived.factors.iter().fold(F::ZERO, |sum, factor| {
-                sum + factor.coefficient
-                    * eval_source_lc(&factor.left, field_assignment)
-                    * eval_source_lc(&factor.right, field_assignment)
-            });
-            if let Some(previous) = derived.previous {
-                value += derived_values[previous];
-            }
-            write_encoded_value(&mut assignment, Some(derived.slot), None, false, value, usize::MAX)?;
-            derived_values.push(value);
-        }
-        Ok(assignment)
-    }
-
     pub fn is_satisfied(&self, assignment: &[F]) -> bool {
         is_structure_satisfied(&self.structure, assignment)
     }
@@ -559,6 +480,8 @@ pub enum LowNormR1csError {
     AliasedFieldMismatch { field_col: usize, source_col: usize },
     #[error("low-norm R1CS lowering: field column {col} does not fit the balanced-ternary field encoding")]
     BalancedTernaryOverflow { col: usize },
+    #[error("low-norm R1CS lowering: packed coordinate {index} has non-signed-unit canonical value {value}")]
+    PackedNonSignedUnit { index: usize, value: u64 },
 }
 
 /// Preserve one synthesized field-native relation while normalizing its
@@ -1427,7 +1350,7 @@ fn assign_field_slot(
 }
 
 fn write_encoded_value(
-    assignment: &mut [F],
+    assignment: &mut impl LowNormAssignmentWriter,
     slot: Option<(usize, usize)>,
     alias: Option<(usize, usize)>,
     centered: bool,
@@ -1437,11 +1360,25 @@ fn write_encoded_value(
     let (start, width) = slot.expect("every non-constant field column has a bit slot");
     if centered {
         debug_assert_eq!(width, 1);
-        assignment[start] = value;
+        assignment.set(start, value)?;
         return Ok(());
     }
     if width == BALANCED_TERNARY_FIELD_WIDTH {
-        return write_balanced_ternary(assignment, start, value, field_col);
+        for (offset, digit) in balanced_ternary_digits(value, field_col)?
+            .into_iter()
+            .enumerate()
+        {
+            assignment.set(
+                start + offset,
+                match digit {
+                    -1 => -F::ONE,
+                    0 => F::ZERO,
+                    1 => F::ONE,
+                    _ => unreachable!("balanced ternary digit"),
+                },
+            )?;
+        }
+        return Ok(());
     }
     let value = value.as_canonical_u64();
     if width < 64 && value >= (1u64 << width) {
@@ -1453,7 +1390,7 @@ fn write_encoded_value(
     }
     if let Some((source_col, bit)) = alias {
         let encoded = F::from_u64(value);
-        if assignment[start] != encoded {
+        if assignment.get(start) != encoded {
             return Err(LowNormR1csError::AliasedBitMismatch {
                 field_col: source_col,
                 bit_col: field_col,
@@ -1463,7 +1400,7 @@ fn write_encoded_value(
         return Ok(());
     }
     for bit in 0..width {
-        assignment[start + bit] = F::from_u64((value >> bit) & 1);
+        assignment.set(start + bit, F::from_u64((value >> bit) & 1))?;
     }
     Ok(())
 }

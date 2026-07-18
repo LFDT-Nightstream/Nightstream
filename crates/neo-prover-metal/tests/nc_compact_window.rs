@@ -74,6 +74,38 @@ fn factored_constraint_coefficients_match_the_canonical_cubic() {
     }
 }
 
+#[test]
+fn karatsuba_equality_product_matches_direct_convolution() {
+    for seed in 1..64 {
+        let cubic = [
+            value(71_000 + 6 * seed),
+            value(71_001 + 6 * seed),
+            value(71_002 + 6 * seed),
+            value(71_003 + 6 * seed),
+        ];
+        let eq_zero = value(71_004 + 6 * seed);
+        let eq_one = value(71_005 + 6 * seed);
+        let eq_slope = eq_one - eq_zero;
+        let direct = [
+            eq_zero * cubic[0],
+            eq_zero * cubic[1] + eq_slope * cubic[0],
+            eq_zero * cubic[2] + eq_slope * cubic[1],
+            eq_zero * cubic[3] + eq_slope * cubic[2],
+            eq_slope * cubic[3],
+        ];
+
+        let lo_zero = eq_zero * cubic[0];
+        let lo_two = eq_slope * cubic[1];
+        let lo_one = eq_one * (cubic[0] + cubic[1]) - lo_zero - lo_two;
+        let hi_zero = eq_zero * cubic[2];
+        let hi_two = eq_slope * cubic[3];
+        let hi_one = eq_one * (cubic[2] + cubic[3]) - hi_zero - hi_two;
+        let karatsuba = [lo_zero, lo_one, lo_two + hi_zero, hi_one, hi_two];
+
+        assert_eq!(karatsuba, direct, "seed {seed}");
+    }
+}
+
 fn compact_lane(values: &[K], rows: usize, width: usize, row: usize, lane: usize) -> K {
     debug_assert_eq!(values.len(), rows * width);
     let start = (row * width) % D;
@@ -270,6 +302,64 @@ fn mask_digit(words: &[u64], witness: usize, blocks: usize, active_rows: usize, 
         K::ZERO - K::ONE
     } else {
         K::ZERO
+    }
+}
+
+fn cyclic_mask_lane(
+    words: &[u64],
+    blocks: usize,
+    active_rows: usize,
+    row: usize,
+    width: usize,
+    lane: usize,
+    basis: &[K],
+) -> K {
+    let start = (row * width) % D;
+    let first = (lane + D - start) % D;
+    (first..width)
+        .step_by(D)
+        .map(|slot| mask_digit(words, 0, blocks, active_rows, row * width + slot) * basis[slot])
+        .sum()
+}
+
+#[test]
+fn delayed_mask_crossover_matches_direct_cyclic_accumulation() {
+    let basis = (0..128)
+        .map(|slot| value(80_000 + slot))
+        .collect::<Vec<_>>();
+    for active_rows in [1usize, 53, 54, 63, 64, 107, 108, 117, 128] {
+        let blocks = active_rows.div_ceil(D);
+        let mut words = vec![0u64; 2 * blocks];
+        for row in 0..active_rows {
+            let block = row / D;
+            let bit = 1u64 << (row % D);
+            if row.is_multiple_of(5) {
+                words[2 * block] |= bit;
+            } else if row.is_multiple_of(7) {
+                words[2 * block + 1] |= bit;
+            }
+        }
+        for (width, rows) in [(64, 2), (128, 1)] {
+            let mut collision_counts = [0usize; 4];
+            for row in 0..rows {
+                for lane in 0..D {
+                    let direct = (0..width)
+                        .filter(|&slot| (row * width + slot) % D == lane)
+                        .map(|slot| mask_digit(&words, 0, blocks, active_rows, row * width + slot) * basis[slot])
+                        .sum::<K>();
+                    assert_eq!(
+                        cyclic_mask_lane(&words, blocks, active_rows, row, width, lane, &basis),
+                        direct,
+                        "active_rows={active_rows}, width={width}, row={row}, lane={lane}",
+                    );
+                    if row == 0 {
+                        collision_counts[(0..width).filter(|&slot| slot % D == lane).count()] += 1;
+                    }
+                }
+            }
+            let expected = if width == 64 { [0, 44, 10, 0] } else { [0, 0, 34, 20] };
+            assert_eq!(collision_counts, expected, "width={width}");
+        }
     }
 }
 

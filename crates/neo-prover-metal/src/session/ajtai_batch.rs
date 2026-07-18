@@ -43,6 +43,7 @@ impl MetalSession {
             plan.rows as u64,
             plan.cols as u64,
             chunks as u64,
+            0,
         ])?;
 
         // Partial convolution, chunk reduction, and Phi81 reduction stay in one
@@ -56,6 +57,7 @@ impl MetalSession {
             encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
             encoder.setBuffer_offset_atIndex(Some(&partials), 0, 3);
             encoder.setBuffer_offset_atIndex(Some(&active), 0, 4);
+            encoder.setBuffer_offset_atIndex(Some(&active), 0, 5);
         }
         self.dispatch(&encoder, &self.dec_ring_partials, partial_words);
         encoder.endEncoding();

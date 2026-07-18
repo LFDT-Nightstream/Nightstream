@@ -76,7 +76,7 @@ kernel void dec_build_ring_forms(
         entry_coefficients, chi, active, local, component, n_eff, chi_len);
 }
 
-// One threadgroup cooperatively contracts each long original-coefficient list.
+// One threadgroup cooperatively contracts each medium original-coefficient list.
 kernel void dec_build_parallel_original_forms(
     device const uint *active_local_offsets [[buffer(0)]],
     device const ulong *active_entry_bases [[buffer(1)]],
@@ -119,6 +119,92 @@ kernel void dec_build_parallel_original_forms(
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
     if (lane == 0) {
+        forms[(active * 2 + component) * RING_DEGREE + local] = partials[0];
+    }
+}
+
+// Very long lists are split into bounded tiles so one pathological coefficient
+// list cannot leave the rest of the GPU idle. Each descriptor stores the list,
+// its relative entry start, and its bounded entry count.
+kernel void dec_build_parallel_original_form_tiles(
+    device const uint *active_local_offsets [[buffer(0)]],
+    device const ulong *active_entry_bases [[buffer(1)]],
+    device const uint *entry_rows [[buffer(3)]],
+    device const ulong *entry_coefficients [[buffer(4)]],
+    device const ulong *chi [[buffer(5)]],
+    device const ulong *shape [[buffer(6)]],
+    device const uint *tiles [[buffer(9)]],
+    device ulong *tile_partials [[buffer(10)]],
+    uint lane [[thread_index_in_threadgroup]],
+    uint group [[threadgroup_position_in_grid]]) {
+    threadgroup ulong partials[DEC_FORM_REDUCTION_THREADS];
+    ulong component = group % 2;
+    ulong tile = group / 2;
+    ulong descriptor = 3 * tile;
+    ulong encoded = tiles[descriptor];
+    ulong active = encoded / RING_DEGREE;
+    ulong local = encoded % RING_DEGREE;
+    ulong offset = active * (RING_DEGREE + 1) + local;
+    ulong list_start = active_entry_bases[active]
+        + (ulong)active_local_offsets[offset];
+    ulong start = list_start + (ulong)tiles[descriptor + 1];
+    ulong end = start + (ulong)tiles[descriptor + 2];
+    ulong n_eff = shape[2];
+    ulong chi_len = shape[3];
+    ulong value = 0;
+    for (ulong entry = start + lane; entry < end; entry += DEC_FORM_REDUCTION_THREADS) {
+        ulong row = (ulong)entry_rows[entry];
+        if (row < n_eff && row < chi_len) {
+            value = gl_add(
+                value,
+                gl_mul(
+                    gl_from_word(chi[2 * row + component]),
+                    gl_from_word(entry_coefficients[entry])));
+        }
+    }
+    partials[lane] = value;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (uint stride = DEC_FORM_REDUCTION_THREADS / 2; stride > 0; stride >>= 1) {
+        if (lane < stride) {
+            partials[lane] = gl_add(partials[lane], partials[lane + stride]);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    if (lane == 0) {
+        tile_partials[group] = partials[0];
+    }
+}
+
+// Tile ranges are contiguous per list. A second cooperative reduction restores
+// exactly one canonical field element for each real/imaginary form component.
+kernel void dec_reduce_parallel_original_form_tiles(
+    device ulong *forms [[buffer(0)]],
+    device const uint *lists [[buffer(1)]],
+    device const uint *tile_offsets [[buffer(2)]],
+    device const ulong *tile_partials [[buffer(3)]],
+    uint lane [[thread_index_in_threadgroup]],
+    uint group [[threadgroup_position_in_grid]]) {
+    threadgroup ulong partials[DEC_FORM_REDUCTION_THREADS];
+    ulong component = group % 2;
+    ulong list = group / 2;
+    ulong start = tile_offsets[list];
+    ulong end = tile_offsets[list + 1];
+    ulong value = 0;
+    for (ulong tile = start + lane; tile < end; tile += DEC_FORM_REDUCTION_THREADS) {
+        value = gl_add(value, gl_from_word(tile_partials[2 * tile + component]));
+    }
+    partials[lane] = value;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (uint stride = DEC_FORM_REDUCTION_THREADS / 2; stride > 0; stride >>= 1) {
+        if (lane < stride) {
+            partials[lane] = gl_add(partials[lane], partials[lane + stride]);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    if (lane == 0) {
+        ulong encoded = lists[list];
+        ulong active = encoded / RING_DEGREE;
+        ulong local = encoded % RING_DEGREE;
         forms[(active * 2 + component) * RING_DEGREE + local] = partials[0];
     }
 }

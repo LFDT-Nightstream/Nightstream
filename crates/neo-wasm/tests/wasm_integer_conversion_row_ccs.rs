@@ -52,7 +52,6 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
         grammar_mode: false,
         grammar: neo_wasm::WasmGrammarState::ZERO,
-        turn_done: false,
     };
     let state_after = WasmStepState {
         pc: 3,
@@ -72,7 +71,6 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
         grammar_mode: false,
         grammar: neo_wasm::WasmGrammarState::ZERO,
-        turn_done: false,
     };
     WasmVmStep {
         cycle: 0,

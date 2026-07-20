@@ -181,7 +181,6 @@ pub struct WasmBoundaryState {
     pub event_absorb: WasmEventAbsorbState,
     pub grammar_mode: bool,
     pub grammar: WasmGrammarState,
-    pub turn_done: bool,
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -224,6 +223,10 @@ pub struct WasmStepState {
     /// — `memory.grow` and the OOB bound check depend on it not being forgeable.
     pub max_memory_pages: Option<u32>,
     pub locals_fbp: u64,
+    /// The current turn has halted: raised by the halting row, carried (and
+    /// digest-bound) until a turn boundary clears it. Program rows require
+    /// `false`, so halt is terminal except for exit-event draining, padding,
+    /// and an explicit re-entry.
     pub halted: bool,
     /// Execution ended in a wasm trap. Terminal and mutually exclusive with
     /// a captured output; carried into the semantic-state digest so a
@@ -258,9 +261,6 @@ pub struct WasmStepState {
     pub grammar_mode: bool,
     /// Grammar-mode gather machinery state (zero in raw mode).
     pub grammar: WasmGrammarState,
-    /// Whether the current turn has halted. Program rows require `false`; only
-    /// a turn boundary clears it.
-    pub turn_done: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -472,7 +472,6 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     event_absorb: row.state_before.event_absorb,
                     grammar_mode: row.state_before.grammar_mode,
                     grammar: row.state_before.grammar,
-                    turn_done: row.state_before.turn_done,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -492,7 +491,6 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     event_absorb: row.state_after.event_absorb,
                     grammar_mode: row.state_after.grammar_mode,
                     grammar: row.state_after.grammar,
-                    turn_done: row.state_after.turn_done,
                 },
             )
         })

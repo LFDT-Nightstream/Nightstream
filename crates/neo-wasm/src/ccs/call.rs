@@ -30,7 +30,7 @@ use super::super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
     COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
     COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GRAMMAR_EXIT_LATCH, COL_GUEST_CALL_ACTIVE, COL_HALTED,
+    COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GRAMMAR_EXIT_LATCH, COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HALTED_BEFORE,
     COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
     COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE,
     COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
@@ -43,7 +43,7 @@ use super::super::layout::{
     COL_PC_ROM_CALL_RETURN_CHOICE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO,
     COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS,
     COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST,
-    COL_TRAPPED_AFTER, COL_TURN_BOUNDARY, COL_TURN_DONE_AFTER, COL_TURN_DONE_BEFORE, PC_ROM_CALL_RETURN_CHOICE,
+    COL_TRAPPED_AFTER, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -273,23 +273,12 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
     });
 
     b.with_tag(always("halt terminality"), |b| {
-        // Latch a halt until the next turn boundary.
-        b.push_linear_zero([
-            (COL_TURN_DONE_AFTER, F::ONE),
-            (COL_TURN_DONE_BEFORE, -F::ONE),
-            (COL_HALTED, -F::ONE),
-            (COL_TURN_BOUNDARY, F::ONE),
-        ]);
-        // A turn may halt only once.
-        push_gated_linear_zero(b, COL_HALTED, [(COL_TURN_DONE_BEFORE, F::ONE)]);
-        // Program execution cannot resume before a turn boundary.
-        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_TURN_DONE_BEFORE, F::ONE)], []);
+        // The carried `halted` latch is cleared only by a turn boundary
+        // (its preservation elsewhere lives in `ccs.rs`; program rows are
+        // barred there while it is set).
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_HALTED, F::ONE)]);
         // Re-entry requires a finished turn.
-        push_gated_linear_zero(
-            b,
-            COL_TURN_BOUNDARY,
-            [(COL_ONE, F::ONE), (COL_TURN_DONE_BEFORE, -F::ONE)],
-        );
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_ONE, F::ONE), (COL_HALTED_BEFORE, -F::ONE)]);
     });
 
     b.with_tag(always("turn boundary row"), |b| {

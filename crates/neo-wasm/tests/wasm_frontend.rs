@@ -25,7 +25,6 @@ fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
         event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
         grammar_mode: false,
         grammar: neo_wasm::WasmGrammarState::ZERO,
-        turn_done: halted,
     }
 }
 

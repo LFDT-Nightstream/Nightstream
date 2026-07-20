@@ -257,9 +257,15 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     b.with_tag(always("halted state transition"), |b| {
         // No decoded instruction may execute after the carried state halted.
         b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_HALTED_BEFORE, F::ONE)], []);
-        // Auxiliary rows, including fixed-shape padding, preserve terminality.
+        // Auxiliary rows, including fixed-shape padding, preserve
+        // terminality — except a turn boundary, which clears the latch to
+        // re-enter the next export (see `ccs/call.rs`).
         b.push_row(
-            [(COL_ONE, F::ONE), (COL_IS_PROGRAM_ROW, -F::ONE)],
+            [
+                (COL_ONE, F::ONE),
+                (COL_IS_PROGRAM_ROW, -F::ONE),
+                (super::layout::COL_TURN_BOUNDARY, -F::ONE),
+            ],
             [(COL_HALTED, F::ONE), (COL_HALTED_BEFORE, -F::ONE)],
             [],
         );
@@ -335,11 +341,13 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         // halts but keeps its Static edge kind, and a call_indirect trap
         // row halts but keeps its DynamicCallIndirect edge kind (the per-pc
         // edge-kind ROM binds both); the -trap terms absorb their `halted`
-        // contributions.
+        // contributions. A turn boundary clears the latch (its own rules pin
+        // halted_before = 1, halted = 0), so +TB cancels that -1 delta.
         b.push_linear_zero(
             [
                 (COL_HALTED, F::ONE),
                 (COL_HALTED_BEFORE, -F::ONE),
+                (super::layout::COL_TURN_BOUNDARY, F::ONE),
                 (COL_CALL_STACK_POP_PRESENT, F::ONE),
                 (COL_PC_EDGE_KIND, -F::ONE),
                 (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),

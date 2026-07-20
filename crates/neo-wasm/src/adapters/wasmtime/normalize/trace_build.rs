@@ -595,7 +595,7 @@ fn traces_from_wasmtime_steps_impl(
                     current_function_num_locals: current.num_locals,
                     host_args: WasmCountdownState::ZERO,
                     host_result_pending: false,
-                    turn_done,
+                    halted: turn_done,
                 };
                 for plan in &setup.entry_plans {
                     emit_block_plan(
@@ -823,7 +823,7 @@ fn traces_from_wasmtime_steps_impl(
                 memory_pages: current.memory_pages_before,
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: current_fbp,
-                halted: false,
+                halted: turn_done,
                 trapped: false,
                 param_init: param_init_before,
                 // Host aux sequences complete within one normalizer
@@ -836,7 +836,6 @@ fn traces_from_wasmtime_steps_impl(
                 event_absorb: event_absorb_before_row,
                 grammar_mode,
                 grammar: grammar_state_before_row,
-                turn_done,
             },
             state_after: WasmStepState {
                 pc: pc_after,
@@ -850,7 +849,7 @@ fn traces_from_wasmtime_steps_impl(
                 memory_pages: current.memory_pages_after,
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: fbp,
-                halted,
+                halted: turn_done || halted,
                 trapped,
                 param_init: param_init_after,
                 host_args: host_args_after,
@@ -862,7 +861,6 @@ fn traces_from_wasmtime_steps_impl(
                 event_absorb,
                 grammar_mode,
                 grammar: grammar_state,
-                turn_done: turn_done || halted,
             },
             control_choice: current.control_choice,
             pc_edge_kind: current.pc_edge_kind,
@@ -923,10 +921,11 @@ fn traces_from_wasmtime_steps_impl(
             call_stack_push,
             call_stack_pop,
             grammar_rom_slot: None,
+            // Count cells carry the presence bias (count + 1).
             grammar_pre_count: grammar_plan
                 .as_ref()
-                .map(|plan| plan.pre.len() as u32)
-                .or(exit_counts.map(|(pre, _)| pre)),
+                .map(|plan| plan.pre.len() as u32 + 1)
+                .or(exit_counts.map(|(pre, _)| pre + 1)),
             grammar_post_count: exit_counts.map(|(_, post)| post),
         });
         turn_done = turn_done || halted;
@@ -1009,7 +1008,7 @@ fn traces_from_wasmtime_steps_impl(
                         memory_pages: current.memory_pages_after,
                         max_memory_pages: current.max_memory_pages,
                         locals_fbp: callee_fbp,
-                        halted: false,
+                        halted: turn_done,
                         trapped: false,
                         param_init: aux_param_init_before,
                         host_args: WasmCountdownState::ZERO,
@@ -1019,7 +1018,6 @@ fn traces_from_wasmtime_steps_impl(
                         event_absorb,
                         grammar_mode,
                         grammar: grammar_state,
-                        turn_done,
                     },
                     state_after: WasmStepState {
                         pc: pc_after,
@@ -1033,7 +1031,7 @@ fn traces_from_wasmtime_steps_impl(
                         memory_pages: current.memory_pages_after,
                         max_memory_pages: current.max_memory_pages,
                         locals_fbp: callee_fbp,
-                        halted: false,
+                        halted: turn_done,
                         trapped: false,
                         param_init: aux_param_init_after,
                         host_args: WasmCountdownState::ZERO,
@@ -1043,7 +1041,6 @@ fn traces_from_wasmtime_steps_impl(
                         event_absorb,
                         grammar_mode,
                         grammar: grammar_state,
-                        turn_done,
                     },
                     control_choice: 0,
                     pc_edge_kind: WasmPcEdgeKind::Static,
@@ -1116,7 +1113,7 @@ fn traces_from_wasmtime_steps_impl(
                     memory_pages: current.memory_pages_after,
                     max_memory_pages: current.max_memory_pages,
                     locals_fbp: fbp,
-                    halted: false,
+                    halted: turn_done,
                     trapped: false,
                     param_init: WasmCountdownState::ZERO,
                     host_args,
@@ -1126,7 +1123,6 @@ fn traces_from_wasmtime_steps_impl(
                     event_absorb,
                     grammar_mode,
                     grammar,
-                    turn_done,
                 };
             let host_aux_row = |cycle: u64,
                                 aux_opcode: WasmAuxOpcode,
@@ -1200,7 +1196,7 @@ fn traces_from_wasmtime_steps_impl(
                 current_function_num_locals: current.num_locals,
                 host_args,
                 host_result_pending,
-                turn_done,
+                halted: turn_done,
             };
             let push_perm_group = |out: &mut Vec<WasmVmStep>,
                                    comm_chain: &mut [u64; 4],
@@ -1487,7 +1483,7 @@ fn traces_from_wasmtime_steps_impl(
                 current_function_num_locals: current.num_locals,
                 host_args: WasmCountdownState::ZERO,
                 host_result_pending: false,
-                turn_done,
+                halted: turn_done,
             };
             for plan in &plans {
                 emit_block_plan(
@@ -1548,7 +1544,7 @@ fn traces_from_wasmtime_steps_impl(
                     memory_pages: current.memory_pages_after,
                     max_memory_pages: current.max_memory_pages,
                     locals_fbp: fbp,
-                    halted: false,
+                    halted: done,
                     trapped: false,
                     param_init: WasmCountdownState::ZERO,
                     host_args: WasmCountdownState::ZERO,
@@ -1558,7 +1554,6 @@ fn traces_from_wasmtime_steps_impl(
                     event_absorb,
                     grammar_mode,
                     grammar: gstate,
-                    turn_done: done,
                 }
             };
             let state_before = boundary_state(
@@ -1602,10 +1597,11 @@ fn traces_from_wasmtime_steps_impl(
                 current_function_num_locals: current.num_locals,
                 host_args: WasmCountdownState::ZERO,
                 host_result_pending: false,
-                turn_done: true,
+                halted: true,
             };
             out.push(WasmVmStep {
-                grammar_pre_count: Some(entry_count),
+                // Export entry-count cell carries the presence bias.
+                grammar_pre_count: Some(entry_count + 1),
                 ..helper_ctx.row(out.len() as u64, WasmAuxOpcode::TurnBoundary, state_before, state_after)
             });
             turn_done = false;

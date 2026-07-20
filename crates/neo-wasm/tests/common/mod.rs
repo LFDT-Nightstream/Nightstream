@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod audit;
+pub mod grammar_fixture;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
@@ -129,7 +130,6 @@ pub fn step(
             event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
             grammar_mode: false,
             grammar: neo_wasm::WasmGrammarState::ZERO,
-            turn_done: halted,
         }
     }
 

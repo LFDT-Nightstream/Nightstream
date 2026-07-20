@@ -982,15 +982,36 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             Column(COL_GRAMMAR_SLOT_CONST_HI),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
+        // Import pre-counts and export entry-counts are SEPARATE families so
+        // a PRE_COUNT read can never land on the other kind's cell: turn
+        // boundaries and exit latches see only export entry cells, while
+        // host-call rows see only import pre-count cells. These cells store
+        // count + 1 ("presence bias"): an undeclared fref
+        // reads 0 and the load rows subtract 1, poisoning the schedule to
+        // EVREM = -1 = p-1 (EVREM is field-width; the row itself stays
+        // satisfiable). Each completed event block decrements EVREM and
+        // increments EVIDX. While EVREM is nonzero, program, result, and
+        // boundary rows cannot execute, so EVIDX cannot reset. Every gather
+        // uses EVIDX as an active grammar-ROM address component; the Nebula
+        // memory binding range-proves address components to at most 32 bits
+        // (and to the family's narrower configured width). Field addition
+        // does not wrap at 2^32, so after at most 2^32 blocks the next gather
+        // is unsatisfiable while EVREM remains nonzero. The trace therefore
+        // cannot halt, enforcing template presence in the composed circuit
+        // without preprocessing validation.
         WasmMemorySpec {
-            name: "grammar_event_counts_pre",
+            name: "grammar_import_pre_counts",
+            columns: vec![WasmMemoryColumnSpec {
+                address_columns: vec![Column(COL_FUNCTION_REF)],
+                value_column: Column(COL_GRAMMAR_PRE_COUNT),
+                kind: WasmMemoryColumnKind::Read,
+                activation: WasmMemoryActivation::BooleanGate(Column(COL_GRAMMAR_HOST_CALL)),
+            }],
+            is_rom: true,
+        },
+        WasmMemorySpec {
+            name: "grammar_export_entry_counts",
             columns: vec![
-                WasmMemoryColumnSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_GRAMMAR_PRE_COUNT),
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GRAMMAR_HOST_CALL)),
-                },
                 // Exit latch: re-reads the export's entry count to continue
                 // the event numbering for exit events.
                 WasmMemoryColumnSpec {

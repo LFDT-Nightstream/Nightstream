@@ -32,7 +32,7 @@ use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs,
     FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, FPrimeStepOutput,
-    F_PRIME_ENC_INST_BITS,
+    F_PRIME_ENC_INST_BITS, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::f_prime::stage as fprime_stage;
@@ -67,20 +67,56 @@ struct ShapeContext<'a> {
     d_sc: usize,
 }
 
+/// Exact source-field column occupied by one packed incoming running-claim
+/// assignment coordinate after public-output normalization.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct RawRunningSourceColumn {
+    pub child: usize,
+    pub logical_column: usize,
+    pub source_column: usize,
+}
+
+/// Exact normalized source-field column occupied by one coordinate of the
+/// single fresh public-X input consumed by the steady recursive arm.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct FreshSourceColumn {
+    pub logical_column: usize,
+    pub source_column: usize,
+}
+
+/// One synthesis round plus the audit-only source decoders for its steady
+/// recursive arm.
+pub(super) struct SynthesizedArmShapes {
+    pub arms: [SparseR1cs; 3],
+    pub raw_running_source_columns: Vec<RawRunningSourceColumn>,
+    pub fresh_source_columns: Vec<FreshSourceColumn>,
+}
+
 pub(super) fn synthesize_arm_shapes(
     params: &Params,
     folded: &SplitNcVerifierRelation,
     folded_public_input_len: usize,
     app: &R1csShape,
     plan: &RecursiveStepImagePlan,
-) -> Result<[SparseR1cs; 3], R1csIvcError> {
+) -> Result<SynthesizedArmShapes, R1csIvcError> {
     let context = shape_context(params, folded, folded_public_input_len, app, plan)?;
+    let (bootstrap_recursive, bootstrap_raw_running, _) = synthesize_recursive(&context, false)?;
+    if !bootstrap_raw_running.is_empty() {
+        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+            "bootstrap recursive arm unexpectedly exposed running-assignment columns".into(),
+        )));
+    }
+    let (recursive, raw_running_source_columns, fresh_source_columns) = synthesize_recursive(&context, true)?;
     let arms = ArmShapes {
         base: synthesize_base(&context)?,
-        bootstrap_recursive: synthesize_recursive(&context, false)?,
-        recursive: synthesize_recursive(&context, true)?,
+        bootstrap_recursive,
+        recursive,
     };
-    Ok([arms.base, arms.bootstrap_recursive, arms.recursive])
+    Ok(SynthesizedArmShapes {
+        arms: [arms.base, arms.bootstrap_recursive, arms.recursive],
+        raw_running_source_columns,
+        fresh_source_columns,
+    })
 }
 
 fn shape_context<'a>(
@@ -152,7 +188,10 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SparseR1cs, R1csIvcErro
         .0)
 }
 
-fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<SparseR1cs, R1csIvcError> {
+fn synthesize_recursive(
+    context: &ShapeContext<'_>,
+    steady: bool,
+) -> Result<(SparseR1cs, Vec<RawRunningSourceColumn>, Vec<FreshSourceColumn>), R1csIvcError> {
     let assignment = shape_app_assignment(context.app);
     let semantic = semantic_values(context.plan, &assignment)?;
     let ce = zero_ce_claim(context);
@@ -233,9 +272,180 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Spar
         &cfg,
         &inputs,
     )?;
-    Ok(lower_field_r1cs(builder, &output.x_out_bits)?
+    let raw_running_source_columns = raw_running_source_columns(
+        builder.cols(),
+        &output.x_out_bits,
+        output.nifs_running.as_deref().unwrap_or_default(),
+    )?;
+    let fresh_source_columns = fresh_source_columns(builder.cols(), &output.x_out_bits, output.prior_link.as_ref())?;
+    let arm = lower_field_r1cs(builder, &output.x_out_bits)?
         .into_parts()
-        .0)
+        .0;
+    if raw_running_source_columns
+        .iter()
+        .any(|entry| entry.source_column >= arm.m)
+    {
+        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+            "normalized raw running-assignment column exceeds the recursive source arm".into(),
+        )));
+    }
+    if fresh_source_columns
+        .iter()
+        .any(|entry| entry.source_column >= arm.m)
+    {
+        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+            "normalized fresh public-X column exceeds the recursive source arm".into(),
+        )));
+    }
+    Ok((arm, raw_running_source_columns, fresh_source_columns))
+}
+
+fn fresh_source_columns(
+    source_column_count: usize,
+    public_outputs: &[Var],
+    prior_link: Option<&crate::paper::f_prime::r1cs::FPrimePriorLinkWires>,
+) -> Result<Vec<FreshSourceColumn>, R1csIvcError> {
+    let prior_link = prior_link.ok_or_else(|| {
+        R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+            "recursive fresh public-X audit is missing prior-link wires".into(),
+        ))
+    })?;
+    let [fresh] = prior_link.fresh_public_inputs.as_slice() else {
+        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+            format!(
+                "recursive fresh public-X audit expected one source, found {}",
+                prior_link.fresh_public_inputs.len()
+            ),
+        )));
+    };
+    if fresh.len() != F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN {
+        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+            format!(
+                "recursive fresh public-X audit has {} coordinates, expected {F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN}",
+                fresh.len()
+            ),
+        )));
+    }
+
+    let mut source_columns = std::collections::BTreeSet::new();
+    let mut records = Vec::with_capacity(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
+    for (logical_column, wire) in fresh.iter().copied().enumerate() {
+        let source = wire.col();
+        let source_column = normalized_target_column(source_column_count, public_outputs, source).ok_or_else(|| {
+            R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
+                "fresh[0].x coordinate {logical_column} references invalid builder column {source}"
+            )))
+        })?;
+        if crate::frontends::r1cs_f_prime::lowering::normalized_source_column(
+            source_column_count,
+            public_outputs,
+            source_column,
+        ) != Some(source)
+        {
+            return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                format!("fresh[0].x coordinate {logical_column} failed source-column normalization round trip"),
+            )));
+        }
+        if !source_columns.insert(source_column) {
+            return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                format!("fresh[0].x coordinate {logical_column} repeats normalized source column {source_column}"),
+            )));
+        }
+        records.push(FreshSourceColumn {
+            logical_column,
+            source_column,
+        });
+    }
+    Ok(records)
+}
+
+fn raw_running_source_columns(
+    source_column_count: usize,
+    public_outputs: &[Var],
+    running: &[crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires],
+) -> Result<Vec<RawRunningSourceColumn>, R1csIvcError> {
+    let public_output_columns = public_outputs
+        .iter()
+        .map(|output| output.col())
+        .collect::<std::collections::BTreeSet<_>>();
+    if public_output_columns.len() != public_outputs.len()
+        || public_output_columns.contains(&Var::ONE.col())
+        || public_output_columns
+            .iter()
+            .any(|&column| column >= source_column_count)
+    {
+        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+            "raw running-assignment audit received invalid public-output normalization columns".into(),
+        )));
+    }
+    let mut records = Vec::new();
+    for (child, claim) in running.iter().enumerate() {
+        if claim.x_rows != D
+            || claim.x_cols == 0
+            || claim.m_in > claim.x_rows * claim.x_cols
+            || claim.x.len() != claim.x_rows * claim.x_cols
+        {
+            return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                format!(
+                    "running[{child}] raw assignment has invalid geometry: rows={}, cols={}, m_in={}, x.len={}",
+                    claim.x_rows,
+                    claim.x_cols,
+                    claim.m_in,
+                    claim.x.len()
+                ),
+            )));
+        }
+        for logical_column in 0..claim.m_in {
+            let source = claim.x[(logical_column % D) * claim.x_cols + (logical_column / D)].col();
+            let source_column =
+                normalized_target_column(source_column_count, public_outputs, source).ok_or_else(|| {
+                    R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
+                    "running[{child}].x packed coordinate {logical_column} references invalid builder column {source}"
+                )))
+                })?;
+            if crate::frontends::r1cs_f_prime::lowering::normalized_source_column(
+                source_column_count,
+                public_outputs,
+                source_column,
+            ) != Some(source)
+            {
+                return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                    format!(
+                        "running[{child}].x packed coordinate {logical_column} failed source-column normalization round trip"
+                    ),
+                )));
+            }
+            records.push(RawRunningSourceColumn {
+                child,
+                logical_column,
+                source_column,
+            });
+        }
+    }
+    Ok(records)
+}
+
+/// Forward spelling of the exact normalization permutation used by
+/// `lower_field_r1cs`. The inverse is checked above for every exported wire,
+/// so this audit cannot silently drift from the actual source-arm ordering.
+fn normalized_target_column(source_columns: usize, public_outputs: &[Var], source: usize) -> Option<usize> {
+    if source >= source_columns {
+        return None;
+    }
+    if source == Var::ONE.col() {
+        return Some(0);
+    }
+    if let Some(public_index) = public_outputs
+        .iter()
+        .position(|output| output.col() == source)
+    {
+        return Some(public_index + 1);
+    }
+    let public_before = public_outputs
+        .iter()
+        .filter(|output| output.col() < source)
+        .count();
+    Some(1 + public_outputs.len() + (source - 1 - public_before))
 }
 
 fn step_config<'a>(context: &'a ShapeContext<'a>) -> FPrimeStepConfig<'a> {

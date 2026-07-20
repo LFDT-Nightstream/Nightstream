@@ -26,7 +26,10 @@ pub use pi_ccs_output_digest_audit::{
     PiRlcYZcolProjectionProfileAudit, PiRlcYZcolProjectionRowAudit, PiRlcYZcolProjectionRowMappingAudit,
     PiRlcYZcolProjectionSharedAudit, SeededPhi81BlockAudit,
 };
-pub use relation::{R1csIvcBranch, R1csIvcRelation, R1CS_IVC_COMMITTED_COORDINATE_BUDGET};
+pub use relation::{
+    R1csIvcBranch, R1csIvcRawRunningAssignmentAudit, R1csIvcRelation, R1csIvcYZcolSelectiveRowsAudit,
+    R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
+};
 
 use thiserror::Error;
 

@@ -6,8 +6,8 @@
 //! comparison against every generated Lean payload and sparse-row shard.
 //!
 //! Does not own: the Lean interpretation of those bytes, PiCCS source truth,
-//! transcript authority, source-to-selective lowering, security bounds, cost
-//! claims, or permission to remove constraints.
+//! transcript authority, source-to-selective semantic refinement, security
+//! bounds, cost claims, or permission to remove constraints.
 //!
 //! Emits constraints: no.
 //!
@@ -16,7 +16,9 @@
 //! | metadata | exact tiny-fixture scope, trace coordinates, raw producer indices | artifact-checked only |
 //! | stage paths | exact 14-leaf Rust vocabulary | source ownership only |
 //! | selective rows | 139 source-to-emitted interval fragments | compiler ownership only |
-//! | 12 row shards | 5,724 indexed normalized A/B/C rows | selected source-R1CS rows |
+//! | source-row shards | 5,724 indexed normalized A/B/C rows | selected source-R1CS rows |
+//! | source provenance | exact reachable slots, definitions, and grouped rewrites | compiler data only |
+//! | selected-row shards | exact compact thirteen-port coefficients | final emitter data only |
 
 #[path = "../support/mod.rs"]
 mod support;
@@ -33,7 +35,14 @@ use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs
 
 use artifact::{GeneratedLeanFile, TinyFixtureScope};
 
-const GENERATED_DIRECTORY: &str = "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiRlcProjection/YZcol/Generated";
+const GENERATED_DIRECTORIES: [&str; 6] = [
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiRlcProjection/YZcol/Generated",
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Carrier270/Generated",
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated",
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/FreshSourceDecoder/Generated",
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/PackedWitnessDecoder/Generated",
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/ProductionDomain/WidthCensus/Generated",
+];
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -98,15 +107,25 @@ fn active_selective_fixed_point_projection_artifact_matches_retained_certificate
         application_public_input_count: app.m_in,
     };
     let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
-    let fixed_point = R1csIvcRelation::audit_fixed_point_shape(&params, &app.into(), &plan)
-        .expect("audit active selective fixed point");
-    let projection = fixed_point.pi_ccs_output_digest().y_zcol_projection();
+    let materialized = R1csIvcRelation::audit_fixed_point_y_zcol_rows(&params, &app.into(), &plan)
+        .expect("materialize bounded active selective fixed-point rows");
+    let projection = materialized
+        .fixed_point()
+        .pi_ccs_output_digest()
+        .y_zcol_projection();
 
-    let files = artifact::generated_files(projection, fixture);
+    let files = artifact::generated_files(
+        projection,
+        &params,
+        fixture,
+        materialized.projected_rows(),
+        materialized.raw_running_assignments(),
+        &materialized,
+    );
     assert_eq!(
         files.len(),
-        15,
-        "metadata, stage paths, selective intervals, and 12 exact row shards"
+        188,
+        "metadata, ownership, sharded source decoders, source rows, and exact selective matrix-row shards"
     );
 
     let root = repo_root();
@@ -119,7 +138,9 @@ fn active_selective_fixed_point_projection_artifact_matches_retained_certificate
         compare_or_write_expected(&root, file, &mut drifted);
     }
     let mut committed_paths = BTreeSet::new();
-    committed_lean_files(&root.join(GENERATED_DIRECTORY), &root, &mut committed_paths);
+    for directory in GENERATED_DIRECTORIES {
+        committed_lean_files(&root.join(directory), &root, &mut committed_paths);
+    }
     for stale in committed_paths.difference(&expected_paths) {
         drifted.push(format!("stale generated module: {stale}"));
     }

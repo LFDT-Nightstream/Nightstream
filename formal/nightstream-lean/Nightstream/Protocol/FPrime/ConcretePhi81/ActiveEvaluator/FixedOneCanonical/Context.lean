@@ -238,6 +238,7 @@ def nifsContext
       running := input.running
       parent := input.parent
     }
+    pending := none
     piCcsInput :=
       setup.piCcsInput (input.toActive setup)
         ActiveSemantics.FixedOneCanonical.selected

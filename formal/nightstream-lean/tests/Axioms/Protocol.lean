@@ -192,6 +192,12 @@ module is built; the aggregate entrypoint imports all ownership groups.
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.run_sound_or_outputUnbound_or_piCcsBadEvent
 
+/-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.run_sound_or_yRingUnbound_or_piCcsBadEvent_of_packedYZcolBound' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.run_sound_or_yRingUnbound_or_piCcsBadEvent_of_packedYZcolBound
+
 /-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestNifs.Premises.exists_resultTransition' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/

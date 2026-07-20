@@ -165,6 +165,7 @@ def build
   alignment := template.alignment
   input := invocation.sourceProduct
   runningParent := some invocation.running.parent
+  pending := none
   piCcsInput := invocation.piCcsInput
   priorState := invocation.priorState
   piCcsSchedule := template.piCcsSchedule
@@ -196,6 +197,21 @@ def build
       Invocation shape State publicRingColumns publicFits verifierRows) :
     (template.build invocation).runningParent =
       some invocation.running.parent := rfl
+
+/-- The general active carrier has not yet installed the fixed-one delayed
+wrapper, so its pending channel is explicitly absent rather than prover
+supplied. -/
+@[simp] theorem build_pending
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (template :
+      Template shape State publicRingColumns publicFits verifierRows)
+    (invocation :
+      Invocation shape State publicRingColumns publicFits verifierRows) :
+    (template.build invocation).pending = none := rfl
 
 @[simp] theorem build_piCcsInput
     {shape : SemanticShape}

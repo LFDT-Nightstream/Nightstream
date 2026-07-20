@@ -1,0 +1,17 @@
+import Nightstream.Implementation.R1CS.Correspondence.PiCcsNc
+
+/-! Focused signature regression for the flat combined-NC delayed projection. -/
+
+open Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc
+
+#check rawValueAt_toCubePoint_eq_radixWeightedRawDiagonal
+#check rawValueAt_eq_radixCombinedRawZ
+#check combinedHypercubeSum_eq_ordinary_add_weightedProjection
+#check combinedAtPoint_eq_terminalRhs
+#check combinedAtPoint_column_quartic
+#check combinedAtPoint_lane_quartic
+#check expectedRoundsRepresentable
+#check fixed270_roundCount
+#check fixed270Accepted_rounds_length
+#check residualWeightRoot_of_zero_weight_and_parent_mismatch
+#check accepted_implies_truth_and_oldPointRelation_or_badEvent

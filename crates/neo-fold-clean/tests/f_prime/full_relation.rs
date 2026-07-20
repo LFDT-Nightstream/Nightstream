@@ -43,6 +43,8 @@ use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVCon
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
+#[path = "full_relation/context.rs"]
+mod context;
 #[path = "full_relation/cost_tree.rs"]
 mod cost_tree;
 #[path = "full_relation/source_role_manifest.rs"]
@@ -157,6 +159,10 @@ fn step_config(prep: &neo_fold_clean::Preprocessing) -> FPrimeStepConfig<'_> {
     }
 }
 
+fn full_context(prep: &neo_fold_clean::Preprocessing, initial: [F; 4]) -> FullFPrimeContext {
+    FullFPrimeContext::derive(&prep.params, prep.structure(), &prep.log, initial).expect("full F' verifier key")
+}
+
 fn construction2_zero_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
     let zero = RunningInstance::canonical_zero(&prep.params, prep.structure(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN)
         .expect("canonical fixed-k accumulator");
@@ -252,7 +258,7 @@ fn build_base_branch(
 ) -> FullFPrimeBranchExecution {
     let semantic_in = semantic_state_digest_fields(&application_assignment[1..3]);
     let semantic_out = semantic_state_digest_fields(&application_assignment[3..5]);
-    let context = FullFPrimeContext::derive(&prep.params, prep.structure(), semantic_in).expect("full F' verifier key");
+    let context = full_context(prep, semantic_in);
     let relation = FullFPrimeRelation::new(context, step_config(prep), application, vec![1, 2], vec![3, 4])
         .expect("fixed full F' relation");
     let state = FPrimeStateIn {
@@ -294,23 +300,6 @@ fn build_base_branch(
             application_assignment,
         )
         .expect("complete base F'")
-}
-
-#[test]
-fn full_relation_rejects_a_noncanonical_nifs_verifier_configuration() {
-    let carrier = bit_carrier_r1cs();
-    let prep = direct_ccs::preprocess_seeded(&carrier, 41).expect("carrier preprocessing");
-    let mut cfg = step_config(&prep);
-    cfg.nifs.pi_ccs.header_bundle[0] += F::ONE;
-    let application = fibonacci_step_r1cs();
-    let initial = semantic_state_digest_fields(&[F::from_u64(3), F::from_u64(5)]);
-    let context = FullFPrimeContext::derive(&prep.params, prep.structure(), initial).expect("full F' verifier key");
-
-    let result = FullFPrimeRelation::new(context, cfg, &application, vec![1, 2], vec![3, 4]);
-    assert!(matches!(
-        result,
-        Err(FullFPrimeError::NifsConfigMismatch { field: "header bundle" })
-    ));
 }
 
 #[test]
@@ -356,7 +345,7 @@ fn complete_base_relation_executes_then_encodes_and_rejects_disconnected_state()
     let application_assignment = [F::ONE, F::from_u64(3), F::from_u64(5), F::from_u64(5), F::from_u64(8)];
     let semantic_in = semantic_state_digest_fields(&application_assignment[1..3]);
     let semantic_out = semantic_state_digest_fields(&application_assignment[3..5]);
-    let context = FullFPrimeContext::derive(&prep.params, prep.structure(), semantic_in).expect("full F' verifier key");
+    let context = full_context(&prep, semantic_in);
     let relation = FullFPrimeRelation::new(context, cfg, &application_relation, vec![1, 2], vec![3, 4])
         .expect("fixed full F' relation");
     let state = FPrimeStateIn {
@@ -500,7 +489,7 @@ fn complete_base_relation_rejects_caller_chosen_chunk_digest() {
     ];
     let semantic_in = semantic_state_digest_fields(&application_assignment[1..3]);
     let semantic_out = semantic_state_digest_fields(&application_assignment[3..5]);
-    let context = FullFPrimeContext::derive(&prep.params, prep.structure(), semantic_in).expect("full F' verifier key");
+    let context = full_context(&prep, semantic_in);
     let relation = FullFPrimeRelation::new(context, cfg, &application_relation, vec![1, 2], vec![3, 4])
         .expect("fixed full F' relation");
     let state = FPrimeStateIn {
@@ -549,7 +538,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     let application_assignment = [F::ONE, F::from_u64(5), F::from_u64(8), F::from_u64(8), F::from_u64(13)];
     let semantic_in = semantic_state_digest_fields(&application_assignment[1..3]);
     let semantic_out = semantic_state_digest_fields(&application_assignment[3..5]);
-    let context = FullFPrimeContext::derive(&prep.params, prep.structure(), semantic_in).expect("full F' verifier key");
+    let context = full_context(&prep, semantic_in);
     let relation = FullFPrimeRelation::new(context, cfg, &application_relation, vec![1, 2], vec![3, 4])
         .expect("fixed full F' relation");
 

@@ -10,7 +10,7 @@
 //! binding. Any change here must move in lockstep with the in-circuit
 //! gadget that recomputes the same digest in PR5's `engine::decider`.
 
-use neo_ajtai::Commitment;
+use neo_ajtai::{AjtaiError, AjtaiSModule, Commitment};
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim, LaneCommitments};
 use neo_math::{F, K};
 use neo_params::NeoParams;
@@ -131,6 +131,74 @@ pub fn params_digest(params: &NeoParams) -> [F; 4] {
     preimage.push(F::from_u64(params.s as u64));
     preimage.push(F::from_u64(params.lambda as u64));
     poseidon_digest_fields(&preimage)
+}
+
+/// Poseidon2 identity of the verifier-owned Ajtai public parameters.
+///
+/// Seeded parameters bind the canonical setup descriptor without
+/// materializing the potentially very large matrix. Explicit parameters bind
+/// the matrix itself through bounded-size row chunks. The two encodings are
+/// deliberately domain-separated: changing either the setup seed or an
+/// explicit matrix coefficient changes the verifier language.
+pub fn ajtai_public_parameters_digest(log: &AjtaiSModule) -> Result<[F; 4], AjtaiError> {
+    let (d, m) = log.dims();
+    let kappa = log.kappa();
+    if let Some((seeded_kappa, seed)) = log.seeded_params() {
+        if seeded_kappa != kappa {
+            return Err(AjtaiError::InvalidInput(format!(
+                "Ajtai seeded PP kappa mismatch while deriving verifier identity (module κ={kappa}, seed κ={seeded_kappa})"
+            )));
+        }
+        let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/ajtai_pp/seeded/v1");
+        preimage.extend(u64_halves(d as u64));
+        preimage.extend(u64_halves(kappa as u64));
+        preimage.extend(u64_halves(m as u64));
+        preimage.extend(pack_bytes_as_fields(b"neo-ajtai/chacha8/setup_par/v1"));
+        preimage.extend(pack_bytes_as_fields(&seed));
+        return Ok(poseidon_digest_fields(&preimage));
+    }
+
+    let pp = log.verification_pp()?;
+    if pp.m_rows.len() != pp.kappa {
+        return Err(AjtaiError::InvalidInput(format!(
+            "Ajtai explicit PP row count {} does not match κ={}",
+            pp.m_rows.len(),
+            pp.kappa
+        )));
+    }
+    if let Some((row, got)) = pp
+        .m_rows
+        .iter()
+        .enumerate()
+        .find_map(|(row, values)| (values.len() != pp.m).then_some((row, values.len())))
+    {
+        return Err(AjtaiError::InvalidInput(format!(
+            "Ajtai explicit PP row {row} has {got} columns, expected {}",
+            pp.m
+        )));
+    }
+    let mut matrix_preimage = pack_bytes_as_fields(b"neo.fold.clean/ajtai_pp/matrix/v1");
+    matrix_preimage.extend(u64_halves(pp.d as u64));
+    matrix_preimage.extend(u64_halves(pp.kappa as u64));
+    matrix_preimage.extend(u64_halves(pp.m as u64));
+    matrix_preimage.extend(u64_halves(pp.m_rows.len() as u64));
+    for (row_index, row) in pp.m_rows.iter().enumerate() {
+        let mut row_preimage = pack_bytes_as_fields(b"neo.fold.clean/ajtai_pp/matrix_row/v1");
+        row_preimage.extend(u64_halves(row_index as u64));
+        row_preimage.extend(u64_halves(row.len() as u64));
+        for (chunk_index, chunk) in row.chunks(256).enumerate() {
+            let mut chunk_preimage = pack_bytes_as_fields(b"neo.fold.clean/ajtai_pp/matrix_chunk/v1");
+            chunk_preimage.extend(u64_halves(row_index as u64));
+            chunk_preimage.extend(u64_halves(chunk_index as u64));
+            chunk_preimage.extend(u64_halves(chunk.len() as u64));
+            for ring in chunk {
+                chunk_preimage.extend_from_slice(&ring.0);
+            }
+            row_preimage.extend_from_slice(&poseidon_digest_fields(&chunk_preimage));
+        }
+        matrix_preimage.extend_from_slice(&poseidon_digest_fields(&row_preimage));
+    }
+    Ok(poseidon_digest_fields(&matrix_preimage))
 }
 
 /// Digest of the terminal-CE relation contract a compact proof must prove.
@@ -901,13 +969,14 @@ pub fn public_trace_update_digest(prev: [u8; 32], chunk_digest: [F; 4]) -> [u8; 
 // ── vk_fs and x_out ────────────────────────────────────────────────────────
 
 /// `vk_fs_digest` — Definition 14 + full CCS structure + canonical Pi_CCS
-/// header bundle + program-fixed `public_input_len` + **chain initial
-/// semantic-state digest**.
+/// header bundle + Ajtai public-parameter identity + program-fixed
+/// `public_input_len` + **chain initial semantic-state digest**.
 ///
 /// The header bundle binds the matrix-dependent SplitNc transcript identity;
 /// the circuit recomputes this same digest from witness key fields and feeds
-/// the same header wires to Pi_CCS.V. The remaining preimage absorbs the full
-/// 11-field `NeoParams` view, the optional `public_input_len` (encoded as
+/// the same header wires to Pi_CCS.V. The Ajtai digest binds the exact
+/// commitment map used by that relation. The remaining preimage absorbs the
+/// full 11-field `NeoParams` view, the optional `public_input_len` (encoded as
 /// `u64::MAX` when absent), and `initial_semantic_state_digest` — the chain's
 /// claimed starting application state.
 ///
@@ -924,12 +993,14 @@ pub fn vk_fs_digest(
     params: &NeoParams,
     structure_digest: &[F; 4],
     pi_ccs_header_bundle: &[F; 4],
+    ajtai_pp_digest: &[F; 4],
     public_input_len: Option<usize>,
     initial_semantic_state_digest: [u8; 32],
 ) -> [u8; 32] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v2");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v3");
     preimage.extend(structure_digest.iter().copied());
     preimage.extend(pi_ccs_header_bundle.iter().copied());
+    preimage.extend(ajtai_pp_digest.iter().copied());
     preimage.extend(u64_halves(params.q));
     preimage.push(F::from_u64(params.eta as u64));
     preimage.push(F::from_u64(params.d as u64));

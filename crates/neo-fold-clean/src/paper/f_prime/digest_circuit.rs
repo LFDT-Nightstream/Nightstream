@@ -30,7 +30,7 @@ use crate::paper::digest::{
 };
 use crate::paper::params::Params;
 
-const VK_FS_TAG: &[u8] = b"neo.fold.clean/vk_fs/v2";
+const VK_FS_TAG: &[u8] = b"neo.fold.clean/vk_fs/v3";
 
 /// Recompute the F' step/shape digest from verifier-owned claim geometry and
 /// the in-circuit start index. The native digest deliberately excludes claim
@@ -95,21 +95,23 @@ pub fn enforce_public_trace_update_digest_circuit(
 }
 
 /// Recompute the Construction-2 verifier-key digest from fixed-shape key
-/// wires. The matrix-dependent structure/header values and the initial state
-/// are witness data that this relation consumes and binds; none is embedded
-/// as an R1CS coefficient. Parameters and public-input width remain static
-/// capacity choices.
+/// wires. The matrix-dependent structure/header values, Ajtai setup identity,
+/// and initial state are witness data that this relation consumes and binds;
+/// none is embedded as an R1CS coefficient. Parameters and public-input width
+/// remain static capacity choices.
 pub fn enforce_vk_fs_digest_circuit(
     builder: &mut R1csBuilder,
     params: &Params,
     structure_digest: [Var; DIGEST_LEN],
     pi_ccs_header_bundle: [Var; DIGEST_LEN],
+    ajtai_pp_digest: [Var; DIGEST_LEN],
     public_input_len: Option<usize>,
     initial_semantic_state_digest: [Var; DIGEST_LEN],
 ) -> [Var; DIGEST_LEN] {
     let mut preimage = alloc_const_tag(builder, VK_FS_TAG);
     preimage.extend_from_slice(&structure_digest);
     preimage.extend_from_slice(&pi_ccs_header_bundle);
+    preimage.extend_from_slice(&ajtai_pp_digest);
     push_u64_halves_const(builder, &mut preimage, params.q());
     preimage.push(alloc_constant(builder, F::from_u64(params.eta() as u64)));
     preimage.push(alloc_constant(builder, F::from_u64(params.d() as u64)));

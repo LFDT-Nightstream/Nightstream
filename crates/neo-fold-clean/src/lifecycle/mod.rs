@@ -16,7 +16,7 @@
 //! ```text
 //! Terminal-only IVC:
 //!   preprocess              one-time
-//!     └─ derive vk_fs from (params, structure)
+//!     └─ derive vk_fs from (params, structure, Ajtai PP identity)
 //!   prove(prep, batches)  → UncompressedAudit                (per-session)
 //!     └─ runs Π_CCS / Π_RLC / Π_DEC on each batch, accumulating audit
 //!   extend(prep, audit, batch) → UncompressedAudit            (optional)
@@ -325,6 +325,11 @@ pub struct Preprocessing {
     /// It is part of `vk_fs` because the in-circuit NIFS verifier consumes it
     /// rather than baking its matrix-dependent value into the relation.
     pi_ccs_header_bundle: [F; 4],
+    /// Poseidon2 identity of the exact verifier-owned Ajtai setup. Seeded
+    /// setups bind their canonical derivation descriptor; explicit setups
+    /// bind their matrix. Absorbed into `vk_fs` so same-shaped but different
+    /// commitment maps cannot share a verifier-key identity.
+    ajtai_pp_digest: [F; 4],
     /// Memoized optimized-engine cache for this structure (sparse + SuperNeo
     /// eval tables + matrix digest). Verifier-derived; built once at
     /// preprocess time so `engine::optimized::{prove_pi_ccs, verify_pi_ccs}`
@@ -402,6 +407,7 @@ impl Preprocessing {
             &self.params,
             &self.structure_digest,
             self.pi_ccs_header_bundle,
+            self.ajtai_pp_digest,
             self.public_input_len,
             initial,
         );
@@ -453,6 +459,10 @@ impl Preprocessing {
 
     pub fn pi_ccs_header_bundle(&self) -> [F; 4] {
         self.pi_ccs_header_bundle
+    }
+
+    pub fn ajtai_pp_digest(&self) -> [F; 4] {
+        self.ajtai_pp_digest
     }
 
     pub fn optimized_cache(&self) -> &OptimizedStructureCache {
@@ -698,6 +708,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
         dims,
         optimized_cache.mat_digest(),
     )?;
+    let ajtai_pp_digest = crate::paper::digest::ajtai_public_parameters_digest(&log)?;
     // Default seed: `empty_semantic_state_digest()`. Stateful frontends
     // call [`Preprocessing::with_initial_semantic_state_digest`] after
     // preprocess to install their `H(initial_app_state)`; that setter
@@ -708,6 +719,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
         &params,
         &structure_digest,
         pi_ccs_header_bundle,
+        ajtai_pp_digest,
         public_input_len,
         initial_semantic_state_digest,
     );
@@ -729,6 +741,7 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
         terminal_induction: false,
         structure_digest,
         pi_ccs_header_bundle,
+        ajtai_pp_digest,
         optimized_cache,
         nebula: None,
     })

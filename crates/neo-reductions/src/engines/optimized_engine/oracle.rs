@@ -8,9 +8,14 @@
 
 #![allow(non_snake_case)]
 
+mod block_lane_nc;
 mod nc;
 mod optimized;
 
+pub use block_lane_nc::{
+    BlockLaneNcChallenges, BlockLaneNcOracle, BlockLaneNcPending, BLOCK_LANE_NC_BLOCK_VARIABLES,
+    BLOCK_LANE_NC_LANE_VARIABLES, BLOCK_LANE_NC_ROUND_COEFFICIENTS,
+};
 pub use nc::NcOracle;
 pub use optimized::OptimizedOracle;
 

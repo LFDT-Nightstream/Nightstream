@@ -22,10 +22,35 @@ pub struct Dims {
     pub ell_d: usize,
     pub ell_n: usize,
     pub ell_m: usize,
+    pub ell_block: usize,
     pub ell: usize,
     pub ell_nc: usize,
+    pub ell_block_nc: usize,
     pub ell_max: usize,
     pub d_sc: usize,
+}
+
+/// Transcript/header format selected before any Π_CCS challenges are sampled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiCcsTranscriptVariant {
+    SplitNcV1,
+    BlockLaneNcDelayedV1,
+}
+
+impl PiCcsTranscriptVariant {
+    fn label(self) -> &'static [u8] {
+        match self {
+            Self::SplitNcV1 => b"SplitNcV1",
+            Self::BlockLaneNcDelayedV1 => b"BlockLaneNcDelayedV1",
+        }
+    }
+
+    fn nc_variables(self, dims: Dims) -> (usize, usize) {
+        match self {
+            Self::SplitNcV1 => (dims.ell_m, dims.ell_nc),
+            Self::BlockLaneNcDelayedV1 => (dims.ell_block, dims.ell_block_nc),
+        }
+    }
 }
 
 pub use crate::optimized_engine::Challenges;
@@ -50,6 +75,9 @@ pub const PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG: u64 = 4;
 pub const PI_CCS_ME_COUNT_RAW_TAG: u64 = 5;
 pub const PI_CCS_ME_DIGEST_RAW_TAG: u64 = 6;
 pub const PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG: u64 = 13;
+pub const PI_CCS_BLOCK_NC_BETA_RAW_TAG: u64 = 14;
+pub const PI_CCS_BLOCK_NC_PRODUCER_BETA_RAW_TAG: u64 = 15;
+pub const PI_CCS_BLOCK_NC_BATCH_WEIGHT_RAW_TAG: u64 = 16;
 pub const PI_CCS_POLY_DOMAIN_LABEL: &[u8] = b"py";
 pub const PI_CCS_POLY_ARITY_LABEL: &[u8] = b"pa";
 pub const PI_CCS_POLY_TERMS_LEN_LABEL: &[u8] = b"pt";
@@ -108,10 +136,13 @@ pub fn build_dims_and_policy_for_shape(
 
     let m_pad = m.next_power_of_two().max(2);
     let ell_m = m_pad.trailing_zeros() as usize;
+    let block_pad = m.div_ceil(D).next_power_of_two().max(2);
+    let ell_block = block_pad.trailing_zeros() as usize;
 
     let ell = ell_d + ell_n;
     let ell_nc = ell_d + ell_m;
-    let ell_max = core::cmp::max(ell, ell_nc);
+    let ell_block_nc = ell_d + ell_block;
+    let ell_max = core::cmp::max(ell, core::cmp::max(ell_nc, ell_block_nc));
 
     let d_sc = core::cmp::max(max_degree as usize + 1, degree_bound_nc(params));
 
@@ -130,8 +161,10 @@ pub fn build_dims_and_policy_for_shape(
         ell_d,
         ell_n,
         ell_m,
+        ell_block,
         ell,
         ell_nc,
+        ell_block_nc,
         ell_max,
         d_sc,
     })
@@ -161,9 +194,30 @@ pub fn bind_header_and_instances_with_digest(
     dims: Dims,
     mat_digest: &[Goldilocks],
 ) -> Result<PiCcsBindHeaderPerf, PiCcsError> {
+    bind_header_and_instances_with_digest_for_variant(
+        tr,
+        params,
+        s,
+        mcs_list,
+        dims,
+        mat_digest,
+        PiCcsTranscriptVariant::SplitNcV1,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn bind_header_and_instances_with_digest_for_variant(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+    dims: Dims,
+    mat_digest: &[Goldilocks],
+    variant: PiCcsTranscriptVariant,
+) -> Result<PiCcsBindHeaderPerf, PiCcsError> {
     let mut perf = PiCcsBindHeaderPerf::default();
     let prefix_started = std::time::Instant::now();
-    let header_bundle = pi_ccs_header_bundle_digest_fields(params, s, dims, mat_digest)?;
+    let header_bundle = pi_ccs_header_bundle_digest_fields_for_variant(params, s, dims, mat_digest, variant)?;
     tr.append_fields_raw(&[
         F::from_u64(PI_CCS_HEADER_BUNDLE_RAW_TAG),
         header_bundle[0],
@@ -205,9 +259,30 @@ pub fn bind_header_and_instance_digest_with_digest(
     mat_digest: &[Goldilocks],
     public_instance_digest: &[F; 4],
 ) -> Result<PiCcsBindHeaderPerf, PiCcsError> {
+    bind_header_and_instance_digest_with_digest_for_variant(
+        tr,
+        params,
+        s,
+        dims,
+        mat_digest,
+        public_instance_digest,
+        PiCcsTranscriptVariant::SplitNcV1,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn bind_header_and_instance_digest_with_digest_for_variant(
+    tr: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    dims: Dims,
+    mat_digest: &[Goldilocks],
+    public_instance_digest: &[F; 4],
+    variant: PiCcsTranscriptVariant,
+) -> Result<PiCcsBindHeaderPerf, PiCcsError> {
     let mut perf = PiCcsBindHeaderPerf::default();
     let prefix_started = std::time::Instant::now();
-    let header_bundle = pi_ccs_header_bundle_digest_fields(params, s, dims, mat_digest)?;
+    let header_bundle = pi_ccs_header_bundle_digest_fields_for_variant(params, s, dims, mat_digest, variant)?;
     tr.append_fields_raw(&[
         F::from_u64(PI_CCS_HEADER_BUNDLE_RAW_TAG),
         header_bundle[0],
@@ -283,7 +358,17 @@ pub fn pi_ccs_header_bundle_digest_fields(
     dims: Dims,
     mat_digest: &[Goldilocks],
 ) -> Result<[F; 4], PiCcsError> {
-    pi_ccs_header_bundle_digest_fields_from_parts(params, s.n, s.m, s.t(), &s.f, dims, mat_digest)
+    pi_ccs_header_bundle_digest_fields_for_variant(params, s, dims, mat_digest, PiCcsTranscriptVariant::SplitNcV1)
+}
+
+pub fn pi_ccs_header_bundle_digest_fields_for_variant(
+    params: &NeoParams,
+    s: &CcsStructure<F>,
+    dims: Dims,
+    mat_digest: &[Goldilocks],
+    variant: PiCcsTranscriptVariant,
+) -> Result<[F; 4], PiCcsError> {
+    pi_ccs_header_bundle_digest_fields_from_parts_for_variant(params, s.n, s.m, s.t(), &s.f, dims, mat_digest, variant)
 }
 
 pub fn pi_ccs_header_bundle_digest_fields_from_parts(
@@ -295,6 +380,29 @@ pub fn pi_ccs_header_bundle_digest_fields_from_parts(
     dims: Dims,
     mat_digest: &[Goldilocks],
 ) -> Result<[F; 4], PiCcsError> {
+    pi_ccs_header_bundle_digest_fields_from_parts_for_variant(
+        params,
+        n,
+        m,
+        t,
+        poly,
+        dims,
+        mat_digest,
+        PiCcsTranscriptVariant::SplitNcV1,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn pi_ccs_header_bundle_digest_fields_from_parts_for_variant(
+    params: &NeoParams,
+    n: usize,
+    m: usize,
+    t: usize,
+    poly: &SparsePoly<F>,
+    dims: Dims,
+    mat_digest: &[Goldilocks],
+    variant: PiCcsTranscriptVariant,
+) -> Result<[F; 4], PiCcsError> {
     if mat_digest.len() != 4 {
         return Err(PiCcsError::InvalidInput(format!(
             "CCS matrix digest must have len 4, got {}",
@@ -302,14 +410,16 @@ pub fn pi_ccs_header_bundle_digest_fields_from_parts(
         )));
     }
 
+    let (nc_point_variables, nc_variables) = variant.nc_variables(dims);
+    let ell_max = core::cmp::max(dims.ell, nc_variables);
     let ext = params
-        .extension_check(dims.ell_max as u32, dims.d_sc as u32)
+        .extension_check(ell_max as u32, dims.d_sc as u32)
         .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
 
     let mut tr = Poseidon2Transcript::new(b"neo/ccs/header_bundle/v1");
     tr.append_message(PI_CCS_PHASE_DOMAIN_LABEL, b"");
     tr.append_message(PI_CCS_HEADER_DOMAIN_LABEL, b"");
-    tr.append_message(PI_CCS_VARIANT_LABEL, b"SplitNcV1");
+    tr.append_message(PI_CCS_VARIANT_LABEL, variant.label());
     tr.append_u64s(
         PI_CCS_HEADER_WORDS_LABEL,
         &[
@@ -317,8 +427,8 @@ pub fn pi_ccs_header_bundle_digest_fields_from_parts(
             ext.s_supported as u64,
             params.lambda as u64,
             dims.ell as u64,
-            dims.ell_nc as u64,
-            dims.ell_max as u64,
+            nc_variables as u64,
+            ell_max as u64,
             dims.d_sc as u64,
             ext.slack_bits.unsigned_abs() as u64,
         ],
@@ -333,7 +443,7 @@ pub fn pi_ccs_header_bundle_digest_fields_from_parts(
             t as u64,
             dims.ell_d as u64,
             dims.ell_n as u64,
-            dims.ell_m as u64,
+            nc_point_variables as u64,
         ],
     );
     let mat_digest_fields = [
@@ -737,6 +847,30 @@ pub fn sample_challenges(tr: &mut Poseidon2Transcript, ell_d: usize, ell: usize)
 pub fn sample_beta_m(tr: &mut Poseidon2Transcript, ell_m: usize) -> Result<Vec<K>, PiCcsError> {
     tr.append_fields_raw(&[F::from_u64(3)]);
     Ok(sample_k_batch(tr, ell_m))
+}
+
+/// Sample the canonical block-domain point after all public instances and the
+/// complete pending-family accumulator handle have been absorbed.
+pub fn sample_beta_block(tr: &mut Poseidon2Transcript, ell_block: usize) -> Result<Vec<K>, PiCcsError> {
+    tr.append_fields_raw(&[F::from_u64(PI_CCS_BLOCK_NC_BETA_RAW_TAG)]);
+    Ok(sample_k_batch(tr, ell_block))
+}
+
+/// Sample the two delayed-projection scalars under distinct transcript
+/// domains. Zero is allowed for either result and remains an explicit bad-root
+/// branch in the soundness theorem rather than an implementation rejection.
+pub fn sample_delayed_projection_challenges(tr: &mut Poseidon2Transcript) -> Result<(K, K), PiCcsError> {
+    tr.append_fields_raw(&[F::from_u64(PI_CCS_BLOCK_NC_PRODUCER_BETA_RAW_TAG)]);
+    let producer_beta = sample_k_batch(tr, 1)
+        .into_iter()
+        .next()
+        .ok_or_else(|| PiCcsError::ProtocolError("producer-beta challenge missing".into()))?;
+    tr.append_fields_raw(&[F::from_u64(PI_CCS_BLOCK_NC_BATCH_WEIGHT_RAW_TAG)]);
+    let batch_weight = sample_k_batch(tr, 1)
+        .into_iter()
+        .next()
+        .ok_or_else(|| PiCcsError::ProtocolError("batch-weight challenge missing".into()))?;
+    Ok((producer_beta, batch_weight))
 }
 
 fn sample_k_batch(tr: &mut Poseidon2Transcript, count: usize) -> Vec<K> {

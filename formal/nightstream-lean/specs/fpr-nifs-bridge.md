@@ -45,6 +45,11 @@ assumptions:
   - The model-level SuperNeo algebra, extraction, relaxed-binding, SumCheck,
     Fiat-Shamir, and final-decider boundaries remain exactly those named by the
     active folding and security specifications.
+  - This protocol-first work treats Poseidon2 and Ajtai as selected primitives.
+    It must prove their protocol inputs, parameters, domain separation,
+    transcript/commitment dataflow, recomposition, and explicit hash-collision
+    or binding-failure boundaries, but does not re-prove the permutation,
+    commitment construction, or underlying hardness assumption.
   - Backend minimality is measured only after semantic minimality, relative to
     a fixed field, hash, commitment representation, and lowering vocabulary.
 
@@ -453,8 +458,14 @@ current_gap_boundary:
     to zero, shifts the private suffix, and uses 270 as the SuperNeo public
     width. `AlignedCompiler.ProductionCarrier` artifact-checks the emitted
     public layout and all thirteen padding rows against the typed zero-pin
-    semantics. This closes only the public-carrier slice. The complete private
-    assignment and matrix map, CE coefficient images, aligned verifier-owned
+    semantics. The bounded stabilized fixed-point projected-emitter artifact
+    now also exports every public-coordinate owner from its actual prepared
+    layout in disjoint 256- and 14-record chunks. Lean proves that decoder is
+    exactly constant-one, direct source fields `1..256`, then thirteen fixed
+    zeros, and that its interpretation equals the independent typed public
+    projection under the explicit source constant-one condition. This closes
+    public-prefix connectivity for that bounded fixed-point profile only. The
+    complete private assignment and matrix map, CE coefficient images, aligned verifier-owned
     Ajtai key, commitments, and full decoder refinement remain open; neither
     truncation nor claim reuse closes those bridges.
   - PiCCS paper erratum boundary: Section 7.3 and Appendix D.4 define the
@@ -552,7 +563,32 @@ current_gap_boundary:
     `y_zcol` that is not source-bound. The current native order derives the NC
     test point before validating that sidecar, so its authority must be closed
     by a downstream proof/opening or by a protocol-order change; it cannot be
-    justified as an ordinary non-adaptive polynomial test. Lean also proves
+    justified as an ordinary non-adaptive polynomial test. The delayed
+    old-point model is now exposed through the generic `PiCcsNc` facade and a
+    fail-closed regression/axiom guard. Its fixed-270 refinement contract
+    constructs the child table only from
+    `SplitNc.Sources.Data.runningAssignments`, proves exact child/column
+    lookup and 512-by-64 coverage, and specializes the 54-active plus
+    ten-padding exact-or-`BadRoot` theorem to that table. It does not assume or
+    read output `y_zcol` sidecars. This flat 9+6-round relation is a bounded
+    diagnostic, not the active production statement: it has 512 flat columns,
+    whereas active production has 19 block rounds plus six lane rounds over
+    14,338,890 coordinates. The production correspondence therefore proves the
+    same old-point obligation as an exact 54-lane
+    `PackedYZcolBoundAtBlock` equality; it must not coerce the fixed-270
+    `OldPointSumcheckRelation` across that dimension boundary. The current Rust handoff is therefore not
+    conformant: `running_output_evaluation` still iterates `CeClaim` outputs
+    and reads `CeClaim.y_zcol`. Lean now owns a model-level combined-NC
+    checker over complete packed `Z` witnesses, the explicit
+    `batchWeight = 0`/residual-root branch, the producer-beta projection root,
+    fixed-degree SumCheck collision events, typed transcript domains and
+    order, and adjacent/base/terminal one-fold composition. Its load-bearing
+    conclusion is `SemanticFold.Holds`; the convenience projection to
+    `Semantics.Paper.Holds` is weaker because it drops the parent/children
+    equalities. Actual Rust combined-NC dataflow, generated packed-witness and
+    padding rows, transcript/R1CS refinement, semantic-input and opening
+    authority, recursive-state rows, and Ajtai coordinate binding remain
+    explicit open edges. Lean also proves
     that every honest NC round is a polynomial of degree at most four and
     materializes it as exactly five constant-first coefficients. A
     protocol-local checker now parses exactly five slots per NC round, replays
@@ -1272,7 +1308,139 @@ lean_theorems:
     removal or production acceptance. Removing the remaining artifact-level
     `Lean.trustCompiler` dependency requires a proved indexed column-map
     generator, not another replay of the same generated lists.
-  - Missing: a complete Rust/R1CS decoder refinement into the canonical carrier and a
+  - Artifact-checked (bounded `y_zcol` slice): the fixed-point
+    selective generator exports exact source definitions, exact compact A/B/C
+    rows, source and derived column provenance, ownership for every emitted
+    polynomial-evaluation, product-sum, and retained-check row, and the
+    separately eliminated linear-definition program from the same
+    structure-term emission path used by final matrices. The Lean sources
+    establish unique physical-row ownership, exact rewrite/retained
+    coefficients, deterministic provenance and satisfaction for eliminated
+    definitions, compact-row soundness into the independent source projection
+    obligations, and canonical assignment construction from deterministic
+    source execution with a constant-one seed plus the two direct sampled-wire
+    equations.
+    Artifact computations are projected to proof-free coefficient records or
+    Boolean summaries before evaluation. Kernel theorems prove exact ordered
+    partition coverage and the per-part certificate bound, so neither the
+    coefficient bridge nor assignment materialization evaluates a full
+    proof-carrying artifact list.
+    The generator rejects any derived rewrite with a nonzero base or with a
+    predecessor or ordered factor payload different from the actual witness
+    encoder. Lean proves that the normalized decoded recurrence stream exactly
+    equals that exported witness registry and ties each constructed derived
+    field to its registered field recurrence.
+    This reverse theorem assumes no source-row satisfaction or decoded
+    acceptance, but remains focused projection-execution completeness rather
+    than completeness of a full paper-honest PiCCS/NIFS transition. The
+    soundness theorem is explicitly conditional on
+    the externally owned steady-selector and constant-one facts; the compact
+    projection rows are gated and cannot establish which branch is active.
+    With separately supplied upstream producer-column and `y_zcol`
+    message/source bindings, the result composes with `ActiveBridge` to yield
+    the typed message aggregate or its named projection bad-root event. This
+    closes only the bounded fixture: it does not establish selector
+    enforcement, upstream output authority, full production-carrier
+    refinement, CCS/CE membership, or permission to remove rows globally. The
+    focused correspondence facade, regression, fail-closed
+    axiom guard, static checks, executable checks, and Rust artifact drift test
+    pass. Two repository-wide builds and the repository-wide axiom report hit
+    their fixed 900-second limit in unrelated legacy dependency cones without
+    reaching the memory cap; those incomplete broad gates do not extend or
+    weaken this bounded evidence claim.
+  - Artifact-checked (bounded fixed-point carrier prefix): the same prepared
+    layout now exports the complete 270-coordinate public owner schedule, all
+    13 public-padding rows, all 38 private-alignment rows, and the exact three
+    selector-domain plus one selector-total rows. Lean identifies the public
+    vector with the independent typed carrier, proves unique physical
+    ownership and exact coefficients for all three row families, derives
+    residuals `-(z[0] * z[257+i])` and `-(z[0] * z[273+i])` for the two padding
+    intervals, proves the public rows equivalent to typed `FixedPublicPadding`
+    under explicit coordinate agreement, derives the Boolean and sum-to-one
+    selector equations, and constructs the honest zero and unit-selector
+    extensions. This closes physical rows for `257..270`, compiler-owned
+    interval `273..311`, and the four selector equations only. It does not
+    decode the private values after that interval,
+    cover every selector-gated retained row, decide whether the Boolean rows
+    are removable, or close the complete matrix bundle.
+  - Corrected authority boundary: the generated `14 × 270` decoder under the
+    historical `RawRunningDecoder` path reads incoming `CeClaim.X` public
+    coordinates. It is artifact-checked for that public-prefix provenance,
+    but it is not a decoder for `CcsWitness.Z`, `CeWitness.Z`, the private
+    suffix, or the complete production assignment. Lean now separately states
+    the actual generic packed-witness contract
+    `Z[lane, block] = assignment[block * 54 + lane]`, proves both inverse
+    directions and fresh-tail zero padding, constructs running source data
+    definitionally from complete packed witnesses, and composes the existing
+    Boolean combined-NC checker across the explicit one-fold recursive and
+    terminal boundaries. A compact generated certificate now artifact-checks
+    all fourteen full-width matrix coordinate bijections, the 54+10 lane
+    partition, all 108 one-hot cells of a two-block bounded
+    `CcsInstance::from_low_norm_assignment`/Ajtai commitment probe, and the
+    `Commitment.data[row*54+lane]` index. It explicitly distinguishes bounded
+    fixture κ=4 from protocol production κ=18. Lean proves the generic
+    commitment-data bijection and the production-width flattened
+    `matrixCommit` equation; native production PP coefficient equality and
+    accepted opening/extraction remain open. The
+    earlier raw-authority interpretation of the 270-column artifact is
+    retracted without weakening its valid public-prefix facts.
+  - Corrected production combined-NC bridge: the active delayed residual uses
+    the block×lane domain over all 14,338,890 assignment coordinates: 19 block
+    rounds followed by six lane rounds, covering 265,535 live blocks. Each
+    block has 54 physical Phi81 lanes and ten verifier-computed virtual zero
+    lanes; those ten values are polynomial padding, not separately owned
+    physical rows. The raw table is computed from complete packed
+    `CcsWitness.Z`/`CeWitness.Z` matrices, never from child
+    `CeClaim.y_zcol` sidecars. Lean proves the exact Boolean-cube and terminal
+    formulas, quartic round representability, degree-one residual-weight
+    identity (including `batchWeight = 0`), degree-53 producer-beta
+    exact-or-root result, and an exact claims-level terminal at the FE-derived
+    transcript point. Public `y_zcol` is transport only. For a recursive edge,
+    successor NC truth gives genuine openings of the exact ordered raw running
+    assignments; strict Π_DEC and an exact canonical-parent commitment/norm
+    predicate then give exact parent recomposition or
+    `ParentOpeningBindingCollision`. The direct active theorem does not assume
+    either that predicate or the raw-child commitment predicate: it
+    case-splits both and returns their negations as specifically owned binding
+    failures. Lean proves that the raw-child negation is equivalent to
+    existence of one verifier-indexed packed matrix whose exact `matrixCommit`
+    differs from its public running commitment. Neither predicate contains
+    public inputs, evaluation arrays, child sidecars, or digest authority. The
+    accepted delayed identity therefore
+    closes the predecessor packed equation or returns a specifically typed
+    algebraic, SumCheck, commitment, state, input, key, or opening failure. The
+    terminal path applies the same reduction to fourteen complete raw child
+    matrices. The first step is explicitly no-pending and every output closes
+    one fold later.
+    `terminalChecked_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure`
+    proves `BaseNc`, every packed equation, and Construction-2 for every step;
+    if the independent paper track fails, the result still retains `BaseNc`
+    and every packed equation. Only the dedicated `y_zcol` parent-opening tree
+    can prevent `AllPacked`, and it is separate from `yRingUnbound` and the
+    other paper/refinement failures. Neither tree contains
+    `OutputBindingFailure` or generic `outputUnbound`. The unanchored
+    extraction helper and older generic evaluator remain diagnostic seams; the guarded theorem
+    removes generic output-unbound once packed. The separate 9+6 flat model is excluded by `flatColumnProjection_not_actionHom`.
+    The current Rust helper still evaluates `CeClaim.y_zcol`, is not integrated
+    into the combined-NC transcript, and has no state/terminal row refinement.
+    Native raw-`Z` handoff, Rust/transcript refinement, canonical parent
+    opening enforcement, concrete rows, production PP coefficient equality,
+    and accepted Ajtai opening/extraction remain open, so this stays
+    model-proved rather than Rust-conformant production authority.
+  - Artifact-checked fresh public-prefix decoder: the bounded Rust exporter
+    now identifies all 270 coordinates of
+    `prior_link.fresh_public_inputs[0]` in exact order and records their
+    normalized source columns and fail-closed selective dispositions in
+    proof-free shards of 256 and 14 records. Lean proves complete coverage,
+    the exact consecutive column formula, and unique logical ownership. A
+    separate theorem reaches only the fresh source-product `publicInput`
+    field, conditional on explicit per-coordinate value bindings and direct
+    field-value dataflow. The artifact does not infer values from decoder
+    labels: the constant-one row, 256 bit-link rows, thirteen padding rows,
+    the remaining fresh fields, full-witness values, and commitment authority remain open.
+  - Missing: composition of the bounded fixed-point public decoder, both
+    padding intervals, and selector equations into a full private-assignment
+    and final-matrix Rust/R1CS refinement of the canonical carrier and a
     production-conformant instantiation of the independently proved semantic
     boundaries. The generic six-family witness bundle is no longer the right
     minimality target for this profile because Lean proves three of its

@@ -1,0 +1,64 @@
+{
+  "artifact_kind": "r1cs/f-prime-selective-fixed-point-carrier270-public-decoder",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-FIXED-POINT-CARRIER270-PUBLIC-DECODER",
+  "profile": "bounded-tiny-lifecycle-stabilized-fixed-point-public-prefix",
+  "shape": {
+    "source_arm_rows": 14550108,
+    "source_arm_columns": 14350988,
+    "selective_columns": 68091732,
+    "logical_public_width": 257,
+    "aligned_public_width": 270,
+    "first_chunk_records": 256,
+    "second_chunk_records": 14
+  },
+  "invariant": "the complete 270-coordinate public decoder exported from the same prepared selective layout as the bounded fixed-point projected emitter is exactly constant-one, source fields 1 through 256 in order, and thirteen compiler-owned zeros; its interpretation equals the independent typed FPrimeCarrier270 public projection under the explicit source constant-one condition",
+  "evidence_state": "artifact-checked",
+  "implementation_status": "focused artifact leaf, semantic correspondence facade, regression, fail-closed axiom guard, static validation, and 166-file Rust drift gate pass",
+  "artifacts": [
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Carrier270/Generated/PublicDecoderChunk0.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Carrier270/Generated/PublicDecoderChunk1.lean"
+  ],
+  "theorems": [
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicDecoder.generated_chunk0_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicDecoder.generated_chunk1_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicDecoder.generatedCoordinate_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicAssignment.artifactPublicValue_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicAssignment.artifactPublicInput_eq_expectedPublicInput",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicAssignment.artifactPublicInput_eq_projectPublicInput"
+  ],
+  "runtime_regressions": [
+    {
+      "name": "active_selective_fixed_point_projection_artifact_matches_retained_certificate",
+      "status": "pass",
+      "generated_file_count": 166,
+      "elapsed_seconds": 137.18,
+      "peak_descendant_rss_kib": 12884336
+    }
+  ],
+  "lean_validation": {
+    "artifact_decoder": "pass in 0.53 seconds at 424848 KiB peak descendant RSS",
+    "semantic_leaf": "pass in 0.79 seconds at 196160 KiB peak descendant RSS",
+    "correspondence_facade": "pass in 1.05 seconds at 598656 KiB peak descendant RSS",
+    "focused_regression": "pass in 0.79 seconds at 188800 KiB peak descendant RSS",
+    "axiom_guard": "pass in 0.79 seconds at 813136 KiB peak descendant RSS; exact dependencies are propext, Lean.trustCompiler, and Quot.sound; no sorryAx",
+    "static": "pass: layer direction, generated quarantine, ownership contracts, forbidden-hole audit, and assurance parsing"
+  },
+  "assumptions": [
+    "the source relation fixes its conventional field zero to one"
+  ],
+  "open_bridges": [
+    "complete private assignment decoder for every retained, aliased, eliminated, and compiler-derived coordinate",
+    "complete final sparse matrix refinement rather than the focused projected rows",
+    "CCS and CE membership refinement for the stabilized production relation",
+    "Ajtai commitment-key coordinate alignment and explicit binding-failure event",
+    "production y_zcol authority"
+  ],
+  "non_goals": [
+    "producer or recursive y_zcol authority",
+    "private assignment or matrix decoding",
+    "CCS or CE membership",
+    "constraint deletion",
+    "re-proving Ajtai or Poseidon2"
+  ]
+}

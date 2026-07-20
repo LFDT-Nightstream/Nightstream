@@ -9,9 +9,9 @@ Phase: verifier-owned setup plus one fresh and fourteen running public payloads
 to the fixed production-domain transition context.
 Constraint family: carrier construction only; this file emits no rows.
 
-Owns: minimal public payloads for fresh/running/parent statements; installation
-of one verifier-owned relation structure; canonical fresh/combined stages;
-construction of the exact fixed-active source product and fixed 9/3/6
+Owns: minimal public payloads for fresh/running/parent statements; the optional
+delayed packed parent bound by the transcript; installation of one verifier-owned relation structure; canonical fresh/combined stages;
+construction of the exact fixed-active source product and fixed 27/21/6
 production-domain context; and proof that outgoing `Pi_RLC` source-structure
 consistency is true by construction.
 
@@ -34,6 +34,7 @@ construct exactly this carrier.
 | `nifs.fixed_active.context.fresh_stage` | fresh CCS and all running CE sources are at `.fresh` | computed | payload `materialize` functions |
 | `nifs.fixed_active.context.parent_stage` | incoming checked parent is at `.combined` | computed | `ParentPayload.materialize` |
 | `nifs.fixed_active.context.parent_presence` | active context always carries the complete parent, never only a digest | computed | `Context.materialize` |
+| `nifs.fixed_active.context.pending` | carry the complete optional delayed packed parent into statement binding | direct dataflow | `Context.materialize` |
 | `nifs.fixed_active.context.domain` | FE row and NC block/lane dimensions are the fixed production profile | computed | `PiCcsDomains.production` |
 | `nifs.fixed_active.pi_rlc.source_structure` | every canonical source uses the verifier-owned system | derived/eliminated | `sourceStructures` |
 -/
@@ -212,6 +213,7 @@ structure Context
   key : VerifierKey shape publicRingColumns publicFits verifierRows
   alignment : SourceAlignment shape productionGlobalParams arity
   input : Input shape publicRingColumns publicFits verifierRows
+  pending : Option ProductionDelayedBlockLane
   piCcsInput : PiCCS.SplitNc.Verifier.PublicInput shape
   priorState : State
   piCcsSchedule :
@@ -244,12 +246,26 @@ def materialize
   alignment := context.alignment
   input := context.input.materialize
   runningParent := some (context.input.parent.materialize context.input.system)
+  pending := context.pending
   piCcsInput := context.piCcsInput
   priorState := context.priorState
   piCcsSchedule := context.piCcsSchedule
   piRlcMachine := context.piRlcMachine
   profile := context.profile
   challengeSetSize := context.challengeSetSize
+
+/-- Canonical materialization preserves the complete optional delayed parent
+without hashing, projection, or reconstruction. -/
+@[simp] theorem materialize_pending
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows) :
+    context.materialize.pending = context.pending := by
+  rfl
 
 @[simp] theorem materialize_system
     {shape : SemanticShape}

@@ -39,7 +39,7 @@ pub fn range_checked_witness_width() -> usize {
 /// Aux bit columns backing one declared byte/u32 column in the extended
 /// witness. Boolean and field columns have no separate decomposition.
 pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
-    let mut start = NAMED_COLUMN_COUNT;
+    let mut start = BITS_BASE;
     for spec in COLUMN_SPECS {
         let bits = decomposed_bits(spec.width);
         if spec.index == column {

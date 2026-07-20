@@ -198,7 +198,9 @@ pub(super) struct GrammarAuxCtx {
     pub(super) current_function_num_locals: u32,
     pub(super) host_args: WasmCountdownState,
     pub(super) host_result_pending: bool,
-    pub(super) turn_done: bool,
+    /// The carried halted latch on both sides of these aux rows (true for
+    /// post-halt exit gathers, false mid-turn).
+    pub(super) halted: bool,
 }
 
 impl GrammarAuxCtx {
@@ -217,7 +219,7 @@ impl GrammarAuxCtx {
             memory_pages: self.memory_pages,
             max_memory_pages: self.max_memory_pages,
             locals_fbp: self.locals_fbp,
-            halted: false,
+            halted: self.halted,
             trapped: false,
             param_init: WasmCountdownState::ZERO,
             host_args,
@@ -227,7 +229,6 @@ impl GrammarAuxCtx {
             event_absorb,
             grammar_mode: self.grammar_mode,
             grammar,
-            turn_done: self.turn_done,
         }
     }
 

@@ -238,8 +238,12 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
         SlotSource::ClaimLocal { local, limb, .. } => (4, u32::from(local), limb_bit(limb), 0, 0),
         SlotSource::OutputElem { limb } => (5, 0, limb_bit(limb), 0, 0),
     };
-    let mut insert_events = |fref: u32, pre: u32, post: u32, events: Vec<&GrammarEvent>| {
-        preload.insert("grammar_event_counts_pre", vec![fref], pre);
+    // Count cells store count + 1 (presence bias): an undeclared fref reads
+    // the zero-filled 0 and the CCS load rows subtract 1, poisoning the
+    // schedule to EVREM = p-1. See the relation-layout family comment for
+    // the full ROM-address non-termination argument.
+    let mut insert_events = |family: &'static str, fref: u32, pre: u32, post: u32, events: Vec<&GrammarEvent>| {
+        preload.insert(family, vec![fref], pre + 1);
         preload.insert("grammar_event_counts_post", vec![fref], post);
         for (event_index, event) in events.into_iter().enumerate() {
             for (slot_index, source) in event.block.iter().enumerate() {
@@ -255,6 +259,7 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
     };
     for (&fref, template) in &grammar.imports {
         insert_events(
+            "grammar_import_pre_counts",
             fref,
             template.pre_result.len() as u32,
             template.post_result.len() as u32,
@@ -265,12 +270,13 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
                 .collect(),
         );
     }
-    // Export boundary templates share the families: entry events take the
-    // "pre" count slot (consumed via the verifier-pinned initial state and
-    // re-read at the exit latch to continue the event numbering), exit
-    // events the "post" slot.
+    // Export entry counts live in their own family (turn boundaries and the
+    // exit latch must never see an import cell); exit events share the
+    // "post" family — their read keys are bound within an already-entered
+    // turn, so no confusion is possible.
     for (&fref, template) in &grammar.exports {
         insert_events(
+            "grammar_export_entry_counts",
             fref,
             template.entry.len() as u32,
             template.exit.len() as u32,

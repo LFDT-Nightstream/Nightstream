@@ -15,9 +15,11 @@ use neo_ccs::{CcsClaim, CcsStructure, CeClaim, LaneCommitments};
 use neo_math::{F, K};
 use neo_params::NeoParams;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
+use thiserror::Error;
 
 use crate::paper::reductions::accumulator_sis_circuit::{
-    accumulator_digest as sis_accumulator_digest, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG, NEBULA_LEAF_SIS_CONFIG,
+    accumulator_digest as sis_accumulator_digest, SisAccumulatorError, ACCUMULATOR_CE_CLAIM_SIS_CONFIG,
+    CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG, NEBULA_LEAF_SIS_CONFIG, PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG,
     PI_CCS_OUTPUTS_SIS_CONFIG,
 };
 use crate::paper::reductions::pi_ccs_output_message::{OUTPUTS_DOMAIN, OUTPUT_MESSAGE_DOMAIN};
@@ -591,9 +593,10 @@ pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
 /// Lean-minimal Phi81 family payload. Replacing repeated shared/derived fields
 /// requires the concrete 270-coordinate serializer refinement first.
 pub fn accumulator_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator_ce_claim_digest/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator_ce_claim_digest/v2");
     append_ce_claim_public_fields(&mut preimage, claim);
-    poseidon_digest_fields(&preimage)
+    sis_accumulator_digest(ACCUMULATOR_CE_CLAIM_SIS_CONFIG, &preimage)
+        .expect("nonempty accumulator CE-claim SIS preimage")
 }
 
 /// Ordered digest of the exact `CE(b)^k` Construction-2 accumulator.
@@ -608,6 +611,200 @@ pub fn accumulator_claims_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4]
         preimage.extend_from_slice(&accumulator_ce_claim_digest(claim));
     }
     poseidon_digest_fields(&preimage)
+}
+
+/// Exact fixed-profile domain used by the Lean pending-family codec.
+pub const PENDING_ACCUMULATOR_FAMILY_DOMAIN: &[u8] = b"neo.fold.clean/f_prime/accumulator/pending_family_digest/v1";
+pub const PENDING_ACCUMULATOR_FAMILY_CHILDREN: usize = 14;
+pub const PENDING_ACCUMULATOR_FAMILY_ROW_POINT: usize = 25;
+pub const PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT: usize = 19;
+pub const PENDING_ACCUMULATOR_FAMILY_M_IN: usize = 270;
+pub const PENDING_ACCUMULATOR_FAMILY_MATRICES: usize = 13;
+pub const PENDING_ACCUMULATOR_OLD_BLOCK: usize = 19;
+
+/// Verifier-owned one-fold delayed state. These values must be extracted from
+/// the raw combined-NC state, never copied from `CeClaim.y_zcol` sidecars.
+#[derive(Clone, Copy, Debug)]
+pub struct PendingAccumulatorFamilyState<'a> {
+    pub old_block: &'a [K],
+    pub parent_y_zcol: &'a [K],
+}
+
+#[derive(Debug, Error)]
+pub enum PendingAccumulatorFamilyError {
+    #[error("pending accumulator family needs {expected} children, got {got}")]
+    ChildCount { expected: usize, got: usize },
+    #[error("pending accumulator family verifier kappa must be nonzero")]
+    ZeroVerifierRows,
+    #[error("pending accumulator family child {child}: {reason}")]
+    Child { child: usize, reason: &'static str },
+    #[error("pending accumulator family delayed state: {reason}")]
+    Pending { reason: &'static str },
+    #[error(transparent)]
+    Sis(#[from] SisAccumulatorError),
+}
+
+fn pending_family_child_error(child: usize, reason: &'static str) -> PendingAccumulatorFamilyError {
+    PendingAccumulatorFamilyError::Child { child, reason }
+}
+
+fn append_k_values_without_length(preimage: &mut Vec<F>, values: &[K]) {
+    for value in values {
+        preimage.extend_from_slice(value.as_basis_coefficients_slice());
+    }
+}
+
+/// Serialize one complete fixed-profile accumulator family.
+///
+/// The verifier fixes `verifier_rows`; it is validated but not serialized,
+/// matching Lean's `Commitment.Value verifierRows` index. Public coordinates
+/// are emitted column-major (`column * D + lane`), which is the logical
+/// 270-coordinate carrier order even though `Mat` stores row-major entries.
+/// `y_zcol` is intentionally absent: the optional delayed state is supplied
+/// separately from authoritative raw combined-NC data.
+pub fn pending_accumulator_family_preimage(
+    claims: &[CeClaim<Commitment, F, K>],
+    verifier_rows: usize,
+    pending: Option<PendingAccumulatorFamilyState<'_>>,
+) -> Result<Vec<F>, PendingAccumulatorFamilyError> {
+    if claims.len() != PENDING_ACCUMULATOR_FAMILY_CHILDREN {
+        return Err(PendingAccumulatorFamilyError::ChildCount {
+            expected: PENDING_ACCUMULATOR_FAMILY_CHILDREN,
+            got: claims.len(),
+        });
+    }
+    if verifier_rows == 0 {
+        return Err(PendingAccumulatorFamilyError::ZeroVerifierRows);
+    }
+
+    let first = &claims[0];
+    let active_x_cols = PENDING_ACCUMULATOR_FAMILY_M_IN.div_ceil(neo_math::D);
+    for (child, claim) in claims.iter().enumerate() {
+        let invalid = |reason| pending_family_child_error(child, reason);
+        if claim.c.d != neo_math::D
+            || claim.c.kappa != verifier_rows
+            || claim.c.data.len() != neo_math::D * verifier_rows
+        {
+            return Err(invalid("commitment shape does not match verifier-fixed D and kappa"));
+        }
+        if claim.m_in != PENDING_ACCUMULATOR_FAMILY_M_IN {
+            return Err(invalid("m_in must be the fixed 270-coordinate public width"));
+        }
+        if claim.X.rows() != neo_math::D || claim.X.cols() != PENDING_ACCUMULATOR_FAMILY_M_IN {
+            return Err(invalid("X must have the fixed D-by-270 production shape"));
+        }
+        if !crate::paper::relations::superneo_inactive_x_zero(&claim.X, claim.m_in) {
+            return Err(invalid("inactive X columns must be zero"));
+        }
+        if claim.r.len() != PENDING_ACCUMULATOR_FAMILY_ROW_POINT {
+            return Err(invalid("row point must contain exactly 25 extension elements"));
+        }
+        if claim.s_col.len() != PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT {
+            return Err(invalid("column point must contain exactly 24 extension elements"));
+        }
+        if claim.r != first.r {
+            return Err(invalid("row point differs from child zero"));
+        }
+        if claim.s_col != first.s_col {
+            return Err(invalid("column point differs from child zero"));
+        }
+        if claim.y_ring.len() != PENDING_ACCUMULATOR_FAMILY_MATRICES {
+            return Err(invalid("y_ring must contain exactly 13 matrix rows"));
+        }
+        if claim.ct.len() != PENDING_ACCUMULATOR_FAMILY_MATRICES {
+            return Err(invalid("ct must contain exactly 13 scalar views"));
+        }
+        for (matrix, row) in claim.y_ring.iter().enumerate() {
+            if row.len() != neo_math::D.next_power_of_two() {
+                return Err(invalid("y_ring rows must use the padded 64-lane shape"));
+            }
+            if row[neo_math::D..].iter().any(|value| *value != K::ZERO) {
+                return Err(invalid("y_ring padding lanes must be zero"));
+            }
+            if claim.ct[matrix] != row[0] {
+                return Err(invalid("ct must equal the corresponding y_ring constant term"));
+            }
+        }
+        if !claim.aux_openings.is_empty() || !claim.c_step_coords.is_empty() || claim.u_offset != 0 || claim.u_len != 0
+        {
+            return Err(invalid("unsupported CE sidecar is present"));
+        }
+        if claim.adv.is_some() {
+            return Err(invalid("Nebula claims require a separate typed family codec"));
+        }
+        if claim.fold_digest != first.fold_digest {
+            return Err(invalid("fold digest differs from child zero"));
+        }
+        for chunk in claim.fold_digest.chunks_exact(8) {
+            let lane = u64::from_le_bytes(chunk.try_into().expect("fold digest lane"));
+            if lane >= F::ORDER_U64 {
+                return Err(invalid("fold digest contains a noncanonical field lane"));
+            }
+        }
+    }
+
+    let mut preimage = pack_bytes_as_fields(PENDING_ACCUMULATOR_FAMILY_DOMAIN);
+    debug_assert_eq!(preimage.len(), 10);
+    preimage.extend([
+        F::from_u64(PENDING_ACCUMULATOR_FAMILY_CHILDREN as u64),
+        F::from_u64(PENDING_ACCUMULATOR_FAMILY_ROW_POINT as u64),
+        F::from_u64(PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT as u64),
+    ]);
+    append_k_values_without_length(&mut preimage, &first.r);
+    append_k_values_without_length(&mut preimage, &first.s_col);
+    preimage.push(F::from_u64(PENDING_ACCUMULATOR_FAMILY_M_IN as u64));
+    preimage.extend(digest32_as_fields(first.fold_digest));
+
+    for claim in claims {
+        preimage.extend_from_slice(&claim.c.data);
+        for column in 0..active_x_cols {
+            for lane in 0..neo_math::D {
+                preimage.push(claim.X[(lane, column)]);
+            }
+        }
+        for row in &claim.y_ring {
+            append_k_values_without_length(&mut preimage, &row[..neo_math::D]);
+        }
+    }
+
+    match pending {
+        None => {
+            preimage.push(F::ZERO);
+            preimage.resize(
+                preimage.len() + 2 * (PENDING_ACCUMULATOR_OLD_BLOCK + neo_math::D),
+                F::ZERO,
+            );
+        }
+        Some(pending) => {
+            if pending.old_block.len() != PENDING_ACCUMULATOR_OLD_BLOCK {
+                return Err(PendingAccumulatorFamilyError::Pending {
+                    reason: "old block must contain exactly 19 extension elements",
+                });
+            }
+            if pending.parent_y_zcol.len() != neo_math::D {
+                return Err(PendingAccumulatorFamilyError::Pending {
+                    reason: "parent y_zcol must contain exactly 54 active lanes",
+                });
+            }
+            preimage.push(F::ONE);
+            append_k_values_without_length(&mut preimage, pending.old_block);
+            append_k_values_without_length(&mut preimage, pending.parent_y_zcol);
+        }
+    }
+
+    Ok(preimage)
+}
+
+pub fn pending_accumulator_family_digest(
+    claims: &[CeClaim<Commitment, F, K>],
+    verifier_rows: usize,
+    pending: Option<PendingAccumulatorFamilyState<'_>>,
+) -> Result<[F; 4], PendingAccumulatorFamilyError> {
+    let preimage = pending_accumulator_family_preimage(claims, verifier_rows, pending)?;
+    Ok(sis_accumulator_digest(
+        PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG,
+        &preimage,
+    )?)
 }
 
 /// Digest the terminal NIFS children for a compact terminal-CE proof statement.

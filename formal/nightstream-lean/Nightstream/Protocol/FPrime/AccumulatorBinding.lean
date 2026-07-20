@@ -5,9 +5,10 @@ Nested binding for the exact ordered Construction-2 accumulator.
 
 Assurance tier: model-level security partition.
 
-Owns: one domain-separated hash interface for claim and accumulator messages;
-the exact ordered child-digest preimage; exhaustive encoding/hash failures; and
-composition with the compact `state_x_out` authority theorem.
+Owns: one abstract domain-separated compression interface for claim and
+accumulator messages; the exact ordered child-digest preimage; exhaustive
+encoding/compression failures at that interface; and composition with the
+compact `state_x_out` authority theorem.
 
 Does not own: a concrete CE serializer, Poseidon2 parameters or collision
 bounds, Rust/R1CS refinement, rows, costs, or row removal.
@@ -15,9 +16,11 @@ bounds, Rust/R1CS refinement, rows, costs, or row removal.
 Emits constraints: no.
 
 Authority boundary: the accumulator digest is compression, never authority.
-It binds a child list only when the claim encoding is injective and the single
-domain-separated hash family does not collide. The checked Pi_RLC parent is
-deliberately absent because Pi_DEC recomposition is not child-vector unique.
+It binds a child list only when the claim encoding is injective and the
+selected compression does not collide. The interface may be instantiated by
+a composite SIS/Poseidon2 construction; concrete refinement must then expose
+the component failure partition. The checked Pi_RLC parent is deliberately
+absent because Pi_DEC recomposition is not child-vector unique.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
@@ -41,8 +44,9 @@ structure AccumulatorPreimage (Digest : Type uDigest) where
   childDigests : List Digest
 deriving Repr, DecidableEq
 
-/-- One hash family with constructor-level domain separation. Production must
-instantiate both constructors with Poseidon2 and distinct fixed domain tags. -/
+/-- One abstract compression family with constructor-level domain separation.
+Production may instantiate a constructor with a composite primitive, but must
+pin its exact parameters and domains in the concrete refinement. -/
 inductive Message (Encoding : Type uEncoding) (Digest : Type uDigest) where
   | claim (preimage : Encoding)
   | accumulator (preimage : AccumulatorPreimage Digest)
@@ -95,7 +99,9 @@ def EncodingCollision
   ∃ left right : Claim,
     left ≠ right ∧ scheme.encodeClaim left = scheme.encodeClaim right
 
-/-- Collision in either domain of the sole nested hash family. -/
+/-- Collision at the abstract nested-compression boundary. A concrete
+multi-stage instantiation should refine this event into its encoding, SIS, and
+Poseidon2 component failures rather than treating this predicate as a bound. -/
 def HashCollision
     {Claim : Type uClaim}
     {Encoding : Type uEncoding}
@@ -163,7 +169,8 @@ private theorem claims_eq_or_failure
           · exact Or.inr failure
 
 /-- Equal nested handles bind the complete ordered claim list, modulo exactly
-one concrete encoding failure or one collision in the sole nested hash family. -/
+one concrete encoding failure or one collision at the abstract compression
+boundary. -/
 theorem digest_eq_or_failure
     {Claim : Type uClaim}
     {Encoding : Type uEncoding}

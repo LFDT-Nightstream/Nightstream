@@ -242,13 +242,67 @@ fn selective_f_prime_public_carrier_precedes_selectors() {
 }
 
 #[test]
-fn active_fixed_point_shape_is_auditable_but_over_budget() {
+fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
     let app = one_product_r1cs();
     let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
     let audit = R1csIvcRelation::audit_fixed_point_shape(&tiny_params(), &app.into(), &plan)
         .expect("audit active fixed-point shape");
 
-    assert!(audit.rounds().len() >= 2, "fixed point requires an observed repeat");
+    let width = audit.width();
+    assert_eq!(
+        audit
+            .rounds()
+            .iter()
+            .map(|round| {
+                (
+                    round.input.rows,
+                    round.input.columns,
+                    round.output.rows,
+                    round.output.columns,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (1, 270, 7_498_233, 7_912_242),
+            (7_498_233, 7_912_242, 17_634_247, 14_270_364),
+            (17_634_247, 14_270_364, 17_669_277, 14_338_890),
+            (17_669_277, 14_338_890, 17_669_277, 14_338_890),
+        ],
+        "the SIS-compressed production shape must stabilize at the measured fixed point",
+    );
+    assert_eq!(width.total_coordinates, 14_338_887);
+    assert_eq!(width.branch_start, 311);
+    assert_eq!(width.shared_private_coordinates, 0);
+    assert_eq!(
+        width
+            .arms
+            .iter()
+            .map(|arm| {
+                (
+                    arm.branch_source_columns,
+                    arm.eliminated_columns,
+                    arm.retained_coordinates_before_aliases,
+                    arm.decomposition_aliases,
+                    arm.equality_aliases,
+                    arm.branch_coordinates,
+                    arm.derived_product_sums,
+                    arm.derived_coordinates,
+                    arm.total_branch_coordinates,
+                    arm.traces.poseidon2_permutations,
+                    arm.traces.poseidon2_coordinates,
+                )
+            })
+            .collect::<Vec<_>>(),
+        vec![
+            (13_049, 10_591, 75_059, 448, 0, 74_611, 0, 0, 74_611, 20, 70_776),
+            (5_471_257, 2_060_178, 7_590_266, 1_506_146, 2_048, 6_010_392, 2_276, 93_316, 6_103_708, 713, 2_515_574,),
+            (
+                13_064_534, 4_812_827, 17_184_926, 3_736_122, 5_294, 13_241_990, 26_746, 1_096_586, 14_338_576, 1_056,
+                3_739_328,
+            ),
+        ],
+        "each selector-disjoint arm must retain the measured compressed-width profile",
+    );
     let terminal_round = audit.rounds().last().expect("terminal fixed-point round");
     assert_eq!(
         terminal_round.output.public_input_len,
@@ -258,8 +312,8 @@ fn active_fixed_point_shape_is_auditable_but_over_budget() {
     assert!(terminal_round.output.columns >= terminal_round.output.public_input_len);
     assert_eq!(terminal_round.output.polynomial.arity(), 13);
     assert!(
-        audit.width().total_coordinates > R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
-        "this test must become a materialized-relation artifact once the candidate fits the budget"
+        audit.width().total_coordinates <= R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
+        "SIS-compressed accumulator CE bindings must keep the fixed point within the guarded materializer"
     );
     let output_digest = audit.pi_ccs_output_digest();
     let output_profile = output_digest.profile();
@@ -385,6 +439,42 @@ fn active_fixed_point_shape_is_auditable_but_over_budget() {
             "fixed-point arm {arm} does not cover all source rows"
         );
     }
+    let stage_census = |arm: usize, path: &str| {
+        let occurrences = source_stages[arm]
+            .iter()
+            .enumerate()
+            .filter_map(|(occurrence, stage)| (stage.path() == path).then_some((occurrence, stage)))
+            .collect::<Vec<_>>();
+        assert!(occurrences.len() <= 1, "arm {arm} repeats accumulator leaf {path}");
+        occurrences.first().map(|(occurrence, stage)| {
+            let emitted = audit
+                .rows()
+                .emitted_runs()
+                .iter()
+                .filter(|run| run.arm() == Some(arm) && run.source_stage_occurrence() == Some(*occurrence))
+                .map(|run| run.emitted_rows().len())
+                .sum::<usize>();
+            (*occurrence, stage.rows().len(), emitted)
+        })
+    };
+    let accumulator_stage_census = (0..source_stages.len())
+        .map(|arm| {
+            (
+                arm,
+                stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS),
+                stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        accumulator_stage_census,
+        vec![
+            (0, None, None),
+            (1, Some((1_104, 4_351_298, 2_837_618)), Some((1_105, 10_278, 1_466))),
+            (2, Some((10_862, 4_351_298, 2_837_618)), Some((10_863, 10_278, 1_466))),
+        ],
+        "every conservative outgoing-accumulator row must retain one exact source-stage owner",
+    );
     let layout = audit.layout();
     assert_eq!(layout.logical_public_input_len(), F_PRIME_PUBLIC_INPUT_LEN);
     assert_eq!(layout.public_input_len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
@@ -415,6 +505,34 @@ fn active_fixed_point_shape_is_auditable_but_over_budget() {
             &adjacent[1].input.polynomial
         ));
     }
+}
+
+#[test]
+#[ignore = "materializes the complete 17.7M-row by 14.3M-column production relation; run explicitly after fixed-point width changes"]
+fn active_fixed_point_materializes_after_accumulator_ce_compression() {
+    let app = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
+    let relation = R1csIvcRelation::compile_fixed_point(&tiny_params(), &app.into(), &plan)
+        .expect("materialize SIS-compressed active fixed point");
+
+    let structure = relation.structure();
+    assert_eq!(structure.n, 17_669_277);
+    assert_eq!(structure.m, 14_338_890);
+    assert_eq!(relation.public_input_len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
+    assert_eq!(structure.t(), 13);
+    assert_eq!(structure.matrices.len(), 13);
+
+    let audit = relation.compilation_audit();
+    assert_eq!(audit.rounds().len(), 4);
+    assert_eq!(audit.width().total_coordinates, 14_338_887);
+    assert_eq!(audit.layout().total_columns(), structure.m);
+    assert_eq!(audit.rows().total_rows(), structure.n);
+    let terminal = audit
+        .rounds()
+        .last()
+        .expect("materialized terminal fixed-point round");
+    assert_eq!(terminal.output.rows, structure.n);
+    assert_eq!(terminal.output.columns, structure.m);
 }
 
 #[test]

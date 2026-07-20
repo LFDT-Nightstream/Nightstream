@@ -21,7 +21,7 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
-use crate::paper::nifs::work::{chain_witness_refs, split_fresh_instances};
+use crate::paper::nifs::work::{chain_witness_refs, outgoing_pending_projection, split_fresh_instances};
 use crate::paper::nifs::{
     CpuNifsProver, Error, NifsProof, NifsProverAdapter, NifsProverBackend, NifsProverOutput, NifsProverRequest,
 };
@@ -110,6 +110,8 @@ pub(crate) fn prove_owned(
     let t_rlc = std::time::Instant::now();
     let (rlc_out, pi_rlc_proof) =
         pi_rlc::prove_refs(tr, pp, s, mix_rhos_commits, &pi_ccs_proof.outputs, &all_witnesses)?;
+    let pending_projection =
+        outgoing_pending_projection(pi_ccs_proof.sumcheck.variant, &pi_ccs_proof.outputs, &rlc_out.claim)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[nifs-prove] pi_rlc                         {:>7.2}s",
@@ -140,11 +142,12 @@ pub(crate) fn prove_owned(
         t_dec.elapsed().as_secs_f64()
     );
 
-    let next_running = RunningInstance {
-        claims: dec_out.claims,
-        witnesses: dec_out.witnesses,
-        parent_authority: Some(rlc_out.claim),
-    };
+    let next_running = RunningInstance::new(
+        dec_out.claims,
+        dec_out.witnesses,
+        Some(rlc_out.claim),
+        pending_projection,
+    );
     let out = (
         next_running,
         NifsProof {

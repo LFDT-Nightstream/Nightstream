@@ -372,6 +372,86 @@ fn ccs_rejects_broken_event_schedule() {
     common::assert_rejected(&witness, "gather row with no grammar events owed");
 }
 
+/// An import with no template reads the zero-filled biased count cell, so the
+/// only row-locally satisfiable assignment loads the poisoned EVREM = -1.
+#[test]
+fn ccs_forces_untemplated_import_into_poisoned_schedule() {
+    let trace = grammar_trace();
+    let call_row = trace
+        .iter()
+        .find(|row| {
+            row.row_kind.is_program()
+                && matches!(row.opcode, neo_wasm::WasmOpcode::Call)
+                && !row.target_function_is_guest
+        })
+        .expect("host-call row");
+    let witness = build_witness_vector(call_row);
+    common::assert_satisfied(&witness, "untampered host-call row");
+
+    // An undeclared import's cell is 0; a normal schedule can't load from it.
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_GRAMMAR_PRE_COUNT] = neo_math::F::ZERO;
+    common::assert_rejected(&forged, "untemplated import call claiming a normal schedule");
+
+    // The poisoned schedule satisfies the row itself. The composed circuit's
+    // grammar-ROM address bound prevents enough blocks from draining it; see
+    // the count-family relation-layout comment for the full argument.
+    let mut poisoned = forged.clone();
+    poisoned[neo_wasm::layout::COL_GRAMMAR_EVREM_AFTER] = -neo_math::F::ONE;
+    common::assert_satisfied(&poisoned, "untemplated import call loads the poisoned schedule");
+}
+
+/// Import pre-counts and export entry-counts are separate ROM families
+/// (with the +1 presence bias), so a turn boundary or exit latch can never
+/// read an import's cell and vice versa.
+#[test]
+fn count_families_are_split_and_biased() {
+    let run = run_component();
+    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
+    let frefs = host_call_frefs(&raw);
+    let mut grammar = test_grammar(frefs[0], frefs[1]);
+    let export_fref = raw
+        .iter()
+        .find(|row| row.row_kind.is_program())
+        .expect("program row")
+        .current_function_ref;
+    grammar
+        .exports
+        .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
+
+    let mut preload = neo_wasm::memory_semantics::WasmMemoryPreload::default();
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    let cell = |family: &str, fref: u32| {
+        preload
+            .entries()
+            .into_iter()
+            .find(|(memory, address, _)| *memory == family && address == &[fref])
+            .map(|(_, _, value)| value)
+    };
+    for (&fref, template) in &grammar.imports {
+        assert_eq!(
+            cell("grammar_import_pre_counts", fref),
+            Some(template.pre_result.len() as u32 + 1),
+            "import cells live in the import family, biased"
+        );
+        assert_eq!(
+            cell("grammar_export_entry_counts", fref),
+            None,
+            "imports must have no export entry-count cell"
+        );
+    }
+    assert_eq!(
+        cell("grammar_export_entry_counts", export_fref),
+        Some(1),
+        "the export's zero-event entry template is the biased 1, distinct from the zero-filled 0"
+    );
+    assert_eq!(
+        cell("grammar_import_pre_counts", export_fref),
+        None,
+        "exports must have no import pre-count cell"
+    );
+}
+
 /// Claim slots are free absorbed words: staging a different value
 /// satisfies the per-row CCS (there is deliberately no local binding) but
 /// diverges the chain, so the transcript check rejects the claim. The

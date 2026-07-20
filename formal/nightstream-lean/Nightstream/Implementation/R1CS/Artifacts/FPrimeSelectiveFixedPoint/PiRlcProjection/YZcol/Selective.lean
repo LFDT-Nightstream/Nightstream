@@ -22,10 +22,10 @@ namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProject
 
 abbrev artifact : Selective.Artifact := Generated.SelectiveRows.artifact
 
-theorem sourceIndexAgreement := Census.sourceIndexAgreement
+abbrev sourceIndexAgreement := Census.sourceIndexAgreement
 
-theorem fragmentSourceCoverage := Census.fragmentSourceCoverage
+abbrev fragmentSourceCoverage := Census.fragmentSourceCoverage
 
-theorem emittedIntervalsDisjoint := Census.emittedIntervalsDisjoint
+abbrev emittedIntervalsDisjoint := Census.emittedIntervalsDisjoint
 
 end Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProjection.YZcol.Selective.Checked

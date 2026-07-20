@@ -1,0 +1,70 @@
+{
+  "artifact_kind": "r1cs/f-prime-selective-fixed-point-carrier270-selectors",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-FIXED-POINT-CARRIER270-SELECTORS",
+  "profile": "bounded-tiny-lifecycle-stabilized-fixed-point-selectors",
+  "shape": {
+    "relation_rows": 6911537,
+    "relation_columns": 68091732,
+    "selector_columns": [270, 271, 272],
+    "selector_domain_rows": 3,
+    "selector_total_rows": 1,
+    "selector_domain_emitted_rows": [0, 1, 2],
+    "selector_total_emitted_row": 1423539,
+    "constant_column": 0
+  },
+  "invariant": "the exact three selector-domain rows and one selector-total row projected from the prepared fixed-point emitter have unique physical owners, decode fail-closed, and refine from coefficients to the three Boolean residuals and the selector-sum equation; under explicit constant-one and Goldilocks primality premises, row satisfaction is exactly Booleanity plus sum-to-one, and a canonical unit selector constructs a satisfying assignment",
+  "evidence_state": "artifact-checked",
+  "implementation_status": "focused artifact leaf, semantic correspondence facade, regression, fail-closed axiom guard, 168-file Rust drift gate, and static validation complete",
+  "artifacts": [
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Carrier270/Generated/SelectorRows.lean"
+  ],
+  "theorems": [
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.generated_rows_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.generated_row_has_unique_owner",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.SelectorRefinement.expectedSelectorRow_decode_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.SelectorRefinement.expectedTotalRow_decode_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.SelectorRefinement.generated_raw_row_decodes",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.SelectorRefinement.expectedSelectorResidual_eq",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.SelectorRefinement.expectedTotalResidual_eq",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.SelectorRefinement.generatedRowsSatisfied_iff",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.SelectorRefinement.withUnitSelectors_satisfies"
+  ],
+  "runtime_regressions": [
+    {
+      "name": "active_selective_fixed_point_projection_artifact_matches_retained_certificate",
+      "status": "pass",
+      "generated_file_count": 168,
+      "elapsed_seconds": 138.49,
+      "peak_descendant_rss_kib": 12910432
+    }
+  ],
+  "lean_validation": {
+    "artifact_leaf": "pass in 0.53 seconds at 424656 KiB peak descendant RSS; native_decide compares exactly four proof-free RawRow records",
+    "semantic_leaf": "pass in 1.58 seconds at 704192 KiB peak descendant RSS; no native_decide",
+    "correspondence_facade": "pass in 3.13 seconds at 683760 KiB peak descendant RSS",
+    "focused_regression": "pass in 0.53 seconds at 194624 KiB peak descendant RSS",
+    "axiom_guard": "pass in 0.79 seconds at 218432 KiB peak descendant RSS; generated-row decoding depends exactly on propext, Lean.trustCompiler, and Quot.sound; semantic exactness depends exactly on propext and Quot.sound; honest completeness depends exactly on propext, Classical.choice, and Quot.sound; no sorryAx",
+    "static": "pass: layer direction, generated quarantine, ownership contracts, forbidden-hole audit, and assurance parsing"
+  },
+  "assumptions": [
+    "the Boolean and total soundness equivalences receive the separately owned constant-one fact",
+    "Boolean soundness receives EuclidPrime goldilocksP"
+  ],
+  "open_bridges": [
+    "complete selector-gated retained-row coverage for the bounded fixed-point profile",
+    "derivation or removal decision for the three selector-domain rows",
+    "complete private assignment and final sparse matrix refinement",
+    "CCS and CE membership refinement for the stabilized production relation",
+    "Ajtai commitment-key coordinate alignment and explicit binding-failure event",
+    "production y_zcol authority"
+  ],
+  "non_goals": [
+    "producer or recursive y_zcol authority",
+    "complete selector-gated branch refinement",
+    "permission to remove selector-domain rows",
+    "complete private decoder or matrix refinement",
+    "CCS or CE membership",
+    "re-proving Ajtai or Poseidon2"
+  ]
+}

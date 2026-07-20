@@ -17,6 +17,7 @@ Emits constraints: no.
 | matched definition rows | exact indexed match plus source satisfaction | reconstructed builder rows satisfy |
 | matched assertion rows | exact indexed match plus source satisfaction | reconstructed checks satisfy |
 | embedded rows | exact absolute or contiguous embedding plus full satisfaction | selected rows satisfy |
+| reverse permutation | exact lockstep row equivalence plus reconstructed satisfaction | source rows satisfy |
 -/
 
 namespace Nightstream.Implementation.R1CS.ProjectionIndexedRows
@@ -152,6 +153,36 @@ private theorem satisfies_of_permutationEquivalent
             · intro current currentMember
               exact sourceSatisfies current (by simp [currentMember])
             · exact inTail
+
+/-- Satisfaction transports back from reconstructed rows to source rows under
+the same exact lockstep A/B/C permutation relation. This is the reverse
+direction needed when emitted rows are the checked side and source equations
+are the semantic side. -/
+theorem sourceRows_satisfied_of_permutationEquivalent
+    {source reconstructed : List Row} {assignment : Nat -> Nat}
+    (equivalent : RowsPermutationEquivalentList source reconstructed)
+    (reconstructedSatisfies : Satisfies reconstructed assignment) :
+    Satisfies source assignment := by
+  have reverseEquivalent :
+      RowsPermutationEquivalentList reconstructed source := by
+    clear reconstructedSatisfies
+    induction source generalizing reconstructed with
+    | nil =>
+        cases reconstructed with
+        | nil => trivial
+        | cons head tail =>
+            simp [RowsPermutationEquivalentList] at equivalent
+    | cons sourceRow sourceRows inductionHypothesis =>
+        cases reconstructed with
+        | nil =>
+            simp [RowsPermutationEquivalentList] at equivalent
+        | cons reconstructedRow reconstructedRows =>
+            rcases equivalent with ⟨headEquivalent, tailEquivalent⟩
+            exact ⟨⟨headEquivalent.1.symm, headEquivalent.2.1.symm,
+              headEquivalent.2.2.symm⟩,
+              inductionHypothesis tailEquivalent⟩
+  exact satisfies_of_permutationEquivalent reverseEquivalent
+    reconstructedSatisfies
 
 theorem rows_satisfied_of_embeddedAt
     {fullRows reconstructed : List Row} {start : Nat}

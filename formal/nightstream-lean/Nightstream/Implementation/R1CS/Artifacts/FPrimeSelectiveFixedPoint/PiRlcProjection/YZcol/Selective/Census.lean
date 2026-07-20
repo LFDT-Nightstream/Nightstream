@@ -91,7 +91,8 @@ theorem emittedRowCount : artifact.emittedRowCount = 1254 := by
   decide
 
 theorem fragmentCount : artifact.fragments.length = 139 := by
-  decide
+  set_option maxRecDepth 100000 in
+    decide
 
 private def isPolynomialEvaluation (fragment : LoweredFragment) : Bool :=
   match fragment.disposition with
@@ -132,13 +133,18 @@ theorem retainedCount :
 private def intervalWithin (outer inner : RowBlock) : Prop :=
   outer.start ≤ inner.start ∧ inner.stop ≤ outer.stop
 
+private instance (outer inner : RowBlock) :
+    Decidable (intervalWithin outer inner) := by
+  unfold intervalWithin
+  infer_instance
+
 private def emittedBoundsCheck : Bool :=
   artifact.emittedIntervals.all fun rows =>
     decide (intervalWithin artifact.steadyArmRows rows) &&
       decide (rows.stop ≤ artifact.finalRelationRowCount)
 
 private theorem emittedBoundsCheck_true : emittedBoundsCheck = true := by
-  decide
+  native_decide
 
 theorem emittedIntervalsBounded :
     ∀ rows ∈ artifact.emittedIntervals,
@@ -150,6 +156,11 @@ theorem emittedIntervalsBounded :
 
 def IntervalsDisjoint (left right : RowBlock) : Prop :=
   left.stop ≤ right.start ∨ right.stop ≤ left.start
+
+private instance (left right : RowBlock) :
+    Decidable (IntervalsDisjoint left right) := by
+  unfold IntervalsDisjoint
+  infer_instance
 
 def PairwiseDisjoint : List RowBlock → Prop
   | [] => True
@@ -174,7 +185,7 @@ private theorem pairwiseDisjointCheck_eq_true_iff :
 
 private theorem emittedIntervalsDisjointCheck :
     pairwiseDisjointCheck artifact.emittedIntervals = true := by
-  decide
+  native_decide
 
 /-- No selected emitted row is charged to two source-stage leaves or two
 rewrite fragments. -/

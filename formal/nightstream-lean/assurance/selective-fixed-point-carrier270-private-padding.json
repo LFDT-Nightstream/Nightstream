@@ -1,0 +1,66 @@
+{
+  "artifact_kind": "r1cs/f-prime-selective-fixed-point-carrier270-private-padding",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-FIXED-POINT-CARRIER270-PRIVATE-PADDING",
+  "profile": "bounded-tiny-lifecycle-stabilized-fixed-point-private-alignment",
+  "shape": {
+    "relation_rows": 6911537,
+    "relation_columns": 68091732,
+    "first_emitted_row": 1423553,
+    "emitted_rows": 38,
+    "constant_column": 0,
+    "first_padding_column": 273,
+    "padding_end": 311
+  },
+  "invariant": "the exact 38 private-alignment rows projected from the same prepared selective emitter each have one unique physical owner, decode fail-closed, contain unit coefficients only at general-selector column zero and one coordinate in 273 through 310, realize residual -(z[0] * z[273+i]), and admit the canonical zero-extension assignment",
+  "evidence_state": "artifact-checked",
+  "implementation_status": "focused artifact leaf, semantic correspondence facade, regression, fail-closed axiom guard, static validation, and 167-file Rust drift gate pass",
+  "artifacts": [
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Carrier270/Generated/PrivatePaddingRows.lean"
+  ],
+  "theorems": [
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.generated_rows_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.generated_row_has_unique_offset",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePaddingRefinement.expectedRow_decode_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePaddingRefinement.expectedDecodedRow_shape",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePaddingRefinement.expectedRow_residual_eq",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePaddingRefinement.generatedRowsSatisfied_iff_padding_zero",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePaddingRefinement.withPrivatePaddingZero_satisfies",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePaddingRefinement.generated_raw_row_refines"
+  ],
+  "runtime_regressions": [
+    {
+      "name": "active_selective_fixed_point_projection_artifact_matches_retained_certificate",
+      "status": "pass",
+      "generated_file_count": 167,
+      "elapsed_seconds": 140.73,
+      "peak_descendant_rss_kib": 12944256
+    }
+  ],
+  "lean_validation": {
+    "artifact_leaf": "pass in 1.05 seconds at 435248 KiB peak descendant RSS; native_decide compares exactly 38 proof-free RawRow records",
+    "semantic_leaf": "pass in 0.79 seconds at 674256 KiB peak descendant RSS",
+    "correspondence_facade": "pass in 1.31 seconds at 606064 KiB peak descendant RSS",
+    "focused_regression": "pass in 0.79 seconds at 188528 KiB peak descendant RSS",
+    "axiom_guard": "pass in 0.79 seconds at 219968 KiB peak descendant RSS; generated-row refinement depends exactly on propext, Classical.choice, Lean.trustCompiler, and Quot.sound; honest completeness depends exactly on propext and Quot.sound; no sorryAx",
+    "static": "pass: layer direction, generated quarantine, ownership contracts, forbidden-hole audit, and assurance parsing"
+  },
+  "assumptions": [
+    "the soundness equivalence receives the separately owned constant-one fact"
+  ],
+  "open_bridges": [
+    "complete private assignment decoder for retained, aliased, eliminated, and compiler-derived coordinates beyond this fixed zero interval",
+    "complete final sparse matrix refinement",
+    "selector and constant-one enforcement from production rows",
+    "CCS and CE membership refinement for the stabilized production relation",
+    "Ajtai commitment-key coordinate alignment and explicit binding-failure event",
+    "production y_zcol authority"
+  ],
+  "non_goals": [
+    "producer or recursive y_zcol authority",
+    "complete private assignment or matrix decoding",
+    "CCS or CE membership",
+    "constraint deletion",
+    "re-proving Ajtai or Poseidon2"
+  ]
+}

@@ -25,6 +25,7 @@ summary can manufacture it.
 |---|---|---|
 | `f_prime.selective_ccs.artifact.row.gate.shape` | active selector port is one unit term and inactive selector port is empty | `ValidatedGateRow` |
 | `f_prime.selective_ccs.artifact.row.gate.factor` | decoded residual is selector times its ungated residual | `residual_eq_selector_mul_ungated` |
+| `f_prime.selective_ccs.artifact.row.gate.active` | selector one makes residual-zero exactly ungated-residual-zero | `residual_zero_iff_ungated_zero_of_selector_one` |
 | `f_prime.selective_ccs.artifact.row.gate.action` | compact relation and decoded row have equal actions on every port | `ExactRowAction` |
 | `f_prime.selective_ccs.artifact.row.gate.refinement` | physical interpreted residual inherits exact selector factorization | `ExactRowAction.residualAt_eq_selector_mul_ungated` |
 -/
@@ -102,6 +103,19 @@ theorem residual_eq_selector_mul_ungated
         rw [shape.2]
         simp [Fin.one_mul]
 
+/-- When the selected branch is active, satisfying the decoded gated row is
+exactly satisfying its ungated obligation. The selector-one premise is an
+explicit dispatch boundary; gated rows alone cannot establish it. -/
+theorem residual_zero_iff_ungated_zero_of_selector_one
+    (row : DecodedRow) (validated : ValidatedGateRow row)
+    (assignment : Fin row.columns → F)
+    (selectorOne : assignment validated.selectorColumn = 1) :
+    Boolean.residual row assignment = 0 ↔
+      evaluate
+        (ungate validated.gate (Boolean.rowPoint row assignment)) = 0 := by
+  rw [residual_eq_selector_mul_ungated row validated assignment,
+    selectorOne, Fin.one_mul]
+
 /-- Extensional equality between one decoded sparse row and the same physical
 row of an interpreted compact relation. This is the required non-label bridge. -/
 structure ExactRowAction
@@ -157,5 +171,22 @@ theorem ExactRowAction.residualAt_eq_selector_mul_ungated
             (ungate validated.gate
               (RowAction.rowPoint relation assignment row.emittedRow)) := by
       rw [exact.rowPoint_eq assignment]
+
+/-- Physical-row counterpart of
+`residual_zero_iff_ungated_zero_of_selector_one`. Exact matrix-action
+refinement and an externally established active selector are both required. -/
+theorem ExactRowAction.residualAt_zero_iff_ungated_zero_of_selector_one
+    {row : DecodedRow}
+    {relation : InterpretedRelation row.rows row.columns}
+    (exact : ExactRowAction row relation)
+    (validated : ValidatedGateRow row)
+    (assignment : Assignment F row.columns)
+    (selectorOne : assignment validated.selectorColumn = 1) :
+    RowAction.residualAt relation assignment row.emittedRow = 0 ↔
+      evaluate
+        (ungate validated.gate
+          (RowAction.rowPoint relation assignment row.emittedRow)) = 0 := by
+  rw [exact.residualAt_eq_selector_mul_ungated validated assignment,
+    selectorOne, Fin.one_mul]
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Gating

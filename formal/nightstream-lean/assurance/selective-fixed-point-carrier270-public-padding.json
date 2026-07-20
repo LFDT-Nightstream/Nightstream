@@ -1,0 +1,69 @@
+{
+  "artifact_kind": "r1cs/f-prime-selective-fixed-point-carrier270-public-padding",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-FIXED-POINT-CARRIER270-PUBLIC-PADDING",
+  "profile": "bounded-tiny-lifecycle-stabilized-fixed-point-public-padding",
+  "shape": {
+    "relation_rows": 6911537,
+    "relation_columns": 68091732,
+    "first_emitted_row": 1423540,
+    "emitted_rows": 13,
+    "constant_column": 0,
+    "first_padding_column": 257,
+    "padding_end": 270
+  },
+  "invariant": "the exact 13 public-padding rows projected from the same prepared selective emitter each have one unique physical owner, decode fail-closed, contain unit coefficients only at general-selector column zero and one coordinate in 257 through 269, realize residual -(z[0] * z[257+i]), are equivalent to typed FixedPublicPadding under explicit coordinate agreement, and admit the canonical zero-extension assignment",
+  "evidence_state": "artifact-checked",
+  "implementation_status": "focused artifact leaf, semantic correspondence facade, regression, fail-closed axiom guard, static validation, and 169-file Rust drift gate pass",
+  "artifacts": [
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Carrier270/Generated/PublicPaddingRows.lean"
+  ],
+  "theorems": [
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPadding.generated_rows_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPadding.generated_row_has_unique_offset",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPaddingRefinement.expectedRow_decode_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPaddingRefinement.expectedDecodedRow_shape",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPaddingRefinement.expectedRow_residual_eq",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPaddingRefinement.generatedRowsSatisfied_iff_padding_zero",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPaddingRefinement.withPublicPaddingZero_satisfies",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPaddingRefinement.generatedRowsSatisfied_iff_fixedPublicPadding",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPaddingRefinement.generatedRowsSatisfied_of_typedAssignment",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PublicPaddingRefinement.generated_raw_row_refines"
+  ],
+  "runtime_regressions": [
+    {
+      "name": "active_selective_fixed_point_projection_artifact_matches_retained_certificate",
+      "status": "pass",
+      "generated_file_count": 169,
+      "elapsed_seconds": 139.61,
+      "peak_descendant_rss_kib": 12889152
+    }
+  ],
+  "lean_validation": {
+    "artifact_leaf": "pass in 0.53 seconds at 425280 KiB peak descendant RSS; native_decide compares exactly 13 proof-free RawRow records",
+    "semantic_leaf": "pass in 0.79 seconds at 665488 KiB peak descendant RSS",
+    "correspondence_facade": "pass in 1.04 seconds at 621696 KiB peak descendant RSS",
+    "focused_regression": "pass in 0.53 seconds at 289552 KiB peak descendant RSS",
+    "axiom_guard": "pass in 0.79 seconds at 205056 KiB peak descendant RSS; generated-row refinement depends exactly on propext, Classical.choice, Lean.trustCompiler, and Quot.sound; semantic and typed completeness depend exactly on propext and Quot.sound; no sorryAx",
+    "static": "pass: layer direction, generated quarantine, ownership contracts, forbidden-hole audit, and assurance parsing"
+  },
+  "assumptions": [
+    "the soundness equivalence receives the separately owned constant-one fact",
+    "the typed equivalence receives explicit final-assignment to carrier-coordinate agreement"
+  ],
+  "open_bridges": [
+    "complete private assignment decoder for retained, aliased, eliminated, and compiler-derived coordinates beyond the fixed intervals",
+    "complete final sparse matrix refinement",
+    "selector-gated retained-row coverage",
+    "CCS and CE membership refinement for the stabilized production relation",
+    "Ajtai commitment-key coordinate alignment and explicit binding-failure event",
+    "production y_zcol authority"
+  ],
+  "non_goals": [
+    "producer or recursive y_zcol authority",
+    "complete private decoder or matrix refinement",
+    "CCS or CE membership",
+    "constraint deletion",
+    "re-proving Ajtai or Poseidon2"
+  ]
+}

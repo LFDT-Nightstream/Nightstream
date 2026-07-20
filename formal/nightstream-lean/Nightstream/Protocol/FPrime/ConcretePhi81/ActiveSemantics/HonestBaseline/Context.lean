@@ -71,9 +71,8 @@ theorem publicFits :
   decide
 
 theorem covers : PiCcsDomains.production.nc.Covers Sources.shape := by
-  simpa [PiCcsDomains.production_nc, Sources.shape, Sources.dimensions,
-    PiCcsSources.semanticShape, PiCcsDomain.plainShape] using
-      (PiCcsDomain.blockDomain_covers 1 1 14 3)
+  unfold BlockNcDomain.Covers
+  constructor <;> decide
 
 theorem profile :
     Polynomial.Fe.SupportedProfile Sources.shape PiCcsDomains.production.fe where
@@ -151,7 +150,7 @@ def piCcsSchedule :
         FixedActive.arity)
       Sources.shape PiCcsDomains.production Unit where
   bindStatement := fun _ _ => ()
-  derivePreSumcheck := fun _ => {
+  deriveCore := fun _ => {
     challenges := {
       alpha := zeroPoint PiCcsDomains.production.laneVariables
       betaA := zeroPoint PiCcsDomains.production.laneVariables
@@ -161,6 +160,8 @@ def piCcsSchedule :
     }
     state := ()
   }
+  enterDelayedDomain := fun _ _ => ()
+  squeezeDelayedChallenge := fun _ => (K.zero, ())
   enterFe := fun _ _ => ()
   absorbFeRound := fun _ _ => ()
   squeezeFeChallenge := fun _ => (K.zero, ())

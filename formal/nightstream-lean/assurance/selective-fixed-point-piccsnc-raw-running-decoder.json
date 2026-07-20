@@ -1,0 +1,87 @@
+{
+  "artifact_kind": "r1cs/f-prime-selective-fixed-point-piccsnc-running-x-prefix-decoder",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-PICCSNC-RUNNING-X-PREFIX-DECODER",
+  "profile": "bounded-tiny-lifecycle-stabilized-fixed-point-14-by-270-running-ce-public-prefixes",
+  "shape": {
+    "children": 14,
+    "logical_columns_per_child": 270,
+    "records": 3780,
+    "certificate_chunks": 15,
+    "records_per_chunk": 252,
+    "packed_lanes": 54,
+    "live_blocks": 5,
+    "virtual_lanes": 64,
+    "padding_lanes": 10
+  },
+  "invariant": "for every production child and each of the 270 public CeClaim.X coordinates, the generated source-arm and final selective columns decode running[child].x in the exact 54-lane by 5-block order; this artifact does not decode CcsWitness.Z, CeWitness.Z, the private witness suffix, or the full production assignment, and CeClaim.y_zcol is not an authority source",
+  "evidence_state": "artifact-checked",
+  "implementation_status": "exact generated running-X public-prefix decoder, bounded typed fixture correspondence, focused regression, fail-closed axiom guard, static validation, and Rust artifact drift/mutation test pass; prior production raw-assignment interpretation retracted",
+  "artifacts": [
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk0.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk1.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk2.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk3.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk4.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk5.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk6.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk7.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk8.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk9.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk10.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk11.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk12.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk13.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/RawRunningDecoder/Generated/Chunk14.lean"
+  ],
+  "theorems": [
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Exact.generatedChunkExact",
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Exact.coordinate_unique_chunkOwner",
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Exact.sourceArmColumn_injective",
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Exact.finalColumn_injective",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.ArtifactRefinement.sourceColumnRowsBind_decodedData",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.ArtifactRefinement.finalColumn_eq_rawRunningAssignment",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.ArtifactRefinement.decodedVirtual_live_eq_rawRunningAssignment",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.ArtifactRefinement.decodedVirtual_paddingLane_zero"
+  ],
+  "runtime_regressions": [
+    {
+      "name": "active_selective_fixed_point_projection_artifact_matches_retained_certificate",
+      "status": "pass_with_raw_running_decoder_drift_and_mutation_checks",
+      "elapsed_seconds": 141.51,
+      "peak_descendant_rss_kib": 12876752
+    }
+  ],
+  "lean_validation": {
+    "exact_artifact": "pass in 19.49 seconds at 704016 KiB peak descendant RSS; fifteen disjoint proof-free certificates of exactly 252 records and one 196-pair compact ownership check",
+    "artifact_correspondence": "pass in 8.06 seconds at 709808 KiB peak descendant RSS",
+    "production_checker": "pass in 0.79 seconds at 662352 KiB peak descendant RSS; no native_decide",
+    "production_specialization": "pass in 1.04 seconds at 741440 KiB peak descendant RSS; no native_decide",
+    "focused_regression": "pass in 0.79 seconds at 711760 KiB peak descendant RSS",
+    "axiom_guard": "pass in 0.79 seconds at 829872 KiB peak descendant RSS; no sorryAx",
+    "static": "pass: layer direction, generated quarantine, ownership contracts, forbidden-hole audit, and assurance parsing"
+  },
+  "assurance_boundary": {
+    "running_x_public_prefix_decoder": "artifact-checked",
+    "bounded_data_constructed_from_that_prefix": "model-proved fixture only",
+    "full_packed_witness_decoder": "open",
+    "production_rust_dataflow": "open"
+  },
+  "open_bridges": [
+    "decode each authoritative CcsWitness.Z or CeWitness.Z cell into the full SplitNc Sources.Data.runningAssignments table",
+    "prove the Rust packed-witness rule Z[(column % 54, column / 54)] for the complete production carrier rather than only CeClaim.X",
+    "production Rust delayed projection currently reads CeClaim.y_zcol instead of authoritative packed witness cells",
+    "combined-NC prover, verifier, oracle replay, and recursive R1CS rows",
+    "transcript-derived producerBeta and batchWeight after authoritative data are fixed",
+    "parent pending-state padding and commitment-key coordinate alignment",
+    "terminal authoritative raw-opening rows",
+    "complete private assignment and sparse matrix decoding, CCS/CE membership, and Ajtai coordinate alignment/binding failure"
+  ],
+  "non_goals": [
+    "reopening the completed selective PiRLC y_zcol slice",
+    "claiming Rust-conformant production y_zcol authority",
+    "y_ring authority",
+    "row deletion",
+    "re-proving Ajtai or Poseidon2"
+  ]
+}

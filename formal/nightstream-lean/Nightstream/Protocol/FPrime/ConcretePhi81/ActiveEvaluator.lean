@@ -1,4 +1,5 @@
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Authority.PiRlcParentOpening
 
 /-!
 Executable fixed-active outer F-prime evaluator.
@@ -468,6 +469,76 @@ theorem run_sound_or_outputUnbound_or_piCcsBadEvent
     }, physical.outputExact⟩
   · exact Or.inr (Or.inl outputUnbound)
   · exact Or.inr (Or.inr bad)
+
+/-- The only output surface intentionally left open after an independently
+derived packed-`y_zcol` equation. Keeping this name separate prevents a future
+caller from hiding a packed projection failure inside a broad `OutputBound`
+negation. -/
+def YRingUnbound
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows slotCount}
+    {input :
+      Input OuterKey AppState Witness shape publicRingColumns publicFits
+        verifierRows slotCount}
+    (certificate : Certificate setup input)
+    (data : Data shape) : Prop :=
+  ¬ Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Authority.PiRlcParentOpening.YRingBound
+    (contextAt setup input certificate.selected) data certificate.nifs
+
+/-- Strengthened active-evaluator soundness once production has derived the
+packed output from authoritative raw witnesses. The old generic theorem
+remains a diagnostic decomposition, but this production-facing result can
+expose only the separate `yRing` authority gap or a genuine Split-NC bad
+event; a `y_zcol` failure cannot reappear as generic output-unbound. -/
+theorem run_sound_or_yRingUnbound_or_piCcsBadEvent_of_packedYZcolBound
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows slotCount}
+    {machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows slotCount}
+    {functionIndex : Fin slotCount}
+    (noZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
+    (checkers : Checkers setup machine functionIndex)
+    (input :
+      Input OuterKey AppState Witness shape publicRingColumns publicFits
+        verifierRows slotCount)
+    (certificate : Certificate setup input)
+    (output :
+      Output Digest AppState shape publicRingColumns publicFits verifierRows
+        slotCount)
+    (data : Data shape)
+    (semanticInput :
+      Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.SemanticInput
+        (contextAt setup input certificate.selected) data)
+    (childOpenings :
+      Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.ChildOpenings
+        (contextAt setup input certificate.selected) data certificate.nifs)
+    (packed :
+      Polynomial.Nc.BlockLane.Terminal.PackedYZcolBoundAtBlock
+        (contextAt setup input certificate.selected).covers data
+        (derive (contextAt setup input certificate.selected)
+          certificate.nifs).piCcs.ncPoint.block certificate.nifs.piCcs.output)
+    (executed : run checkers input certificate = some output) :
+    ActiveSemantics.Holds setup machine functionIndex input output \/
+      YRingUnbound certificate data \/
+      Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsBadEvent
+        (contextAt setup input certificate.selected) data certificate.nifs := by
+  by_cases yRing :
+      Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Authority.PiRlcParentOpening.YRingBound
+      (contextAt setup input certificate.selected) data certificate.nifs
+  · have outputBound :
+        Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.OutputBound
+          (contextAt setup input certificate.selected) data certificate.nifs :=
+      ⟨yRing, packed⟩
+    rcases run_sound_or_outputUnbound_or_piCcsBadEvent noZeroDivisors checkers
+        input certificate output data semanticInput childOpenings executed with
+      semantic | outputUnbound | bad
+    · exact Or.inl semantic
+    · exact False.elim (outputUnbound outputBound)
+    · exact Or.inr (Or.inr bad)
+  · exact Or.inr (Or.inl yRing)
 
 end
 

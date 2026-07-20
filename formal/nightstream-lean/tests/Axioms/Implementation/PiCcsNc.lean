@@ -174,3 +174,51 @@ import tests.Axioms.Support
 /-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.paddedRawChildProjectionCoefficients_drop_active' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.paddedRawChildProjectionCoefficients_drop_active
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.acceptedProjectionIdentity_implies_oldPointRelation_or_badRoot' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.acceptedProjectionIdentity_implies_oldPointRelation_or_badRoot
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.ProductionRawChildren.Fixed270.authoritativeRunningChild_getD' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.ProductionRawChildren.Fixed270.authoritativeRunningChild_getD
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.ProductionRawChildren.Fixed270.authoritativeRunningChildren_getD' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.ProductionRawChildren.Fixed270.authoritativeRunningChildren_getD
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.ProductionRawChildren.Fixed270.acceptedProjectionIdentity_implies_oldPointRelation_or_badRoot' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.ProductionRawChildren.Fixed270.acceptedProjectionIdentity_implies_oldPointRelation_or_badRoot
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.rawValueAt_eq_radixCombinedRawZ' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.rawValueAt_eq_radixCombinedRawZ
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedHypercubeSum_eq_ordinary_add_weightedProjection' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedHypercubeSum_eq_ordinary_add_weightedProjection
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedAtPoint_column_quartic' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedAtPoint_column_quartic
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedAtPoint_lane_quartic' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedAtPoint_lane_quartic
+
+/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.accepted_implies_truth_and_oldPointRelation_or_badEvent' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.accepted_implies_truth_and_oldPointRelation_or_badEvent

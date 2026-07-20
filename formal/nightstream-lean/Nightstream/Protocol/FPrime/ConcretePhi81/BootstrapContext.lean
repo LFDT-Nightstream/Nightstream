@@ -161,6 +161,7 @@ def build
   alignment := template.alignment
   input := invocation.sourceProduct
   runningParent := none
+  pending := none
   piCcsInput := invocation.piCcsInput
   priorState := invocation.priorState
   piCcsSchedule := template.piCcsSchedule
@@ -191,6 +192,20 @@ def build
     (invocation :
       Invocation shape State publicRingColumns publicFits verifierRows) :
     (template.build invocation).runningParent = none := rfl
+
+/-- Bootstrap has no predecessor output, so the delayed packed-parent channel
+is absent by construction. -/
+@[simp] theorem build_pending
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (template :
+      Template shape State publicRingColumns publicFits verifierRows)
+    (invocation :
+      Invocation shape State publicRingColumns publicFits verifierRows) :
+    (template.build invocation).pending = none := rfl
 
 /-- The constructed bootstrap context satisfies the exact incoming-authority
 contract without a caller-supplied proof or digest convention. -/

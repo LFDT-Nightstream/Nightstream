@@ -1,0 +1,52 @@
+{
+  "artifact_kind": "model/diagnostic-f-prime-selective-fixed-point-piccsnc-flat-combined",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-PICCSNC-FLAT-DELAYED-RESIDUAL",
+  "profile": "diagnostic-fixed-270-public-prefix-flat-9-column-6-lane-combined-nc",
+  "invariant": "the diagnostic delayed residual is evaluated directly from typed running assignments in nine-column then six-lane order; its internal Boolean-cube, terminal, degree, and fixed-phase decomposition are proved, but this profile is excluded from production because flat column projection does not commute with the RingF action",
+  "evidence_state": "model-proved",
+  "implementation_status": "the diagnostic flat polynomial and its exact 15-round internal results pass focused Lean regression and fail-closed axiom guards; flatColumnProjection_not_actionHom rules out this route as production y_zcol authority, so no generated-row or Rust-conformance owner is permitted",
+  "theorems": [
+    "Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.rawValueAt_toCubePoint_eq_radixWeightedRawDiagonal",
+    "Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.rawValueAt_eq_radixCombinedRawZ",
+    "Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedHypercubeSum_eq_ordinary_add_weightedProjection",
+    "Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedAtPoint_eq_terminalRhs",
+    "Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedAtPoint_column_quartic",
+    "Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.combinedAtPoint_lane_quartic",
+    "Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.production_roundCount",
+    "Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.residualWeightRoot_of_zero_weight_and_parent_mismatch",
+    "Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.FlatCombinedNc.accepted_implies_truth_and_oldPointRelation_or_badEvent",
+    "Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Necessity.FlatColumnAction.flatColumnProjection_not_actionHom"
+  ],
+  "source_hashes": {
+    "flat_combined_nc": "sha256:b37010adf5fe52f7d20f596d44df3c3e2e4e50453774e8290d071ef8e72012e6",
+    "production_exclusion": "sha256:6f2799679962effb213ac90d9cd3293453f3d5399f146dbd63a5f16b29767ea0",
+    "focused_regression": "sha256:9be426f9de295658caa3018276c46c70cf476babcb620cf24d083056424bb007",
+    "axiom_guard": "sha256:dc2bb744fa45150c25d5b08810fbb0c106a834782d9265429a794131a9a09f75"
+  },
+  "lean_validation": {
+    "leaf": "pass in 2.09 seconds at 750832 KiB peak descendant RSS; no native_decide",
+    "facade": "pass in 0.53 seconds at 187376 KiB peak descendant RSS",
+    "focused_regression": "pass in 0.79 seconds at 207328 KiB peak descendant RSS",
+    "axiom_guard": "pass in 1.06 seconds at 819904 KiB peak descendant RSS; dependencies are propext, Classical.choice, and Quot.sound; no sorryAx"
+  },
+  "authority_boundary": {
+    "raw_child_source": "computed from ProductionRawChildren.Fixed270.authoritativeRunningChildren over typed running assignments; CeClaim.y_zcol is absent",
+    "flat_order": "model-proved only for the diagnostic 270-coordinate public-prefix profile",
+    "production_eligibility": "rejected by flatColumnProjection_not_actionHom; production must use the block-by-lane route",
+    "round_degree_and_terminal": "model-proved",
+    "sumcheck_acceptance": "FixedPhase.Accepted remains the immediate premise of this leaf",
+    "generated_parent_padding_rows": "open",
+    "rust_raw_witness_handoff": "open"
+  },
+  "open_bridges": [
+    "none for this diagnostic route; production obligations are owned by CIR-FPR-PICCSNC-BLOCK-DELAYED-ACTIVE"
+  ],
+  "non_goals": [
+    "any production y_zcol authority or Rust-conformance claim",
+    "using CeClaim.y_zcol sidecars as child authority",
+    "y_ring authority",
+    "re-proving Poseidon2 or Ajtai",
+    "row deletion"
+  ]
+}

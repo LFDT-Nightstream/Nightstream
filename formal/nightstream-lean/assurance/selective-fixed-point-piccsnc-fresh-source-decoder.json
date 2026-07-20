@@ -1,0 +1,81 @@
+{
+  "artifact_kind": "r1cs/f-prime-selective-fixed-point-piccsnc-fresh-public-x-decoder",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-PICCSNC-FRESH-X-PREFIX-DECODER",
+  "profile": "bounded-tiny-lifecycle-stabilized-fixed-point-one-by-270-fresh-public-x-prefix",
+  "shape": {
+    "sources": 1,
+    "logical_columns": 270,
+    "records": 270,
+    "certificate_chunks": 2,
+    "chunk_lengths": [256, 14],
+    "normalized_source_column_start": 21547,
+    "normalized_source_column_end_exclusive": 21817,
+    "final_column_count": 68091732
+  },
+  "invariant": "the generated artifact maps every coordinate of prior_link.fresh_public_inputs[0] to the exact consecutive normalized source column and records its fail-closed selective disposition; this is fresh CeClaim.X public-prefix provenance only, not a full CcsWitness.Z or CeWitness.Z decoder, source-value authority, a binding-row proof, or commitment authority",
+  "evidence_state": "artifact-checked",
+  "implementation_status": "the two bounded generated shards, exact Lean certificate, conditional public-X equality transport, focused regression, fail-closed axiom guard, mutation checks, and fail-closed Rust regeneration comparison pass",
+  "artifacts": [
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/FreshSourceDecoder/Generated/Chunk0.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/FreshSourceDecoder/Generated/Chunk1.lean"
+  ],
+  "theorems": [
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.FreshSourceDecoder.Exact.metadata_exact",
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.FreshSourceDecoder.Exact.chunk0_coordinateColumns_exact",
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.FreshSourceDecoder.Exact.chunk1_coordinateColumns_exact",
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.FreshSourceDecoder.Exact.chunk_lengths_and_coverage",
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.FreshSourceDecoder.Exact.sourceColumn_has_uniqueLogicalOwner",
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.FreshSourceDecoder.Exact.sourceColumn_injective",
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.FreshSourceDecoder.Exact.records_all_wellFormed",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.FreshSourceDecoder.Refinement.coordinateValueBindings_and_dataflow_imply_freshPublicInput"
+  ],
+  "source_hashes": {
+    "artifact_exact": "sha256:8fdda272e5bb8db892b7f178da1f4a5913884a56de5b0d47d916bddbd63b1b5e",
+    "correspondence_refinement": "sha256:54d5108ccc26bef8176221e33a73cec9d0e316f301b83d43a39e174a4784b1d7",
+    "generated_chunk0": "sha256:ec286fa3b60ea77c62f43f0dab37b83670bd158568cd6553d37eb9c4117f9b09",
+    "generated_chunk1": "sha256:1af53678b3f799b17557e443fe115e639c4dcb0511b129a6953af446f562b4f5",
+    "rust_generator": "sha256:f61f51fdc4af20d45c4558272275bb0273096cc98f77fa13875bd05baa66e22b"
+  },
+  "lean_validation": {
+    "artifact_exact": "pass after generated-header promotion in 1.84 seconds at 431712 KiB peak descendant RSS",
+    "correspondence_refinement": "pass after ownership-header stabilization in 1.05 seconds at 193680 KiB peak descendant RSS",
+    "correspondence_facade": "pass in 0.80 seconds at 169152 KiB peak descendant RSS",
+    "root_piccsnc_facade": "pass in 0.79 seconds at 174640 KiB peak descendant RSS",
+    "focused_regression": "pass after header stabilization in 1.05 seconds at 656576 KiB peak descendant RSS",
+    "axiom_guard": "pass after header stabilization in 0.79 seconds at 770064 KiB peak descendant RSS; no sorryAx",
+    "native_decide": "two proof-free (Nat x Nat) projections of 256 and 14 records, and two proof-free Bool projections of 256 and 14 flags; no joined 270-record decision and no proof-bearing decision"
+  },
+  "rust_validation": {
+    "mutation_checks": "pass",
+    "drift": "pass: all 186 generated Lean files matched after deliberate promotion of the two ownership-header candidates",
+    "final_drift_test": "pass in 142.65 seconds under a hard 300-second alarm",
+    "candidate_generation": "expected fail in 146.02 seconds under a hard 300-second alarm; exactly Chunk0.lean.expected and Chunk1.lean.expected were inspected and promoted unchanged",
+    "peak_rss": "not instrumented for either targeted run; no extra rerun was performed solely for this metric"
+  },
+  "authority_boundary": {
+    "column_and_disposition_provenance": "artifact-checked",
+    "coordinate_field_values": "open CoordinateValueBindings premise",
+    "prior_link_to_source_product_dataflow": "open DirectFreshPublicXDataflow premise",
+    "fresh_public_input_subfield": "model-level conditional theorem",
+    "full_semantic_input": "open",
+    "full_packed_witness": "not represented",
+    "commitment_binding": "not represented"
+  },
+  "open_bridges": [
+    "export and refine the exact constant-one row, 256 bit-link rows, and thirteen public-padding rows that establish each coordinate field value",
+    "prove direct field-value dataflow from prior_link.fresh_public_inputs[0] into the sole fresh source product",
+    "derive the remaining fresh structure and stage fields required by FreshSourceBound",
+    "decode the authoritative full CcsWitness.Z and CeWitness.Z tables separately",
+    "prove complete sparse CCS/CE membership and Ajtai coordinate alignment"
+  ],
+  "non_goals": [
+    "using fresh CeClaim.X as raw-child assignment authority",
+    "using a selective disposition as a field-value equation",
+    "production y_zcol authority",
+    "Rust-conformant delayed projection",
+    "y_ring authority",
+    "row deletion",
+    "re-proving Ajtai or Poseidon2"
+  ]
+}

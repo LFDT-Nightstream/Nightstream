@@ -10,9 +10,9 @@ Transcript authority for the canonical Split-NC FE plus block×lane NC path.
 Assurance tier: model-level.
 
 Owns: one typed public statement; one domain record whose FE and NC views
-share a single lane width; one pre-SumCheck challenge record; deterministic
-statement binding and sampling; FE and NC machine projections; and the raw
-output-message handoff.
+share a single lane width; one core challenge record; structurally ordered
+producer-projection and residual-weight sampling; deterministic statement
+binding; FE and NC machine projections; and the raw output-message handoff.
 
 Does not own: the legacy flat-column NC verifier, a concrete encoding,
 Poseidon2, collision or random-oracle security, polynomial truth, SumCheck
@@ -22,16 +22,21 @@ Emits constraints: no.
 
 Authority boundary: `Domains` makes divergent FE/NC lane dimensions
 unrepresentable. `betaA` and `gamma` occur once in `Challenges`; both phase
-projections read those same fields. All operations are abstract deterministic
-verifier functions until a separate Poseidon2 refinement fixes their exact
-encoding and event schedule.
+projections read those same fields. The schedule binds the complete statement,
+derives the core coins, enters and samples the typed `.producerBeta` domain,
+then enters and samples the distinct `.batchWeight` domain, before FE starts.
+A later Poseidon2 refinement must still prove the exact encoding of these
+kernel-distinct tags.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `nifs.pi_ccs.transcript.block_lane.domain` | FE and NC derive from one lane width | computed by construction | `Domains`, `Domains.fe`, `Domains.nc` |
 | `nifs.pi_ccs.transcript.block_lane.statement` | key and complete public input form one typed statement | verifier-owned input | `Statement` |
 | `nifs.pi_ccs.transcript.block_lane.bind` | statement binding precedes all challenge sampling | computed | `Schedule.bindStatement`, `derivePreSumcheck` |
-| `nifs.pi_ccs.transcript.block_lane.coins` | `alpha`, `betaA`, `betaR`, `gamma`, and `betaBlock` occur once | computed | `Challenges` |
+| `nifs.pi_ccs.transcript.block_lane.coins.core` | `alpha`, `betaA`, `betaR`, `gamma`, and `betaBlock` occur once | computed | `CoreChallenges` |
+| `nifs.pi_ccs.transcript.block_lane.coins.domain` | producer and residual roles are distinct typed transcript domains | typed | `DelayedChallengeDomain` |
+| `nifs.pi_ccs.transcript.block_lane.coins.producer` | sample `producerBeta` only after statement binding and core derivation | computed/security boundary | `Schedule.enterDelayedDomain`, `Schedule.squeezeDelayedChallenge`, `derivePreSumcheck` |
+| `nifs.pi_ccs.transcript.block_lane.coins.residual` | sample `batchWeight` in the typed residual domain after `producerBeta` | computed/security boundary | `Schedule.enterDelayedDomain`, `Schedule.squeezeDelayedChallenge`, `derivePreSumcheck` |
 | `nifs.pi_ccs.transcript.block_lane.coins.fe` | FE coins are a projection of the shared record | direct dataflow | `Challenges.feCoins` |
 | `nifs.pi_ccs.transcript.block_lane.coins.nc` | block×lane NC coins are a projection of the same record | direct dataflow | `Challenges.ncCoins` |
 | `nifs.pi_ccs.transcript.block_lane.fe` | verifier initial claim parameterizes the sole FE entry | computed | `feMachine` |
@@ -89,9 +94,21 @@ structure Statement
   verifierKey : VerifierKey
   input : Input
 
-/-- The unique pre-SumCheck challenge record for canonical FE plus
-block×lane NC. -/
-structure Challenges
+/-- Typed domains for the two delayed-projection challenges. These roles are
+kernel-distinct before a concrete transcript chooses their Poseidon2 tags. -/
+inductive DelayedChallengeDomain where
+  | producerBeta
+  | batchWeight
+deriving Repr, DecidableEq
+
+@[simp] theorem DelayedChallengeDomain.producerBeta_ne_batchWeight :
+    DelayedChallengeDomain.producerBeta ≠
+      DelayedChallengeDomain.batchWeight := by
+  decide
+
+/-- Core FE plus block×lane NC challenges derived after statement binding and
+before the two delayed-projection challenges. -/
+structure CoreChallenges
     (shape : SemanticShape)
     (domains : Domains) where
   alpha : CubePoint K domains.laneVariables
@@ -99,6 +116,17 @@ structure Challenges
   betaR : CubePoint K shape.rowVariables
   gamma : K
   betaBlock : CubePoint K domains.blockVariables
+
+/-- The unique pre-SumCheck challenge record. The two scalar fields are not
+part of the opaque core derivation: `derivePreSumcheck` samples them in the
+typed order `producerBeta`, then `batchWeight`, using distinct domain-entry
+operations. -/
+structure Challenges
+    (shape : SemanticShape)
+    (domains : Domains)
+    extends CoreChallenges shape domains where
+  producerBeta : K
+  batchWeight : K
 
 namespace Challenges
 
@@ -141,7 +169,16 @@ def ncCoins
 
 end Challenges
 
-/-- Pre-SumCheck challenge output and the sole state entering FE. -/
+/-- Core challenge output and the state immediately preceding the two
+delayed-projection sampling domains. -/
+structure CorePreSumcheck
+    (shape : SemanticShape)
+    (domains : Domains)
+    (State : Type uState) where
+  challenges : CoreChallenges shape domains
+  state : State
+
+/-- Complete pre-SumCheck challenge output and the sole state entering FE. -/
 structure PreSumcheck
     (shape : SemanticShape)
     (domains : Domains)
@@ -158,10 +195,12 @@ structure Schedule
     (VerifierKey : Type uVerifierKey)
     (Input : Type uInput)
     (shape : SemanticShape)
-    (domains : Domains)
-    (State : Type uState) where
+  (domains : Domains)
+  (State : Type uState) where
   bindStatement : State -> Statement VerifierKey Input -> State
-  derivePreSumcheck : State -> PreSumcheck shape domains State
+  deriveCore : State -> CorePreSumcheck shape domains State
+  enterDelayedDomain : DelayedChallengeDomain -> State -> State
+  squeezeDelayedChallenge : State -> K × State
   enterFe : State -> K -> State
   absorbFeRound :
     State -> Nightstream.SuperNeo.SumCheck.Finite.Message K -> State
@@ -183,7 +222,64 @@ def derivePreSumcheck
     (priorState : State)
     (statement : Statement VerifierKey Input) :
     PreSumcheck shape domains State :=
-  schedule.derivePreSumcheck (schedule.bindStatement priorState statement)
+  let boundState := schedule.bindStatement priorState statement
+  let core := schedule.deriveCore boundState
+  let producerStep :=
+    schedule.squeezeDelayedChallenge
+      (schedule.enterDelayedDomain .producerBeta core.state)
+  let batchStep :=
+    schedule.squeezeDelayedChallenge
+      (schedule.enterDelayedDomain .batchWeight producerStep.2)
+  {
+    challenges := {
+      alpha := core.challenges.alpha
+      betaA := core.challenges.betaA
+      betaR := core.challenges.betaR
+      gamma := core.challenges.gamma
+      betaBlock := core.challenges.betaBlock
+      producerBeta := producerStep.1
+      batchWeight := batchStep.1
+    }
+    state := batchStep.2
+  }
+
+/-- The producer challenge is exactly the first delayed scalar sampled after
+the bound statement's core challenge derivation. -/
+@[simp] theorem derivePreSumcheck_producerBeta
+    {VerifierKey : Type uVerifierKey}
+    {Input : Type uInput}
+    {shape : SemanticShape}
+    {domains : Domains}
+    {State : Type uState}
+    (schedule : Schedule VerifierKey Input shape domains State)
+    (priorState : State)
+    (statement : Statement VerifierKey Input) :
+    (derivePreSumcheck schedule priorState statement).challenges.producerBeta =
+      (schedule.squeezeDelayedChallenge
+        (schedule.enterDelayedDomain .producerBeta
+          (schedule.deriveCore
+            (schedule.bindStatement priorState statement)).state)).1 := by
+  rfl
+
+/-- The residual weight is sampled in its own entry domain from the state
+returned by the producer challenge squeeze. -/
+@[simp] theorem derivePreSumcheck_batchWeight
+    {VerifierKey : Type uVerifierKey}
+    {Input : Type uInput}
+    {shape : SemanticShape}
+    {domains : Domains}
+    {State : Type uState}
+    (schedule : Schedule VerifierKey Input shape domains State)
+    (priorState : State)
+    (statement : Statement VerifierKey Input) :
+    (derivePreSumcheck schedule priorState statement).challenges.batchWeight =
+      (schedule.squeezeDelayedChallenge
+        (schedule.enterDelayedDomain .batchWeight
+          (schedule.squeezeDelayedChallenge
+            (schedule.enterDelayedDomain .producerBeta
+              (schedule.deriveCore
+                (schedule.bindStatement priorState statement)).state)).2)).1 := by
+  rfl
 
 /-- FE machine whose sole phase-entry parameter is the verifier-computed
 initial claim. -/

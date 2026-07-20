@@ -21,11 +21,20 @@ open Nightstream.SuperNeo.Folding.PiCCS.SplitNc
 open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier
 open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane
 
-example : PiCcsDomains.production.fe = PiCcsDomain.domain := by
-  exact PiCcsDomains.production_fe
+example : PiCcsDomains.publicPrefix.fe = PiCcsDomain.domain := by
+  exact PiCcsDomains.publicPrefix_fe
 
-example : PiCcsDomains.production.nc = PiCcsDomain.blockDomain := by
-  exact PiCcsDomains.production_nc
+example : PiCcsDomains.publicPrefix.nc = PiCcsDomain.blockDomain := by
+  exact PiCcsDomains.publicPrefix_nc
+
+example : PiCcsDomains.production.columnVariables = 24 := by
+  rfl
+
+example : PiCcsDomains.production.blockVariables = 19 := by
+  rfl
+
+example : PiCcsDomains.production.laneVariables = 6 := by
+  rfl
 
 example
     {shape : SemanticShape}

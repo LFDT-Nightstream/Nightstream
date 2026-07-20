@@ -7,8 +7,9 @@ Opening-derived fixed-active NIFS context.
 Assurance tier: model-level carrier refinement.
 
 Owns: one point-plus-complete-opening payload; deterministic materialization
-of the incoming combined parent and all fourteen fresh running children; and
-exact projection into the existing canonical fixed-active NIFS context.
+of the incoming combined parent and all fourteen fresh running children;
+pass-through of the optional delayed packed parent; and exact projection into
+the existing canonical fixed-active NIFS context.
 
 Does not own: child-source validity, transcript replay, prior-link hashing,
 privacy of an opening-derived handle, Rust/R1CS decoding, physical rows,
@@ -27,6 +28,7 @@ separately from the NIFS source-validation facts.
 | `nifs.fixed_active.opening.input` | complete parent opening and common point | private typed payload | `OpeningPayload` |
 | `nifs.fixed_active.opening.parent` | combined parent statement | computed | `OpeningPayload.parent`, `parentPayload_materialize` |
 | `nifs.fixed_active.opening.children` | fourteen deterministic signed-binary children | computed | `OpeningPayload.children`, `runningPayload_materialize` |
+| `nifs.fixed_active.opening.pending` | optional delayed packed parent | direct dataflow | `Context.materialize` |
 | `nifs.fixed_active.opening.context` | exact existing fixed-active context | derived refinement | `Context.materialize` |
 -/
 
@@ -220,6 +222,7 @@ structure Context
   key : VerifierKey shape publicRingColumns publicFits verifierRows
   alignment : SourceAlignment shape productionGlobalParams arity
   input : Input shape publicRingColumns publicFits verifierRows
+  pending : Option ProductionDelayedBlockLane
   piCcsInput : PiCCS.SplitNc.Verifier.PublicInput shape
   priorState : State
   piCcsSchedule :
@@ -248,6 +251,7 @@ def materialize
   key := context.key
   alignment := context.alignment
   input := context.input.materialize context.key
+  pending := context.pending
   piCcsInput := context.piCcsInput
   priorState := context.priorState
   piCcsSchedule := context.piCcsSchedule
@@ -265,6 +269,16 @@ def full
     (context : Context shape State publicRingColumns publicFits verifierRows) :
     FixedActive.Context shape State publicRingColumns publicFits verifierRows :=
   context.materialize.materialize
+
+@[simp] theorem full_pending
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context : Context shape State publicRingColumns publicFits verifierRows) :
+    context.full.pending = context.pending := by
+  rfl
 
 @[simp] theorem full_parent
     {shape : SemanticShape}

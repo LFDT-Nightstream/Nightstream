@@ -1,6 +1,7 @@
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra
 import Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.DelayedBlockLane
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.OutputProduct
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.BlockLane
@@ -25,11 +26,12 @@ row removal.
 
 Emits constraints: no.
 
-Authority boundary: the transcript binds both the complete public source
-product, the checked incoming accumulator parent, and the polynomial verifier
-input before deriving any coin. FE and NC coins are projections of one
-schedule-derived challenge record; they cannot be supplied or diverge
-independently. The certificate carries only prover-visible `Pi_CCS` messages,
+Authority boundary: the transcript binds the complete public source product,
+the checked incoming accumulator parent, the optional delayed packed parent,
+and the polynomial verifier input before deriving any coin. FE and NC coins
+are projections of one schedule-derived challenge record; `producerBeta` and
+`batchWeight` are then sampled in distinct typed domains and cannot be
+supplied independently. The certificate carries only prover-visible `Pi_CCS` messages,
 the complete `Pi_RLC` challenge vector, and the non-inherited public payload
 of each `Pi_DEC` child. Child structure, point, and fresh stage are inherited
 from the computed parent. The `Pi_CCS` CE product and outgoing `Pi_RLC` parent
@@ -43,6 +45,7 @@ copy can override them.
 | `nifs.concrete.context` | `Context` | key, source alignment, incoming parent, both public input surfaces, prior state, the fixed production domain, one transcript schedule, and supported profile | verifier-owned context |
 | `nifs.concrete.pi_ccs.statement` | `Context.piCcsStatement` | bind the verifier key, source product, checked-parent carrier, and polynomial public input together | computed |
 | `nifs.concrete.pi_ccs.coins` | `Context.piCcsPreSumcheck` | derive one shared FE/NC challenge record after statement binding | computed |
+| `nifs.concrete.pi_ccs.coins.delayed` | `Context.producerBeta`, `Context.batchWeight` | expose the ordered delayed-projection transcript challenges | computed |
 | `nifs.concrete.pi_ccs.fe` | `Context.feMachine`, `Context.initialState` | compute the FE initial claim and sole phase-entry state | computed |
 | `nifs.concrete.pi_ccs.nc` | `Context.ncMachine` | continue through the same configured transcript schedule | computed |
 | `nifs.concrete.certificate.pi_ccs` | `Certificate.piCcs` | raw FE/NC messages and output claims | prover message |
@@ -139,6 +142,7 @@ structure StatementInput
       (Phi81Relation.CEStatement
         (RelationShape shape publicRingColumns publicFits)
         (CommitmentValue verifierRows))
+  pending : Option ProductionDelayedBlockLane
   polynomial : PiCCS.SplitNc.Verifier.PublicInput shape
 
 /-- Verifier-owned context for one concrete transition. Every field either
@@ -162,6 +166,7 @@ structure Context
       (Phi81Relation.CEStatement
         (RelationShape shape publicRingColumns publicFits)
         (CommitmentValue verifierRows))
+  pending : Option ProductionDelayedBlockLane
   piCcsInput : PiCCS.SplitNc.Verifier.PublicInput shape
   priorState : State
   piCcsSchedule :
@@ -196,6 +201,7 @@ def piCcsStatement
   input := {
     sources := context.input
     runningParent := context.runningParent
+    pending := context.pending
     polynomial := context.piCcsInput
   }
 
@@ -242,6 +248,21 @@ the transcript never receives only an unverified digest. -/
       Context shape State publicRingColumns publicFits verifierRows
         arity) :
     context.piCcsStatement.input.runningParent = context.runningParent := by
+  rfl
+
+/-- The complete optional delayed parent is bound with the source family and
+checked incoming parent before either delayed challenge is sampled. -/
+@[simp] theorem piCcsStatement_pending
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {arity : BatchArity productionGlobalParams}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows
+        arity) :
+    context.piCcsStatement.input.pending = context.pending := by
   rfl
 
 /-- The canonical public relation structure is the first fresh source's
@@ -323,6 +344,34 @@ def ncCoins
     PiCCS.SplitNc.Verifier.Polynomial.Nc.BlockLane.Mixing.Coins
       PiCcsDomains.production.nc :=
   context.piCcsPreSumcheck.challenges.ncCoins
+
+/-- Producer projection point sampled from the typed producer domain after
+the complete statement and core challenge record are fixed. -/
+def producerBeta
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {arity : BatchArity productionGlobalParams}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows
+        arity) : K :=
+  context.piCcsPreSumcheck.challenges.producerBeta
+
+/-- Residual mixing weight sampled from its distinct typed domain after the
+producer projection challenge. -/
+def batchWeight
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {arity : BatchArity productionGlobalParams}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows
+        arity) : K :=
+  context.piCcsPreSumcheck.challenges.batchWeight
 
 /-- The FE initial claim is verifier-computed from the bound public input and
 the schedule-derived FE coins. -/

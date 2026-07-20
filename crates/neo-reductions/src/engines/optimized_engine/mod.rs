@@ -17,10 +17,15 @@ use std::sync::Arc;
 
 // Common types and utility functions shared across engines
 mod backend;
+mod block_lane_entrypoints;
+mod block_lane_replay;
+mod block_lane_terminal;
 mod common;
+mod delayed_projection;
 mod digit_table;
 mod phase_trace;
 mod proof_assembly;
+mod replay_binding;
 mod replay_entrypoints;
 mod replay_validation;
 mod rlc;
@@ -39,8 +44,19 @@ pub use backend::{
     NcPhaseRoundTrace, PiCcsPhaseBackend, PiCcsPhaseProofLog, PiCcsPhaseSummary, PiCcsPhaseTrace,
     PiCcsPhaseTraceRequest, PiCcsTerminalOutputSurfaces,
 };
+pub use block_lane_entrypoints::{
+    optimized_prove_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
+    optimized_verify_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
+};
 pub use common::Challenges;
+pub use delayed_projection::{
+    beta_power_selector as delayed_beta_power_selector, claimed_initial_sum as delayed_claimed_initial_sum,
+    parent_evaluation as delayed_parent_evaluation, terminal_rhs as delayed_terminal_rhs,
+    validate_input as validate_delayed_projection_input, DelayedProjectionChallenges, DelayedProjectionConfig,
+    DelayedProjectionInput,
+};
 pub use digit_table::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
+pub use oracle::BlockLaneNcPending;
 pub use sparse::{CscMat, SparseCache};
 
 /// Proof format variant for Π_CCS.
@@ -48,6 +64,8 @@ pub use sparse::{CscMat, SparseCache};
 pub enum PiCcsProofVariant {
     /// Split-NC proof with two sumchecks: FE-only + NC-only.
     SplitNcV1,
+    /// FE plus canonical 19-block/6-lane NC with one-fold delayed projection.
+    BlockLaneNcDelayedV1,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -72,6 +90,7 @@ pub struct PiCcsTerminalOutputShell {
 
 #[derive(Debug, Clone)]
 pub struct PiCcsReplayTerminalState {
+    pub variant: PiCcsProofVariant,
     pub me_outputs: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>>,
     pub output_shell: PiCcsTerminalOutputShell,
     pub sc_initial_sum: K,

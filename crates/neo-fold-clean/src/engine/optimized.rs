@@ -17,17 +17,21 @@ use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonz
 use neo_reductions::optimized_engine::{
     optimized_defer_prove_with_device_backends_and_transcript_mode,
     optimized_defer_prove_with_phase_backend_and_transcript_mode,
+    optimized_prove_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
     optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
     optimized_prove_with_phase_backend_and_transcript_mode,
+    optimized_verify_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
     optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, BackendTranscriptMode,
-    FeSumcheckBackend, NcSumcheckBackend, OptimizedStructureCache, PiCcsDeferredProof, PiCcsPhaseBackend,
-    PiDecProverPrecompute,
+    BlockLaneNcPending, FeSumcheckBackend, NcSumcheckBackend, OptimizedStructureCache, PiCcsDeferredProof,
+    PiCcsPhaseBackend, PiDecProverPrecompute,
 };
 use thiserror::Error;
 
 use crate::paper::construction2::RunningInstance;
 use crate::paper::digest::{
-    pi_ccs_instance_digest_from_parent_digest, pi_ccs_instance_digest_parent_authority, AccumulatorHandle,
+    pending_accumulator_family_digest, pi_ccs_instance_digest_from_parent_digest,
+    pi_ccs_instance_digest_parent_authority, AccumulatorHandle, PendingAccumulatorFamilyError,
+    PendingAccumulatorFamilyState,
 };
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
@@ -51,6 +55,16 @@ pub enum Error {
     MissingParentAuthority,
     #[error("engine.optimized: empty running accumulator unexpectedly carries a parent authority")]
     UnexpectedParentAuthority,
+    #[error("engine.optimized: delayed projection state is only valid for the production fixed-point profile")]
+    UnexpectedPendingProjection,
+    #[error(transparent)]
+    PendingFamily(#[from] PendingAccumulatorFamilyError),
+}
+
+const PRODUCTION_FIXED_POINT_CARRIER_WIDTH: usize = 14_338_890;
+
+fn uses_production_block_lane(structure: &Structure) -> bool {
+    structure.m == PRODUCTION_FIXED_POINT_CARRIER_WIDTH
 }
 
 /// Π_CCS (§7.3) prove — wrapper over the optimized engine's
@@ -98,8 +112,25 @@ where
 {
     let parent_authority = running_parent_authority(running)?;
     let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
-    let me_handle = compute_running_accumulator_handle(running)?;
-    let (outputs, proof, perf, pi_dec_precompute) =
+    let (outputs, proof, perf, pi_dec_precompute) = if uses_production_block_lane(s) {
+        optimized_prove_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+            tr,
+            pp.inner(),
+            s,
+            fresh_claims,
+            fresh_witnesses,
+            &running.claims,
+            &running.witnesses,
+            instance_digest,
+            compute_running_block_lane_accumulator_handle(running)?,
+            engine_pending_projection(running),
+            log,
+            cache,
+        )?
+    } else {
+        if running.pending_projection().is_some() {
+            return Err(Error::UnexpectedPendingProjection);
+        }
         optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
             tr,
             pp.inner(),
@@ -109,10 +140,11 @@ where
             &running.claims,
             &running.witnesses,
             instance_digest,
-            me_handle,
+            compute_running_accumulator_handle(running)?,
             log,
             cache,
-        )?;
+        )?
+    };
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-ccs/prove] bind={:.2}ms sample={:.2}ms fe={:.2}ms nc={:.2}ms outputs={:.2}ms total={:.2}ms inputs=fresh:{}+running:{} outputs:{}",
@@ -393,20 +425,37 @@ pub fn verify_pi_ccs(
     use neo_transcript::Transcript as _;
     let parent_authority = running_parent_authority(running)?;
     let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
-    // Same exact ordered-child handle the prover bound.
-    let me_handle = compute_running_accumulator_handle(running)?;
-    let (ok, perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
-        tr,
-        pp.inner(),
-        s,
-        fresh_claims,
-        &running.claims,
-        fold_outputs,
-        proof,
-        cache,
-        instance_digest,
-        me_handle,
-    )?;
+    let (ok, perf) = if uses_production_block_lane(s) {
+        optimized_verify_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+            tr,
+            pp.inner(),
+            s,
+            fresh_claims,
+            &running.claims,
+            fold_outputs,
+            proof,
+            cache,
+            instance_digest,
+            compute_running_block_lane_accumulator_handle(running)?,
+            engine_pending_projection(running),
+        )?
+    } else {
+        if running.pending_projection().is_some() {
+            return Err(Error::UnexpectedPendingProjection);
+        }
+        optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+            tr,
+            pp.inner(),
+            s,
+            fresh_claims,
+            &running.claims,
+            fold_outputs,
+            proof,
+            cache,
+            instance_digest,
+            compute_running_accumulator_handle(running)?,
+        )?
+    };
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-ccs/verify] bind={:.2}ms header={:.2}ms me={:.2}ms sample={:.2}ms fe={:.2}ms nc={:.2}ms outputs={:.2}ms terminal={:.2}ms total={:.2}ms",
@@ -482,6 +531,36 @@ fn compute_running_accumulator_handle(running: &RunningInstance) -> Result<[F; 4
         None => AccumulatorHandle::empty(),
     };
     Ok(handle.digest_fields())
+}
+
+fn engine_pending_projection(running: &RunningInstance) -> Option<BlockLaneNcPending> {
+    running
+        .pending_projection()
+        .map(|pending| BlockLaneNcPending {
+            old_block: *pending.old_block(),
+            parent_y: *pending.parent_y_zcol(),
+        })
+}
+
+fn compute_running_block_lane_accumulator_handle(running: &RunningInstance) -> Result<[F; 4], Error> {
+    running_parent_authority(running)?;
+    let Some(pending) = running.pending_projection() else {
+        return compute_running_accumulator_handle(running);
+    };
+    let verifier_rows = running
+        .claims
+        .first()
+        .ok_or(Error::UnexpectedPendingProjection)?
+        .c
+        .kappa;
+    Ok(pending_accumulator_family_digest(
+        &running.claims,
+        verifier_rows,
+        Some(PendingAccumulatorFamilyState {
+            old_block: pending.old_block(),
+            parent_y_zcol: pending.parent_y_zcol(),
+        }),
+    )?)
 }
 
 // ──────────────────────────────────────────────────────────────────────────

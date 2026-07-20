@@ -6,9 +6,7 @@
 use neo_math::K;
 
 use crate::error::PiCcsError;
-use crate::optimized_engine::{
-    PiCcsProof, PiCcsProofVariant, PiCcsProvePerf, PiCcsReplayTerminalState, PiCcsTerminalOutputShell,
-};
+use crate::optimized_engine::{PiCcsProof, PiCcsProvePerf, PiCcsReplayTerminalState, PiCcsTerminalOutputShell};
 
 use super::backend::{FeSumcheckBackend, PiCcsPhaseBackend, PiCcsPhaseProofLog};
 
@@ -47,7 +45,7 @@ pub(super) fn proof_from_terminal_state(
     rounds: OptimizedProofRounds,
 ) -> PiCcsProof {
     let mut proof = PiCcsProof::new(rounds.sumcheck_rounds, Some(rounds.initial_sum));
-    proof.variant = PiCcsProofVariant::SplitNcV1;
+    proof.variant = terminal_state.variant;
     proof.sumcheck_challenges = [terminal_state.row_chals.clone(), terminal_state.alpha_prime.clone()].concat();
     proof.sumcheck_rounds_nc = rounds.sumcheck_rounds_nc;
     proof.sc_initial_sum_nc = Some(rounds.initial_sum_nc);

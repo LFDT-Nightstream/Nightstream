@@ -26,6 +26,7 @@ use super::phase_trace::{
 use super::proof_assembly::{
     proof_from_terminal_state, DeferredFeRowRounds, DeferredProofRounds, OptimizedProofRounds,
 };
+use super::replay_binding::ReplayBinding;
 use super::terminal_outputs::build_me_outputs_from_terminal_surfaces;
 use super::transcript_segments::{append_nc_sumcheck_prolog, sample_public_challenges_with_backend};
 use super::OptimizedStructureCache;
@@ -48,7 +49,7 @@ impl ReplayTraceMode {
     }
 }
 
-fn owned_rounds(rounds: DeferredProofRounds) -> Result<OptimizedProofRounds, PiCcsError> {
+pub(super) fn owned_rounds(rounds: DeferredProofRounds) -> Result<OptimizedProofRounds, PiCcsError> {
     match rounds {
         DeferredProofRounds::Owned(rounds) => Ok(rounds),
         DeferredProofRounds::PhaseBackend | DeferredProofRounds::FeRows(_) => Err(PiCcsError::InvalidInput(
@@ -136,8 +137,7 @@ pub fn optimized_prove_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphi
         me_witnesses,
         log,
         cache,
-        None,
-        None,
+        ReplayBinding::claims(),
         ReplayTraceMode::Prove,
         false,
         None,
@@ -173,8 +173,7 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_perf<L: neo_ccs::trait
         me_witnesses,
         log,
         cache,
-        Some(public_instance_digest),
-        None,
+        ReplayBinding::instance_digest(public_instance_digest),
         ReplayTraceMode::Prove,
         false,
         None,
@@ -228,8 +227,7 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
         me_witnesses,
         log,
         cache,
-        Some(public_instance_digest),
-        Some(me_input_accumulator_handle),
+        ReplayBinding::legacy_handle(public_instance_digest, me_input_accumulator_handle),
         ReplayTraceMode::Prove,
         true,
         None,
@@ -276,8 +274,7 @@ pub fn optimized_prove_with_device_backends<L: neo_ccs::traits::SModuleHomomorph
         me_witnesses,
         log,
         cache,
-        Some(public_instance_digest),
-        Some(me_input_accumulator_handle),
+        ReplayBinding::legacy_handle(public_instance_digest, me_input_accumulator_handle),
         ReplayTraceMode::Prove,
         false,
         None,
@@ -365,8 +362,7 @@ pub fn optimized_prove_with_phase_backend_and_transcript_mode<L: neo_ccs::traits
         me_witnesses,
         log,
         cache,
-        Some(public_instance_digest),
-        Some(me_input_accumulator_handle),
+        ReplayBinding::legacy_handle(public_instance_digest, me_input_accumulator_handle),
         ReplayTraceMode::Prove,
         false,
         phase_backend,
@@ -411,8 +407,7 @@ pub fn optimized_defer_prove_with_phase_backend_and_transcript_mode<L: neo_ccs::
         me_witnesses,
         log,
         cache,
-        Some(public_instance_digest),
-        Some(me_input_accumulator_handle),
+        ReplayBinding::legacy_handle(public_instance_digest, me_input_accumulator_handle),
         ReplayTraceMode::DeferredProof,
         false,
         Some(phase_backend),
@@ -458,8 +453,7 @@ pub fn optimized_defer_prove_with_device_backends_and_transcript_mode<
         me_witnesses,
         log,
         cache,
-        Some(public_instance_digest),
-        Some(me_input_accumulator_handle),
+        ReplayBinding::legacy_handle(public_instance_digest, me_input_accumulator_handle),
         ReplayTraceMode::DeferredProof,
         false,
         None,
@@ -483,8 +477,7 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     me_witnesses: &[Mat<F>],
     log: &L,
     cache: &OptimizedStructureCache,
-    public_instance_digest: Option<[F; 4]>,
-    me_input_accumulator_handle: Option<[F; 4]>,
+    binding: ReplayBinding,
     mode: ReplayTraceMode,
     capture_pi_dec_precompute: bool,
     mut phase_backend: Option<&mut dyn PiCcsPhaseBackend>,
@@ -514,19 +507,29 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     // Dims + transcript binding
     let bind_started = std::time::Instant::now();
     let dims = utils::build_dims_and_policy(params, s)?;
-    if let Some(public_instance_digest) = public_instance_digest {
-        utils::bind_header_and_instance_digest_with_digest(
+    let transcript_variant = binding.transcript_variant();
+    if let Some(public_instance_digest) = binding.public_instance_digest {
+        utils::bind_header_and_instance_digest_with_digest_for_variant(
             tr,
             params,
             s,
             dims,
             cache.mat_digest(),
             &public_instance_digest,
+            transcript_variant,
         )?;
     } else {
-        utils::bind_header_and_instances_with_digest(tr, params, s, mcs_list, dims, cache.mat_digest())?;
+        utils::bind_header_and_instances_with_digest_for_variant(
+            tr,
+            params,
+            s,
+            mcs_list,
+            dims,
+            cache.mat_digest(),
+            transcript_variant,
+        )?;
     }
-    if let Some(handle) = me_input_accumulator_handle {
+    if let Some(handle) = binding.me_input_accumulator_handle {
         utils::bind_me_inputs_accumulator_handle(tr, me_inputs.len(), &handle)?;
     } else {
         utils::bind_me_inputs(tr, me_inputs)?;
@@ -540,14 +543,28 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
 
     // Sample challenges
     let sample_started = std::time::Instant::now();
-    let ch = sample_public_challenges_with_backend(
-        tr,
-        &mut phase_backend,
-        backend_transcript_mode,
-        dims.ell_d,
-        dims.ell,
-        dims.ell_m,
-    )?;
+    let block_pending = binding.block_pending();
+    if block_pending.is_some() && (phase_backend.is_some() || nc_backend.is_some()) {
+        return Err(PiCcsError::InvalidInput(
+            "block-lane NC currently requires the CPU NC path".into(),
+        ));
+    }
+    let mut ch = if block_pending.is_some() {
+        utils::sample_challenges(tr, dims.ell_d, dims.ell)?
+    } else {
+        sample_public_challenges_with_backend(
+            tr,
+            &mut phase_backend,
+            backend_transcript_mode,
+            dims.ell_d,
+            dims.ell,
+            dims.ell_m,
+        )?
+    };
+    let block_challenges = block_pending
+        .as_ref()
+        .map(|_| super::block_lane_replay::sample_challenges(tr, dims, &mut ch))
+        .transpose()?;
     let sample_challenges_ms = sample_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
     eprintln!(
@@ -615,7 +632,8 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     // Optimized oracles with cached sparse formats and factored algebra
     #[cfg(feature = "perf-timers")]
     let oracle_started = std::time::Instant::now();
-    let phase_shape_candidate = phase_backend.is_some() && mcs_witnesses.len() + me_witnesses.len() > 1;
+    let phase_shape_candidate =
+        block_challenges.is_none() && phase_backend.is_some() && mcs_witnesses.len() + me_witnesses.len() > 1;
     let mut oracle = if phase_shape_candidate {
         let backend = phase_backend
             .as_deref_mut()
@@ -700,7 +718,7 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
             )
         }
     });
-    let initial_sum_nc = K::ZERO;
+    let mut initial_sum_nc = K::ZERO;
     let mut running_sum_nc = initial_sum_nc;
     let mut sumcheck_rounds_nc = mode
         .captures_host_rounds()
@@ -1093,40 +1111,6 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     // ---------------------------------------------------------------------
     // NC-only sumcheck (split-NC scaffolding; claimed sum is 0)
     // ---------------------------------------------------------------------
-    #[cfg(feature = "perf-timers")]
-    let nc_oracle_new_started = std::time::Instant::now();
-    // With a device backend, skip the digit-table build — the backend
-    // sources them from resident planes (materialized below if it declines).
-    let mut oracle_nc = oracle_nc_from_phase.take().unwrap_or_else(|| {
-        if nc_backend.is_some() {
-            super::oracle::NcOracle::new_with_deferred_digit_tables(
-                s,
-                params,
-                mcs_witnesses,
-                me_witnesses,
-                ch.clone(),
-                dims.ell_d,
-                dims.ell_m,
-                dims.d_sc,
-            )
-        } else {
-            super::oracle::NcOracle::new(
-                s,
-                params,
-                mcs_witnesses,
-                me_witnesses,
-                ch.clone(),
-                dims.ell_d,
-                dims.ell_m,
-                dims.d_sc,
-            )
-        }
-    });
-    #[cfg(feature = "perf-timers")]
-    let nc_oracle_new_ms = nc_oracle_new_started.elapsed().as_secs_f64() * 1_000.0;
-    #[cfg(feature = "perf-timers")]
-    eprintln!("optimized_prove: 5a. NC oracle new     {nc_oracle_new_ms:>9.2}ms");
-
     let nc_sumcheck_started = std::time::Instant::now();
     #[cfg(feature = "perf-timers")]
     let mut nc_col_coeff_ms = 0.0f64;
@@ -1144,154 +1128,207 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     let mut nc_largest_fold_ms = 0.0f64;
     #[cfg(feature = "perf-timers")]
     let mut nc_largest_fold_round = 0usize;
-    let phase_nc_trace_applied = first_nc_host_round_from_phase.is_some();
-    let nc_backend_active = if phase_nc_trace_applied {
-        false
+    let y_zcol_digits;
+    if let Some(challenges) = block_challenges {
+        let trace = super::block_lane_replay::run(
+            tr,
+            s,
+            mcs_witnesses,
+            me_witnesses,
+            challenges,
+            block_pending.expect("block mode must be present"),
+            mode.captures_host_rounds(),
+        )?;
+        initial_sum_nc = trace.initial_sum;
+        running_sum_nc = trace.final_sum;
+        sumcheck_rounds_nc = trace.rounds;
+        sumcheck_chals_nc = trace.challenges;
+        y_zcol_digits = Some(trace.block_rows);
     } else {
-        match nc_backend.as_deref_mut() {
-            Some(backend) => backend.start(&oracle_nc.col_phase_snapshot()),
-            None => false,
-        }
-    };
-    if !nc_backend_active && !phase_nc_trace_applied {
-        oracle_nc.materialize_deferred_col_tables();
-    }
+        #[cfg(feature = "perf-timers")]
+        let nc_oracle_new_started = std::time::Instant::now();
+        // With a device backend, skip the digit-table build — the backend
+        // sources them from resident planes (materialized below if it declines).
+        let mut oracle_nc = oracle_nc_from_phase.take().unwrap_or_else(|| {
+            if nc_backend.is_some() {
+                super::oracle::NcOracle::new_with_deferred_digit_tables(
+                    s,
+                    params,
+                    mcs_witnesses,
+                    me_witnesses,
+                    ch.clone(),
+                    dims.ell_d,
+                    dims.ell_m,
+                    dims.d_sc,
+                )
+            } else {
+                super::oracle::NcOracle::new(
+                    s,
+                    params,
+                    mcs_witnesses,
+                    me_witnesses,
+                    ch.clone(),
+                    dims.ell_d,
+                    dims.ell_m,
+                    dims.d_sc,
+                )
+            }
+        });
+        #[cfg(feature = "perf-timers")]
+        let nc_oracle_new_ms = nc_oracle_new_started.elapsed().as_secs_f64() * 1_000.0;
+        #[cfg(feature = "perf-timers")]
+        eprintln!("optimized_prove: 5a. NC oracle new     {nc_oracle_new_ms:>9.2}ms");
 
-    let mut first_nc_host_round = first_nc_host_round_from_phase.unwrap_or(0);
-    let mut nc_prolog_on_host = false;
-    if nc_backend_active && dims.ell_m > 0 {
-        let col_rounds = dims.ell_m.min(oracle_nc.num_rounds());
-        let request = NcColTraceRequest {
-            transcript_state: tr.state(),
-            transcript_absorbed: tr.absorbed(),
-            rounds: col_rounds,
-            initial_sum: initial_sum_nc,
+        let phase_nc_trace_applied = first_nc_host_round_from_phase.is_some();
+        let nc_backend_active = if phase_nc_trace_applied {
+            false
+        } else {
+            match nc_backend.as_deref_mut() {
+                Some(backend) => backend.start(&oracle_nc.col_phase_snapshot()),
+                None => false,
+            }
         };
-        if let Some(trace) = nc_backend
-            .as_deref_mut()
-            .expect("nc backend is active")
-            .col_round_trace_with_prolog(request)
-        {
-            first_nc_host_round = apply_nc_backend_trace(NcBackendTraceApply {
-                tr,
-                oracle_nc: &mut oracle_nc,
-                trace,
-                expected_rounds: col_rounds,
-                transcript_mode: backend_transcript_mode,
-                append_prolog: true,
-                initial_sum: initial_sum_nc,
-                sumcheck_rounds_nc: &mut sumcheck_rounds_nc,
-                sumcheck_chals_nc: &mut sumcheck_chals_nc,
-                running_sum_nc: &mut running_sum_nc,
-            })?;
+        if !nc_backend_active && !phase_nc_trace_applied {
+            oracle_nc.materialize_deferred_col_tables();
         }
-    }
-    if first_nc_host_round == 0 && !phase_nc_trace_applied {
-        append_nc_sumcheck_prolog(tr, initial_sum_nc);
-        nc_prolog_on_host = true;
-    }
 
-    if nc_prolog_on_host && nc_backend_active && dims.ell_m > 0 {
-        let col_rounds = dims.ell_m.min(oracle_nc.num_rounds());
-        let transcript_state = tr.state();
-        let transcript_absorbed = tr.absorbed();
-        if let Some(trace) = nc_backend
-            .as_deref_mut()
-            .expect("nc backend is active")
-            .col_round_trace_from_transcript(transcript_state, transcript_absorbed, col_rounds)
-        {
-            first_nc_host_round = apply_nc_backend_trace(NcBackendTraceApply {
-                tr,
-                oracle_nc: &mut oracle_nc,
-                trace,
-                expected_rounds: col_rounds,
-                transcript_mode: backend_transcript_mode,
-                append_prolog: false,
+        let mut first_nc_host_round = first_nc_host_round_from_phase.unwrap_or(0);
+        let mut nc_prolog_on_host = false;
+        if nc_backend_active && dims.ell_m > 0 {
+            let col_rounds = dims.ell_m.min(oracle_nc.num_rounds());
+            let request = NcColTraceRequest {
+                transcript_state: tr.state(),
+                transcript_absorbed: tr.absorbed(),
+                rounds: col_rounds,
                 initial_sum: initial_sum_nc,
-                sumcheck_rounds_nc: &mut sumcheck_rounds_nc,
-                sumcheck_chals_nc: &mut sumcheck_chals_nc,
-                running_sum_nc: &mut running_sum_nc,
-            })?;
-        }
-    }
-
-    for _round_idx in first_nc_host_round..oracle_nc.num_rounds() {
-        let backend_col_round = nc_backend_active && oracle_nc.round_idx < dims.ell_m;
-        #[cfg(feature = "perf-timers")]
-        let is_col_round = oracle_nc.round_idx < dims.ell_m;
-        #[cfg(feature = "perf-timers")]
-        let coeff_started = std::time::Instant::now();
-        let coeffs = if backend_col_round {
-            nc_backend
+            };
+            if let Some(trace) = nc_backend
                 .as_deref_mut()
                 .expect("nc backend is active")
-                .round_coeffs()
-        } else if let Some(coeffs) = oracle_nc.optimized_col_phase_round_coeffs() {
-            coeffs
-        } else {
-            let deg = oracle_nc.degree_bound();
-            let xs: Vec<K> = (0..=deg).map(|t| K::from(F::from_u64(t as u64))).collect();
-            let ys = oracle_nc.evals_at(&xs);
-            crate::sumcheck::interpolate_from_evals(&xs, &ys)
-        };
-        #[cfg(feature = "perf-timers")]
-        {
-            let coeff_ms = coeff_started.elapsed().as_secs_f64() * 1_000.0;
-            if is_col_round {
-                nc_col_coeff_ms += coeff_ms;
+                .col_round_trace_with_prolog(request)
+            {
+                first_nc_host_round = apply_nc_backend_trace(NcBackendTraceApply {
+                    tr,
+                    oracle_nc: &mut oracle_nc,
+                    trace,
+                    expected_rounds: col_rounds,
+                    transcript_mode: backend_transcript_mode,
+                    append_prolog: true,
+                    initial_sum: initial_sum_nc,
+                    sumcheck_rounds_nc: &mut sumcheck_rounds_nc,
+                    sumcheck_chals_nc: &mut sumcheck_chals_nc,
+                    running_sum_nc: &mut running_sum_nc,
+                })?;
+            }
+        }
+        if first_nc_host_round == 0 && !phase_nc_trace_applied {
+            append_nc_sumcheck_prolog(tr, initial_sum_nc);
+            nc_prolog_on_host = true;
+        }
+
+        if nc_prolog_on_host && nc_backend_active && dims.ell_m > 0 {
+            let col_rounds = dims.ell_m.min(oracle_nc.num_rounds());
+            let transcript_state = tr.state();
+            let transcript_absorbed = tr.absorbed();
+            if let Some(trace) = nc_backend
+                .as_deref_mut()
+                .expect("nc backend is active")
+                .col_round_trace_from_transcript(transcript_state, transcript_absorbed, col_rounds)
+            {
+                first_nc_host_round = apply_nc_backend_trace(NcBackendTraceApply {
+                    tr,
+                    oracle_nc: &mut oracle_nc,
+                    trace,
+                    expected_rounds: col_rounds,
+                    transcript_mode: backend_transcript_mode,
+                    append_prolog: false,
+                    initial_sum: initial_sum_nc,
+                    sumcheck_rounds_nc: &mut sumcheck_rounds_nc,
+                    sumcheck_chals_nc: &mut sumcheck_chals_nc,
+                    running_sum_nc: &mut running_sum_nc,
+                })?;
+            }
+        }
+
+        for _round_idx in first_nc_host_round..oracle_nc.num_rounds() {
+            let backend_col_round = nc_backend_active && oracle_nc.round_idx < dims.ell_m;
+            #[cfg(feature = "perf-timers")]
+            let is_col_round = oracle_nc.round_idx < dims.ell_m;
+            #[cfg(feature = "perf-timers")]
+            let coeff_started = std::time::Instant::now();
+            let coeffs = if backend_col_round {
+                nc_backend
+                    .as_deref_mut()
+                    .expect("nc backend is active")
+                    .round_coeffs()
+            } else if let Some(coeffs) = oracle_nc.optimized_col_phase_round_coeffs() {
+                coeffs
             } else {
-                nc_ajtai_coeff_ms += coeff_ms;
+                let deg = oracle_nc.degree_bound();
+                let xs: Vec<K> = (0..=deg).map(|t| K::from(F::from_u64(t as u64))).collect();
+                let ys = oracle_nc.evals_at(&xs);
+                crate::sumcheck::interpolate_from_evals(&xs, &ys)
+            };
+            #[cfg(feature = "perf-timers")]
+            {
+                let coeff_ms = coeff_started.elapsed().as_secs_f64() * 1_000.0;
+                if is_col_round {
+                    nc_col_coeff_ms += coeff_ms;
+                } else {
+                    nc_ajtai_coeff_ms += coeff_ms;
+                }
+                if coeff_ms > nc_largest_coeff_ms {
+                    nc_largest_coeff_ms = coeff_ms;
+                    nc_largest_coeff_round = _round_idx;
+                }
             }
-            if coeff_ms > nc_largest_coeff_ms {
-                nc_largest_coeff_ms = coeff_ms;
-                nc_largest_coeff_round = _round_idx;
+
+            let p0 = coeffs[0];
+            let p1 = crate::sumcheck::poly_eval_k_base(&coeffs, F::ONE);
+            if p0 + p1 != running_sum_nc {
+                return Err(PiCcsError::SumcheckError(format!(
+                    "NC sumcheck invariant failed at round {_round_idx}: p(0)+p(1) ≠ running_sum"
+                )));
             }
-        }
 
-        let p0 = coeffs[0];
-        let p1 = crate::sumcheck::poly_eval_k_base(&coeffs, F::ONE);
-        if p0 + p1 != running_sum_nc {
-            return Err(PiCcsError::SumcheckError(format!(
-                "NC sumcheck invariant failed at round {_round_idx}: p(0)+p(1) ≠ running_sum"
-            )));
-        }
+            let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);
+            tr.append_fields_raw(&coeff_fields);
+            let c = tr.challenge_fields_raw(2);
+            let r_i = neo_math::from_complex(c[0], c[1]);
+            sumcheck_chals_nc.push(r_i);
 
-        let coeff_fields = crate::sumcheck::round_coeff_fields(&coeffs);
-        tr.append_fields_raw(&coeff_fields);
-        let c = tr.challenge_fields_raw(2);
-        let r_i = neo_math::from_complex(c[0], c[1]);
-        sumcheck_chals_nc.push(r_i);
-
-        running_sum_nc = crate::sumcheck::poly_eval_k(&coeffs, r_i);
-        #[cfg(feature = "perf-timers")]
-        let fold_started = std::time::Instant::now();
-        if backend_col_round {
-            let backend = nc_backend.as_deref_mut().expect("nc backend is active");
-            backend.fold(r_i);
-            oracle_nc.advance_col_round_without_fold(r_i);
-            if oracle_nc.round_idx == dims.ell_m {
-                let state = backend.finalized_col_state();
-                oracle_nc.inject_finalized_col_state(state.digit_rows, state.eq_beta_m0);
-            }
-        } else {
-            oracle_nc.fold(r_i);
-        }
-        #[cfg(feature = "perf-timers")]
-        {
-            let fold_ms = fold_started.elapsed().as_secs_f64() * 1_000.0;
-            if is_col_round {
-                nc_col_fold_ms += fold_ms;
+            running_sum_nc = crate::sumcheck::poly_eval_k(&coeffs, r_i);
+            #[cfg(feature = "perf-timers")]
+            let fold_started = std::time::Instant::now();
+            if backend_col_round {
+                let backend = nc_backend.as_deref_mut().expect("nc backend is active");
+                backend.fold(r_i);
+                oracle_nc.advance_col_round_without_fold(r_i);
+                if oracle_nc.round_idx == dims.ell_m {
+                    let state = backend.finalized_col_state();
+                    oracle_nc.inject_finalized_col_state(state.digit_rows, state.eq_beta_m0);
+                }
             } else {
-                nc_ajtai_fold_ms += fold_ms;
+                oracle_nc.fold(r_i);
             }
-            if fold_ms > nc_largest_fold_ms {
-                nc_largest_fold_ms = fold_ms;
-                nc_largest_fold_round = _round_idx;
+            #[cfg(feature = "perf-timers")]
+            {
+                let fold_ms = fold_started.elapsed().as_secs_f64() * 1_000.0;
+                if is_col_round {
+                    nc_col_fold_ms += fold_ms;
+                } else {
+                    nc_ajtai_fold_ms += fold_ms;
+                }
+                if fold_ms > nc_largest_fold_ms {
+                    nc_largest_fold_ms = fold_ms;
+                    nc_largest_fold_round = _round_idx;
+                }
+            }
+            if let Some(rounds) = sumcheck_rounds_nc.as_mut() {
+                rounds.push(coeffs);
             }
         }
-        if let Some(rounds) = sumcheck_rounds_nc.as_mut() {
-            rounds.push(coeffs);
-        }
+        y_zcol_digits = Some(oracle_nc.finalized_y_zcol_digits());
     }
     let nc_sumcheck_ms = nc_sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
     #[cfg(feature = "perf-timers")]
@@ -1322,7 +1359,8 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     // Build outputs at r′ using the oracle's r′-only precomputation (no dense scan).
     let output_started = std::time::Instant::now();
     let fold_digest = tr.digest32();
-    let (s_col, _alpha_nc) = sumcheck_chals_nc.split_at(dims.ell_m);
+    let nc_point_variables = binding.nc_point_variables(dims);
+    let (s_col, _alpha_nc) = sumcheck_chals_nc.split_at(nc_point_variables);
     let out_me = if let Some(surfaces) = phase_terminal_surfaces.take() {
         build_me_outputs_from_terminal_surfaces(
             params,
@@ -1336,7 +1374,6 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
             fold_digest,
         )?
     } else {
-        let y_zcol_digits = (!s_col.is_empty()).then(|| oracle_nc.finalized_y_zcol_digits());
         oracle.build_me_outputs_from_ajtai_precomp(
             mcs_list,
             me_inputs,
@@ -1369,8 +1406,8 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
 
     let row_chals = sumcheck_chals[..dims.ell_n].to_vec();
     let alpha_prime = sumcheck_chals[dims.ell_n..].to_vec();
-    let s_col_chals = sumcheck_chals_nc[..dims.ell_m].to_vec();
-    let alpha_prime_nc = sumcheck_chals_nc[dims.ell_m..].to_vec();
+    let s_col_chals = sumcheck_chals_nc[..nc_point_variables].to_vec();
+    let alpha_prime_nc = sumcheck_chals_nc[nc_point_variables..].to_vec();
     let output_shell = PiCcsTerminalOutputShell {
         count: out_me.len(),
         m_in: out_me
@@ -1384,6 +1421,7 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
     };
 
     let terminal_state = PiCcsReplayTerminalState {
+        variant: binding.proof_variant(),
         me_outputs: out_me,
         output_shell,
         sc_initial_sum: initial_sum,

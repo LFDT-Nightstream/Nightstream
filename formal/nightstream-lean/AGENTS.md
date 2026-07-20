@@ -69,3 +69,30 @@ See `docs/architecture.md` for ownership boundaries.
 
 `all` runs each Lean phase under its own cap. A timeout is a failed gate, not a
 passing result.
+
+## Performance and resource discipline
+
+- Run at most one Lean build/check or Rust build/test process at a time across
+  the parent agent and all subagents. Read-only inspection may run alongside it
+  only when it cannot trigger compilation.
+- After changing process or memory supervision in `scripts/validate.sh`, its
+  bounded monitor self-test must pass before any Lean build. Do not bypass a
+  monitor that cannot account for every descendant process. Thread limits are
+  not substitutes for aggregate descendant memory accounting.
+- Treat RAM ceilings as hard safety limits, not performance targets. Do not
+  raise a limit merely to make an unexpectedly large certificate finish.
+- Before applying `native_decide` to a generated or concrete collection,
+  establish its exact input length. Any partitioned certificate must check its
+  maximum shard length, exact coverage, absence of overlap, and final remainder
+  size so an unbounded tail cannot masquerade as a shard.
+- Avoid closed computation over large proof-carrying structures. Project to the
+  smallest compact decidable data that expresses the artifact fact, then use a
+  generic kernel theorem to derive the semantic result.
+- Never rerun a resource-failing target unchanged. After two memory-,
+  heartbeat-, or time-capped attempts at the same obligation, stop compiling
+  and isolate the responsible expression in a smaller focused module.
+- Validate bottom-up: build the changed leaf first, then its immediate parent.
+  Do not run a full build until the focused path is green.
+- For long focused runs, report the exact target, elapsed time, peak aggregate
+  descendant RSS, and outcome. Distinguish compilation time from editing,
+  reasoning, blocking, and waiting.

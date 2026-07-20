@@ -1,6 +1,9 @@
 name = "nightstream_lean"
 version = "0.1.0"
 defaultTargets = ["Nightstream", "NightstreamTests", "check"]
+# Lake itself observes LEAN_NUM_THREADS; spawned Lean frontends need an
+# explicit shell argument. weakLeanArgs is intentionally cache-neutral.
+weakLeanArgs = ["-j1"]
 
 [[lean_lib]]
 name = "Nightstream"

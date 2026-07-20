@@ -164,7 +164,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
             }
         }
     }
-    assert_eq!(declared_ports, 60, "Enzo's current layout declares 60 ports per step");
+    assert_eq!(declared_ports, 73, "Current layout declares 73 ports per step");
     assert_eq!(slot, declared_ports * batch_size);
 }
 
@@ -337,7 +337,7 @@ fn wasm_nebula_sound_preprocess_rejects_imported_memory_and_globals() {
                     entry_pc,
                     0x57a5_0100,
                 ),
-                Err(neo_wasm::nebula::WasmNebulaError::HostImportsUnsupported)
+                Err(neo_wasm::nebula::WasmNebulaError::ImportedStateUnsupported)
             ),
             "sound preprocessing accepted imported {label} state",
         );
@@ -372,6 +372,69 @@ fn wasm_nebula_sound_preprocess_rejects_declared_memory_outside_dense_domain() {
             })
         ),
         "sound preprocessing accepted a declared memory larger than its dense domain",
+    );
+}
+
+/// The grammar entry point waives ONLY the host-function-import rejection
+/// (those calls are chain-bound by templates); imported memories/globals
+/// stay verifier-unbound state, and the linear-memory limits still apply.
+#[test]
+fn wasm_nebula_grammar_preprocess_keeps_imported_state_and_memory_checks() {
+    let mut grammar = neo_wasm::event_grammar::HostEventGrammar::default();
+    grammar
+        .exports
+        .insert(0, neo_wasm::event_grammar::ExportTemplate::default());
+    let grammar_preprocess = |wat: &str, seed: u64| {
+        let wasm = wat::parse_str(wat).expect("valid WAT");
+        let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("artifacts");
+        let entry_pc = common::single_function_entry_pc(&artifacts);
+        neo_wasm::nebula::preprocess_seeded_grammar_test_only(
+            nebula_test_params(),
+            neo_wasm::nebula::WasmNebulaProfile::test_profile(),
+            &artifacts,
+            &[],
+            entry_pc,
+            &grammar,
+            0,
+            seed,
+        )
+    };
+    for (label, wat) in [
+        (
+            "memory",
+            r#"(module
+                (import "host" "memory" (memory 0 0))
+                (func (export "main") (result i32)
+                    i32.const 7))"#,
+        ),
+        (
+            "global",
+            r#"(module
+                (import "host" "global" (global (mut i32)))
+                (func (export "main") (result i32)
+                    i32.const 7))"#,
+        ),
+    ] {
+        assert!(
+            matches!(
+                grammar_preprocess(wat, 0x57a5_0102),
+                Err(neo_wasm::nebula::WasmNebulaError::ImportedStateUnsupported)
+            ),
+            "grammar preprocessing accepted imported {label} state",
+        );
+    }
+    assert!(
+        matches!(
+            grammar_preprocess(
+                r#"(module
+                    (memory 20000 20000)
+                    (func (export "main") (result i32)
+                        i32.const 7))"#,
+                0x57a5_0103,
+            ),
+            Err(neo_wasm::nebula::WasmNebulaError::DeclaredLinearMemoryTooLarge { .. })
+        ),
+        "grammar preprocessing accepted a declared memory larger than its capacity",
     );
 }
 

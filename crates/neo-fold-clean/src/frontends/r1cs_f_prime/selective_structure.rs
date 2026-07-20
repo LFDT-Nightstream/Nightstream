@@ -43,6 +43,38 @@ use super::{
 };
 use crate::paper::relations::Structure;
 
+pub(super) struct EmittedStructureTerms {
+    pub(super) matrix_terms: Vec<MatrixTerms>,
+    pub(super) rows: usize,
+    pub(super) columns: usize,
+}
+
+impl EmittedStructureTerms {
+    fn into_structure(self) -> Result<Structure, LowNormR1csError> {
+        let mut matrices = Vec::with_capacity(SELECTIVE_ARITY);
+        for mut terms in self.matrix_terms {
+            let csc = if terms.retain_geometric {
+                CscMat::from_counted_triplets(core::mem::take(&mut terms.explicit), self.rows, self.columns)
+            } else {
+                CscMat::from_triplets_and_geometric_runs(
+                    core::mem::take(&mut terms.explicit),
+                    &terms.geometric_runs,
+                    self.rows,
+                    self.columns,
+                )
+            };
+            if !terms.retain_geometric {
+                terms.geometric_runs.clear();
+            }
+            matrices.push(
+                CcsMatrix::csc_with_compact_rows(csc, terms.seeded, terms.geometric_runs)
+                    .map_err(|error| trace_error(&error))?,
+            );
+        }
+        CcsStructure::new_sparse(matrices, selective_polynomial()).map_err(|error| trace_error(&error.to_string()))
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_structure(
     arms: &[SparseR1cs],
@@ -58,6 +90,38 @@ pub(super) fn build_structure(
     cols: usize,
     prepared_rows: &PreparedSelectiveRows,
 ) -> Result<Structure, LowNormR1csError> {
+    emit_structure_terms(
+        arms,
+        plans,
+        slots,
+        aliases,
+        equal_aliases,
+        shared_private_fields,
+        derived_product_sums,
+        selectors,
+        public_padding_cols,
+        private_padding_cols,
+        cols,
+        prepared_rows,
+    )?
+    .into_structure()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_structure_terms(
+    arms: &[SparseR1cs],
+    plans: &[SelectiveArmPlan],
+    slots: &[Vec<Option<(usize, usize)>>],
+    aliases: &[Vec<Option<(usize, usize)>>],
+    equal_aliases: &[Vec<Option<usize>>],
+    shared_private_fields: usize,
+    derived_product_sums: &[Vec<DerivedProductSumEncoding>],
+    selectors: &[usize],
+    public_padding_cols: &[usize],
+    private_padding_cols: &[usize],
+    cols: usize,
+    prepared_rows: &PreparedSelectiveRows,
+) -> Result<EmittedStructureTerms, LowNormR1csError> {
     let eval_pair = |pair_index: usize| EVAL_PAIRS[pair_index];
 
     let expected_rows = prepared_rows.total_rows();
@@ -518,27 +582,11 @@ pub(super) fn build_structure(
     if rows != expected_rows {
         return Err(trace_error("selective row count differs from emitted structure"));
     }
-    let mut matrices = Vec::with_capacity(SELECTIVE_ARITY);
-    for mut terms in matrix_terms {
-        let csc = if terms.retain_geometric {
-            CscMat::from_counted_triplets(core::mem::take(&mut terms.explicit), rows, columns)
-        } else {
-            CscMat::from_triplets_and_geometric_runs(
-                core::mem::take(&mut terms.explicit),
-                &terms.geometric_runs,
-                rows,
-                columns,
-            )
-        };
-        if !terms.retain_geometric {
-            terms.geometric_runs.clear();
-        }
-        matrices.push(
-            CcsMatrix::csc_with_compact_rows(csc, terms.seeded, terms.geometric_runs)
-                .map_err(|error| trace_error(&error))?,
-        );
-    }
-    CcsStructure::new_sparse(matrices, selective_polynomial()).map_err(|error| trace_error(&error.to_string()))
+    Ok(EmittedStructureTerms {
+        matrix_terms,
+        rows,
+        columns,
+    })
 }
 
 fn emit_domain_digit(

@@ -16,6 +16,7 @@
 //! | `f_prime.selective_ccs.branch.gate[*]` | every fixture row has exactly one final selector port and column | compact physical-coverage audit |
 //! | `f_prime.selective_ccs.padding.public` | all thirteen zero-pin rows | Lean carrier refinement |
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
@@ -24,8 +25,9 @@ use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder};
 use neo_fold_clean::frontends::r1cs_f_prime::lowering::{LowNormR1csError, SelectiveSnapshotError};
 use neo_fold_clean::frontends::r1cs_f_prime::{
-    build_multi_branch_low_norm_r1cs, build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs,
-    SelectiveEmittedRowFamily, SelectiveGatePort, SelectiveRowArtifact, SelectiveSelectorGateCoverage,
+    audit_multi_branch_selective_rows_with_alignment, build_multi_branch_low_norm_r1cs,
+    build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs, SelectiveEmittedRowFamily,
+    SelectiveGatePort, SelectiveProjectedPort, SelectiveRowArtifact, SelectiveSelectorGateCoverage,
     SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN};
@@ -389,6 +391,22 @@ fn snapshot_arm(seed: u64) -> (neo_fold_clean::frontends::r1cs_f_prime::SparseR1
         .into_parts()
 }
 
+fn expand_projected_port(port: &SelectiveProjectedPort) -> Vec<(usize, F)> {
+    let mut terms = BTreeMap::<usize, F>::new();
+    for term in port.explicit() {
+        *terms.entry(term.column()).or_insert(F::ZERO) += term.coefficient();
+    }
+    for run in port.geometric_runs() {
+        let mut coefficient = run.initial();
+        for column in run.column_start()..run.column_start() + run.length() {
+            *terms.entry(column).or_insert(F::ZERO) += coefficient;
+            coefficient *= run.ratio();
+        }
+    }
+    terms.retain(|_, coefficient| *coefficient != F::ZERO);
+    terms.into_iter().collect()
+}
+
 fn f_prime_public_carrier_fixture() -> Vec<(neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs, Vec<F>)> {
     (0..3)
         .map(|_| {
@@ -434,6 +452,57 @@ fn expected_gate_for_owner(
         Family::PolynomialEvaluation | Family::ProductSum => {
             let arm = arm.expect("evaluation-gated arm family");
             (SelectiveGatePort::Evaluation, selector_columns[arm])
+        }
+    }
+}
+
+#[test]
+fn projected_emitter_rows_expand_to_materialized_rows() {
+    let fixtures = [snapshot_arm(7), snapshot_arm(19)];
+    let shapes = fixtures
+        .iter()
+        .map(|(shape, _)| shape.clone())
+        .collect::<Vec<_>>();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, D, 0)
+        .expect("compile selective projection fixture");
+    let snapshot = relation
+        .selective_snapshot()
+        .expect("checked selective projection snapshot");
+    assert!(snapshot.structure().n < 10_000, "bounded differential fixture");
+    let selected_rows = (0..snapshot.structure().n).collect::<Vec<_>>();
+    let projected = audit_multi_branch_selective_rows_with_alignment(&shapes, 0, D, 0, &selected_rows)
+        .expect("project exact emitter rows");
+
+    assert_eq!(projected.rows(), snapshot.structure().n);
+    assert_eq!(projected.columns(), snapshot.structure().m);
+    assert_eq!(projected.selector_columns(), snapshot.selector_cols());
+    assert_eq!(projected.compiler_audit(), snapshot.compiler_audit());
+    assert_eq!(projected.row_artifacts().len(), selected_rows.len());
+
+    for (row, compact) in selected_rows.into_iter().zip(projected.row_artifacts()) {
+        let materialized = snapshot
+            .materialize_row(row)
+            .expect("materialize differential row");
+        assert_eq!(compact.schema_version(), materialized.schema_version());
+        assert_eq!(compact.rows(), materialized.matrix_row().rows());
+        assert_eq!(compact.columns(), materialized.matrix_row().columns());
+        assert_eq!(compact.emitted_row(), materialized.matrix_row().emitted_row());
+        assert_eq!(compact.run_index(), materialized.run_index());
+        assert_eq!(compact.family(), materialized.family());
+        assert_eq!(compact.arm(), materialized.arm());
+        for port in 0..13 {
+            let expected = materialized
+                .matrix_row()
+                .port(port)
+                .expect("materialized port")
+                .iter()
+                .map(|term| (term.column(), term.coefficient()))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                expand_projected_port(&compact.ports()[port]),
+                expected,
+                "row {row}, port {port}"
+            );
         }
     }
 }

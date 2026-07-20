@@ -41,6 +41,10 @@ use crate::engine::r1cs_circuit::Lc;
 mod canonical;
 #[path = "selective_emit.rs"]
 mod emit;
+#[path = "selective_projected_decoder.rs"]
+mod projected_decoder;
+#[path = "selective_projected_rows.rs"]
+mod projected_rows;
 #[path = "selective_rows.rs"]
 mod rows;
 #[path = "selective_shape.rs"]
@@ -50,6 +54,16 @@ mod structure;
 #[path = "selective_terms.rs"]
 mod terms;
 use emit::{lc_from_column, trace_error};
+pub(super) use projected_decoder::SelectiveProjectedSourceResolution;
+pub(crate) use projected_rows::{project_rows_with_alignment, project_rows_with_source_provenance_with_alignment};
+pub use projected_rows::{
+    SelectiveProjectedDerivedProductSum, SelectiveProjectedGeometricRun, SelectiveProjectedPort,
+    SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource,
+    SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep,
+    SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit, SelectiveProjectedSourceDefinition,
+    SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot,
+    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+};
 use rows::{skipped_selective_rows, PreparedSelectiveRows};
 pub(crate) use shape::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
@@ -136,6 +150,26 @@ pub fn build_multi_branch_selective_low_norm_r1cs_with_alignment(
         shared_private_fields,
         modulus,
         residue,
+    )
+}
+
+/// Project selected exact rows from the same emitter term stream used by the
+/// full selective relation, without allocating arrays over every final column.
+#[doc(hidden)]
+pub fn audit_multi_branch_selective_rows_with_alignment(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    modulus: usize,
+    residue: usize,
+    selected_rows: &[usize],
+) -> Result<SelectiveProjectedRowsAudit, LowNormR1csError> {
+    project_rows_with_alignment(
+        arms,
+        shared_private_fields,
+        shared_private_fields,
+        modulus,
+        residue,
+        selected_rows,
     )
 }
 

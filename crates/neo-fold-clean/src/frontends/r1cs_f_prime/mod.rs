@@ -51,8 +51,14 @@ pub(crate) use selective::{
 pub use selective::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
     audit_multi_branch_selective_low_norm_width_with_shared_bit_prefix,
-    build_multi_branch_selective_low_norm_r1cs_with_alignment,
-    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
+    audit_multi_branch_selective_rows_with_alignment, build_multi_branch_selective_low_norm_r1cs_with_alignment,
+    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, SelectiveProjectedDerivedProductSum,
+    SelectiveProjectedGeometricRun, SelectiveProjectedPort, SelectiveProjectedProductFactor,
+    SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
+    SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
+    SelectiveProjectedRowsAudit, SelectiveProjectedSourceDefinition, SelectiveProjectedSourceLinearCombination,
+    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm,
+    SelectiveProjectedTerm,
 };
 pub use selective_audit::{
     SelectiveArmRowMappingAudit, SelectiveArmWidthAudit, SelectiveCompilerAudit, SelectiveEmittedRowFamily,

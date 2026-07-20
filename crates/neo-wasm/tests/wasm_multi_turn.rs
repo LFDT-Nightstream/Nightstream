@@ -3,13 +3,11 @@
 
 mod common;
 
+use common::audit::{prove_batched, verify_with_transcript, AuditProveError};
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::event_grammar::{ExportTemplate, GrammarEvent, HostEventGrammar, Limb, SlotSource, TurnClaims};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{
-    grammar_top_level_initial_state_digest, preprocess_seeded_batched, prove_batched, verify_with_transcript,
-    WasmProveError, WasmVmStep,
-};
+use neo_wasm::{grammar_top_level_initial_state_digest, preprocess_seeded_batched, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 use wasmtime::component::Val as ComponentVal;
 
@@ -232,7 +230,7 @@ fn multi_turn_proof_binds_both_turns_inputs() {
     assert!(
         matches!(
             verify_with_transcript(&prep, &proof, final_state, &wrong),
-            Err(WasmProveError::TranscriptMismatch)
+            Err(AuditProveError::TranscriptMismatch)
         ),
         "a transcript claiming a different turn-2 input must be rejected"
     );
@@ -287,6 +285,67 @@ fn ccs_rejects_forged_turn_boundary() {
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE] = neo_math::F::ONE;
     common::assert_rejected(&forged, "boundary before the previous schedule is spent");
+
+    // Presence binding: a boundary pointed at a fref with no export
+    // template reads the zero-filled count cell (the memory model pins the
+    // claim; see memory_model_rejects_boundary_into_undeclared_fref), and
+    // under the biased load no normal schedule satisfies the row.
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] = neo_math::F::from_u64(u64::from(setup.add_fref) + 7);
+    forged[neo_wasm::layout::COL_GRAMMAR_PRE_COUNT] = neo_math::F::ZERO;
+    common::assert_rejected(&forged, "boundary entering an undeclared fref with a normal schedule");
+
+    // The only row-locally satisfiable assignment loads the poisoned
+    // schedule EVREM = -1 = p-1 ...
+    let mut poisoned = forged.clone();
+    poisoned[neo_wasm::layout::COL_GRAMMAR_EVREM_AFTER] = -neo_math::F::ONE;
+    common::assert_satisfied(&poisoned, "undeclared boundary target loads the poisoned schedule");
+
+    // ... which the composed circuit's grammar-ROM address bound prevents
+    // from draining before another program row can run.
+    let program_row = setup
+        .trace
+        .iter()
+        .find(|row| row.row_kind.is_program())
+        .expect("program row");
+    let mut wedged = build_witness_vector(program_row);
+    wedged[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE] = -neo_math::F::ONE;
+    common::assert_rejected(&wedged, "program row under the poisoned schedule");
+}
+
+/// The claim side of the presence binding: an undeclared boundary target
+/// cannot fake a declared export's biased count cell — the export
+/// entry-count family has no cell for it, so the ROM read mismatches.
+#[test]
+fn memory_model_rejects_boundary_into_undeclared_fref() {
+    let setup = multi_turn_setup();
+    let calls = [
+        ("add", vec![ComponentVal::S32(7)]),
+        ("add", vec![ComponentVal::S32(35)]),
+    ];
+    let run = neo_wasm::collect_wasmtime_component_run_calls(&setup.component_bytes, &calls, |_| Ok(()))
+        .expect("two-turn component run");
+    let artifacts =
+        neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
+    let mut preload =
+        neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &vec![0; run.initial_locals.len()]);
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &setup.grammar);
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+
+    let tb_index = setup
+        .trace
+        .iter()
+        .position(|row| row.row_kind.is_turn_boundary())
+        .expect("boundary row");
+    let mut witness_rows: Vec<Vec<neo_math::F>> = setup.trace.iter().map(build_witness_vector).collect();
+    neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
+        .expect("the honest trace must pass");
+    witness_rows[tb_index][neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] =
+        neo_math::F::from_u64(u64::from(setup.add_fref) + 7);
+    assert!(
+        neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload).is_err(),
+        "an undeclared boundary target must not read a declared export's count cell"
+    );
 }
 
 #[test]
@@ -301,8 +360,8 @@ fn ccs_rejects_execution_after_halt() {
         .expect("program row");
     let mut witness = build_witness_vector(program_row);
     common::assert_satisfied(&witness, "untampered program row");
-    witness[neo_wasm::layout::COL_TURN_DONE_BEFORE] = neo_math::F::ONE;
-    witness[neo_wasm::layout::COL_TURN_DONE_AFTER] = neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_HALTED_BEFORE] = neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_HALTED] = neo_math::F::ONE;
     common::assert_rejected(&witness, "program row executing after a halt");
 
     // The halting row cannot suppress the latch (with or without capture).
@@ -313,7 +372,7 @@ fn ccs_rejects_execution_after_halt() {
         .expect("halting row");
     let mut witness = build_witness_vector(halting_row);
     common::assert_satisfied(&witness, "untampered halting row");
-    witness[neo_wasm::layout::COL_TURN_DONE_AFTER] = neo_math::F::ZERO;
+    witness[neo_wasm::layout::COL_HALTED] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "halting row pretending the turn is not done");
 }
 
@@ -410,8 +469,8 @@ fn resultless_turn_can_precede_another_turn() {
         .expect("boundary row");
     assert!(!tb.state_before.output.enabled);
     assert!(!tb.state_after.output.enabled);
-    assert!(tb.state_before.turn_done);
-    assert!(!tb.state_after.turn_done);
+    assert!(tb.state_before.halted);
+    assert!(!tb.state_after.halted);
 
     let mut blocks =
         neo_wasm::event_grammar::expand_export_entry(&grammar.exports[&poke_fref], &[41]).expect("poke entry");

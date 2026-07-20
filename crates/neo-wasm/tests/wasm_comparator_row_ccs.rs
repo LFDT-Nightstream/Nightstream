@@ -46,7 +46,6 @@ fn step(
             event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
             grammar_mode: false,
             grammar: neo_wasm::WasmGrammarState::ZERO,
-            turn_done: false,
         }
     }
 

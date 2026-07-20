@@ -192,14 +192,16 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
 
         // Gather rows exist only in grammar mode.
         b.push_row([(COL_GATHER_ACTIVE, F::ONE)], not_mode, []);
-        // Disable the pc-to-function lookup on gather, permutation, and turn
-        // boundary rows, which do not execute a program instruction.
+        // Disable the pc-to-function lookup on gather, permutation, turn
+        // boundary, and padding rows, which do not execute a program
+        // instruction.
         b.push_linear_zero([
             (super::super::layout::COL_PC_FREF_ACTIVE, F::ONE),
             (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
             (COL_PERM_PENDING_BEFORE, F::ONE),
             (COL_TURN_BOUNDARY, F::ONE),
+            (super::super::layout::COL_PADDING_ACTIVE, F::ONE),
         ]);
         // Turn boundaries only exist in grammar mode.
         b.push_row(
@@ -285,7 +287,15 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(EVREM_ISZERO, F::ONE)], []);
         b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(EVREM_B, F::ONE)], []);
         b.push_row([(COL_HOST_RESULT_ACTIVE, F::ONE)], [(EVREM_B, F::ONE)], []);
-        b.push_row([(GHC, F::ONE)], [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE)], []);
+        // Pre-count cells store count + 1 (presence bias): an undeclared
+        // import's zero-filled cell loads the poisoned EVREM = -1 = p-1.
+        // See the count-family relation-layout comment for the full
+        // ROM-address non-termination argument.
+        b.push_row(
+            [(GHC, F::ONE)],
+            [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE), (COL_ONE, F::ONE)],
+            [],
+        );
         b.push_row([(GRES, F::ONE)], [(EVREM_A, F::ONE), (POST_COUNT, -F::ONE)], []);
         b.push_row(
             [(GW0 + 7, F::ONE)],
@@ -306,11 +316,14 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         );
         // Turn boundary: the previous turn's schedules must be spent, and
         // the next export's entry schedule loads from the count ROM (keyed
-        // by the repointed attribution, like the exit latch).
+        // by the repointed attribution, like the exit latch). The presence
+        // bias (+1) binds the target to a DECLARED export template: internal
+        // functions and imports read the export family's zero-filled 0 and
+        // load the poisoned EVREM = p-1 described above.
         b.push_row([(COL_TURN_BOUNDARY, F::ONE)], [(EVREM_B, F::ONE)], []);
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE)],
-            [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE)],
+            [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE), (COL_ONE, F::ONE)],
             [],
         );
 
@@ -510,9 +523,11 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [(EVREM_A, F::ONE), (POST_COUNT, -F::ONE)],
             [],
         );
+        // The entry-count re-read carries the presence bias: EVIDX continues
+        // at cell - 1 = the export's true entry count.
         b.push_row(
             [(COL_GRAMMAR_EXIT_LATCH, F::ONE)],
-            [(EVIDX_A, F::ONE), (PRE_COUNT, -F::ONE)],
+            [(EVIDX_A, F::ONE), (PRE_COUNT, -F::ONE), (COL_ONE, F::ONE)],
             [],
         );
         b.push_row(

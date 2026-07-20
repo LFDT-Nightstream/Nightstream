@@ -89,7 +89,6 @@ fn f_prime_chunk_shape_digest_circuit_matches_native_and_binds_start_index() {
 #[test]
 fn vk_fs_digest_binds_large_u64_params_without_field_aliasing() {
     let structure = seeded_digest_fields(0xFA11);
-    let header = seeded_digest_fields(0xC0DE);
     let initial_semantic = seeded_bytes(0x51A7E);
     let base = NeoParams::new(
         goldilocks_paper_b2::Q,
@@ -119,8 +118,9 @@ fn vk_fs_digest_binds_large_u64_params_without_field_aliasing() {
     .expect("params with m = field modulus + 1");
 
     let header = [F::from_u64(9); 4];
-    let base_digest = vk_fs_digest(&base, &structure, &header, Some(1), initial_semantic);
-    let aliased_digest = vk_fs_digest(&aliased_m, &structure, &header, Some(1), initial_semantic);
+    let ajtai_pp = [F::from_u64(10); 4];
+    let base_digest = vk_fs_digest(&base, &structure, &header, &ajtai_pp, Some(1), initial_semantic);
+    let aliased_digest = vk_fs_digest(&aliased_m, &structure, &header, &ajtai_pp, Some(1), initial_semantic);
 
     assert_ne!(
         base_digest, aliased_digest,
@@ -130,22 +130,32 @@ fn vk_fs_digest_binds_large_u64_params_without_field_aliasing() {
 }
 
 #[test]
-fn vk_fs_digest_circuit_matches_native_and_binds_header_wires() {
+fn vk_fs_digest_circuit_matches_native_and_binds_ajtai_pp_wires() {
     let structure = seeded_digest_fields(0xABCD);
     let header = seeded_digest_fields(0xC0DE);
+    let ajtai_pp = seeded_digest_fields(0xA17A1);
     let initial_semantic = seeded_bytes(0x51A7E);
     let params = Params::production();
-    let expected = vk_fs_digest(params.inner(), &structure, &header, Some(257), initial_semantic);
+    let expected = vk_fs_digest(
+        params.inner(),
+        &structure,
+        &header,
+        &ajtai_pp,
+        Some(257),
+        initial_semantic,
+    );
 
     let mut builder = R1csBuilder::new();
     let structure_wires = alloc_4(&mut builder, structure);
     let header_wires = alloc_4(&mut builder, header);
+    let ajtai_pp_wires = alloc_4(&mut builder, ajtai_pp);
     let initial_wires = alloc_4(&mut builder, digest32_as_fields(initial_semantic));
     let actual = enforce_vk_fs_digest_circuit(
         &mut builder,
         &params,
         structure_wires,
         header_wires,
+        ajtai_pp_wires,
         Some(257),
         initial_wires,
     );
@@ -153,7 +163,7 @@ fn vk_fs_digest_circuit_matches_native_and_binds_header_wires() {
     assert_eq!(extract_4(&builder, actual), digest32_as_fields(expected));
 
     let mut tampered = builder.witness().to_vec();
-    tampered[header_wires[0].col()] += F::ONE;
+    tampered[ajtai_pp_wires[0].col()] += F::ONE;
     assert!(builder
         .snapshot()
         .first_unsatisfied_row(&tampered)

@@ -242,7 +242,11 @@ impl NcSumcheckBackend for OverlongZeroSuffixNcBackend {
 
 impl NcSumcheckBackend for ZeroNcProjectionBackend {
     fn start(&mut self, snapshot: &NcColSnapshot<'_>) -> bool {
-        self.eq_beta_m = snapshot.eq_beta_m_tbl.to_vec();
+        self.eq_beta_m = if snapshot.eq_beta_m_tbl.is_empty() {
+            neo_ccs::utils::tensor_point_parallel::<K>(snapshot.beta_m)
+        } else {
+            snapshot.eq_beta_m_tbl.to_vec()
+        };
         self.witness_count = snapshot.weights.len();
         true
     }

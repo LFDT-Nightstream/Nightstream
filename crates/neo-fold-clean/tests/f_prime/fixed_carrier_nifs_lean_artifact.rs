@@ -306,8 +306,8 @@ fn linked_recursive_f_prime_outcome(prep: &neo_fold_clean::Preprocessing, carrie
     let application_assignment = [F::ONE, F::from_u64(5), F::from_u64(8), F::from_u64(8), F::from_u64(13)];
     let semantic_in = semantic_state_digest_fields(&application_assignment[1..3]);
     let semantic_out = semantic_state_digest_fields(&application_assignment[3..5]);
-    let context =
-        FullFPrimeContext::derive(&prep.params, prep.structure(), semantic_in).expect("fixed F-prime verifier context");
+    let context = FullFPrimeContext::derive(&prep.params, prep.structure(), &prep.log, semantic_in)
+        .expect("fixed F-prime verifier context");
     let relation = FullFPrimeRelation::new(context, f_prime_step_config(prep), &application, vec![1, 2], vec![3, 4])
         .expect("fixed full F-prime relation");
 

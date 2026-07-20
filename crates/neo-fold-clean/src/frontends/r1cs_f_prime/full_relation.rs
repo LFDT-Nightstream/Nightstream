@@ -60,6 +60,7 @@ pub struct FullFPrimeContext {
     vk_fs_digest: [F; DIGEST_LEN],
     structure_digest: [F; DIGEST_LEN],
     pi_ccs_header_bundle: [F; DIGEST_LEN],
+    ajtai_pp_digest: [F; DIGEST_LEN],
     initial_semantic_state_digest: [F; DIGEST_LEN],
 }
 
@@ -68,12 +69,15 @@ impl FullFPrimeContext {
     pub fn derive(
         pp: &Params,
         structure: &crate::paper::relations::Structure,
+        log: &neo_ajtai::AjtaiSModule,
         initial_semantic_state_digest: [F; DIGEST_LEN],
-    ) -> Result<Self, VerifierKeyError> {
+    ) -> Result<Self, FullFPrimeError> {
         let structure_digest = crate::paper::digest::structure_digest(structure);
+        let ajtai_pp_digest = crate::paper::digest::ajtai_public_parameters_digest(log)?;
         let vk = VerifierKey::derive(
             pp,
             structure,
+            ajtai_pp_digest,
             Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
             digest_fields_as_digest32(initial_semantic_state_digest),
         )?;
@@ -81,6 +85,7 @@ impl FullFPrimeContext {
             vk_fs_digest: digest32_as_fields(vk.digest()),
             structure_digest,
             pi_ccs_header_bundle: vk.pi_ccs_header_bundle(),
+            ajtai_pp_digest,
             initial_semantic_state_digest,
         })
     }
@@ -95,6 +100,10 @@ impl FullFPrimeContext {
 
     pub fn pi_ccs_header_bundle(&self) -> [F; DIGEST_LEN] {
         self.pi_ccs_header_bundle
+    }
+
+    pub fn ajtai_pp_digest(&self) -> [F; DIGEST_LEN] {
+        self.ajtai_pp_digest
     }
 
     pub fn initial_semantic_state_digest(&self) -> [F; DIGEST_LEN] {
@@ -125,6 +134,7 @@ struct ApplicationStep<'a> {
 struct FullFPrimeVerifierKeyWires {
     structure_digest: [Var; DIGEST_LEN],
     pi_ccs_header_bundle: [Var; DIGEST_LEN],
+    ajtai_pp_digest: [Var; DIGEST_LEN],
     initial_semantic_state_digest: [Var; DIGEST_LEN],
     vk_fs_digest: [Var; DIGEST_LEN],
 }
@@ -151,6 +161,7 @@ impl<'a> FullFPrimeRelation<'a> {
             cfg.nifs.pi_ccs.params,
             &context.structure_digest,
             cfg.nifs.pi_ccs.header_bundle,
+            context.ajtai_pp_digest,
             Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
             digest_fields_as_digest32(context.initial_semantic_state_digest),
         );
@@ -507,6 +518,8 @@ impl FullFPrimeExecution {
 pub enum FullFPrimeError {
     #[error(transparent)]
     VerifierKey(#[from] VerifierKeyError),
+    #[error(transparent)]
+    AjtaiSetup(#[from] neo_ajtai::AjtaiError),
     #[error(transparent)]
     ApplicationShape(#[from] FrontendError),
     #[error("full F' application assignment length {got} does not match relation width {expected}")]
@@ -917,6 +930,7 @@ fn alloc_verifier_key_wires(
     let pi_ccs_header_bundle = context
         .pi_ccs_header_bundle
         .map(|value| builder.alloc(value));
+    let ajtai_pp_digest = context.ajtai_pp_digest.map(|value| builder.alloc(value));
     let initial_semantic_state_digest = context
         .initial_semantic_state_digest
         .map(|value| builder.alloc(value));
@@ -925,12 +939,14 @@ fn alloc_verifier_key_wires(
         params,
         structure_digest,
         pi_ccs_header_bundle,
+        ajtai_pp_digest,
         Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
         initial_semantic_state_digest,
     );
     FullFPrimeVerifierKeyWires {
         structure_digest,
         pi_ccs_header_bundle,
+        ajtai_pp_digest,
         initial_semantic_state_digest,
         vk_fs_digest,
     }
@@ -977,6 +993,7 @@ fn finish_full_relation(
         .structure_digest
         .iter()
         .chain(verifier_key.pi_ccs_header_bundle.iter())
+        .chain(verifier_key.ajtai_pp_digest.iter())
         .chain(verifier_key.initial_semantic_state_digest.iter())
         .map(|wire| wire.col())
         .collect();

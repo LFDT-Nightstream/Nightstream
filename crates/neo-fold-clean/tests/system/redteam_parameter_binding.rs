@@ -192,6 +192,26 @@ fn verifier_key_digest_binds_same_shaped_ajtai_public_parameters() {
     );
 }
 
+#[test]
+fn preprocessing_rejects_malformed_explicit_ajtai_matrix_shape() {
+    let structure =
+        CcsStructure::new(vec![Mat::identity(1)], SparsePoly::<F>::new(1, Vec::new())).expect("toy zero relation");
+    let params = config::r1cs_params(structure.n, structure.m).expect("shape params");
+    let cols = structure.m.div_ceil(D);
+    let kappa = params.kappa() as usize;
+    let malformed_log = AjtaiSModule::new(Arc::new(PP::<Rq> {
+        kappa,
+        m: cols,
+        d: D,
+        m_rows: vec![vec![Rq([F::ZERO; D]); cols]; kappa - 1],
+    }));
+
+    assert!(
+        preprocess_with_test_log(params, structure, malformed_log, Some(1)).is_err(),
+        "preprocessing must reject an explicit Ajtai matrix whose physical row count disagrees with κ"
+    );
+}
+
 /// Global setup is a verifier-authority boundary. If an attacker registers a
 /// well-shaped PP first, a later attempt to install a different verifier-owned
 /// PP for the same `(d, m)` must fail loudly; returning `Ok(())` while keeping

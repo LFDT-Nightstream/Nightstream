@@ -44,11 +44,16 @@ use crate::engine::r1cs_circuit::builder::{Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::poseidon2::enforce_poseidon2_hash;
 use crate::engine::r1cs_circuit::R1csBuilder;
-use crate::paper::digest::{NEBULA_ADV_PRESENT_MARKER, NEBULA_LEAF_MEM_TAG, NEBULA_LEAF_OPS_TAG};
+use crate::paper::digest::{
+    NEBULA_ADV_PRESENT_MARKER, NEBULA_LEAF_MEM_TAG, NEBULA_LEAF_OPS_TAG, PENDING_ACCUMULATOR_FAMILY_CHILDREN,
+    PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT, PENDING_ACCUMULATOR_FAMILY_DOMAIN, PENDING_ACCUMULATOR_FAMILY_MATRICES,
+    PENDING_ACCUMULATOR_FAMILY_M_IN, PENDING_ACCUMULATOR_FAMILY_ROW_POINT,
+};
 use crate::paper::f_prime::nebula_lane_circuit::enforce_nebula_leaf_digest_circuit;
 use crate::paper::reductions::accumulator_sis_circuit::{
-    enforce_accumulator_digest as enforce_sis_accumulator_digest, SisAccumulatorCircuitLayout, CCS_CLAIM_SIS_CONFIG,
-    CE_CLAIM_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG,
+    enforce_accumulator_digest as enforce_sis_accumulator_digest, SisAccumulatorCircuitLayout,
+    ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG, PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG,
+    PI_CCS_OUTPUTS_SIS_CONFIG,
 };
 use crate::paper::reductions::pi_ccs_output_message::Profile;
 use crate::paper::relations::product_commitment_circuit::AdvCommitmentWires;
@@ -57,7 +62,7 @@ use crate::paper::relations::product_commitment_circuit::AdvCommitmentWires;
 /// `crate::paper::digest::*`). Kept byte-identical to the native strings.
 const CCS_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ccs_claim_digest/v1";
 const CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/ce_claim_digest/v2";
-const ACCUMULATOR_CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator_ce_claim_digest/v1";
+const ACCUMULATOR_CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator_ce_claim_digest/v2";
 const ACCUMULATOR_CLAIMS_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/accumulator/children/v3";
 const PI_CCS_INSTANCE_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_instance_digest/v1";
 const PI_CCS_PARENT_AUTHORITY_INSTANCE_DIGEST_DOMAIN: &[u8] =
@@ -153,6 +158,168 @@ pub struct PiCcsOutputsDigestWires {
     pub digest: [Var; 4],
     pub preimage: PiCcsOutputsPreimage,
     pub sis_layout: SisAccumulatorCircuitLayout,
+}
+
+/// Exact active child payload consumed by the fixed pending-family codec.
+///
+/// `x_active_column_major` is already projected into logical public-carrier
+/// order. `y_ring_active` contains exactly the 54 non-padding lanes for each
+/// of the 13 matrices. The production caller must derive these projections
+/// from its fully constrained claim wires; this serializer does not duplicate
+/// inactive/padding-zero constraints.
+pub struct PendingAccumulatorFamilyChildInputs<'a> {
+    pub c_data: &'a [Var],
+    pub x_active_column_major: &'a [Var],
+    pub y_ring_active: &'a [Vec<KVar>],
+}
+
+pub struct PendingAccumulatorFamilyStateInputs<'a> {
+    pub old_block: &'a [KVar],
+    pub parent_y_zcol: &'a [KVar],
+}
+
+pub struct PendingAccumulatorFamilyDigestInputs<'a> {
+    pub verifier_rows: usize,
+    pub row_point: &'a [KVar],
+    pub column_point: &'a [KVar],
+    pub m_in: usize,
+    pub fold_digest_fields: [Var; 4],
+    pub children: &'a [PendingAccumulatorFamilyChildInputs<'a>],
+    pub pending: Option<PendingAccumulatorFamilyStateInputs<'a>>,
+}
+
+pub struct PendingAccumulatorFamilyDigestWires {
+    pub digest: [Var; 4],
+    pub preimage: Vec<Var>,
+    pub sis_layout: SisAccumulatorCircuitLayout,
+}
+
+fn append_kvar_values_without_length(preimage: &mut Vec<Var>, values: &[KVar]) {
+    for value in values {
+        preimage.push(value.c0);
+        preimage.push(value.c1);
+    }
+}
+
+/// Exact circuit mirror of `pending_accumulator_family_preimage`.
+///
+/// This owns field order only. Commitment shape, active-X projection,
+/// evaluation padding, scalar-view equality, shared-point provenance, and
+/// delayed-state authority remain explicit obligations at the production
+/// call site.
+pub fn encode_pending_accumulator_family_preimage(
+    builder: &mut R1csBuilder,
+    input: &PendingAccumulatorFamilyDigestInputs<'_>,
+) -> Result<Vec<Var>, Error> {
+    if input.verifier_rows == 0 {
+        return Err(Error::Shape(
+            "pending accumulator family verifier kappa must be nonzero".into(),
+        ));
+    }
+    if input.children.len() != PENDING_ACCUMULATOR_FAMILY_CHILDREN {
+        return Err(Error::Shape(format!(
+            "pending accumulator family needs {} children, got {}",
+            PENDING_ACCUMULATOR_FAMILY_CHILDREN,
+            input.children.len()
+        )));
+    }
+    if input.row_point.len() != PENDING_ACCUMULATOR_FAMILY_ROW_POINT
+        || input.column_point.len() != PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT
+        || input.m_in != PENDING_ACCUMULATOR_FAMILY_M_IN
+    {
+        return Err(Error::Shape(
+            "pending accumulator family shared point or m_in shape mismatch".into(),
+        ));
+    }
+    let expected_commitment = neo_math::D * input.verifier_rows;
+    let expected_public = PENDING_ACCUMULATOR_FAMILY_M_IN;
+    for (child_index, child) in input.children.iter().enumerate() {
+        if child.c_data.len() != expected_commitment {
+            return Err(Error::Shape(format!(
+                "pending accumulator family child {child_index} commitment has {} fields, expected {expected_commitment}",
+                child.c_data.len()
+            )));
+        }
+        if child.x_active_column_major.len() != expected_public {
+            return Err(Error::Shape(format!(
+                "pending accumulator family child {child_index} public payload has {} fields, expected {expected_public}",
+                child.x_active_column_major.len()
+            )));
+        }
+        if child.y_ring_active.len() != PENDING_ACCUMULATOR_FAMILY_MATRICES
+            || child
+                .y_ring_active
+                .iter()
+                .any(|row| row.len() != neo_math::D)
+        {
+            return Err(Error::Shape(format!(
+                "pending accumulator family child {child_index} evaluations must be 13 by 54"
+            )));
+        }
+    }
+    if let Some(pending) = &input.pending {
+        if pending.old_block.len() != crate::paper::digest::PENDING_ACCUMULATOR_OLD_BLOCK
+            || pending.parent_y_zcol.len() != neo_math::D
+        {
+            return Err(Error::Shape(
+                "pending accumulator family delayed state must be 19 plus 54 extension elements".into(),
+            ));
+        }
+    }
+
+    let mut preimage = Vec::new();
+    extend_packed_bytes_as_fields_wires(builder, &mut preimage, PENDING_ACCUMULATOR_FAMILY_DOMAIN);
+    preimage.push(alloc_constant_var(
+        builder,
+        F::from_u64(PENDING_ACCUMULATOR_FAMILY_CHILDREN as u64),
+    ));
+    preimage.push(alloc_constant_var(
+        builder,
+        F::from_u64(PENDING_ACCUMULATOR_FAMILY_ROW_POINT as u64),
+    ));
+    preimage.push(alloc_constant_var(
+        builder,
+        F::from_u64(PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT as u64),
+    ));
+    append_kvar_values_without_length(&mut preimage, input.row_point);
+    append_kvar_values_without_length(&mut preimage, input.column_point);
+    preimage.push(alloc_constant_var(builder, F::from_u64(input.m_in as u64)));
+    preimage.extend_from_slice(&input.fold_digest_fields);
+    for child in input.children {
+        preimage.extend_from_slice(child.c_data);
+        preimage.extend_from_slice(child.x_active_column_major);
+        for row in child.y_ring_active {
+            append_kvar_values_without_length(&mut preimage, row);
+        }
+    }
+    match &input.pending {
+        None => {
+            preimage.push(alloc_constant_var(builder, F::ZERO));
+            for _ in 0..2 * (crate::paper::digest::PENDING_ACCUMULATOR_OLD_BLOCK + neo_math::D) {
+                preimage.push(alloc_constant_var(builder, F::ZERO));
+            }
+        }
+        Some(pending) => {
+            preimage.push(alloc_constant_var(builder, F::ONE));
+            append_kvar_values_without_length(&mut preimage, pending.old_block);
+            append_kvar_values_without_length(&mut preimage, pending.parent_y_zcol);
+        }
+    }
+    Ok(preimage)
+}
+
+pub fn enforce_pending_accumulator_family_digest(
+    builder: &mut R1csBuilder,
+    input: &PendingAccumulatorFamilyDigestInputs<'_>,
+) -> Result<PendingAccumulatorFamilyDigestWires, Error> {
+    let preimage = encode_pending_accumulator_family_preimage(builder, input)?;
+    let sis = enforce_sis_accumulator_digest(builder, PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG, &preimage)
+        .expect("fixed nonempty pending-family SIS preimage");
+    Ok(PendingAccumulatorFamilyDigestWires {
+        digest: sis.digest,
+        preimage,
+        sis_layout: sis.layout,
+    })
 }
 
 /// Mirror of `crate::paper::digest::ce_claim_digest`. Preimage layout
@@ -311,7 +478,11 @@ pub fn enforce_accumulator_ce_claim_digest(
     preimage.push(alloc_constant_var(builder, F::ZERO));
     append_adv_leaves_circuit(builder, &mut preimage, input.adv);
 
-    Ok(enforce_poseidon2_hash(builder, &preimage))
+    Ok(
+        enforce_sis_accumulator_digest(builder, ACCUMULATOR_CE_CLAIM_SIS_CONFIG, &preimage)
+            .expect("fixed nonempty accumulator CE-claim SIS preimage")
+            .digest,
+    )
 }
 
 /// Mirror of `paper::digest::accumulator_claims_digest`.

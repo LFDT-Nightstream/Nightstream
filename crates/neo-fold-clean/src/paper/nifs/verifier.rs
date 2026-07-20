@@ -22,6 +22,7 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
+use crate::paper::nifs::work::outgoing_pending_projection;
 use crate::paper::nifs::{Error, NifsProof};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, DecMixer, RlcMixer, Structure};
@@ -60,6 +61,7 @@ pub fn verify(
     #[cfg(feature = "perf-timers")]
     let pi_rlc_started = std::time::Instant::now();
     let combined = pi_rlc::verify(tr, pp, s, mix_rhos_commits, &ccs_out_claims, &proof.pi_rlc)?;
+    let pending_projection = outgoing_pending_projection(proof.pi_ccs.sumcheck.variant, &ccs_out_claims, &combined)?;
     #[cfg(feature = "perf-timers")]
     let pi_rlc_elapsed = pi_rlc_started.elapsed();
     #[cfg(feature = "perf-timers")]
@@ -78,11 +80,12 @@ pub fn verify(
         ccs_out_claims.len(),
         children.len(),
     );
-    Ok(RunningInstance {
-        claims: children,
-        witnesses: Vec::new(),
-        parent_authority: Some(combined),
-    })
+    Ok(RunningInstance::new(
+        children,
+        Vec::new(),
+        Some(combined),
+        pending_projection,
+    ))
 }
 
 fn validate_running_parent_authority(

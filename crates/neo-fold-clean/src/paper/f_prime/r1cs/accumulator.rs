@@ -1,7 +1,8 @@
 //! Outgoing Construction-2 accumulator binding inside F′.
 //!
-//! Owns: the current conservative Rust CE-core serialization, one Poseidon2
-//! digest per ordered child, and the outer arity-plus-child-digests hash.
+//! Owns: the current conservative Rust CE-core serialization, one
+//! SIS-compressed digest per ordered child, and the outer Poseidon2
+//! arity-plus-child-digests hash.
 //!
 //! Does not own: PiDEC validation, the checked parent cache, `state_x_out`, or
 //! the unresolved `y_zcol` source relation.
@@ -15,7 +16,7 @@
 //!
 //! | Stage path | Mathematical obligation | Current payload | Lean owner |
 //! |---|---|---|---|
-//! | `fprime.recursive.step.accumulator.output_authority.child_digests` | `d_i = H_claim(enc_core(child_i))` in index order | conservative CE core; excludes `y_zcol` | `FPrime.AccumulatorBinding.claim_eq_or_failure` |
+//! | `fprime.recursive.step.accumulator.output_authority.child_digests` | `d_i = SIS_claim(enc_core(child_i))` in index order | conservative CE core; excludes `y_zcol` | `FPrime.AccumulatorBinding.claim_eq_or_failure` |
 //! | `fprime.recursive.step.accumulator.output_authority.aggregate` | `H_acc(k || d_0 || ... || d_(k-1))` | arity plus ordered child digests | `FPrime.AccumulatorBinding.digest_eq_or_failure` |
 
 use crate::engine::r1cs_circuit::field_ext::KVar;

@@ -71,6 +71,23 @@ pub const CE_CLAIM_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
     domain: 0x4345_5F43_4C41_494D,
 };
 
+/// Construction-2 accumulator child binding. This stays distinct from the
+/// narrower PiCCS CE transcript digest even though both start from CE fields.
+pub const ACCUMULATOR_CE_CLAIM_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC7; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x4143_4345_5F43_4C4D,
+};
+
+/// One complete fixed-profile pending accumulator family. This map is
+/// independent of the conservative per-child CE map because the two
+/// serializers have different authority and field-order contracts.
+pub const PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC8; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x5046_414D_5F41_4343,
+};
+
 pub const PI_CCS_OUTPUTS_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
     seed: [0xC3; 32],
     kappa: PROTOCOL_BINDING_KAPPA,

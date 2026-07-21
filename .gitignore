@@ -52,3 +52,9 @@ crates/neo-prover-cuda/.oxide-artifacts/
 /specs
 METAL_IMPLEMENTATION_BEST_PRACTICES.md
 profile-xctrace.txt
+
+# Lean proof artifacts under formal/ are source, not build output. These
+# negations guard against user-global ignore patterns (e.g. Hardhat's
+# unanchored "artifacts") silently hiding new generated proof payloads.
+!**/Artifacts/
+!**/Artifacts/**

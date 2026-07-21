@@ -23,7 +23,9 @@ use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{R1csBuilder, Var};
 use crate::paper::f_prime::stage;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_accumulator_ce_claim_digest, enforce_accumulator_claims_digest, AccumulatorCeClaimDigestInputs,
+    enforce_accumulator_ce_claim_digest, enforce_accumulator_claims_digest, enforce_pending_accumulator_family_digest,
+    AccumulatorCeClaimDigestInputs, PendingAccumulatorFamilyChildInputs, PendingAccumulatorFamilyDigestInputs,
+    PendingAccumulatorFamilyStateInputs, PendingProjectionWires,
 };
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 
@@ -32,14 +34,101 @@ use super::Error;
 pub(super) fn enforce_nifs_output_acc_digest(
     builder: &mut R1csBuilder,
     children: &[CeClaimWires],
+    outgoing_pending: Option<&PendingProjectionWires>,
 ) -> Result<[Var; 4], Error> {
-    builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS);
+    enforce_output_acc_digest(builder, children, outgoing_pending, true)
+}
+
+/// Terminal-fold entrypoint for the same profile-aware codec. The terminal
+/// caller owns its row-family boundary, so this variant preserves the legacy
+/// terminal stage layout instead of adding recursive-F' stage markers.
+pub(crate) fn enforce_terminal_output_acc_digest(
+    builder: &mut R1csBuilder,
+    children: &[CeClaimWires],
+    outgoing_pending: Option<&PendingProjectionWires>,
+) -> Result<[Var; 4], Error> {
+    enforce_output_acc_digest(builder, children, outgoing_pending, false)
+}
+
+fn enforce_output_acc_digest(
+    builder: &mut R1csBuilder,
+    children: &[CeClaimWires],
+    outgoing_pending: Option<&PendingProjectionWires>,
+    record_recursive_stages: bool,
+) -> Result<[Var; 4], Error> {
+    if let Some(pending) = outgoing_pending {
+        return enforce_pending_output_digest(builder, children, pending, record_recursive_stages);
+    }
+    if record_recursive_stages {
+        builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS);
+    }
     let child_digests = children
         .iter()
         .map(|child| enforce_child_digest(builder, child))
         .collect::<Result<Vec<_>, _>>()?;
-    builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE);
+    if record_recursive_stages {
+        builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE);
+    }
     Ok(enforce_accumulator_claims_digest(builder, &child_digests))
+}
+
+fn enforce_pending_output_digest(
+    builder: &mut R1csBuilder,
+    children: &[CeClaimWires],
+    pending: &PendingProjectionWires,
+    record_recursive_stage: bool,
+) -> Result<[Var; 4], Error> {
+    if record_recursive_stage {
+        builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT_PENDING_FAMILY);
+    }
+    let Some(first) = children.first() else {
+        return Err(Error::Inner("pending-family output accumulator has no children".into()));
+    };
+    let x_active: Vec<Vec<Var>> = children
+        .iter()
+        .map(|child| {
+            let active_columns = child.m_in.div_ceil(neo_math::D);
+            (0..active_columns)
+                .flat_map(|column| (0..neo_math::D).map(move |lane| child.x[lane * child.x_cols + column]))
+                .collect()
+        })
+        .collect();
+    let y_ring_active: Vec<Vec<Vec<KVar>>> = children
+        .iter()
+        .map(|child| {
+            y_ring_kvars(child).map(|rows| {
+                rows.into_iter()
+                    .map(|row| row[..neo_math::D].to_vec())
+                    .collect()
+            })
+        })
+        .collect::<Result<_, _>>()?;
+    let child_inputs: Vec<PendingAccumulatorFamilyChildInputs<'_>> = children
+        .iter()
+        .enumerate()
+        .map(|(index, child)| PendingAccumulatorFamilyChildInputs {
+            c_data: &child.c_data,
+            x_active_column_major: &x_active[index],
+            y_ring_active: &y_ring_active[index],
+        })
+        .collect();
+    Ok(enforce_pending_accumulator_family_digest(
+        builder,
+        &PendingAccumulatorFamilyDigestInputs {
+            verifier_rows: first.c_kappa,
+            row_point: &first.r,
+            column_point: &first.s_col,
+            m_in: first.m_in,
+            fold_digest_fields: first.fold_digest_fields,
+            children: &child_inputs,
+            pending: Some(PendingAccumulatorFamilyStateInputs {
+                old_block: &pending.old_block,
+                parent_y_zcol: &pending.parent_y_zcol,
+            }),
+        },
+    )
+    .map_err(|error| Error::Inner(format!("pending-family output digest: {error}")))?
+    .digest)
 }
 
 fn enforce_child_digest(builder: &mut R1csBuilder, claim: &CeClaimWires) -> Result<[Var; 4], Error> {

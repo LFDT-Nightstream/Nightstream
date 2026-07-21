@@ -27,7 +27,7 @@
 //! |---|---|---|
 //! | child -> next running | Exact paper-level CE core; `y_zcol` omitted | exact child-vector continuity, delayed-NC bridge open |
 //! | Pi_RLC parent -> running parent | Checked recomposition cache continuity | not accumulator authority |
-//! | terminal child | A newly computed `y_zcol` is checked against the opened witness | insufficient to bind the prior parent projection |
+//! | terminal child | New-point child `y_zcol` values are checked against opened witnesses and radix-recomposed into the verifier-derived pending parent | closes the final one-fold delayed projection |
 
 mod terminal;
 
@@ -49,18 +49,15 @@ use crate::paper::digest::{
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::nebula_lane_circuit::enforce_nebula_lane_equality_circuit;
 use crate::paper::f_prime::r1cs::{
-    enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs,
-    FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStateWires, FPrimeStepConfig,
-    FPrimeStepOutput, F_PRIME_ENC_INST_BITS, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN,
+    enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, enforce_terminal_output_acc_digest,
+    FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStateWires,
+    FPrimeStepConfig, FPrimeStepOutput, F_PRIME_ENC_INST_BITS, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN,
     F_PRIME_PUBLIC_ONE_OFFSET,
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::nifs::NifsProof;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_accumulator_ce_claim_digest, enforce_accumulator_claims_digest, AccumulatorCeClaimDigestInputs,
-    SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
-};
+use crate::paper::reductions::pi_ccs_split_nc_circuit::{SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig};
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 use crate::paper::relations::product_commitment_circuit::enforce_adv_equality;
 use crate::paper::relations::{CcsClaim, CeClaim};
@@ -650,6 +647,7 @@ fn emit_recursive_step_r1cs(
             fresh: &fresh,
             running: running_claims,
             running_parent_authority,
+            running_pending_projection: running.pending_projection(),
             pi_ccs: &nifs.pi_ccs,
             combined: &nifs.pi_rlc.combined,
             children: &nifs.pi_dec.children,
@@ -947,22 +945,6 @@ fn enforce_flat_limbs_vs_kvar_row(
     Ok(())
 }
 
-fn flat_kvars(flat: &[Var], lanes: usize) -> Result<Vec<KVar>, String> {
-    const K_LIMBS: usize = 2;
-    if flat.len() != lanes * K_LIMBS {
-        return Err(format!(
-            "flat limb length {} does not match lanes {} × K_LIMBS {}",
-            flat.len(),
-            lanes,
-            K_LIMBS
-        ));
-    }
-    Ok(flat
-        .chunks_exact(K_LIMBS)
-        .map(|chunk| KVar::new(chunk[0], chunk[1]))
-        .collect())
-}
-
 /// Emit the terminal final-fold NIFS.V inside the builder + enforce the
 /// terminal latest recursive link. Returns
 /// `(terminal_fold_emitted, terminal_latest_link,
@@ -1002,6 +984,7 @@ fn emit_terminal_fold(
         fresh: trailing_latest,
         running: &running_pre_final_fold.claims,
         running_parent_authority: running_pre_final_fold.parent_authority.as_ref(),
+        running_pending_projection: running_pre_final_fold.pending_projection(),
         pi_ccs: &final_fold_nifs.pi_ccs,
         combined: &final_fold_nifs.pi_rlc.combined,
         children: &final_fold_nifs.pi_dec.children,
@@ -1042,13 +1025,32 @@ fn emit_terminal_fold(
     )?;
     builder.record_row_family("terminal.latest_link", latest_link_start);
 
-    // Bind the exact ordered output accumulator. Strict Pi_DEC validates the
-    // parent cache but does not make it injective in its child vector.
+    // Bind the exact ordered output accumulator. In the production profile,
+    // use the same pending-family codec as recursive F': it includes the
+    // verifier-derived delayed projection state. Legacy profiles retain the
+    // ordered-child codec. Strict Pi_DEC validates the parent cache but does
+    // not make it injective in its child vector.
     let accumulator_start = builder.rows();
-    let post_fold_acc_digest = enforce_dec_accumulator_digest(builder, &nifs_outputs.children)?;
+    let post_fold_acc_digest = enforce_terminal_output_acc_digest(
+        builder,
+        &nifs_outputs.children,
+        nifs_outputs.outgoing_pending_projection.as_ref(),
+    )
+    .map_err(|error| decider::Error::WalkFailed(format!("terminal output accumulator digest: {error}")))?;
     let mut terminal_children = nifs_outputs.children;
     attach_terminal_children_y_zcol(builder, &mut terminal_children, &final_fold_nifs.pi_dec.children)
         .map_err(|e| decider::Error::WalkFailed(format!("terminal child y_zcol attachment: {e}")))?;
+    if let Some(pending) = nifs_outputs.outgoing_pending_projection.as_ref() {
+        let child_y_zcol = terminal_child_active_y_zcol(&terminal_children)
+            .map_err(|e| decider::Error::WalkFailed(format!("terminal child projection view: {e}")))?;
+        enforce_terminal_pending_projection_recomposition(
+            builder,
+            &pending.parent_y_zcol,
+            &child_y_zcol,
+            prep.params.b(),
+        )
+        .map_err(|e| decider::Error::WalkFailed(format!("terminal pending projection recomposition: {e}")))?;
+    }
     builder.record_row_family("terminal.accumulator", accumulator_start);
     builder.record_row_family("terminal.total", terminal_start);
 
@@ -1096,50 +1098,63 @@ fn attach_terminal_children_y_zcol(
     Ok(())
 }
 
-fn enforce_dec_accumulator_digest(
+/// Close the newest delayed projection at the terminal boundary. Each child
+/// `y_zcol` is independently constrained against its opened raw witness by
+/// `decider_ce_relation`; these rows bind their exact Pi_DEC-order radix
+/// recomposition to the verifier-derived parent carried in the pending state.
+fn enforce_terminal_pending_projection_recomposition(
     builder: &mut R1csBuilder,
-    children: &[CeClaimWires],
-) -> Result<[Var; 4], decider::Error> {
-    let child_digests = children
-        .iter()
-        .map(|claim| enforce_dec_ce_claim_accumulator_digest(builder, claim))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(enforce_accumulator_claims_digest(builder, &child_digests))
-}
-
-fn enforce_dec_ce_claim_accumulator_digest(
-    builder: &mut R1csBuilder,
-    claim: &CeClaimWires,
-) -> Result<[Var; 4], decider::Error> {
-    let y_ring = dec_y_ring_kvars(claim)
-        .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest y_ring: {e}")))?;
-    enforce_accumulator_ce_claim_digest(
-        builder,
-        &AccumulatorCeClaimDigestInputs {
-            c_d: claim.c_d,
-            c_kappa: claim.c_kappa,
-            c_data: &claim.c_data,
-            x_rows: claim.x_rows,
-            x_cols: claim.x_cols,
-            x_flat_row_major: &claim.x,
-            r: &claim.r,
-            s_col: &claim.s_col,
-            y_ring: &y_ring,
-            ct: &claim.ct,
-            m_in: claim.m_in,
-            fold_digest_fields: claim.fold_digest_fields,
-            adv: claim.adv.as_ref(),
-        },
-    )
-    .map_err(|e| decider::Error::WalkFailed(format!("terminal accumulator CE digest: {e}")))
-}
-
-fn dec_y_ring_kvars(claim: &CeClaimWires) -> Result<Vec<Vec<KVar>>, String> {
-    let mut rows = Vec::with_capacity(claim.y_ring.len());
-    for (j, row) in claim.y_ring.iter().enumerate() {
-        rows.push(flat_kvars(row, claim.y_ring_lanes).map_err(|e| format!("y_ring[{j}] {e}"))?);
+    parent_y_zcol: &[KVar],
+    child_y_zcol: &[Vec<KVar>],
+    radix: u32,
+) -> Result<(), String> {
+    if parent_y_zcol.len() != neo_math::D {
+        return Err(format!(
+            "pending parent has {} active lanes, expected {}",
+            parent_y_zcol.len(),
+            neo_math::D
+        ));
     }
-    Ok(rows)
+    if child_y_zcol.is_empty() {
+        return Err("terminal pending projection has no Pi_DEC children".into());
+    }
+    if child_y_zcol.iter().any(|child| child.len() != neo_math::D) {
+        return Err("terminal Pi_DEC child has fewer than the active y_zcol lanes".into());
+    }
+
+    let radix = F::from_u64(radix as u64);
+    let mut powers = Vec::with_capacity(child_y_zcol.len());
+    let mut power = F::ONE;
+    for _ in child_y_zcol {
+        powers.push(power);
+        power *= radix;
+    }
+    for (lane, parent) in parent_y_zcol.iter().enumerate() {
+        let mut expected_c0 = Lc::zero();
+        let mut expected_c1 = Lc::zero();
+        for (child, coefficient) in child_y_zcol.iter().zip(&powers) {
+            expected_c0.add_term(child[lane].c0, *coefficient);
+            expected_c1.add_term(child[lane].c1, *coefficient);
+        }
+        builder.enforce_eq(&Lc::from_var(parent.c0), &expected_c0);
+        builder.enforce_eq(&Lc::from_var(parent.c1), &expected_c1);
+    }
+    Ok(())
+}
+
+fn terminal_child_active_y_zcol(children: &[CeClaimWires]) -> Result<Vec<Vec<KVar>>, String> {
+    children
+        .iter()
+        .enumerate()
+        .map(|(index, child)| {
+            if child.y_zcol_lanes < neo_math::D || child.y_zcol.len() < 2 * neo_math::D {
+                return Err(format!("terminal child {index} has an incomplete active y_zcol view"));
+            }
+            Ok((0..neo_math::D)
+                .map(|lane| KVar::new(child.y_zcol[2 * lane], child.y_zcol[2 * lane + 1]))
+                .collect())
+        })
+        .collect()
 }
 
 /// Constrain every terminal-fold fresh CCS instance's public input to
@@ -1202,18 +1217,10 @@ fn split_nc_config(prep: &Preprocessing) -> Result<SplitNcPiCcsVConfig<'_>, Stri
     .map_err(|e| format!("raw params: {e}"))?;
     let dims = neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure())
         .map_err(|e| format!("dims: {e}"))?;
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &mat_digest,
-    )
-    .map_err(|e| format!("header bundle: {e}"))?;
     Ok(SplitNcPiCcsVConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle,
+        header_bundle: prep.pi_ccs_header_bundle(),
         ell_d: dims.ell_d,
         ell_n: dims.ell_n,
         ell_m: dims.ell_m,

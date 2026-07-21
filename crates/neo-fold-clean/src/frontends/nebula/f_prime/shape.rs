@@ -242,6 +242,7 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Synt
         fresh: &fresh,
         running: &running,
         running_parent_authority: running_parent.as_ref(),
+        running_pending_projection: None,
         pi_ccs: &proof,
         combined: &combined,
         children: &children,

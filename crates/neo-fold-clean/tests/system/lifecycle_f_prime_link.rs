@@ -213,6 +213,7 @@ struct RecursiveStepView<'a> {
     fresh: Vec<CcsClaim>,
     running_claims: Vec<CeClaim>,
     running_parent_authority: Option<CeClaim>,
+    running_pending_projection: Option<neo_fold_clean::paper::construction2::PendingProjectionState>,
     nifs: NifsProof,
     chunk_digest: [F; 4],
     prior_x_out: [F; 4],
@@ -228,15 +229,22 @@ impl ChainFixture {
         let nifs = nifs
             .materialize()
             .expect("recursive NIFS proof materialization");
-        let (running_claims, running_parent_authority, fresh) = match &snapshot.state_in.proof {
-            ProofState::Active { running, latest } => {
-                let running = running
-                    .materialize()
-                    .expect("recursive step running materialization");
-                (running.claims, running.parent_authority, latest.claims())
-            }
-            ProofState::Initial => panic!("step {idx} state-in is Initial; can't be recursive"),
-        };
+        let (running_claims, running_parent_authority, running_pending_projection, fresh) =
+            match &snapshot.state_in.proof {
+                ProofState::Active { running, latest } => {
+                    let running = running
+                        .materialize()
+                        .expect("recursive step running materialization");
+                    let pending_projection = running.pending_projection().cloned();
+                    (
+                        running.claims,
+                        running.parent_authority,
+                        pending_projection,
+                        latest.claims(),
+                    )
+                }
+                ProofState::Initial => panic!("step {idx} state-in is Initial; can't be recursive"),
+            };
         let chunk_digest = f_prime_chunk_public_digest(snapshot.state_in.step_count, &snapshot.public_batch);
         let prior_x_out = compute_x_out_native(&self.prep, &snapshot.state_in);
         let post_step_x_out = compute_x_out_native(&self.prep, &snapshot.state_out);
@@ -247,6 +255,7 @@ impl ChainFixture {
             fresh,
             running_claims,
             running_parent_authority,
+            running_pending_projection,
             nifs,
             chunk_digest,
             prior_x_out,
@@ -394,6 +403,7 @@ fn run_recursive_check_with_semantic(
             fresh: &fresh,
             running: view.running_claims.as_slice(),
             running_parent_authority: view.running_parent_authority.as_ref(),
+            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,
@@ -430,6 +440,7 @@ fn run_recursive_check_with_output_authority(
             fresh: &view.fresh,
             running: view.running_claims.as_slice(),
             running_parent_authority: view.running_parent_authority.as_ref(),
+            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined,
             children,
@@ -667,6 +678,7 @@ fn lifecycle_recursive_step_rejects_zero_step_count_even_with_matching_fresh_and
             fresh: &fresh_claims,
             running: &running.claims,
             running_parent_authority: running.parent_authority.as_ref(),
+            running_pending_projection: running.pending_projection(),
             pi_ccs: &forged_nifs.pi_ccs,
             combined: &forged_nifs.pi_rlc.combined,
             children: &forged_nifs.pi_dec.children,
@@ -810,6 +822,7 @@ fn lifecycle_recursive_step_rejects_running_child_field_tamper_even_if_handle_an
             fresh: &view.fresh,
             running: &running_claims,
             running_parent_authority: parent_authority.as_ref(),
+            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,
@@ -861,6 +874,7 @@ fn lifecycle_recursive_step_rejects_running_child_fold_digest_tamper_even_if_han
             fresh: &view.fresh,
             running: &running_claims,
             running_parent_authority: parent_authority.as_ref(),
+            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,
@@ -914,6 +928,7 @@ fn lifecycle_recursive_step_rejects_running_parent_field_tamper_even_if_handle_a
             fresh: &view.fresh,
             running: view.running_claims.as_slice(),
             running_parent_authority: Some(&parent_authority),
+            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,

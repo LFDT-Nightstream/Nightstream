@@ -616,7 +616,7 @@ pub fn accumulator_claims_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4]
 /// Exact fixed-profile domain used by the Lean pending-family codec.
 pub const PENDING_ACCUMULATOR_FAMILY_DOMAIN: &[u8] = b"neo.fold.clean/f_prime/accumulator/pending_family_digest/v1";
 pub const PENDING_ACCUMULATOR_FAMILY_CHILDREN: usize = 14;
-pub const PENDING_ACCUMULATOR_FAMILY_ROW_POINT: usize = 25;
+pub const PENDING_ACCUMULATOR_FAMILY_ROW_POINT: usize = 24;
 pub const PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT: usize = 19;
 pub const PENDING_ACCUMULATOR_FAMILY_M_IN: usize = 270;
 pub const PENDING_ACCUMULATOR_FAMILY_MATRICES: usize = 13;
@@ -697,10 +697,10 @@ pub fn pending_accumulator_family_preimage(
             return Err(invalid("inactive X columns must be zero"));
         }
         if claim.r.len() != PENDING_ACCUMULATOR_FAMILY_ROW_POINT {
-            return Err(invalid("row point must contain exactly 25 extension elements"));
+            return Err(invalid("row point must contain exactly 24 extension elements"));
         }
         if claim.s_col.len() != PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT {
-            return Err(invalid("column point must contain exactly 24 extension elements"));
+            return Err(invalid("column point must contain exactly 19 extension elements"));
         }
         if claim.r != first.r {
             return Err(invalid("row point differs from child zero"));

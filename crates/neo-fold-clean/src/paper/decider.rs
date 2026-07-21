@@ -389,6 +389,7 @@ pub fn validate_witness(
     let prover_running = final_running(final_state)?;
     if prover_running.claims != walked_running.claims
         || prover_running.parent_authority != walked_running.parent_authority
+        || prover_running.pending_projection() != walked_running.pending_projection()
     {
         return Err(Error::WitnessShape);
     }

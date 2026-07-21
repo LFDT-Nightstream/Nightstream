@@ -164,8 +164,9 @@ impl<'a> FibonacciChainBuilder<'a> {
             acc_digest: digest32_as_fields(pre_state.acc_digest),
             public_trace: digest32_as_fields(pre_state.public_trace),
         };
-        let post_summary = FPrimeFoldPostSummary::from_running(&post_running, self.ctx.public_input_len)
-            .map_err(FibonacciCompilerError::from)?;
+        let post_summary =
+            FPrimeFoldPostSummary::from_running(&post_running, self.prep.prep.structure(), self.ctx.public_input_len)
+                .map_err(FibonacciCompilerError::from)?;
         self.ctx.fold_for_step = Some(FibonacciFoldForStep {
             pre_running,
             latest,

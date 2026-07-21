@@ -3,7 +3,7 @@
 //! This module is public only so integration tests can hit individual
 //! in-circuit row families without disabling the decider preflight.
 
-use super::{emit_terminal_fold, Preprocessing};
+use super::{emit_terminal_fold, enforce_terminal_pending_projection_recomposition, Preprocessing};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::construction2::EncInst;
@@ -26,6 +26,55 @@ use p3_field::PrimeCharacteristicRing;
 pub struct CeRelationIsolationOutput {
     pub builder: R1csBuilder,
     pub fold_digest_fields: Vec<[Var; 4]>,
+}
+
+pub struct TerminalPendingProjectionIsolationOutput {
+    pub builder: R1csBuilder,
+    pub child_c0_probe: usize,
+    pub parent_c0_probe: usize,
+}
+
+/// Emit only the terminal radix recomposition that joins verifier-derived
+/// pending-parent wires to the child projections subsequently checked against
+/// opened raw witnesses by the terminal CE relation.
+pub fn enforce_terminal_pending_projection_against(
+    parent_y_zcol: &[K; neo_math::D],
+    child_y_zcol: &[[K; neo_math::D]],
+    radix: u32,
+) -> Result<TerminalPendingProjectionIsolationOutput, String> {
+    let mut builder = R1csBuilder::new();
+    let parent = parent_y_zcol
+        .iter()
+        .map(|value| {
+            let [c0, c1] = value.as_coeffs();
+            KVar::alloc(&mut builder, c0, c1)
+        })
+        .collect::<Vec<_>>();
+    let children = child_y_zcol
+        .iter()
+        .map(|child| {
+            child
+                .iter()
+                .map(|value| {
+                    let [c0, c1] = value.as_coeffs();
+                    KVar::alloc(&mut builder, c0, c1)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let child_c0_probe = children
+        .first()
+        .and_then(|child| child.first())
+        .ok_or_else(|| "terminal pending isolation requires at least one child".to_string())?
+        .c0
+        .col();
+    let parent_c0_probe = parent[0].c0.col();
+    enforce_terminal_pending_projection_recomposition(&mut builder, &parent, &children, radix)?;
+    Ok(TerminalPendingProjectionIsolationOutput {
+        builder,
+        child_c0_probe,
+        parent_c0_probe,
+    })
 }
 
 /// Emit only terminal CE-relation rows for a hand-crafted pair.
@@ -269,6 +318,23 @@ fn enforce_digest_eq_const(builder: &mut R1csBuilder, digest: [Var; 4], expected
     }
 }
 
+fn logical_fresh_bits<'a>(latest: &'a CcsClaim, owner: &str) -> Result<&'a [F], String> {
+    let logical_len = 1 + F_PRIME_ENC_INST_BITS;
+    if latest.x.len() < logical_len {
+        return Err(format!(
+            "{owner} expected at least {logical_len} fresh.x coordinates, got {}",
+            latest.x.len()
+        ));
+    }
+    if latest.x[logical_len..]
+        .iter()
+        .any(|&value| value != F::ZERO)
+    {
+        return Err(format!("{owner} requires zero aligned-public padding"));
+    }
+    Ok(&latest.x[1..logical_len])
+}
+
 /// Emit only the terminal-fold consumed-handle check.
 pub fn enforce_terminal_fold_against_last_acc_digest(
     prep: &Preprocessing,
@@ -281,22 +347,13 @@ pub fn enforce_terminal_fold_against_last_acc_digest(
     let latest = trailing_latest
         .first()
         .ok_or_else(|| "terminal-fold isolation requires non-empty trailing latest".to_string())?;
-    if latest.x.len() != 1 + F_PRIME_ENC_INST_BITS {
-        return Err(format!(
-            "terminal-fold isolation expected fresh.x length {}, got {}",
-            1 + F_PRIME_ENC_INST_BITS,
-            latest.x.len()
-        ));
-    }
+    let fresh_bits = logical_fresh_bits(latest, "terminal-fold isolation")?;
 
     let zero_digest = [F::ZERO; 4];
     let state = dummy_state_wires(&mut builder, last_acc_digest);
     let last = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, zero_digest),
-        x_out_bits: latest.x[1..]
-            .iter()
-            .map(|&bit| builder.alloc(bit))
-            .collect(),
+        x_out_bits: fresh_bits.iter().map(|&bit| builder.alloc(bit)).collect(),
         prior_link: None,
         state_in: state,
         state_out: state,
@@ -335,22 +392,13 @@ pub fn enforce_terminal_fold_ce_closure_against(
     let latest = trailing_latest
         .first()
         .ok_or_else(|| "terminal CE-closure isolation requires non-empty trailing latest".to_string())?;
-    if latest.x.len() != 1 + F_PRIME_ENC_INST_BITS {
-        return Err(format!(
-            "terminal CE-closure isolation expected fresh.x length {}, got {}",
-            1 + F_PRIME_ENC_INST_BITS,
-            latest.x.len()
-        ));
-    }
+    let fresh_bits = logical_fresh_bits(latest, "terminal CE-closure isolation")?;
 
     let zero_digest = [F::ZERO; 4];
     let state = dummy_state_wires(&mut builder, last_acc_digest);
     let last = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, zero_digest),
-        x_out_bits: latest.x[1..]
-            .iter()
-            .map(|&bit| builder.alloc(bit))
-            .collect(),
+        x_out_bits: fresh_bits.iter().map(|&bit| builder.alloc(bit)).collect(),
         prior_link: None,
         state_in: state,
         state_out: state,
@@ -399,13 +447,7 @@ pub fn enforce_terminal_fold_parent_authority_against_self(
     let latest = trailing_latest
         .first()
         .ok_or_else(|| "terminal parent-authority isolation requires non-empty trailing latest".to_string())?;
-    if latest.x.len() != 1 + F_PRIME_ENC_INST_BITS {
-        return Err(format!(
-            "terminal parent-authority isolation expected fresh.x length {}, got {}",
-            1 + F_PRIME_ENC_INST_BITS,
-            latest.x.len()
-        ));
-    }
+    let fresh_bits = logical_fresh_bits(latest, "terminal parent-authority isolation")?;
 
     let zero_digest = [F::ZERO; 4];
     let state = dummy_state_wires(&mut builder, last_acc_digest);
@@ -418,10 +460,7 @@ pub fn enforce_terminal_fold_parent_authority_against_self(
         .ok_or_else(|| "terminal parent-authority probe requires a y_ring c1 limb".to_string())?;
     let last = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, zero_digest),
-        x_out_bits: latest.x[1..]
-            .iter()
-            .map(|&bit| builder.alloc(bit))
-            .collect(),
+        x_out_bits: fresh_bits.iter().map(|&bit| builder.alloc(bit)).collect(),
         prior_link: None,
         state_in: state,
         state_out: state,
@@ -465,13 +504,7 @@ pub fn enforce_terminal_fold_children_continuity_against_self(
     let latest = trailing_latest
         .first()
         .ok_or_else(|| "terminal children continuity isolation requires non-empty trailing latest".to_string())?;
-    if latest.x.len() != 1 + F_PRIME_ENC_INST_BITS {
-        return Err(format!(
-            "terminal children continuity isolation expected fresh.x length {}, got {}",
-            1 + F_PRIME_ENC_INST_BITS,
-            latest.x.len()
-        ));
-    }
+    let fresh_bits = logical_fresh_bits(latest, "terminal children continuity isolation")?;
 
     let zero_digest = [F::ZERO; 4];
     let state = dummy_state_wires(&mut builder, last_acc_digest);
@@ -488,10 +521,7 @@ pub fn enforce_terminal_fold_children_continuity_against_self(
         .ok_or_else(|| "terminal children continuity probe requires a y_ring c1 limb".to_string())?;
     let last = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, zero_digest),
-        x_out_bits: latest.x[1..]
-            .iter()
-            .map(|&bit| builder.alloc(bit))
-            .collect(),
+        x_out_bits: fresh_bits.iter().map(|&bit| builder.alloc(bit)).collect(),
         prior_link: None,
         state_in: state,
         state_out: state,

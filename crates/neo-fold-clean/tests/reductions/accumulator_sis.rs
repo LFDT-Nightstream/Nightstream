@@ -158,11 +158,14 @@ fn pending_family_claim(child: usize, kappa: usize) -> TestCeClaim {
             x[(lane, column)] = F::from_u64(100_000 * child as u64 + (column * D + lane) as u64 + 1);
         }
     }
-    let r = (0..25)
-        .map(|index| K::from_coeffs([F::from_u64(200_000 + 2 * index), F::from_u64(200_001 + 2 * index)]))
+    let r = (0..PENDING_ACCUMULATOR_FAMILY_ROW_POINT)
+        .map(|index| K::from_coeffs([F::from_usize(200_000 + 2 * index), F::from_usize(200_001 + 2 * index)]))
         .collect();
     let s_col = (0..PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT)
-        .map(|index| K::from_coeffs([F::from_u64(300_000 + 2 * index), F::from_u64(300_001 + 2 * index)]))
+        .map(|index| {
+            let index = index as u64;
+            K::from_coeffs([F::from_u64(300_000 + 2 * index), F::from_u64(300_001 + 2 * index)])
+        })
         .collect();
     let y_ring: Vec<Vec<K>> = (0..13)
         .map(|matrix| {
@@ -228,7 +231,7 @@ fn reference_pending_family_preimage(
     let mut fields = reference_pack_bytes_as_fields(b"neo.fold.clean/f_prime/accumulator/pending_family_digest/v1");
     fields.extend([
         F::from_u64(14),
-        F::from_u64(25),
+        F::from_u64(PENDING_ACCUMULATOR_FAMILY_ROW_POINT as u64),
         F::from_u64(PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT as u64),
     ]);
     reference_append_k_values(&mut fields, &claims[0].r);
@@ -422,7 +425,7 @@ fn pending_accumulator_family_matches_exact_lean_order_and_count() {
     const KAPPA: usize = 4;
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_DOMAIN.len(), 59);
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_CHILDREN, 14);
-    assert_eq!(PENDING_ACCUMULATOR_FAMILY_ROW_POINT, 25);
+    assert_eq!(PENDING_ACCUMULATOR_FAMILY_ROW_POINT, 24);
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT, 19);
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_M_IN, 270);
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_MATRICES, 13);
@@ -431,13 +434,13 @@ fn pending_accumulator_family_matches_exact_lean_order_and_count() {
     let reference_none = reference_pending_family_preimage(&claims, None);
     let production_none = pending_accumulator_family_preimage(&claims, KAPPA, None).expect("valid fixed family");
     assert_eq!(production_none, reference_none);
-    assert_eq!(production_none.len(), 26_713, "Lean bounded_field_count");
+    assert_eq!(production_none.len(), 26_711, "Lean bounded_field_count");
     let production_claims = pending_family_claims(18);
     assert_eq!(
         pending_accumulator_family_preimage(&production_claims, 18, None)
             .expect("valid production-width family")
             .len(),
-        37_297,
+        37_295,
         "Lean production_field_count"
     );
 
@@ -460,7 +463,7 @@ fn pending_accumulator_family_matches_exact_lean_order_and_count() {
     let production_some =
         pending_accumulator_family_preimage(&claims, KAPPA, Some(pending)).expect("valid pending family");
     assert_eq!(production_some, reference_some);
-    assert_eq!(production_some.len(), 26_713, "pending option is fixed width");
+    assert_eq!(production_some.len(), 26_711, "pending option is fixed width");
     assert_ne!(production_none, production_some, "discriminator binds absence");
 
     let reference_digest = accumulator_digest(PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG, &reference_some)
@@ -629,7 +632,7 @@ fn pending_accumulator_family_circuit_preimage_matches_native_without_sis_loweri
         .map(|wire| builder.witness()[wire.col()])
         .collect();
     assert_eq!(circuit, native);
-    assert_eq!(circuit.len(), 26_713);
+    assert_eq!(circuit.len(), 26_711);
     assert!(builder.is_satisfied());
     assert!(
         builder.rows() < 200,

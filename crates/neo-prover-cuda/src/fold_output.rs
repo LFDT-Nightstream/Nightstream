@@ -138,19 +138,21 @@ impl DeviceFoldOutput {
     }
 
     fn prover_input(&self) -> RunningInstance {
-        RunningInstance {
-            claims: self.claim_shells.clone(),
-            witnesses: resident_witness_placeholders(self.claim_shells.len()),
-            parent_authority: Some(self.parent_authority.shell().clone()),
-        }
+        RunningInstance::new(
+            self.claim_shells.clone(),
+            resident_witness_placeholders(self.claim_shells.len()),
+            Some(self.parent_authority.shell().clone()),
+            None,
+        )
     }
 
     fn materialize(&self) -> Result<RunningInstance, Error> {
-        let running = RunningInstance {
-            claims: self.materialize_claims()?,
-            witnesses: resident_witness_placeholders(self.claim_shells.len()),
-            parent_authority: Some(self.materialize_parent_authority()?),
-        };
+        let running = RunningInstance::new(
+            self.materialize_claims()?,
+            resident_witness_placeholders(self.claim_shells.len()),
+            Some(self.materialize_parent_authority()?),
+            None,
+        );
         if AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest()
             != self.accumulator_digest
         {

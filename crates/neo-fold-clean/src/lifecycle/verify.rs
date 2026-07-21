@@ -104,6 +104,9 @@ use neo_ccs::utils::tensor_point_parallel;
 use neo_ccs::{check_ccs_rowwise_zero, traits::SModuleHomomorphism};
 use neo_math::balanced::within_nc_bound;
 use neo_math::{F, K};
+use neo_reductions::block_projection::{
+    project_raw_witness_at_block_point, radix_recompose_raw_witnesses_at_block_point, BLOCK_PROJECTION_POINT_LEN,
+};
 use neo_reductions::common::{
     compute_y_zcol_from_witness, decode_superneo_coeffs_from_witness_mat, project_x_from_witness_mat,
     validate_superneo_witness_mat,
@@ -122,7 +125,7 @@ use crate::paper::construction2::{
     self, FinalFoldProof, LatestInstance, ProofState, RunningInstance, State, TerminalFoldInputs,
 };
 use crate::paper::decider;
-use crate::paper::digest::{digest_fields_as_digest32, initial_boundary_digest, AccumulatorHandle};
+use crate::paper::digest::{digest_fields_as_digest32, initial_boundary_digest};
 use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use crate::paper::f_prime::r1cs::{
     FPrimePublicInputLayout, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_ONE_OFFSET, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
@@ -339,7 +342,7 @@ fn check_stateless_semantic_invariant(prep: &Preprocessing, proof: &Uncompressed
             // current acc_digest IS the pre-terminal acc_digest.
             proof.state.acc_digest
         }
-        Some(final_fold) => pre_fold_acc_digest(&final_fold.terminal_inputs.pre_final_running)?,
+        Some(final_fold) => pre_fold_acc_digest(&final_fold.terminal_inputs.pre_final_running, prep.structure())?,
     };
     if proof.state.semantic_state_digest != expected {
         return Err(Error::StatelessSemanticInvariantViolated);
@@ -482,7 +485,7 @@ fn verify_terminal_fold_case(
     final_fold: &FinalFoldProof,
 ) -> Result<(), Error> {
     check_terminal_boundary_from_latest(prep, &proof.state, final_fold)?;
-    let pre_state = build_pre_final_state(&proof.state, &final_fold.terminal_inputs)?;
+    let pre_state = build_pre_final_state(prep, &proof.state, &final_fold.terminal_inputs)?;
     check_terminal_latest_link(prep, &pre_state, &final_fold.terminal_inputs.latest)?;
     let derived_state = construction2::verify_final_fold(
         &prep.params,
@@ -504,11 +507,13 @@ fn verify_terminal_fold_case(
     // step above already binds chain coordinates + x_out + acc_digest;
     // this asserts the same on the claim-level data (commitments, X,
     // r, y_j).
-    if derived_state
+    let derived_running = derived_state
         .proof
-        .running_claims_for_binding()
-        .map_err(|_| Error::PostStateMismatch)?
-        != recorded_running.claims
+        .running_for_binding()
+        .map_err(|_| Error::PostStateMismatch)?;
+    if derived_running.claims != recorded_running.claims
+        || derived_running.parent_authority != recorded_running.parent_authority
+        || derived_running.pending_projection() != recorded_running.pending_projection()
     {
         return Err(Error::PostStateMismatch);
     }
@@ -625,8 +630,8 @@ fn verify_no_terminal_fold_case(
 
 /// Construct the pre-final-fold `State` from chain coords (which are
 /// unchanged by finalization) + the snapshotted pre-fold inputs.
-fn build_pre_final_state(post: &State, terminal: &TerminalFoldInputs) -> Result<State, Error> {
-    let pre_acc_digest = pre_fold_acc_digest(&terminal.pre_final_running)?;
+fn build_pre_final_state(prep: &Preprocessing, post: &State, terminal: &TerminalFoldInputs) -> Result<State, Error> {
+    let pre_acc_digest = pre_fold_acc_digest(&terminal.pre_final_running, prep.structure())?;
     Ok(State {
         chunk_count: post.chunk_count,
         step_count: post.step_count,
@@ -644,13 +649,16 @@ fn build_pre_final_state(post: &State, terminal: &TerminalFoldInputs) -> Result<
 
 /// `acc_digest` of a pre-finalization running. Mirrors the formula in
 /// [`construction2::prove_final_fold`] / [`construction2::verify_final_fold`].
-fn pre_fold_acc_digest(pre_running: &RunningInstance) -> Result<[u8; 32], Error> {
-    if pre_running.claims.is_empty() {
-        Ok(AccumulatorHandle::empty().digest())
-    } else if let Some(parent) = pre_running.parent_authority.as_ref() {
-        Ok(AccumulatorHandle::from_running_parts(&pre_running.claims, Some(parent)).digest())
-    } else {
+fn pre_fold_acc_digest(
+    pre_running: &RunningInstance,
+    structure: &crate::paper::relations::Structure,
+) -> Result<[u8; 32], Error> {
+    if !pre_running.claims.is_empty() && pre_running.parent_authority.is_none() {
         Err(Error::PreFinalAccumulatorMissingParentAuthority)
+    } else {
+        pre_running
+            .accumulator_digest(structure)
+            .map_err(|_| Error::AccDigestMismatch)
     }
 }
 
@@ -755,14 +763,18 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
             // (see `check_nc_channel_relation`), so a heterogeneous claim
             // falls back to its own tensor and the checked relation is
             // unchanged.
-            let shared_nc = running
-                .claims
-                .iter()
-                .find(|claim| !claim.s_col.is_empty())
-                .map(|claim| SharedNcChi {
-                    s_col: claim.s_col.clone(),
-                    chi_s: tensor_point_parallel::<K>(&claim.s_col),
-                });
+            let shared_nc = (!crate::paper::construction2::running::uses_pending_accumulator_family(prep.structure()))
+                .then(|| {
+                    running
+                        .claims
+                        .iter()
+                        .find(|claim| !claim.s_col.is_empty())
+                        .map(|claim| SharedNcChi {
+                            s_col: claim.s_col.clone(),
+                            chi_s: tensor_point_parallel::<K>(&claim.s_col),
+                        })
+                })
+                .flatten();
             perf.add_forms(t_forms.elapsed());
             let results: Vec<Result<(), Error>> = running
                 .claims
@@ -791,7 +803,7 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
                 result?;
             }
             perf.print("shared-r parallel", running.claims.len());
-            return Ok(());
+            return check_pending_projection_authority(prep, running);
         }
     }
 
@@ -822,6 +834,51 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
         )?;
     }
     perf.print("sequential", running.claims.len());
+    check_pending_projection_authority(prep, running)
+}
+
+fn check_pending_projection_authority(prep: &Preprocessing, running: &RunningInstance) -> Result<(), Error> {
+    if !crate::paper::construction2::running::uses_pending_accumulator_family(prep.structure()) {
+        return if running.pending_projection().is_none() {
+            Ok(())
+        } else {
+            Err(Error::UnexpectedPendingProjection)
+        };
+    }
+    let Some(pending) = running.pending_projection() else {
+        // The codec's `None` branch belongs only to the canonical
+        // Construction-2 base accumulator. A non-base state cannot erase a
+        // pending projection merely by selecting the absence discriminator.
+        let m_in = prep
+            .public_input_len
+            .or_else(|| running.claims.first().map(|claim| claim.m_in))
+            .ok_or(Error::MissingPendingProjection)?;
+        let canonical = RunningInstance::canonical_zero(&prep.params, prep.structure(), m_in)
+            .map_err(|_| Error::MissingPendingProjection)?;
+        if running.claims == canonical.claims
+            && running
+                .witnesses
+                .iter()
+                .zip(&canonical.witnesses)
+                .all(|(actual, expected)| {
+                    actual.rows() == expected.rows() && actual.cols() == expected.cols() && actual.nnz() == 0
+                })
+            && running.parent_authority == canonical.parent_authority
+        {
+            return Ok(());
+        }
+        return Err(Error::MissingPendingProjection);
+    };
+    let expected = radix_recompose_raw_witnesses_at_block_point(
+        &running.witnesses,
+        prep.structure().m,
+        pending.old_block(),
+        K::from(F::from_u64(prep.params.b() as u64)),
+    )
+    .map_err(|_| Error::FinalPendingProjectionMismatch)?;
+    if &expected != pending.parent_y_zcol() {
+        return Err(Error::FinalPendingProjectionMismatch);
+    }
     Ok(())
 }
 
@@ -1176,6 +1233,26 @@ fn check_nc_channel_relation(
         return Ok(());
     }
     let d_pad = 1usize << ell_d;
+    if crate::paper::construction2::running::uses_pending_accumulator_family(prep.structure()) {
+        let block_point: &[K; BLOCK_PROJECTION_POINT_LEN] = claim
+            .s_col
+            .as_slice()
+            .try_into()
+            .map_err(|_| Error::FinalAccumulatorNcChannelMismatch { index })?;
+        if claim.y_zcol.len() != d_pad
+            || claim.y_zcol[neo_math::D..]
+                .iter()
+                .any(|value| *value != K::ZERO)
+        {
+            return Err(Error::FinalAccumulatorNcChannelMismatch { index });
+        }
+        let expected = project_raw_witness_at_block_point(witness, prep.structure().m, block_point)
+            .map_err(|_| Error::FinalAccumulatorNcChannelMismatch { index })?;
+        if claim.y_zcol[..neo_math::D] != expected {
+            return Err(Error::FinalAccumulatorNcChannelMismatch { index });
+        }
+        return Ok(());
+    }
     let expected_s_len = prep
         .structure()
         .m
@@ -1250,17 +1327,13 @@ fn check_zero_ce_relation(
 // ── acc_digest consistency ────────────────────────────────────────────────
 
 fn check_recorded_acc_digest(
-    _prep: &Preprocessing,
+    prep: &Preprocessing,
     running: &RunningInstance,
     recorded: &[u8; 32],
 ) -> Result<(), Error> {
-    let recomputed = if running.claims.is_empty() {
-        AccumulatorHandle::empty().digest()
-    } else if let Some(parent) = running.parent_authority.as_ref() {
-        AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
-    } else {
-        return Err(Error::AccDigestMismatch);
-    };
+    let recomputed = running
+        .accumulator_digest(prep.structure())
+        .map_err(|_| Error::AccDigestMismatch)?;
     if recomputed != *recorded {
         return Err(Error::AccDigestMismatch);
     }
@@ -1270,11 +1343,11 @@ fn check_recorded_acc_digest(
 // ── Helper trait: avoids cloning the whole ProofState to read its claims ──
 
 trait ProofStateBinding {
-    fn running_claims_for_binding(&self) -> Result<Vec<CeClaim>, ()>;
+    fn running_for_binding(&self) -> Result<RunningInstance, ()>;
 }
 
 impl ProofStateBinding for ProofState {
-    fn running_claims_for_binding(&self) -> Result<Vec<CeClaim>, ()> {
+    fn running_for_binding(&self) -> Result<RunningInstance, ()> {
         match self {
             ProofState::Initial => Err(()),
             ProofState::Active { running, latest } => {
@@ -1282,7 +1355,7 @@ impl ProofStateBinding for ProofState {
                     return Err(());
                 }
                 let running = running.materialize().map_err(|_| ())?;
-                Ok(running.claims)
+                Ok(running.claims_only())
             }
         }
     }

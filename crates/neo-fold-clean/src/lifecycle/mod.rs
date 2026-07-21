@@ -123,6 +123,12 @@ pub enum Error {
          authority rather than trusted."
     )]
     FinalAccumulatorNcChannelMismatch { index: usize },
+    #[error("verify_uncompressed: delayed projection state is present outside the production pending-family profile")]
+    UnexpectedPendingProjection,
+    #[error("verify_uncompressed: a non-base production accumulator is missing its delayed projection state")]
+    MissingPendingProjection,
+    #[error("verify_uncompressed: delayed parent projection does not equal the radix recomposition of the authoritative raw child witnesses")]
+    FinalPendingProjectionMismatch,
     #[error(
         "verify_uncompressed: recorded final accumulator claim {index} evaluation point `r` has the \
          wrong length (expected {expected} = log2(next_pow2(structure.n).max(2)), got {got}). A \
@@ -702,11 +708,18 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     let structure_digest =
         crate::paper::digest::structure_digest_from_mat_digest(structure.as_ref(), optimized_cache.mat_digest());
     let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), structure.as_ref())?;
-    let pi_ccs_header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
+    let transcript_variant =
+        if crate::paper::construction2::running::uses_pending_accumulator_family(structure.as_ref()) {
+            neo_reductions::engines::utils::PiCcsTranscriptVariant::BlockLaneNcDelayedV1
+        } else {
+            neo_reductions::engines::utils::PiCcsTranscriptVariant::SplitNcV1
+        };
+    let pi_ccs_header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields_for_variant(
         params.inner(),
         structure.as_ref(),
         dims,
         optimized_cache.mat_digest(),
+        transcript_variant,
     )?;
     let ajtai_pp_digest = crate::paper::digest::ajtai_public_parameters_digest(&log)?;
     // Default seed: `empty_semantic_state_digest()`. Stateful frontends

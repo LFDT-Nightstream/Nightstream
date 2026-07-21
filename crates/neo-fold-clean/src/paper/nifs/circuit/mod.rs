@@ -24,8 +24,8 @@ use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, SplitNcPiCcsOutputWires,
-    SplitNcPiCcsVConfig, SplitNcPiCcsVMessages,
+    enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, PendingProjectionWires,
+    SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig, SplitNcPiCcsVMessages,
 };
 use crate::paper::reductions::pi_dec_circuit::{self, enforce_dec_v_strict};
 use crate::paper::reductions::{pi_ccs, pi_ccs_split_nc_circuit};
@@ -45,6 +45,7 @@ pub struct NifsVCircuitMessages<'a> {
     pub fresh: &'a [CcsClaim],
     pub running: &'a [CeClaim],
     pub running_parent_authority: Option<&'a CeClaim>,
+    pub running_pending_projection: Option<&'a crate::paper::construction2::PendingProjectionState>,
     pub pi_ccs: &'a pi_ccs::Proof,
     pub combined: &'a CeClaim,
     pub children: &'a [CeClaim],
@@ -66,6 +67,10 @@ pub struct NifsVOutputs {
     pub running: Vec<SplitNcPiCcsOutputWires>,
     /// Checked Π_RLC recomposition cache for [`Self::running`], when non-empty.
     pub running_parent_authority: Option<SplitNcPiCcsOutputWires>,
+    pub running_pending_projection: Option<PendingProjectionWires>,
+    /// Verifier-derived state carried to the next fold by the production
+    /// block/lane profile.
+    pub outgoing_pending_projection: Option<PendingProjectionWires>,
     /// Current Π_RLC parent, checked by Π_DEC and retained as a cache.
     pub parent: pi_dec_circuit::CeClaimWires,
     /// Exact ordered Π_DEC children that become the next accumulator.
@@ -146,6 +151,8 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         fresh: msg.fresh,
         running: msg.running,
         running_parent_authority: msg.running_parent_authority,
+        running_pending_projection: msg.running_pending_projection,
+        variant: msg.pi_ccs.sumcheck.variant,
         outputs: &msg.pi_ccs.outputs,
         outputs_digest: msg.pi_ccs.outputs_digest,
         sc_initial_sum: msg.pi_ccs.sumcheck.sc_initial_sum,
@@ -186,6 +193,21 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
 
     let parent = rlc.dec_wires.parent.clone();
     let children = rlc.dec_wires.children.clone();
+    let outgoing_pending_projection = if ccs.block_challenges.is_some() {
+        if parent.y_zcol.len() < 2 * neo_math::D {
+            return Err(Error::Inner(
+                "production Pi_RLC parent y_zcol is shorter than 54 extension elements".into(),
+            ));
+        }
+        Some(PendingProjectionWires {
+            old_block: ccs.s_col_prime.clone(),
+            parent_y_zcol: (0..neo_math::D)
+                .map(|lane| KVar::new(parent.y_zcol[2 * lane], parent.y_zcol[2 * lane + 1]))
+                .collect(),
+        })
+    } else {
+        None
+    };
     Ok(NifsVOutputs {
         parent_c_data: rlc.dec_wires.parent.c_data.clone(),
         fresh_x: ccs.fresh_x,
@@ -194,6 +216,8 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         running_acc_digest: ccs.running_acc_digest,
         running: ccs.running.clone(),
         running_parent_authority: ccs.running_parent_authority.clone(),
+        running_pending_projection: ccs.running_pending_projection.clone(),
+        outgoing_pending_projection,
         parent,
         children,
         projection_beta: rlc.projection_beta,

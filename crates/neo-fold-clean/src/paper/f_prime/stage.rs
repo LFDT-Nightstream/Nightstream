@@ -80,6 +80,8 @@ pub const RECURSIVE_ACCUMULATOR_OUTPUT: &str = "fprime.recursive.step.accumulato
 pub const RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS: &str =
     "fprime.recursive.step.accumulator.output_authority.child_digests";
 pub const RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE: &str = "fprime.recursive.step.accumulator.output_authority.aggregate";
+pub const RECURSIVE_ACCUMULATOR_OUTPUT_PENDING_FAMILY: &str =
+    "fprime.recursive.step.accumulator.output_authority.pending_family";
 pub const RECURSIVE_COUNTERS: &str = "fprime.recursive.step.counters";
 pub const RECURSIVE_OUTPUT: &str = "fprime.recursive.step.output";
 pub const RECURSIVE_FINALIZE: &str = "fprime.recursive.finalize";
@@ -106,6 +108,7 @@ pub const RECURSIVE_ALL: &[&str] = &[
     RECURSIVE_ACCUMULATOR_OUTPUT,
     RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS,
     RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
+    RECURSIVE_ACCUMULATOR_OUTPUT_PENDING_FAMILY,
     RECURSIVE_COUNTERS,
     RECURSIVE_OUTPUT,
     RECURSIVE_FINALIZE,
@@ -158,6 +161,7 @@ pub const RECURSIVE_HIERARCHY: &[(&str, &[&str])] = &[
         &[
             RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS,
             RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
+            RECURSIVE_ACCUMULATOR_OUTPUT_PENDING_FAMILY,
         ],
     ),
     (

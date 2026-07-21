@@ -11,7 +11,7 @@ use crate::paper::construction2::verifier_key::VerifierKey;
 use crate::paper::construction2::{enc_inst::EncInst, Error, TRIVIAL_PC};
 use crate::paper::digest;
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsClaim, CcsInstance};
+use crate::paper::relations::{CcsClaim, CcsInstance, Structure};
 
 /// How `advance_state` should derive the next `semantic_state_digest`.
 ///
@@ -114,6 +114,7 @@ pub(crate) fn state_base_case_check(state: &State) -> Result<(), Error> {
 /// `z_i`, and re-derive `acc_digest` from the new running accumulator.
 pub(crate) fn advance_state(
     _pp: &Params,
+    structure: &Structure,
     prev: State,
     new_proof: ProofState,
     fresh_count: u64,
@@ -124,6 +125,7 @@ pub(crate) fn advance_state(
     advance_state_inner(
         prev,
         new_proof,
+        structure,
         fresh_count,
         chunk_digest,
         semantic_advance,
@@ -134,6 +136,7 @@ pub(crate) fn advance_state(
 
 pub(crate) fn advance_state_with_acc_digest(
     _pp: &Params,
+    structure: &Structure,
     prev: State,
     new_proof: ProofState,
     fresh_count: u64,
@@ -145,6 +148,7 @@ pub(crate) fn advance_state_with_acc_digest(
     advance_state_inner(
         prev,
         new_proof,
+        structure,
         fresh_count,
         chunk_digest,
         semantic_advance,
@@ -156,6 +160,7 @@ pub(crate) fn advance_state_with_acc_digest(
 fn advance_state_inner(
     prev: State,
     new_proof: ProofState,
+    structure: &Structure,
     fresh_count: u64,
     chunk_digest: [F; 4],
     semantic_advance: SemanticStateAdvance,
@@ -175,26 +180,26 @@ fn advance_state_inner(
     // this direct-CCS build. Keep the state field for existing public
     // image shape, but do not spend a second Poseidon2 chain on it.
     let new_public_trace = new_z_i;
-    let new_acc_digest = acc_digest_override.unwrap_or_else(|| match &new_proof {
-        ProofState::Initial => digest::AccumulatorHandle::empty().digest(),
-        ProofState::Active { running, .. }
-            if running
-                .as_materialized()
-                .is_some_and(|r| r.claims.is_empty()) =>
-        {
-            digest::AccumulatorHandle::empty().digest()
+    let canonical_acc_digest = match &new_proof {
+        ProofState::Initial => Some(digest::AccumulatorHandle::empty().digest()),
+        ProofState::Active { running, .. } => match running.as_materialized() {
+            Some(running) => Some(running.accumulator_digest(structure)?),
+            None if crate::paper::construction2::running::uses_pending_accumulator_family(structure) => {
+                return Err(Error::DeferredPendingAccumulatorUnsupported);
+            }
+            None => None,
+        },
+    };
+    let new_acc_digest = match (canonical_acc_digest, acc_digest_override) {
+        (Some(canonical), Some(supplied)) if canonical != supplied => {
+            return Err(Error::AccumulatorDigestOverrideMismatch);
         }
-        ProofState::Active { running, .. } => {
-            let running = running
-                .as_materialized()
-                .expect("deferred running accumulator requires an acc_digest_override");
-            let parent = running
-                .parent_authority
-                .as_ref()
-                .expect("non-empty running accumulator must carry its Pi_RLC parent authority");
-            digest::AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
+        (Some(canonical), _) => canonical,
+        (None, Some(supplied)) => supplied,
+        (None, None) => {
+            return Err(Error::AccumulatorDigestOverrideMismatch);
         }
-    });
+    };
     let new_semantic_state_digest = match semantic_advance {
         SemanticStateAdvance::Stateless => new_acc_digest,
         SemanticStateAdvance::Stateful(digest) => digest,

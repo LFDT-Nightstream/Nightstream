@@ -16,9 +16,9 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::engine::r1cs_circuit::builder::{
-    BalancedTernaryDecomposition, CanonicalU64Decomposition, CenteredUnitTrace, Lc, PolynomialEvaluationTrace,
-    Poseidon2HashAudit, Poseidon2PermutationTrace, ProductSumBatchTrace, R1csBuilder, RowFamilyRange,
-    ShiftedTernaryCanonicalTrace, Var,
+    BalancedTernaryDecomposition, BlockLaneNcBoundaryAudit, CanonicalU64Decomposition, CenteredUnitTrace, Lc,
+    PolynomialEvaluationTrace, Poseidon2HashAudit, Poseidon2PermutationTrace, ProductSumBatchTrace, R1csBuilder,
+    RowFamilyRange, ShiftedTernaryCanonicalTrace, SumcheckRoundAudit, Var,
 };
 use crate::engine::r1cs_circuit::{PhysicalStageRange, PiRlcYZcolBoundaryAudit};
 use crate::frontends::direct_ccs::FrontendError;
@@ -51,6 +51,8 @@ pub struct SparseR1cs {
     polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
     product_sum_batch_traces: Vec<ProductSumBatchTrace>,
     row_family_ranges: Vec<RowFamilyRange>,
+    sumcheck_round_audits: Vec<SumcheckRoundAudit>,
+    block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
     physical_stage_ranges: Vec<PhysicalStageRange>,
     pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
@@ -71,6 +73,8 @@ impl SparseR1cs {
             n,
             m,
             m_in,
+            Vec::new(),
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -109,6 +113,8 @@ impl SparseR1cs {
         polynomial_evaluation_traces: Vec<PolynomialEvaluationTrace>,
         product_sum_batch_traces: Vec<ProductSumBatchTrace>,
         row_family_ranges: Vec<RowFamilyRange>,
+        sumcheck_round_audits: Vec<SumcheckRoundAudit>,
+        block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
         physical_stage_ranges: Vec<PhysicalStageRange>,
         pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
     ) -> Result<Self, FrontendError> {
@@ -132,6 +138,8 @@ impl SparseR1cs {
             polynomial_evaluation_traces,
             product_sum_batch_traces,
             row_family_ranges,
+            sumcheck_round_audits,
+            block_lane_nc_boundary_audits,
             physical_stage_ranges,
             pi_rlc_y_zcol_boundary_audits,
         };
@@ -194,6 +202,21 @@ impl SparseR1cs {
     /// Assurance-only ownership ranges preserved from the field-R1CS builder.
     pub fn row_family_ranges(&self) -> &[RowFamilyRange] {
         &self.row_family_ranges
+    }
+
+    /// Exact generated claimed-chain SumCheck wire schedules.
+    ///
+    /// This assurance-only metadata names columns and row intervals; callers
+    /// must compare the referenced sparse rows before assigning semantics.
+    #[doc(hidden)]
+    pub fn sumcheck_round_audits(&self) -> &[SumcheckRoundAudit] {
+        &self.sumcheck_round_audits
+    }
+
+    /// Exact generated production block-by-lane delayed-NC boundary records.
+    #[doc(hidden)]
+    pub fn block_lane_nc_boundary_audits(&self) -> &[BlockLaneNcBoundaryAudit] {
+        &self.block_lane_nc_boundary_audits
     }
 
     /// Exact sequential row intervals preserved across column lowering.

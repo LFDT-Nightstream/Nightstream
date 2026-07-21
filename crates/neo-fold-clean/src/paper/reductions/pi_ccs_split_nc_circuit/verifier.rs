@@ -55,7 +55,7 @@
 //! |---|---|---|---|---|
 //! | allocation | Fixed-shape claim materialization | yes | `verifier` | concrete refinement open |
 //! | running authority | Exact child-core binding, Pi_DEC consistency, and canonical views | yes | `verifier`, `pi_dec_circuit` | authority bridge open |
-//! | running `y_zcol` elision | Do not pretend an unproved sidecar equation is authority | no | `alloc_ce_wires_without_y_zcol` | delayed-NC refinement open |
+//! | running `y_zcol` elision | Validate fixed shape/padding, but do not treat the carried active values as source authority | no | `alloc_ce_wires_without_y_zcol` | delayed authority comes from pending state + raw tables |
 //! | claim hashes | Fresh claims, exact child handle, and parent-cache binding | yes | `digests` | digest bridge open |
 //! | transcript | Instance, handle, and challenge schedule | yes | `transcript` | transcript bridge open |
 //! | FE | Claimed initial, SumCheck, terminal identity | yes | `fe` | FE bridge open |
@@ -65,24 +65,29 @@
 use neo_ccs::{CcsStructure, SparsePoly};
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
+use neo_reductions::optimized_engine::oracle::BLOCK_LANE_NC_ROUND_COEFFICIENTS;
 use p3_field::PrimeCharacteristicRing;
 
 use super::stage;
 use super::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,
     absorb_engine_me_inputs_accumulator_handle, alloc_constant_var, enforce_accumulator_ce_claim_digest,
-    enforce_accumulator_claims_digest, enforce_ccs_claim_digest, enforce_fe_claimed_initial,
-    enforce_fe_sumcheck_driver, enforce_fe_terminal_identity, enforce_header_digest_catch_up_wires,
-    enforce_nc_sumcheck_driver, enforce_nc_terminal_identity, enforce_pi_ccs_instance_digest_parent_authority,
-    enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges,
-    AccumulatorCeClaimDigestInputs, Error, FeClaimedInitialInputs, FeTerminalInputs, NcTerminalInputs,
-    PiCcsOutputMessageDigestInputs, PiCcsOutputsPreimage,
+    enforce_accumulator_claims_digest, enforce_block_lane_claimed_initial, enforce_block_lane_terminal_identity,
+    enforce_ccs_claim_digest, enforce_fe_claimed_initial, enforce_fe_sumcheck_driver, enforce_fe_terminal_identity,
+    enforce_header_digest_catch_up_wires, enforce_nc_sumcheck_driver, enforce_nc_sumcheck_driver_with_claim,
+    enforce_nc_terminal_identity, enforce_pending_accumulator_family_digest,
+    enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest, header_digest_bytes_to_fields,
+    sample_engine_beta_m, sample_engine_block_lane_challenges, sample_engine_challenges,
+    AccumulatorCeClaimDigestInputs, BlockLaneChallenges, BlockLaneTerminalInputs, Error, FeClaimedInitialInputs,
+    FeTerminalInputs, NcTerminalInputs, PendingAccumulatorFamilyChildInputs, PendingAccumulatorFamilyDigestInputs,
+    PendingAccumulatorFamilyStateInputs, PiCcsOutputMessageDigestInputs, PiCcsOutputsPreimage,
 };
 use crate::engine::r1cs_circuit::boolean;
-use crate::engine::r1cs_circuit::builder::{Lc, Var};
+use crate::engine::r1cs_circuit::builder::{BlockLaneNcBoundaryAudit, Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::R1csBuilder;
+use crate::paper::construction2::PendingProjectionState;
 use crate::paper::digest::AccumulatorHandle;
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs_output_message::Profile as PiCcsOutputMessageProfile;
@@ -103,21 +108,46 @@ pub struct SplitNcVerifierRelation {
     n: usize,
     m: usize,
     polynomial: SparsePoly<F>,
+    variant: neo_reductions::optimized_engine::PiCcsProofVariant,
 }
 
 impl SplitNcVerifierRelation {
     pub fn from_structure(structure: &CcsStructure<F>) -> Self {
-        Self::from_parts(structure.n, structure.m, structure.f.clone())
+        let variant = if crate::paper::construction2::running::uses_pending_accumulator_family(structure) {
+            neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1
+        } else {
+            neo_reductions::optimized_engine::PiCcsProofVariant::SplitNcV1
+        };
+        Self::from_parts_with_variant(structure.n, structure.m, structure.f.clone(), variant)
     }
 
     pub(crate) fn from_parts(n: usize, m: usize, polynomial: SparsePoly<F>) -> Self {
+        Self::from_parts_with_variant(
+            n,
+            m,
+            polynomial,
+            neo_reductions::optimized_engine::PiCcsProofVariant::SplitNcV1,
+        )
+    }
+
+    pub(crate) fn from_parts_with_variant(
+        n: usize,
+        m: usize,
+        polynomial: SparsePoly<F>,
+        variant: neo_reductions::optimized_engine::PiCcsProofVariant,
+    ) -> Self {
         assert!(n > 0, "SplitNc verifier relation requires at least one row");
         assert!(m > 0, "SplitNc verifier relation requires at least one column");
         assert!(
             polynomial.arity() > 0,
             "SplitNc verifier relation requires a nonempty polynomial"
         );
-        Self { n, m, polynomial }
+        Self {
+            n,
+            m,
+            polynomial,
+            variant,
+        }
     }
 
     pub fn n(&self) -> usize {
@@ -139,11 +169,23 @@ impl SplitNcVerifierRelation {
     pub fn polynomial(&self) -> &SparsePoly<F> {
         &self.polynomial
     }
+
+    pub fn variant(&self) -> neo_reductions::optimized_engine::PiCcsProofVariant {
+        self.variant
+    }
 }
 
 impl From<&CcsStructure<F>> for SplitNcVerifierRelation {
     fn from(structure: &CcsStructure<F>) -> Self {
         Self::from_structure(structure)
+    }
+}
+
+fn nc_column_variables(cfg: &SplitNcPiCcsVConfig<'_>) -> usize {
+    if cfg.structure.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1 {
+        crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT
+    } else {
+        cfg.ell_m
     }
 }
 
@@ -176,6 +218,8 @@ pub struct SplitNcPiCcsVMessages<'a> {
     pub fresh: &'a [CcsClaim],
     pub running: &'a [CeClaim],
     pub running_parent_authority: Option<&'a CeClaim>,
+    pub running_pending_projection: Option<&'a PendingProjectionState>,
+    pub variant: neo_reductions::optimized_engine::PiCcsProofVariant,
     pub outputs: &'a [CeClaim],
     /// Redundant wire-format digest checked by native `pi_ccs::verify`.
     /// The circuit recomputes it from `outputs`; this field is never treated
@@ -264,6 +308,14 @@ pub struct SplitNcPiCcsVDerived {
     /// Four-lane Poseidon2 handle of the exact ordered running child vector.
     /// The checked parent is only a recomposition cache.
     pub running_acc_digest: [Var; 4],
+    pub running_pending_projection: Option<PendingProjectionWires>,
+    pub block_challenges: Option<BlockLaneChallenges>,
+}
+
+#[derive(Clone)]
+pub struct PendingProjectionWires {
+    pub old_block: Vec<KVar>,
+    pub parent_y_zcol: Vec<KVar>,
 }
 
 // ── Wire-allocation structs ───────────────────────────────────────────────
@@ -369,6 +421,18 @@ fn enforce_split_nc_pi_ccs_v_inner(
     msg: &SplitNcPiCcsVMessages<'_>,
     header_bundle: Option<[Var; 4]>,
 ) -> Result<SplitNcPiCcsVDerived, Error> {
+    let expected_variant = cfg.structure.variant();
+    let block_mode = expected_variant == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
+    if msg.variant != expected_variant {
+        return Err(Error::Shape(
+            "Pi_CCS proof variant does not match the verifier-selected relation profile".into(),
+        ));
+    }
+    if block_mode && cfg.params.b() != 2 {
+        return Err(Error::Shape(
+            "production block/lane NC requires radix and norm bound two".into(),
+        ));
+    }
     let k_mcs = msg.fresh.len();
     let k_me = msg.running.len();
     let k_total = k_mcs + k_me;
@@ -403,6 +467,24 @@ fn enforce_split_nc_pi_ccs_v_inner(
             "running length {k_me} does not match params.k_rho()={}",
             cfg.params.k_rho()
         )));
+    }
+    match (block_mode, k_me, msg.running_pending_projection) {
+        (false, _, Some(_)) => {
+            return Err(Error::Shape(
+                "legacy SplitNc relation received delayed projection state".into(),
+            ))
+        }
+        (true, 0, Some(_)) => {
+            return Err(Error::Shape(
+                "bootstrap block/lane relation received a pending projection".into(),
+            ))
+        }
+        (true, _, None) if k_me != 0 => {
+            return Err(Error::Shape(
+                "steady block/lane relation is missing its pending projection".into(),
+            ))
+        }
+        _ => {}
     }
 
     // ── 0. Validate fresh / running / output shapes up front ─────────────
@@ -454,6 +536,12 @@ fn enforce_split_nc_pi_ccs_v_inner(
         .iter()
         .map(|r| alloc_ce_wires_without_y_zcol(builder, r))
         .collect::<Result<_, _>>()?;
+    let running_pending_projection = msg
+        .running_pending_projection
+        .map(|pending| PendingProjectionWires {
+            old_block: alloc_k_vec(builder, pending.old_block()),
+            parent_y_zcol: alloc_k_vec(builder, pending.parent_y_zcol()),
+        });
     builder.begin_encoding_stage(stage::ALLOCATE_RUNNING_PARENT);
     let running_parent_authority_wires = msg
         .running_parent_authority
@@ -530,6 +618,23 @@ fn enforce_split_nc_pi_ccs_v_inner(
             for (a, b) in rw.r.iter().zip(first.iter()) {
                 enforce_kvar_eq(builder, *a, *b);
             }
+            if block_mode {
+                if rw.s_col.len() != running_wires[0].s_col.len() {
+                    return Err(Error::Shape(
+                        "pending-family children must share the block point".into(),
+                    ));
+                }
+                for (a, b) in rw.s_col.iter().zip(running_wires[0].s_col.iter()) {
+                    enforce_kvar_eq(builder, *a, *b);
+                }
+                for (a, b) in rw
+                    .fold_digest_fields
+                    .iter()
+                    .zip(running_wires[0].fold_digest_fields.iter())
+                {
+                    enforce_var_eq(builder, *a, *b);
+                }
+            }
         }
     }
     builder.begin_encoding_stage(stage::RUNNING_PARENT_HASH_DIGEST);
@@ -562,15 +667,50 @@ fn enforce_split_nc_pi_ccs_v_inner(
     // only an independently checked cache used by the instance transcript.
     builder.begin_encoding_stage(stage::RUNNING_HANDLE_HASH_AND_ABSORB);
     builder.begin_encoding_stage(stage::RUNNING_HANDLE_CHILD_DIGESTS);
-    let child_digests = running_wires
-        .iter()
-        .map(|child| enforce_accumulator_ce_claim_digest(builder, &accumulator_digest_inputs(child)))
-        .collect::<Result<Vec<_>, _>>()?;
     builder.begin_encoding_stage(stage::RUNNING_HANDLE_AGGREGATE);
-    let running_acc_digest = if child_digests.is_empty() {
+    let running_acc_digest = if running_wires.is_empty() {
         let empty = AccumulatorHandle::empty().digest_fields();
         std::array::from_fn(|lane| alloc_constant_var(builder, empty[lane]))
+    } else if block_mode {
+        let x_active: Vec<Vec<Var>> = running_wires.iter().map(CeClaimWires::x_packed).collect();
+        let y_ring_active: Vec<Vec<Vec<KVar>>> = running_wires
+            .iter()
+            .map(|child| child.y_ring.iter().map(|row| row[..D].to_vec()).collect())
+            .collect();
+        let children: Vec<PendingAccumulatorFamilyChildInputs<'_>> = running_wires
+            .iter()
+            .enumerate()
+            .map(|(index, child)| PendingAccumulatorFamilyChildInputs {
+                c_data: &child.c_data,
+                x_active_column_major: &x_active[index],
+                y_ring_active: &y_ring_active[index],
+            })
+            .collect();
+        let first = &running_wires[0];
+        let pending = running_pending_projection
+            .as_ref()
+            .map(|pending| PendingAccumulatorFamilyStateInputs {
+                old_block: &pending.old_block,
+                parent_y_zcol: &pending.parent_y_zcol,
+            });
+        enforce_pending_accumulator_family_digest(
+            builder,
+            &PendingAccumulatorFamilyDigestInputs {
+                verifier_rows: first.c_kappa,
+                row_point: &first.r,
+                column_point: &first.s_col,
+                m_in: first.m_in,
+                fold_digest_fields: first.fold_digest_fields,
+                children: &children,
+                pending,
+            },
+        )?
+        .digest
     } else {
+        let child_digests = running_wires
+            .iter()
+            .map(|child| enforce_accumulator_ce_claim_digest(builder, &accumulator_digest_inputs(child)))
+            .collect::<Result<Vec<_>, _>>()?;
         enforce_accumulator_claims_digest(builder, &child_digests)
     };
     builder.begin_encoding_stage(stage::RUNNING_HANDLE_ABSORB);
@@ -581,7 +721,18 @@ fn enforce_split_nc_pi_ccs_v_inner(
     builder.begin_encoding_stage(stage::ENGINE_CHALLENGES_MAIN);
     let ch = sample_engine_challenges(builder, transcript, cfg.ell_d, cfg.ell_n);
     builder.begin_encoding_stage(stage::ENGINE_CHALLENGES_BETA_M);
-    let beta_m = sample_engine_beta_m(builder, transcript, cfg.ell_m);
+    let (beta_m, block_challenges) = if block_mode {
+        (
+            Vec::new(),
+            Some(sample_engine_block_lane_challenges(
+                builder,
+                transcript,
+                crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT,
+            )),
+        )
+    } else {
+        (sample_engine_beta_m(builder, transcript, cfg.ell_m), None)
+    };
     builder.record_row_family(stage::ROW_TRANSCRIPT, transcript_start);
 
     // ── 8. FE claimed_initial ────────────────────────────────────────────
@@ -628,6 +779,22 @@ fn enforce_split_nc_pi_ccs_v_inner(
 
     // ── 10. NC sumcheck driver ───────────────────────────────────────────
     let nc_sumcheck_start = builder.rows();
+    let nc_round_audit_start = builder.sumcheck_round_audits().len();
+    let mut block_claimed_initial = None;
+    let nc_degree = if block_mode {
+        if msg
+            .sumcheck_rounds_nc
+            .iter()
+            .any(|round| round.len() != BLOCK_LANE_NC_ROUND_COEFFICIENTS)
+        {
+            return Err(Error::Shape(format!(
+                "block/lane NC requires exactly {BLOCK_LANE_NC_ROUND_COEFFICIENTS} coefficients per round"
+            )));
+        }
+        BLOCK_LANE_NC_ROUND_COEFFICIENTS - 1
+    } else {
+        cfg.d_sc
+    };
     builder.begin_encoding_stage(stage::NC_SUMCHECK);
     builder.begin_encoding_stage(stage::NC_SUMCHECK_ROUNDS);
     let nc_rounds: Vec<Vec<KVar>> = msg
@@ -636,7 +803,30 @@ fn enforce_split_nc_pi_ccs_v_inner(
         .map(|r| alloc_k_vec(builder, r))
         .collect();
     builder.begin_encoding_stage(stage::NC_SUMCHECK_DRIVER);
-    let nc = enforce_nc_sumcheck_driver(builder, transcript, cfg.ell_m, cfg.ell_d, cfg.d_sc, &nc_rounds)?;
+    let nc = if let Some(block) = block_challenges.as_ref() {
+        let claimed_initial_start = builder.rows();
+        let claimed = enforce_block_lane_claimed_initial(
+            builder,
+            running_pending_projection
+                .as_ref()
+                .map(|pending| pending.parent_y_zcol.as_slice()),
+            block.producer_beta,
+            block.batch_weight,
+        );
+        block_claimed_initial = Some((claimed, claimed_initial_start..builder.rows()));
+        enforce_nc_sumcheck_driver_with_claim(
+            builder,
+            transcript,
+            crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT,
+            cfg.ell_d,
+            nc_degree,
+            claimed,
+            &nc_rounds,
+        )?
+    } else {
+        enforce_nc_sumcheck_driver(builder, transcript, cfg.ell_m, cfg.ell_d, cfg.d_sc, &nc_rounds)?
+    };
+    let nc_round_audit_end = builder.sumcheck_round_audits().len();
     builder.record_row_family(stage::ROW_NC_SUMCHECK, nc_sumcheck_start);
 
     // ── 11. Bind outputs to inputs (wire-to-wire) ────────────────────────
@@ -684,21 +874,81 @@ fn enforce_split_nc_pi_ccs_v_inner(
     // ── 13. NC terminal identity ─────────────────────────────────────────
     let nc_terminal_start = builder.rows();
     builder.begin_encoding_stage(stage::NC_TERMINAL_IDENTITY);
-    let rhs_nc = enforce_nc_terminal_identity(
-        builder,
-        &NcTerminalInputs {
-            b: cfg.params.b(),
-            gamma: ch.gamma,
-            beta_a: &ch.beta_a,
-            beta_m: &beta_m,
-            s_col_prime: &nc.s_col_prime,
-            alpha_prime: &nc.alpha_prime,
-            output_y_zcol: &output_y_zcol_view,
-        },
-    )?;
+    let nc_terminal_identity_start = builder.rows();
+    let rhs_nc = if let Some(block) = block_challenges.as_ref() {
+        enforce_block_lane_terminal_identity(
+            builder,
+            &BlockLaneTerminalInputs {
+                fresh_count: k_mcs,
+                gamma: ch.gamma,
+                beta_lane: &ch.beta_a,
+                beta_block: &block.beta_block,
+                producer_beta: block.producer_beta,
+                batch_weight: block.batch_weight,
+                block_point: &nc.s_col_prime,
+                lane_point: &nc.alpha_prime,
+                output_y_zcol: &output_y_zcol_view,
+                pending_old_block: running_pending_projection
+                    .as_ref()
+                    .map(|pending| pending.old_block.as_slice()),
+            },
+        )?
+    } else {
+        enforce_nc_terminal_identity(
+            builder,
+            &NcTerminalInputs {
+                b: cfg.params.b(),
+                gamma: ch.gamma,
+                beta_a: &ch.beta_a,
+                beta_m: &beta_m,
+                s_col_prime: &nc.s_col_prime,
+                alpha_prime: &nc.alpha_prime,
+                output_y_zcol: &output_y_zcol_view,
+            },
+        )?
+    };
+    let nc_terminal_identity_end = builder.rows();
     builder.begin_encoding_stage(stage::NC_TERMINAL_FINAL_SUM);
+    let nc_terminal_final_equality_start = builder.rows();
     enforce_kvar_eq(builder, nc.final_sum, rhs_nc);
+    let nc_terminal_final_equality_end = builder.rows();
     builder.record_row_family(stage::ROW_NC_TERMINAL, nc_terminal_start);
+    if let (Some(block), Some((claimed_initial, claimed_initial_rows))) =
+        (block_challenges.as_ref(), block_claimed_initial)
+    {
+        let k_columns = |value: KVar| [value.c0.col(), value.c1.col()];
+        builder.record_block_lane_nc_boundary(BlockLaneNcBoundaryAudit {
+            claimed_initial_rows,
+            round_audit_indices: nc_round_audit_start..nc_round_audit_end,
+            terminal_identity_rows: nc_terminal_identity_start..nc_terminal_identity_end,
+            terminal_final_equality_rows: nc_terminal_final_equality_start..nc_terminal_final_equality_end,
+            gamma_cols: k_columns(ch.gamma),
+            beta_lane_cols: ch.beta_a.iter().copied().map(k_columns).collect(),
+            beta_block_cols: block.beta_block.iter().copied().map(k_columns).collect(),
+            producer_beta_cols: k_columns(block.producer_beta),
+            batch_weight_cols: k_columns(block.batch_weight),
+            pending_old_block_cols: running_pending_projection
+                .as_ref()
+                .map(|pending| pending.old_block.iter().copied().map(k_columns).collect()),
+            pending_parent_y_zcol_cols: running_pending_projection.as_ref().map(|pending| {
+                pending
+                    .parent_y_zcol
+                    .iter()
+                    .copied()
+                    .map(k_columns)
+                    .collect()
+            }),
+            output_y_zcol_cols: output_y_zcol_view
+                .iter()
+                .map(|output| output.iter().copied().map(k_columns).collect())
+                .collect(),
+            block_point_cols: nc.s_col_prime.iter().copied().map(k_columns).collect(),
+            lane_point_cols: nc.alpha_prime.iter().copied().map(k_columns).collect(),
+            claimed_initial_cols: k_columns(claimed_initial),
+            final_sum_cols: k_columns(nc.final_sum),
+            terminal_rhs_cols: k_columns(rhs_nc),
+        });
+    }
 
     // ── 14. Header digest catch-up squeeze ───────────────────────────────
     let catchup_start = builder.rows();
@@ -837,6 +1087,8 @@ fn enforce_split_nc_pi_ccs_v_inner(
         running,
         running_parent_authority,
         running_acc_digest,
+        running_pending_projection,
+        block_challenges,
     })
 }
 
@@ -1047,11 +1299,12 @@ fn validate_ce_common_shape(
             cfg.ell_n
         )));
     }
-    if ce.s_col.len() != cfg.ell_m {
+    let expected_s_col = nc_column_variables(cfg);
+    if ce.s_col.len() != expected_s_col {
         return Err(Error::Shape(format!(
-            "{label}.s_col.len ({}) != ell_m ({})",
+            "{label}.s_col.len ({}) != selected NC column variables ({})",
             ce.s_col.len(),
-            cfg.ell_m
+            expected_s_col
         )));
     }
     if ce.y_ring.len() != cfg.structure.t() {
@@ -1245,6 +1498,12 @@ fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWire
 /// Construction-2 child handle. The optimized `y_zcol` sidecar is omitted
 /// until a verifier-owned source relation is proved for it.
 fn alloc_ce_wires_without_y_zcol(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWires, Error> {
+    let d_pad = D.next_power_of_two();
+    if ce.y_zcol.len() != d_pad || ce.y_zcol.iter().skip(D).any(|value| *value != K::ZERO) {
+        return Err(Error::Shape(
+            "running CE y_zcol must have the padded ring shape with zero padding".into(),
+        ));
+    }
     alloc_ce_wires_from_y_zcol(builder, ce, &[])
 }
 

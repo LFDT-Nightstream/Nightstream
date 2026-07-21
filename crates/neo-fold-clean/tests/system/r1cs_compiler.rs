@@ -610,8 +610,10 @@ fn r1cs_compiler_accepts_backend_post_summary_without_full_running_surface() {
         other => panic!("expected active post-state, got {other:?}"),
     };
     ctx.fold_for_step = None;
-    ctx.fold_summary_for_step =
-        Some(FPrimeFoldPostSummary::from_running(&post_running, ctx.public_input_len).expect("post summary"));
+    ctx.fold_summary_for_step = Some(
+        FPrimeFoldPostSummary::from_running(&post_running, prep.prep.structure(), ctx.public_input_len)
+            .expect("post summary"),
+    );
     ctx.fold_for_step_needs_native_verify = false;
 
     compile_step(

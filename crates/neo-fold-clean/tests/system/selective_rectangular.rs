@@ -263,14 +263,12 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (1, 270, 7_498_233, 7_912_242),
-            (7_498_233, 7_912_242, 17_634_247, 14_270_364),
-            (17_634_247, 14_270_364, 17_669_277, 14_338_890),
-            (17_669_277, 14_338_890, 17_669_277, 14_338_890),
+            (8_388_609, 270, 14_946_911, 11_725_506),
+            (14_946_911, 11_725_506, 14_946_911, 11_725_506),
         ],
         "the SIS-compressed production shape must stabilize at the measured fixed point",
     );
-    assert_eq!(width.total_coordinates, 14_338_887);
+    assert_eq!(width.total_coordinates, 11_725_454);
     assert_eq!(width.branch_start, 311);
     assert_eq!(width.shared_private_coordinates, 0);
     assert_eq!(
@@ -295,10 +293,10 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             .collect::<Vec<_>>(),
         vec![
             (13_049, 10_591, 75_059, 448, 0, 74_611, 0, 0, 74_611, 20, 70_776),
-            (5_471_257, 2_060_178, 7_590_266, 1_506_146, 2_048, 6_010_392, 2_276, 93_316, 6_103_708, 713, 2_515_574,),
+            (4_468_023, 1_665_044, 5_976_446, 1_211_069, 384, 4_759_873, 2_276, 93_316, 4_853_189, 510, 1_801_354,),
             (
-                13_064_534, 4_812_827, 17_184_926, 3_736_122, 5_294, 13_241_990, 26_746, 1_096_586, 14_338_576, 1_056,
-                3_739_328,
+                11_049_111, 4_008_875, 13_840_135, 3_149_904, 1_760, 10_628_311, 26_752, 1_096_832, 11_725_143, 615,
+                2_185_920,
             ),
         ],
         "each selector-disjoint arm must retain the measured compressed-width profile",
@@ -463,15 +461,16 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
                 arm,
                 stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS),
                 stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE),
+                stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_PENDING_FAMILY),
             )
         })
         .collect::<Vec<_>>();
     assert_eq!(
         accumulator_stage_census,
         vec![
-            (0, None, None),
-            (1, Some((1_104, 4_351_298, 2_837_618)), Some((1_105, 10_278, 1_466))),
-            (2, Some((10_862, 4_351_298, 2_837_618)), Some((10_863, 10_278, 1_466))),
+            (0, None, None, None),
+            (1, None, None, Some((1_104, 3_322_625, 2_218_656))),
+            (2, None, None, Some((10_862, 3_322_625, 2_218_656))),
         ],
         "every conservative outgoing-accumulator row must retain one exact source-stage owner",
     );
@@ -508,7 +507,7 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
 }
 
 #[test]
-#[ignore = "materializes the complete 17.7M-row by 14.3M-column production relation; run explicitly after fixed-point width changes"]
+#[ignore = "materializes the complete 14.9M-row by 11.7M-column production relation; run explicitly after fixed-point width changes"]
 fn active_fixed_point_materializes_after_accumulator_ce_compression() {
     let app = one_product_r1cs();
     let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
@@ -516,15 +515,15 @@ fn active_fixed_point_materializes_after_accumulator_ce_compression() {
         .expect("materialize SIS-compressed active fixed point");
 
     let structure = relation.structure();
-    assert_eq!(structure.n, 17_669_277);
-    assert_eq!(structure.m, 14_338_890);
+    assert_eq!(structure.n, 14_946_911);
+    assert_eq!(structure.m, 11_725_506);
     assert_eq!(relation.public_input_len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     assert_eq!(structure.t(), 13);
     assert_eq!(structure.matrices.len(), 13);
 
     let audit = relation.compilation_audit();
-    assert_eq!(audit.rounds().len(), 4);
-    assert_eq!(audit.width().total_coordinates, 14_338_887);
+    assert_eq!(audit.rounds().len(), 2);
+    assert_eq!(audit.width().total_coordinates, 11_725_454);
     assert_eq!(audit.layout().total_columns(), structure.m);
     assert_eq!(audit.rows().total_rows(), structure.n);
     let terminal = audit

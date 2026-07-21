@@ -342,10 +342,39 @@ pub struct SumcheckRoundAudit {
     pub row_start: usize,
     pub row_end: usize,
     pub first_allocated_column: usize,
+    /// Exact allocation set. Unlike `first_allocated_column`, this remains
+    /// meaningful after public-prefix column permutation.
+    pub allocated_cols: Vec<usize>,
     pub coefficient_cols: Vec<[usize; 2]>,
     pub challenge_cols: [usize; 2],
     pub claim_in_cols: [usize; 2],
     pub claim_out_cols: [usize; 2],
+}
+
+/// Exact boundary wires and row intervals for the production block-by-lane
+/// delayed NC verifier. This record assigns no meaning to a stage label: an
+/// exporter must compare every referenced sparse row with the generated
+/// program before using the columns as a protocol refinement boundary.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlockLaneNcBoundaryAudit {
+    pub claimed_initial_rows: std::ops::Range<usize>,
+    pub round_audit_indices: std::ops::Range<usize>,
+    pub terminal_identity_rows: std::ops::Range<usize>,
+    pub terminal_final_equality_rows: std::ops::Range<usize>,
+    pub gamma_cols: [usize; 2],
+    pub beta_lane_cols: Vec<[usize; 2]>,
+    pub beta_block_cols: Vec<[usize; 2]>,
+    pub producer_beta_cols: [usize; 2],
+    pub batch_weight_cols: [usize; 2],
+    pub pending_old_block_cols: Option<Vec<[usize; 2]>>,
+    pub pending_parent_y_zcol_cols: Option<Vec<[usize; 2]>>,
+    pub output_y_zcol_cols: Vec<Vec<[usize; 2]>>,
+    pub block_point_cols: Vec<[usize; 2]>,
+    pub lane_point_cols: Vec<[usize; 2]>,
+    pub claimed_initial_cols: [usize; 2],
+    pub final_sum_cols: [usize; 2],
+    pub terminal_rhs_cols: [usize; 2],
 }
 
 /// Exact wire schedule for one commitment coordinate consumed by strict
@@ -546,6 +575,7 @@ pub struct R1csBuilder {
     row_family_ranges: Vec<RowFamilyRange>,
     program_range_audits: Vec<ProgramRangeAudit>,
     sumcheck_round_audits: Vec<SumcheckRoundAudit>,
+    block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
     pi_dec_strict_audits: Vec<PiDecStrictAudit>,
     terminal_ce_claim_audits: Vec<TerminalCeClaimAudit>,
     projection_ladder_audits: Vec<ProjectionLadderAudit>,
@@ -584,6 +614,8 @@ pub(crate) struct R1csSynthesis {
     pub(crate) shifted_ternary_canonical_traces: Vec<ShiftedTernaryCanonicalTrace>,
     pub(crate) equality_pairs: Vec<(usize, usize, usize)>,
     pub(crate) row_family_ranges: Vec<RowFamilyRange>,
+    pub(crate) sumcheck_round_audits: Vec<SumcheckRoundAudit>,
+    pub(crate) block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
     pub(crate) physical_stage_checkpoints: Vec<PhysicalStageCheckpoint>,
     pub(crate) pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
@@ -634,6 +666,7 @@ impl R1csBuilder {
             row_family_ranges: Vec::new(),
             program_range_audits: Vec::new(),
             sumcheck_round_audits: Vec::new(),
+            block_lane_nc_boundary_audits: Vec::new(),
             pi_dec_strict_audits: Vec::new(),
             terminal_ce_claim_audits: Vec::new(),
             projection_ladder_audits: Vec::new(),
@@ -951,6 +984,12 @@ impl R1csBuilder {
         &self.sumcheck_round_audits
     }
 
+    /// Exact block-by-lane delayed-NC boundary schedules.
+    #[doc(hidden)]
+    pub fn block_lane_nc_boundary_audits(&self) -> &[BlockLaneNcBoundaryAudit] {
+        &self.block_lane_nc_boundary_audits
+    }
+
     /// Exact input schedules for strict PiDEC compiler invocations.
     #[doc(hidden)]
     pub fn pi_dec_strict_audits(&self) -> &[PiDecStrictAudit] {
@@ -978,6 +1017,13 @@ impl R1csBuilder {
         if self.record_structure {
             debug_assert_eq!(audit.row_end, self.rows);
             self.sumcheck_round_audits.push(audit);
+        }
+    }
+
+    pub(crate) fn record_block_lane_nc_boundary(&mut self, audit: BlockLaneNcBoundaryAudit) {
+        if self.record_structure {
+            debug_assert_eq!(audit.terminal_final_equality_rows.end, self.rows);
+            self.block_lane_nc_boundary_audits.push(audit);
         }
     }
 
@@ -1404,6 +1450,8 @@ impl R1csBuilder {
             shifted_ternary_canonical_traces: self.shifted_ternary_canonical_traces,
             equality_pairs: self.equality_pairs,
             row_family_ranges: self.row_family_ranges,
+            sumcheck_round_audits: self.sumcheck_round_audits,
+            block_lane_nc_boundary_audits: self.block_lane_nc_boundary_audits,
             physical_stage_checkpoints: self.physical_stage_checkpoints,
             pi_rlc_y_zcol_boundary_audits: self.pi_rlc_y_zcol_boundary_audits,
         }

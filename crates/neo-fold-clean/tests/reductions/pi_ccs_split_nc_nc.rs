@@ -19,7 +19,8 @@ use neo_fold_clean::engine::r1cs_circuit::field_ext::KVar;
 use neo_fold_clean::engine::r1cs_circuit::sumcheck::enforce_norm_check_b2;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget};
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
-    enforce_nc_range_product, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity, NcTerminalInputs,
+    enforce_block_lane_claimed_initial, enforce_block_lane_terminal_identity, enforce_nc_range_product,
+    enforce_nc_sumcheck_driver, enforce_nc_terminal_identity, BlockLaneTerminalInputs, NcTerminalInputs,
 };
 use neo_math::ring::D;
 use neo_math::{from_complex, KExtensions, F, K};
@@ -33,6 +34,10 @@ use p3_field::{Field, PrimeCharacteristicRing};
 const APP: &[u8] = b"neo.test.pi_ccs.split_nc.nc/v1";
 
 type CeClaim = NeoCeClaim<Commitment, F, K>;
+
+fn k(c0: u64, c1: u64) -> K {
+    K::from_coeffs([F::from_u64(c0), F::from_u64(c1)])
+}
 
 fn k_value(b: &R1csBuilder, v: KVar) -> K {
     let c0 = b.witness()[v.c0.col()];
@@ -61,6 +66,42 @@ fn native_range_product(val: K, b: u32) -> K {
         prod *= val - K::from(F::from_i64(t));
     }
     prod
+}
+
+fn native_mle(values: &[K], point: &[K]) -> K {
+    values
+        .iter()
+        .take(1usize << point.len())
+        .enumerate()
+        .fold(K::ZERO, |sum, (index, value)| {
+            let weight = point
+                .iter()
+                .enumerate()
+                .fold(K::ONE, |weight, (bit, coordinate)| {
+                    weight
+                        * if ((index >> bit) & 1) == 1 {
+                            *coordinate
+                        } else {
+                            K::ONE - *coordinate
+                        }
+                });
+            sum + *value * weight
+        })
+}
+
+fn native_eq(left: &[K], right: &[K]) -> K {
+    left.iter().zip(right).fold(K::ONE, |value, (left, right)| {
+        value * (*left * *right + (K::ONE - *left) * (K::ONE - *right))
+    })
+}
+
+fn native_beta_power_selector(beta: K, point: &[K]) -> K {
+    let mut power = beta;
+    point.iter().fold(K::ONE, |selector, coordinate| {
+        let factor = (K::ONE - *coordinate) + *coordinate * power;
+        power *= power;
+        selector * factor
+    })
 }
 
 // ── G.1: enforce_nc_range_product vs hand-reconstructed native formula ──
@@ -586,4 +627,174 @@ fn nc_range_product_rejects_tampered_val() {
     let tampered = bd.witness()[target] + F::ONE;
     bd.tamper_witness(target, tampered);
     assert!(!bd.is_satisfied(), "tampered val must break range_product pin");
+}
+
+#[test]
+fn block_lane_initial_and_terminal_match_the_fixed_delayed_polynomial() {
+    let gamma = K::from_coeffs([F::from_u64(3), F::from_u64(1)]);
+    let producer_beta = K::from_coeffs([F::from_u64(5), F::from_u64(2)]);
+    let batch_weight = K::from_coeffs([F::from_u64(7), F::from_u64(4)]);
+    let block_point = [
+        K::from_coeffs([F::from_u64(11), F::from_u64(1)]),
+        K::from_coeffs([F::from_u64(13), F::from_u64(2)]),
+    ];
+    let beta_block = [
+        K::from_coeffs([F::from_u64(17), F::from_u64(3)]),
+        K::from_coeffs([F::from_u64(19), F::from_u64(4)]),
+    ];
+    let lane_point = [
+        K::from_coeffs([F::from_u64(23), F::from_u64(5)]),
+        K::from_coeffs([F::from_u64(29), F::from_u64(6)]),
+    ];
+    let beta_lane = [
+        K::from_coeffs([F::from_u64(31), F::from_u64(7)]),
+        K::from_coeffs([F::from_u64(37), F::from_u64(8)]),
+    ];
+    let old_block = [
+        K::from_coeffs([F::from_u64(41), F::from_u64(9)]),
+        K::from_coeffs([F::from_u64(43), F::from_u64(10)]),
+    ];
+    let parent = [
+        K::from_coeffs([F::from_u64(47), F::from_u64(11)]),
+        K::from_coeffs([F::from_u64(53), F::from_u64(12)]),
+        K::from_coeffs([F::from_u64(59), F::from_u64(13)]),
+        K::from_coeffs([F::from_u64(61), F::from_u64(14)]),
+    ];
+    let outputs = [
+        [k(1, 0), k(0, 1), k(1, 0), k(0, 1)],
+        [k(2, 1), k(3, 1), k(5, 2), k(7, 3)],
+        [k(11, 4), k(13, 5), k(17, 6), k(19, 7)],
+    ];
+
+    let expected_initial = batch_weight
+        * parent
+            .iter()
+            .rev()
+            .fold(K::ZERO, |value, coefficient| value * producer_beta + *coefficient);
+    let values = outputs.map(|output| native_mle(&output, &lane_point));
+    let mut gamma_power = K::ONE;
+    let ordinary_sum = values.iter().fold(K::ZERO, |sum, value| {
+        let next = sum + gamma_power * (*value * *value * *value - *value);
+        gamma_power *= gamma;
+        next
+    });
+    let ordinary = native_eq(&block_point, &beta_block) * native_eq(&lane_point, &beta_lane) * ordinary_sum;
+    let running = values[1] + K::from(F::from_u64(2)) * values[2];
+    let delayed = batch_weight
+        * native_eq(&block_point, &old_block)
+        * native_beta_power_selector(producer_beta, &lane_point)
+        * running;
+    let expected_terminal = ordinary + delayed;
+
+    let mut builder = R1csBuilder::new();
+    let gamma_var = alloc_witness_k(&mut builder, gamma);
+    let producer_beta_var = alloc_witness_k(&mut builder, producer_beta);
+    let batch_weight_var = alloc_witness_k(&mut builder, batch_weight);
+    let block_vars = block_point.map(|value| alloc_witness_k(&mut builder, value));
+    let beta_block_vars = beta_block.map(|value| alloc_witness_k(&mut builder, value));
+    let lane_vars = lane_point.map(|value| alloc_witness_k(&mut builder, value));
+    let beta_lane_vars = beta_lane.map(|value| alloc_witness_k(&mut builder, value));
+    let old_block_vars = old_block.map(|value| alloc_witness_k(&mut builder, value));
+    let parent_vars = parent.map(|value| alloc_witness_k(&mut builder, value));
+    let output_vars = outputs
+        .iter()
+        .map(|output| {
+            output
+                .iter()
+                .copied()
+                .map(|value| alloc_witness_k(&mut builder, value))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    let initial =
+        enforce_block_lane_claimed_initial(&mut builder, Some(&parent_vars), producer_beta_var, batch_weight_var);
+    let terminal = enforce_block_lane_terminal_identity(
+        &mut builder,
+        &BlockLaneTerminalInputs {
+            fresh_count: 1,
+            gamma: gamma_var,
+            beta_lane: &beta_lane_vars,
+            beta_block: &beta_block_vars,
+            producer_beta: producer_beta_var,
+            batch_weight: batch_weight_var,
+            block_point: &block_vars,
+            lane_point: &lane_vars,
+            output_y_zcol: &output_vars,
+            pending_old_block: Some(&old_block_vars),
+        },
+    )
+    .expect("block/lane terminal");
+
+    assert_eq!(k_value(&builder, initial), expected_initial);
+    assert_eq!(k_value(&builder, terminal), expected_terminal);
+    pin_k(&mut builder, initial, expected_initial);
+    pin_k(&mut builder, terminal, expected_terminal);
+    assert!(
+        builder.is_satisfied(),
+        "fixed delayed polynomial circuit disagrees at row {:?}",
+        builder.first_unsatisfied_row()
+    );
+
+    let target = output_vars[2][3].c0.col();
+    builder.tamper_witness(target, builder.witness()[target] + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "raw running-output mutation must break the pinned terminal identity"
+    );
+}
+
+#[test]
+fn zero_batch_weight_removes_only_the_delayed_summand() {
+    let outputs = vec![vec![k(0, 0), k(1, 0)], vec![k(1, 0), k(0, 0)]];
+    let point = [k(3, 1)];
+    let beta = [k(5, 2)];
+
+    let mut builder = R1csBuilder::new();
+    let gamma = alloc_witness_k(&mut builder, k(7, 3));
+    let producer_beta = alloc_witness_k(&mut builder, k(11, 4));
+    let batch_weight = alloc_witness_k(&mut builder, K::ZERO);
+    let point_vars = point.map(|value| alloc_witness_k(&mut builder, value));
+    let beta_vars = beta.map(|value| alloc_witness_k(&mut builder, value));
+    let old_vars = [alloc_witness_k(&mut builder, k(13, 5))];
+    let output_vars = outputs
+        .iter()
+        .map(|values| {
+            values
+                .iter()
+                .copied()
+                .map(|value| alloc_witness_k(&mut builder, value))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let result = enforce_block_lane_terminal_identity(
+        &mut builder,
+        &BlockLaneTerminalInputs {
+            fresh_count: 1,
+            gamma,
+            beta_lane: &beta_vars,
+            beta_block: &beta_vars,
+            producer_beta,
+            batch_weight,
+            block_point: &point_vars,
+            lane_point: &point_vars,
+            output_y_zcol: &output_vars,
+            pending_old_block: Some(&old_vars),
+        },
+    )
+    .expect("zero-weight block/lane terminal");
+
+    let values = outputs
+        .iter()
+        .map(|values| native_mle(values, &point))
+        .collect::<Vec<_>>();
+    let ordinary_sum =
+        (values[0] * values[0] * values[0] - values[0]) + k(7, 3) * (values[1] * values[1] * values[1] - values[1]);
+    let expected = native_eq(&point, &beta) * native_eq(&point, &beta) * ordinary_sum;
+    assert_eq!(k_value(&builder, result), expected);
+    pin_k(&mut builder, result, expected);
+    assert!(
+        builder.is_satisfied(),
+        "batchWeight=0 must leave the ordinary NC identity intact"
+    );
 }

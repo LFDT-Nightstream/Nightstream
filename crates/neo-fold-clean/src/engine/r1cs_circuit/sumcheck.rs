@@ -86,6 +86,7 @@ pub fn enforce_sumcheck_round(builder: &mut R1csBuilder, coeffs: &[KVar], r_q: K
         row_start,
         row_end: builder.rows(),
         first_allocated_column,
+        allocated_cols: (first_allocated_column..builder.cols()).collect(),
         coefficient_cols: coeffs
             .iter()
             .map(|coefficient| [coefficient.c0.col(), coefficient.c1.col()])

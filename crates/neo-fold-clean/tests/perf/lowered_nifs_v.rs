@@ -160,6 +160,7 @@ fn emit_verifier(f: &Fixture) -> (R1csBuilder, NifsVOutputs) {
             fresh: &f.fresh_claims,
             running: &f.running.claims,
             running_parent_authority: f.running.parent_authority.as_ref(),
+            running_pending_projection: f.running.pending_projection(),
             pi_ccs: &f.proof.pi_ccs,
             combined: &f.combined,
             children: &f.children,

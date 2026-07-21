@@ -299,6 +299,7 @@ fn msg_from_fixture<'a>(fixture: &'a RedteamFixture) -> NifsVCircuitMessages<'a>
         fresh: &fixture.fresh_claims,
         running: &fixture.running.claims,
         running_parent_authority: fixture.running.parent_authority.as_ref(),
+        running_pending_projection: fixture.running.pending_projection(),
         pi_ccs: &fixture.proof.pi_ccs,
         combined: &fixture.combined,
         children: &fixture.children,

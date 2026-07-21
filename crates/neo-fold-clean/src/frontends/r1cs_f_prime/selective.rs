@@ -54,7 +54,9 @@ mod structure;
 #[path = "selective_terms.rs"]
 mod terms;
 use emit::{lc_from_column, trace_error};
-pub(super) use projected_decoder::SelectiveProjectedSourceResolution;
+pub use projected_decoder::{
+    SelectiveProjectedDecoderProvenance, SelectiveProjectedSourceDecoder, SelectiveProjectedSourceResolution,
+};
 pub(crate) use projected_rows::{project_rows_with_alignment, project_rows_with_source_provenance_with_alignment};
 pub use projected_rows::{
     SelectiveProjectedDerivedProductSum, SelectiveProjectedGeometricRun, SelectiveProjectedPort,
@@ -67,7 +69,7 @@ pub use projected_rows::{
 use rows::{skipped_selective_rows, PreparedSelectiveRows};
 pub(crate) use shape::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
-    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
+    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, selective_polynomial, SelectiveLowNormShape,
 };
 
 pub(super) const EVAL_GROUP_SIZE: usize = 5;

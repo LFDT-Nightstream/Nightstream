@@ -190,7 +190,7 @@ fn fixed_stack_arity_gate_terms() -> [(usize, F); 3] {
 }
 
 fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String> {
-    let witness_width = crate::range_check::range_checked_witness_width();
+    let witness_width = crate::RANGE_CHECKED_WITNESS_WIDTH;
     let layout = build_wasm_relation_layout();
     let linear_memory = layout.linear_memory;
     let mut b = WasmTaggedR1csBuilder::new(witness_width, COL_ONE)?;

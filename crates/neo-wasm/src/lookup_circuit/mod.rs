@@ -19,7 +19,7 @@ use crate::tagged_r1cs_builder::WasmR1csRow;
 pub(crate) struct CompactLookupShape {
     pub(crate) relation: SparseR1cs,
     pub(crate) widths: Vec<usize>,
-    pub(crate) auxiliary_columns: usize,
+    pub(crate) auxiliary_column_count: usize,
 }
 
 pub(crate) fn extend_relation(
@@ -68,7 +68,7 @@ pub(crate) fn extend_relation(
     Ok(CompactLookupShape {
         relation,
         widths,
-        auxiliary_columns: auxiliary_assignment.len(),
+        auxiliary_column_count: auxiliary_assignment.len(),
     })
 }
 

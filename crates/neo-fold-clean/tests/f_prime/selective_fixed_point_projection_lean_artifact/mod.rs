@@ -21,6 +21,7 @@
 mod carrier_decoder;
 mod carrier_private_padding;
 mod carrier_public_padding;
+mod carrier_ring_padding;
 mod carrier_selectors;
 mod fresh_source;
 mod packed_witness_decoder;
@@ -70,6 +71,7 @@ pub(super) fn generated_files(
     files.extend(carrier_decoder::render(projected));
     files.push(carrier_public_padding::render(projected));
     files.push(carrier_private_padding::render(projected));
+    files.push(carrier_ring_padding::render(projected));
     files.push(carrier_selectors::render(projected));
     files.extend(raw_running_assignments::render(projected, raw_running_assignments));
     files.extend(fresh_source::render(projected, audit));

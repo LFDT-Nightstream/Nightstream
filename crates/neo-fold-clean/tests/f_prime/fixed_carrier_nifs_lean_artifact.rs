@@ -404,6 +404,7 @@ fn linked_recursive_f_prime_outcome(prep: &neo_fold_clean::Preprocessing, carrie
         fresh: &fresh_claims,
         running: zero.claims(),
         running_parent_authority: zero.running().parent_authority.as_ref(),
+        running_pending_projection: zero.running().pending_projection(),
         pi_ccs: &proof.pi_ccs,
         combined: &proof.pi_rlc.combined,
         children: next.claims(),

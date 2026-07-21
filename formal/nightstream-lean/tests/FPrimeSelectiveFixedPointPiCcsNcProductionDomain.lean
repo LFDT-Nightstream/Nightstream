@@ -13,19 +13,20 @@ open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.Productio
 #check blockLaneDomain_covers
 #check rowVariables_minimal
 #check flatColumnVariables_minimal
+#check eighteenBlockVariables_cover
 #check blockVariables_minimal
 #check laneVariables_minimal
 #check artifact_width_accounting
 #check artifact_fits_current_constructor_guard
 
-example : semanticShape.rowVariables = 25 := semanticShape_rowVariables
+example : semanticShape.rowVariables = 24 := semanticShape_rowVariables
 
-example : semanticShape.logicalWidth = 14338890 :=
+example : semanticShape.logicalWidth = 11725506 :=
   semanticShape_logicalWidth_exact
 
-example : FixedArtifact.unpaddedCoordinates = 14338887 /\
-    FixedArtifact.relationColumns = 14338890 /\
-    16000000 - FixedArtifact.relationColumns = 1661110 := by
+example : FixedArtifact.unpaddedCoordinates = 11725454 /\
+    FixedArtifact.relationColumns = 11725506 /\
+    16000000 - FixedArtifact.relationColumns = 4274494 := by
   exact ⟨artifact_unpaddedCoordinates,
     artifact_relationColumns,
     artifact_fits_current_constructor_guard.2⟩
@@ -46,5 +47,15 @@ example :
 example : liveLaneCount = 54 ∧ virtualLaneCount = 10 ∧
     liveLaneCount + virtualLaneCount = 64 := by
   decide
+
+example :
+    Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount
+        semanticShape.carrierWidth = 217139 :=
+  semanticShape_blockCount
+
+example {variables : Nat} (covers : 217139 <= 2 ^ variables) :
+    18 <= variables := by
+  apply blockVariables_minimal
+  simpa using covers
 
 end Nightstream.Tests.FPrimeSelectiveFixedPointPiCcsNcProductionDomain

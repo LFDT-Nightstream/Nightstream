@@ -355,6 +355,12 @@ open Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedN
 #guard_msgs in
 #audit_axioms ActiveTrace.Trace.terminalChecked_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure
 
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.ActiveTrace.Trace.runtimeAccepted_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms ActiveTrace.Trace.runtimeAccepted_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure
+
 /-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.combinedAtPoint_eq_terminalFromMessage_of_bound' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/

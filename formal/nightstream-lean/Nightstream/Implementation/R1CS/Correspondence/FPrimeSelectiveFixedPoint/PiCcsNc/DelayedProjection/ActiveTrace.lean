@@ -3,9 +3,10 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.
 /-!
 Finite production trace closure for delayed packed-`y_zcol` authority.
 
-Assurance tier: model-level until generated full-witness, combined-NC, state,
-transcript, and terminal-opening rows refine the contracts carried by each
-step.
+Assurance tier: model-level for the final semantic composition, with the
+step premise reduced to the executable claims checker. Exact generated
+combined-NC, state, transcript, and terminal-opening row refinement remains a
+separate artifact boundary.
 
 Owns: a nonempty digest-linked claims trace; the explicit no-pending base
 boundary; one terminal opening on the final step; backward propagation of the
@@ -83,10 +84,33 @@ structure Step
   template : Data shape
   witnesses : Fin shape.runningCount -> Matrix shape
   certificate : FixedActive.Certificate (ProductionContext.full setup input)
-  accepted : ActiveBoundary.ClaimsAccepted scheme incoming outgoing machine
-    setup input template witnesses certificate
+  checked : ActiveBoundary.claimsCheck scheme incoming outgoing machine setup
+    input certificate = true
 
 namespace Step
+
+/-- Every trace step derives the structured claims contract from the exact
+executable production Boolean. The trace can no longer receive
+`ClaimsAccepted` as a caller-supplied semantic premise. -/
+theorem accepted
+    [DecidableEq Digest]
+    {scheme : Nightstream.Protocol.FPrime.AccumulatorBinding.Scheme
+      (PendingFamilyPayload
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) Encoding Digest}
+    {machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows 1}
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows 1}
+    {incoming outgoing : Digest}
+    (step : Step scheme machine setup incoming outgoing) :
+    ActiveBoundary.ClaimsAccepted scheme incoming outgoing machine setup
+      step.input step.template step.witnesses step.certificate :=
+  (ActiveBoundary.claimsCheck_eq_true_iff scheme incoming outgoing machine
+    setup step.input step.template step.witnesses step.certificate).mp
+    step.checked
 
 /-- The delayed packed equation carried backward from the terminal anchor. -/
 def Packed
@@ -343,6 +367,117 @@ def TerminalChecked
         (ProductionContext.canonical setup step.input) step.certificate
         terminalWitnesses = true
   | .cons _ tail => tail.TerminalChecked
+
+/-- Executable no-pending test on the actual first input. -/
+def baseCheck
+    [DecidableEq Digest]
+    {scheme : Nightstream.Protocol.FPrime.AccumulatorBinding.Scheme
+      (PendingFamilyPayload
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) Encoding Digest}
+    {machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows 1}
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows 1}
+    {incoming outgoing : Digest}
+    (trace : Trace scheme machine setup incoming outgoing) : Bool :=
+  match trace.headStep.2.input.pending with
+  | none => true
+  | some _ => false
+
+theorem baseCheck_eq_true_iff
+    [DecidableEq Digest]
+    {scheme : Nightstream.Protocol.FPrime.AccumulatorBinding.Scheme
+      (PendingFamilyPayload
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) Encoding Digest}
+    {machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows 1}
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows 1}
+    {incoming outgoing : Digest}
+    (trace : Trace scheme machine setup incoming outgoing) :
+    trace.baseCheck = true <-> trace.BaseBoundary := by
+  constructor
+  · intro checked
+    cases pendingEq : trace.headStep.2.input.pending with
+    | none => exact pendingEq
+    | some pending => simp [baseCheck, pendingEq] at checked
+  · intro base
+    change trace.headStep.2.input.pending = none at base
+    unfold baseCheck
+    rw [base]
+
+/-- Execute the actual terminal checker on the last trace step. -/
+def terminalCheck
+    [DecidableEq Digest]
+    {scheme : Nightstream.Protocol.FPrime.AccumulatorBinding.Scheme
+      (PendingFamilyPayload
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) Encoding Digest}
+    {machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows 1}
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows 1}
+    {incoming outgoing : Digest}
+    (trace : Trace scheme machine setup incoming outgoing)
+    (terminalWitnesses : Fin productionGlobalParams.k -> Matrix shape) : Bool :=
+  match trace with
+  | .single step =>
+      PackedWitnessProduction.terminalCheck
+        (ProductionContext.canonical setup step.input) step.certificate
+        terminalWitnesses
+  | .cons _ tail => tail.terminalCheck terminalWitnesses
+
+theorem terminalCheck_eq_true_implies
+    [DecidableEq Digest]
+    {scheme : Nightstream.Protocol.FPrime.AccumulatorBinding.Scheme
+      (PendingFamilyPayload
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) Encoding Digest}
+    {machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows 1}
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows 1}
+    {incoming outgoing : Digest}
+    (trace : Trace scheme machine setup incoming outgoing)
+    (terminalWitnesses : Fin productionGlobalParams.k -> Matrix shape)
+    (checked : trace.terminalCheck terminalWitnesses = true) :
+    trace.TerminalChecked := by
+  induction trace with
+  | single step => exact ⟨terminalWitnesses, checked⟩
+  | cons head tail ih => exact ih checked
+
+/-- Actual production-trace acceptance data. Every step already stores its
+`claimsCheck = true` result; this final package adds only the executable base
+and terminal results on concrete trace inputs. It contains no semantic
+acceptance predicate, packed equation, source-binding proposition, or caller
+provided `ClaimsAccepted`. -/
+structure RuntimeAccepted
+    [DecidableEq Digest]
+    {scheme : Nightstream.Protocol.FPrime.AccumulatorBinding.Scheme
+      (PendingFamilyPayload
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) Encoding Digest}
+    {machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows 1}
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows 1}
+    {incoming outgoing : Digest}
+    (trace : Trace scheme machine setup incoming outgoing) : Type _ where
+  base : trace.baseCheck = true
+  terminalWitnesses : Fin productionGlobalParams.k -> Matrix shape
+  terminal : trace.terminalCheck terminalWitnesses = true
 
 /-- Every step in the trace satisfies independent Construction-2 semantics. -/
 def AllPaper
@@ -688,6 +823,38 @@ theorem terminalChecked_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure
     · exact Or.inl ⟨packed.1, packed.2, paper.2⟩
     · exact Or.inr (Or.inr ⟨packed.1, packed.2, failure⟩)
   · exact Or.inr (Or.inl parentFailure)
+
+/-- Headline production theorem from executable acceptance only. Step-level
+acceptance is `claimsCheck = true`; base and terminal are the concrete Boolean
+checks packaged by `RuntimeAccepted`. The conclusion retains every packed
+`y_zcol` equation even when the independent paper track reports
+`yRingUnbound` or another paper failure. -/
+theorem runtimeAccepted_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure
+    [DecidableEq Digest]
+    (noZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
+    (scheme : Nightstream.Protocol.FPrime.AccumulatorBinding.Scheme
+      (PendingFamilyPayload
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) Encoding Digest)
+    (machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows 1)
+    (setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows 1)
+    (functionIndex : Fin 1)
+    {incoming outgoing : Digest}
+    (trace : Trace scheme machine setup incoming outgoing)
+    (accepted : trace.RuntimeAccepted) :
+    (trace.BaseNc ∧ trace.AllPacked ∧ trace.AllPaper functionIndex) ∨
+      trace.ParentOpeningFailure ∨
+      (trace.BaseNc ∧ trace.AllPacked ∧ trace.Failure) := by
+  exact
+    terminalChecked_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure
+      noZeroDivisors scheme machine setup functionIndex trace
+      ((baseCheck_eq_true_iff trace).mp accepted.base)
+      (terminalCheck_eq_true_implies trace accepted.terminalWitnesses
+        accepted.terminal)
 
 /-- Compatibility projection of the strong active production composition.
 It forgets the independently proved packed trace on a paper-track failure;

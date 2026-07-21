@@ -7,6 +7,7 @@
 
 // Public modules
 pub mod api; // public API for Π_CCS folding and RLC/DEC operations
+pub mod block_projection; // fixed production block-point projection over raw witnesses
 pub mod common; // shared utilities and helper functions
 pub mod cuda_backend; // dependency-free CUDA resident-session contract
 pub mod engines; // internal engine trait + wrappers (includes optimized_engine, paper_exact_engine, crosscheck_engine)

@@ -29,10 +29,10 @@ pub(super) fn sample_challenges(
     dims: Dims,
     public: &mut Challenges,
 ) -> Result<BlockLaneNcChallenges, PiCcsError> {
-    if dims.ell_block != BLOCK_LANE_NC_BLOCK_VARIABLES || dims.ell_d != BLOCK_LANE_NC_LANE_VARIABLES {
+    if dims.ell_d != BLOCK_LANE_NC_LANE_VARIABLES {
         return Err(PiCcsError::InvalidInput(format!(
-            "block-lane delayed variant requires 19 block and 6 lane variables, got {} and {}",
-            dims.ell_block, dims.ell_d
+            "block-lane delayed variant requires 6 lane variables, got {}",
+            dims.ell_d
         )));
     }
     let beta_block = utils::sample_beta_block(transcript, BLOCK_LANE_NC_BLOCK_VARIABLES)?;

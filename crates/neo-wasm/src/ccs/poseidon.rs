@@ -76,9 +76,11 @@ const GKINDS: usize = 6;
 const GARG_VAL: usize = GK0 + GKINDS; // limb-selected stack-read value
 const GOUT_VAL: usize = GARG_VAL + 1; // limb-selected output-carry value (export result)
 const GSLOT_VALUE: usize = GOUT_VAL + 1; // the block word this gather row stages
+const GK2_HI: usize = GSLOT_VALUE + 1; // result-slot hi-lane write: GK2 · slot_limb
+const GHC_PARAMS: usize = GK2_HI + 1; // grammar host-call arg pops: GHC · call_param_count
 
 /// Width of the gadget-internal column block.
-pub const PERM_GADGET_AUX_WIDTH: usize = GSLOT_VALUE + 1 - POS0;
+pub const PERM_GADGET_AUX_WIDTH: usize = GHC_PARAMS + 1 - POS0;
 
 /// Declared bit-widths of the gadget-internal columns, in block order (for
 /// the F' norm decomposition): booleans for the one-hot/masks/products,
@@ -89,13 +91,24 @@ pub(crate) fn perm_gadget_col_widths() -> impl Iterator<Item = usize> {
         .chain(core::iter::repeat_n(1, 4 + 4 + 3))
         .chain(core::iter::repeat_n(1, 8 + GKINDS))
         .chain(core::iter::repeat_n(64, 3))
+        // GK2_HI (boolean product) and GHC_PARAMS (small ROM-bound count).
+        .chain([1, 64])
 }
 
-/// Gather slot-kind one-hot columns whose read pins a stack access: the
-/// `sp' = sp - reads + writes` identity in `ccs.rs` exempts these reads
-/// from popping.
-pub(super) const fn gather_read_kind_cols() -> [usize; 2] {
-    [GK0 + 1, GK0 + 2]
+/// The gather column whose flag pins a non-popping stack read (arg slots).
+/// The `sp' = sp - reads + writes` identity in `ccs.rs` exempts these reads
+/// from popping. (Result slots WRITE: the Lo slot is a genuine push moving
+/// sp through the counted port; the Hi slot uses only the un-counted
+/// hi-word port and leaves sp alone.)
+pub(super) const fn gather_arg_read_kind_col() -> usize {
+    GK0 + 1
+}
+
+/// Product column carrying `grammar_host_call · call_param_count`: the sp
+/// identity in `ccs.rs` pops all host-call args on the call row itself in
+/// grammar mode (there are no HostCallArg aux rows there).
+pub(super) const fn grammar_host_call_params_col() -> usize {
+    GHC_PARAMS
 }
 
 /// The position one-hot flag of the group's last row (position 18), needed
@@ -221,15 +234,20 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
             [(COL_PERM_PENDING_AFTER, F::ONE)],
             [],
         );
-        // Gather rows read the stack exactly when their slot kind is an
-        // arg/result element, write nothing, and suspend the host-call
-        // countdown state like perm rows do.
+        // Gather rows read the stack exactly on arg slots; result slots
+        // WRITE it — the lo slot through the counted port pair (the push),
+        // the hi slot through the hi-word port alone (no sp effect). Both
+        // suspend the host-call countdown state like perm rows do.
         b.push_row(
             [(COL_GATHER_ACTIVE, F::ONE)],
-            [(COL_STACK_READS, F::ONE), (GK0 + 1, -F::ONE), (GK0 + 2, -F::ONE)],
+            [(COL_STACK_READS, F::ONE), (GK0 + 1, -F::ONE)],
             [],
         );
-        b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(COL_STACK_WRITES, F::ONE)], []);
+        b.push_row(
+            [(COL_GATHER_ACTIVE, F::ONE)],
+            [(COL_STACK_WRITES, F::ONE), (GK0 + 2, -F::ONE), (GK2_HI, F::ONE)],
+            [],
+        );
         for (after, before) in [
             (COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_BEFORE),
             (COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE),
@@ -254,17 +272,17 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         COL_GRAMMAR_EVIDX_BEFORE as EVIDX_B, COL_GRAMMAR_EVREM_AFTER as EVREM_A, COL_GRAMMAR_EVREM_BEFORE as EVREM_B,
         COL_GRAMMAR_EVREM_BEFORE_INV as EVREM_INV, COL_GRAMMAR_EVREM_BEFORE_IS_ZERO as EVREM_ISZERO,
         COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL as GHC, COL_GRAMMAR_POST_COUNT as POST_COUNT,
-        COL_GRAMMAR_PRE_COUNT as PRE_COUNT, COL_GRAMMAR_RESULT_ACTIVE as GRES, COL_GRAMMAR_SLOT_ARG as SLOT_ARG,
-        COL_GRAMMAR_SLOT_CONST_HI as CONST_HI, COL_GRAMMAR_SLOT_CONST_LO as CONST_LO,
-        COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A, COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B,
-        COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_LIMB as SLOT_LIMB, COL_IS_PROGRAM_ROW, COL_LOCAL_INDEX,
-        COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_OUTPUT_CAPTURED, COL_OUTPUT_VALUE_HI_BEFORE,
-        COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_TURN_BOUNDARY,
+        COL_GRAMMAR_PRE_COUNT as PRE_COUNT, COL_GRAMMAR_SLOT_ARG as SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI as CONST_HI,
+        COL_GRAMMAR_SLOT_CONST_LO as CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A,
+        COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B, COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_LIMB as SLOT_LIMB,
+        COL_IS_PROGRAM_ROW, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_OUTPUT_CAPTURED,
+        COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO,
+        COL_TURN_BOUNDARY,
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
     b.with_tag(always("grammar gather binding"), |b| {
-        // Grammar-mode row masks: grammar_x = x - raw_x = x · mode.
+        // Grammar-mode row mask: grammar_host_call = gate - raw = gate · mode.
         let [call, ci_not_trap, guest] = host_call_gate_terms();
         b.push_linear_zero([
             (GHC, F::ONE),
@@ -273,20 +291,19 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             (guest.0, -guest.1),
             (COL_RAW_HOST_CALL, F::ONE),
         ]);
-        b.push_linear_zero([
-            (GRES, F::ONE),
-            (COL_HOST_RESULT_ACTIVE, -F::ONE),
-            (COL_RAW_RESULT_ACTIVE, F::ONE),
-        ]);
+        // Grammar host calls pop their args on the call row itself (no
+        // HostCallArg aux rows in grammar mode): the sp identity consumes
+        // this product of the mode-masked gate and the ROM-bound arity.
+        b.push_row([(GHC, F::ONE)], [(PARAM_COUNT, F::ONE)], [(GHC_PARAMS, F::ONE)]);
 
         // Event schedule countdown: loaded from the event-count ROMs on the
-        // grammar call/result rows, decremented by each block's last slot
-        // row, preserved elsewhere; program and result rows require it to
-        // be spent, and gather rows require it to be live.
+        // grammar call row (the whole call, args and result, is one atomic
+        // event sequence), decremented by each block's last slot row,
+        // preserved elsewhere; program rows require it to be spent, and
+        // gather rows require it to be live.
         push_zero_test_gadget(b, EVREM_B, EVREM_INV, EVREM_ISZERO);
         b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(EVREM_ISZERO, F::ONE)], []);
         b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(EVREM_B, F::ONE)], []);
-        b.push_row([(COL_HOST_RESULT_ACTIVE, F::ONE)], [(EVREM_B, F::ONE)], []);
         // Pre-count cells store count + 1 (presence bias): an undeclared
         // import's zero-filled cell loads the poisoned EVREM = -1 = p-1.
         // See the count-family relation-layout comment for the full
@@ -296,7 +313,6 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE), (COL_ONE, F::ONE)],
             [],
         );
-        b.push_row([(GRES, F::ONE)], [(EVREM_A, F::ONE), (POST_COUNT, -F::ONE)], []);
         b.push_row(
             [(GW0 + 7, F::ONE)],
             [(EVREM_A, F::ONE), (EVREM_B, -F::ONE), (COL_ONE, F::ONE)],
@@ -306,7 +322,6 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [
                 (COL_ONE, F::ONE),
                 (GHC, -F::ONE),
-                (GRES, -F::ONE),
                 (GW0 + 7, -F::ONE),
                 (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
                 (COL_TURN_BOUNDARY, -F::ONE),
@@ -428,11 +443,17 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [],
         );
 
-        // Arg/result slots: an addressed stack read at the table offset from
-        // the argument base (results sit at offset 0 by table construction),
-        // limb-selected into the word.
+        // Result-slot limb split: each lane is written by the slot that
+        // absorbs it (the stack twin of the kind-4 locals pattern). Boolean
+        // by the ROM's 0/1 limb content; the booleanity row backs the
+        // declared 1-bit width.
+        b.push_row([(GK0 + 2, F::ONE)], [(SLOT_LIMB, F::ONE)], [(GK2_HI, F::ONE)]);
+        b.push_boolean(GK2_HI);
+
+        // Arg slots: an addressed stack read at the table offset from the
+        // argument base, limb-selected into the word.
         b.push_row(
-            [(GK0 + 1, F::ONE), (GK0 + 2, F::ONE)],
+            [(GK0 + 1, F::ONE)],
             [
                 (COL_STACK_READ0_ADDR_LO, F::ONE),
                 (AB_B, -F::from_u64(2)),
@@ -445,11 +466,58 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [(COL_STACK_READ0_VALUE_HI, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
             [(GARG_VAL, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
         );
+        b.push_row([(GK0 + 1, F::ONE)], [(GSLOT_VALUE, F::ONE), (GARG_VAL, -F::ONE)], []);
+
+        // Result Lo slots (kind 2 with the hi flag low): the gather row
+        // WRITES the staged word onto the operand stack — the host result's
+        // push, replacing the raw mode's HostCallResult row. The write ports
+        // make the sp identity move by +1; the address is the post-pop
+        // stack top (= the argument base, so arg-0 slots must be gathered
+        // earlier — validated template-side). The write is a narrow TOTAL
+        // write: the hi lane is pinned to zero, never advice — an i64
+        // result's hi limb arrives through its own Hi slot write below.
         b.push_row(
-            [(GK0 + 1, F::ONE), (GK0 + 2, F::ONE)],
-            [(GSLOT_VALUE, F::ONE), (GARG_VAL, -F::ONE)],
+            [(GK0 + 2, F::ONE), (GK2_HI, -F::ONE)],
+            [
+                (super::super::layout::COL_STACK_WRITE0_ADDR_LO, F::ONE),
+                (COL_SP_BEFORE, -F::from_u64(2)),
+            ],
             [],
         );
+        b.push_row(
+            [(GK0 + 2, F::ONE), (GK2_HI, -F::ONE)],
+            [(GSLOT_VALUE, F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(GK0 + 2, F::ONE), (GK2_HI, -F::ONE)],
+            [(COL_STACK_WRITE0_VALUE_HI, F::ONE)],
+            [],
+        );
+
+        // Result Hi slots: write ONLY the pushed cell's hi word (the
+        // hi-word port fires without the counted lo port, so sp is
+        // untouched). The unconditional `addr_hi = addr_lo + 1` pair rule
+        // routes the port to 2·args_base + 1.
+        b.push_row(
+            [(GK2_HI, F::ONE)],
+            [
+                (super::super::layout::COL_STACK_WRITE0_ADDR_LO, F::ONE),
+                (AB_B, -F::from_u64(2)),
+            ],
+            [],
+        );
+        b.push_row(
+            [(GK2_HI, F::ONE)],
+            [(GSLOT_VALUE, F::ONE), (COL_STACK_WRITE0_VALUE_HI, -F::ONE)],
+            [],
+        );
+        // The hi-word port gate: raw write0 activity, plus these rows.
+        b.push_linear_zero([
+            (super::super::layout::COL_STACK_WRITE0_HI_ACTIVE, F::ONE),
+            (super::super::layout::COL_STACK_WRITE0_ACTIVE, -F::ONE),
+            (GK2_HI, -F::ONE),
+        ]);
 
         // Claim slots (kind 3): free absorbed claim words. Their values —
         // and the identity of slots sharing a claim index — are claim-side
@@ -1066,8 +1134,12 @@ pub(crate) fn fill_perm_gadget_witness(wit: &mut [F], trace: &WasmVmStep) {
         wit[GSLOT_VALUE] = F::from_u64(trace.state_after.event_absorb.evbuf[cursor]);
         if let Some(rom) = trace.grammar_rom_slot {
             wit[GK0 + usize::from(rom.kind)] = F::ONE;
+            wit[GK2_HI] = bool_f(rom.kind == 2 && rom.limb == 1);
         }
     }
+    // Grammar host-call arg pops: GHC · ROM-bound param count.
+    wit[GHC_PARAMS] =
+        wit[super::super::layout::COL_GRAMMAR_HOST_CALL] * wit[super::super::layout::COL_CALL_PARAM_COUNT];
     // Limb-selected values: filled on every row so the unconditional select
     // rows hold (the limb column is zero off gather rows).
     let read_lo = wit[super::super::layout::COL_STACK_READ0_VALUE_LO];

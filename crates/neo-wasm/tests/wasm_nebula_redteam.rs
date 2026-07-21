@@ -166,7 +166,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
             }
         }
     }
-    assert_eq!(declared_ports, 73, "Current layout declares 73 ports per step");
+    assert_eq!(declared_ports, 72, "Current layout declares 72 ports per step");
     assert_eq!(slot, declared_ports * batch_size);
 }
 

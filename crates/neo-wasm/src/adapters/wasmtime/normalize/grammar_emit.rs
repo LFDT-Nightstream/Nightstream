@@ -8,7 +8,7 @@
 //! `trace_build`, which drives these emitters.
 
 use crate::comm_chain::{perm_row_checkpoints, COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_PERM_ROWS};
-use crate::event_grammar::{GrammarEvent, SlotSource};
+use crate::event_grammar::{GrammarEvent, Limb, SlotSource};
 use crate::ir::{
     StackValueAccess, WasmAuxOpcode, WasmCountdownState, WasmEventAbsorbState, WasmOutputState, WasmPcEdgeKind,
     WasmRowKind, WasmStepState, WasmVmStep,
@@ -18,13 +18,16 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
 /// One gather row's plan: the staged word, its claimed grammar-ROM entry,
-/// and, for arg/result slots, the stack slot it must read — or, for
-/// input-local slots, the entry-frame local lane `(local, limb_bit, word)`
-/// the claim word is written into.
+/// and its stack/locals effect — an addressed read `(stack slot, (lo, hi))`
+/// for arg slots, a stack WRITE for result slots (the Lo slot is the push,
+/// the Hi slot writes only the cell's hi word; the inactive lane is zero),
+/// or an entry-frame locals lane write `(local, limb_bit, word)` for
+/// input-local slots.
 pub(super) struct GrammarSlotRow {
     pub(super) value: u64,
     pub(super) rom: crate::ir::WasmGrammarRomEntry,
     pub(super) read: Option<(u64, (u32, u32))>,
+    pub(super) write: Option<(u64, (u32, u32))>,
     pub(super) local_write: Option<(u32, u8, u32)>,
 }
 
@@ -34,10 +37,10 @@ pub(super) struct GrammarBlockPlan {
     pub(super) rows: Vec<GrammarSlotRow>,
 }
 
-/// One grammar host call's full emission plan.
+/// One grammar host call's full emission plan: the whole call is one
+/// atomic event sequence absorbed at the call site.
 pub(super) struct GrammarCallPlan {
-    pub(super) pre: Vec<GrammarBlockPlan>,
-    pub(super) post: Vec<GrammarBlockPlan>,
+    pub(super) blocks: Vec<GrammarBlockPlan>,
     pub(super) args_base: u64,
 }
 
@@ -68,17 +71,30 @@ pub(super) fn plan_grammar_blocks(
                         const_lo,
                         const_hi,
                     };
-                    let (rom, read) = match *source {
-                        SlotSource::Const(value) => (entry(0, 0, 0, value as u32, (value >> 32) as u32), None),
+                    let (rom, read, write) = match *source {
+                        SlotSource::Const(value) => (entry(0, 0, 0, value as u32, (value >> 32) as u32), None, None),
                         SlotSource::ArgElem { arg, limb } => (
                             entry(1, arg, limb_bit(limb), 0, 0),
                             Some((args_base + u64::from(arg), args[usize::from(arg)])),
+                            None,
                         ),
-                        SlotSource::ResultElem { limb } => (
-                            entry(2, 0, limb_bit(limb), 0, 0),
-                            Some((args_base, result.expect("validated result"))),
+                        // Each result lane is written by the slot absorbing
+                        // it: the Lo slot is the push (a narrow total write,
+                        // hi lane zeroed), the Hi slot writes only the
+                        // pushed cell's hi word. The other lane is zero in
+                        // both plans — its port is inactive on that row, so
+                        // the value column is mechanically inert.
+                        SlotSource::ResultElem { limb: Limb::Lo } => (
+                            entry(2, 0, 0, 0, 0),
+                            None,
+                            Some((args_base, (result.expect("validated result").0, 0))),
                         ),
-                        SlotSource::Claim { idx } => (entry(3, idx, 0, 0, 0), None),
+                        SlotSource::ResultElem { limb: Limb::Hi } => (
+                            entry(2, 0, 1, 0, 0),
+                            None,
+                            Some((args_base, (0, result.expect("validated result").1))),
+                        ),
+                        SlotSource::Claim { idx } => (entry(3, idx, 0, 0, 0), None, None),
                         SlotSource::ClaimLocal { .. } | SlotSource::OutputElem { .. } => {
                             unreachable!("validated: export sources never appear in import templates")
                         }
@@ -87,6 +103,7 @@ pub(super) fn plan_grammar_blocks(
                         value,
                         rom,
                         read,
+                        write,
                         local_write: None,
                     }
                 })
@@ -173,6 +190,7 @@ pub(super) fn plan_export_blocks(events: &[GrammarEvent], blocks: &[[u64; 8]]) -
                         value,
                         rom,
                         read: None,
+                        write: None,
                         local_write,
                     }
                 })
@@ -338,12 +356,14 @@ pub(super) fn emit_perm_group(
 }
 
 /// Emit one grammar event block: 8 gather rows (one word each, with the
-/// arg/result stack read or export-param locals read the slot claims),
-/// then its perm group. The last slot row premixes the block, raises
-/// `pending`, and advances the event schedule.
+/// arg/result stack read, the result-lo stack WRITE that pushes the host
+/// result, or the input-local lane write the slot claims), then its perm
+/// group. The last slot row premixes the block, raises `pending`, and
+/// advances the event schedule. A result push bumps `ctx.sp` for every
+/// subsequent row.
 pub(super) fn emit_block_plan(
     out: &mut Vec<WasmVmStep>,
-    ctx: &GrammarAuxCtx,
+    ctx: &mut GrammarAuxCtx,
     comm_chain: &mut [u64; 4],
     absorb: &mut WasmEventAbsorbState,
     gstate: &mut crate::ir::WasmGrammarState,
@@ -363,14 +383,29 @@ pub(super) fn emit_block_plan(
         let read0 = slot.read.map(|(stack_slot, (lo, hi))| {
             StackValueAccess::new(stack_slot.saturating_mul(2), lo).with_optional_hi(Some(hi))
         });
-        // Wide rows: a stack read carrying a hi limb, or a hi-lane locals
-        // write (the narrow-row rule pins hi columns to zero otherwise).
-        let wide =
-            slot.read.is_some_and(|(_, (_, hi))| hi != 0) || slot.local_write.is_some_and(|(_, limb, _)| limb == 1);
+        let write0 = slot.write.map(|(stack_slot, (lo, hi))| {
+            StackValueAccess::new(stack_slot.saturating_mul(2), lo).with_optional_hi(Some(hi))
+        });
+        // Only the result LO slot pushes (the counted write port pair); the
+        // HI slot fires the hi-word port alone and leaves sp untouched.
+        let pushes = slot.write.is_some() && slot.rom.limb == 0;
+        // Wide rows: a stack read/write carrying a hi limb, or a hi-lane
+        // locals write (the narrow-row rule pins hi columns to zero
+        // otherwise).
+        let wide = slot.read.is_some_and(|(_, (_, hi))| hi != 0)
+            || slot.write.is_some_and(|(_, (_, hi))| hi != 0)
+            || slot.local_write.is_some_and(|(_, limb, _)| limb == 1);
+        let state_before = ctx.state(ctx.host_args, *comm_chain, absorb_before, gstate_before);
+        if pushes {
+            ctx.sp += 1;
+        }
+        let state_after = ctx.state(ctx.host_args, *comm_chain, *absorb, *gstate);
         out.push(WasmVmStep {
             wide_values_enabled: wide,
             stack_reads_override: Some(u8::from(read0.is_some())),
+            stack_writes_override: Some(u8::from(pushes)),
             stack_read0: read0,
+            stack_write0: write0,
             local_index: slot.local_write.map(|(index, _, _)| index),
             // Lo rows write (word, 0); hi rows write only the hi lane.
             local_write_value: slot
@@ -383,8 +418,8 @@ pub(super) fn emit_block_plan(
             ..ctx.row(
                 out.len() as u64,
                 WasmAuxOpcode::HostEventGather,
-                ctx.state(ctx.host_args, *comm_chain, absorb_before, gstate_before),
-                ctx.state(ctx.host_args, *comm_chain, *absorb, *gstate),
+                state_before,
+                state_after,
             )
         });
     }

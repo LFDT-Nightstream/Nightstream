@@ -59,6 +59,8 @@ import tests.Axioms.PiCcsSplitNcVerifierOutputProduct
 import tests.Axioms.PiCcsSplitNcVerifierProtocolOutputRefinement
 import tests.Axioms.NifsConcretePhi81Sampler
 import tests.Axioms.NifsConcretePhi81PiCcsDomains
+import tests.Axioms.NifsConcretePhi81PaperProfile
+import tests.Axioms.FPrimeConcretePhi81PaperSemanticMinimality
 import tests.Axioms.NifsConcretePhi81Transition
 import tests.Axioms.NifsConcretePhi81PackedYZcolAuthority
 import tests.Axioms.NifsConcretePhi81ChildPayloadAuthority
@@ -79,6 +81,7 @@ import tests.Axioms.PiRlcTerminalCertificate
 import tests.Axioms.PiRlcTerminalSemanticHandoff
 import tests.Axioms.Phi81EvaluationHomomorphism
 import tests.Axioms.Phi81PiDECAlgebra
+import tests.Axioms.Phi81PiDECUniformSignedDigits
 import tests.Axioms.Phi81PiDECRecomposition
 import tests.Axioms.Phi81CanonicalParentSourceValidated
 import tests.Axioms.PiDecCanonicalParent
@@ -92,6 +95,8 @@ import tests.Axioms.FPrimeCarrier270CcsRefinement
 import tests.Axioms.FPrimeCarrier270PiCcsDomain
 import tests.Axioms.FPrimeCarrier270PiCcsSources
 import tests.Axioms.FPrimeCarrier270PaddedIdentityEvaluation
+import tests.Axioms.FPrimeFullHistoryPiDecExactPaperBridge
+import tests.Axioms.FPrimeSelectiveFixedPointPiDecSource
 import tests.Axioms.FPrimeConcretePhi81ActiveFixedOne
 import tests.Axioms.FPrimeConcretePhi81BootstrapContext
 import tests.Axioms.FPrimeConcretePhi81ZeroArityLifecycle

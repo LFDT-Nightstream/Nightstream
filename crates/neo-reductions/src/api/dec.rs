@@ -8,8 +8,12 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::ell_m_for_ccs;
 
-/// Check that `parent = sum_i b^i * children[i]` over the public X, y, and
-/// commitment surfaces.
+/// Check a public Π_DEC transition.
+///
+/// The verifier requires exactly `params.k_rho` children, computes
+/// `split_b(parent.X, params.k_rho, params.b)` itself, and requires each child's
+/// public `X` to equal the corresponding canonical digit matrix. The remaining
+/// public fields are checked by radix-`b` recomposition.
 pub fn verify_dec_public<MB>(
     s: &CcsStructure<F>,
     params: &NeoParams,
@@ -29,9 +33,18 @@ where
     if s.m == 0 {
         return fail(format!("SuperNeo-only mode requires m > 0 (got m={})", s.m));
     }
+    if params.b < 2 {
+        return fail(format!("invalid decomposition base b={}", params.b));
+    }
     let k = children.len();
     if k == 0 {
         return fail("no children");
+    }
+    if k != params.k_rho as usize {
+        return fail(format!(
+            "child count mismatch (expected k_rho={}, got {k})",
+            params.k_rho
+        ));
     }
 
     let shared_children_r = match crate::engines::utils::shared_me_input_r(children, parent.r.len()) {
@@ -153,38 +166,33 @@ where
         return false;
     }
 
-    // X and y_ring decomposition are checked over the same radix-b ladder.
-    // The parent's old-point y_zcol is intentionally not checked by the
-    // current verifier; the delayed-projection authority bridge must close
-    // that gap before this omission can be treated as sound.
+    // The verifier, rather than the prover, determines the public-X split.
+    // Failure to represent the parent in exactly k radix-b digits is a rejected
+    // transition. The parent's old-point y_zcol is intentionally not checked
+    // here; the delayed-projection authority bridge must close that gap before
+    // this omission can be treated as sound.
+    let expected_child_x = match crate::common::split_b_matrix_k(&parent.X, k, params.b) {
+        Ok(split) => split,
+        Err(e) => return fail(format!("parent X is not representable by split_b: {e}")),
+    };
+    for (idx, (expected, child)) in expected_child_x.iter().zip(children.iter()).enumerate() {
+        if child.X != *expected {
+            return fail(format!(
+                "child {idx} X does not equal verifier-computed split_b(parent.X)"
+            ));
+        }
+    }
+
     let Some(d_pad) = 1usize.checked_shl(ell_d as u32) else {
         eprintln!("verify_dec_public failed: 2^ell_d overflow");
         return false;
     };
-    let b_f = F::from_u64(params.b as u64);
     let b_k = K::from(F::from_u64(params.b as u64));
-    let mut b_pows_f = Vec::with_capacity(k);
     let mut b_pows_k = Vec::with_capacity(k);
-    let mut p_f = F::ONE;
     let mut p_k = K::ONE;
     for _ in 0..k {
-        b_pows_f.push(p_f);
         b_pows_k.push(p_k);
-        p_f *= b_f;
         p_k *= b_k;
-    }
-
-    for rho in 0..D {
-        for c in 0..parent.m_in {
-            let mut lhs = F::ZERO;
-            for (pow, child) in b_pows_f.iter().zip(children.iter()) {
-                lhs += *pow * child.X[(rho, c)];
-            }
-            if lhs != parent.X[(rho, c)] {
-                eprintln!("verify_dec_public failed: X check mismatch at ({rho}, {c})");
-                return false;
-            }
-        }
     }
 
     let mut y_lhs = vec![K::ZERO; d_pad];

@@ -77,6 +77,11 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPape
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiDec
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiDec.PublicInputBridge
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiDec.ExactPaperBridge
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictCanonicalX
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecTypedCarrier
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler.PaperBridge
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiDecEvaluationBridge
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiRlc
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.RelabeledCarrier
@@ -101,6 +106,7 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPape
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiRlc.Reduction.Profiles
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiRlc.Profiles
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictSound
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictReducedY
 import Nightstream.Implementation.R1CS.Correspondence.PiDecStrict.Necessity
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecAjtaiOpeningCollision
 import Nightstream.Implementation.R1CS.Correspondence.Sumcheck.SumcheckRoundComplete

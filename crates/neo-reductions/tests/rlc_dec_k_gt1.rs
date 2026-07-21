@@ -653,31 +653,17 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
 }
 
 #[test]
-fn dec_children_with_commit_k4_public_and_tamper_checks() {
+fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
     let m_in = 2usize;
     let r = vec![k(13); 6];
 
-    let k_dec = 4usize;
-    let mut Z_split = Vec::with_capacity(k_dec);
-    for i in 0..k_dec {
-        Z_split.push(make_z(1000 + i as u64 * 131, s.m));
-    }
-
-    let bF = F::from_u64(params.b as u64);
-    let z_cols = Z_split[0].cols();
-    let mut Z_parent = Mat::zero(D, z_cols, F::ZERO);
-    let mut pow = F::ONE;
-    for Zi in &Z_split {
-        for r_ in 0..D {
-            for c_ in 0..z_cols {
-                Z_parent[(r_, c_)] += pow * Zi[(r_, c_)];
-            }
-        }
-        pow *= bF;
-    }
+    let k_dec = params.k_rho as usize;
+    let Z_parent = make_z(1000, s.m);
+    let (Z_split, _) =
+        split_b_matrix_k_with_nonzero_flags(&Z_parent, k_dec, params.b).expect("parent must have a canonical split");
     let mut parent = build_me_from_z(
         &params,
         &s,

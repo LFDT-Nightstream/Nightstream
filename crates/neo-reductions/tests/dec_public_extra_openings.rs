@@ -6,6 +6,23 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
+fn two_digit_params() -> NeoParams {
+    let paper = NeoParams::goldilocks_paper_b2();
+    NeoParams::new(
+        paper.q,
+        paper.eta,
+        paper.d,
+        paper.kappa,
+        paper.m,
+        paper.b,
+        2,
+        1,
+        paper.s,
+        paper.lambda,
+    )
+    .expect("valid two-digit test parameters")
+}
+
 fn scale_commitment(c: &Commitment, scale: F) -> Commitment {
     let mut out = c.clone();
     for v in out.data.iter_mut() {
@@ -22,7 +39,7 @@ fn add_commitments(a: &Commitment, b: &Commitment) -> Commitment {
 
 #[test]
 fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = two_digit_params();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize; // 64 -> 6
     let d_pad = 1usize << ell_d;
     assert!(d_pad >= D);
@@ -51,9 +68,8 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     let aux1 = vec![K::from(F::from_u64(107)), K::from(F::from_u64(109))];
 
     let mut X0 = Mat::zero(D, m_in, F::ZERO);
-    let mut X1 = Mat::zero(D, m_in, F::ZERO);
-    X0[(0, 0)] = F::from_u64(7);
-    X1[(0, 0)] = F::from_u64(9);
+    let X1 = Mat::zero(D, m_in, F::ZERO);
+    X0[(0, 0)] = F::ONE;
 
     let c0 = Commitment::zeros(params.d as usize, 1);
     let mut c1 = Commitment::zeros(params.d as usize, 1);
@@ -217,7 +233,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
 
 #[test]
 fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
-    let params = NeoParams::goldilocks_paper_b2();
+    let params = two_digit_params();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
 
@@ -246,9 +262,8 @@ fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
     y_zcol1[0] = K::from(F::from_u64(19));
 
     let mut X0 = Mat::zero(D, m_in, F::ZERO);
-    let mut X1 = Mat::zero(D, m_in, F::ZERO);
-    X0[(0, 0)] = F::from_u64(7);
-    X1[(0, 0)] = F::from_u64(9);
+    let X1 = Mat::zero(D, m_in, F::ZERO);
+    X0[(0, 0)] = F::ONE;
 
     let c0 = Commitment::zeros(params.d as usize, 1);
     let mut c1 = Commitment::zeros(params.d as usize, 1);

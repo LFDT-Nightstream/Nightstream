@@ -1,5 +1,6 @@
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.PaddedIdentityEvaluation
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Algebra
+import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.PaperVerifier
 import Nightstream.SuperNeo.Folding.PiDEC.CanonicalChildren
 import Nightstream.SuperNeo.Folding.PiDEC.CanonicalParent
 
@@ -10,9 +11,11 @@ authority.
 Assurance tier: model-level.
 
 Owns: two distinct fourteen-child families of valid strict-`b` Phi81 CE
-openings, their identical recomposed assignment and public PiDEC parent, full
-PiDEC acceptance of both families, and the resulting failure of any handle
-that depends only on that parent to bind the child vector.
+openings, their identical recomposed assignment and public PiDEC parent,
+recomposition-core acceptance of both families, exact rejection of the
+substituted family by the operational paper verifier, and the resulting
+failure of any handle that relies only on relaxed recomposition to bind the
+child vector.
 
 Does not own: Rust/R1CS refinement, a concrete Poseidon2 implementation,
 exploitation of a lifecycle, probability, costs, or row removal.
@@ -22,8 +25,10 @@ Emits constraints: no.
 Authority boundary: this is not a hash collision. Both child families have
 the exact same parent statement. The alias is the production radix identity
 `1 + 2*0 = -1 + 2*1`, lifted coordinatewise to the complete 270-coordinate
-Phi81 carrier. Therefore strict PiDEC recomposition can validate a parent but
-cannot make a parent-only digest authoritative for its children.
+Phi81 carrier. Therefore the relaxed PiDEC recomposition core can validate a
+parent but cannot make a parent-only digest authoritative for its children.
+The Section-7.5 verifier rejects the substituted public inputs because it
+computes them directly from the parent.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
@@ -31,8 +36,10 @@ cannot make a parent-only digest authoritative for its children.
 | `pi_dec.necessity.child_substitution.openings` | every child is a valid fresh Phi81 CE opening | derived | `leftChildrenValid`, `rightChildrenValid` |
 | `pi_dec.necessity.child_substitution.parent` | both vectors compute the exact same combined parent statement | derived | `parents_eq` |
 | `pi_dec.necessity.child_substitution.canonical` | the left vector is the deterministic split of the fixed valid parent opening | derived | `leftCanonical` |
-| `pi_dec.necessity.child_substitution.acceptance` | strict production PiDEC also accepts a vector that is not that canonical split | counterexample | `rightAccepted_but_notCanonical` |
-| `pi_dec.necessity.child_substitution.handle` | no function of only the parent binds the accepted child vector | impossibility theorem | `no_parentOnlyHandle_binds` |
+| `pi_dec.necessity.child_substitution.relaxed` | the recomposition core accepts a vector that is not that canonical split | counterexample | `rightAccepted_but_notCanonical` |
+| `pi_dec.necessity.child_substitution.paper` | the operational verifier accepts the computed family and rejects the substitution | derived/counterexample | `leftPaperAccepted`, `rightNotPaperAccepted` |
+| `pi_dec.necessity.child_substitution.evaluation_arity` | appending an ignored trailing evaluation is rejected before recomposition | counterexample | `trailingEvaluationChildren_notPaperAccepted` |
+| `pi_dec.necessity.child_substitution.handle` | no function of only the parent binds children under relaxed recomposition | impossibility theorem | `no_parentOnlyHandle_binds` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiDEC.Necessity.ProductionChildSubstitution
@@ -166,6 +173,10 @@ def key : PiRLCAlgebra.Commitment.Key Shape 0 :=
 def commit := PiRLCAlgebra.Commitment.commit key
 
 def algebra := PiDECAlgebra.Algebra.concrete key
+
+def publicSplit := PiDECAlgebra.PaperVerifier.publicInputSplit key
+
+def evaluationArity := PiDECAlgebra.PaperVerifier.evaluationArity key
 
 def point : Phi81Relation.Point Shape where
   coordinates := List.replicate
@@ -325,8 +336,8 @@ def leftCanonical :
   childrenEq := leftChildren_eq_canonical
 }
 
-/-- Strict public PiDEC accepts the substituted right family even though it
-is not the deterministic split of the same valid parent opening. -/
+/-- The public recomposition core accepts the substituted right family even
+though it is not the deterministic split of the same valid parent opening. -/
 theorem rightAccepted_but_notCanonical :
     PiDEC.Accepted algebra {
       parent := parent
@@ -338,10 +349,73 @@ theorem rightAccepted_but_notCanonical :
   intro rightCanonical
   exact children_ne (leftCanonical.children_eq rightCanonical)
 
+/-- The operational paper verifier accepts the computed left family. -/
+theorem leftPaperAccepted :
+    PiDEC.PaperVerifier.OutputAccepted algebra publicSplit evaluationArity parent
+      leftChildren := by
+  have accepted :=
+    (PiDEC.PaperVerifier.output_complete (relationSemantics commit)
+      productionGlobalParams algebra publicSplit evaluationArity parent
+      parentOpening rfl leftParentValid).1
+  simpa [leftChildren_eq_canonical] using accepted
+
+/-- The substituted public-input family is rejected by the Section-7.5
+verifier even though it passes the relaxed recomposition core. -/
+theorem rightNotPaperAccepted :
+    ¬ PiDEC.PaperVerifier.OutputAccepted algebra publicSplit evaluationArity parent
+      rightChildren := by
+  intro rightPaperAccepted
+  have leftChildEq := congrFun leftPaperAccepted.outputComputed childZero
+  have rightChildEq := congrFun rightPaperAccepted.outputComputed childZero
+  have publicInputsEq :
+      (leftChildren childZero).publicInput =
+        (rightChildren childZero).publicInput := by
+    calc
+      (leftChildren childZero).publicInput =
+          publicSplit.split parent.publicInput childZero := by
+        simpa only [PiDEC.PaperVerifier.children_publicInput] using
+          (congrArg CE.Instance.publicInput leftChildEq).symm
+      _ = (rightChildren childZero).publicInput := by
+        simpa only [PiDEC.PaperVerifier.children_publicInput] using
+          congrArg CE.Instance.publicInput rightChildEq
+  have atFirst := congrFun publicInputsEq firstPublicColumn
+  have impossible : (1 : F) = -1 := by
+    simpa [leftChildren, rightChildren, childStatement, leftAssignments,
+      rightAssignments, leftDigit, rightDigit,
+      Phi81Relation.projectPublicInput, Phi81Relation.Shape.publicColumn,
+      childZero, firstPublicColumn] using atFirst
+  exact (by decide : (1 : F) ≠ -1) impossible
+
+/-- A family differing only by one trailing evaluation in every child. The
+legacy concrete recomposition operation would ignore this suffix. -/
+def trailingEvaluationChildren (child : Child) : Statement := {
+  leftChildren child with
+  evaluations := (leftChildren child).evaluations.push
+    EvaluationHomomorphism.BaseLinear.evaluationZero
+}
+
+/-- The paper verifier's fixed-`t` message boundary rejects trailing values,
+even though the total concrete recomposition operation would not read them. -/
+theorem trailingEvaluationChildren_notPaperAccepted :
+    ¬ PiDEC.PaperVerifier.OutputAccepted algebra publicSplit evaluationArity
+      parent trailingEvaluationChildren := by
+  intro accepted
+  have acceptedSize := accepted.childEvaluations_size childZero
+  have canonicalSize :
+      (leftChildren childZero).evaluations.size =
+        Phi81Relation.Shape.matrixCount Shape :=
+    Phi81Relation.ce_evaluations_size_of_holds commit productionGlobalParams
+      (leftChildren childZero) (leftAssignments childZero)
+      (leftChildrenValid childZero)
+  simp only [trailingEvaluationChildren, Array.size_push] at acceptedSize
+  simp only [evaluationArity,
+    PiDECAlgebra.PaperVerifier.evaluationArity_count] at acceptedSize
+  omega
+
 end Fixture
 
 /-- Exact production-profile witness that one public parent authorizes two
-distinct valid child vectors under strict PiDEC recomposition. -/
+distinct valid child vectors under the relaxed PiDEC recomposition core. -/
 structure Witness where
   parent : Fixture.Statement
   leftChildren : Fixture.Child -> Fixture.Statement
@@ -391,7 +465,7 @@ def witness : Witness := {
 }
 
 /-- The authority claim made by a parent-only recursive handle: equal handles
-for two strict PiDEC-accepted families under the same parent should force the
+for two recomposition-accepted families under the same parent should force the
 children to be equal. -/
 def ParentOnlyHandleBinds
     {Digest : Type}

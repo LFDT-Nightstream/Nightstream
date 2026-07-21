@@ -21,6 +21,7 @@ import tests.Axioms.Implementation.FPrimeSelectiveFixedPointPiCcsNcFreshSourceDe
 import tests.Axioms.Implementation.FPrimeSelectiveFixedPointPiCcsNcPackedWitness
 import tests.Axioms.Implementation.FPrimeSelectiveFixedPointPiCcsNcProductionDomain
 import tests.Axioms.Implementation.FPrimeSelectiveFixedPointPiCcsNcActiveBoundary
+import tests.Axioms.Implementation.FPrimeSelectiveFixedPointPiDecActiveResultBridge
 import tests.Axioms.Implementation.FPrimeSelectiveFixedPointPiCcsNcSourceRefinement
 import tests.Axioms.Implementation.FPrimeSelectiveFixedPointAccumulatorPendingFamilyCodec
 import tests.Axioms.Implementation.FPrimeRecursivePiRlcProjectionBetaLadder
@@ -59,6 +60,10 @@ import tests.Axioms.Implementation.ProjectionArtifactProgram
 import tests.Axioms.Implementation.PiCcsOutputSemanticHandoff
 import tests.Axioms.Implementation.PiCcsOutputProjection
 import tests.Axioms.Implementation.PiDecStrict
+import tests.Axioms.Implementation.PiDecStrictReducedY
+import tests.Axioms.Implementation.PiDecStrictCanonicalX
+import tests.Axioms.Implementation.PiDecTypedCarrier
+import tests.Axioms.Implementation.PiDecStrictProductionCompiler
 import tests.Axioms.Support
 
 /-!

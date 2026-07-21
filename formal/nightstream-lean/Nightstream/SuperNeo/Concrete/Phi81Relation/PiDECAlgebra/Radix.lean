@@ -198,6 +198,16 @@ private def combineScalars : {count : Nat} ->
           (fun index => weights index.succ)
           (fun index => values index.succ)
 
+private theorem foldr_zip_ofFn_eq_combineScalars {count : Nat}
+    (weights values : Fin count -> F) :
+    ((List.ofFn values).zip (List.ofFn weights)).foldr
+        (fun pair suffix => pair.2 * pair.1 + suffix) 0 =
+      combineScalars weights values := by
+  induction count with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      simp [List.ofFn_succ, combineScalars, inductionHypothesis]
+
 private theorem combineAssignments_apply {shape : Shape} {count : Nat}
     (weights : Fin count -> F)
     (assignments : Fin count -> Assignment shape)
@@ -381,6 +391,19 @@ private theorem fallbackDigit_recompose (value : F) :
 def recomposeScalar (values : ChildIndex -> F) : F :=
   combineScalars EvaluationHomomorphism.PiDEC.radixWeight values
 
+/-- Public list-fold presentation of scalar recomposition. Implementation
+refinement may use this representation without depending on the private
+structural recursion that defines `recomposeScalar`. -/
+def recomposeScalarList (values : ChildIndex -> F) : F :=
+  ((List.ofFn values).zip
+      (List.ofFn EvaluationHomomorphism.PiDEC.radixWeight)).foldr
+    (fun pair suffix => pair.2 * pair.1 + suffix) 0
+
+theorem recomposeScalarList_eq (values : ChildIndex -> F) :
+    recomposeScalarList values = recomposeScalar values := by
+  exact foldr_zip_ofFn_eq_combineScalars
+    EvaluationHomomorphism.PiDEC.radixWeight values
+
 /-- Assignment recomposition is coordinatewise scalar recomposition. This
 bridge exposes the exact production operation to necessity proofs without
 duplicating the private finite-fold implementation. -/
@@ -530,7 +553,7 @@ private theorem production_power_sum :
       productionGlobalParams.bigB - 1 := by
   decide
 
-private theorem recomposeScalar_norm
+theorem recomposeScalar_norm
     (digits : ChildIndex -> F)
     (bounded : forall index,
       centeredMagnitude (digits index) < productionGlobalParams.b) :

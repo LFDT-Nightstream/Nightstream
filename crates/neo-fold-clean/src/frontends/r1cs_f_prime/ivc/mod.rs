@@ -28,6 +28,7 @@ pub use pi_ccs_output_digest_audit::{
 };
 pub use relation::{
     R1csIvcBlockLaneNcSelectiveRowsAudit, R1csIvcBlockLaneNcSourceRowAudit, R1csIvcBranch,
+    R1csIvcPiDecSelectiveRowsAudit, R1csIvcPiDecSourceRowAudit, R1csIvcPiDecSourceRowsAudit,
     R1csIvcRawRunningAssignmentAudit, R1csIvcRelation, R1csIvcYZcolSelectiveRowsAudit,
     R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
 };

@@ -313,6 +313,14 @@ name = "f_prime_block_lane_nc_lean_artifact"
 path = "tests/f_prime/block_lane_nc_lean_artifact.rs"
 
 [[test]]
+name = "f_prime_pi_dec_selective_rows"
+path = "tests/f_prime/pi_dec_selective_rows.rs"
+
+[[test]]
+name = "f_prime_pi_dec_source_lean_artifact"
+path = "tests/f_prime/pi_dec_source_lean_artifact.rs"
+
+[[test]]
 name = "system_audit_anchor"
 path = "tests/system/audit_anchor.rs"
 

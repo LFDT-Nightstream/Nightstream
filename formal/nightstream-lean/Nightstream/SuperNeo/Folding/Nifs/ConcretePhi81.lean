@@ -15,6 +15,7 @@ import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Authority.PiRlcParentOpen
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Authority.PackedYZcol
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedBootstrap
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.PaperProfile
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.Canonical
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Evaluator
@@ -55,6 +56,7 @@ Emits constraints: no.
 | `nifs.pi_rlc.verify.authority.packed_y_zcol` | product-indexed packed sidecar authority, or explicit mixing, bad-root, or parent-projection mismatch | no | `ConcretePhi81.Authority.PackedYZcol` |
 | `nifs.result` | one arity-independent derived parent/children result and its semantic projection | no | `ConcretePhi81.Result` |
 | `nifs.fixed_bootstrap` | exact `1 + 0` carrier, absent incoming parent, and complete derived parent/children result | no | `ConcretePhi81.FixedBootstrap` |
+| `nifs.paper.fixed_active` | concrete Phi81 refinement of the independent `1 CCS + 14 CE -> 14 CE` paper profile | no | `ConcretePhi81.FixedActive.PaperProfile` |
 | `nifs.fixed_active` | exact `1 + 14` carrier and complete derived parent/children result | no | `ConcretePhi81.FixedActive` |
 | `nifs.fixed_active.canonical` | verifier-constructed carrier, four-family incoming authority, and exact raw-certificate checker | no | `ConcretePhi81.FixedActive.Canonical` |
 | `nifs.fixed_active.run` | fail-closed canonical evaluator and exact physical acceptance boundary | no | `ConcretePhi81.FixedActive.Evaluator` |

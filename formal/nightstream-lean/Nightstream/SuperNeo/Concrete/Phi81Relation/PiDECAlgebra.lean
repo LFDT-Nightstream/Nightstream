@@ -1,13 +1,18 @@
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Algebra
+import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
+import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.PaperVerifier
 
 /-!
-Curated construction surface for the concrete typed Phi81 `PiDEC.Algebra`.
+Curated construction surface for the concrete typed Phi81 `PiDEC` algebra and
+paper verifier.
 
 Protocol: SuperNeo `Pi_DEC`.
-Phase: independent semantic algebra required by the NIFS verifier.
+Phase: independent semantic algebra, verifier-owned public split, and fixed
+evaluation arity required by the NIFS verifier.
 Constraint family: none; this parent emits no rows.
 
-Owns: the dependency boundary and theorem owner of each concrete algebra field.
+Owns: the dependency boundary and theorem owner of each concrete algebra field,
+the exact paper public-input splitter, and the Phi81 matrix-evaluation arity.
 
 Does not own: Ajtai binding or MSIS security, child CE membership, PiCCS or
 PiRLC acceptance, NIFS composition, Rust/R1CS refinement, constraint
@@ -31,4 +36,6 @@ owners and does not advertise security or Rust conformance.
 | `nifs.pi_dec.verify.public_input_hom` | `recomposePublicInput`, `publicInput_hom` | `PiDECAlgebra.PublicInput` | homomorphism for the complete typed public carrier |
 | `nifs.pi_dec.verify.evaluation_hom` | `recomposeEvaluations`, `evaluations_hom` | `EvaluationHomomorphism.PiDEC` | exact evaluation homomorphism |
 | `nifs.pi_dec.verify.algebra` | complete `PiDEC.Algebra` | `PiDECAlgebra.Algebra.concrete` | assembly from the independently proved fields |
+| `nifs.pi_dec.paper.public_split` | `PiDEC.PaperVerifier.PublicInputSplit` | `PiDECAlgebra.PaperVerifier.publicInputSplit` | verifier-computed public children with exact projection and recomposition laws |
+| `nifs.pi_dec.paper.evaluation_arity` | `PiDEC.PaperVerifier.EvaluationArity` | `PiDECAlgebra.PaperVerifier.evaluationArity` | exactly one evaluation per fixed structure matrix |
 -/

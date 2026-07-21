@@ -1,5 +1,9 @@
 //! Fixed, selectively lowered relation used by the generic R1CS IVC path.
 
+mod pi_dec_audit;
+
+pub use pi_dec_audit::{R1csIvcPiDecSelectiveRowsAudit, R1csIvcPiDecSourceRowAudit, R1csIvcPiDecSourceRowsAudit};
+
 use neo_ccs::CcsMatrix;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;

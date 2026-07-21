@@ -1,7 +1,8 @@
 import Nightstream.SuperNeo.Relations
 
 /-!
-Model-level Π_DEC reduction and standard parent-opening binding boundary.
+Model-level Π_DEC recomposition reduction and standard parent-opening binding
+boundary.
 
 Owns: exact base-`b` recomposition semantics, completeness, knowledge reduction,
 and the model-level collision exposed when a separately valid parent opening
@@ -15,6 +16,10 @@ Emits constraints: no.
 Authority boundary: accepted public recomposition plus valid child openings
 constructs a parent opening. Equality with an independently supplied valid
 parent opening holds only outside the explicit standard binding collision.
+
+This module's `Accepted` is intentionally the reusable recomposition core. It
+is weaker than the Section-7.5 operational verifier, which computes child
+public inputs from the parent; that verifier is owned by `PiDEC.PaperVerifier`.
 
 | Surface | Guarantee | Assumptions | Permits row removal? |
 |---|---|---|---|
@@ -76,7 +81,10 @@ structure Attempt
   children : Fin params.k →
     CE.Instance Structure PublicInput Point Evaluation Commitment
 
-/-- Exact verifier equations for Π_DEC. -/
+/-- Public recomposition equations used by the Π_DEC knowledge reduction.
+
+This is not the exact Section-7.5 operational verifier: it accepts any child
+public-input family that recomposes to the parent. -/
 structure Accepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -105,7 +113,7 @@ structure Accepted
     attempt.parent.evaluations =
       algebra.recomposeEvaluations (fun i => (attempt.children i).evaluations)
 
-/-- Strict public Π_DEC acceptance makes the parent statement a deterministic
+/-- Public recomposition acceptance makes the parent statement a deterministic
 function of one nonempty child family.
 
 This is statement-level uniqueness, not commitment-opening uniqueness: every
@@ -245,7 +253,7 @@ theorem childrenOf_holds
   exact ⟨⟨rfl, rfl, algebra.split_norm assignment combinedNorm i⟩,
     parentValid.2.1, rfl⟩
 
-/-- Perfect completeness of the exact Π_DEC recomposition checks. -/
+/-- Perfect completeness of the Π_DEC recomposition core. -/
 theorem complete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

@@ -17,8 +17,8 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::engine::r1cs_circuit::builder::{
     BalancedTernaryDecomposition, BlockLaneNcBoundaryAudit, CanonicalU64Decomposition, CenteredUnitTrace, Lc,
-    PolynomialEvaluationTrace, Poseidon2HashAudit, Poseidon2PermutationTrace, ProductSumBatchTrace, R1csBuilder,
-    RowFamilyRange, ShiftedTernaryCanonicalTrace, SumcheckRoundAudit, Var,
+    PiDecStrictAudit, PolynomialEvaluationTrace, Poseidon2HashAudit, Poseidon2PermutationTrace, ProductSumBatchTrace,
+    R1csBuilder, RowFamilyRange, ShiftedTernaryCanonicalTrace, SumcheckRoundAudit, Var,
 };
 use crate::engine::r1cs_circuit::{PhysicalStageRange, PiRlcYZcolBoundaryAudit};
 use crate::frontends::direct_ccs::FrontendError;
@@ -53,6 +53,7 @@ pub struct SparseR1cs {
     row_family_ranges: Vec<RowFamilyRange>,
     sumcheck_round_audits: Vec<SumcheckRoundAudit>,
     block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
+    pi_dec_strict_audits: Vec<PiDecStrictAudit>,
     physical_stage_ranges: Vec<PhysicalStageRange>,
     pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
@@ -73,6 +74,7 @@ impl SparseR1cs {
             n,
             m,
             m_in,
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -115,6 +117,7 @@ impl SparseR1cs {
         row_family_ranges: Vec<RowFamilyRange>,
         sumcheck_round_audits: Vec<SumcheckRoundAudit>,
         block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
+        pi_dec_strict_audits: Vec<PiDecStrictAudit>,
         physical_stage_ranges: Vec<PhysicalStageRange>,
         pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
     ) -> Result<Self, FrontendError> {
@@ -140,6 +143,7 @@ impl SparseR1cs {
             row_family_ranges,
             sumcheck_round_audits,
             block_lane_nc_boundary_audits,
+            pi_dec_strict_audits,
             physical_stage_ranges,
             pi_rlc_y_zcol_boundary_audits,
         };
@@ -217,6 +221,12 @@ impl SparseR1cs {
     #[doc(hidden)]
     pub fn block_lane_nc_boundary_audits(&self) -> &[BlockLaneNcBoundaryAudit] {
         &self.block_lane_nc_boundary_audits
+    }
+
+    /// Exact strict-PiDEC input schedules after public-column normalization.
+    #[doc(hidden)]
+    pub fn pi_dec_strict_audits(&self) -> &[PiDecStrictAudit] {
+        &self.pi_dec_strict_audits
     }
 
     /// Exact sequential row intervals preserved across column lowering.

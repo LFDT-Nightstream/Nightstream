@@ -221,7 +221,7 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
 
 /// Preload the grammar-mode ROM families from an embedder grammar: the
 /// per-slot source descriptors keyed by `(fref, event_index, slot_cursor)`
-/// (events numbered pre-result then post-result) and the per-import event
+/// (exports number entry events then exit events) and the per-fref event
 /// counts. Call after [`preload_from_program_artifacts`] when checking a
 /// grammar-mode trace.
 pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::event_grammar::HostEventGrammar) {
@@ -238,13 +238,7 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
         SlotSource::ClaimLocal { local, limb, .. } => (4, u32::from(local), limb_bit(limb), 0, 0),
         SlotSource::OutputElem { limb } => (5, 0, limb_bit(limb), 0, 0),
     };
-    // Count cells store count + 1 (presence bias): an undeclared fref reads
-    // the zero-filled 0 and the CCS load rows subtract 1, poisoning the
-    // schedule to EVREM = p-1. See the relation-layout family comment for
-    // the full ROM-address non-termination argument.
-    let mut insert_events = |family: &'static str, fref: u32, pre: u32, post: u32, events: Vec<&GrammarEvent>| {
-        preload.insert(family, vec![fref], pre + 1);
-        preload.insert("grammar_event_counts_post", vec![fref], post);
+    let insert_slots = |preload: &mut WasmMemoryPreload, fref: u32, events: Vec<&GrammarEvent>| {
         for (event_index, event) in events.into_iter().enumerate() {
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![fref, event_index as u32, slot_index as u32];
@@ -257,31 +251,28 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
             }
         }
     };
+    // Count cells in the fref-keyed-from-free-state families store
+    // count + 1 (presence bias): an undeclared fref reads the zero-filled 0
+    // and the CCS load rows subtract 1, poisoning the schedule to
+    // EVREM = p-1. See the relation-layout family comment for the full
+    // non-termination argument. Export exit counts stay raw: their read key
+    // is bound within an already-entered turn.
     for (&fref, template) in &grammar.imports {
-        insert_events(
+        preload.insert(
             "grammar_import_pre_counts",
-            fref,
-            template.pre_result.len() as u32,
-            template.post_result.len() as u32,
-            template
-                .pre_result
-                .iter()
-                .chain(&template.post_result)
-                .collect(),
+            vec![fref],
+            template.events.len() as u32 + 1,
         );
+        insert_slots(preload, fref, template.events.iter().collect());
     }
-    // Export entry counts live in their own family (turn boundaries and the
-    // exit latch must never see an import cell); exit events share the
-    // "post" family — their read keys are bound within an already-entered
-    // turn, so no confusion is possible.
     for (&fref, template) in &grammar.exports {
-        insert_events(
+        preload.insert(
             "grammar_export_entry_counts",
-            fref,
-            template.entry.len() as u32,
-            template.exit.len() as u32,
-            template.entry.iter().chain(&template.exit).collect(),
+            vec![fref],
+            template.entry.len() as u32 + 1,
         );
+        preload.insert("grammar_export_exit_counts", vec![fref], template.exit.len() as u32);
+        insert_slots(preload, fref, template.entry.iter().chain(&template.exit).collect());
     }
 }
 

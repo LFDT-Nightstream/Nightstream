@@ -516,23 +516,33 @@ fn push_host_call_enter_mode_constraints(b: &mut R1csBuilder) {
         [],
     );
 
-    // host call => remaining' == param_count and pending' == result_count,
-    // both ROM-bound to the callee's declared type. `pending` is a Boolean
-    // column, so a host signature with more than one result is unsatisfiable
-    // (the canonical ABI caps flat results at 1).
+    // RAW host call => remaining' == param_count and pending' ==
+    // result_count, both ROM-bound to the callee's declared type. `pending`
+    // is a Boolean column, so a host signature with more than one result is
+    // unsatisfiable (the canonical ABI caps flat results at 1). In grammar
+    // mode the arg/result aux machinery is inert: the call row pops the
+    // args itself (sp identity) and the result push is a gather-row write,
+    // so both modes stay off.
     b.push_row(
-        host_call_gate_terms(),
+        [(super::super::layout::COL_RAW_HOST_CALL, F::ONE)],
         [(COL_HOST_ARGS_REMAINING_AFTER, F::ONE), (COL_CALL_PARAM_COUNT, -F::ONE)],
         [],
     );
     b.push_row(
-        host_call_gate_terms(),
+        [(super::super::layout::COL_RAW_HOST_CALL, F::ONE)],
         [
             (COL_HOST_RESULT_PENDING_AFTER, F::ONE),
             (COL_CALL_RESULT_COUNT, -F::ONE),
         ],
         [],
     );
+    for after in [COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_RESULT_PENDING_AFTER] {
+        b.push_row(
+            [(super::super::layout::COL_GRAMMAR_HOST_CALL, F::ONE)],
+            [(after, F::ONE)],
+            [],
+        );
+    }
 }
 
 fn push_host_call_exit_mode_constraints(b: &mut R1csBuilder) {

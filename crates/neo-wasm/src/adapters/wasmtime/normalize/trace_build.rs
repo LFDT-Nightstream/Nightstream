@@ -442,8 +442,9 @@ fn traces_from_wasmtime_steps_impl(
         let output_enabled_after = output_enabled;
         let output_value_lo_after = output_value_lo;
         let output_value_hi_after = output_value_hi;
-        // Model the host consuming a captured result.
-        let sp_after = sp_after - u64::from(output_captured);
+        // Model the host consuming a captured result. (Mutable: a grammar
+        // host call overrides this below to pop its args on the call row.)
+        let mut sp_after = sp_after - u64::from(output_captured);
 
         // local_read_value: the local's value before this step (local.get: pushed onto stack).
         // local_write_value: the value being stored into the local (local.set / local.tee:
@@ -577,7 +578,7 @@ fn traces_from_wasmtime_steps_impl(
         if !entry_emitted {
             entry_emitted = true;
             if let Some(setup) = &export_boundary {
-                let ctx = GrammarAuxCtx {
+                let mut ctx = GrammarAuxCtx {
                     pc: pc_before,
                     sp: sp_before,
                     output: WasmOutputState {
@@ -600,7 +601,7 @@ fn traces_from_wasmtime_steps_impl(
                 for plan in &setup.entry_plans {
                     emit_block_plan(
                         &mut out,
-                        &ctx,
+                        &mut ctx,
                         &mut comm_chain,
                         &mut event_absorb,
                         &mut grammar_state,
@@ -655,11 +656,16 @@ fn traces_from_wasmtime_steps_impl(
                     current.cycle
                 )));
             }
-            host_args_after = WasmCountdownState {
-                active: param_count > 0,
-                remaining: u32::from(param_count),
-            };
-            host_result_pending_after = result_count == 1;
+            // Raw mode walks the args/result through aux rows; grammar mode
+            // pops the args on this row and pushes the result from a gather
+            // row, so the countdown machinery stays off.
+            if !grammar_mode {
+                host_args_after = WasmCountdownState {
+                    active: param_count > 0,
+                    remaining: u32::from(param_count),
+                };
+                host_result_pending_after = result_count == 1;
+            }
             host_call_arity = Some((param_count, result_count));
 
             // Canonical raw-event chain update, applied on the event's last
@@ -720,22 +726,12 @@ fn traces_from_wasmtime_steps_impl(
 
                 let args_base = sp_before - index_pops as u64 - u64::from(param_count);
                 grammar_plan = Some(GrammarCallPlan {
-                    pre: plan_grammar_blocks(
-                        &template.pre_result,
-                        &expanded.pre_result_blocks,
-                        args_base,
-                        &arg_limbs,
-                        result_limbs,
-                    ),
-                    post: plan_grammar_blocks(
-                        &template.post_result,
-                        &expanded.post_result_blocks,
-                        args_base,
-                        &arg_limbs,
-                        result_limbs,
-                    ),
+                    blocks: plan_grammar_blocks(&template.events, &expanded, args_base, &arg_limbs, result_limbs),
                     args_base,
                 });
+                // The call row pops all args itself in grammar mode; the
+                // result push happens on its gather row.
+                sp_after = args_base;
             } else {
                 host_event_chain = Some(crate::comm_chain::commit_host_call_event_u64(
                     comm_chain,
@@ -774,7 +770,7 @@ fn traces_from_wasmtime_steps_impl(
         // argument-region base.
         if let Some(plan) = &grammar_plan {
             grammar_state = crate::ir::WasmGrammarState {
-                events_remaining: plan.pre.len() as u32,
+                events_remaining: plan.blocks.len() as u32,
                 event_index: 0,
                 args_base: plan.args_base,
                 slot_cursor: 0,
@@ -924,7 +920,7 @@ fn traces_from_wasmtime_steps_impl(
             // Count cells carry the presence bias (count + 1).
             grammar_pre_count: grammar_plan
                 .as_ref()
-                .map(|plan| plan.pre.len() as u32 + 1)
+                .map(|plan| plan.blocks.len() as u32 + 1)
                 .or(exit_counts.map(|(pre, _)| pre + 1)),
             grammar_post_count: exit_counts.map(|(_, post)| post),
         });
@@ -1229,22 +1225,18 @@ fn traces_from_wasmtime_steps_impl(
             }
 
             // Grammar mode: stage one expanded event block, then its group.
+            // A result-push gather row bumps sp; the caller's cursor tracks it.
             let push_block_plan = |out: &mut Vec<WasmVmStep>,
                                    comm_chain: &mut [u64; 4],
                                    absorb: &mut WasmEventAbsorbState,
                                    gstate: &mut crate::ir::WasmGrammarState,
-                                   sp: u64,
+                                   sp: &mut u64,
                                    host_args: WasmCountdownState,
                                    host_result_pending: bool,
                                    plan: &GrammarBlockPlan| {
-                emit_block_plan(
-                    out,
-                    &aux_ctx(sp, host_args, host_result_pending),
-                    comm_chain,
-                    absorb,
-                    gstate,
-                    plan,
-                );
+                let mut ctx = aux_ctx(*sp, host_args, host_result_pending);
+                emit_block_plan(out, &mut ctx, comm_chain, absorb, gstate, plan);
+                *sp = ctx.sp;
             };
 
             // Stream one event word pair into the absorb buffer; raises
@@ -1266,13 +1258,16 @@ fn traces_from_wasmtime_steps_impl(
             };
             let mut next_word = 4usize;
 
-            // Args pop top-down: the first aux row pops the last argument —
-            // which is also the stream order of the event's arg word pairs.
-            // The indirect table index was already popped on the call row.
+            // Raw mode: args pop top-down via aux rows — the first aux row
+            // pops the last argument, which is also the stream order of the
+            // event's arg word pairs. The indirect table index was already
+            // popped on the call row. (Grammar mode popped everything on the
+            // call row; its blocks below are the whole event sequence.)
             let index_pops = usize::from(matches!(current.opcode, WasmOpcode::CallIndirect));
             let owes_result = result_count == 1;
             let mut host_args_state = host_args_after;
-            for pop_index in 0..usize::from(param_count) {
+            let raw_pop_count = if grammar_mode { 0 } else { usize::from(param_count) };
+            for pop_index in 0..raw_pop_count {
                 let aux_sp_before = sp_after - pop_index as u64;
                 let aux_sp_after = aux_sp_before - 1;
                 let stack_pos = current
@@ -1346,24 +1341,32 @@ fn traces_from_wasmtime_steps_impl(
                     host_args_state.active = host_args_state.remaining > 0;
                 }
             }
-            // Grammar mode: the event's pre-result blocks absorb after all
-            // arg pops (the pops themselves stage nothing).
+            // Grammar mode: the whole call's blocks absorb right after the
+            // call row (which already popped the args); the result-lo
+            // gather row pushes the host result mid-sequence.
             if let Some(plan) = &grammar_plan {
-                let post_args_sp = sp_after - u64::from(param_count);
-                for block_plan in &plan.pre {
+                let mut gather_sp = sp_after;
+                for block_plan in &plan.blocks {
                     push_block_plan(
                         &mut out,
                         &mut comm_chain,
                         &mut event_absorb,
                         &mut grammar_state,
-                        post_args_sp,
+                        &mut gather_sp,
                         WasmCountdownState::ZERO,
-                        owes_result,
+                        false,
                         block_plan,
                     );
                 }
+                debug_assert_eq!(gather_sp, sp_after + u64::from(result_count));
+                let mut expected = comm_chain_before_row;
+                for block_plan in &plan.blocks {
+                    let (_, updated) = perm_group_plan(expected, block_plan.block);
+                    expected = updated;
+                }
+                debug_assert_eq!(comm_chain, expected, "grammar absorb must fold every expanded block");
             }
-            if owes_result {
+            if owes_result && !grammar_mode {
                 let next_row = next.ok_or_else(|| {
                     WasmBuildError::Trace(format!(
                         "missing Wasmtime post-call stack result for host call at cycle {}",
@@ -1381,25 +1384,17 @@ fn traces_from_wasmtime_steps_impl(
                 let write = StackValueAccess::new(aux_sp_before.saturating_mul(2), result_value)
                     .with_optional_hi(result_value_hi);
                 let absorb_before = event_absorb;
-                let grammar_before_result = grammar_state;
-                if !grammar_mode {
-                    stream_word_pair(
-                        &mut event_absorb,
-                        &comm_chain,
-                        &mut next_word,
-                        (u64::from(result_value), u64::from(result_value_hi.unwrap_or(0))),
-                    );
-                    debug_assert!(event_absorb.perm_pending, "result is the event's final word pair");
-                }
-                // The grammar result row loads the post-result schedule.
-                if let Some(plan) = &grammar_plan {
-                    grammar_state.events_remaining = plan.post.len() as u32;
-                }
+                stream_word_pair(
+                    &mut event_absorb,
+                    &comm_chain,
+                    &mut next_word,
+                    (u64::from(result_value), u64::from(result_value_hi.unwrap_or(0))),
+                );
+                debug_assert!(event_absorb.perm_pending, "result is the event's final word pair");
                 out.push(WasmVmStep {
                     wide_values_enabled: result_value_hi.is_some_and(|hi| hi != 0),
                     stack_writes_override: Some(1),
                     stack_write0: Some(write),
-                    grammar_post_count: grammar_plan.as_ref().map(|plan| plan.post.len() as u32),
                     ..host_aux_row(
                         out.len() as u64,
                         WasmAuxOpcode::HostCallResult,
@@ -1409,7 +1404,7 @@ fn traces_from_wasmtime_steps_impl(
                             true,
                             comm_chain,
                             absorb_before,
-                            grammar_before_result,
+                            grammar_state,
                         ),
                         host_aux_state(
                             aux_sp_before + 1,
@@ -1421,39 +1416,17 @@ fn traces_from_wasmtime_steps_impl(
                         ),
                     )
                 });
-                if !grammar_mode {
-                    push_perm_group(
-                        &mut out,
-                        &mut comm_chain,
-                        &mut event_absorb,
-                        aux_sp_before + 1,
-                        WasmCountdownState::ZERO,
-                        false,
-                        grammar_state,
-                    );
-                }
+                push_perm_group(
+                    &mut out,
+                    &mut comm_chain,
+                    &mut event_absorb,
+                    aux_sp_before + 1,
+                    WasmCountdownState::ZERO,
+                    false,
+                    grammar_state,
+                );
             }
-            if let Some(plan) = &grammar_plan {
-                let post_result_sp = sp_after - u64::from(param_count) + u64::from(result_count);
-                for block_plan in &plan.post {
-                    push_block_plan(
-                        &mut out,
-                        &mut comm_chain,
-                        &mut event_absorb,
-                        &mut grammar_state,
-                        post_result_sp,
-                        WasmCountdownState::ZERO,
-                        false,
-                        block_plan,
-                    );
-                }
-                let mut expected = comm_chain_before_row;
-                for block_plan in plan.pre.iter().chain(&plan.post) {
-                    let (_, updated) = perm_group_plan(expected, block_plan.block);
-                    expected = updated;
-                }
-                debug_assert_eq!(comm_chain, expected, "grammar absorb must fold every expanded block");
-            } else {
+            if grammar_plan.is_none() {
                 debug_assert_eq!(
                     comm_chain,
                     host_event_chain.expect("host call event chain"),
@@ -1465,7 +1438,7 @@ fn traces_from_wasmtime_steps_impl(
         // Export boundary: the exit template's blocks absorb after the
         // capture row (its own after-state carries the exit latch).
         if let Some(plans) = exit_plans {
-            let ctx = GrammarAuxCtx {
+            let mut ctx = GrammarAuxCtx {
                 pc: pc_after,
                 sp: sp_after,
                 output: WasmOutputState {
@@ -1488,7 +1461,7 @@ fn traces_from_wasmtime_steps_impl(
             for plan in &plans {
                 emit_block_plan(
                     &mut out,
-                    &ctx,
+                    &mut ctx,
                     &mut comm_chain,
                     &mut event_absorb,
                     &mut grammar_state,

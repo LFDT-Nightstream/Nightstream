@@ -8,7 +8,7 @@ mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::event_grammar::{GrammarEvent, HostEventGrammar, ImportTemplate, Limb, SlotSource};
-use neo_wasm::layout::{COL_GATHER_ACTIVE, COL_GRAMMAR_MODE_AFTER, COL_RAW_ARGS_ACTIVE};
+use neo_wasm::layout::{COL_GATHER_ACTIVE, COL_GRAMMAR_MODE_AFTER, COL_RAW_HOST_CALL};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{WasmRowKind, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
@@ -32,30 +32,35 @@ fn test_grammar(mul_fref: u32, sink_fref: u32) -> HostEventGrammar {
     grammar.imports.insert(
         mul_fref,
         ImportTemplate {
-            pre_result: vec![GrammarEvent::op(
-                10,
-                slots(&[
-                    (0, SlotSource::Claim { idx: 0 }),
-                    (1, arg(0, Limb::Lo)),
-                    (2, arg(1, Limb::Lo)),
-                    (3, SlotSource::Const(5)),
-                ]),
-            )],
-            post_result: vec![GrammarEvent::op(
-                12,
-                slots(&[
-                    (0, SlotSource::ResultElem { limb: Limb::Lo }),
-                    (1, SlotSource::Claim { idx: 0 }),
-                ]),
-            )],
+            events: vec![
+                GrammarEvent::op(
+                    10,
+                    slots(&[
+                        (0, SlotSource::Claim { idx: 0 }),
+                        (1, arg(0, Limb::Lo)),
+                        (2, arg(1, Limb::Lo)),
+                        (3, SlotSource::Const(5)),
+                    ]),
+                ),
+                // The ResultElem Lo slot is the gather row that pushes the
+                // host result onto the operand stack; the Hi slot binds the
+                // pushed hi lane (0 for the i32 result).
+                GrammarEvent::op(
+                    12,
+                    slots(&[
+                        (0, SlotSource::ResultElem { limb: Limb::Lo }),
+                        (1, SlotSource::Claim { idx: 0 }),
+                        (2, SlotSource::ResultElem { limb: Limb::Hi }),
+                    ]),
+                ),
+            ],
             claim_count: 1,
         },
     );
     grammar.imports.insert(
         sink_fref,
         ImportTemplate {
-            pre_result: vec![GrammarEvent::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
-            post_result: vec![],
+            events: vec![GrammarEvent::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
             claim_count: 0,
         },
     );
@@ -166,6 +171,158 @@ fn grammar_trace() -> Vec<WasmVmStep> {
     trace
 }
 
+/// An i64-returning import: each result lane is written by the slot that
+/// absorbs it — the Lo gather row pushes (a narrow total write, hi lane
+/// pinned to zero), the Hi row writes only the pushed cell's hi word.
+/// Forging either write's address or value, suppressing either, or
+/// smuggling advice into the Lo row's hi lane is CCS-rejected.
+#[test]
+fn i64_result_lane_writes() {
+    let component_bytes = wat::parse_str(
+        r#"
+        (component
+          (type $host-add64 (func (param "x" s64) (param "y" s64) (result s64)))
+          (type $run-type (func (result s64)))
+          (import "host-add64" (func $host-add64 (type $host-add64)))
+          (core module $m
+            (type $host-ty (func (param i64 i64) (result i64)))
+            (import "" "0" (func $host-add64-core (type $host-ty)))
+            (func (export "run") (result i64)
+              i64.const 4294967296
+              i64.const 8589934592
+              call $host-add64-core))
+          (core func $lowered (canon lower (func $host-add64)))
+          (core instance $lowered-host
+            (export "0" (func $lowered)))
+          (core instance $i
+            (instantiate $m
+              (with "" (instance $lowered-host))))
+          (alias core export $i "run" (core func $run))
+          (func (export "run") (type $run-type)
+            (canon lift (core func $run))))
+        "#,
+    )
+    .expect("component wat");
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
+        linker
+            .root()
+            .func_wrap("host-add64", |_store, (x, y): (i64, i64)| Ok((x + y,)))
+            .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-add64: {err}")))
+    })
+    .expect("component run");
+    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
+    let frefs = host_call_frefs(&raw);
+    assert_eq!(frefs.len(), 1);
+    let export_fref = raw
+        .iter()
+        .find(|row| row.row_kind.is_program())
+        .expect("program row")
+        .current_function_ref;
+    let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
+    let mut grammar = HostEventGrammar::default();
+    grammar.imports.insert(
+        frefs[0],
+        ImportTemplate {
+            events: vec![
+                GrammarEvent::op(
+                    3,
+                    slots(&[
+                        (0, arg(0, Limb::Lo)),
+                        (1, arg(0, Limb::Hi)),
+                        (2, arg(1, Limb::Lo)),
+                        (3, arg(1, Limb::Hi)),
+                    ]),
+                ),
+                GrammarEvent::op(
+                    4,
+                    slots(&[
+                        (0, SlotSource::ResultElem { limb: Limb::Lo }),
+                        (1, SlotSource::ResultElem { limb: Limb::Hi }),
+                    ]),
+                ),
+            ],
+            claim_count: 0,
+        },
+    );
+    grammar
+        .exports
+        .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()])
+        .expect("grammar trace");
+    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::ccs_check_trace(&trace);
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+    neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
+        .expect("grammar ROM contents match");
+
+    // 2^32 + 2^33 = 3·2^32: the result lives entirely in the hi limb.
+    let lo_row = trace
+        .iter()
+        .find(|row| {
+            row.row_kind.is_host_event_gather()
+                && row
+                    .grammar_rom_slot
+                    .is_some_and(|rom| rom.kind == 2 && rom.limb == 0)
+        })
+        .expect("result lo slot row");
+    let write = lo_row.stack_write0.expect("result push");
+    // The lo slot is a narrow TOTAL write: hi lane pinned to zero.
+    assert_eq!((write.value_lo, write.value_hi), (0, Some(0)));
+    assert_eq!(lo_row.state_after.sp, lo_row.state_before.sp + 1, "the lo slot pushes");
+
+    let witness = build_witness_vector(lo_row);
+    common::assert_satisfied(&witness, "untampered result-lo gather row");
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_STACK_WRITE0_ADDR_LO] += neo_math::F::from_u64(2);
+    forged[neo_wasm::layout::COL_STACK_WRITE0_ADDR_HI] += neo_math::F::from_u64(2);
+    common::assert_rejected(&forged, "result push redirected to a different stack slot");
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_STACK_WRITE0_VALUE_LO] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "pushed value diverging from the absorbed word");
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_STACK_WRITES] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_STACK_WRITE0_ACTIVE] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_STACK_WRITE0_HI_ACTIVE] = neo_math::F::ZERO;
+    common::assert_rejected(&forged, "result-lo row suppressing the push");
+    // The hi lane can never carry advice on the lo row (the old P1 shape).
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_WIDE_VALUES_ENABLED] = neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_STACK_WRITE0_VALUE_HI] = neo_math::F::from_u64(0xdead);
+    common::assert_rejected(&forged, "result-lo row smuggling advice into the hi lane");
+
+    let hi_row = trace
+        .iter()
+        .find(|row| {
+            row.row_kind.is_host_event_gather()
+                && row
+                    .grammar_rom_slot
+                    .is_some_and(|rom| rom.kind == 2 && rom.limb == 1)
+        })
+        .expect("result hi slot row");
+    assert_eq!(
+        hi_row.state_after.sp, hi_row.state_before.sp,
+        "the hi slot writes without pushing"
+    );
+    let hi_write = hi_row.stack_write0.expect("hi lane write");
+    assert_eq!(hi_write.value_hi, Some(3));
+    let witness = build_witness_vector(hi_row);
+    common::assert_satisfied(&witness, "untampered result-hi gather row");
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_STACK_WRITE0_ADDR_LO] += neo_math::F::from_u64(2);
+    forged[neo_wasm::layout::COL_STACK_WRITE0_ADDR_HI] += neo_math::F::from_u64(2);
+    common::assert_rejected(&forged, "hi-lane write redirected to a different stack slot");
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_STACK_WRITE0_VALUE_HI] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "hi-lane value diverging from the absorbed word");
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_STACK_WRITE0_HI_ACTIVE] = neo_math::F::ZERO;
+    common::assert_rejected(&forged, "result-hi row suppressing its lane write");
+}
+
 #[test]
 fn grammar_trace_folds_expanded_blocks() {
     let trace = grammar_trace();
@@ -230,19 +387,32 @@ fn surplus_claim_words_are_rejected() {
     assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()]).is_err());
 }
 
-/// The raw absorb machinery must stay de-gated in grammar mode: forging a
-/// raw arg-row mask back on is CCS-rejected.
+/// The raw absorb machinery must stay de-gated in grammar mode: grammar
+/// traces have no host arg/result aux rows at all (the call row pops the
+/// args, a gather row pushes the result), and forging the raw host-call
+/// mask back on is CCS-rejected.
 #[test]
 fn ccs_rejects_raw_machinery_in_grammar_mode() {
     let trace = grammar_trace();
-    let arg_row = trace
+    assert!(
+        !trace.iter().any(|row| matches!(
+            row.row_kind,
+            WasmRowKind::Aux(neo_wasm::WasmAuxOpcode::HostCallArg | neo_wasm::WasmAuxOpcode::HostCallResult)
+        )),
+        "grammar traces must not contain raw host aux rows"
+    );
+    let call_row = trace
         .iter()
-        .find(|row| row.row_kind == WasmRowKind::Aux(neo_wasm::WasmAuxOpcode::HostCallArg))
-        .expect("arg row");
-    let mut witness = build_witness_vector(arg_row);
-    common::assert_satisfied(&witness, "untampered grammar arg row");
-    witness[COL_RAW_ARGS_ACTIVE] = neo_math::F::ONE;
-    common::assert_rejected(&witness, "grammar arg row with the raw machinery forged on");
+        .find(|row| {
+            row.row_kind.is_program()
+                && matches!(row.opcode, neo_wasm::WasmOpcode::Call)
+                && !row.target_function_is_guest
+        })
+        .expect("host-call row");
+    let mut witness = build_witness_vector(call_row);
+    common::assert_satisfied(&witness, "untampered grammar host-call row");
+    witness[COL_RAW_HOST_CALL] = neo_math::F::ONE;
+    common::assert_rejected(&witness, "grammar host-call row with the raw machinery forged on");
 }
 
 /// Gather rows only exist in grammar mode: claiming one on a raw trace row
@@ -431,7 +601,7 @@ fn count_families_are_split_and_biased() {
     for (&fref, template) in &grammar.imports {
         assert_eq!(
             cell("grammar_import_pre_counts", fref),
-            Some(template.pre_result.len() as u32 + 1),
+            Some(template.events.len() as u32 + 1),
             "import cells live in the import family, biased"
         );
         assert_eq!(

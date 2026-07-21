@@ -26,9 +26,13 @@ module is built; the aggregate entrypoint imports all ownership groups.
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.FPrime.XOut.xOut_binding_or_collision
 
-/-- info: 'Nightstream.HyperNova.Construction2.Default.emptyRunning_realizes_default' does not depend on any axioms -/
+/-- info: 'Nightstream.HyperNova.Construction2.Default.replicatedDefault_allPairs' does not depend on any axioms -/
 #guard_msgs in
-#audit_axioms Nightstream.HyperNova.Construction2.Default.emptyRunning_realizes_default
+#audit_axioms Nightstream.HyperNova.Construction2.Default.replicatedDefault_allPairs
+
+/-- info: 'Nightstream.HyperNova.Construction2.Default.emptyRunning_zeroArity' does not depend on any axioms -/
+#guard_msgs in
+#audit_axioms Nightstream.HyperNova.Construction2.Default.emptyRunning_zeroArity
 
 /-- info: 'Nightstream.Protocol.FPrime.Paper.ProgramCounter.ofIndex_raw' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in

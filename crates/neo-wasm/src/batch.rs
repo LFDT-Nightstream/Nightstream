@@ -45,8 +45,7 @@ use p3_field::PrimeCharacteristicRing;
 use crate::ccs::WasmVmSpec;
 use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
-use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE};
-use crate::range_checked_witness_width;
+use crate::layout::COL_ONE;
 use crate::relation_layout::build_wasm_relation_layout;
 use crate::witness_builder::build_witness_vector;
 
@@ -90,7 +89,7 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
         core.structure.m,
         core.m_in,
     )?;
-    let widths = wasm_app_private_var_widths(m_single);
+    let widths = crate::witness_layout::range_checked_variable_widths();
     batch_wasm_relation(&single, &widths, batch_size)
 }
 
@@ -200,7 +199,7 @@ pub(crate) fn batch_wasm_relation(
 /// `batch_size`, the tail is padded with synthetic state-preserving
 /// padding rows (see [`padding_step_after`]).
 pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx: usize) -> Vec<F> {
-    let single_width = crate::range_check::range_checked_witness_width();
+    let single_width = crate::RANGE_CHECKED_WITNESS_WIDTH;
     assert!(batch_size >= 1, "batch_size must be at least 1");
     let start = batch_idx * batch_size;
     assert!(
@@ -383,25 +382,4 @@ fn matrix_triplets(m: &CcsMatrix<F>) -> Result<Vec<(usize, usize, F)>, BatchErro
         CcsMatrix::CscWithSeededPhi81 { .. } => return Err(BatchError::CompactSeededMatrixUnsupported),
     };
     Ok(triplets)
-}
-
-pub(crate) fn wasm_app_private_var_widths(witness_width: usize) -> Vec<usize> {
-    let mut widths: Vec<usize> = COLUMN_SPECS
-        .iter()
-        .map(|spec| match spec.width {
-            ColumnWidth::Boolean => 1,
-            ColumnWidth::Byte => 8,
-            ColumnWidth::U32 => 32,
-            ColumnWidth::Field => 64,
-        })
-        .collect();
-
-    debug_assert_eq!(witness_width, range_checked_witness_width());
-    // The host-event gadget's internal block sits right after the named
-    // columns; its widths are gadget-declared.
-    widths.extend(crate::ccs::poseidon::perm_gadget_col_widths());
-    // Columns added for range checks land after that. All of those are bits,
-    // since they are used for the binary recomposition.
-    widths.resize(witness_width, 1);
-    widths
 }

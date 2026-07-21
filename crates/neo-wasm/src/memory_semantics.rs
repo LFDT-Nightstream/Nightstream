@@ -293,7 +293,7 @@ pub fn sanity_check_memory_rows(
     assert_all_memory_specs_have_init_modes(layout)?;
     let mut state = preload.clone_cells();
     for (row_index, witness) in witness_rows.iter().enumerate() {
-        let expected = crate::range_check::range_checked_witness_width();
+        let expected = crate::RANGE_CHECKED_WITNESS_WIDTH;
         if witness.len() != expected {
             return Err(format!(
                 "memory sanity check expected witness width {}, got {} on row {}",

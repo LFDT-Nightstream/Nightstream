@@ -29,7 +29,7 @@ fn method_template() -> ImportTemplate {
     let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
     let oracle = |idx| SlotSource::Claim { idx };
     ImportTemplate {
-        pre_result: vec![
+        events: vec![
             // NewRef(size=1) -> payload ref (oracle 0). Ret=slot2, Size=slot3.
             GrammarEvent::op(10, slots(&[(2, oracle(0)), (3, SlotSource::Const(1))])),
             // RefPush([a, b.lo, b.hi, 0]). PackedRef0..3 = slots 0..3.
@@ -49,13 +49,16 @@ fn method_template() -> ImportTemplate {
                     (4, SlotSource::Const(77)), // dummy f_id
                 ]),
             ),
-        ],
-        post_result: vec![
-            // RefGet(ret_ref, 0) -> [r, 0, 0, 0].
+            // RefGet(ret_ref, 0) -> [r, 0, 0, 0]: the ResultElem Lo slot is
+            // also the row that pushes the host result onto the stack.
             // Val(=ref)=slot1, Offset=slot3, PackedRef0/2/4/5 = slots 0/2/4/5.
             GrammarEvent::op(
                 12,
-                slots(&[(1, oracle(1)), (0, SlotSource::ResultElem { limb: Limb::Lo })]),
+                slots(&[
+                    (1, oracle(1)),
+                    (0, SlotSource::ResultElem { limb: Limb::Lo }),
+                    (2, SlotSource::ResultElem { limb: Limb::Hi }),
+                ]),
             ),
         ],
         claim_count: 4,
@@ -74,26 +77,22 @@ fn method_template_expands_to_pinned_blocks_and_chain() {
     let result = Some((42, 0));
     let oracles = [100u64, 101, 102, 103]; // payload ref, ret ref, caller, target
 
-    let expanded = expand_import_events(&template, &args, result, &oracles).expect("expansion");
+    let blocks = expand_import_events(&template, &args, result, &oracles).expect("expansion");
 
     assert_eq!(
-        expanded.pre_result_blocks,
+        blocks,
         vec![
             [10, 0, 0, 100, 1, 0, 0, 0],       // NewRef
             [11, 5, 7, 3, 0, 0, 0, 0],         // RefPush
             [0, 103, 100, 101, 102, 77, 0, 0], // Resume
+            [12, 42, 101, 0, 0, 0, 0, 0],      // RefGet (result push)
         ],
     );
-    assert_eq!(expanded.post_result_blocks, vec![[12, 42, 101, 0, 0, 0, 0, 0]]);
 
     // The chain fold over the blocks equals the manual commit_event sequence.
     let f = Goldilocks::from_u64;
     let mut chain = [Goldilocks::ZERO; 4];
-    for block in expanded
-        .pre_result_blocks
-        .iter()
-        .chain(&expanded.post_result_blocks)
-    {
+    for block in &blocks {
         let words: [Goldilocks; COMM_CHAIN_EVENT_ARGS] = core::array::from_fn(|i| f(block[1 + i]));
         chain = commit_event(chain, f(block[0]), words);
     }
@@ -111,65 +110,97 @@ fn method_template_expands_to_pinned_blocks_and_chain() {
 fn zero_arg_import_expands_to_single_const_event() {
     // `burn()`: one event, all slots constant.
     let template = ImportTemplate {
-        pre_result: vec![GrammarEvent::op(7, [ZERO; COMM_CHAIN_EVENT_ARGS])],
-        post_result: vec![],
+        events: vec![GrammarEvent::op(7, [ZERO; COMM_CHAIN_EVENT_ARGS])],
         claim_count: 0,
     };
     template.validate(0, 0).expect("burn validates");
-    let expanded = expand_import_events(&template, &[], None, &[]).expect("expansion");
-    assert_eq!(expanded.pre_result_blocks, vec![[7, 0, 0, 0, 0, 0, 0, 0]]);
-    assert!(expanded.post_result_blocks.is_empty());
+    let blocks = expand_import_events(&template, &[], None, &[]).expect("expansion");
+    assert_eq!(blocks, vec![[7, 0, 0, 0, 0, 0, 0, 0]]);
 }
 
 #[test]
 fn validation_rejects_unresolvable_templates() {
     let event = |slot: SlotSource| GrammarEvent::op(0, slots(&[(0, slot)]));
 
+    let result_lo = SlotSource::ResultElem { limb: Limb::Lo };
+    let result_hi = SlotSource::ResultElem { limb: Limb::Hi };
+
     // Arg index beyond the import's arity.
     let template = ImportTemplate {
-        pre_result: vec![event(SlotSource::ArgElem { arg: 2, limb: Limb::Lo })],
+        events: vec![event(SlotSource::ArgElem { arg: 2, limb: Limb::Lo })],
         ..Default::default()
     };
     assert!(template.validate(2, 0).is_err());
 
     // Result reference on a resultless import.
     let template = ImportTemplate {
-        post_result: vec![event(SlotSource::ResultElem { limb: Limb::Lo })],
+        events: vec![event(result_lo)],
         ..Default::default()
     };
     assert!(template.validate(0, 0).is_err());
 
-    // Result reference before the result exists.
+    // A returning import MUST push: the ResultElem Lo slot is the push.
     let template = ImportTemplate {
-        pre_result: vec![event(SlotSource::ResultElem { limb: Limb::Lo })],
+        events: vec![event(SlotSource::Const(1))],
+        ..Default::default()
+    };
+    assert!(template.validate(0, 1).is_err());
+
+    // ... and must push exactly once.
+    let template = ImportTemplate {
+        events: vec![event(result_lo), event(result_lo)],
+        ..Default::default()
+    };
+    assert!(template.validate(0, 1).is_err());
+
+    // The Hi slot writes the pushed cell's hi lane, so it must follow the
+    // Lo slot.
+    let template = ImportTemplate {
+        events: vec![event(result_hi), event(result_lo)],
+        ..Default::default()
+    };
+    assert!(template.validate(0, 1).is_err());
+    let template = ImportTemplate {
+        events: vec![event(result_lo), event(result_hi)],
+        ..Default::default()
+    };
+    assert!(template.validate(0, 1).is_ok());
+
+    // ... and is REQUIRED: a Lo-only template leaves the pushed hi lane as
+    // unbound advice (an i32 result absorbs 0).
+    let template = ImportTemplate {
+        events: vec![event(result_lo)],
         ..Default::default()
     };
     assert!(template.validate(0, 1).is_err());
 
     // Claim index beyond the declared count.
     let template = ImportTemplate {
-        pre_result: vec![event(SlotSource::Claim { idx: 1 })],
+        events: vec![event(SlotSource::Claim { idx: 1 })],
         claim_count: 1,
-        ..Default::default()
     };
     assert!(template.validate(0, 0).is_err());
 
     // Non-canonical constant.
     let template = ImportTemplate {
-        pre_result: vec![event(SlotSource::Const(u64::MAX))],
+        events: vec![event(SlotSource::Const(u64::MAX))],
         ..Default::default()
     };
     assert!(template.validate(0, 0).is_err());
 
     // Argument 0 after the result push (its stack slot holds the result).
     let template = ImportTemplate {
-        post_result: vec![event(SlotSource::ArgElem { arg: 0, limb: Limb::Lo })],
+        events: vec![event(result_lo), event(SlotSource::ArgElem { arg: 0, limb: Limb::Lo })],
         ..Default::default()
     };
     assert!(template.validate(1, 1).is_err());
-    // Later arguments stay addressable post-result.
+    // Later arguments stay addressable after the push.
     let template = ImportTemplate {
-        post_result: vec![event(SlotSource::ArgElem { arg: 1, limb: Limb::Lo })],
+        events: vec![
+            event(result_lo),
+            event(result_hi),
+            event(SlotSource::ArgElem { arg: 1, limb: Limb::Lo }),
+        ],
         ..Default::default()
     };
     assert!(template.validate(2, 1).is_ok());

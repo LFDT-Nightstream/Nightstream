@@ -426,15 +426,11 @@ define_columns!(
     (COL_GRAMMAR_SLOT_LIMB, "grammar-ROM slot limb select (0 lo, 1 hi)"),
     (COL_GRAMMAR_SLOT_CONST_LO, "grammar-ROM slot constant, low 32 bits"),
     (COL_GRAMMAR_SLOT_CONST_HI, "grammar-ROM slot constant, high 32 bits"),
-    (COL_GRAMMAR_PRE_COUNT, "grammar-ROM pre-result event count for the called import"),
-    (COL_GRAMMAR_POST_COUNT, "grammar-ROM post-result event count for the called import"),
+    (COL_GRAMMAR_PRE_COUNT, "grammar-ROM event count for the called import / entered export (biased +1)"),
+    (COL_GRAMMAR_POST_COUNT, "grammar-ROM exit-event count for the halting export"),
     (
         COL_GRAMMAR_HOST_CALL,
         "host-call program row in grammar mode: host_call_gate · grammar_mode"
-    ),
-    (
-        COL_GRAMMAR_RESULT_ACTIVE,
-        "host-result row in grammar mode: host_result_active · grammar_mode"
     ),
     (
         COL_GATHER_LOCAL_WRITE,
@@ -541,6 +537,11 @@ define_columns!(
     (
         COL_STACK_WRITE0_ACTIVE,
         "stack lane 0 write activity flag",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_STACK_WRITE0_HI_ACTIVE,
+        "stack write hi-word port gate: write0_active, plus result-hi gather rows writing only the hi lane",
         ColumnWidth::Boolean
     ),
     (COL_OP_TABLE_ENABLED, "lookup gate", ColumnWidth::Boolean),

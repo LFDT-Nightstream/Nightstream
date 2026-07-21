@@ -3,7 +3,8 @@ mod common;
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::layout::{ColumnWidth, COLUMN_SPECS, COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT};
-use neo_wasm::{range_checked_witness_width, write_range_check_bits, WasmOpcode, WasmVmSpec};
+use neo_wasm::range_check::range_checked_bit_columns;
+use neo_wasm::{write_range_check_bits, WasmOpcode, WasmVmSpec, RANGE_CHECKED_WITNESS_WIDTH};
 use p3_field::PrimeCharacteristicRing;
 
 fn expected_aux_bits() -> usize {
@@ -20,13 +21,41 @@ fn expected_aux_bits() -> usize {
 #[test]
 fn range_checked_width_bookkeeping() {
     assert_eq!(
-        range_checked_witness_width(),
+        RANGE_CHECKED_WITNESS_WIDTH,
         NAMED_COLUMN_COUNT + neo_wasm::ccs::poseidon::PERM_GADGET_AUX_WIDTH + expected_aux_bits()
     );
 
     let vm = WasmVmSpec::default();
-    assert_eq!(vm.core_ccs_spec().witness_width, range_checked_witness_width());
-    assert_eq!(vm.core_ccs_spec().structure.m, range_checked_witness_width());
+    assert_eq!(vm.core_ccs_spec().witness_width, RANGE_CHECKED_WITNESS_WIDTH);
+    assert_eq!(vm.core_ccs_spec().structure.m, RANGE_CHECKED_WITNESS_WIDTH);
+}
+
+#[test]
+fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
+    let mut next = NAMED_COLUMN_COUNT + neo_wasm::ccs::poseidon::PERM_GADGET_AUX_WIDTH;
+
+    for spec in COLUMN_SPECS {
+        let bit_count = match spec.width {
+            ColumnWidth::Boolean | ColumnWidth::Field => 0,
+            ColumnWidth::Byte => 8,
+            ColumnWidth::U32 => 32,
+        };
+
+        if bit_count == 0 {
+            assert_eq!(range_checked_bit_columns(spec.index), None, "{}", spec.name);
+        } else {
+            assert_eq!(
+                range_checked_bit_columns(spec.index),
+                Some(next..next + bit_count),
+                "{}",
+                spec.name
+            );
+            next += bit_count;
+        }
+    }
+
+    assert_eq!(next, RANGE_CHECKED_WITNESS_WIDTH);
+    assert_eq!(range_checked_bit_columns(NAMED_COLUMN_COUNT), None);
 }
 
 /// An out-of-range value in a column no semantic row pins (the call-stack
@@ -83,7 +112,7 @@ fn canonical_preprocessing_audits_declared_widths() {
     let prep = neo_wasm::preprocess::preprocess_seeded_batched(batch_size, digest).expect("canonical preprocessing");
     assert_eq!(
         prep.plan().app_private_var_widths.len(),
-        batch_size * range_checked_witness_width(),
+        batch_size * RANGE_CHECKED_WITNESS_WIDTH,
         "the canonical plan must declare (and thus have audited) the typed widths"
     );
 }

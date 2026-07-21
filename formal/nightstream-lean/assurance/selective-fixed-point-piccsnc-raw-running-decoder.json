@@ -48,8 +48,8 @@
     {
       "name": "active_selective_fixed_point_projection_artifact_matches_retained_certificate",
       "status": "pass_with_raw_running_decoder_drift_and_mutation_checks",
-      "elapsed_seconds": 141.51,
-      "peak_descendant_rss_kib": 12876752
+      "elapsed_seconds": 59.0,
+      "memory_note": "aggregate RSS not sampled; no ps-based monitor was used"
     }
   ],
   "lean_validation": {
@@ -64,22 +64,17 @@
   "assurance_boundary": {
     "running_x_public_prefix_decoder": "artifact-checked",
     "bounded_data_constructed_from_that_prefix": "model-proved fixture only",
-    "full_packed_witness_decoder": "open",
-    "production_rust_dataflow": "open"
+    "full_packed_witness_decoder": "artifact-checked separately for the complete 11,725,506-coordinate raw-Z layout",
+    "production_rust_dataflow": "rust-conformant through the separate active raw block-lane path; this 270-coordinate public-X artifact is not its authority"
   },
   "open_bridges": [
-    "decode each authoritative CcsWitness.Z or CeWitness.Z cell into the full SplitNc Sources.Data.runningAssignments table",
-    "prove the Rust packed-witness rule Z[(column % 54, column / 54)] for the complete production carrier rather than only CeClaim.X",
-    "production Rust delayed projection currently reads CeClaim.y_zcol instead of authoritative packed witness cells",
-    "combined-NC prover, verifier, oracle replay, and recursive R1CS rows",
-    "transcript-derived producerBeta and batchWeight after authoritative data are fixed",
-    "parent pending-state padding and commitment-key coordinate alignment",
-    "terminal authoritative raw-opening rows",
+    "exact combined-NC, pending-state, and terminal sparse rows must refine the active raw-witness dataflow",
+    "parent pending-state commitment-key coordinate alignment and accepted opening/extraction remain named binding boundaries",
     "complete private assignment and sparse matrix decoding, CCS/CE membership, and Ajtai coordinate alignment/binding failure"
   ],
   "non_goals": [
     "reopening the completed selective PiRLC y_zcol slice",
-    "claiming Rust-conformant production y_zcol authority",
+    "claiming this public-X prefix supplies production y_zcol authority",
     "y_ring authority",
     "row deletion",
     "re-proving Ajtai or Poseidon2"

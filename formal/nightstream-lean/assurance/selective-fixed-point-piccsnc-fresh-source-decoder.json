@@ -11,7 +11,7 @@
     "chunk_lengths": [256, 14],
     "normalized_source_column_start": 21547,
     "normalized_source_column_end_exclusive": 21817,
-    "final_column_count": 68091732
+    "final_column_count": 11725506
   },
   "invariant": "the generated artifact maps every coordinate of prior_link.fresh_public_inputs[0] to the exact consecutive normalized source column and records its fail-closed selective disposition; this is fresh CeClaim.X public-prefix provenance only, not a full CcsWitness.Z or CeWitness.Z decoder, source-value authority, a binding-row proof, or commitment authority",
   "evidence_state": "artifact-checked",
@@ -48,7 +48,7 @@
   },
   "rust_validation": {
     "mutation_checks": "pass",
-    "drift": "pass: all 186 generated Lean files matched after deliberate promotion of the two ownership-header candidates",
+    "drift": "pass: all 189 generated Lean files matched after the fixed-point width and ring-padding refresh",
     "final_drift_test": "pass in 142.65 seconds under a hard 300-second alarm",
     "candidate_generation": "expected fail in 146.02 seconds under a hard 300-second alarm; exactly Chunk0.lean.expected and Chunk1.lean.expected were inspected and promoted unchanged",
     "peak_rss": "not instrumented for either targeted run; no extra rerun was performed solely for this metric"
@@ -66,14 +66,14 @@
     "export and refine the exact constant-one row, 256 bit-link rows, and thirteen public-padding rows that establish each coordinate field value",
     "prove direct field-value dataflow from prior_link.fresh_public_inputs[0] into the sole fresh source product",
     "derive the remaining fresh structure and stage fields required by FreshSourceBound",
-    "decode the authoritative full CcsWitness.Z and CeWitness.Z tables separately",
+    "the separate full-Z decoder now artifact-checks coordinate geometry; exact sparse rows must still derive the remaining semantic-input value bindings",
     "prove complete sparse CCS/CE membership and Ajtai coordinate alignment"
   ],
   "non_goals": [
     "using fresh CeClaim.X as raw-child assignment authority",
     "using a selective disposition as a field-value equation",
-    "production y_zcol authority",
-    "Rust-conformant delayed projection",
+    "claiming this public-X prefix is itself production y_zcol authority",
+    "exact combined-NC/state/terminal row refinement",
     "y_ring authority",
     "row deletion",
     "re-proving Ajtai or Poseidon2"

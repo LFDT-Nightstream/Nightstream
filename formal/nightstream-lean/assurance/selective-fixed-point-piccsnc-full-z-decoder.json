@@ -1,14 +1,14 @@
 {
   "artifact_kind": "r1cs/f-prime-selective-fixed-point-piccsnc-full-z-decoder",
-  "artifact_schema": 1,
+  "artifact_schema": 2,
   "property_id": "CIR-FPR-PICCSNC-FULL-Z-DECODER",
   "profile": "bounded-stabilized-fixed-point-production-full-z-layout",
   "shape": {
-    "relation_rows": 17669277,
-    "logical_width": 14338890,
+    "relation_rows": 14946911,
+    "logical_width": 11725506,
     "child_count": 14,
     "matrix_rows": 54,
-    "matrix_columns": 265535,
+    "matrix_columns": 217139,
     "boolean_lane_count": 64,
     "live_lanes": 54,
     "virtual_zero_lanes": 10,
@@ -22,7 +22,7 @@
   },
   "invariant": "for every one of fourteen bounded-profile raw children, every logical assignment coordinate c has exactly one packed witness cell (lane=c%54, block=c/54), every packed cell has exactly one logical coordinate block*54+lane, Boolean lanes 0 through 53 read those cells, and lanes 54 through 63 are computed zero; the real bounded constructor and Ajtai commitment path accepts all 108 one-hot cells of two complete blocks, commitment data is indexed row*54+lane, the bounded fixture has kappa=4, and the protocol production constant has kappa=18",
   "evidence_state": "artifact-checked",
-  "implementation_status": "the compact Rust generator exercises decode_superneo_coeffs_from_witness_mat and CcsInstance::from_low_norm_assignment, recomputes the actual bounded Ajtai commitment for every one-hot coordinate across two complete blocks, checks Commitment.data[row*54+lane], exports the stabilized relation geometry plus 64 proof-free lane-source and 108 proof-free probe-index records, rejects dimension/lane/commitment-length mutations, and passes the 188-file drift gate; Lean proves the complete full-width and fourteen-child bijections, both commitment-data index bijections, and connects the generated geometry to PackedWitness.unpack and the production combined-NC source table; production kappa=18 is distinguished from the bounded fixture kappa=4; native PP coefficient equality, delayed-projection acceptance, transcript ordering, and commitment binding remain open",
+  "implementation_status": "the compact Rust generator exercises decode_superneo_coeffs_from_witness_mat and CcsInstance::from_low_norm_assignment, recomputes the bounded Ajtai commitment for every one-hot coordinate across two complete blocks, checks Commitment.data[row*54+lane], exports the stabilized relation geometry plus 64 proof-free lane-source and 108 proof-free probe-index records, rejects dimension/lane/commitment-length mutations, and passes the 189-file drift gate; Lean proves the complete full-width and fourteen-child bijections, both commitment-data index bijections, and connects generated geometry to PackedWitness.unpack and the production combined-NC source table; the active native block-lane path now consumes those ordered raw witness matrices rather than CeClaim.y_zcol sidecars; production kappa=18 is distinguished from bounded fixture kappa=4; native PP coefficient equality and accepted opening/extraction remain named commitment boundaries, and exact combined-NC/state/terminal rows remain open",
   "artifacts": [
     "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/PackedWitnessDecoder/Generated/Layout.lean"
   ],
@@ -56,8 +56,8 @@
     {
       "name": "active_selective_fixed_point_projection_artifact_matches_retained_certificate",
       "status": "pass",
-      "generated_file_count": 188,
-      "elapsed_seconds": 87.68,
+      "generated_file_count": 189,
+      "elapsed_seconds": 59.0,
       "memory_note": "aggregate RSS not sampled; no ps-based monitor was used"
     },
     {
@@ -76,22 +76,20 @@
     "static": "pass: layer direction, generated quarantine, ownership contracts, forbidden-hole audit, and 22-JSON/63-JSONL assurance parsing"
   },
   "authority_boundary": {
-    "coordinate_geometry": "artifact-checked for the bounded stabilized 14-child, 14,338,890-coordinate profile",
+    "coordinate_geometry": "artifact-checked for the bounded stabilized 14-child, 11,725,506-coordinate profile",
     "commitment_data_layout": "artifact-checked for the bounded real constructor/commitment probe and model-proved for the generic row*54+lane index, with production kappa=18 explicitly distinct from fixture kappa=4",
     "witness_values_to_typed_source_table": "model-proved by a universally quantified correspondence theorem",
-    "native_raw_witness_handoff": "open",
-    "combined_nc_and_terminal_rows": "open",
+    "native_raw_witness_handoff": "rust-conformant through the active BlockLaneNcOracle and lifecycle terminal projector; child sidecars are not read as authority",
+    "combined_nc_and_terminal_rows": "open exact sparse-row refinement; native and circuit dataflow have focused success and mutation coverage",
     "commitment_binding": "open and must remain an explicit named failure"
   },
   "open_bridges": [
-    "the native prover/verifier must pass the exact ordered CcsWitness.Z/CeWitness.Z matrices rather than CeClaim.y_zcol sidecars",
-    "the concurrent Rust delayed-projection implementation must use this block/lane layout and match the typed transcript schedule",
     "generated combined-NC, state, and terminal rows must refine the independent checks",
     "native production PP coefficients must equal the typed Lean key at every row/block coordinate, and accepted opening/extraction must yield the exact matrix equation or a named binding failure"
   ],
   "non_goals": [
     "claiming witness values from layout metadata",
-    "claiming Rust-conformant delayed projection",
+    "claiming exact combined-NC/state/terminal row refinement or security reduction",
     "using a digest as authority",
     "y_ring authority",
     "row deletion",

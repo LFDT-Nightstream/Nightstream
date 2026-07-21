@@ -560,10 +560,11 @@ current_gap_boundary:
     independently derived mixed terminal for all three named gamma schedules.
     The converse is deliberately not claimed: a kernel-checked necessity
     fixture proves that the scalar terminal equality alone can accept a forged
-    `y_zcol` that is not source-bound. The current native order derives the NC
-    test point before validating that sidecar, so its authority must be closed
-    by a downstream proof/opening or by a protocol-order change; it cannot be
-    justified as an ordinary non-adaptive polynomial test. The delayed
+    `y_zcol` that is not source-bound. The legacy sidecar-only order derived the
+    NC test point before validating that value, so it could not be justified as
+    an ordinary non-adaptive polynomial test. Production now uses the delayed
+    raw-witness path described below; the counterexample remains the reason the
+    public sidecar is transport rather than authority. The delayed
     old-point model is now exposed through the generic `PiCcsNc` facade and a
     fail-closed regression/axiom guard. Its fixed-270 refinement contract
     constructs the child table only from
@@ -573,21 +574,28 @@ current_gap_boundary:
     read output `y_zcol` sidecars. This flat 9+6-round relation is a bounded
     diagnostic, not the active production statement: it has 512 flat columns,
     whereas active production has 19 block rounds plus six lane rounds over
-    14,338,890 coordinates. The production correspondence therefore proves the
+    11,725,506 coordinates. The production correspondence therefore proves the
     same old-point obligation as an exact 54-lane
     `PackedYZcolBoundAtBlock` equality; it must not coerce the fixed-270
-    `OldPointSumcheckRelation` across that dimension boundary. The current Rust handoff is therefore not
-    conformant: `running_output_evaluation` still iterates `CeClaim` outputs
-    and reads `CeClaim.y_zcol`. Lean now owns a model-level combined-NC
+    `OldPointSumcheckRelation` across that dimension boundary. The active Rust
+    handoff is now the versioned raw block×lane path: native prove/verify read
+    complete fresh `CcsWitness.Z` and ordered running `Mat` tables and the
+    recursive circuit carries a typed pending projection. The older
+    `running_output_evaluation` helper still reads `CeClaim.y_zcol`, but it is
+    retained only as a diagnostic export and is not the production authority
+    path. Lean owns the matching combined-NC
     checker over complete packed `Z` witnesses, the explicit
     `batchWeight = 0`/residual-root branch, the producer-beta projection root,
     fixed-degree SumCheck collision events, typed transcript domains and
     order, and adjacent/base/terminal one-fold composition. Its load-bearing
     conclusion is `SemanticFold.Holds`; the convenience projection to
     `Semantics.Paper.Holds` is weaker because it drops the parent/children
-    equalities. Actual Rust combined-NC dataflow, generated packed-witness and
-    padding rows, transcript/R1CS refinement, semantic-input and opening
-    authority, recursive-state rows, and Ajtai coordinate binding remain
+    equalities. Native/circuit challenge order, raw-child flow, one-fold state,
+    and terminal recomposition now have Rust success and mutation coverage.
+    Generated full-`Z` geometry and the final 52 physical ring-padding rows
+    are artifact-checked. Exact sparse-row refinement for the combined-NC,
+    pending-state, and terminal equations, semantic-input rows, production PP
+    coefficient equality, and accepted Ajtai opening/extraction remain
     explicit open edges. Lean also proves
     that every honest NC round is a polynomial of degree at most four and
     materializes it as exactly five constant-first coefficients. A
@@ -1385,8 +1393,10 @@ lean_theorems:
     earlier raw-authority interpretation of the 270-column artifact is
     retracted without weakening its valid public-prefix facts.
   - Corrected production combined-NC bridge: the active delayed residual uses
-    the block×lane domain over all 14,338,890 assignment coordinates: 19 block
-    rounds followed by six lane rounds, covering 265,535 live blocks. Each
+    the block×lane domain over all 11,725,506 assignment coordinates: 19 block
+    rounds followed by six lane rounds, covering 217,139 live blocks. The
+    current artifact needs only 18 bits for block coverage; the nineteenth bit
+    is retained by the versioned protocol format. Each
     block has 54 physical Phi81 lanes and ten verifier-computed virtual zero
     lanes; those ten values are polynomial padding, not separately owned
     physical rows. The raw table is computed from complete packed
@@ -1421,12 +1431,21 @@ lean_theorems:
     `OutputBindingFailure` or generic `outputUnbound`. The unanchored
     extraction helper and older generic evaluator remain diagnostic seams; the guarded theorem
     removes generic output-unbound once packed. The separate 9+6 flat model is excluded by `flatColumnProjection_not_actionHom`.
-    The current Rust helper still evaluates `CeClaim.y_zcol`, is not integrated
-    into the combined-NC transcript, and has no state/terminal row refinement.
-    Native raw-`Z` handoff, Rust/transcript refinement, canonical parent
-    opening enforcement, concrete rows, production PP coefficient equality,
-    and accepted Ajtai opening/extraction remain open, so this stays
-    model-proved rather than Rust-conformant production authority.
+    Production native prove/verify now selects the distinct delayed block×lane
+    header, binds the complete accumulator/pending-family handle before
+    sampling `betaBlock`, `producerBeta`, and `batchWeight`, runs the 25-round
+    raw-witness oracle, and rejects legacy-format replay and nonzero virtual
+    padding. Recursive state carries the old block point and 54-lane parent for
+    exactly one fold; base admits absence only for the canonical zero running
+    state. The terminal path recomputes child projections from opened raw
+    witnesses, performs exact radix recomposition, and rejects reattached
+    child-sidecar tampering. The circuit mirrors the challenge suffix and
+    terminal formula, and CUDA fails closed for the unsupported production
+    shape. This active dataflow is `rust-conformant`; the legacy sidecar helper
+    remains non-authoritative. Exact generated rows for the combined-NC,
+    pending state, and terminal checks, production PP coefficient equality,
+    and accepted Ajtai opening/extraction remain open, so the claim is not
+    `security-reduced` and does not authorize row removal.
   - Artifact-checked fresh public-prefix decoder: the bounded Rust exporter
     now identifies all 270 coordinates of
     `prior_link.fresh_public_inputs[0]` in exact order and records their

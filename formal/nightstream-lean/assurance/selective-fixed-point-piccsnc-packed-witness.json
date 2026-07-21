@@ -3,9 +3,21 @@
   "artifact_schema": 1,
   "property_id": "CIR-FPR-PICCSNC-PACKED-WITNESS-LAYOUT",
   "profile": "generic-production-shape-full-packed-ccs-ce-witness",
+  "shape": {
+    "relation_rows": 14946911,
+    "unpadded_coordinates": 11725454,
+    "physical_coordinates": 11725506,
+    "packed_blocks": 217139,
+    "physical_lanes": 54,
+    "virtual_zero_lanes": 10,
+    "protocol_block_rounds": 19,
+    "minimum_covering_block_bits": 18,
+    "lane_rounds": 6,
+    "children": 14
+  },
   "invariant": "the complete packed witness matrix uses Rust order Z[lane,block] = assignment[block*54+lane]; packing and unpacking are inverse, fresh tail cells are canonical zero, and production combined NC can construct every running assignment definitionally from full CcsWitness.Z or CeWitness.Z without reading CeClaim.y_zcol",
-  "evidence_state": "model-proved",
-  "implementation_status": "the claims-level block-by-lane verifier terminal, explicit no-pending base, parent-opening terminal anchor, backward recursive edge, and arbitrary nonempty terminal-anchored trace pass focused Lean regressions and fail-closed axiom guards; successor combined-NC truth supplies norms for the exact ordered raw running assignments, while the direct active theorem case-splits their exact commitment equality and the canonical parent's exact commitment/big-B-norm equality into success or narrowly named binding failures; failure of raw-child authority is now kernel-characterized as existence of one verifier-indexed packed matrix whose exact matrixCommit differs from its public running commitment, so this branch cannot hide a sidecar or digest mismatch; strict PiDEC then yields exact parent recomposition or ParentOpeningBindingCollision, and accepted delayed projection yields the predecessor packed equation or an explicitly typed residual-weight, producer-beta, SumCheck, mixing, accumulator, input, key, or opening failure; the terminal path applies the same reduction to fourteen complete raw child matrices; the strong final trace theorem derives BaseNc, AllPacked, and independent Construction-2 AllPaper together, and retains BaseNc plus AllPacked even on an independent paper failure, so y_zcol cannot hide in OutputBindingFailure or generic outputUnbound and y_ring remains a separate failure track; this active 19-plus-6-round block-by-lane statement is not the fixed-270 flat OldPointSumcheckRelation; a compact Rust-generated full-Z certificate artifact-checks the exact 14,338,890-coordinate to 265,535-by-54 matrix bijection, 54-live-plus-10-zero lane partition, bounded kappa=4 constructor/commitment probes, and row*54+lane commitment-data order while recording the distinct production kappa=18; the complete 17,669,277-row relation materializes under the bounded release regression; native PP coefficient equality and accepted opening/extraction remain explicit commitment boundaries, and the current native delayed_projection helper remains nonconformant because running_output_evaluation reads CeClaim.y_zcol sidecars, never evaluates authoritative raw Z at the 19-round block point, is not integrated into the transcript or combined NC verifier, and has no concrete state/terminal row refinement",
+  "evidence_state": "rust-conformant",
+  "implementation_status": "Lean proves the claims-level block-by-lane terminal, explicit no-pending base, one-fold recursive edge, terminal anchor, and arbitrary nonempty trace with no generic outputUnbound branch; raw-child and canonical-parent commitment failures are narrowly named and y_ring remains separate. The compact generated full-Z certificate artifact-checks the exact 11,725,506-coordinate to 217,139-by-54 bijection, all fourteen children, the 54-live-plus-10-computed-zero partition, bounded kappa=4 constructor/commitment probes, and row*54+lane order while recording production kappa=18. Generated rows separately own the final 52 physical alignment zeros. Active native prove/verify now select the versioned 19-plus-6 block-lane variant, consume fresh CcsWitness.Z and ordered running Mat tables, bind pending-family state before domain-separated delayed challenges, and replay the raw oracle; recursive state and terminal verification preserve and recompute that authority, with mutation and drift coverage. The older running_output_evaluation sidecar helper is diagnostic only. Native PP coefficient equality and accepted opening/extraction remain explicit binding boundaries, and exact sparse-row refinement for combined-NC/state/terminal checks remains open",
   "theorems": [
     "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.PackedWitness.semanticBlockCount_eq_rustBlockCount",
     "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.PackedWitness.unpack_pack",
@@ -185,38 +197,39 @@
     "static": "pass: layer direction, generated quarantine, ownership contracts, forbidden-hole audit, and assurance parsing"
   },
   "authority_boundary": {
-    "coordinate_layout": "artifact-checked for the bounded generated 14-child, 14,338,890-coordinate, 265,535-block, 54-live-plus-10-virtual profile; typed value flow into the source table is model-proved",
+    "coordinate_layout": "artifact-checked for the bounded generated 14-child, 11,725,506-coordinate, 217,139-block, 54-live-plus-10-virtual profile; typed value flow into the source table is model-proved",
     "commitment_layout": "artifact-checked for all 108 bounded constructor/commitment probes and model-proved for row*54+lane flattening at production kappa=18; native PP coefficient equality and accepted opening/extraction remain open",
     "combined_nc_checker_over_decoded_full_witnesses": "model-proved from the claims-level transcript certificate and verifier-computed message terminal to decoded complete witnesses; exact Phi81 terminal-CE acceptance or its generic Rust-shaped verifyPairs control flow derives all fourteen raw-child opening checks but deliberately requires the independent delayed projection check; complete terminal openings derive the final packed equation before extraction, accepted successor NC plus state continuity propagates it across every edge of a nonempty trace, the first step is explicitly no-pending, and the finite-trace headline has no OutputBindingFailure or generic outputUnbound branch",
     "remaining_input_refinements": "split into public polynomial input, complete source-product/commitment binding, child opening, and verifier-key continuity failures",
-    "generated_assignment_decoder": "artifact-checked for complete coordinate geometry and lane provenance; native witness-value transport and commitment binding remain open",
-    "rust_delayed_projection_dataflow": "open",
+    "generated_assignment_decoder": "artifact-checked for complete coordinate geometry, lane provenance, and 52 final physical ring-padding rows; commitment binding remains explicit",
+    "rust_delayed_projection_dataflow": "rust-conformant: versioned native/circuit transcript, raw witness oracle, pending state, and terminal raw-opening recomposition have success and mutation coverage",
     "commitment_binding": "explicit RunningWitnessBindingFailure boundary, kernel-equivalent to a concrete child matrixCommit/public-commitment mismatch",
-    "active_evaluator": "model-proved narrowing after an independently derived packed equation; it exposes only yRingUnbound or PiCcsBadEvent, while deriving that equation from concrete Rust acceptance remains open"
+    "active_evaluator": "model-proved narrowing whose production trace theorem exposes only yRingUnbound, specifically typed PiCcs/parent-opening events, or an independent paper failure; Rust implements the raw authority flow but exact sparse-row refinement remains open"
   },
   "rust_validation": {
-    "result": "nonconformant_read_only_audit",
-    "compressed_shape": "pass: 17,669,277 rows, 14,338,887 unpadded coordinates, 14,338,890 physical coordinates; 43.96 seconds at 6,647,808 KiB peak descendant RSS",
-    "complete_materialization": "pass: the 17,669,277-by-14,338,890 thirteen-matrix relation materialized and matched the compiler audit; 68.86 seconds at 8,487,440 KiB peak descendant RSS",
-    "artifact_drift_and_mutation": "pass: four tests including full-Z dimension/lane/commitment-length mutation rejection and all 108 real constructor/commitment probes; 87.68 seconds; no ps-based sampling",
-    "accumulator_digest_v2": "pass: two exact serialization/config pinning tests; 16.88 seconds at 779,744 KiB peak descendant RSS",
-    "observed_module": "crates/neo-reductions/src/engines/optimized_engine/delayed_projection.rs",
-    "reason": "running_output_evaluation consumes CeClaim.y_zcol, never evaluates raw Z at the block point, DelayedProjectionChallenges are caller-supplied, and no production prove/verify caller integrates the helper with the statement-bound combined-NC transcript or raw WitnessMat tables",
-    "required_handoff": "use the exact fourteen ordered raw CcsWitness.Z/CeWitness.Z matrices represented by PackedWitnessDecoder, evaluate their nested 19-round block plus 6-round lane MLE, derive producerBeta then batchWeight through the bound transcript schedule, execute adjacent-state and exact 54-lane terminal closure, and keep commitment/key binding failures explicit"
+    "result": "rust-conformant",
+    "release_library": "pass for neo-fold-clean in 5.76 seconds",
+    "cuda_adapter": "pass release check; unsupported production device path fails closed",
+    "compressed_shape": "pass: 14,946,911 rows, 11,725,454 unpadded coordinates, 11,725,506 physical coordinates, and 52 ring-padding coordinates",
+    "complete_materialization": "pass: the 14,946,911-by-11,725,506 thirteen-matrix relation materialized and matched the compiler audit in 27.72 seconds",
+    "artifact_drift_and_mutation": "pass: four tests, one explicit regeneration test ignored, all 189 generated Lean files match; full-Z mutations, 108 constructor/commitment probes, and ring-padding rows are included",
+    "raw_projector": "pass: 5/5 indexing, lane-local mutation, inactive-domain zero, shape/bound, and ordered-radix tests",
+    "block_lane_replay": "pass: fixed 19-plus-6 replay and nonzero virtual-padding rejection",
+    "terminal_anchor": "pass: honest pending-parent radix recomposition from opened raw children and reattached-child y_zcol tamper rejection",
+    "combined_circuit": "pass: focused NC, transcript, split-verifier, and accumulator pending-family suites",
+    "active_owner": "crates/neo-reductions/src/engines/optimized_engine/block_lane_replay.rs plus BlockLaneNcOracle, RunningInstance.pending_projection, the SplitNc circuit verifier, and lifecycle/terminal raw-opening checks",
+    "legacy_diagnostic": "optimized_engine/delayed_projection.rs still exposes a sidecar helper but no active production prove/verify path uses it as authority"
   },
   "open_bridges": [
-    "actual production verifier must pass complete CcsWitness.Z or CeWitness.Z cells rather than CeClaim.y_zcol sidecars",
     "generated combined-NC, state, and terminal rows must refine the artifact-checked full-Z decoder and the independent delayed projection check",
     "production SemanticInput and ChildOpenings must be derived from sparse rows rather than supplied to the composition theorem",
-    "the typed producerBeta and batchWeight schedule must be refined to the exact Rust transcript tags/order after parent and authoritative child data are fixed",
-    "production base, successor, and terminal Rust paths must instantiate the now-proved nonempty finite-trace boundary",
     "native production PP coefficients must equal the typed key row/block values and accepted opening/extraction must yield matrixCommit equality or the already named binding failure",
     "complete sparse matrix and CCS/CE membership refinement"
   ],
   "non_goals": [
     "treating the weaker Paper.Holds projection as a substitute for the load-bearing SemanticFold.Holds result",
     "claiming the 14-by-270 running-X artifact decodes the full witness",
-    "Rust-conformant production y_zcol authority",
+    "claiming exact R1CS refinement or security reduction from Rust conformance alone",
     "y_ring authority",
     "row deletion",
     "re-proving Ajtai or Poseidon2"

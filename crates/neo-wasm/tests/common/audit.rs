@@ -9,7 +9,7 @@ use neo_fold_clean::lifecycle::verify_uncompressed_audit;
 use neo_fold_clean::paper::digest::structure_digest;
 use neo_fold_clean::UncompressedAudit;
 use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, semantic_state_digest};
-use neo_wasm::range_check::range_checked_witness_width;
+use neo_wasm::RANGE_CHECKED_WITNESS_WIDTH;
 use neo_wasm::{batch, WasmStepState, WasmVmStep};
 
 pub struct AuditProof {
@@ -102,7 +102,7 @@ pub fn verify_with_transcript(
 
 fn validate_preprocessing(prep: &R1csFPrimePreprocessing) -> Result<(), AuditProveError> {
     let prep_widths = &prep.plan().app_private_var_widths;
-    let single_width = range_checked_witness_width();
+    let single_width = RANGE_CHECKED_WITNESS_WIDTH;
     if prep_widths.len() % single_width != 0 || prep_widths.is_empty() {
         return Err(AuditProveError::Bridge(format!(
             "preprocessing width-vector length {} is not a positive multiple of the single-step WASM witness width {single_width}",

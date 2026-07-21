@@ -24,6 +24,7 @@ pub mod relation_layout;
 pub mod step_build;
 pub mod tables;
 pub mod tagged_r1cs_builder;
+mod witness_layout;
 
 pub use adapters::wasmtime::{
     build_debug_function_id_map, build_pc_rom_from_binary, collect_wasmtime_component_run,
@@ -58,7 +59,7 @@ pub use preprocess::{
     grammar_top_level_initial_state, grammar_top_level_initial_state_digest, preprocess_seeded_batched,
     semantic_state_digest, top_level_initial_state, top_level_initial_state_digest,
 };
-pub use range_check::{range_checked_witness_width, write_range_check_bits};
+pub use range_check::write_range_check_bits;
 pub use relation_layout::{
     build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,
     WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmMemoryActivation, WasmMemoryColumnKind,
@@ -67,3 +68,4 @@ pub use relation_layout::{
 pub use tables::WasmLookupArity;
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};
 pub use witness_builder::{build_steps, build_witness_vector};
+pub use witness_layout::RANGE_CHECKED_WITNESS_WIDTH;

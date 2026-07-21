@@ -119,7 +119,7 @@ pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
     single.sparse_r1cs.m_in = 1;
     let compact = extend_relation(&single.sparse_r1cs, single.widths)?;
     let single_step_columns = compact.relation.m;
-    let lookup_auxiliary_columns_per_instruction = compact.auxiliary_columns;
+    let lookup_auxiliary_columns_per_instruction = compact.auxiliary_column_count;
     let batched = batch::batch_wasm_relation(&compact.relation, &compact.widths, batch_size)?;
     let (plan, _) = wasm_recursive_plan_and_structure(
         &batched.sparse_r1cs,

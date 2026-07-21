@@ -44,7 +44,7 @@ use super::super::layout::{
     COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
     COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE,
     COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY, NAMED_COLUMN_COUNT,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -62,7 +62,7 @@ type R1csBuilder = WasmTaggedR1csBuilder;
 // Gadget-internal column block, allocated right after the named layout (the
 // range-check bit columns follow it). Indices are private: the interface
 // columns everything else uses are the named carried-state columns above.
-const POS0: usize = NAMED_COLUMN_COUNT; // 19 position one-hot flags
+const POS0: usize = crate::witness_layout::POSEIDON_AUX_START; // 19 position one-hot flags
 const FULL_T0: usize = POS0 + COMM_CHAIN_PERM_ROWS; // 48 full-round S-box powers
 const PARTIAL_U0: usize = FULL_T0 + 48; // 8 partial-pair S-box powers
 const WSA0: usize = PARTIAL_U0 + 8; // 4 arg-row write masks
@@ -78,7 +78,7 @@ const GOUT_VAL: usize = GARG_VAL + 1; // limb-selected output-carry value (expor
 const GSLOT_VALUE: usize = GOUT_VAL + 1; // the block word this gather row stages
 
 /// Width of the gadget-internal column block.
-pub const PERM_GADGET_AUX_WIDTH: usize = GSLOT_VALUE + 1 - NAMED_COLUMN_COUNT;
+pub const PERM_GADGET_AUX_WIDTH: usize = GSLOT_VALUE + 1 - POS0;
 
 /// Declared bit-widths of the gadget-internal columns, in block order (for
 /// the F' norm decomposition): booleans for the one-hot/masks/products,

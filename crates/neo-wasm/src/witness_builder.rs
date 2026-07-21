@@ -62,7 +62,7 @@ use super::layout::{
     COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID,
     COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
     COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1,
-    COL_WIDE_VALUES_ENABLED, NAMED_COLUMN_COUNT, PC_ROM_CALL_RETURN_CHOICE,
+    COL_WIDE_VALUES_ENABLED, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::step_build::WasmStepBuild;
 use crate::layout::{
@@ -89,7 +89,7 @@ pub fn build_steps(steps: &[WasmVmStep]) -> Vec<WasmStepBuild> {
 }
 
 pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
-    let mut wit = vec![F::ZERO; NAMED_COLUMN_COUNT + crate::ccs::poseidon::PERM_GADGET_AUX_WIDTH];
+    let mut wit = vec![F::ZERO; crate::RANGE_CHECKED_WITNESS_WIDTH];
     wit[COL_ONE] = F::ONE;
     // High-limb stack addresses are constrained unconditionally as
     // `addr_hi = addr_lo + 1`. Inactive low addresses default to 0 and

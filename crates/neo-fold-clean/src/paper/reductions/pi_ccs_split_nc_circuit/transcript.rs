@@ -33,6 +33,7 @@
 
 use neo_math::F;
 use neo_reductions::engines::utils::{
+    PI_CCS_BLOCK_NC_BATCH_WEIGHT_RAW_TAG, PI_CCS_BLOCK_NC_BETA_RAW_TAG, PI_CCS_BLOCK_NC_PRODUCER_BETA_RAW_TAG,
     PI_CCS_HEADER_BUNDLE_RAW_TAG, PI_CCS_INSTANCE_DIGEST_RAW_TAG, PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG,
     PI_CCS_ME_COUNT_RAW_TAG, PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG,
 };
@@ -106,6 +107,33 @@ pub fn sample_engine_challenges(
 pub fn sample_engine_beta_m(builder: &mut R1csBuilder, transcript: &mut TranscriptGadget, ell_m: usize) -> Vec<KVar> {
     transcript.append_fields_raw_const(builder, &[F::from_u64(3)]);
     challenge_k_batch_raw(builder, transcript, ell_m)
+}
+
+/// Production block/lane challenge suffix sampled after the complete
+/// pending-family accumulator handle.
+#[derive(Clone, Debug)]
+pub struct BlockLaneChallenges {
+    pub beta_block: Vec<KVar>,
+    pub producer_beta: KVar,
+    pub batch_weight: KVar,
+}
+
+pub fn sample_engine_block_lane_challenges(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    block_variables: usize,
+) -> BlockLaneChallenges {
+    transcript.append_fields_raw_const(builder, &[F::from_u64(PI_CCS_BLOCK_NC_BETA_RAW_TAG)]);
+    let beta_block = challenge_k_batch_raw(builder, transcript, block_variables);
+    transcript.append_fields_raw_const(builder, &[F::from_u64(PI_CCS_BLOCK_NC_PRODUCER_BETA_RAW_TAG)]);
+    let producer_beta = challenge_k_batch_raw(builder, transcript, 1)[0];
+    transcript.append_fields_raw_const(builder, &[F::from_u64(PI_CCS_BLOCK_NC_BATCH_WEIGHT_RAW_TAG)]);
+    let batch_weight = challenge_k_batch_raw(builder, transcript, 1)[0];
+    BlockLaneChallenges {
+        beta_block,
+        producer_beta,
+        batch_weight,
+    }
 }
 
 /// Raw K-batch squeeze: mirrors `sample_k_batch(tr, count)` in

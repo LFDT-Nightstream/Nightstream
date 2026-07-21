@@ -40,7 +40,7 @@ use super::{stage, Error};
 use crate::engine::r1cs_circuit::builder::Lc;
 use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_dot_product, enforce_k_mul, KLc, KVar};
 use crate::engine::r1cs_circuit::sumcheck::{
-    enforce_chi_alpha, enforce_eq_k, enforce_sumcheck_rounds_engine, gamma_powers,
+    enforce_chi_alpha, enforce_eq_k, enforce_sumcheck_rounds_engine, gamma_powers, horner_eval_k,
 };
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::R1csBuilder;
@@ -134,6 +134,22 @@ pub fn enforce_nc_sumcheck_driver(
     d_sc: usize,
     rounds: &[Vec<KVar>],
 ) -> Result<NcSumcheckResult, Error> {
+    let claimed_nc = alloc_klc(builder, &KLc::from_base_const(F::ZERO));
+    enforce_nc_sumcheck_driver_with_claim(builder, transcript, ell_m, ell_d, d_sc, claimed_nc, rounds)
+}
+
+/// NC SumCheck replay with a verifier-derived initial claim. The legacy
+/// wrapper above supplies zero; the delayed block/lane profile supplies its
+/// batch-weighted parent evaluation.
+pub fn enforce_nc_sumcheck_driver_with_claim(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    ell_m: usize,
+    ell_d: usize,
+    d_sc: usize,
+    claimed_nc: KVar,
+    rounds: &[Vec<KVar>],
+) -> Result<NcSumcheckResult, Error> {
     let want_rounds = ell_m
         .checked_add(ell_d)
         .ok_or_else(|| Error::Shape("NC sumcheck round count overflow".into()))?;
@@ -155,10 +171,6 @@ pub fn enforce_nc_sumcheck_driver(
         }
     }
 
-    // Native claimed_nc = K::ZERO. Allocate a zero KVar so its lanes can be
-    // absorbed via `append_fields_raw_vars`.
-    let claimed_nc = alloc_klc(builder, &KLc::from_base_const(F::ZERO));
-
     transcript.append_fields_raw_const(builder, &[F::from_u64(PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
     transcript.append_fields_raw_const(builder, &[F::from_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
     transcript.append_fields_raw_vars(builder, &[claimed_nc.c0, claimed_nc.c1]);
@@ -175,6 +187,19 @@ pub fn enforce_nc_sumcheck_driver(
         alpha_prime,
         final_sum,
     })
+}
+
+pub fn enforce_block_lane_claimed_initial(
+    builder: &mut R1csBuilder,
+    pending_parent: Option<&[KVar]>,
+    producer_beta: KVar,
+    batch_weight: KVar,
+) -> KVar {
+    let Some(parent) = pending_parent else {
+        return alloc_klc(builder, &KLc::from_base_const(F::ZERO));
+    };
+    let evaluated = horner_eval_k(builder, parent, producer_beta);
+    enforce_k_mul(builder, &KLc::from_var(batch_weight), &KLc::from_var(evaluated))
 }
 
 // ── NC terminal identity ──────────────────────────────────────────────────
@@ -288,4 +313,112 @@ pub fn enforce_nc_terminal_identity(builder: &mut R1csBuilder, inputs: &NcTermin
     let result = enforce_k_mul(builder, &KLc::from_var(eq_apsp_beta), &KLc::from_var(nc_prime_sum));
     builder.record_row_family(stage::ROW_NC_TERMINAL_FINAL_PRODUCT, row_start);
     Ok(result)
+}
+
+pub struct BlockLaneTerminalInputs<'a> {
+    pub fresh_count: usize,
+    pub gamma: KVar,
+    pub beta_lane: &'a [KVar],
+    pub beta_block: &'a [KVar],
+    pub producer_beta: KVar,
+    pub batch_weight: KVar,
+    pub block_point: &'a [KVar],
+    pub lane_point: &'a [KVar],
+    pub output_y_zcol: &'a [Vec<KVar>],
+    pub pending_old_block: Option<&'a [KVar]>,
+}
+
+/// Exact verifier terminal formula for the production 19-block/6-lane
+/// combined NC channel.
+pub fn enforce_block_lane_terminal_identity(
+    builder: &mut R1csBuilder,
+    inputs: &BlockLaneTerminalInputs<'_>,
+) -> Result<KVar, Error> {
+    if inputs.fresh_count > inputs.output_y_zcol.len() {
+        return Err(Error::Shape("block/lane NC fresh count exceeds output count".into()));
+    }
+    if inputs.block_point.len() != inputs.beta_block.len() || inputs.lane_point.len() != inputs.beta_lane.len() {
+        return Err(Error::Shape("block/lane NC equality-point lengths disagree".into()));
+    }
+
+    let chi_lane = enforce_chi_alpha(builder, inputs.lane_point);
+    let mut evaluations = Vec::with_capacity(inputs.output_y_zcol.len());
+    let mut residuals = Vec::with_capacity(inputs.output_y_zcol.len());
+    for (index, values) in inputs.output_y_zcol.iter().enumerate() {
+        if values.len() < chi_lane.len() {
+            return Err(Error::Shape(format!(
+                "block/lane output_y_zcol[{index}] has {} lanes, expected at least {}",
+                values.len(),
+                chi_lane.len()
+            )));
+        }
+        let value = enforce_k_dot_product(builder, &values[..chi_lane.len()], &chi_lane);
+        let square = enforce_k_mul(builder, &KLc::from_var(value), &KLc::from_var(value));
+        let cube = enforce_k_mul(builder, &KLc::from_var(square), &KLc::from_var(value));
+        let residual = alloc_klc(
+            builder,
+            &KLc {
+                c0: Lc::from_var(cube.c0).add_scaled(&Lc::from_var(value.c0), -F::ONE),
+                c1: Lc::from_var(cube.c1).add_scaled(&Lc::from_var(value.c1), -F::ONE),
+            },
+        );
+        evaluations.push(value);
+        residuals.push(residual);
+    }
+
+    let gamma_weights = gamma_powers(builder, inputs.gamma, residuals.len());
+    let ordinary_sum = enforce_k_dot_product(builder, &gamma_weights, &residuals);
+    let eq_block = enforce_eq_k(builder, inputs.block_point, inputs.beta_block);
+    let eq_lane = enforce_eq_k(builder, inputs.lane_point, inputs.beta_lane);
+    let equality = enforce_k_mul(builder, &KLc::from_var(eq_block), &KLc::from_var(eq_lane));
+    let ordinary = enforce_k_mul(builder, &KLc::from_var(equality), &KLc::from_var(ordinary_sum));
+
+    let delayed = match inputs.pending_old_block {
+        None => alloc_klc(builder, &KLc::from_base_const(F::ZERO)),
+        Some(old_block) => {
+            if old_block.len() != inputs.block_point.len() {
+                return Err(Error::Shape("block/lane pending old block has the wrong length".into()));
+            }
+            let running_values = &evaluations[inputs.fresh_count..];
+            let radix = alloc_klc(builder, &KLc::from_base_const(F::from_u64(2)));
+            let radix_weights = gamma_powers(builder, radix, running_values.len());
+            let running = enforce_k_dot_product(builder, &radix_weights, running_values);
+            let old_equality = enforce_eq_k(builder, inputs.block_point, old_block);
+            let selector = enforce_beta_power_selector(builder, inputs.producer_beta, inputs.lane_point);
+            let weighted = enforce_k_mul(
+                builder,
+                &KLc::from_var(inputs.batch_weight),
+                &KLc::from_var(old_equality),
+            );
+            let weighted = enforce_k_mul(builder, &KLc::from_var(weighted), &KLc::from_var(selector));
+            enforce_k_mul(builder, &KLc::from_var(weighted), &KLc::from_var(running))
+        }
+    };
+    Ok(alloc_klc(
+        builder,
+        &KLc {
+            c0: Lc::from_var(ordinary.c0).add_scaled(&Lc::from_var(delayed.c0), F::ONE),
+            c1: Lc::from_var(ordinary.c1).add_scaled(&Lc::from_var(delayed.c1), F::ONE),
+        },
+    ))
+}
+
+fn enforce_beta_power_selector(builder: &mut R1csBuilder, beta: KVar, point: &[KVar]) -> KVar {
+    let mut beta_power = beta;
+    let mut result = alloc_klc(builder, &KLc::from_base_const(F::ONE));
+    for coordinate in point {
+        let selected = enforce_k_mul(builder, &KLc::from_var(*coordinate), &KLc::from_var(beta_power));
+        let factor = alloc_klc(
+            builder,
+            &KLc {
+                c0: Lc::from_const(F::ONE)
+                    .add_scaled(&Lc::from_var(coordinate.c0), -F::ONE)
+                    .add_scaled(&Lc::from_var(selected.c0), F::ONE),
+                c1: Lc::from_var(selected.c1).add_scaled(&Lc::from_var(coordinate.c1), -F::ONE),
+            },
+        );
+        result = enforce_k_mul(builder, &KLc::from_var(result), &KLc::from_var(factor));
+        beta_power = enforce_k_mul(builder, &KLc::from_var(beta_power), &KLc::from_var(beta_power));
+    }
+    result
 }

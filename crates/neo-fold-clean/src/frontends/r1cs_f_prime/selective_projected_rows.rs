@@ -477,6 +477,7 @@ pub struct SelectiveProjectedRowsAudit {
     selector_domain_row_artifacts: Vec<SelectiveProjectedRowArtifact>,
     one_hot_row_artifact: SelectiveProjectedRowArtifact,
     private_padding_row_artifacts: Vec<SelectiveProjectedRowArtifact>,
+    ring_padding_row_artifacts: Vec<SelectiveProjectedRowArtifact>,
     row_artifacts: Vec<SelectiveProjectedRowArtifact>,
     source_provenance: Option<SelectiveProjectedSourceProvenance>,
     decoder_provenance: Option<SelectiveProjectedDecoderProvenance>,
@@ -527,6 +528,12 @@ impl SelectiveProjectedRowsAudit {
     /// caller-selected semantic slice.
     pub fn private_padding_row_artifacts(&self) -> &[SelectiveProjectedRowArtifact] {
         &self.private_padding_row_artifacts
+    }
+
+    /// Exact final ring-alignment zero rows projected independently of the
+    /// caller-selected semantic slice.
+    pub fn ring_padding_row_artifacts(&self) -> &[SelectiveProjectedRowArtifact] {
+        &self.ring_padding_row_artifacts
     }
 
     pub fn row_artifacts(&self) -> &[SelectiveProjectedRowArtifact] {
@@ -1633,6 +1640,32 @@ fn project_rows_inner(
         .map(|row| project_row_artifact(&emitted, &layout.compiler_audit, row))
         .collect::<Result<Vec<_>, _>>()?;
 
+    let ring_padding_runs = layout
+        .compiler_audit
+        .rows()
+        .emitted_runs()
+        .iter()
+        .filter(|run| run.family() == super::super::selective_audit::SelectiveEmittedRowFamily::RingPadding)
+        .collect::<Vec<_>>();
+    let [ring_padding_run] = ring_padding_runs.as_slice() else {
+        return Err(trace_error(
+            "projected emitter must have exactly one ring-padding owner",
+        ));
+    };
+    let expected_ring_padding_rows = layout.compiler_audit.rows().ring_padding_rows();
+    if ring_padding_run.arm().is_some()
+        || ring_padding_run.emitted_rows() != expected_ring_padding_rows
+        || ring_padding_run.emitted_rows().len() != emitted.columns - layout.columns
+    {
+        return Err(trace_error(
+            "projected ring-padding owner differs from the final alignment range",
+        ));
+    }
+    let ring_padding_row_artifacts = ring_padding_run
+        .emitted_rows()
+        .map(|row| project_row_artifact(&emitted, &layout.compiler_audit, row))
+        .collect::<Result<Vec<_>, _>>()?;
+
     let source_provenance = source_request
         .map(|(arm, source_columns, retained_row_pairs, _)| {
             let source_arm = arms
@@ -1662,6 +1695,7 @@ fn project_rows_inner(
         selector_domain_row_artifacts,
         one_hot_row_artifact,
         private_padding_row_artifacts,
+        ring_padding_row_artifacts,
         row_artifacts,
         source_provenance,
         decoder_provenance,

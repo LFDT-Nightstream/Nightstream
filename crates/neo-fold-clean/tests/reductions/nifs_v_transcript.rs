@@ -7,7 +7,7 @@
 use neo_ajtai::Commitment;
 use neo_ccs::LaneCommitments;
 use neo_ccs::Mat;
-use neo_fold_clean::engine::r1cs_circuit::{R1csBuilder, TranscriptGadget};
+use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, TranscriptGadget};
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::RunningInstance;
@@ -16,12 +16,15 @@ use neo_fold_clean::paper::nifs::circuit::{
     enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages, NifsVOutputs,
 };
 use neo_fold_clean::paper::nifs::NifsProof;
+use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::sample_engine_block_lane_challenges;
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
 use neo_fold_clean::paper::relations::{superneo_public_x_cols, CcsClaim, LaneRanges, LaneScheme};
 use neo_fold_clean::paper::{pi_dec, pi_rlc};
 use neo_fold_clean::{CeClaim, Preprocessing};
 use neo_math::ring::D;
-use neo_math::{F, K};
+use neo_math::{KExtensions, F, K};
+use neo_reductions::engines::utils::{sample_beta_block, sample_delayed_projection_challenges};
+use neo_transcript::{Poseidon2Transcript, Transcript as NativeTranscript};
 use p3_field::PrimeCharacteristicRing;
 
 const SESSION_LABEL: &[u8] = b"neo.fold.clean/session/v1";
@@ -268,6 +271,7 @@ fn emit_verifier(f: &Fixture) -> Result<(R1csBuilder, NifsVOutputs), neo_fold_cl
             fresh: &f.fresh_claims,
             running: &f.running.claims,
             running_parent_authority: f.running.parent_authority.as_ref(),
+            running_pending_projection: f.running.pending_projection(),
             pi_ccs: &f.proof.pi_ccs,
             combined: &f.combined,
             children: &f.children,
@@ -290,6 +294,63 @@ fn native_verifier_accepts(f: &Fixture) -> bool {
         &f.proof,
     )
     .is_ok()
+}
+
+#[test]
+fn delayed_projection_challenge_suffix_matches_native_after_bound_prefix() {
+    const LABEL: &[u8] = b"neo.fold.clean/test/block-lane-challenge-suffix/v1";
+    let bound_prefix = [
+        F::from_u64(101),
+        F::from_u64(103),
+        F::from_u64(107),
+        F::from_u64(109),
+        F::from_u64(113),
+    ];
+
+    let mut native = Poseidon2Transcript::new(LABEL);
+    native.append_fields_raw(&bound_prefix);
+    let expected_beta_block = sample_beta_block(&mut native, 3).expect("native block challenge");
+    let (expected_producer_beta, expected_batch_weight) =
+        sample_delayed_projection_challenges(&mut native).expect("native delayed challenges");
+
+    let mut builder = R1csBuilder::new();
+    let mut gadget = TranscriptGadget::new(&mut builder, LABEL);
+    gadget.append_fields_raw_const(&mut builder, &bound_prefix);
+    let got = sample_engine_block_lane_challenges(&mut builder, &mut gadget, 3);
+
+    for (wire, expected) in got.beta_block.iter().zip(&expected_beta_block) {
+        let [c0, c1] = expected.as_coeffs();
+        assert_eq!(builder.witness()[wire.c0.col()], c0);
+        assert_eq!(builder.witness()[wire.c1.col()], c1);
+        builder.enforce_eq(&Lc::from_var(wire.c0), &Lc::from_const(c0));
+        builder.enforce_eq(&Lc::from_var(wire.c1), &Lc::from_const(c1));
+    }
+    for (wire, expected) in [
+        (got.producer_beta, expected_producer_beta),
+        (got.batch_weight, expected_batch_weight),
+    ] {
+        let [c0, c1] = expected.as_coeffs();
+        assert_eq!(builder.witness()[wire.c0.col()], c0);
+        assert_eq!(builder.witness()[wire.c1.col()], c1);
+        builder.enforce_eq(&Lc::from_var(wire.c0), &Lc::from_const(c0));
+        builder.enforce_eq(&Lc::from_var(wire.c1), &Lc::from_const(c1));
+    }
+    assert!(
+        builder.is_satisfied(),
+        "domain-separated block, producer, and batch challenges diverged from native replay"
+    );
+
+    let mut changed = Poseidon2Transcript::new(LABEL);
+    let mut changed_prefix = bound_prefix;
+    changed_prefix[4] += F::ONE;
+    changed.append_fields_raw(&changed_prefix);
+    let changed_beta_block = sample_beta_block(&mut changed, 3).expect("mutated block challenge");
+    let changed_delayed = sample_delayed_projection_challenges(&mut changed).expect("mutated delayed challenges");
+    assert_ne!(
+        (expected_beta_block, expected_producer_beta, expected_batch_weight),
+        (changed_beta_block, changed_delayed.0, changed_delayed.1),
+        "the delayed challenge suffix must depend on the already-bound authoritative prefix"
+    );
 }
 
 #[test]
@@ -574,21 +635,17 @@ fn recursive_nifs_v_accepts_native_valid_child_y_zcol_shape() {
     );
 }
 
-/// Incoming running `y_zcol` is currently unbound in both native and recursive
-/// Π_CCS. This regression pins the known gap: mutating an ignored padding lane
-/// changes neither verifier acceptance nor the recursive relation/witness.
+/// Incoming running `y_zcol` padding is structural protocol data. Both native
+/// and recursive Π_CCS must reject a nonzero padding lane before it can enter
+/// the delayed-projection state machine.
 #[test]
-fn recursive_nifs_v_omits_running_y_zcol_padding() {
-    let honest = build_honest_fixture();
-    let (honest_builder, _) = emit_verifier(&honest).expect("emit honest verifier");
-    assert!(honest_builder.is_satisfied());
-
+fn recursive_nifs_v_rejects_running_y_zcol_padding() {
     let mut fixture = build_honest_fixture();
     assert!(fixture.running.claims[0].y_zcol.len() > D);
     fixture.running.claims[0].y_zcol[D] += K::ONE;
 
     let mut native_tr = Transcript::session();
-    nifs::verify(
+    let native = nifs::verify(
         &mut native_tr,
         &fixture.prep.params,
         fixture.prep.structure(),
@@ -598,19 +655,14 @@ fn recursive_nifs_v_omits_running_y_zcol_padding() {
         &fixture.fresh_claims,
         &fixture.running,
         &fixture.proof,
-    )
-    .expect("native NIFS.V ignores incoming running y_zcol");
-
-    let (builder, outputs) = emit_verifier(&fixture).expect("emit running-y_zcol mutation");
-    assert!(builder.is_satisfied());
-    assert!(outputs.running.iter().all(|claim| claim.y_zcol.is_empty()));
-    let honest = honest_builder.snapshot();
-    let mutated = builder.snapshot();
-    assert!(honest.has_same_relation(&mutated));
-    assert_eq!(
-        honest.witness(),
-        mutated.witness(),
-        "incoming running y_zcol leaked into the recursive NIFS.V witness"
+    );
+    assert!(
+        native.is_err(),
+        "native NIFS.V accepted nonzero incoming y_zcol padding"
+    );
+    assert!(
+        emit_verifier(&fixture).is_err(),
+        "recursive NIFS.V accepted nonzero incoming y_zcol padding"
     );
 }
 

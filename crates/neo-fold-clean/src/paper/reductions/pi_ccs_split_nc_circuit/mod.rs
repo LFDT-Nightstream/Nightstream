@@ -84,8 +84,9 @@ pub use fe::{
     FeSumcheckResult, FeTerminalInputs,
 };
 pub use nc::{
-    enforce_nc_range_product, enforce_nc_sumcheck_driver, enforce_nc_terminal_identity, NcSumcheckResult,
-    NcTerminalInputs,
+    enforce_block_lane_claimed_initial, enforce_block_lane_terminal_identity, enforce_nc_range_product,
+    enforce_nc_sumcheck_driver, enforce_nc_sumcheck_driver_with_claim, enforce_nc_terminal_identity,
+    BlockLaneTerminalInputs, NcSumcheckResult, NcTerminalInputs,
 };
 pub use output_message::{
     audit_pi_ccs_output_sis, encode_pi_ccs_outputs_preimage, PiCcsOutputFieldBinding, PiCcsOutputMessageDigestInputs,
@@ -94,11 +95,12 @@ pub use output_message::{
 pub use transcript::{
     absorb_engine_header_bundle_and_instance_digest, absorb_engine_header_bundle_wires_and_instance_digest,
     absorb_engine_me_inputs_accumulator_handle, enforce_header_digest_catch_up, enforce_header_digest_catch_up_wires,
-    header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_challenges, EngineChallenges,
+    header_digest_bytes_to_fields, sample_engine_beta_m, sample_engine_block_lane_challenges, sample_engine_challenges,
+    BlockLaneChallenges, EngineChallenges,
 };
 pub use verifier::{
-    enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, SplitNcPiCcsOutputWires,
-    SplitNcPiCcsVConfig, SplitNcPiCcsVDerived, SplitNcPiCcsVMessages, SplitNcVerifierRelation,
+    enforce_split_nc_pi_ccs_v, enforce_split_nc_pi_ccs_v_with_header_bundle_wires, PendingProjectionWires,
+    SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig, SplitNcPiCcsVDerived, SplitNcPiCcsVMessages, SplitNcVerifierRelation,
 };
 
 /// Errors emitted by the SplitNcV1 in-circuit verifier and its building-block

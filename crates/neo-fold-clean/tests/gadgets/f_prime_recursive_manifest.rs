@@ -404,6 +404,7 @@ fn build_recursive_program_with_output() -> (R1csBuilder, FPrimeStepOutput) {
             fresh: &fixture.fresh_claims,
             running: &fixture.running.claims,
             running_parent_authority: fixture.running.parent_authority.as_ref(),
+            running_pending_projection: fixture.running.pending_projection(),
             pi_ccs: &fixture.proof.pi_ccs,
             combined: &fixture.combined,
             children: &fixture.children,

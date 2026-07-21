@@ -291,6 +291,7 @@ fn emit_verifier_with_running_outputs(
             fresh: &f.fresh_claims,
             running,
             running_parent_authority,
+            running_pending_projection: f.running.pending_projection(),
             pi_ccs: &f.proof.pi_ccs,
             combined: &f.combined,
             children,

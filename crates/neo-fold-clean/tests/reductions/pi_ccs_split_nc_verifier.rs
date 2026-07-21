@@ -78,6 +78,29 @@ fn running_parent_y_zcol_sidecar_columns(derived: &SplitNcPiCcsVDerived) -> BTre
     allowed
 }
 
+fn fresh_output_nonpublic_x_columns(derived: &SplitNcPiCcsVDerived, fresh_count: usize) -> BTreeSet<usize> {
+    let mut deferred = BTreeSet::new();
+    for output in derived.outputs.iter().take(fresh_count) {
+        let active_columns = superneo_public_x_cols(output.m_in);
+        let public: BTreeSet<_> = (0..output.m_in)
+            .map(|index| {
+                let row = index % D;
+                let column = index / D;
+                output.x[row * output.x_cols + column].col()
+            })
+            .collect();
+        for row in 0..output.x_rows {
+            for column in 0..active_columns {
+                let wire = output.x[row * output.x_cols + column].col();
+                if !public.contains(&wire) {
+                    deferred.insert(wire);
+                }
+            }
+        }
+    }
+    deferred
+}
+
 fn insert_kvar_columns(cols: &mut BTreeSet<usize>, v: neo_fold_clean::engine::r1cs_circuit::field_ext::KVar) {
     cols.insert(v.c0.col());
     cols.insert(v.c1.col());
@@ -384,6 +407,8 @@ fn emit_verifier_with_derived(f: &Fixture) -> Result<(R1csBuilder, SplitNcPiCcsV
             fresh: &f.fresh_claims,
             running: &f.running.claims,
             running_parent_authority: f.running.parent_authority.as_ref(),
+            running_pending_projection: f.running.pending_projection(),
+            variant: f.proof.sumcheck.variant,
             outputs: &f.proof.outputs,
             outputs_digest: f.proof.outputs_digest,
             sc_initial_sum: f.proof.sumcheck.sc_initial_sum,
@@ -409,6 +434,8 @@ fn emit_verifier_with_header_witness(f: &Fixture, header: [F; 4]) -> Result<R1cs
             fresh: &f.fresh_claims,
             running: &f.running.claims,
             running_parent_authority: f.running.parent_authority.as_ref(),
+            running_pending_projection: f.running.pending_projection(),
+            variant: f.proof.sumcheck.variant,
             outputs: &f.proof.outputs,
             outputs_digest: f.proof.outputs_digest,
             sc_initial_sum: f.proof.sumcheck.sc_initial_sum,
@@ -645,10 +672,13 @@ fn accepted_diagnostic_outputs_have_exact_field_to_column_ownership() {
 }
 
 #[test]
-fn split_nc_pi_ccs_v_leaves_only_documented_deferred_ce_sidecars_unconstrained() {
-    // Running-child y_zcol is not allocated. The only intentionally floating
-    // columns are the checked parent's old-point y_zcol sidecar; the missing
-    // verifier-owned source relation is tracked explicitly below.
+fn split_nc_pi_ccs_v_leaves_only_documented_deferred_surfaces_unconstrained() {
+    // Running-child y_zcol is not allocated. The intentionally local-only
+    // columns are the checked parent's old-point y_zcol sidecar and fresh
+    // output X lanes outside the public packed coordinates. The latter are
+    // produced by L_in(Z) and consumed by downstream Pi_RLC/terminal opening;
+    // this Pi_CCS leaf pins only the public coordinates, exactly like native
+    // validate_mcs_output_x_recomposition.
     let fixture = build_fixture();
     let (builder, derived) = emit_verifier_with_derived(&fixture).expect("emit verifier");
 
@@ -665,7 +695,8 @@ fn split_nc_pi_ccs_v_leaves_only_documented_deferred_ce_sidecars_unconstrained()
             .all(|running| running.y_zcol.is_empty()),
         "incoming running claims must not allocate y_zcol"
     );
-    let allowed = running_parent_y_zcol_sidecar_columns(&derived);
+    let mut allowed = running_parent_y_zcol_sidecar_columns(&derived);
+    allowed.extend(fresh_output_nonpublic_x_columns(&derived, fixture.fresh_claims.len()));
     let unexpected: BTreeSet<_> = unconstrained.difference(&allowed).copied().collect();
     let summary = split_nc_unconstrained_column_summary(&derived, &unexpected);
     assert!(
@@ -690,6 +721,8 @@ fn split_nc_pi_ccs_v_rejects_nonempty_running_without_parent_authority() {
             fresh: &fixture.fresh_claims,
             running: &fixture.running.claims,
             running_parent_authority: None,
+            running_pending_projection: fixture.running.pending_projection(),
+            variant: fixture.proof.sumcheck.variant,
             outputs: &fixture.proof.outputs,
             outputs_digest: fixture.proof.outputs_digest,
             sc_initial_sum: fixture.proof.sumcheck.sc_initial_sum,
@@ -731,6 +764,8 @@ fn split_nc_pi_ccs_v_rejects_empty_running_with_parent_authority() {
             fresh: &fresh_claims,
             running: &[],
             running_parent_authority: Some(parent),
+            running_pending_projection: None,
+            variant: proof.sumcheck.variant,
             outputs: &proof.outputs,
             outputs_digest: proof.outputs_digest,
             sc_initial_sum: proof.sumcheck.sc_initial_sum,

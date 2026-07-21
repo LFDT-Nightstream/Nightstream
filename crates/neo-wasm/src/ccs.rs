@@ -298,15 +298,15 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
 
     // Stack balance excludes non-popping grammar reads and treats a captured
     // result as consumed by the host.
-    let [gather_arg_kind, gather_result_kind] = poseidon::gather_read_kind_cols();
     b.push_linear_zero([
         (COL_SP_AFTER, F::ONE),
         (COL_SP_BEFORE, -F::ONE),
         (COL_STACK_READS, F::ONE),
         (COL_STACK_WRITES, -F::ONE),
-        (gather_arg_kind, -F::ONE),
-        (gather_result_kind, -F::ONE),
+        (poseidon::gather_arg_read_kind_col(), -F::ONE),
         (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
+        // Grammar host calls pop their args on the call row itself.
+        (poseidon::grammar_host_call_params_col(), F::ONE),
     ]);
     b.with_tag(always("fixed stack arity"), |b| {
         b.push_row(fixed_stack_arity_gate_terms(), fixed_stack_reads_terms(), []);

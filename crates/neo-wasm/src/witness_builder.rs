@@ -951,11 +951,11 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         COL_GRAMMAR_EVIDX_AFTER, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_AFTER, COL_GRAMMAR_EVREM_BEFORE,
         COL_GRAMMAR_EVREM_BEFORE_INV, COL_GRAMMAR_EVREM_BEFORE_IS_ZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL,
         COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT,
-        COL_GRAMMAR_RESULT_ACTIVE, COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO,
-        COL_GRAMMAR_SLOT_CURSOR_AFTER, COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB,
-        COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
-        COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE,
-        COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
+        COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER,
+        COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB, COL_PERM_PENDING_AFTER,
+        COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
+        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE,
+        COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
     };
 
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
@@ -1002,7 +1002,6 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_RAW_ARGS_ACTIVE] = wit[COL_HOST_ARGS_ACTIVE_BEFORE] * (F::ONE - mode);
     wit[COL_RAW_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * (F::ONE - mode);
     wit[COL_GRAMMAR_HOST_CALL] = host_call_gate * mode;
-    wit[COL_GRAMMAR_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * mode;
     wit[COL_GATHER_LOCAL_WRITE] =
         if trace.row_kind.is_host_event_gather() && trace.grammar_rom_slot.is_some_and(|rom| rom.kind == 4) {
             F::ONE
@@ -1018,6 +1017,14 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     } else {
         F::ZERO
     };
+    // Hi-word stack write port gate: ordinary write0 activity, plus
+    // result-hi gather rows (which write only the pushed cell's hi lane).
+    let result_hi_gather = trace.row_kind.is_host_event_gather()
+        && trace
+            .grammar_rom_slot
+            .is_some_and(|rom| rom.kind == 2 && rom.limb == 1);
+    wit[crate::layout::COL_STACK_WRITE0_HI_ACTIVE] =
+        wit[crate::layout::COL_STACK_WRITE0_ACTIVE] + bool_f(result_hi_gather);
     wit[COL_GRAMMAR_EXIT_LATCH] = wit[COL_OUTPUT_CAPTURED] * mode;
     wit[crate::layout::COL_TURN_BOUNDARY] = bool_f(trace.row_kind.is_turn_boundary());
 

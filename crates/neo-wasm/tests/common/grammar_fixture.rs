@@ -62,22 +62,30 @@ fn test_grammar(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventGramma
     grammar.imports.insert(
         mul_fref,
         ImportTemplate {
-            pre_result: vec![GrammarEvent::op(
-                10,
-                slots(&[(0, oracle(0)), (1, arg(0, Limb::Lo)), (2, arg(1, Limb::Lo))]),
-            )],
-            post_result: vec![GrammarEvent::op(
-                12,
-                slots(&[(0, SlotSource::ResultElem { limb: Limb::Lo }), (1, oracle(0))]),
-            )],
+            events: vec![
+                GrammarEvent::op(
+                    10,
+                    slots(&[(0, oracle(0)), (1, arg(0, Limb::Lo)), (2, arg(1, Limb::Lo))]),
+                ),
+                // The ResultElem Lo slot pushes the host result (atomic
+                // import events; args gathered above, before the push); the
+                // Hi slot binds the pushed hi lane (0 for the i32 result).
+                GrammarEvent::op(
+                    12,
+                    slots(&[
+                        (0, SlotSource::ResultElem { limb: Limb::Lo }),
+                        (1, oracle(0)),
+                        (2, SlotSource::ResultElem { limb: Limb::Hi }),
+                    ]),
+                ),
+            ],
             claim_count: 1,
         },
     );
     grammar.imports.insert(
         sink_fref,
         ImportTemplate {
-            pre_result: vec![GrammarEvent::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
-            post_result: vec![],
+            events: vec![GrammarEvent::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
             claim_count: 0,
         },
     );
@@ -102,12 +110,12 @@ fn test_grammar(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventGramma
     grammar
 }
 
-/// The mul import is the one with a post-result event; sink has none.
+/// The mul import is the two-event template; sink has one event.
 pub fn mul_fref(grammar: &HostEventGrammar) -> u32 {
     *grammar
         .imports
         .iter()
-        .find(|(_, t)| !t.post_result.is_empty())
+        .find(|(_, t)| t.events.len() == 2)
         .expect("mul template")
         .0
 }
@@ -116,7 +124,7 @@ pub fn sink_fref(grammar: &HostEventGrammar) -> u32 {
     *grammar
         .imports
         .iter()
-        .find(|(_, t)| t.post_result.is_empty())
+        .find(|(_, t)| t.events.len() == 1)
         .expect("sink template")
         .0
 }
@@ -194,19 +202,19 @@ pub fn expected_transcript(
 ) -> Vec<[p3_goldilocks::Goldilocks; COMM_CHAIN_BLOCK_WORDS]> {
     let template = grammar.exports.get(&run_fref).expect("export template");
     let mut blocks = neo_wasm::event_grammar::expand_export_entry(template, inputs).expect("entry");
-    let mul = neo_wasm::event_grammar::expand_import_events(
-        &grammar.imports[&mul_fref(grammar)],
-        &[(7, 0), (6, 0)],
-        Some((42, 0)),
-        &[100],
-    )
-    .expect("mul events");
-    blocks.extend(mul.pre_result_blocks);
-    blocks.extend(mul.post_result_blocks);
-    let sink =
+    blocks.extend(
+        neo_wasm::event_grammar::expand_import_events(
+            &grammar.imports[&mul_fref(grammar)],
+            &[(7, 0), (6, 0)],
+            Some((42, 0)),
+            &[100],
+        )
+        .expect("mul events"),
+    );
+    blocks.extend(
         neo_wasm::event_grammar::expand_import_events(&grammar.imports[&sink_fref(grammar)], &[(42, 0)], None, &[])
-            .expect("sink events");
-    blocks.extend(sink.pre_result_blocks);
+            .expect("sink events"),
+    );
     blocks.extend(neo_wasm::event_grammar::expand_export_exit(template, Some((42, 0)), &[]).expect("exit"));
     blocks
         .into_iter()

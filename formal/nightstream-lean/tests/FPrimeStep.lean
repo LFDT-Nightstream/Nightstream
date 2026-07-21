@@ -290,18 +290,27 @@ example : Step.check hashSemantics stepSemantics .stateful context
     statefulInitial afterStateful statefulInput
       { statefulProof with semanticStateDigest := 22 } = false := by native_decide
 
--- FPR-BASE-SPEC: the Rust empty product is valid by zero arity, not by
--- pretending it contains the paper's default pair.
-def defaultRelation (_system claim witness : Nat) : Prop := claim = witness
+-- FPR-BASE-SPEC: the paper pair is materially replicated into its configured
+-- vector; Rust's empty product is separately valid by zero arity.
+def defaultRelation (system : Nat) (claim witness : Nat → Nat) : Prop :=
+  claim system = witness system
 
-def paperDefault : Default.DefaultPair Nat Nat Nat defaultRelation where
-  claim := 0
-  witness := 0
+def paperDefault :
+    Default.DefaultPair Nat (Nat → Nat) (Nat → Nat) defaultRelation where
+  claim := fun _ => 0
+  witness := fun _ => 0
   satisfies := by intro; rfl
 
-example : Default.ZeroAritySpecialization defaultRelation 7
+example : Default.AllPairs (defaultRelation 7)
+    (List.replicate 3 paperDefault.claim)
+    (List.replicate 3 paperDefault.witness) :=
+  Default.replicatedDefault_allPairs defaultRelation paperDefault 7 3
+
+def impossibleRelation (_system _claim _witness : Nat) : Prop := False
+
+example : Default.ZeroAritySpecialization impossibleRelation 7
     (Default.emptyRunning (Claim := Nat) (Witness := Nat) (Parent := Nat)) :=
-  Default.emptyRunning_realizes_default defaultRelation paperDefault 7
+  Default.emptyRunning_zeroArity impossibleRelation 7
 
 example : ¬ Default.ShapeValid ({
     claims := []

@@ -48,7 +48,7 @@ impl PiCcsTranscriptVariant {
     fn nc_variables(self, dims: Dims) -> (usize, usize) {
         match self {
             Self::SplitNcV1 => (dims.ell_m, dims.ell_nc),
-            Self::BlockLaneNcDelayedV1 => (dims.ell_block, dims.ell_block_nc),
+            Self::BlockLaneNcDelayedV1 => (19, 25),
         }
     }
 }

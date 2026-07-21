@@ -78,16 +78,24 @@ impl GrammarEvent {
 
 /// Static expansion of one imported function into grammar events.
 ///
-/// Events split into two phases around the host result: `pre_result` events
-/// may reference arguments (which the result push overwrites on the operand
-/// stack), `post_result` events may additionally reference the result.
+/// The whole call is one atomic event sequence, absorbed at the call site:
+/// the `ResultElem { limb: Lo }` slot is what WRITES the host result onto
+/// the operand stack (there is no separate result row in grammar mode).
+///
+/// SLOT-ORDER RULES (validated here, deliberately not in-circuit): the
+/// result push lands in argument 0's stack cell, so every
+/// `ArgElem { arg: 0, .. }` slot must come before the `ResultElem` Lo slot,
+/// and the `ResultElem` Hi slot (which writes the pushed cell's hi lane)
+/// must come after it. A returning import must contain exactly one Lo slot
+/// (the push — a narrow total write, hi lane zeroed) and a Hi slot (an i64
+/// result's hi limb arrives only through it; an i32 result absorbs and
+/// writes 0, costing nothing: it replaces a `Const(0)` padding slot).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ImportTemplate {
-    pub pre_result: Vec<GrammarEvent>,
-    pub post_result: Vec<GrammarEvent>,
-    /// Number of per-call claim words the template draws from (both phases
-    /// share one array — e.g. a ref id claimed once and referenced in a
-    /// pre-result and a post-result event).
+    pub events: Vec<GrammarEvent>,
+    /// Number of per-call claim words the template draws from (one array
+    /// for the whole call — e.g. a ref id claimed once and referenced in
+    /// several events).
     pub claim_count: u8,
 }
 
@@ -195,94 +203,117 @@ pub struct HostEventGrammar {
 
 impl ImportTemplate {
     /// Check the template against the import's declared arity: every slot
-    /// source must be resolvable on every call. Run at injection time so
-    /// expansion failures are table bugs, not trace bugs.
+    /// source must be resolvable on every call, and the slot ORDER must be
+    /// consistent with the stack mechanics (see the struct doc — the
+    /// `ResultElem` Lo slot pushes into argument 0's cell, so arg-0 reads
+    /// must precede it and the Hi slot's hi-lane write must follow it). Run
+    /// at injection time so expansion failures are table bugs, not trace bugs.
+    /// These order rules are deliberately out-of-circuit: the grammar is
+    /// verifier-authored data, audited here rather than in the relation.
     pub fn validate(&self, param_count: u8, result_count: u8) -> Result<(), WasmBuildError> {
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
-        if result_count == 0 && !self.post_result.is_empty() {
-            return err("grammar template has post-result events but the import returns nothing".to_string());
-        }
-        for (phase, events) in [("pre_result", &self.pre_result), ("post_result", &self.post_result)] {
-            for (idx, event) in events.iter().enumerate() {
-                let ctx = |what: &str| format!("grammar template {phase} event {idx}: {what}");
-                for slot in &event.block {
-                    match *slot {
-                        SlotSource::Const(value) => {
-                            if value >= Goldilocks::ORDER_U64 {
-                                return err(ctx("constant is not a canonical field element"));
+        let mut result_lo_seen = false;
+        let mut result_hi_seen = false;
+        for (idx, event) in self.events.iter().enumerate() {
+            let ctx = |what: &str| format!("grammar template event {idx}: {what}");
+            for slot in &event.block {
+                match *slot {
+                    SlotSource::Const(value) => {
+                        if value >= Goldilocks::ORDER_U64 {
+                            return err(ctx("constant is not a canonical field element"));
+                        }
+                    }
+                    SlotSource::ArgElem { arg, .. } => {
+                        if arg >= param_count {
+                            return err(ctx(&format!("arg index {arg} out of range for {param_count} params")));
+                        }
+                        if arg == 0 && result_lo_seen {
+                            return err(ctx(
+                                "argument 0 is overwritten by the result push; move this slot earlier",
+                            ));
+                        }
+                    }
+                    SlotSource::ResultElem { limb } => {
+                        if result_count == 0 {
+                            return err(ctx("result reference on a resultless import"));
+                        }
+                        match limb {
+                            Limb::Lo => {
+                                if result_lo_seen {
+                                    return err(ctx("a second ResultElem Lo slot would push the result twice"));
+                                }
+                                result_lo_seen = true;
+                            }
+                            Limb::Hi => {
+                                if !result_lo_seen {
+                                    return err(ctx(
+                                        "ResultElem Hi writes the pushed cell's hi lane; it must follow the Lo slot",
+                                    ));
+                                }
+                                if result_hi_seen {
+                                    return err(ctx("duplicate ResultElem Hi slot"));
+                                }
+                                result_hi_seen = true;
                             }
                         }
-                        SlotSource::ArgElem { arg, .. } => {
-                            if arg >= param_count {
-                                return err(ctx(&format!("arg index {arg} out of range for {param_count} params")));
-                            }
-                            // The host result is pushed into argument 0's
-                            // stack slot, so post-result events would read
-                            // the result there, not the argument.
-                            if phase == "post_result" && arg == 0 {
-                                return err(ctx("argument 0 is overwritten by the result push"));
-                            }
+                    }
+                    SlotSource::Claim { idx } => {
+                        if idx >= self.claim_count {
+                            return err(ctx(&format!(
+                                "claim index {idx} out of range for {} claim words",
+                                self.claim_count
+                            )));
                         }
-                        SlotSource::ResultElem { .. } => {
-                            if phase == "pre_result" {
-                                return err(ctx("result reference in a pre-result event"));
-                            }
-                            if result_count == 0 {
-                                return err(ctx("result reference on a resultless import"));
-                            }
-                        }
-                        SlotSource::Claim { idx } => {
-                            if idx >= self.claim_count {
-                                return err(ctx(&format!(
-                                    "claim index {idx} out of range for {} claim words",
-                                    self.claim_count
-                                )));
-                            }
-                        }
-                        SlotSource::ClaimLocal { .. } | SlotSource::OutputElem { .. } => {
-                            return err(ctx("export-boundary sources do not apply to import templates"));
-                        }
+                    }
+                    SlotSource::ClaimLocal { .. } | SlotSource::OutputElem { .. } => {
+                        return err(ctx("export-boundary sources do not apply to import templates"));
                     }
                 }
             }
+        }
+        // The template drives the push: without a Lo slot the result never
+        // reaches the operand stack and the trace cannot continue. Each
+        // lane is written by its own slot (the Lo write zeroes the hi
+        // lane), so the Hi slot is required for COMPLETENESS: an i64
+        // result without one would leave the hi lane 0 and the trace would
+        // diverge from the real execution. Requiring it uniformly (an i32
+        // result absorbs 0, replacing a Const(0) padding slot for free)
+        // keeps this check width-agnostic.
+        if result_count == 1 && !result_lo_seen {
+            return err("a returning import's template must contain exactly one ResultElem Lo slot".to_string());
+        }
+        if result_count == 1 && !result_hi_seen {
+            return err(
+                "a returning import's template must carry the result hi limb (a ResultElem Hi slot after the Lo \
+                 slot; it absorbs and writes 0 for an i32 result)"
+                    .to_string(),
+            );
         }
         Ok(())
     }
 }
 
-/// One host call's grammar events resolved into absorb blocks.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExpandedImportEvents {
-    pub pre_result_blocks: Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>,
-    pub post_result_blocks: Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>,
-}
-
-/// Resolve a template against one call's data. `args` are `(lo, hi)` limb
-/// pairs in declared parameter order; `claims` must supply exactly
-/// `template.claim_count` canonical words.
+/// Resolve a template against one call's data into absorb blocks. `args`
+/// are `(lo, hi)` limb pairs in declared parameter order; `claims` must
+/// supply exactly `template.claim_count` canonical words.
 pub fn expand_import_events(
     template: &ImportTemplate,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
     claims: &[u64],
-) -> Result<ExpandedImportEvents, WasmBuildError> {
+) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
     check_claims("per-call", claims, template.claim_count)?;
-    let resolve_phase = |events: &[GrammarEvent]| -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
-        events
-            .iter()
-            .map(|event| {
-                let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
-                for (word, slot) in block.iter_mut().zip(&event.block) {
-                    *word = resolve_slot(*slot, args, result, claims)?;
-                }
-                Ok(block)
-            })
-            .collect()
-    };
-    Ok(ExpandedImportEvents {
-        pre_result_blocks: resolve_phase(&template.pre_result)?,
-        post_result_blocks: resolve_phase(&template.post_result)?,
-    })
+    template
+        .events
+        .iter()
+        .map(|event| {
+            let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
+            for (word, slot) in block.iter_mut().zip(&event.block) {
+                *word = resolve_slot(*slot, args, result, claims)?;
+            }
+            Ok(block)
+        })
+        .collect()
 }
 
 /// Resolve an export template's ENTRY phase against the turn's entry claim

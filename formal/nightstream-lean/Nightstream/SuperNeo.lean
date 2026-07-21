@@ -17,6 +17,7 @@ import Nightstream.SuperNeo.Folding.PiDEC
 import Nightstream.SuperNeo.Folding.PiDEC.Necessity
 import Nightstream.SuperNeo.Folding.Composition
 import Nightstream.SuperNeo.Folding.Nifs
+import Nightstream.SuperNeo.Folding.Nifs.PaperProfile
 import Nightstream.SuperNeo.Folding.Nifs.SharedCarrier
 import Nightstream.SuperNeo.Folding.Nifs.NonInteractive
 import Nightstream.SuperNeo.Concrete.Relation

@@ -46,6 +46,7 @@ The generator families are:
 | Three-matrix diagnostic fixed-profile PiRLC transcript layout (291 exact pins, 78 compact Poseidon2 calls, ordered emissions/state continuity, 240 field-output aliases, and four external bind-input columns) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest active_transcript_layout::active_pi_rlc_transcript_layout_matches_production_trace -- --exact --nocapture` |
 | Three-matrix diagnostic fixed-profile complete PiRLC `y_zcol` identities (two degree-106 identities; three 540-row input shards and one tail shard per limb; shared beta/rho/output rows are referenced, not regenerated) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest active_projection_artifacts::active_pi_rlc_projection_artifacts_match_production_trace -- --exact --nocapture` |
 | Tiny-application stabilized selective fixed-point candidate (270 public-coordinate owners, 13 public-padding rows, 38 private-alignment rows, three selector-domain rows, one selector-total row, exact PiRLC `y_zcol` source/compact rows, rewrite and retained-check provenance, witness-encoder recurrence agreement, unique emitted-row ownership, independent producer indices, and a three-arm proof-free committed-width census; candidate exceeds the guarded materializer) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test f_prime_selective_fixed_point_projection_lean_artifact active_selective_fixed_point_projection_artifact_matches_retained_certificate -- --exact --nocapture` |
+| Tiny-application active outer strict-PiDEC source program (`kappa = 4`, 11,845 exact sparse rows, concrete layout, 48 bounded row shards) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test f_prime_pi_dec_source_lean_artifact active_strict_pi_dec_source_artifact_matches_rust_rows -- --exact --nocapture` |
 | NIFS/SumCheck compiler artifact | `gadgets_nifs_compiler_conformance` |
 | PiRLC projection boundary | `gadgets_pi_rlc_projection_boundary` |
 | Full-history M4 manifest and owner shards | `system_decider_r1cs` targeted tests listed below |
@@ -88,6 +89,19 @@ timeout 300s cargo test -p neo-fold-clean --release \
 timeout 300s cargo test -p neo-fold-clean --release \
   --test system_decider_r1cs \
   m4_manifest::terminal_parent_and_accumulator_artifacts_match_exact_rows -- --exact
+```
+
+The active strict-PiDEC generator owns
+`Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Nifs/PiDec/Generated`.
+Its ordinary target writes review-only `.lean.expected` candidates. After
+inspecting every candidate, promote the exact reviewed output with:
+
+```bash
+./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 \
+  -p neo-fold-clean --release \
+  --test f_prime_pi_dec_source_lean_artifact \
+  regenerate_active_strict_pi_dec_source_artifact -- \
+  --exact --ignored --nocapture
 ```
 
 `timeout 300s` documents the process limit for a normal shell. Agent tool calls

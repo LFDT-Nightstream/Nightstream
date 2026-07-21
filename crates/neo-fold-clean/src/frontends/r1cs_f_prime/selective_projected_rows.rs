@@ -1502,7 +1502,36 @@ pub(crate) fn project_rows_with_source_provenance_with_alignment(
         modulus,
         residue,
         selected_rows,
-        Some((source_arm, source_columns, retained_row_pairs, decoder_source_columns)),
+        Some((
+            source_arm,
+            source_columns,
+            retained_row_pairs,
+            Some(decoder_source_columns),
+        )),
+    )
+}
+
+/// Project rows once and decode the exact transitive source-column closure
+/// computed by that same provenance pass.
+pub(crate) fn project_rows_with_complete_source_provenance_with_alignment(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+    selected_rows: &[usize],
+    source_arm: usize,
+    source_columns: &[usize],
+    retained_row_pairs: &[(usize, usize)],
+) -> Result<SelectiveProjectedRowsAudit, LowNormR1csError> {
+    project_rows_inner(
+        arms,
+        shared_private_fields,
+        shared_private_bit_fields,
+        modulus,
+        residue,
+        selected_rows,
+        Some((source_arm, source_columns, retained_row_pairs, None)),
     )
 }
 
@@ -1514,7 +1543,7 @@ fn project_rows_inner(
     modulus: usize,
     residue: usize,
     selected_rows: &[usize],
-    source_request: Option<(usize, &[usize], &[(usize, usize)], &[usize])>,
+    source_request: Option<(usize, &[usize], &[(usize, usize)], Option<&[usize]>)>,
 ) -> Result<SelectiveProjectedRowsAudit, LowNormR1csError> {
     let layout = prepare_selective_layout(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
     let public_coordinates = public_coordinate_decoder(arms, &layout)?;
@@ -1681,9 +1710,19 @@ fn project_rows_inner(
             )
         })
         .transpose()?;
-    let decoder_provenance = source_request
-        .map(|(arm, _, _, decoder_source_columns)| decoder_provenance(&layout, arm, decoder_source_columns))
-        .transpose()?;
+    let decoder_provenance = match source_request {
+        None => None,
+        Some((arm, _, _, requested)) => {
+            let decoder_source_columns = match requested {
+                Some(columns) => columns,
+                None => source_provenance
+                    .as_ref()
+                    .ok_or_else(|| trace_error("projected complete decoder omitted source provenance"))?
+                    .source_columns(),
+            };
+            Some(decoder_provenance(&layout, arm, decoder_source_columns)?)
+        }
+    };
 
     Ok(SelectiveProjectedRowsAudit {
         rows: emitted.rows,

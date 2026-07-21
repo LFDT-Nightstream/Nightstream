@@ -57,7 +57,10 @@ use emit::{lc_from_column, trace_error};
 pub use projected_decoder::{
     SelectiveProjectedDecoderProvenance, SelectiveProjectedSourceDecoder, SelectiveProjectedSourceResolution,
 };
-pub(crate) use projected_rows::{project_rows_with_alignment, project_rows_with_source_provenance_with_alignment};
+pub(crate) use projected_rows::{
+    project_rows_with_alignment, project_rows_with_complete_source_provenance_with_alignment,
+    project_rows_with_source_provenance_with_alignment,
+};
 pub use projected_rows::{
     SelectiveProjectedDerivedProductSum, SelectiveProjectedGeometricRun, SelectiveProjectedPort,
     SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource,

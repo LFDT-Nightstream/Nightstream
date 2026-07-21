@@ -10,19 +10,23 @@ mod support;
 use std::collections::BTreeSet;
 
 use neo_ccs::Mat;
+use neo_fold_clean::engine::r1cs_circuit::builder::{
+    PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit,
+};
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::engine::transcript::Transcript;
+use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::pi_dec;
 use neo_fold_clean::paper::reductions::pi_dec_circuit::{
-    alloc_dec_inputs, enforce_dec_v, enforce_dec_v_strict, enforce_r_consistency, enforce_x_bitness,
-    stage as pi_dec_stage, DecInputWires,
+    alloc_dec_inputs, enforce_child_x_canonical_split, enforce_dec_v, enforce_dec_v_strict, enforce_r_consistency,
+    enforce_x_bitness, stage as pi_dec_stage, DecInputWires,
 };
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 use neo_math::ring::D;
 use neo_math::{F, K};
-use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
+use p3_field::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
 
 #[test]
 fn pi_dec_circuit_accepts_honest_decomposition() {
@@ -146,6 +150,210 @@ fn pi_dec_circuit_strict_accepts_honest_decomposition() {
         builder.is_satisfied(),
         "strict Π_DEC.V must accept native (parent, children) — first failing row {:?}",
         builder.first_unsatisfied_row()
+    );
+}
+
+#[test]
+fn pi_dec_strict_binary_schedule_has_the_proved_row_counts() {
+    let (proof, _claims) = drive_nifs(24);
+    let prep = support::toy_preprocessing();
+    assert_eq!(prep.params.b(), 2, "fixture must use the production binary radix");
+
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &proof.pi_rlc.combined, &proof.pi_dec.children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict dec_v emit");
+    assert!(builder.is_satisfied(), "honest binary split must satisfy");
+
+    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(wires.parent.m_in);
+    let logical_x = wires.parent.x_rows * active_cols;
+    let child_count = wires.children.len();
+    let family_rows = |name| {
+        builder
+            .row_family_ranges()
+            .iter()
+            .filter(|range| range.name == name)
+            .map(|range| range.row_end - range.row_start)
+            .sum::<usize>()
+    };
+
+    let alphabet_rows = logical_x * (child_count + 2);
+    assert_eq!(family_rows(pi_dec_stage::ALPHABET), alphabet_rows);
+    assert_eq!(child_count, 14, "production Π_DEC arity changed");
+    assert_eq!(
+        logical_x * child_count * 2 - alphabet_rows,
+        logical_x * 12,
+        "uniform-sign schedule must save 12 rows per active coordinate"
+    );
+
+    let semantic_y_width = D * <K as BasedVectorSpace<F>>::DIMENSION;
+    assert_eq!(
+        family_rows(pi_dec_stage::RECOMPOSITION_Y_RING),
+        wires.parent.y_ring.len() * semantic_y_width,
+        "strict y recomposition must stop at the semantic ring width"
+    );
+    let full_y_width = wires.parent.y_ring.first().expect("fixture y row").len();
+    assert!(full_y_width > semantic_y_width, "fixture must expose padded y lanes");
+    assert_eq!(
+        wires.parent.y_ring.len() * (full_y_width - semantic_y_width),
+        wires.parent.y_ring.len() * 20,
+        "strict schedule must remove exactly 20 padded recomposition rows per matrix"
+    );
+
+    let audit = builder.pi_dec_strict_audits().last().expect("strict audit");
+    assert_eq!(audit.x_sign_traces.len(), logical_x);
+    assert!(
+        audit
+            .x_sign_traces
+            .iter()
+            .all(|[sign, product]| sign != product),
+        "each active coordinate must expose distinct sign and centered-product columns"
+    );
+}
+
+#[test]
+fn pi_dec_strict_audit_survives_public_column_normalization() {
+    let (proof, _claims) = drive_nifs(29);
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &proof.pi_rlc.combined, &proof.pi_dec.children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict dec_v emit");
+
+    let public_outputs = [
+        wires.children[0].x[0],
+        wires.parent.fold_digest_fields[2],
+        wires.parent.y_ring[0][0],
+    ];
+    let mut old_to_new = vec![0; builder.witness().len()];
+    let mut selected = vec![false; builder.witness().len()];
+    selected[0] = true;
+    let mut old_columns = vec![0];
+    for output in public_outputs {
+        assert!(!selected[output.col()], "fixture public columns must be distinct");
+        selected[output.col()] = true;
+        old_columns.push(output.col());
+    }
+    old_columns.extend((1..builder.witness().len()).filter(|&col| !selected[col]));
+    for (new_col, old_col) in old_columns.into_iter().enumerate() {
+        old_to_new[old_col] = new_col;
+    }
+
+    let mut expected = builder.pi_dec_strict_audits()[0].clone();
+    remap_pi_dec_audit_for_test(&mut expected, &old_to_new);
+    let lowered = lower_field_r1cs(builder, &public_outputs).expect("lower strict PiDEC relation");
+    assert_eq!(
+        lowered.shape().pi_dec_strict_audits(),
+        &[expected],
+        "lowering must preserve every strict-PiDEC row field and remap every column field"
+    );
+}
+
+#[test]
+fn pi_dec_strict_rejects_a_rewitnessed_binary_sign_tamper() {
+    let (proof, _claims) = drive_nifs(26);
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    parent.X.set(0, 0, F::ONE);
+    for child in &mut children {
+        child.X.set(0, 0, F::ZERO);
+    }
+    children[0].X.set(0, 0, F::ONE);
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, &children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict dec_v emit");
+    assert!(builder.is_satisfied(), "baseline");
+
+    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(wires.parent.m_in);
+    let coordinate = (0..wires.parent.x_rows * active_cols)
+        .find(|coordinate| {
+            let row = coordinate / active_cols;
+            let col = coordinate % active_cols;
+            wires
+                .children
+                .iter()
+                .any(|child| builder.witness()[child.x[row * child.x_cols + col].col()] != F::ZERO)
+        })
+        .expect("honest fixture must contain a non-zero public split digit");
+    let [sign_col, product_col] = builder.pi_dec_strict_audits()[0].x_sign_traces[coordinate];
+    let old_sign = builder.witness()[sign_col];
+    assert!(old_sign == F::ONE || old_sign == F::ZERO - F::ONE);
+    let new_sign = F::ZERO - old_sign;
+    let new_product = (new_sign + F::ONE) * new_sign;
+
+    // Re-witness the centered-unit intermediate as well as its input, so the
+    // centered-unit rows continue to hold. A child digit/sign row must reject.
+    builder.tamper_witness(sign_col, new_sign);
+    builder.tamper_witness(product_col, new_product);
+    assert!(
+        !builder.is_satisfied(),
+        "binary digit/sign equations accepted a different shared sign"
+    );
+}
+
+#[test]
+fn pi_dec_strict_rejects_recomposition_preserving_mixed_binary_signs() {
+    let (proof, _claims) = drive_nifs(28);
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    assert!(children.len() >= 2);
+
+    // Both children remain in {-1,0,1}, and -1 + 2*1 = 1, so the old
+    // independent alphabet plus recomposition schedule accepted this alias.
+    parent.X.set(0, 0, F::ONE);
+    for child in &mut children {
+        child.X.set(0, 0, F::ZERO);
+    }
+    children[0].X.set(0, 0, F::ZERO - F::ONE);
+    children[1].X.set(0, 0, F::ONE);
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, &children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict dec_v emit");
+    assert!(
+        !builder.is_satisfied(),
+        "strict Π_DEC accepted a recomposition-valid noncanonical binary split"
+    );
+}
+
+#[test]
+fn pi_dec_nonbinary_alphabet_schedule_is_unchanged() {
+    let (proof, _claims) = drive_nifs(30);
+    let base = neo_params::NeoParams::goldilocks_paper_b2();
+    let radix_three = neo_params::NeoParams::new(
+        base.q,
+        base.eta,
+        base.d,
+        base.kappa,
+        base.m,
+        3,
+        base.k_rho,
+        base.T,
+        base.s,
+        base.lambda,
+    )
+    .expect("valid test-only radix-three profile");
+    let params = neo_fold_clean::Params::test_only_from_neo_params(radix_three);
+    let mut children = proof.pi_dec.children;
+    children[0].X.set(0, 0, F::from_u64(2));
+
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &proof.pi_rlc.combined, &children);
+    let alphabet_start = builder.rows();
+    let sign_traces =
+        enforce_child_x_canonical_split(&mut builder, &params, &wires).expect("radix-three alphabet emit");
+    assert!(sign_traces.is_empty(), "nonbinary schedules must not emit binary signs");
+    assert!(
+        builder.is_satisfied(),
+        "radix-three centered alphabet must retain digit 2"
+    );
+
+    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(wires.parent.m_in);
+    assert_eq!(
+        builder.rows() - alphabet_start,
+        wires.children.len() * wires.parent.x_rows * active_cols * 4,
+        "five-point centered alphabet must retain its four-row polynomial schedule"
     );
 }
 
@@ -1039,4 +1247,56 @@ fn drive_nifs(seed: u64) -> (nifs::NifsProof, Vec<neo_fold_clean::CcsInstance>) 
 
 fn parent_y_zcol_columns(wires: &DecInputWires) -> BTreeSet<usize> {
     wires.parent.y_zcol.iter().map(|var| var.col()).collect()
+}
+
+fn remap_pi_dec_commitment_for_test(audit: &mut PiDecCommitmentAudit, old_to_new: &[usize]) {
+    audit.d_col = old_to_new[audit.d_col];
+    audit.kappa_col = old_to_new[audit.kappa_col];
+    for col in &mut audit.data_cols {
+        *col = old_to_new[*col];
+    }
+}
+
+fn remap_pi_dec_adv_for_test(audit: &mut PiDecAdvAudit, old_to_new: &[usize]) {
+    remap_pi_dec_commitment_for_test(&mut audit.ops, old_to_new);
+    remap_pi_dec_commitment_for_test(&mut audit.is, old_to_new);
+    remap_pi_dec_commitment_for_test(&mut audit.fs, old_to_new);
+}
+
+fn remap_pi_dec_claim_for_test(audit: &mut PiDecClaimAudit, old_to_new: &[usize]) {
+    remap_pi_dec_commitment_for_test(&mut audit.commitment, old_to_new);
+    if let Some(adv) = &mut audit.adv {
+        remap_pi_dec_adv_for_test(adv, old_to_new);
+    }
+    for col in &mut audit.x_cols {
+        *col = old_to_new[*col];
+    }
+    audit.x_rows_col = old_to_new[audit.x_rows_col];
+    audit.x_width_col = old_to_new[audit.x_width_col];
+    audit.m_in_col = old_to_new[audit.m_in_col];
+    for row in &mut audit.y_ring_cols {
+        for col in row {
+            *col = old_to_new[*col];
+        }
+    }
+    for pair in audit
+        .ct_cols
+        .iter_mut()
+        .chain(&mut audit.r_cols)
+        .chain(&mut audit.s_col_cols)
+    {
+        *pair = pair.map(|col| old_to_new[col]);
+    }
+    audit.fold_digest_cols = audit.fold_digest_cols.map(|col| old_to_new[col]);
+}
+
+fn remap_pi_dec_audit_for_test(audit: &mut PiDecStrictAudit, old_to_new: &[usize]) {
+    audit.first_allocated_column = old_to_new[audit.first_allocated_column];
+    remap_pi_dec_claim_for_test(&mut audit.parent, old_to_new);
+    for child in &mut audit.children {
+        remap_pi_dec_claim_for_test(child, old_to_new);
+    }
+    for pair in &mut audit.x_sign_traces {
+        *pair = pair.map(|col| old_to_new[col]);
+    }
 }

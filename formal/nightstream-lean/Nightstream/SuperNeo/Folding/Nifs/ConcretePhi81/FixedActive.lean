@@ -1,3 +1,4 @@
+import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.PaperProfile
 import Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Result
 
 /-!
@@ -8,24 +9,28 @@ Phase: one fresh CCS claim plus the complete running `CE(b)^k` accumulator.
 Constraint family: typed carrier and semantic result only; this file emits no
 rows.
 
-Owns: the exact production arity `1 + 14 = 15` and the fixed-profile context,
-certificate, result, and theorem facade.
+Owns: the fixed-profile context, certificate, result, and theorem facade.
 
-Does not own: the generic result equations or semantic transition, which are
-owned by `Result`; bootstrap folds; an executable checker; outer F-prime
-state/hash binding; Rust/R1CS refinement; costs; necessity; or row removal.
+Does not own: the exact paper profile and arity, which are owned by
+`FixedActive.PaperProfile`; the generic result equations or semantic
+transition, which are owned by `Result`; bootstrap folds; an executable
+checker; outer F-prime state/hash binding; Rust/R1CS refinement; costs;
+necessity; or row removal.
 
 Emits constraints: no.
 
 Authority boundary: this facade does not redefine result authority.
 `FoldResult`, `resultOf`, and `ResultTransition` delegate definitionally to
-the generic owner; only active arity selection is profile-specific here.
+the generic result owner. The independent paper profile owns active arity;
+this facade owns only the exact paper-versus-sidecar-and-strengthening
+decomposition.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
-| `nifs.fixed_active.arity` | exactly one fresh source plus all `k = 14` running sources | typed/computed | `arity` |
+| `nifs.fixed_active.arity` | exactly one fresh source plus all `k = 14` running sources | delegated | `PaperProfile`, `arity` |
 | `nifs.fixed_active.result` | expose the generic complete result at active arity | delegated | `Result.FoldResult`, `Result.resultOf` |
 | `nifs.fixed_active.semantic` | expose the generic semantic transition at active arity | delegated | `Result.ResultTransition` |
+| `nifs.fixed_active.paper_boundary` | separate public paper acceptance, lifecycle sidecars, and the extra canonical-child strengthening | derived | `resultTransition_iff_exists_paperDecomposition` |
 | `nifs.fixed_active.canonical_children` | expose the valid parent opening and its complete deterministic child split | delegated | `ResultTransition.canonicalChildren` |
 | `nifs.fixed_active.input.running_openings` | expose one coherent opening function for all fourteen incoming children | delegated | `ResultTransition.inputRunningOpenings` |
 | `nifs.fixed_active.input.running_parent` | expose strict recomposition for the exact carried parent and fourteen children | delegated/derived | `ResultTransition.inputRunningPiDec` |
@@ -44,17 +49,6 @@ open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Sources
 open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier
 
 universe uState
-
-/-- Fixed recursive arity from HyperNova Construction 2:
-one fresh CCS claim and all fourteen running CE claims. -/
-def arity : BatchArity productionGlobalParams :=
-  BatchArity.active productionGlobalParams 1 (by decide) (by decide)
-
-@[simp] theorem arity_freshCount : arity.freshCount = 1 := rfl
-
-@[simp] theorem arity_mode : arity.mode = .active := rfl
-
-@[simp] theorem arity_total : arity.total = 15 := rfl
 
 /-- Concrete verifier context specialized to the fixed active arity. -/
 abbrev Context
@@ -143,6 +137,230 @@ abbrev ResultTransition
     (result : FoldResult shape publicRingColumns publicFits verifierRows) :
     Prop :=
   Result.ResultTransition context result
+
+/-- Project a rich verifier context to exactly the setup retained by the
+paper relation. No transcript, polynomial, parent, or lifecycle field is
+copied. -/
+def paperProfileOf
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows) :
+    PaperProfile.Profile shape publicRingColumns publicFits verifierRows := {
+  key := context.key
+  alignment := context.alignment
+}
+
+/-- Forget the implementation-indexed witness type while preserving the raw
+paper point and challenge vector exactly. -/
+def paperWitnessOf
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows}
+    (witness : SemanticFold.Witness context) : PaperProfile.Witness shape := {
+  point := witness.point
+  challenges := witness.challenges
+}
+
+/-- Re-index a raw paper witness for the richer semantic carrier without
+adding authority. -/
+def semanticWitnessOf
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows)
+    (witness : PaperProfile.Witness shape) :
+    SemanticFold.Witness context := {
+  point := witness.point
+  challenges := witness.challenges
+}
+
+@[simp] theorem paper_parentOf_eq_semantic
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows)
+    (data : Data shape)
+    (witness : SemanticFold.Witness context) :
+    PaperProfile.parentOf (paperProfileOf context) context.input data
+        (paperWitnessOf witness) =
+      SemanticFold.parentOf context data witness := rfl
+
+@[simp] theorem paper_childrenOf_eq_semantic
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows)
+    (data : Data shape)
+    (witness : SemanticFold.Witness context) :
+    PaperProfile.childrenOf (paperProfileOf context) context.input data
+        (paperWitnessOf witness) =
+      SemanticFold.childrenOf context data witness := rfl
+
+@[simp] theorem semantic_parentOf_eq_paper
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows)
+    (data : Data shape)
+    (witness : PaperProfile.Witness shape) :
+    SemanticFold.parentOf context data (semanticWitnessOf context witness) =
+      PaperProfile.parentOf (paperProfileOf context) context.input data
+        witness := rfl
+
+@[simp] theorem semantic_childrenOf_eq_paper
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows)
+    (data : Data shape)
+    (witness : PaperProfile.Witness shape) :
+    SemanticFold.childrenOf context data (semanticWitnessOf context witness) =
+      PaperProfile.childrenOf (paperProfileOf context) context.input data
+        witness := rfl
+
+/-- Exact boundary between the paper NIFS relation and richer lifecycle
+authority. The indexed `data` and `witness` are fixed outside the fields so a
+later necessity countermodel cannot be rescued by existential witness
+substitution. `canonicalTarget` records the current semantic fold's extra
+honest-prover strengthening: it fixes the prover-supplied child commitments
+and evaluations to one selected private parent split. The paper verifier
+already computes child public inputs and copied fields, but does not require
+that stronger private-opening identity. -/
+structure PaperDecomposition
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows)
+    (result : FoldResult shape publicRingColumns publicFits verifierRows)
+    (data : Data shape)
+    (witness : PaperProfile.Witness shape) : Prop where
+  paper : PaperProfile.Realization (paperProfileOf context) context.input data
+    result.children witness
+  polynomialInput : SemanticFold.PublicInputBound context data
+  runningAuthority : RunningAuthority.Accepted context
+  parentMaterialized : result.parent =
+    PaperProfile.parentOf (paperProfileOf context) context.input data witness
+  canonicalTarget : result.children =
+    PaperProfile.childrenOf (paperProfileOf context) context.input data witness
+
+/-- The existing rich semantic transition is exactly the independent paper
+relation plus three implementation/lifecycle sidecars: polynomial-input
+binding, incoming cached-parent authority, and outgoing parent-cache
+materialization; and one semantic strengthening: deterministic canonical
+children. The paper's `Pi_DEC` verifier determines child public inputs but
+permits any prover commitment/evaluation messages satisfying its two
+recomposition checks, so this last field remains an optimization target rather
+than protocol authority. Transcript provenance is intentionally absent from
+both sides; it belongs to physical refinement. -/
+theorem resultTransition_iff_exists_paperDecomposition
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows)
+    (result : FoldResult shape publicRingColumns publicFits verifierRows) :
+    ResultTransition context result ↔
+      exists data : Data shape,
+        exists witness : PaperProfile.Witness shape,
+          PaperDecomposition context result data witness := by
+  constructor
+  · rintro ⟨data, semanticWitness, realized⟩
+    let witness := paperWitnessOf semanticWitness
+    refine ⟨data, witness, {
+      paper := ?_
+      polynomialInput := realized.input.publicInput
+      runningAuthority := realized.running
+      parentMaterialized := ?_
+      canonicalTarget := ?_
+    }⟩
+    · exact {
+        paper := realized.paper
+        input := realized.input.sources
+        challengesValid := realized.challengesValid
+        piDecAccepted := by
+          have canonical := realized.canonicalChildren
+          have accepted :=
+            (PiDEC.PaperVerifier.output_complete
+              (ConcretePhi81.semantics context.key) productionGlobalParams
+              (ConcretePhi81.decAlgebra context.key)
+              (PiDECAlgebra.PaperVerifier.publicInputSplit context.key)
+              (PiDECAlgebra.PaperVerifier.evaluationArity context.key)
+              result.parent
+              (SemanticFold.combinedAssignment context data semanticWitness)
+              canonical.parentCombined canonical.parentValid).1
+          simpa [witness, paperProfileOf, PaperProfile.decAlgebra,
+            PaperProfile.decPublicInputSplit, PaperProfile.decEvaluationArity,
+            SemanticFold.childrenOf,
+            canonical.childrenEq, realized.parent_eq] using accepted
+      }
+    · simpa [witness] using realized.parent_eq
+    · simpa [witness] using realized.children_eq
+  · rintro ⟨data, witness, decomposed⟩
+    let semanticWitness := semanticWitnessOf context witness
+    refine ⟨data, semanticWitness, {
+      paper := decomposed.paper.paper
+      input := {
+        publicInput := decomposed.polynomialInput
+        sources := decomposed.paper.input
+      }
+      running := decomposed.runningAuthority
+      challengesValid := decomposed.paper.challengesValid
+      parent_eq := ?_
+      children_eq := ?_
+    }⟩
+    · simpa [semanticWitness] using decomposed.parentMaterialized
+    · simpa [semanticWitness] using decomposed.canonicalTarget
+
+/-- Every rich fixed-active semantic transition refines the independent
+abstract paper profile. The cached parent and polynomial-input sidecars are
+forgotten only after the exact decomposition theorem above has checked them. -/
+theorem ResultTransition.toPaperProfile
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows}
+    {result : FoldResult shape publicRingColumns publicFits verifierRows}
+    (accepted : ResultTransition context result) :
+    Nightstream.SuperNeo.Folding.Nifs.PaperProfile.Transition
+      (PaperProfile.toGenericProfile (paperProfileOf context)) context.input
+      result.children := by
+  rcases
+      (resultTransition_iff_exists_paperDecomposition context result).mp
+        accepted with
+    ⟨data, witness, decomposed⟩
+  exact ⟨PaperProfile.toGenericWitness (paperProfileOf context) data witness,
+    decomposed.paper.toGeneric⟩
 
 /-- The complete result transition projects to the existing child-only
 transition without assigning independent authority to the cached parent. -/

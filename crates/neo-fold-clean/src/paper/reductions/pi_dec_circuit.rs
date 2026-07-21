@@ -47,9 +47,10 @@
 //!   is enforced when the gadget is composed inside Π_RLC.V → Π_DEC.V chain.
 //!   Standalone callers wishing to lock parent.r ≡ child.r should add the
 //!   equality after [`alloc_dec_inputs`] returns.
-//! - Canonicality of `split_b(x)`. Strict mode mirrors native
-//!   `verify_dec_public`: it checks public b-ary recomposition of `X`, but
-//!   does not range-check the child `X` digits.
+//! - Binding the public split to an authoritative parent witness. For binary
+//!   radix, strict mode does enforce the unique uniform-sign digit form of
+//!   the verifier-computed public split; the parent is still supplied by the
+//!   surrounding Π_RLC authority path.
 
 pub mod stage;
 
@@ -176,12 +177,17 @@ pub fn alloc_dec_inputs(builder: &mut R1csBuilder, parent: &CeClaim, children: &
 /// are not exactly `pp.k_rho()` of them).
 pub fn enforce_dec_v(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
     let row_start = builder.rows();
-    enforce_dec_v_inner(builder, pp, wires)?;
+    enforce_dec_v_inner(builder, pp, wires, YRecomposition::Full)?;
     builder.record_row_family(stage::RECOMPOSITION, row_start);
     Ok(())
 }
 
-fn enforce_dec_v_inner(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
+fn enforce_dec_v_inner(
+    builder: &mut R1csBuilder,
+    pp: &Params,
+    wires: &DecInputWires,
+    y_recomposition: YRecomposition,
+) -> Result<(), Error> {
     let k = pp.k_rho() as usize;
     if wires.children.len() != k {
         return Err(Error::ChildCount {
@@ -226,7 +232,19 @@ fn enforce_dec_v_inner(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputW
 
     let family_start = builder.rows();
     for j in 0..wires.parent.y_ring.len() {
-        enforce_lane_combination_y(builder, j, &wires.parent.y_ring[j], &wires.children, &b_pows);
+        let width = match y_recomposition {
+            YRecomposition::Full => wires.parent.y_ring[j].len(),
+            YRecomposition::Semantic => D * K_LIMBS,
+        };
+        if wires.parent.y_ring[j].len() < width {
+            return Err(Error::ShapeMismatch {
+                what: "parent.y_ring[j] semantic limb count",
+                expected: width,
+                got: wires.parent.y_ring[j].len(),
+                idx: j,
+            });
+        }
+        enforce_lane_combination_y(builder, j, &wires.parent.y_ring[j][..width], &wires.children, &b_pows);
     }
     builder.record_row_family(stage::RECOMPOSITION_Y_RING, family_start);
     Ok(())
@@ -246,15 +264,25 @@ pub fn enforce_x_bitness(builder: &mut R1csBuilder, pp: &Params, wires: &DecInpu
     }
 }
 
-/// Enforce that each active packed child `X` entry lies in the centered
-/// CE(b) alphabet `{-(b-1), ..., +(b-1)}`. Π_DEC outputs CE(b) children;
-/// b-ary recomposition alone would allow out-of-alphabet child public
-/// projections that cancel in the parent.
-pub fn enforce_child_x_balanced_alphabet(
+/// Enforce canonical active child `X` digits.
+///
+/// For the production radix `b = 2`, one explicit sign is allocated per
+/// logical parent coordinate. The sign is centered-unit constrained and each
+/// child digit obeys `digit * (digit - sign) = 0`. Together with the retained
+/// radix recomposition this selects the exact uniform-sign binary split and
+/// rules out aliases such as `1 = -1 + 2·1`.
+///
+/// For `b > 2`, preserve the existing independent centered CE(b) alphabet
+/// checks `{-(b-1), ..., +(b-1)}` until an equally compact canonical radix
+/// characterization is proved for those profiles.
+///
+/// Returns `[sign, centered_product]` traces in row-major active-coordinate
+/// order for `b = 2`, and an empty vector otherwise.
+pub fn enforce_child_x_canonical_split(
     builder: &mut R1csBuilder,
     pp: &Params,
     wires: &DecInputWires,
-) -> Result<(), Error> {
+) -> Result<Vec<[Var; 2]>, Error> {
     let b = pp.b();
     if b < 2 {
         return Err(Error::ShapeMismatch {
@@ -274,13 +302,41 @@ pub fn enforce_child_x_balanced_alphabet(
                 idx,
             });
         }
+    }
+
+    if b == 2 {
+        let active_cols = crate::paper::relations::superneo_public_x_cols(wires.parent.m_in);
+        let mut traces = Vec::with_capacity(wires.parent.x_rows * active_cols);
+        for r in 0..wires.parent.x_rows {
+            for c in 0..active_cols {
+                let digits = wires
+                    .children
+                    .iter()
+                    .map(|child| child.x[r * child.x_cols + c])
+                    .collect::<Vec<_>>();
+                let sign_value = binary_sign_witness(builder, &digits);
+                let sign = builder.alloc(sign_value);
+                let products = enforce_centered_alphabet(builder, sign, b);
+                let product = products[0];
+                for digit in digits {
+                    let digit_minus_sign = Lc::from_var(digit).add_scaled(&Lc::from_var(sign), -F::ONE);
+                    builder.enforce(&Lc::from_var(digit), &digit_minus_sign, &Lc::zero());
+                }
+                traces.push([sign, product]);
+            }
+        }
+        return Ok(traces);
+    }
+
+    for child in &wires.children {
+        let active_cols = crate::paper::relations::superneo_public_x_cols(child.m_in);
         for r in 0..child.x_rows {
             for c in 0..active_cols {
                 enforce_centered_alphabet(builder, child.x[r * child.x_cols + c], b);
             }
         }
     }
-    Ok(())
+    Ok(Vec::new())
 }
 
 /// Enforce `parent.r == child_i.r` for every child `i`. The CE evaluation
@@ -306,14 +362,17 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
     Ok(())
 }
 
-/// Strict Π_DEC.V — mirrors native `verify_dec_public`.
+/// Strict Π_DEC.V. At the active binary radix this mirrors native
+/// `verify_dec_public`; wider radices retain the legacy centered-alphabet
+/// schedule and are not claimed as exact native refinement.
 ///
 /// Composes:
-///   1. [`enforce_dec_v`] — `(c, X, y_ring)` b-ary recomposition.
+///   1. Commitment/X recomposition and semantic-prefix `y_ring`
+///      recomposition.
 ///   2. [`enforce_r_consistency`] — `parent.r == child_i.r` for all `i`.
 ///   3. [`enforce_s_col_consistency`] — `parent.s_col == child_i.s_col`.
-///   4. [`enforce_child_x_balanced_alphabet`] — child `X` active entries
-///      remain in the centered CE(b) alphabet.
+///   4. [`enforce_child_x_canonical_split`] — exact uniform-sign binary
+///      digits for `b = 2`; the prior centered alphabet for `b > 2`.
 ///   5. [`enforce_ct_consistency`] — every claim's cached `ct[j]` is the
 ///      lane-0 K-element of `y_ring[j]`.
 ///   6. `y_ring[D..] == 0` — SplitNc's padded CE representation is canonical.
@@ -327,15 +386,14 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///     added here.
 ///   - **No unsigned x bitness check.** `decompose_balanced_fixed_d_digits_k`
 ///     produces signed digits (e.g. -1 ↦ p-1 in F), so an unsigned
-///     `{0..b-1}` check would reject honest provers. Strict mode enforces the
-///     centered CE(b) alphabet instead. [`enforce_x_bitness`] remains
-///     available for callers that have an unsigned range invariant to enforce.
+///     `{0..b-1}` check would reject honest provers. [`enforce_x_bitness`]
+///     remains available for callers with an unsigned range invariant.
 pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
     let row_start = builder.rows();
     let first_allocated_column = builder.cols();
 
     let phase_start = builder.rows();
-    enforce_dec_v_inner(builder, pp, wires)?;
+    enforce_dec_v_inner(builder, pp, wires, YRecomposition::Semantic)?;
     builder.record_row_family(stage::RECOMPOSITION, phase_start);
 
     let phase_start = builder.rows();
@@ -355,7 +413,7 @@ pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecI
     builder.record_row_family(stage::INACTIVE_X, phase_start);
 
     let phase_start = builder.rows();
-    enforce_child_x_balanced_alphabet(builder, pp, wires)?;
+    let x_sign_traces = enforce_child_x_canonical_split(builder, pp, wires)?;
     builder.record_row_family(stage::ALPHABET, phase_start);
 
     let phase_start = builder.rows();
@@ -378,6 +436,10 @@ pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecI
         radix: pp.b(),
         parent: pi_dec_claim_audit(&wires.parent),
         children: wires.children.iter().map(pi_dec_claim_audit).collect(),
+        x_sign_traces: x_sign_traces
+            .into_iter()
+            .map(|[sign, product]| [sign.col(), product.col()])
+            .collect(),
     });
     Ok(())
 }
@@ -637,6 +699,12 @@ enum ChildField {
     Commitment,
 }
 
+#[derive(Clone, Copy)]
+enum YRecomposition {
+    Full,
+    Semantic,
+}
+
 fn enforce_lane_combination(
     builder: &mut R1csBuilder,
     parent_lanes: &[Var],
@@ -864,13 +932,24 @@ fn enforce_var_eq(builder: &mut R1csBuilder, a: Var, b: Var) {
     builder.enforce_eq(&Lc::from_var(a), &Lc::from_var(b));
 }
 
-fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
+fn binary_sign_witness(builder: &R1csBuilder, digits: &[Var]) -> F {
+    let negative_one = F::ZERO - F::ONE;
+    digits
+        .iter()
+        .map(|digit| builder.witness()[digit.col()])
+        .find(|value| *value != F::ZERO)
+        .filter(|value| *value == F::ONE || *value == negative_one)
+        .unwrap_or(F::ZERO)
+}
+
+fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) -> Vec<Var> {
     debug_assert!(b >= 2, "caller gates b >= 2");
     let row_start = builder.rows();
     let column_start = builder.cols();
     let bound = b as i64 - 1;
     let alphabet: Vec<i64> = (-bound..=bound).collect();
     let mut acc: Option<Lc> = None;
+    let mut products = Vec::with_capacity(alphabet.len().saturating_sub(2));
     let total = alphabet.len();
     for (i, a) in alphabet.iter().enumerate() {
         let mut factor = Lc::from_var(v);
@@ -893,13 +972,15 @@ fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) {
                             value_col: v.col(),
                         });
                     }
-                    return;
+                    return products;
                 }
                 let next = builder.alloc_mul(&prev, &factor);
+                products.push(next);
                 acc = Some(Lc::from_var(next));
             }
         }
     }
+    products
 }
 
 fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), Error> {

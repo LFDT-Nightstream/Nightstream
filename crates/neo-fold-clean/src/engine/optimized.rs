@@ -859,8 +859,8 @@ where
     Ok((children, z_split))
 }
 
-/// Π_DEC verify. Re-derives parent commitments and y-evaluations from the
-/// children using `combine_b_pows` and checks they match.
+/// Π_DEC verify. Computes the canonical public-X split from the parent, then
+/// re-derives parent commitments and y-evaluations from the children.
 pub fn verify_pi_dec<MB>(pp: &Params, s: &Structure, parent: &CeClaim, children: &[CeClaim], combine_b_pows: MB) -> bool
 where
     MB: Fn(&[Commitment], u32) -> Commitment,

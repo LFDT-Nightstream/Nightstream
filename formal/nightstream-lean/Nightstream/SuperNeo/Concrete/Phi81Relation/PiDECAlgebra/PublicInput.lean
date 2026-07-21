@@ -2,16 +2,18 @@ import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra.PublicInput
 
 /-!
-Typed public-input recomposition for the concrete Phi81 `Pi_DEC` algebra.
+Typed public-input split and recomposition for the concrete Phi81 `Pi_DEC`
+verifier.
 
 Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 14`.
-Phase: public parent-input recomposition from the fourteen child public inputs.
-Constraint family: semantic public-input recomposition only; this file emits no
+Phase: verifier-owned child public inputs and parent-input recomposition.
+Constraint family: semantic public-input operations only; this file emits no
 rows.
 
-Owns: base-field scaling of one exact ring-aligned public carrier; the
-canonical head-first finite base-scalar fold; specialization to the
-verifier-fixed `2^i` radix weights; and the exact theorem required by
+Owns: the coordinatewise public radix split; its projection-commuting and
+recomposition laws; base-field scaling of one exact ring-aligned public
+carrier; the canonical head-first finite base-scalar fold; specialization to
+the verifier-fixed `2^i` radix weights; and the exact theorem required by
 `Folding.PiDEC.Algebra.publicInput_hom`.
 
 Does not own: assignment splitting, commitments, evaluation recomposition,
@@ -20,13 +22,16 @@ refinement, row removal, or constraint counts.
 
 Emits constraints: no.
 
-Authority boundary: `recomposePublicInput` consumes only the fourteen public
-child inputs and verifier-fixed radix weights. It is executable without child
-assignments, default reads, digests, or caller-supplied projection laws. The
-homomorphism theorem derives equality from the complete typed assignment.
+Authority boundary: `splitPublicInput` consumes only the public parent and is
+the split run by the paper verifier. `recomposePublicInput` consumes only the
+fourteen public children and verifier-fixed radix weights. Both are executable
+without private assignments, default reads, digests, or caller-supplied laws.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
+| `nifs.pi_dec.paper.public_split` | split every public coordinate with the same total radix map | computed | `splitPublicInput` |
+| `nifs.pi_dec.paper.public_split.projection` | public splitting commutes with assignment projection | derived | `splitPublicInput_project` |
+| `nifs.pi_dec.paper.public_split.recompose` | every public input recomposes from its fourteen public children | derived | `splitPublicInput_recompose` |
 | `nifs.pi_dec.verify.public_input_hom.scale` | every public coordinate uses base-field multiplication by the same fixed weight | computed | `publicInputScale`, `projectPublicInput_scale` |
 | `nifs.pi_dec.verify.public_input_hom.finite` | assignment and public-input folds use identical head-first base weights | computed / derived | `combinePublicInputs`, `projectPublicInput_combine` |
 | `nifs.pi_dec.verify.public_input_hom.radix` | child `i` has verifier-fixed production weight `2^i` | computed | `recomposePublicInput`, `projectPublicInput_recompose` |
@@ -38,6 +43,22 @@ namespace Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.PublicInput
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation
 open Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism
+
+/-! ## Verifier-owned public split -/
+
+/-- Coordinatewise public split computed by the Section-7.5 verifier. -/
+def splitPublicInput {shape : Shape}
+    (input : Phi81Relation.PublicInput shape)
+    (child : Radix.ChildIndex) : Phi81Relation.PublicInput shape :=
+  fun column => Radix.splitScalar (input column) child
+
+/-- Splitting the authoritative projected public input is exactly projection
+of the corresponding complete-assignment digit. -/
+@[simp] theorem splitPublicInput_project {shape : Shape}
+    (assignment : Assignment shape) (child : Radix.ChildIndex) :
+    splitPublicInput (projectPublicInput assignment) child =
+      projectPublicInput (Radix.splitAssignment assignment child) := by
+  rfl
 
 /-! ## Public base-scalar recomposition -/
 
@@ -68,6 +89,23 @@ def recomposePublicInput {shape : Shape}
     (inputs : Radix.ChildIndex -> Phi81Relation.PublicInput shape) :
     Phi81Relation.PublicInput shape :=
   combinePublicInputs EvaluationHomomorphism.PiDEC.radixWeight inputs
+
+/-- Public recomposition is coordinatewise scalar recomposition. -/
+@[simp] theorem recomposePublicInput_apply {shape : Shape}
+    (inputs : Radix.ChildIndex -> Phi81Relation.PublicInput shape)
+    (column : Fin shape.publicWidth) :
+    recomposePublicInput inputs column =
+      Radix.recomposeScalar (fun child => inputs child column) := by
+  rfl
+
+/-- The verifier-computed public children recompose exactly to their parent
+for every public input, including the total out-of-bound fallback. -/
+theorem splitPublicInput_recompose {shape : Shape}
+    (input : Phi81Relation.PublicInput shape) :
+    recomposePublicInput (splitPublicInput input) = input := by
+  funext column
+  rw [recomposePublicInput_apply]
+  exact Radix.splitScalar_recompose (input column)
 
 /-! ## Projection linearity -/
 

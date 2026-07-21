@@ -3,7 +3,7 @@
 ## Purpose
 
 - **What it is**: Decomposition reduction step Pi_DEC that splits a parent CE claim into `k` child CE claims via balanced base-b digit decomposition, reducing witness norms for the next folding iteration.
-- **Key invariant**: `parent = Sigma_{i=0}^{k-1} b^i * child_i` holds component-wise for X, y, ct, aux_openings, and commitment. Each child witness digit matrix `Z_i` has entries in the balanced range `[-floor(b/2), +floor(b/2)]`.
+- **Key invariant**: The paper verifier computes `split_b(parent.X, k, b)`, requires exact equality with the ordered child `X` family, and checks radix recomposition of only the public commitments and evaluation tuples. Each child witness digit matrix `Z_i` has entries in the balanced range `[-(b-1), +(b-1)]`. Cached constant terms, advice, delayed points, digests, padding, and `y_zcol` are implementation/lifecycle sidecars and require separate derivation or ownership proofs.
 - **Protocol role**: Third (final) step in the folding composition `Pi_DEC o Pi_RLC o Pi_CCS` (Theorem 1, Theorem 7). Produces `k` child claims with bounded norms that become the ME inputs for the next folding step.
 
 ## Target Formulas (Paper -> Rust)
@@ -12,12 +12,12 @@
 |---|---|---|---|
 | `Pi_DEC` | Section 7.5, line 585 | `api::dec_children_with_commit`, `api::verify_dec_public` | Decomposition reduction of knowledge |
 | `Z = Sigma b^i * Z_i` | Section 7.5, line 587 | `split_b_matrix_k(Z, k, b)` | Balanced base-b decomposition |
-| `||Z_i||_inf < b/2` | Section 7.5, line 588 | Balanced digit range guarantee | Norm reduction |
-| `X_parent = Sigma b^i * X_child_i` | Section 7.5, line 589 | `verify_dec_public` checks this | Public input decomposition |
+| `||Z_i||_inf < b` | Section 7.5, line 588 | Signed digit range guarantee | Norm reduction |
+| `X_child_i = split_b(X_parent)_i` | Section 7.5, line 589 | `verify_dec_public` computes and checks this | Verifier-determined public input decomposition |
 | `y_parent_j = Sigma b^i * y_child_{i,j}` | Section 7.5, line 590 | `verify_dec_public` checks this | Ring-digit output decomposition |
 | `c_parent = Sigma b^i * c_child_i` (S-action) | Section 7.5 | `combine_b_pows` closure | Commitment decomposition via S-action |
 | `b` decomposition base | Appendix B.2 | `params.b` | Concrete parameter from NeoParams |
-| `k` decomposition depth | Appendix B.2 | `params.k` or `Z_split.len()` | Number of digit layers |
+| `k` decomposition depth | Appendix B.2 | `params.k_rho` | Exact number of ordered digit layers |
 
 ## Paper Anchors
 
@@ -42,7 +42,7 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 |---|---|---|---|---|
 | DEC (prover) | `api::dec_children_with_commit(mode, s, params, parent, Z_split, ell_d, child_commitments, combine_b_pows)` | fn | Core | Returns `(children, ok_y, ok_X, ok_c)` |
 | DEC (cached) | `api::dec_children_with_commit_cached(...)` | fn | Core | Same as above but reuses caller-provided `SparseCache` |
-| DEC (verifier) | `api::verify_dec_public(s, params, parent, children, combine_b_pows, ell_d)` | fn | Core | Returns `true` iff decomposition is valid |
+| DEC (verifier) | `api::verify_dec_public(s, params, parent, children, combine_b_pows, ell_d)` | fn | Core | Requires `params.k_rho` children and returns `true` iff their public `X` equals the verifier-computed split and all remaining decompositions are valid |
 | Splitting | `split_b_matrix_k(Z, k, b)` | fn | Core | Returns `Vec<Mat<F>>` of `k` digit matrices |
 | Splitting | `split_b_matrix_k_with_nonzero_flags(Z, k, b)` | fn | Core | Also returns per-digit nonzero flags |
 
@@ -51,15 +51,16 @@ Source: ./formal/superneo-lean/SuperNeo.pdf.md
 | Invariant | Verification method | Lean theorem counterpart |
 |---|---|---|
 | DEC round-trip: `Sigma b^i * Z_i = Z` entry-wise | Unit test | `splitBalancedRoundTripProp_holds` |
-| Digit bound: all entries of `Z_i` lie in `[-floor(b/2), +floor(b/2)]` | Unit test | `splitBase2DigitsWithinBound` |
-| X decomposition: `X_parent = Sigma b^i * X_child_i` | Unit test | `piDEC_of_ce` |
-| y decomposition: `y_parent_j = Sigma b^i * y_child_{i,j}` | Unit test | `piDEC_of_ce` |
-| ct decomposition: `ct_parent_j = Sigma b^i * ct_child_{i,j}` | Unit test | (none) |
-| Commitment decomposition: `c_parent = combine_b_pows(children, b)` | Unit test | (none) |
-| aux_openings decomposition: `aux_parent = Sigma b^i * aux_child_i` | Unit test | (none) |
+| Digit bound: all entries of `Z_i` lie in `[-(b-1), +(b-1)]` | Unit test | `splitBase2DigitsWithinBound` |
+| Canonical X decomposition: `X_child_i = split_b(X_parent)_i` | Unit test | `PiDEC.PaperVerifier.OutputAccepted.childPublicInput_eq` |
+| Parent X representability in exactly `params.k_rho` digits | Unit test | Rust verifier boundary; the typed Lean split is total and uses an exact fallback outside the `CE(B)` norm domain |
+| y decomposition: `y_parent_j = Sigma b^i * y_child_{i,j}` | Unit test | `PiDEC.PaperVerifier.OutputAccepted.toRecompositionAccepted` |
+| ct consistency with the semantic evaluation carrier | Implementation-sidecar test | `PiDecStrictProductionCompiler.Accepted.legacy.ct`; paper ownership is derived/open |
+| Commitment decomposition: `c_parent = combine_b_pows(children, b)` | Unit test | `PiDecStrictProductionCompiler.PaperBridge.commitmentEquation` |
+| Optional advice recomposition | Implementation-sidecar test | Excluded from the active exact-paper/no-advice profile |
 | Overflow rejection: entries exceeding `b^k` range produce error | Unit test | (none) |
 | Prover-verifier agreement: `dec_children_with_commit` output passes `verify_dec_public` | Unit test | (none) |
-| NC channel: `s_col` preserved, `y_zcol` decomposed | Unit test | (none) |
+| Delayed NC channel | Split-NC/lifecycle tests | `s_col` and `y_zcol` are deliberately outside paper PiDEC; `y_zcol` is checked through the delayed block-lane boundary |
 
 ## Assumption Ledger
 
@@ -85,13 +86,15 @@ Downstream consumers:
 
 | Test file | Oracle family | What it checks |
 |---|---|---|
-| (none yet) | (none) | DEC decomposition verified via roundtrip and component checks |
+| `dec_public_paper_exact_x.rs` | Independent paper boundary | Exact child arity, verifier-computed public split, overflow rejection, and nonbinary canonical examples |
+| `f_prime_pi_dec_source_lean_artifact` | Bounded Rust/Lean source artifact | Exact `kappa = 4` strict source rows refine the independently defined reduced compiler; this does not cover final selective rows |
 
 ## Quality Expectations
 
 - `split_b_matrix_k` returns `Err` on overflow (not panic)
 - `verify_dec_public` logs specific failure point (X, y, ct, or c mismatch)
-- NC channel consistency enforced (both `s_col` and `y_zcol` present or both absent)
+- `s_col` consistency is checked as an implementation sidecar; delayed
+  `y_zcol` authority is owned by the separate block-lane lifecycle boundary
 
 ## Acceptance Criteria
 

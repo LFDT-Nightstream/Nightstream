@@ -18,6 +18,7 @@
 //! | Low-norm relation | [`lower_sparse_r1cs_to_low_norm`] | yes | Constrained field encodings |
 //! | Branch composition | fixed/multi-branch builders | yes | Constrained selector and branch rows |
 
+mod pi_dec_audit;
 mod poseidon_hash_audit;
 mod signed_unit;
 mod snapshot;
@@ -717,6 +718,7 @@ pub fn lower_field_r1cs(
             terminal_rhs_cols: remap_k_columns(audit.terminal_rhs_cols),
         })
         .collect();
+    let pi_dec_strict_audits = pi_dec_audit::remap(&synthesis.pi_dec_strict_audits, &old_to_new);
     let polynomial_evaluation_traces = synthesis
         .polynomial_evaluation_traces
         .iter()
@@ -817,6 +819,7 @@ pub fn lower_field_r1cs(
         synthesis.row_family_ranges,
         sumcheck_round_audits,
         block_lane_nc_boundary_audits,
+        pi_dec_strict_audits,
         physical_stage_ranges,
         pi_rlc_y_zcol_boundary_audits,
     )?;

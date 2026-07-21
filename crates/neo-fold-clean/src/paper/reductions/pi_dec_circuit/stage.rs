@@ -18,12 +18,12 @@
 //! | `recomposition.commitment` | `C_parent = sum_i b^i C_i` coordinate-wise | commitment width | `enforce_dec_v_inner` | typed Pi_DEC commitment homomorphism; row refinement open |
 //! | `recomposition.advice` | Apply the same radix map to optional product-commitment advice | advice width when present | `enforce_adv_recomposition` | concrete row refinement open |
 //! | `recomposition.x` | `X_parent = sum_i b^i X_i` on active public coordinates | active X width | `enforce_active_x_combination` | typed Pi_DEC public-input homomorphism; row refinement open |
-//! | `recomposition.y_ring` | `y_parent = sum_i b^i y_i` lane-wise | matrices x ring lanes x extension limbs | `enforce_lane_combination_y` | typed Pi_DEC evaluation homomorphism; row refinement open |
+//! | `recomposition.y_ring` | `y_parent = sum_i b^i y_i` on the semantic ring prefix | matrices x D x extension limbs | `enforce_lane_combination_y` | typed Pi_DEC evaluation homomorphism; row refinement open |
 //! | `shape` | Pin verifier-visible carrier dimensions | parent plus children | `enforce_shape_metadata_consistency` | concrete shape refinement open |
 //! | `r` | Parent and children share the CE evaluation point | children x point coordinates x extension limbs | `enforce_r_consistency` | paper Pi_DEC shared-point obligation |
 //! | `s_col` | Parent and children share the delayed-NC point | children x point coordinates x extension limbs | `enforce_s_col_consistency` | delayed-NC authority bridge open |
 //! | `inactive_x` | Canonical inactive X coordinates are zero | inactive child coordinates | `enforce_inactive_x_zero` | encoding refinement open |
-//! | `alphabet` | Active child X coordinates lie in the centered CE(b) alphabet | active child coordinates | `enforce_child_x_balanced_alphabet` | concrete norm refinement; row refinement open |
+//! | `alphabet` | Binary child X coordinates are the uniform-sign canonical split; wider radices retain centered CE(b) membership | active logical coordinates x (`k+2`) for b=2 | `enforce_child_x_canonical_split` | uniform-signed-digit refinement |
 //! | `ct` | Cached constant terms equal lane zero of `y_ring` | claims x matrices x extension limbs | `enforce_ct_consistency` | evaluation bridge partial |
 //! | `y_ring_padding` | Padded `y_ring` lanes are zero | padded claims x lanes x extension limbs | `enforce_y_ring_padding_zero` | encoding refinement open |
 //! | `fold_digest` | Children carry the parent's verifier-owned fold digest | children x four digest lanes | `enforce_fold_digest_consistency` | transcript authority bridge open |

@@ -427,6 +427,8 @@ pub struct PiDecStrictAudit {
     pub radix: u32,
     pub parent: PiDecClaimAudit,
     pub children: Vec<PiDecClaimAudit>,
+    /// `[sign, centered-product]` columns, row-major over active X.
+    pub x_sign_traces: Vec<[usize; 2]>,
 }
 
 /// Exact input-wire ownership for one direct terminal-CE claim program.
@@ -616,6 +618,7 @@ pub(crate) struct R1csSynthesis {
     pub(crate) row_family_ranges: Vec<RowFamilyRange>,
     pub(crate) sumcheck_round_audits: Vec<SumcheckRoundAudit>,
     pub(crate) block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
+    pub(crate) pi_dec_strict_audits: Vec<PiDecStrictAudit>,
     pub(crate) physical_stage_checkpoints: Vec<PhysicalStageCheckpoint>,
     pub(crate) pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
@@ -1452,6 +1455,7 @@ impl R1csBuilder {
             row_family_ranges: self.row_family_ranges,
             sumcheck_round_audits: self.sumcheck_round_audits,
             block_lane_nc_boundary_audits: self.block_lane_nc_boundary_audits,
+            pi_dec_strict_audits: self.pi_dec_strict_audits,
             physical_stage_checkpoints: self.physical_stage_checkpoints,
             pi_rlc_y_zcol_boundary_audits: self.pi_rlc_y_zcol_boundary_audits,
         }

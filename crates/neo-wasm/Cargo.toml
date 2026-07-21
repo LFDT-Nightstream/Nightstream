@@ -34,7 +34,7 @@ serde = { workspace = true }
 sha2 = "0.10"
 thiserror = { workspace = true }
 wasmparser = "0.240"
-wasmtime = { version = "46.0.0", features = ["debug", "cranelift"] }
+wasmtime = { version = "47.0.0", features = ["debug", "cranelift"] }
 
 [dev-dependencies]
 object = "0.37"

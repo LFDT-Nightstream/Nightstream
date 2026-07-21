@@ -94,8 +94,7 @@ fn committed_lean_files(directory: &Path, root: &Path, files: &mut BTreeSet<Stri
     }
 }
 
-#[test]
-fn active_selective_fixed_point_projection_artifact_matches_retained_certificate() {
+fn render_generated_files() -> Vec<GeneratedLeanFile> {
     let params = tiny_params();
     let app = one_product_r1cs();
     let fixture = TinyFixtureScope {
@@ -114,17 +113,22 @@ fn active_selective_fixed_point_projection_artifact_matches_retained_certificate
         .pi_ccs_output_digest()
         .y_zcol_projection();
 
-    let files = artifact::generated_files(
+    artifact::generated_files(
         projection,
         &params,
         fixture,
         materialized.projected_rows(),
         materialized.raw_running_assignments(),
         &materialized,
-    );
+    )
+}
+
+#[test]
+fn active_selective_fixed_point_projection_artifact_matches_retained_certificate() {
+    let files = render_generated_files();
     assert_eq!(
         files.len(),
-        188,
+        189,
         "metadata, ownership, sharded source decoders, source rows, and exact selective matrix-row shards"
     );
 
@@ -148,4 +152,26 @@ fn active_selective_fixed_point_projection_artifact_matches_retained_certificate
         drifted.is_empty(),
         "active selective fixed-point projection artifacts drifted; inspect and deliberately promote every generated `.lean.expected` candidate: {drifted:?}"
     );
+}
+
+#[test]
+#[ignore = "deliberately rewrites reviewed generated Lean artifacts; the ordinary drift test remains fail-closed"]
+fn regenerate_active_selective_fixed_point_projection_artifacts() {
+    let files = render_generated_files();
+    assert_eq!(
+        files.len(),
+        189,
+        "regeneration must preserve the exact artifact module census"
+    );
+    let root = repo_root();
+    for file in files {
+        let path = root.join(file.relative_path);
+        fs::create_dir_all(path.parent().expect("generated artifact parent"))
+            .expect("create generated artifact directory");
+        fs::write(&path, file.contents).expect("write generated Lean artifact");
+        let expected = path.with_extension("lean.expected");
+        if expected.exists() {
+            fs::remove_file(expected).expect("remove promoted generated candidate");
+        }
+    }
 }

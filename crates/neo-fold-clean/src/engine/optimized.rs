@@ -27,11 +27,10 @@ use neo_reductions::optimized_engine::{
 };
 use thiserror::Error;
 
+use crate::paper::construction2::running::{uses_pending_accumulator_family, RunningInstanceError};
 use crate::paper::construction2::RunningInstance;
 use crate::paper::digest::{
-    pending_accumulator_family_digest, pi_ccs_instance_digest_from_parent_digest,
-    pi_ccs_instance_digest_parent_authority, AccumulatorHandle, PendingAccumulatorFamilyError,
-    PendingAccumulatorFamilyState,
+    pi_ccs_instance_digest_from_parent_digest, pi_ccs_instance_digest_parent_authority, AccumulatorHandle,
 };
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
@@ -58,13 +57,11 @@ pub enum Error {
     #[error("engine.optimized: delayed projection state is only valid for the production fixed-point profile")]
     UnexpectedPendingProjection,
     #[error(transparent)]
-    PendingFamily(#[from] PendingAccumulatorFamilyError),
+    Running(#[from] RunningInstanceError),
 }
 
-const PRODUCTION_FIXED_POINT_CARRIER_WIDTH: usize = 14_338_890;
-
 fn uses_production_block_lane(structure: &Structure) -> bool {
-    structure.m == PRODUCTION_FIXED_POINT_CARRIER_WIDTH
+    uses_pending_accumulator_family(structure)
 }
 
 /// Π_CCS (§7.3) prove — wrapper over the optimized engine's
@@ -122,7 +119,7 @@ where
             &running.claims,
             &running.witnesses,
             instance_digest,
-            compute_running_block_lane_accumulator_handle(running)?,
+            compute_running_block_lane_accumulator_handle(running, s)?,
             engine_pending_projection(running),
             log,
             cache,
@@ -436,7 +433,7 @@ pub fn verify_pi_ccs(
             proof,
             cache,
             instance_digest,
-            compute_running_block_lane_accumulator_handle(running)?,
+            compute_running_block_lane_accumulator_handle(running, s)?,
             engine_pending_projection(running),
         )?
     } else {
@@ -542,25 +539,13 @@ fn engine_pending_projection(running: &RunningInstance) -> Option<BlockLaneNcPen
         })
 }
 
-fn compute_running_block_lane_accumulator_handle(running: &RunningInstance) -> Result<[F; 4], Error> {
-    running_parent_authority(running)?;
-    let Some(pending) = running.pending_projection() else {
-        return compute_running_accumulator_handle(running);
-    };
-    let verifier_rows = running
-        .claims
-        .first()
-        .ok_or(Error::UnexpectedPendingProjection)?
-        .c
-        .kappa;
-    Ok(pending_accumulator_family_digest(
-        &running.claims,
-        verifier_rows,
-        Some(PendingAccumulatorFamilyState {
-            old_block: pending.old_block(),
-            parent_y_zcol: pending.parent_y_zcol(),
-        }),
-    )?)
+fn compute_running_block_lane_accumulator_handle(
+    running: &RunningInstance,
+    structure: &Structure,
+) -> Result<[F; 4], Error> {
+    Ok(crate::paper::digest::digest32_as_fields(
+        running.accumulator_digest(structure)?,
+    ))
 }
 
 // ──────────────────────────────────────────────────────────────────────────

@@ -92,6 +92,7 @@ use crate::paper::nifs::circuit::{
 use crate::paper::params::Params;
 
 mod accumulator;
+pub(crate) use accumulator::enforce_terminal_output_acc_digest;
 
 /// Canonical bits per `x_out` digest lane. Goldilocks canonical form fits
 /// in 64 bits.
@@ -818,8 +819,10 @@ pub fn enforce_construction2_f_prime_base_step_circuit(
         cfg.public_input_layout.total_len(),
     )
     .map_err(|error| Error::Inner(format!("canonical Construction-2 accumulator: {error}")))?;
-    let zero_digest =
-        AccumulatorHandle::from_running_parts(&zero.claims, zero.parent_authority.as_ref()).digest_fields();
+    let zero_digest = crate::paper::digest::digest32_as_fields(
+        zero.accumulator_digest_for_relation_columns(relation.m())
+            .map_err(|error| Error::Inner(format!("canonical Construction-2 accumulator digest: {error}")))?,
+    );
     enforce_f_prime_base_step_with_output_acc(builder, cfg, inputs, zero_digest)
 }
 
@@ -1319,7 +1322,11 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // absorbing it into `state_x_out`.
     builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT);
     let claimed_acc_digest = alloc_4(builder, inputs.acc_digest_out);
-    let new_acc_digest = accumulator::enforce_nifs_output_acc_digest(builder, &nifs_outputs.children)?;
+    let new_acc_digest = accumulator::enforce_nifs_output_acc_digest(
+        builder,
+        &nifs_outputs.children,
+        nifs_outputs.outgoing_pending_projection.as_ref(),
+    )?;
     enforce_digest_eq(builder, &claimed_acc_digest, &new_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
     builder.record_row_family("fprime.recursive.accumulator", accumulator_start);

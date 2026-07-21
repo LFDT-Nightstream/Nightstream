@@ -144,32 +144,34 @@ impl<'a> R1csIvc<'a> {
             self.audit = Some(audit);
             return Err(R1csIvcError::SemanticInputMismatch);
         }
-        let (running, running_parent_authority, fresh, placeholder) = match &audit.proof.state.proof {
-            ProofState::Active { running, latest } => {
-                let running = running
-                    .materialize()
-                    .map_err(crate::paper::construction2::Error::from)
-                    .map_err(lifecycle::Error::from)?;
-                let prior = latest
-                    .instances
-                    .first()
-                    .ok_or(R1csIvcError::ExpectedActiveState)?;
-                let placeholder = CcsInstance {
-                    claim: prior.claim.clone(),
-                    witness: CcsWitness {
-                        w: Vec::new(),
-                        Z: Mat::zero(0, 0, F::ZERO),
-                    },
-                };
-                (
-                    running.claims.clone(),
-                    running.parent_authority.clone(),
-                    latest.claims(),
-                    placeholder,
-                )
-            }
-            ProofState::Initial => return Err(R1csIvcError::ExpectedActiveState),
-        };
+        let (running, running_parent_authority, running_pending_projection, fresh, placeholder) =
+            match &audit.proof.state.proof {
+                ProofState::Active { running, latest } => {
+                    let running = running
+                        .materialize()
+                        .map_err(crate::paper::construction2::Error::from)
+                        .map_err(lifecycle::Error::from)?;
+                    let prior = latest
+                        .instances
+                        .first()
+                        .ok_or(R1csIvcError::ExpectedActiveState)?;
+                    let placeholder = CcsInstance {
+                        claim: prior.claim.clone(),
+                        witness: CcsWitness {
+                            w: Vec::new(),
+                            Z: Mat::zero(0, 0, F::ZERO),
+                        },
+                    };
+                    (
+                        running.claims.clone(),
+                        running.parent_authority.clone(),
+                        running.pending_projection().cloned(),
+                        latest.claims(),
+                        placeholder,
+                    )
+                }
+                ProofState::Initial => return Err(R1csIvcError::ExpectedActiveState),
+            };
         let branch = if running.is_empty() {
             R1csIvcBranch::BootstrapRecursive
         } else {
@@ -205,6 +207,7 @@ impl<'a> R1csIvc<'a> {
             fresh,
             running,
             running_parent_authority,
+            running_pending_projection,
             nifs,
             pending,
         })
@@ -252,6 +255,7 @@ impl<'a> R1csIvc<'a> {
                 fresh,
                 running,
                 running_parent_authority,
+                running_pending_projection,
                 nifs,
                 ..
             } => {
@@ -262,6 +266,7 @@ impl<'a> R1csIvc<'a> {
                     fresh,
                     running,
                     running_parent_authority: running_parent_authority.as_ref(),
+                    running_pending_projection: running_pending_projection.as_ref(),
                     pi_ccs: &nifs.pi_ccs,
                     combined: &nifs.pi_rlc.combined,
                     children: &nifs.pi_dec.children,
@@ -376,6 +381,7 @@ enum PreparedStep {
         fresh: Vec<CcsClaim>,
         running: Vec<CeClaim>,
         running_parent_authority: Option<CeClaim>,
+        running_pending_projection: Option<crate::paper::construction2::PendingProjectionState>,
         nifs: crate::paper::nifs::NifsProof,
         pending: UncompressedAudit,
     },

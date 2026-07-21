@@ -594,8 +594,12 @@ impl<'a> R1csChainBuilder<'a> {
             };
             let pre_running = pre_running_carrier.materialize()?.claims_only();
             let post_summary = Some(
-                FPrimeFoldPostSummary::from_running(&post_running, self.ctx.public_input_len)
-                    .map_err(R1csCompilerError::from)?,
+                FPrimeFoldPostSummary::from_running(
+                    &post_running,
+                    self.prep.prep.structure(),
+                    self.ctx.public_input_len,
+                )
+                .map_err(R1csCompilerError::from)?,
             );
             self.ctx.fold_for_step = Some(R1csFoldForStep {
                 pre_running,

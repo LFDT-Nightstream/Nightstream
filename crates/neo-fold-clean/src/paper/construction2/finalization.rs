@@ -251,18 +251,13 @@ fn prove_final_fold_with_nifs_prover(
         }
     };
 
-    // Re-derive acc_digest from the post-flush running's Π_RLC parent.
-    let post_acc_digest = post_acc_digest_override.unwrap_or_else(|| {
-        if post_running.claims.is_empty() {
-            digest::AccumulatorHandle::empty().digest()
-        } else {
-            let parent = post_running
-                .parent_authority
-                .as_ref()
-                .expect("post-flush running must carry its Pi_RLC parent authority");
-            digest::AccumulatorHandle::from_running_parts(&post_running.claims, Some(parent)).digest()
+    let canonical_post_acc_digest = post_running.accumulator_digest(s)?;
+    let post_acc_digest = match post_acc_digest_override {
+        Some(supplied) if supplied != canonical_post_acc_digest => {
+            return Err(Error::AccumulatorDigestOverrideMismatch);
         }
-    });
+        _ => canonical_post_acc_digest,
+    };
 
     let state_after = State {
         chunk_count,
@@ -402,15 +397,7 @@ pub(crate) fn verify_final_fold(
         }
     };
 
-    let post_acc_digest = if post_running.claims.is_empty() {
-        digest::AccumulatorHandle::empty().digest()
-    } else {
-        let parent = post_running
-            .parent_authority
-            .as_ref()
-            .expect("post-flush running must carry its Pi_RLC parent authority");
-        digest::AccumulatorHandle::from_running_parts(&post_running.claims, Some(parent)).digest()
-    };
+    let post_acc_digest = post_running.accumulator_digest(s)?;
     let state_after = State {
         chunk_count,
         step_count,

@@ -481,6 +481,7 @@ fn prove_with_nifs_prover_and_semantic_state(
     let nebula_open = nebula_advance.as_ref().and_then(|adv| adv.open);
     let next_state = construction2::advance_state_with_acc_digest(
         pp,
+        s,
         prev_state_for_advance,
         new_proof,
         fresh_count,
@@ -642,6 +643,7 @@ pub fn verify(
     }
     let next_state = construction2::advance_state(
         pp,
+        s,
         prev_state_for_advance,
         new_proof,
         fresh_count,

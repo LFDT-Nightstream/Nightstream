@@ -607,13 +607,18 @@ impl NifsProverAdapter for CudaNifsProver {
             cache_output_for_next_step,
             ..
         } = request;
+        if neo_fold_clean::paper::construction2::running::uses_pending_accumulator_family(s) {
+            return Err(backend_unavailable(
+                "CUDA NIFS does not yet carry the authoritative block/lane pending-projection family; use the CPU prover",
+            ));
+        }
         let running_device_output = device_output_from_carrier(running_carrier);
         let running_accumulator_handle = running_device_output
             .as_ref()
             .map(|output| output.accumulator_digest_fields());
         let running_parent_digest = running_device_output
             .as_ref()
-            .map(|output| output.accumulator_digest_fields());
+            .map(|output| digest::accumulator_ce_claim_digest(output.parent_authority()));
         crate::perf_timed!("session.params", {
             self.session.ensure_pp_uploaded(log)?;
         });
@@ -1362,11 +1367,12 @@ impl NifsProverAdapter for CudaNifsProver {
                 next_running = None;
             } else {
                 device_fold_output = None;
-                next_running = Some(RunningInstance {
-                    claims: children.claims,
-                    witnesses: children.witnesses,
-                    parent_authority: Some(combined.clone()),
-                });
+                next_running = Some(RunningInstance::new(
+                    children.claims,
+                    children.witnesses,
+                    Some(combined.clone()),
+                    None,
+                ));
             }
         });
         let proof_carrier;

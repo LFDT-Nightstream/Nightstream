@@ -539,6 +539,7 @@ fn validate_input_shape(
         }
     }
     validate_inactive_x_zero(&running.claims, "running inactive X columns must be zero")?;
+    validate_clean_split_nc_claims(s, &running.claims)?;
     Ok(())
 }
 
@@ -573,7 +574,7 @@ fn validate_verifier_shape(
     }
     validate_inactive_x_zero(running_claims, "running inactive X columns must be zero")?;
     validate_inactive_x_zero(fold_outputs, "fold output inactive X columns must be zero")?;
-    validate_clean_split_nc_claims_without_y_zcol(s, running_claims)?;
+    validate_clean_split_nc_claims(s, running_claims)?;
     validate_clean_split_nc_claims(s, fold_outputs)?;
     Ok(())
 }
@@ -588,13 +589,6 @@ fn validate_fresh_count_within_rlc_guard(pp: &Params, fresh_len: usize) -> Resul
 fn validate_clean_split_nc_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> {
     for claim in claims {
         validate_clean_split_nc_claim(s, claim)?;
-    }
-    Ok(())
-}
-
-fn validate_clean_split_nc_claims_without_y_zcol(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> {
-    for claim in claims {
-        validate_clean_split_nc_claim_core(s, claim)?;
     }
     Ok(())
 }
@@ -621,7 +615,11 @@ fn validate_clean_split_nc_claim(s: &Structure, claim: &CeClaim) -> Result<(), E
 fn validate_clean_split_nc_claim_core(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     let d_pad = D.next_power_of_two();
     let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
-    let ell_m = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
+    let ell_m = if crate::paper::construction2::running::uses_pending_accumulator_family_relation_columns(s.m) {
+        s.m.div_ceil(D).next_power_of_two().trailing_zeros() as usize
+    } else {
+        s.m.next_power_of_two().max(2).trailing_zeros() as usize
+    };
 
     if claim.r.len() != ell_n {
         return Err(Error::Shape("CE r length must match SplitNc row point"));

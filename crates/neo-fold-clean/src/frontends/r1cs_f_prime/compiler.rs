@@ -294,7 +294,11 @@ fn compile_recursive_chunk(
         }
         (
             nifs_ce_view_from_claim(post_parent, ctx.public_input_len),
-            AccumulatorHandle::from_running_parts(&post_running.claims, Some(post_parent)).digest_fields(),
+            crate::paper::digest::digest32_as_fields(
+                post_running
+                    .accumulator_digest(prep.prep.structure())
+                    .map_err(|_| FPrimeShellCompilerError::PostRunningMissingParentAuthority)?,
+            ),
         )
     };
     finalize_compile_chunk(

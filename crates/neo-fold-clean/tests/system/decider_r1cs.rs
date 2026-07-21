@@ -53,7 +53,7 @@ use neo_fold_clean::engine::decider::{
         enforce_public_image_pins_against, enforce_public_image_pins_against_chain, enforce_state_link_against_self,
         enforce_terminal_fold_against_last_acc_digest, enforce_terminal_fold_ce_closure_against,
         enforce_terminal_fold_children_continuity_against_self, enforce_terminal_fold_parent_authority_against_self,
-        enforce_terminal_latest_link_against, CeContinuityProbeWires,
+        enforce_terminal_latest_link_against, enforce_terminal_pending_projection_against, CeContinuityProbeWires,
     },
     synthesize_last_step_terminal_r1cs, synthesize_statement_r1cs, REQUIRED_PUBLIC_IMAGE_PINS,
 };
@@ -71,7 +71,7 @@ use neo_fold_clean::paper::f_prime::r1cs::{
 };
 use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
-use neo_math::{D, F, K};
+use neo_math::{KExtensions, D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use serde_json::{json, Value};
@@ -1016,6 +1016,56 @@ fn decider_terminal_ce_rejects_tampered_reattached_child_y_zcol() {
     assert!(
         !tampered.is_satisfied(),
         "terminal CE closure accepted a tampered reattached child y_zcol"
+    );
+}
+
+#[test]
+fn terminal_pending_parent_is_radix_recomposition_of_raw_opened_child_projections() {
+    let children: [[K; D]; 3] = std::array::from_fn(|child| {
+        std::array::from_fn(|lane| {
+            K::from_coeffs([
+                F::from_u64((17 * child + lane + 1) as u64),
+                F::from_u64((31 * child + 2 * lane + 3) as u64),
+            ])
+        })
+    });
+    let radix = K::from(F::from_u64(2));
+    let parent: [K; D] = std::array::from_fn(|lane| {
+        let mut power = K::ONE;
+        children.iter().fold(K::ZERO, |sum, child| {
+            let next = sum + power * child[lane];
+            power *= radix;
+            next
+        })
+    });
+
+    let honest = enforce_terminal_pending_projection_against(&parent, &children, 2)
+        .expect("emit terminal pending recomposition");
+    assert!(
+        honest.builder.is_satisfied(),
+        "honest terminal pending recomposition must satisfy"
+    );
+
+    let mut child_tamper =
+        enforce_terminal_pending_projection_against(&parent, &children, 2).expect("emit child-tamper recomposition");
+    let child_column = child_tamper.child_c0_probe;
+    child_tamper
+        .builder
+        .tamper_witness(child_column, child_tamper.builder.witness()[child_column] + F::ONE);
+    assert!(
+        !child_tamper.builder.is_satisfied(),
+        "terminal pending recomposition accepted a mutated authoritative child projection"
+    );
+
+    let mut parent_tamper =
+        enforce_terminal_pending_projection_against(&parent, &children, 2).expect("emit parent-tamper recomposition");
+    let parent_column = parent_tamper.parent_c0_probe;
+    parent_tamper
+        .builder
+        .tamper_witness(parent_column, parent_tamper.builder.witness()[parent_column] + F::ONE);
+    assert!(
+        !parent_tamper.builder.is_satisfied(),
+        "terminal pending recomposition accepted a mutated verifier-derived parent"
     );
 }
 

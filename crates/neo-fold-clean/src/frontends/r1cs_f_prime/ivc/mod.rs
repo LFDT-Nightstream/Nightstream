@@ -27,7 +27,8 @@ pub use pi_ccs_output_digest_audit::{
     PiRlcYZcolProjectionSharedAudit, SeededPhi81BlockAudit,
 };
 pub use relation::{
-    R1csIvcBranch, R1csIvcRawRunningAssignmentAudit, R1csIvcRelation, R1csIvcYZcolSelectiveRowsAudit,
+    R1csIvcBlockLaneNcSelectiveRowsAudit, R1csIvcBlockLaneNcSourceRowAudit, R1csIvcBranch,
+    R1csIvcRawRunningAssignmentAudit, R1csIvcRelation, R1csIvcYZcolSelectiveRowsAudit,
     R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
 };
 

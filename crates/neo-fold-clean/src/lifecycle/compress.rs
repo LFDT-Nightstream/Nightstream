@@ -11,7 +11,6 @@
 use crate::lifecycle::{Compressed, Error, Preprocessing, PublicImage, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{self, EncInst, ProofState};
 use crate::paper::decider;
-use crate::paper::digest;
 use crate::paper::nifs::NifsProverAdapter;
 
 /// Compress the uncompressed proof to a Spartan SNARK.
@@ -199,15 +198,9 @@ fn check_already_finalized_consistency(prep: &Preprocessing, proof: &Uncompresse
     }
     let running = running.materialize().map_err(construction2::Error::from)?;
 
-    let expected_acc_digest = if running.claims.is_empty() {
-        digest::AccumulatorHandle::empty().digest()
-    } else {
-        let parent = running
-            .parent_authority
-            .as_ref()
-            .ok_or(Error::FinalizedProofInconsistent)?;
-        digest::AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
-    };
+    let expected_acc_digest = running
+        .accumulator_digest(prep.structure())
+        .map_err(|_| Error::FinalizedProofInconsistent)?;
     if proof.state.acc_digest != expected_acc_digest {
         return Err(Error::FinalizedProofInconsistent);
     }

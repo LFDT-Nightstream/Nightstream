@@ -25,8 +25,11 @@ use crate::frontends::r1cs_f_prime::compiler::{
     state_x_out_app_preimage_lanes_for_assignment,
 };
 use crate::frontends::r1cs_f_prime::{lower_field_r1cs, R1csShape, SparseR1cs};
-use crate::paper::construction2::SemanticStateMode;
-use crate::paper::digest::{digest32_as_fields, AccumulatorHandle, StateXOutDigestMode};
+use crate::paper::construction2::{PendingProjectionState, SemanticStateMode};
+use crate::paper::digest::{
+    digest32_as_fields, pending_accumulator_family_digest, AccumulatorHandle, PendingAccumulatorFamilyState,
+    StateXOutDigestMode,
+};
 use crate::paper::f_prime::digest_circuit::alloc_constant;
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::r1cs::{
@@ -41,6 +44,7 @@ use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{SplitNcPiCcsVConfig, SplitNcVerifierRelation};
 use crate::paper::relations::{CcsClaim, CeClaim};
+use neo_reductions::optimized_engine::oracle::BLOCK_LANE_NC_ROUND_COEFFICIENTS;
 
 pub(super) struct ArmShapes {
     pub base: SparseR1cs,
@@ -146,6 +150,18 @@ fn shape_context<'a>(
             "verifier dimensions: {error}"
         )))
     })?;
+    if folded.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1
+        && dims.ell_n != crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_ROW_POINT
+    {
+        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+            format!(
+                "delayed production relation needs {} row challenges, but {rows} rows produce {}",
+                crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_ROW_POINT,
+                dims.ell_n,
+                rows = folded.n(),
+            ),
+        )));
+    }
     Ok(ShapeContext {
         params,
         app,
@@ -192,6 +208,8 @@ fn synthesize_recursive(
     context: &ShapeContext<'_>,
     steady: bool,
 ) -> Result<(SparseR1cs, Vec<RawRunningSourceColumn>, Vec<FreshSourceColumn>), R1csIvcError> {
+    let block_mode =
+        context.folded.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
     let assignment = shape_app_assignment(context.app);
     let semantic = semantic_values(context.plan, &assignment)?;
     let ce = zero_ce_claim(context);
@@ -212,10 +230,20 @@ fn synthesize_recursive(
         3 => 7,
         _ => context.d_sc + 1,
     };
-    sumcheck.sumcheck_rounds_nc = (0..context.ell_m)
-        .map(|_| vec![K::ZERO; nc_column_coefficients])
-        .chain((0..context.ell_d).map(|_| vec![K::ZERO; context.d_sc + 1]))
-        .collect();
+    sumcheck.sumcheck_rounds_nc = if block_mode {
+        vec![
+            vec![K::ZERO; BLOCK_LANE_NC_ROUND_COEFFICIENTS];
+            crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT + context.ell_d
+        ]
+    } else {
+        (0..context.ell_m)
+            .map(|_| vec![K::ZERO; nc_column_coefficients])
+            .chain((0..context.ell_d).map(|_| vec![K::ZERO; context.d_sc + 1]))
+            .collect()
+    };
+    if block_mode {
+        sumcheck.variant = neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
+    }
     sumcheck.header_digest = vec![0u8; 32];
     let outputs_digest = crate::paper::digest::pi_ccs_outputs_digest(&outputs);
     let proof = pi_ccs::Proof {
@@ -225,21 +253,59 @@ fn synthesize_recursive(
     };
     let combined = ce.clone();
     let children = vec![ce; context.params.k_rho() as usize];
+    let running_pending_projection =
+        (steady && block_mode).then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
     let nifs_msg = NifsVCircuitMessages {
         fresh: &fresh,
         running: &running,
         running_parent_authority: running_parent.as_ref(),
+        running_pending_projection: running_pending_projection.as_ref(),
         pi_ccs: &proof,
         combined: &combined,
         children: &children,
     };
 
-    let running_digest = if steady {
+    let running_digest = if steady && block_mode {
+        pending_accumulator_family_digest(
+            &running,
+            context.params.kappa() as usize,
+            running_pending_projection
+                .as_ref()
+                .map(|pending| PendingAccumulatorFamilyState {
+                    old_block: pending.old_block(),
+                    parent_y_zcol: pending.parent_y_zcol(),
+                }),
+        )
+        .map_err(|error| {
+            R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
+                "shape running pending-family digest: {error}"
+            )))
+        })?
+    } else if steady {
         AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields()
     } else {
         AccumulatorHandle::empty().digest_fields()
     };
-    let output_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
+    let outgoing_pending = block_mode.then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
+    let output_digest = if block_mode {
+        pending_accumulator_family_digest(
+            &children,
+            context.params.kappa() as usize,
+            outgoing_pending
+                .as_ref()
+                .map(|pending| PendingAccumulatorFamilyState {
+                    old_block: pending.old_block(),
+                    parent_y_zcol: pending.parent_y_zcol(),
+                }),
+        )
+        .map_err(|error| {
+            R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
+                "shape outgoing pending-family digest: {error}"
+            )))
+        })?
+    } else {
+        AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields()
+    };
     let mut source = FPrimeSourceImage::new();
     let chunk_count_in_word = source.push_u64_le(1);
     let step_count_in_word = source.push_u64_le(1);
@@ -507,7 +573,14 @@ fn zero_ce_claim(context: &ShapeContext<'_>) -> CeClaim {
         c: Commitment::zeros(D, context.params.kappa() as usize),
         X: Mat::zero(D, context.folded_public_input_len, F::ZERO),
         r: vec![K::ZERO; context.ell_n],
-        s_col: vec![K::ZERO; context.ell_m],
+        s_col: vec![
+            K::ZERO;
+            if context.folded.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1 {
+                crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT
+            } else {
+                context.ell_m
+            }
+        ],
         y_ring: vec![vec![K::ZERO; d_pad]; context.folded.t()],
         ct: vec![K::ZERO; context.folded.t()],
         aux_openings: Vec::new(),

@@ -128,7 +128,11 @@ pub struct FPrimeFoldPostSummary {
 }
 
 impl FPrimeFoldPostSummary {
-    pub fn from_running(running: &RunningInstance, public_input_len: usize) -> Result<Self, FPrimeShellCompilerError> {
+    pub fn from_running(
+        running: &RunningInstance,
+        structure: &crate::paper::relations::Structure,
+        public_input_len: usize,
+    ) -> Result<Self, FPrimeShellCompilerError> {
         let parent = running
             .parent_authority
             .as_ref()
@@ -136,7 +140,11 @@ impl FPrimeFoldPostSummary {
         Ok(Self {
             parent_shape: nifs_ce_shape_from_claim(parent, public_input_len),
             child_count: running.claims.len() as u64,
-            acc_digest: AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest_fields(),
+            acc_digest: crate::paper::digest::digest32_as_fields(
+                running
+                    .accumulator_digest(structure)
+                    .map_err(|_| FPrimeShellCompilerError::PostRunningMissingParentAuthority)?,
+            ),
         })
     }
 }

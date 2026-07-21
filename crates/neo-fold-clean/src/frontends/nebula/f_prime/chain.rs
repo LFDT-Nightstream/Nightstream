@@ -813,6 +813,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                     fresh,
                     running,
                     running_parent_authority: running_parent_authority.as_ref(),
+                    running_pending_projection: None,
                     pi_ccs: &nifs.pi_ccs,
                     combined: &nifs.pi_rlc.combined,
                     children: &nifs.pi_dec.children,

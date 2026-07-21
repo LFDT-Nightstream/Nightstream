@@ -48,6 +48,8 @@ pub enum Error {
     PiRlc(#[from] crate::paper::pi_rlc::Error),
     #[error(transparent)]
     PiDec(#[from] crate::paper::pi_dec::Error),
+    #[error(transparent)]
+    Running(#[from] crate::paper::construction2::running::RunningInstanceError),
     #[error(
         "Construction 2: base/recursive branch check failed \
          (Initial requires zero counters and z_0 = z_i; Active requires nonzero counters)"
@@ -80,6 +82,12 @@ pub enum Error {
     MissingFinalFoldProof,
     #[error("Construction 2: final fold proof present but no trailing latest exists")]
     UnexpectedFinalFoldProof,
+    #[error("Construction 2: backend accumulator digest disagrees with the canonical running-family digest")]
+    AccumulatorDigestOverrideMismatch,
+    #[error(
+        "Construction 2: deferred production running accumulator cannot supply authoritative pending-family state"
+    )]
+    DeferredPendingAccumulatorUnsupported,
 }
 
 // Public re-exports: paper-named types live in submodules, but the auditor

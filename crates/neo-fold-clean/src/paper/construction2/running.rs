@@ -14,6 +14,18 @@ use thiserror::Error;
 use crate::paper::params::Params;
 use crate::paper::relations::{CeClaim, Structure, WitnessMat};
 
+/// Exact relation-column count of the production fixed-point profile that
+/// uses the block/lane delayed-projection accumulator family.
+pub(crate) const PRODUCTION_FIXED_POINT_RELATION_COLUMNS: usize = 11_725_506;
+
+pub(crate) fn uses_pending_accumulator_family_relation_columns(columns: usize) -> bool {
+    columns == PRODUCTION_FIXED_POINT_RELATION_COLUMNS
+}
+
+pub fn uses_pending_accumulator_family(structure: &Structure) -> bool {
+    uses_pending_accumulator_family_relation_columns(structure.m)
+}
+
 /// Number of verifier-derived block coordinates carried across one fold by
 /// the production delayed projection check.
 pub const PENDING_PROJECTION_OLD_BLOCK_LEN: usize = crate::paper::digest::PENDING_ACCUMULATOR_OLD_BLOCK;
@@ -61,6 +73,14 @@ pub enum RunningInstanceError {
     PendingParentLength { expected: usize, got: usize },
     #[error("delayed projection parent padding lanes must be zero")]
     PendingParentPadding,
+    #[error("nonempty running accumulator is missing its Pi_RLC parent authority")]
+    MissingParentAuthority,
+    #[error("empty running accumulator unexpectedly carries a Pi_RLC parent authority")]
+    UnexpectedParentAuthority,
+    #[error("delayed projection state is not valid outside the production pending-family profile")]
+    UnexpectedPendingProjection,
+    #[error(transparent)]
+    PendingFamily(#[from] crate::paper::digest::PendingAccumulatorFamilyError),
 }
 
 impl PendingProjectionState {
@@ -150,7 +170,7 @@ impl RunningInstance {
     pub fn shape_ok(&self) -> bool {
         self.claims.len() == self.witnesses.len()
             && if self.claims.is_empty() {
-                self.parent_authority.is_none()
+                self.parent_authority.is_none() && self.pending_projection.is_none()
             } else {
                 self.parent_authority.is_some()
             }
@@ -182,7 +202,7 @@ impl RunningInstance {
             });
         }
         let ell_n = relation_n.next_power_of_two().max(2).trailing_zeros() as usize;
-        let ell_m = if relation_m == 14_338_890 {
+        let ell_m = if uses_pending_accumulator_family_relation_columns(relation_m) {
             relation_m.div_ceil(D).next_power_of_two().trailing_zeros() as usize
         } else {
             relation_m.next_power_of_two().max(2).trailing_zeros() as usize
@@ -190,7 +210,7 @@ impl RunningInstance {
         let d_pad = D.next_power_of_two();
         let zero_claim = CeClaim {
             c: Commitment::zeros(D, pp.kappa() as usize),
-            X: Mat::zero(D, m_in, F::ZERO),
+            X: Mat::virtual_constant(D, m_in, F::ZERO),
             r: vec![K::ZERO; ell_n],
             s_col: vec![K::ZERO; ell_m],
             y_ring: vec![vec![K::ZERO; d_pad]; relation_t],
@@ -204,7 +224,7 @@ impl RunningInstance {
             u_len: 0,
             adv: None,
         };
-        let zero_witness = Mat::zero(D, relation_m.div_ceil(D), F::ZERO);
+        let zero_witness = Mat::virtual_constant(D, relation_m.div_ceil(D), F::ZERO);
         Ok(Self {
             claims: vec![zero_claim.clone(); pp.k_rho() as usize],
             witnesses: vec![zero_witness; pp.k_rho() as usize],
@@ -226,5 +246,59 @@ impl RunningInstance {
     /// One-fold delayed projection state derived from production NC data.
     pub fn pending_projection(&self) -> Option<&PendingProjectionState> {
         self.pending_projection.as_ref()
+    }
+
+    /// Canonical content handle for this running accumulator under the
+    /// verifier-selected relation profile.
+    ///
+    /// The production profile always uses the fixed pending-family encoding,
+    /// including its explicit `None` discriminator at the first-fold
+    /// boundary. Legacy profiles keep the ordered-child encoding and reject a
+    /// delayed state. The Pi_RLC parent remains a separately checked cache;
+    /// its presence is validated here but it is not substituted for the exact
+    /// child family.
+    pub(crate) fn accumulator_digest(&self, structure: &Structure) -> Result<[u8; 32], RunningInstanceError> {
+        self.accumulator_digest_for_relation_columns(structure.m)
+    }
+
+    /// Canonical accumulator digest when only the verifier-owned relation
+    /// width is available (for example while emitting the fixed base circuit).
+    pub(crate) fn accumulator_digest_for_relation_columns(
+        &self,
+        relation_columns: usize,
+    ) -> Result<[u8; 32], RunningInstanceError> {
+        if self.claims.is_empty() {
+            if self.parent_authority.is_some() {
+                return Err(RunningInstanceError::UnexpectedParentAuthority);
+            }
+            if self.pending_projection.is_some() {
+                return Err(RunningInstanceError::UnexpectedPendingProjection);
+            }
+            return Ok(crate::paper::digest::AccumulatorHandle::empty().digest());
+        }
+        if self.parent_authority.is_none() {
+            return Err(RunningInstanceError::MissingParentAuthority);
+        }
+
+        if uses_pending_accumulator_family_relation_columns(relation_columns) {
+            let verifier_rows = self.claims[0].c.kappa;
+            let pending =
+                self.pending_projection
+                    .as_ref()
+                    .map(|pending| crate::paper::digest::PendingAccumulatorFamilyState {
+                        old_block: pending.old_block(),
+                        parent_y_zcol: pending.parent_y_zcol(),
+                    });
+            let fields = crate::paper::digest::pending_accumulator_family_digest(&self.claims, verifier_rows, pending)?;
+            return Ok(crate::paper::digest::digest_fields_as_digest32(fields));
+        }
+
+        if self.pending_projection.is_some() {
+            return Err(RunningInstanceError::UnexpectedPendingProjection);
+        }
+        Ok(
+            crate::paper::digest::AccumulatorHandle::from_running_parts(&self.claims, self.parent_authority.as_ref())
+                .digest(),
+        )
     }
 }

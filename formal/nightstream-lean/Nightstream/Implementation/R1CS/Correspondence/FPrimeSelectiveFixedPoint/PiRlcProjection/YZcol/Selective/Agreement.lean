@@ -63,7 +63,7 @@ def operations : List Operation :=
     (SourceSchedule.productTraces.drop 54).map Operation.product
 
 def initialKnown : List Nat :=
-  [8683829, 8683830] ++ sourceKnownColumns
+  [7692949, 7692950] ++ sourceKnownColumns
 
 def extendKnown (known : List Nat) (operation : Operation) : List Nat :=
   operation.outputs ++ known

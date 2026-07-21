@@ -27,11 +27,11 @@ digest or from a carried claim.
 
 | Stage path | Mathematical obligation | Authority class |
 |---|---|---|
-| `f_prime.fixed_point.pi_ccs.domain.artifact` | stabilized candidate has 17,669,277 rows and 14,338,890 aligned logical columns | checked |
-| `f_prime.fixed_point.pi_ccs.width.artifact` | 311-coordinate prefix plus the 14,338,576-coordinate maximum arm rounds from 14,338,887 to 14,338,890 | checked |
-| `f_prime.fixed_point.pi_ccs.domain.shape` | production uses row arity 25, one fresh source, fourteen running sources, and thirteen matrices | computed profile |
+| `f_prime.fixed_point.pi_ccs.domain.artifact` | stabilized candidate has 14,946,911 rows and 11,725,506 aligned logical columns | checked |
+| `f_prime.fixed_point.pi_ccs.width.artifact` | 311-coordinate prefix plus the 11,725,143-coordinate maximum arm rounds from 11,725,454 to 11,725,506 | checked |
+| `f_prime.fixed_point.pi_ccs.domain.shape` | production uses row arity 24, one fresh source, fourteen running sources, and thirteen matrices | computed profile |
 | `f_prime.fixed_point.pi_ccs.domain.flat` | 24 column variables and 6 lane variables cover the completed carrier | derived |
-| `f_prime.fixed_point.pi_ccs.domain.block_lane` | 19 block variables and 6 lane variables cover 265,535 live blocks by 54 live lanes | derived |
+| `f_prime.fixed_point.pi_ccs.domain.block_lane` | the canonical 19 block variables and 6 lane variables cover 217,139 live blocks by 54 live lanes; 18 block variables are sufficient and minimal for this artifact | derived |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.ProductionDomain
@@ -55,7 +55,7 @@ def unpaddedCoordinates : Nat :=
 end FixedArtifact
 
 /-- Binary row cube of the fixed-point relation. -/
-def rowVariables : Nat := 25
+def rowVariables : Nat := 24
 
 /-- One fresh source is folded against the running batch. -/
 def freshCount : Nat := 1
@@ -77,23 +77,23 @@ def semanticShape : SemanticShape where
 
 /-! ## Artifact and shape identities -/
 
-@[simp] theorem artifact_relationRows : FixedArtifact.relationRows = 17669277 := by
+@[simp] theorem artifact_relationRows : FixedArtifact.relationRows = 14946911 := by
   rfl
 
 @[simp] theorem artifact_relationColumns :
-    FixedArtifact.relationColumns = 14338890 := by
+    FixedArtifact.relationColumns = 11725506 := by
   rfl
 
 @[simp] theorem artifact_unpaddedCoordinates :
-    FixedArtifact.unpaddedCoordinates = 14338887 := by
+    FixedArtifact.unpaddedCoordinates = 11725454 := by
   rfl
 
 /-- Exact generated prefix/max/round-up identity. This is candidate accounting,
 not evidence that the guarded constructor materialized the complete relation. -/
 theorem artifact_width_accounting :
-    FixedArtifact.unpaddedCoordinates = 311 + 14338576 /\
+    FixedArtifact.unpaddedCoordinates = 311 + 11725143 /\
       FixedArtifact.relationColumns =
-        FixedArtifact.unpaddedCoordinates + 3 := by
+        FixedArtifact.unpaddedCoordinates + 52 := by
   exact ⟨
     Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.ProductionDomain.WidthCensus.unpadded_accounting,
     Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.ProductionDomain.WidthCensus.physical_eq_unpadded_add_padding⟩
@@ -103,11 +103,11 @@ budget. This accounting theorem does not claim that complete matrices were
 successfully emitted. -/
 theorem artifact_fits_current_constructor_guard :
     FixedArtifact.relationColumns <= 16000000 /\
-      16000000 - FixedArtifact.relationColumns = 1661110 := by
+      16000000 - FixedArtifact.relationColumns = 4274494 := by
   exact Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.ProductionDomain.WidthCensus.fits_current_constructor_guard
 
 @[simp] theorem semanticShape_rowVariables :
-    semanticShape.rowVariables = 25 := by
+    semanticShape.rowVariables = 24 := by
   rfl
 
 @[simp] theorem semanticShape_logicalWidth :
@@ -115,7 +115,7 @@ theorem artifact_fits_current_constructor_guard :
   rfl
 
 theorem semanticShape_logicalWidth_exact :
-    semanticShape.logicalWidth = 14338890 := by
+    semanticShape.logicalWidth = 11725506 := by
   rw [semanticShape_logicalWidth, artifact_relationColumns]
 
 @[simp] theorem semanticShape_freshCount :
@@ -142,7 +142,7 @@ theorem rowCube_covers :
 /-- The artifact width is already a whole number of Phi81 blocks, so carrier
 completion adds no columns. -/
 @[simp] theorem semanticShape_carrierWidth :
-    semanticShape.carrierWidth = 14338890 := by
+    semanticShape.carrierWidth = 11725506 := by
   decide
 
 theorem carrierWidth_eq_artifact_relationColumns :
@@ -151,7 +151,7 @@ theorem carrierWidth_eq_artifact_relationColumns :
 
 /-- Exact number of live Phi81 blocks in the completed production carrier. -/
 @[simp] theorem semanticShape_blockCount :
-    Phi81ColumnLayout.blockCount semanticShape.carrierWidth = 265535 := by
+    Phi81ColumnLayout.blockCount semanticShape.carrierWidth = 217139 := by
   decide
 
 /-! ## Canonical domain coverage and round counts -/
@@ -198,19 +198,19 @@ theorem live_add_virtual_lanes :
 
 /-! ## Minimality -/
 
-/-- Twenty-five row variables are necessary to cover every artifact row. -/
+/-- Twenty-four row variables are necessary to cover every artifact row. -/
 theorem rowVariables_minimal
     {variables : Nat}
     (covers : FixedArtifact.relationRows <= 2 ^ variables) :
     semanticShape.rowVariables <= variables := by
   rw [semanticShape_rowVariables]
-  rcases Nat.lt_or_ge variables 25 with smaller | enough
-  · have variablesLe : variables <= 24 := by omega
-    have powerLe : 2 ^ variables <= 16777216 := by
+  rcases Nat.lt_or_ge variables 24 with smaller | enough
+  · have variablesLe : variables <= 23 := by omega
+    have powerLe : 2 ^ variables <= 8388608 := by
       calc
-        2 ^ variables <= 2 ^ 24 :=
+        2 ^ variables <= 2 ^ 23 :=
           Nat.pow_le_pow_of_le (by decide) variablesLe
-        _ = 16777216 := by decide
+        _ = 8388608 := by decide
     rw [artifact_relationRows] at covers
     omega
   · exact enough
@@ -233,22 +233,29 @@ theorem flatColumnVariables_minimal
     omega
   · exact enough
 
-/-- Nineteen block variables are necessary to cover all 265,535 live
-Phi81 blocks. -/
+/-- Eighteen block variables suffice to cover the 217,139 live Phi81 blocks. -/
+theorem eighteenBlockVariables_cover :
+    Phi81ColumnLayout.blockCount semanticShape.carrierWidth <= 2 ^ 18 := by
+  rw [semanticShape_blockCount]
+  decide
+
+/-- Eighteen block variables are necessary to cover the 217,139 live Phi81
+blocks. Together with `eighteenBlockVariables_cover`, this proves the exact
+artifact minimum. The canonical production transcript intentionally retains
+its 19-variable capacity. -/
 theorem blockVariables_minimal
     {variables : Nat}
     (covers :
       Phi81ColumnLayout.blockCount semanticShape.carrierWidth <=
         2 ^ variables) :
-    PiCcsDomains.production.nc.blockVariables <= variables := by
-  change 19 <= variables
-  rcases Nat.lt_or_ge variables 19 with smaller | enough
-  · have variablesLe : variables <= 18 := by omega
-    have powerLe : 2 ^ variables <= 262144 := by
+    18 <= variables := by
+  rcases Nat.lt_or_ge variables 18 with smaller | enough
+  · have variablesLe : variables <= 17 := by omega
+    have powerLe : 2 ^ variables <= 131072 := by
       calc
-        2 ^ variables <= 2 ^ 18 :=
+        2 ^ variables <= 2 ^ 17 :=
           Nat.pow_le_pow_of_le (by decide) variablesLe
-        _ = 262144 := by decide
+        _ = 131072 := by decide
     rw [semanticShape_blockCount] at covers
     omega
   · exact enough

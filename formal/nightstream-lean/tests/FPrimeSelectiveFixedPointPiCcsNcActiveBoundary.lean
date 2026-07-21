@@ -56,6 +56,12 @@ example :
 #check ActiveBoundary.ClaimsAccepted
 #check ActiveBoundary.claimsCheck
 #check ActiveBoundary.claimsCheck_eq_true_iff
+#check ActiveTrace.Step.accepted
+#check ActiveTrace.Trace.baseCheck
+#check ActiveTrace.Trace.baseCheck_eq_true_iff
+#check ActiveTrace.Trace.terminalCheck
+#check ActiveTrace.Trace.terminalCheck_eq_true_implies
+#check ActiveTrace.Trace.RuntimeAccepted
 #check MessageTerminal.transcriptAcceptedFromMessage_implies_rawAccepted_or_outputBindingFailure
 #check ProductionPiCcs.messageAccepted_implies_accepted_or_outputBindingFailure
 #check ProductionPiCcs.accepted_of_messageAccepted_and_packed
@@ -100,6 +106,7 @@ example :
 #check PackedWitnessProduction.messageCheckedPair_of_nextPacked_of_stateChecks_implies_previousSemanticFold_or_badEvent
 #check RefinementBoundary.messageCheckedPair_of_nextPacked_implies_previousSemanticFold_or_namedFailure
 #check ActiveTrace.Trace.terminalChecked_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure
+#check ActiveTrace.Trace.runtimeAccepted_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure
 #check ActiveTrace.Trace.terminalChecked_implies_baseAllPackedAndAllPaper_or_namedFailure
 
 /-! ## Exact headline contracts
@@ -385,13 +392,42 @@ example
     ActiveTrace.Trace.terminalChecked_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure
       noZeroDivisors scheme machine setup functionIndex trace base terminal
 
+example
+    [DecidableEq Digest]
+    (noZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
+    (scheme : Nightstream.Protocol.FPrime.AccumulatorBinding.Scheme
+      (PendingFamilyPayload
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) Encoding Digest)
+    (machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows 1)
+    (setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows 1)
+    (functionIndex : Fin 1)
+    {incoming outgoing : Digest}
+    (trace : ActiveTrace.Trace scheme machine setup incoming outgoing)
+    (accepted : trace.RuntimeAccepted) :
+    (trace.BaseNc ∧ trace.AllPacked ∧ trace.AllPaper functionIndex) ∨
+      trace.ParentOpeningFailure ∨
+      (trace.BaseNc ∧ trace.AllPacked ∧ trace.Failure) := by
+  exact
+    ActiveTrace.Trace.runtimeAccepted_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure
+      noZeroDivisors scheme machine setup functionIndex trace accepted
+
 end
 
-example : ProductionDomain.semanticShape.rowVariables = 25 :=
+example : ProductionDomain.semanticShape.rowVariables = 24 :=
   ProductionDomain.semanticShape_rowVariables
 
-example : ProductionDomain.semanticShape.logicalWidth = 14338890 :=
+example : ProductionDomain.semanticShape.logicalWidth = 11725506 :=
   ProductionDomain.semanticShape_logicalWidth_exact
+
+example :
+    Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount
+        ProductionDomain.semanticShape.carrierWidth = 217139 :=
+  ProductionDomain.semanticShape_blockCount
 
 example : ProductionDomain.semanticShape.runningCount = 14 :=
   ProductionDomain.semanticShape_runningCount

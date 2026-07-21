@@ -31,7 +31,7 @@ canonical fields from accepted production rows.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
-| `fprime.accumulator.pending_family.point` | retain the shared 25-coordinate row point | direct dataflow | `Carrier.point` |
+| `fprime.accumulator.pending_family.point` | retain the shared 24-coordinate row point | direct dataflow | `Carrier.point` |
 | `fprime.accumulator.pending_family.column_point` | retain the shared 19-coordinate block point | direct dataflow | `Carrier.columnPoint` |
 | `fprime.accumulator.pending_family.m_in` | retain the shared input width until accepted production rows derive 270 | direct dataflow | `Carrier.mIn` |
 | `fprime.accumulator.pending_family.fold_digest` | retain the shared four-lane transcript cache until continuity derives it | direct dataflow | `Carrier.foldDigest` |
@@ -590,7 +590,7 @@ def productionDomainTagFields : List F :=
     3241519]
 
 def productionHeader : List F :=
-  productionDomainTagFields ++ [14, 25, 19]
+  productionDomainTagFields ++ [14, 24, 19]
 
 @[simp] theorem productionDomainTagFields_length :
     productionDomainTagFields.length = 10 := by
@@ -634,34 +634,33 @@ theorem fixed_child_field_count
 
 theorem fixed_carrier_field_count
     (shape : Shape)
-    (rowVariables : shape.rowVariables = 25)
+    (rowVariables : shape.rowVariables = 24)
     (publicWidth : shape.publicWidth = 270)
     (matrixCount : shape.matrixCount = 13)
     (verifierRows : Nat) :
     productionHeader.length +
         carrierFieldCount shape verifierRows 14 =
-      14 * (54 * verifierRows) + 23689 := by
+      14 * (54 * verifierRows) + 23687 := by
   simp [carrierFieldCount, pendingFieldCount,
     pendingPayloadFieldCount, childFieldCount, commitmentFieldCount,
     evaluationFieldCount, ringDegree, rowVariables, publicWidth, matrixCount,
-    PiCcsDomains.production, PiCcsDomains.fixedPointProduction, Domains.fe,
-    Domains.nc]
+    PiCcsDomains.production, PiCcsDomains.fixedPointProduction, Domains.nc]
   omega
 
 theorem bounded_field_count
     (shape : Shape)
-    (rowVariables : shape.rowVariables = 25)
+    (rowVariables : shape.rowVariables = 24)
     (publicWidth : shape.publicWidth = 270)
     (matrixCount : shape.matrixCount = 13) :
-    productionHeader.length + carrierFieldCount shape 4 14 = 26713 := by
+    productionHeader.length + carrierFieldCount shape 4 14 = 26711 := by
   rw [fixed_carrier_field_count shape rowVariables publicWidth matrixCount 4]
 
 theorem production_field_count
     (shape : Shape)
-    (rowVariables : shape.rowVariables = 25)
+    (rowVariables : shape.rowVariables = 24)
     (publicWidth : shape.publicWidth = 270)
     (matrixCount : shape.matrixCount = 13) :
-    productionHeader.length + carrierFieldCount shape 18 14 = 37297 := by
+    productionHeader.length + carrierFieldCount shape 18 14 = 37295 := by
   rw [fixed_carrier_field_count shape rowVariables publicWidth matrixCount 18]
 
 /-- Current conservative two-level encoding count, before physical lowering.
@@ -672,7 +671,7 @@ def conservativeFamilyFieldCount (verifierRows : Nat) : Nat :=
 
 theorem pendingFamily_field_saving (verifierRows : Nat) :
     conservativeFamilyFieldCount verifierRows -
-        (14 * (54 * verifierRows) + 23689) = 5747 := by
+        (14 * (54 * verifierRows) + 23687) = 5749 := by
   simp [conservativeFamilyFieldCount]
 
 end Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.Accumulator.PendingFamilyCodec

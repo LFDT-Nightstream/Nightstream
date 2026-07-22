@@ -31,14 +31,14 @@ pub(super) struct GrammarSlotRow {
     pub(super) local_write: Option<(u32, u8, u32)>,
 }
 
-/// One grammar event's gather plan: the absorb block plus its 8 slot rows.
+/// One grammar event's gather plan: the staged block plus its 8 slot rows.
 pub(super) struct GrammarBlockPlan {
     pub(super) block: [u64; 8],
     pub(super) rows: Vec<GrammarSlotRow>,
+    /// Whether the staged block enters the transcript.
+    pub(super) absorb: bool,
 }
 
-/// One grammar host call's full emission plan: the whole call is one
-/// atomic event sequence absorbed at the call site.
 pub(super) struct GrammarCallPlan {
     pub(super) blocks: Vec<GrammarBlockPlan>,
     pub(super) args_base: u64,
@@ -70,6 +70,7 @@ pub(super) fn plan_grammar_blocks(
                         limb,
                         const_lo,
                         const_hi,
+                        advice: !event.absorb,
                     };
                     let (rom, read, write) = match *source {
                         SlotSource::Const(value) => (entry(0, 0, 0, value as u32, (value >> 32) as u32), None, None),
@@ -108,7 +109,11 @@ pub(super) fn plan_grammar_blocks(
                     }
                 })
                 .collect();
-            GrammarBlockPlan { block, rows }
+            GrammarBlockPlan {
+                block,
+                rows,
+                absorb: event.absorb,
+            }
         })
         .collect()
 }
@@ -163,6 +168,7 @@ pub(super) fn plan_export_blocks(events: &[GrammarEvent], blocks: &[[u64; 8]]) -
                         limb,
                         const_lo: 0,
                         const_hi: 0,
+                        advice: false,
                     };
                     let (rom, local_write) = match *source {
                         SlotSource::Const(value) => (
@@ -172,6 +178,7 @@ pub(super) fn plan_export_blocks(events: &[GrammarEvent], blocks: &[[u64; 8]]) -
                                 limb: 0,
                                 const_lo: value as u32,
                                 const_hi: (value >> 32) as u32,
+                                advice: false,
                             },
                             None,
                         ),
@@ -195,7 +202,11 @@ pub(super) fn plan_export_blocks(events: &[GrammarEvent], blocks: &[[u64; 8]]) -
                     }
                 })
                 .collect();
-            GrammarBlockPlan { block, rows }
+            GrammarBlockPlan {
+                block,
+                rows,
+                absorb: true,
+            }
         })
         .collect()
 }
@@ -357,9 +368,8 @@ pub(super) fn emit_perm_group(
 
 /// Emit one grammar event block: 8 gather rows (one word each, with the
 /// arg/result stack read, the result-lo stack WRITE that pushes the host
-/// result, or the input-local lane write the slot claims), then its perm
-/// group. The last slot row premixes the block, raises `pending`, and
-/// advances the event schedule. A result push bumps `ctx.sp` for every
+/// result, or the input-local lane write the slot claims). Absorbing blocks
+/// then run their permutation group. A result push bumps `ctx.sp` for every
 /// subsequent row.
 pub(super) fn emit_block_plan(
     out: &mut Vec<WasmVmStep>,
@@ -375,8 +385,11 @@ pub(super) fn emit_block_plan(
         absorb.evbuf[word] = slot.value;
         gstate.slot_cursor = ((word + 1) % 8) as u8;
         if word == 7 {
-            absorb.perm_pending = true;
-            absorb.perm_state = absorb_premix(*comm_chain, absorb.evbuf);
+            // Advice blocks advance the schedule without starting a permutation.
+            if plan.absorb {
+                absorb.perm_pending = true;
+                absorb.perm_state = absorb_premix(*comm_chain, absorb.evbuf);
+            }
             gstate.events_remaining -= 1;
             gstate.event_index += 1;
         }
@@ -423,5 +436,7 @@ pub(super) fn emit_block_plan(
             )
         });
     }
-    emit_perm_group(out, ctx, comm_chain, absorb, *gstate);
+    if plan.absorb {
+        emit_perm_group(out, ctx, comm_chain, absorb, *gstate);
+    }
 }

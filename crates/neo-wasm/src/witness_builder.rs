@@ -1044,7 +1044,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_GRAMMAR_SLOT_CURSOR_BEFORE] = F::from_u64(u64::from(g_before.slot_cursor));
     wit[COL_GRAMMAR_SLOT_CURSOR_AFTER] = F::from_u64(u64::from(g_after.slot_cursor));
     if let Some(rom) = trace.grammar_rom_slot {
-        wit[COL_GRAMMAR_SLOT_KIND] = F::from_u64(u64::from(rom.kind));
+        wit[COL_GRAMMAR_SLOT_KIND] = F::from_u64(u64::from(rom.kind) + 8 * u64::from(rom.advice));
         wit[COL_GRAMMAR_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
         wit[COL_GRAMMAR_SLOT_LIMB] = F::from_u64(u64::from(rom.limb));
         wit[COL_GRAMMAR_SLOT_CONST_LO] = F::from_u64(u64::from(rom.const_lo));

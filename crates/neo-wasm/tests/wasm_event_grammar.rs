@@ -188,6 +188,38 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(0, 0).is_err());
 
+    // Advice events allow only VM effects and padding.
+    let advice = |slot: SlotSource| {
+        let mut block = [ZERO; 8];
+        block[0] = slot;
+        GrammarEvent::advice(block)
+    };
+    let template = ImportTemplate {
+        events: vec![advice(result_lo), advice(result_hi)],
+        ..Default::default()
+    };
+    assert!(template.validate(0, 1).is_ok());
+    let template = ImportTemplate {
+        events: vec![advice(SlotSource::ArgElem { arg: 0, limb: Limb::Lo })],
+        ..Default::default()
+    };
+    assert!(template.validate(1, 0).is_err());
+    let template = ImportTemplate {
+        events: vec![advice(SlotSource::Claim { idx: 0 })],
+        claim_count: 1,
+    };
+    assert!(template.validate(0, 0).is_err());
+    let template = ImportTemplate {
+        events: vec![advice(result_lo), advice(result_hi)],
+        claim_count: 1,
+    };
+    assert!(template.validate(0, 1).is_err(), "claims need an absorbing event");
+    let template = ExportTemplate {
+        entry: vec![GrammarEvent::advice([ZERO; 8])],
+        ..Default::default()
+    };
+    assert!(template.validate(1).is_err(), "export events must absorb");
+
     // Argument 0 after the result push (its stack slot holds the result).
     let template = ImportTemplate {
         events: vec![event(result_lo), event(SlotSource::ArgElem { arg: 0, limb: Limb::Lo })],

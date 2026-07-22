@@ -343,6 +343,8 @@ pub struct WasmGrammarRomEntry {
     pub limb: u8,
     pub const_lo: u32,
     pub const_hi: u32,
+    /// Whether this slot belongs to an unabsorbed event.
+    pub advice: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

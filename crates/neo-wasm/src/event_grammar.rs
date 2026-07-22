@@ -54,16 +54,21 @@ pub enum SlotSource {
     OutputElem { limb: Limb },
 }
 
-/// One grammar event: one absorb block of 8 arbitrary slot sources.
+/// One grammar event: one block of 8 arbitrary slot sources.
 ///
 /// neo-wasm attaches no meaning to any slot — in particular, "slot 0 is a
 /// discriminant" is only the embedder's single-block op convention (see
 /// [`GrammarEvent::op`]). Multi-block ops and discriminant-free
 /// continuation blocks (dense payload encodings) are just more events in a
 /// template.
+///
+/// If `absorb` is false, the gather rows and their VM effects still run,
+/// but the block is omitted from the transcript. The flag is ROM-bound,
+/// and templates may mix absorbing and advice events.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GrammarEvent {
     pub block: [SlotSource; COMM_CHAIN_BLOCK_WORDS],
+    pub absorb: bool,
 }
 
 impl GrammarEvent {
@@ -72,15 +77,21 @@ impl GrammarEvent {
         let mut block = [SlotSource::Const(0); COMM_CHAIN_BLOCK_WORDS];
         block[0] = SlotSource::Const(discriminant);
         block[1..].copy_from_slice(&slots);
-        Self { block }
+        Self { block, absorb: true }
+    }
+
+    /// An advice block whose slot effects run without transcript absorption.
+    pub fn advice(block: [SlotSource; COMM_CHAIN_BLOCK_WORDS]) -> Self {
+        Self { block, absorb: false }
     }
 }
 
 /// Static expansion of one imported function into grammar events.
 ///
-/// The whole call is one atomic event sequence, absorbed at the call site:
-/// the `ResultElem { limb: Lo }` slot is what WRITES the host result onto
-/// the operand stack (there is no separate result row in grammar mode).
+/// The whole call is one atomic event sequence at the call site. Imports
+/// may mix transcript-bound and advice events; in either case, the
+/// `ResultElem { limb: Lo }` slot pushes the host result onto the operand
+/// stack.
 ///
 /// SLOT-ORDER RULES (validated here, deliberately not in-circuit): the
 /// result push lands in argument 0's stack cell, so every
@@ -88,7 +99,7 @@ impl GrammarEvent {
 /// and the `ResultElem` Hi slot (which writes the pushed cell's hi lane)
 /// must come after it. A returning import must contain exactly one Lo slot
 /// (the push — a narrow total write, hi lane zeroed) and a Hi slot (an i64
-/// result's hi limb arrives only through it; an i32 result absorbs and
+/// result's hi limb arrives only through it; an i32 result stages and
 /// writes 0, costing nothing: it replaces a `Const(0)` padding slot).
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ImportTemplate {
@@ -129,6 +140,9 @@ impl ExportTemplate {
         ] {
             for (idx, event) in events.iter().enumerate() {
                 let ctx = |what: &str| format!("export template {phase} event {idx}: {what}");
+                if !event.absorb {
+                    return err(ctx("export boundary events must absorb; advice events are import-only"));
+                }
                 let check_claim_idx = |idx: u8| {
                     if idx >= claim_count {
                         return err(ctx(&format!(
@@ -212,11 +226,21 @@ impl ImportTemplate {
     /// verifier-authored data, audited here rather than in the relation.
     pub fn validate(&self, param_count: u8, result_count: u8) -> Result<(), WasmBuildError> {
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
+        if self.claim_count != 0 && !self.events.iter().any(|event| event.absorb) {
+            return err(format!(
+                "claim words are absorbed words; a template with no absorbing events cannot deliver {} of them",
+                self.claim_count
+            ));
+        }
         let mut result_lo_seen = false;
         let mut result_hi_seen = false;
         for (idx, event) in self.events.iter().enumerate() {
             let ctx = |what: &str| format!("grammar template event {idx}: {what}");
             for slot in &event.block {
+                // Unabsorbed slots must either affect the VM or be padding.
+                if !event.absorb && !matches!(*slot, SlotSource::Const(_) | SlotSource::ResultElem { .. }) {
+                    return err(ctx("advice events may only contain ResultElem and Const slots"));
+                }
                 match *slot {
                     SlotSource::Const(value) => {
                         if value >= Goldilocks::ORDER_U64 {
@@ -277,15 +301,15 @@ impl ImportTemplate {
         // lane), so the Hi slot is required for COMPLETENESS: an i64
         // result without one would leave the hi lane 0 and the trace would
         // diverge from the real execution. Requiring it uniformly (an i32
-        // result absorbs 0, replacing a Const(0) padding slot for free)
-        // keeps this check width-agnostic.
+        // result stages and writes 0, replacing a Const(0) padding slot for
+        // free) keeps this check width-agnostic.
         if result_count == 1 && !result_lo_seen {
             return err("a returning import's template must contain exactly one ResultElem Lo slot".to_string());
         }
         if result_count == 1 && !result_hi_seen {
             return err(
                 "a returning import's template must carry the result hi limb (a ResultElem Hi slot after the Lo \
-                 slot; it absorbs and writes 0 for an i32 result)"
+                 slot; it stages and writes 0 for an i32 result)"
                     .to_string(),
             );
         }
@@ -293,9 +317,9 @@ impl ImportTemplate {
     }
 }
 
-/// Resolve a template against one call's data into absorb blocks. `args`
-/// are `(lo, hi)` limb pairs in declared parameter order; `claims` must
-/// supply exactly `template.claim_count` canonical words.
+/// Resolve a template into one gather block per event. `args` are `(lo, hi)`
+/// limb pairs in declared parameter order; `claims` must supply exactly
+/// `template.claim_count` canonical words.
 pub fn expand_import_events(
     template: &ImportTemplate,
     args: &[(u32, u32)],
@@ -314,6 +338,28 @@ pub fn expand_import_events(
             Ok(block)
         })
         .collect()
+}
+
+/// Return the absorbing blocks from a matching template expansion.
+pub fn absorbed_blocks(
+    template: &ImportTemplate,
+    blocks: &[[u64; COMM_CHAIN_BLOCK_WORDS]],
+) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
+    if blocks.len() != template.events.len() {
+        return Err(WasmBuildError::Trace(format!(
+            "expansion has {} blocks but the template declares {} events; blocks must come from \
+             expand_import_events on the same template",
+            blocks.len(),
+            template.events.len()
+        )));
+    }
+    Ok(template
+        .events
+        .iter()
+        .zip(blocks)
+        .filter(|(event, _)| event.absorb)
+        .map(|(_, &block)| block)
+        .collect())
 }
 
 /// Resolve an export template's ENTRY phase against the turn's entry claim

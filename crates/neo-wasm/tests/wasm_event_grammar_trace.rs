@@ -323,6 +323,99 @@ fn i64_result_lane_writes() {
     common::assert_rejected(&forged, "result-hi row suppressing its lane write");
 }
 
+/// Advice events keep their VM effects without changing the transcript.
+#[test]
+fn advice_import_pushes_without_absorbing() {
+    let run = run_component_with_mul_claims(&[]);
+    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
+    let frefs = host_call_frefs(&raw);
+    let export_fref = raw
+        .iter()
+        .find(|row| row.row_kind.is_program())
+        .expect("program row")
+        .current_function_ref;
+    // `mul` is advice; `sink` remains transcript-bound.
+    let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
+    let mut grammar = HostEventGrammar::default();
+    let mut advice_block = [SlotSource::Const(0); 8];
+    advice_block[0] = SlotSource::ResultElem { limb: Limb::Lo };
+    advice_block[1] = SlotSource::ResultElem { limb: Limb::Hi };
+    grammar.imports.insert(
+        frefs[0],
+        ImportTemplate {
+            events: vec![GrammarEvent::advice(advice_block)],
+            claim_count: 0,
+        },
+    );
+    grammar.imports.insert(
+        frefs[1],
+        ImportTemplate {
+            events: vec![GrammarEvent::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
+            claim_count: 0,
+        },
+    );
+    grammar
+        .exports
+        .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
+    let turns = [neo_wasm::event_grammar::TurnClaims::default()];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns).expect("grammar trace");
+    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::ccs_check_trace(&trace);
+
+    let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+    neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
+        .expect("grammar ROM contents match");
+
+    // Only `sink` contributes to the chain.
+    let f = p3_goldilocks::Goldilocks::from_u64;
+    let expected = neo_wasm::comm_chain::commit_event(
+        [p3_goldilocks::Goldilocks::ZERO; 4],
+        f(7),
+        core::array::from_fn(|i| if i == 0 { f(42) } else { f(0) }),
+    );
+    assert_eq!(
+        trace.last().expect("rows").state_after.comm_chain,
+        expected.map(|limb| p3_field::PrimeField64::as_canonical_u64(&limb))
+    );
+
+    let advice_rows: Vec<&neo_wasm::WasmVmStep> = trace
+        .iter()
+        .filter(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.advice))
+        .collect();
+    assert_eq!(advice_rows.len(), 8, "one advice event = 8 gather rows");
+    assert!(
+        advice_rows
+            .iter()
+            .all(|row| !row.state_after.event_absorb.perm_pending),
+        "advice rows never raise pending"
+    );
+    let lo_row = advice_rows
+        .iter()
+        .find(|row| {
+            row.grammar_rom_slot
+                .is_some_and(|rom| rom.kind == 2 && rom.limb == 0)
+        })
+        .expect("advice result-lo row");
+    assert_eq!(lo_row.stack_write0.expect("push").value_lo, 42);
+    assert_eq!(lo_row.state_after.sp, lo_row.state_before.sp + 1);
+
+    // The final advice row cannot start a permutation or shed its ROM flag.
+    let word7 = advice_rows.last().expect("word 7");
+    let witness = build_witness_vector(word7);
+    common::assert_satisfied(&witness, "untampered advice word-7 row");
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_PERM_PENDING_AFTER] = neo_math::F::ONE;
+    common::assert_rejected(&forged, "advice row absorbing its block");
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_GRAMMAR_SLOT_KIND] -= neo_math::F::from_u64(8);
+    common::assert_rejected(&forged, "advice row shedding the advice flag");
+}
+
 #[test]
 fn grammar_trace_folds_expanded_blocks() {
     let trace = grammar_trace();

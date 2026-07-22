@@ -78,9 +78,10 @@ const GOUT_VAL: usize = GARG_VAL + 1; // limb-selected output-carry value (expor
 const GSLOT_VALUE: usize = GOUT_VAL + 1; // the block word this gather row stages
 const GK2_HI: usize = GSLOT_VALUE + 1; // result-slot hi-lane write: GK2 · slot_limb
 const GHC_PARAMS: usize = GK2_HI + 1; // grammar host-call arg pops: GHC · call_param_count
+const G_ADVICE: usize = GHC_PARAMS + 1; // advice-event slot flag (ROM kind cell = kind + 8)
 
 /// Width of the gadget-internal column block.
-pub const PERM_GADGET_AUX_WIDTH: usize = GHC_PARAMS + 1 - POS0;
+pub const PERM_GADGET_AUX_WIDTH: usize = G_ADVICE + 1 - POS0;
 
 /// Declared bit-widths of the gadget-internal columns, in block order (for
 /// the F' norm decomposition): booleans for the one-hot/masks/products,
@@ -91,8 +92,7 @@ pub(crate) fn perm_gadget_col_widths() -> impl Iterator<Item = usize> {
         .chain(core::iter::repeat_n(1, 4 + 4 + 3))
         .chain(core::iter::repeat_n(1, 8 + GKINDS))
         .chain(core::iter::repeat_n(64, 3))
-        // GK2_HI (boolean product) and GHC_PARAMS (small ROM-bound count).
-        .chain([1, 64])
+        .chain([1, 64, 1])
 }
 
 /// The gather column whose flag pins a non-popping stack read (arg slots).
@@ -222,11 +222,10 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
             [(COL_ONE, F::ONE), (COL_GRAMMAR_MODE_BEFORE, -F::ONE)],
             [],
         );
-        // Only a block's LAST slot row (word 7) raises the pending flag for
-        // its perm group; earlier slot rows leave it low.
+        // On the last gather row, pending_after = 1 - advice.
         b.push_row(
             [(GW0 + 7, F::ONE)],
-            [(COL_PERM_PENDING_AFTER, F::ONE), (COL_ONE, -F::ONE)],
+            [(COL_PERM_PENDING_AFTER, F::ONE), (COL_ONE, -F::ONE), (G_ADVICE, F::ONE)],
             [],
         );
         b.push_row(
@@ -406,10 +405,11 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         ]);
         b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(S_B, F::ONE)], []);
 
-        // Slot-kind one-hot bound to the ROM's kind index.
+        // SLOT_KIND = raw_kind + 8 * advice.
         for j in 0..GKINDS {
             b.push_boolean(GK0 + j);
         }
+        b.push_boolean(G_ADVICE);
         b.push_linear_zero(
             (0..GKINDS)
                 .map(|j| (GK0 + j, F::ONE))
@@ -419,7 +419,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [(COL_GATHER_ACTIVE, F::ONE)],
             (0..GKINDS)
                 .map(|j| (GK0 + j, F::from_u64(j as u64)))
-                .chain([(SLOT_KIND, -F::ONE)]),
+                .chain([(G_ADVICE, F::from_u64(8)), (SLOT_KIND, -F::ONE)]),
             [],
         );
 
@@ -1135,6 +1135,7 @@ pub(crate) fn fill_perm_gadget_witness(wit: &mut [F], trace: &WasmVmStep) {
         if let Some(rom) = trace.grammar_rom_slot {
             wit[GK0 + usize::from(rom.kind)] = F::ONE;
             wit[GK2_HI] = bool_f(rom.kind == 2 && rom.limb == 1);
+            wit[G_ADVICE] = bool_f(rom.advice);
         }
     }
     // Grammar host-call arg pops: GHC · ROM-bound param count.

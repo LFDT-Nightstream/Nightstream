@@ -243,6 +243,8 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![fref, event_index as u32, slot_index as u32];
                 let (kind, arg, limb, const_lo, const_hi) = encode(source);
+                // Bit 3 carries the per-event advice flag.
+                let kind = kind + 8 * u32::from(!event.absorb);
                 preload.insert("grammar_slot_kind", key.clone(), kind);
                 preload.insert("grammar_slot_arg", key.clone(), arg);
                 preload.insert("grammar_slot_limb", key.clone(), limb);

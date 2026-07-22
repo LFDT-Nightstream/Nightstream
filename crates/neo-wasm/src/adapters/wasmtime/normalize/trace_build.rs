@@ -730,7 +730,7 @@ fn traces_from_wasmtime_steps_impl(
                     args_base,
                 });
                 // The call row pops all args itself in grammar mode; the
-                // result push happens on its gather row.
+                // result push happens on its (possibly advice) gather row.
                 sp_after = args_base;
             } else {
                 host_event_chain = Some(crate::comm_chain::commit_host_call_event_u64(
@@ -1358,13 +1358,18 @@ fn traces_from_wasmtime_steps_impl(
                         block_plan,
                     );
                 }
-                debug_assert_eq!(gather_sp, sp_after + u64::from(result_count));
+                let gather_pushes = if plan.blocks.is_empty() {
+                    0
+                } else {
+                    u64::from(result_count)
+                };
+                debug_assert_eq!(gather_sp, sp_after + gather_pushes);
                 let mut expected = comm_chain_before_row;
-                for block_plan in &plan.blocks {
+                for block_plan in plan.blocks.iter().filter(|block_plan| block_plan.absorb) {
                     let (_, updated) = perm_group_plan(expected, block_plan.block);
                     expected = updated;
                 }
-                debug_assert_eq!(comm_chain, expected, "grammar absorb must fold every expanded block");
+                debug_assert_eq!(comm_chain, expected, "grammar absorb must fold every absorbing block");
             }
             if owes_result && !grammar_mode {
                 let next_row = next.ok_or_else(|| {

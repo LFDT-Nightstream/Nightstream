@@ -4,19 +4,19 @@
   "property_id": "CIR-FPR-FIXED-POINT-CARRIER270-RING-PADDING",
   "profile": "bounded-stabilized-fixed-point-final-ring-padding",
   "shape": {
-    "relation_rows": 14946911,
-    "unpadded_columns": 11725454,
-    "physical_columns": 11725506,
-    "padding_rows": 52,
-    "first_emitted_row": 14946859,
-    "emitted_row_end_exclusive": 14946911,
-    "first_padding_column": 11725454,
-    "padding_column_end_exclusive": 11725506,
-    "emitter_run_index": 258519
+    "relation_rows": 14944219,
+    "unpadded_columns": 11437010,
+    "physical_columns": 11437038,
+    "padding_rows": 28,
+    "first_emitted_row": 14944191,
+    "emitted_row_end_exclusive": 14944219,
+    "first_padding_column": 11437010,
+    "padding_column_end_exclusive": 11437038,
+    "emitter_run_index": 248374
   },
-  "invariant": "the exact final 52 RingPadding rows have one generated source owner each and decode coefficient-wise to -(z[0] * z[11725454+i]); under the separately owned constant-one cell they are satisfied exactly when the final physical alignment columns are zero, and zero extension constructs an honest satisfying assignment",
+  "invariant": "the exact final 28 RingPadding rows have one generated source owner each and decode coefficient-wise to -(z[0] * z[11437010+i]); under the separately owned constant-one cell they are satisfied exactly when the final physical alignment columns are zero, and zero extension constructs an honest satisfying assignment",
   "evidence_state": "artifact-checked",
-  "implementation_status": "the Rust artifact owner exports the 52 rows from SelectiveEmittedRowFamily::RingPadding, the 189-file drift gate compares the generated payload fail-closed, Lean proves exact generation, unique emitted-row ownership, fail-closed coefficient decoding, soundness, and honest completeness, and focused regression plus axiom guards pass",
+  "implementation_status": "the Rust artifact owner exports the 28 rows from SelectiveEmittedRowFamily::RingPadding, the drift gate compares the generated payload fail-closed, and Lean proves exact generation, unique emitted-row ownership, fail-closed coefficient decoding, soundness, and honest completeness",
   "artifacts": [
     "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Carrier270/Generated/RingPaddingRows.lean"
   ],
@@ -31,12 +31,12 @@
     "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.RingPaddingRefinement.generated_raw_row_refines"
   ],
   "validation": {
-    "artifact_leaf": "pass in 2.6 seconds at 440624 KiB peak descendant RSS; exactly 52 proof-free RawRow records",
+    "artifact_leaf": "current regenerated certificate contains exactly 28 proof-free RawRow records; focused rerun pending in this cycle",
     "correspondence_leaf": "pass in 3.1 seconds at 679632 KiB peak descendant RSS",
     "carrier_facade": "pass in 4.9 seconds at 691392 KiB peak descendant RSS",
     "focused_regression": "pass in 0.78 seconds at 182912 KiB peak descendant RSS",
     "focused_axiom_guard": "pass in 0.82 seconds at 208960 KiB peak descendant RSS; native_decide dependencies are fail-closed and no sorryAx appears",
-    "rust_drift": "pass: 4 tests passed, 1 explicit regeneration test ignored, all 189 generated Lean files matched"
+    "rust_drift": "pending final current-profile rerun"
   },
   "authority_boundary": {
     "physical_final_alignment": "artifact-checked",

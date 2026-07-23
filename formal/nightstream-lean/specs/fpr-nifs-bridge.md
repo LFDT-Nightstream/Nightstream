@@ -465,6 +465,13 @@ current_gap_boundary:
     zeros, and that its interpretation equals the independent typed public
     projection under the explicit source constant-one condition. This closes
     public-prefix connectivity for that bounded fixed-point profile only. The
+    active post-PiDEC execution audit now separately joins every one of those
+    270 writes across the live builder, normalized public assignment, and
+    packed committed witness. Its two 135-record generated shards also carry
+    the exact normalized source, width, centeredness, and alias policy. Lean
+    decodes them into the canonical one-arm trace and derives the typed public
+    projection without a caller-supplied exporter or public-dataflow premise;
+    the conventional constant-one source fact remains separately owned. The
     complete private assignment and matrix map, CE coefficient images, aligned verifier-owned
     Ajtai key, commitments, and full decoder refinement remain open; neither
     truncation nor claim reuse closes those bridges.
@@ -573,8 +580,8 @@ current_gap_boundary:
     ten-padding exact-or-`BadRoot` theorem to that table. It does not assume or
     read output `y_zcol` sidecars. This flat 9+6-round relation is a bounded
     diagnostic, not the active production statement: it has 512 flat columns,
-    whereas active production has 19 block rounds plus six lane rounds over
-    11,725,506 coordinates. The production correspondence therefore proves the
+    whereas the current active profile has 19 block rounds plus six lane rounds over
+    11,437,038 coordinates. The production correspondence therefore proves the
     same old-point obligation as an exact 54-lane
     `PackedYZcolBoundAtBlock` equality; it must not coerce the fixed-270
     `OldPointSumcheckRelation` across that dimension boundary. The active Rust
@@ -590,13 +597,18 @@ current_gap_boundary:
     order, and adjacent/base/terminal one-fold composition. Its load-bearing
     conclusion is `SemanticFold.Holds`; the convenience projection to
     `Semantics.Paper.Holds` is weaker because it drops the parent/children
-    equalities. Native/circuit challenge order, raw-child flow, one-fold state,
-    and terminal recomposition now have Rust success and mutation coverage.
-    Generated full-`Z` geometry and the final 52 physical ring-padding rows
-    are artifact-checked. Exact sparse-row refinement for the combined-NC,
-    pending-state, and terminal equations, semantic-input rows, production PP
-    coefficient equality, and accepted Ajtai opening/extraction remain
-    explicit open edges. Lean also proves
+    equalities. Native terminal verification recomposes the pending parent
+    from the authoritative full `WitnessMat` children. The fixed-profile Rust
+    exporter now exposes those same fourteen ordered raw matrices, the
+    `pending.old_block` and parent columns, and the exact terminal projection
+    rows and physical placement. Lean derives terminal projection acceptance
+    from satisfaction of those generated rows plus terminal CE, without a
+    caller-provided execution/refinement premise. The recursive-circuit parent
+    binding remains open. Generated full-`Z` geometry and the final 28
+    physical alignment rows are artifact-checked. Exact sparse-row refinement
+    for the other combined-NC, pending-state, and terminal equations,
+    semantic-input rows, production PP coefficient equality, and accepted
+    Ajtai opening/extraction remain explicit open edges. Lean also proves
     that every honest NC round is a polynomial of degree at most four and
     materializes it as exactly five constant-first coefficients. A
     protocol-local checker now parses exactly five slots per NC round, replays
@@ -1393,8 +1405,8 @@ lean_theorems:
     earlier raw-authority interpretation of the 270-column artifact is
     retracted without weakening its valid public-prefix facts.
   - Corrected production combined-NC bridge: the active delayed residual uses
-    the block×lane domain over all 11,725,506 assignment coordinates: 19 block
-    rounds followed by six lane rounds, covering 217,139 live blocks. The
+    the block×lane domain over all 11,437,038 assignment coordinates: 19 block
+    rounds followed by six lane rounds, covering 211,797 live blocks. The
     current artifact needs only 18 bits for block coverage; the nineteenth bit
     is retained by the versioned protocol format. Each
     block has 54 physical Phi81 lanes and ten verifier-computed virtual zero
@@ -1431,6 +1443,44 @@ lean_theorems:
     `OutputBindingFailure` or generic `outputUnbound`. The unanchored
     extraction helper and older generic evaluator remain diagnostic seams; the guarded theorem
     removes generic output-unbound once packed. The separate 9+6 flat model is excluded by `flatColumnProjection_not_actionHom`.
+    The fixed-profile correspondence now mirrors the literal native
+    `project_raw_witnesses_at_block_point` loop: all 211,797 blocks are
+    traversed in order with little-endian block weights, each of fourteen
+    `WitnessMat` children yields 54 active lanes, ten virtual lanes are
+    computed as zero, and Π_DEC performs the ordered radix recomposition.
+    The active Rust exporter now owns the exact terminal row program and
+    concrete placement for this computation. The current factored program has
+    24,185,169 physical rows and 24,185,061 allocated/committed columns over
+    `[22,834,865, 47,020,034)`. The explicitly retained pre-factorization
+    baseline was 25,243,884 rows and 25,243,776 columns; the kernel-checked
+    final-round factorization therefore saves exactly 1,058,715 recurring rows
+    and columns. It
+    exports the pending old-block and parent columns, the fourteen ordered raw
+    `WitnessMat` bases shared with terminal Ajtai openings, the selected
+    recursive arm, and the fixed profile identity. Lean proves the indexed
+    compiler/generated row equality, unique ownership of the complete physical
+    interval, the generated column-map inverse, a transparent assignment
+    decoder from outgoing pending state plus those raw matrices, semantic
+    equivalence of the factored final block, and an honest satisfying
+    assignment. Consequently
+    `productionRows_projectionOpeningAccepted` derives the existing terminal
+    authority object from actual generated-row satisfaction and terminal CE;
+    no caller supplies `PackedWitnessExecutionBinding.Accepted`, a desired
+    projection equation, a child `CeClaim.y_zcol`, digest authority, or a
+    raw-old-block execution-refinement proposition. The fixed terminal placement and
+    raw-matrix dataflow are artifact-checked/Rust-conformant.
+    `terminalRawProjectionRowsChecked_implies_terminalChecked` lifts those
+    exact rows and terminal CE to the complete executable terminal checker.
+    The model-proved authority headline
+    `terminalRawProjectionRows_imply_baseAndAllPacked_or_parentOpeningFailure`
+    yields `BaseNc ∧ AllPacked` or the typed parent-opening failure tree.
+    Base, recursive-predecessor, and terminal handling are explicit. The
+    raw-old-block authority branch has no execution-refinement or generic
+    `outputUnbound` possibility. The stronger `AllPaper` wrapper is not the
+    authority headline: its separate failure branch still contains independent
+    public-input, source-product, child-opening, key-refinement, and `y_ring`
+    gaps. This result does not by itself close the recursive-circuit parent,
+    the broader end-to-end paper/NIFS refinement, or primitive-binding tracks.
     Production native prove/verify now selects the distinct delayed block×lane
     header, binds the complete accumulator/pending-family handle before
     sampling `betaBlock`, `producerBeta`, and `batchWeight`, runs the 25-round
@@ -1442,10 +1492,13 @@ lean_theorems:
     child-sidecar tampering. The circuit mirrors the challenge suffix and
     terminal formula, and CUDA fails closed for the unsupported production
     shape. This active dataflow is `rust-conformant`; the legacy sidecar helper
-    remains non-authoritative. Exact generated rows for the combined-NC,
-    pending state, and terminal checks, production PP coefficient equality,
+    remains non-authoritative. Exact generated rows for the raw-old-block
+    terminal projection are now closed for this fixed placement, and only the
+    exact 1,058,715-row/column final-round replacement is authorized. Other
+    combined-NC/state/terminal families, production PP coefficient equality,
     and accepted Ajtai opening/extraction remain open, so the claim is not
-    `security-reduced` and does not authorize row removal.
+    `security-reduced` and does not authorize row removal outside this exact
+    terminal raw-old-block family.
   - Artifact-checked fresh public-prefix decoder: the bounded Rust exporter
     now identifies all 270 coordinates of
     `prior_link.fresh_public_inputs[0]` in exact order and records their
@@ -1457,8 +1510,8 @@ lean_theorems:
     field-value dataflow. The artifact does not infer values from decoder
     labels: the constant-one row, 256 bit-link rows, thirteen padding rows,
     the remaining fresh fields, full-witness values, and commitment authority remain open.
-  - Missing: composition of the bounded fixed-point public decoder, both
-    padding intervals, and selector equations into a full private-assignment
+  - Missing: composition of the now artifact-checked active public-write
+    trace, both padding intervals, and selector equations into a full private-assignment
     and final-matrix Rust/R1CS refinement of the canonical carrier and a
     production-conformant instantiation of the independently proved semantic
     boundaries. The generic six-family witness bundle is no longer the right
@@ -1467,8 +1520,9 @@ lean_theorems:
     logical inclusion-minimality of the remaining three, but it cannot
     exercise production source ordering, matrix/lane placement,
     commitment-key sensitivity, nonzero PiDEC recomposition, Poseidon2, or
-    decoder authority. Therefore production row removal is not yet
-    established.
+    decoder authority. Therefore row removal for this generic carrier and
+    minimality target remains unestablished outside the exact terminal
+    raw-old-block factorization authorized above.
   - Missing: direct bad-event/error bounds, external Boolean-leaf/bit-order
     refinement,
     concrete CCS/norm/ring-coefficient and base-to-extension refinements,
@@ -1503,8 +1557,10 @@ lean_theorems:
     evaluator and exact ownership of every resulting row. The production
     lifecycle still has an empty-running bootstrap arm; the implemented
     logical-257-to-physical-270 carrier cutover is only locally artifact-checked;
-    exact `y_zcol` authority and refinement remain open; and no single typed
-    Rust invocation yet matches the Lean canonical `Context`.
+    the fixed terminal raw-old-block `y_zcol` row authority is closed, but the
+    recursive-circuit and complete active-evaluator refinements remain open;
+    and no single typed Rust invocation yet matches the complete Lean
+    canonical `Context`.
 
 axiom_report:
   The independent NIFS and partial replay theorems are in

@@ -57,6 +57,34 @@ private theorem parent_xRows_exact
   simp only [alignedPublicWidth, publicRingColumns, ringDegree] at length ⊢
   omega
 
+/-- The active typed carrier contains exactly `54 × 5 = 270` logical
+public-X coordinates. This is a profile theorem, not a measured artifact
+count. -/
+theorem active_logicalXCount_270
+    {shape : Phi81Relation.Shape}
+    {verifierRows : Nat}
+    {layout : PiDecStrictProductionCompiler.Layout}
+    (valid : PiDecStrictProductionCompiler.ShapeValid layout)
+    (profile : PiDecTypedCarrier.Profile shape verifierRows layout.base) :
+    PiDecStrictProductionCompiler.logicalXCount layout = 270 := by
+  unfold PiDecStrictProductionCompiler.logicalXCount
+  rw [parent_xRows_exact valid profile, profile.activePublicColumns]
+  decide
+
+/-- The chosen isolated lowering costs definitionally seventeen rows for each
+of the 270 active coordinates: 270 recompositions plus 4,320 canonicality
+rows. -/
+theorem active_uniformXRows_count_4590
+    {shape : Phi81Relation.Shape}
+    {verifierRows : Nat}
+    {layout : PiDecStrictProductionCompiler.Layout}
+    (valid : PiDecStrictProductionCompiler.ShapeValid layout)
+    (profile : PiDecTypedCarrier.Profile shape verifierRows layout.base) :
+    (PiDecStrictProductionCompiler.uniformXRows layout).length = 4590 := by
+  rw [PiDecStrictProductionCompiler.uniformXRows_count,
+    active_logicalXCount_270 valid profile]
+  decide
+
 private theorem public_coordinate_bounds
     {shape : Phi81Relation.Shape}
     {verifierRows : Nat}
@@ -91,16 +119,19 @@ private theorem xColumn_eq_publicSlot
   unfold PiDecTypedCarrier.publicSlot
   rfl
 
-/-- The row-level exact child digits are exactly the typed paper verifier's
-public-input split after the independently checked lane-major transpose. -/
-theorem canonicalPublicInput
+/-- The uniform-X endpoint is exactly the typed paper verifier's public-input
+split after the independently checked lane-major transpose. Only the
+X-recomposition and canonicality leaves implement this endpoint; no other
+strict-`PiDEC` row family contributes. -/
+theorem canonicalPublicInput_of_uniformX
     {shape : Phi81Relation.Shape}
     {verifierRows : Nat}
     {layout : PiDecStrictProductionCompiler.Layout}
     (valid : PiDecStrictProductionCompiler.ShapeValid layout)
     (profile : PiDecTypedCarrier.Profile shape verifierRows layout.base)
     {assignment : Nat → Nat}
-    (accepted : PiDecStrictProductionCompiler.Accepted layout assignment)
+    (accepted : PiDecStrictProductionCompiler.UniformXAccepted layout
+      assignment)
     (child : ChildIndex) :
     PiDecTypedCarrier.decodePublicInput profile assignment
         (profile.childLayout child) =
@@ -131,6 +162,24 @@ theorem canonicalPublicInput
   simpa [PiDecTypedCarrier.decodePublicInput,
     PiDecTypedCarrier.decodeField,
     PiDECAlgebra.PublicInput.splitPublicInput] using exactDigits
+
+/-- The complete strict endpoint exposes the same public-input theorem by
+projecting to its exact canonical-X obligation. -/
+theorem canonicalPublicInput
+    {shape : Phi81Relation.Shape}
+    {verifierRows : Nat}
+    {layout : PiDecStrictProductionCompiler.Layout}
+    (valid : PiDecStrictProductionCompiler.ShapeValid layout)
+    (profile : PiDecTypedCarrier.Profile shape verifierRows layout.base)
+    {assignment : Nat → Nat}
+    (accepted : PiDecStrictProductionCompiler.Accepted layout assignment)
+    (child : ChildIndex) :
+    PiDecTypedCarrier.decodePublicInput profile assignment
+        (profile.childLayout child) =
+      PiDECAlgebra.PublicInput.splitPublicInput
+        (PiDecTypedCarrier.decodePublicInput profile assignment
+          layout.base.parent) child :=
+  canonicalPublicInput_of_uniformX valid profile accepted.uniformX child
 
 private theorem k_eq_of_coefficients (left right : K)
     (c0 : left.c0 = right.c0) (c1 : left.c1 = right.c1) : left = right := by
@@ -223,11 +272,7 @@ theorem active_source_rows_saved_3500
     (yShape : PiDecStrictReducedY.UniformParentYWidth layout.base 128) :
     (PiDecStrictCompiler.rows layout.base).length =
       (PiDecStrictProductionCompiler.rows layout).length + 3500 := by
-  have logicalCount : PiDecStrictProductionCompiler.logicalXCount layout =
-      270 := by
-    unfold PiDecStrictProductionCompiler.logicalXCount
-    rw [parent_xRows_exact valid profile, profile.activePublicColumns]
-    decide
+  have logicalCount := active_logicalXCount_270 valid profile
   have evaluationCount : layout.base.parent.yRingCols.length = 13 := by
     rw [profile.parentEvaluationCount, matrixCount]
   have semanticWidth : PiDecStrictReducedY.semanticYWidth layout.base =

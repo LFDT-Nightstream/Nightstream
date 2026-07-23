@@ -1,6 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec
-import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler.PaperBridge
-import Nightstream.Implementation.R1CS.Correspondence.Projection.IndexedRows
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.Nifs.PiDec.SourceRefinement.Certificates
 
 /-!
 Artifact-checked source-R1CS refinement for the bounded active strict
@@ -39,85 +37,33 @@ open Nightstream.Implementation.R1CS.ProjectionIndexedRows
 namespace SourceArtifact
 
 abbrev rawLayout :=
-  Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.rawLayout
+  Certificates.GeneratedPiDec.rawLayout
 
 abbrev sourceRows :=
-  Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.sourceRows
+  Certificates.GeneratedPiDec.sourceRows
 
 abbrev commitmentRows :=
-  Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.commitmentRows
+  Certificates.GeneratedPiDec.commitmentRows
 
-def commitmentLayout
-    (raw : Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.RawCommitment) :
-    PiDecStrictCompiler.CommitmentLayout where
-  dCol := raw.dCol
-  kappaCol := raw.kappaCol
-  dataCols := raw.dataCols
+abbrev commitmentLayout := Certificates.GeneratedPiDec.commitmentLayout
 
-def claimLayout
-    (raw : Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.RawClaim) :
-    PiDecStrictCompiler.ClaimLayout where
-  commitment := commitmentLayout raw.commitment
-  adv := none
-  xActiveCols := raw.xActiveCols
-  xInactiveCol := raw.xInactiveCol
-  xRows := raw.xRows
-  xWidth := raw.xWidth
-  xRowsCol := raw.xRowsCol
-  xWidthCol := raw.xWidthCol
-  mIn := raw.mIn
-  mInCol := raw.mInCol
-  yRingCols := raw.yRingCols
-  ctCols := raw.ctCols
-  rCols := raw.rCols
-  sColCols := raw.sColCols
-  foldDigestCols := raw.foldDigestCols
+abbrev claimLayout := Certificates.GeneratedPiDec.claimLayout
 
-def baseLayout : PiDecStrictCompiler.Layout where
-  radix := rawLayout.radix
-  ringDimension := rawLayout.ringDimension
-  extensionLimbs := rawLayout.extensionLimbs
-  firstAllocatedColumn := rawLayout.firstAllocatedColumn
-  parent := claimLayout rawLayout.parent
-  children := rawLayout.children.map claimLayout
+abbrev baseLayout := Certificates.GeneratedPiDec.baseLayout
 
-def layout : PiDecStrictProductionCompiler.Layout where
-  base := baseLayout
-  xSignTraces := rawLayout.xSignTraces
-  childCount := by native_decide
+abbrev layout := Certificates.GeneratedPiDec.layout
 
-private def rowsPermutationEquivalentListDecidable :
-    (source reconstructed : List Row) →
-      Decidable (RowsPermutationEquivalentList source reconstructed)
-  | [], [] => isTrue True.intro
-  | [], _ :: _ => isFalse id
-  | _ :: _, [] => isFalse id
-  | source :: sources, reconstructed :: reconstructions =>
-      match inferInstanceAs
-          (Decidable (RowsPermutationEquivalent source reconstructed)),
-        rowsPermutationEquivalentListDecidable sources reconstructions with
-      | isTrue head, isTrue tail => isTrue ⟨head, tail⟩
-      | isFalse head, isTrue _ => isFalse fun equivalent => head equivalent.1
-      | isTrue _, isFalse tail => isFalse fun equivalent => tail equivalent.2
-      | isFalse head, isFalse _ => isFalse fun equivalent => head equivalent.1
-
-local instance (source reconstructed : List Row) :
-    Decidable (RowsPermutationEquivalentList source reconstructed) :=
-  rowsPermutationEquivalentListDecidable source reconstructed
-
-set_option maxRecDepth 100000 in
 theorem compilerRows_length :
     (PiDecStrictProductionCompiler.rows layout).length =
       Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated.Metadata.sourceRowCount := by
-  native_decide
+  exact Certificates.compilerRows_length
 
 set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
 /-- Exact coefficient-level Rust/source-compiler identity. Row order is exact;
 only sparse term order inside A/B/C is quotiented by `List.Perm`. -/
 theorem sourceRows_exact : RowsPermutationEquivalentList sourceRows
     (PiDecStrictProductionCompiler.rows layout) := by
-  native_decide
+  exact Certificates.sourceRows_exact
 
 private theorem rowsPermutationEquivalentList_symm
     {left right : List Row}

@@ -80,7 +80,7 @@ theorem generated_chunk_lengths :
   · decide
 
 theorem generated_totalColumns_exact :
-    generatedTotalColumns0 = 11725506 ∧
+    generatedTotalColumns0 = 11437038 ∧
       generatedTotalColumns1 = generatedTotalColumns0 := by
   native_decide
 

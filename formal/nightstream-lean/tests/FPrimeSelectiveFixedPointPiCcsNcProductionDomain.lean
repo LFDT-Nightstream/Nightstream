@@ -21,12 +21,12 @@ open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.Productio
 
 example : semanticShape.rowVariables = 24 := semanticShape_rowVariables
 
-example : semanticShape.logicalWidth = 11725506 :=
+example : semanticShape.logicalWidth = 11437038 :=
   semanticShape_logicalWidth_exact
 
-example : FixedArtifact.unpaddedCoordinates = 11725454 /\
-    FixedArtifact.relationColumns = 11725506 /\
-    16000000 - FixedArtifact.relationColumns = 4274494 := by
+example : FixedArtifact.unpaddedCoordinates = 11437010 /\
+    FixedArtifact.relationColumns = 11437038 /\
+    16000000 - FixedArtifact.relationColumns = 4562962 := by
   exact ⟨artifact_unpaddedCoordinates,
     artifact_relationColumns,
     artifact_fits_current_constructor_guard.2⟩
@@ -50,10 +50,10 @@ example : liveLaneCount = 54 ∧ virtualLaneCount = 10 ∧
 
 example :
     Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount
-        semanticShape.carrierWidth = 217139 :=
+        semanticShape.carrierWidth = 211797 :=
   semanticShape_blockCount
 
-example {variables : Nat} (covers : 217139 <= 2 ^ variables) :
+example {variables : Nat} (covers : 211797 <= 2 ^ variables) :
     18 <= variables := by
   apply blockVariables_minimal
   simpa using covers

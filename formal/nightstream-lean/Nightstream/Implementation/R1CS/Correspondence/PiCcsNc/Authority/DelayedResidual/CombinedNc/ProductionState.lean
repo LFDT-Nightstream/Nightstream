@@ -59,6 +59,61 @@ variable
   {publicRingColumns verifierRows : Nat}
   {publicFits : ringDegree * publicRingColumns <= shape.carrierWidth}
 
+/-- Exact child and pending continuity needs only public `PiDEC` acceptance of
+the previous output and the theorem-derived running relation of the next
+opening-derived step. -/
+theorem piDecAndRunningStateBinding_implies_continuity_or_failure
+    (scheme : Nightstream.Protocol.FPrime.AccumulatorBinding.Scheme
+      (PendingFamilyPayload
+        (RelationShape shape publicRingColumns publicFits)
+        (CommitmentValue verifierRows)) Encoding Digest)
+    (stateDigest : Digest)
+    (previousContext : FixedActive.Context shape PreviousState
+      publicRingColumns publicFits verifierRows)
+    (previousCertificate : FixedActive.Certificate previousContext)
+    (previousPiDec : PiDEC.Accepted (decAlgebra previousContext.key)
+      ((derive previousContext previousCertificate).piDecAttempt
+        previousCertificate))
+    (nextContext : FixedActive.Context shape NextState
+      publicRingColumns publicFits verifierRows)
+    (nextRunning : RunningAuthority.Accepted nextContext)
+    (nextParent : Phi81Relation.CEStatement
+      (RelationShape shape publicRingColumns publicFits)
+      (CommitmentValue verifierRows))
+    (nextParentBound : nextContext.runningParent = some nextParent)
+    (previousBinds : StateBinds scheme stateDigest
+      (derive previousContext previousCertificate).piRlcOutput
+      (outputChildren previousContext previousCertificate)
+      (some (DelayedProduction.outgoingPending previousContext
+        previousCertificate)))
+    (nextBinds : StateBinds scheme stateDigest nextParent
+      nextContext.input.running nextContext.pending) :
+    (nextContext.input.running =
+        outputChildren previousContext previousCertificate ∧
+      nextContext.pending = some
+        (DelayedProduction.outgoingPending previousContext
+          previousCertificate)) ∨
+      Nightstream.Protocol.FPrime.AccumulatorBinding.BindingFailure scheme := by
+  rcases
+    (RunningAuthority.Accepted.iff_nonemptyBound_of_active
+        (context := nextContext) rfl).1 nextRunning with
+    ⟨nextBound⟩
+  have parentEq : nextBound.parent = nextParent :=
+    Option.some.inj (nextBound.parentBound.symm.trans nextParentBound)
+  subst nextParent
+  have nextPiDec : PiDEC.Accepted (decAlgebra nextContext.key) {
+      parent := nextBound.parent
+      children := nextContext.input.running
+    } := by
+    simpa [RunningAuthority.attempt, RunningAuthority.children,
+      RunningAuthority.activeIndex, nextBound.active] using nextBound.piDec
+  rcases children_pending_eq_or_failure_of_stateBinding scheme
+      (canonicalFamily_of_accepted previousPiDec)
+      (canonicalFamily_of_accepted nextPiDec)
+      previousBinds nextBinds rfl with exactPayload | failure
+  · exact Or.inl ⟨exactPayload.1.symm, exactPayload.2.symm⟩
+  · exact Or.inr failure
+
 /-- Exact child and pending continuity needs only the previous accepted tail
 and the next accepted running relation.  In particular, it does not require
 the previous packed output to have been extracted already. -/
@@ -92,26 +147,9 @@ theorem tailAndRunningStateBinding_implies_continuity_or_failure
         (DelayedProduction.outgoingPending previousContext
           previousCertificate)) ∨
       Nightstream.Protocol.FPrime.AccumulatorBinding.BindingFailure scheme := by
-  have previousPiDec := previousTail.piDec
-  rcases
-    (RunningAuthority.Accepted.iff_nonemptyBound_of_active
-        (context := nextContext) rfl).1 nextRunning with
-    ⟨nextBound⟩
-  have parentEq : nextBound.parent = nextParent :=
-    Option.some.inj (nextBound.parentBound.symm.trans nextParentBound)
-  subst nextParent
-  have nextPiDec : PiDEC.Accepted (decAlgebra nextContext.key) {
-      parent := nextBound.parent
-      children := nextContext.input.running
-    } := by
-    simpa [RunningAuthority.attempt, RunningAuthority.children,
-      RunningAuthority.activeIndex, nextBound.active] using nextBound.piDec
-  rcases children_pending_eq_or_failure_of_stateBinding scheme
-      (canonicalFamily_of_accepted previousPiDec)
-      (canonicalFamily_of_accepted nextPiDec)
-      previousBinds nextBinds rfl with exactPayload | failure
-  · exact Or.inl ⟨exactPayload.1.symm, exactPayload.2.symm⟩
-  · exact Or.inr failure
+  exact piDecAndRunningStateBinding_implies_continuity_or_failure scheme
+    stateDigest previousContext previousCertificate previousTail.piDec
+    nextContext nextRunning nextParent nextParentBound previousBinds nextBinds
 
 /-- Backwards-compatible accepted-object spelling of the state-continuity
 partition. -/
@@ -267,7 +305,7 @@ theorem acceptedNext_of_stateBinding_implies_previousPackedYZcolBound_or_rawPare
   · rcases
         CombinedNc.ProductionSequence.acceptedNext_implies_previousPackedYZcolBound_or_rawParentStateMismatch_or_badEvent
           noZeroDivisors previousContext previousData previousCertificate
-          nextContext nextData nextCertificate continuity.2 nextAccepted with
+          nextContext nextData nextCertificate continuity.2 nextAccepted.piCcs with
       packed | stateMismatch | bad
     · exact Or.inl packed
     · exact Or.inr (Or.inl stateMismatch)
@@ -334,7 +372,7 @@ theorem acceptedNext_of_stateBinding_of_parentOpening_implies_previousPackedYZco
           noZeroDivisors previousContext previousData previousCertificate
           previousParentBound previousTail.piDec nextContext nextData
           nextCertificate nextCommitments sameKey continuity.1 continuity.2
-          nextAccepted with packed | bad
+          nextAccepted.piCcs with packed | bad
     · exact Or.inl packed
     · exact Or.inr (Or.inl bad)
   · exact Or.inr (Or.inr failure)

@@ -7,6 +7,10 @@ Does not own: decoding, row satisfaction, transcript authority, commitment
 binding, semantic acceptance, costs, or permission to remove rows.
 
 Emits constraints: no.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.generated` | The generated payload named by `Owns` above | computed artifact |
 -/
 
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Schema
@@ -127,22 +131,22 @@ def values : List RawSourceDefinition := [
   { target := 92164, value := { constant := 0, terms := [] } },
   { target := 92165, value := { constant := 0, terms := [] } },
   { target := 92166, value := { constant := 0, terms := [] } },
-  { target := 3967502, value := { constant := 0, terms := [{ column := 53768, coefficient := 1 }, { column := 3967500, coefficient := 1 }] } },
-  { target := 3967503, value := { constant := 0, terms := [{ column := 53769, coefficient := 1 }, { column := 3967501, coefficient := 1 }] } },
-  { target := 3967509, value := { constant := 0, terms := [{ column := 53766, coefficient := 1 }, { column := 3967507, coefficient := 1 }] } },
-  { target := 3967510, value := { constant := 0, terms := [{ column := 53767, coefficient := 1 }, { column := 3967508, coefficient := 1 }] } },
-  { target := 3967516, value := { constant := 0, terms := [{ column := 53764, coefficient := 1 }, { column := 3967514, coefficient := 1 }] } },
-  { target := 3967517, value := { constant := 0, terms := [{ column := 53765, coefficient := 1 }, { column := 3967515, coefficient := 1 }] } },
-  { target := 3967523, value := { constant := 0, terms := [{ column := 53762, coefficient := 1 }, { column := 3967521, coefficient := 1 }] } },
-  { target := 3967524, value := { constant := 0, terms := [{ column := 53763, coefficient := 1 }, { column := 3967522, coefficient := 1 }] } },
-  { target := 3967530, value := { constant := 0, terms := [{ column := 53760, coefficient := 1 }, { column := 3967528, coefficient := 1 }] } },
-  { target := 3967531, value := { constant := 0, terms := [{ column := 53761, coefficient := 1 }, { column := 3967529, coefficient := 1 }] } },
-  { target := 3967537, value := { constant := 0, terms := [{ column := 53758, coefficient := 1 }, { column := 3967535, coefficient := 1 }] } },
-  { target := 3967538, value := { constant := 0, terms := [{ column := 53759, coefficient := 1 }, { column := 3967536, coefficient := 1 }] } },
-  { target := 3967544, value := { constant := 0, terms := [{ column := 53756, coefficient := 1 }, { column := 3967542, coefficient := 1 }] } },
-  { target := 3967545, value := { constant := 0, terms := [{ column := 53757, coefficient := 1 }, { column := 3967543, coefficient := 1 }] } },
-  { target := 3967551, value := { constant := 0, terms := [{ column := 53754, coefficient := 1 }, { column := 3967549, coefficient := 1 }] } },
-  { target := 3967552, value := { constant := 0, terms := [{ column := 53755, coefficient := 1 }, { column := 3967550, coefficient := 1 }] } }
+  { target := 3964262, value := { constant := 0, terms := [{ column := 53768, coefficient := 1 }, { column := 3964260, coefficient := 1 }] } },
+  { target := 3964263, value := { constant := 0, terms := [{ column := 53769, coefficient := 1 }, { column := 3964261, coefficient := 1 }] } },
+  { target := 3964269, value := { constant := 0, terms := [{ column := 53766, coefficient := 1 }, { column := 3964267, coefficient := 1 }] } },
+  { target := 3964270, value := { constant := 0, terms := [{ column := 53767, coefficient := 1 }, { column := 3964268, coefficient := 1 }] } },
+  { target := 3964276, value := { constant := 0, terms := [{ column := 53764, coefficient := 1 }, { column := 3964274, coefficient := 1 }] } },
+  { target := 3964277, value := { constant := 0, terms := [{ column := 53765, coefficient := 1 }, { column := 3964275, coefficient := 1 }] } },
+  { target := 3964283, value := { constant := 0, terms := [{ column := 53762, coefficient := 1 }, { column := 3964281, coefficient := 1 }] } },
+  { target := 3964284, value := { constant := 0, terms := [{ column := 53763, coefficient := 1 }, { column := 3964282, coefficient := 1 }] } },
+  { target := 3964290, value := { constant := 0, terms := [{ column := 53760, coefficient := 1 }, { column := 3964288, coefficient := 1 }] } },
+  { target := 3964291, value := { constant := 0, terms := [{ column := 53761, coefficient := 1 }, { column := 3964289, coefficient := 1 }] } },
+  { target := 3964297, value := { constant := 0, terms := [{ column := 53758, coefficient := 1 }, { column := 3964295, coefficient := 1 }] } },
+  { target := 3964298, value := { constant := 0, terms := [{ column := 53759, coefficient := 1 }, { column := 3964296, coefficient := 1 }] } },
+  { target := 3964304, value := { constant := 0, terms := [{ column := 53756, coefficient := 1 }, { column := 3964302, coefficient := 1 }] } },
+  { target := 3964305, value := { constant := 0, terms := [{ column := 53757, coefficient := 1 }, { column := 3964303, coefficient := 1 }] } },
+  { target := 3964311, value := { constant := 0, terms := [{ column := 53754, coefficient := 1 }, { column := 3964309, coefficient := 1 }] } },
+  { target := 3964312, value := { constant := 0, terms := [{ column := 53755, coefficient := 1 }, { column := 3964310, coefficient := 1 }] } }
 ]
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.Provenance.LinearDefinitions.Chunk2

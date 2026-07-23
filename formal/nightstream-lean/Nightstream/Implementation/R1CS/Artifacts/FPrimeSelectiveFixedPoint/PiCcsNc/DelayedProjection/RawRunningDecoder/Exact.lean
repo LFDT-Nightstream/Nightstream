@@ -7,8 +7,8 @@ Assurance tier: artifact-checked for the generated fixed profile.
 
 Owns: exact composition of the fifteen independently checked 252-record
 shards; unique shard ownership for every one of the `14 * 270` logical
-coordinates; exact generated source-arm and final-column formulas; bounds;
-and injective physical-column ownership.
+coordinates; exact generated source-arm and encoded-scalar formulas; complete
+interval bounds; and nonoverlapping physical allocation ownership.
 
 Does not own: assignment values, source-row satisfaction, semantic raw-child
 authority, combined-NC acceptance, transcript scheduling, commitment binding,
@@ -18,7 +18,7 @@ Emits constraints: none; proof-only artifact composition.
 
 | Stage path | Mathematical obligation | Authority class |
 |---|---|---|
-| `nifs.pi_ccs.nc.delayed.raw_decoder.artifact.exact` | compose shard exactness and prove unique physical-column ownership | checked artifact |
+| `nifs.pi_ccs.nc.delayed.raw_decoder.artifact.exact` | compose shard exactness and prove unique physical-allocation ownership | checked artifact |
 
 The only executable proof below checks interval separation for `14 * 14 =
 196` child pairs. Its data are the fourteen proof-free coordinate-zero base
@@ -114,10 +114,14 @@ theorem allocationAtOrdinal_exact (ordinal : Ordinal) :
       record.sourceArmColumn =
         Generated.sourceArmBase (ordinalChild ordinal) +
           Generated.packedOffset (ordinalColumn ordinal) /\
-      record.finalColumn =
-        Generated.finalBase (ordinalChild ordinal) +
-          Generated.packedOffset (ordinalColumn ordinal) /\
-      record.finalColumn < Generated.Chunk0.finalColumnCount := by
+      record.finalStart =
+        Generated.finalStartBase (ordinalChild ordinal) +
+          balancedTernaryWidth *
+            Generated.packedOffset (ordinalColumn ordinal) /\
+      record.width = balancedTernaryWidth /\
+      record.encoding = .balancedTernary /\
+      record.finalStart + record.width <=
+        Generated.Chunk0.finalColumnCount := by
   have row := (generatedChunkExact (ordinalChunk ordinal)).2
     (ordinalOffset ordinal)
   simpa [Generated.allocationAtOrdinal] using row
@@ -129,9 +133,13 @@ theorem allocationAt_exact (child : Child) (column : LogicalColumn) :
       record.logicalColumn = column.val /\
       record.sourceArmColumn =
         Generated.sourceArmBase child + Generated.packedOffset column /\
-      record.finalColumn =
-        Generated.finalBase child + Generated.packedOffset column /\
-      record.finalColumn < Generated.Chunk0.finalColumnCount := by
+      record.finalStart =
+        Generated.finalStartBase child +
+          balancedTernaryWidth * Generated.packedOffset column /\
+      record.width = balancedTernaryWidth /\
+      record.encoding = .balancedTernary /\
+      record.finalStart + record.width <=
+        Generated.Chunk0.finalColumnCount := by
   simpa [Generated.allocationAt] using
     allocationAtOrdinal_exact (coordinateOrdinal child column)
 
@@ -150,17 +158,49 @@ theorem allocationAt_exact (child : Child) (column : LogicalColumn) :
       Generated.sourceArmBase child + Generated.packedOffset column :=
   (allocationAt_exact child column).2.2.1
 
-@[simp] theorem allocationAt_finalColumn
+@[simp] theorem allocationAt_finalStart
     (child : Child) (column : LogicalColumn) :
-    (Generated.allocationAt child column).finalColumn =
-      Generated.finalBase child + Generated.packedOffset column :=
+    (Generated.allocationAt child column).finalStart =
+      Generated.finalStartBase child +
+        balancedTernaryWidth * Generated.packedOffset column :=
   (allocationAt_exact child column).2.2.2.1
 
-theorem allocationAt_finalColumn_lt
+@[simp] theorem allocationAt_width
     (child : Child) (column : LogicalColumn) :
-    (Generated.allocationAt child column).finalColumn <
+    (Generated.allocationAt child column).width = balancedTernaryWidth :=
+  (allocationAt_exact child column).2.2.2.2.1
+
+@[simp] theorem allocationAt_encoding
+    (child : Child) (column : LogicalColumn) :
+    (Generated.allocationAt child column).encoding = .balancedTernary :=
+  (allocationAt_exact child column).2.2.2.2.2.1
+
+theorem allocationAt_interval_le
+    (child : Child) (column : LogicalColumn) :
+    (Generated.allocationAt child column).finalStart +
+        (Generated.allocationAt child column).width <=
       Generated.Chunk0.finalColumnCount :=
-  (allocationAt_exact child column).2.2.2.2
+  (allocationAt_exact child column).2.2.2.2.2.2
+
+/-- Every generated final interval has the exact shape required by its
+decoder and lies completely inside the final assignment. -/
+theorem allocationAt_wellFormed
+    (child : Child) (column : LogicalColumn) :
+    (Generated.allocationAt child column).sourceRecord.allocation.WellFormed
+      Generated.Chunk0.finalColumnCount := by
+  constructor
+  · simp [Encoding.ValidWidth]
+  · exact allocationAt_interval_le child column
+
+theorem allocationAt_sourceRecord_allocation
+    (child : Child) (column : LogicalColumn) :
+    (Generated.allocationAt child column).sourceRecord.allocation = {
+      start := Generated.finalStartBase child +
+        balancedTernaryWidth * Generated.packedOffset column
+      width := balancedTernaryWidth
+      encoding := .balancedTernary
+    } := by
+  simp [AllocationRecord.sourceRecord]
 
 /-- The structural shard address of a logical coordinate exists uniquely.
 Together with `generatedChunkExact`, this is exact record ownership rather
@@ -208,8 +248,9 @@ def BaseIntervalsSeparated : Prop :=
   forall left right : Child, left.val < right.val ->
     Generated.sourceArmBase left + logicalColumnCount <=
         Generated.sourceArmBase right /\
-      Generated.finalBase left + logicalColumnCount <=
-        Generated.finalBase right
+      Generated.finalStartBase left +
+          balancedTernaryWidth * logicalColumnCount <=
+        Generated.finalStartBase right
 
 theorem baseIntervalsSeparated : BaseIntervalsSeparated := by
   unfold BaseIntervalsSeparated
@@ -246,13 +287,6 @@ theorem sourceArmFormula_injective :
     (fun left right before =>
       (baseIntervalsSeparated left right before).1)
 
-theorem finalFormula_injective :
-    Function.Injective fun address : Child × LogicalColumn =>
-      Generated.finalBase address.1 + Generated.packedOffset address.2 :=
-  basePlusPackedOffset_injective Generated.finalBase
-    (fun left right before =>
-      (baseIntervalsSeparated left right before).2)
-
 /-- Every generated source-arm physical column has exactly one logical owner. -/
 theorem sourceArmColumn_injective :
     Function.Injective fun address : Child × LogicalColumn =>
@@ -261,27 +295,71 @@ theorem sourceArmColumn_injective :
   apply sourceArmFormula_injective
   simpa only [allocationAt_sourceArmColumn] using equal
 
-/-- Every generated final physical column has exactly one logical owner. -/
-theorem finalColumn_injective :
+/-- Distinct logical coordinates own disjoint complete final-assignment
+intervals. This is stronger than uniqueness of the first digit column. -/
+theorem finalIntervals_nonoverlap
+    (left right : Child × LogicalColumn) (different : left ≠ right) :
+    let leftRecord := Generated.allocationAt left.1 left.2
+    let rightRecord := Generated.allocationAt right.1 right.2
+    leftRecord.finalStart + leftRecord.width <= rightRecord.finalStart \/
+      rightRecord.finalStart + rightRecord.width <= leftRecord.finalStart := by
+  simp only [allocationAt_finalStart, allocationAt_width,
+    balancedTernaryWidth]
+  by_cases childEqual : left.1 = right.1
+  · have columnDifferent : left.2 ≠ right.2 := by
+      intro columnEqual
+      exact different (Prod.ext childEqual columnEqual)
+    have offsetDifferent :
+        Generated.packedOffset left.2 ≠ Generated.packedOffset right.2 := by
+      intro offsetEqual
+      exact columnDifferent (packedOffset_injective offsetEqual)
+    rw [childEqual]
+    omega
+  · have childValueDifferent : left.1.val ≠ right.1.val := by
+      intro valuesEqual
+      exact childEqual (Fin.ext valuesEqual)
+    rcases Nat.lt_or_gt_of_ne childValueDifferent with leftBefore | rightBefore
+    · left
+      have separated := (baseIntervalsSeparated left.1 right.1 leftBefore).2
+      simp only [balancedTernaryWidth] at separated
+      have leftOffset := packedOffset_lt left.2
+      omega
+    · right
+      have separated := (baseIntervalsSeparated right.1 left.1 rightBefore).2
+      simp only [balancedTernaryWidth] at separated
+      have rightOffset := packedOffset_lt right.2
+      omega
+
+/-- Complete final allocation starts have unique logical owners. -/
+theorem finalStart_injective :
     Function.Injective fun address : Child × LogicalColumn =>
-      (Generated.allocationAt address.1 address.2).finalColumn := by
+      (Generated.allocationAt address.1 address.2).finalStart := by
   intro left right equal
-  apply finalFormula_injective
-  simpa only [allocationAt_finalColumn] using equal
+  by_cases same : left = right
+  · exact same
+  · have separated := finalIntervals_nonoverlap left right same
+    simp only [allocationAt_width, balancedTernaryWidth] at separated
+    change (Generated.allocationAt left.1 left.2).finalStart =
+      (Generated.allocationAt right.1 right.2).finalStart at equal
+    rw [equal] at separated
+    omega
 
 /-- The generated allocation record projects exactly to the canonical
-correspondence record for the generated final-column map. -/
+correspondence record for the generated encoded-scalar map. -/
 theorem sourceRecord_eq_recordAt (child : Child) (column : LogicalColumn) :
     (Generated.allocationAt child column).sourceRecord =
-      Generated.sourceColumnMap.recordAt child column := by
-  simp [AllocationRecord.sourceRecord, SourceColumnMap.recordAt,
-    Generated.sourceColumnMap]
+      Generated.sourceAllocationMap.recordAt child column := by
+  simp [AllocationRecord.sourceRecord, SourceAllocationMap.recordAt,
+    Generated.sourceAllocationMap]
 
-/-- The concrete final-column map itself has unique coordinate ownership. -/
-theorem sourceColumnMap_injective :
+/-- The concrete complete-allocation map itself has unique coordinate
+ownership. -/
+theorem sourceAllocationMap_injective :
     Function.Injective fun address : Child × LogicalColumn =>
-      Generated.sourceColumnMap.sourceColumn address.1 address.2 := by
-  simpa only [Generated.sourceColumnMap_apply] using finalColumn_injective
+      Generated.sourceAllocationMap.allocation address.1 address.2 := by
+  intro left right equal
+  apply finalStart_injective
+  exact congrArg EncodedScalar.start equal
 
 end Exact
 

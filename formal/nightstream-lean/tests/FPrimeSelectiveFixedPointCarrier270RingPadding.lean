@@ -15,14 +15,14 @@ open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270
 #check RingPaddingRefinement.withRingPaddingZero_satisfies
 #check RingPaddingRefinement.generated_raw_row_refines
 
-example : RingPadding.unpaddedColumns = 11725454 ∧
-    RingPadding.paddingWidth = 52 ∧
-    RingPadding.relationColumns = 11725506 ∧
+example : RingPadding.unpaddedColumns = 11437010 ∧
+    RingPadding.paddingWidth = 28 ∧
+    RingPadding.relationColumns = 11437038 ∧
     RingPadding.firstPaddingColumn + RingPadding.paddingWidth =
       RingPadding.relationColumns := by
   decide
 
-example : RingPadding.rawRows.length = 52 := by
+example : RingPadding.rawRows.length = 28 := by
   exact RingPadding.generated_row_count
 
 end Nightstream.Tests.FPrimeSelectiveFixedPointCarrier270RingPadding

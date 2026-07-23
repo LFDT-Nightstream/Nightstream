@@ -21,8 +21,8 @@ Assurance tier: generated artifact data only.
 
 Owns: bounded selection of one of the fifteen generated 252-record shards,
 ordinal lookup without flattening the complete artifact, the exact
-block/lane storage offset, and the generated final-column map consumed by the
-generic correspondence contract.
+block/lane storage offset, and the generated encoded-scalar allocation map
+consumed by the generic correspondence contract.
 
 Does not own: truth of the generated records, source semantics, R1CS
 satisfaction, protocol acceptance, transcript scheduling, or commitment
@@ -33,7 +33,7 @@ Emits constraints: none; generated-data view only.
 
 | Stage path | Mathematical obligation | Authority class |
 |---|---|---|
-| `nifs.pi_ccs.nc.delayed.raw_decoder.artifact.data` | expose bounded shard lookup and generated physical-column maps | computed artifact |
+| `nifs.pi_ccs.nc.delayed.raw_decoder.artifact.data` | expose bounded shard lookup and generated physical-allocation maps | computed artifact |
 -/
 
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder
@@ -88,19 +88,20 @@ def packedOffset (column : LogicalColumn) : Nat :=
 def sourceArmBase (child : Child) : Nat :=
   (allocationAt child ⟨0, by decide⟩).sourceArmColumn
 
-/-- Final selective base allocation for one child, derived from generated
-data. -/
-def finalBase (child : Child) : Nat :=
-  (allocationAt child ⟨0, by decide⟩).finalColumn
+/-- Final selective interval start for coordinate zero of one child, derived
+from generated data. -/
+def finalStartBase (child : Child) : Nat :=
+  (allocationAt child ⟨0, by decide⟩).finalStart
 
-/-- Concrete generated final-column map. -/
-def sourceColumnMap : SourceColumnMap where
-  sourceColumn child column := (allocationAt child column).finalColumn
+/-- Concrete generated encoded-scalar allocation map. -/
+def sourceAllocationMap : SourceAllocationMap where
+  allocation child column :=
+    (allocationAt child column).sourceRecord.allocation
 
-@[simp] theorem sourceColumnMap_apply (child : Child)
+@[simp] theorem sourceAllocationMap_apply (child : Child)
     (column : LogicalColumn) :
-    sourceColumnMap.sourceColumn child column =
-      (allocationAt child column).finalColumn := by
+    sourceAllocationMap.allocation child column =
+      (allocationAt child column).sourceRecord.allocation := by
   rfl
 
 end Generated

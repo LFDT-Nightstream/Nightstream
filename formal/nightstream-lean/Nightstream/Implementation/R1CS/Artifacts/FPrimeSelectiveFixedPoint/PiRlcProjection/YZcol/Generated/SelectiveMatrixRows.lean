@@ -50,8 +50,8 @@ namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProject
 
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProjection.YZcol.Selective.Materialized
 
-def finalRelationRows : Nat := 14946911
-def finalRelationColumns : Nat := 11725506
+def finalRelationRows : Nat := 14944219
+def finalRelationColumns : Nat := 11437038
 def constantOneColumn : Nat := 0
 def steadySelectorColumn : Nat := 272
 

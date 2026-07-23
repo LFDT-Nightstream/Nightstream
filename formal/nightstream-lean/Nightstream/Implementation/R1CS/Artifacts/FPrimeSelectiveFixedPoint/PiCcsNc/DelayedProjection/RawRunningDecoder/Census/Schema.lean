@@ -35,7 +35,8 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc
 
 The allocation equations retain the actual lane-major source layout instead
 of assuming logical-column monotonicity. Both base columns are themselves
-read from generated coordinate zero for the owning child. -/
+read from generated coordinate zero for the owning child. The final formula
+covers the complete 41-column interval, not only its first digit. -/
 def ExactRecords
     (chunk : Chunk) (finalColumnCount : Nat)
     (records : List AllocationRecord) : Prop :=
@@ -49,9 +50,12 @@ def ExactRecords
         record.logicalColumn = column.val /\
         record.sourceArmColumn =
           Generated.sourceArmBase child + Generated.packedOffset column /\
-        record.finalColumn =
-          Generated.finalBase child + Generated.packedOffset column /\
-        record.finalColumn < finalColumnCount
+        record.finalStart =
+          Generated.finalStartBase child +
+            balancedTernaryWidth * Generated.packedOffset column /\
+        record.width = balancedTernaryWidth /\
+        record.encoding = .balancedTernary /\
+        record.finalStart + record.width <= finalColumnCount
 
 /-- Exact bounded certificate for one generated shard, including common
 profile metadata. -/
@@ -60,7 +64,7 @@ def ExactChunk
     (schemaVersion sourceArm artifactChildCount artifactLogicalColumnCount
       finalColumnCount : Nat)
     (records : List AllocationRecord) : Prop :=
-  schemaVersion = 1 /\
+  schemaVersion = 2 /\
     sourceArm = 2 /\
     artifactChildCount = childCount /\
     artifactLogicalColumnCount = logicalColumnCount /\
@@ -105,9 +109,12 @@ theorem recordAt
       record.logicalColumn = column.val /\
       record.sourceArmColumn =
         Generated.sourceArmBase child + Generated.packedOffset column /\
-      record.finalColumn =
-        Generated.finalBase child + Generated.packedOffset column /\
-      record.finalColumn < finalColumnCount :=
+      record.finalStart =
+        Generated.finalStartBase child +
+          balancedTernaryWidth * Generated.packedOffset column /\
+      record.width = balancedTernaryWidth /\
+      record.encoding = .balancedTernary /\
+      record.finalStart + record.width <= finalColumnCount :=
   exact.records.2 offset
 
 end ExactChunk

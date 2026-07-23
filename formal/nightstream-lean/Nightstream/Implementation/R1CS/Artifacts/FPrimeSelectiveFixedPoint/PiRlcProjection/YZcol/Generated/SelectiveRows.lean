@@ -16,219 +16,219 @@ Emits constraints: no.
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProjection.YZcol.Generated.SelectiveRows
 
 def artifact : Selective.Artifact :=
-  { sourceArmRowCount := 11360412,
-    finalRelationRowCount := 14946911,
-    steadyArmRows := { start := 7576130, stop := 14946859 },
+  { sourceArmRowCount := 11308137,
+    finalRelationRowCount := 14944219,
+    steadyArmRows := { start := 7573036, stop := 14944191 },
     leaves :=
     [
 { stagePath := "nifs.pi_rlc.verify.projection_shared.beta_ladder",
-       sourceRows := [{ start := 7933371, stop := 7933643 }],
+       sourceRows := [{ start := 7884596, stop := 7884868 }],
        fragments :=
        [
-{ sourceRows := [{ start := 7933371, stop := 7933372 }], emittedRows := { start := 14946859, stop := 14946859 }, disposition := .rewrite 171240 .linearDefinition }
-        ,{ sourceRows := [{ start := 7933372, stop := 7933373 }], emittedRows := { start := 14946859, stop := 14946859 }, disposition := .rewrite 171241 .linearDefinition }
-        ,{ sourceRows := [{ start := 7933373, stop := 7933378 }], emittedRows := { start := 14945567, stop := 14945569 }, disposition := .rewrite 143602 .productSum }
-        ,{ sourceRows := [{ start := 7933378, stop := 7933383 }], emittedRows := { start := 14945569, stop := 14945571 }, disposition := .rewrite 143603 .productSum }
-        ,{ sourceRows := [{ start := 7933383, stop := 7933388 }], emittedRows := { start := 14945571, stop := 14945573 }, disposition := .rewrite 143604 .productSum }
-        ,{ sourceRows := [{ start := 7933388, stop := 7933393 }], emittedRows := { start := 14945573, stop := 14945575 }, disposition := .rewrite 143605 .productSum }
-        ,{ sourceRows := [{ start := 7933393, stop := 7933398 }], emittedRows := { start := 14945575, stop := 14945577 }, disposition := .rewrite 143606 .productSum }
-        ,{ sourceRows := [{ start := 7933398, stop := 7933403 }], emittedRows := { start := 14945577, stop := 14945579 }, disposition := .rewrite 143607 .productSum }
-        ,{ sourceRows := [{ start := 7933403, stop := 7933408 }], emittedRows := { start := 14945579, stop := 14945581 }, disposition := .rewrite 143608 .productSum }
-        ,{ sourceRows := [{ start := 7933408, stop := 7933413 }], emittedRows := { start := 14945581, stop := 14945583 }, disposition := .rewrite 143609 .productSum }
-        ,{ sourceRows := [{ start := 7933413, stop := 7933418 }], emittedRows := { start := 14945583, stop := 14945585 }, disposition := .rewrite 143610 .productSum }
-        ,{ sourceRows := [{ start := 7933418, stop := 7933423 }], emittedRows := { start := 14945585, stop := 14945587 }, disposition := .rewrite 143611 .productSum }
-        ,{ sourceRows := [{ start := 7933423, stop := 7933428 }], emittedRows := { start := 14945587, stop := 14945589 }, disposition := .rewrite 143612 .productSum }
-        ,{ sourceRows := [{ start := 7933428, stop := 7933433 }], emittedRows := { start := 14945589, stop := 14945591 }, disposition := .rewrite 143613 .productSum }
-        ,{ sourceRows := [{ start := 7933433, stop := 7933438 }], emittedRows := { start := 14945591, stop := 14945593 }, disposition := .rewrite 143614 .productSum }
-        ,{ sourceRows := [{ start := 7933438, stop := 7933443 }], emittedRows := { start := 14945593, stop := 14945595 }, disposition := .rewrite 143615 .productSum }
-        ,{ sourceRows := [{ start := 7933443, stop := 7933448 }], emittedRows := { start := 14945595, stop := 14945597 }, disposition := .rewrite 143616 .productSum }
-        ,{ sourceRows := [{ start := 7933448, stop := 7933453 }], emittedRows := { start := 14945597, stop := 14945599 }, disposition := .rewrite 143617 .productSum }
-        ,{ sourceRows := [{ start := 7933453, stop := 7933458 }], emittedRows := { start := 14945599, stop := 14945601 }, disposition := .rewrite 143618 .productSum }
-        ,{ sourceRows := [{ start := 7933458, stop := 7933463 }], emittedRows := { start := 14945601, stop := 14945603 }, disposition := .rewrite 143619 .productSum }
-        ,{ sourceRows := [{ start := 7933463, stop := 7933468 }], emittedRows := { start := 14945603, stop := 14945605 }, disposition := .rewrite 143620 .productSum }
-        ,{ sourceRows := [{ start := 7933468, stop := 7933473 }], emittedRows := { start := 14945605, stop := 14945607 }, disposition := .rewrite 143621 .productSum }
-        ,{ sourceRows := [{ start := 7933473, stop := 7933478 }], emittedRows := { start := 14945607, stop := 14945609 }, disposition := .rewrite 143622 .productSum }
-        ,{ sourceRows := [{ start := 7933478, stop := 7933483 }], emittedRows := { start := 14945609, stop := 14945611 }, disposition := .rewrite 143623 .productSum }
-        ,{ sourceRows := [{ start := 7933483, stop := 7933488 }], emittedRows := { start := 14945611, stop := 14945613 }, disposition := .rewrite 143624 .productSum }
-        ,{ sourceRows := [{ start := 7933488, stop := 7933493 }], emittedRows := { start := 14945613, stop := 14945615 }, disposition := .rewrite 143625 .productSum }
-        ,{ sourceRows := [{ start := 7933493, stop := 7933498 }], emittedRows := { start := 14945615, stop := 14945617 }, disposition := .rewrite 143626 .productSum }
-        ,{ sourceRows := [{ start := 7933498, stop := 7933503 }], emittedRows := { start := 14945617, stop := 14945619 }, disposition := .rewrite 143627 .productSum }
-        ,{ sourceRows := [{ start := 7933503, stop := 7933508 }], emittedRows := { start := 14945619, stop := 14945621 }, disposition := .rewrite 143628 .productSum }
-        ,{ sourceRows := [{ start := 7933508, stop := 7933513 }], emittedRows := { start := 14945621, stop := 14945623 }, disposition := .rewrite 143629 .productSum }
-        ,{ sourceRows := [{ start := 7933513, stop := 7933518 }], emittedRows := { start := 14945623, stop := 14945625 }, disposition := .rewrite 143630 .productSum }
-        ,{ sourceRows := [{ start := 7933518, stop := 7933523 }], emittedRows := { start := 14945625, stop := 14945627 }, disposition := .rewrite 143631 .productSum }
-        ,{ sourceRows := [{ start := 7933523, stop := 7933528 }], emittedRows := { start := 14945627, stop := 14945629 }, disposition := .rewrite 143632 .productSum }
-        ,{ sourceRows := [{ start := 7933528, stop := 7933533 }], emittedRows := { start := 14945629, stop := 14945631 }, disposition := .rewrite 143633 .productSum }
-        ,{ sourceRows := [{ start := 7933533, stop := 7933538 }], emittedRows := { start := 14945631, stop := 14945633 }, disposition := .rewrite 143634 .productSum }
-        ,{ sourceRows := [{ start := 7933538, stop := 7933543 }], emittedRows := { start := 14945633, stop := 14945635 }, disposition := .rewrite 143635 .productSum }
-        ,{ sourceRows := [{ start := 7933543, stop := 7933548 }], emittedRows := { start := 14945635, stop := 14945637 }, disposition := .rewrite 143636 .productSum }
-        ,{ sourceRows := [{ start := 7933548, stop := 7933553 }], emittedRows := { start := 14945637, stop := 14945639 }, disposition := .rewrite 143637 .productSum }
-        ,{ sourceRows := [{ start := 7933553, stop := 7933558 }], emittedRows := { start := 14945639, stop := 14945641 }, disposition := .rewrite 143638 .productSum }
-        ,{ sourceRows := [{ start := 7933558, stop := 7933563 }], emittedRows := { start := 14945641, stop := 14945643 }, disposition := .rewrite 143639 .productSum }
-        ,{ sourceRows := [{ start := 7933563, stop := 7933568 }], emittedRows := { start := 14945643, stop := 14945645 }, disposition := .rewrite 143640 .productSum }
-        ,{ sourceRows := [{ start := 7933568, stop := 7933573 }], emittedRows := { start := 14945645, stop := 14945647 }, disposition := .rewrite 143641 .productSum }
-        ,{ sourceRows := [{ start := 7933573, stop := 7933578 }], emittedRows := { start := 14945647, stop := 14945649 }, disposition := .rewrite 143642 .productSum }
-        ,{ sourceRows := [{ start := 7933578, stop := 7933583 }], emittedRows := { start := 14945649, stop := 14945651 }, disposition := .rewrite 143643 .productSum }
-        ,{ sourceRows := [{ start := 7933583, stop := 7933588 }], emittedRows := { start := 14945651, stop := 14945653 }, disposition := .rewrite 143644 .productSum }
-        ,{ sourceRows := [{ start := 7933588, stop := 7933593 }], emittedRows := { start := 14945653, stop := 14945655 }, disposition := .rewrite 143645 .productSum }
-        ,{ sourceRows := [{ start := 7933593, stop := 7933598 }], emittedRows := { start := 14945655, stop := 14945657 }, disposition := .rewrite 143646 .productSum }
-        ,{ sourceRows := [{ start := 7933598, stop := 7933603 }], emittedRows := { start := 14945657, stop := 14945659 }, disposition := .rewrite 143647 .productSum }
-        ,{ sourceRows := [{ start := 7933603, stop := 7933608 }], emittedRows := { start := 14945659, stop := 14945661 }, disposition := .rewrite 143648 .productSum }
-        ,{ sourceRows := [{ start := 7933608, stop := 7933613 }], emittedRows := { start := 14945661, stop := 14945663 }, disposition := .rewrite 143649 .productSum }
-        ,{ sourceRows := [{ start := 7933613, stop := 7933618 }], emittedRows := { start := 14945663, stop := 14945665 }, disposition := .rewrite 143650 .productSum }
-        ,{ sourceRows := [{ start := 7933618, stop := 7933623 }], emittedRows := { start := 14945665, stop := 14945667 }, disposition := .rewrite 143651 .productSum }
-        ,{ sourceRows := [{ start := 7933623, stop := 7933628 }], emittedRows := { start := 14945667, stop := 14945669 }, disposition := .rewrite 143652 .productSum }
-        ,{ sourceRows := [{ start := 7933628, stop := 7933633 }], emittedRows := { start := 14945669, stop := 14945671 }, disposition := .rewrite 143653 .productSum }
-        ,{ sourceRows := [{ start := 7933633, stop := 7933638 }], emittedRows := { start := 14945671, stop := 14945673 }, disposition := .rewrite 143654 .productSum }
-        ,{ sourceRows := [{ start := 7933638, stop := 7933643 }], emittedRows := { start := 14945673, stop := 14945675 }, disposition := .rewrite 143655 .productSum }
+{ sourceRows := [{ start := 7884596, stop := 7884597 }], emittedRows := { start := 14944191, stop := 14944191 }, disposition := .rewrite 159812 .linearDefinition }
+        ,{ sourceRows := [{ start := 7884597, stop := 7884598 }], emittedRows := { start := 14944191, stop := 14944191 }, disposition := .rewrite 159813 .linearDefinition }
+        ,{ sourceRows := [{ start := 7884598, stop := 7884603 }], emittedRows := { start := 14942899, stop := 14942901 }, disposition := .rewrite 132424 .productSum }
+        ,{ sourceRows := [{ start := 7884603, stop := 7884608 }], emittedRows := { start := 14942901, stop := 14942903 }, disposition := .rewrite 132425 .productSum }
+        ,{ sourceRows := [{ start := 7884608, stop := 7884613 }], emittedRows := { start := 14942903, stop := 14942905 }, disposition := .rewrite 132426 .productSum }
+        ,{ sourceRows := [{ start := 7884613, stop := 7884618 }], emittedRows := { start := 14942905, stop := 14942907 }, disposition := .rewrite 132427 .productSum }
+        ,{ sourceRows := [{ start := 7884618, stop := 7884623 }], emittedRows := { start := 14942907, stop := 14942909 }, disposition := .rewrite 132428 .productSum }
+        ,{ sourceRows := [{ start := 7884623, stop := 7884628 }], emittedRows := { start := 14942909, stop := 14942911 }, disposition := .rewrite 132429 .productSum }
+        ,{ sourceRows := [{ start := 7884628, stop := 7884633 }], emittedRows := { start := 14942911, stop := 14942913 }, disposition := .rewrite 132430 .productSum }
+        ,{ sourceRows := [{ start := 7884633, stop := 7884638 }], emittedRows := { start := 14942913, stop := 14942915 }, disposition := .rewrite 132431 .productSum }
+        ,{ sourceRows := [{ start := 7884638, stop := 7884643 }], emittedRows := { start := 14942915, stop := 14942917 }, disposition := .rewrite 132432 .productSum }
+        ,{ sourceRows := [{ start := 7884643, stop := 7884648 }], emittedRows := { start := 14942917, stop := 14942919 }, disposition := .rewrite 132433 .productSum }
+        ,{ sourceRows := [{ start := 7884648, stop := 7884653 }], emittedRows := { start := 14942919, stop := 14942921 }, disposition := .rewrite 132434 .productSum }
+        ,{ sourceRows := [{ start := 7884653, stop := 7884658 }], emittedRows := { start := 14942921, stop := 14942923 }, disposition := .rewrite 132435 .productSum }
+        ,{ sourceRows := [{ start := 7884658, stop := 7884663 }], emittedRows := { start := 14942923, stop := 14942925 }, disposition := .rewrite 132436 .productSum }
+        ,{ sourceRows := [{ start := 7884663, stop := 7884668 }], emittedRows := { start := 14942925, stop := 14942927 }, disposition := .rewrite 132437 .productSum }
+        ,{ sourceRows := [{ start := 7884668, stop := 7884673 }], emittedRows := { start := 14942927, stop := 14942929 }, disposition := .rewrite 132438 .productSum }
+        ,{ sourceRows := [{ start := 7884673, stop := 7884678 }], emittedRows := { start := 14942929, stop := 14942931 }, disposition := .rewrite 132439 .productSum }
+        ,{ sourceRows := [{ start := 7884678, stop := 7884683 }], emittedRows := { start := 14942931, stop := 14942933 }, disposition := .rewrite 132440 .productSum }
+        ,{ sourceRows := [{ start := 7884683, stop := 7884688 }], emittedRows := { start := 14942933, stop := 14942935 }, disposition := .rewrite 132441 .productSum }
+        ,{ sourceRows := [{ start := 7884688, stop := 7884693 }], emittedRows := { start := 14942935, stop := 14942937 }, disposition := .rewrite 132442 .productSum }
+        ,{ sourceRows := [{ start := 7884693, stop := 7884698 }], emittedRows := { start := 14942937, stop := 14942939 }, disposition := .rewrite 132443 .productSum }
+        ,{ sourceRows := [{ start := 7884698, stop := 7884703 }], emittedRows := { start := 14942939, stop := 14942941 }, disposition := .rewrite 132444 .productSum }
+        ,{ sourceRows := [{ start := 7884703, stop := 7884708 }], emittedRows := { start := 14942941, stop := 14942943 }, disposition := .rewrite 132445 .productSum }
+        ,{ sourceRows := [{ start := 7884708, stop := 7884713 }], emittedRows := { start := 14942943, stop := 14942945 }, disposition := .rewrite 132446 .productSum }
+        ,{ sourceRows := [{ start := 7884713, stop := 7884718 }], emittedRows := { start := 14942945, stop := 14942947 }, disposition := .rewrite 132447 .productSum }
+        ,{ sourceRows := [{ start := 7884718, stop := 7884723 }], emittedRows := { start := 14942947, stop := 14942949 }, disposition := .rewrite 132448 .productSum }
+        ,{ sourceRows := [{ start := 7884723, stop := 7884728 }], emittedRows := { start := 14942949, stop := 14942951 }, disposition := .rewrite 132449 .productSum }
+        ,{ sourceRows := [{ start := 7884728, stop := 7884733 }], emittedRows := { start := 14942951, stop := 14942953 }, disposition := .rewrite 132450 .productSum }
+        ,{ sourceRows := [{ start := 7884733, stop := 7884738 }], emittedRows := { start := 14942953, stop := 14942955 }, disposition := .rewrite 132451 .productSum }
+        ,{ sourceRows := [{ start := 7884738, stop := 7884743 }], emittedRows := { start := 14942955, stop := 14942957 }, disposition := .rewrite 132452 .productSum }
+        ,{ sourceRows := [{ start := 7884743, stop := 7884748 }], emittedRows := { start := 14942957, stop := 14942959 }, disposition := .rewrite 132453 .productSum }
+        ,{ sourceRows := [{ start := 7884748, stop := 7884753 }], emittedRows := { start := 14942959, stop := 14942961 }, disposition := .rewrite 132454 .productSum }
+        ,{ sourceRows := [{ start := 7884753, stop := 7884758 }], emittedRows := { start := 14942961, stop := 14942963 }, disposition := .rewrite 132455 .productSum }
+        ,{ sourceRows := [{ start := 7884758, stop := 7884763 }], emittedRows := { start := 14942963, stop := 14942965 }, disposition := .rewrite 132456 .productSum }
+        ,{ sourceRows := [{ start := 7884763, stop := 7884768 }], emittedRows := { start := 14942965, stop := 14942967 }, disposition := .rewrite 132457 .productSum }
+        ,{ sourceRows := [{ start := 7884768, stop := 7884773 }], emittedRows := { start := 14942967, stop := 14942969 }, disposition := .rewrite 132458 .productSum }
+        ,{ sourceRows := [{ start := 7884773, stop := 7884778 }], emittedRows := { start := 14942969, stop := 14942971 }, disposition := .rewrite 132459 .productSum }
+        ,{ sourceRows := [{ start := 7884778, stop := 7884783 }], emittedRows := { start := 14942971, stop := 14942973 }, disposition := .rewrite 132460 .productSum }
+        ,{ sourceRows := [{ start := 7884783, stop := 7884788 }], emittedRows := { start := 14942973, stop := 14942975 }, disposition := .rewrite 132461 .productSum }
+        ,{ sourceRows := [{ start := 7884788, stop := 7884793 }], emittedRows := { start := 14942975, stop := 14942977 }, disposition := .rewrite 132462 .productSum }
+        ,{ sourceRows := [{ start := 7884793, stop := 7884798 }], emittedRows := { start := 14942977, stop := 14942979 }, disposition := .rewrite 132463 .productSum }
+        ,{ sourceRows := [{ start := 7884798, stop := 7884803 }], emittedRows := { start := 14942979, stop := 14942981 }, disposition := .rewrite 132464 .productSum }
+        ,{ sourceRows := [{ start := 7884803, stop := 7884808 }], emittedRows := { start := 14942981, stop := 14942983 }, disposition := .rewrite 132465 .productSum }
+        ,{ sourceRows := [{ start := 7884808, stop := 7884813 }], emittedRows := { start := 14942983, stop := 14942985 }, disposition := .rewrite 132466 .productSum }
+        ,{ sourceRows := [{ start := 7884813, stop := 7884818 }], emittedRows := { start := 14942985, stop := 14942987 }, disposition := .rewrite 132467 .productSum }
+        ,{ sourceRows := [{ start := 7884818, stop := 7884823 }], emittedRows := { start := 14942987, stop := 14942989 }, disposition := .rewrite 132468 .productSum }
+        ,{ sourceRows := [{ start := 7884823, stop := 7884828 }], emittedRows := { start := 14942989, stop := 14942991 }, disposition := .rewrite 132469 .productSum }
+        ,{ sourceRows := [{ start := 7884828, stop := 7884833 }], emittedRows := { start := 14942991, stop := 14942993 }, disposition := .rewrite 132470 .productSum }
+        ,{ sourceRows := [{ start := 7884833, stop := 7884838 }], emittedRows := { start := 14942993, stop := 14942995 }, disposition := .rewrite 132471 .productSum }
+        ,{ sourceRows := [{ start := 7884838, stop := 7884843 }], emittedRows := { start := 14942995, stop := 14942997 }, disposition := .rewrite 132472 .productSum }
+        ,{ sourceRows := [{ start := 7884843, stop := 7884848 }], emittedRows := { start := 14942997, stop := 14942999 }, disposition := .rewrite 132473 .productSum }
+        ,{ sourceRows := [{ start := 7884848, stop := 7884853 }], emittedRows := { start := 14942999, stop := 14943001 }, disposition := .rewrite 132474 .productSum }
+        ,{ sourceRows := [{ start := 7884853, stop := 7884858 }], emittedRows := { start := 14943001, stop := 14943003 }, disposition := .rewrite 132475 .productSum }
+        ,{ sourceRows := [{ start := 7884858, stop := 7884863 }], emittedRows := { start := 14943003, stop := 14943005 }, disposition := .rewrite 132476 .productSum }
+        ,{ sourceRows := [{ start := 7884863, stop := 7884868 }], emittedRows := { start := 14943005, stop := 14943007 }, disposition := .rewrite 132477 .productSum }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.projection_shared.rho_evaluations",
-       sourceRows := [{ start := 7933643, stop := 7933751 }, { start := 7933751, stop := 7933859 }, { start := 7933859, stop := 7933967 }, { start := 7933967, stop := 7934075 }, { start := 7934075, stop := 7934183 }, { start := 7934183, stop := 7934291 }, { start := 7934291, stop := 7934399 }, { start := 7934399, stop := 7934507 }, { start := 7934507, stop := 7934615 }, { start := 7934615, stop := 7934723 }, { start := 7934723, stop := 7934831 }, { start := 7934831, stop := 7934939 }, { start := 7934939, stop := 7935047 }, { start := 7935047, stop := 7935155 }, { start := 7935155, stop := 7935263 }],
+       sourceRows := [{ start := 7884868, stop := 7884976 }, { start := 7884976, stop := 7885084 }, { start := 7885084, stop := 7885192 }, { start := 7885192, stop := 7885300 }, { start := 7885300, stop := 7885408 }, { start := 7885408, stop := 7885516 }, { start := 7885516, stop := 7885624 }, { start := 7885624, stop := 7885732 }, { start := 7885732, stop := 7885840 }, { start := 7885840, stop := 7885948 }, { start := 7885948, stop := 7886056 }, { start := 7886056, stop := 7886164 }, { start := 7886164, stop := 7886272 }, { start := 7886272, stop := 7886380 }, { start := 7886380, stop := 7886488 }],
        fragments :=
        [
-{ sourceRows := [{ start := 7933643, stop := 7933751 }], emittedRows := { start := 14912990, stop := 14913012 }, disposition := .rewrite 140881 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7933751, stop := 7933859 }], emittedRows := { start := 14913012, stop := 14913034 }, disposition := .rewrite 140882 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7933859, stop := 7933967 }], emittedRows := { start := 14913034, stop := 14913056 }, disposition := .rewrite 140883 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7933967, stop := 7934075 }], emittedRows := { start := 14913056, stop := 14913078 }, disposition := .rewrite 140884 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7934075, stop := 7934183 }], emittedRows := { start := 14913078, stop := 14913100 }, disposition := .rewrite 140885 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7934183, stop := 7934291 }], emittedRows := { start := 14913100, stop := 14913122 }, disposition := .rewrite 140886 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7934291, stop := 7934399 }], emittedRows := { start := 14913122, stop := 14913144 }, disposition := .rewrite 140887 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7934399, stop := 7934507 }], emittedRows := { start := 14913144, stop := 14913166 }, disposition := .rewrite 140888 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7934507, stop := 7934615 }], emittedRows := { start := 14913166, stop := 14913188 }, disposition := .rewrite 140889 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7934615, stop := 7934723 }], emittedRows := { start := 14913188, stop := 14913210 }, disposition := .rewrite 140890 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7934723, stop := 7934831 }], emittedRows := { start := 14913210, stop := 14913232 }, disposition := .rewrite 140891 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7934831, stop := 7934939 }], emittedRows := { start := 14913232, stop := 14913254 }, disposition := .rewrite 140892 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7934939, stop := 7935047 }], emittedRows := { start := 14913254, stop := 14913276 }, disposition := .rewrite 140893 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7935047, stop := 7935155 }], emittedRows := { start := 14913276, stop := 14913298 }, disposition := .rewrite 140894 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 7935155, stop := 7935263 }], emittedRows := { start := 14913298, stop := 14913320 }, disposition := .rewrite 140895 .polynomialEvaluation }
+{ sourceRows := [{ start := 7884868, stop := 7884976 }], emittedRows := { start := 14910572, stop := 14910594 }, disposition := .rewrite 129828 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7884976, stop := 7885084 }], emittedRows := { start := 14910594, stop := 14910616 }, disposition := .rewrite 129829 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7885084, stop := 7885192 }], emittedRows := { start := 14910616, stop := 14910638 }, disposition := .rewrite 129830 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7885192, stop := 7885300 }], emittedRows := { start := 14910638, stop := 14910660 }, disposition := .rewrite 129831 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7885300, stop := 7885408 }], emittedRows := { start := 14910660, stop := 14910682 }, disposition := .rewrite 129832 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7885408, stop := 7885516 }], emittedRows := { start := 14910682, stop := 14910704 }, disposition := .rewrite 129833 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7885516, stop := 7885624 }], emittedRows := { start := 14910704, stop := 14910726 }, disposition := .rewrite 129834 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7885624, stop := 7885732 }], emittedRows := { start := 14910726, stop := 14910748 }, disposition := .rewrite 129835 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7885732, stop := 7885840 }], emittedRows := { start := 14910748, stop := 14910770 }, disposition := .rewrite 129836 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7885840, stop := 7885948 }], emittedRows := { start := 14910770, stop := 14910792 }, disposition := .rewrite 129837 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7885948, stop := 7886056 }], emittedRows := { start := 14910792, stop := 14910814 }, disposition := .rewrite 129838 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7886056, stop := 7886164 }], emittedRows := { start := 14910814, stop := 14910836 }, disposition := .rewrite 129839 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7886164, stop := 7886272 }], emittedRows := { start := 14910836, stop := 14910858 }, disposition := .rewrite 129840 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7886272, stop := 7886380 }], emittedRows := { start := 14910858, stop := 14910880 }, disposition := .rewrite 129841 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7886380, stop := 7886488 }], emittedRows := { start := 14910880, stop := 14910902 }, disposition := .rewrite 129842 .polynomialEvaluation }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.evaluations.inputs.limb0",
-       sourceRows := [{ start := 8006499, stop := 8006607 }, { start := 8006612, stop := 8006720 }, { start := 8006725, stop := 8006833 }, { start := 8006838, stop := 8006946 }, { start := 8006951, stop := 8007059 }, { start := 8007064, stop := 8007172 }, { start := 8007177, stop := 8007285 }, { start := 8007290, stop := 8007398 }, { start := 8007403, stop := 8007511 }, { start := 8007516, stop := 8007624 }, { start := 8007629, stop := 8007737 }, { start := 8007742, stop := 8007850 }, { start := 8007855, stop := 8007963 }, { start := 8007968, stop := 8008076 }, { start := 8008081, stop := 8008189 }],
+       sourceRows := [{ start := 7957724, stop := 7957832 }, { start := 7957837, stop := 7957945 }, { start := 7957950, stop := 7958058 }, { start := 7958063, stop := 7958171 }, { start := 7958176, stop := 7958284 }, { start := 7958289, stop := 7958397 }, { start := 7958402, stop := 7958510 }, { start := 7958515, stop := 7958623 }, { start := 7958628, stop := 7958736 }, { start := 7958741, stop := 7958849 }, { start := 7958854, stop := 7958962 }, { start := 7958967, stop := 7959075 }, { start := 7959080, stop := 7959188 }, { start := 7959193, stop := 7959301 }, { start := 7959306, stop := 7959414 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8006499, stop := 8006607 }], emittedRows := { start := 14926410, stop := 14926432 }, disposition := .rewrite 141491 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8006612, stop := 8006720 }], emittedRows := { start := 14926432, stop := 14926454 }, disposition := .rewrite 141492 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8006725, stop := 8006833 }], emittedRows := { start := 14926454, stop := 14926476 }, disposition := .rewrite 141493 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8006838, stop := 8006946 }], emittedRows := { start := 14926476, stop := 14926498 }, disposition := .rewrite 141494 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8006951, stop := 8007059 }], emittedRows := { start := 14926498, stop := 14926520 }, disposition := .rewrite 141495 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8007064, stop := 8007172 }], emittedRows := { start := 14926520, stop := 14926542 }, disposition := .rewrite 141496 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8007177, stop := 8007285 }], emittedRows := { start := 14926542, stop := 14926564 }, disposition := .rewrite 141497 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8007290, stop := 8007398 }], emittedRows := { start := 14926564, stop := 14926586 }, disposition := .rewrite 141498 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8007403, stop := 8007511 }], emittedRows := { start := 14926586, stop := 14926608 }, disposition := .rewrite 141499 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8007516, stop := 8007624 }], emittedRows := { start := 14926608, stop := 14926630 }, disposition := .rewrite 141500 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8007629, stop := 8007737 }], emittedRows := { start := 14926630, stop := 14926652 }, disposition := .rewrite 141501 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8007742, stop := 8007850 }], emittedRows := { start := 14926652, stop := 14926674 }, disposition := .rewrite 141502 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8007855, stop := 8007963 }], emittedRows := { start := 14926674, stop := 14926696 }, disposition := .rewrite 141503 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8007968, stop := 8008076 }], emittedRows := { start := 14926696, stop := 14926718 }, disposition := .rewrite 141504 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8008081, stop := 8008189 }], emittedRows := { start := 14926718, stop := 14926740 }, disposition := .rewrite 141505 .polynomialEvaluation }
+{ sourceRows := [{ start := 7957724, stop := 7957832 }], emittedRows := { start := 14923992, stop := 14924014 }, disposition := .rewrite 130438 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7957837, stop := 7957945 }], emittedRows := { start := 14924014, stop := 14924036 }, disposition := .rewrite 130439 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7957950, stop := 7958058 }], emittedRows := { start := 14924036, stop := 14924058 }, disposition := .rewrite 130440 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7958063, stop := 7958171 }], emittedRows := { start := 14924058, stop := 14924080 }, disposition := .rewrite 130441 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7958176, stop := 7958284 }], emittedRows := { start := 14924080, stop := 14924102 }, disposition := .rewrite 130442 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7958289, stop := 7958397 }], emittedRows := { start := 14924102, stop := 14924124 }, disposition := .rewrite 130443 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7958402, stop := 7958510 }], emittedRows := { start := 14924124, stop := 14924146 }, disposition := .rewrite 130444 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7958515, stop := 7958623 }], emittedRows := { start := 14924146, stop := 14924168 }, disposition := .rewrite 130445 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7958628, stop := 7958736 }], emittedRows := { start := 14924168, stop := 14924190 }, disposition := .rewrite 130446 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7958741, stop := 7958849 }], emittedRows := { start := 14924190, stop := 14924212 }, disposition := .rewrite 130447 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7958854, stop := 7958962 }], emittedRows := { start := 14924212, stop := 14924234 }, disposition := .rewrite 130448 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7958967, stop := 7959075 }], emittedRows := { start := 14924234, stop := 14924256 }, disposition := .rewrite 130449 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7959080, stop := 7959188 }], emittedRows := { start := 14924256, stop := 14924278 }, disposition := .rewrite 130450 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7959193, stop := 7959301 }], emittedRows := { start := 14924278, stop := 14924300 }, disposition := .rewrite 130451 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7959306, stop := 7959414 }], emittedRows := { start := 14924300, stop := 14924322 }, disposition := .rewrite 130452 .polynomialEvaluation }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.k_products.rho_times_input.limb0",
-       sourceRows := [{ start := 8006607, stop := 8006612 }, { start := 8006720, stop := 8006725 }, { start := 8006833, stop := 8006838 }, { start := 8006946, stop := 8006951 }, { start := 8007059, stop := 8007064 }, { start := 8007172, stop := 8007177 }, { start := 8007285, stop := 8007290 }, { start := 8007398, stop := 8007403 }, { start := 8007511, stop := 8007516 }, { start := 8007624, stop := 8007629 }, { start := 8007737, stop := 8007742 }, { start := 8007850, stop := 8007855 }, { start := 8007963, stop := 8007968 }, { start := 8008076, stop := 8008081 }, { start := 8008189, stop := 8008194 }],
+       sourceRows := [{ start := 7957832, stop := 7957837 }, { start := 7957945, stop := 7957950 }, { start := 7958058, stop := 7958063 }, { start := 7958171, stop := 7958176 }, { start := 7958284, stop := 7958289 }, { start := 7958397, stop := 7958402 }, { start := 7958510, stop := 7958515 }, { start := 7958623, stop := 7958628 }, { start := 7958736, stop := 7958741 }, { start := 7958849, stop := 7958854 }, { start := 7958962, stop := 7958967 }, { start := 7959075, stop := 7959080 }, { start := 7959188, stop := 7959193 }, { start := 7959301, stop := 7959306 }, { start := 7959414, stop := 7959419 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8006607, stop := 8006612 }], emittedRows := { start := 14946795, stop := 14946797 }, disposition := .rewrite 144216 .productSum }
-        ,{ sourceRows := [{ start := 8006720, stop := 8006725 }], emittedRows := { start := 14946797, stop := 14946799 }, disposition := .rewrite 144217 .productSum }
-        ,{ sourceRows := [{ start := 8006833, stop := 8006838 }], emittedRows := { start := 14946799, stop := 14946801 }, disposition := .rewrite 144218 .productSum }
-        ,{ sourceRows := [{ start := 8006946, stop := 8006951 }], emittedRows := { start := 14946801, stop := 14946803 }, disposition := .rewrite 144219 .productSum }
-        ,{ sourceRows := [{ start := 8007059, stop := 8007064 }], emittedRows := { start := 14946803, stop := 14946805 }, disposition := .rewrite 144220 .productSum }
-        ,{ sourceRows := [{ start := 8007172, stop := 8007177 }], emittedRows := { start := 14946805, stop := 14946807 }, disposition := .rewrite 144221 .productSum }
-        ,{ sourceRows := [{ start := 8007285, stop := 8007290 }], emittedRows := { start := 14946807, stop := 14946809 }, disposition := .rewrite 144222 .productSum }
-        ,{ sourceRows := [{ start := 8007398, stop := 8007403 }], emittedRows := { start := 14946809, stop := 14946811 }, disposition := .rewrite 144223 .productSum }
-        ,{ sourceRows := [{ start := 8007511, stop := 8007516 }], emittedRows := { start := 14946811, stop := 14946813 }, disposition := .rewrite 144224 .productSum }
-        ,{ sourceRows := [{ start := 8007624, stop := 8007629 }], emittedRows := { start := 14946813, stop := 14946815 }, disposition := .rewrite 144225 .productSum }
-        ,{ sourceRows := [{ start := 8007737, stop := 8007742 }], emittedRows := { start := 14946815, stop := 14946817 }, disposition := .rewrite 144226 .productSum }
-        ,{ sourceRows := [{ start := 8007850, stop := 8007855 }], emittedRows := { start := 14946817, stop := 14946819 }, disposition := .rewrite 144227 .productSum }
-        ,{ sourceRows := [{ start := 8007963, stop := 8007968 }], emittedRows := { start := 14946819, stop := 14946821 }, disposition := .rewrite 144228 .productSum }
-        ,{ sourceRows := [{ start := 8008076, stop := 8008081 }], emittedRows := { start := 14946821, stop := 14946823 }, disposition := .rewrite 144229 .productSum }
-        ,{ sourceRows := [{ start := 8008189, stop := 8008194 }], emittedRows := { start := 14946823, stop := 14946825 }, disposition := .rewrite 144230 .productSum }
+{ sourceRows := [{ start := 7957832, stop := 7957837 }], emittedRows := { start := 14944127, stop := 14944129 }, disposition := .rewrite 133038 .productSum }
+        ,{ sourceRows := [{ start := 7957945, stop := 7957950 }], emittedRows := { start := 14944129, stop := 14944131 }, disposition := .rewrite 133039 .productSum }
+        ,{ sourceRows := [{ start := 7958058, stop := 7958063 }], emittedRows := { start := 14944131, stop := 14944133 }, disposition := .rewrite 133040 .productSum }
+        ,{ sourceRows := [{ start := 7958171, stop := 7958176 }], emittedRows := { start := 14944133, stop := 14944135 }, disposition := .rewrite 133041 .productSum }
+        ,{ sourceRows := [{ start := 7958284, stop := 7958289 }], emittedRows := { start := 14944135, stop := 14944137 }, disposition := .rewrite 133042 .productSum }
+        ,{ sourceRows := [{ start := 7958397, stop := 7958402 }], emittedRows := { start := 14944137, stop := 14944139 }, disposition := .rewrite 133043 .productSum }
+        ,{ sourceRows := [{ start := 7958510, stop := 7958515 }], emittedRows := { start := 14944139, stop := 14944141 }, disposition := .rewrite 133044 .productSum }
+        ,{ sourceRows := [{ start := 7958623, stop := 7958628 }], emittedRows := { start := 14944141, stop := 14944143 }, disposition := .rewrite 133045 .productSum }
+        ,{ sourceRows := [{ start := 7958736, stop := 7958741 }], emittedRows := { start := 14944143, stop := 14944145 }, disposition := .rewrite 133046 .productSum }
+        ,{ sourceRows := [{ start := 7958849, stop := 7958854 }], emittedRows := { start := 14944145, stop := 14944147 }, disposition := .rewrite 133047 .productSum }
+        ,{ sourceRows := [{ start := 7958962, stop := 7958967 }], emittedRows := { start := 14944147, stop := 14944149 }, disposition := .rewrite 133048 .productSum }
+        ,{ sourceRows := [{ start := 7959075, stop := 7959080 }], emittedRows := { start := 14944149, stop := 14944151 }, disposition := .rewrite 133049 .productSum }
+        ,{ sourceRows := [{ start := 7959188, stop := 7959193 }], emittedRows := { start := 14944151, stop := 14944153 }, disposition := .rewrite 133050 .productSum }
+        ,{ sourceRows := [{ start := 7959301, stop := 7959306 }], emittedRows := { start := 14944153, stop := 14944155 }, disposition := .rewrite 133051 .productSum }
+        ,{ sourceRows := [{ start := 7959414, stop := 7959419 }], emittedRows := { start := 14944155, stop := 14944157 }, disposition := .rewrite 133052 .productSum }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.evaluations.output.limb0",
-       sourceRows := [{ start := 8008194, stop := 8008302 }],
+       sourceRows := [{ start := 7959419, stop := 7959527 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8008194, stop := 8008302 }], emittedRows := { start := 14926740, stop := 14926762 }, disposition := .rewrite 141506 .polynomialEvaluation }
+{ sourceRows := [{ start := 7959419, stop := 7959527 }], emittedRows := { start := 14924322, stop := 14924344 }, disposition := .rewrite 130453 .polynomialEvaluation }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.evaluations.quotient.limb0",
-       sourceRows := [{ start := 8008302, stop := 8008408 }],
+       sourceRows := [{ start := 7959527, stop := 7959633 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8008302, stop := 8008408 }], emittedRows := { start := 14926762, stop := 14926784 }, disposition := .rewrite 141507 .polynomialEvaluation }
+{ sourceRows := [{ start := 7959527, stop := 7959633 }], emittedRows := { start := 14924344, stop := 14924366 }, disposition := .rewrite 130454 .polynomialEvaluation }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.k_products.quotient_times_phi.limb0",
-       sourceRows := [{ start := 8008408, stop := 8008413 }],
+       sourceRows := [{ start := 7959633, stop := 7959638 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8008408, stop := 8008413 }], emittedRows := { start := 14946825, stop := 14946827 }, disposition := .rewrite 144231 .productSum }
+{ sourceRows := [{ start := 7959633, stop := 7959638 }], emittedRows := { start := 14944157, stop := 14944159 }, disposition := .rewrite 133053 .productSum }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.final_limb_checks.limb0",
-       sourceRows := [{ start := 8008413, stop := 8008415 }],
+       sourceRows := [{ start := 7959638, stop := 7959640 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8008413, stop := 8008415 }], emittedRows := { start := 7919820, stop := 7919822 }, disposition := .retained }
+{ sourceRows := [{ start := 7959638, stop := 7959640 }], emittedRows := { start := 7920246, stop := 7920248 }, disposition := .retained }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.evaluations.inputs.limb1",
-       sourceRows := [{ start := 8008415, stop := 8008523 }, { start := 8008528, stop := 8008636 }, { start := 8008641, stop := 8008749 }, { start := 8008754, stop := 8008862 }, { start := 8008867, stop := 8008975 }, { start := 8008980, stop := 8009088 }, { start := 8009093, stop := 8009201 }, { start := 8009206, stop := 8009314 }, { start := 8009319, stop := 8009427 }, { start := 8009432, stop := 8009540 }, { start := 8009545, stop := 8009653 }, { start := 8009658, stop := 8009766 }, { start := 8009771, stop := 8009879 }, { start := 8009884, stop := 8009992 }, { start := 8009997, stop := 8010105 }],
+       sourceRows := [{ start := 7959640, stop := 7959748 }, { start := 7959753, stop := 7959861 }, { start := 7959866, stop := 7959974 }, { start := 7959979, stop := 7960087 }, { start := 7960092, stop := 7960200 }, { start := 7960205, stop := 7960313 }, { start := 7960318, stop := 7960426 }, { start := 7960431, stop := 7960539 }, { start := 7960544, stop := 7960652 }, { start := 7960657, stop := 7960765 }, { start := 7960770, stop := 7960878 }, { start := 7960883, stop := 7960991 }, { start := 7960996, stop := 7961104 }, { start := 7961109, stop := 7961217 }, { start := 7961222, stop := 7961330 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8008415, stop := 8008523 }], emittedRows := { start := 14926784, stop := 14926806 }, disposition := .rewrite 141508 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8008528, stop := 8008636 }], emittedRows := { start := 14926806, stop := 14926828 }, disposition := .rewrite 141509 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8008641, stop := 8008749 }], emittedRows := { start := 14926828, stop := 14926850 }, disposition := .rewrite 141510 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8008754, stop := 8008862 }], emittedRows := { start := 14926850, stop := 14926872 }, disposition := .rewrite 141511 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8008867, stop := 8008975 }], emittedRows := { start := 14926872, stop := 14926894 }, disposition := .rewrite 141512 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8008980, stop := 8009088 }], emittedRows := { start := 14926894, stop := 14926916 }, disposition := .rewrite 141513 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8009093, stop := 8009201 }], emittedRows := { start := 14926916, stop := 14926938 }, disposition := .rewrite 141514 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8009206, stop := 8009314 }], emittedRows := { start := 14926938, stop := 14926960 }, disposition := .rewrite 141515 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8009319, stop := 8009427 }], emittedRows := { start := 14926960, stop := 14926982 }, disposition := .rewrite 141516 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8009432, stop := 8009540 }], emittedRows := { start := 14926982, stop := 14927004 }, disposition := .rewrite 141517 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8009545, stop := 8009653 }], emittedRows := { start := 14927004, stop := 14927026 }, disposition := .rewrite 141518 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8009658, stop := 8009766 }], emittedRows := { start := 14927026, stop := 14927048 }, disposition := .rewrite 141519 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8009771, stop := 8009879 }], emittedRows := { start := 14927048, stop := 14927070 }, disposition := .rewrite 141520 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8009884, stop := 8009992 }], emittedRows := { start := 14927070, stop := 14927092 }, disposition := .rewrite 141521 .polynomialEvaluation }
-        ,{ sourceRows := [{ start := 8009997, stop := 8010105 }], emittedRows := { start := 14927092, stop := 14927114 }, disposition := .rewrite 141522 .polynomialEvaluation }
+{ sourceRows := [{ start := 7959640, stop := 7959748 }], emittedRows := { start := 14924366, stop := 14924388 }, disposition := .rewrite 130455 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7959753, stop := 7959861 }], emittedRows := { start := 14924388, stop := 14924410 }, disposition := .rewrite 130456 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7959866, stop := 7959974 }], emittedRows := { start := 14924410, stop := 14924432 }, disposition := .rewrite 130457 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7959979, stop := 7960087 }], emittedRows := { start := 14924432, stop := 14924454 }, disposition := .rewrite 130458 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7960092, stop := 7960200 }], emittedRows := { start := 14924454, stop := 14924476 }, disposition := .rewrite 130459 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7960205, stop := 7960313 }], emittedRows := { start := 14924476, stop := 14924498 }, disposition := .rewrite 130460 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7960318, stop := 7960426 }], emittedRows := { start := 14924498, stop := 14924520 }, disposition := .rewrite 130461 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7960431, stop := 7960539 }], emittedRows := { start := 14924520, stop := 14924542 }, disposition := .rewrite 130462 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7960544, stop := 7960652 }], emittedRows := { start := 14924542, stop := 14924564 }, disposition := .rewrite 130463 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7960657, stop := 7960765 }], emittedRows := { start := 14924564, stop := 14924586 }, disposition := .rewrite 130464 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7960770, stop := 7960878 }], emittedRows := { start := 14924586, stop := 14924608 }, disposition := .rewrite 130465 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7960883, stop := 7960991 }], emittedRows := { start := 14924608, stop := 14924630 }, disposition := .rewrite 130466 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7960996, stop := 7961104 }], emittedRows := { start := 14924630, stop := 14924652 }, disposition := .rewrite 130467 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7961109, stop := 7961217 }], emittedRows := { start := 14924652, stop := 14924674 }, disposition := .rewrite 130468 .polynomialEvaluation }
+        ,{ sourceRows := [{ start := 7961222, stop := 7961330 }], emittedRows := { start := 14924674, stop := 14924696 }, disposition := .rewrite 130469 .polynomialEvaluation }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.k_products.rho_times_input.limb1",
-       sourceRows := [{ start := 8008523, stop := 8008528 }, { start := 8008636, stop := 8008641 }, { start := 8008749, stop := 8008754 }, { start := 8008862, stop := 8008867 }, { start := 8008975, stop := 8008980 }, { start := 8009088, stop := 8009093 }, { start := 8009201, stop := 8009206 }, { start := 8009314, stop := 8009319 }, { start := 8009427, stop := 8009432 }, { start := 8009540, stop := 8009545 }, { start := 8009653, stop := 8009658 }, { start := 8009766, stop := 8009771 }, { start := 8009879, stop := 8009884 }, { start := 8009992, stop := 8009997 }, { start := 8010105, stop := 8010110 }],
+       sourceRows := [{ start := 7959748, stop := 7959753 }, { start := 7959861, stop := 7959866 }, { start := 7959974, stop := 7959979 }, { start := 7960087, stop := 7960092 }, { start := 7960200, stop := 7960205 }, { start := 7960313, stop := 7960318 }, { start := 7960426, stop := 7960431 }, { start := 7960539, stop := 7960544 }, { start := 7960652, stop := 7960657 }, { start := 7960765, stop := 7960770 }, { start := 7960878, stop := 7960883 }, { start := 7960991, stop := 7960996 }, { start := 7961104, stop := 7961109 }, { start := 7961217, stop := 7961222 }, { start := 7961330, stop := 7961335 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8008523, stop := 8008528 }], emittedRows := { start := 14946827, stop := 14946829 }, disposition := .rewrite 144232 .productSum }
-        ,{ sourceRows := [{ start := 8008636, stop := 8008641 }], emittedRows := { start := 14946829, stop := 14946831 }, disposition := .rewrite 144233 .productSum }
-        ,{ sourceRows := [{ start := 8008749, stop := 8008754 }], emittedRows := { start := 14946831, stop := 14946833 }, disposition := .rewrite 144234 .productSum }
-        ,{ sourceRows := [{ start := 8008862, stop := 8008867 }], emittedRows := { start := 14946833, stop := 14946835 }, disposition := .rewrite 144235 .productSum }
-        ,{ sourceRows := [{ start := 8008975, stop := 8008980 }], emittedRows := { start := 14946835, stop := 14946837 }, disposition := .rewrite 144236 .productSum }
-        ,{ sourceRows := [{ start := 8009088, stop := 8009093 }], emittedRows := { start := 14946837, stop := 14946839 }, disposition := .rewrite 144237 .productSum }
-        ,{ sourceRows := [{ start := 8009201, stop := 8009206 }], emittedRows := { start := 14946839, stop := 14946841 }, disposition := .rewrite 144238 .productSum }
-        ,{ sourceRows := [{ start := 8009314, stop := 8009319 }], emittedRows := { start := 14946841, stop := 14946843 }, disposition := .rewrite 144239 .productSum }
-        ,{ sourceRows := [{ start := 8009427, stop := 8009432 }], emittedRows := { start := 14946843, stop := 14946845 }, disposition := .rewrite 144240 .productSum }
-        ,{ sourceRows := [{ start := 8009540, stop := 8009545 }], emittedRows := { start := 14946845, stop := 14946847 }, disposition := .rewrite 144241 .productSum }
-        ,{ sourceRows := [{ start := 8009653, stop := 8009658 }], emittedRows := { start := 14946847, stop := 14946849 }, disposition := .rewrite 144242 .productSum }
-        ,{ sourceRows := [{ start := 8009766, stop := 8009771 }], emittedRows := { start := 14946849, stop := 14946851 }, disposition := .rewrite 144243 .productSum }
-        ,{ sourceRows := [{ start := 8009879, stop := 8009884 }], emittedRows := { start := 14946851, stop := 14946853 }, disposition := .rewrite 144244 .productSum }
-        ,{ sourceRows := [{ start := 8009992, stop := 8009997 }], emittedRows := { start := 14946853, stop := 14946855 }, disposition := .rewrite 144245 .productSum }
-        ,{ sourceRows := [{ start := 8010105, stop := 8010110 }], emittedRows := { start := 14946855, stop := 14946857 }, disposition := .rewrite 144246 .productSum }
+{ sourceRows := [{ start := 7959748, stop := 7959753 }], emittedRows := { start := 14944159, stop := 14944161 }, disposition := .rewrite 133054 .productSum }
+        ,{ sourceRows := [{ start := 7959861, stop := 7959866 }], emittedRows := { start := 14944161, stop := 14944163 }, disposition := .rewrite 133055 .productSum }
+        ,{ sourceRows := [{ start := 7959974, stop := 7959979 }], emittedRows := { start := 14944163, stop := 14944165 }, disposition := .rewrite 133056 .productSum }
+        ,{ sourceRows := [{ start := 7960087, stop := 7960092 }], emittedRows := { start := 14944165, stop := 14944167 }, disposition := .rewrite 133057 .productSum }
+        ,{ sourceRows := [{ start := 7960200, stop := 7960205 }], emittedRows := { start := 14944167, stop := 14944169 }, disposition := .rewrite 133058 .productSum }
+        ,{ sourceRows := [{ start := 7960313, stop := 7960318 }], emittedRows := { start := 14944169, stop := 14944171 }, disposition := .rewrite 133059 .productSum }
+        ,{ sourceRows := [{ start := 7960426, stop := 7960431 }], emittedRows := { start := 14944171, stop := 14944173 }, disposition := .rewrite 133060 .productSum }
+        ,{ sourceRows := [{ start := 7960539, stop := 7960544 }], emittedRows := { start := 14944173, stop := 14944175 }, disposition := .rewrite 133061 .productSum }
+        ,{ sourceRows := [{ start := 7960652, stop := 7960657 }], emittedRows := { start := 14944175, stop := 14944177 }, disposition := .rewrite 133062 .productSum }
+        ,{ sourceRows := [{ start := 7960765, stop := 7960770 }], emittedRows := { start := 14944177, stop := 14944179 }, disposition := .rewrite 133063 .productSum }
+        ,{ sourceRows := [{ start := 7960878, stop := 7960883 }], emittedRows := { start := 14944179, stop := 14944181 }, disposition := .rewrite 133064 .productSum }
+        ,{ sourceRows := [{ start := 7960991, stop := 7960996 }], emittedRows := { start := 14944181, stop := 14944183 }, disposition := .rewrite 133065 .productSum }
+        ,{ sourceRows := [{ start := 7961104, stop := 7961109 }], emittedRows := { start := 14944183, stop := 14944185 }, disposition := .rewrite 133066 .productSum }
+        ,{ sourceRows := [{ start := 7961217, stop := 7961222 }], emittedRows := { start := 14944185, stop := 14944187 }, disposition := .rewrite 133067 .productSum }
+        ,{ sourceRows := [{ start := 7961330, stop := 7961335 }], emittedRows := { start := 14944187, stop := 14944189 }, disposition := .rewrite 133068 .productSum }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.evaluations.output.limb1",
-       sourceRows := [{ start := 8010110, stop := 8010218 }],
+       sourceRows := [{ start := 7961335, stop := 7961443 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8010110, stop := 8010218 }], emittedRows := { start := 14927114, stop := 14927136 }, disposition := .rewrite 141523 .polynomialEvaluation }
+{ sourceRows := [{ start := 7961335, stop := 7961443 }], emittedRows := { start := 14924696, stop := 14924718 }, disposition := .rewrite 130470 .polynomialEvaluation }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.evaluations.quotient.limb1",
-       sourceRows := [{ start := 8010218, stop := 8010324 }],
+       sourceRows := [{ start := 7961443, stop := 7961549 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8010218, stop := 8010324 }], emittedRows := { start := 14927136, stop := 14927158 }, disposition := .rewrite 141524 .polynomialEvaluation }
+{ sourceRows := [{ start := 7961443, stop := 7961549 }], emittedRows := { start := 14924718, stop := 14924740 }, disposition := .rewrite 130471 .polynomialEvaluation }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.k_products.quotient_times_phi.limb1",
-       sourceRows := [{ start := 8010324, stop := 8010329 }],
+       sourceRows := [{ start := 7961549, stop := 7961554 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8010324, stop := 8010329 }], emittedRows := { start := 14946857, stop := 14946859 }, disposition := .rewrite 144247 .productSum }
+{ sourceRows := [{ start := 7961549, stop := 7961554 }], emittedRows := { start := 14944189, stop := 14944191 }, disposition := .rewrite 133069 .productSum }
        ] }
 ,{ stagePath := "nifs.pi_rlc.verify.identities.y_zcol.final_limb_checks.limb1",
-       sourceRows := [{ start := 8010329, stop := 8010331 }],
+       sourceRows := [{ start := 7961554, stop := 7961556 }],
        fragments :=
        [
-{ sourceRows := [{ start := 8010329, stop := 8010331 }], emittedRows := { start := 7919822, stop := 7919824 }, disposition := .retained }
+{ sourceRows := [{ start := 7961554, stop := 7961556 }], emittedRows := { start := 7920248, stop := 7920250 }, disposition := .retained }
        ] }
     ] }
 

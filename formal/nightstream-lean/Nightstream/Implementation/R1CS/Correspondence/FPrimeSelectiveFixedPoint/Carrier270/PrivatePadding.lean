@@ -192,43 +192,42 @@ theorem expectedRow_decode_exact (offset : Fin Artifact.paddingWidth) :
   have rowBound :=
     Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.expectedRow_emittedRow_bound
       offset
-  have concreteRowBound : 4729593 + offset.val < 14946911 := by
-    simpa [
-      Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.firstEmittedRow,
-      Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.relationRows]
-      using rowBound
   have paddingBound :=
     Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.expectedRow_paddingColumn
       offset
-  have concretePaddingBound : 273 + offset.val < 11725506 := by
-    simpa [
-      Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.firstPaddingColumn,
-      Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.relationColumns]
-      using paddingBound
+  have rowsPositive : 0 < Artifact.relationRows := by
+    decide
+  have columnsPositive : 0 < Artifact.relationColumns := by
+    decide
   have decodedPaddingPort :=
-    decodePort_unit 11725506 (273 + offset.val) concretePaddingBound
-  simp [Artifact.expectedRow,
-    Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.expectedRow,
+    decodePort_unit Artifact.relationColumns
+      (Artifact.firstPaddingColumn + offset.val) paddingBound
+  have constantBound : 0 <
+      Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.relationColumns := by
+    decide
+  have decodedConstantPort :=
+    decodePort_unit
+      Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.relationColumns
+      0 constantBound
+  simp only [Artifact.expectedRow,
+    Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.expectedRow]
+  unfold decodeRow
+  rw [dif_pos (by rfl), dif_pos rowsPositive, dif_pos columnsPositive,
+    dif_pos rowBound]
+  simp [
     Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.expectedPorts,
     Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.expectedPort,
     Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.unitPort,
     Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.emptyPort,
-    Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.relationRows,
-    Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.relationColumns,
-    Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.firstEmittedRow,
-    Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.emitterRunIndex,
     Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.constantColumn,
-    Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PrivatePadding.firstPaddingColumn,
-    decodeRow, supportedSchemaVersion, decodedPaddingPort,
-    decodePort_empty, decodePort_unit, expectedDecodedRow]
-  constructor
-  · exact concreteRowBound
-  · funext port
-    change
-      (List.ofFn (expectedDecodedPort offset)).get
-          ⟨port.val, by simp⟩ =
-        expectedDecodedPort offset port
-    rw [List.get_eq_getElem, List.getElem_ofFn]
+    decodedPaddingPort, decodedConstantPort, decodePort_empty,
+    expectedDecodedRow]
+  funext port
+  change
+    (List.ofFn (expectedDecodedPort offset)).get
+        ⟨port.val, by simp⟩ =
+      expectedDecodedPort offset port
+  rw [List.get_eq_getElem, List.getElem_ofFn]
 
 theorem expectedRow_decodes (offset : Fin Artifact.paddingWidth) :
     ∃ row : DecodedRow,

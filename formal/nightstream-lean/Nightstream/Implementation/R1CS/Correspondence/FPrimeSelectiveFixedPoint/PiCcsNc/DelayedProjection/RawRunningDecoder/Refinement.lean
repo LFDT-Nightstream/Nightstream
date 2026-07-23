@@ -8,7 +8,7 @@ table decoder.
 Assurance tier: model-level.
 
 Owns: decoding a physical R1CS assignment through a compact
-`SourceColumnMap`; the primitive per-record equation that a future concrete
+`SourceAllocationMap`; the primitive per-record equation that a future concrete
 row proof must establish; transport of those equations to the exact
 `DelayedRawChildren.rawRunningAssignments` table; and the live/virtual
 packed-table consequences.
@@ -16,7 +16,7 @@ packed-table consequences.
 Does not own: any concrete source-column number, generated record, sparse
 `A/B/C` row, satisfaction theorem for those rows, assignment-allocation
 decoder, Rust emitter, commitment binding, transcript, cost, or row-removal
-authority. `SourceColumnRowsBind` is intentionally the open leaf: unlike the
+authority. `SourceAllocationRowsBind` is intentionally the open leaf: unlike the
 conclusion it is a family of primitive physical-column equations, suitable
 for discharge from exact generated rows. No theorem takes decoded-table
 equality or raw-child authority as a premise.
@@ -31,9 +31,9 @@ fixture.
 
 | Stage path | Mathematical obligation | Authority class | Open boundary |
 |---|---|---|---|
-| `nifs.pi_ccs.nc.delayed.raw_decoder.decode` | read each logical scalar from its generated physical source column | direct dataflow | generated source-column map |
-| `nifs.pi_ccs.nc.delayed.raw_decoder.rows` | each physical source column is equated to the corresponding raw running-assignment coordinate | checked contract | exact sparse `A/B/C` row proof |
-| `nifs.pi_ccs.nc.delayed.raw_decoder.refinement` | checked source-column rows imply coordinatewise equality with `rawRunningAssignments` | derived | none beyond the checked rows |
+| `nifs.pi_ccs.nc.delayed.raw_decoder.decode` | reconstruct each logical scalar from its generated physical encoding interval | direct dataflow | generated allocation map |
+| `nifs.pi_ccs.nc.delayed.raw_decoder.rows` | each decoded encoding interval is equated to the corresponding raw running-assignment coordinate | checked contract | exact encoder/dataflow proof |
+| `nifs.pi_ccs.nc.delayed.raw_decoder.refinement` | checked allocation equations imply coordinatewise equality with `rawRunningAssignments` | derived | none beyond the checked equations |
 | `nifs.pi_ccs.nc.delayed.raw_decoder.padding` | the 10 lane and 3 block padding positions evaluate to zero by construction | computed | concrete zero-row emission remains open |
 -/
 
@@ -71,13 +71,13 @@ end Profile
 /-- Physical field assignment indexed by compiler allocation column. -/
 abbrev PhysicalAssignment := Nat -> F
 
-/-- Logical child-major decoder induced by an exact source-column map. -/
+/-- Logical child-major decoder induced by an exact encoded-scalar map. -/
 def decodedLogical
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
     (child : Child)
     (logicalColumn : LogicalColumn) : F :=
-  assignment (columns.sourceColumn child logicalColumn)
+  (columns.allocation child logicalColumn).decode assignment
 
 section SemanticTarget
 
@@ -91,30 +91,30 @@ variable
 proof must derive this equation from actual sparse rows and their satisfaction;
 it is not semantic acceptance and it is not the desired decoded-table
 equality. -/
-def SourceColumnEquation
+def SourceAllocationEquation
     (profile : Profile shape)
     (context : FixedActive.Context shape State publicRingColumns publicFits
       verifierRows)
     (data : Sources.Data shape)
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
     (child : Child)
     (logicalColumn : LogicalColumn) : Prop :=
-  assignment (columns.sourceColumn child logicalColumn) =
+  decodedLogical columns assignment child logicalColumn =
     DelayedRawChildren.rawRunningAssignments context data
       (productionChild child) (profile.semanticColumn logicalColumn)
 
-/-- Exact family of primitive source-column equations. This is the sole open
-row-semantic boundary of the handwritten decoder contract. -/
-def SourceColumnRowsBind
+/-- Exact family of primitive allocation equations. This is the sole open
+encoder/dataflow boundary of the handwritten decoder contract. -/
+def SourceAllocationRowsBind
     (profile : Profile shape)
     (context : FixedActive.Context shape State publicRingColumns publicFits
       verifierRows)
     (data : Sources.Data shape)
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment) : Prop :=
   forall child logicalColumn,
-    SourceColumnEquation profile context data columns assignment child
+    SourceAllocationEquation profile context data columns assignment child
       logicalColumn
 
 /-- Record spelling of the same primitive equation. It allows a generated
@@ -126,8 +126,8 @@ def RecordEquation
     (data : Sources.Data shape)
     (assignment : PhysicalAssignment)
     (record : SourceColumnRecord)
-    (wellFormed : record.WellFormed) : Prop :=
-  assignment record.sourceColumn =
+    (wellFormed : record.CoordinatesValid) : Prop :=
+  record.allocation.decode assignment =
     DelayedRawChildren.rawRunningAssignments context data
       (productionChild (record.typedChild wellFormed))
       (profile.semanticColumn (record.typedLogicalColumn wellFormed))
@@ -135,37 +135,37 @@ def RecordEquation
 /-- If every canonical generated record's primitive equation is proved, the
 coordinate-indexed row contract follows. Proof irrelevance discharges the
 different bound witnesses; no list normalization is required. -/
-theorem recordEquations_imply_sourceColumnRowsBind
+theorem recordEquations_imply_sourceAllocationRowsBind
     (profile : Profile shape)
     (context : FixedActive.Context shape State publicRingColumns publicFits
       verifierRows)
     (data : Sources.Data shape)
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
     (recordRows : forall record,
       (member : record ∈ columns.records) ->
       RecordEquation profile context data assignment record
-        (SourceColumnMap.records_all_wellFormed columns record member)) :
-    SourceColumnRowsBind profile context data columns assignment := by
+        (SourceAllocationMap.records_all_coordinatesValid columns record member)) :
+    SourceAllocationRowsBind profile context data columns assignment := by
   intro child logicalColumn
   let record := columns.recordAt child logicalColumn
   have member : record ∈ columns.records :=
-    SourceColumnMap.recordAt_mem_records columns child logicalColumn
+    SourceAllocationMap.recordAt_mem_records columns child logicalColumn
   have equation := recordRows record member
-  simpa [record, RecordEquation, SourceColumnEquation,
+  simpa [record, RecordEquation, SourceAllocationEquation, decodedLogical,
     SourceColumnRecord.typedChild,
     SourceColumnRecord.typedLogicalColumn] using equation
 
 /-- Main coordinatewise refinement theorem. Its premise is the primitive
 physical-column equation family, not the conclusion. -/
-theorem sourceColumnRows_imply_decodedLogical_eq_rawRunningAssignments
+theorem sourceAllocationRows_imply_decodedLogical_eq_rawRunningAssignments
     (profile : Profile shape)
     (context : FixedActive.Context shape State publicRingColumns publicFits
       verifierRows)
     (data : Sources.Data shape)
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
-    (rows : SourceColumnRowsBind profile context data columns assignment) :
+    (rows : SourceAllocationRowsBind profile context data columns assignment) :
     forall child logicalColumn,
       decodedLogical columns assignment child logicalColumn =
         DelayedRawChildren.rawRunningAssignments context data
@@ -180,19 +180,19 @@ theorem recordEquations_imply_decodedLogical_eq_rawRunningAssignments
     (context : FixedActive.Context shape State publicRingColumns publicFits
       verifierRows)
     (data : Sources.Data shape)
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
     (recordRows : forall record,
       (member : record ∈ columns.records) ->
       RecordEquation profile context data assignment record
-        (SourceColumnMap.records_all_wellFormed columns record member)) :
+        (SourceAllocationMap.records_all_coordinatesValid columns record member)) :
     forall child logicalColumn,
       decodedLogical columns assignment child logicalColumn =
         DelayedRawChildren.rawRunningAssignments context data
           (productionChild child) (profile.semanticColumn logicalColumn) := by
-  exact sourceColumnRows_imply_decodedLogical_eq_rawRunningAssignments
+  exact sourceAllocationRows_imply_decodedLogical_eq_rawRunningAssignments
     profile context data columns assignment
-      (recordEquations_imply_sourceColumnRowsBind profile context data
+      (recordEquations_imply_sourceAllocationRowsBind profile context data
         columns assignment recordRows)
 
 end SemanticTarget
@@ -200,10 +200,10 @@ end SemanticTarget
 /-! ## Virtual packed-table decoder -/
 
 /-- Decode the physical assignment as a `14 × 64 × 8` virtual table. Only
-the `54 × 5` live rectangle reads physical source columns. Every other cell
+the `54 × 5` live rectangle reads physical encoding intervals. Every other cell
 is definitionally zero. -/
 def decodedVirtual
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
     (child : Child)
     (lane : VirtualLane)
@@ -220,7 +220,7 @@ def decodedVirtual
     0
 
 @[simp] theorem decodedVirtual_live
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
     (child : Child)
     (lane : PackedLane)
@@ -233,7 +233,7 @@ def decodedVirtual
     lane.isLt, block.isLt]
 
 theorem decodedVirtual_lanePadding_zero
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
     (child : Child)
     (lane : VirtualLane)
@@ -243,7 +243,7 @@ theorem decodedVirtual_lanePadding_zero
   simp [decodedVirtual, Nat.not_lt.mpr padding]
 
 theorem decodedVirtual_blockPadding_zero
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
     (child : Child)
     (lane : VirtualLane)
@@ -262,16 +262,16 @@ variable
   {publicRingColumns verifierRows : Nat}
   {publicFits : ringDegree * publicRingColumns <= shape.carrierWidth}
 
-/-- On every live packed cell, checked source-column rows recover the exact
+/-- On every live packed cell, checked allocation equations recover the exact
 raw next-step running assignment at `block * 54 + lane`. -/
-theorem sourceColumnRows_imply_decodedVirtual_live_eq_rawRunningAssignments
+theorem sourceAllocationRows_imply_decodedVirtual_live_eq_rawRunningAssignments
     (profile : Profile shape)
     (context : FixedActive.Context shape State publicRingColumns publicFits
       verifierRows)
     (data : Sources.Data shape)
-    (columns : SourceColumnMap)
+    (columns : SourceAllocationMap)
     (assignment : PhysicalAssignment)
-    (rows : SourceColumnRowsBind profile context data columns assignment)
+    (rows : SourceAllocationRowsBind profile context data columns assignment)
     (child : Child)
     (lane : PackedLane)
     (block : LiveBlock) :
@@ -282,7 +282,7 @@ theorem sourceColumnRows_imply_decodedVirtual_live_eq_rawRunningAssignments
         (profile.semanticColumn
           (logicalColumnAt { lane := lane, block := block })) := by
   rw [decodedVirtual_live]
-  exact sourceColumnRows_imply_decodedLogical_eq_rawRunningAssignments
+  exact sourceAllocationRows_imply_decodedLogical_eq_rawRunningAssignments
     profile context data columns assignment rows child
       (logicalColumnAt { lane := lane, block := block })
 

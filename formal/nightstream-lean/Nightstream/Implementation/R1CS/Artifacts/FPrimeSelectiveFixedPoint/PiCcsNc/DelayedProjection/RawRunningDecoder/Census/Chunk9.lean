@@ -4,7 +4,8 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcs
 Executable certificate for generated raw-running decoder shard 9.
 
 The `native_decide` input is exactly 252 proof-free `AllocationRecord`s with
-four `Nat` fields each, six scalar metadata values, and a `Fin 252` traversal.
+five `Nat` fields and one `Encoding` tag each, five scalar metadata values,
+and a `Fin 252` traversal.
 No other shard or proof-bearing structure is traversed.
 
 Owns: the exact executable certificate for generated shard 9, containing

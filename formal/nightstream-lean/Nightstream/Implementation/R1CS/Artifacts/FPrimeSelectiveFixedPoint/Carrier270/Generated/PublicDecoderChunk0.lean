@@ -20,7 +20,7 @@ namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.G
 
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Wire
 
-def totalColumns : Nat := 11725506
+def totalColumns : Nat := 11437038
 def rawCoordinates : List RawCoordinate := [
   { schemaVersion := 1, column := 0, source := .constantOne }
 , { schemaVersion := 1, column := 1, source := .sourceField 1 }

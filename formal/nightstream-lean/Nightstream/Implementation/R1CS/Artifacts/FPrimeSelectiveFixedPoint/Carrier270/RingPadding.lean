@@ -3,7 +3,7 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Carri
 /-!
 Exact final ring-alignment padding rows for the bounded fixed-point profile.
 
-Owns: equality between the 52 Rust-projected proof-free rows and the complete
+Owns: equality between the Rust-projected proof-free rows and the complete
 terminal ring-alignment coefficient schedule, including physical-row order.
 
 Does not own: the earlier 38-coordinate private-alignment interval, decoded
@@ -14,8 +14,8 @@ Emits constraints: no.
 
 | Stage path | Obligation | Authority class |
 |---|---|---|
-| `f_prime.fixed_point.ring_padding.rows` | 52 exact emitted rows | checked |
-| `f_prime.fixed_point.ring_padding.width` | `11_725_506 = 11_725_454 + 52` | computed |
+| `f_prime.fixed_point.ring_padding.rows` | exact generated emitted rows | checked |
+| `f_prime.fixed_point.ring_padding.width` | generated width decomposition | computed |
 | `f_prime.fixed_point.ring_padding.coefficients` | ports 1/4 contain the two unit terms | checked |
 -/
 
@@ -23,12 +23,16 @@ namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.R
 
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProjection.YZcol.Selective.Materialized
 
-def relationRows : Nat := 14946911
-def relationColumns : Nat := 11725506
-def unpaddedColumns : Nat := 11725454
-def paddingWidth : Nat := 52
+def relationRows : Nat :=
+  Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Generated.RingPaddingRows.relationRows
+def relationColumns : Nat :=
+  Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Generated.RingPaddingRows.relationColumns
+def firstPaddingColumn : Nat :=
+  Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Generated.RingPaddingRows.firstPaddingColumn
+def unpaddedColumns : Nat := firstPaddingColumn
+def paddingWidth : Nat :=
+  Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Generated.RingPaddingRows.paddingWidth
 def constantColumn : Nat := 0
-def firstPaddingColumn : Nat := unpaddedColumns
 
 /-- The physical interval is generator-owned because it follows every
 selective source/rewrite family. -/
@@ -70,7 +74,8 @@ theorem relationColumns_eq_unpadded_plus_padding :
     relationColumns = unpaddedColumns + paddingWidth := by
   decide
 
-/-- The certificate compares exactly 52 proof-free `RawRow` records. -/
+/-- The certificate compares the complete bounded list of proof-free
+`RawRow` records. -/
 theorem generated_rows_exact : rawRows = expectedRows := by
   native_decide
 
@@ -89,10 +94,9 @@ theorem expectedRow_emittedRow (offset : Nat) :
 
 theorem expectedRow_paddingColumn (offset : Fin paddingWidth) :
     firstPaddingColumn + offset.val < relationColumns := by
-  have offsetBound := offset.isLt
-  simp only [paddingWidth, firstPaddingColumn, unpaddedColumns,
-    relationColumns] at offsetBound ⊢
-  omega
+  rw [relationColumns_eq_unpadded_plus_padding]
+  simpa [unpaddedColumns] using
+    (Nat.add_lt_add_left offset.isLt firstPaddingColumn)
 
 private theorem emittedInterval_bound :
     firstEmittedRow + paddingWidth ≤ relationRows := by
@@ -104,7 +108,7 @@ theorem expectedRow_emittedRow_bound (offset : Fin paddingWidth) :
   have intervalBound := emittedInterval_bound
   omega
 
-/-- Every generated record has one unique offset in the exact 52-row
+/-- Every generated record has one unique offset in the exact generated
 physical interval. -/
 theorem generated_row_has_unique_offset {row : RawRow}
     (member : row ∈ rawRows) :

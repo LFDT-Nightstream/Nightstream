@@ -64,7 +64,10 @@ use crate::engine::r1cs_circuit::builder::{
     CenteredUnitTrace, PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit,
 };
 use crate::engine::r1cs_circuit::field_ext::KVar;
-use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::{
+    CanonicalSparseRow, Lc, PiDecCanonicalXColumnMap, PiDecCanonicalXPlan, PiDecCanonicalXProgram,
+    PiDecCanonicalXReceipt, R1csBuilder, Var,
+};
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 use crate::paper::relations::product_commitment_circuit::{
@@ -187,7 +190,7 @@ fn enforce_dec_v_inner(
     pp: &Params,
     wires: &DecInputWires,
     y_recomposition: YRecomposition,
-) -> Result<(), Error> {
+) -> Result<ActiveXEmission, Error> {
     let k = pp.k_rho() as usize;
     if wires.children.len() != k {
         return Err(Error::ChildCount {
@@ -227,7 +230,7 @@ fn enforce_dec_v_inner(
     builder.record_row_family(stage::RECOMPOSITION_ADVICE, family_start);
 
     let family_start = builder.rows();
-    enforce_active_x_combination(builder, &wires.parent, &wires.children, &b_pows);
+    let x_recomposition = enforce_active_x_combination(builder, &wires.parent, &wires.children, &b_pows, pp.b())?;
     builder.record_row_family(stage::RECOMPOSITION_X, family_start);
 
     let family_start = builder.rows();
@@ -247,7 +250,7 @@ fn enforce_dec_v_inner(
         enforce_lane_combination_y(builder, j, &wires.parent.y_ring[j][..width], &wires.children, &b_pows);
     }
     builder.record_row_family(stage::RECOMPOSITION_Y_RING, family_start);
-    Ok(())
+    Ok(x_recomposition)
 }
 
 /// Optional: enforce `child_i.X[k] ∈ {0, …, b-1}`. For `b = 2` this is
@@ -305,27 +308,7 @@ pub fn enforce_child_x_canonical_split(
     }
 
     if b == 2 {
-        let active_cols = crate::paper::relations::superneo_public_x_cols(wires.parent.m_in);
-        let mut traces = Vec::with_capacity(wires.parent.x_rows * active_cols);
-        for r in 0..wires.parent.x_rows {
-            for c in 0..active_cols {
-                let digits = wires
-                    .children
-                    .iter()
-                    .map(|child| child.x[r * child.x_cols + c])
-                    .collect::<Vec<_>>();
-                let sign_value = binary_sign_witness(builder, &digits);
-                let sign = builder.alloc(sign_value);
-                let products = enforce_centered_alphabet(builder, sign, b);
-                let product = products[0];
-                for digit in digits {
-                    let digit_minus_sign = Lc::from_var(digit).add_scaled(&Lc::from_var(sign), -F::ONE);
-                    builder.enforce(&Lc::from_var(digit), &digit_minus_sign, &Lc::zero());
-                }
-                traces.push([sign, product]);
-            }
-        }
-        return Ok(traces);
+        return enforce_binary_child_x_canonical_split(builder, wires);
     }
 
     for child in &wires.children {
@@ -388,12 +371,24 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///     produces signed digits (e.g. -1 ↦ p-1 in F), so an unsigned
 ///     `{0..b-1}` check would reject honest provers. [`enforce_x_bitness`]
 ///     remains available for callers with an unsigned range invariant.
-pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecInputWires) -> Result<(), Error> {
+pub fn enforce_dec_v_strict(
+    builder: &mut R1csBuilder,
+    pp: &Params,
+    wires: &DecInputWires,
+) -> Result<PiDecCanonicalXReceipt, Error> {
+    if pp.b() != 2 {
+        return Err(Error::ShapeMismatch {
+            what: "strict PiDEC canonical-X radix",
+            expected: 2,
+            got: pp.b() as usize,
+            idx: 0,
+        });
+    }
     let row_start = builder.rows();
     let first_allocated_column = builder.cols();
 
     let phase_start = builder.rows();
-    enforce_dec_v_inner(builder, pp, wires, YRecomposition::Semantic)?;
+    let x_recomposition = enforce_dec_v_inner(builder, pp, wires, YRecomposition::Semantic)?;
     builder.record_row_family(stage::RECOMPOSITION, phase_start);
 
     let phase_start = builder.rows();
@@ -415,6 +410,7 @@ pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecI
     let phase_start = builder.rows();
     let x_sign_traces = enforce_child_x_canonical_split(builder, pp, wires)?;
     builder.record_row_family(stage::ALPHABET, phase_start);
+    let x_canonicality_rows = phase_start..builder.rows();
 
     let phase_start = builder.rows();
     enforce_ct_consistency(builder, wires)?;
@@ -429,19 +425,44 @@ pub fn enforce_dec_v_strict(builder: &mut R1csBuilder, pp: &Params, wires: &DecI
     builder.record_row_family(stage::FOLD_DIGEST, phase_start);
     builder.record_row_family(stage::VERIFY, row_start);
 
+    let strict_rows = row_start..builder.rows();
+    let x_recomposition_rows = x_recomposition.rows.clone();
+    let x_sign_trace_columns = x_sign_traces
+        .iter()
+        .map(|[sign, product]| [sign.col(), product.col()])
+        .collect::<Vec<_>>();
     builder.record_pi_dec_strict(PiDecStrictAudit {
         row_start,
         row_end: builder.rows(),
+        x_recomposition_rows: x_recomposition_rows.clone(),
+        x_canonicality_rows: x_canonicality_rows.clone(),
         first_allocated_column,
         radix: pp.b(),
         parent: pi_dec_claim_audit(&wires.parent),
         children: wires.children.iter().map(pi_dec_claim_audit).collect(),
-        x_sign_traces: x_sign_traces
-            .into_iter()
-            .map(|[sign, product]| [sign.col(), product.col()])
-            .collect(),
+        x_sign_traces: x_sign_trace_columns.clone(),
     });
-    Ok(())
+    let program = canonical_x_program(wires)?;
+    if x_recomposition.parent_columns.len() != program.plan().logical_coordinates()
+        || x_recomposition.child_columns.len() != program.plan().child_count()
+        || x_recomposition
+            .child_columns
+            .iter()
+            .any(|columns| columns.len() != program.plan().logical_coordinates())
+    {
+        return Err(Error::CanonicalX(
+            "strict PiDEC recomposition receipt has the wrong public-X shape".into(),
+        ));
+    }
+    let mut canonical_to_actual = Vec::with_capacity(program.plan().canonical_column_count());
+    canonical_to_actual.push(Var::ONE.col());
+    canonical_to_actual.extend(x_recomposition.parent_columns);
+    canonical_to_actual.extend(x_recomposition.child_columns.into_iter().flatten());
+    canonical_to_actual.extend(x_sign_trace_columns.into_iter().flatten());
+    let columns =
+        PiDecCanonicalXColumnMap::new(program, canonical_to_actual).map_err(|error| Error::CanonicalX(error.into()))?;
+    PiDecCanonicalXReceipt::new(program, strict_rows, x_recomposition_rows, x_canonicality_rows, columns)
+        .map_err(|error| Error::CanonicalX(error.into()))
 }
 
 fn commitment_audit(wires: &AdvCommitmentWires) -> PiDecAdvAudit {
@@ -705,6 +726,12 @@ enum YRecomposition {
     Semantic,
 }
 
+struct ActiveXEmission {
+    rows: std::ops::Range<usize>,
+    parent_columns: Vec<usize>,
+    child_columns: Vec<Vec<usize>>,
+}
+
 fn enforce_lane_combination(
     builder: &mut R1csBuilder,
     parent_lanes: &[Var],
@@ -730,18 +757,117 @@ fn enforce_active_x_combination(
     parent: &CeClaimWires,
     children: &[CeClaimWires],
     b_pows: &[F],
-) {
+    radix: u32,
+) -> Result<ActiveXEmission, Error> {
     let active_cols = crate::paper::relations::superneo_public_x_cols(parent.m_in);
+    let program = (radix == 2)
+        .then(|| PiDecCanonicalXPlan::new(parent.x_rows, active_cols, children.len()).map(PiDecCanonicalXProgram::new))
+        .transpose()
+        .map_err(|error| Error::CanonicalX(error.into()))?;
+    let row_start = builder.rows();
+    let mut parent_columns = Vec::with_capacity(parent.x_rows * active_cols);
+    let mut child_columns = vec![Vec::with_capacity(parent.x_rows * active_cols); children.len()];
     for row in 0..parent.x_rows {
         for col in 0..active_cols {
             let lane = row * parent.x_cols + col;
-            let mut combo = Lc::zero();
-            for (child, coeff) in children.iter().zip(b_pows.iter().copied()) {
-                combo.add_term(child.x[lane], coeff);
+            let parent_column = parent.x[lane].col();
+            let children_at_coordinate = children
+                .iter()
+                .enumerate()
+                .map(|(child, wires)| {
+                    let column = wires.x[lane].col();
+                    child_columns[child].push(column);
+                    column
+                })
+                .collect::<Vec<_>>();
+            parent_columns.push(parent_column);
+            if let Some(program) = program {
+                let compiled = program
+                    .recomposition_row(parent_column, &children_at_coordinate)
+                    .ok_or_else(|| Error::CanonicalX("PiDEC recomposition compiler rejected its live arity".into()))?;
+                enforce_compiled_row(builder, &compiled);
+            } else {
+                let mut combo = Lc::zero();
+                for (&child, coeff) in children_at_coordinate.iter().zip(b_pows.iter().copied()) {
+                    combo.add_term(Var::from_column_for_trace(child), coeff);
+                }
+                builder.enforce_eq(&Lc::from_var(parent.x[lane]), &combo);
             }
-            builder.enforce_eq(&Lc::from_var(parent.x[lane]), &combo);
         }
     }
+    Ok(ActiveXEmission {
+        rows: row_start..builder.rows(),
+        parent_columns,
+        child_columns,
+    })
+}
+
+fn canonical_x_program(wires: &DecInputWires) -> Result<PiDecCanonicalXProgram, Error> {
+    let active_columns = crate::paper::relations::superneo_public_x_cols(wires.parent.m_in);
+    PiDecCanonicalXPlan::new(wires.parent.x_rows, active_columns, wires.children.len())
+        .map(PiDecCanonicalXProgram::new)
+        .map_err(|error| Error::CanonicalX(error.into()))
+}
+
+fn enforce_binary_child_x_canonical_split(
+    builder: &mut R1csBuilder,
+    wires: &DecInputWires,
+) -> Result<Vec<[Var; 2]>, Error> {
+    let program = canonical_x_program(wires)?;
+    let plan = program.plan();
+    let mut traces = Vec::with_capacity(plan.logical_coordinates());
+    for x_row in 0..plan.x_rows() {
+        for active_column in 0..plan.active_columns() {
+            let lane = x_row * wires.parent.x_cols + active_column;
+            let digits = wires
+                .children
+                .iter()
+                .map(|child| child.x[lane])
+                .collect::<Vec<_>>();
+            let sign_value = binary_sign_witness(builder, &digits);
+            let sign = builder.alloc(sign_value);
+            let product = builder.alloc((sign_value + F::ONE) * sign_value);
+            traces.push([sign, product]);
+        }
+    }
+    for (active_index, [sign, product]) in traces.iter().copied().enumerate() {
+        let x_row = active_index / plan.active_columns();
+        let active_column = active_index % plan.active_columns();
+        let lane = x_row * wires.parent.x_cols + active_column;
+        let child_columns = wires
+            .children
+            .iter()
+            .map(|child| child.x[lane].col())
+            .collect::<Vec<_>>();
+        let centered_start = builder.rows();
+        for relative_row in 0..plan.child_count() + 2 {
+            let compiled = program
+                .canonicality_row(relative_row, sign.col(), product.col(), &child_columns)
+                .ok_or_else(|| Error::CanonicalX("PiDEC canonicality compiler rejected its live arity".into()))?;
+            enforce_compiled_row(builder, &compiled);
+            if relative_row == 1 {
+                builder.record_centered_unit_trace(CenteredUnitTrace {
+                    row_start: centered_start,
+                    row_end: builder.rows(),
+                    allocated_columns: vec![product.col()],
+                    value_col: sign.col(),
+                });
+            }
+        }
+    }
+    Ok(traces)
+}
+
+fn enforce_compiled_row(builder: &mut R1csBuilder, row: &CanonicalSparseRow) {
+    let linear_combination = |terms: &[(usize, F)]| Lc {
+        terms: terms.to_vec(),
+        constant: F::ZERO,
+    };
+    builder.enforce(
+        &linear_combination(&row.a),
+        &linear_combination(&row.b),
+        &linear_combination(&row.c),
+    );
 }
 
 fn enforce_unique_zero_wires(builder: &mut R1csBuilder, wires: impl Iterator<Item = Var>) {
@@ -1169,6 +1295,8 @@ pub enum Error {
     },
     #[error("Pi_DEC.V: invalid product commitment: {0}")]
     ProductCommitment(String),
+    #[error("Pi_DEC.V: invalid canonical public-X lowering: {0}")]
+    CanonicalX(String),
 }
 
 // `Commitment` import kept for documentation linkage; not referenced directly

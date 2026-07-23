@@ -4,6 +4,10 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
+fn column_point_len(structure: &CcsStructure<F>) -> usize {
+    structure.m.next_power_of_two().max(2).trailing_zeros() as usize
+}
+
 fn f_signed(value: i64) -> F {
     if value >= 0 {
         F::from_u64(value as u64)
@@ -68,9 +72,11 @@ fn combine_zero_commitments(commits: &[Commitment], _base: u32) -> Commitment {
 }
 
 fn verify(params: &NeoParams, parent: &CeClaim<Commitment, F, K>, children: &[CeClaim<Commitment, F, K>]) -> bool {
+    let structure = structure();
     neo_reductions::api::verify_dec_public(
-        &structure(),
+        &structure,
         params,
+        column_point_len(&structure),
         parent,
         children,
         combine_zero_commitments,

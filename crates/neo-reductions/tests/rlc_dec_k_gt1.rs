@@ -93,6 +93,10 @@ fn build_wide_structure(n: usize, m: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![m0, m1], f).expect("valid wide CCS structure")
 }
 
+fn column_point_len(structure: &CcsStructure<F>) -> usize {
+    structure.m.next_power_of_two().max(2).trailing_zeros() as usize
+}
+
 fn make_z(seed: u64, m: usize) -> Mat<F> {
     assert!(m.is_multiple_of(D), "SuperNeo-only test requires m divisible by D");
     let cols = m / D;
@@ -249,6 +253,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -257,8 +262,16 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     )
     .expect("rlc_with_commit optimized");
 
-    let parent_public = rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d)
-        .expect("rlc_public recompute");
+    let parent_public = rlc_public(
+        &s,
+        &params,
+        column_point_len(&s),
+        &rhos_typed,
+        &me_inputs,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("rlc_public recompute");
     assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
 
     let witness_refs = Zs.iter().collect::<Vec<_>>();
@@ -266,6 +279,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &witness_refs,
@@ -282,6 +296,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     let parent_public_stale = rlc_public(
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs_stale,
         mix_commitments_from_rhos,
@@ -302,6 +317,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     let parent_tampered = rlc_public(
         &s,
         &params,
+        column_point_len(&s),
         &rhos_tampered_typed,
         &me_inputs,
         mix_commitments_from_rhos,
@@ -346,6 +362,7 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -360,8 +377,16 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
         "Z_mix must equal Σ ρ_i · Z_i for non-diagonal rotation rhos"
     );
 
-    let parent_public =
-        rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d).expect("rlc_public");
+    let parent_public = rlc_public(
+        &s,
+        &params,
+        column_point_len(&s),
+        &rhos_typed,
+        &me_inputs,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("rlc_public");
     assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
 }
 
@@ -400,6 +425,7 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -414,8 +440,16 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
         "sparse RHS rotation fast path must equal generic Σ ρ_i · Z_i"
     );
 
-    let parent_public =
-        rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d).expect("rlc_public");
+    let parent_public = rlc_public(
+        &s,
+        &params,
+        column_point_len(&s),
+        &rhos_typed,
+        &me_inputs,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("rlc_public");
     assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
 }
 
@@ -458,6 +492,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -505,6 +540,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -516,6 +552,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (full_ok, _) = rlc_public_matches_with_perf(
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &parent,
@@ -526,6 +563,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (verified_ok, _) = rlc_public_matches_verified_inputs_with_perf(
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &parent,
@@ -543,6 +581,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (full_ok_stale, _) = rlc_public_matches_with_perf(
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs_stale,
         &parent_stale,
@@ -553,6 +592,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (verified_ok_stale, _) = rlc_public_matches_verified_inputs_with_perf(
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs_stale,
         &parent_stale,
@@ -573,6 +613,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (full_bad, _) = rlc_public_matches_with_perf(
         &s,
         &params,
+        column_point_len(&s),
         &rhos_tampered,
         &me_inputs,
         &parent,
@@ -583,6 +624,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (verified_bad, _) = rlc_public_matches_verified_inputs_with_perf(
         &s,
         &params,
+        column_point_len(&s),
         &rhos_tampered,
         &me_inputs,
         &parent,
@@ -628,6 +670,7 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -640,6 +683,7 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
         FoldingMode::PaperExact,
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -684,6 +728,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &Z_split,
         ell_d,
@@ -694,6 +739,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     assert!(verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &children,
         combine_commitments_b_pows,
@@ -705,6 +751,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     assert!(!verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &tampered_child,
         combine_commitments_b_pows,
@@ -721,6 +768,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     assert!(verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent_with_s_col,
         &children_with_s_col,
         combine_commitments_b_pows,
@@ -731,6 +779,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     assert!(!verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent_with_s_col,
         &children_with_s_col,
         combine_commitments_b_pows,
@@ -742,6 +791,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     assert!(!verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &tampered_aux,
         combine_commitments_b_pows,
@@ -790,6 +840,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &z_split,
         &digit_nonzero,
@@ -802,6 +853,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &z_split,
         &digit_nonzero,
@@ -809,6 +861,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         &child_commitments,
         combine_commitments_b_pows,
         &superneo_cache,
+        None,
         None,
         None,
     );
@@ -868,6 +921,7 @@ fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &Z_split,
         ell_d,
@@ -878,6 +932,7 @@ fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
         FoldingMode::PaperExact,
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &Z_split,
         ell_d,
@@ -926,6 +981,7 @@ fn rlc_with_commit_k61_boundary_smoke() {
         FoldingMode::Optimized,
         &s,
         &params,
+        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -934,8 +990,16 @@ fn rlc_with_commit_k61_boundary_smoke() {
     )
     .expect("k=61 rlc_with_commit");
 
-    let parent_public =
-        rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d).expect("k=61 rlc_public");
+    let parent_public = rlc_public(
+        &s,
+        &params,
+        column_point_len(&s),
+        &rhos_typed,
+        &me_inputs,
+        mix_commitments_from_rhos,
+        ell_d,
+    )
+    .expect("k=61 rlc_public");
     assert_eq!(parent, parent_public, "k=61: public recompute mismatch");
     assert_eq!(parent.aux_openings.len(), me_inputs[0].aux_openings.len());
 }

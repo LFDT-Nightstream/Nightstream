@@ -13,10 +13,11 @@ use neo_ccs::Mat;
 use neo_fold_clean::engine::r1cs_circuit::builder::{
     PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit,
 };
-use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
+use neo_fold_clean::engine::r1cs_circuit::{CanonicalSparseRow, R1csBuilder};
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
 use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
 use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::pi_dec;
 use neo_fold_clean::paper::reductions::pi_dec_circuit::{
@@ -208,6 +209,59 @@ fn pi_dec_strict_binary_schedule_has_the_proved_row_counts() {
             .all(|[sign, product]| sign != product),
         "each active coordinate must expose distinct sign and centered-product columns"
     );
+}
+
+#[test]
+fn pi_dec_strict_canonical_x_receipt_matches_every_emitted_row() {
+    let (proof, _claims) = drive_nifs(0xCA11_0A1C);
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    parent.m_in = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
+    parent.X = Mat::zero(D, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
+    for child in &mut children {
+        child.m_in = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
+        child.X = Mat::zero(D, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
+    }
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, &children);
+    let receipt = enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict PiDEC receipt");
+    assert!(builder.is_satisfied(), "explicit 270-coordinate strict PiDEC fixture");
+    let snapshot = builder.snapshot();
+    let program = receipt.program();
+    let plan = program.plan();
+
+    assert_eq!((plan.x_rows(), plan.active_columns(), plan.child_count()), (D, 5, 14));
+    assert_eq!(plan.logical_coordinates(), 270);
+    assert_eq!(plan.recomposition_rows(), 270);
+    assert_eq!(plan.canonicality_rows(), 4_320);
+    assert_eq!(program.row_count(), 4_590);
+    assert_eq!(plan.canonical_column_count(), 4_591);
+    assert_eq!(plan.active_index(53, 4), Some(269));
+    assert_eq!(plan.public_column(53, 4), Some(269));
+    assert_eq!(plan.active_index(1, 0), Some(5));
+    assert_eq!(plan.public_column(1, 0), Some(1));
+
+    let mut physical_rows = BTreeSet::new();
+    for relative_row in 0..program.row_count() {
+        let physical_row = receipt
+            .physical_row(relative_row)
+            .expect("every indexed row has a physical owner");
+        assert!(physical_rows.insert(physical_row), "physical row is multiply owned");
+        let actual = CanonicalSparseRow {
+            a: snapshot.a_row(physical_row).to_vec(),
+            b: snapshot.b_row(physical_row).to_vec(),
+            c: snapshot.c_row(physical_row).to_vec(),
+        };
+        assert_eq!(
+            receipt.actual_row_at(relative_row),
+            Some(actual),
+            "indexed canonical-X row {relative_row} differs from production emission"
+        );
+    }
+    assert_eq!(physical_rows.len(), 4_590);
+    assert_eq!(receipt.recomposition_rows().len(), 270);
+    assert_eq!(receipt.canonicality_rows().len(), 4_320);
 }
 
 #[test]

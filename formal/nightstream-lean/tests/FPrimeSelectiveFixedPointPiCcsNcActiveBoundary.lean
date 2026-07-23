@@ -421,12 +421,12 @@ end
 example : ProductionDomain.semanticShape.rowVariables = 24 :=
   ProductionDomain.semanticShape_rowVariables
 
-example : ProductionDomain.semanticShape.logicalWidth = 11725506 :=
+example : ProductionDomain.semanticShape.logicalWidth = 11437038 :=
   ProductionDomain.semanticShape_logicalWidth_exact
 
 example :
     Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount
-        ProductionDomain.semanticShape.carrierWidth = 217139 :=
+        ProductionDomain.semanticShape.carrierWidth = 211797 :=
   ProductionDomain.semanticShape_blockCount
 
 example : ProductionDomain.semanticShape.runningCount = 14 :=

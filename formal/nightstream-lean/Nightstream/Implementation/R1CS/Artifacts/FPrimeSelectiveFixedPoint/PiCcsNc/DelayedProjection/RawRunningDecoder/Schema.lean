@@ -28,25 +28,31 @@ namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Pi
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder
 
 /-- Proof-free allocation provenance for one authoritative raw-running
-coordinate. `sourceArmColumn` is the normalized steady-arm field column and
-`finalColumn` is its exact direct centered width-one slot in the selectively
-lowered assignment. -/
+coordinate. `sourceArmColumn` is the normalized steady-arm field column;
+`finalStart`, `width`, and `encoding` describe its complete selectively
+lowered scalar representation. -/
 structure AllocationRecord where
   child : Nat
   logicalColumn : Nat
   sourceArmColumn : Nat
-  finalColumn : Nat
+  finalStart : Nat
+  width : Nat
+  encoding : Encoding
 deriving DecidableEq, Repr, Inhabited
 
 namespace AllocationRecord
 
-/-- Semantic decoder view: correspondence clients read the final selective
-assignment column, while the artifact retains the intermediate source-arm
-owner for auditability. -/
+/-- Semantic decoder view: correspondence clients reconstruct the complete
+encoded scalar, while the artifact retains the intermediate source-arm owner
+for auditability. -/
 def sourceRecord (record : AllocationRecord) : SourceColumnRecord where
   child := record.child
   logicalColumn := record.logicalColumn
-  sourceColumn := record.finalColumn
+  allocation := {
+    start := record.finalStart
+    width := record.width
+    encoding := record.encoding
+  }
 
 @[simp] theorem sourceRecord_child (record : AllocationRecord) :
     record.sourceRecord.child = record.child := by
@@ -56,8 +62,12 @@ def sourceRecord (record : AllocationRecord) : SourceColumnRecord where
     record.sourceRecord.logicalColumn = record.logicalColumn := by
   rfl
 
-@[simp] theorem sourceRecord_sourceColumn (record : AllocationRecord) :
-    record.sourceRecord.sourceColumn = record.finalColumn := by
+@[simp] theorem sourceRecord_allocation (record : AllocationRecord) :
+    record.sourceRecord.allocation = {
+      start := record.finalStart
+      width := record.width
+      encoding := record.encoding
+    } := by
   rfl
 
 end AllocationRecord

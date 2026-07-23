@@ -70,27 +70,27 @@ abbrev totalPort :=
 
 end Artifact
 
-def constantColumn : Fin 11725506 :=
+def constantColumn : Fin 11437038 :=
   ⟨0, by decide⟩
 
-def selectorColumn (arm : Fin 3) : Fin 11725506 :=
+def selectorColumn (arm : Fin 3) : Fin 11437038 :=
   ⟨270 + arm.val, by omega⟩
 
 def expectedSelectorDecodedPort (arm : Fin 3)
-    (port : Fin 13) : DecodedPort 11725506 :=
+    (port : Fin 13) : DecodedPort 11437038 :=
   if port.val = 0 then
-    unitDecodedPort 11725506 (selectorColumn arm).val
+    unitDecodedPort 11437038 (selectorColumn arm).val
       (selectorColumn arm).isLt
   else if port.val = 1 then
-    unitDecodedPort 11725506 constantColumn.val
+    unitDecodedPort 11437038 constantColumn.val
       constantColumn.isLt
   else
-    emptyDecodedPort 11725506
+    emptyDecodedPort 11437038
 
 def expectedSelectorDecodedRow (arm : Fin 3) :
     DecodedRow :=
-  { rows := 14946911
-    columns := 11725506
+  { rows := 14944219
+    columns := 11437038
     rowsPositive := by decide
     columnsPositive := by decide
     emittedRow := ⟨arm.val, by omega⟩
@@ -131,7 +131,7 @@ private theorem mapM_decodePorts_of_pointwise {columns count : Nat}
 
 private theorem expectedSelectorPort_decode_exact (arm : Fin 3)
     (port : Fin 13) :
-    decodePort 11725506
+    decodePort 11437038
         (Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.expectedSelectorPort
           arm port) =
       some (expectedSelectorDecodedPort arm port) := by
@@ -141,12 +141,12 @@ private theorem expectedSelectorPort_decode_exact (arm : Fin 3)
       Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.selectorColumn,
       Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.selectorStart,
       expectedSelectorDecodedPort, selectorColumn, bitPort] using
-        (decodePort_unit 11725506 (270 + arm.val) (by omega))
+        (decodePort_unit 11437038 (270 + arm.val) (by omega))
   · by_cases generalPort : port.val = 1
     · simpa [Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.expectedSelectorPort,
         Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.unitPort,
         expectedSelectorDecodedPort, constantColumn, bitPort, generalPort] using
-          (decodePort_unit 11725506 0 (by decide))
+          (decodePort_unit 11437038 0 (by decide))
     · simp [Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.expectedSelectorPort,
         Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.emptyPort,
         expectedSelectorDecodedPort, bitPort, generalPort,
@@ -169,7 +169,7 @@ theorem expectedSelectorRow_decode_exact
     Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.relationRows,
     Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.relationColumns,
     supportedSchemaVersion]
-  have emittedBound : arm.val < 14946911 := by
+  have emittedBound : arm.val < 14944219 := by
     have armBound := arm.isLt
     omega
   rw [dif_pos True.intro, dif_pos (by decide), dif_pos (by decide),
@@ -186,21 +186,21 @@ theorem negativeOne_eq_neg_one : negativeOne = -1 := by
 theorem negativeOne_nonzero : negativeOne ≠ 0 := by
   decide
 
-def decodedFirstSelectorTerm : DecodedTerm 11725506 :=
-  canonicalDecodedTerm 11725506 270 1 (by decide) (by decide) (by decide)
+def decodedFirstSelectorTerm : DecodedTerm 11437038 :=
+  canonicalDecodedTerm 11437038 270 1 (by decide) (by decide) (by decide)
 
-def decodedSecondSelectorTerm : DecodedTerm 11725506 :=
-  canonicalDecodedTerm 11725506 271 1 (by decide) (by decide) (by decide)
+def decodedSecondSelectorTerm : DecodedTerm 11437038 :=
+  canonicalDecodedTerm 11437038 271 1 (by decide) (by decide) (by decide)
 
-def decodedThirdSelectorTerm : DecodedTerm 11725506 :=
-  canonicalDecodedTerm 11725506 272 1 (by decide) (by decide) (by decide)
+def decodedThirdSelectorTerm : DecodedTerm 11437038 :=
+  canonicalDecodedTerm 11437038 272 1 (by decide) (by decide) (by decide)
 
-def decodedNegativeOneTerm : DecodedTerm 11725506 :=
-  canonicalDecodedTerm 11725506 constantColumn.val
+def decodedNegativeOneTerm : DecodedTerm 11437038 :=
+  canonicalDecodedTerm 11437038 constantColumn.val
     Artifact.negativeOneWord constantColumn.isLt (by decide)
       negativeOne_nonzero
 
-def expectedTotalCDecodedPort : DecodedPort 11725506 :=
+def expectedTotalCDecodedPort : DecodedPort 11437038 :=
   { explicit :=
       [ decodedNegativeOneTerm
       , decodedFirstSelectorTerm
@@ -210,18 +210,18 @@ def expectedTotalCDecodedPort : DecodedPort 11725506 :=
     geometric := [] }
 
 def expectedTotalDecodedPort (port : Fin 13) :
-    DecodedPort 11725506 :=
+    DecodedPort 11437038 :=
   if port.val = 1 then
-    unitDecodedPort 11725506 constantColumn.val
+    unitDecodedPort 11437038 constantColumn.val
       constantColumn.isLt
   else if port.val = 4 then
     expectedTotalCDecodedPort
   else
-    emptyDecodedPort 11725506
+    emptyDecodedPort 11437038
 
 def expectedTotalDecodedRow : DecodedRow :=
-  { rows := 14946911
-    columns := 11725506
+  { rows := 14944219
+    columns := 11437038
     rowsPositive := by decide
     columnsPositive := by decide
     emittedRow := ⟨Artifact.totalEmittedRow, by decide⟩
@@ -240,7 +240,7 @@ def expectedTotalDecodedRow : DecodedRow :=
   rw [List.get_eq_getElem, List.getElem_ofFn]
 
 private theorem decodeTotalCPort :
-    decodePort 11725506
+    decodePort 11437038
         { explicit :=
             [ { column := 0, coefficient := Artifact.negativeOneWord }
             , { column := 270, coefficient := 1 }
@@ -250,17 +250,17 @@ private theorem decodeTotalCPort :
           geometric := [] } =
       some expectedTotalCDecodedPort := by
   have decodedNegative :=
-    decodeTerm_canonical 11725506 0
+    decodeTerm_canonical 11437038 0
       Artifact.negativeOneWord (by decide) (by decide)
         negativeOne_nonzero
   have decodedFirst :=
-    decodeTerm_canonical 11725506 270 1
+    decodeTerm_canonical 11437038 270 1
       (by decide) (by decide) (by decide)
   have decodedSecond :=
-    decodeTerm_canonical 11725506 271 1
+    decodeTerm_canonical 11437038 271 1
       (by decide) (by decide) (by decide)
   have decodedThird :=
-    decodeTerm_canonical 11725506 272 1
+    decodeTerm_canonical 11437038 272 1
       (by decide) (by decide) (by decide)
   unfold decodePort
   simp [decodedNegative, decodedFirst, decodedSecond, decodedThird,
@@ -269,14 +269,14 @@ private theorem decodeTotalCPort :
     decodedThirdSelectorTerm, constantColumn]
 
 private theorem expectedTotalPort_decode_exact (port : Fin 13) :
-    decodePort 11725506 (Artifact.totalPort port) =
+    decodePort 11437038 (Artifact.totalPort port) =
       some (expectedTotalDecodedPort port) := by
   by_cases generalPort : port.val = 1
   · simpa [Artifact.totalPort,
       Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.totalPort,
       Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.unitPort,
       constantColumn, generalPort, expectedTotalDecodedPort] using
-        (decodePort_unit 11725506 0 (by decide))
+        (decodePort_unit 11437038 0 (by decide))
   · by_cases cPort : port.val = 4
     · simp [Artifact.totalPort,
         Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Selectors.totalPort,
@@ -534,20 +534,20 @@ theorem expectedSelectorDecodedRow_shape
           (expectedSelectorDecodedPort arm (0 : Fin 13)) =
         [(selectorColumn arm, 1)]
     rw [show expectedSelectorDecodedPort arm (0 : Fin 13) =
-        unitDecodedPort 11725506 (selectorColumn arm).val
+        unitDecodedPort 11437038 (selectorColumn arm).val
           (selectorColumn arm).isLt by
       simp [expectedSelectorDecodedPort]]
-    exact expandedFieldTerms_unit 11725506 (selectorColumn arm).val
+    exact expandedFieldTerms_unit 11437038 (selectorColumn arm).val
       (selectorColumn arm).isLt
   · change
       expandedFieldTerms
           (expectedSelectorDecodedPort arm (1 : Fin 13)) =
         [(constantColumn, 1)]
     rw [show expectedSelectorDecodedPort arm (1 : Fin 13) =
-        unitDecodedPort 11725506 constantColumn.val
+        unitDecodedPort 11437038 constantColumn.val
           constantColumn.isLt by
       simp [expectedSelectorDecodedPort]]
-    exact expandedFieldTerms_unit 11725506 constantColumn.val
+    exact expandedFieldTerms_unit 11437038 constantColumn.val
       constantColumn.isLt
   · intro port bitNe generalNe
     have notZero : port.val ≠ 0 := by
@@ -562,9 +562,9 @@ theorem expectedSelectorDecodedRow_shape
       simpa [Role.index] using value
     rw [expectedSelectorDecodedRow_port]
     rw [show expectedSelectorDecodedPort arm port =
-        emptyDecodedPort 11725506 by
+        emptyDecodedPort 11437038 by
       simp [expectedSelectorDecodedPort, notZero, notOne]]
-    exact expandedFieldTerms_empty 11725506
+    exact expandedFieldTerms_empty 11437038
 
 def validatedExpectedSelectorRow (arm : Fin 3) :
     ValidatedBooleanRow (expectedSelectorDecodedRow arm) :=
@@ -580,10 +580,10 @@ theorem expectedTotalDecodedRow_shape :
       expandedFieldTerms (expectedTotalDecodedPort (1 : Fin 13)) =
         [(constantColumn, 1)]
     rw [show expectedTotalDecodedPort (1 : Fin 13) =
-        unitDecodedPort 11725506 constantColumn.val
+        unitDecodedPort 11437038 constantColumn.val
           constantColumn.isLt by
       simp [expectedTotalDecodedPort]]
-    exact expandedFieldTerms_unit 11725506 constantColumn.val
+    exact expandedFieldTerms_unit 11437038 constantColumn.val
       constantColumn.isLt
   · change
       expandedFieldTerms (expectedTotalDecodedPort (4 : Fin 13)) =
@@ -604,9 +604,9 @@ theorem expectedTotalDecodedRow_shape :
       apply Fin.ext
       simpa [Role.index] using value
     rw [expectedTotalDecodedRow_port]
-    rw [show expectedTotalDecodedPort port = emptyDecodedPort 11725506 by
+    rw [show expectedTotalDecodedPort port = emptyDecodedPort 11437038 by
       simp [expectedTotalDecodedPort, notOne, notFour]]
-    exact expandedFieldTerms_empty 11725506
+    exact expandedFieldTerms_empty 11437038
 
 def validatedExpectedTotalRow :
     ValidatedThreeSelectorTotalRow expectedTotalDecodedRow :=
@@ -618,7 +618,7 @@ def validatedExpectedTotalRow :
 
 theorem expectedSelectorResidual_eq
     (arm : Fin 3)
-    (assignment : Fin 11725506 → F) :
+    (assignment : Fin 11437038 → F) :
     residual (expectedSelectorDecodedRow arm) assignment =
       booleanResidual
         (booleanPoint (assignment constantColumn)
@@ -627,7 +627,7 @@ theorem expectedSelectorResidual_eq
     (validatedExpectedSelectorRow arm) assignment
 
 theorem expectedTotalResidual_eq
-    (assignment : Fin 11725506 → F) :
+    (assignment : Fin 11437038 → F) :
     residual expectedTotalDecodedRow assignment =
       -(assignment constantColumn *
         (-assignment constantColumn + assignment (selectorColumn 0) +
@@ -692,7 +692,7 @@ theorem booleanResidual_one_eq_zero_iff
 theorem expectedSelectorRow_satisfied_iff_boolean
     (prime : EuclidPrime goldilocksP)
     (arm : Fin 3)
-    (assignment : Fin 11725506 → F)
+    (assignment : Fin 11437038 → F)
     (constantOne : assignment constantColumn = 1) :
     RowSatisfied (expectedSelectorDecodedRow arm) assignment ↔
       assignment (selectorColumn arm) = 0 ∨
@@ -701,7 +701,7 @@ theorem expectedSelectorRow_satisfied_iff_boolean
   exact booleanResidual_one_eq_zero_iff prime _
 
 theorem expectedTotalRow_satisfied_iff_total
-    (assignment : Fin 11725506 → F)
+    (assignment : Fin 11437038 → F)
     (constantOne : assignment constantColumn = 1) :
     RowSatisfied expectedTotalDecodedRow assignment ↔
       SelectorTotal
@@ -715,14 +715,14 @@ theorem expectedTotalRow_satisfied_iff_total
       _ _ _ _ constantOne
 
 def GeneratedRowsSatisfied
-    (assignment : Fin 11725506 → F) : Prop :=
+    (assignment : Fin 11437038 → F) : Prop :=
   (∀ arm : Fin 3,
       RowSatisfied (expectedSelectorDecodedRow arm) assignment) ∧
     RowSatisfied expectedTotalDecodedRow assignment
 
 theorem generatedRowsSatisfied_iff
     (prime : EuclidPrime goldilocksP)
-    (assignment : Fin 11725506 → F)
+    (assignment : Fin 11437038 → F)
     (constantOne : assignment constantColumn = 1) :
     GeneratedRowsSatisfied assignment ↔
       (∀ arm : Fin 3,
@@ -749,8 +749,8 @@ theorem generatedRowsSatisfied_iff
 /-- Replace exactly the prepared selector interval `[270, 273)` by the
 canonical unit vector for `selected`. -/
 def withUnitSelectors (selected : Fin 3)
-    (assignment : Fin 11725506 → F) :
-    Fin 11725506 → F :=
+    (assignment : Fin 11437038 → F) :
+    Fin 11437038 → F :=
   fun column =>
     if inSelectorRange :
         270 ≤ column.val ∧ column.val < 273 then
@@ -761,7 +761,7 @@ def withUnitSelectors (selected : Fin 3)
 
 theorem withUnitSelectors_at_selector
     (selected arm : Fin 3)
-    (assignment : Fin 11725506 → F) :
+    (assignment : Fin 11437038 → F) :
     withUnitSelectors selected assignment (selectorColumn arm) =
       unitWeights selected arm := by
   unfold withUnitSelectors
@@ -777,7 +777,7 @@ theorem withUnitSelectors_at_selector
 
 theorem withUnitSelectors_at_constant
     (selected : Fin 3)
-    (assignment : Fin 11725506 → F) :
+    (assignment : Fin 11437038 → F) :
     withUnitSelectors selected assignment constantColumn =
       assignment constantColumn := by
   unfold withUnitSelectors
@@ -787,7 +787,7 @@ theorem withUnitSelectors_at_constant
 theorem withUnitSelectors_satisfies
     (prime : EuclidPrime goldilocksP)
     (selected : Fin 3)
-    (assignment : Fin 11725506 → F)
+    (assignment : Fin 11437038 → F)
     (constantOne : assignment constantColumn = 1) :
     GeneratedRowsSatisfied (withUnitSelectors selected assignment) := by
   apply (generatedRowsSatisfied_iff prime _ ?_).2

@@ -1,4 +1,5 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Carrier270.Generated.PrivatePaddingRows
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Carrier270.Generated.RingPaddingRows
 
 /-!
 Exact private-alignment padding rows for the bounded fixed-point profile.
@@ -21,8 +22,10 @@ namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.P
 
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProjection.YZcol.Selective.Materialized
 
-def relationRows : Nat := 14946911
-def relationColumns : Nat := 11725506
+def relationRows : Nat :=
+  Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Generated.RingPaddingRows.relationRows
+def relationColumns : Nat :=
+  Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Generated.RingPaddingRows.relationColumns
 def firstEmittedRow : Nat := 4729593
 def emitterRunIndex : Nat := 7
 def constantColumn : Nat := 0
@@ -77,14 +80,16 @@ theorem expectedRow_emittedRow (offset : Nat) :
 
 theorem expectedRow_paddingColumn (offset : Fin paddingWidth) :
     firstPaddingColumn + offset.val < relationColumns := by
+  have intervalBound : firstPaddingColumn + paddingWidth ≤ relationColumns := by
+    decide
   have offsetBound := offset.isLt
-  simp only [paddingWidth, firstPaddingColumn, relationColumns] at offsetBound ⊢
   omega
 
 theorem expectedRow_emittedRow_bound (offset : Fin paddingWidth) :
     firstEmittedRow + offset.val < relationRows := by
+  have intervalBound : firstEmittedRow + paddingWidth ≤ relationRows := by
+    decide
   have offsetBound := offset.isLt
-  simp only [paddingWidth, firstEmittedRow, relationRows] at offsetBound ⊢
   omega
 
 /-- Every generated record has one unique offset in the exact 38-row

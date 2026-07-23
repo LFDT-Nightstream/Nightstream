@@ -19,10 +19,10 @@ namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Pi
 
 def schemaVersion : Nat := 1
 def ringDegree : Nat := 54
-def relationRows : Nat := 14946911
-def unpaddedCoordinates : Nat := 11725454
-def physicalCoordinates : Nat := 11725506
-def ringPaddingCoordinates : Nat := 52
+def relationRows : Nat := 14944219
+def unpaddedCoordinates : Nat := 11437010
+def physicalCoordinates : Nat := 11437038
+def ringPaddingCoordinates : Nat := 28
 def constantCoordinates : Nat := 1
 def logicalPublicCoordinates : Nat := 256
 def publicCarrierPadding : Nat := 13
@@ -31,11 +31,11 @@ def alignmentPadding : Nat := 38
 def sharedPrivateCoordinates : Nat := 0
 def branchStart : Nat := 311
 def maxArmIndex : Nat := 2
-def maxArmTotal : Nat := 11725143
+def maxArmTotal : Nat := 11436699
 def arms : List RawArm := [
   { sourceColumns := 13049, eliminatedColumns := 10591, unitColumns := 647, balancedColumns := 1804, binaryColumns := 7, retainedCoordinatesBeforeAliases := 75059, decompositionAliases := 448, equalityAliases := 0, equalityAliasCoordinateSavings := 0, branchCoordinates := 74611, derivedProductSums := 0, derivedCoordinates := 0, totalBranchCoordinates := 74611, poseidonPermutations := 20, poseidonCoordinates := 70776 }
-, { sourceColumns := 4468023, eliminatedColumns := 1665044, unitColumns := 2723659, balancedColumns := 79291, binaryColumns := 29, retainedCoordinatesBeforeAliases := 5976446, decompositionAliases := 1211069, equalityAliases := 384, equalityAliasCoordinateSavings := 5504, branchCoordinates := 4759873, derivedProductSums := 2276, derivedCoordinates := 93316, totalBranchCoordinates := 4853189, poseidonPermutations := 510, poseidonCoordinates := 1801354 }
-, { sourceColumns := 11049111, eliminatedColumns := 4008875, unitColumns := 6870384, balancedColumns := 169599, binaryColumns := 253, retainedCoordinatesBeforeAliases := 13840135, decompositionAliases := 3149904, equalityAliases := 1760, equalityAliasCoordinateSavings := 61920, branchCoordinates := 10628311, derivedProductSums := 26752, derivedCoordinates := 1096832, totalBranchCoordinates := 11725143, poseidonPermutations := 615, poseidonCoordinates := 2185920 }
+, { sourceColumns := 4419258, eliminatedColumns := 1622873, unitColumns := 2720149, balancedColumns := 76207, binaryColumns := 29, retainedCoordinatesBeforeAliases := 5846492, decompositionAliases := 1366049, equalityAliases := 384, equalityAliasCoordinateSavings := 5504, branchCoordinates := 4474939, derivedProductSums := 2276, derivedCoordinates := 93316, totalBranchCoordinates := 4568255, poseidonPermutations := 436, poseidonCoordinates := 1540430 }
+, { sourceColumns := 10997106, eliminatedColumns := 3963194, unitColumns := 6863364, balancedColumns := 170295, binaryColumns := 253, retainedCoordinatesBeforeAliases := 13861651, decompositionAliases := 3459864, equalityAliases := 1760, equalityAliasCoordinateSavings := 61920, branchCoordinates := 10339867, derivedProductSums := 26752, derivedCoordinates := 1096832, totalBranchCoordinates := 11436699, poseidonPermutations := 541, poseidonCoordinates := 1924996 }
 ]
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.ProductionDomain.WidthCensus.Generated

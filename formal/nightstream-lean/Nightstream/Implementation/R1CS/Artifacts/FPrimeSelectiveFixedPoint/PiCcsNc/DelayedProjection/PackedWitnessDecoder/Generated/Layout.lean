@@ -29,11 +29,11 @@ Emits constraints: none; generated direct-dataflow evidence only.
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.PackedWitnessDecoder.Generated.Layout
 
 def schemaVersion : Nat := 2
-def relationRows : Nat := 14946911
-def logicalWidth : Nat := 11725506
+def relationRows : Nat := 14944219
+def logicalWidth : Nat := 11437038
 def childCount : Nat := 14
 def matrixRows : Nat := 54
-def matrixColumns : Nat := 217139
+def matrixColumns : Nat := 211797
 def booleanLaneCount : Nat := 64
 def fixtureCommitmentWidth : Nat := 4
 def fixtureCommitmentDataLength : Nat := 216

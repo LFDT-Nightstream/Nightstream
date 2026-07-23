@@ -250,7 +250,7 @@ theorem acceptedNext_implies_previousPackedYZcolBound_or_rawParentStateMismatch_
       nextContext.pending = some
         (DelayedProduction.outgoingPending previousContext
           previousCertificate))
-    (nextAccepted : CombinedNc.ProductionNifs.Accepted nextContext nextData
+    (nextAccepted : CombinedNc.ProductionPiCcs.Accepted nextContext nextData
       nextCertificate) :
     Terminal.PackedYZcolBoundAtBlock previousContext.covers previousData
         (DelayedProduction.outgoingPending previousContext
@@ -281,7 +281,7 @@ theorem acceptedNext_implies_previousPackedYZcolBound_or_rawParentStateMismatch_
       simpa [CombinedNc.ProductionPiCcs.NcAccepted,
         CombinedNc.ProductionPiCcs.rawPolynomial,
         CombinedNc.ProductionPiCcs.rawInitial, pendingContinue,
-        CombinedNc.ProductionStep.parentProjection] using nextAccepted.piCcs.nc
+        CombinedNc.ProductionStep.parentProjection] using nextAccepted.nc
     rcases
         CombinedNc.ProductionStep.accepted_next_of_rawRecomposition_implies_previous_packedYZcolBound_or_badEvent
           noZeroDivisors previousContext previousData previousCertificate
@@ -329,7 +329,7 @@ theorem acceptedNext_of_parentOpening_implies_previousPackedYZcolBound_or_badEve
       nextContext.pending = some
         (DelayedProduction.outgoingPending previousContext
           previousCertificate))
-    (nextAccepted : CombinedNc.ProductionNifs.Accepted nextContext nextData
+    (nextAccepted : CombinedNc.ProductionPiCcs.Accepted nextContext nextData
       nextCertificate) :
     Terminal.PackedYZcolBoundAtBlock previousContext.covers previousData
         (DelayedProduction.outgoingPending previousContext
@@ -356,7 +356,7 @@ theorem acceptedNext_of_parentOpening_implies_previousPackedYZcolBound_or_badEve
     simpa [CombinedNc.ProductionPiCcs.NcAccepted,
       CombinedNc.ProductionPiCcs.rawPolynomial,
       CombinedNc.ProductionPiCcs.rawInitial, pendingContinue,
-      CombinedNc.ProductionStep.parentProjection] using nextAccepted.piCcs.nc
+      CombinedNc.ProductionStep.parentProjection] using nextAccepted.nc
   rcases
     CombinedNc.ProductionStep.accepted_next_of_parentOpening_implies_previous_packedYZcolBound_or_bindingEvent
       noZeroDivisors previousContext previousData previousCertificate

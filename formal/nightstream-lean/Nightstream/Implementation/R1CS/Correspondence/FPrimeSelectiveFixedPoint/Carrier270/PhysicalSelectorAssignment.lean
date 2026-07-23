@@ -1,5 +1,5 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.Metadata
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.Provenance
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Metadata
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Provenance
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.Carrier270.PhysicalPublicAssignment
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.Carrier270.Selectors
 
@@ -16,6 +16,10 @@ arm, private suffix decoding beyond the selector interval, matrix semantics,
 commitment binding, or row removal.
 
 Emits constraints: no.
+
+| Stable stage path | Mathematical obligation | Authority class |
+|---|---|---|
+| `f_prime.carrier270.selector.steady` | generated selector rows set exactly the production steady arm while preserving the 270-coordinate public prefix | checked/refinement |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.PhysicalSelectorAssignment
@@ -36,13 +40,13 @@ theorem steadyArm_eq_two : steadyArm = (2 : Fin 3) := by
   rfl
 
 /-- Replay exactly the selected arm into physical columns `270..272`. -/
-def replaySteadySelector (assignment : Fin 11725506 → F) :
-    Fin 11725506 → F :=
+def replaySteadySelector (assignment : Fin 11437038 → F) :
+    Fin 11437038 → F :=
   withUnitSelectors steadyArm assignment
 
 theorem replaySteadySelector_preserves_public
-    (assignment : Fin 11725506 → F)
-    (column : Fin 11725506)
+    (assignment : Fin 11437038 → F)
+    (column : Fin 11437038)
     (publicColumn : column.val < 270) :
     replaySteadySelector assignment column = assignment column := by
   unfold replaySteadySelector withUnitSelectors
@@ -57,7 +61,7 @@ theorem generatedSteadySelectorColumn_exact :
   rfl
 
 theorem replaySteadySelector_one
-    (assignment : Fin 11725506 → F) :
+    (assignment : Fin 11437038 → F) :
     replaySteadySelector assignment (selectorColumn steadyArm) = 1 := by
   rw [replaySteadySelector, withUnitSelectors_at_selector]
   simp [steadyArm, unitWeights]
@@ -65,12 +69,12 @@ theorem replaySteadySelector_one
 /-- The generated numeric column used by the combined-NC selective rows is
 one under the exact steady-arm replay. -/
 theorem replaySteadySelector_generatedColumn_one
-    (assignment : Fin 11725506 → F) :
+    (assignment : Fin 11437038 → F) :
     replaySteadySelector assignment
         ⟨Metadata.steadySelectorColumn, by decide⟩ = 1 := by
   have columnEq :
       (⟨Metadata.steadySelectorColumn, by decide⟩ :
-        Fin 11725506) = selectorColumn steadyArm := by
+        Fin 11437038) = selectorColumn steadyArm := by
     apply Fin.ext
     exact generatedSteadySelectorColumn_exact
   rw [columnEq]
@@ -80,7 +84,7 @@ theorem replaySteadySelector_generatedColumn_one
 steady-arm replay. -/
 theorem replaySteadySelector_rowsSatisfied
     (prime : EuclidPrime goldilocksP)
-    (assignment : Fin 11725506 → F)
+    (assignment : Fin 11437038 → F)
     (constantOne : assignment SelectorRefinement.constantColumn = 1) :
     GeneratedRowsSatisfied (replaySteadySelector assignment) := by
   exact withUnitSelectors_satisfies prime steadyArm assignment constantOne
@@ -91,7 +95,7 @@ theorem replayPublicThenSteadySelector
     (prime : EuclidPrime goldilocksP)
     (dimensions : Dimensions)
     (legacy : LegacyAssignment dimensions)
-    (suffix : Fin 11725506 → F)
+    (suffix : Fin 11437038 → F)
     (constantOne : PublicAssignment.SourceConstantOne dimensions legacy) :
     projectPhysical270 dimensions
         (replaySteadySelector

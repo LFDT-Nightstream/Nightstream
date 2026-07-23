@@ -22,8 +22,8 @@ namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.S
 
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProjection.YZcol.Selective.Materialized
 
-def relationRows : Nat := 14946911
-def relationColumns : Nat := 11725506
+def relationRows : Nat := 14944219
+def relationColumns : Nat := 11437038
 def selectorCount : Nat := 3
 def selectorStart : Nat := 270
 def totalEmittedRow : Nat := 4729579

@@ -4,15 +4,16 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.
 Executable one-arm public-write contract for the production fixed-point
 assignment.
 
-Assurance tier: model-level pending one Rust-generated certificate.
+Assurance tier: model-level generic refinement.  The fixed-profile generated
+certificate is supplied by `ProductionPublicWriteTrace`.
 
 Owns: a proof-free symbolic record for one public assignment write; an exact
 `Fin 270` one-arm trace shape; fail-closed execution of that trace into the
 11,725,506-coordinate production assignment; and derivation of the physical
 public-source, padding-zero, padding-row, and typed-carrier conclusions.
 
-Does not own: an inhabitant of `PendingProductionExporterCertificate`, the
-active Rust call site, private assignment decoding, matrix semantics,
+Does not own: the artifact-backed inhabitant of
+`PendingProductionExporterCertificate`, the active Rust call site, private assignment decoding, matrix semantics,
 commitment-key alignment, protocol acceptance, or row removal.  In
 particular, no theorem below accepts equality of assignment coordinates as a
 premise.
@@ -28,7 +29,7 @@ writes, while coordinates `257..269` are untouched initialized zeros.
 |---|---|---|---|
 | `f_prime.fixed_point.assignment.public_write_trace.schema` | one proof-free write instruction | model schema | `RawPublicWrite` |
 | `f_prime.fixed_point.assignment.public_write_trace.execute` | execute one arm at physical columns `0..269` | computed | `executePhysical` |
-| `f_prime.fixed_point.assignment.public_write_trace.certificate` | production exporter equals the canonical trace | pending artifact | `PendingProductionExporterCertificate` |
+| `f_prime.fixed_point.assignment.public_write_trace.certificate` | production exporter equals the canonical trace | contract; instantiated by `ProductionPublicWriteTrace` | `PendingProductionExporterCertificate` |
 | `f_prime.fixed_point.assignment.public_write_trace.refinement` | trace execution refines the typed carrier | derived | `projectPhysical270_execute_eq_projectPublicInput` |
 -/
 
@@ -66,7 +67,7 @@ structure RawPublicWrite where
   deriving DecidableEq, Repr
 
 /-- Exactly one proof-free record for each of the 270 public coordinates.
-Generated files may store this lookup in bounded shards; no theorem here
+Exporter-owned certificate modules may store this lookup in bounded shards; no theorem here
 requires normalizing a joined 270-record list. -/
 abbrev OneArmTrace :=
   Fin PublicDecoder.alignedPublicWidth -> RawPublicWrite
@@ -105,10 +106,9 @@ def expectedWrite (arm : Nat)
       centered := false
       aliasSource := none }
 
-/-- Exact structural certificate still missing from the production Rust
-exporter.  This proposition is deliberately not inhabited in handwritten
-Lean.  Its future artifact proof must decode bounded generated shards from the
-actual encoder snapshot used by the active call site. -/
+/-- Exact structural certificate required from a production Rust exporter.
+The generic model does not inhabit it; the fixed active execution artifact is
+decoded in `ProductionPublicWriteTrace`. -/
 def PendingProductionExporterCertificate (arm : Nat)
     (trace : OneArmTrace) : Prop :=
   forall column, trace column = expectedWrite arm column

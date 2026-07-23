@@ -22,8 +22,8 @@ records. These theorems use kernel reduction (`decide`), not `native_decide`.
 |---|---|---|
 | `f_prime.fixed_point.width.prefix` | prefix is exactly 311 coordinates | computed artifact |
 | `f_prime.fixed_point.width.arms` | every arm has exact alias/derived accounting | computed artifact |
-| `f_prime.fixed_point.width.maximum` | steady arm uniquely owns the 11,725,143-coordinate suffix | computed artifact |
-| `f_prime.fixed_point.width.alignment` | unpadded 11,725,454 rounds to 11,725,506 | computed artifact |
+| `f_prime.fixed_point.width.maximum` | steady arm uniquely owns the generated maximum-coordinate suffix | computed artifact |
+| `f_prime.fixed_point.width.alignment` | generated unpadded width rounds to the generated Phi81-aligned width | computed artifact |
 -/
 
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.ProductionDomain.WidthCensus
@@ -43,13 +43,13 @@ end G
 theorem header_exact :
     G.schemaVersion = 1 /\
       G.ringDegree = 54 /\
-      G.relationRows = 14946911 /\
-      G.unpaddedCoordinates = 11725454 /\
-      G.physicalCoordinates = 11725506 /\
-      G.ringPaddingCoordinates = 52 /\
+      G.relationRows = 14944219 /\
+      G.unpaddedCoordinates = 11437010 /\
+      G.physicalCoordinates = 11437038 /\
+      G.ringPaddingCoordinates = 28 /\
       G.branchStart = 311 /\
       G.maxArmIndex = 2 /\
-      G.maxArmTotal = 11725143 := by
+      G.maxArmTotal = 11436699 := by
   decide
 
 /-- The verifier-owned prefix is constant, logical public carrier, public
@@ -87,9 +87,9 @@ theorem arm_accounting
 suffix. -/
 theorem steady_unique_maximum :
     G.arms.map RawArm.totalBranchCoordinates =
-        [74611, 4853189, G.maxArmTotal] /\
+        [74611, 4568255, G.maxArmTotal] /\
       74611 < G.maxArmTotal /\
-      4853189 < G.maxArmTotal := by
+      4568255 < G.maxArmTotal := by
   decide
 
 /-- Selective branch arenas overlap under disjoint selectors, so the unpadded
@@ -110,12 +110,12 @@ theorem physical_eq_unpadded_add_padding :
       G.unpaddedCoordinates + G.ringPaddingCoordinates := by
   decide
 
-/-- The candidate fits the current constructor guard with 4,274,494 physical
+/-- The candidate fits the current constructor guard with 4,562,962 physical
 coordinates of headroom. This is compiler accounting, not evidence that the
 complete relation was materialized. -/
 theorem fits_current_constructor_guard :
     G.physicalCoordinates <= 16000000 /\
-      16000000 - G.physicalCoordinates = 4274494 := by
+      16000000 - G.physicalCoordinates = 4562962 := by
   decide
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.ProductionDomain.WidthCensus

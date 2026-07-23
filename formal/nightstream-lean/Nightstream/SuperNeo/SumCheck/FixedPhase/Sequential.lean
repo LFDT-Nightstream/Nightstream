@@ -29,7 +29,7 @@ construction rather than a fixed-point assumption.
 
 namespace Nightstream.SuperNeo.SumCheck.Finite.FixedPhase.Sequential
 
-universe uField uState
+universe uField uState uElement
 
 /-- Replay typed fixed-width polynomials in message-before-challenge order.
 The caller supplies the concrete absorb/squeeze step. -/
@@ -48,7 +48,7 @@ def run
 /-- Reindex an exactly sized list as a finite function without changing any
 element. -/
 def functionOfExactList
-    {Element : Type}
+    {Element : Type uElement}
     {count : Nat}
     (values : List Element)
     (length : values.length = count) :
@@ -57,7 +57,7 @@ def functionOfExactList
 
 /-- Enumerating the exact finite-function view recovers the original list. -/
 @[simp] theorem ofFn_functionOfExactList
-    {Element : Type}
+    {Element : Type uElement}
     {count : Nat}
     (values : List Element)
     (length : values.length = count) :

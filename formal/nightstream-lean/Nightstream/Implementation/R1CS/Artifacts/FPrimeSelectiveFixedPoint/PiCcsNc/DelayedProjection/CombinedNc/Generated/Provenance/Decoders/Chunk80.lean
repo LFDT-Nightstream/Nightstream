@@ -7,6 +7,10 @@ Does not own: decoding, row satisfaction, transcript authority, commitment
 binding, semantic acceptance, costs, or permission to remove rows.
 
 Emits constraints: no.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.generated` | The generated payload named by `Owns` above | computed artifact |
 -/
 
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Schema
@@ -15,34 +19,34 @@ namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Pi
 
 set_option maxRecDepth 100000 in
 def values : List RawSourceDecoder := [
-  { column := 4084538, resolution := .linearDefinition },
-  { column := 4084539, resolution := .traceEliminated },
-  { column := 4084540, resolution := .traceEliminated },
-  { column := 4084541, resolution := .traceEliminated },
-  { column := 4084542, resolution := .direct 4951069 41 false },
-  { column := 4084543, resolution := .direct 4951110 41 false },
-  { column := 4084544, resolution := .traceEliminated },
-  { column := 4084545, resolution := .traceEliminated },
-  { column := 4084546, resolution := .traceEliminated },
-  { column := 4084547, resolution := .direct 4951151 41 false },
-  { column := 4084548, resolution := .direct 4951192 41 false },
-  { column := 4084549, resolution := .traceEliminated },
-  { column := 4084550, resolution := .traceEliminated },
-  { column := 4084551, resolution := .traceEliminated },
-  { column := 4084552, resolution := .direct 4951233 41 false },
-  { column := 4084553, resolution := .direct 4951274 41 false },
-  { column := 4084554, resolution := .traceEliminated },
-  { column := 4084555, resolution := .traceEliminated },
-  { column := 4084556, resolution := .traceEliminated },
-  { column := 4084557, resolution := .direct 4951315 41 false },
-  { column := 4084558, resolution := .direct 4951356 41 false },
-  { column := 4084559, resolution := .traceEliminated },
-  { column := 4084560, resolution := .traceEliminated },
-  { column := 4084561, resolution := .traceEliminated },
-  { column := 4084562, resolution := .direct 4951397 41 false },
-  { column := 4084563, resolution := .direct 4951438 41 false },
-  { column := 4084564, resolution := .linearDefinition },
-  { column := 4084565, resolution := .linearDefinition }
+  { column := 4081298, resolution := .linearDefinition },
+  { column := 4081299, resolution := .traceEliminated },
+  { column := 4081300, resolution := .traceEliminated },
+  { column := 4081301, resolution := .traceEliminated },
+  { column := 4081302, resolution := .direct 4947559 41 false },
+  { column := 4081303, resolution := .direct 4947600 41 false },
+  { column := 4081304, resolution := .traceEliminated },
+  { column := 4081305, resolution := .traceEliminated },
+  { column := 4081306, resolution := .traceEliminated },
+  { column := 4081307, resolution := .direct 4947641 41 false },
+  { column := 4081308, resolution := .direct 4947682 41 false },
+  { column := 4081309, resolution := .traceEliminated },
+  { column := 4081310, resolution := .traceEliminated },
+  { column := 4081311, resolution := .traceEliminated },
+  { column := 4081312, resolution := .direct 4947723 41 false },
+  { column := 4081313, resolution := .direct 4947764 41 false },
+  { column := 4081314, resolution := .traceEliminated },
+  { column := 4081315, resolution := .traceEliminated },
+  { column := 4081316, resolution := .traceEliminated },
+  { column := 4081317, resolution := .direct 4947805 41 false },
+  { column := 4081318, resolution := .direct 4947846 41 false },
+  { column := 4081319, resolution := .traceEliminated },
+  { column := 4081320, resolution := .traceEliminated },
+  { column := 4081321, resolution := .traceEliminated },
+  { column := 4081322, resolution := .direct 4947887 41 false },
+  { column := 4081323, resolution := .direct 4947928 41 false },
+  { column := 4081324, resolution := .linearDefinition },
+  { column := 4081325, resolution := .linearDefinition }
 ]
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.Provenance.Decoders.Chunk80

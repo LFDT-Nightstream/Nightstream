@@ -103,6 +103,48 @@ structure Accepted
         (PiDEC.Raw.recomposeAssignment rawChildren)
         (DelayedProduction.outgoingPending context certificate).oldBlock
 
+/-- Minimal terminal obligations used by the delayed-`y_zcol` authority
+track.  The raw children are the same assignments opened against the ordered
+PiDEC output commitments; no child evaluation sidecar occurs.  Unlike
+`Accepted`, this contract deliberately excludes public-input, `y_ring`, and
+ordinary CCS-evaluation obligations, which are owned by the independent paper
+track. -/
+structure ProjectionOpeningAccepted
+    (context : FixedActive.Context shape State publicRingColumns publicFits
+      verifierRows)
+    (certificate : FixedActive.Certificate context)
+    (rawChildren : Fin productionGlobalParams.k ->
+      Phi81Relation.Assignment
+        (RelationShape shape publicRingColumns publicFits)) : Prop where
+  childCommitment : forall child,
+    commit context.key (rawChildren child) =
+      (outputChildren context certificate child).commitment
+  childNorm : forall child,
+    Phi81Relation.assignmentNormBounded
+      ((outputChildren context certificate child).stage.bound
+        productionGlobalParams)
+      (rawChildren child)
+  projection :
+    (DelayedProduction.outgoingPending context certificate).parentYZcol =
+      PackedBlockAction.packedYZcol context.covers
+        (PiDEC.Raw.recomposeAssignment rawChildren)
+        (DelayedProduction.outgoingPending context certificate).oldBlock
+
+theorem Accepted.projectionOpeningAccepted
+    {context : FixedActive.Context shape State publicRingColumns publicFits
+      verifierRows}
+    {certificate : FixedActive.Certificate context}
+    {rawChildren : Fin productionGlobalParams.k ->
+      Phi81Relation.Assignment
+        (RelationShape shape publicRingColumns publicFits)}
+    (accepted : Accepted context certificate rawChildren) :
+    ProjectionOpeningAccepted context certificate rawChildren := by
+  exact {
+    childCommitment := fun child => (accepted.children child).commits
+    childNorm := fun child => (accepted.children child).norm
+    projection := accepted.projection
+  }
+
 /-- Executable complete-carrier norm check. -/
 def assignmentNormCheck
     {relationShape : Phi81Relation.Shape}
@@ -191,7 +233,7 @@ theorem childrenCheck_eq_true_iff
   constructor
   · intro checked child
     exact (childCheck_eq_true_iff context certificate rawChildren child).mp
-      ((List.all_eq_true.mp checked) child (by simp))
+      ((List.all_eq_true.mp checked) child (List.mem_finRange child))
   · intro children
     apply List.all_eq_true.mpr
     intro child _member
@@ -363,12 +405,65 @@ theorem accepted_implies_packedYZcolBound_or_badEvent
       different := different
     }⟩⟩
 
+/-- The minimal raw-opening/projection obligations close the direct-parent
+edge.  Only ordered child commitments/norms and the raw terminal projection
+are consumed; public-input, `y_ring`, and carried child `y_zcol` values are
+irrelevant to this authority track. -/
+theorem projectionOpeningAccepted_of_parentOpening_implies_packedYZcolBound_or_badEvent
+    (context : FixedActive.Context shape State publicRingColumns publicFits
+      verifierRows)
+    (data : Data shape)
+    (certificate : FixedActive.Certificate context)
+    (parentBound : DelayedRawChildren.CanonicalParentBinding context data
+      certificate)
+    (piDecAccepted : PiDEC.Accepted (decAlgebra context.key)
+      ((derive context certificate).piDecAttempt certificate))
+    (rawChildren : Fin productionGlobalParams.k ->
+      Phi81Relation.Assignment
+        (RelationShape shape publicRingColumns publicFits))
+    (accepted : ProjectionOpeningAccepted context certificate rawChildren) :
+    Terminal.PackedYZcolBoundAtBlock context.covers data
+        (derive context certificate).piCcs.ncPoint.block
+        certificate.piCcs.output ∨
+      PiRlcSidecar.MixingCollision context.covers
+        certificate.piRlcChallenges
+        (InputAuthority.productAssignments data context.alignment)
+        (DelayedProduction.outgoingPending context certificate).oldBlock
+        (PackedYZcol.sourceClaims context certificate) ∨
+      Nonempty (PiDEC.ParentOpeningBindingCollision
+        (semantics context.key) productionGlobalParams
+        (derive context certificate).piRlcOutput.commitment) := by
+  have childCommitments : forall child,
+      (semantics context.key).commit (rawChildren child) =
+        (((derive context certificate).piDecAttempt certificate).children
+          child).commitment := by
+    intro child
+    simpa [outputChildren] using accepted.childCommitment child
+  have childNorms : forall child,
+      (semantics context.key).normBounded productionGlobalParams.b
+        (rawChildren child) := by
+    intro child
+    simpa [outputChildren, production_norm_stages.1] using
+      accepted.childNorm child
+  rcases
+      DelayedRawChildren.rawChildren_recompose_eq_canonicalParent_or_bindingCollision
+        context data certificate piDecAccepted parentBound rawChildren
+        childCommitments childNorms with
+    recomposesCanonical | bindingCollision
+  ·
+    rcases DelayedProduction.packedBound_or_mixingCollision_of_rawRecomposition
+        context data certificate rawChildren recomposesCanonical
+        accepted.projection with packed | mixing
+    · exact Or.inl (by simpa using packed)
+    · exact Or.inr (Or.inl mixing)
+  · exact Or.inr (Or.inr bindingCollision)
+
 /-- Terminal direct-parent closure without a separate canonical child-opening
-family.  The terminal checker already validates every ordered raw child
-assignment against the actual public Π_DEC child. Strict Π_DEC, the canonical
-parent commitment/norm, and only the raw child commitments/norms therefore
-bind the radix recomposition to the source/challenge parent assignment, or
-expose one standard parent-opening collision.
+family.  The terminal checker validates every ordered raw child assignment
+against the actual public Π_DEC child. Strict Π_DEC, the canonical parent
+commitment/norm, and only the raw child commitments/norms therefore bind the
+radix recomposition to the source/challenge parent assignment, or expose one
+standard parent-opening collision.
 
 No child `y_zcol` sidecar or desired packed equation occurs in the premises. -/
 theorem accepted_of_parentOpening_implies_packedYZcolBound_or_badEvent
@@ -395,31 +490,10 @@ theorem accepted_of_parentOpening_implies_packedYZcolBound_or_badEvent
       Nonempty (PiDEC.ParentOpeningBindingCollision
         (semantics context.key) productionGlobalParams
         (derive context certificate).piRlcOutput.commitment) := by
-  have childCommitments : forall child,
-      (semantics context.key).commit (rawChildren child) =
-        (((derive context certificate).piDecAttempt certificate).children
-          child).commitment := by
-    intro child
-    have checked := accepted.children child
-    simpa [outputChildren] using checked.commits
-  have childNorms : forall child,
-      (semantics context.key).normBounded productionGlobalParams.b
-        (rawChildren child) := by
-    intro child
-    have checked := accepted.children child
-    simpa [outputChildren, production_norm_stages.1] using checked.norm
-  rcases
-      DelayedRawChildren.rawChildren_recompose_eq_canonicalParent_or_bindingCollision
-        context data certificate piDecAccepted parentBound rawChildren
-        childCommitments childNorms with
-    recomposesCanonical | bindingCollision
-  ·
-    rcases DelayedProduction.packedBound_or_mixingCollision_of_rawRecomposition
-        context data certificate rawChildren recomposesCanonical
-        accepted.projection with packed | mixing
-    · exact Or.inl (by simpa using packed)
-    · exact Or.inr (Or.inl mixing)
-  · exact Or.inr (Or.inr bindingCollision)
+  exact
+    projectionOpeningAccepted_of_parentOpening_implies_packedYZcolBound_or_badEvent
+      context data certificate parentBound piDecAccepted rawChildren
+      accepted.projectionOpeningAccepted
 
 /-- Exact terminal closure yields the previous semantic fold, a `Pi_RLC`
 source-mixing collision, or one indexed terminal child commitment collision. -/

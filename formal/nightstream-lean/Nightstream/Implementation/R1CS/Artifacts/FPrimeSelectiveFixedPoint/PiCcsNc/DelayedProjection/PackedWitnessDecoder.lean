@@ -5,8 +5,8 @@ Exact compact certificate for the production full-`Z` decoder.
 
 Assurance tier: artifact-checked for the generated fixed profile.
 
-Owns: exact production dimensions; the bijection between all 11,725,506
-logical coordinates and the `217,139 × 54` packed matrix cells; its
+Owns: exact production dimensions; the bijection between all generated
+logical coordinates and the `211,797 × 54` packed matrix cells; its
 fourteen-child lift; the exact 54-live/10-computed-zero lane partition; the
 bounded fixture's 108 one-hot constructor/commitment probes; and the exact
 bounded/production commitment-data flattening dimensions.
@@ -56,11 +56,11 @@ abbrev CommitmentProbeColumn :=
 
 theorem dimensions_exact :
       GeneratedLayout.schemaVersion = 2 /\
-      GeneratedLayout.relationRows = 14946911 /\
-      GeneratedLayout.logicalWidth = 11725506 /\
+      GeneratedLayout.relationRows = 14944219 /\
+      GeneratedLayout.logicalWidth = 11437038 /\
       GeneratedLayout.childCount = 14 /\
       GeneratedLayout.matrixRows = 54 /\
-      GeneratedLayout.matrixColumns = 217139 /\
+      GeneratedLayout.matrixColumns = 211797 /\
       GeneratedLayout.booleanLaneCount = 64 /\
       GeneratedLayout.matrixColumns * GeneratedLayout.matrixRows =
         GeneratedLayout.logicalWidth /\

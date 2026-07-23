@@ -11,7 +11,7 @@ conformance remains open until the verifier passes actual `CcsWitness.Z` or
 
 Owns: equality of every live combined-NC running-source leaf with the
 corresponding full packed-witness cell; verifier-computed zero for all ten
-lane-padding positions; and zero for blocks outside the 265,535-block
+lane-padding positions; and zero for blocks outside the 211,797-block
 production carrier.
 
 Does not own: public `CeClaim.X`, prover-carried `CeClaim.y_zcol`, witness
@@ -61,7 +61,7 @@ theorem paddedValue_running_live_eq_witness
     (rustBlockOfSemantic block)).symm
 
 /-- Production specialization: the 54 physical lanes of every one of the
-265,535 live blocks read the actual full running witness matrix. -/
+211,797 live blocks read the actual full running witness matrix. -/
 theorem production_live_eq_witness
     (template : Data ProductionDomain.semanticShape)
     (witnesses : Fin ProductionDomain.semanticShape.runningCount ->

@@ -8,8 +8,8 @@ decoder.
 Assurance tier: artifact-checked for the generated fixed public-prefix profile.
 
 Owns: construction of a bounded 270-coordinate semantic fixture from the exact
-generated `running[child].x` final assignment columns; exact child and carrier
-casts; the resulting primitive source-column equations; and the `54 × 5` live
+generated `running[child].x` balanced-ternary assignment intervals; exact child
+and carrier casts; the resulting primitive allocation equations; and the `54 × 5` live
 / ten-lane padding decoder.
 
 Does not own: `CcsWitness.Z` or `CeWitness.Z`, the private witness suffix, the
@@ -21,7 +21,7 @@ Emits constraints: none; correspondence theorem only.
 
 | Stable stage path | Obligation | Authority |
 |---|---|---|
-| `f_prime.pi_ccs_nc.delayed_projection.running_x_prefix_decoder.artifact_refinement` | Decode exact generated final columns into the bounded public-prefix fixture | direct dataflow |
+| `f_prime.pi_ccs_nc.delayed_projection.running_x_prefix_decoder.artifact_refinement` | Decode exact generated 41-digit intervals into the bounded public-prefix fixture | direct dataflow |
 
 `decodedData` below is only a 270-coordinate fixture: the generator reads
 `CeClaim.X`, so this construction cannot instantiate production
@@ -106,7 +106,7 @@ def decodedRunningAssignments
     (assignment : PhysicalAssignment) :
     Fin shape.runningCount -> Fin shape.carrierWidth -> F :=
   fun source column =>
-    decodedLogical Generated.sourceColumnMap assignment
+    decodedLogical Generated.sourceAllocationMap assignment
       (childOfSemanticRunning context source)
       (logicalColumnOfSemantic profile column)
 
@@ -132,7 +132,7 @@ def decodedData
     (column : Fin shape.carrierWidth) :
     (decodedData profile context template assignment).runningAssignments
         source column =
-      decodedLogical Generated.sourceColumnMap assignment
+      decodedLogical Generated.sourceAllocationMap assignment
         (childOfSemanticRunning context source)
         (logicalColumnOfSemantic profile column) := by
   rfl
@@ -149,7 +149,7 @@ theorem rawRunningAssignments_decodedData
     (column : Fin shape.carrierWidth) :
     DelayedRawChildren.rawRunningAssignments context
         (decodedData profile context template assignment) child column =
-      decodedLogical Generated.sourceColumnMap assignment
+      decodedLogical Generated.sourceAllocationMap assignment
         (childOfProduction child)
         (logicalColumnOfSemantic profile column) := by
   simp [DelayedRawChildren.rawRunningAssignments,
@@ -159,29 +159,29 @@ theorem rawRunningAssignments_decodedData
 /-- Because the bounded fixture is constructed from the generated public-`X`
 map, its primitive source-column contract is derived definitionally. This is
 not a theorem of full-witness authority. -/
-theorem sourceColumnRowsBind_decodedData
+theorem sourceAllocationRowsBind_decodedData
     (profile : Profile shape)
     (context : FixedActive.Context shape State publicRingColumns publicFits
       verifierRows)
     (template : Sources.Data shape)
     (assignment : PhysicalAssignment) :
-    SourceColumnRowsBind profile context
+    SourceAllocationRowsBind profile context
       (decodedData profile context template assignment)
-      Generated.sourceColumnMap assignment := by
-  unfold SourceColumnRowsBind SourceColumnEquation
+      Generated.sourceAllocationMap assignment := by
+  unfold SourceAllocationRowsBind SourceAllocationEquation
   intro child column
   have raw := rawRunningAssignments_decodedData profile context template
     assignment (productionChild child) (profile.semanticColumn column)
-  change decodedLogical Generated.sourceColumnMap assignment child column =
+  change decodedLogical Generated.sourceAllocationMap assignment child column =
     DelayedRawChildren.rawRunningAssignments context
       (decodedData profile context template assignment)
       (productionChild child) (profile.semanticColumn column)
   simpa only [childOfProduction_productionChild,
     logicalColumnOfSemantic_semanticColumn] using raw.symm
 
-/-- Exact final selective-assignment column for one authoritative raw child
-coordinate. -/
-theorem finalColumn_eq_rawRunningAssignment
+/-- Exact reconstruction from the complete generated balanced-ternary
+interval for one raw child coordinate. -/
+theorem decodedScalar_eq_rawRunningAssignment
     (profile : Profile shape)
     (context : FixedActive.Context shape State publicRingColumns publicFits
       verifierRows)
@@ -189,13 +189,13 @@ theorem finalColumn_eq_rawRunningAssignment
     (assignment : PhysicalAssignment)
     (child : Child)
     (column : LogicalColumn) :
-    assignment (Generated.allocationAt child column).finalColumn =
+    (Generated.sourceAllocationMap.allocation child column).decode assignment =
       DelayedRawChildren.rawRunningAssignments context
         (decodedData profile context template assignment)
         (productionChild child) (profile.semanticColumn column) := by
   have raw := rawRunningAssignments_decodedData profile context template
     assignment (productionChild child) (profile.semanticColumn column)
-  simpa [decodedLogical, Generated.sourceColumnMap] using raw.symm
+  simpa [decodedLogical] using raw.symm
 
 /-- Every live `(lane, block)` cell reads the exact generated final column
 for logical coordinate `block * 54 + lane`. -/
@@ -208,7 +208,7 @@ theorem decodedVirtual_live_eq_rawRunningAssignment
     (child : Child)
     (lane : PackedLane)
     (block : LiveBlock) :
-    decodedVirtual Generated.sourceColumnMap assignment child
+    decodedVirtual Generated.sourceAllocationMap assignment child
         (virtualLaneOfLive lane) (virtualBlockOfLive block) =
       DelayedRawChildren.rawRunningAssignments context
         (decodedData profile context template assignment)
@@ -231,16 +231,27 @@ theorem decodedVirtual_paddingLane_zero
     (lane : VirtualLane)
     (block : VirtualBlock)
     (padding : packedLaneCount <= lane.val) :
-    decodedVirtual Generated.sourceColumnMap assignment child lane
+    decodedVirtual Generated.sourceAllocationMap assignment child lane
         block = 0 :=
-  decodedVirtual_lanePadding_zero Generated.sourceColumnMap
+  decodedVirtual_lanePadding_zero Generated.sourceAllocationMap
     assignment child lane block padding
 
 /-- Exact physical ownership from the artifact: no two raw logical
-coordinates read the same final selective-assignment column. -/
-theorem finalColumn_uniqueOwner :
+coordinates use the same complete selectively lowered allocation. -/
+theorem allocation_uniqueOwner :
     Function.Injective fun address : Child × LogicalColumn =>
-      Generated.sourceColumnMap.sourceColumn address.1 address.2 :=
-  Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Exact.sourceColumnMap_injective
+      Generated.sourceAllocationMap.allocation address.1 address.2 :=
+  Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Exact.sourceAllocationMap_injective
+
+/-- Stronger physical ownership: distinct logical coordinates have disjoint
+41-column final-assignment intervals. -/
+theorem allocation_intervals_nonoverlap
+    (left right : Child × LogicalColumn) (different : left ≠ right) :
+    let leftRecord := Generated.allocationAt left.1 left.2
+    let rightRecord := Generated.allocationAt right.1 right.2
+    leftRecord.finalStart + leftRecord.width ≤ rightRecord.finalStart ∨
+      rightRecord.finalStart + rightRecord.width ≤ leftRecord.finalStart :=
+  Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Exact.finalIntervals_nonoverlap
+    left right different
 
 end Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.ArtifactRefinement

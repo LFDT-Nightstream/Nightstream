@@ -22,6 +22,9 @@ coefficients and compare the actual rows with their independent programs.
 | `pi_ccs.nc.delayed.combined.round_map` | one local-to-source ten-slot round map | checked after row comparison |
 | `pi_ccs.nc.delayed.combined.boundary` | exact delayed-NC input/output column schedule | direct dataflow after decoding |
 | `pi_ccs.nc.delayed.combined.padding` | ten padded lanes for each of fifteen outputs | checked after row comparison |
+| `pi_ccs.nc.delayed.combined.active_pin` | public writes, selector values, and their exact physical rows | checked after decoding |
+| `pi_ccs.nc.delayed.combined.raw_old_block` | fourteen child-major 54-active-plus-10-zero projections at the pending point | checked after execution decoding |
+| `pi_ccs.nc.delayed.combined.execution_binding` | transcript and terminal values joined to exact builder and normalized columns | direct dataflow after decoding |
 -/
 
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc
@@ -43,6 +46,115 @@ deriving DecidableEq, Repr, Inhabited
 structure RawKColumns where
   c0 : Nat
   c1 : Nat
+deriving DecidableEq, Repr, Inhabited
+
+/-- Canonical proof-free coefficient pair for one quadratic-extension value.
+The correspondence layer, rather than this wire schema, owns field decoding
+and rejects non-canonical coefficients. -/
+structure RawK where
+  c0 : Nat
+  c1 : Nat
+deriving DecidableEq, Repr, Inhabited
+
+/-- One child-major lane of the verifier-recomputed projection of a raw
+`WitnessMat` at the pending old block.  Active lanes are numbered `0..53`;
+lanes `54..63` are verifier-created zeros and carry `padding = true`.
+
+The authority tag lives in the execution header as provenance only.  Neither
+that tag nor this value record establishes Rust dataflow by itself. -/
+structure RawOldBlockLane where
+  schemaVersion : Nat
+  child : Nat
+  lane : Nat
+  padding : Bool
+  value : RawK
+deriving DecidableEq, Repr, Inhabited
+
+/-- Exact association between one named execution slot, its source-builder
+coefficient columns, the normalized production-assignment columns, and the
+value observed at both surfaces.  Slot tags and indices are untrusted wire
+data; the correspondence decoder checks their complete schedule. -/
+structure RawGeneratedKBinding where
+  schemaVersion : Nat
+  slotKind : Nat
+  slotIndex0 : Nat
+  slotIndex1 : Nat
+  builderC0 : Nat
+  builderC1 : Nat
+  normalizedC0 : Nat
+  normalizedC1 : Nat
+  value : RawK
+deriving DecidableEq, Repr, Inhabited
+
+/-- One active recursive public write observed at the source builder, the
+normalized assignment, and the packed committed witness.  The exporter
+checks all three values before emitting this proof-free record. -/
+structure RawPublicWrite where
+  schemaVersion : Nat
+  logicalColumn : Nat
+  packedRow : Nat
+  packedColumn : Nat
+  sourceKind : Nat
+  builderColumn : Option Nat
+  normalizedSourceColumn : Option Nat
+  normalizedColumn : Nat
+  width : Nat
+  centered : Bool
+  aliasSource : Option Nat
+  value : Nat
+deriving DecidableEq, Repr, Inhabited
+
+/-- One replayed combined-NC SumCheck round.  The fixed production profile
+requires exactly five coefficients and twenty-five rounds, checked outside
+this permissive artifact schema. -/
+structure RawCombinedNcRound where
+  schemaVersion : Nat
+  index : Nat
+  coefficients : List RawK
+  challenge : RawK
+  claimIn : RawK
+  claimOut : RawK
+deriving DecidableEq, Repr, Inhabited
+
+/-- Compact header exported from the active post-`Pi_DEC` execution audit.
+All values are observations, not authorities.  In particular,
+`fieldDecodingTag = 0` records the canonical base-field embedding used by
+the exporter. `rawAuthorityTag` is checked only as fail-closed provenance; the concrete
+correspondence theorem must derive raw-witness authority from the exported
+old-block projection and its production dataflow checks. -/
+structure RawExecutionHeader where
+  schemaVersion : Nat
+  branch : Nat
+  proofVariant : Nat
+  outputSources : Nat
+  outputMatrices : Nat
+  outputActiveLanes : Nat
+  freshCount : Nat
+  runningCount : Nat
+  logicalColumns : Nat
+  packedRows : Nat
+  packedColumns : Nat
+  sourceRows : Nat
+  sourceColumns : Nat
+  finalRows : Nat
+  finalColumns : Nat
+  publicWriteCount : Nat
+  selectorColumns : List Nat
+  selectorValues : List Nat
+  oldBlock : List RawK
+  parentYZcol : List RawK
+  radix : RawK
+  producerBeta : RawK
+  batchWeight : RawK
+  betaBlock : List RawK
+  betaLane : List RawK
+  blockPoint : List RawK
+  lanePoint : List RawK
+  terminalInitial : RawK
+  terminalFinal : RawK
+  terminalRhs : RawK
+  fieldDecodingTag : Nat
+  rawAuthorityTag : Nat
 deriving DecidableEq, Repr, Inhabited
 
 /-- Compact exact coefficient progression over a half-open column range. -/
@@ -167,6 +279,43 @@ structure RawSourceDecoder where
   column : Nat
   resolution : RawSourceResolution
 deriving DecidableEq, Repr, Inhabited
+
+/-- Verifier-owned source of one active public-coordinate write. -/
+inductive RawActivePublicSource where
+  | constantOne
+  | sourceField (column : Nat)
+  | fixedZero
+deriving DecidableEq, Repr, Inhabited
+
+/-- One exact public-write address and its block/lane decomposition under the
+production `D = 54` packing. -/
+structure RawPackedPublicCoordinate where
+  schemaVersion : Nat
+  column : Nat
+  block : Nat
+  lane : Nat
+  source : RawActivePublicSource
+deriving DecidableEq, Repr, Inhabited
+
+/-- Exact active-branch pins exported from the same fixed-point projection as
+the delayed combined-NC rows. The sparse selector rows carry their emitted-row
+and run owner, so labels alone never establish these equations. -/
+structure RawActivePins where
+  schemaVersion : Nat
+  sourceRows : Nat
+  sourceColumns : Nat
+  finalRows : Nat
+  finalColumns : Nat
+  constantOneColumn : Nat
+  constantOneValue : Nat
+  selectorColumns : List Nat
+  recursiveSelectorValues : List Nat
+  packedLaneCount : Nat
+  packedBlockCount : Nat
+  publicCoordinateCount : Nat
+  selectorDomainRows : List RawEmittedRow
+  oneHotRow : RawEmittedRow
+deriving DecidableEq, Repr
 
 /-- Exact source-arm schedule for one production quartic SumCheck round.
 `columnMap` maps all 43 columns of that isolated verifier gadget into this

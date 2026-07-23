@@ -23,8 +23,8 @@ open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProjection.Y
 set_option maxRecDepth 100000 in
 def rawRows : List RawRow := [
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729580
     runIndex := 6
     family := .publicPadding
@@ -46,8 +46,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729581
     runIndex := 6
     family := .publicPadding
@@ -69,8 +69,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729582
     runIndex := 6
     family := .publicPadding
@@ -92,8 +92,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729583
     runIndex := 6
     family := .publicPadding
@@ -115,8 +115,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729584
     runIndex := 6
     family := .publicPadding
@@ -138,8 +138,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729585
     runIndex := 6
     family := .publicPadding
@@ -161,8 +161,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729586
     runIndex := 6
     family := .publicPadding
@@ -184,8 +184,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729587
     runIndex := 6
     family := .publicPadding
@@ -207,8 +207,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729588
     runIndex := 6
     family := .publicPadding
@@ -230,8 +230,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729589
     runIndex := 6
     family := .publicPadding
@@ -253,8 +253,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729590
     runIndex := 6
     family := .publicPadding
@@ -276,8 +276,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729591
     runIndex := 6
     family := .publicPadding
@@ -299,8 +299,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729592
     runIndex := 6
     family := .publicPadding

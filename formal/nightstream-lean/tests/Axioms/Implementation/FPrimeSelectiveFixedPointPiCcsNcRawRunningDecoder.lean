@@ -6,15 +6,15 @@ import tests.Axioms.Support
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder
 open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder
 
-/-- info: 'Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Exact.sourceColumnMap_injective' depends on axioms: [propext,
+/-- info: 'Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Exact.sourceAllocationMap_injective' depends on axioms: [propext,
  Lean.trustCompiler,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Exact.sourceColumnMap_injective
+#audit_axioms Exact.sourceAllocationMap_injective
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.ArtifactRefinement.sourceColumnRowsBind_decodedData' depends on axioms: [propext] -/
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.ArtifactRefinement.sourceAllocationRowsBind_decodedData' depends on axioms: [propext] -/
 #guard_msgs in
-#audit_axioms ArtifactRefinement.sourceColumnRowsBind_decodedData
+#audit_axioms ArtifactRefinement.sourceAllocationRowsBind_decodedData
 
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.ArtifactRefinement.decodedVirtual_live_eq_rawRunningAssignment' depends on axioms: [propext,
  Quot.sound] -/

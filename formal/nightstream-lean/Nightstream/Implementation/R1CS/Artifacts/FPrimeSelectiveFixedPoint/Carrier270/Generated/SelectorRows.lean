@@ -22,8 +22,8 @@ open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProjection.Y
 
 def rawRows : List RawRow := [
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 0
     runIndex := 0
     family := .selectorDomain
@@ -45,8 +45,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 1
     runIndex := 0
     family := .selectorDomain
@@ -68,8 +68,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 2
     runIndex := 0
     family := .selectorDomain
@@ -91,8 +91,8 @@ def rawRows : List RawRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14946911
-    columns := 11725506
+    rows := 14944219
+    columns := 11437038
     emittedRow := 4729579
     runIndex := 5
     family := .oneHot

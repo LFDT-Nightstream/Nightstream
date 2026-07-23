@@ -91,10 +91,10 @@ theorem sourceAssignmentConstantOne
 /-! ## Eliminated source-linear base definitions -/
 
 private def baseC0Definition : Program.Definition :=
-  { output := 7692949, rhs := .linear [(0, 1)] }
+  { output := 7644184, rhs := .linear [(0, 1)] }
 
 private def baseC1Definition : Program.Definition :=
-  { output := 7692950, rhs := .linear [] }
+  { output := 7644185, rhs := .linear [] }
 
 /-- The only source-program outputs also reconstructed by the compiler's
 linear-definition program are the two ladder-base coordinates. This exact
@@ -127,14 +127,14 @@ private theorem baseC1_mem_source : baseC1Definition ∈ sourceDefinitions := by
 
 theorem compilerBaseC0
     {assignment : Nat → Nat} (constantOne : assignment 0 = 1) :
-    SourceDecode.compilerAssignment assignment 7692949 = 1 := by
+    SourceDecode.compilerAssignment assignment 7644184 = 1 := by
   have holds := SourceDecode.compilerAssignmentDefinitionsHold assignment
     baseC0Definition baseC0_mem_compiler
   simpa [baseC0Definition, Program.Definition.Holds, Program.Rhs.eval,
     lcEval, SourceDecode.compilerAssignmentConstantOne constantOne] using holds
 
 theorem compilerBaseC1 (assignment : Nat → Nat) :
-    SourceDecode.compilerAssignment assignment 7692950 = 0 := by
+    SourceDecode.compilerAssignment assignment 7644185 = 0 := by
   have holds := SourceDecode.compilerAssignmentDefinitionsHold assignment
     baseC1Definition baseC1_mem_compiler
   simpa [baseC1Definition, Program.Definition.Holds, Program.Rhs.eval,
@@ -142,14 +142,14 @@ theorem compilerBaseC1 (assignment : Nat → Nat) :
 
 theorem sourceBaseC0
     {assignment : Nat → Nat} (constantOne : assignment 0 = 1) :
-    sourceAssignment assignment 7692949 = 1 := by
+    sourceAssignment assignment 7644184 = 1 := by
   have holds := sourceAssignmentDefinitionsHold assignment
     baseC0Definition baseC0_mem_source
   simpa [baseC0Definition, Program.Definition.Holds, Program.Rhs.eval,
     lcEval, sourceAssignmentConstantOne constantOne] using holds
 
 theorem sourceBaseC1 (assignment : Nat → Nat) :
-    sourceAssignment assignment 7692950 = 0 := by
+    sourceAssignment assignment 7644185 = 0 := by
   have holds := sourceAssignmentDefinitionsHold assignment
     baseC1Definition baseC1_mem_source
   simpa [baseC1Definition, Program.Definition.Holds, Program.Rhs.eval,
@@ -159,10 +159,10 @@ theorem sourceBaseC1 (assignment : Nat → Nat) :
 equality or source-row satisfaction. -/
 theorem ladderBaseAgrees
     {assignment : Nat → Nat} (constantOne : assignment 0 = 1) :
-    (sourceAssignment assignment 7692949 =
-        SourceDecode.compilerAssignment assignment 7692949) ∧
-      (sourceAssignment assignment 7692950 =
-        SourceDecode.compilerAssignment assignment 7692950) := by
+    (sourceAssignment assignment 7644184 =
+        SourceDecode.compilerAssignment assignment 7644184) ∧
+      (sourceAssignment assignment 7644185 =
+        SourceDecode.compilerAssignment assignment 7644185) := by
   rw [sourceBaseC0 constantOne, compilerBaseC0 constantOne,
     sourceBaseC1 assignment, compilerBaseC1 assignment]
   constructor <;> rfl
@@ -170,7 +170,7 @@ theorem ladderBaseAgrees
 /-! ## Compiler/source execution agreement -/
 
 private def compilerBoundaryColumns : List Nat :=
-  [7692949, 7692950] ++ sourceKnownColumns
+  [7644184, 7644185] ++ sourceKnownColumns
 
 set_option maxRecDepth 100000 in
 /-- Every input and output of the checked compiler-linear program is either a

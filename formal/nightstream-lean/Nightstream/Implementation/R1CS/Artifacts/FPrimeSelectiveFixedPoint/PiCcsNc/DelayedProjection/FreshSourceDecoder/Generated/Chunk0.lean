@@ -32,7 +32,7 @@ def schemaVersion : Nat := 1
 def sourceArm : Nat := 2
 def sourceCount : Nat := 1
 def logicalColumnCount : Nat := 270
-def finalColumnCount : Nat := 11725506
+def finalColumnCount : Nat := 11437038
 def records : List SourceColumnRecord := [
   { logicalColumn := 0, sourceArmColumn := 21547, resolution := .direct 133423 41 false }
 , { logicalColumn := 1, sourceArmColumn := 21548, resolution := .equalityAlias 7803 46531 1 false }

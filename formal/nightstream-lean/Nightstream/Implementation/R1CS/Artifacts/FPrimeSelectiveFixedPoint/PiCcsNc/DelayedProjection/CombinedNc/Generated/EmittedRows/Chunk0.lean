@@ -7,6 +7,10 @@ Does not own: decoding, row satisfaction, transcript authority, commitment
 binding, semantic acceptance, costs, or permission to remove rows.
 
 Emits constraints: no.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.generated` | The generated payload named by `Owns` above | computed artifact |
 -/
 
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Schema
@@ -16,16 +20,16 @@ namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Pi
 set_option maxRecDepth 100000 in
 def values : List RawEmittedRow := [
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604468
-    runIndex := 103022
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611508
+    runIndex := 100038
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4561487, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4561569, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561651, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561733, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561815, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4576083, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4557977, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4558059, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558141, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558223, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558305, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4572573, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -39,16 +43,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604469
-    runIndex := 103022
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611509
+    runIndex := 100038
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4561528, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4561610, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561692, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561774, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561856, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4576124, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4558018, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4558100, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558182, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558264, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558346, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4572614, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -62,16 +66,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604470
-    runIndex := 103023
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611510
+    runIndex := 100039
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4561897, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4561979, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562061, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562143, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562225, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4597567, length := 41, initial := 1, ratio := 3 }, { columnStart := 4561487, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4558387, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4558469, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558551, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558633, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558715, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4594057, length := 41, initial := 1, ratio := 3 }, { columnStart := 4557977, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -85,16 +89,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604471
-    runIndex := 103023
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611511
+    runIndex := 100039
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4561938, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562020, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562102, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562184, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562266, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4597608, length := 41, initial := 1, ratio := 3 }, { columnStart := 4561528, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4558428, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4558510, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558592, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558674, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558756, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4594098, length := 41, initial := 1, ratio := 3 }, { columnStart := 4558018, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -108,16 +112,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604472
-    runIndex := 103024
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611512
+    runIndex := 100040
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4562307, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562389, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562471, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562553, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562635, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4608473, length := 41, initial := 1, ratio := 3 }, { columnStart := 4561897, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4558797, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4558879, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4558961, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559043, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559125, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4604963, length := 41, initial := 1, ratio := 3 }, { columnStart := 4558387, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -131,16 +135,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604473
-    runIndex := 103024
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611513
+    runIndex := 100040
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4562348, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562430, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562512, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562594, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562676, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4608514, length := 41, initial := 1, ratio := 3 }, { columnStart := 4561938, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4558838, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4558920, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559002, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559084, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559166, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4605004, length := 41, initial := 1, ratio := 3 }, { columnStart := 4558428, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -154,16 +158,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604474
-    runIndex := 103025
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611514
+    runIndex := 100041
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4562717, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562799, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562881, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562963, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563045, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4619379, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562307, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4559207, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4559289, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559371, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559453, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559535, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4615869, length := 41, initial := 1, ratio := 3 }, { columnStart := 4558797, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -177,16 +181,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604475
-    runIndex := 103025
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611515
+    runIndex := 100041
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4562758, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562840, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562922, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563004, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563086, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4619420, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562348, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4559248, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4559330, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559412, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559494, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559576, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4615910, length := 41, initial := 1, ratio := 3 }, { columnStart := 4558838, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -200,16 +204,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604476
-    runIndex := 103026
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611516
+    runIndex := 100042
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4563127, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4563209, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563291, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563373, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563455, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4630285, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562717, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4559617, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4559699, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559781, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559863, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559945, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4626775, length := 41, initial := 1, ratio := 3 }, { columnStart := 4559207, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -223,16 +227,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604477
-    runIndex := 103026
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611517
+    runIndex := 100042
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4563168, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4563250, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563332, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563414, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563496, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4630326, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562758, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4559658, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4559740, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559822, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559904, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4559986, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4626816, length := 41, initial := 1, ratio := 3 }, { columnStart := 4559248, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -246,16 +250,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604478
-    runIndex := 103027
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611518
+    runIndex := 100043
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4563537, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4563619, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563701, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563783, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563865, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4641191, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563127, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4560027, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4560109, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560191, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560273, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560355, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4637681, length := 41, initial := 1, ratio := 3 }, { columnStart := 4559617, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -269,16 +273,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604479
-    runIndex := 103027
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611519
+    runIndex := 100043
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4563578, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4563660, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563742, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563824, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563906, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4641232, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563168, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4560068, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4560150, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560232, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560314, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560396, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4637722, length := 41, initial := 1, ratio := 3 }, { columnStart := 4559658, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -292,16 +296,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604480
-    runIndex := 103028
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611520
+    runIndex := 100044
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4563947, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564029, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564111, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564193, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564275, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4652097, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563537, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4560437, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4560519, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560601, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560683, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560765, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4648587, length := 41, initial := 1, ratio := 3 }, { columnStart := 4560027, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -315,16 +319,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604481
-    runIndex := 103028
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611521
+    runIndex := 100044
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4563988, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564070, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564152, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564234, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564316, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4652138, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563578, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4560478, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4560560, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560642, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560724, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4560806, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4648628, length := 41, initial := 1, ratio := 3 }, { columnStart := 4560068, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -338,16 +342,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604482
-    runIndex := 103029
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611522
+    runIndex := 100045
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4564357, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564439, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564521, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564603, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564685, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4663003, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563947, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4560847, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4560929, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561011, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561093, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561175, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4659493, length := 41, initial := 1, ratio := 3 }, { columnStart := 4560437, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -361,16 +365,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604483
-    runIndex := 103029
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611523
+    runIndex := 100045
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4564398, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564480, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564562, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564644, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564726, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4663044, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563988, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4560888, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4560970, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561052, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561134, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561216, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4659534, length := 41, initial := 1, ratio := 3 }, { columnStart := 4560478, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -384,16 +388,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604484
-    runIndex := 103030
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611524
+    runIndex := 100046
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4564767, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564849, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564931, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565013, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565095, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4673909, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564357, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4561257, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4561339, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561421, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561503, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561585, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4670399, length := 41, initial := 1, ratio := 3 }, { columnStart := 4560847, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -407,16 +411,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604485
-    runIndex := 103030
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611525
+    runIndex := 100046
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4564808, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564890, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564972, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565054, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565136, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4673950, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564398, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4561298, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4561380, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561462, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561544, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561626, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4670440, length := 41, initial := 1, ratio := 3 }, { columnStart := 4560888, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -430,16 +434,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604486
-    runIndex := 103031
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611526
+    runIndex := 100047
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4565177, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565259, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565341, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565423, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565505, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4684815, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564767, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4561667, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4561749, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561831, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561913, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561995, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4681305, length := 41, initial := 1, ratio := 3 }, { columnStart := 4561257, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -453,16 +457,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604487
-    runIndex := 103031
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611527
+    runIndex := 100047
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4565218, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565300, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565382, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565464, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565546, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4684856, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564808, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4561708, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4561790, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561872, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4561954, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562036, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4681346, length := 41, initial := 1, ratio := 3 }, { columnStart := 4561298, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -476,16 +480,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604488
-    runIndex := 103032
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611528
+    runIndex := 100048
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4565587, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565669, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565751, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565833, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565915, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4695721, length := 41, initial := 1, ratio := 3 }, { columnStart := 4565177, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4562077, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562159, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562241, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562323, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562405, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4692211, length := 41, initial := 1, ratio := 3 }, { columnStart := 4561667, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -499,16 +503,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604489
-    runIndex := 103032
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611529
+    runIndex := 100048
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4565628, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565710, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565792, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565874, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565956, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4695762, length := 41, initial := 1, ratio := 3 }, { columnStart := 4565218, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4562118, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562200, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562282, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562364, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562446, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4692252, length := 41, initial := 1, ratio := 3 }, { columnStart := 4561708, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -522,16 +526,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604490
-    runIndex := 103033
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611530
+    runIndex := 100049
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4565997, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566079, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566161, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566243, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566325, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4706627, length := 41, initial := 1, ratio := 3 }, { columnStart := 4565587, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4562487, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562569, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562651, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562733, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562815, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4703117, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562077, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -545,16 +549,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604491
-    runIndex := 103033
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611531
+    runIndex := 100049
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4566038, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566120, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566202, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566284, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566366, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4706668, length := 41, initial := 1, ratio := 3 }, { columnStart := 4565628, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4562528, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562610, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562692, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562774, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4562856, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4703158, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562118, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -568,16 +572,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604492
-    runIndex := 103034
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611532
+    runIndex := 100050
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4566407, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566489, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566571, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566653, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566735, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4717533, length := 41, initial := 1, ratio := 3 }, { columnStart := 4565997, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4562897, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4562979, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563061, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563143, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563225, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4714023, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562487, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -591,16 +595,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604493
-    runIndex := 103034
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611533
+    runIndex := 100050
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4566448, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566530, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566612, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566694, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566776, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4717574, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566038, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4562938, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4563020, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563102, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563184, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563266, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4714064, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562528, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -614,16 +618,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604494
-    runIndex := 103035
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611534
+    runIndex := 100051
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4566817, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566899, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566981, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567063, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567145, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4728439, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566407, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4563307, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4563389, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563471, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563553, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563635, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4724929, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562897, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -637,16 +641,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604495
-    runIndex := 103035
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611535
+    runIndex := 100051
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4566858, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566940, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567022, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567104, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567186, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4728480, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566448, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4563348, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4563430, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563512, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563594, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563676, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4724970, length := 41, initial := 1, ratio := 3 }, { columnStart := 4562938, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -660,16 +664,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604496
-    runIndex := 103036
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611536
+    runIndex := 100052
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4567227, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567309, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567391, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567473, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567555, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4739345, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566817, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4563717, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4563799, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563881, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563963, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564045, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4735835, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563307, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -683,16 +687,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604497
-    runIndex := 103036
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611537
+    runIndex := 100052
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4567268, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567350, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567432, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567514, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567596, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4739386, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566858, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4563758, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4563840, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4563922, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564004, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564086, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4735876, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563348, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -706,16 +710,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604498
-    runIndex := 103037
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611538
+    runIndex := 100053
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4567637, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567719, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567801, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567883, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567965, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4750251, length := 41, initial := 1, ratio := 3 }, { columnStart := 4567227, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4564127, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564209, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564291, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564373, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564455, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4746741, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563717, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -729,16 +733,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604499
-    runIndex := 103037
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611539
+    runIndex := 100053
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4567678, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567760, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567842, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567924, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568006, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4750292, length := 41, initial := 1, ratio := 3 }, { columnStart := 4567268, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4564168, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564250, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564332, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564414, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564496, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4746782, length := 41, initial := 1, ratio := 3 }, { columnStart := 4563758, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -752,16 +756,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604500
-    runIndex := 103038
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611540
+    runIndex := 100054
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4568047, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4568129, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568211, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568293, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568375, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4761157, length := 41, initial := 1, ratio := 3 }, { columnStart := 4567637, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4564537, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564619, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564701, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564783, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564865, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4757647, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564127, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -775,16 +779,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604501
-    runIndex := 103038
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611541
+    runIndex := 100054
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4568088, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4568170, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568252, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568334, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568416, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4761198, length := 41, initial := 1, ratio := 3 }, { columnStart := 4567678, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4564578, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4564660, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564742, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564824, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4564906, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4757688, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564168, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -798,16 +802,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604502
-    runIndex := 103039
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611542
+    runIndex := 100055
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4568457, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4568539, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568621, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568703, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568785, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4772063, length := 41, initial := 1, ratio := 3 }, { columnStart := 4568047, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4564947, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565029, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565111, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565193, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565275, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4768553, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564537, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -821,16 +825,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604503
-    runIndex := 103039
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611543
+    runIndex := 100055
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4568498, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4568580, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568662, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568744, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568826, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4772104, length := 41, initial := 1, ratio := 3 }, { columnStart := 4568088, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4564988, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565070, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565152, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565234, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565316, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4768594, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564578, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -844,16 +848,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604504
-    runIndex := 103040
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611544
+    runIndex := 100056
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4568867, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4568949, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569031, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569113, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569195, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4782969, length := 41, initial := 1, ratio := 3 }, { columnStart := 4568457, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4565357, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565439, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565521, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565603, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565685, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4779459, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564947, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -867,16 +871,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604505
-    runIndex := 103040
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611545
+    runIndex := 100056
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4568908, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4568990, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569072, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569154, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569236, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4783010, length := 41, initial := 1, ratio := 3 }, { columnStart := 4568498, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4565398, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565480, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565562, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565644, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565726, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4779500, length := 41, initial := 1, ratio := 3 }, { columnStart := 4564988, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -890,16 +894,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604506
-    runIndex := 103041
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611546
+    runIndex := 100057
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4569277, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4569359, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569441, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569523, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569605, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4793875, length := 41, initial := 1, ratio := 3 }, { columnStart := 4568867, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4565767, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565849, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565931, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566013, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566095, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4790365, length := 41, initial := 1, ratio := 3 }, { columnStart := 4565357, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -913,16 +917,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604507
-    runIndex := 103041
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611547
+    runIndex := 100057
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4569318, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4569400, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569482, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569564, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569646, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4793916, length := 41, initial := 1, ratio := 3 }, { columnStart := 4568908, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4565808, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4565890, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4565972, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566054, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566136, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4790406, length := 41, initial := 1, ratio := 3 }, { columnStart := 4565398, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -936,16 +940,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604508
-    runIndex := 103042
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611548
+    runIndex := 100058
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4569687, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4569769, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569851, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569933, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570015, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4804781, length := 41, initial := 1, ratio := 3 }, { columnStart := 4569277, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4566177, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566259, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566341, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566423, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566505, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4801271, length := 41, initial := 1, ratio := 3 }, { columnStart := 4565767, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -959,16 +963,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604509
-    runIndex := 103042
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611549
+    runIndex := 100058
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4569728, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4569810, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569892, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4569974, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570056, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4804822, length := 41, initial := 1, ratio := 3 }, { columnStart := 4569318, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4566218, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566300, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566382, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566464, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566546, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4801312, length := 41, initial := 1, ratio := 3 }, { columnStart := 4565808, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -982,16 +986,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604510
-    runIndex := 103043
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611550
+    runIndex := 100059
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4570097, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4570179, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570261, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570343, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570425, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4815687, length := 41, initial := 1, ratio := 3 }, { columnStart := 4569687, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4566587, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566669, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566751, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566833, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566915, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4812177, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566177, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1005,16 +1009,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604511
-    runIndex := 103043
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611551
+    runIndex := 100059
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4570138, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4570220, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570302, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570384, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570466, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4815728, length := 41, initial := 1, ratio := 3 }, { columnStart := 4569728, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4566628, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4566710, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566792, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566874, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4566956, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4812218, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566218, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1028,16 +1032,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604512
-    runIndex := 103044
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611552
+    runIndex := 100060
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4570507, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4570589, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570671, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570753, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570835, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4826593, length := 41, initial := 1, ratio := 3 }, { columnStart := 4570097, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4566997, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567079, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567161, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567243, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567325, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4823083, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566587, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1051,16 +1055,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604513
-    runIndex := 103044
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611553
+    runIndex := 100060
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4570548, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4570630, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570712, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570794, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4570876, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4826634, length := 41, initial := 1, ratio := 3 }, { columnStart := 4570138, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4567038, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567120, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567202, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567284, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567366, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4823124, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566628, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1074,16 +1078,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604514
-    runIndex := 103045
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611554
+    runIndex := 100061
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4570917, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4570999, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571081, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571163, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571245, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4837499, length := 41, initial := 1, ratio := 3 }, { columnStart := 4570507, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4567407, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567489, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567571, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567653, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567735, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4833989, length := 41, initial := 1, ratio := 3 }, { columnStart := 4566997, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1097,16 +1101,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604515
-    runIndex := 103045
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611555
+    runIndex := 100061
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4570958, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4571040, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571122, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571204, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571286, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4837540, length := 41, initial := 1, ratio := 3 }, { columnStart := 4570548, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4567448, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567530, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567612, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567694, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567776, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4834030, length := 41, initial := 1, ratio := 3 }, { columnStart := 4567038, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1120,16 +1124,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604516
-    runIndex := 103046
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611556
+    runIndex := 100062
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4571327, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4571409, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571491, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571573, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571655, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4848405, length := 41, initial := 1, ratio := 3 }, { columnStart := 4570917, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4567817, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567899, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4567981, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568063, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568145, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4844895, length := 41, initial := 1, ratio := 3 }, { columnStart := 4567407, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1143,16 +1147,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7604517
-    runIndex := 103046
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7611557
+    runIndex := 100062
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4571368, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4571450, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571532, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571614, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4571696, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4848446, length := 41, initial := 1, ratio := 3 }, { columnStart := 4570958, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4567858, length := 41, initial := 18446744069414584319, ratio := 3 }, { columnStart := 4567940, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568022, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568104, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4568186, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4844936, length := 41, initial := 1, ratio := 3 }, { columnStart := 4567448, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1166,16 +1170,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7806240
-    runIndex := 103806
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7813280
+    runIndex := 100822
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4859311, length := 41, initial := 1, ratio := 3 }, { columnStart := 4571327, length := 41, initial := 1, ratio := 3 }, { columnStart := 4951397, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4945452, length := 41, initial := 18446744069414584320, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4855801, length := 41, initial := 1, ratio := 3 }, { columnStart := 4567817, length := 41, initial := 1, ratio := 3 }, { columnStart := 4947887, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4941942, length := 41, initial := 18446744069414584320, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1189,16 +1193,16 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 7806241
-    runIndex := 103806
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 7813281
+    runIndex := 100822
     family := .retained
     arm := some 2
     ports := [
         { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 4859352, length := 41, initial := 1, ratio := 3 }, { columnStart := 4571368, length := 41, initial := 1, ratio := 3 }, { columnStart := 4951438, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4945493, length := 41, initial := 18446744069414584320, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4855842, length := 41, initial := 1, ratio := 3 }, { columnStart := 4567858, length := 41, initial := 1, ratio := 3 }, { columnStart := 4947928, length := 41, initial := 18446744069414584320, ratio := 3 }, { columnStart := 4941983, length := 41, initial := 18446744069414584320, ratio := 3 }] }
       , { explicit := [{ column := 0, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1212,42 +1216,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922573
-    runIndex := 256298
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933133
+    runIndex := 246551
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 1077251, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 1228451, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 1077292, length := 41, initial := 7, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571737, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
-      , { explicit := [], geometric := [] }
-      , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
-      , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [] }
-      ] }
-,
-  { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922574
-    runIndex := 256298
-    family := .productSum
-    arm := some 2
-    ports := [
-        { explicit := [], geometric := [{ columnStart := 1077251, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 1077292, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571778, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 1228492, length := 41, initial := 7, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568227, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1258,19 +1239,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922575
-    runIndex := 256299
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933134
+    runIndex := 246551
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4571737, length := 41, initial := 1, ratio := 3 }, { columnStart := 1077169, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 1228451, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571778, length := 41, initial := 7, ratio := 3 }, { columnStart := 1077210, length := 41, initial := 7, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571819, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 1228492, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568268, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1281,19 +1262,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922576
-    runIndex := 256299
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933135
+    runIndex := 246552
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4571737, length := 41, initial := 1, ratio := 3 }, { columnStart := 1077169, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 4568227, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228369, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571778, length := 41, initial := 1, ratio := 3 }, { columnStart := 1077210, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571860, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568268, length := 41, initial := 7, ratio := 3 }, { columnStart := 1228410, length := 41, initial := 7, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568309, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1304,19 +1285,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922577
-    runIndex := 256300
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933136
+    runIndex := 246552
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4571819, length := 41, initial := 1, ratio := 3 }, { columnStart := 1077087, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 4568227, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228369, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571860, length := 41, initial := 7, ratio := 3 }, { columnStart := 1077128, length := 41, initial := 7, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571901, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568268, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228410, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568350, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1327,19 +1308,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922578
-    runIndex := 256300
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933137
+    runIndex := 246553
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4571819, length := 41, initial := 1, ratio := 3 }, { columnStart := 1077087, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 4568309, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228287, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571860, length := 41, initial := 1, ratio := 3 }, { columnStart := 1077128, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571942, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568350, length := 41, initial := 7, ratio := 3 }, { columnStart := 1228328, length := 41, initial := 7, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568391, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1350,19 +1331,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922579
-    runIndex := 256301
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933138
+    runIndex := 246553
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4571901, length := 41, initial := 1, ratio := 3 }, { columnStart := 1077005, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 4568309, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228287, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571942, length := 41, initial := 7, ratio := 3 }, { columnStart := 1077046, length := 41, initial := 7, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571983, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568350, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228328, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568432, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1373,19 +1354,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922580
-    runIndex := 256301
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933139
+    runIndex := 246554
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4571901, length := 41, initial := 1, ratio := 3 }, { columnStart := 1077005, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 4568391, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228205, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4571942, length := 41, initial := 1, ratio := 3 }, { columnStart := 1077046, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4572024, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568432, length := 41, initial := 7, ratio := 3 }, { columnStart := 1228246, length := 41, initial := 7, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568473, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1396,19 +1377,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922581
-    runIndex := 256302
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933140
+    runIndex := 246554
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4571983, length := 41, initial := 1, ratio := 3 }, { columnStart := 1076923, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 4568391, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228205, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4572024, length := 41, initial := 7, ratio := 3 }, { columnStart := 1076964, length := 41, initial := 7, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4572065, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568432, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228246, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568514, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1419,19 +1400,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922582
-    runIndex := 256302
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933141
+    runIndex := 246555
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4571983, length := 41, initial := 1, ratio := 3 }, { columnStart := 1076923, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 4568473, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228123, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4572024, length := 41, initial := 1, ratio := 3 }, { columnStart := 1076964, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4572106, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568514, length := 41, initial := 7, ratio := 3 }, { columnStart := 1228164, length := 41, initial := 7, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568555, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1442,19 +1423,19 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922583
-    runIndex := 256303
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933142
+    runIndex := 246555
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4572065, length := 41, initial := 1, ratio := 3 }, { columnStart := 1076841, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 4568473, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228123, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4572106, length := 41, initial := 7, ratio := 3 }, { columnStart := 1076882, length := 41, initial := 7, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4572147, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568514, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228164, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568596, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }
@@ -1465,19 +1446,42 @@ def values : List RawEmittedRow := [
       ] }
 ,
   { schemaVersion := 1
-    rows := 14933659
-    columns := 11444058
-    emittedRow := 14922584
-    runIndex := 256303
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933143
+    runIndex := 246556
     family := .productSum
     arm := some 2
     ports := [
-        { explicit := [], geometric := [{ columnStart := 4572065, length := 41, initial := 1, ratio := 3 }, { columnStart := 1076841, length := 41, initial := 1, ratio := 3 }] }
+        { explicit := [], geometric := [{ columnStart := 4568555, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228041, length := 41, initial := 1, ratio := 3 }] }
       , { explicit := [], geometric := [] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 4, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 2, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4572106, length := 41, initial := 1, ratio := 3 }, { columnStart := 1076882, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 4572188, length := 41, initial := 1, ratio := 3 }] }
-      , { explicit := [], geometric := [{ columnStart := 3820534, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820493, length := 41, initial := 1, ratio := 3 }, { columnStart := 3820452, length := 41, initial := 3, ratio := 3 }, { columnStart := 3820411, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820370, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820329, length := 41, initial := 2, ratio := 3 }, { columnStart := 3820288, length := 41, initial := 6, ratio := 3 }, { columnStart := 3820247, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568596, length := 41, initial := 7, ratio := 3 }, { columnStart := 1228082, length := 41, initial := 7, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568637, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [] }
+      , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
+      , { explicit := [], geometric := [] }
+      , { explicit := [], geometric := [] }
+      , { explicit := [], geometric := [] }
+      , { explicit := [], geometric := [] }
+      , { explicit := [], geometric := [] }
+      ] }
+,
+  { schemaVersion := 1
+    rows := 14944219
+    columns := 11437038
+    emittedRow := 14933144
+    runIndex := 246556
+    family := .productSum
+    arm := some 2
+    ports := [
+        { explicit := [], geometric := [{ columnStart := 4568555, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228041, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 4, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 2, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568596, length := 41, initial := 1, ratio := 3 }, { columnStart := 1228082, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 4568678, length := 41, initial := 1, ratio := 3 }] }
+      , { explicit := [], geometric := [{ columnStart := 3817024, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816983, length := 41, initial := 1, ratio := 3 }, { columnStart := 3816942, length := 41, initial := 3, ratio := 3 }, { columnStart := 3816901, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816860, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816819, length := 41, initial := 2, ratio := 3 }, { columnStart := 3816778, length := 41, initial := 6, ratio := 3 }, { columnStart := 3816737, length := 41, initial := 4, ratio := 3 }] }
       , { explicit := [], geometric := [] }
       , { explicit := [{ column := 272, coefficient := 1 }], geometric := [] }
       , { explicit := [], geometric := [] }

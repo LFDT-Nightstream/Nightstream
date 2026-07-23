@@ -14,6 +14,10 @@ semantics, SumCheck soundness, parent or raw-child authority, costs, or row
 removal.
 
 Emits constraints: none.
+
+| Stable stage path | Mathematical obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.round.quartic` | identify each concrete five-coefficient production round with the generic constant-first quartic equations | derived/refinement |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.QuarticEmbedding

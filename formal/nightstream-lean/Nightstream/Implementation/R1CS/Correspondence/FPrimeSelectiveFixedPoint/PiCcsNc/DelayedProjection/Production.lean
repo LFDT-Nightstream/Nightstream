@@ -12,8 +12,8 @@ model-level for the surrounding accepted protocol fixture.
 Owns: specialization of the already-proved combined-NC projection and
 adjacent-step production boundary to `RawRunningDecoder.ArtifactRefinement.decodedData`.
 Consequently every delayed child scalar in this 270-coordinate fixture is read
-from an exact generated `running[child].x` final assignment column, never from
-a `CeClaim.y_zcol` sidecar or digest.
+from an exact generated `running[child].x` balanced-ternary allocation, never
+from a `CeClaim.y_zcol` sidecar or digest.
 
 Does not own: the full packed `CcsWitness.Z`/`CeWitness.Z`, its private suffix,
 sparse combined-NC verifier rows, source/input decoder rows,
@@ -91,8 +91,9 @@ theorem check_eq_true_iff_accepted
     certificate
 
 /-- Every live semantic running coordinate used by combined NC is the exact
-generated final assignment column selected by the semantic/product alignment. -/
-theorem decodedRunning_live_eq_finalColumn
+decode of the generated 41-column balanced-ternary allocation selected by the
+semantic/product alignment. -/
+theorem decodedRunning_live_eq_generatedAllocation
     (profile : Profile shape)
     (context : FixedActive.Context shape State publicRingColumns
       publicFits verifierRows)
@@ -105,10 +106,10 @@ theorem decodedRunning_live_eq_finalColumn
         ).runningAssignments running
         (profile.semanticColumn
           (logicalColumnAt { lane := lane, block := block })) =
-      assignment
-        (Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Generated.allocationAt
+      (Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.RawRunningDecoder.Generated.sourceAllocationMap.allocation
           (ArtifactRefinement.childOfSemanticRunning context running)
-          (logicalColumnAt { lane := lane, block := block })).finalColumn := by
+          (logicalColumnAt { lane := lane, block := block })).decode
+        assignment := by
   rfl
 
 /-- Adjacent accepted production steps over the generated physical decoder

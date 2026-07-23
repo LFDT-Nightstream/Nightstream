@@ -16,9 +16,9 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::engine::r1cs_circuit::builder::{
-    BalancedTernaryDecomposition, BlockLaneNcBoundaryAudit, CanonicalU64Decomposition, CenteredUnitTrace, Lc,
-    PiDecStrictAudit, PolynomialEvaluationTrace, Poseidon2HashAudit, Poseidon2PermutationTrace, ProductSumBatchTrace,
-    R1csBuilder, RowFamilyRange, ShiftedTernaryCanonicalTrace, SumcheckRoundAudit, Var,
+    BalancedTernaryDecomposition, BlockLaneNcBoundaryAudit, CanonicalU64Decomposition, CenteredUnitTrace,
+    ColumnFamilyRange, Lc, PiDecStrictAudit, PolynomialEvaluationTrace, Poseidon2HashAudit, Poseidon2PermutationTrace,
+    ProductSumBatchTrace, R1csBuilder, RowFamilyRange, ShiftedTernaryCanonicalTrace, SumcheckRoundAudit, Var,
 };
 use crate::engine::r1cs_circuit::{PhysicalStageRange, PiRlcYZcolBoundaryAudit};
 use crate::frontends::direct_ccs::FrontendError;
@@ -54,6 +54,7 @@ pub struct SparseR1cs {
     sumcheck_round_audits: Vec<SumcheckRoundAudit>,
     block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
     pi_dec_strict_audits: Vec<PiDecStrictAudit>,
+    column_family_ranges: Vec<ColumnFamilyRange>,
     physical_stage_ranges: Vec<PhysicalStageRange>,
     pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
@@ -74,6 +75,7 @@ impl SparseR1cs {
             n,
             m,
             m_in,
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -118,6 +120,7 @@ impl SparseR1cs {
         sumcheck_round_audits: Vec<SumcheckRoundAudit>,
         block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
         pi_dec_strict_audits: Vec<PiDecStrictAudit>,
+        column_family_ranges: Vec<ColumnFamilyRange>,
         physical_stage_ranges: Vec<PhysicalStageRange>,
         pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
     ) -> Result<Self, FrontendError> {
@@ -144,6 +147,7 @@ impl SparseR1cs {
             sumcheck_round_audits,
             block_lane_nc_boundary_audits,
             pi_dec_strict_audits,
+            column_family_ranges,
             physical_stage_ranges,
             pi_rlc_y_zcol_boundary_audits,
         };
@@ -229,13 +233,21 @@ impl SparseR1cs {
         &self.pi_dec_strict_audits
     }
 
-    /// Exact sequential row intervals preserved across column lowering.
+    /// Exact sequential row intervals and normalized private-allocation spans
+    /// preserved across column lowering.
     ///
     /// Paths are caller-supplied diagnostic labels. A consumer claiming an
     /// exact semantic ledger must reject an empty slice and separately check
     /// its expected root and complete path universe.
     pub fn physical_stage_ranges(&self) -> &[PhysicalStageRange] {
         &self.physical_stage_ranges
+    }
+
+    /// Nested allocation-family spans after public-prefix normalization.
+    /// These are diagnostic boundaries, not semantic ownership or value
+    /// authority; consumers must validate the expected family vocabulary.
+    pub fn column_family_ranges(&self) -> &[ColumnFamilyRange] {
+        &self.column_family_ranges
     }
 
     pub(crate) fn pi_rlc_y_zcol_boundary_audits(&self) -> &[PiRlcYZcolBoundaryAudit] {

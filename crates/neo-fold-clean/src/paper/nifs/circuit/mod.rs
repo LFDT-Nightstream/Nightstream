@@ -75,6 +75,8 @@ pub struct NifsVOutputs {
     pub parent: pi_dec_circuit::CeClaimWires,
     /// Exact ordered Π_DEC children that become the next accumulator.
     pub children: Vec<pi_dec_circuit::CeClaimWires>,
+    /// Exact compiler receipt for the outer strict Π_DEC public-X rows.
+    pub pi_dec_canonical_x_receipt: crate::engine::r1cs_circuit::PiDecCanonicalXReceipt,
     /// Transcript-owned Π_RLC projection beta.
     pub projection_beta: [Var; 2],
     /// Per-commitment-lane projection quotient advice.
@@ -179,7 +181,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
     let pi_dec_first_column = builder.cols();
     builder.begin_encoding_stage(stage::PI_DEC);
     builder.begin_encoding_stage(stage::PI_DEC_VERIFY);
-    enforce_dec_v_strict(builder, pp, &rlc.dec_wires)?;
+    let pi_dec_canonical_x_receipt = enforce_dec_v_strict(builder, pp, &rlc.dec_wires)?;
     builder.record_row_family("nifs.pi_dec", pi_dec_start);
     builder.record_program_range("nifs.pi_dec", pi_dec_start, pi_dec_first_column);
 
@@ -220,6 +222,7 @@ fn enforce_nifs_v_circuit_with_transcript_inner(
         outgoing_pending_projection,
         parent,
         children,
+        pi_dec_canonical_x_receipt,
         projection_beta: rlc.projection_beta,
         projection_q_lanes: rlc.projection_q_lanes,
         projection_adv_q_lanes: rlc.projection_adv_q_lanes,

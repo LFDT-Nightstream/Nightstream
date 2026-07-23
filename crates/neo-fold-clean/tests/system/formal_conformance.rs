@@ -1,3 +1,5 @@
+#[path = "formal_conformance/native_step_export.rs"]
+mod native_step_export;
 #[path = "../support/mod.rs"]
 mod support;
 
@@ -45,6 +47,21 @@ fn manifest() -> Manifest {
 
 fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
+}
+
+fn compare_or_write_expected(path: &Path, rendered: &str, drifted: &mut Vec<PathBuf>) {
+    if fs::read_to_string(path).is_ok_and(|committed| committed == rendered) {
+        return;
+    }
+    fs::create_dir_all(path.parent().expect("native-step artifact parent"))
+        .expect("create native-step artifact parent");
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .expect("native-step artifact extension");
+    let expected = path.with_extension(format!("{extension}.expected"));
+    fs::write(&expected, rendered).expect("write expected native-step artifact");
+    drifted.push(expected);
 }
 
 fn one_batch_finished() -> (neo_fold_clean::Preprocessing, Uncompressed) {
@@ -206,6 +223,24 @@ fn lifecycle_replay_exercises_fprime_success_and_rejection_paths() {
     assert!(
         neo_fold_clean::verify_uncompressed_audit(&prep, &semantic_forgery).is_err(),
         "stateless semantic-state forgery must reject"
+    );
+}
+
+#[test]
+fn native_verify_step_receipts_are_exact_and_deterministic() {
+    let (json, lean) = native_step_export::checked_native_step_receipts();
+    let json_path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/system/formal_conformance/native_step_receipts.json");
+    let lean_path = repo_root().join(
+        "formal/nightstream-lean/Nightstream/Implementation/Rust/\
+         CanonicalConformance/NativeStep/Generated/Receipts.lean",
+    );
+    let mut drifted = Vec::new();
+    compare_or_write_expected(&json_path, &json, &mut drifted);
+    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    assert!(
+        drifted.is_empty(),
+        "native verify_step receipt drifted; inspect and deliberately promote {drifted:?}"
     );
 }
 

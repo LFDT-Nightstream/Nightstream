@@ -125,7 +125,9 @@ use crate::paper::construction2::{
     self, FinalFoldProof, LatestInstance, ProofState, RunningInstance, State, TerminalFoldInputs,
 };
 use crate::paper::decider;
-use crate::paper::digest::{digest_fields_as_digest32, initial_boundary_digest};
+use crate::paper::digest::{
+    digest_fields_as_digest32, initial_boundary_digest, public_trace_seed_digest, AccumulatorHandle,
+};
 use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use crate::paper::f_prime::r1cs::{
     FPrimePublicInputLayout, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_ONE_OFFSET, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
@@ -232,6 +234,10 @@ impl WitnessAuthorityPerf {
 /// accumulator and latest CCS instance separately. Nebula additionally
 /// re-runs its terminal NIFS fold to close the delayed memory lane.
 pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
+    if matches!(&proof.state.proof, ProofState::Initial) {
+        return verify_base_case(prep, proof);
+    }
+
     let (recorded_running, recorded_latest) = require_active_state(&proof.state.proof)?;
     let hypernova_terminal =
         prep.enforces_terminal_induction() && prep.nebula().is_none() && proof.final_fold.is_none();
@@ -305,6 +311,45 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
 
     // (4) acc_digest is recomputed from the just-authenticated claims.
     check_recorded_acc_digest(prep, &recorded_running, &proof.state.acc_digest)?;
+    Ok(())
+}
+
+/// Verify HyperNova's exact zero-step state without inventing a running or
+/// latest instance. Every accepted coordinate is verifier-derived.
+fn verify_base_case(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
+    if proof.final_fold.is_some() {
+        return Err(construction2::Error::UnexpectedFinalFoldProof.into());
+    }
+
+    construction2::state_base_case_check(&proof.state)?;
+
+    let expected_z_0 = initial_boundary_digest(prep.structure_digest(), prep.public_input_len);
+    if proof.state.z_0 != expected_z_0 {
+        return Err(Error::PostStateMismatch);
+    }
+
+    construction2::enforce_pc_in_range(&proof.state)?;
+
+    check_initial_semantic_anchor(prep, proof)?;
+    if proof.state.semantic_state_digest != prep.initial_semantic_state_digest() {
+        return Err(Error::PostStateMismatch);
+    }
+
+    if proof.state.acc_digest != AccumulatorHandle::empty().digest() {
+        return Err(Error::AccDigestMismatch);
+    }
+
+    if proof.state.public_trace != public_trace_seed_digest(prep.structure_digest()) {
+        return Err(Error::PostStateMismatch);
+    }
+
+    match (prep.nebula(), &proof.state.nebula) {
+        (None, None) => {}
+        (Some(config), Some(lane)) if lane == &construction2::NebulaLane::base(config) => {}
+        (Some(_), None) | (None, Some(_)) => return Err(Error::NebulaLanePresenceMismatch),
+        (Some(_), Some(_)) => return Err(Error::PostStateMismatch),
+    }
+
     Ok(())
 }
 
@@ -619,12 +664,12 @@ fn verify_no_terminal_fold_case(
     _recorded_running: &RunningInstance,
 ) -> Result<(), Error> {
     // `verify_uncompressed` is the external verifier for a finalized proof.
-    // Without a terminal NIFS proof, there is no verifier-driven fold tying
-    // the recorded terminal state to a real pre-final `(running, latest)`.
-    // Even an empty recorded running accumulator is not authority: it can be
-    // forged by directly constructing `Active { running: empty, latest:
-    // empty }`. A separate zero-step proof format would need its own public
-    // statement and verifier rules; this type does not define one.
+    // The exact `ProofState::Initial` base is handled before active-state
+    // materialization. For an Active state, no terminal NIFS proof means
+    // there is no verifier-driven fold tying the recorded terminal state to
+    // a real pre-final `(running, latest)`. Even an empty recorded running
+    // accumulator is not authority: it can be forged by directly
+    // constructing `Active { running: empty, latest: empty }`.
     Err(Error::MissingTerminalFoldProof)
 }
 

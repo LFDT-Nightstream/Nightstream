@@ -6,8 +6,6 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
-use super::ell_m_for_ccs;
-
 /// Check a public Π_DEC transition.
 ///
 /// The verifier requires exactly `params.k_rho` children, computes
@@ -17,6 +15,7 @@ use super::ell_m_for_ccs;
 pub fn verify_dec_public<MB>(
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     parent: &CeClaim<Cmt, F, K>,
     children: &[CeClaim<Cmt, F, K>],
     combine_b_pows: MB,
@@ -95,22 +94,32 @@ where
             return false;
         }
     }
-    let wants_nc_point = !parent.s_col.is_empty() || children.iter().any(|ch| !ch.s_col.is_empty());
+    let wants_nc_point = !parent.s_col.is_empty()
+        || !parent.y_zcol.is_empty()
+        || children
+            .iter()
+            .any(|child| !child.s_col.is_empty() || !child.y_zcol.is_empty());
+    let enforce_y_zcol_recomposition = wants_nc_point && column_point_len < super::ell_m_for_ccs(s);
     if wants_nc_point {
-        let expected_s_col = ell_m_for_ccs(s);
-        if parent.s_col.len() != expected_s_col {
+        if parent.s_col.is_empty() || parent.y_zcol.is_empty() {
+            return fail("parent has an incomplete NC channel");
+        }
+        if parent.s_col.len() != column_point_len {
             return fail(format!(
                 "parent s_col length mismatch (expected {}, got {})",
-                expected_s_col,
+                column_point_len,
                 parent.s_col.len()
             ));
         }
         for (idx, ch) in children.iter().enumerate() {
-            if ch.s_col.len() != expected_s_col {
+            if ch.s_col.is_empty() || ch.y_zcol.is_empty() {
+                return fail(format!("child {idx} has an incomplete NC channel"));
+            }
+            if ch.s_col.len() != column_point_len {
                 return fail(format!(
                     "child {} s_col length mismatch (expected {}, got {})",
                     idx,
-                    expected_s_col,
+                    column_point_len,
                     ch.s_col.len()
                 ));
             }
@@ -187,6 +196,20 @@ where
         eprintln!("verify_dec_public failed: 2^ell_d overflow");
         return false;
     };
+    if wants_nc_point {
+        if parent.y_zcol.len() != d_pad || parent.y_zcol[D..].iter().any(|&value| value != K::ZERO) {
+            return fail(format!(
+                "parent y_zcol must contain {D} live lanes and zero padding to length {d_pad}"
+            ));
+        }
+        for (index, child) in children.iter().enumerate() {
+            if child.y_zcol.len() != d_pad || child.y_zcol[D..].iter().any(|&value| value != K::ZERO) {
+                return fail(format!(
+                    "child {index} y_zcol must contain {D} live lanes and zero padding to length {d_pad}"
+                ));
+            }
+        }
+    }
     let b_k = K::from(F::from_u64(params.b as u64));
     let mut b_pows_k = Vec::with_capacity(k);
     let mut p_k = K::ONE;
@@ -224,6 +247,18 @@ where
         if y_lhs != parent.y_ring[j] {
             eprintln!("verify_dec_public failed: y check mismatch at j={}", j);
             return false;
+        }
+    }
+
+    if enforce_y_zcol_recomposition {
+        let mut lhs = vec![K::ZERO; d_pad];
+        for (pow, child) in b_pows_k.iter().zip(children) {
+            for (dst, value) in lhs.iter_mut().zip(&child.y_zcol) {
+                *dst += *pow * *value;
+            }
+        }
+        if lhs != parent.y_zcol {
+            return fail("y_zcol radix recomposition mismatch");
         }
     }
 

@@ -1122,6 +1122,7 @@ fn enforce_running_parent_authority_consistency(
     enforce_split_nc_d_pad_shape(&wires, cfg.structure.t(), 1usize << cfg.ell_d)
         .map_err(|error| Error::Shape(format!("running parent Pi_DEC shape: {error}")))?;
     enforce_dec_v_strict(builder, cfg.params, &wires)
+        .map(|_| ())
         .map_err(|error| Error::Shape(format!("running parent Pi_DEC: {error}")))
 }
 

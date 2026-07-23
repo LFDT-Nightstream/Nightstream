@@ -111,11 +111,17 @@ pub(crate) use crate::paper::f_prime::prove_with_adapter_output_and_semantic_sta
 pub use crate::paper::f_prime::prove_with_backend_and_semantic_state as step_with_backend_and_semantic_state;
 pub use crate::paper::f_prime::prove_with_semantic_state as step_with_semantic_state;
 pub use crate::paper::f_prime::verify as verify_step;
+pub use crate::paper::f_prime::verify_with_execution_receipt as verify_step_with_execution_receipt;
+pub use crate::paper::f_prime::{
+    NifsVerifyExecutionOutcome, VerifyStepDispatch, VerifyStepExecutionEvent, VerifyStepExecutionFoldProof,
+    VerifyStepExecutionInput, VerifyStepExecutionProof, VerifyStepExecutionProofState, VerifyStepExecutionReceipt,
+    VerifyStepExecutionReceiptError, VerifyStepExecutionStage, VerifyStepExecutionState,
+};
 
 // Transition + finalization helpers exposed `pub(crate)` for f_prime and lifecycle.
 pub(crate) use finalization::{prove_final_fold_with_adapter, prove_final_fold_with_backend, verify_final_fold};
 pub(crate) use transition::{
-    advance_state, advance_state_with_acc_digest, compute_x_out, enforce_pc_in_range,
+    advance_state_recorded, advance_state_with_acc_digest, compute_x_out, compute_x_out_recorded, enforce_pc_in_range,
     f_prime_chunk_public_digest_for_step, f_prime_chunk_public_digest_from_claims, state_base_case_check,
 };
 pub use transition::{SemanticStateAdvance, SemanticStateMode};

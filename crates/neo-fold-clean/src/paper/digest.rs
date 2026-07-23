@@ -1299,6 +1299,39 @@ pub fn state_x_out_digest_with_mode(
     _public_trace: [u8; 32],
     nebula_lane: Option<[F; 4]>,
 ) -> [u8; 32] {
+    let preimage = state_x_out_preimage_with_mode(
+        mode,
+        vk_fs_digest,
+        pi_ccs_header_bundle,
+        chunk_count,
+        step_count,
+        current_boundary,
+        pc,
+        semantic_acc,
+        construction2_acc,
+        nebula_lane,
+    );
+    state_x_out_digest_from_preimage(&preimage)
+}
+
+/// Exact Poseidon2 field preimage used by [`state_x_out_digest_with_mode`].
+///
+/// This is crate-visible so the native verifier's execution receipt can
+/// record the actual preimage passed to the hash, without reconstructing it
+/// after verification.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn state_x_out_preimage_with_mode(
+    mode: StateXOutDigestMode,
+    vk_fs_digest: [u8; 32],
+    pi_ccs_header_bundle: [F; 4],
+    chunk_count: u64,
+    step_count: u64,
+    current_boundary: [u8; 32],
+    pc: u64,
+    semantic_acc: [u8; 32],
+    construction2_acc: [u8; 32],
+    nebula_lane: Option<[F; 4]>,
+) -> Vec<F> {
     let mut preimage = vec![F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN)];
     preimage.extend(digest32_as_fields(vk_fs_digest));
     preimage.extend(pi_ccs_header_bundle);
@@ -1319,7 +1352,12 @@ pub fn state_x_out_digest_with_mode(
         preimage.push(F::from_u64(NEBULA_ADV_PRESENT_MARKER));
         preimage.extend_from_slice(&lane);
     }
-    digest_fields_as_digest32(poseidon_digest_fields(&preimage))
+    preimage
+}
+
+/// Hash an already constructed canonical `state_x_out` preimage.
+pub(crate) fn state_x_out_digest_from_preimage(preimage: &[F]) -> [u8; 32] {
+    digest_fields_as_digest32(poseidon_digest_fields(preimage))
 }
 
 #[inline]

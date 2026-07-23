@@ -1,15 +1,25 @@
 //! Fixed, selectively lowered relation used by the generic R1CS IVC path.
 
 mod pi_dec_audit;
+mod source_audit;
 
-pub use pi_dec_audit::{R1csIvcPiDecSelectiveRowsAudit, R1csIvcPiDecSourceRowAudit, R1csIvcPiDecSourceRowsAudit};
+pub use pi_dec_audit::{
+    R1csIvcPiDecCanonicalXSelectiveRowsAudit, R1csIvcPiDecSelectiveRowsAudit, R1csIvcPiDecSourceRowAudit,
+    R1csIvcPiDecSourceRowsAudit,
+};
+pub use source_audit::{
+    R1csIvcBlockLaneNcSourceRowAudit, R1csIvcRawRunningAssignmentAudit, R1csIvcRawRunningEncodingAudit,
+};
+
+use source_audit::{FreshSourceAssignmentAudit, FreshSourceResolutionAudit};
 
 use neo_ccs::CcsMatrix;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
 use super::compilation_audit::{
-    ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, R1csIvcFixedPointShapeAudit, RelationHeaderAudit,
+    block_lane_nc_schedule, ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, R1csIvcFixedPointShapeAudit,
+    RelationHeaderAudit,
 };
 use super::pi_ccs_output_digest_audit;
 use super::{shape, PiRlcYZcolProjectionLoweringDisposition, R1csIvcError};
@@ -104,91 +114,6 @@ pub struct R1csIvcBlockLaneNcSelectiveRowsAudit {
     source_rows: Vec<usize>,
     source_row_ranges: Vec<std::ops::Range<usize>>,
     source_row_artifacts: Vec<R1csIvcBlockLaneNcSourceRowAudit>,
-}
-
-/// One exact normalized source-R1CS equation in the combined-NC projection.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct R1csIvcBlockLaneNcSourceRowAudit {
-    index: usize,
-    ports: [Vec<(usize, F)>; 3],
-}
-
-impl R1csIvcBlockLaneNcSourceRowAudit {
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    pub fn a(&self) -> &[(usize, F)] {
-        &self.ports[0]
-    }
-
-    pub fn b(&self) -> &[(usize, F)] {
-        &self.ports[1]
-    }
-
-    pub fn c(&self) -> &[(usize, F)] {
-        &self.ports[2]
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct FreshSourceAssignmentAudit {
-    logical_column: usize,
-    source_column: usize,
-    resolution: FreshSourceResolutionAudit,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum FreshSourceResolutionAudit {
-    ConstantOne,
-    Direct {
-        start: usize,
-        width: usize,
-        centered: bool,
-    },
-    DecompositionAlias {
-        source: usize,
-        digit: usize,
-        start: usize,
-        centered: bool,
-    },
-    EqualityAlias {
-        source: usize,
-        start: usize,
-        width: usize,
-        centered: bool,
-    },
-    LinearDefinition,
-    TraceEliminated,
-}
-
-/// Exact fixed-profile path from one authoritative incoming running-X
-/// coordinate through the normalized source arm to its one-coordinate final
-/// selective assignment slot.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct R1csIvcRawRunningAssignmentAudit {
-    child: usize,
-    logical_column: usize,
-    source_column: usize,
-    final_column: usize,
-}
-
-impl R1csIvcRawRunningAssignmentAudit {
-    pub fn child(self) -> usize {
-        self.child
-    }
-
-    pub fn logical_column(self) -> usize {
-        self.logical_column
-    }
-
-    pub fn source_column(self) -> usize {
-        self.source_column
-    }
-
-    pub fn final_column(self) -> usize {
-        self.final_column
-    }
 }
 
 impl R1csIvcYZcolSelectiveRowsAudit {
@@ -462,18 +387,21 @@ impl R1csIvcRelation {
             retained_row_pairs.extend(source_rows.into_iter().zip(emitted_rows));
         }
         let steady_arm = R1csIvcBranch::Recursive.index();
-        let projected_rows = super::super::selective::project_rows_with_source_provenance_with_alignment(
-            &candidate.arms,
-            0,
-            0,
-            D,
-            candidate.arms[0].m_in % D,
-            &selected_rows,
-            steady_arm,
-            &source_columns,
-            &retained_row_pairs,
-            &decoder_source_columns,
-        )?;
+        let private_source_range = candidate.arms[steady_arm].m_in..candidate.arms[steady_arm].m;
+        let projected_rows =
+            super::super::selective::project_rows_with_source_provenance_and_decoder_runs_with_alignment(
+                &candidate.arms,
+                0,
+                0,
+                D,
+                candidate.arms[0].m_in % D,
+                &selected_rows,
+                steady_arm,
+                &source_columns,
+                &retained_row_pairs,
+                &decoder_source_columns,
+                private_source_range.clone(),
+            )?;
         if projected_rows.rows() != candidate.shape.rows
             || projected_rows.columns() != candidate.shape.columns
             || projected_rows.compiler_audit() != &candidate.shape.compiler_audit
@@ -490,6 +418,16 @@ impl R1csIvcRelation {
         if source_decoder.arm() != steady_arm {
             return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
                 "requested source-column decoder provenance belongs to the wrong source arm".into(),
+            )));
+        }
+        let private_decoder = projected_rows.decoder_run_provenance().ok_or_else(|| {
+            R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                "projected selective emitter omitted complete private decoder provenance".into(),
+            ))
+        })?;
+        if private_decoder.arm() != steady_arm || private_decoder.source_range() != private_source_range {
+            return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                "complete private decoder provenance differs from the steady source arm".into(),
             )));
         }
         let decoder_by_source = source_decoder
@@ -515,29 +453,57 @@ impl R1csIvcRelation {
                         entry.source_column
                     )))
                 })?;
-            let super::super::selective::SelectiveProjectedSourceResolution::Direct {
-                start,
-                width: 1,
-                centered: true,
-            } = resolution
+            let super::super::selective::SelectiveProjectedSourceResolution::Direct { start, width, centered } =
+                resolution
             else {
                 return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
                     format!(
-                        "raw running source column {} is not a direct centered width-1 final slot: {resolution:?}",
+                        "raw running source column {} is not a direct final slot: {resolution:?}",
                         entry.source_column
                     ),
                 )));
             };
-            if !final_columns.insert(start) {
+            let encoding = if centered {
+                if width != 1 {
+                    return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                        format!(
+                            "raw running source column {} has centered width {width}, expected one",
+                            entry.source_column
+                        ),
+                    )));
+                }
+                R1csIvcRawRunningEncodingAudit::CenteredScalar
+            } else if width == super::super::ternary_encoding::BALANCED_TERNARY_FIELD_WIDTH {
+                R1csIvcRawRunningEncodingAudit::BalancedTernary
+            } else {
+                R1csIvcRawRunningEncodingAudit::Binary
+            };
+            let end = start
+                .checked_add(width)
+                .filter(|&end| end <= projected_rows.columns())
+                .ok_or_else(|| {
+                    R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
+                        "raw running source column {} final interval {start}..{} exceeds selective width {}",
+                        entry.source_column,
+                        start.saturating_add(width),
+                        projected_rows.columns()
+                    )))
+                })?;
+            if width == 0 || (start..end).any(|column| !final_columns.insert(column)) {
                 return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-                    format!("raw running selective final column {start} is multiply owned"),
+                    format!(
+                        "raw running source column {} has an empty or multiply-owned final interval {start}..{end}",
+                        entry.source_column
+                    ),
                 )));
             }
             raw_running_assignments.push(R1csIvcRawRunningAssignmentAudit {
                 child: entry.child,
                 logical_column: entry.logical_column,
                 source_column: entry.source_column,
-                final_column: start,
+                final_start: start,
+                width,
+                encoding,
             });
         }
         let mut fresh_source_assignments = Vec::with_capacity(LOGICAL_COLUMN_COUNT);
@@ -1182,6 +1148,9 @@ impl R1csIvcRelation {
         rounds: Vec<FixedPointRoundAudit>,
         pi_ccs_output_digest: super::PiCcsOutputDigestAudit,
     ) -> Result<Self, R1csIvcError> {
+        let steady_arm = &arms[R1csIvcBranch::Recursive.index()];
+        let (block_lane_nc_boundary, block_lane_nc_rounds) =
+            block_lane_nc_schedule(steady_arm).map_err(invalid_block_lane_audit)?;
         let arm_shapes = std::array::from_fn(|index| ArmShape {
             rows: arms[index].n,
             columns: arms[index].m,
@@ -1222,7 +1191,13 @@ impl R1csIvcRelation {
                 budget: R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
             });
         }
-        let compilation_audit = R1csIvcCompilationAudit::new(rounds, emitted_audit, pi_ccs_output_digest);
+        let compilation_audit = R1csIvcCompilationAudit::new(
+            rounds,
+            emitted_audit,
+            pi_ccs_output_digest,
+            block_lane_nc_boundary,
+            block_lane_nc_rounds,
+        );
         Ok(Self {
             relation,
             arm_shapes,

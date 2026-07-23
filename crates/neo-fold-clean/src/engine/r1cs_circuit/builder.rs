@@ -29,6 +29,9 @@ use neo_ccs::SeededPhi81LinearBlock;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
+pub use super::decider_audit::{
+    PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit, TerminalCeClaimAudit,
+};
 use super::encoding_trace::{
     AcceptanceTraceEntry, BalancedTernaryOpeningTraceEntry, CanonicalU64TraceEntry, FirstAcceptedSelectionTraceEntry,
     KMulTraceEntry, Mod5TraceEntry, PolynomialEvaluationTraceEntry, PoseidonHashTraceEntry,
@@ -37,7 +40,7 @@ use super::encoding_trace::{
 };
 pub use super::encoding_trace::{ProjectionIdentityRole, ProjectionNebulaCoordinate};
 use super::stage_provenance::PhysicalStageCheckpoint;
-use super::PiRlcYZcolBoundaryAudit;
+use super::{PiRlcYZcolBoundaryAudit, TerminalPendingProjectionAudit};
 pub(crate) type PolynomialEvaluationTrace = PolynomialEvaluationTraceEntry;
 pub use super::relation::{R1csRelation, R1csSnapshot};
 
@@ -377,95 +380,6 @@ pub struct BlockLaneNcBoundaryAudit {
     pub terminal_rhs_cols: [usize; 2],
 }
 
-/// Exact wire schedule for one commitment coordinate consumed by strict
-/// PiDEC. This is assurance metadata only: exporters must reconstruct the
-/// expected rows from the schedule and compare them with the emitted matrix.
-#[doc(hidden)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PiDecCommitmentAudit {
-    pub d_col: usize,
-    pub kappa_col: usize,
-    pub data_cols: Vec<usize>,
-}
-
-/// The optional three-coordinate Nebula commitment carried by a CE claim.
-#[doc(hidden)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PiDecAdvAudit {
-    pub ops: PiDecCommitmentAudit,
-    pub is: PiDecCommitmentAudit,
-    pub fs: PiDecCommitmentAudit,
-}
-
-/// Exact input-wire layout for one CE claim consumed by strict PiDEC.
-#[doc(hidden)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PiDecClaimAudit {
-    pub commitment: PiDecCommitmentAudit,
-    pub adv: Option<PiDecAdvAudit>,
-    pub x_cols: Vec<usize>,
-    pub x_rows: usize,
-    pub x_width: usize,
-    pub x_rows_col: usize,
-    pub x_width_col: usize,
-    pub m_in: usize,
-    pub m_in_col: usize,
-    pub y_ring_cols: Vec<Vec<usize>>,
-    pub ct_cols: Vec<[usize; 2]>,
-    pub r_cols: Vec<[usize; 2]>,
-    pub s_col_cols: Vec<[usize; 2]>,
-    pub fold_digest_cols: [usize; 4],
-}
-
-/// Complete strict-PiDEC input schedule for one emitted verifier invocation.
-#[doc(hidden)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PiDecStrictAudit {
-    pub row_start: usize,
-    pub row_end: usize,
-    pub first_allocated_column: usize,
-    pub radix: u32,
-    pub parent: PiDecClaimAudit,
-    pub children: Vec<PiDecClaimAudit>,
-    /// `[sign, centered-product]` columns, row-major over active X.
-    pub x_sign_traces: Vec<[usize; 2]>,
-}
-
-/// Exact input-wire ownership for one direct terminal-CE claim program.
-///
-/// This is read-only assurance metadata. It carries no validity bit and does
-/// not replace any row: artifact exporters use it only to decode the witness,
-/// claim, evaluation point, and sidecar columns consumed by the six exact
-/// terminal-CE row phases.
-#[doc(hidden)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TerminalCeClaimAudit {
-    pub row_start: usize,
-    pub row_end: usize,
-    pub first_allocated_column: usize,
-    pub norm_bound: u32,
-    pub expected_public_width: Option<usize>,
-    pub structure_rows: usize,
-    pub structure_columns: usize,
-    pub witness_rows: usize,
-    pub witness_columns: usize,
-    pub witness_cols: Vec<usize>,
-    pub norm_first_allocated_column: usize,
-    pub commitment_cols: Vec<usize>,
-    pub commitment_d: usize,
-    pub commitment_kappa: usize,
-    pub public_cols: Vec<usize>,
-    pub public_rows: usize,
-    pub public_width: usize,
-    pub public_input_len: usize,
-    pub point_cols: Vec<[usize; 2]>,
-    pub evaluation_cols: Vec<Vec<usize>>,
-    pub constant_term_cols: Vec<[usize; 2]>,
-    pub nc_point_cols: Vec<[usize; 2]>,
-    pub nc_evaluation_cols: Vec<usize>,
-    pub nc_evaluation_lanes: usize,
-}
-
 /// Compact wire schedule for one generated beta-power ladder.
 ///
 /// This is read-only assurance metadata. The exact emitted rows remain the
@@ -580,6 +494,7 @@ pub struct R1csBuilder {
     block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
     pi_dec_strict_audits: Vec<PiDecStrictAudit>,
     terminal_ce_claim_audits: Vec<TerminalCeClaimAudit>,
+    pub(super) terminal_pending_projection_audits: Vec<TerminalPendingProjectionAudit>,
     projection_ladder_audits: Vec<ProjectionLadderAudit>,
     projection_identity_audits: Vec<ProjectionIdentityAudit>,
     projection_glue_audits: Vec<ProjectionGlueAudit>,
@@ -619,6 +534,7 @@ pub(crate) struct R1csSynthesis {
     pub(crate) sumcheck_round_audits: Vec<SumcheckRoundAudit>,
     pub(crate) block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
     pub(crate) pi_dec_strict_audits: Vec<PiDecStrictAudit>,
+    pub(crate) column_family_ranges: Vec<ColumnFamilyRange>,
     pub(crate) physical_stage_checkpoints: Vec<PhysicalStageCheckpoint>,
     pub(crate) pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
@@ -672,6 +588,7 @@ impl R1csBuilder {
             block_lane_nc_boundary_audits: Vec::new(),
             pi_dec_strict_audits: Vec::new(),
             terminal_ce_claim_audits: Vec::new(),
+            terminal_pending_projection_audits: Vec::new(),
             projection_ladder_audits: Vec::new(),
             projection_identity_audits: Vec::new(),
             projection_glue_audits: Vec::new(),
@@ -707,7 +624,7 @@ impl R1csBuilder {
     pub fn begin_encoding_stage(&mut self, label: &'static str) {
         if self.record_structure && (self.rows() == 0 || !self.physical_stage_checkpoints.is_empty()) {
             self.physical_stage_checkpoints
-                .push(PhysicalStageCheckpoint::new(label, self.rows()));
+                .push(PhysicalStageCheckpoint::new(label, self.rows(), self.cols()));
         }
         if self.encoding_trace_enabled {
             self.encoding_trace.push_stage(R1csStageCheckpoint {
@@ -734,7 +651,7 @@ impl R1csBuilder {
             "test stage checkpoints must remain monotone"
         );
         self.physical_stage_checkpoints
-            .push(PhysicalStageCheckpoint::new(label, row));
+            .push(PhysicalStageCheckpoint::new(label, row, self.cols()));
     }
 
     pub(crate) fn encoding_trace_enabled(&self) -> bool {
@@ -1005,6 +922,19 @@ impl R1csBuilder {
         &self.terminal_ce_claim_audits
     }
 
+    /// Exact terminal delayed-projection row owners and CE endpoints.
+    #[doc(hidden)]
+    pub fn terminal_pending_projection_audits(&self) -> &[TerminalPendingProjectionAudit] {
+        &self.terminal_pending_projection_audits
+    }
+
+    /// Exact single-wire equality rows, used to audit verifier-owned point
+    /// continuity without treating column metadata as authority.
+    #[doc(hidden)]
+    pub fn equality_pair_audits(&self) -> &[(usize, usize, usize)] {
+        &self.equality_pairs
+    }
+
     pub(crate) fn record_program_range(&mut self, name: &'static str, row_start: usize, first_allocated_column: usize) {
         if self.record_structure {
             self.program_range_audits.push(ProgramRangeAudit {
@@ -1017,30 +947,35 @@ impl R1csBuilder {
     }
 
     pub(crate) fn record_sumcheck_round(&mut self, audit: SumcheckRoundAudit) {
-        if self.record_structure {
-            debug_assert_eq!(audit.row_end, self.rows);
-            self.sumcheck_round_audits.push(audit);
-        }
+        debug_assert_eq!(audit.row_end, self.rows);
+        self.sumcheck_round_audits.push(audit);
     }
 
     pub(crate) fn record_block_lane_nc_boundary(&mut self, audit: BlockLaneNcBoundaryAudit) {
-        if self.record_structure {
-            debug_assert_eq!(audit.terminal_final_equality_rows.end, self.rows);
-            self.block_lane_nc_boundary_audits.push(audit);
-        }
+        debug_assert_eq!(audit.terminal_final_equality_rows.end, self.rows);
+        self.block_lane_nc_boundary_audits.push(audit);
     }
 
     pub(crate) fn record_pi_dec_strict(&mut self, audit: PiDecStrictAudit) {
-        if self.record_structure {
-            debug_assert_eq!(audit.row_end, self.rows);
-            self.pi_dec_strict_audits.push(audit);
-        }
+        // The bounded strict-PiDEC schedule also joins live witness values to
+        // normalized source columns.  Retain it in witness-only builders;
+        // unlike general structure metadata, it is already constructed by
+        // the emitter and does not enumerate the private assignment.
+        debug_assert_eq!(audit.row_end, self.rows);
+        self.pi_dec_strict_audits.push(audit);
     }
 
     pub(crate) fn record_terminal_ce_claim(&mut self, audit: TerminalCeClaimAudit) {
         if self.record_structure {
             debug_assert_eq!(audit.row_end, self.rows);
             self.terminal_ce_claim_audits.push(audit);
+        }
+    }
+
+    pub(crate) fn record_terminal_pending_projection(&mut self, audit: TerminalPendingProjectionAudit) {
+        if self.record_structure {
+            debug_assert_eq!(audit.row_end, self.rows);
+            self.terminal_pending_projection_audits.push(audit);
         }
     }
 
@@ -1360,10 +1295,8 @@ impl R1csBuilder {
                 self.equality_pairs.push((self.rows, lhs, rhs));
             }
         }
-        let diff = lhs.clone().add_scaled(rhs, -F::ONE);
-        let one = Lc::from_var(Var::ONE);
-        let zero = Lc::zero();
-        self.enforce(&diff, &one, &zero);
+        let (a, b, c) = super::row_formula::equality_constraint_row(lhs, rhs);
+        self.enforce(&a, &b, &c);
     }
 
     /// Convenience: enforce that `lc` evaluates to zero.
@@ -1382,8 +1315,8 @@ impl R1csBuilder {
         let av = eval_lc(a, &self.witness);
         let bv = eval_lc(b, &self.witness);
         let out = self.alloc(av * bv);
-        let out_lc = Lc::from_var(out);
-        self.enforce(a, b, &out_lc);
+        let (a, b, c) = super::row_formula::multiplication_constraint_row(a, b, out);
+        self.enforce(&a, &b, &c);
         out
     }
 
@@ -1456,6 +1389,7 @@ impl R1csBuilder {
             sumcheck_round_audits: self.sumcheck_round_audits,
             block_lane_nc_boundary_audits: self.block_lane_nc_boundary_audits,
             pi_dec_strict_audits: self.pi_dec_strict_audits,
+            column_family_ranges: self.column_family_ranges,
             physical_stage_checkpoints: self.physical_stage_checkpoints,
             pi_rlc_y_zcol_boundary_audits: self.pi_rlc_y_zcol_boundary_audits,
         }

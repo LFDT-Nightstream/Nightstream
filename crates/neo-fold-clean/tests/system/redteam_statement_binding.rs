@@ -11,9 +11,12 @@ use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_fold_clean::frontends::f_prime::compiler::chunk_digest_for_shape;
 use neo_fold_clean::frontends::f_prime::recursive_plan::build_semantic_state_preimage_fields;
 use neo_fold_clean::frontends::r1cs_f_prime::{self, R1csChainBuilder};
-use neo_fold_clean::paper::construction2::ProofState;
-use neo_fold_clean::paper::digest::{digest_fields_as_digest32, terminal_ce_public_digest, terminal_children_digest};
+use neo_fold_clean::paper::construction2::{NebulaConfig, ProofState, StackShape};
+use neo_fold_clean::paper::digest::{
+    digest_fields_as_digest32, terminal_ce_public_digest, terminal_children_digest, AccumulatorHandle,
+};
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
+use neo_fold_clean::paper::relations::{LaneRanges, LaneScheme};
 use neo_fold_clean::paper::terminal_ce::TerminalCePublic;
 
 use support::r1cs_compiler_fixtures::{
@@ -23,6 +26,16 @@ use support::r1cs_compiler_fixtures::{
 fn semantic_digest(value: u64) -> [u8; 32] {
     let fields = [F::from_u64(value)];
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
+}
+
+fn zero_step_base_proof(prep: &neo_fold_clean::Preprocessing) -> neo_fold_clean::Uncompressed {
+    let audit = neo_fold_clean::prove(prep, std::iter::empty::<Vec<neo_fold_clean::CcsInstance>>())
+        .expect("construct honest zero-step base state");
+    neo_fold_clean::finish_uncompressed(prep, audit).expect("finalize honest zero-step base state")
+}
+
+fn mutate_digest(digest: &mut [u8; 32]) {
+    digest[0] ^= 1;
 }
 
 /// HyperNova's IVC verifier is parameterized by the public start/end
@@ -68,14 +81,221 @@ fn verify_uncompressed_rejects_proof_for_unexpected_final_semantic_state() {
 #[test]
 fn verify_uncompressed_accepts_honest_zero_step_base_case() {
     let prep = support::toy_preprocessing();
-    let audit = neo_fold_clean::prove(&prep, std::iter::empty::<Vec<neo_fold_clean::CcsInstance>>())
-        .expect("construct honest zero-step base state");
-    let proof = neo_fold_clean::finish_uncompressed(&prep, audit).expect("finalize honest zero-step base state");
+    let proof = zero_step_base_proof(&prep);
 
     assert!(
         neo_fold_clean::verify_uncompressed(&prep, &proof).is_ok(),
         "completeness failure: the public lifecycle constructs and finalizes an honest i=0 base proof that verify_uncompressed cannot accept"
     );
+}
+
+/// Stateful preprocessing fixes a verifier-owned initial semantic anchor.
+/// The zero-step state carries that anchor in both semantic coordinates while
+/// retaining HyperNova's empty base accumulator.
+#[test]
+fn verify_uncompressed_accepts_honest_stateful_zero_step_base_case() {
+    let r1cs = one_product_r1cs();
+    let anchor = semantic_digest(42);
+    let plan = make_tiny_stateful_lifecycle_plan_with_anchor(r1cs.m(), r1cs.m_in, vec![6], vec![7], Some(anchor));
+    let prep = r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0x5A7E_0002)
+        .expect("stateful preprocessing");
+    let proof = zero_step_base_proof(&prep.prep);
+
+    assert_eq!(proof.state.initial_semantic_state_digest, anchor);
+    assert_eq!(proof.state.semantic_state_digest, anchor);
+    assert_eq!(proof.state.acc_digest, AccumulatorHandle::empty().digest());
+    neo_fold_clean::verify_uncompressed(&prep.prep, &proof)
+        .expect("honest stateful zero-step base must verify against its preprocessing anchor");
+}
+
+/// The branch predicate `z_0 = z_i` is necessary but not authoritative:
+/// both values must equal the boundary derived from verifier preprocessing.
+#[test]
+fn verify_uncompressed_rejects_coordinated_zero_step_boundary_tamper() {
+    let prep = support::toy_preprocessing();
+    let mut proof = zero_step_base_proof(&prep);
+    mutate_digest(&mut proof.state.z_0);
+    proof.state.z_i = proof.state.z_0;
+
+    let err = neo_fold_clean::verify_uncompressed(&prep, &proof)
+        .expect_err("coordinated z_0 = z_i tamper must not replace the verifier-derived boundary");
+    assert!(
+        matches!(err, neo_fold_clean::Error::PostStateMismatch),
+        "expected PostStateMismatch for a self-consistent but wrong base boundary, got {err:?}"
+    );
+}
+
+/// A stateless attacker can preserve `semantic_state_digest == acc_digest`
+/// while changing both. The base verifier must pin each to the canonical
+/// empty-accumulator seed, not merely compare the two prover fields.
+#[test]
+fn verify_uncompressed_rejects_coordinated_zero_step_semantic_accumulator_tamper() {
+    let prep = support::toy_preprocessing();
+    let mut proof = zero_step_base_proof(&prep);
+    mutate_digest(&mut proof.state.acc_digest);
+    proof.state.semantic_state_digest = proof.state.acc_digest;
+
+    let err = neo_fold_clean::verify_uncompressed(&prep, &proof)
+        .expect_err("coordinated semantic/accumulator tamper must not replace the verifier-owned base seed");
+    assert!(
+        matches!(err, neo_fold_clean::Error::PostStateMismatch),
+        "expected PostStateMismatch for a wrong current semantic anchor, got {err:?}"
+    );
+}
+
+/// `ProofState::Initial` has no fold to verify. An otherwise valid terminal
+/// fold copied from an active proof must not be accepted as base metadata.
+#[test]
+fn verify_uncompressed_rejects_terminal_fold_inserted_into_zero_step_base() {
+    let prep = support::toy_preprocessing();
+    let mut base = zero_step_base_proof(&prep);
+    let active_audit =
+        neo_fold_clean::prove(&prep, [vec![support::toy_instance(&prep, 41)]]).expect("construct active proof");
+    let active = neo_fold_clean::finish_uncompressed(&prep, active_audit).expect("finalize active proof");
+    base.final_fold = active.final_fold;
+    assert!(
+        base.final_fold.is_some(),
+        "test fixture must supply a constructible terminal fold"
+    );
+
+    let err = neo_fold_clean::verify_uncompressed(&prep, &base)
+        .expect_err("Initial state must reject an inserted terminal fold");
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::Construction2(neo_fold_clean::paper::construction2::Error::UnexpectedFinalFoldProof)
+        ),
+        "expected UnexpectedFinalFoldProof, got {err:?}"
+    );
+}
+
+/// Each base coordinate is independently verifier-owned. These mutations
+/// exercise the dedicated checks rather than relying on a coordinated hash
+/// mismatch or on active-state witness validation.
+#[test]
+fn verify_uncompressed_rejects_individual_zero_step_anchor_mutations() {
+    let prep = support::toy_preprocessing();
+
+    let mut proof = zero_step_base_proof(&prep);
+    proof.state.chunk_count = 1;
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &proof),
+        Err(neo_fold_clean::Error::Construction2(
+            neo_fold_clean::paper::construction2::Error::BaseCaseMismatch
+        ))
+    ));
+
+    let mut proof = zero_step_base_proof(&prep);
+    proof.state.step_count = 1;
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &proof),
+        Err(neo_fold_clean::Error::Construction2(
+            neo_fold_clean::paper::construction2::Error::BaseCaseMismatch
+        ))
+    ));
+
+    let mut proof = zero_step_base_proof(&prep);
+    mutate_digest(&mut proof.state.z_0);
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &proof),
+        Err(neo_fold_clean::Error::Construction2(
+            neo_fold_clean::paper::construction2::Error::BaseCaseMismatch
+        ))
+    ));
+
+    let mut proof = zero_step_base_proof(&prep);
+    mutate_digest(&mut proof.state.z_i);
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &proof),
+        Err(neo_fold_clean::Error::Construction2(
+            neo_fold_clean::paper::construction2::Error::BaseCaseMismatch
+        ))
+    ));
+
+    let mut proof = zero_step_base_proof(&prep);
+    proof.state.pc = 0;
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &proof),
+        Err(neo_fold_clean::Error::Construction2(
+            neo_fold_clean::paper::construction2::Error::PcOutOfRange
+        ))
+    ));
+
+    let mut proof = zero_step_base_proof(&prep);
+    mutate_digest(&mut proof.state.initial_semantic_state_digest);
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &proof),
+        Err(neo_fold_clean::Error::InitialSemanticStateAnchorMismatch)
+    ));
+
+    let mut proof = zero_step_base_proof(&prep);
+    mutate_digest(&mut proof.state.semantic_state_digest);
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &proof),
+        Err(neo_fold_clean::Error::PostStateMismatch)
+    ));
+
+    let mut proof = zero_step_base_proof(&prep);
+    mutate_digest(&mut proof.state.acc_digest);
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &proof),
+        Err(neo_fold_clean::Error::AccDigestMismatch)
+    ));
+
+    let mut proof = zero_step_base_proof(&prep);
+    mutate_digest(&mut proof.state.public_trace);
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &proof),
+        Err(neo_fold_clean::Error::PostStateMismatch)
+    ));
+}
+
+/// Nebula preprocessing owns a nonempty base lane even before the first
+/// recursive step. Acceptance requires the exact `NebulaLane::base(cfg)`,
+/// not merely a present, closed-looking lane.
+#[test]
+fn verify_uncompressed_accepts_exact_nebula_base_and_rejects_lane_mutation() {
+    let plain = support::toy_preprocessing();
+    let scheme = LaneScheme::from_seeds(
+        plain.params.kappa() as usize,
+        LaneRanges {
+            ops: 0..1,
+            is: 1..2,
+            fs: 2..3,
+        },
+        [0x31; 32],
+        [0x32; 32],
+    )
+    .expect("construct base-only Nebula lane scheme");
+    let prep = plain.with_nebula(NebulaConfig {
+        scheme,
+        steps_per_segment: 1,
+        seg_max: 1,
+        stacks: StackShape::NONE,
+        plan_digest: [F::from_u64(9); 4],
+        d_init: [F::from_u64(10); 4],
+    });
+    let honest = zero_step_base_proof(&prep);
+    neo_fold_clean::verify_uncompressed(&prep, &honest).expect("exact verifier-derived Nebula base must verify");
+
+    let mut wrong_value = honest.clone();
+    wrong_value
+        .state
+        .nebula
+        .as_mut()
+        .expect("Nebula base carries a lane")
+        .seg_idx = 1;
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &wrong_value),
+        Err(neo_fold_clean::Error::PostStateMismatch)
+    ));
+
+    let mut missing = honest;
+    missing.state.nebula = None;
+    assert!(matches!(
+        neo_fold_clean::verify_uncompressed(&prep, &missing),
+        Err(neo_fold_clean::Error::NebulaLanePresenceMismatch)
+    ));
 }
 
 /// `FinalFoldProof::terminal_inputs` is part of the public terminal proof and
@@ -350,6 +570,7 @@ fn terminal_ce_public_rejects_noncanonical_fold_digest_alias() {
     let kappa = prep.params.kappa() as usize;
 
     let canonical_child = neo_fold_clean::CeClaim {
+        adv: None,
         c: Commitment {
             d: D,
             kappa,

@@ -498,8 +498,8 @@ pub fn lower_field_r1cs(
     public_outputs: &[Var],
 ) -> Result<LoweredFieldR1cs, FieldR1csLoweringError> {
     let synthesis = builder.into_synthesis();
-    let physical_stage_ranges = finalize_physical_stages(&synthesis.physical_stage_checkpoints, synthesis.rows)?;
     let cols = synthesis.witness.len();
+    let physical_stage_ranges = finalize_physical_stages(&synthesis.physical_stage_checkpoints, synthesis.rows, cols)?;
     let mut selected = vec![false; cols];
     selected[Var::ONE.col()] = true;
 
@@ -527,6 +527,40 @@ pub fn lower_field_r1cs(
         old_to_new[old_col] = new_col;
         assignment.push(synthesis.witness[old_col]);
     }
+
+    // A stage allocation cursor is a boundary, not a variable. Public output
+    // columns are moved to the normalized prefix while all remaining private
+    // columns preserve their old relative order. Count only moved outputs
+    // below each old boundary so the resulting stage intervals exactly
+    // partition the normalized private suffix without scanning the full
+    // multi-million-column arena for every checkpoint.
+    let mut ordered_public_outputs = public_outputs
+        .iter()
+        .map(|output| output.col())
+        .collect::<Vec<_>>();
+    ordered_public_outputs.sort_unstable();
+    let normalized_boundary = |old_boundary: usize| {
+        debug_assert!((1..=cols).contains(&old_boundary));
+        let moved_before = ordered_public_outputs.partition_point(|&column| column < old_boundary);
+        1 + public_outputs.len() + (old_boundary - 1) - moved_before
+    };
+    let physical_stage_ranges = physical_stage_ranges
+        .into_iter()
+        .map(|range| {
+            let column_start = normalized_boundary(range.column_start());
+            let column_end = normalized_boundary(range.column_end());
+            range.with_columns(column_start, column_end)
+        })
+        .collect();
+    let column_family_ranges = synthesis
+        .column_family_ranges
+        .iter()
+        .map(|range| crate::engine::r1cs_circuit::builder::ColumnFamilyRange {
+            name: range.name,
+            column_start: normalized_boundary(range.column_start),
+            column_end: normalized_boundary(range.column_end),
+        })
+        .collect();
 
     let remap = |trips: Vec<(usize, usize, F)>| {
         trips
@@ -820,6 +854,7 @@ pub fn lower_field_r1cs(
         sumcheck_round_audits,
         block_lane_nc_boundary_audits,
         pi_dec_strict_audits,
+        column_family_ranges,
         physical_stage_ranges,
         pi_rlc_y_zcol_boundary_audits,
     )?;

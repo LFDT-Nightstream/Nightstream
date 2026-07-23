@@ -33,7 +33,10 @@ use crate::engine::r1cs_circuit::Lc;
 use super::super::selective_audit::{SelectiveCompilerAudit, SelectiveEmittedRowRunAudit};
 use super::super::SparseR1cs;
 use super::emit::{append_field, append_lc, append_lc_scaled, append_slot};
-use super::projected_decoder::{decoder_provenance, SelectiveProjectedDecoderProvenance};
+use super::projected_decoder::{
+    decoder_provenance, decoder_run_provenance, SelectiveProjectedDecoderProvenance,
+    SelectiveProjectedDecoderRunProvenance,
+};
 use super::terms::MatrixTerms;
 use super::{
     prepare_selective_layout, structure, trace_error, LowNormR1csError, A, B, C, EVAL_GROUP_SIZE, EVAL_PAIRS,
@@ -481,6 +484,7 @@ pub struct SelectiveProjectedRowsAudit {
     row_artifacts: Vec<SelectiveProjectedRowArtifact>,
     source_provenance: Option<SelectiveProjectedSourceProvenance>,
     decoder_provenance: Option<SelectiveProjectedDecoderProvenance>,
+    decoder_run_provenance: Option<SelectiveProjectedDecoderRunProvenance>,
 }
 
 impl SelectiveProjectedRowsAudit {
@@ -548,6 +552,12 @@ impl SelectiveProjectedRowsAudit {
     /// the selected row certificate.
     pub fn decoder_provenance(&self) -> Option<&SelectiveProjectedDecoderProvenance> {
         self.decoder_provenance.as_ref()
+    }
+
+    /// Complete run-compressed decoder requested independently of selected
+    /// row/source closure.  This remains layout data, not a value theorem.
+    pub fn decoder_run_provenance(&self) -> Option<&SelectiveProjectedDecoderRunProvenance> {
+        self.decoder_run_provenance.as_ref()
     }
 }
 
@@ -1480,6 +1490,7 @@ pub(crate) fn project_rows_with_alignment(
         residue,
         selected_rows,
         None,
+        None,
     )
 }
 
@@ -1508,6 +1519,41 @@ pub(crate) fn project_rows_with_source_provenance_with_alignment(
             retained_row_pairs,
             Some(decoder_source_columns),
         )),
+        None,
+    )
+}
+
+/// Project a selected row slice and, in the same prepared-layout pass,
+/// export one complete run-compressed decoder interval.  The extra decoder
+/// request does not add selected rows or change the row projection.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn project_rows_with_source_provenance_and_decoder_runs_with_alignment(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+    selected_rows: &[usize],
+    source_arm: usize,
+    source_columns: &[usize],
+    retained_row_pairs: &[(usize, usize)],
+    decoder_source_columns: &[usize],
+    decoder_run_source_range: std::ops::Range<usize>,
+) -> Result<SelectiveProjectedRowsAudit, LowNormR1csError> {
+    project_rows_inner(
+        arms,
+        shared_private_fields,
+        shared_private_bit_fields,
+        modulus,
+        residue,
+        selected_rows,
+        Some((
+            source_arm,
+            source_columns,
+            retained_row_pairs,
+            Some(decoder_source_columns),
+        )),
+        Some((source_arm, decoder_run_source_range)),
     )
 }
 
@@ -1532,6 +1578,7 @@ pub(crate) fn project_rows_with_complete_source_provenance_with_alignment(
         residue,
         selected_rows,
         Some((source_arm, source_columns, retained_row_pairs, None)),
+        None,
     )
 }
 
@@ -1544,6 +1591,7 @@ fn project_rows_inner(
     residue: usize,
     selected_rows: &[usize],
     source_request: Option<(usize, &[usize], &[(usize, usize)], Option<&[usize]>)>,
+    decoder_run_request: Option<(usize, std::ops::Range<usize>)>,
 ) -> Result<SelectiveProjectedRowsAudit, LowNormR1csError> {
     let layout = prepare_selective_layout(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
     let public_coordinates = public_coordinate_decoder(arms, &layout)?;
@@ -1723,6 +1771,14 @@ fn project_rows_inner(
             Some(decoder_provenance(&layout, arm, decoder_source_columns)?)
         }
     };
+    let decoder_run_provenance = decoder_run_request
+        .map(|(arm, source_range)| {
+            let source_arm = arms
+                .get(arm)
+                .ok_or_else(|| trace_error("complete decoder arm is out of range"))?;
+            decoder_run_provenance(&layout, arm, source_range, source_arm.column_family_ranges())
+        })
+        .transpose()?;
 
     Ok(SelectiveProjectedRowsAudit {
         rows: emitted.rows,
@@ -1738,5 +1794,6 @@ fn project_rows_inner(
         row_artifacts,
         source_provenance,
         decoder_provenance,
+        decoder_run_provenance,
     })
 }

@@ -168,9 +168,10 @@ def derivePreSumcheck
     state := gammaResult.2
   }
 
-/-- Interleave each polynomial-message absorb with the corresponding
-verifier challenge squeeze. -/
-private def deriveRoundsFrom
+/-- Interleave an explicitly indexed round suffix, absorbing every polynomial
+message before squeezing its challenge.  This is public so the honest prover
+can prove that its causal replay is the same execution used by the verifier. -/
+def deriveRoundsFrom
     {Context : Type uContext}
     {Field : Type uField}
     {State : Type uState}
@@ -185,7 +186,8 @@ private def deriveRoundsFrom
       let tail := deriveRoundsFrom oracle rounds sample.2 remaining
       (sample.1 :: tail.1, tail.2)
 
-private theorem deriveRoundsFrom_values_length
+/-- Round replay returns exactly one challenge for every supplied index. -/
+theorem deriveRoundsFrom_values_length
     {Context : Type uContext}
     {Field : Type uField}
     {State : Type uState}

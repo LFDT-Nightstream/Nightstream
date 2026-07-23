@@ -1,6 +1,7 @@
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.InputAuthority
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.BlockLane.HonestProver
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.OutputRefinement
+import Nightstream.SuperNeo.Folding.PiRLC.PaperCorrections
 
 /-!
 Canonical block×lane Π_CCS output refinement into the CE product consumed by
@@ -8,9 +9,10 @@ Canonical block×lane Π_CCS output refinement into the CE product consumed by
 
 Assurance tier: model-level.
 
-Owns: composition of canonical protocol acceptance, explicit input/output
-authority, CE materialization at the verifier-derived FE row point, named
-phase bad events, and honest completeness of that handoff.
+Owns: extraction of source-bound `yRing` from corrected-ambient output
+membership; composition of canonical protocol acceptance, explicit
+input/output authority, CE materialization at the verifier-derived FE row
+point, named phase bad events, and honest completeness of that handoff.
 
 Does not own: Poseidon2 encoding, Fiat--Shamir probability, Π_RLC, Π_DEC,
 Rust, R1CS, costs, or row removal.
@@ -29,6 +31,7 @@ a digest.
 |---|---|---|---|
 | `nifs.pi_ccs.handoff.block_lane.acceptance` | exact FE then 3+6-round NC replay accepts | checked | `Accepted` premise |
 | `nifs.pi_ccs.handoff.block_lane.input` | projected public input equals independent sources | checked | `inputBound` premise |
+| `nifs.pi_ccs.handoff.block_lane.output.ambient` | corrected-ambient output membership fixes the complete `yRing` family | derived | `yRing_eq_sourceYRingAt_of_ambientOutputHolds` |
 | `nifs.pi_ccs.handoff.block_lane.output.y_ring` | CE evaluations equal source evaluations at derived FE row | checked then derived | `accepted_and_outputBound_implies_outputsHold_or_badEvent` |
 | `nifs.pi_ccs.handoff.block_lane.output.y_zcol` | all active packed lanes bind at derived block point | checked security boundary | `OutputBound` premise |
 | `nifs.pi_ccs.handoff.block_lane.opening` | commitment, public input, norm, and evaluations form genuine CE openings | derived | `accepted_and_outputBound_implies_outputsHold_or_badEvent` |
@@ -47,6 +50,80 @@ open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier
 open Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Protocol.TranscriptAuthority.BlockLane
 
 universe uCommitment uVerifierKey uInput uState
+
+/-- Corrected-ambient validity of the complete verifier-materialized output
+product against the authoritative source assignments. This is the Split-NC
+counterpart of the paper strong reduction's target witness: it contains no
+raw output-equality premise and does not mention delayed `yZcol`. -/
+def AmbientOutputHolds
+    {shape : SemanticShape}
+    {params : GlobalParams}
+    {arity : BatchArity params}
+    {Commitment : Type uCommitment}
+    (publicRingColumns : Nat)
+    (publicFits : ringDegree * publicRingColumns <= shape.carrierWidth)
+    (commit : SourceAssignment shape -> Commitment)
+    (data : Data shape)
+    (alignment : SourceAlignment shape params arity)
+    (input :
+      SourceProduct shape publicRingColumns publicFits Commitment params arity)
+    (rPrime : CubePoint K shape.rowVariables)
+    (message : OutputMessage shape) : Prop :=
+  forall source,
+    PiRLC.PaperCorrections.CorrectedAmbientHolds
+      (productSemantics publicRingColumns publicFits commit) params
+      (OutputProduct.materialize publicRingColumns publicFits alignment input
+        rPrime message source)
+      (InputAuthority.productAssignments data alignment source)
+
+/-- Ambient CE evaluation truth determines the complete `yRing` message from
+the authoritative source assignments. Input authority supplies only the
+source relation structure; no paper truth, `OutputBound`, or delayed `yZcol`
+premise is used. -/
+theorem yRing_eq_sourceYRingAt_of_ambientOutputHolds
+    {shape : SemanticShape}
+    {params : GlobalParams}
+    {arity : BatchArity params}
+    {Commitment : Type uCommitment}
+    (publicRingColumns : Nat)
+    (publicFits : ringDegree * publicRingColumns <= shape.carrierWidth)
+    (commit : SourceAssignment shape -> Commitment)
+    (data : Data shape)
+    (alignment : SourceAlignment shape params arity)
+    (input :
+      SourceProduct shape publicRingColumns publicFits Commitment params arity)
+    (rPrime : CubePoint K shape.rowVariables)
+    (message : OutputMessage shape)
+    (inputAuthority :
+      InputAuthority.BoundToSources publicRingColumns publicFits commit data
+        alignment input)
+    (ambient :
+      AmbientOutputHolds publicRingColumns publicFits commit data alignment
+        input rPrime message) :
+    message.yRing = Polynomial.Fe.sourceYRingAt data rPrime := by
+  apply (OutputProduct.yRing_eq_sourceYRingAt_iff_outputEvaluationsBound
+    publicRingColumns publicFits data alignment input rPrime message).2
+  intro source
+  apply (Phi81Relation.evaluationsBound_iff_eq
+    (Phi81Relation.Structure.ofSourceData publicRingColumns publicFits data)
+    (data.assignment (alignment.semanticIndex source)) rPrime
+    (OutputProduct.materialize publicRingColumns publicFits alignment input
+      rPrime message source).evaluations).2
+  have evaluationsEqual := (ambient source).2.2
+  change
+    Phi81Relation.evaluations
+        (OutputProduct.materialize publicRingColumns publicFits alignment input
+          rPrime message source).constraintSystem
+        (data.assignment (alignment.semanticIndex source))
+        (OutputProduct.materialize publicRingColumns publicFits alignment input
+          rPrime message source).point =
+      (OutputProduct.materialize publicRingColumns publicFits alignment input
+        rPrime message source).evaluations at evaluationsEqual
+  rw [OutputProduct.materialize_constraintSystem,
+    InputAuthority.BoundToSources.sourceStructure publicRingColumns publicFits
+      commit data alignment input inputAuthority source,
+    OutputProduct.materialize_point] at evaluationsEqual
+  exact evaluationsEqual.symm
 
 /-- Accepted canonical replay plus explicit output authority yields the
 complete CE product, unless the independent phase semantics exposes a named

@@ -1,0 +1,14 @@
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FullOutputCoordinates
+
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FullOutputCoordinates
+
+#check PaperLinearAlgebra.matrixVectorAt_identityRow
+#check IdentityFirstMatrix.index
+#check IdentityFirstMatrix.matrixVectorAt_first_eq_assignment
+#check FullOutput.honestAt
+#check FullOutput.toOutputMessage
+#check FullOutput.honestAt_freshMatrixImage_eq
+#check FullOutput.honestAt_sourceAssignment_eq
+#check FullOutput.honestAt_carriedImage_eq
+#check FullOutput.honestAt_toOutputMessage_eq_messageAt

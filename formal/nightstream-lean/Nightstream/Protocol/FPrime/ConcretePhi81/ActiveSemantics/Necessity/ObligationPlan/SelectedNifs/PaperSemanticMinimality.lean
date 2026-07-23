@@ -27,6 +27,10 @@ independent source data, row point, complete challenge vector, and public
 target outside the target proposition. The first five counterexamples retain
 the exact operational `Pi_DEC` verifier, including verifier-computed child
 public inputs and exact evaluation arity.
+
+| Stable stage path | Mathematical obligation | Authority class |
+|---|---|---|
+| `f_prime.nifs.paper.selected.minimality` | each of the six fixed-active paper obligations has a kernel-checked removal witness and the retained plan is inclusion-minimal | derived/necessity |
 -/
 
 namespace Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.ObligationPlan.SelectedNifs.PaperSemanticMinimality

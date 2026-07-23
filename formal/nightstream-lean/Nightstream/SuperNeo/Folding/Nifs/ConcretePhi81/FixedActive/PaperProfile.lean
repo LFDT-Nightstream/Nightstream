@@ -42,6 +42,8 @@ This relation states the coherent relation-level composition. It does not
 claim that the current Split-NC two-SumCheck verifier is message-for-message
 equivalent to the paper's disputed displayed single-`Q` formula.
 
+Emits constraints: no.
+
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `nifs.paper.fixed_active.profile` | instantiate the generic `1 + 14 -> 14` paper profile with concrete Phi81 algebras | refinement | `toGenericProfile`, `Realization.toGeneric` |

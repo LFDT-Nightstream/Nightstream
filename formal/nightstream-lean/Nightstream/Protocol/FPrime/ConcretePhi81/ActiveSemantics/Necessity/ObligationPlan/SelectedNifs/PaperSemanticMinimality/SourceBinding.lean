@@ -16,6 +16,10 @@ Does not own: source-binding necessity, operational `Pi_DEC` acceptance,
 Rust/R1CS refinement, costs, or row removal.
 
 Emits constraints: no.
+
+| Stable stage path | Mathematical obligation | Authority class |
+|---|---|---|
+| `f_prime.nifs.paper.selected.source_binding` | changing only a fresh-source norm tag preserves the computed Pi_CCS-to-Pi_RLC parent | derived/necessity support |
 -/
 
 namespace Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.ObligationPlan.SelectedNifs.PaperSemanticMinimality.SourceBinding

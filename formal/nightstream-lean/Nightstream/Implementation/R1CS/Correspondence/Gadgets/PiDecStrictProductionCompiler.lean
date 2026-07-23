@@ -121,6 +121,18 @@ def canonicalXInstructions (layout : Layout) : List Instruction :=
       PiDecStrictCanonicalX.canonicalityInstructions
         (coordinateLayout layout row column)
 
+/-- The complete isolated lowering for the public-X obligation. This program
+contains exactly the retained radix-recomposition leaf followed by the
+common-sign canonicality leaf; it deliberately excludes every other strict
+`PiDEC` family. -/
+def uniformXInstructions (layout : Layout) : List Instruction :=
+  xRecompositionInstructions layout.base
+      (radixPowers layout.base.radix layout.base.children.length) ++
+    canonicalXInstructions layout
+
+def uniformXRows (layout : Layout) : List Row :=
+  CheckedProgram.rows (uniformXInstructions layout)
+
 /-- Named-in-order production groups. Their flattening is the emitted program. -/
 def groups (layout : Layout) : List (List Instruction) :=
   let powers := radixPowers layout.base.radix layout.base.children.length
@@ -177,8 +189,25 @@ structure Accepted (layout : Layout) (assignment : Nat → Nat) : Prop where
   legacy : PiDecStrictCompiler.Accepted layout.base assignment
   uniformX : UniformXAccepted layout assignment
 
-/-- Every accepted child-X coordinate is exactly the verifier-computed signed
-binary split of its parent coordinate. -/
+/-- The uniform-X endpoint makes every child coordinate the verifier-computed
+signed binary split of its parent coordinate. Its implementation uses only
+the X-recomposition and canonicality leaves; no unrelated strict-`PiDEC`
+equation is needed for this consequence. -/
+theorem UniformXAccepted.childXExact
+    {layout : Layout} {assignment : Nat → Nat}
+    (accepted : UniformXAccepted layout assignment)
+    (row column : Nat)
+    (rowLt : row < layout.base.parent.xRows)
+    (columnLt : column < activeColumns layout.base) :
+    PiDecStrictCanonicalX.decodedDigits
+        (coordinateLayout layout row column) assignment =
+      splitScalar
+        (PiDecStrictCanonicalX.decodedParent
+          (coordinateLayout layout row column) assignment) := by
+  exact (accepted row column rowLt columnLt).digits_eq_splitScalar
+
+/-- Full strict acceptance retains the same coordinate consequence by
+projection to its canonical-X leaf. -/
 theorem Accepted.childXExact
     {layout : Layout} {assignment : Nat → Nat}
     (accepted : Accepted layout assignment)
@@ -189,8 +218,8 @@ theorem Accepted.childXExact
         (coordinateLayout layout row column) assignment =
       splitScalar
         (PiDecStrictCanonicalX.decodedParent
-          (coordinateLayout layout row column) assignment) := by
-  exact (accepted.uniformX row column rowLt columnLt).digits_eq_splitScalar
+          (coordinateLayout layout row column) assignment) :=
+  accepted.uniformX.childXExact row column rowLt columnLt
 
 /-! ## Model-level compiler soundness -/
 
@@ -215,6 +244,16 @@ private theorem satisfies_instruction_append_left
   apply satisfies row
   simpa [CheckedProgram.rows] using
     List.mem_append_left (CheckedProgram.rows right) member
+
+private theorem satisfies_instruction_append_right
+    {left right : List Instruction} {assignment : Nat → Nat}
+    (satisfies : Satisfies
+      (CheckedProgram.rows (left ++ right)) assignment) :
+    Satisfies (CheckedProgram.rows right) assignment := by
+  intro row member
+  apply satisfies row
+  simpa [CheckedProgram.rows] using
+    List.mem_append_right (CheckedProgram.rows left) member
 
 private theorem canonicality_satisfies_at
     {layout : Layout} {assignment : Nat → Nat}
@@ -281,6 +320,47 @@ private theorem uniform_coordinate_sound
         canonicalRecomposes
   }
 
+/-- Exact soundness boundary for the two public-X leaves. One radix row and
+one sixteen-row canonicality block for every logical coordinate are sufficient
+for `UniformXAccepted`; no commitment, `y`, point, padding, digest, or other
+strict-`PiDEC` row is consumed. -/
+theorem uniformX_sound
+    (prime : EuclidPrime goldilocksP)
+    {layout : Layout} (valid : ShapeValid layout)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (xSatisfies : Satisfies
+      (CheckedProgram.rows (xRecompositionInstructions layout.base
+        (radixPowers layout.base.radix
+          layout.base.children.length))) assignment)
+    (canonicalitySatisfies : Satisfies
+      (CheckedProgram.rows (canonicalXInstructions layout)) assignment) :
+    UniformXAccepted layout assignment := by
+  intro row column rowLt columnLt
+  exact uniform_coordinate_sound prime valid canonical one xSatisfies
+    canonicalitySatisfies row column rowLt columnLt
+
+/-- Soundness of the isolated executable lowering as one exact program. No
+caller can satisfy its two leaves through independently chosen schedules. -/
+theorem uniformXRows_sound
+    (prime : EuclidPrime goldilocksP)
+    {layout : Layout} (valid : ShapeValid layout)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfies : Satisfies (uniformXRows layout) assignment) :
+    UniformXAccepted layout assignment := by
+  have programSatisfies : Satisfies
+      (CheckedProgram.rows
+        (xRecompositionInstructions layout.base
+            (radixPowers layout.base.radix layout.base.children.length) ++
+          canonicalXInstructions layout)) assignment := by
+    simpa [uniformXRows, uniformXInstructions] using satisfies
+  exact uniformX_sound prime valid canonical one
+    (satisfies_instruction_append_left programSatisfies)
+    (satisfies_instruction_append_right programSatisfies)
+
 private theorem fieldOfNat_injective_canonical
     {left right : Nat}
     (leftLt : left < goldilocksP) (rightLt : right < goldilocksP)
@@ -289,6 +369,103 @@ private theorem fieldOfNat_injective_canonical
   change left % goldilocksP = right % goldilocksP at values
   rw [Nat.mod_eq_of_lt leftLt, Nat.mod_eq_of_lt rightLt] at values
   exact values
+
+private theorem fieldOfNat_mod (value : Nat) :
+    fieldOfNat (value % goldilocksP) = fieldOfNat value := by
+  apply Fin.ext
+  simp [fieldOfNat, goldilocksP, goldilocksModulus]
+
+private theorem fieldOfNat_rawLcEval (assignment : Nat → Nat) :
+    ∀ terms : List (Nat × Nat),
+      fieldOfNat (rawLcEval assignment terms) =
+        terms.foldr (fun term suffix =>
+          fieldOfNat term.2 * fieldOfNat (assignment term.1) + suffix) 0 := by
+  intro terms
+  induction terms with
+  | nil => rfl
+  | cons head tail inductionHypothesis =>
+      simp only [rawLcEval, List.foldr_cons]
+      rw [fieldOfNat_add, fieldOfNat_mul, inductionHypothesis]
+
+private theorem fieldOfNat_lcEval
+    (assignment : Nat → Nat) (terms : List (Nat × Nat)) :
+    fieldOfNat (lcEval assignment terms) =
+      terms.foldr (fun term suffix =>
+        fieldOfNat term.2 * fieldOfNat (assignment term.1) + suffix) 0 := by
+  rw [lcEval_eq_raw_mod, fieldOfNat_mod]
+  exact fieldOfNat_rawLcEval assignment terms
+
+private theorem decoded_lcEval_eq_recomposeScalar
+    (coordinate : PiDecStrictCanonicalX.Layout)
+    (assignment : Nat → Nat) :
+    fieldOfNat (lcEval assignment
+        ((PiDecStrictCanonicalX.childColumns coordinate).zip
+          PiDecStrictCanonicalX.powers)) =
+      recomposeScalar
+        (PiDecStrictCanonicalX.decodedDigits coordinate assignment) := by
+  rw [fieldOfNat_lcEval]
+  have range14 : List.range 14 =
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] := by
+    decide
+  rw [← recomposeScalarList_eq]
+  simp [recomposeScalarList, PiDecStrictCanonicalX.decodedDigits,
+    PiDecStrictCanonicalX.childColumns, PiDecStrictCanonicalX.powers,
+    productionGlobalParams, radixPowers, range14,
+    Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight,
+    fieldOfNat, goldilocksP, goldilocksModulus]
+
+private theorem coordinate_recomposes_of_uniformX
+    {layout : Layout} {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (accepted : UniformXAccepted layout assignment)
+    (row column : Nat)
+    (rowLt : row < layout.base.parent.xRows)
+    (columnLt : column < activeColumns layout.base) :
+    Recomposes assignment
+      (coordinateLayout layout row column).parentColumn
+      (PiDecStrictCanonicalX.childColumns
+        (coordinateLayout layout row column))
+      PiDecStrictCanonicalX.powers := by
+  let coordinate := coordinateLayout layout row column
+  have semantic := accepted row column rowLt columnLt
+  have lcLt : lcEval assignment
+      ((PiDecStrictCanonicalX.childColumns coordinate).zip
+        PiDecStrictCanonicalX.powers) < goldilocksP := by
+    unfold lcEval
+    exact Nat.mod_lt _ (by decide)
+  unfold Recomposes
+  apply fieldOfNat_injective_canonical
+    (canonical coordinate.parentColumn) lcLt
+  calc
+    fieldOfNat (assignment coordinate.parentColumn) =
+        PiDecStrictCanonicalX.decodedParent coordinate assignment := rfl
+    _ = recomposeScalar
+        (PiDecStrictCanonicalX.decodedDigits coordinate assignment) :=
+      semantic.recomposition.symm
+    _ = fieldOfNat (lcEval assignment
+        ((PiDecStrictCanonicalX.childColumns coordinate).zip
+          PiDecStrictCanonicalX.powers)) :=
+      (decoded_lcEval_eq_recomposeScalar coordinate assignment).symm
+
+private theorem xRecomposes_of_uniformX
+    {layout : Layout} (valid : ShapeValid layout)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (accepted : UniformXAccepted layout assignment) :
+    ∀ row column,
+      row < layout.base.parent.xRows →
+      column < activeColumns layout.base →
+      Recomposes assignment
+        (xColumn layout.base layout.base.parent row column)
+        (layout.base.children.map fun child =>
+          xColumn layout.base child row column)
+        (radixPowers layout.base.radix layout.base.children.length) := by
+  intro row column rowLt columnLt
+  have coordinateRecomposes := coordinate_recomposes_of_uniformX canonical
+    accepted row column rowLt columnLt
+  rw [coordinate_childColumns] at coordinateRecomposes
+  simpa [coordinateLayout, PiDecStrictCanonicalX.powers,
+    valid.radixTwo, layout.childCount] using coordinateRecomposes
 
 private theorem fieldOfNat_minus_one :
     fieldOfNat (goldilocksP - 1) = (-1 : F) := by
@@ -434,10 +611,8 @@ theorem sound_noAdv
   have satisfies8 := group_satisfies satisfies group8
   have satisfies9 := group_satisfies satisfies group9
   have satisfies10 := group_satisfies satisfies group10
-  have uniform : UniformXAccepted layout assignment := by
-    intro row column rowLt columnLt
-    exact uniform_coordinate_sound prime valid canonical one satisfies1
-      satisfies7 row column rowLt columnLt
+  have uniform : UniformXAccepted layout assignment :=
+    uniformX_sound prime valid canonical one satisfies1 satisfies7
   have reducedY := PiDecStrictReducedY.reducedYRecomposition_sound canonical
     one valid.base.powersCanonical satisfies2
   have padding := PiDecStrictSound.paddingInstructions_sound canonical one
@@ -580,6 +755,25 @@ private theorem canonicalXInstructions_complete
       instruction.row
   exact List.mem_map.mpr ⟨instruction, instructionMember, rfl⟩
 
+/-- Same-assignment completeness for the isolated public-X lowering. The
+semantic endpoint determines the retained recomposition rows; the only
+additional premise materializes the deterministic sign-product auxiliaries. -/
+theorem uniformXRows_complete
+    {layout : Layout} (valid : ShapeValid layout)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (accepted : UniformXAccepted layout assignment)
+    (traceDefinitions : TraceDefinitions layout assignment) :
+    Satisfies (uniformXRows layout) assignment := by
+  have xSatisfies := PiDecStrictSound.xRecomposition_complete one
+    valid.base.powersCanonical
+    (xRecomposes_of_uniformX valid canonical accepted)
+  have canonicalitySatisfies := canonicalXInstructions_complete canonical one
+    accepted traceDefinitions
+  simpa [uniformXRows, uniformXInstructions, CheckedProgram.rows] using
+    PiDecStrictSound.satisfies_append xSatisfies canonicalitySatisfies
+
 /-- Same-assignment completeness for the reduced production schedule. This
 does not treat semantic acceptance as an execution oracle: the deterministic
 product-wire equations are supplied separately by `TraceDefinitions`. -/
@@ -673,6 +867,34 @@ theorem canonicalXInstruction_count (layout : Layout) :
     simpa [CheckedProgram.rows] using
       PiDecStrictCanonicalX.canonicality_rows_exact
         (coordinateLayout layout row column)
+
+/-- The retained radix-recomposition leaf contributes exactly one row per
+logical public coordinate. -/
+theorem xRecompositionInstruction_count (layout : Layout) :
+    (xRecompositionInstructions layout.base
+      (radixPowers layout.base.radix layout.base.children.length)).length =
+        logicalXCount layout := by
+  unfold xRecompositionInstructions logicalXCount
+  apply length_flatMap_range_constant
+  intro row rowLt
+  simp
+
+/-- Cost of the isolated lowering follows structurally from its compiler:
+one recomposition plus sixteen canonicality rows per coordinate. -/
+theorem uniformXInstruction_count (layout : Layout) :
+    (uniformXInstructions layout).length =
+      logicalXCount layout * PiDecStrictCanonicalX.totalRowCount := by
+  rw [uniformXInstructions, List.length_append,
+    xRecompositionInstruction_count, canonicalXInstruction_count]
+  simp only [PiDecStrictCanonicalX.totalRowCount,
+    PiDecStrictCanonicalX.canonicalityRowCount]
+  omega
+
+theorem uniformXRows_count (layout : Layout) :
+    (uniformXRows layout).length =
+      logicalXCount layout * PiDecStrictCanonicalX.totalRowCount := by
+  simpa [uniformXRows, CheckedProgram.rows] using
+    uniformXInstruction_count layout
 
 private theorem alphabetFrom_length (columns : List Nat) (output : Nat) :
     (alphabetFrom output columns).length = 2 * columns.length := by

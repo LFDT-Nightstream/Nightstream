@@ -7,6 +7,9 @@ import Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentV
 #check Nightstream.SuperNeo.Folding.PiDEC.CanonicalChildren.OpeningVerifier.piDecAccepted_and_childHolds
 
 #check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.accepted_iff_commitment_and_norm
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.verify_eq_true_iff
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.run?_eq_some_iff_accepted
+#check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.run?_eq_some_iff_parentHolds
 #check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.parentHolds_iff_commitment_and_norm
 #check Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.CanonicalParentVerifier.canonicalChildren_of_commitment_and_norm
 

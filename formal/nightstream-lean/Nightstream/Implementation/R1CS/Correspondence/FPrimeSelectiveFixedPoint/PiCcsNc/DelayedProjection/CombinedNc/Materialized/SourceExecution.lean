@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.Provenance
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Provenance
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.StageProgram
 
 /-!
@@ -26,6 +26,15 @@ the independently reconstructed `StageProgram` instruction stream once this
 leaf validates.
 -/
 
+/-!
+Emits constraints: none; this module proves execution of the existing source program.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.source_execution` | Derive the typed source-program trace from its materialized assignment. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SourceExecution
 
 open Nightstream.Implementation.R1CS
@@ -47,17 +56,11 @@ private theorem definitions_append
 
 private theorem definitions_defines (values : List Definition) :
     definitions (values.map .define) = values := by
-  induction values with
-  | nil => rfl
-  | cons head tail inductionHypothesis =>
-      simp [definitions, inductionHypothesis]
+  simp [definitions, Function.comp_def]
 
 private theorem definitions_checks (values : List Row) :
     definitions (values.map .check) = [] := by
-  induction values with
-  | nil => rfl
-  | cons head tail inductionHypothesis =>
-      simp [definitions, inductionHypothesis]
+  simp [definitions, Function.comp_def]
 
 /-- Definition-only form of the four exact `StageProgram` phases.  Keeping
 the already-oriented definition lists avoids repeatedly filtering the full
@@ -186,7 +189,7 @@ theorem executionValid_append
     (leftValid : ExecutionValid previous left)
     (rightValid : ExecutionValid (previousAfter previous left) right) :
     ExecutionValid previous (left ++ right) := by
-  induction leftValid with
+  induction leftValid generalizing right with
   | nil =>
       simpa [previousAfter] using rightValid
   | cons previousLt outputInSource referencesInSource referencesEarlier
@@ -267,7 +270,8 @@ private theorem fixedChunks_flatten
         Nat.zero_mul, List.drop_zero]
       have tailCovered :
           (values.drop size).length ≤ count * size := by
-        rw [List.length_drop, Nat.succ_mul] at covered ⊢
+        rw [Nat.succ_mul] at covered
+        simp only [List.length_drop]
         omega
       have tail := inductionHypothesis (values.drop size) tailCovered
       have tail' :
@@ -398,43 +402,108 @@ set_option maxRecDepth 100000 in
 private theorem definitionChunk31Check :
     executionShapeCheck (previousForChunk 31) (definitionShapeChunk 31) = true := by native_decide
 
-private theorem definitionChunkCheckAt :
-    ∀ index, index < definitionChunkCount →
-      executionShapeCheck (previousForChunk index)
-        (definitionShapeChunk index) = true
-  | 0, _ => definitionChunk0Check
-  | 1, _ => definitionChunk1Check
-  | 2, _ => definitionChunk2Check
-  | 3, _ => definitionChunk3Check
-  | 4, _ => definitionChunk4Check
-  | 5, _ => definitionChunk5Check
-  | 6, _ => definitionChunk6Check
-  | 7, _ => definitionChunk7Check
-  | 8, _ => definitionChunk8Check
-  | 9, _ => definitionChunk9Check
-  | 10, _ => definitionChunk10Check
-  | 11, _ => definitionChunk11Check
-  | 12, _ => definitionChunk12Check
-  | 13, _ => definitionChunk13Check
-  | 14, _ => definitionChunk14Check
-  | 15, _ => definitionChunk15Check
-  | 16, _ => definitionChunk16Check
-  | 17, _ => definitionChunk17Check
-  | 18, _ => definitionChunk18Check
-  | 19, _ => definitionChunk19Check
-  | 20, _ => definitionChunk20Check
-  | 21, _ => definitionChunk21Check
-  | 22, _ => definitionChunk22Check
-  | 23, _ => definitionChunk23Check
-  | 24, _ => definitionChunk24Check
-  | 25, _ => definitionChunk25Check
-  | 26, _ => definitionChunk26Check
-  | 27, _ => definitionChunk27Check
-  | 28, _ => definitionChunk28Check
-  | 29, _ => definitionChunk29Check
-  | 30, _ => definitionChunk30Check
-  | 31, _ => definitionChunk31Check
-  | index, bound => by simp [definitionChunkCount] at bound
+private theorem definitionChunkCheckAt (index : Nat)
+    (bound : index < definitionChunkCount) :
+    executionShapeCheck (previousForChunk index)
+      (definitionShapeChunk index) = true := by
+  change index < 32 at bound
+  cases index with
+  | zero => exact definitionChunk0Check
+  | succ index =>
+      cases index with
+      | zero => exact definitionChunk1Check
+      | succ index =>
+          cases index with
+          | zero => exact definitionChunk2Check
+          | succ index =>
+              cases index with
+              | zero => exact definitionChunk3Check
+              | succ index =>
+                  cases index with
+                  | zero => exact definitionChunk4Check
+                  | succ index =>
+                      cases index with
+                      | zero => exact definitionChunk5Check
+                      | succ index =>
+                          cases index with
+                          | zero => exact definitionChunk6Check
+                          | succ index =>
+                              cases index with
+                              | zero => exact definitionChunk7Check
+                              | succ index =>
+                                  cases index with
+                                  | zero => exact definitionChunk8Check
+                                  | succ index =>
+                                      cases index with
+                                      | zero => exact definitionChunk9Check
+                                      | succ index =>
+                                          cases index with
+                                          | zero => exact definitionChunk10Check
+                                          | succ index =>
+                                              cases index with
+                                              | zero => exact definitionChunk11Check
+                                              | succ index =>
+                                                  cases index with
+                                                  | zero => exact definitionChunk12Check
+                                                  | succ index =>
+                                                      cases index with
+                                                      | zero => exact definitionChunk13Check
+                                                      | succ index =>
+                                                          cases index with
+                                                          | zero => exact definitionChunk14Check
+                                                          | succ index =>
+                                                              cases index with
+                                                              | zero => exact definitionChunk15Check
+                                                              | succ index =>
+                                                                  cases index with
+                                                                  | zero => exact definitionChunk16Check
+                                                                  | succ index =>
+                                                                      cases index with
+                                                                      | zero => exact definitionChunk17Check
+                                                                      | succ index =>
+                                                                          cases index with
+                                                                          | zero => exact definitionChunk18Check
+                                                                          | succ index =>
+                                                                              cases index with
+                                                                              | zero => exact definitionChunk19Check
+                                                                              | succ index =>
+                                                                                  cases index with
+                                                                                  | zero => exact definitionChunk20Check
+                                                                                  | succ index =>
+                                                                                      cases index with
+                                                                                      | zero => exact definitionChunk21Check
+                                                                                      | succ index =>
+                                                                                          cases index with
+                                                                                          | zero => exact definitionChunk22Check
+                                                                                          | succ index =>
+                                                                                              cases index with
+                                                                                              | zero => exact definitionChunk23Check
+                                                                                              | succ index =>
+                                                                                                  cases index with
+                                                                                                  | zero => exact definitionChunk24Check
+                                                                                                  | succ index =>
+                                                                                                      cases index with
+                                                                                                      | zero => exact definitionChunk25Check
+                                                                                                      | succ index =>
+                                                                                                          cases index with
+                                                                                                          | zero => exact definitionChunk26Check
+                                                                                                          | succ index =>
+                                                                                                              cases index with
+                                                                                                              | zero => exact definitionChunk27Check
+                                                                                                              | succ index =>
+                                                                                                                  cases index with
+                                                                                                                  | zero => exact definitionChunk28Check
+                                                                                                                  | succ index =>
+                                                                                                                      cases index with
+                                                                                                                      | zero => exact definitionChunk29Check
+                                                                                                                      | succ index =>
+                                                                                                                          cases index with
+                                                                                                                          | zero => exact definitionChunk30Check
+                                                                                                                          | succ index =>
+                                                                                                                              cases index with
+                                                                                                                              | zero => exact definitionChunk31Check
+                                                                                                                              | succ index =>
+                                                                                                                                  omega
 
 private theorem definitionChunkValidAt (index : Nat)
     (bound : index < definitionChunkCount) :
@@ -541,6 +610,7 @@ theorem sourceDefinitionsExecutionValid :
     (definitionChunkValidAt 1 (by decide)) valid2
   have valid0 := prependDefinitionChunk 0
     (definitionChunkValidAt 0 (by decide)) valid1
+  change ExecutionValid (previousForChunk 0) joinedDefinitionChunks at valid0
   rw [joinedDefinitionChunks_exact] at valid0
   simpa only [previousForChunk] using valid0
 
@@ -550,18 +620,19 @@ private theorem lower_lt_all_outputs
     {lower : Nat} {values : List Definition}
     (valid : ExecutionValid (some lower) values) :
     ∀ definition ∈ values, lower < definition.output := by
-  induction valid with
+  induction values generalizing lower with
   | nil => simp
-  | @cons previous head tail previousLt outputInSource referencesInSource
-      referencesEarlier rest inductionHypothesis =>
-      intro definition member
-      simp only [List.mem_cons] at member
-      rcases member with rfl | member
-      · simpa [PreviousOutputLt] using previousLt
-      · have lowerHead : lower < head.output := by
-          simpa [PreviousOutputLt] using previousLt
-        have headDefinition := inductionHypothesis definition member
-        omega
+  | cons head tail inductionHypothesis =>
+      cases valid with
+      | cons previousLt outputInSource referencesInSource referencesEarlier rest =>
+          intro definition member
+          simp only [List.mem_cons] at member
+          rcases member with rfl | member
+          · simpa [PreviousOutputLt] using previousLt
+          · have lowerHead : lower < head.output := by
+              simpa [PreviousOutputLt] using previousLt
+            have headDefinition := inductionHypothesis rest definition member
+            omega
 
 private theorem wellFormed_of_executionValid
     {previous : Option Nat} {known : List Nat}
@@ -586,9 +657,10 @@ private theorem wellFormed_of_executionValid
         · have earlier := referencesEarlier column reference
           omega
         · rcases List.mem_map.mp futureMember with
-            ⟨future, futureMember, rfl⟩
+            ⟨future, futureMember, outputEq⟩
           have earlier := referencesEarlier column reference
-          have later := lower_lt_all_outputs rest future futureMember
+          have later : head.output < future.output :=
+            lower_lt_all_outputs rest future futureMember
           omega
       · intro outputKnown
         have characterized :=
@@ -606,7 +678,8 @@ private theorem wellFormed_of_executionValid
             intro futureMember
             rcases List.mem_map.mp futureMember with
               ⟨future, futureMember, outputEq⟩
-            have later := lower_lt_all_outputs rest future futureMember
+            have later : head.output < future.output :=
+              lower_lt_all_outputs rest future futureMember
             omega
           · have characterized :=
               (knownCharacterization column).mp knownMember
@@ -644,8 +717,8 @@ private theorem zero_mem_sourceChunk0 :
   native_decide
 
 theorem zero_mem_sourceColumns : 0 ∈ Provenance.sourceColumns := by
-  rw [Provenance.sourceColumns, Provenance.SourceColumns.values]
-  exact List.mem_append_left _ zero_mem_sourceChunk0
+  unfold Provenance.sourceColumns Provenance.SourceColumns.values
+  simp only [List.mem_append, zero_mem_sourceChunk0, true_or]
 
 theorem zero_not_mem_definitionOutputs : 0 ∉ definitionOutputs := by
   intro member

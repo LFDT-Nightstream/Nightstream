@@ -21,6 +21,13 @@ Assurance tier: artifact-checked for generated round-map shape and forwarding;
 row truth remains a premise until the selective compiler bridge is composed.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.round_chain_artifact` | Establish generated index and interval agreement for all materialized rounds. | checked artifact |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.RoundChainArtifact
 
 open Nightstream.Implementation.R1CS

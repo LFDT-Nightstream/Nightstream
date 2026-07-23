@@ -19,6 +19,13 @@ offset 52, so each 64-record generated provenance shard crosses exactly one
 boundary between adjacent 64-record emitted-row shards.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.selective_pairs.chunks` | Define bounded disjoint certificate chunks and their coverage arithmetic. | computed artifact |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveArtifactPairs.Chunks
 
 open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc

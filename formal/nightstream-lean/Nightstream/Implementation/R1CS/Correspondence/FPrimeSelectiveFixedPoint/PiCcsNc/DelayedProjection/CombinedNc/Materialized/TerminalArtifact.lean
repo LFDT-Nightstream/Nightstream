@@ -13,6 +13,15 @@ parent/child authority, commitment binding, costs, or row removal.
 Assurance tier: artifact-checked for the fixed generated terminal interval.
 -/
 
+/-!
+Emits constraints: none; this module checks the generated terminal-row artifact.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.terminal_artifact` | Establish exact ownership and decoding for generated terminal rows. | checked artifact |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.TerminalArtifact
 
 open Nightstream.Implementation.R1CS
@@ -114,9 +123,10 @@ theorem generatedTerminalShardLength (index : Fin terminalShardCount) :
 
 theorem generatedTerminalRows_finalBoundary :
     ((sourceShard 51).take 83).map RawSourceRow.sourceRow =
-        List.range' 4299016 83 ∧
+        List.range' (rawBoundary.terminalFinalEqualityRows.start - 83) 83 ∧
       ((sourceShard 51).drop 83).map RawSourceRow.sourceRow =
-        [4299099, 4299100] :=
+        [rawBoundary.terminalFinalEqualityRows.start,
+          rawBoundary.terminalFinalEqualityRows.start + 1] :=
   finalShardBoundary
 
 private theorem rowsPermutationEquivalentList_append

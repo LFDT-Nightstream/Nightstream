@@ -8,6 +8,16 @@ two equality rows. Does not own generated-row equality, padding truth,
 transcript ordering, witness authority, commitment binding, or row removal.
 -/
 
+/-!
+Does not own: generated-row equality, transcript order, witness authority, commitment binding, or row removal.
+Emits constraints: none; this module proves semantic consequences of terminal rows.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.terminal_soundness` | Derive the ordinary-plus-delayed terminal identity from exact terminal-program execution. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.TerminalProgram
 
 open Nightstream.Implementation.R1CS

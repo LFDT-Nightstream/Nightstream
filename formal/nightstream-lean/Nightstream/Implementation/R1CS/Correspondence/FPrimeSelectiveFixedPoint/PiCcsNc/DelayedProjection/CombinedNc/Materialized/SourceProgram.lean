@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.SourceRows
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.SourceRows
 import Nightstream.Implementation.R1CS.Core.CheckedProgram
 import Nightstream.Implementation.R1CS.Correspondence.Projection.IndexedRows
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SourceDecodeBridge
@@ -33,6 +33,13 @@ The ordered relation below is intentionally shardable.  A generated owner can
 check bounded record blocks and compose them with
 `instructionRecordsMatch_append`; it need not normalize one proof-carrying
 8,021-record object.  No record carries a proof of row satisfaction.
+-/
+
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.source_program` | Define the exact ordered source equations refined by compiler rewrites and retained checks. | computed semantics |
+
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SourceProgram

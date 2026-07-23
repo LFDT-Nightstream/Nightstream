@@ -1,7 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.SourceRows.Chunk2
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.SourceRows.Chunk3
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.SourceRows.Chunk4
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.SourceRows.Chunk5
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.SourceRows.Initial
 import Nightstream.Implementation.R1CS.Artifacts.Projection.IndexedRows
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.InitialProgram
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SourceDecodeBridge
@@ -24,6 +21,15 @@ certificate split only; mathematical ownership remains one coherent formula.
 
 Assurance tier: artifact-checked for this fixed generated profile once this
 module and its parent validate.
+-/
+
+/-!
+Emits constraints: none; this module checks the generated initial-row artifact.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.initial_artifact` | Establish exact source/emitted ownership for the initial claimed-sum checks. | checked artifact |
+
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.InitialArtifact
@@ -57,6 +63,9 @@ def expected2 : List Row := (InitialProgram.rows.drop 212).take 128
 /-- Deliberately no `take`: the final certificate rejects an oversized
 remainder instead of silently truncating it. -/
 def expected3 : List Row := InitialProgram.rows.drop 340
+
+def claimedInitialSourceRowStart : Nat :=
+  InitialProgram.rawBoundary.claimedInitialRows.start
 
 private def rowsPermutationEquivalentListDecidable :
     (source reconstructed : List Row) →
@@ -107,19 +116,23 @@ so the certificates jointly reject overlap, gaps, and an oversized tail.
 -/
 
 set_option maxRecDepth 100000 in
-theorem shard0Certificate : ShardValid 3972968 shard0 expected0 := by
+theorem shard0Certificate :
+    ShardValid claimedInitialSourceRowStart shard0 expected0 := by
   native_decide
 
 set_option maxRecDepth 100000 in
-theorem shard1Certificate : ShardValid 3973052 shard1 expected1 := by
+theorem shard1Certificate :
+    ShardValid (claimedInitialSourceRowStart + 84) shard1 expected1 := by
   native_decide
 
 set_option maxRecDepth 100000 in
-theorem shard2Certificate : ShardValid 3973180 shard2 expected2 := by
+theorem shard2Certificate :
+    ShardValid (claimedInitialSourceRowStart + 212) shard2 expected2 := by
   native_decide
 
 set_option maxRecDepth 100000 in
-theorem shard3Certificate : ShardValid 3973308 shard3 expected3 := by
+theorem shard3Certificate :
+    ShardValid (claimedInitialSourceRowStart + 340) shard3 expected3 := by
   native_decide
 
 private theorem rowsPermutationEquivalentList_append

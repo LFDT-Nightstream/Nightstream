@@ -25,6 +25,15 @@ No source-row satisfaction proposition is an input to this module.
 Assurance tier: model-level.
 -/
 
+/-!
+Emits constraints: none; this module states model-level source/rewrite semantics.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.rewrite_source.core` | Define the independent source-expression and rewrite-program relations. | computed semantics |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.RewriteSourceSemantics.Core
 
 open Nightstream.SuperNeo.Concrete

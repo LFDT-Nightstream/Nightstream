@@ -20,6 +20,12 @@ rows are assertions and allocate no columns.
 
 Assurance tier: model-level until an exact generated-row certificate identifies
 this program with the physical source interval.
+
+Emits constraints: none; this module states the semantics of the existing terminal program.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.terminal_program` | Define the exact straight-line terminal formula and final equality checks. | computed semantics |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.TerminalProgram
@@ -30,6 +36,9 @@ open Nightstream.Implementation.R1CS.ProjectionProgram
 open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc
 open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.Semantics
+
+local instance : Std.Associative (fun (left right : F) => left + right) := ⟨fadd_assoc⟩
+local instance : Std.Commutative (fun (left right : F) => left + right) := ⟨fadd_comm⟩
 
 abbrev rawBoundary : RawBoundaryMap := Metadata.boundary
 
@@ -241,6 +250,116 @@ private theorem termsValue_columns (assignment : Nat → Nat)
       simp only [baseAt, residue]
       rw [← Nat.add_mod]
 
+private theorem productDefinitionValue (assignment : Nat → Nat)
+    (output : Nat) (left right : List (Nat × Nat))
+    (holds : assignment output =
+      lcEval assignment left * lcEval assignment right % goldilocksP) :
+    baseAt assignment output = residue (lcEval assignment left) *
+      residue (lcEval assignment right) := by
+  apply Fin.ext
+  simp only [baseAt, residue, Fin.val_mul]
+  rw [holds]
+  simp [Nat.mul_mod]
+
+private theorem karatsubaProductSumTerminal (a0 a1 b0 b1 : F) :
+    (a0 * b1 + a1 * b0) +
+        (a0 * b0 + 7 * (a1 * b1)) +
+        residue (goldilocksP - 6) * (a1 * b1) =
+      (a0 + a1) * (b0 + b1) := by
+  let rawLeft :=
+    (a0.val * b1.val + a1.val * b0.val) +
+      (a0.val * b0.val + 7 * (a1.val * b1.val)) +
+      (goldilocksP - 6) * (a1.val * b1.val)
+  let rawRight := (a0.val + a1.val) * (b0.val + b1.val)
+  have rawEquality : rawLeft = rawRight +
+      goldilocksP * (a1.val * b1.val) := by
+    dsimp [rawLeft, rawRight]
+    simp only [Nat.add_mul, Nat.mul_add]
+    unfold goldilocksP
+    omega
+  apply Fin.ext
+  simp only [Fin.val_add, Fin.val_mul, residue]
+  have modularEquality : rawLeft % goldilocksP =
+      rawRight % goldilocksP := by
+    rw [rawEquality, Nat.add_mul_mod_self_left]
+  dsimp [rawLeft, rawRight] at modularEquality
+  simpa only [Nat.add_mod, Nat.mul_mod, Nat.mod_mod] using modularEquality
+
+/-- Scalar consequences of one five-row multiplication used by `DotTrace`. -/
+structure KMulTrace.Components (trace : KMulTrace)
+    (left right : KColumns) (assignment : Nat → Nat) : Prop where
+  productC1 : baseAt assignment trace.productC1 = baseAt assignment left.c1 *
+    baseAt assignment right.c1
+  productSum : baseAt assignment trace.productSum =
+    (baseAt assignment left.c0 + baseAt assignment left.c1) *
+      (baseAt assignment right.c0 + baseAt assignment right.c1)
+  terminal :
+    baseAt assignment trace.output.c1 +
+        baseAt assignment trace.output.c0 +
+        residue (goldilocksP - 6) *
+          baseAt assignment trace.productC1 =
+      baseAt assignment trace.productSum
+
+/-- Component semantics of the exact `mulColumnsAt` program. -/
+theorem mulColumnsAt_components (base : Nat) (left right : KColumns)
+    (assignment : Nat → Nat)
+    (definitionsHold : DefinitionsHold assignment
+      (mulColumnsAt base left right).definitions) :
+    KMulTrace.Components (mulColumnsAt base left right) left right
+      assignment := by
+  let trace := mulColumnsAt base left right
+  have productC1Holds : assignment trace.productC1 =
+      lcEval assignment trace.left.c1 * lcEval assignment trace.right.c1 %
+        goldilocksP := by
+    simpa [Definition.Holds, Rhs.eval] using
+      definitionsHold
+        ⟨trace.productC1, .product trace.left.c1 trace.right.c1⟩
+        (by simp [trace, KMulTrace.definitions])
+  have productSumHolds : assignment trace.productSum =
+      lcEval assignment trace.sumLeft * lcEval assignment trace.sumRight %
+        goldilocksP := by
+    simpa [Definition.Holds, Rhs.eval] using
+      definitionsHold
+        ⟨trace.productSum, .product trace.sumLeft trace.sumRight⟩
+        (by simp [trace, KMulTrace.definitions])
+  have productC1Internal := productDefinitionValue assignment
+    trace.productC1 trace.left.c1 trace.right.c1 productC1Holds
+  have productSumInternal := productDefinitionValue assignment
+    trace.productSum trace.sumLeft trace.sumRight productSumHolds
+  have leftC1 : residue (lcEval assignment trace.left.c1) =
+      baseAt assignment left.c1 := by
+    simpa [trace, mulColumnsAt, columnsTerms, KTerms.value, KColumns.value] using
+      congrArg K.c1 (KTerms.ofColumns_value left assignment)
+  have rightC1 : residue (lcEval assignment trace.right.c1) =
+      baseAt assignment right.c1 := by
+    simpa [trace, mulColumnsAt, columnsTerms, KTerms.value, KColumns.value] using
+      congrArg K.c1 (KTerms.ofColumns_value right assignment)
+  have leftSum : residue (lcEval assignment trace.sumLeft) =
+      baseAt assignment left.c0 + baseAt assignment left.c1 := by
+    simpa [trace, mulColumnsAt, mulAt, columnsTerms, KTerms.ofColumns] using
+      termsValue_columns assignment [left.c0, left.c1]
+  have rightSum : residue (lcEval assignment trace.sumRight) =
+      baseAt assignment right.c0 + baseAt assignment right.c1 := by
+    simpa [trace, mulColumnsAt, mulAt, columnsTerms, KTerms.ofColumns] using
+      termsValue_columns assignment [right.c0, right.c1]
+  have productC1 : baseAt assignment trace.productC1 =
+      baseAt assignment left.c1 * baseAt assignment right.c1 := by
+    simpa [leftC1, rightC1] using productC1Internal
+  have productSum : baseAt assignment trace.productSum =
+      (baseAt assignment left.c0 + baseAt assignment left.c1) *
+        (baseAt assignment right.c0 + baseAt assignment right.c1) := by
+    simpa [leftSum, rightSum] using productSumInternal
+  have outputValue :=
+    mulColumnsAt_sound base left right assignment definitionsHold
+  have outputC0 := congrArg K.c0 outputValue
+  have outputC1 := congrArg K.c1 outputValue
+  simp only [KColumns.value, K.mul] at outputC0 outputC1
+  have terminal := karatsubaProductSumTerminal
+    (baseAt assignment left.c0) (baseAt assignment left.c1)
+    (baseAt assignment right.c0) (baseAt assignment right.c1)
+  rw [← outputC1, ← outputC0, ← productC1, ← productSum] at terminal
+  exact ⟨productC1, productSum, terminal⟩
+
 private theorem foldKValues (values : List K) :
     values.foldr K.add K.zero =
       ⟨(values.map K.c0).foldr (fun left right => left + right) 0,
@@ -369,6 +488,95 @@ private theorem constantRightMulTraces_sound
             K.mul (value.value assignment) (right.value assignment))
       rw [headValue, tailValues]
       simp [columnsTerms]
+private def traceColumnSum (assignment : Nat → Nat) (traces : List KMulTrace)
+    (column : KMulTrace → Nat) : F :=
+  (traces.map fun trace => baseAt assignment (column trace)).foldr (fun x y => x + y) 0
+private theorem pairMulTraces_componentFolds (assignment : Nat → Nat) :
+    ∀ (base : Nat) (left right : List KColumns),
+      DefinitionsHold assignment (tracesDefinitions
+        (pairMulTracesFrom base left right)) →
+      (traceColumnSum assignment (pairMulTracesFrom base left right)
+          (fun multiplication => multiplication.output.c1) +
+          traceColumnSum assignment (pairMulTracesFrom base left right)
+          (fun multiplication => multiplication.output.c0) +
+          residue (goldilocksP - 6) * traceColumnSum assignment
+            (pairMulTracesFrom base left right) KMulTrace.productC1 =
+        traceColumnSum assignment (pairMulTracesFrom base left right)
+          KMulTrace.productSum) ∧
+      (traceColumnSum assignment (pairMulTracesFrom base left right)
+          KMulTrace.productSum =
+        ((left.zip right).map fun pair =>
+          (baseAt assignment pair.1.c0 + baseAt assignment pair.1.c1) *
+            (baseAt assignment pair.2.c0 + baseAt assignment pair.2.c1)).foldr
+          (fun x y => x + y) 0) := by
+  intro base left
+  induction left generalizing base with
+  | nil =>
+      intro right _
+      constructor
+      · simpa only [pairMulTracesFrom, traceColumnSum, List.map_nil,
+          List.foldr_nil, Fin.zero_add] using Fin.mul_zero (residue (goldilocksP - 6))
+      · rfl
+  | cons leftHead leftTail inductionHypothesis =>
+      intro right definitionsHold
+      cases right with
+      | nil =>
+          constructor
+          · simpa only [pairMulTracesFrom, traceColumnSum, List.map_nil,
+              List.foldr_nil, Fin.zero_add] using Fin.mul_zero (residue (goldilocksP - 6))
+          · rfl
+      | cons rightHead rightTail =>
+          let multiplication := mulColumnsAt base leftHead rightHead
+          have headHolds : DefinitionsHold assignment multiplication.definitions := by
+            intro definition member
+            apply definitionsHold definition
+            change definition ∈ multiplication.definitions ++ tracesDefinitions
+              (pairMulTracesFrom (base + 5) leftTail rightTail)
+            exact List.mem_append_left _ member
+          have tailHolds : DefinitionsHold assignment (tracesDefinitions
+              (pairMulTracesFrom (base + 5) leftTail rightTail)) := by
+            intro definition member
+            apply definitionsHold definition
+            change definition ∈ multiplication.definitions ++ tracesDefinitions
+              (pairMulTracesFrom (base + 5) leftTail rightTail)
+            exact List.mem_append_right multiplication.definitions member
+          have head := mulColumnsAt_components base leftHead rightHead
+            assignment headHolds
+          have tail := inductionHypothesis (base + 5) rightTail tailHolds
+          let tailTraces := pairMulTracesFrom (base + 5) leftTail rightTail
+          constructor
+          · rcases tail with ⟨tailTerminal, _⟩
+            change
+              (baseAt assignment multiplication.output.c1 + traceColumnSum
+                  assignment tailTraces (fun step => step.output.c1)) +
+                (baseAt assignment multiplication.output.c0 + traceColumnSum
+                  assignment tailTraces (fun step => step.output.c0)) +
+                residue (goldilocksP - 6) *
+                  (baseAt assignment multiplication.productC1 +
+                    traceColumnSum assignment tailTraces KMulTrace.productC1) =
+                baseAt assignment multiplication.productSum + traceColumnSum
+                  assignment tailTraces KMulTrace.productSum
+            rw [fmul_add]
+            calc
+              _ = (baseAt assignment multiplication.output.c1 +
+                    baseAt assignment multiplication.output.c0 +
+                    residue (goldilocksP - 6) *
+                      baseAt assignment multiplication.productC1) +
+                  (traceColumnSum assignment tailTraces (fun step => step.output.c1) +
+                   traceColumnSum assignment tailTraces (fun step => step.output.c0) +
+                   residue (goldilocksP - 6) *
+                     traceColumnSum assignment tailTraces KMulTrace.productC1) := by ac_rfl
+              _ = _ := by rw [head.terminal, tailTerminal]
+          · rcases tail with ⟨_, tailProductSum⟩
+            change baseAt assignment multiplication.productSum + traceColumnSum
+              assignment tailTraces KMulTrace.productSum =
+                (baseAt assignment leftHead.c0 + baseAt assignment leftHead.c1) *
+                  (baseAt assignment rightHead.c0 + baseAt assignment rightHead.c1) +
+                ((leftTail.zip rightTail).map fun pair =>
+                  (baseAt assignment pair.1.c0 + baseAt assignment pair.1.c1) *
+                    (baseAt assignment pair.2.c0 + baseAt assignment pair.2.c1)).foldr
+                  (fun value suffix => value + suffix) 0
+            rw [head.productSum, tailProductSum]
 
 structure DotTrace where
   base : Nat
@@ -404,6 +612,87 @@ def DotTrace.definitions (trace : DotTrace) : List Definition :=
 
 def DotTrace.next (trace : DotTrace) : Nat :=
   trace.output.c1 + 1
+/-- Scalar consequences retained from the allocated five-row gadgets. -/
+structure DotTrace.Components (trace : DotTrace) (assignment : Nat → Nat) : Prop where
+  qSum : baseAt assignment trace.qSumColumn =
+    (trace.multiplications.map fun multiplication =>
+      baseAt assignment multiplication.productC1).foldr (fun x y => x + y) 0
+  outputC0 : baseAt assignment trace.output.c0 =
+    (trace.multiplications.map fun multiplication =>
+      baseAt assignment multiplication.output.c0).foldr (fun x y => x + y) 0
+  productSumTerminal :
+    baseAt assignment trace.output.c1 + baseAt assignment trace.output.c0 +
+        residue (goldilocksP - 6) * baseAt assignment trace.qSumColumn =
+      (trace.multiplications.map fun multiplication =>
+        baseAt assignment multiplication.productSum).foldr (fun x y => x + y) 0
+/-- The dot program implies all three combined-NC scalar equations. -/
+theorem DotTrace.components_sound (trace : DotTrace)
+    (assignment : Nat → Nat)
+    (definitionsHold : DefinitionsHold assignment trace.definitions) :
+    trace.Components assignment := by
+  have multiplicationHolds : DefinitionsHold assignment (tracesDefinitions
+      trace.multiplications) := by
+    intro definition member
+    apply definitionsHold definition
+    simp [DotTrace.definitions, member]
+  have qDefinitionHolds : trace.qSumDefinition.Holds assignment := by
+    apply definitionsHold trace.qSumDefinition
+    unfold DotTrace.definitions
+    exact List.mem_append_right _ (List.mem_cons_self)
+  have qRaw : assignment trace.qSumColumn = lcEval assignment
+      (trace.multiplications.map fun multiplication =>
+        (multiplication.productC1, 1)) := by
+    simpa [DotTrace.qSumDefinition, Definition.Holds, Rhs.eval] using
+      qDefinitionHolds
+  have qResidue : baseAt assignment trace.qSumColumn = residue (lcEval assignment
+      (trace.multiplications.map fun multiplication =>
+          (multiplication.productC1, 1))) := by
+    apply Fin.ext
+    simpa [baseAt, residue] using
+      congrArg (fun value => value % goldilocksP) qRaw
+  have qTerms : residue (lcEval assignment (trace.multiplications.map
+      fun multiplication => (multiplication.productC1, 1))) =
+      (trace.multiplications.map fun multiplication =>
+        baseAt assignment multiplication.productC1).foldr (fun x y => x + y) 0 := by
+    simpa only [List.map_map, Function.comp_apply, List.foldr_map] using
+      termsValue_columns assignment (trace.multiplications.map KMulTrace.productC1)
+  have outputHolds : DefinitionsHold assignment trace.outputTrace.definitions := by
+    intro definition member
+    apply definitionsHold definition
+    simp [DotTrace.definitions, member]
+  have output : trace.output.value assignment = trace.outputTrace.input.value
+      assignment := by
+    simpa [DotTrace.outputTrace] using trace.outputTrace.sound assignment outputHolds
+  have summed : trace.outputTrace.input.value assignment =
+      sumK (trace.multiplications.map fun multiplication => multiplication.output.value
+        assignment) := by
+    simpa [DotTrace.outputTrace] using sumColumnsTerms_value
+      (trace.multiplications.map KMulTrace.output) assignment
+  have outputFolded : trace.output.value assignment =
+      ⟨(trace.multiplications.map fun multiplication =>
+          baseAt assignment multiplication.output.c0).foldr (fun x y => x + y) 0,
+      (trace.multiplications.map fun multiplication =>
+          baseAt assignment multiplication.output.c1).foldr (fun x y => x + y) 0⟩ := by
+    rw [output, summed]
+    unfold sumK
+    simpa only [List.map_map, Function.comp_def, KColumns.value] using
+      foldKValues (trace.multiplications.map fun m => m.output.value assignment)
+  have outputC0 : baseAt assignment trace.output.c0 =
+      (trace.multiplications.map fun multiplication =>
+        baseAt assignment multiplication.output.c0).foldr (fun x y => x + y) 0 := by
+    simpa only [KColumns.value] using congrArg K.c0 outputFolded
+  have outputC1 : baseAt assignment trace.output.c1 =
+      (trace.multiplications.map fun multiplication =>
+        baseAt assignment multiplication.output.c1).foldr (fun x y => x + y) 0 := by
+    simpa only [KColumns.value] using congrArg K.c1 outputFolded
+  have componentFolds := pairMulTraces_componentFolds assignment
+    trace.base trace.left trace.right multiplicationHolds
+  exact
+    { qSum := qResidue.trans qTerms
+      outputC0 := outputC0
+      productSumTerminal := by
+        rw [qResidue.trans qTerms, outputC0, outputC1]
+        exact componentFolds.1 }
 
 /-- Every dot-product block computes the ordered extension-field dot product.
 The extra `qSum` definition is included in the exact row stream but is not
@@ -441,6 +730,30 @@ theorem DotTrace.sound (trace : DotTrace) (assignment : Nat → Nat)
         multiplicationHolds
   rw [output, summed, products]
   rfl
+
+/-- The terminal scalar is the sum of the literal left/right coordinate
+products allocated by the same ordered five-row multiplication blocks. -/
+theorem DotTrace.productSum_terminal (trace : DotTrace)
+    (assignment : Nat → Nat)
+    (definitionsHold : DefinitionsHold assignment trace.definitions) :
+    baseAt assignment trace.output.c1 +
+        baseAt assignment trace.output.c0 +
+        residue (goldilocksP - 6) *
+          baseAt assignment trace.qSumColumn =
+      ((trace.left.zip trace.right).map fun pair =>
+        (baseAt assignment pair.1.c0 + baseAt assignment pair.1.c1) *
+          (baseAt assignment pair.2.c0 +
+            baseAt assignment pair.2.c1)).foldr
+        (fun value suffix => value + suffix) 0 := by
+  have components := trace.components_sound assignment definitionsHold
+  have multiplicationHolds : DefinitionsHold assignment
+      (tracesDefinitions trace.multiplications) := by
+    intro definition member
+    apply definitionsHold definition
+    simp [DotTrace.definitions, member]
+  have componentFolds := pairMulTraces_componentFolds assignment
+    trace.base trace.left trace.right multiplicationHolds
+  exact components.productSumTerminal.trans componentFolds.2
 
 structure ChiLayer where
   base : Nat

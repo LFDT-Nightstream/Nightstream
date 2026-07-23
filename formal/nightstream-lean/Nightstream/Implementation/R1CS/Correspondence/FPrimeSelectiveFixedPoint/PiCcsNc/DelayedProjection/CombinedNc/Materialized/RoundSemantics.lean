@@ -15,6 +15,13 @@ removal.
 Emits constraints: none.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.round_semantics` | Prove claimed-sum propagation for one typed SumCheck round. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.RoundSemantics
 
 open Nightstream.Implementation.R1CS

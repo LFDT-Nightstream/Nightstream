@@ -16,6 +16,13 @@ Emits constraints: 30 rows: two retained linear checks and four seven-row
 quadratic-extension Horner steps.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.production_round` | Give exact semantics for one five-coefficient production SumCheck round. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.ProductionRound
 
 open Nightstream.Implementation.R1CS

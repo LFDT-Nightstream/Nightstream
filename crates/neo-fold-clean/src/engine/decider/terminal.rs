@@ -88,6 +88,37 @@ pub fn synthesize_last_step_terminal_r1cs(
     prep: &Preprocessing,
     audit: &crate::lifecycle::UncompressedAudit,
 ) -> Result<LastStepTerminalSynthesis, decider::Error> {
+    synthesize_last_step_terminal_r1cs_inner(prep, audit, TerminalClosureMode::Emit).map(|(synthesis, _)| synthesis)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TerminalClosureMode {
+    Emit,
+    CaptureProjectionPlacement,
+}
+
+pub(super) fn capture_last_step_terminal_projection_placement(
+    prep: &Preprocessing,
+    audit: &crate::lifecycle::UncompressedAudit,
+) -> Result<crate::engine::r1cs_circuit::TerminalPendingProjectionAudit, decider::Error> {
+    let (_, placement) =
+        synthesize_last_step_terminal_r1cs_inner(prep, audit, TerminalClosureMode::CaptureProjectionPlacement)?;
+    placement.ok_or_else(|| {
+        decider::Error::WalkFailed("active fixed profile omitted its terminal pending projection".into())
+    })
+}
+
+fn synthesize_last_step_terminal_r1cs_inner(
+    prep: &Preprocessing,
+    audit: &crate::lifecycle::UncompressedAudit,
+    closure_mode: TerminalClosureMode,
+) -> Result<
+    (
+        LastStepTerminalSynthesis,
+        Option<crate::engine::r1cs_circuit::TerminalPendingProjectionAudit>,
+    ),
+    decider::Error,
+> {
     if audit.proof.final_fold.is_none() {
         return Err(decider::Error::WalkFailed(
             "terminal decider requires a finalized proof (run `finish_uncompressed_with_audit` first)".into(),
@@ -177,7 +208,11 @@ pub fn synthesize_last_step_terminal_r1cs(
     let last_public_batch = &statement.witness.public_batches[last_idx];
 
     // 3. Emit ONLY the last F' step. Constant in N.
-    let mut builder = R1csBuilder::new();
+    let mut builder = if closure_mode == TerminalClosureMode::CaptureProjectionPlacement {
+        R1csBuilder::new_witness_only()
+    } else {
+        R1csBuilder::new()
+    };
     let last_output = match &last_step_proof.fold {
         FoldProof::NoFold => {
             let out = emit_base_step_r1cs(&mut builder, prep, &last_state_in, &last_state_out, last_public_batch)
@@ -214,6 +249,7 @@ pub fn synthesize_last_step_terminal_r1cs(
         final_acc_digest,
         terminal_running,
         terminal_children,
+        terminal_pending_projection,
     ) = emit_terminal_fold(
         &mut builder,
         prep,
@@ -257,20 +293,53 @@ pub fn synthesize_last_step_terminal_r1cs(
     let final_running = final_running
         .materialize()
         .map_err(|e| decider::Error::WalkFailed(format!("materialize final running: {e}")))?;
-    crate::paper::decider_ce_relation::enforce_final_ce_relations(
-        &mut builder,
-        prep,
-        &terminal_children,
-        &final_running.witnesses,
-    )
-    .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
-    let terminal_ce_direct_relations = true;
+    let placement = match (closure_mode, terminal_pending_projection.as_ref()) {
+        (TerminalClosureMode::Emit, Some(pending)) => {
+            crate::paper::decider_ce_relation::enforce_final_ce_relations_with_pending_projection(
+                &mut builder,
+                prep,
+                &terminal_children,
+                &final_running.witnesses,
+                pending,
+            )
+            .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
+            None
+        }
+        (TerminalClosureMode::Emit, None) => {
+            crate::paper::decider_ce_relation::enforce_final_ce_relations(
+                &mut builder,
+                prep,
+                &terminal_children,
+                &final_running.witnesses,
+            )
+            .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
+            None
+        }
+        (TerminalClosureMode::CaptureProjectionPlacement, Some(pending)) => Some(
+            crate::paper::decider_ce_relation::capture_final_ce_pending_projection_placement(
+                &mut builder,
+                prep,
+                &terminal_children,
+                &final_running.witnesses,
+                pending,
+            )
+            .map_err(|e| decider::Error::WalkFailed(format!("terminal projection placement: {e}")))?,
+        ),
+        (TerminalClosureMode::CaptureProjectionPlacement, None) => {
+            return Err(decider::Error::WalkFailed(
+                "active fixed profile omitted its terminal pending projection".into(),
+            ));
+        }
+    };
 
-    Ok(LastStepTerminalSynthesis {
-        builder,
-        running_claim_count: terminal_running.len(),
-        has_final_fold: true,
-        public_image_pins,
-        terminal_ce_direct_relations,
-    })
+    Ok((
+        LastStepTerminalSynthesis {
+            builder,
+            running_claim_count: terminal_running.len(),
+            has_final_fold: true,
+            public_image_pins,
+            terminal_ce_direct_relations: closure_mode == TerminalClosureMode::Emit,
+        },
+        placement,
+    ))
 }

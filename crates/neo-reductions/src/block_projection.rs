@@ -7,6 +7,8 @@ use neo_ccs::utils::tensor_point_parallel;
 use neo_ccs::Mat;
 use neo_math::{D, K};
 use p3_field::{Field, PrimeCharacteristicRing};
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+use rayon::prelude::*;
 
 use crate::common::validate_superneo_witness_mat;
 use crate::error::PiCcsError;
@@ -29,10 +31,10 @@ pub fn project_raw_witness_at_block_point<Ff>(
     block_point: &[K; BLOCK_PROJECTION_POINT_LEN],
 ) -> Result<[K; D], PiCcsError>
 where
-    Ff: Field + PrimeCharacteristicRing + Copy,
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let mut projected = project_raw_witnesses_at_block_point(core::slice::from_ref(witness), expected_m, block_point)?;
+    let mut projected = project_raw_witness_refs_at_block_point(&[witness], expected_m, block_point)?;
     Ok(projected
         .pop()
         .expect("one input witness produces one projected row"))
@@ -48,7 +50,21 @@ pub fn project_raw_witnesses_at_block_point<Ff>(
     block_point: &[K; BLOCK_PROJECTION_POINT_LEN],
 ) -> Result<Vec<[K; D]>, PiCcsError>
 where
-    Ff: Field + PrimeCharacteristicRing + Copy,
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
+    K: From<Ff>,
+{
+    let witness_refs = witnesses.iter().collect::<Vec<_>>();
+    project_raw_witness_refs_at_block_point(&witness_refs, expected_m, block_point)
+}
+
+/// Borrowed batch form of [`project_raw_witnesses_at_block_point`].
+pub fn project_raw_witness_refs_at_block_point<Ff>(
+    witnesses: &[&Mat<Ff>],
+    expected_m: usize,
+    block_point: &[K; BLOCK_PROJECTION_POINT_LEN],
+) -> Result<Vec<[K; D]>, PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
     let active_blocks = expected_m.div_ceil(D);
@@ -62,21 +78,32 @@ where
     }
 
     let weights = tensor_point_parallel::<K>(block_point);
-    let projected = witnesses
-        .iter()
-        .map(|witness| {
-            let mut lanes = [K::ZERO; D];
-            for lane in 0..D {
-                let mut value = K::ZERO;
-                for block in 0..active_blocks {
-                    value += K::from(witness[(lane, block)]) * weights[block];
+    let project = |witness: &&Mat<Ff>| {
+        let mut lanes = [K::ZERO; D];
+        for lane in 0..D {
+            let mut value = K::ZERO;
+            for block in 0..active_blocks {
+                let digit = witness[(lane, block)];
+                if digit == Ff::ONE {
+                    value += weights[block];
+                } else if digit == Ff::NEG_ONE {
+                    value -= weights[block];
+                } else if digit != Ff::ZERO {
+                    value += K::from(digit) * weights[block];
                 }
-                lanes[lane] = value;
             }
-            lanes
-        })
-        .collect();
-    Ok(projected)
+            lanes[lane] = value;
+        }
+        lanes
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    {
+        Ok(witnesses.par_iter().map(project).collect())
+    }
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    {
+        Ok(witnesses.iter().map(project).collect())
+    }
 }
 
 /// Project ordered raw children and recombine them with powers of `radix`.
@@ -90,7 +117,7 @@ pub fn radix_recompose_raw_witnesses_at_block_point<Ff>(
     radix: K,
 ) -> Result<[K; D], PiCcsError>
 where
-    Ff: Field + PrimeCharacteristicRing + Copy,
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
     let projected = project_raw_witnesses_at_block_point(witnesses, expected_m, block_point)?;

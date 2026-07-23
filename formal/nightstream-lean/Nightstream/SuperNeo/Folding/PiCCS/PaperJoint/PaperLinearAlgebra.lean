@@ -30,6 +30,7 @@ on column order or dot-product arithmetic.
 | `matrixVectorAt` | `(M_j z)(x)` | canonical-column fold of `M[x,c] * z[c]` |
 | `matrixVectorAt_zero` | canonical zero assignment | every finite matrix-vector row is zero |
 | `matrixVectorAt_oneHot` | one selected assignment coordinate | exact selected matrix entry times its value |
+| `matrixVectorAt_identityRow` | one identity-matrix row | exact selected assignment value |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -182,6 +183,41 @@ theorem matrixVectorAt_oneHot
   rw [contributionFunction]
   exact foldl_oneHot ops laws (canonicalFinIndices columns) selected
     (fun column => ops.mul (matrix vertex column) value)
+    (canonicalFinIndices_nodup columns)
+    (by simp [canonicalFinIndices])
+
+/-- A row of the identity matrix returns exactly the assignment coordinate
+selected by that row. The premise exposes the matrix entries directly; no
+caller-provided matrix-image equality is assumed. -/
+theorem matrixVectorAt_identityRow
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    {variables columns : Nat}
+    (matrix : BooleanMatrix Field variables columns)
+    (assignment : Assignment Field columns)
+    (vertex : BooleanVertex variables)
+    (selected : Fin columns)
+    (identityRow : forall column,
+      matrix vertex column =
+        if column = selected then ops.one else ops.zero) :
+    matrixVectorAt ops matrix assignment vertex = assignment selected := by
+  unfold matrixVectorAt
+  have contributionFunction :
+      (fun accumulated column =>
+        ops.add accumulated
+          (ops.mul (matrix vertex column) (assignment column))) =
+      (fun accumulated column =>
+        ops.add accumulated
+          (if column = selected then assignment column else ops.zero)) := by
+    funext accumulated column
+    rw [identityRow column]
+    by_cases equal : column = selected
+    · rw [if_pos equal, if_pos equal, laws.one_mul]
+    · rw [if_neg equal, if_neg equal,
+        laws.mul_comm ops.zero (assignment column), laws.mul_zero]
+  rw [contributionFunction]
+  exact foldl_oneHot ops laws (canonicalFinIndices columns) selected assignment
     (canonicalFinIndices_nodup columns)
     (by simp [canonicalFinIndices])
 

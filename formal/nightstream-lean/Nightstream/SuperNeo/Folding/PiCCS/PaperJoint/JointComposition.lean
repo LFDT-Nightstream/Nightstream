@@ -9,13 +9,15 @@ import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.UnifiedSources
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolDataRefinement
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FullOutputCoordinates
 
 /-!
 Signed joint-polynomial composition for paper `Pi_CCS`.
 
 Owns: only construction of the single paper joint object from independent
 CCS, norm, and carried-evaluation sources; its target convention; coefficient
-serialization; and the exact signed identity used by SumCheck.
+serialization; the exact signed identity used by SumCheck; and projection of
+one complete paper output family to the canonical output-message surface.
 
 Does not own: acceptance of a transcript, approval of the candidate paper
 target correction, concrete Poseidon2, Phi81 packing, or implementation
@@ -29,4 +31,5 @@ Emits constraints: no.
 | signed identity | `T_abs - sum_x Q` equals the signed residual combination |
 | source connectivity | one authoritative source family constructs every joint input |
 | protocol polynomial | the nonlinear off-cube polynomial agrees with residual truth on Boolean points |
+| full output projection | one complete paper `y'` family projects all canonical output-message fields |
 -/

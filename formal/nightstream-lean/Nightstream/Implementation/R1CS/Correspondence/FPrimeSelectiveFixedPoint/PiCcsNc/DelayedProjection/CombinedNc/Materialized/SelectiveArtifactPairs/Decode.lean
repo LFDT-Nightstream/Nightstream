@@ -21,6 +21,13 @@ certificate predicates, but this file performs no closed computation over a
 generated collection.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.selective_pairs.decode` | Lift compact certificate facts into typed row and source-obligation equalities. | checked artifact |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveArtifactPairs
 
 open Nightstream.SuperNeo.Concrete
@@ -604,6 +611,75 @@ private theorem decodeField_val {raw : Nat} {decoded : F}
     subst decoded
     rfl
   next notCanonical => simp at decodes
+
+/-- Lossless evaluation of one decoded source linear combination on the same
+source assignment.  Unlike the emitted-row substitution theorem below, this
+lemma performs no compiler-assignment reconstruction. -/
+theorem linearCombinationValue_eq_raw
+    {columns : Nat} {raw : RawLinearCombination}
+    {decoded : DecodedLinearCombination columns}
+    (decodes : decodeLinearCombination columns raw = some decoded)
+    (assignment : Nat → Nat) :
+    linearCombinationValue decoded assignment =
+      fieldResidue
+        (lcEval assignment
+          (SourceAssignment.RawLinearCombination.programTerms raw)) := by
+  unfold decodeLinearCombination at decodes
+  cases constantResult : decodeField raw.constant with
+  | none => simp [constantResult] at decodes
+  | some constant =>
+      cases termsResult : decodeTerms columns raw.terms with
+      | none => simp [constantResult, termsResult] at decodes
+      | some terms =>
+          simp [constantResult, termsResult] at decodes
+          subst decoded
+          unfold linearCombinationValue linearCombinationTerms
+          rw [termsAsNatTerms_eq_of_decodeTerms termsResult,
+            decodeField_val constantResult]
+          unfold SourceAssignment.RawLinearCombination.programTerms
+          have termsMapEq :
+              raw.terms.map (fun term =>
+                (term.column, term.coefficient)) =
+                raw.terms.map SourceAssignment.RawTerm.asNatTerm := by
+            apply congrArg (fun mapper => raw.terms.map mapper)
+            funext term
+            rfl
+          rw [termsMapEq]
+          by_cases constantZero : raw.constant = 0
+          · simp [constantZero, lcEval, fieldResidue, Nat.mod_mod]
+          · simp [constantZero]
+
+/-- Lossless evaluation of one decoded product factor on the same source
+assignment. -/
+theorem productFactorValue_eq_raw
+    {columns : Nat} {raw : RawProductFactor}
+    {decoded : DecodedProductFactor columns}
+    (decodes : decodeProductFactor columns raw = some decoded)
+    (assignment : Nat → Nat) :
+    productFactorValue decoded assignment =
+      fieldResidue raw.coefficient *
+        fieldResidue
+          (lcEval assignment
+            (SourceAssignment.RawLinearCombination.programTerms raw.left)) *
+        fieldResidue
+          (lcEval assignment
+            (SourceAssignment.RawLinearCombination.programTerms raw.right)) := by
+  unfold decodeProductFactor at decodes
+  cases leftResult : decodeLinearCombination columns raw.left with
+  | none => simp [leftResult] at decodes
+  | some left =>
+      cases rightResult : decodeLinearCombination columns raw.right with
+      | none => simp [leftResult, rightResult] at decodes
+      | some right =>
+          cases coefficientResult : decodeField raw.coefficient with
+          | none => simp [leftResult, rightResult, coefficientResult] at decodes
+          | some coefficient =>
+              simp [leftResult, rightResult, coefficientResult] at decodes
+              subst decoded
+              unfold productFactorValue
+              rw [linearCombinationValue_eq_raw leftResult,
+                linearCombinationValue_eq_raw rightResult,
+                decodeField_value coefficientResult]
 
 theorem linearCombinationValue_eq_evalSourceLinearForm
     {columns : Nat} {raw : RawLinearCombination}

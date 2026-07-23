@@ -6,6 +6,17 @@ Proof-free pair certificates for rewrite shards 18--23.  Shards 18--22 contain
 or proof-carrying collection is an executable input.
 -/
 
+/-!
+Owns: the fourth bounded proof-free selective artifact-pair certificate shard.
+Does not own: decoded semantics, assignment authority, transcript order, or row removal.
+Emits constraints: none.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.selective_pairs.shard3` | Check the final bounded batch of compact pairing records. | computed artifact |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveArtifactPairs.CertificateShard3
 
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveArtifactPairs

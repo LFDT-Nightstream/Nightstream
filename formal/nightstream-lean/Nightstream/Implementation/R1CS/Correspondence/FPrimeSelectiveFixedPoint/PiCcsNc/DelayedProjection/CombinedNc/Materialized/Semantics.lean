@@ -22,6 +22,13 @@ prove that these decoded rows are the rows selected from production before
 using the satisfaction predicates below.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.semantics` | State the independent typed semantics refined by the materialized source program. | computed semantics |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.Semantics
 
 open Nightstream.SuperNeo.Concrete

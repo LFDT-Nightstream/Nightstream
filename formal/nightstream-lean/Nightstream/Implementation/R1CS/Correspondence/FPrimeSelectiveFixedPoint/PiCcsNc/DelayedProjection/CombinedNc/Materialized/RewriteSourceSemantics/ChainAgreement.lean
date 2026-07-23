@@ -24,6 +24,13 @@ Emits constraints: none.
 Assurance tier: model-level.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.rewrite_source.chain_agreement` | Prove closed-chain agreement between source definitions and rewrite outputs. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.RewriteSourceSemantics.ChainAgreement
 
 open Nightstream.SuperNeo.Concrete

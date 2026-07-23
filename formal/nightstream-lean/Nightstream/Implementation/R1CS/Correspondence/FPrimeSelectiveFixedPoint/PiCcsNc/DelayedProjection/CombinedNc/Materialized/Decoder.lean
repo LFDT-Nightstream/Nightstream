@@ -19,6 +19,13 @@ empty or escaping ranges, missing pending columns, wrong profile lengths, and
 self-inconsistent round maps all return `none`.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.decoder` | Decode proof-free generated row and provenance records into typed R1CS structures. | checked artifact |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.Decoder
 
 open Nightstream.SuperNeo.Concrete

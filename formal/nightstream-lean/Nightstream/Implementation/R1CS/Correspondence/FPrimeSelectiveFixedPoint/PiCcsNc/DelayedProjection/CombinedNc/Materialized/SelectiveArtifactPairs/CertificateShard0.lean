@@ -6,6 +6,17 @@ Proof-free pair certificates for the 52 retained records and rewrite shards
 records; decoded structures and proof fields are absent.
 -/
 
+/-!
+Owns: the first bounded proof-free selective artifact-pair certificate shard.
+Does not own: decoded semantics, assignment authority, transcript order, or row removal.
+Emits constraints: none.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.selective_pairs.shard0` | Check the first bounded batch of compact pairing records. | computed artifact |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveArtifactPairs.CertificateShard0
 
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveArtifactPairs

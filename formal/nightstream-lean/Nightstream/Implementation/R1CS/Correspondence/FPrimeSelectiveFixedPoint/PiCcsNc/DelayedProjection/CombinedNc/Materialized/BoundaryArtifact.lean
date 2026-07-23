@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.Metadata
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Metadata
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.Decoder
 
 /-!
@@ -17,6 +17,13 @@ nested payload consists of fifteen rows of sixty-four output column pairs,
 fifty-four pending-parent pairs, nineteen pending/block-point/beta pairs,
 six lane-point/beta pairs, and scalar/range metadata. No assignment or proof
 object is evaluated by the certificate.
+-/
+
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.boundary_artifact` | Connect boundary source rows and emitted rows at the materialized artifact boundary. | checked artifact |
+
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.BoundaryArtifact

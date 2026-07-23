@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.Provenance
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Provenance
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.Semantics
 import Nightstream.Implementation.R1CS.Core.Program
 
@@ -20,6 +20,13 @@ The generated records remain untrusted inputs here.  Later bounded artifact
 certificates must prove their exact partition, SSA discipline, canonical
 coefficients, and agreement with the fail-closed typed decoder.  This leaf
 only gives those certificates a small deterministic interpreter.
+-/
+
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.source_assignment` | Materialize generated source columns from authoritative boundary inputs and derived definitions. | direct dataflow |
+
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SourceAssignment

@@ -16,6 +16,13 @@ Emits constraints: 376 rows: `53 * 7` Horner rows and one five-row
 quadratic-extension multiplication.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.initial_program` | State and prove the initial claimed-sum source program used by the combined-NC chain. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.InitialProgram
 
 open Nightstream.Implementation.R1CS

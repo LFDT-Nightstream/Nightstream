@@ -16,6 +16,13 @@ Emits constraints: none.  The artifact certificate owns exactly one 30-row
 production round.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.round_artifact_semantics` | Transfer exact decoded round rows into the independent round semantics. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.RoundArtifactSemantics
 
 open Nightstream.Implementation.R1CS

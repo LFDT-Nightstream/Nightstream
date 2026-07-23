@@ -18,6 +18,13 @@ Assurance tier: model-level. Generated certificates may discharge the explicit
 premises, but this file imports and evaluates no generated row collection.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.source_decode_bridge` | Connect indexed source-row decoding facts to typed source obligations. | checked artifact |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SourceDecodeBridge
 
 open Nightstream.SuperNeo.Concrete

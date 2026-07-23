@@ -20,6 +20,13 @@ Emits constraints: none.  This is a generic kernel theorem over the concrete
 separate bounded certificate leaf.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.claimed_chain` | Thread claimed SumCheck values through the exact materialized round chain. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.ClaimedChain
 
 open Nightstream.Implementation.R1CS

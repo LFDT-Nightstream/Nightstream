@@ -14,4 +14,8 @@ commitment binding, costs, or row removal.
 Emits constraints: none; facade only.
 
 Assurance tier: model-level.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.rewrite_source_semantics` | Export the stable source/rewrite semantic boundary without artifact assumptions. | derived |
 -/

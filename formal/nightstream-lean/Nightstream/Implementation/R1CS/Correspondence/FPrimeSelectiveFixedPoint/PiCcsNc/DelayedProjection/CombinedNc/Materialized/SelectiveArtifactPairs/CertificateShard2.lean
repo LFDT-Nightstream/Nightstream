@@ -5,6 +5,17 @@ Proof-free pair certificates for rewrite shards 12--17.  Each invocation sees
 exactly 64 raw pair records and no decoded or proof-carrying collection.
 -/
 
+/-!
+Owns: the third bounded proof-free selective artifact-pair certificate shard.
+Does not own: decoded semantics, assignment authority, transcript order, or row removal.
+Emits constraints: none.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.selective_pairs.shard2` | Check the third bounded batch of compact pairing records. | computed artifact |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveArtifactPairs.CertificateShard2
 
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveArtifactPairs

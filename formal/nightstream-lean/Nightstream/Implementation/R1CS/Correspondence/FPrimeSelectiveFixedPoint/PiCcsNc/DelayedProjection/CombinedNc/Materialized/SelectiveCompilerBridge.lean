@@ -25,6 +25,13 @@ decoded source program.  This file closes only the algebra common to every
 such artifact and the directly retained physical rows.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.selective_compiler_bridge` | State typed rewrite, elimination, retained-check, and row-satisfaction bridge obligations. | derived interface |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveCompilerBridge
 
 open Nightstream.SuperNeo.Concrete

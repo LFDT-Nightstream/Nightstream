@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Generated.SourceRows.Chunk62
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.SourceRows.Retained
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.RoundArtifact
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SelectiveArtifactPairs.Artifact
 
@@ -24,6 +24,13 @@ Assurance tier: artifact-checked for the fixed generated production profile.
 The certificate compares literal sparse coefficients and source-row indices;
 stage labels, digests, counts, and contiguous intervals are not semantic
 authority.
+-/
+
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.retained_source_artifact` | Establish exact ownership and decoding for retained source-check rows. | checked artifact |
+
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.RetainedSourceArtifact
@@ -69,10 +76,9 @@ def roundRetainedSourceRows : List RawSourceRow :=
   roundRows RoundArtifact.round23Rows ++
   roundRows RoundArtifact.round24Rows
 
-/-- The two final terminal-equality checks. Their absolute source rows are
-`4299099` and `4299100`; the certificate below checks those indices and all
-sparse coefficients through the retained provenance rather than trusting the
-offset. -/
+/-- The two final terminal-equality checks. The certificate below checks their
+generated absolute indices and all sparse coefficients through the retained
+provenance rather than trusting a handwritten offset. -/
 def terminalRetainedSourceRows : List RawSourceRow :=
   (SourceRows.Chunk62.values.drop 83).take 2
 

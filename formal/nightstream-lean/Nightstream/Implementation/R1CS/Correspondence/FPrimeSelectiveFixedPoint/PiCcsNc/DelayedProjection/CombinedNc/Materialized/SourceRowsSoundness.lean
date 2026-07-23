@@ -22,6 +22,15 @@ conditional on literal source-row satisfaction, canonical assignment words,
 and the constant-one column.
 -/
 
+/-!
+Emits constraints: none; this module proves soundness of already-generated source rows.
+
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.source_rows_soundness` | Show exact source-row satisfaction implies the complete source program. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.SourceRowsSoundness
 
 open Nightstream.Implementation.R1CS

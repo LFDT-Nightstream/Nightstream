@@ -18,6 +18,13 @@ records so a bounded generated certificate can group them without expanding
 field algebra repeatedly.
 -/
 
+/-!
+| Stable stage path | Obligation | Authority class |
+|---|---|---|
+| `f_prime.pi_ccs_nc.delayed.combined.rewrite_chain` | Compose ordered rewrite blocks into the complete source-definition chain. | derived |
+
+-/
+
 namespace Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.RewriteChain
 
 open Nightstream.SuperNeo.Concrete

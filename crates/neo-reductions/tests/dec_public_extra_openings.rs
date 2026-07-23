@@ -6,6 +6,10 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
+fn column_point_len(structure: &CcsStructure<F>) -> usize {
+    structure.m.next_power_of_two().max(2).trailing_zeros() as usize
+}
+
 fn two_digit_params() -> NeoParams {
     let paper = NeoParams::goldilocks_paper_b2();
     NeoParams::new(
@@ -161,6 +165,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     assert!(neo_reductions::api::verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &[child0.clone(), child1.clone()],
         combine_b_pows,
@@ -173,6 +178,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     assert!(!neo_reductions::api::verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent_bad,
         &[child0.clone(), child1.clone()],
         combine_b_pows,
@@ -187,6 +193,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     assert!(!neo_reductions::api::verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent_bad2,
         &[child0.clone(), child1.clone()],
         combine_b_pows,
@@ -200,6 +207,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     assert!(!neo_reductions::api::verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &[child0.clone(), child1_bad],
         combine_b_pows,
@@ -212,6 +220,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     assert!(!neo_reductions::api::verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent_bad3,
         &[child0.clone(), child1.clone()],
         combine_b_pows,
@@ -224,6 +233,7 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     assert!(!neo_reductions::api::verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent_bad4,
         &[child0.clone(), child1.clone()],
         combine_b_pows,
@@ -357,6 +367,7 @@ fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
     assert!(neo_reductions::api::verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &[child0.clone(), child1.clone()],
         combine_b_pows,
@@ -371,6 +382,7 @@ fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
     assert!(neo_reductions::api::verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent_bad,
         &[child0.clone(), child1.clone()],
         combine_b_pows,
@@ -385,6 +397,7 @@ fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
     assert!(!neo_reductions::api::verify_dec_public(
         &s,
         &params,
+        column_point_len(&s),
         &parent,
         &[child0, child1_bad],
         combine_b_pows,

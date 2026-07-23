@@ -31,6 +31,10 @@ const ACTIVE_MATRICES: usize = 13;
 const ACTIVE_LOGICAL_X: usize = 270;
 const ACTIVE_RING_DIMENSION: usize = 54;
 const ACTIVE_NONCOMMITMENT_SOURCE_ROWS: usize = 11_629;
+const ACTIVE_X_RECOMPOSITION_ROWS: usize = ACTIVE_LOGICAL_X;
+const ACTIVE_X_CANONICALITY_ROWS: usize = ACTIVE_LOGICAL_X * (2 + ACTIVE_CHILDREN);
+const ACTIVE_CANONICAL_X_SOURCE_ROWS: usize = ACTIVE_X_RECOMPOSITION_ROWS + ACTIVE_X_CANONICALITY_ROWS;
+const ACTIVE_CANONICAL_X_SOURCE_COLUMNS: usize = 1 + ACTIVE_CLAIMS * ACTIVE_LOGICAL_X + 2 * ACTIVE_LOGICAL_X;
 
 /// Exact bounded projection of the outer steady-recursive `nifs.pi_dec`
 /// source rows. The distinct PiDEC invocation inside PiCCS running-parent
@@ -39,6 +43,22 @@ const ACTIVE_NONCOMMITMENT_SOURCE_ROWS: usize = 11_629;
 pub struct R1csIvcPiDecSelectiveRowsAudit {
     source: R1csIvcPiDecSourceRowsAudit,
     projected_rows: SelectiveProjectedRowsAudit,
+}
+
+/// Exact selective projection of only the strict-PiDEC public-X
+/// recomposition and uniform-sign canonicality leaves.
+///
+/// `semantic_source_ranges` names the 4,590 source equations whose exact
+/// coefficients establish the public split. `source_rows` additionally
+/// contains every complete compiler rewrite intersecting those equations.
+/// Stage names locate the two leaves; the recovered A/B/C rows and compiler
+/// provenance remain the authority.
+#[derive(Debug)]
+pub struct R1csIvcPiDecCanonicalXSelectiveRowsAudit {
+    source: R1csIvcPiDecSourceRowsAudit,
+    projected_rows: SelectiveProjectedRowsAudit,
+    semantic_source_ranges: [RowFamilyRange; 2],
+    semantic_source_columns: Vec<usize>,
 }
 
 /// Exact active source layout and rewrite expansion, without materializing
@@ -114,6 +134,46 @@ impl R1csIvcPiDecSelectiveRowsAudit {
     }
 }
 
+impl R1csIvcPiDecCanonicalXSelectiveRowsAudit {
+    pub fn fixed_point(&self) -> &R1csIvcFixedPointShapeAudit {
+        self.source.fixed_point()
+    }
+
+    pub fn projected_rows(&self) -> &SelectiveProjectedRowsAudit {
+        &self.projected_rows
+    }
+
+    pub fn strict(&self) -> &PiDecStrictAudit {
+        self.source.strict()
+    }
+
+    /// In order: exact source ranges for `recomposition.x` and `alphabet`.
+    pub fn semantic_source_ranges(&self) -> &[RowFamilyRange; 2] {
+        &self.semantic_source_ranges
+    }
+
+    /// Constant one, all ordered parent/child active-X columns, and all 270
+    /// `[sign, centered-product]` trace pairs. This is exactly 4,591 distinct
+    /// columns for the active profile.
+    pub fn semantic_source_columns(&self) -> &[usize] {
+        &self.semantic_source_columns
+    }
+
+    /// Sorted source rows after complete expansion of every compiler rewrite
+    /// intersecting the two semantic leaves.
+    pub fn source_rows(&self) -> &[usize] {
+        self.source.source_rows()
+    }
+
+    pub fn source_row_ranges(&self) -> &[Range<usize>] {
+        self.source.source_row_ranges()
+    }
+
+    pub fn source_row_artifacts(&self) -> &[R1csIvcPiDecSourceRowAudit] {
+        self.source.source_row_artifacts()
+    }
+}
+
 impl R1csIvcPiDecSourceRowsAudit {
     pub fn fixed_point(&self) -> &R1csIvcFixedPointShapeAudit {
         &self.fixed_point
@@ -150,6 +210,18 @@ struct PreparedPiDecSourceAudit {
     selected_rows: Vec<usize>,
     retained_row_pairs: Vec<(usize, usize)>,
     source_columns: Vec<usize>,
+}
+
+struct PreparedPiDecContext {
+    candidate: super::FixedPointCandidate,
+    strict: PiDecStrictAudit,
+    leaf_source_ranges: Vec<RowFamilyRange>,
+}
+
+struct PreparedPiDecCanonicalXAudit {
+    source: PreparedPiDecSourceAudit,
+    semantic_source_ranges: [RowFamilyRange; 2],
+    semantic_source_columns: Vec<usize>,
 }
 
 impl PreparedPiDecSourceAudit {
@@ -191,29 +263,32 @@ impl R1csIvcRelation {
         plan: &RecursiveStepImagePlan,
     ) -> Result<R1csIvcPiDecSelectiveRowsAudit, R1csIvcError> {
         let prepared = prepare_pi_dec_source(params, app, plan)?;
-        let steady_arm_index = R1csIvcBranch::Recursive.index();
-        let projected_rows =
-            super::super::super::selective::project_rows_with_complete_source_provenance_with_alignment(
-                &prepared.candidate.arms,
-                0,
-                0,
-                D,
-                prepared.candidate.arms[0].m_in % D,
-                &prepared.selected_rows,
-                steady_arm_index,
-                &prepared.source_columns,
-                &prepared.retained_row_pairs,
-            )?;
-        validate_projection(
-            &projected_rows,
-            &prepared.candidate.shape,
-            steady_arm_index,
-            &prepared.selected_rows,
-            &prepared.retained_row_pairs,
-        )?;
+        let projected_rows = project_pi_dec_rows(&prepared)?;
         Ok(R1csIvcPiDecSelectiveRowsAudit {
             source: prepared.into_source(),
             projected_rows,
+        })
+    }
+
+    /// Materialize only the final selectively emitted rows needed to recover
+    /// the canonical 270-coordinate parent-to-fourteen-child public-X split.
+    ///
+    /// The source seed is exactly `recomposition.x` plus `alphabet`. Complete
+    /// intersecting compiler rewrites are then added fail closed. The decoder
+    /// request starts only from columns present in those exact rows; it does
+    /// not pull the rest of the strict-PiDEC carrier into the projection.
+    pub fn audit_fixed_point_pi_dec_canonical_x_rows(
+        params: &Params,
+        app: &R1csShape,
+        plan: &RecursiveStepImagePlan,
+    ) -> Result<R1csIvcPiDecCanonicalXSelectiveRowsAudit, R1csIvcError> {
+        let prepared = prepare_pi_dec_canonical_x(params, app, plan)?;
+        let projected_rows = project_pi_dec_rows(&prepared.source)?;
+        Ok(R1csIvcPiDecCanonicalXSelectiveRowsAudit {
+            source: prepared.source.into_source(),
+            projected_rows,
+            semantic_source_ranges: prepared.semantic_source_ranges,
+            semantic_source_columns: prepared.semantic_source_columns,
         })
     }
 }
@@ -223,6 +298,61 @@ fn prepare_pi_dec_source(
     app: &R1csShape,
     plan: &RecursiveStepImagePlan,
 ) -> Result<PreparedPiDecSourceAudit, R1csIvcError> {
+    let context = prepare_pi_dec_context(params, app, plan)?;
+    let source_rows = (context.strict.row_start..context.strict.row_end).collect();
+    prepare_pi_dec_projection(context, source_rows, true)
+}
+
+fn prepare_pi_dec_canonical_x(
+    params: &Params,
+    app: &R1csShape,
+    plan: &RecursiveStepImagePlan,
+) -> Result<PreparedPiDecCanonicalXAudit, R1csIvcError> {
+    let context = prepare_pi_dec_context(params, app, plan)?;
+    let semantic_source_ranges = canonical_x_source_ranges(&context.leaf_source_ranges)?;
+    if (semantic_source_ranges[0].row_start..semantic_source_ranges[0].row_end) != context.strict.x_recomposition_rows
+        || (semantic_source_ranges[1].row_start..semantic_source_ranges[1].row_end)
+            != context.strict.x_canonicality_rows
+    {
+        return Err(invalid_pi_dec_audit(
+            "strict PiDEC canonical-X audit ranges differ from the emitter-owned schedule",
+        ));
+    }
+    let semantic_source_rows = semantic_source_ranges
+        .iter()
+        .flat_map(|range| range.row_start..range.row_end)
+        .collect::<BTreeSet<_>>();
+    if semantic_source_rows.len() != ACTIVE_CANONICAL_X_SOURCE_ROWS {
+        return Err(invalid_pi_dec_audit(format!(
+            "strict PiDEC canonical-X leaves contain {} rows, expected {ACTIVE_CANONICAL_X_SOURCE_ROWS}",
+            semantic_source_rows.len()
+        )));
+    }
+
+    let steady_arm = &context.candidate.arms[R1csIvcBranch::Recursive.index()];
+    let semantic_rows = semantic_source_rows.iter().copied().collect::<Vec<_>>();
+    let semantic_row_artifacts = recover_source_rows(steady_arm, &semantic_rows)?;
+    let semantic_source_columns = columns_in_source_rows(&semantic_row_artifacts);
+    let expected_source_columns = canonical_x_source_columns(&context.strict)?;
+    if semantic_source_columns != expected_source_columns {
+        return Err(invalid_pi_dec_audit(
+            "strict PiDEC canonical-X source coefficients differ from the recorded parent/child/trace layout",
+        ));
+    }
+
+    let source = prepare_pi_dec_projection(context, semantic_source_rows, false)?;
+    Ok(PreparedPiDecCanonicalXAudit {
+        source,
+        semantic_source_ranges,
+        semantic_source_columns: expected_source_columns.into_iter().collect(),
+    })
+}
+
+fn prepare_pi_dec_context(
+    params: &Params,
+    app: &R1csShape,
+    plan: &RecursiveStepImagePlan,
+) -> Result<PreparedPiDecContext, R1csIvcError> {
     if D != ACTIVE_RING_DIMENSION || <K as BasedVectorSpace<F>>::DIMENSION != 2 {
         return Err(invalid_pi_dec_audit("active PiDEC ring or extension dimension drifted"));
     }
@@ -252,16 +382,35 @@ fn prepare_pi_dec_source(
             strict_matches.len()
         )));
     };
-    let strict = *strict;
-    validate_active_strict(strict, steady_arm, params)?;
-    let leaf_source_ranges = reconcile_leaf_ranges(strict, steady_arm)?;
+    let strict = (*strict).clone();
+    validate_active_strict(&strict, steady_arm, params)?;
+    let leaf_source_ranges = reconcile_leaf_ranges(&strict, steady_arm)?;
+
+    Ok(PreparedPiDecContext {
+        candidate,
+        strict,
+        leaf_source_ranges,
+    })
+}
+
+fn prepare_pi_dec_projection(
+    context: PreparedPiDecContext,
+    mut source_rows: BTreeSet<usize>,
+    include_complete_strict_layout: bool,
+) -> Result<PreparedPiDecSourceAudit, R1csIvcError> {
+    let PreparedPiDecContext {
+        candidate,
+        strict,
+        leaf_source_ranges,
+    } = context;
+    let steady_arm_index = R1csIvcBranch::Recursive.index();
+    let steady_arm = &candidate.arms[steady_arm_index];
 
     let row_ledger = candidate.shape.compiler_audit.rows();
     let source_mapping = row_ledger
         .arms()
         .get(steady_arm_index)
         .ok_or_else(|| invalid_pi_dec_audit("selective compiler ledger omits the steady recursive arm"))?;
-    let mut source_rows = (strict.row_start..strict.row_end).collect::<BTreeSet<_>>();
     let mut rewrite_indices = BTreeSet::new();
     for &source_row in &source_rows {
         let owner = source_row_owner(source_mapping, source_row).ok_or_else(|| {
@@ -353,17 +502,15 @@ fn prepare_pi_dec_source(
 
     let source_rows = source_rows.into_iter().collect::<Vec<_>>();
     let source_row_artifacts = recover_source_rows(steady_arm, &source_rows)?;
-    let mut source_columns = BTreeSet::from([0usize]);
-    for row in &source_row_artifacts {
-        source_columns.extend(row.ports.iter().flatten().map(|term| term.0));
+    let mut source_columns = columns_in_source_rows(&source_row_artifacts);
+    if include_complete_strict_layout {
+        insert_strict_columns(&strict, &mut source_columns);
     }
-    insert_strict_columns(strict, &mut source_columns);
     if source_columns.iter().any(|&column| column >= steady_arm.m) {
         return Err(invalid_pi_dec_audit(
             "strict PiDEC source-column closure escapes the steady recursive arm",
         ));
     }
-    let strict = strict.clone();
     let source_row_ranges = compress_source_rows(&source_rows);
     Ok(PreparedPiDecSourceAudit {
         candidate,
@@ -378,12 +525,111 @@ fn prepare_pi_dec_source(
     })
 }
 
+fn project_pi_dec_rows(prepared: &PreparedPiDecSourceAudit) -> Result<SelectiveProjectedRowsAudit, R1csIvcError> {
+    let steady_arm_index = R1csIvcBranch::Recursive.index();
+    let projected = super::super::super::selective::project_rows_with_complete_source_provenance_with_alignment(
+        &prepared.candidate.arms,
+        0,
+        0,
+        D,
+        prepared.candidate.arms[0].m_in % D,
+        &prepared.selected_rows,
+        steady_arm_index,
+        &prepared.source_columns,
+        &prepared.retained_row_pairs,
+    )?;
+    validate_projection(
+        &projected,
+        &prepared.candidate.shape,
+        steady_arm_index,
+        &prepared.selected_rows,
+        &prepared.retained_row_pairs,
+    )?;
+    Ok(projected)
+}
+
+fn canonical_x_source_ranges(ranges: &[RowFamilyRange]) -> Result<[RowFamilyRange; 2], R1csIvcError> {
+    let unique = |name| {
+        let matches = ranges
+            .iter()
+            .filter(|range| range.name == name)
+            .copied()
+            .collect::<Vec<_>>();
+        let [range] = matches.as_slice() else {
+            return Err(invalid_pi_dec_audit(format!(
+                "strict PiDEC canonical-X leaf {name} has {} ranges, expected exactly one",
+                matches.len()
+            )));
+        };
+        Ok(*range)
+    };
+    let recomposition = unique(stage::RECOMPOSITION_X)?;
+    let canonicality = unique(stage::ALPHABET)?;
+    if recomposition.row_end - recomposition.row_start != ACTIVE_X_RECOMPOSITION_ROWS
+        || canonicality.row_end - canonicality.row_start != ACTIVE_X_CANONICALITY_ROWS
+        || recomposition.row_end > canonicality.row_start
+    {
+        return Err(invalid_pi_dec_audit(
+            "strict PiDEC canonical-X leaf ranges have the wrong size or ordering",
+        ));
+    }
+    Ok([recomposition, canonicality])
+}
+
+fn canonical_x_source_columns(strict: &PiDecStrictAudit) -> Result<BTreeSet<usize>, R1csIvcError> {
+    let mut columns = BTreeSet::from([0usize]);
+    for (claim_index, claim) in std::iter::once(&strict.parent)
+        .chain(&strict.children)
+        .enumerate()
+    {
+        let active_columns = superneo_public_x_cols(claim.m_in);
+        if claim.x_rows * active_columns != ACTIVE_LOGICAL_X || claim.x_cols.len() != claim.x_rows * claim.x_width {
+            return Err(invalid_pi_dec_audit(format!(
+                "strict PiDEC canonical-X claim {claim_index} has an invalid active-X layout"
+            )));
+        }
+        for row in 0..claim.x_rows {
+            for column in 0..active_columns {
+                let index = row * claim.x_width + column;
+                let source_column = claim.x_cols.get(index).copied().ok_or_else(|| {
+                    invalid_pi_dec_audit(format!(
+                        "strict PiDEC canonical-X claim {claim_index} omits active coordinate ({row}, {column})"
+                    ))
+                })?;
+                columns.insert(source_column);
+            }
+        }
+    }
+    columns.extend(strict.x_sign_traces.iter().flatten().copied());
+    if columns.len() != ACTIVE_CANONICAL_X_SOURCE_COLUMNS {
+        return Err(invalid_pi_dec_audit(format!(
+            "strict PiDEC canonical-X layout owns {} distinct source columns, expected {ACTIVE_CANONICAL_X_SOURCE_COLUMNS}",
+            columns.len()
+        )));
+    }
+    Ok(columns)
+}
+
+fn columns_in_source_rows(rows: &[R1csIvcPiDecSourceRowAudit]) -> BTreeSet<usize> {
+    let mut columns = BTreeSet::from([0usize]);
+    for row in rows {
+        columns.extend(row.ports.iter().flatten().map(|term| term.0));
+    }
+    columns
+}
+
 fn validate_active_strict(strict: &PiDecStrictAudit, arm: &SparseR1cs, params: &Params) -> Result<(), R1csIvcError> {
     let expected_source_rows = ACTIVE_RING_DIMENSION * params.kappa() as usize + ACTIVE_NONCOMMITMENT_SOURCE_ROWS;
     if strict.radix != 2
         || strict.children.len() != ACTIVE_CHILDREN
         || strict.row_start >= strict.row_end
         || strict.row_end > arm.n
+        || strict.x_recomposition_rows.start < strict.row_start
+        || strict.x_recomposition_rows.end > strict.row_end
+        || strict.x_recomposition_rows.len() != ACTIVE_X_RECOMPOSITION_ROWS
+        || strict.x_canonicality_rows.start < strict.row_start
+        || strict.x_canonicality_rows.end > strict.row_end
+        || strict.x_canonicality_rows.len() != ACTIVE_X_CANONICALITY_ROWS
         || strict.first_allocated_column >= arm.m
         || strict.x_sign_traces.len() != ACTIVE_LOGICAL_X
         || strict.row_end - strict.row_start != expected_source_rows

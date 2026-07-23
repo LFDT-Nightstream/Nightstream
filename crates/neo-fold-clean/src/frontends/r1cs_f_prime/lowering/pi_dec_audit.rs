@@ -47,6 +47,8 @@ pub(super) fn remap(audits: &[PiDecStrictAudit], old_to_new: &[usize]) -> Vec<Pi
         .map(|audit| PiDecStrictAudit {
             row_start: audit.row_start,
             row_end: audit.row_end,
+            x_recomposition_rows: audit.x_recomposition_rows.clone(),
+            x_canonicality_rows: audit.x_canonicality_rows.clone(),
             first_allocated_column: old_to_new[audit.first_allocated_column],
             radix: audit.radix,
             parent: claim(&audit.parent, old_to_new),

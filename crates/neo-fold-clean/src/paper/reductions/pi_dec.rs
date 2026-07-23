@@ -459,7 +459,7 @@ fn validate_s_col_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -
 }
 
 fn validate_s_col_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let expected = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
+    let expected = crate::paper::construction2::running::split_nc_column_point_len(s.m);
     if claim.s_col.len() != expected {
         return Err(Error::SColShape(owner));
     }

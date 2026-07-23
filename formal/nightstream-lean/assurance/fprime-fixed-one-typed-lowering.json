@@ -1,0 +1,79 @@
+{
+  "artifact_kind": "model/f-prime-fixed-one-typed-lowering",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-FIXED-ONE-TYPED-LOWERING",
+  "profile": "paper-authoritative-fixed-one-step-and-terminal",
+  "invariant": "an artifact-independent typed program with explicit ports and total structural receipts accepts exactly the frozen fixed-one F-prime step and terminal transitions; every abstract allocation and verifier obligation is owned by one instruction receipt and its four-way cost is computed definitionally from that receipt",
+  "evidence_state": "model-proved",
+  "optimization_order": [
+    "recurring_rows",
+    "committed_columns",
+    "public_columns",
+    "auxiliary_columns"
+  ],
+  "theorems": [
+    "Nightstream.Implementation.Lowering.Typed.Primitive.exec_eq_some_iff_holds",
+    "Nightstream.Implementation.Lowering.Typed.Block.exec_eq_some_iff_holds",
+    "Nightstream.Implementation.Lowering.Typed.Program.exec_eq_some_iff_holds",
+    "Nightstream.Implementation.Lowering.Typed.Program.flattened_conservation",
+    "Nightstream.Implementation.Lowering.Typed.Program.cost_eq_receipt_event_cost",
+    "Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.accepts_iff_transition",
+    "Nightstream.Implementation.Lowering.FPrimeFixedOne.Terminal.accepts_iff_transition"
+  ],
+  "source_hashes": {
+    "cost": "sha256:c291c73d80cc406c781d349c0b7e7d4f2d6c1fbabdfdede33466007d659a6852",
+    "signature": "sha256:5d06515ace9ab621961f6bac781293651725690dc075bf2e8985dc03d425ee36",
+    "program": "sha256:ec45bece9b63c9fe82b522d093b0a2cbec3d30c8b4f7c1ade8b101b0b3e0bb0d",
+    "receipt": "sha256:c9185a1bb8b8e61378abfda7c68a4a1c435824d6a91fe100af81e47aa59f60ad",
+    "vocabulary": "sha256:80baebe7761cd26286c8b871b9bb55104908f7e8cb7933d2f71c61111ea072fd",
+    "step": "sha256:3dd919a137131de742d310b15c6e5d6e91f70496a05eb5049b03ae3e17d7c4f6",
+    "terminal": "sha256:8e792e9b00974fd823ca44964618ef18068c52a14fdcc082d46f7266d23ef679",
+    "regression": "sha256:8869e514ebda837380231e804ec27f82954e33aef38cde769d3fd9773afc9ade",
+    "axiom_guard": "sha256:96f0df763db9e5e1cd6c3de00d3e4192195e3523e92f704bfe3287a3867f4623"
+  },
+  "validation": {
+    "typed_program_leaf": {
+      "result": "pass",
+      "elapsed_seconds": 1.82,
+      "peak_descendant_rss_kib": 453000
+    },
+    "step_leaf": {
+      "result": "pass",
+      "elapsed_seconds": 2.09,
+      "peak_descendant_rss_kib": 718960
+    },
+    "terminal_leaf": {
+      "result": "pass",
+      "elapsed_seconds": 1.31,
+      "peak_descendant_rss_kib": 707488
+    },
+    "facade": {
+      "result": "pass",
+      "elapsed_seconds": 2.87,
+      "peak_descendant_rss_kib": 712080
+    },
+    "focused_regression": {
+      "result": "pass",
+      "elapsed_seconds": 0.55,
+      "peak_descendant_rss_kib": 524352
+    },
+    "fail_closed_axiom_guard": {
+      "result": "pass",
+      "elapsed_seconds": 0.53,
+      "peak_descendant_rss_kib": 513776,
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ]
+    }
+  },
+  "non_goals": [
+    "physical R1CS encoding",
+    "concrete row or column counts",
+    "Rust or generated-artifact conformance",
+    "Poseidon2 or Ajtai internals",
+    "global arithmetization minimality"
+  ],
+  "next_obligation": "select and prove a canonical physical encoding with exact conservation, soundness, honest completeness, and minimum cost in an explicit finite rewrite class"
+}

@@ -1,0 +1,90 @@
+{
+  "artifact_kind": "r1cs/f-prime-selective-fixed-point-carrier270-production-public-write-trace",
+  "artifact_schema": 1,
+  "property_id": "CIR-FPR-CARRIER270-PUBLIC-WRITE-TRACE",
+  "profile": "steady-recursive-block19-lane6-post-pidec-public-prefix",
+  "shape": {
+    "logical_public_width": 257,
+    "aligned_public_width": 270,
+    "public_write_chunks": [135, 135],
+    "packed_rows": 54,
+    "packed_columns": 211797,
+    "final_columns": 11437038,
+    "active_arm": 2
+  },
+  "invariant": "the active post-PiDEC execution audit reads all 270 public values from the live source builder, normalized assignment, and packed committed witness; exports exact semantic source, width, centeredness, and alias metadata in two disjoint 135-record shards; and Lean decodes those shards into the canonical one-arm trace, constructs the fixed execution assignment, derives constant one and ActivePublicWritesBound from the exported runtime values, and reconstructs the independent typed Carrier270 public projection without a caller-supplied live-write premise",
+  "evidence_state": "artifact-checked",
+  "implementation_status": "fixed-profile Rust execution capture, focused regeneration/drift and mutation coverage, Lean certificate, typed refinement specialization, regression, and fail-closed axiom guard pass",
+  "artifacts": [
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/CombinedNc/Generated/Execution/Header.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/CombinedNc/Generated/Execution/PublicWrites/Chunk0.lean",
+    "Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/CombinedNc/Generated/Execution/PublicWrites/Chunk1.lean"
+  ],
+  "theorems": [
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.ProductionPublicWriteTrace.productionProfile_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.ProductionPublicWriteTrace.generated_chunk0_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.ProductionPublicWriteTrace.generated_chunk1_exact",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.ProductionPublicWriteTrace.productionTrace_certificate",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.ProductionPublicWriteTrace.production_projectPhysical270_execute_eq_projectPublicInput",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.ActivePublicWriteExecution.execution_activePublicWritesBound",
+    "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiCcsNc.DelayedProjection.CombinedNc.Materialized.ActivePublicWriteExecution.execution_normalizedPublicInput_eq_projectPublicInput"
+  ],
+  "runtime_regressions": [
+    {
+      "name": "production_public_write_artifact_matches_generated_certificate",
+      "status": "pass",
+      "generated_file_count": 2,
+      "elapsed_seconds": 144.06,
+      "mutations": [
+        "arm/profile",
+        "dimension",
+        "source kind",
+        "builder source",
+        "record order",
+        "normalized source",
+        "normalized target",
+        "packed address",
+        "width",
+        "centeredness",
+        "alias",
+        "fixed-zero value"
+      ]
+    }
+  ],
+  "hashes": {
+    "rust_execution_audit": "sha256:9e523756fc3736a70cb7ba127e0ca843064620683353a78ba33ee65945849302",
+    "rust_exporter": "sha256:feba2fb0da809df77752c3419b037b2c49497a6adf5919672e41ab92e44b7e2e",
+    "rust_drift_owner": "sha256:3525991b112e8faf881eba8eae559ef5336b7005d7e1ef9776f1289af8316270",
+    "artifact_chunk0": "sha256:f1755d82294ca7d2400ade2d9c7ccc00d1a7de95a9501216806e499ec29ae290",
+    "artifact_chunk1": "sha256:00a7a135c0d520087fef02fc5dbfa12a3833d8d93e882e3abe7cd7dcaa0f073c",
+    "lean_correspondence": "sha256:f16ca601ab3a85a079dd69815f2d37430d5cfe04a3d6b2720e7600a1a7d05d62",
+    "lean_active_execution": "sha256:bfb5db5f5d32ed82d4a46651e6335a4bdc009ee273e617619848caf6cf892ce0",
+    "lean_facade": "sha256:6acd42e73e6068db63eb992e5aa9d79759149d7123db63f95dcbacf34a355377",
+    "focused_regression": "sha256:d99690754d70e27428a13eed90c4f3b85df86774acc35a7c48e4211246771950",
+    "axiom_guard": "sha256:0d4c506353d82c59eda4fb311c3631863a087df2e36fe55229f924237458282a"
+  },
+  "lean_validation": {
+    "focused_leaf": "pass in 0.79 seconds at 688704 KiB peak descendant RSS after namespace, dependent-bound, and literal-257 diagnoses; the only native certificates are two disjoint proof-free 135-record runtime shards",
+    "immediate_piccsnc_facade": "pass in 205.49 seconds at 10224320 KiB peak descendant RSS; sequential rebuild of the existing generated source-row import cone",
+    "focused_regression": "pass in 1.31 seconds at 712192 KiB peak descendant RSS",
+    "axiom_probe": "pass in 0.79 seconds at 677888 KiB peak descendant RSS",
+    "axiom_guard": "pass in 0.79 seconds at 840224 KiB peak descendant RSS; exact dependencies are propext, Lean.trustCompiler, and Quot.sound; no sorryAx",
+    "artifact_facade_leaf": "pass in 8.07 seconds at 708752 KiB peak descendant RSS after routing generated imports through the ownership facade",
+    "static": "pass: layer direction, generated quarantine, ownership contracts, forbidden-hole audit, and assurance parsing"
+  },
+  "assumptions": [
+    "the fixed execution profile is the active steady-recursive arm"
+  ],
+  "open_bridges": [
+    "the remaining private assignment and final sparse A/B/C decoder",
+    "CCS and CE membership for the complete production relation",
+    "native Ajtai key coordinate alignment and explicit binding failure",
+    "recursive-circuit parent authority outside the already closed terminal raw-old-block family"
+  ],
+  "non_goals": [
+    "claiming complete production CCS/CE refinement",
+    "private assignment or matrix decoding",
+    "re-proving Ajtai or Poseidon2 internals",
+    "constraint deletion"
+  ]
+}

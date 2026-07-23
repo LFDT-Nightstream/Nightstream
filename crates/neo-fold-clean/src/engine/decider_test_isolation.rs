@@ -3,12 +3,14 @@
 //! This module is public only so integration tests can hit individual
 //! in-circuit row families without disabling the decider preflight.
 
-use super::{emit_terminal_fold, enforce_terminal_pending_projection_recomposition, Preprocessing};
+use super::{emit_terminal_fold, Preprocessing};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::construction2::EncInst;
 use crate::paper::decider::PublicImage;
-use crate::paper::decider_ce_relation::enforce_final_ce_relations;
+use crate::paper::decider_ce_relation::{
+    alloc_final_witness, enforce_final_ce_relations, enforce_raw_old_block_projection,
+};
 use crate::paper::digest::{digest32_as_fields, initial_boundary_digest, public_trace_seed_digest, AccumulatorHandle};
 use crate::paper::f_prime::r1cs::{FPrimeStateWires, FPrimeStepOutput, F_PRIME_ENC_INST_BITS};
 use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires;
@@ -20,6 +22,8 @@ use crate::paper::terminal_ce::circuit::{
 };
 use crate::paper::terminal_ce::{TerminalCeProof, TerminalCePublic, TerminalCeVerifyError};
 use crate::paper::{construction2::RunningInstance, nifs::NifsProof};
+use neo_ajtai::AjtaiSModule;
+use neo_ccs::traits::SModuleHomomorphism;
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 
@@ -30,19 +34,32 @@ pub struct CeRelationIsolationOutput {
 
 pub struct TerminalPendingProjectionIsolationOutput {
     pub builder: R1csBuilder,
-    pub child_c0_probe: usize,
+    pub raw_witness_probe: usize,
     pub parent_c0_probe: usize,
+    pub final_scale_c0_probe: Option<usize>,
 }
 
-/// Emit only the terminal radix recomposition that joins verifier-derived
-/// pending-parent wires to the child projections subsequently checked against
-/// opened raw witnesses by the terminal CE relation.
-pub fn enforce_terminal_pending_projection_against(
+/// Capture the exact fixed-profile terminal projection placement after the
+/// normal last-step and terminal-fold call schedule, stopping before the
+/// 24.2M-row projection and terminal Ajtai/low-norm loops.
+pub fn capture_last_step_terminal_projection_placement(
+    prep: &Preprocessing,
+    audit: &crate::lifecycle::UncompressedAudit,
+) -> Result<crate::engine::r1cs_circuit::TerminalPendingProjectionAudit, String> {
+    super::terminal::capture_last_step_terminal_projection_placement(prep, audit).map_err(|error| error.to_string())
+}
+
+/// Emit the direct terminal projection over the same raw witness allocations
+/// that the terminal CE relation uses for Ajtai openings.
+pub fn enforce_terminal_raw_old_block_projection_against(
+    logical_columns: usize,
+    old_block: &[K; neo_reductions::block_projection::BLOCK_PROJECTION_POINT_LEN],
     parent_y_zcol: &[K; neo_math::D],
-    child_y_zcol: &[[K; neo_math::D]],
+    witnesses: &[WitnessMat],
     radix: u32,
 ) -> Result<TerminalPendingProjectionIsolationOutput, String> {
     let mut builder = R1csBuilder::new();
+    let old_block = alloc_k_vec(&mut builder, old_block);
     let parent = parent_y_zcol
         .iter()
         .map(|value| {
@@ -50,31 +67,134 @@ pub fn enforce_terminal_pending_projection_against(
             KVar::alloc(&mut builder, c0, c1)
         })
         .collect::<Vec<_>>();
-    let children = child_y_zcol
+    let witness_wires = witnesses
         .iter()
-        .map(|child| {
-            child
-                .iter()
-                .map(|value| {
-                    let [c0, c1] = value.as_coeffs();
-                    KVar::alloc(&mut builder, c0, c1)
-                })
-                .collect::<Vec<_>>()
+        .enumerate()
+        .map(|(index, witness)| {
+            alloc_final_witness(&mut builder, witness, logical_columns).map_err(|error| {
+                format!(
+                    "raw witness {index} {}: expected {}, got {}",
+                    error.what(),
+                    error.expected(),
+                    error.got()
+                )
+            })
         })
-        .collect::<Vec<_>>();
-    let child_c0_probe = children
+        .collect::<Result<Vec<_>, _>>()?;
+    let raw_witness_probe = witness_wires
         .first()
-        .and_then(|child| child.first())
-        .ok_or_else(|| "terminal pending isolation requires at least one child".to_string())?
-        .c0
+        .and_then(|witness| witness.values.first())
+        .ok_or_else(|| "terminal pending isolation requires at least one raw witness entry".to_string())?
         .col();
     let parent_c0_probe = parent[0].c0.col();
-    enforce_terminal_pending_projection_recomposition(&mut builder, &parent, &children, radix)?;
+    enforce_raw_old_block_projection(
+        &mut builder,
+        logical_columns,
+        &old_block,
+        &parent,
+        &witness_wires,
+        radix,
+    )
+    .map_err(|error| {
+        format!(
+            "raw old-block projection {}: expected {}, got {}",
+            error.what(),
+            error.expected(),
+            error.got()
+        )
+    })?;
+    let final_scale_c0_probe = builder
+        .terminal_pending_projection_audits()
+        .last()
+        .filter(|audit| audit.plan.factor_final_round())
+        .map(|audit| audit.final_scale_first_allocated_column + 3);
     Ok(TerminalPendingProjectionIsolationOutput {
         builder,
-        child_c0_probe,
+        raw_witness_probe,
         parent_c0_probe,
+        final_scale_c0_probe,
     })
+}
+
+/// Emit the bounded direct projection and then open the exact same ordered
+/// `FinalWitnessWires` allocations through an independently supplied Ajtai
+/// map.  Artifact tests use the projection audit range only; the following
+/// commitment rows certify the allocation join without turning the
+/// commitment into projection authority.
+pub fn enforce_terminal_raw_old_block_projection_with_ajtai_against(
+    log: &AjtaiSModule,
+    logical_columns: usize,
+    old_block: &[K; neo_reductions::block_projection::BLOCK_PROJECTION_POINT_LEN],
+    parent_y_zcol: &[K; neo_math::D],
+    witnesses: &[WitnessMat],
+    radix: u32,
+) -> Result<R1csBuilder, String> {
+    let mut builder = R1csBuilder::new();
+    let old_block = alloc_k_vec(&mut builder, old_block);
+    let parent = alloc_k_vec(&mut builder, parent_y_zcol);
+    let witness_wires = witnesses
+        .iter()
+        .enumerate()
+        .map(|(index, witness)| {
+            alloc_final_witness(&mut builder, witness, logical_columns).map_err(|error| {
+                format!(
+                    "raw witness {index} {}: expected {}, got {}",
+                    error.what(),
+                    error.expected(),
+                    error.got()
+                )
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    enforce_raw_old_block_projection(
+        &mut builder,
+        logical_columns,
+        &old_block,
+        &parent,
+        &witness_wires,
+        radix,
+    )
+    .map_err(|error| {
+        format!(
+            "raw old-block projection {}: expected {}, got {}",
+            error.what(),
+            error.expected(),
+            error.got()
+        )
+    })?;
+    for (index, (witness, wires)) in witnesses.iter().zip(&witness_wires).enumerate() {
+        let commitment = log.commit(witness);
+        let commitment_wires = commitment
+            .data
+            .iter()
+            .copied()
+            .map(|value| builder.alloc(value))
+            .collect::<Vec<_>>();
+        crate::paper::decider_ce_relation::enforce_ajtai_opening(
+            &mut builder,
+            log,
+            wires,
+            &commitment_wires,
+            commitment.d,
+            commitment.kappa,
+        )
+        .map_err(|error| format!("Ajtai opening {index}: {error:?}"))?;
+    }
+    let child_witness_first_columns = witness_wires
+        .iter()
+        .map(|witness| {
+            witness
+                .values
+                .first()
+                .expect("validated raw witness has entries")
+                .col()
+        })
+        .collect();
+    builder.record_terminal_pending_projection_ajtai_join(
+        crate::engine::r1cs_circuit::RAW_OLD_BLOCK_PENDING_JOIN_ID,
+        child_witness_first_columns,
+    );
+    Ok(builder)
 }
 
 /// Emit only terminal CE-relation rows for a hand-crafted pair.
@@ -117,6 +237,35 @@ pub fn enforce_ce_relations_many_against(
         .map(|claim| alloc_ce_claim(&mut builder, claim))
         .collect::<Vec<_>>();
     enforce_final_ce_relations(&mut builder, prep, &claim_wires, witnesses).map_err(|e| e.to_string())?;
+    Ok(builder)
+}
+
+/// Emit the direct pending projection and all terminal CE rows over one shared
+/// ordered raw-witness allocation family.
+pub fn enforce_ce_relations_many_with_raw_pending_against(
+    prep: &Preprocessing,
+    claims: &[CeClaim],
+    witnesses: &[WitnessMat],
+    old_block: &[K; neo_reductions::block_projection::BLOCK_PROJECTION_POINT_LEN],
+    parent_y_zcol: &[K; neo_math::D],
+) -> Result<R1csBuilder, String> {
+    let mut builder = R1csBuilder::new();
+    let claim_wires = claims
+        .iter()
+        .map(|claim| alloc_ce_claim(&mut builder, claim))
+        .collect::<Vec<_>>();
+    let pending = crate::paper::reductions::pi_ccs_split_nc_circuit::PendingProjectionWires {
+        old_block: alloc_k_vec(&mut builder, old_block),
+        parent_y_zcol: alloc_k_vec(&mut builder, parent_y_zcol),
+    };
+    crate::paper::decider_ce_relation::enforce_final_ce_relations_with_pending_projection(
+        &mut builder,
+        prep,
+        &claim_wires,
+        witnesses,
+        &pending,
+    )
+    .map_err(|error| error.to_string())?;
     Ok(builder)
 }
 
@@ -361,6 +510,7 @@ pub fn enforce_terminal_fold_against_last_acc_digest(
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: None,
+        pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
     };
@@ -377,9 +527,9 @@ pub fn enforce_terminal_fold_against_last_acc_digest(
     Ok(builder)
 }
 
-/// Emit the terminal fold followed by the direct terminal CE closure. This
-/// test-only path proves the terminal-only `y_zcol` reattachment is consumed
-/// by the authoritative witness-opening relation.
+/// Emit the terminal fold followed by the direct raw pending projection and
+/// terminal CE closure. The projection and Ajtai relation consume the same
+/// ordered witness allocations; child `y_zcol` sidecars are not its source.
 pub fn enforce_terminal_fold_ce_closure_against(
     prep: &Preprocessing,
     pre_final_running: &RunningInstance,
@@ -406,10 +556,11 @@ pub fn enforce_terminal_fold_ce_closure_against(
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: None,
+        pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
     };
-    let (_, _, _, _, _, terminal_children) = emit_terminal_fold(
+    let (_, _, _, _, _, terminal_children, terminal_pending_projection) = emit_terminal_fold(
         &mut builder,
         prep,
         &last,
@@ -418,8 +569,17 @@ pub fn enforce_terminal_fold_ce_closure_against(
         final_fold_nifs,
     )
     .map_err(|e| e.to_string())?;
-    enforce_final_ce_relations(&mut builder, prep, &terminal_children, terminal_witnesses)
-        .map_err(|e| e.to_string())?;
+    match terminal_pending_projection.as_ref() {
+        Some(pending) => crate::paper::decider_ce_relation::enforce_final_ce_relations_with_pending_projection(
+            &mut builder,
+            prep,
+            &terminal_children,
+            terminal_witnesses,
+            pending,
+        ),
+        None => enforce_final_ce_relations(&mut builder, prep, &terminal_children, terminal_witnesses),
+    }
+    .map_err(|e| e.to_string())?;
     Ok(builder)
 }
 
@@ -468,6 +628,7 @@ pub fn enforce_terminal_fold_parent_authority_against_self(
         nifs_running_parent_authority: None,
         nifs_parent: Some(last_parent),
         nifs_children: None,
+        pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
     };
@@ -529,11 +690,20 @@ pub fn enforce_terminal_fold_children_continuity_against_self(
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: Some(last_children),
+        pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
     };
 
-    let (_emitted, _latest_link, _parent_link, _final_acc, terminal_running, _terminal_children) = emit_terminal_fold(
+    let (
+        _emitted,
+        _latest_link,
+        _parent_link,
+        _final_acc,
+        terminal_running,
+        _terminal_children,
+        _terminal_pending_projection,
+    ) = emit_terminal_fold(
         &mut builder,
         prep,
         &last,
@@ -701,6 +871,7 @@ pub fn enforce_base_state_constants_against(
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: None,
+        pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
     };
@@ -768,6 +939,7 @@ pub fn enforce_public_image_pins_against_chain(
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: None,
+        pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
     };

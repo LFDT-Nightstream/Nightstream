@@ -50,10 +50,11 @@ use neo_ccs::{traits::SModuleHomomorphism, Mat};
 use neo_fold_clean::engine::decider::{
     __test_isolation::{
         enforce_base_state_constants_against, enforce_ce_continuity_against_self, enforce_ce_continuity_between,
-        enforce_public_image_pins_against, enforce_public_image_pins_against_chain, enforce_state_link_against_self,
-        enforce_terminal_fold_against_last_acc_digest, enforce_terminal_fold_ce_closure_against,
-        enforce_terminal_fold_children_continuity_against_self, enforce_terminal_fold_parent_authority_against_self,
-        enforce_terminal_latest_link_against, enforce_terminal_pending_projection_against, CeContinuityProbeWires,
+        enforce_ce_relations_many_with_raw_pending_against, enforce_public_image_pins_against,
+        enforce_public_image_pins_against_chain, enforce_state_link_against_self,
+        enforce_terminal_fold_against_last_acc_digest, enforce_terminal_fold_children_continuity_against_self,
+        enforce_terminal_fold_parent_authority_against_self, enforce_terminal_latest_link_against,
+        enforce_terminal_raw_old_block_projection_against, CeContinuityProbeWires,
     },
     synthesize_last_step_terminal_r1cs, synthesize_statement_r1cs, REQUIRED_PUBLIC_IMAGE_PINS,
 };
@@ -71,7 +72,7 @@ use neo_fold_clean::paper::f_prime::r1cs::{
 };
 use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
-use neo_math::{KExtensions, D, F, K};
+use neo_math::{D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
 use serde_json::{json, Value};
@@ -969,107 +970,6 @@ fn decider_terminal_fold_rejects_tampered_last_acc_digest() {
 }
 
 #[test]
-fn decider_terminal_ce_rejects_tampered_reattached_child_y_zcol() {
-    let (prep, finished) = build_honest_finished_proof(3);
-    let final_fold = finished
-        .proof
-        .final_fold
-        .as_ref()
-        .expect("finished proof has terminal fold");
-    let pre_running = &final_fold.terminal_inputs.pre_final_running;
-    let trailing_latest = final_fold.terminal_inputs.latest.claims();
-    let final_running = finished
-        .proof
-        .state
-        .proof
-        .running()
-        .expect("finished proof has final running");
-    let last_acc_digest =
-        AccumulatorHandle::from_running_parts(&pre_running.claims, pre_running.parent_authority.as_ref()).digest();
-
-    let honest = enforce_terminal_fold_ce_closure_against(
-        &prep,
-        pre_running,
-        &trailing_latest,
-        &final_fold.nifs,
-        last_acc_digest,
-        &final_running.witnesses,
-    )
-    .expect("emit honest terminal CE closure");
-    assert!(
-        honest.is_satisfied(),
-        "honest terminal CE closure must satisfy (first bad row: {:?})",
-        honest.first_unsatisfied_row()
-    );
-
-    let mut tampered_nifs = final_fold.nifs.clone();
-    tampered_nifs.pi_dec.children[0].y_zcol[0] += K::ONE;
-    let tampered = enforce_terminal_fold_ce_closure_against(
-        &prep,
-        pre_running,
-        &trailing_latest,
-        &tampered_nifs,
-        last_acc_digest,
-        &final_running.witnesses,
-    )
-    .expect("emit tampered terminal CE closure");
-    assert!(
-        !tampered.is_satisfied(),
-        "terminal CE closure accepted a tampered reattached child y_zcol"
-    );
-}
-
-#[test]
-fn terminal_pending_parent_is_radix_recomposition_of_raw_opened_child_projections() {
-    let children: [[K; D]; 3] = std::array::from_fn(|child| {
-        std::array::from_fn(|lane| {
-            K::from_coeffs([
-                F::from_u64((17 * child + lane + 1) as u64),
-                F::from_u64((31 * child + 2 * lane + 3) as u64),
-            ])
-        })
-    });
-    let radix = K::from(F::from_u64(2));
-    let parent: [K; D] = std::array::from_fn(|lane| {
-        let mut power = K::ONE;
-        children.iter().fold(K::ZERO, |sum, child| {
-            let next = sum + power * child[lane];
-            power *= radix;
-            next
-        })
-    });
-
-    let honest = enforce_terminal_pending_projection_against(&parent, &children, 2)
-        .expect("emit terminal pending recomposition");
-    assert!(
-        honest.builder.is_satisfied(),
-        "honest terminal pending recomposition must satisfy"
-    );
-
-    let mut child_tamper =
-        enforce_terminal_pending_projection_against(&parent, &children, 2).expect("emit child-tamper recomposition");
-    let child_column = child_tamper.child_c0_probe;
-    child_tamper
-        .builder
-        .tamper_witness(child_column, child_tamper.builder.witness()[child_column] + F::ONE);
-    assert!(
-        !child_tamper.builder.is_satisfied(),
-        "terminal pending recomposition accepted a mutated authoritative child projection"
-    );
-
-    let mut parent_tamper =
-        enforce_terminal_pending_projection_against(&parent, &children, 2).expect("emit parent-tamper recomposition");
-    let parent_column = parent_tamper.parent_c0_probe;
-    parent_tamper
-        .builder
-        .tamper_witness(parent_column, parent_tamper.builder.witness()[parent_column] + F::ONE);
-    assert!(
-        !parent_tamper.builder.is_satisfied(),
-        "terminal pending recomposition accepted a mutated verifier-derived parent"
-    );
-}
-
-#[test]
 fn decider_terminal_fold_rejects_tampered_last_parent_authority_wire() {
     let (prep, finished) = build_honest_finished_proof(3);
     let final_fold = finished
@@ -1531,6 +1431,8 @@ fn decider_r1cs_synthesis_accepts_varying_size_batched_chunks() {
 
 #[path = "decider_r1cs_manifest.rs"]
 mod m4_manifest;
+#[path = "raw_old_block_projection.rs"]
+mod raw_old_block_projection;
 // The previous end-to-end "tamper Z, bypass preflight, expect
 // `!is_satisfied`" test has been replaced by the gadget-level
 // isolation tests in `tests/system/decider_ce_relation_isolation.rs`.

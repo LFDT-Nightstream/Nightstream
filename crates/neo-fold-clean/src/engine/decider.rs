@@ -27,13 +27,13 @@
 //! |---|---|---|
 //! | child -> next running | Exact paper-level CE core; `y_zcol` omitted | exact child-vector continuity, delayed-NC bridge open |
 //! | Pi_RLC parent -> running parent | Checked recomposition cache continuity | not accumulator authority |
-//! | terminal child | New-point child `y_zcol` values are checked against opened witnesses and radix-recomposed into the verifier-derived pending parent | closes the final one-fold delayed projection |
+//! | terminal delayed projection | The verifier-derived pending old block projects the exact ordered raw witnesses opened by terminal Ajtai rows; their radix recomposition is constrained to the pending parent | closes the final one-fold delayed projection without child sidecars |
 
 mod terminal;
 
 pub use terminal::{synthesize_last_step_terminal_r1cs, LastStepTerminalSynthesis};
 
-use neo_math::{KExtensions, F};
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::r1cs_circuit::field_ext::KVar;
@@ -57,10 +57,12 @@ use crate::paper::f_prime::r1cs::{
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::nifs::NifsProof;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig};
+use crate::paper::reductions::pi_ccs_split_nc_circuit::{
+    PendingProjectionWires, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
+};
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 use crate::paper::relations::product_commitment_circuit::enforce_adv_equality;
-use crate::paper::relations::{CcsClaim, CeClaim};
+use crate::paper::relations::CcsClaim;
 
 mod public_image;
 
@@ -385,6 +387,7 @@ fn synthesize_statement_r1cs_inner(
         final_acc_digest,
         terminal_running,
         terminal_children,
+        terminal_pending_projection,
     ) = emit_terminal_fold(
         &mut builder,
         prep,
@@ -441,12 +444,21 @@ fn synthesize_statement_r1cs_inner(
     let final_running = final_running
         .materialize()
         .map_err(|e| decider::Error::WalkFailed(format!("materialize final running: {e}")))?;
-    crate::paper::decider_ce_relation::enforce_final_ce_relations(
-        &mut builder,
-        prep,
-        &terminal_children,
-        &final_running.witnesses,
-    )
+    match terminal_pending_projection.as_ref() {
+        Some(pending) => crate::paper::decider_ce_relation::enforce_final_ce_relations_with_pending_projection(
+            &mut builder,
+            prep,
+            &terminal_children,
+            &final_running.witnesses,
+            pending,
+        ),
+        None => crate::paper::decider_ce_relation::enforce_final_ce_relations(
+            &mut builder,
+            prep,
+            &terminal_children,
+            &final_running.witnesses,
+        ),
+    }
     .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
     builder.record_row_family("decider.terminal_ce", terminal_ce_start);
     builder.record_row_family("decider.full_history", full_history_start);
@@ -949,7 +961,8 @@ fn enforce_flat_limbs_vs_kvar_row(
 /// terminal latest recursive link. Returns
 /// `(terminal_fold_emitted, terminal_latest_link,
 /// terminal_parent_authority_link, post_fold_acc_digest,
-/// terminal_running_wires, terminal_children)`. The decider uses the
+/// terminal_running_wires, terminal_children, outgoing_pending_projection)`.
+/// The decider uses the
 /// running wires for the final CE-claim continuity link (terminal fold's
 /// running == last recursive F' step's children), and the children wires
 /// as the terminal CE-relation closure's claim inputs — the NIFS-output
@@ -970,6 +983,7 @@ fn emit_terminal_fold(
         [Var; 4],
         Vec<SplitNcPiCcsOutputWires>,
         Vec<crate::paper::reductions::pi_dec_circuit::CeClaimWires>,
+        Option<PendingProjectionWires>,
     ),
     decider::Error,
 > {
@@ -1037,20 +1051,8 @@ fn emit_terminal_fold(
         nifs_outputs.outgoing_pending_projection.as_ref(),
     )
     .map_err(|error| decider::Error::WalkFailed(format!("terminal output accumulator digest: {error}")))?;
-    let mut terminal_children = nifs_outputs.children;
-    attach_terminal_children_y_zcol(builder, &mut terminal_children, &final_fold_nifs.pi_dec.children)
-        .map_err(|e| decider::Error::WalkFailed(format!("terminal child y_zcol attachment: {e}")))?;
-    if let Some(pending) = nifs_outputs.outgoing_pending_projection.as_ref() {
-        let child_y_zcol = terminal_child_active_y_zcol(&terminal_children)
-            .map_err(|e| decider::Error::WalkFailed(format!("terminal child projection view: {e}")))?;
-        enforce_terminal_pending_projection_recomposition(
-            builder,
-            &pending.parent_y_zcol,
-            &child_y_zcol,
-            prep.params.b(),
-        )
-        .map_err(|e| decider::Error::WalkFailed(format!("terminal pending projection recomposition: {e}")))?;
-    }
+    let terminal_children = nifs_outputs.children;
+    let outgoing_pending_projection = nifs_outputs.outgoing_pending_projection;
     builder.record_row_family("terminal.accumulator", accumulator_start);
     builder.record_row_family("terminal.total", terminal_start);
 
@@ -1061,100 +1063,8 @@ fn emit_terminal_fold(
         post_fold_acc_digest,
         nifs_outputs.running,
         terminal_children,
+        outgoing_pending_projection,
     ))
-}
-
-/// Reattach terminal-child `y_zcol` only where the direct terminal CE
-/// relation validates it against the opened witness. Ordinary Π_DEC children
-/// intentionally carry no such wires.
-fn attach_terminal_children_y_zcol(
-    builder: &mut R1csBuilder,
-    children: &mut [CeClaimWires],
-    claims: &[CeClaim],
-) -> Result<(), String> {
-    if children.len() != claims.len() {
-        return Err(format!(
-            "terminal child count mismatch: wires={} claims={}",
-            children.len(),
-            claims.len()
-        ));
-    }
-    for (idx, (child, claim)) in children.iter_mut().zip(claims.iter()).enumerate() {
-        if !child.y_zcol.is_empty() || child.y_zcol_lanes != 0 {
-            return Err(format!(
-                "terminal child {idx} already carries y_zcol: limbs={} lanes={}",
-                child.y_zcol.len(),
-                child.y_zcol_lanes
-            ));
-        }
-        child.y_zcol.reserve(claim.y_zcol.len() * 2);
-        for value in &claim.y_zcol {
-            let [c0, c1] = value.as_coeffs();
-            child.y_zcol.push(builder.alloc(c0));
-            child.y_zcol.push(builder.alloc(c1));
-        }
-        child.y_zcol_lanes = claim.y_zcol.len();
-    }
-    Ok(())
-}
-
-/// Close the newest delayed projection at the terminal boundary. Each child
-/// `y_zcol` is independently constrained against its opened raw witness by
-/// `decider_ce_relation`; these rows bind their exact Pi_DEC-order radix
-/// recomposition to the verifier-derived parent carried in the pending state.
-fn enforce_terminal_pending_projection_recomposition(
-    builder: &mut R1csBuilder,
-    parent_y_zcol: &[KVar],
-    child_y_zcol: &[Vec<KVar>],
-    radix: u32,
-) -> Result<(), String> {
-    if parent_y_zcol.len() != neo_math::D {
-        return Err(format!(
-            "pending parent has {} active lanes, expected {}",
-            parent_y_zcol.len(),
-            neo_math::D
-        ));
-    }
-    if child_y_zcol.is_empty() {
-        return Err("terminal pending projection has no Pi_DEC children".into());
-    }
-    if child_y_zcol.iter().any(|child| child.len() != neo_math::D) {
-        return Err("terminal Pi_DEC child has fewer than the active y_zcol lanes".into());
-    }
-
-    let radix = F::from_u64(radix as u64);
-    let mut powers = Vec::with_capacity(child_y_zcol.len());
-    let mut power = F::ONE;
-    for _ in child_y_zcol {
-        powers.push(power);
-        power *= radix;
-    }
-    for (lane, parent) in parent_y_zcol.iter().enumerate() {
-        let mut expected_c0 = Lc::zero();
-        let mut expected_c1 = Lc::zero();
-        for (child, coefficient) in child_y_zcol.iter().zip(&powers) {
-            expected_c0.add_term(child[lane].c0, *coefficient);
-            expected_c1.add_term(child[lane].c1, *coefficient);
-        }
-        builder.enforce_eq(&Lc::from_var(parent.c0), &expected_c0);
-        builder.enforce_eq(&Lc::from_var(parent.c1), &expected_c1);
-    }
-    Ok(())
-}
-
-fn terminal_child_active_y_zcol(children: &[CeClaimWires]) -> Result<Vec<Vec<KVar>>, String> {
-    children
-        .iter()
-        .enumerate()
-        .map(|(index, child)| {
-            if child.y_zcol_lanes < neo_math::D || child.y_zcol.len() < 2 * neo_math::D {
-                return Err(format!("terminal child {index} has an incomplete active y_zcol view"));
-            }
-            Ok((0..neo_math::D)
-                .map(|lane| KVar::new(child.y_zcol[2 * lane], child.y_zcol[2 * lane + 1]))
-                .collect())
-        })
-        .collect()
 }
 
 /// Constrain every terminal-fold fresh CCS instance's public input to

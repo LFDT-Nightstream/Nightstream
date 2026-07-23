@@ -25,6 +25,7 @@ use neo_reductions::optimized_engine::{
     BlockLaneNcPending, FeSumcheckBackend, NcSumcheckBackend, OptimizedStructureCache, PiCcsDeferredProof,
     PiCcsPhaseBackend, PiDecProverPrecompute,
 };
+use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::paper::construction2::running::{uses_pending_accumulator_family, RunningInstanceError};
@@ -580,6 +581,7 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
+        crate::paper::construction2::running::split_nc_column_point_len(s.m),
         rhos,
         me_inputs,
         witnesses,
@@ -604,6 +606,7 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
+        crate::paper::construction2::running::split_nc_column_point_len(s.m),
         rhos,
         me_inputs,
         witnesses,
@@ -630,6 +633,7 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
+        crate::paper::construction2::running::split_nc_column_point_len(s.m),
         rhos,
         me_inputs,
         witnesses,
@@ -657,6 +661,7 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
+        crate::paper::construction2::running::split_nc_column_point_len(s.m),
         rhos,
         me_inputs,
         witnesses,
@@ -686,6 +691,7 @@ where
     let (ok, perf) = nr::rlc_public_matches_verified_inputs_with_perf(
         s,
         pp.inner(),
+        crate::paper::construction2::running::split_nc_column_point_len(s.m),
         rhos,
         me_inputs,
         expected,
@@ -742,6 +748,7 @@ where
     #[cfg(feature = "perf-timers")]
     let t_split = std::time::Instant::now();
     let (z_split, digit_nonzero) = split_b_matrix_k_with_nonzero_flags(parent_witness, k, pp.b())?;
+    let precomputed_y_zcol = precompute_pi_dec_y_zcol(s, parent, &z_split, &digit_nonzero)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-dec] split_b                         {:>7.2}s",
@@ -786,6 +793,7 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
+        crate::paper::construction2::running::split_nc_column_point_len(s.m),
         parent,
         &z_split,
         &digit_nonzero,
@@ -795,6 +803,7 @@ where
         cache.superneo(),
         None,
         None,
+        precomputed_y_zcol.as_deref(),
     );
     #[cfg(feature = "perf-timers")]
     eprintln!(
@@ -836,10 +845,12 @@ where
             "Pi_DEC prover precompute must belong to the parent claim's row point"
         );
     }
+    let precomputed_y_zcol = precompute_pi_dec_y_zcol(s, parent, &z_split, &digit_nonzero)?;
     let (children, ok_y, ok_x, ok_c) = nr::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
         FoldingMode::Optimized,
         s,
         pp.inner(),
+        crate::paper::construction2::running::split_nc_column_point_len(s.m),
         parent,
         &z_split,
         &digit_nonzero,
@@ -849,6 +860,7 @@ where
         cache.superneo(),
         None,
         Some(precomputed_y_ring),
+        precomputed_y_zcol.as_deref(),
     );
     if children.is_empty() {
         return Err(Error::PiDecFailed);
@@ -859,11 +871,60 @@ where
     Ok((children, z_split))
 }
 
+fn precompute_pi_dec_y_zcol(
+    s: &Structure,
+    parent: &CeClaim,
+    z_split: &[Mat<F>],
+    digit_nonzero: &[bool],
+) -> Result<Option<Vec<[K; neo_math::D]>>, Error> {
+    if parent.s_col.is_empty() || !uses_production_block_lane(s) {
+        return Ok(None);
+    }
+    let active_witnesses = z_split
+        .iter()
+        .zip(digit_nonzero)
+        .filter_map(|(witness, &nonzero)| nonzero.then_some(witness))
+        .collect::<Vec<_>>();
+    let block_point: &[K; neo_reductions::block_projection::BLOCK_PROJECTION_POINT_LEN] =
+        parent.s_col.as_slice().try_into().map_err(|_| {
+            neo_reductions::error::PiCcsError::InvalidInput(format!(
+                "Π_DEC production block point has {} coordinates, expected {}",
+                parent.s_col.len(),
+                neo_reductions::block_projection::BLOCK_PROJECTION_POINT_LEN,
+            ))
+        })?;
+    let active_rows =
+        neo_reductions::block_projection::project_raw_witness_refs_at_block_point(&active_witnesses, s.m, block_point)?;
+    let mut active_rows = active_rows.into_iter();
+    let rows: Vec<[K; neo_math::D]> = digit_nonzero
+        .iter()
+        .map(|&nonzero| {
+            if nonzero {
+                active_rows
+                    .next()
+                    .expect("Π_DEC active block-projection rows must match nonzero digit planes")
+            } else {
+                [K::ZERO; neo_math::D]
+            }
+        })
+        .collect();
+    debug_assert!(active_rows.next().is_none());
+    Ok(Some(rows))
+}
+
 /// Π_DEC verify. Computes the canonical public-X split from the parent, then
 /// re-derives parent commitments and y-evaluations from the children.
 pub fn verify_pi_dec<MB>(pp: &Params, s: &Structure, parent: &CeClaim, children: &[CeClaim], combine_b_pows: MB) -> bool
 where
     MB: Fn(&[Commitment], u32) -> Commitment,
 {
-    nr::verify_dec_public(s, pp.inner(), parent, children, combine_b_pows, ell_d())
+    nr::verify_dec_public(
+        s,
+        pp.inner(),
+        crate::paper::construction2::running::split_nc_column_point_len(s.m),
+        parent,
+        children,
+        combine_b_pows,
+        ell_d(),
+    )
 }

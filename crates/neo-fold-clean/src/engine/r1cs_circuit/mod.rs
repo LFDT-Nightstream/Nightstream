@@ -9,14 +9,19 @@
 pub mod alphabet_sampling;
 pub mod boolean;
 pub mod builder;
+mod decider_audit;
 pub mod encoding_trace;
 pub mod field_ext;
 pub mod mux;
+mod pi_dec_canonical_x_program;
 mod pi_rlc_y_zcol_boundary;
 pub mod poseidon2;
 pub mod projection_identity_trace;
+mod raw_old_block_projection_plan;
+mod raw_old_block_projection_program;
 mod relation;
 pub mod ring_action;
+mod row_formula;
 mod stage_provenance;
 pub mod sumcheck;
 pub mod transcript;
@@ -24,6 +29,7 @@ pub mod transcript;
 pub mod u64_arith;
 
 pub use builder::{Lc, R1csBuilder, Var};
+pub use decider_audit::TerminalPendingProjectionAudit;
 pub use encoding_trace::{
     AcceptanceTraceEntry, AcceptanceTraceTestMutation, BalancedTernaryOpeningTraceEntry,
     BalancedTernaryTraceTestMutation, CanonicalU64TraceEntry, CanonicalU64TraceTestMutation,
@@ -36,10 +42,24 @@ pub use encoding_trace::{
 };
 pub use field_ext::{alloc_klc, enforce_k_dot_product, enforce_k_mul, KLc, KVar};
 pub use mux::{enforce_mux_var, enforce_mux_vec};
+pub use pi_dec_canonical_x_program::{
+    PiDecCanonicalXColumnMap, PiDecCanonicalXPlan, PiDecCanonicalXProgram, PiDecCanonicalXReceipt,
+    PiDecCanonicalXRowOwner,
+};
 pub use pi_rlc_y_zcol_boundary::PiRlcYZcolBoundaryAudit;
 pub use poseidon2::{enforce_poseidon2_hash, enforce_poseidon2_permutation, DIGEST_LEN};
+#[doc(hidden)]
+pub use raw_old_block_projection_plan::{
+    RawOldBlockProjectionPlan, RAW_OLD_BLOCK_CHILD_COUNT, RAW_OLD_BLOCK_K_LIMBS, RAW_OLD_BLOCK_K_MUL_ROWS,
+    RAW_OLD_BLOCK_PENDING_JOIN_ID,
+};
+pub use raw_old_block_projection_program::{
+    RawOldBlockProjectionCanonicalLayout, RawOldBlockProjectionColumnMap, RawOldBlockProjectionProgram,
+    RawOldBlockProjectionRowOwner,
+};
 pub use relation::{R1csRelation, R1csSnapshot};
 pub use ring_action::{alloc_and_enforce_ring_mul, enforce_ring_mul};
+pub use row_formula::CanonicalSparseRow;
 pub(crate) use stage_provenance::finalize_physical_stages;
 pub use stage_provenance::{PhysicalStageError, PhysicalStageRange};
 pub use sumcheck::{

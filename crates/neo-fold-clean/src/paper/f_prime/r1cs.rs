@@ -571,6 +571,11 @@ pub struct FPrimeStepOutput {
         Option<crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires>,
     pub nifs_parent: Option<crate::paper::reductions::pi_dec_circuit::CeClaimWires>,
     pub nifs_children: Option<Vec<crate::paper::reductions::pi_dec_circuit::CeClaimWires>>,
+    /// Exact outer-PiDEC canonical-X receipt. Present exactly on recursive
+    /// branches; live execution audits consume it directly instead of
+    /// rediscovering the invocation from witness values.
+    #[doc(hidden)]
+    pub pi_dec_canonical_x_receipt: Option<crate::engine::r1cs_circuit::PiDecCanonicalXReceipt>,
     /// Application public suffixes carried by the fresh claims consumed in
     /// this recursive step. Empty for the base step and for plain F'.
     pub fresh_public_suffixes: Vec<Vec<Var>>,
@@ -968,6 +973,7 @@ fn enforce_f_prime_base_step_with_output_acc(
         nifs_running_parent_authority: None,
         nifs_parent: None,
         nifs_children: None,
+        pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
     })
@@ -1405,6 +1411,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
         nifs_running_parent_authority: nifs_outputs.running_parent_authority,
         nifs_parent: Some(nifs_outputs.parent),
         nifs_children: Some(nifs_outputs.children),
+        pi_dec_canonical_x_receipt: Some(nifs_outputs.pi_dec_canonical_x_receipt),
         fresh_public_suffixes,
         fresh_adv: nifs_outputs.fresh_adv,
     })

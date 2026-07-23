@@ -21,12 +21,19 @@ use std::path::{Path, PathBuf};
 
 use neo_fold_clean::engine::r1cs_circuit::builder::SumcheckRoundAudit;
 use neo_fold_clean::engine::r1cs_circuit::{enforce_sumcheck_round, KVar, R1csBuilder};
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBlockLaneNcSelectiveRowsAudit, R1csIvcRelation};
+use neo_fold_clean::frontends::r1cs_f_prime::ivc::{
+    R1csIvc, R1csIvcBlockLaneNcSelectiveRowsAudit, R1csIvcPreprocessing, R1csIvcRelation,
+};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs, tiny_params};
+use support::r1cs_compiler_fixtures::{
+    assignment_one_product, make_tiny_lifecycle_plan, one_product_r1cs, tiny_params,
+};
 
-use artifact::{GeneratedLeanFile, TinyFixtureScope};
+use artifact::{
+    ExecutionCertificate, GeneratedLeanFile, ProductionPlacementCertificate, TerminalProjectionFixture,
+    TinyFixtureScope,
+};
 
 const GENERATED_DIRECTORY: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/CombinedNc/Generated";
@@ -229,7 +236,39 @@ fn assert_round_rows_match_isolated(audit: &R1csIvcBlockLaneNcSelectiveRowsAudit
     );
 }
 
+fn capture_execution_certificate() -> (ExecutionCertificate, ProductionPlacementCertificate) {
+    let app = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
+    let prep = R1csIvcPreprocessing::new_seeded(tiny_params(), &app, plan, 0x1F15_C007)
+        .expect("compile the fixed post-PiDEC execution profile");
+    let mut chain = R1csIvc::new(&prep);
+    for (step, (left, right)) in [(3, 7), (4, 9), (5, 11)].into_iter().enumerate() {
+        chain
+            .extend(assignment_one_product(left, right))
+            .unwrap_or_else(|error| panic!("append execution-audit step {}: {error}", step + 1));
+    }
+    let post_pi_dec = chain
+        .post_pi_dec_execution_audit()
+        .expect("third step owns the active post-PiDEC recursive audit")
+        .clone();
+    artifact::assert_pi_dec_paper_shape_contract(&post_pi_dec);
+    let execution = ExecutionCertificate::capture(&post_pi_dec);
+    let finalized = neo_fold_clean::lifecycle::finish_uncompressed_with_audit(
+        &prep.prep,
+        chain
+            .into_audit()
+            .expect("fixed profile owns its lifecycle audit"),
+    )
+    .expect("finalize the fixed profile for terminal placement capture");
+    let placement = ProductionPlacementCertificate::capture(&prep, &finalized, &post_pi_dec);
+    placement.assert_mutations_fail(&prep, &post_pi_dec);
+    (execution, placement)
+}
+
 fn render_generated_files() -> Vec<GeneratedLeanFile> {
+    // Drop the large active chain before materializing the independent static
+    // row certificate. Only this compact proof-free snapshot crosses the seam.
+    let (execution, production_placement) = capture_execution_certificate();
     let params = tiny_params();
     let app = one_product_r1cs();
     let fixture = TinyFixtureScope {
@@ -244,7 +283,34 @@ fn render_generated_files() -> Vec<GeneratedLeanFile> {
     let audit = R1csIvcRelation::audit_fixed_point_block_lane_nc_rows(&params, &app.into(), &plan)
         .expect("materialize bounded production combined-NC rows");
     assert_round_rows_match_isolated(&audit);
-    artifact::generated_files(&audit, fixture)
+    artifact::assert_execution_mutations_fail(&execution, &audit);
+    let terminal_projection = TerminalProjectionFixture::capture();
+    terminal_projection.assert_mutations_fail();
+    artifact::generated_files(&audit, fixture, &execution, &production_placement, &terminal_projection)
+}
+
+fn render_terminal_projection_row_files() -> Vec<GeneratedLeanFile> {
+    let terminal_projection = TerminalProjectionFixture::capture();
+    terminal_projection.assert_mutations_fail();
+    artifact::terminal_projection_row_files(&terminal_projection)
+}
+
+#[test]
+fn production_pi_dec_paper_shape_execution_contract_is_live() {
+    let app = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
+    let prep = R1csIvcPreprocessing::new_seeded(tiny_params(), &app, plan, 0x1F15_C007)
+        .expect("compile the fixed post-PiDEC execution profile");
+    let mut chain = R1csIvc::new(&prep);
+    for (step, (left, right)) in [(3, 7), (4, 9), (5, 11)].into_iter().enumerate() {
+        chain
+            .extend(assignment_one_product(left, right))
+            .unwrap_or_else(|error| panic!("append execution-audit step {}: {error}", step + 1));
+    }
+    let post_pi_dec = chain
+        .post_pi_dec_execution_audit()
+        .expect("third step owns the active post-PiDEC recursive audit");
+    artifact::assert_pi_dec_paper_shape_contract(post_pi_dec);
 }
 
 #[test]
@@ -277,6 +343,58 @@ fn production_block_lane_nc_artifact_matches_generated_certificate() {
 }
 
 #[test]
+fn production_raw_old_block_projection_contract_matches_generated_certificate() {
+    let (execution, placement) = capture_execution_certificate();
+    let files = artifact::focused_raw_old_block_projection_contract(&execution, &placement);
+    assert_eq!(
+        files.len(),
+        4,
+        "focused renderer owns plan, row-at, concrete placement, and facade"
+    );
+    let root = repo_root();
+    let mut drifted = Vec::new();
+    for file in files {
+        compare_or_write_expected(&root, file, &mut drifted);
+    }
+    assert!(
+        drifted.is_empty(),
+        "focused production raw-old-block artifacts drifted: {drifted:?}"
+    );
+}
+
+#[test]
+fn production_public_write_artifact_matches_generated_certificate() {
+    let (execution, _) = capture_execution_certificate();
+    artifact::assert_public_write_mutations_fail(&execution);
+    let files = artifact::focused_public_write_files(&execution);
+    assert_eq!(files.len(), 2, "public writes use two bounded shards");
+    let root = repo_root();
+    let mut drifted = Vec::new();
+    for file in files {
+        compare_or_write_expected(&root, file, &mut drifted);
+    }
+    assert!(
+        drifted.is_empty(),
+        "production public-write artifacts drifted: {drifted:?}"
+    );
+}
+
+#[test]
+fn production_terminal_projection_rows_match_generated_certificate() {
+    let files = render_terminal_projection_row_files();
+    assert_eq!(files.len(), 3, "terminal projection rows use three bounded shards");
+    let root = repo_root();
+    let mut drifted = Vec::new();
+    for file in files {
+        compare_or_write_expected(&root, file, &mut drifted);
+    }
+    assert!(
+        drifted.is_empty(),
+        "terminal projection row artifacts drifted: {drifted:?}"
+    );
+}
+
+#[test]
 #[ignore = "deliberately rewrites reviewed generated Lean artifacts; the ordinary drift test remains fail-closed"]
 fn regenerate_production_block_lane_nc_artifacts() {
     let files = render_generated_files();
@@ -290,6 +408,66 @@ fn regenerate_production_block_lane_nc_artifacts() {
     for stale in committed_paths.difference(&expected_paths) {
         fs::remove_file(root.join(stale)).expect("remove stale generated Lean artifact");
     }
+    for file in files {
+        let path = root.join(file.relative_path);
+        fs::create_dir_all(path.parent().expect("generated artifact parent"))
+            .expect("create generated artifact directory");
+        fs::write(&path, file.contents).expect("write generated Lean artifact");
+        let expected = path.with_extension("lean.expected");
+        if expected.exists() {
+            fs::remove_file(expected).expect("remove promoted generated candidate");
+        }
+    }
+}
+
+#[test]
+#[ignore = "deliberately rewrites only row-at, concrete production placement, and Execution facade"]
+fn regenerate_raw_old_block_projection_row_contract() {
+    let (execution, placement) = capture_execution_certificate();
+    let files = artifact::focused_raw_old_block_projection_contract(&execution, &placement);
+    assert_eq!(
+        files.len(),
+        4,
+        "focused renderer owns plan, row-at, concrete placement, and facade"
+    );
+    let root = repo_root();
+    for file in files {
+        let path = root.join(file.relative_path);
+        fs::create_dir_all(path.parent().expect("generated artifact parent"))
+            .expect("create generated artifact directory");
+        fs::write(&path, file.contents).expect("write generated Lean artifact");
+        let expected = path.with_extension("lean.expected");
+        if expected.exists() {
+            fs::remove_file(expected).expect("remove promoted generated candidate");
+        }
+    }
+}
+
+#[test]
+#[ignore = "deliberately rewrites only the two active public-write shards"]
+fn regenerate_production_public_write_artifacts() {
+    let (execution, _) = capture_execution_certificate();
+    let files = artifact::focused_public_write_files(&execution);
+    assert_eq!(files.len(), 2, "public writes use two bounded shards");
+    let root = repo_root();
+    for file in files {
+        let path = root.join(file.relative_path);
+        fs::create_dir_all(path.parent().expect("generated artifact parent"))
+            .expect("create generated artifact directory");
+        fs::write(&path, file.contents).expect("write generated Lean artifact");
+        let expected = path.with_extension("lean.expected");
+        if expected.exists() {
+            fs::remove_file(expected).expect("remove promoted generated candidate");
+        }
+    }
+}
+
+#[test]
+#[ignore = "deliberately rewrites only the three terminal raw-old-block projection row shards"]
+fn regenerate_terminal_projection_rows() {
+    let files = render_terminal_projection_row_files();
+    assert_eq!(files.len(), 3, "terminal projection rows use three bounded shards");
+    let root = repo_root();
     for file in files {
         let path = root.join(file.relative_path);
         fs::create_dir_all(path.parent().expect("generated artifact parent"))

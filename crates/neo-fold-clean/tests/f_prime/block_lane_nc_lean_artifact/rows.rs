@@ -114,7 +114,7 @@ fn render_source_shard(
     }
 }
 
-fn render_emitted_row(contents: &mut String, row: &SelectiveProjectedRowArtifact) {
+pub(super) fn render_emitted_row(contents: &mut String, row: &SelectiveProjectedRowArtifact) {
     assert!(row.ports().iter().all(|port| {
         port.explicit().len() <= MAX_NESTED_RECORDS && port.geometric_runs().len() <= MAX_NESTED_RECORDS
     }));

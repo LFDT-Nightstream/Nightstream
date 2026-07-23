@@ -31,12 +31,38 @@
 use neo_ccs::SparsePoly;
 use neo_math::F;
 
+use crate::engine::r1cs_circuit::builder::{BlockLaneNcBoundaryAudit, SumcheckRoundAudit};
 use crate::engine::r1cs_circuit::PhysicalStageRange;
 use crate::frontends::r1cs_f_prime::{
-    SelectiveCompilerAudit, SelectiveLayoutAudit, SelectiveLowNormWidthAudit, SelectiveRowMappingAudit,
+    SelectiveCompilerAudit, SelectiveLayoutAudit, SelectiveLowNormWidthAudit, SelectiveRowMappingAudit, SparseR1cs,
 };
 
 use super::PiCcsOutputDigestAudit;
+
+pub(super) fn block_lane_nc_schedule(
+    steady_arm: &SparseR1cs,
+) -> Result<(BlockLaneNcBoundaryAudit, Vec<SumcheckRoundAudit>), String> {
+    const ROUND_COUNT: usize = 25;
+
+    let [boundary] = steady_arm.block_lane_nc_boundary_audits() else {
+        return Err(format!(
+            "steady recursive arm has {} block/lane NC boundaries, expected exactly one",
+            steady_arm.block_lane_nc_boundary_audits().len()
+        ));
+    };
+    let round_indices = boundary.round_audit_indices.clone();
+    if round_indices.start > round_indices.end || round_indices.end > steady_arm.sumcheck_round_audits().len() {
+        return Err("steady block/lane NC round-audit interval escapes the recursive arm".into());
+    }
+    let rounds = steady_arm.sumcheck_round_audits()[round_indices].to_vec();
+    if rounds.len() != ROUND_COUNT {
+        return Err(format!(
+            "steady block/lane NC has {} rounds, expected {ROUND_COUNT}",
+            rounds.len()
+        ));
+    }
+    Ok((boundary.clone(), rounds))
+}
 
 #[derive(Clone, Debug)]
 pub struct RelationHeaderAudit {
@@ -123,6 +149,8 @@ pub struct R1csIvcCompilationAudit {
     rounds: Vec<FixedPointRoundAudit>,
     selective: SelectiveCompilerAudit,
     pi_ccs_output_digest: PiCcsOutputDigestAudit,
+    block_lane_nc_boundary: BlockLaneNcBoundaryAudit,
+    block_lane_nc_rounds: Vec<SumcheckRoundAudit>,
 }
 
 impl R1csIvcCompilationAudit {
@@ -130,11 +158,15 @@ impl R1csIvcCompilationAudit {
         rounds: Vec<FixedPointRoundAudit>,
         selective: SelectiveCompilerAudit,
         pi_ccs_output_digest: PiCcsOutputDigestAudit,
+        block_lane_nc_boundary: BlockLaneNcBoundaryAudit,
+        block_lane_nc_rounds: Vec<SumcheckRoundAudit>,
     ) -> Self {
         Self {
             rounds,
             selective,
             pi_ccs_output_digest,
+            block_lane_nc_boundary,
+            block_lane_nc_rounds,
         }
     }
 
@@ -160,6 +192,22 @@ impl R1csIvcCompilationAudit {
     /// arm before the selective relation was checked against its plan.
     pub fn pi_ccs_output_digest(&self) -> &PiCcsOutputDigestAudit {
         &self.pi_ccs_output_digest
+    }
+
+    /// Exact source-builder wire schedule for the steady recursive
+    /// block-by-lane delayed-NC boundary. The generated rows remain the
+    /// authority; this record exists so a live execution can be joined to
+    /// those same source columns.
+    #[doc(hidden)]
+    pub fn block_lane_nc_boundary(&self) -> &BlockLaneNcBoundaryAudit {
+        &self.block_lane_nc_boundary
+    }
+
+    /// The 25 source-builder SumCheck rounds selected by
+    /// [`Self::block_lane_nc_boundary`], in transcript order.
+    #[doc(hidden)]
+    pub fn block_lane_nc_rounds(&self) -> &[SumcheckRoundAudit] {
+        &self.block_lane_nc_rounds
     }
 
     /// Caller-labeled source-row intervals for the final base and recursive

@@ -5,7 +5,9 @@
 
 use neo_math::F;
 
+use crate::paper::construction2::nebula_lane::NebulaLane;
 use crate::paper::construction2::proof_state::ProofState;
+use crate::paper::construction2::running::RunningInstance;
 use crate::paper::construction2::state::State;
 use crate::paper::construction2::verifier_key::VerifierKey;
 use crate::paper::construction2::{enc_inst::EncInst, Error, TRIVIAL_PC};
@@ -79,6 +81,33 @@ pub enum SemanticStateMode {
     Stateful,
 }
 
+/// Crate-private observation seam for the operations performed while the
+/// native verifier advances and hashes one state.
+///
+/// The ordinary path uses the zero-sized no-op implementation. The audited
+/// verifier implements this trait with an owned public-data receipt.
+pub(crate) trait VerifyTransitionRecorder {
+    fn running_digest(&mut self, _running: &RunningInstance, _relation_columns: usize, _output: [u8; 32]) {}
+
+    fn state_advanced(&mut self, _output: &State) {}
+
+    fn verifier_digest_read(&mut self, _output: [u8; 32]) {}
+
+    fn pi_ccs_header_read(&mut self, _output: [F; 4]) {}
+
+    fn nebula_digest(&mut self, _lane: &NebulaLane, _output: [F; 4]) {}
+
+    fn state_x_out_hash(&mut self, _preimage: &[F], _output_digest: [u8; 32], _output: &EncInst) {}
+}
+
+pub(crate) struct NoopVerifyTransitionRecorder;
+
+impl VerifyTransitionRecorder for NoopVerifyTransitionRecorder {}
+
+/// A canonical accumulator digest that cannot be constructed from a
+/// caller-supplied byte string.
+struct CanonicalAccumulatorDigest([u8; 32]);
+
 /// 1 ≤ pc_i ≤ ℓ. ℓ=1 in this build.
 pub(crate) fn enforce_pc_in_range(state: &State) -> Result<(), Error> {
     if state.pc == TRIVIAL_PC {
@@ -112,26 +141,36 @@ pub(crate) fn state_base_case_check(state: &State) -> Result<(), Error> {
 /// Advance the IVC carrier by one step: bump counters, carry the
 /// chunk's public-instance digest as `z_i`, mirror `public_trace` to
 /// `z_i`, and re-derive `acc_digest` from the new running accumulator.
-pub(crate) fn advance_state(
-    _pp: &Params,
-    structure: &Structure,
+pub(crate) fn advance_state_recorded<R: VerifyTransitionRecorder>(
     prev: State,
     new_proof: ProofState,
+    structure: &Structure,
     fresh_count: u64,
     chunk_digest: [F; 4],
     semantic_advance: SemanticStateAdvance,
     nebula_next: Option<crate::paper::construction2::NebulaLane>,
+    recorder: &mut R,
 ) -> Result<State, Error> {
-    advance_state_inner(
+    let (chunk_count, step_count) = checked_advanced_counts(&prev, fresh_count)?;
+    let canonical = canonical_accumulator_digest(&new_proof, structure)?;
+    if let ProofState::Active { running, .. } = &new_proof {
+        let running = running
+            .as_materialized()
+            .ok_or(Error::AccumulatorDigestOverrideMismatch)?;
+        recorder.running_digest(running, structure.m, canonical.0);
+    }
+    let state = finish_state_advance(
         prev,
         new_proof,
-        structure,
-        fresh_count,
+        chunk_count,
+        step_count,
         chunk_digest,
         semantic_advance,
-        None,
+        canonical.0,
         nebula_next,
-    )
+    );
+    recorder.state_advanced(&state);
+    Ok(state)
 }
 
 pub(crate) fn advance_state_with_acc_digest(
@@ -145,52 +184,9 @@ pub(crate) fn advance_state_with_acc_digest(
     acc_digest_override: Option<[u8; 32]>,
     nebula_next: Option<crate::paper::construction2::NebulaLane>,
 ) -> Result<State, Error> {
-    advance_state_inner(
-        prev,
-        new_proof,
-        structure,
-        fresh_count,
-        chunk_digest,
-        semantic_advance,
-        acc_digest_override,
-        nebula_next,
-    )
-}
-
-fn advance_state_inner(
-    prev: State,
-    new_proof: ProofState,
-    structure: &Structure,
-    fresh_count: u64,
-    chunk_digest: [F; 4],
-    semantic_advance: SemanticStateAdvance,
-    acc_digest_override: Option<[u8; 32]>,
-    nebula_next: Option<crate::paper::construction2::NebulaLane>,
-) -> Result<State, Error> {
-    let chunk_count = prev
-        .chunk_count
-        .checked_add(1)
-        .ok_or(Error::CounterOverflow { counter: "chunk_count" })?;
-    let step_count = prev
-        .step_count
-        .checked_add(fresh_count)
-        .ok_or(Error::CounterOverflow { counter: "step_count" })?;
-    let new_z_i = digest::digest_fields_as_digest32(chunk_digest);
-    // `public_trace` has the same domain-separation role as `z_i` in
-    // this direct-CCS build. Keep the state field for existing public
-    // image shape, but do not spend a second Poseidon2 chain on it.
-    let new_public_trace = new_z_i;
-    let canonical_acc_digest = match &new_proof {
-        ProofState::Initial => Some(digest::AccumulatorHandle::empty().digest()),
-        ProofState::Active { running, .. } => match running.as_materialized() {
-            Some(running) => Some(running.accumulator_digest(structure)?),
-            None if crate::paper::construction2::running::uses_pending_accumulator_family(structure) => {
-                return Err(Error::DeferredPendingAccumulatorUnsupported);
-            }
-            None => None,
-        },
-    };
-    let new_acc_digest = match (canonical_acc_digest, acc_digest_override) {
+    let (chunk_count, step_count) = checked_advanced_counts(&prev, fresh_count)?;
+    let canonical = canonical_accumulator_digest_optional(&new_proof, structure)?;
+    let new_acc_digest = match (canonical.map(|digest| digest.0), acc_digest_override) {
         (Some(canonical), Some(supplied)) if canonical != supplied => {
             return Err(Error::AccumulatorDigestOverrideMismatch);
         }
@@ -200,11 +196,76 @@ fn advance_state_inner(
             return Err(Error::AccumulatorDigestOverrideMismatch);
         }
     };
+    Ok(finish_state_advance(
+        prev,
+        new_proof,
+        chunk_count,
+        step_count,
+        chunk_digest,
+        semantic_advance,
+        new_acc_digest,
+        nebula_next,
+    ))
+}
+
+fn checked_advanced_counts(prev: &State, fresh_count: u64) -> Result<(u64, u64), Error> {
+    let chunk_count = prev
+        .chunk_count
+        .checked_add(1)
+        .ok_or(Error::CounterOverflow { counter: "chunk_count" })?;
+    let step_count = prev
+        .step_count
+        .checked_add(fresh_count)
+        .ok_or(Error::CounterOverflow { counter: "step_count" })?;
+    Ok((chunk_count, step_count))
+}
+
+fn canonical_accumulator_digest(
+    new_proof: &ProofState,
+    structure: &Structure,
+) -> Result<CanonicalAccumulatorDigest, Error> {
+    canonical_accumulator_digest_optional(new_proof, structure)?.ok_or(Error::AccumulatorDigestOverrideMismatch)
+}
+
+fn canonical_accumulator_digest_optional(
+    new_proof: &ProofState,
+    structure: &Structure,
+) -> Result<Option<CanonicalAccumulatorDigest>, Error> {
+    match new_proof {
+        ProofState::Initial => Ok(Some(CanonicalAccumulatorDigest(
+            digest::AccumulatorHandle::empty().digest(),
+        ))),
+        ProofState::Active { running, .. } => match running.as_materialized() {
+            Some(running) => Ok(Some(CanonicalAccumulatorDigest(running.accumulator_digest(structure)?))),
+            None if crate::paper::construction2::running::uses_pending_accumulator_family(structure) => {
+                Err(Error::DeferredPendingAccumulatorUnsupported)
+            }
+            None => Ok(None),
+        },
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn finish_state_advance(
+    prev: State,
+    new_proof: ProofState,
+    chunk_count: u64,
+    step_count: u64,
+    chunk_digest: [F; 4],
+    semantic_advance: SemanticStateAdvance,
+    new_acc_digest: [u8; 32],
+    nebula_next: Option<crate::paper::construction2::NebulaLane>,
+) -> State {
+    let new_z_i = digest::digest_fields_as_digest32(chunk_digest);
+    // `public_trace` has the same domain-separation role as `z_i` in
+    // this direct-CCS build. Keep the state field for existing public
+    // image shape, but do not spend a second Poseidon2 chain on it.
+    let new_public_trace = new_z_i;
     let new_semantic_state_digest = match semantic_advance {
         SemanticStateAdvance::Stateless => new_acc_digest,
         SemanticStateAdvance::Stateful(digest) => digest,
     };
-    Ok(State {
+    State {
         chunk_count,
         step_count,
         z_0: prev.z_0,
@@ -218,7 +279,7 @@ fn advance_state_inner(
         // A Nebula step installs the advanced lane (spec §6.3); plain
         // steps carry the previous lane coordinate unchanged.
         nebula: nebula_next.or(prev.nebula),
-    })
+    }
 }
 
 /// F'-step chunk digest from `&[CcsInstance]`. Uses
@@ -248,24 +309,44 @@ pub(crate) fn compute_x_out(
     state: &State,
     semantic_mode: SemanticStateMode,
 ) -> EncInst {
+    let mut recorder = NoopVerifyTransitionRecorder;
+    compute_x_out_recorded(vk, structure_digest, state, semantic_mode, &mut recorder)
+}
+
+pub(crate) fn compute_x_out_recorded<R: VerifyTransitionRecorder>(
+    vk: &VerifierKey,
+    _structure_digest: &[F; 4],
+    state: &State,
+    semantic_mode: SemanticStateMode,
+    recorder: &mut R,
+) -> EncInst {
     let mode = match semantic_mode {
         SemanticStateMode::Stateless => digest::StateXOutDigestMode::Stateless,
         SemanticStateMode::Stateful => digest::StateXOutDigestMode::Stateful,
     };
-    let bytes = digest::state_x_out_digest_with_mode(
+    let verifier_digest = vk.digest();
+    recorder.verifier_digest_read(verifier_digest);
+    let pi_ccs_header = vk.pi_ccs_header_bundle();
+    recorder.pi_ccs_header_read(pi_ccs_header);
+    let nebula_digest = state.nebula.as_ref().map(|lane| {
+        let output = lane.digest();
+        recorder.nebula_digest(lane, output);
+        output
+    });
+    let preimage = digest::state_x_out_preimage_with_mode(
         mode,
-        vk.digest(),
-        vk.pi_ccs_header_bundle(),
-        structure_digest,
+        verifier_digest,
+        pi_ccs_header,
         state.chunk_count,
         state.step_count,
-        state.z_0,
         state.z_i,
         state.pc,
         state.semantic_state_digest,
         state.acc_digest,
-        state.public_trace,
-        state.nebula.as_ref().map(|lane| lane.digest()),
+        nebula_digest,
     );
-    EncInst::from_digest(bytes)
+    let output_digest = digest::state_x_out_digest_from_preimage(&preimage);
+    let output = EncInst::from_digest(output_digest);
+    recorder.state_x_out_hash(&preimage, output_digest, &output);
+    output
 }

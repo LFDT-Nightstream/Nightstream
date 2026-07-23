@@ -300,11 +300,17 @@ pub fn enforce_accumulator_digest(
     let input_binding_start = CircuitFrontier::capture(builder);
     let commitment = enforce_commit_fields(builder, config, fields)?;
     let digest_compression_start = CircuitFrontier::capture(builder);
+    builder.record_column_family("r1cs.sis_accumulator.input_binding", input_binding_start.column);
     let digest_compression = enforce_commit_fields(builder, SIS_DIGEST_COMPRESSION_CONFIG, &commitment.data)?;
     let envelope_start = CircuitFrontier::capture(builder);
+    builder.record_column_family(
+        "r1cs.sis_accumulator.digest_compression",
+        digest_compression_start.column,
+    );
     let digest_preimage = digest_envelope_wires(builder, config, fields.len(), &commitment, &digest_compression);
     let digest = enforce_poseidon2_hash(builder, &digest_preimage);
     let end = CircuitFrontier::capture(builder);
+    builder.record_column_family("r1cs.sis_accumulator.envelope", envelope_start.column);
     Ok(SisAccumulatorWires {
         commitment,
         digest_compression,

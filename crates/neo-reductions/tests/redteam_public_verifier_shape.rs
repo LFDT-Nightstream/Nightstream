@@ -37,6 +37,10 @@ fn build_structure(n: usize, m: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![m0, m1], f).expect("valid CCS structure")
 }
 
+fn column_point_len(structure: &CcsStructure<F>) -> usize {
+    structure.m.next_power_of_two().max(2).trailing_zeros() as usize
+}
+
 fn make_z(seed: u64, m: usize) -> Mat<F> {
     assert!(m.is_multiple_of(D));
     let mut data = Vec::with_capacity(m);
@@ -160,6 +164,7 @@ fn rlc_public_matches_rejects_common_short_row_point() {
         FoldingMode::Optimized,
         &structure,
         &params,
+        column_point_len(&structure),
         &rhos,
         &inputs,
         &[z0, z1],
@@ -175,6 +180,7 @@ fn rlc_public_matches_rejects_common_short_row_point() {
     let (accepted, _) = rlc_public_matches_with_perf(
         &structure,
         &params,
+        column_point_len(&structure),
         &rhos,
         &inputs,
         &expected,
@@ -224,6 +230,7 @@ fn verify_dec_public_rejects_common_short_row_point() {
         FoldingMode::Optimized,
         &structure,
         &params,
+        column_point_len(&structure),
         &parent,
         &z_split,
         ell_d,
@@ -241,6 +248,7 @@ fn verify_dec_public_rejects_common_short_row_point() {
         !verify_dec_public(
             &structure,
             &params,
+            column_point_len(&structure),
             &parent,
             &children,
             combine_commitments_b_pows,
@@ -276,6 +284,7 @@ fn verify_dec_public_rejects_child_count_different_from_k_rho() {
         !verify_dec_public(
             &structure,
             &params,
+            column_point_len(&structure),
             &parent,
             core::slice::from_ref(&child),
             combine_commitments_b_pows,
@@ -351,6 +360,7 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
         !verify_dec_public(
             &structure,
             &params,
+            column_point_len(&structure),
             &parent,
             &children,
             combine_commitments_b_pows,
@@ -389,6 +399,7 @@ fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
         rlc_public(
             &structure,
             &params,
+            column_point_len(&structure),
             &rhos,
             core::slice::from_ref(&input),
             |_, _| Commitment::zeros(D, 1),
@@ -433,7 +444,15 @@ fn rlc_public_rejects_instance_count_above_parameter_guard() {
     );
     let rho_mats = vec![Mat::identity(D); INPUT_COUNT];
     let rhos = typed_rhos(&params, &rho_mats);
-    let result = rlc_public(&structure, &params, &rhos, &inputs, mix_commitments_from_rhos, ell_d);
+    let result = rlc_public(
+        &structure,
+        &params,
+        column_point_len(&structure),
+        &rhos,
+        &inputs,
+        mix_commitments_from_rhos,
+        ell_d,
+    );
 
     assert!(
         result.is_err(),
@@ -465,7 +484,15 @@ fn rlc_public_rejects_inputs_from_different_fold_transcripts() {
     let inputs = vec![first, second];
     let rhos = typed_rhos(&params, &[Mat::identity(D), Mat::identity(D)]);
 
-    let result = rlc_public(&structure, &params, &rhos, &inputs, mix_commitments_from_rhos, ell_d);
+    let result = rlc_public(
+        &structure,
+        &params,
+        column_point_len(&structure),
+        &rhos,
+        &inputs,
+        mix_commitments_from_rhos,
+        ell_d,
+    );
 
     assert!(
         result.is_err(),
@@ -489,6 +516,7 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
         !verify_dec_public(
             &structure,
             &params,
+            column_point_len(&structure),
             &parent,
             &children,
             combine_commitments_b_pows,
@@ -560,6 +588,7 @@ fn rlc_with_commit_rejects_mixed_public_widths_without_panicking() {
             FoldingMode::Optimized,
             &structure,
             &params,
+            column_point_len(&structure),
             &rhos,
             &inputs,
             &witnesses,

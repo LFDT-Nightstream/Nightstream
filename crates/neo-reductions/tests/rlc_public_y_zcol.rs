@@ -6,6 +6,10 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
+fn column_point_len(structure: &CcsStructure<F>) -> usize {
+    structure.m.next_power_of_two().max(2).trailing_zeros() as usize
+}
+
 #[test]
 fn rlc_public_mixes_y_zcol_when_present() {
     let params = NeoParams::goldilocks_paper_b2();
@@ -14,10 +18,11 @@ fn rlc_public_mixes_y_zcol_when_present() {
 
     // Minimal SuperNeo-compatible CCS structure: only `t` matters for Π_RLC public mixing.
     let s = CcsStructure::new(vec![Mat::identity(D)], neo_ccs::poly::SparsePoly::new(1, vec![])).unwrap();
+    let flat_column_point_len = column_point_len(&s);
 
     let m_in = 1usize;
     let r = vec![K::from(F::from_u64(3)), K::from(F::from_u64(5))];
-    let s_col = vec![K::from(F::from_u64(7))];
+    let s_col = vec![K::from(F::from_u64(7)); flat_column_point_len];
 
     let mut X0 = Mat::zero(D, m_in, F::ZERO);
     let mut X1 = Mat::zero(D, m_in, F::ZERO);
@@ -86,6 +91,7 @@ fn rlc_public_mixes_y_zcol_when_present() {
     let out = neo_reductions::api::rlc_public(
         &s,
         &params,
+        flat_column_point_len,
         &rhos_typed,
         &[inst0, inst1],
         |_rhos, _cs| Commitment::zeros(params.d as usize, 1),
@@ -106,7 +112,7 @@ fn rlc_public_mixes_y_zcol_when_present() {
             aux0[1] + K::from(F::from_u64(2)) * aux1[1]
         ]
     );
-    assert_eq!(out.s_col.len(), 1);
+    assert_eq!(out.s_col.len(), flat_column_point_len);
 }
 
 #[test]
@@ -115,10 +121,11 @@ fn rlc_public_matches_rejects_y_zcol_and_s_col_shell_tamper() {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
     let s = CcsStructure::new(vec![Mat::identity(D)], neo_ccs::poly::SparsePoly::new(1, vec![])).unwrap();
+    let flat_column_point_len = column_point_len(&s);
 
     let m_in = 1usize;
     let r = vec![K::from(F::from_u64(3)), K::from(F::from_u64(5))];
-    let s_col = vec![K::from(F::from_u64(7))];
+    let s_col = vec![K::from(F::from_u64(7)); flat_column_point_len];
 
     let mut X0 = Mat::zero(D, m_in, F::ZERO);
     let mut X1 = Mat::zero(D, m_in, F::ZERO);
@@ -183,6 +190,7 @@ fn rlc_public_matches_rejects_y_zcol_and_s_col_shell_tamper() {
     let expected = neo_reductions::api::rlc_public(
         &s,
         &params,
+        flat_column_point_len,
         &rhos_typed,
         &[inst0.clone(), inst1.clone()],
         |_rhos, _cs| Commitment::zeros(params.d as usize, 1),
@@ -197,6 +205,7 @@ fn rlc_public_matches_rejects_y_zcol_and_s_col_shell_tamper() {
     let (ok, _) = neo_reductions::api::rlc_public_matches_with_perf(
         &s,
         &params,
+        flat_column_point_len,
         &rhos_typed,
         &[inst0, inst1],
         &expected_shell,

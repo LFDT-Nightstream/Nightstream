@@ -1,6 +1,6 @@
 //! Exact final ring-alignment rows for the bounded fixed-point carrier.
 //!
-//! Owns: bounded projection of all 52 final `D = 64` alignment rows from the
+//! Owns: bounded projection of every final `D = 54` alignment row from the
 //! same thirteen-port emitter used by the stabilized fixed-point relation.
 //!
 //! Does not own: the earlier 38-column private-layout alignment, assignment
@@ -11,7 +11,7 @@ use std::fmt::Write as _;
 use neo_fold_clean::frontends::r1cs_f_prime::{
     SelectiveEmittedRowFamily, SelectiveProjectedPort, SelectiveProjectedRowsAudit,
 };
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{selective_matrix_rows::write_raw_row, GeneratedLeanFile};
@@ -22,7 +22,6 @@ const NAMESPACE: &str =
     "Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.Carrier270.Generated.RingPaddingRows";
 const GENERAL_SELECTOR: usize = 1;
 const C: usize = 4;
-const RING_PADDING_COUNT: usize = 52;
 
 fn is_unit_at(port: &SelectiveProjectedPort, column: usize) -> bool {
     port.geometric_runs().is_empty()
@@ -33,8 +32,16 @@ fn is_unit_at(port: &SelectiveProjectedPort, column: usize) -> bool {
 
 pub(super) fn render(projected: &SelectiveProjectedRowsAudit) -> GeneratedLeanFile {
     let rows = projected.ring_padding_row_artifacts();
-    assert_eq!(rows.len(), RING_PADDING_COUNT, "final ring padding width");
-    let first_column = projected.columns() - rows.len();
+    let layout_range = projected
+        .compiler_audit()
+        .layout()
+        .ring_alignment_padding_columns();
+    assert_eq!(layout_range.end, projected.columns(), "final ring padding endpoint");
+    assert_eq!(rows.len(), layout_range.len(), "final ring padding width");
+    assert!(!rows.is_empty(), "bounded production profile has final ring padding");
+    assert!(rows.len() < D, "final ring padding is a strict D-alignment suffix");
+    assert_eq!(projected.columns() % D, 0, "final relation is D-aligned");
+    let first_column = layout_range.start;
     let first_emitted_row = rows[0].emitted_row();
     let run_index = rows[0].run_index();
 
@@ -62,8 +69,8 @@ pub(super) fn render(projected: &SelectiveProjectedRowsAudit) -> GeneratedLeanFi
         contents,
         "import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.PiRlcProjection.YZcol.Selective.Materialized.Schema\n\n\
 /-! Generated file: exact fixed-point final ring-alignment rows.\n\n\
-Owns: all 52 proof-free thirteen-port rows emitted after the final selective\n\
-column allocation to align the relation width to `D = 64`.\n\n\
+Owns: all {} proof-free thirteen-port rows emitted after the final selective\n\
+column allocation to align the relation width to `D = 54`.\n\n\
 Does not own: the earlier private-layout padding, decoding, row semantics,\n\
 constant-one authority, CCS/CE membership, commitment alignment, or row\n\
 removal. Do not hand-edit.\n\n\
@@ -72,14 +79,22 @@ Emits constraints: no.\n\n\
 |---|---|---|\n\
 | `firstEmittedRow` | final emitter row cursor | first final alignment row |\n\
 | `runIndex` | compiler ownership ledger | unique ring-padding run |\n\
-| `rawRows` | final thirteen-port emitter | `-(z[0] * z[11725454+i])` for `i < 52` |\n\
+| `rawRows` | final thirteen-port emitter | `-(z[0] * z[firstPaddingColumn+i])` |\n\
 -/\n\n\
 namespace {NAMESPACE}\n\n\
 open Nightstream.Implementation.R1CS.FPrimeSelectiveFixedPoint.PiRlcProjection.YZcol.Selective.Materialized\n\n\
+def relationRows : Nat := {}\n\n\
+def relationColumns : Nat := {}\n\n\
+def firstPaddingColumn : Nat := {first_column}\n\n\
+def paddingWidth : Nat := {}\n\n\
 def firstEmittedRow : Nat := {first_emitted_row}\n\n\
 def runIndex : Nat := {run_index}\n\n\
 set_option maxRecDepth 100000 in\n\
-def rawRows : List RawRow := ["
+def rawRows : List RawRow := [",
+        rows.len(),
+        projected.rows(),
+        projected.columns(),
+        rows.len(),
     )
     .expect("render ring padding header");
     for (offset, row) in rows.iter().enumerate() {

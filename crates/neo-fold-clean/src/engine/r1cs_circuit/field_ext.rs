@@ -123,29 +123,20 @@ pub struct KMulIntermediates {
 
 fn alloc_k_mul(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> (KVar, KMulIntermediates) {
     let first_row = builder.rows();
-    let p_var = builder.alloc_mul(&a.c0, &b.c0);
-    let q_var = builder.alloc_mul(&a.c1, &b.c1);
     let sum_a = a.c0.clone().add_scaled(&a.c1, F::ONE);
     let sum_b = b.c0.clone().add_scaled(&b.c1, F::ONE);
-    let r_var = builder.alloc_mul(&sum_a, &sum_b);
-
     let w = w_constant();
-    let p = builder.witness()[p_var.col()];
-    let q = builder.witness()[q_var.col()];
-    let r = builder.witness()[r_var.col()];
+    let p = builder.eval(&a.c0) * builder.eval(&b.c0);
+    let q = builder.eval(&a.c1) * builder.eval(&b.c1);
+    let r = builder.eval(&sum_a) * builder.eval(&sum_b);
+    let p_var = builder.alloc(p);
+    let q_var = builder.alloc(q);
+    let r_var = builder.alloc(r);
     let out_c0 = builder.alloc(p + w * q);
     let out_c1 = builder.alloc(r - p - q);
-
-    builder.enforce_eq(
-        &Lc::from_var(out_c0),
-        &Lc::from_var(p_var).add_scaled(&Lc::from_var(q_var), w),
-    );
-    builder.enforce_eq(
-        &Lc::from_var(out_c1),
-        &Lc::from_var(r_var)
-            .add_scaled(&Lc::from_var(p_var), -F::ONE)
-            .add_scaled(&Lc::from_var(q_var), -F::ONE),
-    );
+    for (row_a, row_b, row_c) in k_mul_constraint_rows(a, b, p_var, q_var, r_var, KVar::new(out_c0, out_c1)) {
+        builder.enforce(&row_a, &row_b, &row_c);
+    }
     builder.record_k_mul(p_var, q_var, r_var);
     builder.record_k_mul_encoding(KMulTraceEntry {
         a: [a.c0.clone(), a.c1.clone()],
@@ -162,6 +153,33 @@ fn alloc_k_mul(builder: &mut R1csBuilder, a: &KLc, b: &KLc) -> (KVar, KMulInterm
             r: r_var,
         },
     )
+}
+
+pub(crate) fn k_mul_constraint_rows(
+    a: &KLc,
+    b: &KLc,
+    p: Var,
+    q: Var,
+    r: Var,
+    output: KVar,
+) -> [super::row_formula::ConstraintRow; 5] {
+    let sum_a = a.c0.clone().add_scaled(&a.c1, F::ONE);
+    let sum_b = b.c0.clone().add_scaled(&b.c1, F::ONE);
+    [
+        super::row_formula::multiplication_constraint_row(&a.c0, &b.c0, p),
+        super::row_formula::multiplication_constraint_row(&a.c1, &b.c1, q),
+        super::row_formula::multiplication_constraint_row(&sum_a, &sum_b, r),
+        super::row_formula::equality_constraint_row(
+            &Lc::from_var(output.c0),
+            &Lc::from_var(p).add_scaled(&Lc::from_var(q), w_constant()),
+        ),
+        super::row_formula::equality_constraint_row(
+            &Lc::from_var(output.c1),
+            &Lc::from_var(r)
+                .add_scaled(&Lc::from_var(p), -F::ONE)
+                .add_scaled(&Lc::from_var(q), -F::ONE),
+        ),
+    ]
 }
 
 /// Allocate `out = a · b` in 𝕂 and emit the constraints. Same shape as

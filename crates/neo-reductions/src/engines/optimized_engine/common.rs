@@ -989,7 +989,7 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None, None, None)
+    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None, None, None, None)
 }
 
 /// Same as `dec_reduction_paper_exact`, but uses a prebuilt CSC cache to avoid dense n×m scans.
@@ -1006,7 +1006,7 @@ where
     K: From<Ff>,
 {
     let _ = sparse;
-    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None, None, None)
+    dec_reduction_paper_exact_inner(s, params, parent, Z_split, ell_d, None, None, None, None, None)
 }
 
 /// Same as `dec_reduction_paper_exact`, but reuses a prebuilt SuperNeo eval cache.
@@ -1032,6 +1032,7 @@ where
         None,
         None,
         None,
+        None,
     )
 }
 
@@ -1045,6 +1046,7 @@ pub fn dec_reduction_paper_exact_with_superneo_cache_and_digit_flags<Ff>(
     superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
     precomputed_y_ring: Option<&[Vec<[K; D]>]>,
+    precomputed_y_zcol: Option<&[[K; D]]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -1065,6 +1067,7 @@ where
         Some(digit_nonzero),
         ring_linear_forms,
         precomputed_y_ring,
+        precomputed_y_zcol,
     )
 }
 
@@ -1078,6 +1081,7 @@ fn dec_reduction_paper_exact_inner<Ff>(
     digit_nonzero: Option<&[bool]>,
     precomputed_ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
     precomputed_y_ring: Option<&[Vec<[K; D]>]>,
+    precomputed_y_zcol: Option<&[[K; D]]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -1108,6 +1112,18 @@ where
             y_ring.iter().all(|rows| rows.len() == t_mats),
             "Π_DEC precomputed y_ring matrix count mismatch"
         );
+    }
+    if let Some(y_zcol) = precomputed_y_zcol {
+        assert_eq!(y_zcol.len(), k, "Π_DEC precomputed y_zcol child count mismatch");
+        if let Some(flags) = digit_nonzero {
+            assert!(
+                flags
+                    .iter()
+                    .zip(y_zcol)
+                    .all(|(&nonzero, row)| nonzero || row.iter().all(|&value| value == K::ZERO)),
+                "Π_DEC zero digit child must have a zero precomputed y_zcol row"
+            );
+        }
     }
     assert!(
         precomputed_y_ring.is_none() || ring_linear_forms.is_none(),
@@ -1211,7 +1227,7 @@ where
     #[cfg(feature = "perf-timers")]
     let t_chi_s = std::time::Instant::now();
     let want_nc_channel = !(parent.s_col.is_empty() && parent.y_zcol.is_empty());
-    let chi_s = if want_nc_channel {
+    let chi_s = if want_nc_channel && precomputed_y_zcol.is_none() {
         assert!(
             !parent.s_col.is_empty() && !parent.y_zcol.is_empty(),
             "Π_DEC: incomplete NC channel on parent (expected both s_col and y_zcol)"
@@ -1243,7 +1259,7 @@ where
     let build_child = |i: usize| {
         if digit_nonzero.is_some_and(|flags| !flags[i]) {
             let y_i = vec![vec![K::ZERO; d_pad]; t_mats];
-            let y_zcol = if chi_s.is_empty() {
+            let y_zcol = if !want_nc_channel {
                 Vec::new()
             } else {
                 vec![K::ZERO; d_pad]
@@ -1318,8 +1334,12 @@ where
 
         #[cfg(feature = "perf-timers")]
         let t_y_zcol = std::time::Instant::now();
-        let y_zcol = if chi_s.is_empty() {
+        let y_zcol = if !want_nc_channel {
             Vec::new()
+        } else if let Some(precomputed) = precomputed_y_zcol {
+            let mut row = precomputed[i].to_vec();
+            row.resize(d_pad, K::ZERO);
+            row
         } else {
             crate::common::compute_y_zcol_from_witness(params, Zi, s.m, &chi_s, d_pad)
                 .unwrap_or_else(|e| panic!("Π_DEC: y_zcol compute failed: {e}"))
@@ -1386,6 +1406,7 @@ where
             pow *= bK;
         }
         if lhs != parent.y_ring[j] {
+            eprintln!("Π_DEC y_ring radix recomposition mismatch at relation row {j}");
             #[cfg(feature = "debug-logs")]
             {
                 let mut first = None;
@@ -1404,6 +1425,20 @@ where
             }
             ok_y = false;
             break;
+        }
+    }
+    if want_nc_channel && precomputed_y_zcol.is_some() {
+        let mut lhs = vec![K::ZERO; d_pad];
+        let mut pow = K::ONE;
+        for child in children.iter().take(k) {
+            for (dst, value) in lhs.iter_mut().zip(&child.y_zcol) {
+                *dst += pow * *value;
+            }
+            pow *= bK;
+        }
+        if lhs != parent.y_zcol {
+            eprintln!("Π_DEC y_zcol radix recomposition mismatch");
+            ok_y = false;
         }
     }
     #[cfg(feature = "perf-timers")]

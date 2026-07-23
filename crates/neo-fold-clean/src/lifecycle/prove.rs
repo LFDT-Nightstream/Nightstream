@@ -387,7 +387,11 @@ fn delayed_nebula_advance(
 /// base `State`, no terminal fold.
 pub(super) fn start_proof(prep: &Preprocessing) -> UncompressedAudit {
     let acc_digest = crate::paper::digest::AccumulatorHandle::empty().digest();
-    start_proof_with_semantic_state(prep, acc_digest)
+    let semantic_state_digest = match prep.semantic_state_mode() {
+        construction2::SemanticStateMode::Stateless => acc_digest,
+        construction2::SemanticStateMode::Stateful => prep.initial_semantic_state_digest(),
+    };
+    start_proof_with_semantic_state(prep, semantic_state_digest)
 }
 
 fn start_proof_with_semantic_state(prep: &Preprocessing, semantic_state_digest: [u8; 32]) -> UncompressedAudit {

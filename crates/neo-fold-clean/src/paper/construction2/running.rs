@@ -16,7 +16,7 @@ use crate::paper::relations::{CeClaim, Structure, WitnessMat};
 
 /// Exact relation-column count of the production fixed-point profile that
 /// uses the block/lane delayed-projection accumulator family.
-pub(crate) const PRODUCTION_FIXED_POINT_RELATION_COLUMNS: usize = 11_725_506;
+pub(crate) const PRODUCTION_FIXED_POINT_RELATION_COLUMNS: usize = 11_437_038;
 
 pub(crate) fn uses_pending_accumulator_family_relation_columns(columns: usize) -> bool {
     columns == PRODUCTION_FIXED_POINT_RELATION_COLUMNS
@@ -24,6 +24,17 @@ pub(crate) fn uses_pending_accumulator_family_relation_columns(columns: usize) -
 
 pub fn uses_pending_accumulator_family(structure: &Structure) -> bool {
     uses_pending_accumulator_family_relation_columns(structure.m)
+}
+
+/// Exact Split-NC column-point arity selected by the production relation.
+/// The delayed block/lane profile intentionally retains nineteen block
+/// coordinates even though the current live width fits in eighteen bits.
+pub(crate) fn split_nc_column_point_len(relation_columns: usize) -> usize {
+    if uses_pending_accumulator_family_relation_columns(relation_columns) {
+        neo_reductions::optimized_engine::oracle::BLOCK_LANE_NC_BLOCK_VARIABLES
+    } else {
+        relation_columns.next_power_of_two().max(2).trailing_zeros() as usize
+    }
 }
 
 /// Number of verifier-derived block coordinates carried across one fold by
@@ -202,11 +213,7 @@ impl RunningInstance {
             });
         }
         let ell_n = relation_n.next_power_of_two().max(2).trailing_zeros() as usize;
-        let ell_m = if uses_pending_accumulator_family_relation_columns(relation_m) {
-            relation_m.div_ceil(D).next_power_of_two().trailing_zeros() as usize
-        } else {
-            relation_m.next_power_of_two().max(2).trailing_zeros() as usize
-        };
+        let ell_m = split_nc_column_point_len(relation_m);
         let d_pad = D.next_power_of_two();
         let zero_claim = CeClaim {
             c: Commitment::zeros(D, pp.kappa() as usize),

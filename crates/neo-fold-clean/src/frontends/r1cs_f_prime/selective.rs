@@ -55,10 +55,13 @@ mod structure;
 mod terms;
 use emit::{lc_from_column, trace_error};
 pub use projected_decoder::{
-    SelectiveProjectedDecoderProvenance, SelectiveProjectedSourceDecoder, SelectiveProjectedSourceResolution,
+    SelectiveProjectedDecoderProvenance, SelectiveProjectedDecoderRunProvenance, SelectiveProjectedSourceDecoder,
+    SelectiveProjectedSourceDecoderRun, SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceResolution,
+    SelectiveProjectedSourceResolutionRun,
 };
 pub(crate) use projected_rows::{
     project_rows_with_alignment, project_rows_with_complete_source_provenance_with_alignment,
+    project_rows_with_source_provenance_and_decoder_runs_with_alignment,
     project_rows_with_source_provenance_with_alignment,
 };
 pub use projected_rows::{

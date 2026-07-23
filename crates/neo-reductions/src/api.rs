@@ -103,7 +103,12 @@ fn validate_mcs_witnesses(
     Ok(())
 }
 
-fn validate_ce_claim_shape(label: &str, s: &CcsStructure<F>, ce: &CeClaim<Cmt, F, K>) -> Result<(), PiCcsError> {
+fn validate_ce_claim_shape(
+    label: &str,
+    s: &CcsStructure<F>,
+    column_point_len: usize,
+    ce: &CeClaim<Cmt, F, K>,
+) -> Result<(), PiCcsError> {
     if ce.m_in > s.m {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: m_in={} exceeds CCS width m={}",
@@ -158,10 +163,9 @@ fn validate_ce_claim_shape(label: &str, s: &CcsStructure<F>, ce: &CeClaim<Cmt, F
         )));
     }
     if has_nc_channel {
-        let ell_m = ell_m_for_ccs(s);
-        if ce.s_col.len() != ell_m {
+        if ce.s_col.len() != column_point_len {
             return Err(PiCcsError::InvalidInput(format!(
-                "{label}: s_col length mismatch (expected {ell_m}, got {})",
+                "{label}: s_col length mismatch (expected {column_point_len}, got {})",
                 ce.s_col.len()
             )));
         }
@@ -175,9 +179,14 @@ fn validate_ce_claim_shape(label: &str, s: &CcsStructure<F>, ce: &CeClaim<Cmt, F
     Ok(())
 }
 
-fn validate_ce_claims_shape(label: &str, s: &CcsStructure<F>, claims: &[CeClaim<Cmt, F, K>]) -> Result<(), PiCcsError> {
+fn validate_ce_claims_shape(
+    label: &str,
+    s: &CcsStructure<F>,
+    column_point_len: usize,
+    claims: &[CeClaim<Cmt, F, K>],
+) -> Result<(), PiCcsError> {
     for (idx, claim) in claims.iter().enumerate() {
-        validate_ce_claim_shape(&format!("{label}[{idx}]"), s, claim)?;
+        validate_ce_claim_shape(&format!("{label}[{idx}]"), s, column_point_len, claim)?;
     }
     Ok(())
 }
@@ -185,13 +194,14 @@ fn validate_ce_claims_shape(label: &str, s: &CcsStructure<F>, claims: &[CeClaim<
 fn validate_dec_boundary_inputs(
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     parent: &CeClaim<Cmt, F, K>,
     z_split: &[Mat<F>],
     child_commitments: &[Cmt],
     ell_d: usize,
 ) -> Result<(), PiCcsError> {
     ensure_superneo_width(s)?;
-    validate_ce_claim_shape("dec_parent", s, parent)?;
+    validate_ce_claim_shape("dec_parent", s, column_point_len, parent)?;
     if z_split.len() != child_commitments.len() {
         return Err(PiCcsError::InvalidInput(format!(
             "DEC child input mismatch: |Z_split|={} but |child_commitments|={}",
@@ -210,13 +220,14 @@ fn validate_dec_boundary_inputs(
 
 fn validate_dec_boundary_inputs_from_trusted_split(
     s: &CcsStructure<F>,
+    column_point_len: usize,
     parent: &CeClaim<Cmt, F, K>,
     z_split: &[Mat<F>],
     child_commitments: &[Cmt],
     ell_d: usize,
 ) -> Result<(), PiCcsError> {
     ensure_superneo_width(s)?;
-    validate_ce_claim_shape("dec_parent", s, parent)?;
+    validate_ce_claim_shape("dec_parent", s, column_point_len, parent)?;
     if z_split.len() != child_commitments.len() {
         return Err(PiCcsError::InvalidInput(format!(
             "DEC child input mismatch: |Z_split|={} but |child_commitments|={}",
@@ -282,7 +293,7 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     }
     validate_mcs_claims("prove", s, mcs_list)?;
     validate_mcs_witnesses("prove", s, mcs_list, mcs_witnesses)?;
-    validate_ce_claims_shape("prove: me_inputs", s, me_inputs)?;
+    validate_ce_claims_shape("prove: me_inputs", s, ell_m_for_ccs(s), me_inputs)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     for (idx, wit) in mcs_witnesses.iter().enumerate() {
         crate::common::validate_packed_witness_nc_alphabet(
@@ -343,8 +354,8 @@ pub fn verify(
         return Err(PiCcsError::InvalidInput("verify: empty mcs_list".into()));
     }
     validate_mcs_claims("verify", s, mcs_list)?;
-    validate_ce_claims_shape("verify: me_inputs", s, me_inputs)?;
-    validate_ce_claims_shape("verify: me_outputs", s, me_outputs)?;
+    validate_ce_claims_shape("verify: me_inputs", s, ell_m_for_ccs(s), me_inputs)?;
+    validate_ce_claims_shape("verify: me_outputs", s, ell_m_for_ccs(s), me_outputs)?;
     let ell_n = ell_n_for_ccs(s);
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n)?;
     let _ = crate::engines::utils::shared_me_input_r(me_outputs, ell_n)?;
@@ -378,6 +389,7 @@ pub fn rlc_with_commit<Comb>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     rhos: &[RotRho],
     me_inputs: &[CeClaim<Cmt, F, K>],
     Zs: &[Mat<F>],
@@ -408,7 +420,7 @@ where
         )));
     }
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
-    validate_ce_claims_shape("rlc_with_commit: me_inputs", s, me_inputs)?;
+    validate_ce_claims_shape("rlc_with_commit: me_inputs", s, column_point_len, me_inputs)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     for (idx, z) in Zs.iter().enumerate() {
         crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("rlc_with_commit: Zs[{idx}]"))?;
@@ -451,6 +463,7 @@ pub fn rlc_with_commit_refs<Comb>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     rhos: &[RotRho],
     me_inputs: &[CeClaim<Cmt, F, K>],
     Zs: &[&Mat<F>],
@@ -479,7 +492,7 @@ where
         )));
     }
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
-    validate_ce_claims_shape("rlc_with_commit_refs: me_inputs", s, me_inputs)?;
+    validate_ce_claims_shape("rlc_with_commit_refs: me_inputs", s, column_point_len, me_inputs)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     for (idx, z) in Zs.iter().enumerate() {
         crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("rlc_with_commit_refs: Zs[{idx}]"))?;
@@ -530,6 +543,7 @@ pub fn dec_children_with_commit<Comb>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     parent: &CeClaim<Cmt, F, K>,
     Z_split: &[Mat<F>],
     ell_d: usize,
@@ -540,7 +554,8 @@ where
     Comb: Fn(&[Cmt], u32) -> Cmt,
 {
     use crate::engines::pi_rlc_dec::{OptimizedRlcDec, RlcDecOps};
-    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
+    if let Err(e) = validate_dec_boundary_inputs(s, params, column_point_len, parent, Z_split, child_commitments, ell_d)
+    {
         eprintln!("dec_children_with_commit input validation failed: {e}");
         return (Vec::new(), false, false, false);
     }
@@ -594,6 +609,7 @@ pub fn dec_children_with_commit_cached<Comb>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     parent: &CeClaim<Cmt, F, K>,
     Z_split: &[Mat<F>],
     ell_d: usize,
@@ -605,7 +621,8 @@ where
     Comb: Fn(&[Cmt], u32) -> Cmt,
 {
     use crate::engines::pi_rlc_dec::OptimizedRlcDec;
-    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
+    if let Err(e) = validate_dec_boundary_inputs(s, params, column_point_len, parent, Z_split, child_commitments, ell_d)
+    {
         eprintln!("dec_children_with_commit_cached input validation failed: {e}");
         return (Vec::new(), false, false, false);
     }
@@ -655,6 +672,7 @@ pub fn dec_children_with_commit_superneo_cached<Comb>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     parent: &CeClaim<Cmt, F, K>,
     Z_split: &[Mat<F>],
     ell_d: usize,
@@ -666,7 +684,8 @@ where
     Comb: Fn(&[Cmt], u32) -> Cmt,
 {
     use crate::engines::pi_rlc_dec::OptimizedRlcDec;
-    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
+    if let Err(e) = validate_dec_boundary_inputs(s, params, column_point_len, parent, Z_split, child_commitments, ell_d)
+    {
         eprintln!("dec_children_with_commit_superneo_cached input validation failed: {e}");
         return (Vec::new(), false, false, false);
     }
@@ -710,6 +729,7 @@ pub fn dec_children_with_commit_superneo_cached_with_digit_flags<Comb>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     parent: &CeClaim<Cmt, F, K>,
     Z_split: &[Mat<F>],
     digit_nonzero: &[bool],
@@ -730,7 +750,8 @@ where
         );
         return (Vec::new(), false, false, false);
     }
-    if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
+    if let Err(e) = validate_dec_boundary_inputs(s, params, column_point_len, parent, Z_split, child_commitments, ell_d)
+    {
         eprintln!("dec_children_with_commit_superneo_cached_with_digit_flags input validation failed: {e}");
         return (Vec::new(), false, false, false);
     }
@@ -746,6 +767,7 @@ where
             child_commitments,
             combine_b_pows,
             superneo_cache,
+            None,
             None,
             None,
         ),
@@ -773,6 +795,7 @@ where
                 superneo_cache,
                 None,
                 None,
+                None,
             )
         }
     }
@@ -792,6 +815,7 @@ pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     parent: &CeClaim<Cmt, F, K>,
     Z_split: &[Mat<F>],
     digit_nonzero: &[bool],
@@ -801,6 +825,7 @@ pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
     superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
     ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
     precomputed_y_ring: Option<&[Vec<[K; D]>]>,
+    precomputed_y_zcol: Option<&[[K; D]]>,
 ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
 where
     Comb: Fn(&[Cmt], u32) -> Cmt,
@@ -814,7 +839,9 @@ where
         );
         return (Vec::new(), false, false, false);
     }
-    if let Err(e) = validate_dec_boundary_inputs_from_trusted_split(s, parent, Z_split, child_commitments, ell_d) {
+    if let Err(e) =
+        validate_dec_boundary_inputs_from_trusted_split(s, column_point_len, parent, Z_split, child_commitments, ell_d)
+    {
         eprintln!("dec_children_with_commit_superneo_cached_from_trusted_split_digits input validation failed: {e}");
         return (Vec::new(), false, false, false);
     }
@@ -832,6 +859,7 @@ where
             superneo_cache,
             ring_linear_forms,
             precomputed_y_ring,
+            precomputed_y_zcol,
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
@@ -857,6 +885,7 @@ where
                 superneo_cache,
                 ring_linear_forms,
                 precomputed_y_ring,
+                precomputed_y_zcol,
             )
         }
     }
@@ -872,6 +901,7 @@ where
 pub fn rlc_public<MR>(
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     rhos: &[RotRho],
     inputs: &[CeClaim<Cmt, F, K>],
     mix_rhos_commits: MR,
@@ -1063,6 +1093,12 @@ where
                     "rlc_public: s_col mismatch at input {idx}"
                 )));
             }
+            if inst.s_col.len() != column_point_len {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "rlc_public: s_col len mismatch at input {idx} (expected {column_point_len}, got {})",
+                    inst.s_col.len()
+                )));
+            }
             if inst.y_zcol.len() != d_pad {
                 return Err(PiCcsError::InvalidInput(format!(
                     "rlc_public: y_zcol len mismatch at input {idx} (expected {d_pad}, got {})",
@@ -1143,6 +1179,7 @@ pub struct RlcPublicVerifyPerf {
 pub fn rlc_public_matches<MR>(
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     rhos: &[RotRho],
     inputs: &[CeClaim<Cmt, F, K>],
     expected: &CeClaim<Cmt, F, K>,
@@ -1152,12 +1189,23 @@ pub fn rlc_public_matches<MR>(
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
 {
-    Ok(rlc_public_matches_with_perf(s, params, rhos, inputs, expected, mix_rhos_commits, ell_d)?.0)
+    Ok(rlc_public_matches_with_perf(
+        s,
+        params,
+        column_point_len,
+        rhos,
+        inputs,
+        expected,
+        mix_rhos_commits,
+        ell_d,
+    )?
+    .0)
 }
 
 pub fn rlc_public_matches_with_perf<MR>(
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     rhos: &[RotRho],
     inputs: &[CeClaim<Cmt, F, K>],
     expected: &CeClaim<Cmt, F, K>,
@@ -1167,7 +1215,17 @@ pub fn rlc_public_matches_with_perf<MR>(
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
 {
-    rlc_public_matches_with_perf_impl(s, params, rhos, inputs, expected, mix_rhos_commits, ell_d, true)
+    rlc_public_matches_with_perf_impl(
+        s,
+        params,
+        column_point_len,
+        rhos,
+        inputs,
+        expected,
+        mix_rhos_commits,
+        ell_d,
+        true,
+    )
 }
 
 /// Fast verifier path for callers that already established `inputs` as valid Π_CCS outputs.
@@ -1177,6 +1235,7 @@ where
 pub fn rlc_public_matches_verified_inputs_with_perf<MR>(
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     rhos: &[RotRho],
     inputs: &[CeClaim<Cmt, F, K>],
     expected: &CeClaim<Cmt, F, K>,
@@ -1186,12 +1245,23 @@ pub fn rlc_public_matches_verified_inputs_with_perf<MR>(
 where
     MR: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
 {
-    rlc_public_matches_with_perf_impl(s, params, rhos, inputs, expected, mix_rhos_commits, ell_d, false)
+    rlc_public_matches_with_perf_impl(
+        s,
+        params,
+        column_point_len,
+        rhos,
+        inputs,
+        expected,
+        mix_rhos_commits,
+        ell_d,
+        false,
+    )
 }
 
 fn rlc_public_matches_with_perf_impl<MR>(
     s: &CcsStructure<F>,
     params: &NeoParams,
+    column_point_len: usize,
     rhos: &[RotRho],
     inputs: &[CeClaim<Cmt, F, K>],
     expected: &CeClaim<Cmt, F, K>,
@@ -1318,6 +1388,12 @@ where
             if inst.s_col != inputs[0].s_col {
                 return Err(PiCcsError::InvalidInput(format!(
                     "rlc_public_matches: s_col mismatch at input {idx}"
+                )));
+            }
+            if inst.s_col.len() != column_point_len {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "rlc_public_matches: s_col len mismatch at input {idx} (expected {column_point_len}, got {})",
+                    inst.s_col.len()
                 )));
             }
             if inst.y_zcol.len() != d_pad {

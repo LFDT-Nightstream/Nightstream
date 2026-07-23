@@ -309,6 +309,10 @@ name = "f_prime_selective_fixed_point_projection_lean_artifact"
 path = "tests/f_prime/selective_fixed_point_projection_lean_artifact.rs"
 
 [[test]]
+name = "f_prime_private_decoder_lean_artifact"
+path = "tests/f_prime/private_decoder_lean_artifact.rs"
+
+[[test]]
 name = "f_prime_block_lane_nc_lean_artifact"
 path = "tests/f_prime/block_lane_nc_lean_artifact.rs"
 
@@ -319,6 +323,10 @@ path = "tests/f_prime/pi_dec_selective_rows.rs"
 [[test]]
 name = "f_prime_pi_dec_source_lean_artifact"
 path = "tests/f_prime/pi_dec_source_lean_artifact.rs"
+
+[[test]]
+name = "f_prime_pi_dec_canonical_x_lean_artifact"
+path = "tests/f_prime/pi_dec_canonical_x_lean_artifact.rs"
 
 [[test]]
 name = "system_audit_anchor"

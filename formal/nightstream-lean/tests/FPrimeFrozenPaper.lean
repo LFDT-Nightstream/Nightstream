@@ -1,0 +1,49 @@
+import Nightstream.Protocol.FPrime.Frozen
+
+/-! Focused interface gate for the frozen paper-authoritative facade. -/
+
+#check Nightstream.SuperNeo.InteractiveReduction.Paper.ReductionOfKnowledge
+#check Nightstream.SuperNeo.InteractiveReduction.Paper.Strong
+#check Nightstream.SuperNeo.InteractiveReduction.Paper.RejectionAdjustedStrong
+#check Nightstream.SuperNeo.InteractiveReduction.Paper.Weak
+#check Nightstream.Protocol.FPrime.Frozen.PiCcsStrong
+#check Nightstream.Protocol.FPrime.Frozen.PiRlcWeak
+#check Nightstream.Protocol.FPrime.Frozen.PiDecReductionOfKnowledge
+#check Nightstream.Protocol.FPrime.Frozen.SuperNeoCompositionReductionOfKnowledge
+#check Nightstream.Protocol.FPrime.Frozen.NifsSoundAndCompleteModulo
+#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.piDec_reductionOfKnowledge
+#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.finiteReductionOfKnowledge
+#check @Nightstream.Protocol.FPrime.Frozen.SuperNeo.finiteReductionOfKnowledge
+#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.nifsSoundAndCompleteModulo
+#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.sourceValid_exists_verifiedTransition
+#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.piRlc_literalAmbientBound_obstruction
+#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.piRlc_correctedAmbientBound_covers
+
+#check Nightstream.SuperNeo.Folding.PiCCS.PaperCorrections.carriedTargetExponent_eq_absolute
+#check Nightstream.SuperNeo.Folding.PiCCS.PaperCorrections.literalTargetExponent_ne_frozen
+#check Nightstream.SuperNeo.Folding.PiCCS.PaperCorrections.literalSection73NormIndices_ne_strictCentered_at_two
+
+#check Nightstream.HyperNova.NIVCCompatibility.Holds
+#check Nightstream.HyperNova.NonInteractiveMultiFold.accepts_iff_verify
+#check Nightstream.HyperNova.Construction2.Paper.Transition
+#check Nightstream.HyperNova.Construction2.Paper.holds_iff_transition
+#check Nightstream.HyperNova.Construction2.Paper.TerminalTransition
+#check Nightstream.HyperNova.Construction2.Paper.terminalHolds_iff_transition
+
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.nifsV_accepts_iff
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.fprime_accepts_iff_transition
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.canonicalFprime_accepts_iff_transition
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.canonicalFprime_accepts_implies_semanticTransition_or_selectedNifsBadEvent
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.canonicalFprime_semanticTransition_implies_exists_nifsProof_accepts
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.canonicalFprime_accepts_implies_paperTransition_or_nifsBadEvent
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.canonicalFprime_paperTransition_implies_exists_nifsProof_accepts
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.terminal_accepts_iff_transition
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.canonicalTerminal_accepts_iff_transition
+#check Nightstream.Protocol.FPrime.Frozen.HyperNova.canonicalTerminal_exact_without_nifs
+
+#check Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify_sound
+#check Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify_complete
+#check Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.sourceValid_exists_verifiedTransition
+#check Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.Key.statement_sumcheckDegreeBound_le
+#check Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.piCcsCheck_eq_true_iff
+#check Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.piCcsRoundChain_of_check

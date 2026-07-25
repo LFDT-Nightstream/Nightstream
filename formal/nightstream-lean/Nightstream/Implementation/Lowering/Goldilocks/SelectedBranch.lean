@@ -706,7 +706,9 @@ private def HonestMode
   else
     occurrence.HonestInactive assignment
 
-private theorem honestActiveOccurrences_of_agrees
+/-- Honest active occurrence data depends only on the declared visible
+coordinates of the arm. -/
+theorem honestActiveOccurrences_of_agrees
     {signature : Signature.{u}}
     {family : Family signature.types}
     {one active : ColumnId}
@@ -739,7 +741,9 @@ private theorem honestActiveOccurrences_of_agrees
           before after headAgrees honest.1,
         inductionHypothesis tailAgrees honest.2⟩
 
-private theorem honestInactiveOccurrences_of_agrees
+/-- Honest inactive occurrence data depends only on the declared visible
+coordinates of the arm. -/
+theorem honestInactiveOccurrences_of_agrees
     {signature : Signature.{u}}
     {family : Family signature.types}
     {one active : ColumnId}

@@ -1,11 +1,12 @@
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.DirectCalls.Footprints
 
 /-!
-Contract: exact `freshPublic` call recipe.
+Contract: exact `encodeInstance` call recipe.
 
-The recipe is the affine coordinate map stored in `DirectProfile`.  It emits
-one row per encoded output coordinate, allocates no temporaries, and proves
-exact `Vocabulary.callEval` correspondence.
+The core recipe depends only on `EncodeInstanceProfile`; `DirectProfile`
+forgets to that minimal slice. It emits one row per encoded output coordinate,
+allocates no temporaries, and proves exact `Vocabulary.callEval`
+correspondence.
 -/
 
 namespace Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.DirectCalls
@@ -16,15 +17,15 @@ open Nightstream.Implementation.Lowering.FPrimeFixedOne.Vocabulary
 
 private def frameRecipe
     (parameters : Parameters)
-    (profile : DirectProfile parameters)
+    (profile : EncodeInstanceProfile parameters)
     {context : Schema (typeSystem parameters)}
     {reference :
-      Ref (typeSystem parameters) context (.data .fresh)}
+      Ref (typeSystem parameters) context (.data .digest)}
     (frame :
       CallFrame (signature := signature parameters)
-        profile.family Call.freshPublic
+        profile.family Call.encodeInstance
         (Refs.cons reference .nil)) :
-    AffineMapRecipe profile.freshPublicMap
+    AffineMapRecipe profile.encodeInstanceMap
       reference.port.layout
       (Ports.auxiliaryEncoded parameters).layout where
   owner := frame.owner
@@ -34,7 +35,7 @@ private def frameRecipe
   source := unaryOperand frame.operands
   output := unaryOutput frame.outputs
   sourceWidth := by
-    simpa [DirectProfile.family, Encoding.Profile.family,
+    simpa [EncodeInstanceProfile.family, Encoding.Profile.family,
       DataCodecs.family, Family.codecFor] using
         frame.operandWidthsAgree.1
   targetWidth := by
@@ -42,26 +43,28 @@ private def frameRecipe
       frame.outputWidthsAgree
         (Ports.auxiliaryEncoded parameters) (by
           change Ports.auxiliaryEncoded parameters ∈
-            callOutputs parameters Call.freshPublic
+            callOutputs parameters Call.encodeInstance
           exact List.mem_cons_self)
     unfold PortWidthAgrees at width
-    simpa [DirectProfile.family, Encoding.Profile.family,
+    simpa [EncodeInstanceProfile.family, Encoding.Profile.family,
       DataCodecs.family, Family.codecFor, Ports.auxiliaryEncoded,
       dataPort, auxiliaryLayout, ownedLayout,
       profile.toProfile.encoded_width_eq_codec parameters] using width
 
 private theorem footprint_exact
     (parameters : Parameters)
-    (profile : DirectProfile parameters) :
-    (signature parameters).callFootprint Call.freshPublic =
+    (profile : EncodeInstanceProfile parameters) :
+    (signature parameters).callFootprint Call.encodeInstance =
       affineFootprint profile.codecs.encoded.width := by
-  simpa [signature, callFootprint] using profile.freshPublicFootprint
+  simpa [signature, callFootprint] using profile.encodeInstanceFootprint
 
-/-- Certified physical recipe for the exact direct `freshPublic` call. -/
-def freshPublicRecipe
+/-- Certified physical recipe from the minimal exact `encodeInstance`
+profile. -/
+def encodeInstanceRecipeForProfile
     (parameters : Parameters)
-    (profile : DirectProfile parameters) :
-    CallRecipe (signature parameters) profile.family Call.freshPublic := by
+    (profile : EncodeInstanceProfile parameters) :
+    CallRecipe (signature parameters) profile.family
+      Call.encodeInstance := by
   refine
     { rows := ?_
       rowCount := ?_
@@ -120,26 +123,27 @@ def freshPublicRecipe
     | cons reference tail =>
         cases tail
         cases inputs with
-        | cons fresh inputs =>
+        | cons digest inputs =>
             cases inputs
             have sourceDecoded :
-                profile.codecs.fresh.decode
+                profile.codecs.digest.decode
                     ((unaryOperand frame.operands).values assignment) =
-                  some fresh := by
+                  some digest := by
               have headDecoded :=
                 (unaryOperand_decodes_iff
-                  profile.family assignment frame.operands fresh).mp decoded
-              simpa [DirectProfile.family, Encoding.Profile.family,
+                  profile.family assignment frame.operands digest).mp decoded
+              simpa [EncodeInstanceProfile.family, Encoding.Profile.family,
                 DataCodecs.family, Family.codecFor] using headDecoded
             have outputDecoded :=
               (frameRecipe parameters profile frame).active_sound
-                assignment fresh constantOne activeOne sourceDecoded holds
-            refine ⟨.cons (parameters.machine.freshPublic fresh) .nil,
-              rfl, ?_⟩
+                assignment digest constantOne activeOne sourceDecoded holds
+            refine
+              ⟨.cons (parameters.machine.encodeInstance digest) .nil,
+                rfl, ?_⟩
             apply (unaryOutput_decodes_iff
               profile.family assignment frame.outputs
-              (parameters.machine.freshPublic fresh)).mpr
-            simpa [DirectProfile.family, Encoding.Profile.family,
+              (parameters.machine.encodeInstance digest)).mpr
+            simpa [EncodeInstanceProfile.family, Encoding.Profile.family,
               DataCodecs.family, Family.codecFor] using outputDecoded
   · intro context references frame assignment inputs outputs
       constantOne activeOne inputsEncoded outputsEncoded evaluated
@@ -147,45 +151,45 @@ def freshPublicRecipe
     | cons reference tail =>
         cases tail
         cases inputs with
-        | cons fresh inputs =>
+        | cons digest inputs =>
             cases inputs
             cases outputs with
             | cons output outputs =>
                 cases outputs
                 have outputEqual :
-                    output = parameters.machine.freshPublic fresh := by
+                    output = parameters.machine.encodeInstance digest := by
                   exact congrArg HVec.head
                     (Option.some.inj evaluated.symm)
                 subst output
                 have sourceCoordinates :
                     (unaryOperand frame.operands).values assignment =
-                      profile.codecs.fresh.encode fresh := by
+                      profile.codecs.digest.encode digest := by
                   have headEncoded :=
                     (unaryOperand_encodes_iff
-                      profile.family assignment frame.operands fresh).mp
+                      profile.family assignment frame.operands digest).mp
                       inputsEncoded
-                  simpa [DirectProfile.family, Encoding.Profile.family,
+                  simpa [EncodeInstanceProfile.family, Encoding.Profile.family,
                     DataCodecs.family, Family.codecFor] using
                       headEncoded.2
                 have outputCoordinates :
                     (unaryOutput frame.outputs).values assignment =
                       profile.codecs.encoded.encode
-                        (parameters.machine.freshPublic fresh) := by
+                        (parameters.machine.encodeInstance digest) := by
                   have headEncoded :=
                     (unaryOutput_encodes_iff
                       profile.family assignment frame.outputs
-                      (parameters.machine.freshPublic fresh)).mp
+                      (parameters.machine.encodeInstance digest)).mp
                       outputsEncoded
-                  simpa [DirectProfile.family, Encoding.Profile.family,
+                  simpa [EncodeInstanceProfile.family, Encoding.Profile.family,
                     DataCodecs.family, Family.codecFor] using
                       headEncoded.2
                 have sourceAdmissible :
-                    profile.codecs.fresh.Admissible fresh := by
+                    profile.codecs.digest.Admissible digest := by
                   have headEncoded :=
                     (unaryOperand_encodes_iff
-                      profile.family assignment frame.operands fresh).mp
+                      profile.family assignment frame.operands digest).mp
                       inputsEncoded
-                  simpa [DirectProfile.family, Encoding.Profile.family,
+                  simpa [EncodeInstanceProfile.family, Encoding.Profile.family,
                     DataCodecs.family, Family.codecFor] using
                       headEncoded.1
                 refine ⟨assignment, ?_, ?_, ?_⟩
@@ -195,7 +199,7 @@ def freshPublicRecipe
                   rfl
                 · exact
                     (frameRecipe parameters profile frame).active_complete
-                      assignment fresh constantOne activeOne
+                      assignment digest constantOne activeOne
                       sourceCoordinates outputCoordinates sourceAdmissible
   · intro context references frame assignment constantOne activeZero
     cases references with
@@ -209,5 +213,14 @@ def freshPublicRecipe
         · exact
             (frameRecipe parameters profile frame).inactive_complete
               assignment activeZero
+
+/-- Backwards-compatible packaging for the complete direct-call profile. -/
+def encodeInstanceRecipe
+    (parameters : Parameters)
+    (profile : DirectProfile parameters) :
+    CallRecipe (signature parameters) profile.family
+      Call.encodeInstance :=
+  encodeInstanceRecipeForProfile parameters
+    (profile.encodeInstanceProfile parameters)
 
 end Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.DirectCalls

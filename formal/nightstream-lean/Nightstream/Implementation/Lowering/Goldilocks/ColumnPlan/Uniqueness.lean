@@ -268,14 +268,18 @@ theorem instructionOutputs_append_temporaryColumns_ids_nodup
           layout := layout }),
     ?_
   ⟩
-  exact allocateSchemaFrom_ids_disjoint_of_ranges
-    (fun _ => .typed (.instruction path))
-    (fun _ => .typed (.instruction path))
-    0 outputSchema.length outputSchema
-    (layouts.map fun layout =>
-      { kind := (TypeSystem.Kind.field : types.Kind)
-        layout := layout })
-    (by omega)
+  have disjoint :=
+    allocateSchemaFrom_ids_disjoint_of_ranges
+      (fun _ => .typed (.instruction path))
+      (fun _ => .typed (.instruction path))
+      0 outputSchema.length outputSchema
+      (layouts.map fun layout =>
+        { kind := (TypeSystem.Kind.field : types.Kind)
+          layout := layout })
+      (by omega)
+  intro left leftMember right rightMember equal
+  subst right
+  exact disjoint left leftMember rightMember
 
 /-! ## Owner-class separation -/
 

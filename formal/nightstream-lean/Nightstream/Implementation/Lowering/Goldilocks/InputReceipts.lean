@@ -1,4 +1,5 @@
 import Nightstream.Implementation.Lowering.Goldilocks.InstructionReceipts
+import Nightstream.Implementation.Lowering.Goldilocks.BundleBridge
 
 /-!
 Contract: canonical physical receipts for the exact typed input schema.
@@ -156,6 +157,28 @@ theorem allocations_exact
       schemaOwnedColumns (inputColumns schema) := by
   simpa only [receipts, inputColumns, allocateSchema] using
     allocationsFrom_exact 0 schema
+
+private theorem flatMap_columnIds_eq_allocation_ids
+    (receipts : List InstructionReceipt) :
+    receipts.flatMap InstructionReceipt.columnIds =
+      (receipts.flatMap fun receipt => receipt.allocations).map
+        (fun column => column.id) := by
+  induction receipts with
+  | nil => rfl
+  | cons head tail inductionHypothesis =>
+      simp [InstructionReceipt.columnIds, inductionHypothesis,
+        List.map_append]
+
+/-- Flattening input receipt identities yields exactly the canonical typed
+input context identities in the same port/coordinate order. -/
+theorem columnIds_exact
+    {types : TypeSystem.{u}}
+    (schema : Schema types) :
+    (receipts schema).flatMap InstructionReceipt.columnIds =
+      (inputColumns schema).toSchemaBundles.ids := by
+  rw [flatMap_columnIds_eq_allocation_ids, allocations_exact,
+    ← Columns.toSchemaBundles_columns]
+  rfl
 
 private theorem rowsFrom_empty
     {types : TypeSystem.{u}}

@@ -64,6 +64,229 @@ def unaryOutput
   match bundles with
   | .cons output .nil => output
 
+def firstTemporary
+    {first : Layout}
+    {tail : List Layout}
+    (bundles : LayoutBundles (first :: tail)) :
+    ColumnBundle first :=
+  match bundles with
+  | .cons head _ => head
+
+def secondTemporary
+    {first second : Layout}
+    {tail : List Layout}
+    (bundles : LayoutBundles (first :: second :: tail)) :
+    ColumnBundle second :=
+  match bundles with
+  | .cons _ (.cons secondBundle _) => secondBundle
+
+def thirdTemporary
+    {first second third : Layout}
+    {tail : List Layout}
+    (bundles : LayoutBundles (first :: second :: third :: tail)) :
+    ColumnBundle third :=
+  match bundles with
+  | .cons _ (.cons _ (.cons thirdBundle _)) => thirdBundle
+
+theorem layoutBundles_ids_cast
+    {source target : List Layout}
+    (equal : source = target)
+    (bundles : LayoutBundles source) :
+    (equal ▸ bundles).ids = bundles.ids := by
+  cases equal
+  rfl
+
+@[simp] theorem unaryOperand_ids
+    {types : TypeSystem.{u}}
+    {context : Schema types}
+    {kind : types.Kind}
+    {reference : Ref types context kind}
+    (bundles : RefBundles (Refs.cons reference .nil)) :
+    (unaryOperand bundles).ids = bundles.ids := by
+  cases bundles with
+  | cons head tail =>
+      cases tail
+      simp [unaryOperand, RefBundles.ids, RefBundles.columns,
+        RefBundles.portColumns, ColumnBundle.ids]
+
+@[simp] theorem unaryOutput_ids
+    {types : TypeSystem.{u}}
+    {port : Port types}
+    (bundles : SchemaBundles [port]) :
+    (unaryOutput bundles).ids = bundles.ids := by
+  cases bundles with
+  | cons head tail =>
+      cases tail
+      simp [unaryOutput, SchemaBundles.ids,
+        SchemaBundles.columns, SchemaBundles.portColumns,
+        ColumnBundle.ids]
+
+theorem unaryOperand_decodes_iff
+    {types : TypeSystem.{u}}
+    (family : Family types)
+    (assignment : ColumnId -> Field)
+    {context : Schema types}
+    {kind : types.Kind}
+    {reference : Ref types context kind}
+    (bundles : RefBundles (Refs.cons reference .nil))
+    (value : types.Value kind) :
+    bundles.Decodes family assignment (.cons value .nil) ↔
+      (unaryOperand bundles).Decodes family kind assignment value := by
+  cases bundles with
+  | cons head tail =>
+      cases tail
+      simp [RefBundles.Decodes, unaryOperand]
+
+theorem unaryOperand_encodes_iff
+    {types : TypeSystem.{u}}
+    (family : Family types)
+    (assignment : ColumnId -> Field)
+    {context : Schema types}
+    {kind : types.Kind}
+    {reference : Ref types context kind}
+    (bundles : RefBundles (Refs.cons reference .nil))
+    (value : types.Value kind) :
+    bundles.Encodes family assignment (.cons value .nil) ↔
+      (unaryOperand bundles).Encodes family kind assignment value := by
+  cases bundles with
+  | cons head tail =>
+      cases tail
+      simp [RefBundles.Encodes, unaryOperand]
+
+theorem unaryOutput_decodes_iff
+    {types : TypeSystem.{u}}
+    (family : Family types)
+    (assignment : ColumnId -> Field)
+    {port : Port types}
+    (bundles : SchemaBundles [port])
+    (value : types.Value port.kind) :
+    bundles.Decodes family assignment (.cons value .nil) ↔
+      (unaryOutput bundles).Decodes family port.kind assignment value := by
+  cases bundles with
+  | cons head tail =>
+      cases tail
+      simp [SchemaBundles.Decodes, unaryOutput]
+
+theorem unaryOutput_encodes_iff
+    {types : TypeSystem.{u}}
+    (family : Family types)
+    (assignment : ColumnId -> Field)
+    {port : Port types}
+    (bundles : SchemaBundles [port])
+    (value : types.Value port.kind) :
+    bundles.Encodes family assignment (.cons value .nil) ↔
+      (unaryOutput bundles).Encodes family port.kind assignment value := by
+  cases bundles with
+  | cons head tail =>
+      cases tail
+      simp [SchemaBundles.Encodes, unaryOutput]
+
+theorem binaryOperand_decodes_iff
+    {types : TypeSystem.{u}}
+    (family : Family types)
+    (assignment : ColumnId -> Field)
+    {context : Schema types}
+    {leftKind rightKind : types.Kind}
+    {left : Ref types context leftKind}
+    {right : Ref types context rightKind}
+    (bundles : RefBundles (Refs.cons left (Refs.cons right .nil)))
+    (leftValue : types.Value leftKind)
+    (rightValue : types.Value rightKind) :
+    bundles.Decodes family assignment
+        (.cons leftValue (.cons rightValue .nil)) ↔
+      (firstBinaryOperand bundles).Decodes
+          family leftKind assignment leftValue ∧
+        (secondBinaryOperand bundles).Decodes
+          family rightKind assignment rightValue := by
+  cases bundles with
+  | cons leftBundle tail =>
+      cases tail with
+      | cons rightBundle tail =>
+          cases tail
+          simp [RefBundles.Decodes, firstBinaryOperand,
+            secondBinaryOperand]
+
+theorem binaryOperand_encodes_iff
+    {types : TypeSystem.{u}}
+    (family : Family types)
+    (assignment : ColumnId -> Field)
+    {context : Schema types}
+    {leftKind rightKind : types.Kind}
+    {left : Ref types context leftKind}
+    {right : Ref types context rightKind}
+    (bundles : RefBundles (Refs.cons left (Refs.cons right .nil)))
+    (leftValue : types.Value leftKind)
+    (rightValue : types.Value rightKind) :
+    bundles.Encodes family assignment
+        (.cons leftValue (.cons rightValue .nil)) ↔
+      (firstBinaryOperand bundles).Encodes
+          family leftKind assignment leftValue ∧
+        (secondBinaryOperand bundles).Encodes
+          family rightKind assignment rightValue := by
+  cases bundles with
+  | cons leftBundle tail =>
+      cases tail with
+      | cons rightBundle tail =>
+          cases tail
+          simp [RefBundles.Encodes, firstBinaryOperand,
+            secondBinaryOperand]
+
+@[simp] theorem binaryOperand_ids
+    {types : TypeSystem.{u}}
+    {context : Schema types}
+    {leftKind rightKind : types.Kind}
+    {left : Ref types context leftKind}
+    {right : Ref types context rightKind}
+    (bundles : RefBundles (Refs.cons left (Refs.cons right .nil))) :
+    (firstBinaryOperand bundles).ids ++
+        (secondBinaryOperand bundles).ids =
+      bundles.ids := by
+  cases bundles with
+  | cons leftBundle tail =>
+      cases tail with
+      | cons rightBundle tail =>
+          cases tail
+          unfold firstBinaryOperand secondBinaryOperand
+          rw [RefBundles.ids_cons, RefBundles.ids_cons]
+          change
+            leftBundle.ids ++ rightBundle.ids =
+              leftBundle.ids ++ (rightBundle.ids ++ [])
+          simp
+
+@[simp] theorem threeTemporary_ids
+    {first second third : Layout}
+    (bundles : LayoutBundles [first, second, third]) :
+    bundles.ids =
+      (firstTemporary bundles).ids ++
+        (secondTemporary bundles).ids ++
+          (thirdTemporary bundles).ids := by
+  cases bundles with
+  | cons firstBundle tail =>
+      cases tail with
+      | cons secondBundle tail =>
+          cases tail with
+          | cons thirdBundle tail =>
+              cases tail
+              simp [LayoutBundles.ids, LayoutBundles.columns,
+                LayoutBundles.bundleColumns, ColumnBundle.ids,
+                firstTemporary, secondTemporary, thirdTemporary,
+                List.map_append, List.append_assoc]
+
+@[simp] theorem twoTemporary_ids
+    {first second : Layout}
+    (bundles : LayoutBundles [first, second]) :
+    bundles.ids =
+      (firstTemporary bundles).ids ++
+        (secondTemporary bundles).ids := by
+  cases bundles with
+  | cons firstBundle tail =>
+      cases tail with
+      | cons secondBundle tail =>
+          cases tail
+          simp [LayoutBundles.ids, LayoutBundles.columns,
+            LayoutBundles.bundleColumns, ColumnBundle.ids,
+            firstTemporary, secondTemporary, List.map_append]
+
 /-! ## Stable row ownership -/
 
 /-- Assign consecutive local ordinals to an exact row list. -/
@@ -461,5 +684,53 @@ theorem bundle_values_get
       assignment (bundleColumn bundle coordinate).id := by
   simp only [ColumnBundle.values, bundleColumn, List.get_eq_getElem,
     List.getElem_map]
+
+/-- A proved one-coordinate layout has exactly the value read through its
+sole physical coordinate. -/
+theorem bundle_values_eq_singleton
+    {layout : Layout}
+    (bundle : ColumnBundle layout)
+    (assignment : ColumnId -> Field)
+    (widthOne : layout.owners.length = 1) :
+    bundle.values assignment =
+      [assignment
+        (bundleColumn bundle ⟨0, by omega⟩).id] := by
+  cases bundle with
+  | mk columns ownershipsExact =>
+    have columnsLength : columns.length = 1 := by
+      have exactLength := congrArg List.length ownershipsExact
+      simpa [widthOne] using exactLength
+    cases columns with
+  | nil =>
+      simp at columnsLength
+  | cons column tail =>
+      cases tail with
+      | nil =>
+          rfl
+      | cons next rest =>
+          simp at columnsLength
+
+/-- A proved one-coordinate layout has exactly the identity read through its
+sole physical coordinate. -/
+theorem bundle_ids_eq_singleton
+    {layout : Layout}
+    (bundle : ColumnBundle layout)
+    (widthOne : layout.owners.length = 1) :
+    bundle.ids =
+      [(bundleColumn bundle ⟨0, by omega⟩).id] := by
+  cases bundle with
+  | mk columns ownershipsExact =>
+    have columnsLength : columns.length = 1 := by
+      have exactLength := congrArg List.length ownershipsExact
+      simpa [widthOne] using exactLength
+    cases columns with
+    | nil =>
+        simp at columnsLength
+    | cons column tail =>
+        cases tail with
+        | nil =>
+            rfl
+        | cons next rest =>
+            simp at columnsLength
 
 end Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.DirectCalls

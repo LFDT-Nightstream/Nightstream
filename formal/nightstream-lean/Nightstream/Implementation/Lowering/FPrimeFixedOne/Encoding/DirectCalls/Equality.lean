@@ -264,6 +264,79 @@ private theorem coordinateRows_length
                       inverseLength equalLength]
                   omega
 
+private theorem coordinateRows_supported
+    (one : ColumnId)
+    (lefts rights inverses equals : List OwnedColumn)
+    (row : Row)
+    (member : row ∈ coordinateRows one lefts rights inverses equals)
+    (column : ColumnId)
+    (columnMember : column ∈ row.columnIds) :
+    column = one ∨
+      column ∈ lefts.map (fun item => item.id) ∨
+      column ∈ rights.map (fun item => item.id) ∨
+      column ∈ inverses.map (fun item => item.id) ∨
+      column ∈ equals.map (fun item => item.id) := by
+  induction lefts generalizing rights inverses equals row with
+  | nil =>
+      simp [coordinateRows] at member
+  | cons left lefts inductionHypothesis =>
+      cases rights with
+      | nil =>
+          simp [coordinateRows] at member
+      | cons right rights =>
+          cases inverses with
+          | nil =>
+              simp [coordinateRows] at member
+          | cons inverse inverses =>
+              cases equals with
+              | nil =>
+                  simp [coordinateRows] at member
+              | cons equal equals =>
+                  simp only [coordinateRows, List.mem_cons] at member
+                  rcases member with inverseRowMember |
+                      annihilatorRowMember | tailMember
+                  · subst row
+                    simp only [List.map_cons, List.mem_cons]
+                    simp [Row.columnIds, inverseRow, difference,
+                      Goldilocks.singleton, oneMinus] at columnMember
+                    rcases columnMember with
+                        leftMember | rightMember | inverseMember |
+                          oneMember | equalMember
+                    · exact Or.inr <| Or.inl <| Or.inl leftMember
+                    · exact Or.inr <| Or.inr <| Or.inl <|
+                        Or.inl rightMember
+                    · exact Or.inr <| Or.inr <| Or.inr <|
+                        Or.inl <| Or.inl inverseMember
+                    · exact Or.inl oneMember
+                    · exact Or.inr <| Or.inr <| Or.inr <|
+                        Or.inr <| Or.inl equalMember
+                  · subst row
+                    simp only [List.map_cons, List.mem_cons]
+                    simp [Row.columnIds, annihilatorRow, difference,
+                      Goldilocks.singleton] at columnMember
+                    rcases columnMember with
+                        leftMember | rightMember | equalMember
+                    · exact Or.inr <| Or.inl <| Or.inl leftMember
+                    · exact Or.inr <| Or.inr <| Or.inl <|
+                        Or.inl rightMember
+                    · exact Or.inr <| Or.inr <| Or.inr <|
+                        Or.inr <| Or.inl equalMember
+                  · have tail :=
+                      inductionHypothesis rights inverses equals row
+                        tailMember columnMember
+                    simp only [List.map_cons, List.mem_cons]
+                    rcases tail with
+                        oneMember | leftMember | rightMember |
+                          inverseMember | equalMember
+                    · exact Or.inl oneMember
+                    · exact Or.inr <| Or.inl <| Or.inr leftMember
+                    · exact Or.inr <| Or.inr <| Or.inl <|
+                        Or.inr rightMember
+                    · exact Or.inr <| Or.inr <| Or.inr <|
+                        Or.inl <| Or.inr inverseMember
+                    · exact Or.inr <| Or.inr <| Or.inr <|
+                        Or.inr <| Or.inr equalMember
+
 def coordinateEqualValues : List Field -> List Field -> List Field
   | left :: lefts, right :: rights =>
       coordinateEqualValue left right ::
@@ -276,6 +349,46 @@ def coordinateInverseValues
       coordinateInverseValue inverseLaw left right ::
         coordinateInverseValues inverseLaw lefts rights
   | _, _ => []
+
+theorem coordinateEqualValues_length
+    (lefts rights : List Field)
+    (lengthEqual : rights.length = lefts.length) :
+    (coordinateEqualValues lefts rights).length = lefts.length := by
+  induction lefts generalizing rights with
+  | nil =>
+      have rightsNil : rights = [] :=
+        List.eq_nil_of_length_eq_zero lengthEqual
+      subst rights
+      rfl
+  | cons left lefts inductionHypothesis =>
+      cases rights with
+      | nil =>
+          simp at lengthEqual
+      | cons right rights =>
+          simp only [List.length_cons, Nat.succ.injEq] at lengthEqual
+          simp only [coordinateEqualValues, List.length_cons,
+            inductionHypothesis rights lengthEqual]
+
+theorem coordinateInverseValues_length
+    (inverseLaw : InverseLaw)
+    (lefts rights : List Field)
+    (lengthEqual : rights.length = lefts.length) :
+    (coordinateInverseValues inverseLaw lefts rights).length =
+      lefts.length := by
+  induction lefts generalizing rights with
+  | nil =>
+      have rightsNil : rights = [] :=
+        List.eq_nil_of_length_eq_zero lengthEqual
+      subst rights
+      rfl
+  | cons left lefts inductionHypothesis =>
+      cases rights with
+      | nil =>
+          simp at lengthEqual
+      | cons right rights =>
+          simp only [List.length_cons, Nat.succ.injEq] at lengthEqual
+          simp only [coordinateInverseValues, List.length_cons,
+            inductionHypothesis rights lengthEqual]
 
 private theorem coordinateRows_sound
     (laws : FieldLaws)
@@ -498,6 +611,110 @@ private theorem productRows_length
   | cons first flags =>
       simp only [List.length_cons, Nat.pred_succ] at lengthEqual ⊢
       exact productTailRows_length first flags products lengthEqual
+
+private theorem productTailRows_supported
+    (current : OwnedColumn)
+    (flags products : List OwnedColumn)
+    (row : Row)
+    (member : row ∈ productTailRows current flags products)
+    (column : ColumnId)
+    (columnMember : column ∈ row.columnIds) :
+    column = current.id ∨
+      column ∈ flags.map (fun item => item.id) ∨
+      column ∈ products.map (fun item => item.id) := by
+  induction flags generalizing current products row with
+  | nil =>
+      simp [productTailRows] at member
+  | cons flag flags inductionHypothesis =>
+      cases products with
+      | nil =>
+          simp [productTailRows] at member
+      | cons product products =>
+          simp only [productTailRows, List.mem_cons] at member
+          rcases member with headMember | tailMember
+          · subst row
+            simp only [List.map_cons, List.mem_cons]
+            simp [Row.columnIds, CanonicalRow.row,
+              Goldilocks.singleton] at columnMember
+            rcases columnMember with
+                currentMember | flagMember | productMember
+            · exact Or.inl currentMember
+            · exact Or.inr <| Or.inl <| Or.inl flagMember
+            · exact Or.inr <| Or.inr <| Or.inl productMember
+          · have tail :=
+              inductionHypothesis product products row tailMember
+                columnMember
+            simp only [List.map_cons, List.mem_cons]
+            rcases tail with
+                productMember | flagMember | productsMember
+            · exact Or.inr <| Or.inr <| Or.inl productMember
+            · exact Or.inr <| Or.inl <| Or.inr flagMember
+            · exact Or.inr <| Or.inr <| Or.inr productsMember
+
+private theorem productRows_supported
+    (flags products : List OwnedColumn)
+    (row : Row)
+    (member : row ∈ productRows flags products)
+    (column : ColumnId)
+    (columnMember : column ∈ row.columnIds) :
+    column ∈ flags.map (fun item => item.id) ∨
+      column ∈ products.map (fun item => item.id) := by
+  cases flags with
+  | nil =>
+      simp [productRows] at member
+  | cons first flags =>
+      have supported :=
+        productTailRows_supported first flags products row member
+          column columnMember
+      simp only [List.map_cons, List.mem_cons]
+      rcases supported with firstMember | flagMember | productMember
+      · exact Or.inl <| Or.inl firstMember
+      · exact Or.inl <| Or.inr flagMember
+      · exact Or.inr productMember
+
+private theorem productTailResult_supported
+    (current : OwnedColumn)
+    (flags products : List OwnedColumn) :
+    (productTailResult current flags products).id = current.id ∨
+      (productTailResult current flags products).id ∈
+        products.map (fun item => item.id) := by
+  induction flags generalizing current products with
+  | nil =>
+      exact Or.inl rfl
+  | cons flag flags inductionHypothesis =>
+      cases products with
+      | nil =>
+          exact Or.inl rfl
+      | cons product products =>
+          have tail := inductionHypothesis product products
+          rcases tail with productExact | tailMember
+          · exact Or.inr <| by
+              simp only [productTailResult, List.map_cons, List.mem_cons]
+              exact Or.inl productExact
+          · exact Or.inr <| by
+              simp only [productTailResult, List.map_cons, List.mem_cons]
+              exact Or.inr tailMember
+
+private theorem productResult_supported
+    (one : ColumnId)
+    (flags products : List OwnedColumn) :
+    productResult one flags products = one ∨
+      productResult one flags products ∈
+        flags.map (fun item => item.id) ∨
+      productResult one flags products ∈
+        products.map (fun item => item.id) := by
+  cases flags with
+  | nil =>
+      exact Or.inl rfl
+  | cons first flags =>
+      have supported :=
+        productTailResult_supported first flags products
+      rcases supported with firstExact | productMember
+      · exact Or.inr <| Or.inl <| by
+          simp only [productResult, List.map_cons, List.mem_cons]
+          exact Or.inl firstExact
+      · exact Or.inr <| Or.inr <| by
+          simpa only [productResult] using productMember
 
 private theorem productTailRows_sound
     (assignment : ColumnId -> Field)
@@ -773,6 +990,79 @@ theorem row_ids_nodup (recipe : EqualityRecipe) :
     ((recipe.rows.map fun row => row.id)).Nodup :=
   ownRows_ids_nodup recipe.owner recipe.rawRows
 
+theorem rows_supported
+    (recipe : EqualityRecipe)
+    (row : OwnedRow)
+    (member : row ∈ recipe.rows)
+    (column : ColumnId)
+    (columnMember : column ∈ row.columnIds) :
+    column = recipe.one ∨
+      column = recipe.active ∨
+      column ∈ recipe.left.map (fun item => item.id) ∨
+      column ∈ recipe.right.map (fun item => item.id) ∨
+      column = recipe.output.id ∨
+      column ∈ recipe.inverses.map (fun item => item.id) ∨
+      column ∈ recipe.equals.map (fun item => item.id) ∨
+      column ∈ recipe.products.map (fun item => item.id) := by
+  have rawMember :
+      row.row ∈ recipe.rawRows :=
+    ownRows_row_mem recipe.owner recipe.rawRows row member
+  unfold OwnedRow.columnIds at columnMember
+  have reassociated :
+      row.row ∈
+        coordinateRows recipe.one recipe.left recipe.right
+            recipe.inverses recipe.equals ++
+          (productRows recipe.equals recipe.products ++
+            [finalRow recipe.active
+              (productResult recipe.one recipe.equals recipe.products)
+              recipe.output.id]) := by
+    simpa only [rawRows, List.append_assoc] using rawMember
+  rw [List.mem_append] at reassociated
+  rcases reassociated with coordinateMember | tailMember
+  · have supported :=
+      coordinateRows_supported recipe.one recipe.left recipe.right
+        recipe.inverses recipe.equals row.row coordinateMember
+        column columnMember
+    rcases supported with
+        oneMember | leftMember | rightMember |
+          inverseMember | equalMember
+    · exact Or.inl oneMember
+    · exact Or.inr <| Or.inr <| Or.inl leftMember
+    · exact Or.inr <| Or.inr <| Or.inr <| Or.inl rightMember
+    · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <|
+        Or.inr <| Or.inl inverseMember
+    · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <|
+        Or.inr <| Or.inr <| Or.inl equalMember
+  · rw [List.mem_append] at tailMember
+    rcases tailMember with productMember | finalMember
+    · have supported :=
+        productRows_supported recipe.equals recipe.products row.row
+          productMember column columnMember
+      rcases supported with equalMember | productMember
+      · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <|
+          Or.inr <| Or.inr <| Or.inl equalMember
+      · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <|
+          Or.inr <| Or.inr <| Or.inr productMember
+    · simp only [List.mem_singleton] at finalMember
+      rw [finalMember] at columnMember
+      simp [Row.columnIds, finalRow, Goldilocks.singleton,
+        difference] at columnMember
+      rcases columnMember with activeMember | resultMember | outputMember
+      · exact Or.inr <| Or.inl activeMember
+      · rcases
+            productResult_supported recipe.one recipe.equals
+              recipe.products with
+          oneMember | equalMember | productMember
+        · exact Or.inl (resultMember.trans oneMember)
+        · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <|
+            Or.inr <| Or.inr <| Or.inl <| by
+              simpa [resultMember] using equalMember
+        · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <|
+            Or.inr <| Or.inr <| Or.inr <| by
+              simpa [resultMember] using productMember
+      · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <|
+          Or.inl outputMember
+
 theorem active_sound
     (laws : FieldLaws)
     (recipe : EqualityRecipe)
@@ -975,6 +1265,138 @@ theorem inactive_complete
       ⟨finalRow_inactive assignment recipe.active
         (productResult recipe.one recipe.equals recipe.products)
         recipe.output.id activeZero, trivial⟩⟩
+
+def witnessValues
+    (inverseLaw : InverseLaw)
+    (recipe : EqualityRecipe)
+    (assignment : ColumnId -> Field) : List Field :=
+  let leftValues :=
+    recipe.left.map (fun column => assignment column.id)
+  let rightValues :=
+    recipe.right.map (fun column => assignment column.id)
+  let equalValues := coordinateEqualValues leftValues rightValues
+  coordinateInverseValues inverseLaw leftValues rightValues ++
+    (equalValues ++ productValues equalValues)
+
+def completion
+    (inverseLaw : InverseLaw)
+    (recipe : EqualityRecipe)
+    (temporaryIds : List ColumnId)
+    (assignment : ColumnId -> Field) : ColumnId -> Field :=
+  writeColumns assignment temporaryIds
+    (witnessValues inverseLaw recipe assignment)
+
+theorem completion_changesOnly
+    (inverseLaw : InverseLaw)
+    (recipe : EqualityRecipe)
+    (temporaryIds : List ColumnId)
+    (assignment : ColumnId -> Field) :
+    ChangesOnly temporaryIds assignment
+      (completion inverseLaw recipe temporaryIds assignment) :=
+  writeColumns_changesOnly assignment temporaryIds
+    (witnessValues inverseLaw recipe assignment)
+
+theorem completion_values
+    (inverseLaw : InverseLaw)
+    (recipe : EqualityRecipe)
+    (temporaryIds : List ColumnId)
+    (assignment : ColumnId -> Field)
+    (idsExact :
+      temporaryIds =
+        recipe.inverses.map (fun column => column.id) ++
+          (recipe.equals.map (fun column => column.id) ++
+            recipe.products.map (fun column => column.id)))
+    (idsNodup : temporaryIds.Nodup) :
+    recipe.inverses.map
+          (fun column =>
+            completion inverseLaw recipe temporaryIds assignment
+              column.id) =
+        coordinateInverseValues inverseLaw
+          (recipe.left.map (fun column => assignment column.id))
+          (recipe.right.map (fun column => assignment column.id)) ∧
+      recipe.equals.map
+          (fun column =>
+            completion inverseLaw recipe temporaryIds assignment
+              column.id) =
+        coordinateEqualValues
+          (recipe.left.map (fun column => assignment column.id))
+          (recipe.right.map (fun column => assignment column.id)) ∧
+      recipe.products.map
+          (fun column =>
+            completion inverseLaw recipe temporaryIds assignment
+              column.id) =
+        productValues
+          (coordinateEqualValues
+            (recipe.left.map (fun column => assignment column.id))
+            (recipe.right.map (fun column => assignment column.id))) := by
+  let leftValues :=
+    recipe.left.map (fun column => assignment column.id)
+  let rightValues :=
+    recipe.right.map (fun column => assignment column.id)
+  let inverseValues :=
+    coordinateInverseValues inverseLaw leftValues rightValues
+  let equalValues := coordinateEqualValues leftValues rightValues
+  let productCoordinates := productValues equalValues
+  have rightLength : rightValues.length = leftValues.length := by
+    simp only [rightValues, leftValues, List.length_map,
+      recipe.rightLength]
+  have inverseLength :
+      inverseValues.length = recipe.inverses.length := by
+    rw [coordinateInverseValues_length inverseLaw leftValues rightValues
+      rightLength, recipe.inverseLength]
+    simp [leftValues]
+  have equalLength :
+      equalValues.length = recipe.equals.length := by
+    rw [coordinateEqualValues_length leftValues rightValues rightLength,
+      recipe.equalLength]
+    simp [leftValues]
+  have productLength :
+      productCoordinates.length = recipe.products.length := by
+    rw [productValues_length, recipe.productLength]
+    simp only [equalValues,
+      coordinateEqualValues_length leftValues rightValues rightLength]
+    simp [leftValues]
+  have valuesLength :
+      temporaryIds.length =
+        (inverseValues ++ (equalValues ++ productCoordinates)).length := by
+    rw [idsExact]
+    simp only [List.length_append, List.length_map]
+    omega
+  have recovered :=
+    writeColumns_map_eq assignment temporaryIds
+      (inverseValues ++ (equalValues ++ productCoordinates))
+      valuesLength idsNodup
+  have splitExact :
+      recipe.inverses.map
+            (fun column =>
+              completion inverseLaw recipe temporaryIds assignment
+                column.id) ++
+          (recipe.equals.map
+              (fun column =>
+                completion inverseLaw recipe temporaryIds assignment
+                  column.id) ++
+            recipe.products.map
+              (fun column =>
+                completion inverseLaw recipe temporaryIds assignment
+                  column.id)) =
+        inverseValues ++ (equalValues ++ productCoordinates) := by
+    rw [idsExact]
+    have recoveredExact := recovered
+    rw [idsExact, List.map_append, List.map_append] at recoveredExact
+    simpa [completion, witnessValues, leftValues, rightValues,
+      inverseValues, equalValues, productCoordinates, List.map_map,
+      Function.comp_def] using recoveredExact
+  have inverseSplit :=
+    List.append_inj splitExact (by
+      simpa only [List.length_map] using inverseLength.symm)
+  have equalSplit :=
+    List.append_inj inverseSplit.2 (by
+      simpa only [List.length_map] using equalLength.symm)
+  exact ⟨
+    by simpa [inverseValues, leftValues, rightValues] using inverseSplit.1,
+    by simpa [equalValues, leftValues, rightValues] using equalSplit.1,
+    by simpa [productCoordinates, equalValues, leftValues, rightValues]
+      using equalSplit.2⟩
 
 end EqualityRecipe
 

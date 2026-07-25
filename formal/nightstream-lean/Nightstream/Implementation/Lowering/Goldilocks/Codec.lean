@@ -220,6 +220,20 @@ def boundedNatCodec : Codec Nat where
         | cons next rest =>
             simp [decodeNat] at decoded
 
+/-- Decoding one canonical natural-number coordinate exposes its exact
+integer representative.  This theorem is the public one-coordinate boundary;
+call recipes never unfold the private decoder. -/
+theorem boundedNatCodec_decode_singleton_iff
+    (coordinate : Field)
+    (value : Nat) :
+    boundedNatCodec.decode [coordinate] = some value ↔
+      coordinate.val = value := by
+  constructor
+  · intro decoded
+    exact Option.some.inj decoded
+  · intro equal
+    simpa [boundedNatCodec, decodeNat] using congrArg some equal
+
 /-! ## Typed codec profiles -/
 
 /-- One semantic codec for every kind in an artifact-independent type system.

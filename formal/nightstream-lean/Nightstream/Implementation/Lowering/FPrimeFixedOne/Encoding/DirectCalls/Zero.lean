@@ -146,6 +146,49 @@ theorem row_ids_nodup (recipe : ZeroRecipe) :
     (recipe.rows.map fun row => row.id).Nodup :=
   ownRows_ids_nodup recipe.owner recipe.rawRows
 
+theorem rows_supported
+    (recipe : ZeroRecipe)
+    (row : OwnedRow)
+    (member : row ∈ recipe.rows)
+    (column : ColumnId)
+    (columnMember : column ∈ row.columnIds) :
+    column = recipe.one ∨
+      column = recipe.active ∨
+      column = recipe.input.id ∨
+      column = recipe.output.id ∨
+      column = recipe.inverse.id ∨
+      column = recipe.equal.id := by
+  have rawMember :
+      row.row ∈ recipe.rawRows :=
+    ownRows_row_mem recipe.owner recipe.rawRows row member
+  simp only [rawRows, List.mem_cons, List.mem_singleton,
+    List.not_mem_nil, or_false] at rawMember
+  rcases rawMember with inverse | annihilator | final
+  · unfold OwnedRow.columnIds at columnMember
+    rw [inverse] at columnMember
+    simp [OwnedRow.columnIds, Row.columnIds, zeroInverseRow,
+      Goldilocks.singleton, oneMinus] at columnMember
+    rcases columnMember with input | inverse | one | equal
+    · exact Or.inr <| Or.inr <| Or.inl input
+    · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <| Or.inl inverse
+    · exact Or.inl one
+    · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <| Or.inr equal
+  · unfold OwnedRow.columnIds at columnMember
+    rw [annihilator] at columnMember
+    simp [OwnedRow.columnIds, Row.columnIds, zeroAnnihilatorRow,
+      Goldilocks.singleton] at columnMember
+    rcases columnMember with input | equal
+    · exact Or.inr <| Or.inr <| Or.inl input
+    · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <| Or.inr equal
+  · unfold OwnedRow.columnIds at columnMember
+    rw [final] at columnMember
+    simp [OwnedRow.columnIds, Row.columnIds, zeroFinalRow,
+      Goldilocks.singleton, difference] at columnMember
+    rcases columnMember with active | equal | output
+    · exact Or.inr <| Or.inl active
+    · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <| Or.inr equal
+    · exact Or.inr <| Or.inr <| Or.inr <| Or.inl output
+
 theorem active_sound
     (laws : FieldLaws)
     (recipe : ZeroRecipe)

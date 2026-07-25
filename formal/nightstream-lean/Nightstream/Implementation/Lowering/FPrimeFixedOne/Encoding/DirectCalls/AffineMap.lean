@@ -422,12 +422,13 @@ private theorem affineRowsFrom_supported
             · rcases sourceOrOutput with sourceMember | outputEqual
               · exact Or.inr (Or.inr (Or.inl
                   (affineTerms_column_mem source
-                    coordinate.coefficients column sourceMember)))
+                    coordinate.coefficients column
+                    (List.mem_map.mpr sourceMember))))
               · subst column
                 exact Or.inr (Or.inr (Or.inr List.mem_cons_self))
           · rcases inductionHypothesis
                 (ordinal := ordinal + 1) (coordinates := coordinates)
-                tailMember columnMember with
+                tailMember with
               oneEqual | activeEqual | sourceMember | outputMember
             · exact Or.inl oneEqual
             · exact Or.inr (Or.inl activeEqual)

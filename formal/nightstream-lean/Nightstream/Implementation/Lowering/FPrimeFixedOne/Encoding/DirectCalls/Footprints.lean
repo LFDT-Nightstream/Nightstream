@@ -37,6 +37,65 @@ def affineFootprint (targetWidth : Nat) : CallFootprint where
   recurringRows := targetWidth
   temporaries := []
 
+/-- Minimal selected data needed to certify only the `iterationZero` call. -/
+structure IterationZeroProfile (parameters : Parameters)
+    extends Encoding.Profile parameters where
+  fieldLaws : FieldLaws
+  inverseLaw : InverseLaw
+  iterationZeroFootprint :
+    parameters.footprints.iterationZero = zeroFootprint
+
+namespace IterationZeroProfile
+
+def family
+    (parameters : Parameters)
+    (profile : IterationZeroProfile parameters) :
+    Family (typeSystem parameters) :=
+  profile.toProfile.family parameters
+
+end IterationZeroProfile
+
+/-- Minimal selected data needed to certify only encoded-value equality. -/
+structure EncodedEqualProfile (parameters : Parameters)
+    extends Encoding.Profile parameters where
+  fieldLaws : FieldLaws
+  inverseLaw : InverseLaw
+  encodedEqualFootprint :
+    parameters.footprints.encodedEqual =
+      equalityFootprint codecs.encoded.width
+
+namespace EncodedEqualProfile
+
+def family
+    (parameters : Parameters)
+    (profile : EncodedEqualProfile parameters) :
+    Family (typeSystem parameters) :=
+  profile.toProfile.family parameters
+
+end EncodedEqualProfile
+
+/-- Minimal selected data needed to certify only the `encodeInstance` call.
+This avoids making that affine recipe depend on the unrelated nonlinear
+`freshPublic` encoding. -/
+structure EncodeInstanceProfile (parameters : Parameters)
+    extends Encoding.Profile parameters where
+  encodeInstanceMap :
+    AffineEncodingMap codecs.digest codecs.encoded
+      parameters.machine.encodeInstance
+  encodeInstanceFootprint :
+    parameters.footprints.encodeInstance =
+      affineFootprint codecs.encoded.width
+
+namespace EncodeInstanceProfile
+
+def family
+    (parameters : Parameters)
+    (profile : EncodeInstanceProfile parameters) :
+    Family (typeSystem parameters) :=
+  profile.toProfile.family parameters
+
+end EncodeInstanceProfile
+
 /-- Exact direct-call encoding profile.  It adds only executable coordinate
 maps, field laws, and equalities from the legacy parameter record back to
 costs computed above. -/
@@ -72,6 +131,36 @@ def family
     (profile : DirectProfile parameters) :
     Family (typeSystem parameters) :=
   profile.toProfile.family parameters
+
+/-- Forget every direct-call choice except the exact zero-test slice. -/
+def iterationZeroProfile
+    (parameters : Parameters)
+    (profile : DirectProfile parameters) :
+    IterationZeroProfile parameters where
+  toProfile := profile.toProfile
+  fieldLaws := profile.fieldLaws
+  inverseLaw := profile.inverseLaw
+  iterationZeroFootprint := profile.iterationZeroFootprint
+
+/-- Forget every direct-call choice except encoded-value equality. -/
+def encodedEqualProfile
+    (parameters : Parameters)
+    (profile : DirectProfile parameters) :
+    EncodedEqualProfile parameters where
+  toProfile := profile.toProfile
+  fieldLaws := profile.fieldLaws
+  inverseLaw := profile.inverseLaw
+  encodedEqualFootprint := profile.encodedEqualFootprint
+
+/-- Forget every direct-call choice except the exact affine
+`encodeInstance` slice. -/
+def encodeInstanceProfile
+    (parameters : Parameters)
+    (profile : DirectProfile parameters) :
+    EncodeInstanceProfile parameters where
+  toProfile := profile.toProfile
+  encodeInstanceMap := profile.encodeInstanceMap
+  encodeInstanceFootprint := profile.encodeInstanceFootprint
 
 end DirectProfile
 

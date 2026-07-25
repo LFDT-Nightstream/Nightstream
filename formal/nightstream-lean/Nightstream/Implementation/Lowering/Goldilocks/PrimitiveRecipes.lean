@@ -97,6 +97,104 @@ private theorem pinRowsFrom_length_of_equal
           rw [inductionHypothesis (ordinal := ordinal + 1)
             (values := values) lengthEqual]
 
+private theorem pinRowsFrom_owned
+    (owner : PhysicalOwner)
+    (one : ColumnId)
+    (ordinal : Nat)
+    (columns : List OwnedColumn)
+    (values : List Field) :
+    ∀ row, row ∈ pinRowsFrom owner one ordinal columns values ->
+      row.id.owner = owner := by
+  induction columns generalizing ordinal values with
+  | nil =>
+      intro row member
+      simp [pinRowsFrom] at member
+  | cons column columns inductionHypothesis =>
+      cases values with
+      | nil =>
+          intro row member
+          simp [pinRowsFrom] at member
+      | cons value values =>
+          intro row member
+          simp only [pinRowsFrom, List.mem_cons] at member
+          rcases member with equal | tailMember
+          · subst row
+            rfl
+          · exact inductionHypothesis
+              (ordinal := ordinal + 1) values row tailMember
+
+private theorem pinRowsFrom_supported
+    (owner : PhysicalOwner)
+    (one : ColumnId)
+    (ordinal : Nat)
+    (columns : List OwnedColumn)
+    (values : List Field) :
+    ∀ row, row ∈ pinRowsFrom owner one ordinal columns values ->
+      ∀ column, column ∈ row.columnIds ->
+        column ∈ [one] ++ columns.map (fun item => item.id) := by
+  induction columns generalizing ordinal values with
+  | nil =>
+      intro row member
+      simp [pinRowsFrom] at member
+  | cons output outputs inductionHypothesis =>
+      cases values with
+      | nil =>
+          intro row member
+          simp [pinRowsFrom] at member
+      | cons value values =>
+          intro row member column columnMember
+          simp only [pinRowsFrom, List.mem_cons] at member
+          rcases member with equal | tailMember
+          · subst row
+            simp [OwnedRow.columnIds, CanonicalRow.row,
+              Row.columnIds, singleton] at columnMember
+            rcases columnMember with equal | equal
+            · subst column
+              apply List.mem_append.mpr
+              exact Or.inr (by simp)
+            · subst column
+              apply List.mem_append.mpr
+              exact Or.inl (by simp)
+          · have supported :=
+              inductionHypothesis
+                (ordinal := ordinal + 1) values
+                row tailMember column columnMember
+            rcases List.mem_append.mp supported with
+              oneMember | tailOutput
+            · apply List.mem_append.mpr
+              exact Or.inl oneMember
+            · apply List.mem_append.mpr
+              exact Or.inr (by
+                simp only [List.map_cons]
+                exact List.mem_cons_of_mem output.id tailOutput)
+
+private theorem pinRowsFrom_row_ids
+    (owner : PhysicalOwner)
+    (one : ColumnId)
+    (ordinal : Nat)
+    (columns : List OwnedColumn)
+    (values : List Field)
+    (lengthEqual : columns.length = values.length) :
+    (pinRowsFrom owner one ordinal columns values).map
+        (fun row => row.id) =
+      (List.range' ordinal columns.length).map
+        (fun index => { owner := owner, ordinal := index }) := by
+  induction columns generalizing ordinal values with
+  | nil =>
+      cases values <;> simp [pinRowsFrom]
+  | cons column columns inductionHypothesis =>
+      cases values with
+      | nil =>
+          simp at lengthEqual
+      | cons value values =>
+          simp only [List.length_cons, Nat.succ.injEq] at lengthEqual
+          simp only [pinRowsFrom, List.map_cons, List.length_cons,
+            List.range'_succ,
+            inductionHypothesis
+              (ordinal := ordinal + 1)
+              (values := values)
+              lengthEqual]
+
 private theorem pinRowsFrom_satisfies_iff
     (owner : PhysicalOwner)
     (one : ColumnId)
@@ -203,6 +301,51 @@ theorem row_count
         recipe.coordinate_lengths_equal
     _ = layout.owners.length := recipe.output.length_eq
     _ = codec.width := recipe.widthAgrees.symm
+
+/-- Every literal row is owned by the literal occurrence. -/
+theorem rows_owned
+    {α : Type u}
+    {codec : Codec α}
+    {layout : Layout}
+    (recipe : LiteralPinRecipe codec layout) :
+    ∀ row, row ∈ recipe.rows -> row.id.owner = recipe.owner :=
+  pinRowsFrom_owned recipe.owner recipe.one recipe.firstOrdinal
+    recipe.output.columns (codec.encode recipe.value)
+
+/-- Literal rows mention only verifier one and the exact output bundle. -/
+theorem rows_supported
+    {α : Type u}
+    {codec : Codec α}
+    {layout : Layout}
+    (recipe : LiteralPinRecipe codec layout) :
+    ∀ row, row ∈ recipe.rows ->
+      ∀ column, column ∈ row.columnIds ->
+        column ∈ [recipe.one] ++ recipe.output.ids := by
+  simpa only [ColumnBundle.ids] using
+    pinRowsFrom_supported recipe.owner recipe.one recipe.firstOrdinal
+      recipe.output.columns (codec.encode recipe.value)
+
+/-- Literal row identities are the consecutive occurrence-local ordinals. -/
+theorem row_ids_nodup
+    {α : Type u}
+    {codec : Codec α}
+    {layout : Layout}
+    (recipe : LiteralPinRecipe codec layout) :
+    (recipe.rows.map fun row => row.id).Nodup := by
+  unfold rows
+  rw [pinRowsFrom_row_ids
+    recipe.owner recipe.one recipe.firstOrdinal
+    recipe.output.columns (codec.encode recipe.value)
+    recipe.coordinate_lengths_equal]
+  exact
+    (List.nodup_range' :
+      (List.range' recipe.firstOrdinal
+        recipe.output.columns.length).Nodup).map
+    (fun index : Nat =>
+      ({ owner := recipe.owner, ordinal := index } : RowId)) (by
+      intro first second different equal
+      apply different
+      exact congrArg RowId.ordinal equal)
 
 /-- Satisfying all pins recovers the exact canonical coordinate string. -/
 theorem coordinates_of_satisfies
@@ -523,7 +666,10 @@ end BranchActivationRecipe
 
 /-! ## Coordinate-wise branch joins -/
 
-private def muxRowsFrom
+/-- Structural row emitter for aligned joined, true-arm, and false-arm
+coordinate lists.  It is public so finite normal-form certificates can prove
+their selected rows are exactly this emitter's output. -/
+def muxRowsFrom
     (owner : PhysicalOwner)
     (selector : ColumnId) :
     Nat -> List OwnedColumn -> List OwnedColumn -> List OwnedColumn ->
@@ -568,6 +714,118 @@ private theorem muxRowsFrom_length
                 (onTrue := trueTail)
                 (onFalse := falseTail)
                 trueLength falseLength]
+
+private theorem muxRowsFrom_owned
+    (owner : PhysicalOwner)
+    (selector : ColumnId)
+    (ordinal : Nat)
+    (joined onTrue onFalse : List OwnedColumn) :
+    ∀ row,
+      row ∈ muxRowsFrom owner selector ordinal joined onTrue onFalse ->
+        row.id.owner = owner := by
+  induction joined generalizing ordinal onTrue onFalse with
+  | nil =>
+      intro row member
+      simp [muxRowsFrom] at member
+  | cons joined joinedTail inductionHypothesis =>
+      cases onTrue with
+      | nil =>
+          intro row member
+          simp [muxRowsFrom] at member
+      | cons onTrue trueTail =>
+          cases onFalse with
+          | nil =>
+              intro row member
+              simp [muxRowsFrom] at member
+          | cons onFalse falseTail =>
+              intro row member
+              simp only [muxRowsFrom, List.mem_cons] at member
+              rcases member with equal | tailMember
+              · subst row
+                rfl
+              · exact inductionHypothesis
+                  (ordinal := ordinal + 1)
+                  (onTrue := trueTail)
+                  (onFalse := falseTail)
+                  row tailMember
+
+private theorem muxRowsFrom_supported
+    (owner : PhysicalOwner)
+    (selector : ColumnId)
+    (ordinal : Nat)
+    (joined onTrue onFalse : List OwnedColumn) :
+    ∀ row,
+      row ∈ muxRowsFrom owner selector ordinal joined onTrue onFalse ->
+        ∀ column, column ∈ row.columnIds ->
+          column ∈
+            [selector] ++
+              joined.map (fun item => item.id) ++
+              onTrue.map (fun item => item.id) ++
+              onFalse.map (fun item => item.id) := by
+  induction joined generalizing ordinal onTrue onFalse with
+  | nil =>
+      intro row member
+      simp [muxRowsFrom] at member
+  | cons joined joinedTail inductionHypothesis =>
+      cases onTrue with
+      | nil =>
+          intro row member
+          simp [muxRowsFrom] at member
+      | cons onTrue trueTail =>
+          cases onFalse with
+          | nil =>
+              intro row member
+              simp [muxRowsFrom] at member
+          | cons onFalse falseTail =>
+              intro row member column columnMember
+              simp only [muxRowsFrom, List.mem_cons] at member
+              rcases member with equal | tailMember
+              · subst row
+                simp [OwnedRow.columnIds, CanonicalRow.row,
+                  Row.columnIds, singleton, difference] at columnMember ⊢
+                rcases columnMember with equal | equal | equal | equal | equal
+                all_goals simp_all
+              · have supported :=
+                  inductionHypothesis
+                    (ordinal := ordinal + 1)
+                    (onTrue := trueTail)
+                    (onFalse := falseTail)
+                    row tailMember column columnMember
+                simp only [List.map_cons, List.mem_append, List.mem_cons,
+                  List.mem_singleton, List.not_mem_nil, or_false] at supported ⊢
+                grind
+
+private theorem muxRowsFrom_row_ids
+    (owner : PhysicalOwner)
+    (selector : ColumnId)
+    (ordinal : Nat)
+    (joined onTrue onFalse : List OwnedColumn)
+    (trueLength : joined.length = onTrue.length)
+    (falseLength : joined.length = onFalse.length) :
+    (muxRowsFrom owner selector ordinal joined onTrue onFalse).map
+        (fun row => row.id) =
+      (List.range' ordinal joined.length).map
+        (fun index => { owner := owner, ordinal := index }) := by
+  induction joined generalizing ordinal onTrue onFalse with
+  | nil =>
+      cases onTrue <;> cases onFalse <;> simp_all [muxRowsFrom]
+  | cons joined joinedTail inductionHypothesis =>
+      cases onTrue with
+      | nil =>
+          simp at trueLength
+      | cons onTrue trueTail =>
+          cases onFalse with
+          | nil =>
+              simp at falseLength
+          | cons onFalse falseTail =>
+              simp only [List.length_cons, Nat.succ.injEq] at trueLength falseLength
+              simp only [muxRowsFrom, List.map_cons, List.length_cons,
+                List.range'_succ,
+                inductionHypothesis
+                  (ordinal := ordinal + 1)
+                  (onTrue := trueTail)
+                  (onFalse := falseTail)
+                  trueLength falseLength]
 
 private theorem muxRowsFrom_selects_true
     (owner : PhysicalOwner)
@@ -808,6 +1066,48 @@ theorem row_count
         recipe.joined.columns recipe.onTrue.columns recipe.onFalse.columns
         recipe.true_lengths_equal recipe.false_lengths_equal
     _ = layout.owners.length := recipe.joined.length_eq
+
+/-- Every mux row is owned by the branch-join occurrence. -/
+theorem rows_owned
+    {layout : Layout}
+    (recipe : MuxRecipe layout) :
+    ∀ row, row ∈ recipe.rows -> row.id.owner = recipe.owner :=
+  muxRowsFrom_owned recipe.owner recipe.selector recipe.firstOrdinal
+    recipe.joined.columns recipe.onTrue.columns recipe.onFalse.columns
+
+/-- Mux rows mention only the selector, the freshly joined coordinates, and
+the exact two arm bundles. -/
+theorem rows_supported
+    {layout : Layout}
+    (recipe : MuxRecipe layout) :
+    ∀ row, row ∈ recipe.rows ->
+      ∀ column, column ∈ row.columnIds ->
+        column ∈
+          [recipe.selector] ++ recipe.joined.ids ++
+            recipe.onTrue.ids ++ recipe.onFalse.ids := by
+  simpa only [ColumnBundle.ids] using
+    muxRowsFrom_supported recipe.owner recipe.selector recipe.firstOrdinal
+      recipe.joined.columns recipe.onTrue.columns recipe.onFalse.columns
+
+/-- Mux row identities are the consecutive occurrence-local ordinals. -/
+theorem row_ids_nodup
+    {layout : Layout}
+    (recipe : MuxRecipe layout) :
+    (recipe.rows.map fun row => row.id).Nodup := by
+  unfold rows
+  rw [muxRowsFrom_row_ids
+    recipe.owner recipe.selector recipe.firstOrdinal
+    recipe.joined.columns recipe.onTrue.columns recipe.onFalse.columns
+    recipe.true_lengths_equal recipe.false_lengths_equal]
+  exact
+    (List.nodup_range' :
+      (List.range' recipe.firstOrdinal
+        recipe.joined.columns.length).Nodup).map
+    (fun index : Nat =>
+      ({ owner := recipe.owner, ordinal := index } : RowId)) (by
+      intro first second different equal
+      apply different
+      exact congrArg RowId.ordinal equal)
 
 theorem selected_true_sound
     {layout : Layout}

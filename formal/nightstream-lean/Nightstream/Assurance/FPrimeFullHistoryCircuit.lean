@@ -562,6 +562,50 @@ private theorem normalized_recursive_step_or_bad
       circuitProof, FPrimeFullHistorySemantics.semantics] using exact
   · exact Or.inr (.recursiveRoot bad)
 
+/-- The exact generated owner rows establish the two closed direct-F' edges
+with their concrete inputs and proofs, or expose the recursive projection-root
+event.  Keeping these witnesses explicit lets downstream refinements target
+the frozen executable checker rather than only existential reachability. -/
+theorem exactSteps_of_ownerRows_or_bad
+    (prime : EuclidPrime goldilocksP)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (rows : OwnerRows assignment) :
+    (Step.Holds environment.hashSemantics environment.stepSemantics
+        environment.mode environment.context initialState
+        (middleState assignment) (baseInput assignment) baseProof ∧
+      Step.Holds environment.hashSemantics environment.stepSemantics
+        environment.mode environment.context (middleState assignment)
+        (finalState assignment canonical) (recursiveInput assignment)
+        (recursiveProof assignment canonical)) ∨
+      BadEvent assignment := by
+  have base := normalized_base_step prime canonical one rows
+  rcases normalized_recursive_step_or_bad prime canonical one rows with
+    recursive | bad
+  · exact Or.inl ⟨base, recursive⟩
+  · exact Or.inr bad
+
+/-- Exact full-history row satisfaction establishes both concrete direct-F'
+steps, before any existential trace packaging, or the named recursive
+projection-root event. -/
+theorem exactSteps_of_fullRows_or_bad
+    (prime : EuclidPrime goldilocksP)
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (rows : Satisfies FPrimeFullHistoryRows.fullRows assignment) :
+    (Step.Holds environment.hashSemantics environment.stepSemantics
+        environment.mode environment.context initialState
+        (middleState assignment) (baseInput assignment) baseProof ∧
+      Step.Holds environment.hashSemantics environment.stepSemantics
+        environment.mode environment.context (middleState assignment)
+        (finalState assignment canonical) (recursiveInput assignment)
+        (recursiveProof assignment canonical)) ∨
+      BadEvent assignment :=
+  exactSteps_of_ownerRows_or_bad prime canonical one
+    (ownerRows_of_satisfies rows)
+
 /-- CIR-SOUND for the fixed full-history profile.  Exact rows establish two
 closed M3 edges and the direct terminal relation, or expose one of the two
 sampled-polynomial root events. -/

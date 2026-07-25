@@ -8,7 +8,8 @@ combined-NC acceptance. -/
 namespace Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.ProductionPiCcs
 
 export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.ProductionPiCcs
-  (fePoint ncPoint ncTranscriptState rawInitial rawPolynomial messageTerminal
+  (fePoint ncPoint ncTranscriptState ncPoint_eq_transcriptPoint
+    rawInitial rawPolynomial messageTerminal
     NcMessageAccepted OutputBindingFailure NcAccepted
     ncMessageAccepted_implies_ncAccepted_or_outputBindingFailure
     MessageAccepted Accepted

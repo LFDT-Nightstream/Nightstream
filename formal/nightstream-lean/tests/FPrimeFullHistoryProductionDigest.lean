@@ -1,0 +1,19 @@
+import Nightstream.Assurance.FPrimeFullHistoryProductionDigest
+
+/-!
+Focused elaboration boundary for the exact full-history final-state production
+digest refinement.
+-/
+
+namespace NightstreamTests.FPrimeFullHistoryProductionDigest
+
+open Nightstream.Assurance.FPrimeFullHistoryProductionDigest
+
+#check latestPublicXOuts
+#check finalState_latestPublicXOuts
+#check fullRows_finalState_latest_digest
+#check fullRows_finalState_latest_digest_and_logical_public
+#check fullRows_construct_currentPlainOwner
+#check fullRows_and_currentTerminalPlacement_construct_plainOwner
+
+end NightstreamTests.FPrimeFullHistoryProductionDigest

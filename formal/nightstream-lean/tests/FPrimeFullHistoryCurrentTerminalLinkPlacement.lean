@@ -1,0 +1,21 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.FPrimeFullHistoryCurrentTerminalLinkPlacement
+
+/-!
+Focused elaboration boundary for the generated current full-history
+`terminal.latest_link` placement certificate.
+-/
+
+namespace NightstreamTests.FPrimeFullHistoryCurrentTerminalLinkPlacement
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryCurrentTerminalLinkPlacementSound
+
+#check columnMap
+#check mapped_rows_eq_generated
+#check producerColumnsAligned
+#check generatedRows_iff_sourceProgram
+#check generatedRows_iff_freshPublic_eq_encodeInstance
+#check generatedRows_iff_loweringPriorLinkAccepted
+#check generatedRows_iff_logicalPaperLink
+#check output_and_generated_rows_construct_currentPlainOwner
+
+end NightstreamTests.FPrimeFullHistoryCurrentTerminalLinkPlacement

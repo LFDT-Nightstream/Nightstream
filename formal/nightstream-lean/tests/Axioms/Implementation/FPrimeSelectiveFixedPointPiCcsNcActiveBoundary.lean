@@ -57,13 +57,13 @@ open Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedN
 #guard_msgs in
 #audit_axioms ActiveBoundary.acceptedTerminal_implies_construction2_or_namedFailure
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.MessageTerminal.transcriptAcceptedFromMessage_implies_rawAccepted_or_outputBindingFailure' depends on axioms: [propext,
+/-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.MessageTerminal.transcriptAcceptedFromMessage_implies_rawAccepted_or_outputBindingFailure' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms MessageTerminal.transcriptAcceptedFromMessage_implies_rawAccepted_or_outputBindingFailure
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.ProductionPiCcs.messageAccepted_implies_accepted_or_outputBindingFailure' depends on axioms: [propext,
+/-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.ProductionPiCcs.messageAccepted_implies_accepted_or_outputBindingFailure' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
@@ -147,7 +147,7 @@ open Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedN
 #guard_msgs in
 #audit_axioms PackedWitnessProduction.messageCheckedTerminal_of_rustVerifyPairs_and_projection_implies_semanticFold_or_badEvent
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.ProductionPiCcs.accepted_of_messageAccepted_and_packed' depends on axioms: [propext,
+/-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.ProductionPiCcs.accepted_of_messageAccepted_and_packed' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
@@ -289,7 +289,7 @@ open Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedN
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.Authority.DelayedRawChildren.rawChildren_recompose_eq_canonicalParent_or_bindingCollision
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.ProductionStep.accepted_next_of_parentOpening_implies_previous_packedYZcolBound_or_bindingEvent' depends on axioms: [propext,
+/-- info: 'Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol.CombinedNc.Step.accepted_next_of_parentOpening_implies_previous_packedYZcolBound_or_bindingEvent' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
@@ -361,35 +361,35 @@ open Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedN
 #guard_msgs in
 #audit_axioms ActiveTrace.Trace.runtimeAccepted_implies_baseAllPackedAndAllPaper_or_parentOpeningFailure_or_paperFailure
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.combinedAtPoint_eq_terminalFromMessage_of_bound' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Polynomial.Nc.BlockLane.DelayedCombinedNc.combinedAtPoint_eq_terminalFromMessage_of_bound' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.combinedAtPoint_eq_terminalFromMessage_of_bound
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.combinedAtPoint_block_quartic' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Polynomial.Nc.BlockLane.DelayedCombinedNc.combinedAtPoint_block_quartic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.combinedAtPoint_block_quartic
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.combinedAtPoint_lane_quartic' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Polynomial.Nc.BlockLane.DelayedCombinedNc.combinedAtPoint_lane_quartic' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.combinedAtPoint_lane_quartic
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.combinedAtPoint_eq_ordinary_of_batchWeight_eq_zero' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Polynomial.Nc.BlockLane.DelayedCombinedNc.combinedAtPoint_eq_ordinary_of_batchWeight_eq_zero' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.combinedAtPoint_eq_ordinary_of_batchWeight_eq_zero
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.Acceptance.residualWeightIdentity_exact_iff' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Polynomial.Nc.BlockLane.DelayedCombinedNc.Acceptance.residualWeightIdentity_exact_iff' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.Acceptance.residualWeightIdentity_exact_iff
 
-/-- info: 'Nightstream.Implementation.R1CS.PiCcsNc.Authority.DelayedResidual.CombinedNc.Acceptance.expectedRoundsRepresentable' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.SplitNc.Verifier.Polynomial.Nc.BlockLane.DelayedCombinedNc.Acceptance.expectedRoundsRepresentable' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in

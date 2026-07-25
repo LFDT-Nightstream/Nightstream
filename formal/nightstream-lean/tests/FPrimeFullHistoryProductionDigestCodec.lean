@@ -1,0 +1,22 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.FPrimeFullHistoryProductionDigestCodec
+
+/-!
+Focused elaboration boundary for the exact recursive-output and terminal-link
+refinement into the selected production digest codec.
+-/
+
+namespace NightstreamTests.FPrimeFullHistoryProductionDigestCodec
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryProductionDigestCodec
+
+#check decodedDigest
+#check decodedDigest_value
+#check codec_values_eq_outputDigest
+#check codec_roundtrip
+#check decodedDigest_eq_logicalLinkDigest
+#check terminalLogicalPublic_eq_encodePublicInput
+#check rows_decode_exact_xOut
+#check output_and_terminal_rows_decode_same_digest
+#check output_and_terminal_rows_decode_linked_digest
+
+end NightstreamTests.FPrimeFullHistoryProductionDigestCodec

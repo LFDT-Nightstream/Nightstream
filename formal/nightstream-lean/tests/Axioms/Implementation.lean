@@ -67,6 +67,8 @@ import tests.Axioms.Implementation.PiDecStrictCanonicalX
 import tests.Axioms.Implementation.PiDecTypedCarrier
 import tests.Axioms.Implementation.PiDecStrictProductionCompiler
 import tests.Axioms.Implementation.FPrimeFixedOneTypedLowering
+import tests.Axioms.Implementation.FPrimeFixedOneCanonicalEncoding
+import tests.Axioms.Implementation.FPrimeFixedOneDirectCallRecipes
 import tests.Axioms.Support
 
 /-!

@@ -1,8 +1,12 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Links
 
 /-!
-Contract: universal semantics of the terminal delayed-link rows in the exact
-two-step full-history builder.
+Contract: universal semantics of the terminal delayed-link rows in the
+captured two-step full-history snapshot.
+
+This module proves the 257 captured rows it imports. It does not claim that
+they are the current production owner; `FPrimeFullHistoryTerminalLinkDrift`
+records the current 270-row mismatch.
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryTerminalLinkSound

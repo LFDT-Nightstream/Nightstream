@@ -62,7 +62,7 @@
 //!
 //! ## Composition
 //!
-//! [`enforce_final_ce_relations`] or
+//! [`enforce_final_dec_children_relations`] or
 //! [`enforce_final_ce_relations_with_pending_projection`] is called from
 //! `crate::engine::decider::synthesize_statement_r1cs` after the
 //! chain replay and terminal-fold NIFS.V emission. The wires it
@@ -143,8 +143,9 @@
 //!   values are pinned to the verifier-derived `terminal_children`
 //!   from `emit_terminal_fold`.
 //!
-//! Until that lands, `enforce_final_ce_relations` is the soundness
-//! contract this code stands on. Treat it as a reference: if you are
+//! Until that lands, the strict-child and pending-projection entrypoints in
+//! this module are the soundness contract this code stands on. Treat them as
+//! a reference: if you are
 //! sizing the decider circuit for production, the rows this gadget
 //! emits are NOT the rows that will be there.
 
@@ -165,6 +166,12 @@ use crate::engine::r1cs_circuit::{R1csBuilder, RawOldBlockProjectionPlan, RAW_OL
 use crate::lifecycle::Preprocessing;
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 use crate::paper::relations::WitnessMat;
+
+#[derive(Clone, Copy)]
+enum NcChannelClosure {
+    LegacyClaimSidecar,
+    StrictPiDecChild,
+}
 
 #[derive(Debug, Error)]
 pub(crate) enum CeRelationError {
@@ -211,12 +218,50 @@ pub(crate) fn enforce_final_ce_relations(
     final_claims_wires: &[CeClaimWires],
     final_witnesses: &[WitnessMat],
 ) -> Result<(), CeRelationError> {
+    enforce_final_ce_relations_with_nc_channel(
+        builder,
+        prep,
+        final_claims_wires,
+        final_witnesses,
+        NcChannelClosure::LegacyClaimSidecar,
+    )
+}
+
+/// Close the paper-level fields of strict Π_DEC children.
+///
+/// Strict child allocation deliberately omits `y_zcol`; that value is not a
+/// proved Π_DEC child output. The ordinary terminal profile therefore closes
+/// only the child CE tuple, while the delayed profile additionally calls
+/// [`enforce_final_ce_relations_with_pending_projection`] to bind its
+/// separately carried projection.
+pub(crate) fn enforce_final_dec_children_relations(
+    builder: &mut R1csBuilder,
+    prep: &Preprocessing,
+    final_claims_wires: &[CeClaimWires],
+    final_witnesses: &[WitnessMat],
+) -> Result<(), CeRelationError> {
+    enforce_final_ce_relations_with_nc_channel(
+        builder,
+        prep,
+        final_claims_wires,
+        final_witnesses,
+        NcChannelClosure::StrictPiDecChild,
+    )
+}
+
+fn enforce_final_ce_relations_with_nc_channel(
+    builder: &mut R1csBuilder,
+    prep: &Preprocessing,
+    final_claims_wires: &[CeClaimWires],
+    final_witnesses: &[WitnessMat],
+    nc_channel_closure: NcChannelClosure,
+) -> Result<(), CeRelationError> {
     validate_count(final_claims_wires, final_witnesses)?;
     let expected_m = prep.structure().m;
     for (index, (claim_wires, witness)) in final_claims_wires.iter().zip(final_witnesses).enumerate() {
         let witness_wires =
             alloc_final_witness(builder, witness, expected_m).map_err(|err| witness_shape_err(index, err))?;
-        enforce_one_final_ce_relation(builder, prep, index, claim_wires, &witness_wires)?;
+        enforce_one_final_ce_relation(builder, prep, index, claim_wires, &witness_wires, nc_channel_closure)?;
     }
     Ok(())
 }
@@ -250,7 +295,14 @@ pub(crate) fn enforce_final_ce_relations_with_pending_projection(
     .map_err(raw_old_block_projection_err)?;
 
     for (index, (claim_wires, witness_wires)) in final_claims_wires.iter().zip(&witness_wires).enumerate() {
-        enforce_one_final_ce_relation(builder, prep, index, claim_wires, witness_wires)?;
+        enforce_one_final_ce_relation(
+            builder,
+            prep,
+            index,
+            claim_wires,
+            witness_wires,
+            NcChannelClosure::StrictPiDecChild,
+        )?;
     }
     let child_witness_first_columns = witness_wires
         .iter()
@@ -335,6 +387,7 @@ fn enforce_one_final_ce_relation(
     index: usize,
     claim_wires: &CeClaimWires,
     witness_wires: &witness::FinalWitnessWires,
+    nc_channel_closure: NcChannelClosure,
 ) -> Result<(), CeRelationError> {
     let structure = prep.structure();
     let b = prep.params.b();
@@ -414,11 +467,28 @@ fn enforce_one_final_ce_relation(
     let phase_start = builder.rows();
     enforce_ct_from_y_ring(builder, claim_wires).map_err(|err| y_ring_err(index, err))?;
     builder.record_row_family("terminal_ce.claim.constant_term", phase_start);
-    // `s_col/y_zcol` are an implementation-side NC channel carried in
-    // accumulator digests. If present, bind them to the same terminal
-    // witness Z so they are not digest-only authority.
+    // A legacy full claim carries `s_col/y_zcol` together, so bind that
+    // sidecar to this witness. Strict Π_DEC children deliberately omit
+    // `y_zcol`; the production delayed path instead binds the separately
+    // carried parent value to this same ordered witness family before entering
+    // this function.
     let phase_start = builder.rows();
-    enforce_y_zcol_from_z_at_s_col(builder, prep, &witness_wires, claim_wires).map_err(|err| y_ring_err(index, err))?;
+    match nc_channel_closure {
+        NcChannelClosure::LegacyClaimSidecar => {
+            enforce_y_zcol_from_z_at_s_col(builder, prep, &witness_wires, claim_wires)
+                .map_err(|err| y_ring_err(index, err))?;
+        }
+        NcChannelClosure::StrictPiDecChild => {
+            if !claim_wires.y_zcol.is_empty() || claim_wires.y_zcol_lanes != 0 {
+                return Err(CeRelationError::ShapeMismatch {
+                    index,
+                    what: "strict PiDEC child y_zcol carrier",
+                    expected: 0,
+                    got: claim_wires.y_zcol.len().max(claim_wires.y_zcol_lanes),
+                });
+            }
+        }
+    }
     builder.record_row_family("terminal_ce.claim.nc_channel", phase_start);
     builder.record_terminal_ce_claim(TerminalCeClaimAudit {
         row_start: claim_start,

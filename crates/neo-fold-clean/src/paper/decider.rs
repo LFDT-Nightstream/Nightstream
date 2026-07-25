@@ -34,7 +34,6 @@ use neo_ajtai::AjtaiSModule;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_math::F;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
-use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::paper::construction2::{
@@ -42,7 +41,7 @@ use crate::paper::construction2::{
 };
 use crate::paper::digest::{initial_boundary_digest, public_trace_seed_digest, AccumulatorHandle};
 use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
-use crate::paper::f_prime::r1cs::{FPrimePublicInputLayout, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_ONE_OFFSET};
+use crate::paper::f_prime::r1cs::{f_prime_public_input_link_matches, FPrimePublicInputLayout};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, DecMixer, RlcMixer, Structure};
 use crate::paper::terminal_ce::TerminalCeProof;
@@ -448,7 +447,7 @@ fn check_terminal_latest_link(
         return Ok(());
     }
 
-    let expected = construction2::compute_x_out(vk, params, structure_digest, state, semantic_mode).bits();
+    let expected = construction2::compute_x_out(vk, params, structure_digest, state, semantic_mode);
     let layout = match nebula {
         None => FPrimePublicInputLayout::plain(),
         Some(config) => FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(config.stacks)),
@@ -456,25 +455,7 @@ fn check_terminal_latest_link(
     let expected_public_input_len = public_input_len.unwrap_or(layout.total_len());
     for (index, instance) in latest.instances.iter().enumerate() {
         let claim = &instance.claim;
-        if expected_public_input_len != layout.total_len()
-            || claim.m_in != expected_public_input_len
-            || claim.x.len() != expected_public_input_len
-        {
-            return Err(Error::TerminalLatestPublicInputMismatch { index });
-        }
-        if claim.x[F_PRIME_PUBLIC_ONE_OFFSET] != F::ONE {
-            return Err(Error::TerminalLatestPublicInputMismatch { index });
-        }
-        for (offset, &bit) in expected.iter().enumerate() {
-            let expected_bit = if bit == 0 { F::ZERO } else { F::ONE };
-            if claim.x[F_PRIME_ENC_INST_OFFSET + offset] != expected_bit {
-                return Err(Error::TerminalLatestPublicInputMismatch { index });
-            }
-        }
-        if claim.x[layout.carrier_padding_offset()..layout.total_len()]
-            .iter()
-            .any(|&value| value != F::ZERO)
-        {
+        if !f_prime_public_input_link_matches(layout, &expected, expected_public_input_len, claim.m_in, &claim.x) {
             return Err(Error::TerminalLatestPublicInputMismatch { index });
         }
     }

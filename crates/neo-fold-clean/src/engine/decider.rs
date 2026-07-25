@@ -25,7 +25,7 @@
 //!
 //! | CE boundary | Constraint ownership | Lean authority result |
 //! |---|---|---|
-//! | child -> next running | Exact paper-level CE core; `y_zcol` omitted | exact child-vector continuity, delayed-NC bridge open |
+//! | child -> next running | Exact paper-level CE core; `y_zcol` omitted | exact child-vector continuity; the pending projection carries the delayed obligation to its successor or terminal closure |
 //! | Pi_RLC parent -> running parent | Checked recomposition cache continuity | not accumulator authority |
 //! | terminal delayed projection | The verifier-derived pending old block projects the exact ordered raw witnesses opened by terminal Ajtai rows; their radix recomposition is constrained to the pending parent | closes the final one-fold delayed projection without child sidecars |
 
@@ -50,9 +50,9 @@ use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::nebula_lane_circuit::enforce_nebula_lane_equality_circuit;
 use crate::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, enforce_terminal_output_acc_digest,
-    FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStateWires,
-    FPrimeStepConfig, FPrimeStepOutput, F_PRIME_ENC_INST_BITS, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN,
-    F_PRIME_PUBLIC_ONE_OFFSET,
+    f_prime_terminal_link_program, FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn,
+    FPrimeStateWires, FPrimeStepConfig, FPrimeStepOutput, FPrimeTerminalLinkInstruction, F_PRIME_ENC_INST_BITS,
+    F_PRIME_PUBLIC_INPUT_LEN,
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
@@ -329,8 +329,9 @@ fn synthesize_statement_r1cs_inner(
         }
 
         // Exact paper-level CE continuity: previous NIFS children equal the
-        // next running accumulator core wire-for-wire. `y_zcol` remains a
-        // separate delayed-NC obligation.
+        // next running accumulator core wire-for-wire. The separately carried
+        // pending projection closes the omitted child `y_zcol` obligation at
+        // its successor or the terminal raw-witness check.
         if let (Some(prev_children), Some(curr_running)) = (previous_children.as_ref(), output.nifs_running.as_ref()) {
             let continuity_start = builder.rows();
             enforce_child_core_equal_running(&mut builder, prev_children, curr_running)
@@ -452,7 +453,7 @@ fn synthesize_statement_r1cs_inner(
             &final_running.witnesses,
             pending,
         ),
-        None => crate::paper::decider_ce_relation::enforce_final_ce_relations(
+        None => crate::paper::decider_ce_relation::enforce_final_dec_children_relations(
             &mut builder,
             prep,
             &terminal_children,
@@ -966,8 +967,8 @@ fn enforce_flat_limbs_vs_kvar_row(
 /// running wires for the final CE-claim continuity link (terminal fold's
 /// running == last recursive F' step's children), and the children wires
 /// as the terminal CE-relation closure's claim inputs — the NIFS-output
-/// CE claims that `enforce_final_ce_relations` binds to the opened
-/// witnesses.
+/// CE claims that `enforce_final_dec_children_relations` or its
+/// pending-projection counterpart binds to the opened witnesses.
 fn emit_terminal_fold(
     builder: &mut R1csBuilder,
     prep: &Preprocessing,
@@ -1095,6 +1096,7 @@ fn enforce_terminal_latest_link(
             last_x_out_bits.len()
         )));
     }
+    let program = f_prime_terminal_link_program(layout);
     for (idx, x) in fresh_x.iter().enumerate() {
         if x.len() != layout.total_len() {
             return Err(decider::Error::WalkFailed(format!(
@@ -1103,16 +1105,31 @@ fn enforce_terminal_latest_link(
                 layout.total_len(),
             )));
         }
-        builder.enforce_eq(&Lc::from_var(x[F_PRIME_PUBLIC_ONE_OFFSET]), &Lc::from_const(F::ONE));
-        let link_end = F_PRIME_ENC_INST_OFFSET + F_PRIME_ENC_INST_BITS;
-        for (fresh_bit, out_bit) in x[F_PRIME_ENC_INST_OFFSET..link_end]
-            .iter()
-            .zip(last_x_out_bits)
-        {
-            builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*out_bit));
-        }
-        for &padding in &x[layout.carrier_padding_offset()..layout.total_len()] {
-            builder.enforce_eq(&Lc::from_var(padding), &Lc::zero());
+        for instruction in program {
+            match instruction {
+                FPrimeTerminalLinkInstruction::AffineOne { claim_offset } => {
+                    builder.enforce_eq(&Lc::from_var(x[claim_offset]), &Lc::from_const(F::ONE));
+                }
+                FPrimeTerminalLinkInstruction::BodyRange {
+                    claim_offset,
+                    producer_offset,
+                    len,
+                } => {
+                    let claim_end = claim_offset + len;
+                    let producer_end = producer_offset + len;
+                    for (fresh_bit, out_bit) in x[claim_offset..claim_end]
+                        .iter()
+                        .zip(&last_x_out_bits[producer_offset..producer_end])
+                    {
+                        builder.enforce_eq(&Lc::from_var(*fresh_bit), &Lc::from_var(*out_bit));
+                    }
+                }
+                FPrimeTerminalLinkInstruction::PaddingZeroRange { claim_offset, len } => {
+                    for &padding in &x[claim_offset..claim_offset + len] {
+                        builder.enforce_eq(&Lc::from_var(padding), &Lc::zero());
+                    }
+                }
+            }
         }
     }
     Ok(())

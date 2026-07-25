@@ -23,7 +23,7 @@
 //! | Allocation/shape | Parent and children have the fixed CE carrier shape | yes | this file | concrete refinement open |
 //! | Commitment/X/y recomposition | `parent = sum_i b^i child_i` lane-wise | yes | this file | PiDEC semantics |
 //! | Shared fields | Parent/children agree on non-decomposed fields | yes | this file | PiDEC semantics |
-//! | `y_zcol` source binding | Relate the delayed-NC projection to authoritative witness data | **not currently emitted** | — | delayed-NC refinement open |
+//! | `y_zcol` source binding | Relate the delayed-NC projection to authoritative witness data | not a Π_DEC child row | `decider_ce_relation` pending raw-witness projection | delayed-NC terminal refinement |
 //! | Advice recomposition | Product-commitment advice follows the same radix map | yes | `product_commitment_circuit` | concrete refinement open |
 //!
 //! ## What this gadget owns

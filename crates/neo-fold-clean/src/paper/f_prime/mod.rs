@@ -36,6 +36,7 @@ pub mod native;
 pub mod nebula_lane_circuit;
 pub mod poseidon_trace;
 pub mod projection_trace;
+pub mod public_input_link;
 pub mod r1cs;
 pub mod ring_action_trace;
 pub mod source_image;

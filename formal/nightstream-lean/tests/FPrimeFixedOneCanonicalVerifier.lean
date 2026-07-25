@@ -20,3 +20,4 @@ open Nightstream.Protocol.FPrime.Frozen.HyperNova
 #check FixedOne.TerminalMinimality.accepts_iff_transition
 #check FixedOne.TerminalMinimality.accepts_iff_fixedOne_eval
 #check FixedOne.TerminalMinimality.inclusionMinimalSound
+#check FixedOne.TerminalMinimality.obligation8_classification

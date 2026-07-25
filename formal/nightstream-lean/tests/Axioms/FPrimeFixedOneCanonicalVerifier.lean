@@ -27,6 +27,12 @@ executable and model-level minimality headlines. -/
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Minimality.inclusionMinimalSound
 
+/-- info: 'Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Minimality.obligation8_classification' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Minimality.obligation8_classification
+
 /-- info: 'Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne.eval_eq_generic' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
@@ -47,3 +53,9 @@ executable and model-level minimality headlines. -/
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne.Minimality.inclusionMinimalSound
+
+/-- info: 'Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne.Minimality.obligation8_classification' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne.Minimality.obligation8_classification

@@ -1283,6 +1283,78 @@ pub enum StateXOutDigestMode {
     Stateful,
 }
 
+/// Typed source schedule for the exact `state_x_out` Poseidon2 preimage.
+///
+/// Production evaluation and the Rust-to-Lean drift gate consume the same
+/// value. Digest and header instructions each contribute four field lanes;
+/// counter instructions contribute low/high 32-bit limbs.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StateXOutPreimageInstruction {
+    Domain { value: u64 },
+    VerifierDigest,
+    PiCcsHeader,
+    ChunkCountHalves,
+    StepCountHalves,
+    PcHalves,
+    CurrentBoundary,
+    SemanticState,
+    Construction2Accumulator,
+    NebulaPresentMarker { value: u64 },
+    NebulaDigest,
+}
+
+impl StateXOutPreimageInstruction {
+    #[doc(hidden)]
+    pub const fn field_count(self) -> usize {
+        match self {
+            Self::Domain { .. } | Self::NebulaPresentMarker { .. } => 1,
+            Self::ChunkCountHalves | Self::StepCountHalves | Self::PcHalves => 2,
+            Self::VerifierDigest
+            | Self::PiCcsHeader
+            | Self::CurrentBoundary
+            | Self::SemanticState
+            | Self::Construction2Accumulator
+            | Self::NebulaDigest => 4,
+        }
+    }
+}
+
+/// Exact ordered source program interpreted by
+/// [`state_x_out_preimage_with_mode`].
+#[doc(hidden)]
+pub fn state_x_out_preimage_program(
+    mode: StateXOutDigestMode,
+    nebula_present: bool,
+) -> Vec<StateXOutPreimageInstruction> {
+    use StateXOutPreimageInstruction as Instruction;
+
+    let mut program = vec![
+        Instruction::Domain {
+            value: F_PRIME_STATE_X_OUT_DOMAIN,
+        },
+        Instruction::VerifierDigest,
+        Instruction::PiCcsHeader,
+        Instruction::ChunkCountHalves,
+        Instruction::StepCountHalves,
+        Instruction::PcHalves,
+        Instruction::CurrentBoundary,
+    ];
+    if matches!(mode, StateXOutDigestMode::Stateful) {
+        program.push(Instruction::SemanticState);
+    }
+    program.push(Instruction::Construction2Accumulator);
+    if nebula_present {
+        program.extend([
+            Instruction::NebulaPresentMarker {
+                value: NEBULA_ADV_PRESENT_MARKER,
+            },
+            Instruction::NebulaDigest,
+        ]);
+    }
+    program
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn state_x_out_digest_with_mode(
     mode: StateXOutDigestMode,
@@ -1332,25 +1404,32 @@ pub(crate) fn state_x_out_preimage_with_mode(
     construction2_acc: [u8; 32],
     nebula_lane: Option<[F; 4]>,
 ) -> Vec<F> {
-    let mut preimage = vec![F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN)];
-    preimage.extend(digest32_as_fields(vk_fs_digest));
-    preimage.extend(pi_ccs_header_bundle);
-    preimage.extend(u64_halves(chunk_count));
-    preimage.extend(u64_halves(step_count));
-    preimage.extend(u64_halves(pc));
-    preimage.extend(digest32_as_fields(current_boundary));
-    if matches!(mode, StateXOutDigestMode::Stateful) {
-        preimage.extend(digest32_as_fields(semantic_acc));
-    }
-    preimage.extend(digest32_as_fields(construction2_acc));
-    // Nebula lane binding (spec §6.1): present-only, so plain chains keep
-    // the pre-Nebula preimage byte-identical and the in-circuit x_out
-    // mirror stays in parity until the F′ R1CS carries the lane
-    // (spec §13 step 9). The marker is nonzero and the extension exceeds
-    // the sponge rate, so a `Some` preimage never aliases a `None` one.
-    if let Some(lane) = nebula_lane {
-        preimage.push(F::from_u64(NEBULA_ADV_PRESENT_MARKER));
-        preimage.extend_from_slice(&lane);
+    use StateXOutPreimageInstruction as Instruction;
+
+    let program = state_x_out_preimage_program(mode, nebula_lane.is_some());
+    let capacity = program.iter().copied().map(Instruction::field_count).sum();
+    let mut preimage = Vec::with_capacity(capacity);
+    for instruction in program {
+        match instruction {
+            Instruction::Domain { value } | Instruction::NebulaPresentMarker { value } => {
+                preimage.push(F::from_u64(value));
+            }
+            Instruction::VerifierDigest => preimage.extend(digest32_as_fields(vk_fs_digest)),
+            Instruction::PiCcsHeader => preimage.extend(pi_ccs_header_bundle),
+            Instruction::ChunkCountHalves => preimage.extend(u64_halves(chunk_count)),
+            Instruction::StepCountHalves => preimage.extend(u64_halves(step_count)),
+            Instruction::PcHalves => preimage.extend(u64_halves(pc)),
+            Instruction::CurrentBoundary => preimage.extend(digest32_as_fields(current_boundary)),
+            Instruction::SemanticState => preimage.extend(digest32_as_fields(semantic_acc)),
+            Instruction::Construction2Accumulator => {
+                preimage.extend(digest32_as_fields(construction2_acc));
+            }
+            Instruction::NebulaDigest => {
+                if let Some(lane) = nebula_lane {
+                    preimage.extend_from_slice(&lane);
+                }
+            }
+        }
     }
     preimage
 }

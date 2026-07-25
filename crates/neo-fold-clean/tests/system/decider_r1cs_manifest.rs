@@ -41,7 +41,7 @@ use checked_program_artifact_support::{
     canonicalize_program, lean_instructions, normalize_prefix, normalize_range, relabel_instructions,
     CanonicalizedProgram, Instruction, NormalizedProgram, Rhs,
 };
-use full_history_affine_artifact_support::compare_affine_artifacts;
+use full_history_affine_artifact_support::{compare_affine_artifacts, compare_current_terminal_link_artifact};
 use full_history_counter_artifact_support::compare_counter_artifact;
 use full_history_encoding_artifact_support::render_output_encoding_artifact;
 use full_history_equality_artifact_support::render_equality_artifact;
@@ -1318,6 +1318,15 @@ fn terminal_parent_and_accumulator_artifacts_match_exact_rows() {
         .find(|audit| !audit.is_base)
         .expect("recursive wire audit");
     compare_transcript_artifacts(&synth.builder, base, recursive);
+}
+
+#[test]
+fn current_terminal_link_full_history_placement_matches_exact_rows() {
+    let (prep, finished) = build_honest_finished_proof(2);
+    let statement = neo_fold_clean::build_decider_statement(&prep, &finished);
+    let synth = synthesize_statement_r1cs(&prep, &statement).expect("synthesize full history");
+    assert!(synth.builder.is_satisfied(), "honest full-history rows");
+    compare_current_terminal_link_artifact(&synth.builder);
 }
 
 #[test]

@@ -130,7 +130,7 @@ use crate::paper::digest::{
 };
 use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use crate::paper::f_prime::r1cs::{
-    FPrimePublicInputLayout, F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_ONE_OFFSET, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
+    f_prime_public_input_link_matches, FPrimePublicInputLayout, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
 };
 use crate::paper::relations::{CeClaim, WitnessMat};
 use neo_ajtai::Commitment;
@@ -624,8 +624,7 @@ fn check_terminal_latest_link(prep: &Preprocessing, pre_state: &State, latest: &
         prep.structure_digest(),
         pre_state,
         prep.semantic_state_mode,
-    )
-    .bits();
+    );
     let layout = match prep.nebula() {
         None => FPrimePublicInputLayout::plain(),
         Some(config) => FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(config.stacks)),
@@ -633,25 +632,7 @@ fn check_terminal_latest_link(prep: &Preprocessing, pre_state: &State, latest: &
     let expected_public_input_len = prep.public_input_len.unwrap_or(layout.total_len());
     for (index, instance) in latest.instances.iter().enumerate() {
         let claim = &instance.claim;
-        if expected_public_input_len != layout.total_len()
-            || claim.m_in != expected_public_input_len
-            || claim.x.len() != expected_public_input_len
-        {
-            return Err(Error::TerminalLatestPublicInputMismatch { index });
-        }
-        if claim.x[F_PRIME_PUBLIC_ONE_OFFSET] != F::ONE {
-            return Err(Error::TerminalLatestPublicInputMismatch { index });
-        }
-        for (offset, &bit) in expected.iter().enumerate() {
-            let expected_bit = if bit == 0 { F::ZERO } else { F::ONE };
-            if claim.x[F_PRIME_ENC_INST_OFFSET + offset] != expected_bit {
-                return Err(Error::TerminalLatestPublicInputMismatch { index });
-            }
-        }
-        if claim.x[layout.carrier_padding_offset()..layout.total_len()]
-            .iter()
-            .any(|&value| value != F::ZERO)
-        {
+        if !f_prime_public_input_link_matches(layout, &expected, expected_public_input_len, claim.m_in, &claim.x) {
             return Err(Error::TerminalLatestPublicInputMismatch { index });
         }
     }
@@ -747,10 +728,11 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
 ///    constant term of `y_ring`, then `ct == M_j z(r)` transitively.
 /// 6. If `s_col/y_zcol` are present, `claim.y_zcol == Z · chi(s_col)`.
 ///    These are implementation-side NC-channel fields, not part of
-///    Definition 13's CE tuple. The current recursive accumulator handle
-///    omits `y_zcol`; this is a known old-point authority gap, not a proved
-///    safe boundary. When `y_zcol` is present in the terminal claim it must
-///    still be recomputed from the opened witness rather than trusted.
+///    Definition 13's CE tuple. The pending-family accumulator deliberately
+///    omits child `y_zcol`: `check_pending_projection_authority` instead
+///    recomputes the verifier-carried parent projection from the same ordered
+///    opened witnesses. When a full claim also carries `y_zcol`, this native
+///    path still recomputes it rather than treating the sidecar as authority.
 /// 7. Unsupported sidecar metadata (`aux_openings`, Pattern-A coordinates,
 ///    `u_offset/u_len`) must be absent. This clean SplitNc path does not
 ///    implement those fields, and accumulator-digested data cannot remain
@@ -1150,6 +1132,22 @@ fn check_claim_supported_sidecars(index: usize, claim: &CeClaim) -> Result<(), E
 /// `verify_uncompressed` does up-front.
 pub fn validate_final_witness_authority(prep: &Preprocessing, running: &RunningInstance) -> Result<(), Error> {
     check_running_witnesses_authority(prep, running)
+}
+
+/// Isolate the exact recursive terminal-link check used by
+/// [`verify_uncompressed`] for conformance and mutation tests.
+pub fn validate_terminal_latest_link(
+    prep: &Preprocessing,
+    state: &State,
+    latest: &LatestInstance,
+) -> Result<(), Error> {
+    check_terminal_latest_link(prep, state, latest)
+}
+
+/// Isolate the exact latest-CCS relation check used by
+/// [`verify_uncompressed`] for conformance and mutation tests.
+pub fn validate_latest_witness_authority(prep: &Preprocessing, latest: &LatestInstance) -> Result<(), Error> {
+    check_latest_instances_authority(prep, latest)
 }
 
 /// `ell_d = log2(next_power_of_two(D))`, matching the prover's

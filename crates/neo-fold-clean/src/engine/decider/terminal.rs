@@ -306,7 +306,7 @@ fn synthesize_last_step_terminal_r1cs_inner(
             None
         }
         (TerminalClosureMode::Emit, None) => {
-            crate::paper::decider_ce_relation::enforce_final_ce_relations(
+            crate::paper::decider_ce_relation::enforce_final_dec_children_relations(
                 &mut builder,
                 prep,
                 &terminal_children,

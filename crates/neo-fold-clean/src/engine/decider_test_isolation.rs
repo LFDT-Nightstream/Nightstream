@@ -9,7 +9,8 @@ use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::construction2::EncInst;
 use crate::paper::decider::PublicImage;
 use crate::paper::decider_ce_relation::{
-    alloc_final_witness, enforce_final_ce_relations, enforce_raw_old_block_projection,
+    alloc_final_witness, enforce_final_ce_relations, enforce_final_dec_children_relations,
+    enforce_raw_old_block_projection,
 };
 use crate::paper::digest::{digest32_as_fields, initial_boundary_digest, public_trace_seed_digest, AccumulatorHandle};
 use crate::paper::f_prime::r1cs::{FPrimeStateWires, FPrimeStepOutput, F_PRIME_ENC_INST_BITS};
@@ -241,7 +242,8 @@ pub fn enforce_ce_relations_many_against(
 }
 
 /// Emit the direct pending projection and all terminal CE rows over one shared
-/// ordered raw-witness allocation family.
+/// ordered raw-witness allocation family. Claims enter through the same strict
+/// Π_DEC child carrier as production, which deliberately omits `y_zcol`.
 pub fn enforce_ce_relations_many_with_raw_pending_against(
     prep: &Preprocessing,
     claims: &[CeClaim],
@@ -252,7 +254,7 @@ pub fn enforce_ce_relations_many_with_raw_pending_against(
     let mut builder = R1csBuilder::new();
     let claim_wires = claims
         .iter()
-        .map(|claim| alloc_ce_claim(&mut builder, claim))
+        .map(|claim| alloc_dec_child_claim(&mut builder, claim))
         .collect::<Vec<_>>();
     let pending = crate::paper::reductions::pi_ccs_split_nc_circuit::PendingProjectionWires {
         old_block: alloc_k_vec(&mut builder, old_block),
@@ -577,7 +579,7 @@ pub fn enforce_terminal_fold_ce_closure_against(
             terminal_witnesses,
             pending,
         ),
-        None => enforce_final_ce_relations(&mut builder, prep, &terminal_children, terminal_witnesses),
+        None => enforce_final_dec_children_relations(&mut builder, prep, &terminal_children, terminal_witnesses),
     }
     .map_err(|e| e.to_string())?;
     Ok(builder)

@@ -92,103 +92,13 @@ use crate::paper::nifs::circuit::{
 use crate::paper::params::Params;
 
 mod accumulator;
+pub use crate::paper::f_prime::public_input_link::{
+    f_prime_public_input_link_matches, f_prime_public_input_link_program, f_prime_terminal_link_program,
+    FPrimePublicInputLayout, FPrimePublicInputLinkInstruction, FPrimeTerminalLinkInstruction, F_PRIME_ENC_INST_BITS,
+    F_PRIME_ENC_INST_OFFSET, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_PUBLIC_ONE_OFFSET, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
+    X_OUT_BITS_PER_LANE,
+};
 pub(crate) use accumulator::enforce_terminal_output_acc_digest;
-
-/// Canonical bits per `x_out` digest lane. Goldilocks canonical form fits
-/// in 64 bits.
-pub const X_OUT_BITS_PER_LANE: usize = 64;
-
-/// Number of `enc_inst(x_out)` bits — the bit-decomposed digest body.
-pub const F_PRIME_ENC_INST_BITS: usize = DIGEST_LEN * X_OUT_BITS_PER_LANE;
-
-/// Index of the constant-one slot in the F' CCS public input.
-pub const F_PRIME_PUBLIC_ONE_OFFSET: usize = 0;
-
-/// First index of the `enc_inst(x_out)` body inside the F' public input.
-pub const F_PRIME_ENC_INST_OFFSET: usize = 1;
-
-/// Logical F' public-input length: `[1, enc_inst(x_out)…]`.
-///
-/// `enc_inst` is the **public-instance encoding boundary**. It does *not*
-/// mean every internal F' field value is bit-backed — Poseidon2 outputs,
-/// transcript challenges, sumcheck values, etc. all remain ordinary
-/// field values during F' execution. `enc_inst` only ensures that when
-/// the hash output is carried as the *next* fresh CCS public input, it
-/// is low-norm under `b = 2` (Definition 12 requires `‖z‖_∞ < b` on the
-/// full assignment, public input included).
-///
-/// Standard R1CS-as-CCS layout requires a fixed constant-one slot so
-/// affine terms have a column to ride on; without it the CCS instance
-/// is not committable as a real `u_i`.
-///
-/// HyperNova §6.3 has `u_{i+1}.public == enc_inst(F'.x_out)` where
-/// `enc_inst` is the protocol's mapping from the raw augmented-step
-/// output into the CCS instance public-input shape. For SuperNeo under
-/// `b = 2`, the body is "canonical 64-bit decomposition of each of the
-/// four Goldilocks digest lanes". See `encoding.md`.
-pub const F_PRIME_PUBLIC_INPUT_LEN: usize = 1 + F_PRIME_ENC_INST_BITS;
-
-/// Authoritative SuperNeo carrier width for plain F'.
-///
-/// SuperNeo acts on complete `D`-coefficient ring columns. The logical
-/// 257-field F' link therefore occupies a 270-coordinate public carrier:
-/// columns `0..257` hold `[1, enc_inst(x_out)]`, while columns `257..270`
-/// are verifier-fixed zero padding in every fresh claim. Running CE claims
-/// retain all 270 coordinates because ring-linear folding may populate the
-/// final thirteen lanes.
-pub const F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN: usize = (F_PRIME_PUBLIC_INPUT_LEN + D - 1) / D * D;
-
-/// Verifier-owned public-input shape for one F' relation.
-///
-/// Plain F' uses no suffix. A composed application may append public step
-/// data after `enc_inst(x_out)`; the next recursive step receives those
-/// coordinates through NIFS.V without treating them as part of the hash
-/// link itself.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FPrimePublicInputLayout {
-    suffix_len: usize,
-}
-
-impl FPrimePublicInputLayout {
-    pub const fn plain() -> Self {
-        Self { suffix_len: 0 }
-    }
-
-    pub const fn with_suffix(suffix_len: usize) -> Self {
-        Self { suffix_len }
-    }
-
-    /// Logical fields carried before the verifier-fixed ring padding.
-    pub const fn logical_len(self) -> usize {
-        F_PRIME_PUBLIC_INPUT_LEN + self.suffix_len
-    }
-
-    /// Complete public carrier consumed by SuperNeo.
-    pub const fn total_len(self) -> usize {
-        let logical = self.logical_len();
-        (logical + D - 1) / D * D
-    }
-
-    pub const fn carrier_padding_len(self) -> usize {
-        self.total_len() - self.logical_len()
-    }
-
-    pub const fn suffix_len(self) -> usize {
-        self.suffix_len
-    }
-
-    pub const fn suffix_offset(self) -> usize {
-        F_PRIME_PUBLIC_INPUT_LEN
-    }
-
-    pub const fn suffix_end(self) -> usize {
-        self.suffix_offset() + self.suffix_len
-    }
-
-    pub const fn carrier_padding_offset(self) -> usize {
-        self.logical_len()
-    }
-}
 
 /// `enc_inst(x_out)` body: encode `x_out`'s four Goldilocks lanes as
 /// `F_PRIME_ENC_INST_BITS` canonical bits (little-endian), so the body is

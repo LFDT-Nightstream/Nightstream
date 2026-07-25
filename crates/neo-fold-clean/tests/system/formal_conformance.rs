@@ -1,7 +1,21 @@
+#[path = "formal_conformance/canonical_public_link.rs"]
+mod canonical_public_link;
+#[path = "formal_conformance/canonical_public_link_program_export.rs"]
+mod canonical_public_link_program_export;
+#[path = "formal_conformance/canonical_step_export.rs"]
+mod canonical_step_export;
+#[path = "formal_conformance/canonical_terminal_export.rs"]
+mod canonical_terminal_export;
 #[path = "formal_conformance/native_step_export.rs"]
 mod native_step_export;
+#[path = "formal_conformance/state_x_out_program_export.rs"]
+mod state_x_out_program_export;
 #[path = "../support/mod.rs"]
 mod support;
+#[path = "formal_conformance/terminal_link_program_export.rs"]
+mod terminal_link_program_export;
+#[path = "formal_conformance/terminal_link_rows_export.rs"]
+mod terminal_link_rows_export;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -241,6 +255,102 @@ fn native_verify_step_receipts_are_exact_and_deterministic() {
     assert!(
         drifted.is_empty(),
         "native verify_step receipt drifted; inspect and deliberately promote {drifted:?}"
+    );
+}
+
+#[test]
+fn native_public_link_program_is_exact_and_deterministic() {
+    let lean = canonical_public_link_program_export::checked_canonical_public_link_program();
+    let lean_path = repo_root().join(
+        "formal/nightstream-lean/Nightstream/Implementation/Rust/\
+         CanonicalConformance/NativeStep/Generated/PublicInputLinkProgram.lean",
+    );
+    let mut drifted = Vec::new();
+    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    assert!(
+        drifted.is_empty(),
+        "native public-link program drifted; inspect and deliberately promote {drifted:?}"
+    );
+}
+
+#[test]
+fn native_state_x_out_programs_are_exact_and_deterministic() {
+    let lean = state_x_out_program_export::checked_state_x_out_programs();
+    let lean_path = repo_root().join(
+        "formal/nightstream-lean/Nightstream/Implementation/Rust/\
+         CanonicalConformance/NativeStep/Generated/StateXOutProgram.lean",
+    );
+    let mut drifted = Vec::new();
+    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    assert!(
+        drifted.is_empty(),
+        "native state_x_out programs drifted; inspect and deliberately promote {drifted:?}"
+    );
+}
+
+#[test]
+fn terminal_link_program_is_exact_and_deterministic() {
+    let lean = terminal_link_program_export::checked_terminal_link_program();
+    let lean_path = repo_root().join(
+        "formal/nightstream-lean/Nightstream/Implementation/Rust/\
+         CanonicalConformance/TerminalLink/Generated/Program.lean",
+    );
+    let mut drifted = Vec::new();
+    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    assert!(
+        drifted.is_empty(),
+        "terminal-link source program drifted; inspect and deliberately promote {drifted:?}"
+    );
+}
+
+#[test]
+fn terminal_link_two_claim_rows_are_exact_and_deterministic() {
+    let lean = terminal_link_rows_export::checked_terminal_link_rows_two();
+    let lean_path = repo_root().join(
+        "formal/nightstream-lean/Nightstream/Implementation/Rust/\
+         CanonicalConformance/TerminalLink/Generated/RowsTwo.lean",
+    );
+    let mut drifted = Vec::new();
+    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    assert!(
+        drifted.is_empty(),
+        "terminal-link two-claim rows drifted; inspect and deliberately promote {drifted:?}"
+    );
+}
+
+#[test]
+fn linked_canonical_step_cases_are_exact_and_deterministic() {
+    let (json, lean) = canonical_step_export::checked_canonical_step_cases();
+    let json_path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/system/formal_conformance/canonical_step_cases.json");
+    let lean_path = repo_root().join(
+        "formal/nightstream-lean/Nightstream/Implementation/Rust/\
+         CanonicalConformance/OneSlot/Generated/StepCases.lean",
+    );
+    let mut drifted = Vec::new();
+    compare_or_write_expected(&json_path, &json, &mut drifted);
+    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    assert!(
+        drifted.is_empty(),
+        "linked canonical-step corpus drifted; inspect and deliberately promote {drifted:?}"
+    );
+}
+
+#[test]
+fn linked_canonical_terminal_cases_are_exact_and_deterministic() {
+    let (json, lean) = canonical_terminal_export::checked_canonical_terminal_cases();
+    let json_path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/system/formal_conformance/canonical_terminal_cases.json");
+    let lean_path = repo_root().join(
+        "formal/nightstream-lean/Nightstream/Implementation/Rust/\
+         CanonicalConformance/OneSlot/Generated/TerminalCases.lean",
+    );
+    let mut drifted = Vec::new();
+    compare_or_write_expected(&json_path, &json, &mut drifted);
+    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    assert!(
+        drifted.is_empty(),
+        "linked canonical-terminal corpus drifted; inspect and deliberately promote {drifted:?}"
     );
 }
 

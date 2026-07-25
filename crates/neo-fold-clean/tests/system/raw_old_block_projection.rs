@@ -249,6 +249,13 @@ fn direct_projection_and_ajtai_consume_the_same_final_witness_wires() {
         .proof
         .running()
         .expect("finished proof has final running");
+    assert!(
+        final_running
+            .claims
+            .iter()
+            .all(|claim| !claim.s_col.is_empty() && !claim.y_zcol.is_empty()),
+        "source claims must carry the full NC sidecar before strict PiDEC child allocation strips y_zcol"
+    );
     let old_block = std::array::from_fn(|index| K::from(F::from_u64((index + 3) as u64)));
     let parent = neo_reductions::block_projection::radix_recompose_raw_witnesses_at_block_point(
         &final_running.witnesses,

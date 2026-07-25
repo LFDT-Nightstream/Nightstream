@@ -371,3 +371,26 @@ pub fn compare_affine_artifacts(builder: &R1csBuilder) {
         compare_full_history_artifact(&part_path, &run_module, "lean.expected");
     }
 }
+
+/// Export only the current terminal latest-link placement from a live
+/// full-history synthesis. This certificate is intentionally independent of
+/// the captured aggregate artifact, whose terminal-link range predates the
+/// thirteen plain-carrier padding rows.
+pub fn compare_current_terminal_link_artifact(builder: &R1csBuilder) {
+    let range = nth_range(builder, "terminal.latest_link", 0);
+    assert_eq!(
+        range.row_end - range.row_start,
+        neo_fold_clean::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
+        "current terminal latest-link row count",
+    );
+    let namespace = "FPrimeFullHistoryCurrentTerminalLinkPlacement";
+    let path = formal_repo_root().join(format!(
+        "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/{namespace}.lean"
+    ));
+    let (artifact, run_modules) = render_artifact(builder, range, namespace);
+    assert!(
+        run_modules.is_empty(),
+        "current terminal-link placement must fit in one bounded certificate",
+    );
+    compare_full_history_artifact(&path, &artifact, "lean.expected");
+}

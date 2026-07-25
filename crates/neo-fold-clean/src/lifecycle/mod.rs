@@ -615,7 +615,10 @@ pub use prove::{
     extend, extend_nebula_open, extend_nebula_open_with_nifs_adapter, extend_with_nifs_adapter, prove,
     prove_with_nifs_adapter,
 };
-pub use verify::{validate_final_witness_authority, verify_uncompressed};
+pub use verify::{
+    validate_final_witness_authority, validate_latest_witness_authority, validate_terminal_latest_link,
+    verify_uncompressed,
+};
 
 // Audit / decider path — chain replay, Spartan, diagnostic tests.
 pub use compress::{build_decider_statement, compress, finish_uncompressed_with_audit, verify};

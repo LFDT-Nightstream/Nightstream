@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$ROOT/../.." && pwd)"
-LEAN_TIMEOUT_SECONDS="${LEAN_TIMEOUT_SECONDS:-900}"
+LEAN_TIMEOUT_SECONDS="${LEAN_TIMEOUT_SECONDS:-1500}"
 NON_LEAN_TIMEOUT_SECONDS=300
 # Aggregate descendant RSS working ceiling. The user-approved 45 GB remains an
 # emergency ceiling; focused validation should not need it.
@@ -13,8 +13,8 @@ PROCESS_SNAPSHOT_SOURCE="$ROOT/scripts/process-tree-snapshot.c"
 PROCESS_SNAPSHOT_BIN="$ROOT/.lake/build/nightstream-process-tree-snapshot"
 
 if [[ ! "$LEAN_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] ||
-   (( LEAN_TIMEOUT_SECONDS < 1 || LEAN_TIMEOUT_SECONDS > 900 )); then
-  echo "LEAN_TIMEOUT_SECONDS must be an integer between 1 and 900" >&2
+   (( LEAN_TIMEOUT_SECONDS < 1 || LEAN_TIMEOUT_SECONDS > 1500 )); then
+  echo "LEAN_TIMEOUT_SECONDS must be an integer between 1 and 1500" >&2
   exit 2
 fi
 

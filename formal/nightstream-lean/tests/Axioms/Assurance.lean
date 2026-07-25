@@ -161,3 +161,10 @@ module is built; the aggregate entrypoint imports all ownership groups.
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Assurance.FPrimeFullHistoryCircuit.fPrimeCircuit_execution_sound_or_bad
+
+/-- info: 'Nightstream.Assurance.FPrimeFullHistoryCircuit.fPrimeCircuit_complete_with_currentPlainDigest' depends on axioms: [propext,
+ Classical.choice,
+ Lean.trustCompiler,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Assurance.FPrimeFullHistoryCircuit.fPrimeCircuit_complete_with_currentPlainDigest

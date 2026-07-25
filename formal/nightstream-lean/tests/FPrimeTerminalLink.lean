@@ -2,8 +2,8 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrime.FPrimeTerminalLinkS
 
 /-!
 Lean twins of the Rust terminal delayed-link vectors. The honest assignment
-satisfies all 257 exact rows; affine-one and bit mutations fail at the same
-first row as the production isolation harness.
+satisfies all 270 exact rows; affine-one, bit, and carrier-padding mutations
+fail at the same first row as the production isolation harness.
 -/
 
 set_option maxRecDepth 32768
@@ -40,6 +40,19 @@ example : ∀ row ∈ rows.take 38, RowHolds wrongBitAssignment row := by
   native_decide
 
 example : ¬ RowHolds wrongBitAssignment ((rows.drop 38).head (by decide)) := by
+  native_decide
+
+def wrongPaddingAssignment (column : Nat) : Nat :=
+  if column = freshPaddingCol 0 then 1
+  else honestAssignment column
+
+example : ¬ Satisfies rows wrongPaddingAssignment := by native_decide
+
+example : ∀ row ∈ rows.take 257, RowHolds wrongPaddingAssignment row := by
+  native_decide
+
+example :
+    ¬ RowHolds wrongPaddingAssignment ((rows.drop 257).head (by decide)) := by
   native_decide
 
 end NightstreamTests.FPrimeTerminalLink

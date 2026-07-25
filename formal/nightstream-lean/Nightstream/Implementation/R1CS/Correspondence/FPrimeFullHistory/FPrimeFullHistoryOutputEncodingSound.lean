@@ -5,13 +5,15 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.FPrimeFu
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.FPrimeFullHistoryBaseStepSound
 
 /-!
-Contract: universal semantics of the exact recursive-output
-`enc_inst(x_out)` suffix and its terminal consumer.
+Contract: universal semantics of the captured recursive-output
+`enc_inst(x_out)` suffix and its captured terminal consumer.
 
-The Rust drift gate proves that the relabeled 532-row program is the literal
-suffix of the generated recursive owner. Lean derives canonical digest lanes
-from those rows, then uses the exact terminal link rows to reconstruct the
-same four-lane digest from the terminal fresh public bits.
+The captured relabeled 532-row program is the literal suffix of its generated
+recursive owner. Lean derives canonical digest lanes from those rows, then
+uses the captured terminal-link prefix to reconstruct the same four-lane
+digest from the terminal fresh public bits. This theorem does not establish
+current full-history Rust conformance; the terminal snapshot is 13 rows short
+of the current plain production owner.
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryOutputEncodingSound

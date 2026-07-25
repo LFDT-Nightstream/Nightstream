@@ -1,5 +1,6 @@
 import Nightstream.Assurance.FPrimeFullHistoryCircuit
 import Nightstream.Assurance.FPrimeFullHistoryNifsReassembly
+import Nightstream.Assurance.FPrimeFullHistoryProductionDigest
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.FPrimeFullHistoryCounterSound
 import Nightstream.Assurance.FPrimeFullHistory.TerminalShell
 
@@ -12,12 +13,17 @@ families with intermediate columns and direct semantic inputs for row families
 without auxiliaries.  It deliberately contains no `Satisfies`, aggregate
 accepted-conclusion, or prover-supplied verifier-result field.  The theorem
 reassembles those independent executions into the exact 4,193,134 sparse rows
-in production manifest order.
+in captured manifest order. It also exposes the constructive completion of the
+captured 257-coordinate terminal prefix into the selected current isolated
+270-row owner; it does not claim a current generated full-history placement.
 -/
 
 namespace Nightstream.Assurance.FPrimeFullHistoryCircuit
 
 open Nightstream.Implementation.R1CS
+open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding
+open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ProductionDigestCodecs
+open Nightstream.Implementation.Rust.CanonicalConformance.NativeStep
 
 set_option maxRecDepth 1048576
 set_option maxHeartbeats 8000000
@@ -171,5 +177,46 @@ theorem fPrimeCircuit_execution_sound_or_bad
       BadEvent assignment :=
   fPrimeCircuit_sound_or_bad prime canonical one
     (fPrimeCircuit_complete prime canonical one witness)
+
+/-- Honest compiler execution constructs the exact captured full-row
+assignment and, from that same assignment, the selected current isolated
+plain terminal owner and its shared typed output digest.
+
+This is a local honest completion across the registered 257-to-270 drift. It
+does not identify the completed columns with a current generated full-history
+artifact. -/
+theorem fPrimeCircuit_complete_with_currentPlainDigest
+    (prime : EuclidPrime goldilocksP)
+    {field : CanonicalU64Complete.FieldInverse}
+    {assignment : Nat -> Nat}
+    (canonical : forall column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (witness : CompilerWitness field assignment) :
+    exists digest :
+        Nightstream.Assurance.FPrimeFullHistoryProductionDigest.ProductionDigest,
+      Satisfies FPrimeFullHistoryRows.fullRows assignment /\
+        Satisfies FPrimeTerminalLink.rows
+          (FPrimeFullHistoryCurrentTerminalLinkCompletion.completedAssignment
+            assignment) /\
+        FPrimeTerminalLinkCanonicalRefinement.claimOfAssignment
+            (FPrimeFullHistoryCurrentTerminalLinkCompletion.completedAssignment
+              assignment) =
+          CanonicalPlainCarrierLink.encodeClaim digest /\
+        FPrimeFullHistoryProductionDigest.latestPublicXOuts
+            (finalState assignment canonical) =
+          [(digestCodec.encode digest).map (fun value => value.val)] /\
+        FPrimeFullHistoryTerminalLogicalLinkSound.terminalLogicalPublic
+            assignment =
+          Nightstream.Implementation.Encoding.FPrime.encodePublicInput
+            digest /\
+        digestCodec.decode (digestCodec.encode digest) = some digest := by
+  have rows :=
+    fPrimeCircuit_complete prime canonical one witness
+  rcases
+      FPrimeFullHistoryProductionDigest.fullRows_construct_currentPlainOwner
+        prime canonical one rows with
+    ⟨digest, currentRows, currentClaim, latest, logicalPublic, decoded⟩
+  exact
+    ⟨digest, rows, currentRows, currentClaim, latest, logicalPublic, decoded⟩
 
 end Nightstream.Assurance.FPrimeFullHistoryCircuit

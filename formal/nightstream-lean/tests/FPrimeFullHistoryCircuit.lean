@@ -34,4 +34,6 @@ example
       BadEvent assignment :=
   fPrimeCircuit_sound_or_bad prime canonical one rows
 
+#check fPrimeCircuit_complete_with_currentPlainDigest
+
 end Nightstream.Tests.FPrimeFullHistoryCircuit

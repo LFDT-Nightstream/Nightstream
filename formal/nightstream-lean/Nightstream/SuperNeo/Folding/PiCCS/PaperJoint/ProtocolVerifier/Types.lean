@@ -53,6 +53,36 @@ def sumcheckDegreeBound
   Nat.max
     input.constraintPolynomial.canonicalEqualityGatedDegreeBound 4
 
+/-- Appendix D.4's conservative per-round degree ceiling
+`max(u, 2b + 1, 2)`, computed from the paper constraint structure and norm
+parameter rather than a transport width. -/
+def paperRoundDegreeCeiling
+    {Field : Type uField}
+    {shape : Shape}
+    (input : VerifierInput Field shape)
+    (b : Nat) : Nat :=
+  Nat.max input.constraintPolynomial.degreeBound
+    (Nat.max (2 * b + 1) 2)
+
+/-- For the frozen strict-`b = 2` specialization, the syntax-derived exact
+ceiling used by the verifier is no larger than Appendix D.4's displayed
+conservative ceiling. -/
+theorem sumcheckDegreeBound_le_paperRoundDegreeCeiling_of_b_eq_two
+    {Field : Type uField}
+    {shape : Shape}
+    (input : VerifierInput Field shape)
+    {b : Nat}
+    (b_eq : b = 2) :
+    input.sumcheckDegreeBound <= input.paperRoundDegreeCeiling b := by
+  subst b
+  unfold sumcheckDegreeBound paperRoundDegreeCeiling
+  exact (Nat.max_le).2 ⟨
+    Nat.le_trans
+      input.constraintPolynomial.canonicalEqualityGatedDegreeBound_le_degreeBound
+      (Nat.le_max_left _ _),
+    Nat.le_trans (by decide : 4 <= Nat.max (2 * 2 + 1) 2)
+      (Nat.le_max_right _ _)⟩
+
 /-- Two verifier inputs whose sparse monomial syntax agrees have the same
 degree ceiling even when their declared polynomial metadata differs. -/
 theorem sumcheckDegreeBound_eq_of_terms_eq

@@ -2,6 +2,8 @@ import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.NonlinearTerminal
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.CoefficientConnectivity
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.PaddedCarrier
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.DomainSeparation
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckFixedWidthPadding
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract
 
 /-!
 Necessity countermodels for the paper-joint `Pi_CCS` model.
@@ -20,4 +22,5 @@ Emits constraints: no.
 | coefficient connectivity | unbound coefficient matrices can change acceptance while visible sources stay fixed |
 | padded carrier | projecting away the completed suffix can hide a changed coefficient image |
 | domain separation | one square Boolean domain cannot represent both row and complete Phi81 carrier indices |
+| SumCheck fixed-width padding | a nonzero coefficient above the paper degree can make the exact bad-challenge event certain |
 -/

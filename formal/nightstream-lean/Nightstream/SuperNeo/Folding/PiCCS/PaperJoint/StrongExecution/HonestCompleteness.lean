@@ -122,10 +122,10 @@ noncomputable def honestStrategy
     (witness : OutputWitness shape columns) :
     Strategy Extension shape PUnit where
   roundMessage := fun round _ alpha gamma history =>
-    SumCheck.Finite.FixedPolynomial.canonicalMessage
-      context.extensionOps.toOps
+    (SumCheck.Finite.FixedPolynomial.widen context.extensionOps.toOps
+      context.sumcheckDegreeBound_le
       ((honestRoundSelector context witness).polynomial alpha gamma round
-        history.challenges history.challenges_length)
+        history.challenges history.challenges_length)).toMessage
   fullOutput := fun _ _ _ history =>
     FullOutput.honestAt context.baseOps context.extensionOps context.lift
       (context.statement.sourceConnectedInputs witness) (historyPoint history)
@@ -337,21 +337,20 @@ private theorem honestStrategy_accepted
     (source : SourceHolds context.extensionOps context.lift
       context.openingMaps context.params context.statement witness)
     (coins : PublicCoins Extension shape) :
-    (execute (honestStrategy context witness) PUnit.unit coins).probe.Accepted
-      context.extensionOps context.lift context.statement := by
+    Probe.FixedWidthAccepted context.extensionOps context.lift
+      context.statement context.sumcheckWidth
+        (execute (honestStrategy context witness) PUnit.unit coins).probe := by
   let data := context.statement.sourceProtocolData context.lift witness
   let q := ProtocolPolynomial.polynomial context.extensionOps data
     coins.alpha coins.gamma
-  let degree := (context.statement.verifierInput context.lift).sumcheckDegreeBound
   let strategy := honestStrategy context witness
   let causalRun := execute strategy PUnit.unit coins
   have built := execute_history_induction strategy PUnit.unit coins
     (motive := fun rounds history =>
       exists fixedRounds : List
-          (SumCheck.Finite.FixedPolynomial Extension degree),
+          (SumCheck.Finite.FixedPolynomial Extension context.sumcheckWidth),
         history.messages = fixedRounds.map
-          (SumCheck.Finite.FixedPolynomial.canonicalMessage
-            context.extensionOps.toOps) /\
+          SumCheck.Finite.FixedPolynomial.toMessage /\
         PrefixRepresentations context.extensionOps.toOps q []
           (shape.cubeVariables - rounds) history.challenges fixedRounds)
     (by exact ⟨[], rfl, trivial⟩)
@@ -360,18 +359,19 @@ private theorem honestStrategy_accepted
       rcases priorBuilt with ⟨fixedRounds, messagesEqual, represented⟩
       let round : Fin shape.cubeVariables :=
         ⟨rounds, Nat.lt_of_succ_le within⟩
-      let polynomial :=
+      let exactPolynomial :=
         (honestRoundSelector context witness).polynomial
           coins.alpha coins.gamma round prior.challenges
             prior.challenges_length
+      let polynomial :=
+        SumCheck.Finite.FixedPolynomial.widen context.extensionOps.toOps
+          context.sumcheckDegreeBound_le exactPolynomial
       refine ⟨fixedRounds ++ [polynomial], ?_, ?_⟩
       · change
           prior.messages ++
-              [SumCheck.Finite.FixedPolynomial.canonicalMessage
-                context.extensionOps.toOps polynomial] =
+              [polynomial.toMessage] =
             (fixedRounds ++ [polynomial]).map
-              (SumCheck.Finite.FixedPolynomial.canonicalMessage
-                context.extensionOps.toOps)
+              SumCheck.Finite.FixedPolynomial.toMessage
         rw [messagesEqual, List.map_append]
         rfl
       · have futureIdentity :
@@ -382,10 +382,15 @@ private theorem honestStrategy_accepted
         apply prefixRepresentations_snoc context.extensionOps.toOps q []
           prior.challenges (shape.cubeVariables - (rounds + 1)) fixedRounds
           _ polynomial represented
-        simpa [polynomial, round, List.nil_append] using
+        intro point
+        rw [SumCheck.Finite.FixedPolynomial.evaluate_widen
+          context.extensionOps.toOps
+          (ProtocolPolynomialDegree.Support.polynomialLaws
+            context.extensionLaws)]
+        simpa [exactPolynomial, round, List.nil_append] using
           (honestRoundSelector context witness).represents
             coins.alpha coins.gamma round prior.challenges
-              prior.challenges_length)
+              prior.challenges_length point)
   rcases built with ⟨fixedRounds, messagesEqual, represented⟩
   have challengeCoordinates : causalRun.history.challenges =
       coins.roundPoint.coordinates := by
@@ -424,18 +429,6 @@ private theorem honestStrategy_accepted
                 context.extensionOps.toOps q)
               coins.roundPoint.dimension.symm)
       fixedHonest
-  have rawAccepted :
-      SumCheck.Finite.Accepted context.extensionOps.toOps degree
-        ((context.statement.verifierInput context.lift).initial
-          context.extensionOps coins.gamma)
-        coins.roundPoint.coordinates (q coins.roundPoint.coordinates)
-        (SumCheck.Finite.FixedPhase.Canonical.toFinite
-          context.extensionOps.toOps { rounds := fixedRounds }) :=
-    SumCheck.Finite.FixedPhase.Canonical.accepted_toFinite
-      context.extensionOps.toOps
-      (ProtocolPolynomialDegree.Support.polynomialLaws
-        context.extensionLaws)
-      q _ coins.roundPoint.coordinates { rounds := fixedRounds } fixedAccepted
   have historyPointEqual : historyPoint causalRun.history =
       coins.roundPoint :=
     cubePoint_ext _ _ challengeCoordinates
@@ -469,13 +462,6 @@ private theorem honestStrategy_accepted
           (context.statement.sourceConnectedInputs witness)
           context.constantLaw (context.statement.identityFirstMatrix witness)
           coins.roundPoint
-  unfold Probe.Accepted
-  apply (ProtocolPolynomial.check_eq_true_iff_accepted
-    context.extensionOps (context.statement.verifierInput context.lift)
-    coins.alpha coins.gamma coins.roundPoint
-    (context.statement.projectOutput causalRun.probe.response.fullOutput)
-    causalRun.probe.response.rounds).2
-  rw [outputEqual]
   have terminalExact :
       ProtocolPolynomial.terminalFromMessage context.extensionOps
           (context.statement.verifierInput context.lift)
@@ -485,17 +471,28 @@ private theorem honestStrategy_accepted
     unfold q ProtocolPolynomial.polynomial
     rw [dif_pos coins.roundPoint.dimension]
     rfl
-  rw [terminalExact]
-  have rawRoundsEqual : causalRun.probe.response.rounds.rounds =
-      (SumCheck.Finite.FixedPhase.Canonical.toFinite
-        context.extensionOps.toOps { rounds := fixedRounds }).rounds := by
+  have rawCertificateEqual :
+      causalRun.probe.response.rounds =
+        SumCheck.Finite.FixedPhase.RawCertificate.encode
+          ({ rounds := fixedRounds } :
+            SumCheck.Finite.FixedPhase.Certificate Extension
+              context.sumcheckWidth) := by
+    apply congrArg SumCheck.Finite.Certificate.mk
     simpa [causalRun, strategy,
-      SumCheck.Finite.FixedPhase.Canonical.toFinite] using messagesEqual
-  unfold SumCheck.Finite.Accepted at rawAccepted ⊢
-  rw [rawRoundsEqual]
-  simpa [degree, q, data,
-    context.statement.sourceProtocolData_toVerifierInput context.lift witness]
-    using rawAccepted
+      SumCheck.Finite.FixedPhase.RawCertificate.encode] using messagesEqual
+  unfold Probe.FixedWidthAccepted ProtocolPolynomial.FixedWidth.check
+  rw [rawCertificateEqual,
+    SumCheck.Finite.FixedPhase.RawCertificate.check_encode]
+  simp only [execute_probe_coins]
+  rw [outputEqual, terminalExact]
+  exact (SumCheck.Finite.FixedPhase.checkChain_eq_true_iff
+    context.extensionOps.toOps
+    ((context.statement.verifierInput context.lift).initial
+      context.extensionOps coins.gamma)
+    (q coins.roundPoint.coordinates)
+    fixedRounds coins.roundPoint.coordinates).2
+      (by
+        simpa [SumCheck.Finite.FixedPhase.Accepted] using fixedAccepted)
 
 private theorem honestStrategy_ambient
     {Extension : Type uExtension}

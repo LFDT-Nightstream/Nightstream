@@ -68,6 +68,14 @@ def sourcePublicInput
       (RelationShape shape publicRingColumns publicFits) :=
   Phi81Relation.projectPublicInput assignment
 
+/-- The concrete Phi81 norm predicate stated directly on the product's
+proof-term-independent assignment carrier. -/
+def sourceNormBounded
+    {shape : SemanticShape}
+    (bound : Nat)
+    (assignment : SourceAssignment shape) : Prop :=
+  ∀ column, centeredMagnitude (assignment column) < bound
+
 /-- Concrete Phi81 relation semantics over the proof-term-independent source
 assignment carrier. -/
 def productSemantics
@@ -86,8 +94,9 @@ def productSemantics
       (Phi81Relation.Point
         (RelationShape shape publicRingColumns publicFits))
       Phi81Relation.Evaluation Commitment :=
-  Phi81Relation.relationSemantics
-    (shape := RelationShape shape publicRingColumns publicFits) commit
+  { (Phi81Relation.relationSemantics
+      (shape := RelationShape shape publicRingColumns publicFits) commit) with
+    normBounded := sourceNormBounded }
 
 /-- Full public source product at the concrete Phi81 relation type. -/
 abbrev SourceProduct

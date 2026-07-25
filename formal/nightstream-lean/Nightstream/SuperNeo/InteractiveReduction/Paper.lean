@@ -232,12 +232,37 @@ deriving Repr, DecidableEq
 
 /-- Fiat--Shamir adds only explicitly named random-oracle exits. -/
 inductive FiatShamirSecurityEvent where
+  | publicInputBindingCollision
   | transcriptReplayCollision
   | transcriptStateCollision
   | outputAbsorptionCollision
   | challengeSamplingFailure
   | multiForkProgrammingFailure
 deriving Repr, DecidableEq
+
+/-- Symbolic ownership of the six Fiat--Shamir/random-oracle error terms.
+Every field must be instantiated by the corresponding exact event in a
+concrete oracle experiment. -/
+structure FiatShamirErrorBudget (Weight : Type uWeight) where
+  publicInputBindingCollision : Weight
+  transcriptReplayCollision : Weight
+  transcriptStateCollision : Weight
+  outputAbsorptionCollision : Weight
+  challengeSamplingFailure : Weight
+  multiForkProgrammingFailure : Weight
+
+/-- The exact random-oracle loss in transcript schedule order.  No
+commutativity of `scale.add` is assumed. -/
+def FiatShamirErrorBudget.total
+    {Weight : Type uWeight}
+    (scale : ProbabilityScale Weight)
+    (budget : FiatShamirErrorBudget Weight) : Weight :=
+  scale.add budget.publicInputBindingCollision
+    (scale.add budget.transcriptReplayCollision
+      (scale.add budget.transcriptStateCollision
+        (scale.add budget.outputAbsorptionCollision
+          (scale.add budget.challengeSamplingFailure
+            budget.multiForkProgrammingFailure))))
 
 /-- Symbolic ownership of the four interactive error terms from Appendix D. -/
 structure InteractiveErrorBudget (Weight : Type uWeight) where
@@ -259,14 +284,58 @@ def InteractiveErrorBudget.adjustedRelaxedBinding
     (budget : InteractiveErrorBudget Weight) : Weight :=
   budget.adjustUniqueness budget.relaxedBindingRaw budget.piCcsSuccessFloor
 
-/-- The exact additive interactive loss; no unnamed final `negl` term. -/
+/-- The exact loss of the strong--weak composition in the syntactic order
+produced by Theorem 6: weak fork sampling, then the two intrinsic `Pi_CCS`
+losses, then the once-adjusted relaxed-binding loss. -/
+def InteractiveErrorBudget.strongWeakTotal
+    {Weight : Type uWeight}
+    (scale : ProbabilityScale Weight)
+    (budget : InteractiveErrorBudget Weight) : Weight :=
+  scale.add budget.piRlcForkSampling
+    (scale.add
+      (scale.add budget.piCcsSumCheck budget.piCcsSchwartzZippel)
+      budget.adjustedRelaxedBinding)
+
+/-- The exact additive loss of
+`Pi_DEC ∘ Pi_RLC ∘ Pi_CCS`; `Pi_DEC` contributes the explicit zero loss from
+Theorem 7.  No unnamed final `negl` term is available. -/
 def InteractiveErrorBudget.total
     {Weight : Type uWeight}
     (scale : ProbabilityScale Weight)
     (budget : InteractiveErrorBudget Weight) : Weight :=
-  scale.add budget.piCcsSumCheck
-    (scale.add budget.piCcsSchwartzZippel
-      (scale.add budget.piRlcForkSampling
-        budget.adjustedRelaxedBinding))
+  scale.add scale.zero (budget.strongWeakTotal scale)
+
+/-- The one extraction event introduced when an accepted public NIFS
+transcript is related to Definition 5's witness-carrying target relation.
+
+This is not an intrinsic loss of `Pi_DEC`: Theorem 7 remains zero-loss once
+its target child witnesses exist. Public verifier acceptance alone does not
+construct those witnesses. -/
+structure NifsExtractionErrorBudget (Weight : Type uWeight) where
+  piDecTargetWitnessFailure : Weight
+
+/-- NIFS residual loss in event order: first accepted NIFS execution without
+target witnesses, then the four nonzero interactive composition terms.
+Rejected transcripts do not consume this extraction budget. Theorem 7's
+intrinsic zero is intentionally not relabeled as this bridge event. -/
+def nifsInteractiveTotal
+    {Weight : Type uWeight}
+    (scale : ProbabilityScale Weight)
+    (extraction : NifsExtractionErrorBudget Weight)
+    (interactive : InteractiveErrorBudget Weight) : Weight :=
+  scale.add extraction.piDecTargetWitnessFailure
+    (interactive.strongWeakTotal scale)
+
+/-- Full non-interactive SuperNeo loss: first the exact NIFS extraction and
+interactive losses, then the explicitly enumerated Fiat--Shamir/random-oracle
+loss. -/
+def nonInteractiveTotal
+    {Weight : Type uWeight}
+    (scale : ProbabilityScale Weight)
+    (extraction : NifsExtractionErrorBudget Weight)
+    (interactive : InteractiveErrorBudget Weight)
+    (fiatShamir : FiatShamirErrorBudget Weight) : Weight :=
+  scale.add (nifsInteractiveTotal scale extraction interactive)
+    (fiatShamir.total scale)
 
 end Nightstream.SuperNeo.InteractiveReduction.Paper

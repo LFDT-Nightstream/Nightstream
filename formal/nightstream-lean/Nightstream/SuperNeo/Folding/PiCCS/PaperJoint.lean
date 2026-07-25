@@ -39,5 +39,5 @@ status datatype: changing a diagnostic list is not a proof.
 | `JointComposition` | target convention, signed `Q` identity, coefficients, and semantic closure | approval of the paper correction |
 | `VerifierSemantics` | SumCheck truth path, output point, abstract Fiat--Shamir, and protocol checker | concrete Poseidon2 security |
 | `Phi81` | Goldilocks/Phi81 placement, coefficient kernel, and source connectivity | Rust/R1CS refinement |
-| `Necessity` | countermodels for nonlinear terminals, carrier retention, coefficient binding, and domain separation | production bug claims |
+| `Necessity` | countermodels for nonlinear terminals, carrier retention, coefficient binding, domain separation, and unchecked SumCheck coefficients above the paper degree | production bug claims |
 -/

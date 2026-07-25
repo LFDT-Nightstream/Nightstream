@@ -225,8 +225,8 @@ theorem extraction_or_fixedFirstBad
   have secondSemantic :=
     (ambientCheck_eq_true_iff context second).1 secondSuccess
   have secondFacts :
-      second.causalRun.probe.Accepted context.extensionOps context.lift
-          context.statement /\
+      second.causalRun.probe.FixedWidthAccepted context.extensionOps
+          context.lift context.statement context.sumcheckWidth /\
         AmbientOutputHolds context.extensionOps context.lift
           context.openingMaps context.params context.statement
           second.causalRun.probe firstWitness := by

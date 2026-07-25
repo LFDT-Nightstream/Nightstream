@@ -12,6 +12,15 @@ Does not own: a Schwartz--Zippel root-count proof, the SumCheck soundness
 contract itself, an infinite rejection sampler, Fiat--Shamir, Rust, R1CS,
 artifacts, or costs.
 
+Emits constraints: no.
+
+| Owned object | Exact event or bound |
+|---|---|
+| mixing event | fixed-witness alpha/gamma root event |
+| SumCheck event | `sumCheckBadChallengeEvent = true <-> SumCheckFailure` |
+| event composition | `FixedFirstBadBound` by the finite union bound |
+| first-success loss | `(mixing + sumcheck) + rawMismatch / successFloor` |
+
 The contracts quantify over every fixed output witness. They therefore do
 not allow either bad event to choose its witness after seeing the fresh
 second-run verifier coins.
@@ -66,6 +75,21 @@ noncomputable def sumCheckBadChallengeEvent
     Execution Extension shape columns -> Bool :=
   fun execution =>
     propositionEvent (SumCheckFailure context execution.causalRun witness)
+
+/-- Public exact transport for the named Boolean SumCheck event. -/
+@[simp] theorem sumCheckBadChallengeEvent_eq_true_iff
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (context : Context Extension Commitment PublicInput shape
+      columns blockCount)
+    (witness : OutputWitness shape columns)
+    (execution : Execution Extension shape columns) :
+    sumCheckBadChallengeEvent context witness execution = true <->
+      SumCheckFailure context execution.causalRun witness := by
+  exact propositionEvent_eq_true _
 
 /-- Permitted paper security contract for the joint alpha/gamma polynomial:
 every witness fixed before the fresh execution has the stated root bound in

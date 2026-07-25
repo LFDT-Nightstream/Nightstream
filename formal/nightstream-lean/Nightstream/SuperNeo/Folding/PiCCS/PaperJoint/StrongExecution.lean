@@ -16,6 +16,15 @@ fixed-witness pointwise cover consumed by Appendix D.4's fresh second run.
 Does not own: probability, rejection sampling, conditioning, Schwartz--Zippel
 bounds, SumCheck error bounds, Fiat--Shamir, Rust, R1CS, artifacts, or costs.
 
+Emits constraints: no.
+
+| Owned object | Exact equation or ordering |
+|---|---|
+| revealed history | `messages.length = challenges.length = rounds` |
+| paper degree width | `sumcheckDegreeBound = sumcheckWidth` |
+| prefix replay | `execute.history = replayPrefix verifierWord` |
+| target witness | attached only after the causal prefix |
+
 The target witness is attached only after the causal prefix is complete. This
 prevents later extractor randomness from influencing any `Pi_CCS` message or
 the complete prover output.
@@ -62,7 +71,45 @@ structure Context
     Decidable (AmbientOutputHolds extensionOps lift openingMaps params
       statement probe witness)
   constantLaw : ConstantTermLaw baseOps statement.matrixSource.kernel
+  /-- Common coefficient width selected before the interaction. -/
+  sumcheckWidth : Nat
+  /-- The selected width covers the exact paper-polynomial degree. -/
+  sumcheckDegreeBound_le :
+    (statement.verifierInput lift).sumcheckDegreeBound <= sumcheckWidth
   challengeSetSize : Nat
+
+/-- Paper-valid selection of the fixed SumCheck storage width. The width is
+the verifier-computed syntax ceiling, not merely an arbitrary larger transport
+allocation. High zero coefficients within that ceiling remain valid. -/
+def PaperDegreeWidthExact
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (context : Context Extension Commitment PublicInput shape
+      columns blockCount) : Prop :=
+  (context.statement.verifierInput context.lift).sumcheckDegreeBound =
+    context.sumcheckWidth
+
+/-- Exact width selection fits Appendix D.4's conservative degree expression
+for the context's frozen strict-`b = 2` semantics. -/
+theorem paperDegreeWidthExact_implies_width_le_paperRoundDegreeCeiling
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (context : Context Extension Commitment PublicInput shape
+      columns blockCount)
+    (exact : PaperDegreeWidthExact context) :
+    context.sumcheckWidth <=
+      (context.statement.verifierInput context.lift).paperRoundDegreeCeiling
+        context.params.b := by
+  rw [← exact]
+  exact
+    ProtocolPolynomial.VerifierInput.sumcheckDegreeBound_le_paperRoundDegreeCeiling_of_b_eq_two
+      (context.statement.verifierInput context.lift) context.freshBound
 
 /-- Exactly the messages already sent and challenges already revealed before
 round `rounds`. The equal-length indices prevent a strategy call for round
@@ -142,6 +189,130 @@ private def run
         (strategy.roundMessage round proverTape alpha gamma prior)
         (challengeAt roundPoint round)
 
+/-- Public prefix-only presentation of the same causal replay.  The word has
+exactly the already-revealed coordinates; no current or future challenge is
+available while the preceding messages are constructed. -/
+def replayPrefix
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {ProverTape : Type uProverTape}
+    (strategy : Strategy Extension shape ProverTape)
+    (proverTape : ProverTape)
+    (alpha : CubePoint Extension shape.cubeVariables)
+    (gamma : Extension) :
+    (rounds : Nat) ->
+      rounds <= shape.cubeVariables ->
+      (Fin rounds -> Extension) ->
+      History Extension rounds
+  | 0, _, _ => History.empty Extension
+  | rounds + 1, within, word =>
+      let prior := replayPrefix strategy proverTape alpha gamma rounds
+        (Nat.le_trans (Nat.le_succ rounds) within)
+        (fun index => word index.castSucc)
+      let round : Fin shape.cubeVariables :=
+        ⟨rounds, Nat.lt_of_succ_le within⟩
+      prior.snoc
+        (strategy.roundMessage round proverTape alpha gamma prior)
+        (word (Fin.last rounds))
+
+/-- Prefix replay records exactly the supplied challenge word. -/
+theorem replayPrefix_challenges
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {ProverTape : Type uProverTape}
+    (strategy : Strategy Extension shape ProverTape)
+    (proverTape : ProverTape)
+    (alpha : CubePoint Extension shape.cubeVariables)
+    (gamma : Extension)
+    (rounds : Nat)
+    (within : rounds <= shape.cubeVariables)
+    (word : Fin rounds -> Extension) :
+    (replayPrefix strategy proverTape alpha gamma rounds within word).challenges =
+      List.ofFn word := by
+  induction rounds with
+  | zero => rfl
+  | succ rounds inductionHypothesis =>
+      simp only [replayPrefix, History.snoc]
+      rw [inductionHypothesis]
+      exact (List.ofFn_succ_last).symm
+
+/-- Every replayed message is the strategy output computed from exactly the
+strictly earlier challenge prefix. -/
+theorem replayPrefix_messages
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {ProverTape : Type uProverTape}
+    (strategy : Strategy Extension shape ProverTape)
+    (proverTape : ProverTape)
+    (alpha : CubePoint Extension shape.cubeVariables)
+    (gamma : Extension)
+    (rounds : Nat)
+    (within : rounds <= shape.cubeVariables)
+    (word : Fin rounds -> Extension) :
+    (replayPrefix strategy proverTape alpha gamma rounds within word).messages =
+      List.ofFn fun index =>
+        strategy.roundMessage (Fin.castLE within index) proverTape alpha gamma
+          (replayPrefix strategy proverTape alpha gamma index.val
+            (Nat.le_trans (Nat.le_of_lt index.isLt) within)
+            (fun prior =>
+              word (Fin.castLT prior
+                (Nat.lt_trans prior.isLt index.isLt)))) := by
+  induction rounds with
+  | zero => rfl
+  | succ rounds inductionHypothesis =>
+      simp only [replayPrefix, History.snoc]
+      rw [inductionHypothesis]
+      rw [List.ofFn_succ_last]
+      congr 1
+
+private theorem run_eq_replayPrefix
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {ProverTape : Type uProverTape}
+    (strategy : Strategy Extension shape ProverTape)
+    (proverTape : ProverTape)
+    (alpha : CubePoint Extension shape.cubeVariables)
+    (gamma : Extension)
+    (roundPoint : CubePoint Extension shape.cubeVariables) :
+    forall (rounds : Nat) (within : rounds <= shape.cubeVariables),
+      run strategy proverTape alpha gamma roundPoint rounds within =
+        replayPrefix strategy proverTape alpha gamma rounds within
+          (fun index =>
+            challengeAt roundPoint (Fin.castLE within index)) := by
+  intro rounds
+  induction rounds with
+  | zero =>
+      intro within
+      rfl
+  | succ rounds inductionHypothesis =>
+      intro within
+      simp only [run, replayPrefix]
+      rw [inductionHypothesis]
+      have priorWordEqual :
+          (fun index : Fin rounds =>
+            challengeAt roundPoint
+              (Fin.castLE
+                (Nat.le_trans (Nat.le_succ rounds) within) index)) =
+          (fun index : Fin rounds =>
+            challengeAt roundPoint
+              (Fin.castLE within index.castSucc)) := by
+        funext index
+        congr 1
+      have lastIndexEqual :
+          (show Fin shape.cubeVariables from
+            ⟨rounds, Nat.lt_of_succ_le within⟩) =
+          Fin.castLE within (Fin.last rounds) := by
+        apply Fin.ext
+        rfl
+      have lastChallengeEqual :
+          challengeAt roundPoint
+              (show Fin shape.cubeVariables from
+                ⟨rounds, Nat.lt_of_succ_le within⟩) =
+            challengeAt roundPoint
+              (Fin.castLE within (Fin.last rounds)) :=
+        congrArg (challengeAt roundPoint) lastIndexEqual
+      rw [priorWordEqual, lastChallengeEqual]
+
 /-- The causal `Pi_CCS` prefix. It has no target witness slot. -/
 structure PrefixExecution
     (Extension : Type uExtension)
@@ -172,6 +343,49 @@ def execute
       }
     }
   }
+
+/-- The history consumed by `execute` is exactly the public prefix replay of
+the verifier round word, in the same coordinate order. -/
+theorem execute_history_eq_replayPrefix
+    {Extension : Type uExtension}
+    {shape : Shape}
+    {ProverTape : Type uProverTape}
+    (strategy : Strategy Extension shape ProverTape)
+    (proverTape : ProverTape)
+    (coins : PublicCoins Extension shape)
+    (word : Fin shape.cubeVariables -> Extension)
+    (coordinates : coins.roundPoint.coordinates = List.ofFn word) :
+    (execute strategy proverTape coins).history =
+      replayPrefix strategy proverTape coins.alpha coins.gamma
+        shape.cubeVariables (Nat.le_refl _) word := by
+  have replay :=
+    run_eq_replayPrefix strategy proverTape coins.alpha coins.gamma
+      coins.roundPoint shape.cubeVariables (Nat.le_refl _)
+  have wordEqual :
+      (fun index =>
+        challengeAt coins.roundPoint
+          (Fin.castLE (Nat.le_refl shape.cubeVariables) index)) =
+        word := by
+    funext index
+    unfold challengeAt
+    rw [List.get_of_eq coordinates]
+    simp [List.get_eq_getElem]
+  change
+    run strategy proverTape coins.alpha coins.gamma coins.roundPoint
+        shape.cubeVariables (Nat.le_refl _) =
+      replayPrefix strategy proverTape coins.alpha coins.gamma
+        shape.cubeVariables (Nat.le_refl _) word
+  calc
+    _ =
+        replayPrefix strategy proverTape coins.alpha coins.gamma
+          shape.cubeVariables (Nat.le_refl _)
+            (fun index =>
+              challengeAt coins.roundPoint
+                (Fin.castLE (Nat.le_refl shape.cubeVariables) index)) :=
+      replay
+    _ = _ := congrArg
+      (replayPrefix strategy proverTape coins.alpha coins.gamma
+        shape.cubeVariables (Nat.le_refl _)) wordEqual
 
 private theorem run_induction
     {Extension : Type uExtension}
@@ -320,8 +534,8 @@ def AmbientSuccess
   match execution.target with
   | none => False
   | some witness =>
-      execution.causalRun.probe.Accepted context.extensionOps context.lift
-          context.statement /\
+      execution.causalRun.probe.FixedWidthAccepted context.extensionOps
+          context.lift context.statement context.sumcheckWidth /\
         AmbientOutputHolds context.extensionOps context.lift
           context.openingMaps context.params context.statement
           execution.causalRun.probe witness
@@ -337,7 +551,8 @@ def acceptedCheck
     (context : Context Extension Commitment PublicInput shape
       columns blockCount)
     (causalRun : PrefixExecution Extension shape) : Bool :=
-  ProtocolPolynomial.check context.extensionOps
+  ProtocolPolynomial.FixedWidth.check context.extensionOps
+    context.sumcheckWidth
     (context.statement.verifierInput context.lift)
     causalRun.probe.coins.alpha causalRun.probe.coins.gamma
     causalRun.probe.coins.roundPoint
@@ -355,8 +570,8 @@ theorem acceptedCheck_eq_true_iff
       columns blockCount)
     (causalRun : PrefixExecution Extension shape) :
     acceptedCheck context causalRun = true <->
-      causalRun.probe.Accepted context.extensionOps context.lift
-        context.statement := by
+      causalRun.probe.FixedWidthAccepted context.extensionOps context.lift
+        context.statement context.sumcheckWidth := by
   rfl
 
 /-- Executable target-membership filter for the eventual rejection sampler.
@@ -446,26 +661,9 @@ def SumCheckFailure
       columns blockCount)
     (causalRun : PrefixExecution Extension shape)
     (witness : OutputWitness shape columns) : Prop :=
-  exists round,
-    SumCheck.BadChallenge
-      (SumCheckInitial.symbolicInstance context.extensionOps
-        ((context.statement.sourceProtocolData context.lift witness).toJointData
-          context.extensionOps)
-        causalRun.probe.coins.alpha causalRun.probe.coins.gamma
-        (context.statement.verifierInput context.lift).sumcheckDegreeBound
-        context.challengeSetSize causalRun.probe.coins.roundPoint.coordinates
-        (ProtocolPolynomial.terminalFromMessage context.extensionOps
-          (context.statement.verifierInput context.lift)
-          causalRun.probe.coins.alpha causalRun.probe.coins.gamma
-          causalRun.probe.coins.roundPoint
-          (context.statement.projectOutput
-            causalRun.probe.response.fullOutput))
-        causalRun.probe.response.rounds
-        (ProtocolPolynomial.canonicalExpected context.extensionOps
-          (context.statement.sourceProtocolData context.lift witness)
-          causalRun.probe.coins.alpha causalRun.probe.coins.gamma
-          causalRun.probe.coins.roundPoint.coordinates))
-      round
+  FixedWidthSumCheckFailure context.extensionOps context.lift
+    context.statement context.sumcheckWidth context.challengeSetSize
+    causalRun.probe witness
 
 /-- The deterministic fresh-second-run theorem. Its witness is fixed by the
 first accepted ambient execution before this prefix's coins are sampled. -/
@@ -483,17 +681,18 @@ theorem acceptedPrefix_extracts_fixedWitness_or_badEvent
     (ambient : AmbientOutputHolds context.extensionOps context.lift
       context.openingMaps context.params context.statement
       causalRun.probe witness)
-    (accepted : causalRun.probe.Accepted context.extensionOps context.lift
-      context.statement) :
+    (accepted : causalRun.probe.FixedWidthAccepted context.extensionOps
+      context.lift context.statement context.sumcheckWidth) :
     SourceHolds context.extensionOps context.lift context.openingMaps
         context.params context.statement witness \/
       MixingFailure context causalRun witness \/
       SumCheckFailure context causalRun witness := by
-  exact acceptedProbe_extracts_source_or_badEvent context.baseLaws
+  exact fixedWidthAcceptedProbe_extracts_source_or_badEvent context.baseLaws
     context.baseZero context.noZeroDivisors context.extensionOps
     context.extensionLaws context.extensionZeroLaws context.lift
     context.liftLaws context.openingMaps context.params context.freshBound
-    context.statement context.constantLaw context.challengeSetSize
+    context.statement context.constantLaw context.sumcheckWidth
+    context.sumcheckDegreeBound_le context.challengeSetSize
     causalRun.probe witness ambient accepted
 
 /-- One actual ambient-success execution is pointwise covered by source
@@ -522,8 +721,8 @@ theorem ambientSuccess_implies_source_or_badEvent
       simp [AmbientSuccess, targetEqual] at success
   | some witness =>
       have acceptedAmbient :
-          execution.causalRun.probe.Accepted context.extensionOps context.lift
-              context.statement /\
+          execution.causalRun.probe.FixedWidthAccepted context.extensionOps
+              context.lift context.statement context.sumcheckWidth /\
             AmbientOutputHolds context.extensionOps context.lift
               context.openingMaps context.params context.statement
               execution.causalRun.probe witness := by

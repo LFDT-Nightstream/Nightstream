@@ -11,8 +11,10 @@ Source: SuperNeo Sections 7.3--7.5 and HyperNova Definition 12.
 
 Owns: the separated fresh/running public carriers; one prover message with a
 joint-`Pi_CCS` certificate, coefficient-complete output, and `Pi_DEC` child
-messages; the exact paper statement; verifier-derived `Pi_CCS` and `Pi_RLC`
-challenges; the computed combined parent; and the computed running output.
+messages; the exact paper statement; verifier-owned absorption of the complete
+public NIFS input before any challenge; verifier-derived `Pi_CCS` and
+`Pi_RLC` challenges; the computed combined parent; and the computed running
+output.
 
 Does not own: soundness, completeness, extraction, concrete Poseidon2/Ajtai,
 Rust, R1CS, artifacts, minimality, or costs.
@@ -27,6 +29,7 @@ the combined parent, a terminal value, or an acceptance bit.
 | NIFS input | separate the fresh CCS batch from the running CE batch | direct dataflow | `Fresh`, `Running` |
 | prover message | carry only joint-SumCheck messages, the complete `Pi_CCS` output, and `Pi_DEC` children | direct dataflow | `Proof` |
 | statement | reconstruct the paper source statement from verifier-owned key and public claims | computed | `Key.statement` |
+| non-interactive input | absorb the complete running/fresh public pair before any challenge | computed | `Key.publicInputState` |
 | `Pi_CCS` | replay all coins and the complete output absorption in protocol order | computed | `Key.piCcsExecution`, `Key.piCcsProbe` |
 | `Pi_RLC` | sample after `Pi_CCS` and compute the combined parent | computed | `Key.piRlcChallenges`, `Key.parent` |
 | `Pi_DEC` | form the operational parent/children attempt | computed/direct dataflow | `Key.piDecAttempt` |
@@ -84,10 +87,14 @@ structure Proof
 /-- Static paper verifier key and permitted primitive contracts.
 
 The transcript oracle is abstract but its typed input/order is fixed by
-`ProtocolVerifier`.  `piRlcResponse` starts only from the state obtained after
-the complete `Pi_CCS` output has been absorbed.  Returning a valid strong-set
-element is the paper's sampling-set contract; a bounded concrete sampler may
-later add its explicit shortfall event. -/
+`ProtocolVerifier`.  Before that replay starts, `absorbPublicInput` receives
+the complete running/fresh public pair and the key-owned initial state.
+`piRlcResponse` starts only from the state obtained after the complete
+`Pi_CCS` output has been absorbed.  Returning a valid strong-set element is
+the paper's sampling-set contract; a bounded concrete sampler may later add
+its explicit shortfall event.  These abstract functions may still ignore or
+collide on their inputs; the random-oracle boundary names those events
+separately. -/
 structure Key
     (Extension : Type uExtension)
     (Commitment : Type uCommitment)
@@ -115,10 +122,10 @@ structure Key
   kPositive : 0 < params.k
   cubeLayout : UnifiedSources.ColumnLayout shape.cubeVariables columns
   matrixSource : MatrixSource F shape columns blockCount
-  degreeBoundCovers :
+  degreeBoundExact :
     Nat.max
       (ConstraintPolynomialLift.liftConstraintPolynomial lift
-        matrixSource.constraintPolynomial).canonicalEqualityGatedDegreeBound 4 <=
+        matrixSource.constraintPolynomial).canonicalEqualityGatedDegreeBound 4 =
       degreeBound
   matrixCountPositive : 0 < shape.matrixCount
   identityFirstEntry : forall
@@ -156,6 +163,10 @@ structure Key
       piDecEvaluationArity attempt)
   oracle : ProtocolVerifier.Oracle Extension State shape
   initialTranscriptState : State
+  absorbPublicInput : State ->
+    Running Extension Commitment PublicInput shape ->
+    Fresh Commitment PublicInput shape ->
+    State
   piRlcResponse : State -> Fin arity.total -> Scalar
   piRlcResponseValid : forall state index,
     piRlcAlgebra.challengeValid (piRlcResponse state index)
@@ -232,8 +243,26 @@ def statement
   matrixCountPositive := key.matrixCountPositive
   identityFirstEntry := key.identityFirstEntry
 
-/-- The common fixed SumCheck width covers the exact syntactic degree selected
+/-- The common fixed SumCheck width is exactly the syntactic degree selected
 by this key's paper constraint polynomial. -/
+theorem statement_sumcheckDegreeBound_eq
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape) :
+    ((key.statement running fresh).verifierInput key.lift).sumcheckDegreeBound =
+      degreeBound := by
+  exact key.degreeBoundExact
+
+/-- Exact key selection supplies the older representability inequality as a
+derived fact. -/
 theorem statement_sumcheckDegreeBound_le
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -248,7 +277,23 @@ theorem statement_sumcheckDegreeBound_le
     (fresh : Fresh Commitment PublicInput shape) :
     ((key.statement running fresh).verifierInput key.lift).sumcheckDegreeBound <=
       degreeBound := by
-  exact key.degreeBoundCovers
+  exact Nat.le_of_eq (key.statement_sumcheckDegreeBound_eq running fresh)
+
+/-- Transcript state after the verifier has absorbed the complete public NIFS
+input.  This operation precedes every `Pi_CCS` challenge. -/
+def publicInputState
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape) : State :=
+  key.absorbPublicInput key.initialTranscriptState running fresh
 
 /-- Minimal certificate checked by the joint-polynomial verifier. -/
 def piCcsCertificate
@@ -299,7 +344,7 @@ def piCcsExecution
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :=
-  ProtocolVerifier.derive key.oracle key.initialTranscriptState
+  ProtocolVerifier.derive key.oracle (key.publicInputState running fresh)
     (StrongReduction.Statement.verifierInput key.lift
       (key.statement running fresh))
     (key.piCcsCertificate running fresh proof)

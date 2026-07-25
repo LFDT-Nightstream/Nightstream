@@ -1553,14 +1553,340 @@ lean_theorems:
     refinement. The typed public-input recomposition slice is closed separately
     above.
   - Missing: concrete Composition.fold_knowledge_or_bad_event instantiation.
-  - Missing: Rust/R1CS decoder refinement into the canonical fixed-one physical
-    evaluator and exact ownership of every resulting row. The production
-    lifecycle still has an empty-running bootstrap arm; the implemented
-    logical-257-to-physical-270 carrier cutover is only locally artifact-checked;
-    the fixed terminal raw-old-block `y_zcol` row authority is closed, but the
-    recursive-circuit and complete active-evaluator refinements remain open;
-    and no single typed Rust invocation yet matches the complete Lean
-    canonical `Context`.
+  - Closed at the artifact-independent boundary: for any admissible codec
+    profile and certified call recipes, satisfaction of the selected
+    source-aligned fixed-one Step/Terminal receipts is sound for the exact
+    typed checker, and every admissible accepted execution constructs a
+    satisfying assignment. These theorems also bind the Step result columns
+    to the accepted output.
+  - Closed at the model-level direct-call boundary:
+    `DirectCalls.certifiedSubset` constructs exact physical recipes for
+    `iterationZero`, `stateEqual`, `freshPublic`, `encodeInstance`, and
+    `encodedEqual`. Their footprints are computed from the zero, equality, and
+    affine row programs; every row has declared support and ownership; and
+    honest active or inactive executions construct all required temporaries.
+    `remainingCalls_exact` records the still-open `step`, `hashPrior`,
+    `hashNext`, `nifsVerify`, `runningCheck`, and `freshCheck` recipes.
+  - Closed at the native-to-lowering semantic boundary:
+    `FixedOneLoweringAdapter.parameters` uses the universal native adapter's
+    exact setup and paper machine. Its six `CallAlignment` theorems identify
+    the open calls with totalized application, the prior hash at `i`, the next
+    hash at `i + 1`, ordered NIFS verification, and the supplied exact running
+    and fresh terminal checks. `stepAccepts_iff_directHolds` and
+    `terminalAccepts_iff_transition` prove that the instantiated intrinsic
+    programs accept exactly the frozen step and supplied paper terminal
+    transitions. This is semantic alignment only: widths and footprints are
+    shape placeholders and no complete codec family, physical recipe, row,
+    generated artifact, or compiled-Rust theorem is supplied.
+  - Closed for the first concrete production-codec slice:
+    `ProductionIterationZeroCallRecipe` first separates the canonical
+    bounded-natural zero test from the unrelated nonlinear fresh-public map.
+    Given the permitted field/inversion laws and exact footprint alignment,
+    it exports a complete typed recipe with exactly three rows, two
+    one-coordinate auxiliary temporary bundles, and a mandatory receipt.
+    `ProductionDigestCodecs.digestCodec_encode_exact` fixes the four
+    Goldilocks coordinates in Rust lane order; the digest, rejecting
+    optional-digest, and compact adapter codecs have exact round trips; and
+    `encodeInstance_coordinates_exact` proves the direct affine encoder is
+    five coordinate copies plus verifier-fixed one.
+    `ProductionHashCallBoundary.paperHash_eq_none_iff` separately proves that
+    the frozen totalized hash rejects exactly on an absent current state or
+    failed duplicated-carrier alignment.
+    `paperHash_encoding_eq_absent_iff` and
+    `alignedCurrent_encoding_exact` fix the corresponding all-zero and
+    presence-one coordinate vectors. The canonical absent-current witness in
+    `no_nonoptionalCoreRefines` proves that the nonoptional four-lane sponge
+    core cannot replace this wrapper on the complete typed domain. State and
+    running codecs, alignment rows, typed sponge rows, and the two hash
+    `CallRecipe` values remain open.
+    `Goldilocks.NumericRowBridge` separately removes the representation gap
+    between the existing numeric sparse-row semantics and the selected typed
+    row language. It reduces every coefficient and assignment coordinate into
+    the paper Goldilocks carrier, maps source columns only through an explicit
+    `Nat -> ColumnId`, proves row-wise and whole-list satisfaction equivalence,
+    and preserves source occurrences under caller-owned row ordinals with
+    duplicate-free identities.
+    `ProductionPoseidon2PermutationRecipe` now applies that bridge to one
+    exact width-eight production permutation occurrence. It maps artifact
+    columns `0..608` to verifier-one, eight visible inputs, and 600
+    receipt-owned auxiliary temporaries; emits the 600 translated SSA rows
+    followed by eight activation-gated visible-output copies; and proves exact
+    608-row/600-temporary cost, row ownership and identity uniqueness, active
+    soundness, temporary-only honest active completion, and inactive
+    completion. The honest completion is reconstructed from the executable
+    SSA interpreter rather than a generated witness. This is an
+    artifact-checked permutation occurrence, not a complete sponge or either
+    hash `CallRecipe`: absorption, padding, optional-wrapper presence and
+    alignment rows, call-site placement, native Poseidon2 parity, and collision
+    resistance remain open.
+    `ProductionEncodeInstanceRecipe` realizes those coordinates as exactly six
+    caller-owned rows, proves their support and uniqueness, allocates no
+    temporary, and supplies active soundness plus active/inactive completeness.
+    `ProductionEncodeInstanceCallRecipe` packages the same compiler as a
+    complete typed `CallRecipe`: its exact six-row footprint and mandatory
+    output/temporary/row receipt follow from the selected program. The
+    selection boundary accepts a supplied full lowering profile but identifies
+    only the optional-digest codec, compact-encoded codec, and
+    `encodeInstance` footprint; it makes no claim about unrelated fields.
+    `ProductionEncodedEqualCallRecipe` independently selects equality over
+    that same six-coordinate compact codec. Under the permitted
+    field/inversion laws and exact footprint alignment, it exports a complete
+    typed recipe with exactly eighteen rows, auxiliary temporary bundles of
+    widths six, six, and five, and a mandatory receipt. State/fresh/witness
+    codecs, complete width agreement, nonlinear `freshPublic`, `stateEqual`,
+    and the six calls recorded by `RemainingRecipes` remain separate.
+  - Closed at the exact artifact-to-digest boundary:
+    `FPrimeFullHistoryProductionDigestCodec.rows_decode_exact_xOut` proves
+    that the recursive-output owner constructs one typed production digest
+    whose selected codec coordinates are the four physical `xOutColumns` in
+    lane order and whose decoder round trip succeeds.
+    `output_and_terminal_rows_decode_same_digest` additionally composes the
+    exact terminal delayed-link rows and proves their `terminalFreshDigest`
+    is that same typed value.
+    `decodedDigest_eq_logicalLinkDigest` and
+    `terminalLogicalPublic_eq_encodePublicInput` additionally identify the
+    selected digest with the independently reconstructed terminal logical-link
+    digest and prove that the captured 257-coordinate public input is exactly
+    the paper-owned canonical public encoder of that same value.
+    `FPrimeFullHistoryProductionDigest.fullRows_finalState_latest_digest_and_logical_public`
+    lifts both results through the exact full-row owner partition and
+    identifies the final Construction-2 state's singleton fresh-public payload
+    and terminal logical public input with the two canonical encodings of one
+    typed digest.
+    `fullRows_construct_currentPlainOwner` additionally constructs the
+    isolated current 270-row assignment by copying the captured 257
+    authoritative coordinates and setting the thirteen new padding
+    coordinates to zero. It proves current-row satisfaction and identifies
+    the current typed claim with that same digest.
+    `FPrimeFullHistoryCurrentTerminalLinkPlacementSound` separately consumes a
+    bounded certificate exported from one live two-step current synthesis. It
+    proves the exact 527-column relabel, row interval
+    `[9673389, 9673659)`, equality of all 270 mapped isolated rows with the
+    generated range, exact producer-bit alignment, and equivalence of current
+    row satisfaction with the frozen logical paper equality.
+    `fullRows_and_currentTerminalPlacement_construct_plainOwner` composes that
+    range with the captured recursive-output/final-state owners while keeping
+    the two row premises separate. This closes one
+    producer/consumer/paper-public codec boundary, its honest local
+    completion, and one bounded current placement; it does not supply a
+    generated aggregate for the whole current program, a universal
+    profile/batch placement theorem, a codec for the complete state, the
+    compact optional/linked result at this call site, whole-artifact equality
+    with the selected receipt program, compiled-Rust semantics, or a
+    Poseidon2 collision theorem.
+  - Closed for the paper-singleton fresh-public semantic reduction:
+    when the adapter's fresh-link callback is the audited plain source checker
+    and its ordered fresh batch is exactly `[raw]`,
+    `ProductionFreshPublicSingletonBridge` proves compact
+    `freshPublic = encodeInstance` iff the 270-coordinate source check, iff the
+    selected six-phase program (cost 273), iff the typed and logical paper
+    public-input equality. `CanonicalPlainCarrierSerialization` proves the
+    complete typed 270-coordinate flattening is injective, so raw acceptance
+    loses no carrier information. `FPrimeProductionFreshPublicSingletonRows`
+    then proves the selected singleton rows and the exact isolated current
+    artifact are equivalent in both directions to the source program and the
+    compact adapter equality. The exact cost equation is `273 = 270 + 3`:
+    expected length, `m_in`, and vector length stay explicit host/source shape
+    checks because the physical relation consumes a typed `Fin 1` claim.
+    Multi-fresh batching, those three host checks, producer placement, and
+    compiled-Rust semantics remain implementation-refinement obligations.
+  - Missing: completion of those six recipes, a concrete production codec
+    profile beyond the digest slice, concrete production selection of the
+    other direct calls, Rust-emitted typed-program equality outside the
+    terminal-link and public-link/XOut slices, and the remaining Rust/R1CS state,
+    optional/compact-output, and receipt decoder refinement into that
+    canonical fixed-one physical evaluator, followed by equality of every
+    generated row with the selected IR compiler output. The existing
+    selective-R1CS physical-stage and rewrite ledgers partition the relation
+    emitted by the current production compiler, but that relation is not
+    definitionally the selected canonical receipt program and may not be used
+    as its row certificate. The production lifecycle still has an
+    empty-running bootstrap arm; the implemented logical-257-to-physical-270
+    carrier cutover is only locally artifact-checked; the fixed terminal
+    raw-old-block `y_zcol` row authority is closed, but the recursive-circuit
+    and complete active-evaluator refinements remain open; and no single typed
+    Rust invocation yet matches the complete Lean canonical `Context`.
+    In particular, the current lifecycle `Step.Semantics` exposes an arbitrary
+    binary `freshLink` callback but not the paper's separate unary
+    `freshPublic` and `encodeInstance` maps. The kernel-checked
+    `PaperFreshLinkBoundary.currentInterface_admits_nonFactorizingFreshLink`
+    countermodel proves that this factorization cannot be recovered from the
+    abstract callback alone. At the typed logical-public-input layer,
+    `CanonicalPublicInputLink.equalityFactorization` now proves the positive
+    result for `[1 | enc_inst(digest)]`.
+    `CanonicalPlainCarrierLink.equalityFactorization` additionally checks the
+    complete plain typed carrier—`m_in = 270`, affine one, 256 untrusted field
+    coordinates, and thirteen zero-padding coordinates—and
+    `check_reduces_to_logicalPaperLink` proves that acceptance is exactly the
+    zero completion of the logical paper link. `CanonicalPlainCarrierSource`
+    models the untrusted variable-length source list, enforces length 270,
+    fixes the exact affine/body/padding split and flattening order, and proves
+    pointwise and batch reduction to the typed carrier. Both native lifecycle
+    acceptance and the paper decider now invoke the same pure Rust predicate.
+    That predicate interprets one verifier-owned six-instruction value in
+    shape/affine/body/padding order. The Rust drift gate emits the same value;
+    `CanonicalPublicInputLinkProgramRefinement.generated_plain_eq_canonical`
+    proves it equals the typed Lean program,
+    `generated_plain_cost` computes its 273 scalar obligations, and
+    `generated_run_reduces_to_logicalPaperLink` proves the Lean interpreter
+    reduces it to the paper equality for every raw claim. Runtime regressions
+    mutate all 256 body coordinates, all thirteen padding coordinates, and
+    every shape field. Both production call sites now retain the computed
+    `EncInst` as the helper argument rather than erasing it into a free
+    256-bit array. The production XOut preimage builder now likewise
+    interprets one typed source schedule. Its Rust drift gate exports all four
+    stateless/stateful × plain/Nebula variants. Lean proves exact equality to
+    the independent schedule, exact first domain `0x4e460002`, present-only
+    terminal Nebula marker/lane order, exact expansion to
+    `encodeStateXOutPreimage` for every typed preimage, and program-derived
+    field costs `23`, `28`, `27`, and `32`.
+    `StateXOutProgramRefinement.generated_publicLink_accepts_computedXOut`
+    composes frozen `XOut.compute` with the generated plain public-link
+    program, fixing the outgoing affine-one and 256 little-endian bit
+    coordinates. This is generated source-program refinement; Poseidon2
+    remains opaque. The selected plain/stateless source program now also
+    drives a nonoptional physical sponge receipt: its 23 fields induce six
+    rate-four absorb rounds plus one padding round, hence exactly
+    `23 + 2 + 600 * 7 = 4225` rows and 4,225 fresh columns. Lean checks the
+    actual base-output, recursive-prior, and recursive-output owner slices
+    against their reconstructed rows and proves contiguous duplicate-free
+    row/column intervals and conservation. The exact captured intervals are
+    `[6533,10758)`/`[6344,10569)`, `[218,4443)`/`[868073,872298)`, and
+    `[11,4236)`/`[1127811,1132036)`. Erasing physical column identities also
+    proves the three cores execute one identical pure sponge schedule. This
+    artifact-checked slice is deliberately nonoptional: it does not yet bind
+    the option-presence coordinate or the iteration, initial-state, running,
+    and program-counter alignment required by totalized `paperHash`.
+    Consequently it is not a `hashPrior` or `hashNext` `CallRecipe`, and it
+    does not prove current whole-program ownership, native Poseidon2 parity,
+    or collision resistance. At the typed receipt boundary,
+    `FixedOneCanonicalAdapter.transition_iff_holds` now proves that the exact
+    native state, proof, ordered prior/latest batches, NIFS context, and
+    prior/next XOut calls instantiate one frozen fixed-one Construction-2
+    transition. `nativeAccepted_with_boundaries_and_outgoing_iff_canonicalAccepts`
+    composes native producer acceptance with the explicit lifecycle entry,
+    incoming-link, stateful, Nebula, and delayed outgoing-link owners;
+    `checkedRecorded_with_boundaries_and_outgoing_iff_canonicalAccepts`
+    replaces modeled acceptance with the recorded result once the receipt
+    checker has established exact control-flow/call conservation and replay.
+    Hash and NIFS results remain typed contract values, not authority.
+    Formal compiled-Rust semantics and proof that every raw production call
+    constructs a checked receipt remain open.
+    At the bounded checked-in full-history boundary,
+    `FPrimeFullHistoryCircuit.exactSteps_of_fullRows_or_bad` now exposes the
+    exact base and recursive `Step.Holds` witnesses instead of only packaging
+    them into existential reachability.
+    `FPrimeFullHistoryCanonicalSteps.fullRows_imply_frozenSteps_or_bad`
+    composes those witnesses with the universal adapter, so satisfaction of
+    all 4,193,134 captured rows yields acceptance of both concrete frozen
+    fixed-one transitions, or the existing `BadEvent` (the reachable branch
+    in this theorem is the named recursive PiRLC projection-root event).
+    This is artifact-checked R1CS-to-frozen-step soundness for that snapshot.
+    It neither identifies the captured rows with the selected canonical
+    receipt program nor proves current Rust semantics, honest assignment
+    construction, terminal-checker refinement, or a probability bound.
+    Separately, the repaired isolated
+    terminal artifact owns all 270 emitted rows, not only the 257 logical
+    rows. `FPrimeTerminalLinkCanonicalRefinement.satisfies_iff_logicalPaperLink`
+    proves exact row-to-paper equivalence under the explicit producer-bit
+    alignment proposition. `FPrimeEncodingCanonicalBits.publicBit_eq_encodedBit`
+    reconstructs each producer lane from the exact 532-row encoding owner and
+    proves every physical bit equals the independent typed encoder.
+    `satisfies_iff_logicalPaperLink_of_encodingRows` composes both owners, so
+    only the exact `ProducerColumnsAligned` placement map remains at the
+    artifact-independent boundary. A separate live two-step drift gate now
+    exports the current `terminal.latest_link` range alone. Lean proves its
+    exact producer map, fresh/padding column map, and row-list equality, then
+    `generatedRows_iff_logicalPaperLink` discharges
+    `ProducerColumnsAligned` for that bounded current range.
+    `generatedRows_iff_sourceProgram` proves the same exact placed rows
+    equivalent to the singleton production source program, preserving the
+    exact `273 = 270 + 3` boundary because the three source shape obligations
+    remain outside the typed physical block.
+    `generatedRows_iff_freshPublic_eq_encodeInstance` then reaches the compact
+    fixed-one prior-public equality under the audited source-link semantics.
+    `generatedRows_iff_loweringPriorLinkAccepted` reaches the exact
+    `Terminal.priorLinkAccepted` Boolean used by the typed lowering program,
+    with the terminal fresh input and prior hash aligned explicitly.
+    The source-program, compact, and lowering statements derive their digest
+    from the recursive output owner rather than trusting a carried digest.
+    This is the Construction-2 prior-public link, not the distinct terminal
+    `freshCheck` call. The isolated Rust
+    artifact gates check current row and witness digests; the terminal gate
+    also checks the first failing padding row. The checked-in full-history
+    snapshot itself does not discharge the current placement obligation:
+    `FPrimeFullHistoryTerminalLogicalLinkSound.logicalCheck_of_rows` proves the
+    frozen logical `[1 | enc_inst]` equality only for its captured 257-row
+    prefix, while current plain production emits 270 rows.
+    `FPrimeFullHistoryTerminalLinkDrift.generatedSnapshot_ne_currentPlainOwner`
+    and `generatedSnapshot_missingPlainPaddingRows` prove the exact mismatch
+    and thirteen-row deficit without modifying the generated snapshot. Those
+    missing coordinates are verifier-fixed plain-carrier zero padding, not an
+    application suffix.
+    `FPrimeFullHistoryCurrentTerminalLinkCompletion.completedAssignment`
+    closes the honest local-completion direction without pretending the stale
+    artifact is current: it copies the captured affine coordinate and all 256
+    producer/consumer values into the isolated 270-row owner and assigns zero
+    to its thirteen padding columns. The row theorem constructs satisfaction
+    of that current owner from the captured 257-row link, while the composed
+    output theorem identifies its typed claim, selected digest codec, final
+    Construction-2 payload, and captured paper public input with one digest.
+    `fPrimeCircuit_complete_with_currentPlainDigest` lifts the same construction
+    through an independent successful compiler witness.
+    `FPrimeFullHistoryCurrentTerminalLinkPlacementSound.mapped_rows_eq_generated`
+    separately supplies the exact current column map for the generated
+    270-row interval, and
+    `output_and_generated_rows_construct_currentPlainOwner` identifies its
+    physical current carrier with the same selected digest and paper link.
+    `fullRows_and_currentTerminalPlacement_construct_plainOwner` composes the
+    current range alongside the captured aggregate without claiming that the
+    stale aggregate contains those columns. No theorem here supplies a
+    generated whole-current-program aggregate or universal placement across
+    profiles and batches.
+    `FPrimeTerminalLinkBatch` now gives the
+    artifact-independent arbitrary-batch lift: its typed receipts are
+    bijective with all `270 * batchSize` row positions, own exactly the
+    corresponding public-column interval, compute row/public/committed/auxiliary
+    costs definitionally, and prove exact R1CS-to-paper equivalence for every
+    claim. Its one-claim specialization equals the isolated artifact.
+    Production now interprets one verifier-owned three-instruction
+    affine/body/padding schedule per claim in claim-major order. The Rust
+    exporter emits that exact schedule; Lean proves equality with the selected
+    typed program, cost `270` per claim, expansion to the complete local-owner
+    order, and exact arbitrary-batch ownership/cost `270 * batchSize`.
+    `TerminalLink.Program.compile` rejects every schedule whose expansion is
+    not the complete selected receipt order and otherwise returns exactly the
+    receipt-owned arbitrary-batch rows.
+    `generated_plain_compile` proves that the Rust-emitted schedule compiles
+    for every batch size, and
+    `TerminalLink.LoweringRefinement.generatedPlain_accepts_iff_priorLinkAccepted`
+    proves singleton acceptance is exactly the typed Terminal prior-link
+    Boolean under explicit digest, fresh ordering, source-link, and producer
+    alignment.
+    `TerminalLink.PlacementRefinement.generatedPlain_compile_eq_currentPlacement`
+    then relabels the checked singleton compiler output to the exact generated
+    current full-history range. Its two acceptance theorems prove that the
+    pulled source program, generated current rows, and output-derived typed
+    `priorLinkAccepted` Boolean are extensionally identical at this bounded
+    placement. This is source-program and artifact-checked lowering
+    conformance, not compiled-Rust semantics. Separately, a
+    two-claim drift gate captures the literal sparse rows through the private
+    production emitter's isolation wrapper. Lean proves its exact `540` rows
+    and `797` columns equal the selected `rows 2` compiler output;
+    `generated_rows_eq_compiler_output` states the stronger literal equation
+    between that capture and the checked compiler applied to the Rust-emitted
+    program, while bijective receipt ownership covers every captured row.
+    That is bounded
+    artifact evidence, not a universal theorem for the Rust batch loop. The
+    remaining obligation is physical equality of the concrete
+    recipe-instantiated selected lowering calls `freshPublic`,
+    `encodeInstance`, and `encodedEqual` with emitted rows (or a proved
+    refinement from the distinct current compiler relation), a generated
+    whole-current-program or universal full-history placement theorem, formal
+    compiled-Rust interpreter semantics,
+    raw-production-input-to-checked-receipt refinement, and terminal-checker
+    integration. The captured full-history step theorem does not discharge
+    any of these.
 
 axiom_report:
   The independent NIFS and partial replay theorems are in

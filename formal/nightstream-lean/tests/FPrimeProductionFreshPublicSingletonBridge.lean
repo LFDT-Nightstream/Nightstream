@@ -1,0 +1,16 @@
+import Nightstream.Implementation.Rust.CanonicalConformance.NativeStep.ProductionFreshPublicSingletonBridge
+
+/-!
+Focused elaboration boundary for the paper-singleton production fresh-public
+bridge.
+-/
+
+namespace NightstreamTests.FPrimeProductionFreshPublicSingletonBridge
+
+open Nightstream.Implementation.Rust.CanonicalConformance.NativeStep.ProductionFreshPublicSingletonBridge
+
+#check freshPublic_eq_encodeInstance_iff_sourceCheck
+#check freshPublic_eq_encodeInstance_iff_program
+#check freshPublic_eq_encodeInstance_reduces_to_logicalPaperLink
+
+end NightstreamTests.FPrimeProductionFreshPublicSingletonBridge

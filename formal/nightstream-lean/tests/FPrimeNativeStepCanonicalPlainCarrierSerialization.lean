@@ -1,0 +1,20 @@
+import Nightstream.Implementation.Rust.CanonicalConformance.NativeStep.CanonicalPlainCarrierSerialization
+
+/-!
+Focused elaboration boundary for lossless production plain-carrier
+serialization.
+-/
+
+namespace NightstreamTests.FPrimeNativeStepCanonicalPlainCarrierSerialization
+
+open Nightstream.Implementation.Rust.CanonicalConformance.NativeStep.CanonicalPlainCarrierSerialization
+
+#check Carrier.coordinates_getD_one
+#check Carrier.coordinates_getD_body
+#check Carrier.coordinates_getD_padding
+#check Carrier.coordinates_injective
+#check serializeClaim_encodeClaim
+#check serializeClaim_injective
+#check sourceCheck_serializeClaim_iff_check
+
+end NightstreamTests.FPrimeNativeStepCanonicalPlainCarrierSerialization

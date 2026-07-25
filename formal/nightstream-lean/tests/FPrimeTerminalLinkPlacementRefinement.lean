@@ -1,0 +1,10 @@
+import Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.PlacementRefinement
+
+/-!
+Focused elaboration boundary for the checked terminal-link program's current
+full-history placement refinement.
+-/
+
+#check Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.PlacementRefinement.generatedPlain_compile_eq_currentPlacement
+#check Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.PlacementRefinement.generatedPlain_accepts_pulled_iff_generatedRows
+#check Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.PlacementRefinement.generatedPlain_accepts_pulled_iff_loweringPriorLinkAccepted

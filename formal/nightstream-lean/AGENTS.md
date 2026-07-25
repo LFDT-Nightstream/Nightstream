@@ -56,7 +56,7 @@ See `docs/architecture.md` for ownership boundaries.
   by arbitrary line count.
 - Put executable regressions and axiom guards in `tests/`, not in implementation
   modules.
-- Every Lean-related command has a hard 900-second limit. Use the bounded
+- Every Lean-related command has a hard 1,500-second limit. Use the bounded
   wrapper; do not invoke an uncapped `lake` or `lean` command:
 
 ```bash

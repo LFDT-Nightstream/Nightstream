@@ -39,7 +39,7 @@ assumptions, and current gates; do not treat this summary as normative status.
 
 ## Validation
 
-Every Lean process is capped at 15 minutes. Run the structural checks, build,
+Every Lean process is capped at 25 minutes. Run the structural checks, build,
 fail-closed axiom report, and executable probes with:
 
 ```bash

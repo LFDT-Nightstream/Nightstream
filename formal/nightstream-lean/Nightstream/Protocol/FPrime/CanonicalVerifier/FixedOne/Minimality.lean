@@ -22,7 +22,9 @@ Owns:
   countermodels;
 - branch-conditioned exactness and inclusion-minimal soundness;
 - explicit classification of dispatch and raw prior-counter range as derived,
-  not retained.
+  not retained;
+- explicit classification of all four public-output equations as
+  definitionally computed, not retained checks.
 
 Does not own: production ConcretePhi81 decoding or authority, Rust, R1CS,
 physical rows, costs, global arithmetization minimality, or primitive security.
@@ -341,13 +343,18 @@ plan. -/
 inductive DerivedCheck where
   | dispatch
   | rawPriorPcRange
+  | outputApplicationState
+  | outputRunningVector
+  | outputProgramCounter
+  | outputHash
 deriving DecidableEq
 
 def derivedChecks : List DerivedCheck :=
-  [.dispatch, .rawPriorPcRange]
+  [.dispatch, .rawPriorPcRange, .outputApplicationState,
+    .outputRunningVector, .outputProgramCounter, .outputHash]
 
 theorem derivedChecks_length :
-    derivedChecks.length = 2 :=
+    derivedChecks.length = 6 :=
   rfl
 
 /-- Minimal base-branch carrier used by the endpoint countermodel. -/
@@ -679,6 +686,88 @@ theorem rawPriorPcRange_derived
   Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Input.toGeneric_priorPcValid
     input
 
+/-- The application-state output is a definition, not a removable predicate. -/
+theorem outputApplicationState_derived
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    (setup : Setup Key Running Fresh Proof 1)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded 1)
+    (input :
+      Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Input
+        State Witness Running Fresh Proof)
+    (runningNext : Fin 1 -> Running) :
+    (Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.outputFor
+      setup machine input runningNext).zNext =
+        machine.step selected input.zi input.witness :=
+  rfl
+
+/-- The next running vector is installed by construction. -/
+theorem outputRunningVector_derived
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    (setup : Setup Key Running Fresh Proof 1)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded 1)
+    (input :
+      Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Input
+        State Witness Running Fresh Proof)
+    (runningNext : Fin 1 -> Running) :
+    (Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.outputFor
+      setup machine input runningNext).runningNext = runningNext :=
+  rfl
+
+/-- The sole output program counter is verifier-computed. -/
+theorem outputProgramCounter_derived
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    (setup : Setup Key Running Fresh Proof 1)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded 1)
+    (input :
+      Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Input
+        State Witness Running Fresh Proof)
+    (runningNext : Fin 1 -> Running) :
+    (Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.outputFor
+      setup machine input runningNext).pcNext = selected :=
+  rfl
+
+/-- The public digest equation holds definitionally for the computed output. -/
+theorem outputHash_derived
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    (setup : Setup Key Running Fresh Proof 1)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded 1)
+    (input :
+      Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Input
+        State Witness Running Fresh Proof)
+    (runningNext : Fin 1 -> Running) :
+    OutputHolds setup machine (input.toGeneric (Key := Key))
+      (Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.outputFor
+        setup machine input runningNext) :=
+  rfl
+
 structure Obligation8Classification : Prop where
   retainedExact :
     checks =
@@ -687,7 +776,9 @@ structure Obligation8Classification : Prop where
         .nifsSourceBinding, .nifsChallengeStrongSet,
         .nifsPiDecAcceptance]
   derivedExact :
-    derivedChecks = [.dispatch, .rawPriorPcRange]
+    derivedChecks =
+      [.dispatch, .rawPriorPcRange, .outputApplicationState,
+        .outputRunningVector, .outputProgramCounter, .outputHash]
   composedChecksExact :
     checks =
       ExecutableOuter.checks.map ofOuterLeaf ++

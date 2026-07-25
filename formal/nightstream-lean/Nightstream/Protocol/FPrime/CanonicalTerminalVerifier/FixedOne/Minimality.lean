@@ -22,7 +22,7 @@ public link, the sole running relation, and the selected fresh relation.  The
 one-based counter and generic all-slot conjunction are derived from `Fin 1`
 and are recorded as eliminated structural facts, not retained checks.
 
-| Stage path | Mathematical obligation | Status | Lean owner |
+| Stage path | Mathematical obligation | Classification | Lean owner |
 | `fprime.terminal.fixed_one.base_endpoint` | base endpoint agrees with `z₀` | retained | `Family.baseEndpoint` |
 | `fprime.terminal.fixed_one.prior_link` | recursive fresh public input has the exact prior preimage | retained | `Family.priorPublicLink` |
 | `fprime.terminal.fixed_one.running` | sole running instance/witness relation holds | retained | `Family.runningRelation` |
@@ -381,5 +381,43 @@ theorem inclusionMinimalSound :
   · intro candidate accepted
     exact (accepts_iff_transition candidate).1 accepted
   · exact retained_necessary
+
+/-- Bundled obligation-8 classification for the payload-minimal terminal
+normal form. Every retained family has a removal counterexample; both omitted
+families are derived from the fixed-one carrier. -/
+structure Obligation8Classification : Prop where
+  retainedExact :
+    checks =
+      [.baseEndpoint, .priorPublicLink, .runningRelation, .freshRelation]
+  eliminatedExact :
+    eliminated = [.oneBasedCounter, .allRunningSlots]
+  classified :
+    forall family, family ∈ checks ∨ family ∈ eliminated
+  classificationDisjoint :
+    forall family, ¬ (family ∈ checks ∧ family ∈ eliminated)
+  oneBasedCounterDerived :
+    forall candidate, semantics .oneBasedCounter candidate
+  allRunningSlotsDerived :
+    forall candidate, semantics .allRunningSlots candidate
+  executableExact :
+    forall candidate,
+      CheckPlan.Accepts semantics checks candidate ↔
+        Accepts Model.setup Model.machine Model.relations
+          Model.relationChecks candidate.statement candidate.proof
+  retainedMinimal :
+    CheckPlan.InclusionMinimalSound semantics target checks
+
+/-- Final terminal obligation-8 headline. -/
+theorem obligation8_classification :
+    Obligation8Classification := {
+  retainedExact := rfl
+  eliminatedExact := rfl
+  classified := family_classified
+  classificationDisjoint := family_classification_disjoint
+  oneBasedCounterDerived := oneBasedCounter_derived
+  allRunningSlotsDerived := allRunningSlots_derived
+  executableExact := accepts_iff_fixedOne_eval
+  retainedMinimal := inclusionMinimalSound
+}
 
 end Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne.Minimality

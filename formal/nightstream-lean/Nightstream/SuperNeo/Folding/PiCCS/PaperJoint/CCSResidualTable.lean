@@ -153,6 +153,40 @@ theorem term_totalDegree_succ_le_canonicalEqualityGatedDegreeBound
     (fun current : Monomial Field matrixCount => current.totalDegree + 1)
     polynomial.terms 0 term member
 
+private theorem foldl_max_le_of_forall_le
+    {Item : Type uItem}
+    (value : Item -> Nat)
+    (bound : Nat) :
+    forall (items : List Item) (initial : Nat),
+      initial <= bound ->
+      (forall item, item ∈ items -> value item <= bound) ->
+      items.foldl (fun current item => Nat.max current (value item)) initial <=
+        bound
+  | [], _, initialLe, _ => initialLe
+  | item :: items, initial, initialLe, valuesLe => by
+      apply foldl_max_le_of_forall_le value bound items
+        (Nat.max initial (value item))
+      · exact (Nat.max_le).2
+          ⟨initialLe, valuesLe item (by simp)⟩
+      · intro tail tailMember
+        exact valuesLe tail (by simp [tailMember])
+
+/-- The syntax-derived equality-gated ceiling never exceeds Definition 11's
+declared strict degree bound. This direction uses the declared bound only as a
+paper-side proof about explicit monomials; verifier acceptance still computes
+its ceiling from the terms themselves. -/
+theorem canonicalEqualityGatedDegreeBound_le_degreeBound
+    {Field : Type uField}
+    {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial Field matrixCount) :
+    polynomial.canonicalEqualityGatedDegreeBound <= polynomial.degreeBound := by
+  unfold canonicalEqualityGatedDegreeBound
+  apply foldl_max_le_of_forall_le
+  · exact Nat.zero_le _
+  · intro term termMember
+    exact Nat.succ_le_of_lt
+      (polynomial.termsBelowDegree term termMember)
+
 end ConstraintPolynomial
 
 /-- Paper-level Definition 11 data at the dimensions owned by `Shape`.

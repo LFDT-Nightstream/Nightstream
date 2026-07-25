@@ -612,6 +612,22 @@ theorem coordinateCandidates_changed
   intro equal
   apply replacementDistinct
   simpa only [replaceCoordinate_same] using equal.symm
+/-- Every decoded seed coordinate belongs to the original scalar alphabet. -/
+theorem decodedWord_mem
+    (alphabet : Support Scalar)
+    {word : PointWord Scalar coordinates}
+    (wordMember : word ∈
+      vectors (cyclicPointSupport alphabet).values coordinates) :
+    forall coordinate, decodeWord word coordinate ∈ alphabet.values := by
+  intro coordinate
+  have pointMember : word coordinate ∈ cyclicPoints alphabet.values :=
+    (mem_vectors_iff (cyclicPointSupport alphabet).values coordinates word).mp
+      wordMember coordinate
+  have mappedMember : (word coordinate).value ∈
+      (cyclicPoints alphabet.values).map CyclicPoint.value :=
+    List.mem_map.mpr ⟨word coordinate, pointMember, rfl⟩
+  simpa only [cyclicPoints_values] using mappedMember
+
 theorem decodedWord_valid
     (alphabet : Support Scalar)
     (valid : Scalar -> Prop)
@@ -621,15 +637,7 @@ theorem decodedWord_valid
       vectors (cyclicPointSupport alphabet).values coordinates) :
     forall coordinate, valid (decodeWord word coordinate) := by
   intro coordinate
-  have pointMember : word coordinate ∈ cyclicPoints alphabet.values :=
-    (mem_vectors_iff (cyclicPointSupport alphabet).values coordinates word).mp
-      wordMember coordinate
-  have valueMember : (word coordinate).value ∈ alphabet.values := by
-    have mappedMember : (word coordinate).value ∈
-        (cyclicPoints alphabet.values).map CyclicPoint.value :=
-      List.mem_map.mpr ⟨word coordinate, pointMember, rfl⟩
-    simpa only [cyclicPoints_values] using mappedMember
-  exact alphabetValid _ valueMember
+  exact alphabetValid _ (decodedWord_mem alphabet wordMember coordinate)
 theorem coordinateCandidate_valid
     (alphabet : Support Scalar)
     (valid : Scalar -> Prop)

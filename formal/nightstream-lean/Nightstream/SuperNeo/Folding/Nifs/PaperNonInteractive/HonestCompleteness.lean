@@ -154,7 +154,7 @@ theorem exists_honestPiCcsCertificate
   let data := statement.sourceProtocolData key.lift witness
   let input := statement.verifierInput key.lift
   let transcriptStatement : ProtocolVerifier.Statement Extension State shape := {
-    priorState := key.initialTranscriptState
+    priorState := key.publicInputState running fresh
     input := input
   }
   let pre := FiatShamir.derivePreSumcheck key.oracle.transcript

@@ -703,4 +703,97 @@ theorem false_acceptance_implies_bad_challenge
   exact ⟨round, algebraicBad, claimedPolynomial, expectedPolynomial,
     claimedRepresentation, expectedRepresentation⟩
 
+private theorem symbolicCollisionFrom_implies_causal_decomposition
+    {Field : Type uField}
+    {degree : Nat}
+    (ops : Ops Field)
+    (q : List Field -> Field)
+    (fixed : List Field) :
+    forall
+      (rounds : List (FixedPolynomial Field degree))
+      (challenges : List Field)
+      (round : SumCheck.Round Field Field),
+      round ∈ symbolicRoundsFrom ops q fixed rounds challenges ->
+      round.claimed ≠ round.expected ->
+      round.claimed round.challenge = round.expected round.challenge ->
+      ∃ beforeChallenges challenge afterChallenges
+          beforePolynomials claimedPolynomial afterPolynomials,
+        challenges =
+          beforeChallenges ++ challenge :: afterChallenges /\
+        rounds =
+          beforePolynomials ++ claimedPolynomial :: afterPolynomials /\
+        beforeChallenges.length = beforePolynomials.length /\
+        (fun point => claimedPolynomial.evaluate ops point) ≠
+          (fun point =>
+            HypercubeTruth.sumCompletions ops q
+              (fixed ++ beforeChallenges ++ [point])
+              afterChallenges.length) /\
+        claimedPolynomial.evaluate ops challenge =
+          HypercubeTruth.sumCompletions ops q
+            (fixed ++ beforeChallenges ++ [challenge])
+            afterChallenges.length
+  | [], _, round, member, _, _ => by
+      simp [symbolicRoundsFrom] at member
+  | _ :: _, [], round, member, _, _ => by
+      simp [symbolicRoundsFrom] at member
+  | polynomial :: polynomials, challenge :: challenges, round, member,
+      different, collision => by
+      simp only [symbolicRoundsFrom, List.mem_cons] at member
+      rcases member with rfl | tailMember
+      · exact ⟨[], challenge, challenges, [], polynomial, polynomials,
+          by simp, by simp, rfl, by simpa, by simpa⟩
+      · obtain ⟨beforeChallenges, selectedChallenge, afterChallenges,
+          beforePolynomials, claimedPolynomial, afterPolynomials,
+          challengesEqual, polynomialsEqual, beforeLengths, functionsDifferent,
+          valuesEqual⟩ :=
+          symbolicCollisionFrom_implies_causal_decomposition ops q
+            (fixed ++ [challenge]) polynomials challenges round tailMember
+            different collision
+        refine ⟨challenge :: beforeChallenges, selectedChallenge,
+          afterChallenges, polynomial :: beforePolynomials,
+          claimedPolynomial, afterPolynomials, ?_, ?_, ?_, ?_, ?_⟩
+        · simp [challengesEqual]
+        · simp [polynomialsEqual]
+        · simpa using beforeLengths
+        · simpa [List.append_assoc] using functionsDifferent
+        · simpa [List.append_assoc] using valuesEqual
+
+/-- Every fixed-phase bad challenge identifies one exact causal round:
+the claimed polynomial and semantic polynomial are fixed by the prior
+challenge prefix, are distinct as functions, and collide at the current
+challenge. No future challenge appears in either polynomial. -/
+theorem badChallenge_implies_causal_decomposition
+    {Field : Type uField}
+    {degree : Nat}
+    (ops : Ops Field)
+    (q : List Field -> Field)
+    (challengeSetSize : Nat)
+    (initial : Field)
+    (challenges : List Field)
+    (certificate : Certificate Field degree)
+    (bad :
+      ∃ round,
+        BadChallenge ops q degree challengeSetSize initial challenges
+          certificate round) :
+    ∃ beforeChallenges challenge afterChallenges
+        beforePolynomials claimedPolynomial afterPolynomials,
+      challenges =
+        beforeChallenges ++ challenge :: afterChallenges /\
+      certificate.rounds =
+        beforePolynomials ++ claimedPolynomial :: afterPolynomials /\
+      beforeChallenges.length = beforePolynomials.length /\
+      (fun point => claimedPolynomial.evaluate ops point) ≠
+        (fun point =>
+          HypercubeTruth.sumCompletions ops q
+            (beforeChallenges ++ [point]) afterChallenges.length) /\
+      claimedPolynomial.evaluate ops challenge =
+        HypercubeTruth.sumCompletions ops q
+          (beforeChallenges ++ [challenge]) afterChallenges.length := by
+  obtain ⟨round, algebraic, _claimedPolynomial, _expectedPolynomial,
+      _claimedRepresents, _expectedRepresents⟩ := bad
+  rcases algebraic with ⟨roundIn, _degreeBound, different, collision⟩
+  simpa using
+    symbolicCollisionFrom_implies_causal_decomposition ops q []
+      certificate.rounds challenges round roundIn different collision
+
 end Nightstream.SuperNeo.SumCheck.Finite.FixedPhase

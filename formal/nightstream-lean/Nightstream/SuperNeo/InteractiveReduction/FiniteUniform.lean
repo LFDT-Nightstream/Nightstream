@@ -1,6 +1,6 @@
 import Init.Data.List.Count
 import Init.Data.Rat
-import Nightstream.SuperNeo.InteractiveReduction.Paper
+import Nightstream.SuperNeo.InteractiveReduction.ProbabilityCalculus
 
 /-!
 Finite-uniform probability and exact cost accounting for interactive reductions.
@@ -24,6 +24,7 @@ cost accounting remain executable.
 namespace Nightstream.SuperNeo.InteractiveReduction.FiniteUniform
 
 open Nightstream.SuperNeo.InteractiveReduction.Paper
+open Nightstream.SuperNeo.InteractiveReduction.ProbabilityCalculus
 
 universe uSeed uOutcome uOtherOutcome uMapped uResult uPrefix uComponentSeed uQuery
 
@@ -69,6 +70,25 @@ def scale : ProbabilityScale Rat where
   subtract_zero := by
     intro weight
     simp [Rat.sub_eq_add_neg, Rat.add_zero]
+
+/-- Standard ordered-additive laws for the concrete rational scale. -/
+def scaleLaws : ScaleLaws scale where
+  add_mono := by
+    intro left lower right upper leftBound rightBound
+    exact Rat.le_trans
+      ((Rat.add_le_add_right (c := right)).mpr leftBound)
+      ((Rat.add_le_add_left (c := lower)).mpr rightBound)
+  subtract_le_of_le_add := by
+    intro probability good error bound
+    have shifted :=
+      (Rat.add_le_add_right (c := -error)).mpr bound
+    change probability - error <= good
+    calc
+      probability - error = probability + -error :=
+        Rat.sub_eq_add_neg _ _
+      _ <= (good + error) + -error := shifted
+      _ = good := by
+        rw [Rat.add_assoc, Rat.add_neg_cancel, Rat.add_zero]
 
 /-- Exact rational ratio.  Callers must separately prove a positive
 denominator when they use order or cancellation laws. -/
@@ -238,6 +258,56 @@ theorem Experiment.probability_mono
   · exact Rat.natCast_le_natCast.mpr (experiment.count_mono implication)
   · exact experiment.support.cardinality_rat_pos
 
+/-- Finite union bound for arbitrary mathematical predicates. -/
+theorem Experiment.probability_or_le
+    (experiment : Experiment Outcome)
+    (left right : Outcome -> Prop) :
+    experiment.probability (fun outcome => left outcome \/ right outcome) <=
+      experiment.probability left + experiment.probability right := by
+  have countPOr :
+      forall (values : List experiment.Seed)
+        (leftTest rightTest : experiment.Seed -> Bool),
+        values.countP (fun seed => leftTest seed || rightTest seed) <=
+          values.countP leftTest + values.countP rightTest := by
+    intro values leftTest rightTest
+    induction values with
+    | nil => simp
+    | cons head tail inductionHypothesis =>
+        cases leftValue : leftTest head <;>
+          cases rightValue : rightTest head
+        · simpa [leftValue, rightValue] using inductionHypothesis
+        · have shifted := Nat.add_le_add_right inductionHypothesis 1
+          simpa [leftValue, rightValue, Nat.add_assoc] using shifted
+        · have shifted := Nat.add_le_add_right inductionHypothesis 1
+          simpa [leftValue, rightValue, Nat.add_assoc, Nat.add_comm,
+            Nat.add_left_comm] using shifted
+        · simp [leftValue, rightValue]
+          omega
+  have unionTest :
+      (fun seed =>
+        propTest (fun outcome => left outcome \/ right outcome)
+          (experiment.outcome seed)) =
+        (fun seed =>
+          propTest left (experiment.outcome seed) ||
+            propTest right (experiment.outcome seed)) := by
+    funext seed
+    by_cases leftHolds : left (experiment.outcome seed) <;>
+      by_cases rightHolds : right (experiment.outcome seed) <;>
+      simp [propTest, leftHolds, rightHolds]
+  have countBound :
+      experiment.count (fun outcome => left outcome \/ right outcome) <=
+        experiment.count left + experiment.count right := by
+    unfold Experiment.count Experiment.countBool
+    rw [unionTest]
+    exact countPOr experiment.support.values
+      (fun seed => propTest left (experiment.outcome seed))
+      (fun seed => propTest right (experiment.outcome seed))
+  unfold Experiment.probability
+  have divided := div_le_div_of_le
+    (Rat.natCast_le_natCast.mpr countBound)
+    experiment.support.cardinality_rat_pos
+  simpa [Rat.natCast_add, Rat.div_def, Rat.add_mul] using divided
+
 theorem Experiment.probability_false
     (experiment : Experiment Outcome) :
     experiment.probability (fun _ => False) = 0 := by
@@ -286,6 +356,12 @@ noncomputable def Experiment.toProbabilityExperiment
   monotone := by
     intro left right implication
     exact experiment.probability_mono implication
+
+/-- Standard union-bound adapter for the concrete finite experiment. -/
+noncomputable def Experiment.toProbabilityUnionBound
+    (experiment : Experiment Outcome) :
+    UnionBound experiment.toProbabilityExperiment where
+  unionBound := experiment.probability_or_le
 
 private theorem sum_map_le_sum_map
     (values : List Prefix)
@@ -459,6 +535,82 @@ theorem Mixture.probability_mono
     exact (mixture.component outer).probability_mono implication
   · exact mixture.prefixes.cardinality_rat_pos
 
+theorem Mixture.probability_false
+    (mixture : Mixture Prefix Outcome) :
+    mixture.probability (fun _ => False) = 0 := by
+  unfold Mixture.probability
+  have componentZero :
+      (fun outer =>
+        (mixture.component outer).probability (fun _ => False)) =
+        (fun _ => (0 : Rat)) := by
+    funext outer
+    exact (mixture.component outer).probability_false
+  rw [componentZero]
+  have sumZero :
+      (mixture.prefixes.values.map (fun _ => (0 : Rat))).sum = 0 := by
+    induction mixture.prefixes.values with
+    | nil => rfl
+    | cons _ tail inductionHypothesis =>
+        simp only [List.map_cons, List.sum_cons, inductionHypothesis]
+        exact Rat.zero_add 0
+  rw [sumZero]
+  simp only [Rat.div_def]
+  exact Rat.zero_mul _
+
+/-- Finite union bound for arbitrary predicates over a uniform outer
+mixture. -/
+theorem Mixture.probability_or_le
+    (mixture : Mixture Prefix Outcome)
+    (left right : Outcome -> Prop) :
+    mixture.probability (fun outcome => left outcome \/ right outcome) <=
+      mixture.probability left + mixture.probability right := by
+  let values := mixture.prefixes.values
+  let unionProbability : Prefix -> Rat := fun outer =>
+    (mixture.component outer).probability
+      (fun outcome => left outcome \/ right outcome)
+  let leftProbability : Prefix -> Rat := fun outer =>
+    (mixture.component outer).probability left
+  let rightProbability : Prefix -> Rat := fun outer =>
+    (mixture.component outer).probability right
+  have componentBound :
+      (values.map unionProbability).sum <=
+        (values.map (fun outer =>
+          leftProbability outer + rightProbability outer)).sum := by
+    apply sum_map_le_sum_map
+    intro outer member
+    exact (mixture.component outer).probability_or_le left right
+  have sumAdd :
+      (values.map (fun outer =>
+          leftProbability outer + rightProbability outer)).sum =
+        (values.map leftProbability).sum +
+          (values.map rightProbability).sum := by
+    induction values with
+    | nil => exact (Rat.zero_add 0).symm
+    | cons head tail inductionHypothesis =>
+        simp only [List.map_cons, List.sum_cons]
+        rw [inductionHypothesis]
+        simp [Rat.add_assoc, Rat.add_left_comm]
+  have denominatorPos :
+      0 < (mixture.prefixes.cardinality : Rat) :=
+    mixture.prefixes.cardinality_rat_pos
+  change
+    (values.map unionProbability).sum /
+        (mixture.prefixes.cardinality : Rat) <=
+      (values.map leftProbability).sum /
+          (mixture.prefixes.cardinality : Rat) +
+        (values.map rightProbability).sum /
+          (mixture.prefixes.cardinality : Rat)
+  calc
+    _ <=
+        ((values.map leftProbability).sum +
+            (values.map rightProbability).sum) /
+          (mixture.prefixes.cardinality : Rat) := by
+      apply div_le_div_of_le
+      · simpa only [sumAdd] using componentBound
+      · exact denominatorPos
+    _ = _ := by
+      simp [Rat.div_def, Rat.add_mul]
+
 /-- Pointwise conditional extraction bounds average without multiplying the
 loss by the number of prefixes. -/
 theorem Mixture.loss_le_of_components
@@ -556,6 +708,12 @@ noncomputable def Mixture.toProbabilityExperiment
   monotone := by
     intro left right implication
     exact mixture.probability_mono implication
+
+/-- Standard union-bound adapter for a finite conditional mixture. -/
+noncomputable def Mixture.toProbabilityUnionBound
+    (mixture : Mixture Prefix Outcome) :
+    UnionBound mixture.toProbabilityExperiment where
+  unionBound := mixture.probability_or_le
 
 /-- Sum of a natural-valued cost over every equally likely seed. -/
 def Experiment.totalCost

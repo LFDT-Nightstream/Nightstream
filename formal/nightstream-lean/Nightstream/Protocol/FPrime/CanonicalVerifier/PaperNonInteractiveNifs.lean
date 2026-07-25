@@ -4,9 +4,9 @@ import Nightstream.Protocol.FPrime.CanonicalVerifier.NifsRefinement
 /-!
 Layer-safe HyperNova/F-prime adapter for the paper SuperNeo NIFS verifier.
 
-Owns: the exact `NIFS.V` adapter, the concrete frozen obligation-5 theorem,
-a Construction-2 setup using that verifier, and no-premise specialization of
-the two augmented-function refinement directions.
+Owns: the exact `NIFS.V` adapter, the deterministic core of frozen
+obligation 5, a Construction-2 setup using that verifier, and no-premise
+specialization of the two augmented-function refinement directions.
 
 Does not own: a concrete Poseidon2/Ajtai instantiation, event probabilities,
 default-instance validity, terminal relation checks, Rust, R1CS, artifacts,
@@ -22,7 +22,7 @@ well-typed for arbitrary `K`.
 | Construction-2 phase | Mathematical obligation | Lean owner |
 |---|---|---|
 | selected fold | adapt the exact paper NIFS checker to HyperNova's `NIFS.V` interface | `nifsVerifier` |
-| NIFS boundary | instantiate frozen soundness and completeness without a correctness premise | `nifsSoundAndCompleteModulo` |
+| NIFS boundary | instantiate deterministic soundness modulo five events and completeness without a correctness premise | `nifsSoundAndCompleteModulo` |
 | setup | require exactly one fresh claim as in Construction 2 | `construction2Setup` |
 | recursive branch | accepted `F'_j` implies the paper NIFS transition or a named NIFS event | `canonicalFprime_accepts_implies_paperTransition_or_nifsBadEvent` |
 | honest recursive branch | a paper NIFS transition constructs an accepted `F'_j` proof | `canonicalFprime_paperTransition_implies_exists_nifsProof_accepts` |
@@ -61,9 +61,11 @@ def nifsVerifier
   verify :=
     Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify
 
-/-- Concrete obligation 5: the executable paper NIFS is sound modulo exactly
-the five named events and complete for the independently expanded equations.
-No correctness bundle is a premise. -/
+/-- Deterministic core of obligation 5: the executable paper NIFS is sound
+modulo exactly the five named events and complete for the independently
+expanded equations. No correctness bundle is a premise. The quantitative
+non-interactive target is discharged separately from the eleven exact event
+bounds. -/
 theorem nifsSoundAndCompleteModulo
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}

@@ -1,7 +1,20 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperCorrections
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrong
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrongBoundary
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.PiRlcComposition.PiDec
 import Nightstream.SuperNeo.Folding.PiDEC.PaperReduction
 import Nightstream.SuperNeo.Folding.PiRLC.PaperCorrections
+import Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteUniform
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.OracleSoundness
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.RewindableContinuation
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.InteractiveCompositionBridge
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCoupling
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalFirstSuccessBridge
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPostPrefixBridge
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.RewindableOracleSoundness
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.PostPrefixWorldSoundness
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.FullOracleSoundness
+import Nightstream.SuperNeo.InteractiveReduction.FiatShamirContract
 import Nightstream.HyperNova.NIVCCompatibility
 import Nightstream.HyperNova.Construction2.Paper
 import Nightstream.Protocol.FPrime.CanonicalVerifier
@@ -12,7 +25,20 @@ import Nightstream.Protocol.FPrime.CanonicalVerifier.PaperNonInteractiveNifs
 import Nightstream.Protocol.FPrime.CanonicalTerminalVerifier
 import Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne
 import Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne.Minimality
+import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc
+import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.Production
 import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol
+import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol.Lifecycle
+import Nightstream.Protocol.FPrime.Frozen.FixedActiveCarrierObstruction
+import Nightstream.Protocol.FPrime.Frozen.NonInteractiveContinuationObstruction
+import Nightstream.Protocol.FPrime.Frozen.NonInteractiveAdaptiveWitnessObstruction
+import Nightstream.Protocol.FPrime.Frozen.NonInteractiveFixedKeyObstruction
+import Nightstream.Protocol.FPrime.Frozen.NonInteractiveOracleObstruction
+import Nightstream.Protocol.FPrime.Frozen.PiCcsAsymptoticObstruction
+import Nightstream.Protocol.FPrime.Frozen.PiCcsFirstSuccessBridge
+import Nightstream.Protocol.FPrime.Frozen.NifsNonInteractiveBridge
+import Nightstream.Protocol.FPrime.Frozen.PiDecTargetWitnessObstruction
+import Nightstream.Protocol.FPrime.Frozen.SumCheckEncodingObstruction
 import Nightstream.Protocol.FPrime.Frozen.Obligations
 
 /-!
@@ -31,7 +57,8 @@ one-fold delayed packed-`yZcol` production deviation without changing those
 paper-authoritative statements.
 
 Does not own: old candidate NIFS semantics, legacy implementation semantics,
-Rust, R1CS, artifacts, costs, or any proof of the still-open security targets.
+Rust, R1CS, artifacts, concrete implementation cost claims, or proofs of the
+remaining security targets.
 
 Emits constraints: no.
 
@@ -42,7 +69,13 @@ paper's deterministic verifier notation: `none` means rejection and
 | Child path | Mathematical obligation | Excluded boundary |
 |---|---|---|
 | `Frozen.Obligations` | fixed signatures for the SuperNeo reduction and NIFS targets | no proof or implementation premise discharges a target |
+| `Frozen.FixedActiveCarrierObstruction` | exact 257-plus-13 carrier codec and lossless-decoder obstruction at paper NIFS / fixed-one / Construction-2 inputs | no concrete phase verifier or Rust/R1CS refinement |
+| `Frozen.NonInteractiveFixedKeyObstruction` | distinct D.5 base samples cannot share one fixed realized PiRLC oracle | no oracle-world distribution |
+| `Frozen.PiCcsAsymptoticObstruction` | exact opacity of an arbitrary frozen PiCCS runtime field | does not obstruct an operationally linked game |
+| `Frozen.PiCcsFirstSuccessBridge` | exact unbounded finite-alphabet trace law, almost-sure termination, EPT, and frozen `PiCcsStrong` bridge | no Fiat--Shamir or downstream composition premise |
+| `Frozen.NifsNonInteractiveBridge` | exact `NifsNonInteractiveSound` theorem for the full correlated oracle experiment | named interactive, extraction, and collision contracts remain primitive premises |
 | SuperNeo paper corrections/reductions | corrected quantitative boundaries and the finite `Pi_DEC o Pi_RLC o Pi_CCS` knowledge theorem | no Fiat--Shamir or concrete primitive bound |
+| `PaperNonInteractive.CausalFirstSuccessBridge` | exact finite D.4 first-success/fresh-second carrier and typed NIFS event/probability transport | no ideal-RO construction or D.6 target-witness premise |
 | `CanonicalVerifier.PaperNonInteractiveNifs` | exact paper NIFS and selected Construction-2 recursive fold | no Rust/R1CS refinement |
 | `CanonicalVerifier` | executable base/recursive `F'_j` graph equals Construction 2 | no concrete NIFS semantics by itself |
 | `CanonicalTerminalVerifier` | explicit base/recursive terminal relation with no final fold | no concrete relation checker by itself |
@@ -53,12 +86,86 @@ paper's deterministic verifier notation: `none` means rejection and
 namespace Nightstream.Protocol.FPrime.Frozen
 
 export Obligations
-  (SuperNeoGames PiCcsStrong PiRlcWeak SharedCommitmentProjection
+  (SuperNeoGames strongWeakKnowledgeGame superNeoCompositionGame
+    PiCcsStrong PiRlcWeak SharedCommitmentProjection
     PiDecReductionOfKnowledge SuperNeoCompositionReductionOfKnowledge
-    SuperNeoPaperObligations NifsSoundModulo NifsComplete
-    NifsSoundAndCompleteModulo)
+    superNeoCompositionReductionOfKnowledge SuperNeoPaperObligations
+    superNeoPaperObligations_of_components
+    NifsSoundModulo NifsComplete
+    NifsSoundAndCompleteModulo NifsNonInteractiveSound)
+
+
+namespace FixedActiveCarrier
+
+export Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.LogicalCarrier
+  (ExternalInput LIn Coordinate CoordinateEquivalence
+    externalOfLegacy encodeFresh_externalOfLegacy_eq_expectedPublicInput
+    carrierColumn coordinateOfCarrier coordinateEquiv
+    coordinateEquiv_injective coordinateEquiv_surjective
+    coordinateEquiv_bijective projectExternal paddingValue
+    freshCanonicalCheck FreshCanonical freshCanonical_iff
+    encodeFresh decodeFresh decodeFresh_sound decodeFresh_complete
+    encodeFresh_injective decodeFresh_rejects_nonzero_padding
+    zeroLIn firstPadding firstPaddingOne
+    projectExternal_firstPaddingOne_eq_zero firstPaddingOne_ne_zero
+    projectExternal_not_injective piRlcCombine piDecSplit piDecRecompose
+    piDecSplit_recompose shiftChallenge shiftChallenge_valid
+    shift_enters_first_padding freshImage_not_piRlcClosed)
+
+export FixedActiveCarrierObstruction
+  (fixedShape ExactRunning ErasedRunning ExactFresh ExactProof ExactKey
+    exactPaperVerifier exactPaperVerifier_soundAndCompleteModulo eraseRunning
+    zeroPublicRunning tailMutatedRunning eraseRunning_zero_eq_tail
+    zeroPublicRunning_ne_tailMutatedRunning eraseRunning_not_injective
+    no_exact_paperNifs_running_decoder
+    ExactFixedOneInput ErasedFixedOneInput eraseFixedOneInput
+    no_exact_fixedOne_fprime_decoder
+    ExactConstruction2Input ErasedConstruction2Input eraseConstruction2Input
+    no_exact_construction2_fprime_decoder)
+
+end FixedActiveCarrier
 
 namespace ProductionDeviations
+
+namespace BlockLaneCombinedNc
+
+export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc
+  (RunningWeights authoritativeRunningValueAt authoritativeRunningProjection
+    sumcheckPolynomial delayedHypercubeSum_eq_weightedProjection
+    combinedHypercubeSum_eq_ordinary_add_weightedProjection
+    combinedAtPoint_eq_terminalFromMessage_of_bound
+    expectedRound_quartic expectedRound_has_five_coefficients
+    productionWeights
+    authoritativeRunningProjection_eq_projectedRawRecomposition
+    ResidualWeightRoot
+    accepted_implies_truth_and_parentProjection_or_badEvent
+    NcAccepted Accepted BadEvent YRingUnbound YRingBound
+    ncAccepted_implies_truth_or_badEvent
+    accepted_implies_paper_or_yRingUnbound_or_badEvent
+    accepted_implies_paper_and_yRingBound_or_yRingUnbound_or_badEvent)
+
+export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.Production
+  (AuthoritativeInput ProductionVerifierAccepts AcceptedOutput
+    FeFailure NcFailure TranscriptFailure BindingFailure
+    RegisteredDeviationObligation
+    accepted_implies_paper_or_named_failure
+    accepted_implies_paper_or_algebraic_failure
+    not_transcriptFailure not_bindingFailure
+    blockLaneCombinedNc_refines_paperNc everyCoordinate_has_exact_owner
+    delayedProjection_refines_rawRecomposition honest_complete
+    honest_complete_with_output
+    accepted_output_suitable_for_piRlc
+    accepted_implies_paper_and_authority_or_named_failure
+    LiteralResidualSlotAlignment
+    not_literalResidualSlotAlignment
+    semanticResidualsZero_iff_paperHolds
+    accepted_implies_paper_or_residual_failure
+    fold_extraction_or_named_failure
+    ncRoundCount rawRoundRepresentable Strategy ncCertificate
+    ncCertificate_toSumCheck FeRoundCollision NcRoundCollision SplitCollision
+    splitCollision_implies_detects splitCollision_probability_le)
+
+end BlockLaneCombinedNc
 
 export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol
   (Holds holds
@@ -78,19 +185,222 @@ export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol
     TerminalFailure EdgeFailure AllOutputsClosed Failure ClosedTrace
     closedTrace_implies_baseAndAllClosed_or_failure)
 
+export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol.Lifecycle.Trace
+  (base_owns_no_predecessor edge_owns_production_and_consumption
+    terminal_owns_discharge terminalCount terminalCount_eq_one
+    closedTrace_reduces_to_paper_transitions_or_named_failure)
+
 end ProductionDeviations
 
 namespace SuperNeo
 
 open Nightstream.SuperNeo.InteractiveReduction.Paper
 
-/- Concrete obligation-5 theorem for the typed paper SuperNeo NIFS. -/
+export Nightstream.SuperNeo.InteractiveReduction.Paper
+  (NifsExtractionErrorBudget nifsInteractiveTotal nonInteractiveTotal)
+
+export Nightstream.SuperNeo.InteractiveReduction.FiatShamirContract
+  (EventPredicates ExplicitRandomOracleContract
+    anyFailure_iff_exists_event anyFailure_probability_le_total)
+
+/- Deterministic obligation-5 core for the typed paper SuperNeo NIFS. -/
 export Nightstream.Protocol.FPrime.CanonicalVerifier.PaperNonInteractiveNifs
   (nifsSoundAndCompleteModulo)
 
 /- Independent valid source claims construct an accepted paper NIFS fold. -/
 export Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive
   (sourceValid_exists_verifiedTransition)
+
+/- Finite operational component theorems and the exact boundary that
+separates them from the unbounded sampler. -/
+export Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrong
+  (finitePaperStrong)
+
+export Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrongBoundary
+  (extractorRuntime_iff_uniformTruncatedWorkBound
+    extractorRuntime_iff_all_finite_cutoffs)
+
+export PiCcsAsymptoticObstruction
+  (piCcsStrong_iff_runtime
+    frozenTarget_without_samplerLink_countermodel
+    not_attemptedBridgeWithoutSamplerLink)
+
+/- Headline obligation-1 theorem. The game is definitionally linked to the
+countable terminating-trace law and explicit security-parameter cost family;
+almost-sure termination, conditioned-first/fresh-second law, and extractor
+EPT are conclusions rather than caller premises. -/
+export PiCcsFirstSuccessBridge
+  (Completion PiCcsSecurityFamily adjustUniqueness
+    piCcsStrong_of_unboundedFirstSuccess)
+
+/- Headline obligation-5 theorems. The combined theorem constructs the
+deterministic soundness/completeness core and the quantitative explicit-RO
+target; only named event contracts remain premises. -/
+export NifsNonInteractiveBridge
+  (fullOracleMixtureNifsNonInteractiveSound
+    paperNifsSoundCompleteAndNonInteractive)
+
+/- Fixed-width paper-polynomial gate and deterministic strong-reduction
+core.  The width is verifier-owned; high zero coefficient slots are valid
+paper messages rather than a canonicalization failure. -/
+export Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomial.FixedWidth
+  (accepted_implies_tableTruth_or_badEvent)
+
+export Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongReduction
+  (fixedWidthAcceptedProbe_extracts_source_or_badEvent)
+
+export Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteUniform
+  (paperWeak)
+
+/- Literal ordered-commitment alignment used by the concrete Theorem-6
+coupling. -/
+export Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.PiRlcBatch.CompatibleContext
+  (batchPhi_eq_piCcsOutputPhi repeatedBatch_samePhi)
+
+/- Kernel obstruction separating a typed transcript schedule from the
+still-required random-oracle and concrete Poseidon2 contracts. -/
+export NonInteractiveOracleObstruction
+  (distinct_contexts_same_derived distinct_labels_same_squeeze
+    distinct_public_inputs_same_bound_state)
+
+/- Kernel obstruction separating batch alignment from the still-required
+rewindable-continuation alignment. -/
+export NonInteractiveContinuationObstruction
+  (replaceForkOracle replaceForkOracle_acceptedOutcome_iff
+    replaceForkOracle_transitionOutcome_iff
+    distinct_replacement_oracles_same_nifs_execution)
+
+/- Kernel obstruction proving that a non-degenerate D.5 challenge experiment
+must vary the realized PiRLC oracle world. -/
+export NonInteractiveFixedKeyObstruction
+  (outcomeForSample programmingReceipts_force_same_base
+    distinct_bases_force_programming_failure)
+
+/- Kernel obstructions separating fixed-witness D.4 contracts and public
+PiDEC acceptance from the stronger events their extractors consume. -/
+export NonInteractiveAdaptiveWitnessObstruction
+  (adaptiveWitnessBad_iff_exists
+    fixed_witness_bound_does_not_bound_adaptive_existential)
+
+export PiDecTargetWitnessObstruction
+  (child_not_target noTargetWitnessFamily
+    accepted_without_piDec_target_witness)
+
+/- Historical kernel obstruction separating the selected paper fixed-width
+message relation from canonical variable-length trimming. -/
+export SumCheckEncodingObstruction
+  (fixed_width_acceptance_is_not_canonical_raw_acceptance)
+
+/- Exact typed non-interactivity boundary.  These equations pin the full
+public-input absorption, replay, post-output state, and PiRLC coordinate
+alignment without asserting collision probabilities. -/
+export Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive
+  (piCcsExecution_coins_eq_replayInput
+    piCcsExecution_outgoingState_eq_postOutput
+    piRlcChallenge_eq_response_after_piCcsOutput
+    not_piRlcSamplingSetFailure
+    AlignedForkOutcome CoordinateProgrammingReceipt
+    MultiForkProgrammingFailure CoordinateForkSamplingFailure
+    nifsEventPredicates
+    transcriptSecurityEvent_implies_eventPredicate
+    acceptedFork_implies_ambientTargetOpenings
+    piRlcExtractionFailure_implies_forkSampling_or_programmingFailure
+    ResidualBadEvent verify_sound_or_residual_or_multiFork
+    ResidualFailure InteractiveResidualContract
+    NifsExplicitRandomOracleContract
+    AcceptedOutcome TransitionOutcome NonInteractiveFailure
+    residualBadEvent_iff_residualFailure
+    residualFailure_probability_le_total
+    acceptedOutcome_implies_transition_or_failure
+    nonInteractiveFailure_probability_le_total
+    accepted_probability_sub_total_le_transition
+    PrefixMessage ContinuationReply RewindableProver
+    RewindableForkOutcome
+    Key.strongExecutionContext Key.compatibleContext
+    Key.compatiblePiDecContext
+    Key.compatibleContext_piRlc
+    Key.compatiblePiDecContext_paper
+    CausalPrefixAlignment
+    acceptedCheck_eq_piCcsCheck
+    mixingFailure_iff_piCcsMixingRoot
+    sumCheckFailure_iff_piCcsSumCheckCollision
+    piCcsCheck_extracts_sourceValid_or_badEvent
+    batchOfPrefix_eq_nifsPiRlcBatch
+    combinedParent_eq_nifsParent
+    RewindableProver.toInteractivePiDecReply
+    RewindableProver.toInteractivePiDecReply_childAssignments
+    RewindableProver.continuationPiDecExecution
+    RewindableProver.interactivePiDecExecution_eq_continuation
+    RewindableProver.continuationPiDecExecution_baseChallenges_attempt
+    RewindableForkOutcome.piDecExecutionAt_eq_continuation
+    RewindableForkOutcome.continuationSuccessAt_baseChallenges_iff
+    causalPiRlcAdversary causalPrefixRun
+    CausalPrefixCouplingContract
+    CausalPrefixCouplingContract.support
+    CausalPrefixCouplingContract.toPrefixExperiment
+    CausalPrefixCouplingContract.support_eq_product
+    CausalPrefixCouplingContract.mem_support_iff
+    CausalPrefixCouplingContract.support_cardinality
+    CausalPrefixCouplingContract.toPrefixExperiment_prefixAligned
+    CausalPrefixCouplingContract.toPrefixExperiment_piCcsCheck_extracts_sourceValid_or_badEvent
+    CausalPrefixCouplingContract.toPrefixExperiment_batch_eq
+    CausalPrefixCouplingContract.interactivePiDecExecution_eq_continuation
+    CausalPrefixCouplingContract.d4Success_iff_nifsD4AmbientSuccess
+    CausalPrefixCouplingContract.fixedFirstBad_iff_nifsD4FixedFirstBad
+    CausalPrefixCouplingContract.d4Seed_supportPermutation
+    CausalPrefixCouplingContract.d4AmbientSuccess_probability_eq_nifs
+    CausalPrefixCouplingContract.mem_d4FirstSuccessFreshSecondSeeds_iff
+    CausalPrefixCouplingContract.d4FixedFirstBad_probability_eq_nifs
+    CausalPrefixCouplingContract.d4SourceExtracted_probability_eq_nifs
+    CausalPrefixCouplingContract.d4Extraction_after_first_success_nifs
+    causalPostPrefixOutcomeOfSeed
+    CausalPrefixCouplingContract.interactivePiDecExecution_eq_postPrefix
+    RewindablePiRlcWorldOutcome.piDecExecutionAt_world_attempt_eq_nifs
+    RewindablePiRlcWorldOutcome.continuationSuccessAt_world_iff_nifs_target
+    CausalPrefixCouplingContract.interactivePiDecSuccess_iff_postPrefixNifsTarget
+    RewindableProver.proofAt RewindableProver.baseChallenges
+    RewindableProver.baseProof RewindableProver.piRlcChallenges_baseProof
+    RewindableProver.assignmentAt
+    RewindableForkOutcome.toAlignedForkOutcome
+    RewindableForkOutcome.toAlignedForkOutcome_oracle
+    RewindableForkOutcome.toAlignedForkOutcome_batch
+    RewindableForkOutcome.ContinuationSuccessAt
+    RewindableForkOutcome.continuationSuccessAt_implies_parentOpening
+    RewindableForkOutcome.continuationSuccessAt_implies_piRlcVerifies
+    RewindableForkOutcome.continuationSuccesses_imply_acceptedFork
+    rewindableAlignedExperiment rewindableAlignedUnionBound
+    RewindableAcceptedOutcome RewindableTransitionOutcome
+    RewindableNonInteractiveFailure AllContinuationsSuccessful
+    PiDecContinuationFailure
+    piRlcForkSamplingFailure_implies_piDecContinuationFailure
+    rewindable_accepted_probability_sub_total_le_transition
+    PiRlcVectorWorld RewindablePiRlcWorldOutcome
+    RewindableProver.acceptsInPiRlcWorld
+    postPrefixForkExperiment
+    postPrefixForkExperiment_expectedQueriesAtMost
+    PiRlcWorldAcceptedOutcome PiRlcWorldTransitionOutcome
+    PiRlcWorldNonInteractiveFailure
+    PostPrefixCollisionBudget PostPrefixCollisionContract
+    postPrefixFiatShamirBudget
+    postPrefixOutcome_worldAccepted_iff
+    postPrefixChallengeSamplingFailure_probability_eq_zero
+    piRlcWorldProgrammingFailure_probability_le_paper
+    postPrefixExplicitRandomOracleContract
+    piRlcWorldAccepted_probability_sub_total_le_transition
+    postPrefixAccepted_probability_sub_total_le_transition
+    PiCcsPrefixOracleWorld PiCcsPrefixExperiment
+    PiCcsPrefixExperiment.realizedKey
+    FullOracleOutcome fullOracleForkMixture
+    FullOracleAcceptedOutcome FullOracleTransitionOutcome
+    fullOracleEventPredicates FullOracleNonInteractiveFailure
+    fullOracleAccepted_implies_transition_or_failure
+    fullOracleChallengeSamplingFailure_probability_eq_zero
+    fullOracleProgrammingFailure_probability_le_paper
+    FullOracleInteractiveResidualContract
+    FullOracleCollisionContract
+    fullOracleMixtureExplicitRandomOracleContract
+    fullOracleAccepted_probability_sub_total_le_transition
+    fullOracleMixtureAccepted_probability_sub_total_le_transition)
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
   uWeight
@@ -185,7 +495,8 @@ end StepMinimality
 namespace TerminalMinimality
 
 export Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne.Minimality
-  (accepts_iff_transition accepts_iff_fixedOne_eval inclusionMinimalSound)
+  (accepts_iff_transition accepts_iff_fixedOne_eval inclusionMinimalSound
+    obligation8_classification)
 
 end TerminalMinimality
 

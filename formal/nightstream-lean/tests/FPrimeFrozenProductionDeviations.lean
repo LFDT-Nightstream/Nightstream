@@ -9,6 +9,10 @@ namespace Nightstream.Tests.FPrimeFrozenProductionDeviations
 
 open Nightstream.Protocol.FPrime.Frozen.ProductionDeviations
 
+#check BlockLaneCombinedNc.expectedRound_quartic
+#check BlockLaneCombinedNc.authoritativeRunningProjection_eq_projectedRawRecomposition
+#check BlockLaneCombinedNc.accepted_implies_paper_and_yRingBound_or_yRingUnbound_or_badEvent
+
 #check Holds
 #check holds
 #check stateBindingCheck_eq_true_iff

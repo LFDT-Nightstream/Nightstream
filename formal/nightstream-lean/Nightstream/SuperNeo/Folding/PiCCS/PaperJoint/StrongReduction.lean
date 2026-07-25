@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FullOutputCoordinates
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomialFixedWidth
 import Nightstream.SuperNeo.Folding.PiRLC.PaperCorrections
 
 /-!
@@ -305,7 +306,56 @@ def Accepted
     (statement.projectOutput probe.response.fullOutput)
     probe.response.rounds = true
 
+/-- Operational paper acceptance at one verifier-owned common coefficient
+width.  Unlike `Accepted`, this relation does not impose canonical trimming;
+it rejects only width mismatch or a failed SumCheck equation. -/
+def FixedWidthAccepted
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    [DecidableEq Extension]
+    {shape : Shape}
+    {columns blockCount : Nat}
+    {baseOps : InterpolationOps F}
+    (extensionOps : InterpolationOps Extension)
+    (lift : F -> Extension)
+    (statement : Statement Extension Commitment PublicInput shape
+      columns blockCount baseOps)
+    (width : Nat)
+    (probe : Probe Extension shape) : Prop :=
+  ProtocolPolynomial.FixedWidth.check extensionOps width
+    (statement.verifierInput lift)
+    probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
+    (statement.projectOutput probe.response.fullOutput)
+    probe.response.rounds = true
+
 end Probe
+
+/-- Exact fixed-width SumCheck collision exposed from the submitted raw
+certificate.  The decoder receipt prevents an existential certificate from
+being substituted after the fact. -/
+def FixedWidthSumCheckFailure
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    {baseOps : InterpolationOps F}
+    (extensionOps : InterpolationOps Extension)
+    (lift : F -> Extension)
+    (statement : Statement Extension Commitment PublicInput shape
+      columns blockCount baseOps)
+    (width challengeSetSize : Nat)
+    (probe : Probe Extension shape)
+    (witness : OutputWitness shape columns) : Prop :=
+  exists certificate :
+      SumCheck.Finite.FixedPhase.Certificate Extension width,
+    SumCheck.Finite.FixedPhase.RawCertificate.decode width
+        probe.response.rounds = some certificate /\
+      ProtocolPolynomial.FixedWidth.SumCheckCollision extensionOps
+        (statement.sourceProtocolData lift witness)
+        probe.coins.alpha probe.coins.gamma width challengeSetSize
+        probe.coins.roundPoint certificate
 
 /-- The verifier's complete public output product. -/
 abbrev PublicOutput
@@ -715,6 +765,117 @@ theorem acceptedProbe_extracts_source_or_badEvent
     exact sourceSemantic.2.1 source column
   · exact Or.inr (Or.inl mixingRoot)
   · exact Or.inr (Or.inr badChallenge)
+  · exfalso
+    apply outputMismatch
+    unfold ProtocolPolynomial.qAtPoint
+    rw [projectedOutput_eq_messageAt_of_ambientOutputHolds
+      baseLaws extensionOps lift openingMaps params statement constantLaw
+      probe witness ambient]
+
+/-- Fixed-width counterpart of `acceptedProbe_extracts_source_or_badEvent`.
+
+This is the paper-owned gate used by the causal interactive composition.  It
+accepts the same exact-width messages as the frozen NIFS verifier and exposes
+the same fixed-phase bad-challenge event; canonical variable-length encoding
+is absent. -/
+theorem fixedWidthAcceptedProbe_extracts_source_or_badEvent
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    [DecidableEq Extension]
+    {shape : Shape}
+    {columns blockCount : Nat}
+    {baseOps : InterpolationOps F}
+    (baseLaws : InterpolationEvaluationLaws baseOps)
+    (baseZero : NormResidualTable.BaseZeroAgreement baseOps)
+    (noZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
+    (extensionOps : InterpolationOps Extension)
+    (extensionLaws : InterpolationEvaluationLaws extensionOps)
+    (extensionZeroLaws : InterpolationZeroLaws extensionOps)
+    (lift : F -> Extension)
+    (liftLaws : ProtocolDataRefinement.ProtocolLift
+      baseOps extensionOps lift)
+    (openingMaps : OpeningMaps Commitment PublicInput columns)
+    (params : GlobalParams)
+    (freshBound : params.b = 2)
+    (statement : Statement Extension Commitment PublicInput shape
+      columns blockCount baseOps)
+    (constantLaw : ConstantTermLaw baseOps statement.matrixSource.kernel)
+    (width : Nat)
+    (degreeCovers :
+      (statement.verifierInput lift).sumcheckDegreeBound <= width)
+    (challengeSetSize : Nat)
+    (probe : Probe Extension shape)
+    (witness : OutputWitness shape columns)
+    (ambient : AmbientOutputHolds extensionOps lift openingMaps params
+      statement probe witness)
+    (accepted :
+      probe.FixedWidthAccepted extensionOps lift statement width) :
+    SourceHolds extensionOps lift openingMaps params statement witness \/
+      SignedCoefficientObject.MixingRoot extensionOps
+        ((statement.sourceProtocolData lift witness).toJointData extensionOps)
+        probe.coins.alpha probe.coins.gamma \/
+      FixedWidthSumCheckFailure extensionOps lift statement width
+        challengeSetSize probe witness := by
+  let data := statement.sourceProtocolData lift witness
+  have inputEqual : data.toVerifierInput = statement.verifierInput lift :=
+    statement.sourceProtocolData_toVerifierInput lift witness
+  have checked :
+      ProtocolPolynomial.FixedWidth.check extensionOps width
+          data.toVerifierInput
+          probe.coins.alpha probe.coins.gamma probe.coins.roundPoint
+          (statement.projectOutput probe.response.fullOutput)
+          probe.response.rounds = true := by
+    rw [inputEqual]
+    exact accepted
+  obtain ⟨certificate, decoded, chain⟩ :=
+    (ProtocolPolynomial.FixedWidth.check_eq_true_iff extensionOps width
+      data.toVerifierInput probe.coins.alpha probe.coins.gamma
+      probe.coins.roundPoint
+      (statement.projectOutput probe.response.fullOutput)
+      probe.response.rounds).1 checked
+  have dataDegreeCovers : data.toVerifierInput.sumcheckDegreeBound <= width := by
+    rw [inputEqual]
+    exact degreeCovers
+  rcases
+      ProtocolPolynomial.FixedWidth.accepted_implies_tableTruth_or_badEvent
+        extensionOps extensionLaws extensionZeroLaws data
+        probe.coins.alpha probe.coins.gamma width dataDegreeCovers
+        challengeSetSize probe.coins.roundPoint
+        (statement.projectOutput probe.response.fullOutput)
+        certificate chain with
+    tableTruth | mixingRoot | badChallenge | outputMismatch
+  · left
+    let unifiedData :=
+      (statement.sourceConnectedInputs witness).toUnifiedInputs baseOps
+    have independentTableTruth :
+        (TableResidualData.toTableObligations extensionOps
+          (SignedCoefficientObject.toTableResidualData extensionOps
+            (unifiedData.toIndependentInputs.toJointData baseOps lift))).AllHold := by
+      rw [← ProtocolDataRefinement.toProtocolData_toJointData_eq
+        baseOps extensionOps lift liftLaws unifiedData]
+      simpa [data, Statement.sourceProtocolData, unifiedData] using tableTruth
+    have independentSemantic :=
+      (ConcreteJointData.jointTableTruth_iff_semanticTruth
+        baseOps baseZero noZeroDivisors extensionOps extensionLaws lift
+        liftLaws.toZeroReflectingLift unifiedData.toIndependentInputs).mp
+          independentTableTruth
+    have sourceSemantic :
+        (statement.sourceConnectedInputs witness).SemanticTruth
+          baseOps extensionOps lift := by
+      simpa [ConnectedInputs.SemanticTruth, unifiedData] using
+        (unifiedData.toIndependentInputs_semanticTruth_iff
+          baseOps extensionOps lift).mp independentSemantic
+    refine ⟨?_, sourceSemantic⟩
+    intro source
+    have ambientOpening := (ambient source).1
+    refine ⟨ambientOpening.1, ambientOpening.2.1, ?_⟩
+    intro column
+    change centeredMagnitude (witness.assignments source column) < params.b
+    rw [freshBound]
+    exact sourceSemantic.2.1 source column
+  · exact Or.inr (Or.inl mixingRoot)
+  · exact Or.inr (Or.inr ⟨certificate, decoded, badChallenge⟩)
   · exfalso
     apply outputMismatch
     unfold ProtocolPolynomial.qAtPoint

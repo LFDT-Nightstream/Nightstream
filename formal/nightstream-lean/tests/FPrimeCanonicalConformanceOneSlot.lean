@@ -47,7 +47,7 @@ def baseStep : StepCase where
   witness := witness
   nifsProof := nifsProof
   stepReceipt := { state := z0, witness := witness, output := zBaseNext }
-  trace := .base baseNextHash
+  trace := .base (some baseNextHash)
   claim := {
     zNext := zBaseNext
     runningNext := defaultRunning
@@ -89,17 +89,17 @@ def recursiveNextHash : HashReceipt where
   output := nextDigest
 
 def recursiveTrace : StepTrace := .recursive
-  recursivePriorHash
-  { input := fresh, output := priorEncoded }
-  { input := priorDigest, output := priorEncoded }
-  {
+  (some recursivePriorHash)
+  (some { input := fresh, output := priorEncoded })
+  (some { input := priorDigest, output := priorEncoded })
+  (some {
     key := key
     running := running
     fresh := fresh
     proof := nifsProof
-    output := folded
-  }
-  recursiveNextHash
+    output := some folded
+  })
+  (some recursiveNextHash)
 
 def recursiveStep : StepCase where
   verifierKey := key

@@ -250,4 +250,28 @@ def encodeStateXOutPreimage
   digestFields table preimage.construction2Accumulator ++
   optionalNebulaDigestFields table preimage.nebula
 
+/-- Public definitional expansion used by source-program refinements. -/
+theorem encodeStateXOutPreimage_expansion
+    (table : RawEncodingTable)
+    (preimage : XOut.XOutPreimage Digest Header NebulaDigest) :
+    encodeStateXOutPreimage table preimage =
+      [rawFieldOfNat 0x4e460002] ++
+      lookupRawFields table (.digest preimage.vkFsDigest) ++
+      lookupRawFields table (.header preimage.piCcsHeader) ++
+      u64Halves preimage.chunkCount ++
+      u64Halves preimage.stepCount ++
+      u64Halves preimage.pc ++
+      lookupRawFields table (.digest preimage.currentBoundary) ++
+      (match preimage.semanticState with
+        | none => []
+        | some digest => lookupRawFields table (.digest digest)) ++
+      lookupRawFields table
+        (.digest preimage.construction2Accumulator) ++
+      (match preimage.nebula with
+        | none => []
+        | some digest =>
+            [rawFieldOfNat 0x4e424c41] ++
+              lookupRawFields table (.nebulaDigest digest)) := by
+  rfl
+
 end Nightstream.Implementation.Rust.CanonicalConformance.NativeStep

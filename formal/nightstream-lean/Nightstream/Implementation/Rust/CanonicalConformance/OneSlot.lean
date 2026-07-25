@@ -16,10 +16,12 @@ production profile guards, or a refinement theorem.  In particular,
 receipt, or canonical evaluation; it occurs only on the right-hand side of the
 two differential comparisons.
 
-This first schema covers full accepted primitive paths and mutations of their
-post-execution claims.  It does not yet represent early prior-link or NIFS
-rejection traces, so the comparison hook is not itself a Rust differential
-conformance result.
+The schema records only primitive call positions reached by the canonical
+checker.  Optional receipts therefore distinguish rejection before the next
+hash, before the recursive prior-link calls, at the prior-link equality, and
+at NIFS.  It is still a Boolean differential boundary rather than a primitive
+refinement theorem: Rust supplies the final acceptance bit and the primitive
+outcomes, while Lean independently reconstructs the paper checker.
 
 Emits constraints: no.
 -/
@@ -107,20 +109,21 @@ structure NifsReceipt where
   running : Running
   fresh : Fresh
   proof : NifsProof
-  output : Running
+  output : Option Running
 deriving Repr, DecidableEq
 
 /-- Branch-tagged receipts in canonical call order.  The base branch executes
-only the next-output hash after the common application step.  The recursive
-branch executes the prior hash, public encodings, NIFS verifier, and next hash. -/
+only the next-output hash after the common application step. The recursive
+branch executes the prior hash, public encodings, and NIFS verifier. Its
+next-output hash exists exactly when NIFS accepts. -/
 inductive StepTrace where
-  | base (nextHash : HashReceipt)
+  | base (nextHash : Option HashReceipt)
   | recursive
-      (priorHash : HashReceipt)
-      (freshPublic : FreshPublicReceipt)
-      (encode : EncodeReceipt)
-      (nifs : NifsReceipt)
-      (nextHash : HashReceipt)
+      (priorHash : Option HashReceipt)
+      (freshPublic : Option FreshPublicReceipt)
+      (encode : Option EncodeReceipt)
+      (nifs : Option NifsReceipt)
+      (nextHash : Option HashReceipt)
 deriving Repr, DecidableEq
 
 /-- Claimed public output, with the one-slot program counter represented as a
@@ -164,10 +167,19 @@ def hashReceiptOutput (receipt : HashReceipt) (input : HashInput) : Digest :=
 
 def stepHashOutput (trace : StepTrace) (input : HashInput) : Digest :=
   match trace with
-  | .base nextHash => hashReceiptOutput nextHash input
+  | .base nextHash =>
+      match nextHash with
+      | none => poison .digest
+      | some receipt => hashReceiptOutput receipt input
   | .recursive priorHash _ _ _ nextHash =>
-      if priorHash.input = input then priorHash.output
-      else hashReceiptOutput nextHash input
+      match priorHash with
+      | some receipt =>
+          if receipt.input = input then receipt.output
+          else
+            match nextHash with
+            | none => poison .digest
+            | some nextReceipt => hashReceiptOutput nextReceipt input
+      | none => poison .digest
 
 def stepSetup (case : StepCase) :
     Setup Key Running Fresh NifsProof slotCount where
@@ -177,11 +189,14 @@ def stepSetup (case : StepCase) :
       match case.trace with
       | .base _ => none
       | .recursive _ _ _ receipt _ =>
-          if key = receipt.key ∧ running = receipt.running ∧
-              fresh = receipt.fresh ∧ proof = receipt.proof then
-            some receipt.output
-          else
-            none
+          match receipt with
+          | none => none
+          | some receipt =>
+              if key = receipt.key ∧ running = receipt.running ∧
+                  fresh = receipt.fresh ∧ proof = receipt.proof then
+                receipt.output
+              else
+                none
   }
   defaultRunning := case.defaultRunning
 
@@ -198,12 +213,18 @@ def stepMachine (case : StepCase) :
     match case.trace with
     | .base _ => poison .encoded
     | .recursive _ receipt _ _ _ =>
-        if fresh = receipt.input then receipt.output else poison .encoded
+        match receipt with
+        | none => poison .encoded
+        | some receipt =>
+            if fresh = receipt.input then receipt.output else poison .encoded
   encodeInstance := fun digest =>
     match case.trace with
     | .base _ => poison .encoded
     | .recursive _ _ receipt _ _ =>
-        if digest = receipt.input then receipt.output else poison .encoded
+        match receipt with
+        | none => poison .encoded
+        | some receipt =>
+            if digest = receipt.input then receipt.output else poison .encoded
   hash := fun input => stepHashOutput case.trace (normalizeHashInput input)
 
 def stepInput (case : StepCase) :
@@ -254,26 +275,48 @@ def stepSchemaAccepted (case : StepCase) : Bool :=
   live case.claim.x &&
   match case.trace with
   | .base nextHash =>
-      decide (case.iteration = 0 ∧ case.z0 = case.zi ∧
-        nextHash.input = stepBaseNextHashInput case) &&
-      live nextHash.output
+      decide (case.iteration = 0) &&
+      if case.z0 = case.zi then
+        match nextHash with
+        | none => false
+        | some receipt =>
+            decide (receipt.input = stepBaseNextHashInput case) &&
+            live receipt.output
+      else
+        decide (nextHash = none)
   | .recursive priorHash freshPublic encode nifs nextHash =>
-      decide (case.iteration ≠ 0 ∧
-        case.priorPc = 1 ∧
-        priorHash.input = stepPriorHashInput case ∧
-        freshPublic.input = case.fresh ∧
-        encode.input = priorHash.output ∧
-        freshPublic.output = encode.output ∧
-        nifs.key = case.verifierKey ∧
-        nifs.running = case.running ∧
-        nifs.fresh = case.fresh ∧
-        nifs.proof = case.nifsProof ∧
-        nextHash.input = stepRecursiveNextHashInput case nifs.output) &&
-      live priorHash.output &&
-      live nextHash.output &&
-      live freshPublic.output &&
-      live encode.output &&
-      live nifs.output
+      decide (case.iteration ≠ 0) &&
+      if case.priorPc = 1 then
+        match priorHash, freshPublic, encode with
+        | some priorHash, some freshPublic, some encode =>
+            decide (priorHash.input = stepPriorHashInput case ∧
+              freshPublic.input = case.fresh ∧
+              encode.input = priorHash.output) &&
+            live priorHash.output &&
+            live freshPublic.output &&
+            live encode.output &&
+            if freshPublic.output = encode.output then
+              match nifs with
+              | none => false
+              | some nifs =>
+                  decide (nifs.key = case.verifierKey ∧
+                    nifs.running = case.running ∧
+                    nifs.fresh = case.fresh ∧
+                    nifs.proof = case.nifsProof) &&
+                  match nifs.output, nextHash with
+                  | none, none => true
+                  | some folded, some receipt =>
+                      decide (receipt.input =
+                        stepRecursiveNextHashInput case folded) &&
+                      live folded &&
+                      live receipt.output
+                  | _, _ => false
+            else
+              decide (nifs = none ∧ nextHash = none)
+        | _, _, _ => false
+      else
+        decide (priorHash = none ∧ freshPublic = none ∧
+          encode = none ∧ nifs = none ∧ nextHash = none)
 
 def outputMatches
     (claim : StepClaim)

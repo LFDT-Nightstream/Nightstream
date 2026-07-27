@@ -10,7 +10,8 @@ claim:
   row-wise CCS polynomial evaluation, and coefficient-packed multilinear
   evaluation. Membership expands exactly relative to those definitions.
   This is not yet a production instantiation of SuperNeo Definitions 12-13:
-  the paper's aligned ring-module L_in boundary is a separate open property.
+  the paper's aligned ring-module L_in boundary is owned by the separate
+  REL-CONCRETE-PRODUCTION property.
 assumptions:
   - The production modulus is represented by Fin q; no local primality theorem
     is required by these addition/multiplication-only relation definitions.

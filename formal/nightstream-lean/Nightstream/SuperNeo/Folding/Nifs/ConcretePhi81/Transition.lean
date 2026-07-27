@@ -406,6 +406,96 @@ theorem piRlcParentOpening
   simpa [SemanticFold.combinedAssignment, SemanticFold.assignments,
     semanticWitness] using holds.toSemanticRealization.parentOpening
 
+/-- Actual certificate children carry exactly the verifier-computed public
+split of the derived parent whenever the existing semantic openings bind both
+sides. No deterministic child commitment or evaluation equality is used. -/
+theorem childPublicInput_eq_splitParent
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {certificate :
+      Certificate (arity := arity)
+        publicRingColumns publicFits verifierRows context.piCcsInput}
+    (holds : CertificateRefinement context data certificate)
+    (child : Fin productionGlobalParams.k) :
+    (outputChildren context certificate child).publicInput =
+      PiDECAlgebra.PublicInput.splitPublicInput
+        (derive context certificate).piRlcOutput.publicInput child := by
+  let parentAssignment :=
+    PiRLC.combinedWitness (rlcAlgebra context.key)
+      certificate.piRlcChallenges
+      (InputAuthority.productAssignments data context.alignment)
+  have parentOpening := holds.piRlcParentOpening
+  have childOpening := holds.children child
+  calc
+    (outputChildren context certificate child).publicInput =
+        Phi81Relation.projectPublicInput
+          ((decAlgebra context.key).splitAssignment parentAssignment child) :=
+      childOpening.1.2.1.symm
+    _ = PiDECAlgebra.PublicInput.splitPublicInput
+          (Phi81Relation.projectPublicInput parentAssignment) child :=
+      (PiDECAlgebra.PublicInput.splitPublicInput_project
+        parentAssignment child).symm
+    _ = PiDECAlgebra.PublicInput.splitPublicInput
+          (derive context certificate).piRlcOutput.publicInput child :=
+      congrArg
+        (fun publicInput =>
+          PiDECAlgebra.PublicInput.splitPublicInput publicInput child)
+        parentOpening.1.2.1
+
+/-- The derived parent evaluation array has exactly the relation-owned matrix
+arity. -/
+theorem parentEvaluations_size
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {certificate :
+      Certificate (arity := arity)
+        publicRingColumns publicFits verifierRows context.piCcsInput}
+    (holds : CertificateRefinement context data certificate) :
+    (derive context certificate).piRlcOutput.evaluations.size =
+      shape.matrixCount := by
+  let parentAssignment :=
+    PiRLC.combinedWitness (rlcAlgebra context.key)
+      certificate.piRlcChallenges
+      (InputAuthority.productAssignments data context.alignment)
+  have parentOpening := holds.piRlcParentOpening
+  calc
+    (derive context certificate).piRlcOutput.evaluations.size =
+        (Phi81Relation.evaluations
+          (derive context certificate).piRlcOutput.constraintSystem
+          parentAssignment
+          (derive context certificate).piRlcOutput.point).size :=
+      congrArg Array.size parentOpening.2.2.symm
+    _ = shape.matrixCount := Phi81Relation.evaluations_size _ _ _
+
+/-- Every actual certificate child evaluation array has exactly the
+relation-owned matrix arity. -/
+theorem childEvaluations_size
+    {context :
+      Context shape State publicRingColumns publicFits verifierRows arity}
+    {data : Data shape}
+    {certificate :
+      Certificate (arity := arity)
+        publicRingColumns publicFits verifierRows context.piCcsInput}
+    (holds : CertificateRefinement context data certificate)
+    (child : Fin productionGlobalParams.k) :
+    (outputChildren context certificate child).evaluations.size =
+      shape.matrixCount := by
+  let parentAssignment :=
+    PiRLC.combinedWitness (rlcAlgebra context.key)
+      certificate.piRlcChallenges
+      (InputAuthority.productAssignments data context.alignment)
+  have childOpening := holds.children child
+  calc
+    (outputChildren context certificate child).evaluations.size =
+        (Phi81Relation.evaluations
+          (outputChildren context certificate child).constraintSystem
+          ((decAlgebra context.key).splitAssignment parentAssignment child)
+          (outputChildren context certificate child).point).size :=
+      congrArg Array.size childOpening.2.2.symm
+    _ = shape.matrixCount := Phi81Relation.evaluations_size _ _ _
+
 end CertificateRefinement
 
 /-- Named FE/NC algebraic failure, interpreted only through an explicit

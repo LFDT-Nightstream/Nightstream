@@ -140,6 +140,10 @@ fn host_call_frefs(trace: &[WasmVmStep]) -> Vec<u32> {
 /// and `[]` for sink. The invoked export gets an empty boundary template
 /// (required in grammar mode; no boundary events for this test).
 fn grammar_trace() -> Vec<WasmVmStep> {
+    grammar_trace_from(Default::default())
+}
+
+fn grammar_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<WasmVmStep> {
     let run = run_component();
     // Resolve frefs from a raw normalization of the same run.
     let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
@@ -154,8 +158,13 @@ fn grammar_trace() -> Vec<WasmVmStep> {
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()])
-        .expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &grammar,
+        &[Default::default()],
+        initial_comm_chain,
+    )
+    .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -247,8 +256,13 @@ fn i64_result_lane_writes() {
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()])
-        .expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &grammar,
+        &[Default::default()],
+        Default::default(),
+    )
+    .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
@@ -358,7 +372,8 @@ fn advice_import_pushes_without_absorbing() {
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
     let turns = [neo_wasm::event_grammar::TurnClaims::default()];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns).expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
+        .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -455,10 +470,38 @@ fn grammar_trace_folds_expanded_blocks() {
 }
 
 #[test]
+fn grammar_trace_folds_from_explicit_initial_state() {
+    let f = p3_goldilocks::Goldilocks::from_u64;
+    let initial = neo_wasm::CommChainState::new([f(11), f(22), f(33), f(44)]);
+    let trace = grammar_trace_from(initial);
+    let staged: Vec<[p3_goldilocks::Goldilocks; 8]> = trace
+        .iter()
+        .filter(|row| {
+            row.row_kind.is_host_event_gather()
+                && row.state_after.event_absorb.perm_pending
+                && !row.state_before.event_absorb.perm_pending
+        })
+        .map(|row| row.state_after.event_absorb.evbuf.map(f))
+        .collect();
+
+    assert_eq!(trace[0].state_before.comm_chain, initial.canonical_u64());
+    assert_eq!(
+        trace.last().expect("rows").state_after.comm_chain,
+        neo_wasm::comm_chain::fold_event_blocks(initial, &staged).canonical_u64()
+    );
+}
+
+#[test]
 fn missing_template_is_rejected() {
     let run = run_component();
     let grammar = HostEventGrammar::default();
-    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()]).is_err());
+    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &grammar,
+        &[Default::default()],
+        Default::default()
+    )
+    .is_err());
 }
 
 /// A host call recording more claim words than its template consumes
@@ -477,7 +520,13 @@ fn surplus_claim_words_are_rejected() {
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
-    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()]).is_err());
+    assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &grammar,
+        &[Default::default()],
+        Default::default()
+    )
+    .is_err());
 }
 
 /// The raw absorb machinery must stay de-gated in grammar mode: grammar
@@ -583,8 +632,13 @@ fn memory_rows_reject_forged_rom_claim() {
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
-    let mut trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[Default::default()])
-        .expect("grammar trace");
+    let mut trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &grammar,
+        &[Default::default()],
+        Default::default(),
+    )
+    .expect("grammar trace");
 
     let idx = trace
         .iter()

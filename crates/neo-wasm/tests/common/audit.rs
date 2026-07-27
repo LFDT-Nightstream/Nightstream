@@ -90,11 +90,12 @@ pub fn verify_with_transcript(
     prep: &R1csFPrimePreprocessing,
     proof: &AuditProof,
     claimed_final_state: WasmStepState,
+    initial_comm_chain: neo_wasm::CommChainState,
     transcript: &[[p3_goldilocks::Goldilocks; neo_wasm::comm_chain::COMM_CHAIN_BLOCK_WORDS]],
 ) -> Result<(), AuditProveError> {
     verify(prep, proof, claimed_final_state)?;
-    let fold = neo_wasm::comm_chain::fold_event_blocks(transcript);
-    if claimed_final_state.comm_chain != fold.map(|limb| p3_field::PrimeField64::as_canonical_u64(&limb)) {
+    let fold = neo_wasm::comm_chain::fold_event_blocks(initial_comm_chain, transcript);
+    if claimed_final_state.comm_chain != fold.canonical_u64() {
         return Err(AuditProveError::TranscriptMismatch);
     }
     Ok(())

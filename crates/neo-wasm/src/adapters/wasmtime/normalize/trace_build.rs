@@ -15,7 +15,7 @@ use super::grammar_emit::{
     GrammarAuxCtx, GrammarBlockPlan, GrammarCallPlan,
 };
 use super::{normalize_step, NormalizedStep};
-use crate::comm_chain::{host_call_event_stream, COMM_CHAIN_BLOCK_WORDS};
+use crate::comm_chain::{host_call_event_stream, CommChainState, COMM_CHAIN_BLOCK_WORDS};
 use crate::event_grammar::{expand_import_events, HostEventGrammar};
 use crate::ir::{
     StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmOutputState,
@@ -243,7 +243,7 @@ fn setup_turn<'g>(
 }
 
 pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    traces_from_wasmtime_steps_impl(rows, None)
+    traces_from_wasmtime_steps_impl(rows, None, Default::default())
 }
 
 /// Normalize a trace using the configured event grammar. Every reached host
@@ -254,13 +254,15 @@ pub fn traces_from_wasmtime_steps_with_grammar(
     rows: &[WasmtimeTraceStep],
     grammar: &HostEventGrammar,
     turns: &[crate::event_grammar::TurnClaims],
+    initial_comm_chain: CommChainState,
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    traces_from_wasmtime_steps_impl(rows, Some((grammar, turns)))
+    traces_from_wasmtime_steps_impl(rows, Some((grammar, turns)), initial_comm_chain)
 }
 
 fn traces_from_wasmtime_steps_impl(
     rows: &[WasmtimeTraceStep],
     grammar: Option<(&HostEventGrammar, &[crate::event_grammar::TurnClaims])>,
+    initial_comm_chain: CommChainState,
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
     let grammar_mode = grammar.is_some();
     let mut supported = Vec::new();
@@ -286,9 +288,8 @@ fn traces_from_wasmtime_steps_impl(
     // Callee attribution carry: set on host-call rows, preserved everywhere
     // else (no clearing — see `WasmStepState::host_callee_fref`).
     let mut host_callee_fref: u32 = 0;
-    // Host-event commitment chain (genesis all-zero); each absorbed block's
-    // perm-row group folds it forward (see `WasmStepState::comm_chain`).
-    let mut comm_chain: [u64; 4] = [0; 4];
+    // Host-event commitment chain; each absorbed block folds it forward.
+    let mut comm_chain = initial_comm_chain.canonical_u64();
     // Host-event absorb machinery (block buffer, slot cursor, perm group
     // state); carried across rows, mutated only by host-call events.
     let mut event_absorb = WasmEventAbsorbState::ZERO;

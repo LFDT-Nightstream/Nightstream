@@ -103,7 +103,8 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
         entry: vec![500, 501, 7, 35],
         exit: vec![],
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns).expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
+        .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -161,19 +162,19 @@ fn export_boundary_folds_entry_and_exit_events() {
             .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))
             .collect()
     };
-    let canonical =
-        |chain: [p3_goldilocks::Goldilocks; 4]| chain.map(|limb| p3_field::PrimeField64::as_canonical_u64(&limb));
     let final_chain = trace.last().expect("rows").state_after.comm_chain;
     assert_eq!(
         final_chain,
-        canonical(neo_wasm::comm_chain::fold_event_blocks(&lift(&expected)))
+        neo_wasm::comm_chain::fold_event_blocks(Default::default(), &lift(&expected)).canonical_u64()
     );
     let wrong_inputs = neo_wasm::event_grammar::expand_export_entry(template, &[500, 501, 7, 36]).expect("wrong entry");
     assert_ne!(
         final_chain,
-        canonical(neo_wasm::comm_chain::fold_event_blocks(&lift(
-            &[wrong_inputs, expected[2..].to_vec()].concat()
-        ))),
+        neo_wasm::comm_chain::fold_event_blocks(
+            Default::default(),
+            &lift(&[wrong_inputs, expected[2..].to_vec()].concat())
+        )
+        .canonical_u64(),
         "a different input claim must fold to a different chain"
     );
     assert!(trace[0].state_before.grammar_mode);
@@ -293,7 +294,8 @@ fn i64_param_bootstraps_both_lanes() {
         entry: vec![7, 3],
         exit: vec![],
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns).expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
+        .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 

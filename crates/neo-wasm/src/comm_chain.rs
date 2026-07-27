@@ -30,20 +30,45 @@ pub const COMM_CHAIN_STATE_LEN: usize = 4;
 /// Fixed argument slots absorbed per event, after the discriminant.
 pub const COMM_CHAIN_EVENT_ARGS: usize = 7;
 
+/// Initial state of the host-event commitment chain.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct CommChainState([Goldilocks; COMM_CHAIN_STATE_LEN]);
+
+impl CommChainState {
+    pub const fn new(lanes: [Goldilocks; COMM_CHAIN_STATE_LEN]) -> Self {
+        Self(lanes)
+    }
+
+    pub const fn into_lanes(self) -> [Goldilocks; COMM_CHAIN_STATE_LEN] {
+        self.0
+    }
+
+    pub fn canonical_u64(self) -> [u64; COMM_CHAIN_STATE_LEN] {
+        self.0.map(|lane| lane.as_canonical_u64())
+    }
+
+    pub fn from_canonical_u64(lanes: [u64; COMM_CHAIN_STATE_LEN]) -> Result<Self, WasmBuildError> {
+        if let Some(idx) = lanes.iter().position(|&lane| lane >= Goldilocks::ORDER_U64) {
+            return Err(WasmBuildError::Trace(format!(
+                "comm-chain lane {idx} is not a canonical field element"
+            )));
+        }
+        Ok(Self(lanes.map(Goldilocks::from_u64)))
+    }
+}
+
 static PERM12: Lazy<Poseidon2Goldilocks<12>> = Lazy::new(default_goldilocks_poseidon2_12);
 
-/// Fold a claimed event transcript (absorb blocks in emission order) from a
-/// zero chain. The verifier-side half of transcript binding: a proof's
-/// final carried `comm_chain` (authenticated by [`crate::verify`] through
-/// the final semantic digest) equals this fold iff the execution absorbed
-/// exactly these blocks — entry inputs, import events, and exit events
-/// alike, at any arity.
-pub fn fold_event_blocks(blocks: &[[Goldilocks; COMM_CHAIN_BLOCK_WORDS]]) -> [Goldilocks; 4] {
-    let mut chain = [Goldilocks::ZERO; 4];
+/// Fold event blocks from the supplied initial commitment state.
+pub fn fold_event_blocks(
+    initial_state: CommChainState,
+    blocks: &[[Goldilocks; COMM_CHAIN_BLOCK_WORDS]],
+) -> CommChainState {
+    let mut chain = initial_state.0;
     for block in blocks {
         chain = commit_event(chain, block[0], core::array::from_fn(|i| block[1 + i]));
     }
-    chain
+    CommChainState(chain)
 }
 
 /// Absorb one host event into the chain: `H([prev | discriminant | args])`.

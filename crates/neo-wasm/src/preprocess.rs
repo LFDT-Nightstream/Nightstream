@@ -14,6 +14,7 @@
 
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
+use crate::comm_chain::CommChainState;
 use crate::ir::{WasmCountdownState, WasmEventAbsorbState, WasmGrammarState, WasmOutputState, WasmStepState};
 use crate::layout::Column;
 use crate::layout::{
@@ -208,23 +209,19 @@ pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
 
-/// [`top_level_initial_state`] for a grammar-mode program: sets the carried
-/// `grammar_mode` constant and, when the invoked export has a boundary
-/// template, latches the entry schedule the trace's entry gather rows will
-/// consume — the owed entry-event count and the event attribution pointed
-/// at the export. Per-program only: event VALUES (claim inputs, oracles)
-/// are not anchored here — they are bound by comparing the final carried
-/// `comm_chain` against the natively folded claimed transcript (see
-/// [`crate::comm_chain::fold_event_blocks`]), which is also what makes multi-turn re-entry
-/// possible without re-anchoring.
+/// Grammar-mode initial state: enables the grammar, seeds the commitment
+/// chain, and loads the invoked export's entry schedule. Event values remain
+/// bound by the final commitment rather than this per-program anchor.
 pub fn grammar_top_level_initial_state(
     tables: &WasmProgramTables,
     entry_pc: u64,
     grammar: &crate::event_grammar::HostEventGrammar,
     export_fref: u32,
+    initial_comm_chain: CommChainState,
 ) -> WasmStepState {
     let mut state = top_level_initial_state(tables, entry_pc);
     state.grammar_mode = true;
+    state.comm_chain = initial_comm_chain.canonical_u64();
     if let Some(template) = grammar.exports.get(&export_fref) {
         state.host_callee_fref = export_fref;
         state.grammar.events_remaining = template.entry.len() as u32;
@@ -243,8 +240,15 @@ pub fn grammar_top_level_initial_state_digest(
     entry_pc: u64,
     grammar: &crate::event_grammar::HostEventGrammar,
     export_fref: u32,
+    initial_comm_chain: CommChainState,
 ) -> [u8; 32] {
-    semantic_state_digest(grammar_top_level_initial_state(tables, entry_pc, grammar, export_fref))
+    semantic_state_digest(grammar_top_level_initial_state(
+        tables,
+        entry_pc,
+        grammar,
+        export_fref,
+        initial_comm_chain,
+    ))
 }
 
 fn carried_state_field(state: WasmStepState, column: Column) -> F {

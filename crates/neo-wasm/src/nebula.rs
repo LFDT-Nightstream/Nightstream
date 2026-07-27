@@ -21,6 +21,7 @@ use thiserror::Error;
 
 use crate::adapters::wasmtime::WasmProgramArtifacts;
 use crate::batch::padding_step_after;
+use crate::comm_chain::CommChainState;
 use crate::event_grammar::HostEventGrammar;
 use crate::ir::{WasmAuxOpcode, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::layout::COL_PADDING_ACTIVE;
@@ -292,9 +293,7 @@ pub fn preprocess_seeded_reduced_memory_test_only(
     )
 }
 
-/// Grammar-mode preprocessing: anchors the grammar initial state (mode,
-/// entry pc, entry schedule) and preloads the grammar ROM families, so a
-/// trace with grammar-bound host calls proves through the Nebula path.
+/// Grammar preprocessing with an explicit initial commitment state.
 #[doc(hidden)]
 #[allow(clippy::too_many_arguments)]
 pub fn preprocess_seeded_grammar_test_only(
@@ -306,6 +305,7 @@ pub fn preprocess_seeded_grammar_test_only(
     grammar: &HostEventGrammar,
     export_fref: u32,
     seed: u64,
+    initial_comm_chain: CommChainState,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_grammar_program(artifacts, profile.limits)?;
     preprocess_inner(
@@ -314,7 +314,7 @@ pub fn preprocess_seeded_grammar_test_only(
         artifacts,
         initial_locals,
         entry_pc,
-        Some((grammar, export_fref)),
+        Some((grammar, export_fref, initial_comm_chain)),
         Some(seed),
         PreprocessMode::Normal,
     )
@@ -356,21 +356,25 @@ fn preprocess_inner(
     artifacts: &WasmProgramArtifacts,
     initial_locals: &[u32],
     entry_pc: u64,
-    grammar: Option<(&HostEventGrammar, u32)>,
+    grammar: Option<(&HostEventGrammar, u32, CommChainState)>,
     seed: Option<u64>,
     mode: PreprocessMode,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     let initial_state = match grammar {
-        Some((grammar, export_fref)) => {
-            grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, grammar, export_fref)
-        }
+        Some((grammar, export_fref, initial_comm_chain)) => grammar_top_level_initial_state_digest(
+            &artifacts.tables,
+            entry_pc,
+            grammar,
+            export_fref,
+            initial_comm_chain,
+        ),
         None => top_level_initial_state_digest(&artifacts.tables, entry_pc),
     };
     let canonical = canonical_wasm_nebula_shape_batched_with_initial_state_digest(profile.batch_size, initial_state)?;
     let backend = build_memory_backend(
         artifacts,
         initial_locals,
-        grammar.map(|(grammar, _)| grammar),
+        grammar.map(|(grammar, _, _)| grammar),
         &profile,
         canonical.single_step_columns,
     )?;

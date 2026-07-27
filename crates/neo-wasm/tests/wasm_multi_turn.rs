@@ -101,8 +101,12 @@ fn multi_turn_setup() -> MultiTurnSetup {
     let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps);
     assert!(raw.is_err(), "a multi-turn trace must not normalize in raw mode");
 
-    let component_first =
-        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &HostEventGrammar::default(), &turn_claims());
+    let component_first = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &HostEventGrammar::default(),
+        &turn_claims(),
+        Default::default(),
+    );
     assert!(component_first.is_err(), "missing export template must be rejected");
 
     // Resolve the export fref from a single-call raw run.
@@ -122,8 +126,9 @@ fn multi_turn_setup() -> MultiTurnSetup {
     let mut grammar = HostEventGrammar::default();
     grammar.exports.insert(add_fref, add_template());
 
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turn_claims())
-        .expect("multi-turn grammar trace");
+    let trace =
+        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turn_claims(), Default::default())
+            .expect("multi-turn grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -208,7 +213,13 @@ fn multi_turn_proof_binds_both_turns_inputs() {
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
     let entry_pc = common::entry_pc_for_function_ref(&artifacts, u64::from(setup.add_fref));
-    let digest = grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &setup.grammar, setup.add_fref);
+    let digest = grammar_top_level_initial_state_digest(
+        &artifacts.tables,
+        entry_pc,
+        &setup.grammar,
+        setup.add_fref,
+        Default::default(),
+    );
     assert_eq!(
         digest,
         neo_wasm::semantic_state_digest(setup.trace[0].state_before),
@@ -222,14 +233,15 @@ fn multi_turn_proof_binds_both_turns_inputs() {
     assert_eq!((final_state.output.value_lo, final_state.output.value_hi), (42, 0));
 
     let transcript = expected_transcript(&setup.grammar, setup.add_fref, &turn_claims(), &[7, 42]);
-    verify_with_transcript(&prep, &proof, final_state, &transcript).expect("verify with the two-turn transcript");
+    verify_with_transcript(&prep, &proof, final_state, Default::default(), &transcript)
+        .expect("verify with the two-turn transcript");
 
     let mut wrong_turns = turn_claims();
     wrong_turns[1].entry[1] = 34;
     let wrong = expected_transcript(&setup.grammar, setup.add_fref, &wrong_turns, &[7, 42]);
     assert!(
         matches!(
-            verify_with_transcript(&prep, &proof, final_state, &wrong),
+            verify_with_transcript(&prep, &proof, final_state, Default::default(), &wrong),
             Err(AuditProveError::TranscriptMismatch)
         ),
         "a transcript claiming a different turn-2 input must be rejected"
@@ -458,7 +470,7 @@ fn resultless_turn_can_precede_another_turn() {
         },
         TurnClaims::default(),
     ];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns)
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
         .expect("resultless-then-value trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
@@ -486,7 +498,7 @@ fn resultless_turn_can_precede_another_turn() {
     assert_eq!((final_state.output.value_lo, final_state.output.enabled), (41, true));
     assert_eq!(
         final_state.comm_chain,
-        neo_wasm::comm_chain::fold_event_blocks(&lifted).map(|limb| p3_field::PrimeField64::as_canonical_u64(&limb))
+        neo_wasm::comm_chain::fold_event_blocks(Default::default(), &lifted).canonical_u64()
     );
 
     // Exit events require a captured output.
@@ -496,7 +508,8 @@ fn resultless_turn_can_precede_another_turn() {
         slots(&[(0, SlotSource::OutputElem { limb: Limb::Lo })]),
     )];
     assert!(
-        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &bad_grammar, &turns).is_err(),
+        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &bad_grammar, &turns, Default::default())
+            .is_err(),
         "exit events on a resultless turn must be rejected"
     );
 }

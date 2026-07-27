@@ -1172,3 +1172,34 @@ so a deployment must still supply one concrete certified profile and the two
 physical programs before Lean can kernel-evaluate a unique deployment number.
 Rust-emitted-program equality, generated-row equality, current-production
 selection, named-event bounds, and cryptographic security remain separate.
+
+---
+
+## KMUL-PRODUCT-COUNT
+
+```text
+claim:
+  One K multiplication costs four emitted rows under schoolbook expansion.
+status: OPEN 2026-07-26 (cycle 238). Four is proved; three is available and
+        deliberately not taken yet.
+```
+
+`KMul.rows_length` derives four from the emitted list: the schoolbook products
+`l0r0`, `l1r1`, `l0r1`, `l1r0`. Both output coordinates are linear in those and
+emit nothing, so the whole nonlinear cost of a `K` multiplication is four rows
+and four auxiliary columns.
+
+Karatsuba computes the same product with **three**: `l0r0`, `l1r1`, and
+`(l0+l1)(r0+r1)`, recovering `l0r1 + l1r0` by subtraction. That is a 25% row
+saving on every projection multiplication, and the projection check is expected
+to dominate the NIFS row program.
+
+It is not taken here because the three-product form changes which intermediate
+values exist, so it must be selected once for the whole projection encoding
+rather than per gadget — the same discipline that made the Poseidon2 S-box chain
+a single global choice (`x²/x⁴/x⁶/x⁷` at three operand positions rather than
+`x²/x³/x⁶/x⁷` at four). Selecting it after identities are written would
+invalidate their frame layouts.
+
+Deciding this is a prerequisite for any NIFS row count, not a later
+optimization.

@@ -227,6 +227,7 @@ import tests.Axioms.CanonicalPoseidon2Sponge23
 import tests.Axioms.CanonicalPoseidon2Sponge23Honest
 import tests.Axioms.CanonicalPoseidon2Sponge23Ownership
 import tests.Axioms.CanonicalPoseidon2Sponge23Recipe
+import tests.Axioms.CanonicalKMul
 import tests.Axioms.CanonicalNifsRecipeShape
 import tests.Axioms.CanonicalPoseidon2Constants
 import tests.Axioms.CanonicalPoseidon2RustConformance

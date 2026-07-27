@@ -50,7 +50,7 @@ pub(crate) const NAMED_COLUMNS: WitnessRegion = WitnessRegion::new(0, NAMED_COLU
 // depending on the `POSEIDON_AUX` value that itself contains Poseidon's width.
 pub(crate) const POSEIDON_AUX_START: usize = NAMED_COLUMNS.end();
 pub(crate) const POSEIDON_AUX: WitnessRegion =
-    WitnessRegion::new(POSEIDON_AUX_START, crate::ccs::poseidon::PERM_GADGET_AUX_WIDTH);
+    WitnessRegion::new(POSEIDON_AUX_START, crate::ccs::host_event_chain::AUX_WIDTH);
 pub(crate) const RANGE_BITS: WitnessRegion = WitnessRegion::new(POSEIDON_AUX.end(), RANGE_BIT_COUNT);
 
 /// Width of the WASM witness after named columns, Poseidon advice, and
@@ -87,7 +87,7 @@ pub(crate) fn range_checked_variable_widths() -> Vec<usize> {
         .collect();
 
     debug_assert_eq!(widths.len(), NAMED_COLUMNS.end());
-    widths.extend(crate::ccs::poseidon::perm_gadget_col_widths());
+    widths.extend(crate::ccs::host_event_chain::auxiliary_column_widths());
     debug_assert_eq!(widths.len(), POSEIDON_AUX.end());
     widths.resize(RANGE_BITS.end(), 1);
     debug_assert_eq!(widths.len(), RANGE_CHECKED_WITNESS_WIDTH);

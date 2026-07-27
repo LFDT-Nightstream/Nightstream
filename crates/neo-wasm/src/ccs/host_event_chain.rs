@@ -81,12 +81,12 @@ const GHC_PARAMS: usize = GK2_HI + 1; // grammar host-call arg pops: GHC · call
 const G_ADVICE: usize = GHC_PARAMS + 1; // advice-event slot flag (ROM kind cell = kind + 8)
 
 /// Width of the gadget-internal column block.
-pub const PERM_GADGET_AUX_WIDTH: usize = G_ADVICE + 1 - POS0;
+pub const AUX_WIDTH: usize = G_ADVICE + 1 - POS0;
 
 /// Declared bit-widths of the gadget-internal columns, in block order (for
 /// the F' norm decomposition): booleans for the one-hot/masks/products,
 /// full field elements for the S-box powers and gather values.
-pub(crate) fn perm_gadget_col_widths() -> impl Iterator<Item = usize> {
+pub(crate) fn auxiliary_column_widths() -> impl Iterator<Item = usize> {
     core::iter::repeat_n(1, COMM_CHAIN_PERM_ROWS)
         .chain(core::iter::repeat_n(64, 48 + 8))
         .chain(core::iter::repeat_n(1, 4 + 4 + 3))
@@ -164,7 +164,7 @@ fn event_write_gate_terms() -> [(usize, F); 3] {
     ]
 }
 
-pub(super) fn push_host_event_perm_constraints(b: &mut R1csBuilder) {
+pub(super) fn push_constraints(b: &mut R1csBuilder) {
     push_grammar_mode_constraints(b);
     push_grammar_gather_constraints(b);
     push_position_onehot_constraints(b);
@@ -1063,7 +1063,7 @@ fn push_perm_row_shape_constraints(b: &mut R1csBuilder) {
 /// columns are filled on *every* row with the powers of their linear input
 /// expression — on non-perm rows the round-constant selectors are zero, so
 /// the inputs degenerate to the carried permutation lanes.
-pub(crate) fn fill_perm_gadget_witness(wit: &mut [F], trace: &WasmVmStep) {
+pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
     let before = trace.state_before.event_absorb;
     let sb: [F; 12] = before.perm_state.map(F::from_u64);

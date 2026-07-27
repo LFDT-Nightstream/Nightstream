@@ -96,6 +96,14 @@ theorem layoutBundles_ids_cast
   cases equal
   rfl
 
+theorem layoutBundles_columns_cast
+    {source target : List Layout}
+    (equal : source = target)
+    (bundles : LayoutBundles source) :
+    (equal ▸ bundles).columns = bundles.columns := by
+  cases equal
+  rfl
+
 @[simp] theorem unaryOperand_ids
     {types : TypeSystem.{u}}
     {context : Schema types}

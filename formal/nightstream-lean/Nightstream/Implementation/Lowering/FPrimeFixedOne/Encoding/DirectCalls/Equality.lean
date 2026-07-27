@@ -990,10 +990,10 @@ theorem row_ids_nodup (recipe : EqualityRecipe) :
     ((recipe.rows.map fun row => row.id)).Nodup :=
   ownRows_ids_nodup recipe.owner recipe.rawRows
 
-theorem rows_supported
+theorem rawRows_supported
     (recipe : EqualityRecipe)
-    (row : OwnedRow)
-    (member : row ∈ recipe.rows)
+    (row : Row)
+    (member : row ∈ recipe.rawRows)
     (column : ColumnId)
     (columnMember : column ∈ row.columnIds) :
     column = recipe.one ∨
@@ -1004,24 +1004,20 @@ theorem rows_supported
       column ∈ recipe.inverses.map (fun item => item.id) ∨
       column ∈ recipe.equals.map (fun item => item.id) ∨
       column ∈ recipe.products.map (fun item => item.id) := by
-  have rawMember :
-      row.row ∈ recipe.rawRows :=
-    ownRows_row_mem recipe.owner recipe.rawRows row member
-  unfold OwnedRow.columnIds at columnMember
   have reassociated :
-      row.row ∈
+      row ∈
         coordinateRows recipe.one recipe.left recipe.right
             recipe.inverses recipe.equals ++
           (productRows recipe.equals recipe.products ++
             [finalRow recipe.active
               (productResult recipe.one recipe.equals recipe.products)
               recipe.output.id]) := by
-    simpa only [rawRows, List.append_assoc] using rawMember
+    simpa only [rawRows, List.append_assoc] using member
   rw [List.mem_append] at reassociated
   rcases reassociated with coordinateMember | tailMember
   · have supported :=
       coordinateRows_supported recipe.one recipe.left recipe.right
-        recipe.inverses recipe.equals row.row coordinateMember
+        recipe.inverses recipe.equals row coordinateMember
         column columnMember
     rcases supported with
         oneMember | leftMember | rightMember |
@@ -1036,7 +1032,7 @@ theorem rows_supported
   · rw [List.mem_append] at tailMember
     rcases tailMember with productMember | finalMember
     · have supported :=
-        productRows_supported recipe.equals recipe.products row.row
+        productRows_supported recipe.equals recipe.products row
           productMember column columnMember
       rcases supported with equalMember | productMember
       · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <|
@@ -1062,6 +1058,25 @@ theorem rows_supported
               simpa [resultMember] using productMember
       · exact Or.inr <| Or.inr <| Or.inr <| Or.inr <|
           Or.inl outputMember
+
+theorem rows_supported
+    (recipe : EqualityRecipe)
+    (row : OwnedRow)
+    (member : row ∈ recipe.rows)
+    (column : ColumnId)
+    (columnMember : column ∈ row.columnIds) :
+    column = recipe.one ∨
+      column = recipe.active ∨
+      column ∈ recipe.left.map (fun item => item.id) ∨
+      column ∈ recipe.right.map (fun item => item.id) ∨
+      column = recipe.output.id ∨
+      column ∈ recipe.inverses.map (fun item => item.id) ∨
+      column ∈ recipe.equals.map (fun item => item.id) ∨
+      column ∈ recipe.products.map (fun item => item.id) := by
+  apply recipe.rawRows_supported row.row
+    (ownRows_row_mem recipe.owner recipe.rawRows row member)
+    column
+  exact columnMember
 
 theorem active_sound
     (laws : FieldLaws)

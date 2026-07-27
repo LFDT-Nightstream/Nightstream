@@ -22,7 +22,7 @@ fn expected_aux_bits() -> usize {
 fn range_checked_width_bookkeeping() {
     assert_eq!(
         RANGE_CHECKED_WITNESS_WIDTH,
-        NAMED_COLUMN_COUNT + neo_wasm::ccs::poseidon::PERM_GADGET_AUX_WIDTH + expected_aux_bits()
+        NAMED_COLUMN_COUNT + neo_wasm::ccs::host_event_chain::AUX_WIDTH + expected_aux_bits()
     );
 
     let vm = WasmVmSpec::default();
@@ -32,7 +32,7 @@ fn range_checked_width_bookkeeping() {
 
 #[test]
 fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
-    let mut next = NAMED_COLUMN_COUNT + neo_wasm::ccs::poseidon::PERM_GADGET_AUX_WIDTH;
+    let mut next = NAMED_COLUMN_COUNT + neo_wasm::ccs::host_event_chain::AUX_WIDTH;
 
     for spec in COLUMN_SPECS {
         let bit_count = match spec.width {

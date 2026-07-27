@@ -8,7 +8,6 @@ mod common;
 use common::grammar_fixture::{expected_transcript, grammar_lifecycle_setup, ENTRY_CLAIMS};
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::paper::params::Params;
-use p3_field::PrimeField64;
 
 fn nebula_test_params() -> Params {
     let raw = neo_params::NeoParams::new(

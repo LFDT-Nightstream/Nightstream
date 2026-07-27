@@ -1,0 +1,18 @@
+import Nightstream.Assurance.FPrimeProductionOwnerProgramBoundary
+
+/-!
+Focused regression surface for the current production owner-program stop
+boundary.
+-/
+
+open Nightstream.Assurance.FPrimeProductionOwnerProgramBoundary
+
+#check AlignmentOpacity.not_attemptedOwnerAlignmentBridge
+#check CurrentArtifact.currentTerminalLink_starts_after_historicalProgram
+#check CurrentArtifact.currentTerminalLink_not_in_historicalProgram
+#check CurrentProfile.diagnosticMatrixCount_eq_three
+#check CurrentProfile.activeProductionMatrixCount_eq_thirteen
+#check CurrentProfile.diagnosticMatrixCount_ne_activeProduction
+#check TerminalSelectionOpacity.acceptingSelection_accepts
+#check TerminalSelectionOpacity.rejectingSelection_rejects
+#check TerminalSelectionOpacity.terminalFacts_do_not_select_relationChecks

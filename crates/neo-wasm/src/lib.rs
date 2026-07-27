@@ -36,6 +36,7 @@ pub use adapters::wasmtime::{
     WasmtimeTraceHandler, WasmtimeTraceMemoryAccess, WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
 };
 pub use ccs::WasmVmSpec;
+pub use comm_chain::CommChainState;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
     WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmGrammarRomEntry, WasmGrammarState, WasmOutputState,

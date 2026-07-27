@@ -83,7 +83,7 @@ compiler and its typed paper bridge. -/
 /-! ## Exact-row semantic refinement probes
 
 These two audits intentionally remain unguarded until their actual compiler
-output is inspected by the focused axiom run. Do not infer their dependency
+output is inspected by the focused dependency run. Do not infer their dependency
 sets from the neighboring artifact-census theorems. -/
 
 #audit_axioms Nightstream.Implementation.R1CS.PiDecStrictProductionCompiler.ArtifactSemantics.rows_sound

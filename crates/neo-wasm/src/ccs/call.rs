@@ -558,7 +558,7 @@ fn push_host_call_exit_mode_constraints(b: &mut R1csBuilder) {
         [(COL_ONE, F::ONE), (COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, -F::ONE)],
         [
             (COL_PERM_ROUND_BEFORE_IS_ZERO, F::ONE),
-            (super::poseidon::perm_last_pos_col(), F::ONE),
+            (super::host_event_chain::perm_last_pos_col(), F::ONE),
             (COL_PERM_PENDING_AFTER, -F::ONE),
             (COL_PERM_PENDING_BEFORE, -F::ONE),
         ],

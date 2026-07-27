@@ -9,6 +9,7 @@ import Nightstream.Assurance.FPrimeFullHistoryCircuit
 import Nightstream.Assurance.FPrimeFullHistoryCanonicalSteps
 import Nightstream.Assurance.FPrimeFullHistoryProductionDigest
 import Nightstream.Assurance.FPrimeFullHistoryCircuitComplete
+import Nightstream.Assurance.FPrimeFullHistoryObligationTree
 import Nightstream.Assurance.FPrimeCircuitTrace
 import Nightstream.Assurance.FPrimeFullHistory.RecursiveShell
 import Nightstream.Assurance.FPrimeFullHistory.TerminalShell

@@ -1,7 +1,7 @@
-# CIR-SOUND / CIR-COMPLETE
+# CIR-SOUND / CIR-COMPLETE / CIR-OBLIGATION-TREE
 
 ```text
-property_ids: CIR-SOUND, CIR-COMPLETE
+property_ids: CIR-SOUND, CIR-COMPLETE, CIR-OBLIGATION-TREE
 claim:
   The exact supported artifact is the 4,193,134-row plain/stateless [1,1]
   full-history profile with one recursive invocation, a terminal fold, direct
@@ -118,8 +118,23 @@ conformance_status:
   `fPrimeCircuit_complete` reassembles an independent `CompilerWitness` into
   satisfaction of every exact `fullRows` row. No stateful, Nebula,
   general-schedule, or parameterized-profile correspondence is claimed.
+  CIR-OBLIGATION-TREE is artifact-checked for the same profile. The generated
+  hierarchy expands to 61 deepest leaves: 59 materialized ranges that cover
+  exactly all 4,193,134 rows, plus two zero-cost organizational nodes. Every
+  parent count is the exact sum of its children, every physical row has one
+  exact leaf owner, every leaf has typed mathematical/Rust/Lean routes, and
+  formula-only estimates cannot own a row. The checked tree retains the
+  existing 257-versus-270 terminal-link drift and therefore is not current
+  production-row refinement. The current Rust manifest-regeneration test also
+  fails closed at `FPrimeFullHistoryProjectionRoles.lean`; the captured tree
+  remains valid evidence for its exact snapshot, not a conformance claim for
+  today's generator.
 retest_commands:
   - cd formal/nightstream-lean && lake build && lake exe check
+  - cd formal/nightstream-lean &&
+    LEAN_TIMEOUT_SECONDS=900
+    LEAN_BUILD_TARGET=tests.Axioms.FPrimeFullHistoryObligationTree
+    ./scripts/validate.sh build
   - cargo test -p neo-fold-clean --release --test f_prime_r1cs
   - cargo test -p neo-fold-clean --release --test system_lifecycle_f_prime_link
   - cargo test -p neo-fold-clean --release --test system_decider_r1cs

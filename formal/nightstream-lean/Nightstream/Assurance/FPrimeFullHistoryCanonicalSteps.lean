@@ -23,8 +23,9 @@ Does not own:
 - probability bounds for the named root event;
 - Poseidon2, commitment, or extraction security.
 
-The theorem consumes the exact current artifact rows.  It does not reclassify
-that artifact as the canonical obligation-10 encoding.
+The theorem consumes the exact captured historical artifact rows. It does not
+reclassify that artifact as the current shipping profile or as the canonical
+obligation-10 encoding.
 
 Emits constraints: no.
 -/

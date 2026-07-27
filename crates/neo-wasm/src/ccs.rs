@@ -8,9 +8,9 @@
 //! `use super::*`.
 
 mod call;
+pub mod host_event_chain;
 mod linear_memory;
 mod memory_pages;
-pub mod poseidon;
 mod stack_io;
 mod trap;
 
@@ -270,7 +270,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
             [],
         );
     });
-    poseidon::push_host_event_perm_constraints(&mut b);
+    host_event_chain::push_constraints(&mut b);
 
     b.with_tag(always("opcode selector one hot"), |b| {
         b.push_linear_zero(
@@ -303,10 +303,10 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         (COL_SP_BEFORE, -F::ONE),
         (COL_STACK_READS, F::ONE),
         (COL_STACK_WRITES, -F::ONE),
-        (poseidon::gather_arg_read_kind_col(), -F::ONE),
+        (host_event_chain::gather_arg_read_kind_col(), -F::ONE),
         (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
         // Grammar host calls pop their args on the call row itself.
-        (poseidon::grammar_host_call_params_col(), F::ONE),
+        (host_event_chain::grammar_host_call_params_col(), F::ONE),
     ]);
     b.with_tag(always("fixed stack arity"), |b| {
         b.push_row(fixed_stack_arity_gate_terms(), fixed_stack_reads_terms(), []);

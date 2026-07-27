@@ -808,7 +808,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     }
 
     fill_event_absorb(&mut wit, trace);
-    crate::ccs::poseidon::fill_perm_gadget_witness(&mut wit, trace);
+    crate::ccs::host_event_chain::fill_witness(&mut wit, trace);
 
     match trace.opcode {
         super::isa::WasmOpcode::I32Add => {
@@ -943,7 +943,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
 /// S-box power columns (whose unconditional mult rows are witness-filled
 /// with the powers of their linear input expression on every row).
 /// Fill the named host-event absorb interface columns (carried state); the
-/// gadget-internal block is filled by `ccs::poseidon::fill_perm_gadget_witness`.
+/// gadget-internal block is filled by `ccs::host_event_chain::fill_witness`.
 fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     use crate::layout::{
         COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_GATHER_ACTIVE,

@@ -397,6 +397,7 @@ fn wasm_nebula_grammar_preprocess_keeps_imported_state_and_memory_checks() {
             &grammar,
             0,
             seed,
+            Default::default(),
         )
     };
     for (label, wat) in [

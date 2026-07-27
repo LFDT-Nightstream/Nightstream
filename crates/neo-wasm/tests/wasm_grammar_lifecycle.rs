@@ -10,6 +10,7 @@ mod common;
 use common::audit::{prove_batched, verify, verify_with_transcript, AuditProveError};
 use common::grammar_fixture::{expected_transcript, grammar_lifecycle_setup, GrammarLifecycleSetup, ENTRY_CLAIMS};
 use neo_wasm::{grammar_top_level_initial_state_digest, preprocess_seeded_batched};
+use p3_field::PrimeCharacteristicRing;
 
 /// Every batch (including the padded tail) of the grammar trace satisfies
 /// the batched R1CS; on failure the diagnostics name the step and tag.
@@ -65,7 +66,8 @@ fn grammar_folding_proof_covers_import_and_export_events() {
     // The anchor is per-program (mode, entry pc, entry schedule) — claim
     // inputs are NOT anchored; they are bound by the final-chain transcript
     // check below.
-    let digest = grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref);
+    let digest =
+        grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref, Default::default());
     // The verifier's constructed initial state must be exactly the trace's
     // opening boundary.
     assert_eq!(
@@ -73,6 +75,15 @@ fn grammar_folding_proof_covers_import_and_export_events() {
         neo_wasm::semantic_state_digest(trace[0].state_before),
         "verifier initial state must match the trace's first before-state"
     );
+    let f = p3_goldilocks::Goldilocks::from_u64;
+    let initial_comm_chain = neo_wasm::CommChainState::new([f(11), f(22), f(33), f(44)]);
+    let initial_state =
+        neo_wasm::grammar_top_level_initial_state(&artifacts.tables, entry_pc, &grammar, run_fref, initial_comm_chain);
+    let initial_digest =
+        grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref, initial_comm_chain);
+    assert_eq!(initial_state.comm_chain, initial_comm_chain.canonical_u64());
+    assert_eq!(initial_digest, neo_wasm::semantic_state_digest(initial_state));
+    assert_ne!(initial_digest, digest);
 
     // batch_size 8 forces perm groups, gather runs, and the entry/exit
     // boundaries across batch edges, so the semantic digest must carry the
@@ -111,6 +122,7 @@ fn grammar_folding_proof_covers_import_and_export_events() {
         &prep,
         &proof,
         final_state,
+        Default::default(),
         &expected_transcript(&grammar, run_fref, &ENTRY_CLAIMS),
     )
     .expect("verify with the claimed transcript");
@@ -120,6 +132,7 @@ fn grammar_folding_proof_covers_import_and_export_events() {
                 &prep,
                 &proof,
                 final_state,
+                Default::default(),
                 &expected_transcript(&grammar, run_fref, &[500, 999])
             ),
             Err(AuditProveError::TranscriptMismatch)
@@ -135,7 +148,8 @@ fn grammar_folding_proof_covers_import_and_export_events() {
     // wasm_batch.rs semantic_state_rejects_wrong_initial_state_digest);
     // match on its message so an unrelated panic can't masquerade as a
     // successful rejection.
-    let mut mode_flipped = neo_wasm::grammar_top_level_initial_state(&artifacts.tables, entry_pc, &grammar, run_fref);
+    let mut mode_flipped =
+        neo_wasm::grammar_top_level_initial_state(&artifacts.tables, entry_pc, &grammar, run_fref, Default::default());
     mode_flipped.grammar_mode = false;
     let flipped_digest = neo_wasm::semantic_state_digest(mode_flipped);
     assert_ne!(flipped_digest, digest, "grammar_mode must contribute to the digest");

@@ -8,8 +8,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use neo_ccs::Mat;
+use neo_fold_clean::paper::construction2::PendingProjectionState;
 use neo_fold_clean::paper::digest::{self, AccumulatorHandle};
-use neo_fold_clean::paper::nifs::{Error, NifsProverOutput, NifsProverRequest, NifsRunningCarrier};
+use neo_fold_clean::paper::nifs::{
+    outgoing_pending_projection, Error, NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
+};
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::PI_RLC_PROJECTION_SIS_CONFIG;
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_fold_clean::paper::{pi_ccs, pi_dec, pi_rlc};
@@ -118,7 +121,16 @@ impl MetalNifsProver {
             && pi_ccs_profile.nc.mask_native_on_metal
             && pi_rlc.witness_masks_reused;
 
-        let pi_dec = self.prove_pi_dec(&request, pi_rlc.claim, pi_rlc.witness, forms_on_metal, ajtai_forms)?;
+        let pending_projection =
+            outgoing_pending_projection(pi_ccs_proof.sumcheck.variant, &pi_ccs_proof.outputs, &pi_rlc.claim)?;
+        let pi_dec = self.prove_pi_dec(
+            &request,
+            pi_rlc.claim,
+            pi_rlc.witness,
+            pending_projection,
+            forms_on_metal,
+            ajtai_forms,
+        )?;
         let post_fold_summary = self.post_fold_summary(&pi_dec.running)?;
         let activity = activity_delta(activity_before, self.session.activity());
         let resident_running_output = pi_dec.resident_id.is_some();
@@ -387,6 +399,7 @@ impl MetalNifsProver {
         request: &NifsProverRequest<'_>,
         parent_claim: CeClaim,
         mut resident_parent: MetalResidentWitness,
+        pending_projection: Option<PendingProjectionState>,
         forms_on_metal: bool,
         ajtai_forms: Option<MetalAjtaiRingForms>,
     ) -> Result<PiDecPhase, Error> {
@@ -478,11 +491,12 @@ impl MetalNifsProver {
             commit_on_metal: true,
         };
         Ok(PiDecPhase {
-            running: RunningInstance {
-                claims: children.claims,
-                witnesses: children.witnesses,
-                parent_authority: Some(parent_claim),
-            },
+            running: RunningInstance::new(
+                children.claims,
+                children.witnesses,
+                Some(parent_claim),
+                pending_projection,
+            ),
             proof,
             resident_id,
             witness_snapshot,

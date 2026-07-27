@@ -97,3 +97,5 @@ pub use proof::NifsProof;
 pub use prover::{prove, prove_with_adapter, prove_with_backend};
 pub(crate) use prover::{prove_terminal_with_adapter_output_from_carrier, prove_with_adapter_output_from_carrier};
 pub use verifier::verify;
+#[doc(hidden)]
+pub use work::outgoing_pending_projection;

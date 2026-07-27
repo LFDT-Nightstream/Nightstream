@@ -24,22 +24,31 @@ claim:
 
       (feRoundCount * Drow) / |C| + (25 * 4) / |C|.
 
+  A selected proof-owned carrier additionally samples alpha, betaA, betaR,
+  one gamma shared by FE and NC, betaBlock, producerBeta, batchWeight, and the
+  two SumCheck words in exact transcript order. Finite multilinear and
+  univariate root counting bounds every actual FE/NC mixing constructor.
+  Exact two-way event transport then proves a probability bound for the
+  literal production `FeFailure ∨ NcFailure` family at
+
+      (feMixingBudget + ncMixingBudget) + splitCollisionBudget.
+
   The existing SumCheckSoundnessContract is not a premise of this production
-  theorem. Alpha/gamma mixing events and Fiat-Shamir remain separate.
+  theorem, and neither is a generic mixing contract. Fiat-Shamir remains
+  separate.
 assumptions:
   - The paper field and ring laws, including no zero divisors, for the
     deterministic norm reduction and finite root-counting theorem.
-  - A finite nonempty duplicate-free ideal challenge support whose cardinality
-    equals the verifier-owned challengeSetSize.
+  - A finite nonempty duplicate-free ideal challenge support. The selected
+    input constructor derives challengeSetSize from its cardinality.
   - Honest completeness at recursive boundaries uses the registered delayed
     lifecycle premise: the complete pending vector is the radix recomposition
     of the authoritative raw running assignments at the owned old block.
 non_goals:
-  - A probability bound for FE or NC alpha/gamma mixing-root events.
   - Fiat-Shamir, Poseidon2, random-oracle programming, or transcript-collision
     security.
-  - A concrete proof of the Goldilocks-extension no-zero-divisors instance or
-    a binding to the production challenge alphabet.
+  - Closed certificates for Goldilocks Euclid primality and the projective
+    nonresidue seven, or a binding to the bounded production sampler/alphabet.
   - Rust, R1CS, generated-artifact, row, column, IR, cost, or minimality
     refinement.
   - Message or transcript identity between production's two SumChecks and the
@@ -100,9 +109,19 @@ lean_theorems:
   - ProductionMixingBoundary.derivePreSumcheck_constantCore_shared_gamma
   - ProductionMixingBoundary.feFailure_exact_cases
   - ProductionMixingBoundary.ncFailure_exact_cases
+  - IdealInteractiveCarrier.input_supportAligned
+  - IdealInteractiveCarrier.derivePreSumcheck_shared_gamma
+  - IdealInteractiveCarrier.derivePreSumcheck_delayed
+  - IdealInteractiveExecution.certificate_fe_coordinates
+  - IdealInteractiveExecution.certificate_nc_coordinates
+  - IdealInteractiveFeSoundness.mixingRoot_probability_le
+  - IdealInteractiveNcMixing.ncMixingRoot_probability_le
+  - IdealInteractiveSoundness.algebraicFailureEvent_eq_namedFailureEvent
+  - IdealInteractiveSoundness.namedFailure_probability_le
+  - IdealInteractiveSoundness.namedFailure_probability_le_of_productionField
 production_mixing_boundary:
-  status: kernel-checked carrier obstruction; no production mixing theorem is
-    exported from the current interfaces.
+  status: selected ideal-interactive production mixing theorem model-proved;
+    the arbitrary-carrier obstruction remains valid and unchanged.
   exact_events:
     - FE is exhausted only through ProductionRefinement.FeFailure.sumcheck,
       with the exact nested SumCheck.Fe.BadEvent.mixingRoot and
@@ -138,17 +157,34 @@ production_mixing_boundary:
       premise or independent FE/NC strategy is introduced.
     - This obstructs derivation from the current Schedule carrier; a refined
       schedule with explicit ordered sampling can discharge it.
+  selected_positive_carrier:
+    - One explicit finite product support owns alpha, betaA, betaR, a single
+      shared gamma, betaBlock, producerBeta, batchWeight, the complete FE word,
+      and then the complete NC word.
+    - The schedule absorbs each physical message before revealing its current
+      SumCheck challenge. NC may depend on the complete FE word, but sees only
+      its prior NC prefix.
+    - FE row/lane/shared-gamma and NC lane/block/shared-gamma/residual-weight
+      roots are bounded individually and unioned without changing constructor
+      order. The existing physical split-collision theorem supplies the final
+      SumCheck term.
+    - The Boolean monitor is extensionally equal to the actual dependent
+      production FeFailure-or-NcFailure family for the replayed certificate.
+      The unrestricted schedule countermodel is not used to justify this
+      selected constructor.
   consequence:
-    The existing causal splitCollision_probability_le theorem remains intact
-    and available once an actual nonempty sampled support aligned with
-    challengeSetSize is supplied. It cannot be combined with finite-root bounds
-    for the named production mixing events from the present carriers alone.
-    Fiat--Shamir remains separate.
+    The selected constructor combines exact named-event root bounds with the
+    unchanged splitCollision_probability_le theorem. This closes the
+    ideal-interactive production mixing boundary at model level. It does not
+    infer a law for an arbitrary opaque schedule and does not instantiate the
+    bounded production sampler or Fiat--Shamir.
 axiom_report:
   Every original headline theorem remains guarded fail-closed in
   tests/Axioms/PiCcsSplitNcCausalSoundness.lean. The production mixing boundary
   is separately guarded in
-  tests/Axioms/PiCcsSplitNcProductionMixingBoundary.lean. The largest dependency
+  tests/Axioms/PiCcsSplitNcProductionMixingBoundary.lean. The selected positive
+  theorem is guarded in
+  tests/Axioms/PiCcsSplitNcIdealInteractiveMixing.lean. The largest dependency
   set is exactly [propext, Classical.choice, Quot.sound]. There is no sorryAx,
   new axiom, unsafe declaration, or Lean.trustCompiler dependency.
 proof_hash:
@@ -156,9 +192,10 @@ proof_hash:
 conformance_status:
   model-proved registered-deviation refinement. This closes deterministic
   Split-NC-to-paper reduction, honest completeness, delayed lifecycle
-  ownership, and ideal-interactive FE/NC round-collision probability. It does
-  not close mixing-root probability, Fiat-Shamir, concrete field/support, or
-  production implementation refinement.
+  ownership, ideal-interactive FE/NC mixing-root probability, and physical
+  round-collision probability over the selected ordered carrier. It does not
+  close Fiat-Shamir, closed field certificates, bounded production sampling,
+  or production implementation refinement.
 retest_commands:
   - cd formal/nightstream-lean && LEAN_TIMEOUT_SECONDS=900
       LEAN_BUILD_TARGET=tests.PiCcsSplitNcCausalSoundness
@@ -171,6 +208,12 @@ retest_commands:
       ./scripts/validate.sh build
   - cd formal/nightstream-lean && LEAN_TIMEOUT_SECONDS=900
       LEAN_BUILD_TARGET=tests.Axioms.PiCcsSplitNcProductionMixingBoundary
+      ./scripts/validate.sh build
+  - cd formal/nightstream-lean && LEAN_TIMEOUT_SECONDS=900
+      LEAN_BUILD_TARGET=tests.PiCcsSplitNcIdealInteractiveMixing
+      ./scripts/validate.sh build
+  - cd formal/nightstream-lean && LEAN_TIMEOUT_SECONDS=900
+      LEAN_BUILD_TARGET=tests.Axioms.PiCcsSplitNcIdealInteractiveMixing
       ./scripts/validate.sh build
   - cd formal/nightstream-lean && LEAN_TIMEOUT_SECONDS=900
       LEAN_BUILD_TARGET=Nightstream.Protocol.FPrime.Frozen

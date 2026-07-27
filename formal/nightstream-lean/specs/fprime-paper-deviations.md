@@ -789,13 +789,26 @@ matching digest is not sufficient.
   `(feRoundCount * Drow)/|C| + (25 * 4)/|C|` from finite root counting and
   successive-coordinate sampling. It assumes neither
   `SumCheckSoundnessContract` nor FE/NC strategy independence.
+- Selected mixing-carrier evidence:
+  `IdealInteractiveCarrier.support` owns one explicit nonempty,
+  duplicate-free product in transcript order: `alpha`, `betaA`, `betaR`, one
+  shared `gamma`, `betaBlock`, `producerBeta`, `batchWeight`, FE word, then NC
+  word. `input_supportAligned` derives the verifier denominator from that
+  support. `IdealInteractiveFeSoundness.mixingRoot_probability_le` and
+  `IdealInteractiveNcMixing.ncMixingRoot_probability_le` bound every literal
+  FE/NC mixing constructor. `algebraicFailureEvent_eq_namedFailureEvent`
+  proves exact two-way transport to the dependent production
+  `FeFailure ∨ NcFailure` family, and `namedFailure_probability_le` preserves
+  `(feMixingBudget + ncMixingBudget) + splitCollisionBudget`. The earlier
+  arbitrary-schedule and zero-denominator countermodels remain valid; the
+  positive theorem applies only to this selected constructor.
 - Executable boundary: the protocol-owned `piCcsMessageCheck` is exact to the
   public combined-NC message acceptance predicate. Raw-assignment authority is
   supplied by the delayed lifecycle theorem below, never by a child
   `y_zcol` sidecar or digest.
-- Required security and implementation closure: alpha/gamma mixing-root
-  probability, Fiat-Shamir/random-oracle refinement, concrete
-  Goldilocks-extension no-zero-divisors and challenge-support instantiation,
+- Required security and implementation closure: Fiat-Shamir/random-oracle
+  refinement, closed Goldilocks Euclid and seven-nonresidue certificates,
+  binding the selected support to the bounded production sampler/alphabet,
   differential Rust agreement, concrete transcript/dataflow refinement, and
   generated-row realization remain open.
 - Excluded claims: this model proof is not Rust/R1CS conformance, generated-row

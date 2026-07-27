@@ -294,7 +294,7 @@ private theorem evaluate_map_eq_indexed
   exact positionalSumFrom_map_eq_indexed
     ops gamma indices position value 0 positions
 
-private theorem evaluate_map_neg
+theorem evaluate_map_neg
     {Field : Type uField}
     (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
@@ -314,7 +314,7 @@ private theorem evaluate_map_neg
       rw [mul_neg ops laws]
       exact (laws.neg_add _ _).symm
 
-private theorem evaluate_append
+theorem evaluate_append
     {Field : Type uField}
     (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)

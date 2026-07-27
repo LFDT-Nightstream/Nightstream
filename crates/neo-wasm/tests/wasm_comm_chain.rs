@@ -8,7 +8,9 @@
 
 mod common;
 
-use neo_wasm::comm_chain::{self, commit_event, COMM_CHAIN_EVENT_ARGS, COMM_CHAIN_STATE_LEN};
+use neo_wasm::comm_chain::{
+    self, commit_event, fold_event_blocks, CommChainState, COMM_CHAIN_EVENT_ARGS, COMM_CHAIN_STATE_LEN,
+};
 use neo_wasm::layout::{COL_COMM_CHAIN0_AFTER, COL_EVBUF4_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_STATE0_AFTER};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmVmStep;
@@ -48,6 +50,19 @@ fn comm_chain_fixture_vectors() {
             f(12455009736376722043),
         ]
     );
+}
+
+#[test]
+fn event_blocks_fold_from_explicit_initial_state() {
+    let initial_lanes = [f(11), f(22), f(33), f(44)];
+    let initial = CommChainState::new(initial_lanes);
+    let block: [Goldilocks; 8] = core::array::from_fn(|i| f(i as u64 + 1));
+
+    let expected = commit_event(initial_lanes, block[0], block[1..].try_into().expect("event args"));
+    let folded = fold_event_blocks(initial, &[block]);
+
+    assert_eq!(folded.into_lanes(), expected);
+    assert_eq!(CommChainState::default().canonical_u64(), [0; 4]);
 }
 
 /// The row-level round decomposition (what the in-circuit gadget enforces)

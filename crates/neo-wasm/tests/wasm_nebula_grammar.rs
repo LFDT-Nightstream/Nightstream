@@ -46,6 +46,7 @@ fn wasm_nebula_proves_a_grammar_template_trace() {
         &setup.grammar,
         setup.run_fref,
         0x57a5_0002,
+        Default::default(),
     )
     .expect("grammar Nebula preprocessing");
 
@@ -57,8 +58,11 @@ fn wasm_nebula_proves_a_grammar_template_trace() {
     // claimed event blocks (with the true claim inputs) fold to the final
     // chain; a transcript claiming different inputs folds elsewhere.
     let fold = |inputs: &[u64]| {
-        neo_wasm::comm_chain::fold_event_blocks(&expected_transcript(&setup.grammar, setup.run_fref, inputs))
-            .map(|limb| limb.as_canonical_u64())
+        neo_wasm::comm_chain::fold_event_blocks(
+            Default::default(),
+            &expected_transcript(&setup.grammar, setup.run_fref, inputs),
+        )
+        .canonical_u64()
     };
     assert_eq!(
         final_state.comm_chain,

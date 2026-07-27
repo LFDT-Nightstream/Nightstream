@@ -233,7 +233,7 @@ fn render_run_module(namespace: &str, part: usize, runs: &[PinRun]) -> String {
     )
 }
 
-fn render_artifact(builder: &R1csBuilder, range: &RowFamilyRange, namespace: &str) -> (String, Vec<String>) {
+pub(super) fn render_artifact(builder: &R1csBuilder, range: &RowFamilyRange, namespace: &str) -> (String, Vec<String>) {
     let pins = affine_pins(builder, range);
     let runs = pin_runs(&pins);
     let run_modules = if runs.len() > RUNS_PER_MODULE {

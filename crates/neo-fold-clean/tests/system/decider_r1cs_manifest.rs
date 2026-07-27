@@ -5,6 +5,8 @@ mod checked_program_artifact_support;
 mod full_history_affine_artifact_support;
 #[path = "full_history_counter_artifact_support.rs"]
 mod full_history_counter_artifact_support;
+#[path = "full_history_current_terminal_diagnostic_support.rs"]
+mod full_history_current_terminal_diagnostic_support;
 #[path = "full_history_encoding_artifact_support.rs"]
 mod full_history_encoding_artifact_support;
 #[path = "full_history_equality_artifact_support.rs"]
@@ -43,6 +45,7 @@ use checked_program_artifact_support::{
 };
 use full_history_affine_artifact_support::{compare_affine_artifacts, compare_current_terminal_link_artifact};
 use full_history_counter_artifact_support::compare_counter_artifact;
+use full_history_current_terminal_diagnostic_support::compare_current_terminal_diagnostic;
 use full_history_encoding_artifact_support::render_output_encoding_artifact;
 use full_history_equality_artifact_support::render_equality_artifact;
 use full_history_manifest_identity_support::{
@@ -1326,6 +1329,7 @@ fn current_terminal_link_full_history_placement_matches_exact_rows() {
     let statement = neo_fold_clean::build_decider_statement(&prep, &finished);
     let synth = synthesize_statement_r1cs(&prep, &statement).expect("synthesize full history");
     assert!(synth.builder.is_satisfied(), "honest full-history rows");
+    compare_current_terminal_diagnostic(&synth.builder, prep.structure().t());
     compare_current_terminal_link_artifact(&synth.builder);
 }
 

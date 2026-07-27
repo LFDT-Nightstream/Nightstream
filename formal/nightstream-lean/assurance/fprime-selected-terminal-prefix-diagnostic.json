@@ -1,0 +1,1755 @@
+{
+  "artifact_kind": "r1cs/f-prime-selected-terminal-prefix-diagnostic",
+  "assurance_tier": "Rust diagnostic",
+  "omitted_projection": {
+    "first_allocated_column": 182083578,
+    "note": "Placement is captured from the real terminal path before materializing the large raw-old-block row loop.",
+    "row_count": 24185169,
+    "row_end": 47020034,
+    "row_start": 22834865
+  },
+  "prefix": {
+    "capture_mode": "witness-plus-row-families",
+    "columns": 182083578,
+    "note": "The selected placement exporter retains lightweight nested family boundaries but deliberately suppresses matrix coefficients before the large projection loop.",
+    "retained_nonzero_coefficients": 0,
+    "row_family_metadata": [
+      {
+        "name": "fprime.recursive.prelude",
+        "row_count": 6176,
+        "row_end": 6176,
+        "row_start": 0
+      },
+      {
+        "name": "fprime.recursive.transcript",
+        "row_count": 13262,
+        "row_end": 19438,
+        "row_start": 6176
+      },
+      {
+        "name": "nifs.pi_ccs.allocation",
+        "row_count": 183,
+        "row_end": 19621,
+        "row_start": 19438
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.commitment",
+        "row_count": 216,
+        "row_end": 19837,
+        "row_start": 19621
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.advice",
+        "row_count": 0,
+        "row_end": 19837,
+        "row_start": 19837
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.x",
+        "row_count": 270,
+        "row_end": 20107,
+        "row_start": 19837
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.y_ring",
+        "row_count": 1404,
+        "row_end": 21511,
+        "row_start": 20107
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition",
+        "row_count": 1890,
+        "row_end": 21511,
+        "row_start": 19621
+      },
+      {
+        "name": "nifs.pi_dec.verify.shape",
+        "row_count": 70,
+        "row_end": 21581,
+        "row_start": 21511
+      },
+      {
+        "name": "nifs.pi_dec.verify.r",
+        "row_count": 672,
+        "row_end": 22253,
+        "row_start": 21581
+      },
+      {
+        "name": "nifs.pi_dec.verify.s_col",
+        "row_count": 532,
+        "row_end": 22785,
+        "row_start": 22253
+      },
+      {
+        "name": "nifs.pi_dec.verify.inactive_x",
+        "row_count": 15,
+        "row_end": 22800,
+        "row_start": 22785
+      },
+      {
+        "name": "nifs.pi_dec.verify.alphabet",
+        "row_count": 4320,
+        "row_end": 27120,
+        "row_start": 22800
+      },
+      {
+        "name": "nifs.pi_dec.verify.ct",
+        "row_count": 390,
+        "row_end": 27510,
+        "row_start": 27120
+      },
+      {
+        "name": "nifs.pi_dec.verify.y_ring_padding",
+        "row_count": 3900,
+        "row_end": 31410,
+        "row_start": 27510
+      },
+      {
+        "name": "nifs.pi_dec.verify.fold_digest",
+        "row_count": 56,
+        "row_end": 31466,
+        "row_start": 31410
+      },
+      {
+        "name": "nifs.pi_dec.verify",
+        "row_count": 11845,
+        "row_end": 31466,
+        "row_start": 19621
+      },
+      {
+        "name": "nifs.pi_ccs.authority",
+        "row_count": 16435,
+        "row_end": 36056,
+        "row_start": 19621
+      },
+      {
+        "name": "nifs.pi_ccs.fresh_digests",
+        "row_count": 85473,
+        "row_end": 121529,
+        "row_start": 36056
+      },
+      {
+        "name": "nifs.pi_ccs.running_authority",
+        "row_count": 310489,
+        "row_end": 432018,
+        "row_start": 121529
+      },
+      {
+        "name": "nifs.pi_ccs.transcript",
+        "row_count": 3363099,
+        "row_end": 3795117,
+        "row_start": 432018
+      },
+      {
+        "name": "nifs.pi_ccs.fe_initial",
+        "row_count": 61313,
+        "row_end": 3856430,
+        "row_start": 3795117
+      },
+      {
+        "name": "nifs.pi_ccs.fe_claim_and_sumcheck.optional_claim",
+        "row_count": 5,
+        "row_end": 3856435,
+        "row_start": 3856430
+      },
+      {
+        "name": "nifs.pi_ccs.fe_sumcheck",
+        "row_count": 111217,
+        "row_end": 3967652,
+        "row_start": 3856435
+      },
+      {
+        "name": "nifs.pi_ccs.nc_sumcheck",
+        "row_count": 47983,
+        "row_end": 4015635,
+        "row_start": 3967652
+      },
+      {
+        "name": "nifs.pi_ccs.output_binding",
+        "row_count": 209010,
+        "row_end": 4224645,
+        "row_start": 4015635
+      },
+      {
+        "name": "nifs.pi_ccs.fe_terminal",
+        "row_count": 62545,
+        "row_end": 4287190,
+        "row_start": 4224645
+      },
+      {
+        "name": "nifs.pi_ccs.nc_terminal",
+        "row_count": 6595,
+        "row_end": 4293785,
+        "row_start": 4287190
+      },
+      {
+        "name": "nifs.pi_ccs.catchup",
+        "row_count": 665,
+        "row_end": 4294450,
+        "row_start": 4293785
+      },
+      {
+        "name": "nifs.pi_ccs.output_message_hashes",
+        "row_count": 2880283,
+        "row_end": 7174733,
+        "row_start": 4294450
+      },
+      {
+        "name": "nifs.pi_ccs",
+        "row_count": 7155295,
+        "row_end": 7174733,
+        "row_start": 19438
+      },
+      {
+        "name": "nifs.pi_rlc.transcript_rhos",
+        "row_count": 127611,
+        "row_end": 7302344,
+        "row_start": 7174733
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302345,
+        "row_start": 7302344
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302345,
+        "row_start": 7302345
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302350,
+        "row_start": 7302345
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302351,
+        "row_start": 7302350
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302351,
+        "row_start": 7302351
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302356,
+        "row_start": 7302351
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302357,
+        "row_start": 7302356
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302357,
+        "row_start": 7302357
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302362,
+        "row_start": 7302357
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302363,
+        "row_start": 7302362
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302363,
+        "row_start": 7302363
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302368,
+        "row_start": 7302363
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302369,
+        "row_start": 7302368
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302369,
+        "row_start": 7302369
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302374,
+        "row_start": 7302369
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302375,
+        "row_start": 7302374
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302375,
+        "row_start": 7302375
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302380,
+        "row_start": 7302375
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302381,
+        "row_start": 7302380
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302381,
+        "row_start": 7302381
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302386,
+        "row_start": 7302381
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302387,
+        "row_start": 7302386
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302387,
+        "row_start": 7302387
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302392,
+        "row_start": 7302387
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302393,
+        "row_start": 7302392
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302393,
+        "row_start": 7302393
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302398,
+        "row_start": 7302393
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302399,
+        "row_start": 7302398
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302399,
+        "row_start": 7302399
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302404,
+        "row_start": 7302399
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302405,
+        "row_start": 7302404
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302405,
+        "row_start": 7302405
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302410,
+        "row_start": 7302405
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302411,
+        "row_start": 7302410
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302411,
+        "row_start": 7302411
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302416,
+        "row_start": 7302411
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302417,
+        "row_start": 7302416
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302417,
+        "row_start": 7302417
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302422,
+        "row_start": 7302417
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302423,
+        "row_start": 7302422
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302423,
+        "row_start": 7302423
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302428,
+        "row_start": 7302423
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 7302429,
+        "row_start": 7302428
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 7302429,
+        "row_start": 7302429
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 7302434,
+        "row_start": 7302429
+      },
+      {
+        "name": "nifs.pi_rlc.shape",
+        "row_count": 165,
+        "row_end": 7302509,
+        "row_start": 7302344
+      },
+      {
+        "name": "nifs.pi_rlc.linear_folds",
+        "row_count": 630,
+        "row_end": 7303139,
+        "row_start": 7302509
+      },
+      {
+        "name": "nifs.pi_rlc.projection_binding",
+        "row_count": 579641,
+        "row_end": 7882780,
+        "row_start": 7303139
+      },
+      {
+        "name": "nifs.pi_rlc.projection_shared",
+        "row_count": 1892,
+        "row_end": 7884672,
+        "row_start": 7882780
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7886588,
+        "row_start": 7884672
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7888504,
+        "row_start": 7886588
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7890420,
+        "row_start": 7888504
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7892336,
+        "row_start": 7890420
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7894252,
+        "row_start": 7892336
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7896168,
+        "row_start": 7894252
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7898084,
+        "row_start": 7896168
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7900000,
+        "row_start": 7898084
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7901916,
+        "row_start": 7900000
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7903848,
+        "row_start": 7901932
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7905764,
+        "row_start": 7903848
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7908000,
+        "row_start": 7906084
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7909916,
+        "row_start": 7908000
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7912152,
+        "row_start": 7910236
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7914068,
+        "row_start": 7912152
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7916304,
+        "row_start": 7914388
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7918220,
+        "row_start": 7916304
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7920456,
+        "row_start": 7918540
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7922372,
+        "row_start": 7920456
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7924608,
+        "row_start": 7922692
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7926524,
+        "row_start": 7924608
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7928760,
+        "row_start": 7926844
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7930676,
+        "row_start": 7928760
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7932912,
+        "row_start": 7930996
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7934828,
+        "row_start": 7932912
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7937064,
+        "row_start": 7935148
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7938980,
+        "row_start": 7937064
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7941216,
+        "row_start": 7939300
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7943132,
+        "row_start": 7941216
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7945368,
+        "row_start": 7943452
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7947284,
+        "row_start": 7945368
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7949520,
+        "row_start": 7947604
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7951436,
+        "row_start": 7949520
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7953672,
+        "row_start": 7951756
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7955588,
+        "row_start": 7953672
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7957824,
+        "row_start": 7955908
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 7959740,
+        "row_start": 7957824
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identities",
+        "row_count": 75388,
+        "row_end": 7960060,
+        "row_start": 7884672
+      },
+      {
+        "name": "nifs.pi_rlc",
+        "row_count": 785327,
+        "row_end": 7960060,
+        "row_start": 7174733
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.commitment",
+        "row_count": 216,
+        "row_end": 7960276,
+        "row_start": 7960060
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.advice",
+        "row_count": 0,
+        "row_end": 7960276,
+        "row_start": 7960276
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.x",
+        "row_count": 270,
+        "row_end": 7960546,
+        "row_start": 7960276
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.y_ring",
+        "row_count": 1404,
+        "row_end": 7961950,
+        "row_start": 7960546
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition",
+        "row_count": 1890,
+        "row_end": 7961950,
+        "row_start": 7960060
+      },
+      {
+        "name": "nifs.pi_dec.verify.shape",
+        "row_count": 70,
+        "row_end": 7962020,
+        "row_start": 7961950
+      },
+      {
+        "name": "nifs.pi_dec.verify.r",
+        "row_count": 672,
+        "row_end": 7962692,
+        "row_start": 7962020
+      },
+      {
+        "name": "nifs.pi_dec.verify.s_col",
+        "row_count": 532,
+        "row_end": 7963224,
+        "row_start": 7962692
+      },
+      {
+        "name": "nifs.pi_dec.verify.inactive_x",
+        "row_count": 15,
+        "row_end": 7963239,
+        "row_start": 7963224
+      },
+      {
+        "name": "nifs.pi_dec.verify.alphabet",
+        "row_count": 4320,
+        "row_end": 7967559,
+        "row_start": 7963239
+      },
+      {
+        "name": "nifs.pi_dec.verify.ct",
+        "row_count": 390,
+        "row_end": 7967949,
+        "row_start": 7967559
+      },
+      {
+        "name": "nifs.pi_dec.verify.y_ring_padding",
+        "row_count": 3900,
+        "row_end": 7971849,
+        "row_start": 7967949
+      },
+      {
+        "name": "nifs.pi_dec.verify.fold_digest",
+        "row_count": 56,
+        "row_end": 7971905,
+        "row_start": 7971849
+      },
+      {
+        "name": "nifs.pi_dec.verify",
+        "row_count": 11845,
+        "row_end": 7971905,
+        "row_start": 7960060
+      },
+      {
+        "name": "nifs.pi_dec",
+        "row_count": 11845,
+        "row_end": 7971905,
+        "row_start": 7960060
+      },
+      {
+        "name": "nifs.point_binding",
+        "row_count": 48,
+        "row_end": 7971953,
+        "row_start": 7971905
+      },
+      {
+        "name": "nifs.total",
+        "row_count": 7952515,
+        "row_end": 7971953,
+        "row_start": 19438
+      },
+      {
+        "name": "fprime.recursive.nifs",
+        "row_count": 7952515,
+        "row_end": 7971953,
+        "row_start": 19438
+      },
+      {
+        "name": "fprime.recursive.prior_link",
+        "row_count": 5845,
+        "row_end": 7977798,
+        "row_start": 7971953
+      },
+      {
+        "name": "fprime.recursive.nebula",
+        "row_count": 0,
+        "row_end": 7977798,
+        "row_start": 7977798
+      },
+      {
+        "name": "fprime.recursive.accumulator",
+        "row_count": 3322629,
+        "row_end": 11300427,
+        "row_start": 7977798
+      },
+      {
+        "name": "fprime.recursive.counter",
+        "row_count": 522,
+        "row_end": 11300949,
+        "row_start": 11300427
+      },
+      {
+        "name": "fprime.recursive.output",
+        "row_count": 5368,
+        "row_end": 11306317,
+        "row_start": 11300949
+      },
+      {
+        "name": "fprime.recursive.total",
+        "row_count": 11306317,
+        "row_end": 11306317,
+        "row_start": 0
+      },
+      {
+        "name": "terminal.transcript",
+        "row_count": 8,
+        "row_end": 11306325,
+        "row_start": 11306317
+      },
+      {
+        "name": "nifs.pi_ccs.allocation",
+        "row_count": 183,
+        "row_end": 11306508,
+        "row_start": 11306325
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.commitment",
+        "row_count": 216,
+        "row_end": 11306724,
+        "row_start": 11306508
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.advice",
+        "row_count": 0,
+        "row_end": 11306724,
+        "row_start": 11306724
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.x",
+        "row_count": 270,
+        "row_end": 11306994,
+        "row_start": 11306724
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.y_ring",
+        "row_count": 1404,
+        "row_end": 11308398,
+        "row_start": 11306994
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition",
+        "row_count": 1890,
+        "row_end": 11308398,
+        "row_start": 11306508
+      },
+      {
+        "name": "nifs.pi_dec.verify.shape",
+        "row_count": 70,
+        "row_end": 11308468,
+        "row_start": 11308398
+      },
+      {
+        "name": "nifs.pi_dec.verify.r",
+        "row_count": 672,
+        "row_end": 11309140,
+        "row_start": 11308468
+      },
+      {
+        "name": "nifs.pi_dec.verify.s_col",
+        "row_count": 532,
+        "row_end": 11309672,
+        "row_start": 11309140
+      },
+      {
+        "name": "nifs.pi_dec.verify.inactive_x",
+        "row_count": 15,
+        "row_end": 11309687,
+        "row_start": 11309672
+      },
+      {
+        "name": "nifs.pi_dec.verify.alphabet",
+        "row_count": 4320,
+        "row_end": 11314007,
+        "row_start": 11309687
+      },
+      {
+        "name": "nifs.pi_dec.verify.ct",
+        "row_count": 390,
+        "row_end": 11314397,
+        "row_start": 11314007
+      },
+      {
+        "name": "nifs.pi_dec.verify.y_ring_padding",
+        "row_count": 3900,
+        "row_end": 11318297,
+        "row_start": 11314397
+      },
+      {
+        "name": "nifs.pi_dec.verify.fold_digest",
+        "row_count": 56,
+        "row_end": 11318353,
+        "row_start": 11318297
+      },
+      {
+        "name": "nifs.pi_dec.verify",
+        "row_count": 11845,
+        "row_end": 11318353,
+        "row_start": 11306508
+      },
+      {
+        "name": "nifs.pi_ccs.authority",
+        "row_count": 16435,
+        "row_end": 11322943,
+        "row_start": 11306508
+      },
+      {
+        "name": "nifs.pi_ccs.fresh_digests",
+        "row_count": 85473,
+        "row_end": 11408416,
+        "row_start": 11322943
+      },
+      {
+        "name": "nifs.pi_ccs.running_authority",
+        "row_count": 310489,
+        "row_end": 11718905,
+        "row_start": 11408416
+      },
+      {
+        "name": "nifs.pi_ccs.transcript",
+        "row_count": 3362503,
+        "row_end": 15081408,
+        "row_start": 11718905
+      },
+      {
+        "name": "nifs.pi_ccs.fe_initial",
+        "row_count": 61313,
+        "row_end": 15142721,
+        "row_start": 15081408
+      },
+      {
+        "name": "nifs.pi_ccs.fe_claim_and_sumcheck.optional_claim",
+        "row_count": 5,
+        "row_end": 15142726,
+        "row_start": 15142721
+      },
+      {
+        "name": "nifs.pi_ccs.fe_sumcheck",
+        "row_count": 111217,
+        "row_end": 15253943,
+        "row_start": 15142726
+      },
+      {
+        "name": "nifs.pi_ccs.nc_sumcheck",
+        "row_count": 47983,
+        "row_end": 15301926,
+        "row_start": 15253943
+      },
+      {
+        "name": "nifs.pi_ccs.output_binding",
+        "row_count": 209010,
+        "row_end": 15510936,
+        "row_start": 15301926
+      },
+      {
+        "name": "nifs.pi_ccs.fe_terminal",
+        "row_count": 62545,
+        "row_end": 15573481,
+        "row_start": 15510936
+      },
+      {
+        "name": "nifs.pi_ccs.nc_terminal",
+        "row_count": 6595,
+        "row_end": 15580076,
+        "row_start": 15573481
+      },
+      {
+        "name": "nifs.pi_ccs.catchup",
+        "row_count": 665,
+        "row_end": 15580741,
+        "row_start": 15580076
+      },
+      {
+        "name": "nifs.pi_ccs.output_message_hashes",
+        "row_count": 2880283,
+        "row_end": 18461024,
+        "row_start": 15580741
+      },
+      {
+        "name": "nifs.pi_ccs",
+        "row_count": 7154699,
+        "row_end": 18461024,
+        "row_start": 11306325
+      },
+      {
+        "name": "nifs.pi_rlc.transcript_rhos",
+        "row_count": 127611,
+        "row_end": 18588635,
+        "row_start": 18461024
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588636,
+        "row_start": 18588635
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588636,
+        "row_start": 18588636
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588641,
+        "row_start": 18588636
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588642,
+        "row_start": 18588641
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588642,
+        "row_start": 18588642
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588647,
+        "row_start": 18588642
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588648,
+        "row_start": 18588647
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588648,
+        "row_start": 18588648
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588653,
+        "row_start": 18588648
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588654,
+        "row_start": 18588653
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588654,
+        "row_start": 18588654
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588659,
+        "row_start": 18588654
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588660,
+        "row_start": 18588659
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588660,
+        "row_start": 18588660
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588665,
+        "row_start": 18588660
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588666,
+        "row_start": 18588665
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588666,
+        "row_start": 18588666
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588671,
+        "row_start": 18588666
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588672,
+        "row_start": 18588671
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588672,
+        "row_start": 18588672
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588677,
+        "row_start": 18588672
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588678,
+        "row_start": 18588677
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588678,
+        "row_start": 18588678
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588683,
+        "row_start": 18588678
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588684,
+        "row_start": 18588683
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588684,
+        "row_start": 18588684
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588689,
+        "row_start": 18588684
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588690,
+        "row_start": 18588689
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588690,
+        "row_start": 18588690
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588695,
+        "row_start": 18588690
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588696,
+        "row_start": 18588695
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588696,
+        "row_start": 18588696
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588701,
+        "row_start": 18588696
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588702,
+        "row_start": 18588701
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588702,
+        "row_start": 18588702
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588707,
+        "row_start": 18588702
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588708,
+        "row_start": 18588707
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588708,
+        "row_start": 18588708
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588713,
+        "row_start": 18588708
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588714,
+        "row_start": 18588713
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588714,
+        "row_start": 18588714
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588719,
+        "row_start": 18588714
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel",
+        "row_count": 1,
+        "row_end": 18588720,
+        "row_start": 18588719
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality",
+        "row_count": 0,
+        "row_end": 18588720,
+        "row_start": 18588720
+      },
+      {
+        "name": "nifs.pi_rlc.shape.allocate_parent_and_children.metadata",
+        "row_count": 5,
+        "row_end": 18588725,
+        "row_start": 18588720
+      },
+      {
+        "name": "nifs.pi_rlc.shape",
+        "row_count": 165,
+        "row_end": 18588800,
+        "row_start": 18588635
+      },
+      {
+        "name": "nifs.pi_rlc.linear_folds",
+        "row_count": 630,
+        "row_end": 18589430,
+        "row_start": 18588800
+      },
+      {
+        "name": "nifs.pi_rlc.projection_binding",
+        "row_count": 579641,
+        "row_end": 19169071,
+        "row_start": 18589430
+      },
+      {
+        "name": "nifs.pi_rlc.projection_shared",
+        "row_count": 1892,
+        "row_end": 19170963,
+        "row_start": 19169071
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19172879,
+        "row_start": 19170963
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19174795,
+        "row_start": 19172879
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19176711,
+        "row_start": 19174795
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19178627,
+        "row_start": 19176711
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19180543,
+        "row_start": 19178627
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19182459,
+        "row_start": 19180543
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19184375,
+        "row_start": 19182459
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19186291,
+        "row_start": 19184375
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19188207,
+        "row_start": 19186291
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19190139,
+        "row_start": 19188223
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19192055,
+        "row_start": 19190139
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19194291,
+        "row_start": 19192375
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19196207,
+        "row_start": 19194291
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19198443,
+        "row_start": 19196527
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19200359,
+        "row_start": 19198443
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19202595,
+        "row_start": 19200679
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19204511,
+        "row_start": 19202595
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19206747,
+        "row_start": 19204831
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19208663,
+        "row_start": 19206747
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19210899,
+        "row_start": 19208983
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19212815,
+        "row_start": 19210899
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19215051,
+        "row_start": 19213135
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19216967,
+        "row_start": 19215051
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19219203,
+        "row_start": 19217287
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19221119,
+        "row_start": 19219203
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19223355,
+        "row_start": 19221439
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19225271,
+        "row_start": 19223355
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19227507,
+        "row_start": 19225591
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19229423,
+        "row_start": 19227507
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19231659,
+        "row_start": 19229743
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19233575,
+        "row_start": 19231659
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19235811,
+        "row_start": 19233895
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19237727,
+        "row_start": 19235811
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19239963,
+        "row_start": 19238047
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19241879,
+        "row_start": 19239963
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19244115,
+        "row_start": 19242199
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identity",
+        "row_count": 1916,
+        "row_end": 19246031,
+        "row_start": 19244115
+      },
+      {
+        "name": "nifs.pi_rlc.projection_identities",
+        "row_count": 75388,
+        "row_end": 19246351,
+        "row_start": 19170963
+      },
+      {
+        "name": "nifs.pi_rlc",
+        "row_count": 785327,
+        "row_end": 19246351,
+        "row_start": 18461024
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.commitment",
+        "row_count": 216,
+        "row_end": 19246567,
+        "row_start": 19246351
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.advice",
+        "row_count": 0,
+        "row_end": 19246567,
+        "row_start": 19246567
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.x",
+        "row_count": 270,
+        "row_end": 19246837,
+        "row_start": 19246567
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition.y_ring",
+        "row_count": 1404,
+        "row_end": 19248241,
+        "row_start": 19246837
+      },
+      {
+        "name": "nifs.pi_dec.verify.recomposition",
+        "row_count": 1890,
+        "row_end": 19248241,
+        "row_start": 19246351
+      },
+      {
+        "name": "nifs.pi_dec.verify.shape",
+        "row_count": 70,
+        "row_end": 19248311,
+        "row_start": 19248241
+      },
+      {
+        "name": "nifs.pi_dec.verify.r",
+        "row_count": 672,
+        "row_end": 19248983,
+        "row_start": 19248311
+      },
+      {
+        "name": "nifs.pi_dec.verify.s_col",
+        "row_count": 532,
+        "row_end": 19249515,
+        "row_start": 19248983
+      },
+      {
+        "name": "nifs.pi_dec.verify.inactive_x",
+        "row_count": 15,
+        "row_end": 19249530,
+        "row_start": 19249515
+      },
+      {
+        "name": "nifs.pi_dec.verify.alphabet",
+        "row_count": 4320,
+        "row_end": 19253850,
+        "row_start": 19249530
+      },
+      {
+        "name": "nifs.pi_dec.verify.ct",
+        "row_count": 390,
+        "row_end": 19254240,
+        "row_start": 19253850
+      },
+      {
+        "name": "nifs.pi_dec.verify.y_ring_padding",
+        "row_count": 3900,
+        "row_end": 19258140,
+        "row_start": 19254240
+      },
+      {
+        "name": "nifs.pi_dec.verify.fold_digest",
+        "row_count": 56,
+        "row_end": 19258196,
+        "row_start": 19258140
+      },
+      {
+        "name": "nifs.pi_dec.verify",
+        "row_count": 11845,
+        "row_end": 19258196,
+        "row_start": 19246351
+      },
+      {
+        "name": "nifs.pi_dec",
+        "row_count": 11845,
+        "row_end": 19258196,
+        "row_start": 19246351
+      },
+      {
+        "name": "nifs.point_binding",
+        "row_count": 48,
+        "row_end": 19258244,
+        "row_start": 19258196
+      },
+      {
+        "name": "nifs.total",
+        "row_count": 7951919,
+        "row_end": 19258244,
+        "row_start": 11306325
+      },
+      {
+        "name": "terminal.nifs",
+        "row_count": 7951927,
+        "row_end": 19258244,
+        "row_start": 11306317
+      },
+      {
+        "name": "terminal.running_link",
+        "row_count": 4,
+        "row_end": 19258248,
+        "row_start": 19258244
+      },
+      {
+        "name": "terminal.parent_link",
+        "row_count": 16709,
+        "row_end": 19274957,
+        "row_start": 19258248
+      },
+      {
+        "name": "terminal.latest_link",
+        "row_count": 270,
+        "row_end": 19275227,
+        "row_start": 19274957
+      },
+      {
+        "name": "terminal.accumulator",
+        "row_count": 3322621,
+        "row_end": 22597848,
+        "row_start": 19275227
+      },
+      {
+        "name": "terminal.total",
+        "row_count": 11291531,
+        "row_end": 22597848,
+        "row_start": 11306317
+      }
+    ],
+    "rows": 22834865
+  },
+  "profile": {
+    "carrier_width": 270,
+    "fixed_one": true,
+    "layout": "plain",
+    "relation": "fixed-point-selective-thirteen-matrix",
+    "relation_matrix_count": 13,
+    "terminal_ce_claim_count": 14,
+    "terminal_ce_evaluation_count": 13
+  },
+  "semantic_scope": {
+    "decoded": [],
+    "not_decoded": [
+      "selected terminal NIFS",
+      "running/fresh unary relations",
+      "terminal continuity",
+      "direct terminal CE"
+    ],
+    "warning": "This capture selects the actual thirteen-matrix path but is not yet a row-decoding or refinement theorem."
+  }
+}

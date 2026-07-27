@@ -101,11 +101,23 @@ pub(super) fn capture_last_step_terminal_projection_placement(
     prep: &Preprocessing,
     audit: &crate::lifecycle::UncompressedAudit,
 ) -> Result<crate::engine::r1cs_circuit::TerminalPendingProjectionAudit, decider::Error> {
-    let (_, placement) =
-        synthesize_last_step_terminal_r1cs_inner(prep, audit, TerminalClosureMode::CaptureProjectionPlacement)?;
+    let (_, placement) = capture_last_step_terminal_prefix(prep, audit)?;
     placement.ok_or_else(|| {
         decider::Error::WalkFailed("active fixed profile omitted its terminal pending projection".into())
     })
+}
+
+pub(super) fn capture_last_step_terminal_prefix(
+    prep: &Preprocessing,
+    audit: &crate::lifecycle::UncompressedAudit,
+) -> Result<
+    (
+        LastStepTerminalSynthesis,
+        Option<crate::engine::r1cs_circuit::TerminalPendingProjectionAudit>,
+    ),
+    decider::Error,
+> {
+    synthesize_last_step_terminal_r1cs_inner(prep, audit, TerminalClosureMode::CaptureProjectionPlacement)
 }
 
 fn synthesize_last_step_terminal_r1cs_inner(
@@ -209,7 +221,7 @@ fn synthesize_last_step_terminal_r1cs_inner(
 
     // 3. Emit ONLY the last F' step. Constant in N.
     let mut builder = if closure_mode == TerminalClosureMode::CaptureProjectionPlacement {
-        R1csBuilder::new_witness_only()
+        R1csBuilder::new_witness_with_row_families()
     } else {
         R1csBuilder::new()
     };

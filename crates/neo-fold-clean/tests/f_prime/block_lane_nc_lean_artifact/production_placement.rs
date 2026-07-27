@@ -7,7 +7,8 @@
 
 use std::fmt::Write as _;
 
-use neo_fold_clean::engine::decider::__test_isolation::capture_last_step_terminal_projection_placement;
+use neo_fold_clean::engine::decider::__test_isolation::capture_last_step_terminal_prefix;
+use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
 use neo_fold_clean::engine::r1cs_circuit::{
     TerminalPendingProjectionAudit, RAW_OLD_BLOCK_CHILD_COUNT, RAW_OLD_BLOCK_PENDING_JOIN_ID,
 };
@@ -17,6 +18,7 @@ use neo_fold_clean::frontends::r1cs_f_prime::ivc::{
 };
 use neo_reductions::optimized_engine::PiCcsProofVariant;
 use p3_field::PrimeField64;
+use serde_json::{json, Value};
 
 use super::{generated_header, GeneratedLeanFile, GENERATED_ROOT, NAMESPACE_ROOT};
 
@@ -36,6 +38,13 @@ const TOTAL_ROWS: usize = 24_185_169;
 #[derive(Clone)]
 pub(crate) struct ProductionPlacementCertificate {
     audit: TerminalPendingProjectionAudit,
+    relation_matrix_count: usize,
+    terminal_claim_count: usize,
+    terminal_evaluation_count: usize,
+    prefix_rows: usize,
+    prefix_columns: usize,
+    prefix_nonzero_entries: usize,
+    row_families: Vec<RowFamilyRange>,
     old_block: Vec<[usize; 2]>,
     parent: Vec<[usize; 2]>,
     final_witness_first: Vec<usize>,
@@ -52,8 +61,26 @@ impl ProductionPlacementCertificate {
         finalized: &neo_fold_clean::lifecycle::UncompressedAudit,
         execution: &R1csIvcPostPiDecExecutionAudit,
     ) -> Self {
-        let audit = capture_last_step_terminal_projection_placement(&prep.prep, finalized)
-            .expect("capture fixed-profile production terminal placement");
+        let (prefix, audit) = capture_last_step_terminal_prefix(&prep.prep, finalized)
+            .expect("capture fixed-profile production terminal prefix");
+        let running = finalized
+            .proof
+            .state
+            .proof
+            .running()
+            .expect("selected terminal capture requires a materialized running accumulator");
+        let terminal_evaluation_count = running
+            .claims
+            .first()
+            .map(|claim| claim.y_ring.len())
+            .expect("selected terminal capture requires at least one CE claim");
+        assert!(
+            running
+                .claims
+                .iter()
+                .all(|claim| claim.y_ring.len() == terminal_evaluation_count),
+            "selected terminal CE claims must use one matrix arity"
+        );
         let selector_columns = execution
             .selector_writes()
             .iter()
@@ -65,6 +92,13 @@ impl ProductionPlacementCertificate {
             .map(|write| write.value().as_canonical_u64() as usize)
             .collect();
         let certificate = Self {
+            relation_matrix_count: prep.prep.structure().t(),
+            terminal_claim_count: running.claims.len(),
+            terminal_evaluation_count,
+            prefix_rows: prefix.builder.rows(),
+            prefix_columns: prefix.builder.cols(),
+            prefix_nonzero_entries: prefix.builder.nonzero_entries(),
+            row_families: prefix.builder.row_family_ranges().to_vec(),
             old_block: audit.pending_old_block_cols.clone(),
             parent: audit.parent_y_zcol_cols.clone(),
             final_witness_first: audit.projection_child_witness_first_columns.clone(),
@@ -79,6 +113,52 @@ impl ProductionPlacementCertificate {
             .validate_against_execution(prep, execution)
             .expect("exact production terminal placement");
         certificate
+    }
+
+    pub(crate) fn diagnostic_json(&self) -> Value {
+        json!({
+            "artifact_kind": "r1cs/f-prime-selected-terminal-prefix-diagnostic",
+            "assurance_tier": "Rust diagnostic",
+            "profile": {
+                "relation": "fixed-point-selective-thirteen-matrix",
+                "fixed_one": true,
+                "layout": "plain",
+                "carrier_width": 270,
+                "relation_matrix_count": self.relation_matrix_count,
+                "terminal_ce_claim_count": self.terminal_claim_count,
+                "terminal_ce_evaluation_count": self.terminal_evaluation_count,
+            },
+            "prefix": {
+                "rows": self.prefix_rows,
+                "columns": self.prefix_columns,
+                "retained_nonzero_coefficients": self.prefix_nonzero_entries,
+                "row_family_metadata": self.row_families.iter().map(|family| json!({
+                    "name": family.name,
+                    "row_start": family.row_start,
+                    "row_end": family.row_end,
+                    "row_count": family.row_end - family.row_start,
+                })).collect::<Vec<_>>(),
+                "capture_mode": "witness-plus-row-families",
+                "note": "The selected placement exporter retains lightweight nested family boundaries but deliberately suppresses matrix coefficients before the large projection loop.",
+            },
+            "omitted_projection": {
+                "row_start": self.audit.row_start,
+                "row_end": self.audit.row_end,
+                "row_count": self.audit.row_end - self.audit.row_start,
+                "first_allocated_column": self.audit.first_allocated_column,
+                "note": "Placement is captured from the real terminal path before materializing the large raw-old-block row loop.",
+            },
+            "semantic_scope": {
+                "decoded": [],
+                "not_decoded": [
+                    "selected terminal NIFS",
+                    "running/fresh unary relations",
+                    "terminal continuity",
+                    "direct terminal CE",
+                ],
+                "warning": "This capture selects the actual thirteen-matrix path but is not yet a row-decoding or refinement theorem.",
+            },
+        })
     }
 
     fn validate_against_execution(
@@ -130,6 +210,62 @@ impl ProductionPlacementCertificate {
         let plan = audit.plan;
         let map = &audit.column_map;
         let witness_entries = plan.active_lanes() * plan.packed_columns();
+        if self.relation_matrix_count != 13 {
+            return Err(format!(
+                "selected relation matrix count is {}, expected 13",
+                self.relation_matrix_count
+            ));
+        }
+        if self.terminal_claim_count != RAW_OLD_BLOCK_CHILD_COUNT {
+            return Err(format!(
+                "selected terminal claim count is {}, expected {RAW_OLD_BLOCK_CHILD_COUNT}",
+                self.terminal_claim_count
+            ));
+        }
+        if self.terminal_evaluation_count != self.relation_matrix_count {
+            return Err(format!(
+                "selected terminal evaluation count is {}, relation matrix count is {}",
+                self.terminal_evaluation_count, self.relation_matrix_count
+            ));
+        }
+        if self.prefix_rows != audit.row_start {
+            return Err(format!(
+                "selected terminal prefix stops at row {}, projection starts at {}",
+                self.prefix_rows, audit.row_start
+            ));
+        }
+        if self.row_families.is_empty() {
+            return Err("selected terminal prefix has no row-family boundaries".to_string());
+        }
+        if self.prefix_nonzero_entries != 0 {
+            return Err(format!(
+                "selected terminal diagnostic retained {} matrix coefficients",
+                self.prefix_nonzero_entries
+            ));
+        }
+        if self
+            .row_families
+            .iter()
+            .any(|family| family.row_start > family.row_end || family.row_end > self.prefix_rows)
+        {
+            return Err("selected terminal row-family boundary exceeds the prefix".to_string());
+        }
+        for required in [
+            "terminal.nifs",
+            "terminal.running_link",
+            "terminal.parent_link",
+            "terminal.latest_link",
+            "terminal.accumulator",
+            "terminal.total",
+        ] {
+            if !self
+                .row_families
+                .iter()
+                .any(|family| family.name == required)
+            {
+                return Err(format!("selected terminal prefix is missing row family {required}"));
+            }
+        }
         if audit.pending_projection_join_id != RAW_OLD_BLOCK_PENDING_JOIN_ID
             || plan.logical_columns() != LOGICAL_WIDTH
             || plan.child_count() != RAW_OLD_BLOCK_CHILD_COUNT
@@ -212,6 +348,21 @@ impl ProductionPlacementCertificate {
         let mut changed = self.clone();
         changed.audit.row_end += 1;
         reject(&changed, "row-stop mutation");
+        let mut changed = self.clone();
+        changed.relation_matrix_count = 3;
+        reject(&changed, "relation-matrix-count mutation");
+        let mut changed = self.clone();
+        changed.terminal_evaluation_count = 3;
+        reject(&changed, "terminal-evaluation-count mutation");
+        let mut changed = self.clone();
+        changed.prefix_rows += 1;
+        reject(&changed, "terminal-prefix-row mutation");
+        let mut changed = self.clone();
+        changed.row_families.clear();
+        reject(&changed, "terminal-row-family mutation");
+        let mut changed = self.clone();
+        changed.prefix_nonzero_entries = 1;
+        reject(&changed, "terminal-prefix-coefficient mutation");
         let mut changed = self.clone();
         changed.old_block[0][0] += 1;
         reject(&changed, "old-block column mutation");

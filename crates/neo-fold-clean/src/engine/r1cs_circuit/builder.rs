@@ -464,6 +464,7 @@ pub struct ColumnFamilyRange {
 /// memory overhead in normal builds.
 pub struct R1csBuilder {
     record_structure: bool,
+    record_row_families: bool,
     a_trips: Vec<(usize, usize, F)>,
     b_trips: Vec<(usize, usize, F)>,
     c_trips: Vec<(usize, usize, F)>,
@@ -556,9 +557,23 @@ impl R1csBuilder {
         Self::with_structure_recording(false)
     }
 
+    /// Evaluate a preprocessed fixed-shape circuit without retaining matrix
+    /// coefficients, while keeping its lightweight row-family boundaries.
+    ///
+    /// This diagnostic mode does not make family names semantic authority.
+    /// It exists only to select bounded coefficient windows for a later
+    /// fail-closed capture from the same emitter path.
+    #[doc(hidden)]
+    pub fn new_witness_with_row_families() -> Self {
+        let mut builder = Self::with_structure_recording(false);
+        builder.record_row_families = true;
+        builder
+    }
+
     fn with_structure_recording(record_structure: bool) -> Self {
         Self {
             record_structure,
+            record_row_families: record_structure,
             a_trips: Vec::new(),
             b_trips: Vec::new(),
             c_trips: Vec::new(),
@@ -878,7 +893,7 @@ impl R1csBuilder {
     /// hashes; this metadata is not semantic authority.
     pub fn record_row_family(&mut self, name: &'static str, row_start: usize) {
         assert!(row_start <= self.rows, "row-family start exceeds builder cursor");
-        if self.record_structure {
+        if self.record_row_families {
             self.row_family_ranges.push(RowFamilyRange {
                 name,
                 row_start,

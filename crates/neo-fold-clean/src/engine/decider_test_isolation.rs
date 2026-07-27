@@ -50,6 +50,27 @@ pub fn capture_last_step_terminal_projection_placement(
     super::terminal::capture_last_step_terminal_projection_placement(prep, audit).map_err(|error| error.to_string())
 }
 
+/// Capture the selected last-step/terminal prefix together with the placement
+/// where the omitted large raw-old-block program would begin.
+///
+/// This is diagnostic-only: it returns rows already emitted by the ordinary
+/// terminal path and does not add, remove, or replace any constraint.
+pub fn capture_last_step_terminal_prefix(
+    prep: &Preprocessing,
+    audit: &crate::lifecycle::UncompressedAudit,
+) -> Result<
+    (
+        super::LastStepTerminalSynthesis,
+        crate::engine::r1cs_circuit::TerminalPendingProjectionAudit,
+    ),
+    String,
+> {
+    let (synthesis, placement) =
+        super::terminal::capture_last_step_terminal_prefix(prep, audit).map_err(|error| error.to_string())?;
+    let placement = placement.ok_or_else(|| "selected terminal prefix omitted its pending projection".to_string())?;
+    Ok((synthesis, placement))
+}
+
 /// Emit the direct terminal projection over the same raw witness allocations
 /// that the terminal CE relation uses for Ajtai openings.
 pub fn enforce_terminal_raw_old_block_projection_against(

@@ -37,6 +37,8 @@ use artifact::{
 
 const GENERATED_DIRECTORY: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/PiCcsNc/DelayedProjection/CombinedNc/Generated";
+const SELECTED_TERMINAL_DIAGNOSTIC_PATH: &str =
+    "formal/nightstream-lean/assurance/fprime-selected-terminal-prefix-diagnostic.json";
 const ROUND_COEFFICIENTS: usize = 5;
 const ISOLATED_ROUND_COLUMNS: usize = 43;
 const ISOLATED_ROUND_ROWS: usize = 30;
@@ -62,6 +64,23 @@ fn compare_or_write_expected(root: &Path, file: GeneratedLeanFile, drifted: &mut
     fs::create_dir_all(expected.parent().expect("generated artifact parent"))
         .expect("create generated artifact directory");
     fs::write(&expected, file.contents).expect("write generated Lean candidate");
+    drifted.push(
+        expected
+            .strip_prefix(root)
+            .unwrap_or(&expected)
+            .display()
+            .to_string(),
+    );
+}
+
+fn compare_json_or_write_expected(root: &Path, relative_path: &str, contents: &str, drifted: &mut Vec<String>) {
+    let path = root.join(relative_path);
+    let committed = fs::read_to_string(&path).unwrap_or_default();
+    if committed == contents {
+        return;
+    }
+    let expected = path.with_extension("json.expected");
+    fs::write(&expected, contents).expect("write selected terminal diagnostic candidate");
     drifted.push(
         expected
             .strip_prefix(root)
@@ -356,6 +375,11 @@ fn production_raw_old_block_projection_contract_matches_generated_certificate() 
     for file in files {
         compare_or_write_expected(&root, file, &mut drifted);
     }
+    let diagnostic = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&placement.diagnostic_json()).expect("render selected terminal prefix diagnostic")
+    );
+    compare_json_or_write_expected(&root, SELECTED_TERMINAL_DIAGNOSTIC_PATH, &diagnostic, &mut drifted);
     assert!(
         drifted.is_empty(),
         "focused production raw-old-block artifacts drifted: {drifted:?}"

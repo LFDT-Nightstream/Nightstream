@@ -20,6 +20,13 @@ prior link, structure, dispatch, and canonical output equalities. No stronger
 `FixedActive.ResultTransition` is reconstructed.
 
 Emits constraints: no.
+
+| Boundary | Exact equation or ownership rule | Lean owner |
+|---|---|---|
+| selected NIFS | caller supplies the exact paper transition for the certificate-derived children | `physicalChecks_refineConstruction2_of_paperTransition` |
+| outer execution | counter, prior link, structure, dispatch, result, and output remain verifier checked | `PhysicalChecks` |
+| recursive branch | the composed facts imply HyperNova Construction 2 | `physicalChecks_refineConstruction2_of_paperTransition` |
+| executable reuse | the existing active evaluator delegates to the same projection theorem | `run_refinesConstruction2_of_paperTransition` |
 -/
 
 namespace Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator
@@ -50,11 +57,11 @@ variable {publicRingColumns verifierRows slotCount : Nat}
 variable {publicFits :
   ringDegree * publicRingColumns <= shape.carrierWidth}
 
-/-- Successful outer execution plus the exact paper transition for the
-certificate-derived child family satisfies the recursive Construction-2
-branch. The selected parent cache is used only to interpret the certificate
-and is erased from the conclusion. -/
-theorem run_refinesConstruction2_of_paperTransition
+/-- Named physical outer checks plus the exact paper transition for the
+certificate-derived child family satisfy the recursive Construction-2
+branch. This proof-only entry point lets smaller executable profiles reuse
+the same projection without manufacturing a second checker implementation. -/
+theorem physicalChecks_refineConstruction2_of_paperTransition
     {setup :
       Setup OuterKey AppState Witness TranscriptState shape
         publicRingColumns publicFits verifierRows slotCount}
@@ -62,11 +69,12 @@ theorem run_refinesConstruction2_of_paperTransition
       Machine OuterKey Digest AppState Witness shape publicRingColumns
         publicFits verifierRows slotCount}
     {functionIndex : Fin slotCount}
-    (checkers : Checkers setup machine functionIndex)
     (input :
       Input OuterKey AppState Witness shape publicRingColumns publicFits
         verifierRows slotCount)
     (certificate : Certificate setup input)
+    (selectedNext :
+      Slot shape publicRingColumns publicFits verifierRows)
     (output :
       Output Digest AppState shape publicRingColumns publicFits verifierRows
         slotCount)
@@ -77,15 +85,13 @@ theorem run_refinesConstruction2_of_paperTransition
         (contextAt setup input certificate.selected).input
         (outputChildren (contextAt setup input certificate.selected)
           certificate.nifs))
-    (executed : run checkers input certificate = some output) :
+    (physical :
+      PhysicalChecks setup machine functionIndex input certificate
+        selectedNext output) :
     Paper.Construction2.RecursiveHolds
       (PaperSelectedNifsSemantics.family
         (ActiveSemantics.Construction2.selectedNifsSetup setup))
       machine functionIndex input.toPaper output.toPaper := by
-  rcases
-      (run_eq_some_iff_physicalChecks checkers input certificate output).1
-        executed with
-    ⟨selectedNext, physical⟩
   let selected := certificate.selected
   have selectedPaperTransition :
       PaperSelectedNifsSemantics.Transition
@@ -200,6 +206,45 @@ theorem run_refinesConstruction2_of_paperTransition
         congrArg (fun result => result.children) richEq
   · exact Paper.derivedOutput_outputHolds machine input.toPaper
       (updatedRunning input selected selectedNext).toPaper
+
+/-- Successful outer execution plus the exact paper transition for the
+certificate-derived child family satisfies the recursive Construction-2
+branch. The selected parent cache is used only to interpret the certificate
+and is erased from the conclusion. -/
+theorem run_refinesConstruction2_of_paperTransition
+    {setup :
+      Setup OuterKey AppState Witness TranscriptState shape
+        publicRingColumns publicFits verifierRows slotCount}
+    {machine :
+      Machine OuterKey Digest AppState Witness shape publicRingColumns
+        publicFits verifierRows slotCount}
+    {functionIndex : Fin slotCount}
+    (checkers : Checkers setup machine functionIndex)
+    (input :
+      Input OuterKey AppState Witness shape publicRingColumns publicFits
+        verifierRows slotCount)
+    (certificate : Certificate setup input)
+    (output :
+      Output Digest AppState shape publicRingColumns publicFits verifierRows
+        slotCount)
+    (paperTransition :
+      FixedActive.PaperProfile.Transition
+        (FixedActive.paperProfileOf
+          (contextAt setup input certificate.selected))
+        (contextAt setup input certificate.selected).input
+        (outputChildren (contextAt setup input certificate.selected)
+          certificate.nifs))
+    (executed : run checkers input certificate = some output) :
+    Paper.Construction2.RecursiveHolds
+      (PaperSelectedNifsSemantics.family
+        (ActiveSemantics.Construction2.selectedNifsSetup setup))
+      machine functionIndex input.toPaper output.toPaper := by
+  rcases
+      (run_eq_some_iff_physicalChecks checkers input certificate output).1
+        executed with
+    ⟨selectedNext, physical⟩
+  exact physicalChecks_refineConstruction2_of_paperTransition input
+    certificate selectedNext output paperTransition physical
 
 end
 

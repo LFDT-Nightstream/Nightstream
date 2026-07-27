@@ -213,3 +213,22 @@ REL-LIN-RUNNING-PIN
 Do not expand the Lowering/R1CS surface further until that chain closes; per
 `formal-verification.md` Section 15 the current selective-R1CS stage describes
 a different compiler relation and is not a license to certify its rows.
+
+### Closure update (2026-07-25)
+
+The typed model chain above is now closed. `ProductionRelation.relationShape_eq`
+pins the fixed-active shape definitionally to the independent five-ring
+relation, `publicWidth_eq` proves `270 = 54 * 5`, and
+`runningAssignment_exact` retains all 270 running coordinates.
+`PaperBoundary.run_refinesConstruction2_or_namedFailure` then connects the
+paper-exact raw NIFS checker to the actual Construction-2 child vector or
+precise named source/output/algebraic failures.
+`exists_run_and_construction2_or_samplerShortfall` supplies the matching honest
+direction, and the existing fixed-active semantic-composition theorem reaches
+extraction or named events without `rewindArithmetization`.
+
+This closes the `REL-LIN-RUNNING-PIN` successor obligation described above
+and supports the model-proved `REL-CONCRETE-PRODUCTION` and
+`FPR-NIFS-BRIDGE` rows. It does not identify any Rust decoder, R1CS witness,
+generated row, or physical 257-coordinate snapshot with the 270-coordinate
+carrier; those remain later concrete-refinement obligations.

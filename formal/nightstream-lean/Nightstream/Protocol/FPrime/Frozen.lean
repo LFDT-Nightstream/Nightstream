@@ -29,6 +29,8 @@ import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc
 import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.Production
 import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol
 import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol.Lifecycle
+import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.PaperBoundary
+import Nightstream.Protocol.FPrime.ConcretePhi81.ProductionRelation
 import Nightstream.Protocol.FPrime.Frozen.FixedActiveCarrierObstruction
 import Nightstream.Protocol.FPrime.Frozen.NonInteractiveContinuationObstruction
 import Nightstream.Protocol.FPrime.Frozen.NonInteractiveAdaptiveWitnessObstruction
@@ -74,6 +76,8 @@ paper's deterministic verifier notation: `none` means rejection and
 | `Frozen.PiCcsAsymptoticObstruction` | exact opacity of an arbitrary frozen PiCCS runtime field | does not obstruct an operationally linked game |
 | `Frozen.PiCcsFirstSuccessBridge` | exact unbounded finite-alphabet trace law, almost-sure termination, EPT, and frozen `PiCcsStrong` bridge | no Fiat--Shamir or downstream composition premise |
 | `Frozen.NifsNonInteractiveBridge` | exact `NifsNonInteractiveSound` theorem for the full correlated oracle experiment | named interactive, extraction, and collision contracts remain primitive premises |
+| `ProductionRelation` | exact `270 = 54 * 5` production `L_in`, one-fresh/fourteen-running ownership, and PiDEC public round trip | no Rust decoder, Ajtai-byte, R1CS, or row claim |
+| `ConcreteNifsBridge` | fail-closed fixed-one paper checker refines Construction 2 or named source/output/algebraic failure, with honest completeness or bounded-sampler shortfall | no concrete Fiat--Shamir, probability, Rust, R1CS, or row claim |
 | SuperNeo paper corrections/reductions | corrected quantitative boundaries and the finite `Pi_DEC o Pi_RLC o Pi_CCS` knowledge theorem | no Fiat--Shamir or concrete primitive bound |
 | `PaperNonInteractive.CausalFirstSuccessBridge` | exact finite D.4 first-success/fresh-second carrier and typed NIFS event/probability transport | no ideal-RO construction or D.6 target-witness premise |
 | `CanonicalVerifier.PaperNonInteractiveNifs` | exact paper NIFS and selected Construction-2 recursive fold | no Rust/R1CS refinement |
@@ -124,6 +128,31 @@ export FixedActiveCarrierObstruction
     no_exact_construction2_fprime_decoder)
 
 end FixedActiveCarrier
+
+namespace ProductionRelation
+
+export Nightstream.Protocol.FPrime.ConcretePhi81.ProductionRelation
+  (Shape publicFits relationShape_eq publicWidth_eq ProductionPublicInput
+    publicInput_eq_lIn sourceArity_exact freshPublicInput_exact
+    runningAssignment_exact liftedCcsSatisfied_iff
+    piDecPublicInput_roundTrip exactProfile)
+
+end ProductionRelation
+
+namespace ConcreteNifsBridge
+
+export Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.PaperBoundary
+  (SelectedContext SourceAuthority Accepted check check_eq_true_iff_accepted run
+    run_eq_some_iff NamedFailure run_refinesConstruction2_or_namedFailure
+    exists_run_and_construction2_or_samplerShortfall)
+
+export Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.PaperBoundary.SourceAuthority
+  (ofCanonicalOpening)
+
+export Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.PaperProfile.CertificateRefinement
+  (paperOutputEquations)
+
+end ConcreteNifsBridge
 
 namespace ProductionDeviations
 

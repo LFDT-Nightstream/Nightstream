@@ -154,6 +154,37 @@ def paperProfileOf
   alignment := context.alignment
 }
 
+/-- The fixed-active paper profile uses the concrete coordinatewise public
+split without an intermediate callback. -/
+@[simp] theorem paperProfileOf_decPublicInputSplit_split
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows) :
+    (PaperProfile.decPublicInputSplit (paperProfileOf context)).split =
+      PiDECAlgebra.PublicInput.splitPublicInput := by
+  rfl
+
+/-- The fixed-active paper evaluation tuple has exactly one entry per
+relation matrix. -/
+@[simp] theorem paperProfileOf_decEvaluationArity_count
+    {shape : SemanticShape}
+    {State : Type uState}
+    {publicRingColumns verifierRows : Nat}
+    {publicFits :
+      ringDegree * publicRingColumns <= shape.carrierWidth}
+    (context :
+      Context shape State publicRingColumns publicFits verifierRows)
+    (system :
+      Phi81Relation.Structure
+        (RelationShape shape publicRingColumns publicFits)) :
+    (PaperProfile.decEvaluationArity (paperProfileOf context)).count system =
+      shape.matrixCount := by
+  rfl
+
 /-- Forget the implementation-indexed witness type while preserving the raw
 paper point and challenge vector exactly. -/
 def paperWitnessOf

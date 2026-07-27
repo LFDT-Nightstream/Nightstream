@@ -6,14 +6,35 @@ property_ids:
   FPR-OBLIGATION-EXACT
   FPR-OBLIGATION-NECESSITY
 
+evidence_state:
+  FPR-NIFS-BRIDGE: model-proved
+  FPR-OBLIGATION-EXACT: model-proved
+  FPR-OBLIGATION-NECESSITY: model-proved
+
 claim:
-  Target: specify the recursive verifier independently by the paper-level
-  PiCCS -> PiRLC -> PiDEC composition and HyperNova F' transition; prove that a
-  reduced, explicitly grouped obligation set accepts exactly that transition;
-  then prove that concrete Rust/R1CS acceptance refines the reduced obligation
-  set. The canonical fixed-active raw NIFS checker and fixed-one F' evaluator
-  now exactly characterize model-level physical acceptance and execution.
-  Paper/security closure and concrete Rust/R1CS refinement remain open.
+  The recursive verifier is specified independently by the paper-level
+  PiCCS -> PiRLC -> PiDEC composition and HyperNova Construction 2. The
+  fixed-one paper boundary consumes the actual raw typed NIFS certificate,
+  retains the existing physical checker, adds the five exact paper PiDEC
+  output equations, and computes the canonical F-prime output.
+
+  Successful execution consumes a typed source-authority receipt constructed
+  from the canonical opening carrier and then refines Construction 2 over the
+  actual public child vector or exposes exactly yRing binding, packed-yZcol
+  binding, or the existing PiCCS algebraic event. Source binding is not a
+  generic escape branch: `SourceAuthority.ofCanonicalOpening` derives it from
+  the authoritative carrier after one exact selected-context identity. Honest
+  sources construct an accepted Construction-2 execution or expose the
+  existing bounded-sampler shortfall. The successful theorem assumes neither
+  child openings nor equality with a deterministic private child split.
+
+  The exact 270-coordinate production relation instantiation and the
+  fixed-active composition knowledge theorem are separate model-level owners.
+  The latter has no rewindArithmetization premise. Concrete Rust/R1CS decoding,
+  construction of the source-authority receipt from the shipping decoder,
+  generated-row equality, Poseidon2 refinement, concrete support arithmetic,
+  and probability bounds remain later refinement/security obligations; they
+  are not part of the M3 model-level exit.
 
   For every retained obligation family, removing that family while retaining
   the others admits a concrete invalid transition. Any family proved to follow
@@ -26,7 +47,8 @@ trust_direction:
   paper semantics
     -> independent typed NIFS/F' transition
     -> sound, complete, inclusion-minimal obligation tree
-    -> concrete Rust/R1CS refinement
+    -> M3 typed executable bridge
+    -> concrete Rust/R1CS refinement under obligation 11
     -> exact materialized leaf costs
 
 forbidden_shortcuts:
@@ -161,36 +183,16 @@ obligation_tree:
       output_hash
 
 minimal_evaluator_contract:
-  - This evaluator remains blocked on production input/lift refinement,
-    output-evaluation authority, degree bounds, and a direct strong-reduction
-    proof for production SplitNc with explicit bad-event bounds. Exact
-    transcript equivalence with the paper's single displayed `Q` is not the
-    target: Lean proves that the paper's square `ColumnLayout` cannot
-    instantiate a complete 54-lane Phi81 carrier. Both arithmetizations must
-    instead refine the same independently stated Section 7.3 relation.
-    PaperJoint now fixes the
-    finite coefficient-block layout, derives a canonical Boolean-table
-    coefficient transform, proves its table-level zero equivalence and exact
-    agreement with an independently recursive MLE evaluator,
-    exposes the deterministic alpha/gamma mixing-root dichotomy, and fixes
-    joint-SumCheck output-point ownership. It now also defines pointwise
-    `F`/`NC`/`Eval`/`Q` from explicit extension-carrier tables and proves the
-    exact signed `T_abs - sum_x Q` identity. It now also derives the exact
-    constant-first signed gamma coefficients, proves executable Horner
-    evaluation equals that identity, and defines one explicit arbitrary-point
-    joint polynomial whose Boolean sum is the semantic initial value. Canonical
-    expected rounds and the terminal are derived from that same polynomial, so
-    executable acceptance reduces to table truth, a mixing root, or a named
-    SumCheck round collision without a caller-supplied expected callback or
-    honesty proof. The sole joint object is now constructed from independent
-    CCS matrices/assignments, typed norm sources, and carried matrix-image data;
-    its coefficient truth is proved equivalent to those three semantic
-    families. It explicitly leaves external Boolean-leaf/production-bit
-    ordering, production input/lift refinement, degree enforcement, direct
-    SplitNc security reduction, and production integration open.
-    The evaluator may not take a semantic
-    `Attempt` as its certificate just to obtain ghost fields or carried
-    challenges.
+  - The typed model evaluator now has the exact 270-coordinate production
+    relation, fixed-width degree enforcement, assignment-indexed FE/NC
+    arithmetization, verifier-owned output equations, deterministic Split-NC
+    reduction, and the Construction-2 bridge. Exact transcript identity with
+    the paper's displayed one-joint `Q` is neither required nor claimed: the
+    registered block/lane deviation instead has a kernel-checked semantic
+    refinement. Concrete mixing-event probability bounds, field/support
+    certificates, Poseidon2, and Rust/R1CS decoding remain outside this M3
+    contract. The evaluator may not take a semantic `Attempt` as its
+    certificate merely to obtain ghost fields or carried challenges.
   - The reduced verifier is a deterministic partial evaluator from one typed
     input and one raw certificate to an optional canonical output. It is not a
     second record containing the same fields as `Nifs.Accepted`.
@@ -282,10 +284,11 @@ current_model_status:
       slot, raw prior counter, relation structure, or stages. Its physical
       checker owns only positive iteration, the complete prior public-input
       link, and the canonical raw NIFS certificate. Successful execution is
-      exactly characterized and computes the complete output. Soundness to the
-      independent F' relation remains conditional on explicit semantic and
-      security closure premises; honest completeness preserves sampler
-      shortfall as an explicit outcome.
+      exactly characterized and computes the complete output. The paper-exact
+      checker additionally enforces all five PiDEC output equations and proves
+      Construction-2 soundness or precise source/output/PiCCS failure.
+      Honest completeness constructs the same executable relation or preserves
+      bounded-sampler shortfall as an explicit outcome.
     - Independent production-alphabet mathematics: 16-bit candidates reject
       exactly `65535`; the accepted domain is bijective with
       `Fin 13107 × Fin 5`; centered symbols lie in `[-2,2]`; 54-of-64 bounded
@@ -402,9 +405,9 @@ current_model_status:
       base-to-extension lift, and placement of those residuals; root counting
       for the now-explicit signed coefficient object; plus concrete source,
       lift, and output-authority refinement for SplitNc.
-    - Production FE challenge-to-point and NC sidecar authority.
     - Concrete `enc_str(F'_j)` to selected NIFS structure/key refinement.
-    - Canonical parsing and exact production public-input carrier.
+    - Rust/R1CS parsing and decoding into the exact production public-input
+      carrier.
 
 The fixed rejection-sampler arithmetization is not a protocol obligation. Its
 only authority-bearing contract is that successful execution refines the
@@ -503,18 +506,15 @@ current_gap_boundary:
     NC soundness/completeness and `y_zcol` authority must close directly from
     the same assignment used by CCS/CE; port zero must never be treated as the
     paper identity matrix.
-  - PiCCS: decoded FE/NC rows already yield actual `SumCheck.Accepted` values,
-    but that is not yet a complete production verifier bridge. The symbolic
-    `SumCheck.Instance` used only in semantic reductions carries `trueInitial`
-    and expected-polynomial ghosts; the executable paper-joint certificate
-    does not. Its algebraic checker now accepts a minimal public
-    `VerifierInput` plus raw finite round/output messages and cannot read
-    semantic assignment/image tables. The transcript wrapper receives the
-    prior state and that public input in one typed statement, but its abstract
-    functions may still ignore/collide until Poseidon2 refinement. Production
-    SplitNc still supplies `PiCCS.Arithmetization` as an external premise
-    rather than constructing complete FE/NC truth from authoritative input,
-    output evaluations, and verifier challenges. The independent SplitNc
+  - PiCCS: the typed production Split-NC bridge constructs the
+    assignment-indexed `PiCCS.Arithmetization` internally from independent FE
+    and NC semantic views while preserving adversarial carried claims;
+    `rewindArithmetization` is absent from the fixed-active composition
+    theorem. The executable certificate contains no semantic ghosts. The
+    transcript wrapper receives the prior state and public verifier input in
+    one typed statement, but its abstract functions may still ignore or
+    collide until concrete Poseidon2 refinement. Decoded Rust/R1CS rows are
+    not yet proved to produce this typed certificate. The independent SplitNc
     verifier layer now exposes only the sparse CCS polynomial, prior row point,
     running coefficient claims, and value-only `y_ring`/`y_zcol` output product.
     Its first FE polynomial module fixes the production-shaped row/lane product,

@@ -325,7 +325,7 @@ theorem equalityWeight_toCubePoint
               BooleanVertex.toCubePoint, BooleanVertex.fieldCoordinates,
               laws.one_mul, tailInduction]
 
-private theorem sumMap_ite_eq_of_mem_nodup
+theorem sumMap_ite_eq_of_mem_nodup
     {Field : Type uField}
     {Index : Type}
     [DecidableEq Index]

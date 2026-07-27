@@ -76,6 +76,21 @@ noncomputable def sumCheckBadChallengeEvent
   fun execution =>
     propositionEvent (SumCheckFailure context execution.causalRun witness)
 
+/-- Public exact transport for the named Boolean alpha/gamma mixing event. -/
+@[simp] theorem mixingRootEvent_eq_true_iff
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (context : Context Extension Commitment PublicInput shape
+      columns blockCount)
+    (witness : OutputWitness shape columns)
+    (execution : Execution Extension shape columns) :
+    mixingRootEvent context witness execution = true <->
+      MixingFailure context execution.causalRun witness := by
+  exact propositionEvent_eq_true _
+
 /-- Public exact transport for the named Boolean SumCheck event. -/
 @[simp] theorem sumCheckBadChallengeEvent_eq_true_iff
     {Extension : Type uExtension}

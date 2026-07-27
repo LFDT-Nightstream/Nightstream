@@ -261,6 +261,34 @@ private theorem residualWeightIdentity_accepted_iff
       rw [laws.zero_add]
       exact weightedEquation
 
+/-- The named residual-weight root satisfies the exact degree-one equation
+checked by the production verifier. This exposes only event transport; it
+does not assign a probability to the sampled batch weight. -/
+theorem residualWeightRoot_equation
+    {shape : SemanticShape}
+    {domain : BlockNcDomain}
+    (covers : domain.Covers shape)
+    (data : Data shape)
+    (coins : Mixing.Coins domain)
+    (weights : RunningWeights shape)
+    (producerBeta batchWeight parentProjection : K)
+    (oldBlock : CubePoint K domain.blockVariables)
+    (root : ResidualWeightRoot covers data coins weights producerBeta
+      batchWeight parentProjection oldBlock) :
+    K.mul batchWeight parentProjection =
+      K.add (InitialSum.mixedResidualAtBeta covers data coins)
+        (K.mul batchWeight
+          (authoritativeRunningProjection covers data weights producerBeta
+            oldBlock)) := by
+  apply
+    (residualWeightIdentity_accepted_iff covers data coins weights
+      producerBeta batchWeight parentProjection oldBlock).mp
+  exact Nightstream.SuperNeo.ProjectionCheck.badRoot_is_accepted
+    projectionOps
+    (residualWeightIdentity covers data coins weights producerBeta
+      batchWeight parentProjection oldBlock)
+    root
+
 /-! ## Expected-round representability -/
 
 private theorem expectedPolynomialsFrom_representable

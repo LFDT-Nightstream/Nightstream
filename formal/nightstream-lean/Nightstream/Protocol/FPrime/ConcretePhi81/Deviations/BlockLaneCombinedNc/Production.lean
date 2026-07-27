@@ -2,6 +2,7 @@ import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.
 import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.ProductionRefinement.OutputAuthority
 import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.ProductionRefinement.ResidualAlignment
 import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.CausalSoundness
+import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.ProductionMixingBoundary.IdealInteractiveSoundness
 
 /-!
 Public production-refinement surface for the complete typed Split-NC prefix.
@@ -21,6 +22,7 @@ Emits constraints: none.
 |---|---|---|---|
 | `pi_ccs.production.deterministic` | expose the typed deterministic refinement without changing it | exported | `ProductionRefinement` |
 | `pi_ccs.production.probability` | expose the ideal-interactive collision theorem without changing it | exported | `CausalSoundness` |
+| `pi_ccs.production.mixing` | expose the selected ordered mixing-plus-collision theorem | exported | `ProductionMixingBoundary.IdealInteractiveSoundness` |
 -/
 
 namespace Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.Production
@@ -53,5 +55,23 @@ export ProductionRefinement.ResidualAlignment
     not_literalResidualSlotAlignment
     semanticResidualsZero_iff_paperHolds
     accepted_implies_paper_or_residual_failure)
+
+namespace IdealInteractiveMixing
+
+export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.ProductionMixingBoundary.IdealInteractiveCarrier
+  (PreSeed Seed support input input_supportAligned
+    derivePreSumcheck_shared_gamma derivePreSumcheck_delayed)
+
+export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.ProductionMixingBoundary.IdealInteractiveExecution
+  (Suffix certificate certificate_fe_coordinates certificate_nc_coordinates)
+
+export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.ProductionMixingBoundary.IdealInteractiveSoundness
+  (NamedFailure namedFailureEvent feMixingBudget ncMixingBudget
+    splitCollisionBudget totalBudget
+    algebraicFailureEvent_eq_namedFailureEvent
+    namedFailure_probability_le
+    namedFailure_probability_le_of_productionField)
+
+end IdealInteractiveMixing
 
 end Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.Production

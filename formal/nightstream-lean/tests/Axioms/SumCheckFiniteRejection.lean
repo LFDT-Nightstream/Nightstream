@@ -5,7 +5,7 @@ import tests.Axioms.Support
 Fail-closed trusted-dependency audit for the finite SumCheck rejection
 witnesses.
 
-Owns: axiom expectations for the negative-witness set that discharges
+Owns: dependency expectations for the negative-witness set that discharges
 `SUM-FINITE-CERT`'s Section-8 counterexample obligation, plus the positive
 control the negatives are measured against.
 

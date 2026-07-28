@@ -454,6 +454,7 @@ const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
     ("stack", DebugInitMode::Strict),
     ("call_stack_return_pcs", DebugInitMode::Strict),
     ("call_stack_caller_fbps", DebugInitMode::Strict),
+    ("call_stack_caller_sp_bases", DebugInitMode::Strict),
     // linear_memory: ZeroReadDefault. Bytes initialized by active `(data ...)`
     // segments are preloaded into the cells in `preload_from_program_artifacts`
     // (via `artifacts.tables.linear_memory_init`), so the RMW Read at data-initialized

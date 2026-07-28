@@ -443,6 +443,8 @@ pub enum WasmOpcode {
     BrTable,
     Call,
     CallIndirect,
+    ReturnCall,
+    ReturnCallIndirect,
     Return,
     LocalGet,
     LocalSet,
@@ -454,7 +456,7 @@ pub enum WasmOpcode {
 }
 
 impl WasmOpcode {
-    pub fn supported() -> [Self; 113] {
+    pub fn supported() -> [Self; 115] {
         [
             Self::Nop,
             Self::I32Const,
@@ -543,6 +545,8 @@ impl WasmOpcode {
             Self::BrTable,
             Self::Call,
             Self::CallIndirect,
+            Self::ReturnCall,
+            Self::ReturnCallIndirect,
             Self::Return,
             Self::LocalGet,
             Self::LocalSet,
@@ -687,6 +691,8 @@ impl WasmOpcode {
             Self::I64Clz => Some(110),
             Self::I64Ctz => Some(111),
             Self::I64Popcnt => Some(112),
+            Self::ReturnCall => Some(113),
+            Self::ReturnCallIndirect => Some(114),
             Self::Trap | Self::Unsupported => None,
         }
     }
@@ -763,6 +769,8 @@ impl WasmOpcode {
                 | Self::Select
                 | Self::Call
                 | Self::CallIndirect
+                | Self::ReturnCall
+                | Self::ReturnCallIndirect
                 | Self::LocalGet
                 | Self::LocalSet
                 | Self::LocalTee
@@ -1009,6 +1017,8 @@ impl WasmOpcode {
             Self::BrTable => "br_table",
             Self::Call => "call",
             Self::CallIndirect => "call_indirect",
+            Self::ReturnCall => "return_call",
+            Self::ReturnCallIndirect => "return_call_indirect",
             Self::Return => "return",
             Self::LocalGet => "local_get",
             Self::LocalSet => "local_set",
@@ -1149,12 +1159,12 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::Select => info(op, code, Class::ControlFlow, 3, 1, false, None),
         Op::BrIf => info(op, code, Class::ControlFlow, 1, 0, false, None),
         Op::BrTable => info(op, code, Class::ControlFlow, 1, 0, false, None),
-        // Call/CallIndirect: static arity is 0 here; the trace overrides it
-        // per row (0, or 1 for the indirect table index). Args are popped by
-        // aux rows: param-init for guest callees, host-arg for host callees,
-        // and a host-result aux row pushes the host's single result.
+        // Call-like arity is dynamic: direct rows read 0, indirect rows read
+        // the table index, and aux rows handle arguments and host results.
         Op::Call => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::CallIndirect => info(op, code, Class::ControlFlow, 0, 0, false, None),
+        Op::ReturnCall => info(op, code, Class::ControlFlow, 0, 0, false, None),
+        Op::ReturnCallIndirect => info(op, code, Class::ControlFlow, 0, 0, false, None),
         Op::Return => info(op, code, Class::System, 0, 0, false, None),
         // stack_reads/writes are the operand stack effects only; local memory accesses
         // are tracked separately via local_read_value / local_write_value in the IR.
@@ -1281,6 +1291,8 @@ pub fn opcode_code(op: WasmOpcode) -> u16 {
         WasmOpcode::BrTable => 0x0E,
         WasmOpcode::Call => 0x10,
         WasmOpcode::CallIndirect => 0x11,
+        WasmOpcode::ReturnCall => 0x12,
+        WasmOpcode::ReturnCallIndirect => 0x13,
         WasmOpcode::Return => 0x0F,
         WasmOpcode::LocalGet => 0x20,
         WasmOpcode::LocalSet => 0x21,
@@ -1401,6 +1413,8 @@ fn opcode_from_code(code: u16) -> WasmOpcode {
         x if x == opcode_code(WasmOpcode::BrTable) => WasmOpcode::BrTable,
         x if x == opcode_code(WasmOpcode::Call) => WasmOpcode::Call,
         x if x == opcode_code(WasmOpcode::CallIndirect) => WasmOpcode::CallIndirect,
+        x if x == opcode_code(WasmOpcode::ReturnCall) => WasmOpcode::ReturnCall,
+        x if x == opcode_code(WasmOpcode::ReturnCallIndirect) => WasmOpcode::ReturnCallIndirect,
         x if x == opcode_code(WasmOpcode::Return) => WasmOpcode::Return,
         x if x == opcode_code(WasmOpcode::LocalGet) => WasmOpcode::LocalGet,
         x if x == opcode_code(WasmOpcode::LocalSet) => WasmOpcode::LocalSet,

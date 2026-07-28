@@ -216,6 +216,7 @@ pub(super) fn plan_export_blocks(events: &[GrammarEvent], blocks: &[[u64; 8]]) -
 pub(super) struct GrammarAuxCtx {
     pub(super) pc: u64,
     pub(super) sp: u64,
+    pub(super) stack_frame_base: u64,
     pub(super) output: WasmOutputState,
     pub(super) call_stack_depth: u64,
     pub(super) memory_pages: Option<u32>,
@@ -243,6 +244,7 @@ impl GrammarAuxCtx {
         WasmStepState {
             pc: self.pc,
             sp: self.sp,
+            stack_frame_base: self.stack_frame_base,
             output: self.output,
             call_stack_depth: self.call_stack_depth,
             memory_pages: self.memory_pages,
@@ -251,6 +253,7 @@ impl GrammarAuxCtx {
             halted: self.halted,
             trapped: false,
             param_init: WasmCountdownState::ZERO,
+            tail_call_pending: false,
             host_args,
             host_result_pending: self.host_result_pending,
             host_callee_fref: self.host_callee_fref,

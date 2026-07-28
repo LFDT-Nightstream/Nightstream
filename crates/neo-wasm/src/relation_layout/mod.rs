@@ -1,18 +1,19 @@
-use super::isa::WasmOpTable;
+use super::isa::{WasmOpTable, WasmOpcode};
 use super::ivc_state::{build_ivc_state_continuity_links, WasmCrossStepLinkSpec};
 use super::layout::{
     selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT,
-    COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_POP_PRESENT,
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF,
-    COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX,
-    COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL,
-    COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT, COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI,
-    COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB,
-    COL_GUEST_CALL_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_IS_PROGRAM_ROW,
-    COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3,
-    COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7,
-    COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
+    COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL,
+    COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
+    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE,
+    COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
+    COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL, COL_GRAMMAR_POST_COUNT,
+    COL_GRAMMAR_PRE_COUNT, COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO,
+    COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB, COL_GUEST_ENTRY_ACTIVE,
+    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
+    COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4,
+    COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
+    COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3,
@@ -479,7 +480,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GUEST_CALL_ACTIVE)),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_CALL_STACK_ADDR)],
@@ -499,11 +500,31 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: WasmMemoryColumnKind::Write {
                         value_before_column: None,
                     },
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GUEST_CALL_ACTIVE)),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_CALL_STACK_ADDR)],
                     value_column: Column(COL_CALL_STACK_CALLER_FBP_VALUE),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_POP_PRESENT)),
+                },
+            ],
+            is_rom: false,
+        },
+        WasmMemorySpec {
+            name: "call_stack_caller_sp_bases",
+            columns: vec![
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
+                    value_column: Column(COL_CALL_STACK_CALLER_SP_BASE_VALUE),
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_CALL_STACK_ADDR)],
+                    value_column: Column(COL_CALL_STACK_CALLER_SP_BASE_VALUE),
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_POP_PRESENT)),
                 },
@@ -839,6 +860,14 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     address_columns: vec![Column(COL_FUNCTION_REF)],
                     value_column: Column(COL_TARGET_FUNCTION_IS_GUEST),
                     kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        selector_col(super::isa::WasmOpcode::ReturnCall).unwrap(),
+                    )),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_FUNCTION_REF)],
+                    value_column: Column(COL_TARGET_FUNCTION_IS_GUEST),
+                    kind: WasmMemoryColumnKind::Read,
                     // De-gated on call_indirect trap rows: no call happens,
                     // so the callee metadata is unread and unconstrained.
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
@@ -855,6 +884,14 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::Call).unwrap(),
+                    )),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_FUNCTION_REF)],
+                    value_column: Column(COL_CALL_PARAM_COUNT),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        selector_col(super::isa::WasmOpcode::ReturnCall).unwrap(),
                     )),
                 },
                 WasmMemoryColumnSpec {
@@ -881,23 +918,45 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     address_columns: vec![Column(COL_FUNCTION_REF)],
                     value_column: Column(COL_CALL_RESULT_COUNT),
                     kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        selector_col(super::isa::WasmOpcode::ReturnCall).unwrap(),
+                    )),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_FUNCTION_REF)],
+                    value_column: Column(COL_CALL_RESULT_COUNT),
+                    kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
                 },
             ],
             is_rom: true,
         },
-        rom_read_spec(
-            "module_types",
-            vec![Column(COL_CALL_INDIRECT_TYPE_INDEX)],
-            Column(COL_EXPECTED_TYPE_ID),
-            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::CallIndirect).unwrap())),
-        ),
-        rom_read_spec(
-            "call_targets",
-            vec![Column(COL_PC_BEFORE)],
-            Column(COL_FUNCTION_REF),
-            WasmMemoryActivation::BooleanGate(Column(selector_col(super::isa::WasmOpcode::Call).unwrap())),
-        ),
+        WasmMemorySpec {
+            name: "module_types",
+            columns: [WasmOpcode::CallIndirect, WasmOpcode::ReturnCallIndirect]
+                .into_iter()
+                .map(|opcode| WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_CALL_INDIRECT_TYPE_INDEX)],
+                    value_column: Column(COL_EXPECTED_TYPE_ID),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(selector_col(opcode).unwrap())),
+                })
+                .collect(),
+            is_rom: true,
+        },
+        WasmMemorySpec {
+            name: "call_targets",
+            columns: [WasmOpcode::Call, WasmOpcode::ReturnCall]
+                .into_iter()
+                .map(|opcode| WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_PC_BEFORE)],
+                    value_column: Column(COL_FUNCTION_REF),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(selector_col(opcode).unwrap())),
+                })
+                .collect(),
+            is_rom: true,
+        },
         WasmMemorySpec {
             name: "function_entries",
             columns: vec![
@@ -909,7 +968,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     address_columns: vec![Column(COL_FUNCTION_REF)],
                     value_column: Column(COL_PC_AFTER),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GUEST_CALL_ACTIVE)),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GUEST_ENTRY_ACTIVE)),
                 },
                 // Turn boundary: the next turn's pc jump is bound to the
                 // entered export's entry pc, keyed by the repointed
@@ -1055,7 +1114,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     address_columns: vec![Column(COL_PC_BEFORE), Column(COL_PC_ROM_CALL_RETURN_CHOICE)],
                     value_column: Column(COL_CALL_STACK_RETURN_PC_VALUE),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GUEST_CALL_ACTIVE)),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_STACK_PUSH_PRESENT)),
                 },
                 // An indirect host call binds its fall-through pc_after to
                 // the call site's return-pc slot: host imports have no

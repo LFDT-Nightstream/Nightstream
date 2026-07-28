@@ -30,11 +30,24 @@ use p3_field::PrimeCharacteristicRing;
 type R1csBuilder = WasmTaggedR1csBuilder;
 
 const LOCAL_WRITE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalSet, WasmOpcode::LocalTee];
-const TABLE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::CallIndirect];
-const TABLE_SIZE_READ_OPS: &[WasmOpcode] = &[WasmOpcode::TableSize, WasmOpcode::CallIndirect];
+const TABLE_READ_OPS: &[WasmOpcode] = &[
+    WasmOpcode::TableGet,
+    WasmOpcode::CallIndirect,
+    WasmOpcode::ReturnCallIndirect,
+];
+const TABLE_SIZE_READ_OPS: &[WasmOpcode] = &[
+    WasmOpcode::TableSize,
+    WasmOpcode::CallIndirect,
+    WasmOpcode::ReturnCallIndirect,
+];
 const LOCAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::LocalGet, WasmOpcode::LocalSet, WasmOpcode::LocalTee];
 const GLOBAL_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::GlobalGet, WasmOpcode::GlobalSet];
-const TABLE_VALUE_OPS: &[WasmOpcode] = &[WasmOpcode::TableGet, WasmOpcode::TableSet, WasmOpcode::CallIndirect];
+const TABLE_VALUE_OPS: &[WasmOpcode] = &[
+    WasmOpcode::TableGet,
+    WasmOpcode::TableSet,
+    WasmOpcode::CallIndirect,
+    WasmOpcode::ReturnCallIndirect,
+];
 
 /// Emit every operand-stack ↔ memory-family binding the wasm VM
 /// needs. First the gate-column declarations the lookup layer reads
@@ -56,6 +69,7 @@ pub(super) fn push_stack_io_constraints(b: &mut R1csBuilder) {
             (COL_TABLE_READ_ENABLED, F::ONE),
             (selector_col(WasmOpcode::TableGet).unwrap(), -F::ONE),
             (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
             (COL_CI_OOB, F::ONE),
         ]);
     });
@@ -65,6 +79,7 @@ pub(super) fn push_stack_io_constraints(b: &mut R1csBuilder) {
             (COL_TABLE_SIZE_READ_ENABLED, F::ONE),
             (selector_col(WasmOpcode::TableSize).unwrap(), -F::ONE),
             (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
         ]);
     });
 

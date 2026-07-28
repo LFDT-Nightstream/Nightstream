@@ -239,6 +239,10 @@ pub(crate) fn decode_opcode(operator: &wasmparser::Operator<'_>) -> Option<(Wasm
         wasmparser::Operator::GlobalSet { global_index } => Some((WasmOpcode::GlobalSet, Some(*global_index))),
         wasmparser::Operator::Call { function_index } => Some((WasmOpcode::Call, Some(*function_index))),
         wasmparser::Operator::CallIndirect { table_index, .. } => Some((WasmOpcode::CallIndirect, Some(*table_index))),
+        wasmparser::Operator::ReturnCall { function_index } => Some((WasmOpcode::ReturnCall, Some(*function_index))),
+        wasmparser::Operator::ReturnCallIndirect { table_index, .. } => {
+            Some((WasmOpcode::ReturnCallIndirect, Some(*table_index)))
+        }
         _ => None,
     }
 }

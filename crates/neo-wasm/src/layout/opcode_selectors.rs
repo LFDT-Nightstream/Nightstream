@@ -3,7 +3,7 @@
 
 use super::*;
 
-pub const SELECTOR_COLS: [usize; 113] = [
+pub const SELECTOR_COLS: [usize; 115] = [
     COL_SEL_NOP,
     COL_SEL_I32_CONST,
     COL_SEL_I64_CONST,
@@ -117,6 +117,8 @@ pub const SELECTOR_COLS: [usize; 113] = [
     COL_SEL_I64_CLZ,
     COL_SEL_I64_CTZ,
     COL_SEL_I64_POPCNT,
+    COL_SEL_RETURN_CALL,
+    COL_SEL_RETURN_CALL_INDIRECT,
 ];
 
 pub fn selector_col(op: WasmOpcode) -> Option<usize> {
@@ -228,6 +230,8 @@ pub fn selector_col(op: WasmOpcode) -> Option<usize> {
         WasmOpcode::BrTable => Some(COL_SEL_BR_TABLE),
         WasmOpcode::Call => Some(COL_SEL_CALL),
         WasmOpcode::CallIndirect => Some(COL_SEL_CALL_INDIRECT),
+        WasmOpcode::ReturnCall => Some(COL_SEL_RETURN_CALL),
+        WasmOpcode::ReturnCallIndirect => Some(COL_SEL_RETURN_CALL_INDIRECT),
         WasmOpcode::Return => Some(COL_SEL_RETURN),
         WasmOpcode::LocalGet => Some(COL_SEL_LOCAL_GET),
         WasmOpcode::LocalSet => Some(COL_SEL_LOCAL_SET),

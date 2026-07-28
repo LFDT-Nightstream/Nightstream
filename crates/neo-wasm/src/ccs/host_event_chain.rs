@@ -282,14 +282,11 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
 
     b.with_tag(always("grammar gather binding"), |b| {
         // Grammar-mode row mask: grammar_host_call = gate - raw = gate · mode.
-        let [call, ci_not_trap, guest] = host_call_gate_terms();
-        b.push_linear_zero([
-            (GHC, F::ONE),
-            (call.0, -call.1),
-            (ci_not_trap.0, -ci_not_trap.1),
-            (guest.0, -guest.1),
-            (COL_RAW_HOST_CALL, F::ONE),
-        ]);
+        b.push_linear_zero(
+            [(GHC, F::ONE), (COL_RAW_HOST_CALL, F::ONE)]
+                .into_iter()
+                .chain(host_call_gate_terms().map(|(column, coefficient)| (column, -coefficient))),
+        );
         // Grammar host calls pop their args on the call row itself (no
         // HostCallArg aux rows in grammar mode): the sp identity consumes
         // this product of the mode-masked gate and the ROM-bound arity.

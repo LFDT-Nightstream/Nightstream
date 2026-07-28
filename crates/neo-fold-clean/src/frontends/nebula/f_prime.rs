@@ -101,9 +101,10 @@ pub enum NebulaFPrimeRelationError {
     },
 }
 
-/// Road A whole-step budget. The selective width census enforces this exact
-/// committed-coordinate ceiling before allocating the rectangular relation.
-pub const ROAD_A_COMMITTED_BIT_BUDGET: usize = 25_000_000;
+/// Temporary Road A ceiling while mutually exclusive logical memory accesses
+/// each allocate a physical Nebula port. Revisit after logical-to-physical
+/// port allocation.
+pub const ROAD_A_COMMITTED_BIT_BUDGET: usize = 32_000_000;
 
 /// Branches of the single folded relation. Bootstrap-recursive is distinct
 /// because its NIFS input accumulator is empty; steady recursive carries

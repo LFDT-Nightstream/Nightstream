@@ -532,7 +532,8 @@ impl ParsedWasmArtifactsBuilder {
                         _ => None,
                     };
                     let (call_indirect_type_index, expected_type_id) = match &operator {
-                        wasmparser::Operator::CallIndirect { type_index, .. } => {
+                        wasmparser::Operator::CallIndirect { type_index, .. }
+                        | wasmparser::Operator::ReturnCallIndirect { type_index, .. } => {
                             let expected_type_id = *self.raw_type_id_by_index.get(type_index).ok_or_else(|| {
                                 WasmBuildError::Trace(format!(
                                     "missing normalized type id for call_indirect type {type_index}"
@@ -568,7 +569,8 @@ impl ParsedWasmArtifactsBuilder {
                                 WasmOpcode::TableGet
                                 | WasmOpcode::TableSet
                                 | WasmOpcode::TableSize
-                                | WasmOpcode::CallIndirect => immediate.unwrap_or(0),
+                                | WasmOpcode::CallIndirect
+                                | WasmOpcode::ReturnCallIndirect => immediate.unwrap_or(0),
                                 _ => 0,
                             },
                             memory_offset,
@@ -589,7 +591,9 @@ impl ParsedWasmArtifactsBuilder {
                     let pc_edge_kind = match &operator {
                         wasmparser::Operator::Return => WasmPcEdgeKind::ReturnLike,
                         wasmparser::Operator::End if is_function_end => WasmPcEdgeKind::ReturnLike,
-                        wasmparser::Operator::CallIndirect { .. } => WasmPcEdgeKind::DynamicCallIndirect,
+                        wasmparser::Operator::CallIndirect { .. } | wasmparser::Operator::ReturnCallIndirect { .. } => {
+                            WasmPcEdgeKind::DynamicCallIndirect
+                        }
                         wasmparser::Operator::Unreachable => WasmPcEdgeKind::Terminal,
                         _ => WasmPcEdgeKind::Static,
                     };
@@ -711,10 +715,13 @@ impl ParsedWasmArtifactsBuilder {
                                 target_frame.pending_to_end.push(pc_before);
                             }
                         }
-                        wasmparser::Operator::Call { function_index } => {
+                        wasmparser::Operator::Call { function_index }
+                        | wasmparser::Operator::ReturnCall { function_index } => {
                             let function_ref = function_index.saturating_add(1);
                             self.call_targets.push((pc_before, u64::from(function_ref)));
-                            self.push_pc_rom_edge(pc_before, PC_ROM_CALL_RETURN_CHOICE, pc_after);
+                            if matches!(operator, wasmparser::Operator::Call { .. }) {
+                                self.push_pc_rom_edge(pc_before, PC_ROM_CALL_RETURN_CHOICE, pc_after);
+                            }
                             if function_ref <= self.imported_function_count {
                                 self.push_pc_rom_edge(pc_before, 0, pc_after);
                             } else {
@@ -731,6 +738,7 @@ impl ParsedWasmArtifactsBuilder {
                         wasmparser::Operator::CallIndirect { .. } => {
                             self.push_pc_rom_edge(pc_before, PC_ROM_CALL_RETURN_CHOICE, pc_after);
                         }
+                        wasmparser::Operator::ReturnCallIndirect { .. } => {}
                         wasmparser::Operator::Unreachable | wasmparser::Operator::Return => {}
                         _ => self.push_pc_rom_edge(pc_before, 0, pc_after),
                     }

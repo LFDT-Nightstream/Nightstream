@@ -10,6 +10,7 @@ fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
     WasmStepState {
         pc,
         sp,
+        stack_frame_base: 0,
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
         memory_pages: None,
@@ -18,6 +19,7 @@ fn state(pc: u64, sp: u64, halted: bool) -> WasmStepState {
         halted,
         trapped: false,
         param_init: WasmCountdownState::ZERO,
+        tail_call_pending: false,
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
         host_callee_fref: 0,

@@ -149,10 +149,12 @@ fn opcodes_with_stack_signature(reads: u8, writes: u8) -> Vec<WasmOpcode> {
 
 fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
     let mut terms = vec![(COL_STACK_READS, F::ONE)];
-    for op in WasmOpcode::supported()
-        .into_iter()
-        .filter(|op| !matches!(op, WasmOpcode::Call | WasmOpcode::CallIndirect))
-    {
+    for op in WasmOpcode::supported().into_iter().filter(|op| {
+        !matches!(
+            op,
+            WasmOpcode::Call | WasmOpcode::CallIndirect | WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect
+        )
+    }) {
         let reads = opcode_info_from_code(opcode_code(op)).stack_reads;
         if reads != 0 {
             terms.push((
@@ -166,10 +168,12 @@ fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
 
 fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
     let mut terms = vec![(COL_STACK_WRITES, F::ONE)];
-    for op in WasmOpcode::supported()
-        .into_iter()
-        .filter(|op| !matches!(op, WasmOpcode::Call | WasmOpcode::CallIndirect))
-    {
+    for op in WasmOpcode::supported().into_iter().filter(|op| {
+        !matches!(
+            op,
+            WasmOpcode::Call | WasmOpcode::CallIndirect | WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect
+        )
+    }) {
         let writes = opcode_info_from_code(opcode_code(op)).stack_writes;
         if writes != 0 {
             terms.push((
@@ -181,11 +185,13 @@ fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
     terms
 }
 
-fn fixed_stack_arity_gate_terms() -> [(usize, F); 3] {
+fn fixed_stack_arity_gate_terms() -> [(usize, F); 5] {
     [
         (COL_IS_PROGRAM_ROW, F::ONE),
         (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
         (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::ReturnCall).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
     ]
 }
 
@@ -303,6 +309,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         (COL_SP_BEFORE, -F::ONE),
         (COL_STACK_READS, F::ONE),
         (COL_STACK_WRITES, -F::ONE),
+        (super::layout::COL_TAIL_DISCARD_COUNT, F::ONE),
         (host_event_chain::gather_arg_read_kind_col(), -F::ONE),
         (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
         // Grammar host calls pop their args on the call row itself.
@@ -351,6 +358,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
                 (COL_CALL_STACK_POP_PRESENT, F::ONE),
                 (COL_PC_EDGE_KIND, -F::ONE),
                 (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),
+                (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), F::from_u64(2)),
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
                 (COL_DIV_TRAP, -F::ONE),
                 (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
@@ -367,6 +375,11 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         push_gated_linear_zero(
             b,
             selector_col(WasmOpcode::CallIndirect).unwrap(),
+            [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(2))],
+        );
+        push_gated_linear_zero(
+            b,
+            selector_col(WasmOpcode::ReturnCallIndirect).unwrap(),
             [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(2))],
         );
         push_gated_linear_zero(

@@ -1,0 +1,71 @@
+use super::super::NormalizedStep;
+use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
+use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
+
+pub(super) fn reject_event_grammar(rows: &[NormalizedStep]) -> Result<(), crate::ir::WasmBuildError> {
+    if rows
+        .iter()
+        .any(|row| matches!(row.opcode, WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect))
+    {
+        return Err(crate::ir::WasmBuildError::Unsupported(
+            "tail calls in event-grammar traces are not supported yet".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn tail_enter_row(
+    cycle: u64,
+    state_before: WasmStepState,
+    state_after: WasmStepState,
+    current_function_ref: u32,
+) -> WasmVmStep {
+    WasmVmStep {
+        cycle,
+        row_kind: WasmRowKind::Aux(WasmAuxOpcode::TailEnter),
+        state_before,
+        state_after,
+        control_choice: 0,
+        pc_edge_kind: WasmPcEdgeKind::Static,
+        wide_values_enabled: false,
+        opcode: WasmOpcode::Nop,
+        info: opcode_info_from_code(opcode_code(WasmOpcode::Nop)),
+        stack_reads_override: Some(0),
+        stack_writes_override: Some(0),
+        output_captured: false,
+        current_function_ref,
+        current_function_num_locals: 0,
+        stack_read0: None,
+        stack_read1: None,
+        stack_read2: None,
+        stack_write0: None,
+        linear_memory: None,
+        linear_memory_offset: 0,
+        local_index: None,
+        local_read_value: None,
+        local_read_value_hi: None,
+        local_write_value: None,
+        local_write_value_hi: None,
+        global_index: None,
+        global_read_value: None,
+        global_read_value_hi: None,
+        global_write_value: None,
+        global_write_value_hi: None,
+        table_id: None,
+        table_index: None,
+        table_value: None,
+        function_type_id: None,
+        call_indirect_type_index: None,
+        expected_type_id: None,
+        table_size: None,
+        function_ref: None,
+        target_function_is_guest: false,
+        call_param_count: None,
+        call_result_count: None,
+        call_stack_push: None,
+        call_stack_pop: None,
+        grammar_rom_slot: None,
+        grammar_pre_count: None,
+        grammar_post_count: None,
+    }
+}

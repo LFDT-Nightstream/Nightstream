@@ -126,6 +126,16 @@ define_columns!(
     ),
     (COL_SP_BEFORE, "transition source stack pointer", ColumnWidth::U32),
     (COL_SP_AFTER, "transition destination stack pointer", ColumnWidth::U32),
+    (
+        COL_STACK_FRAME_BASE_BEFORE,
+        "operand-stack base of the current function frame before this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_STACK_FRAME_BASE_AFTER,
+        "operand-stack base of the current function frame after this row",
+        ColumnWidth::U32
+    ),
     (COL_HALTED, "terminal row flag", ColumnWidth::Boolean),
     (
         COL_IS_PROGRAM_ROW,
@@ -152,6 +162,26 @@ define_columns!(
         COL_PARAM_INIT_ACTIVE_AFTER,
         "call-parameter initialization mode after this row",
         ColumnWidth::Boolean
+    ),
+    (
+        COL_TAIL_CALL_PENDING_BEFORE,
+        "a tail-call frame replacement is pending before this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_TAIL_CALL_PENDING_AFTER,
+        "a tail-call frame replacement is pending after this row",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_TAIL_ENTER_ACTIVE,
+        "aux row discarding the replaced frame's residual operand stack",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_TAIL_DISCARD_COUNT,
+        "operand words discarded by a tail-enter aux row",
+        ColumnWidth::U32
     ),
     (
         COL_PADDING_ACTIVE,
@@ -468,8 +498,13 @@ define_columns!(
         ColumnWidth::Boolean
     ),
     (
-        COL_GUEST_CALL_ACTIVE,
-        "guest-call row flag: this row enters a traced guest callee (and pushes its return context)",
+        COL_GUEST_ENTRY_ACTIVE,
+        "guest-entry row flag: this row enters a traced guest callee",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_CALL_STACK_PUSH_PRESENT,
+        "flag indicating that this row saves a caller return context",
         ColumnWidth::Boolean
     ),
     (
@@ -485,6 +520,11 @@ define_columns!(
     (
         COL_CALL_STACK_CALLER_FBP_VALUE,
         "call-stack caller-fbp cell value: written on guest-call push, read back on pop into locals_fbp_after",
+        ColumnWidth::U32
+    ),
+    (
+        COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+        "call-stack caller operand-stack base: written on push and restored on pop",
         ColumnWidth::U32
     ),
     (
@@ -637,7 +677,7 @@ define_columns!(
     ),
     (
         COL_TABLE_READ_ENABLED,
-        "table memory read gate for table.get/call_indirect",
+        "table memory read gate for table.get and indirect calls",
         ColumnWidth::Boolean
     ),
     (
@@ -1352,6 +1392,16 @@ define_columns!(
     (COL_SEL_I64_CTZ, "selector for i64.ctz", ColumnWidth::Boolean),
     (COL_SEL_I64_POPCNT, "selector for i64.popcnt", ColumnWidth::Boolean),
     (
+        COL_SEL_RETURN_CALL,
+        "selector for return_call",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_SEL_RETURN_CALL_INDIRECT,
+        "selector for return_call_indirect",
+        ColumnWidth::Boolean
+    ),
+    (
         COL_TRAPPED_BEFORE,
         "carried trapped-execution flag before this row",
         ColumnWidth::Boolean
@@ -1395,7 +1445,7 @@ define_columns!(
         "this row is a signed div op trapping on MIN / -1 overflow",
         ColumnWidth::Boolean
     ),
-    // call_indirect trap scratch; see `call indirect trap` constraints in
+    // Indirect-call trap scratch; see the trap constraints in
     // ccs/call.rs.
     (
         COL_CI_ENTRY_IS_NULL,
@@ -1405,23 +1455,23 @@ define_columns!(
     (COL_CI_ENTRY_NULL_INV, "inverse witness for the null-funcref zero test"),
     (
         COL_CI_TYPE_EQ,
-        "zero-test flag: callee type id equals the call_indirect expected type id",
+        "zero-test flag: callee type id equals the indirect call's expected type id",
         ColumnWidth::Boolean
     ),
     (COL_CI_TYPE_EQ_INV, "inverse witness for the callee-type equality test"),
     (
         COL_CALL_INDIRECT_IS_TRAP,
-        "this row is a call_indirect trapping on OOB index, null entry, or callee type mismatch",
+        "this row is an indirect call trapping on OOB index, null entry, or callee type mismatch",
         ColumnWidth::Boolean
     ),
     (
         COL_CALL_INDIRECT_IS_NOT_TRAP,
-        "non-trapping call_indirect row: gates callee metadata and entry-pc reads",
+        "non-trapping indirect-call row: gates callee metadata and entry-pc reads",
         ColumnWidth::Boolean
     ),
     (
         COL_FUNCTION_CALL_TYPE_LOOKUP_GATE,
-        "call_indirect row with an (in-bounds) non-null table entry: gates the function_types read",
+        "indirect-call row with an in-bounds non-null entry: gates the function-types read",
         ColumnWidth::Boolean
     ),
     // Shared unsigned-comparison scratch for the bounds traps (see
@@ -1440,12 +1490,12 @@ define_columns!(
     ),
     (
         COL_CI_OOB,
-        "whether call_indirect traps because the table index is >= the table size",
+        "whether an indirect call traps because the table index is >= the table size",
         ColumnWidth::Boolean
     ),
     (
         COL_TABLE_SIZE_READ_ENABLED,
-        "table_sizes read gate: table.size, or call_indirect (binds the size for the OOB check)",
+        "table_sizes read gate: table.size or an indirect call",
         ColumnWidth::Boolean
     ),
     (

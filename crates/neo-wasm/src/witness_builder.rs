@@ -3,16 +3,16 @@ use super::ir::{WasmRowKind, WasmVmStep};
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_INDIRECT_TYPE_INDEX,
     COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE,
-    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT,
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_ENTRY_IS_NULL, COL_CI_ENTRY_NULL_INV, COL_CI_HOST_CALL, COL_CI_OOB,
-    COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE,
-    COL_COMM_CHAIN1_AFTER, COL_COMM_CHAIN1_BEFORE, COL_COMM_CHAIN2_AFTER, COL_COMM_CHAIN2_BEFORE,
-    COL_COMM_CHAIN3_AFTER, COL_COMM_CHAIN3_BEFORE, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV,
-    COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
+    COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
+    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_ENTRY_IS_NULL,
+    COL_CI_ENTRY_NULL_INV, COL_CI_HOST_CALL, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW,
+    COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE, COL_COMM_CHAIN1_AFTER, COL_COMM_CHAIN1_BEFORE,
+    COL_COMM_CHAIN2_AFTER, COL_COMM_CHAIN2_BEFORE, COL_COMM_CHAIN3_AFTER, COL_COMM_CHAIN3_BEFORE, COL_CONTROL_CHOICE,
+    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV,
+    COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
     COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF,
     COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_GROW_SUCCESS,
-    COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
+    COL_GUEST_ENTRY_ACTIVE, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
     COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO,
     COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_ACTIVE,
     COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
@@ -54,15 +54,16 @@ use super::layout::{
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
     COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
     COL_PC_ROM_CALL_RETURN_CHOICE, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_SIGN_EXT_BIT,
-    COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
-    COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE,
-    COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO,
-    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI,
-    COL_STACK_READ2_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
-    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID,
-    COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
-    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1,
-    COL_WIDE_VALUES_ENABLED, PC_ROM_CALL_RETURN_CHOICE,
+    COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE,
+    COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
+    COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO,
+    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI,
+    COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS,
+    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
+    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE,
+    COL_TAIL_DISCARD_COUNT, COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::step_build::WasmStepBuild;
 use crate::layout::{
@@ -107,6 +108,26 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_OPCODE_CODE] = F::from_u64(u64::from(opcode_code));
     wit[COL_PC_BEFORE] = F::from_u64(trace.state_before.pc);
     wit[COL_PC_AFTER] = F::from_u64(trace.state_after.pc);
+    wit[COL_STACK_FRAME_BASE_BEFORE] = F::from_u64(trace.state_before.stack_frame_base);
+    wit[COL_STACK_FRAME_BASE_AFTER] = F::from_u64(trace.state_after.stack_frame_base);
+    wit[COL_TAIL_CALL_PENDING_BEFORE] = if trace.state_before.tail_call_pending {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_TAIL_CALL_PENDING_AFTER] = if trace.state_after.tail_call_pending {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_TAIL_ENTER_ACTIVE] = if trace.row_kind.is_tail_enter() {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    if trace.row_kind.is_tail_enter() {
+        wit[COL_TAIL_DISCARD_COUNT] = F::from_u64(trace.state_before.sp - trace.state_after.sp);
+    }
     wit[COL_CONTROL_CHOICE] = F::from_u64(u64::from(trace.control_choice));
     wit[COL_PC_EDGE_KIND] = F::from_u64(u64::from(trace.pc_edge_kind.as_u32()));
     let (pc_edge_kind_is_static, pc_edge_kind_inv) = zero_test_witness_u64(u64::from(trace.pc_edge_kind.as_u32()));
@@ -199,17 +220,27 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     } else {
         F::ZERO
     };
-    // Guest call ⟺ a return context is pushed: the CCS defines this column
-    // as `(call + call_indirect) · is_guest`, and the call-stack push is one
-    // of its consequences; the trace's push record is the same fact.
-    wit[COL_GUEST_CALL_ACTIVE] = if trace.call_stack_push.is_some() {
+    wit[COL_CALL_STACK_PUSH_PRESENT] = if trace.call_stack_push.is_some() {
         F::ONE
     } else {
         F::ZERO
     };
-    if let Some((return_pc, caller_fbp)) = trace.call_stack_push.or(trace.call_stack_pop) {
+    wit[COL_GUEST_ENTRY_ACTIVE] = if trace.target_function_is_guest
+        && matches!(
+            trace.opcode,
+            super::isa::WasmOpcode::Call
+                | super::isa::WasmOpcode::CallIndirect
+                | super::isa::WasmOpcode::ReturnCall
+                | super::isa::WasmOpcode::ReturnCallIndirect
+        ) {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    if let Some((return_pc, caller_fbp, caller_stack_base)) = trace.call_stack_push.or(trace.call_stack_pop) {
         wit[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(return_pc);
         wit[COL_CALL_STACK_CALLER_FBP_VALUE] = F::from_u64(caller_fbp);
+        wit[COL_CALL_STACK_CALLER_SP_BASE_VALUE] = F::from_u64(caller_stack_base);
     }
     if trace.call_stack_push.is_some() {
         wit[COL_CALL_STACK_ADDR] = F::from_u64(trace.state_before.call_stack_depth);
@@ -268,7 +299,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     };
     wit[COL_TABLE_READ_ENABLED] = if matches!(
         trace.opcode,
-        super::isa::WasmOpcode::TableGet | super::isa::WasmOpcode::CallIndirect
+        super::isa::WasmOpcode::TableGet
+            | super::isa::WasmOpcode::CallIndirect
+            | super::isa::WasmOpcode::ReturnCallIndirect
     ) {
         F::ONE
     } else {
@@ -277,7 +310,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     // table_sizes is read by table.size and by call_indirect (the OOB check).
     wit[COL_TABLE_SIZE_READ_ENABLED] = if matches!(
         trace.opcode,
-        super::isa::WasmOpcode::TableSize | super::isa::WasmOpcode::CallIndirect
+        super::isa::WasmOpcode::TableSize
+            | super::isa::WasmOpcode::CallIndirect
+            | super::isa::WasmOpcode::ReturnCallIndirect
     ) {
         F::ONE
     } else {
@@ -764,7 +799,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     // callee type mismatch) and the derived read-activation gates. Placed
     // after the table/type columns above, which the comparison and zero tests
     // read.
-    let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")];
+    let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]
+        + wit[selector_col(super::isa::WasmOpcode::ReturnCallIndirect).expect("return_call_indirect selector")];
     // ge = (table_index >= table_size); the gadget is gated on call_indirect,
     // so the columns only carry meaning (and ci_oob) on those rows.
     if sel_call_indirect == F::ONE {
@@ -996,8 +1032,9 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
             && !trace.state_before.event_absorb.perm_pending,
     );
     let host_call_gate = wit[selector_col(super::isa::WasmOpcode::Call).expect("call selector")]
+        + wit[selector_col(super::isa::WasmOpcode::ReturnCall).expect("return_call selector")]
         + wit[COL_CALL_INDIRECT_IS_NOT_TRAP]
-        - wit[COL_GUEST_CALL_ACTIVE];
+        - wit[COL_GUEST_ENTRY_ACTIVE];
     wit[COL_RAW_HOST_CALL] = host_call_gate * (F::ONE - mode);
     wit[COL_RAW_ARGS_ACTIVE] = wit[COL_HOST_ARGS_ACTIVE_BEFORE] * (F::ONE - mode);
     wit[COL_RAW_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * (F::ONE - mode);

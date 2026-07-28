@@ -8,13 +8,19 @@
 //! `HostCallArg`/`HostCallResult` rows. Per-row decoding lives in the parent
 //! `normalize` module; this module reads it only through `NormalizedStep`.
 
+mod tail_call;
+mod turn;
+mod values;
+
+use self::turn::setup_turn;
+use self::values::{call_indirect_oob, call_indirect_traps, collect_callee_initial_params, write_lane, write_lane_hi};
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
 use super::grammar_emit::{
     absorb_premix, emit_block_plan, emit_perm_group, perm_group_plan, plan_export_blocks, plan_grammar_blocks,
     GrammarAuxCtx, GrammarBlockPlan, GrammarCallPlan,
 };
-use super::{normalize_step, NormalizedStep};
+use super::normalize_step;
 use crate::comm_chain::{host_call_event_stream, CommChainState, COMM_CHAIN_BLOCK_WORDS};
 use crate::event_grammar::{expand_import_events, HostEventGrammar};
 use crate::ir::{
@@ -24,242 +30,7 @@ use crate::ir::{
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 use p3_field::PrimeField64;
 
-/// Extracts initial parameter locals from the callee's first step's locals snapshot,
-/// converting local indices to absolute addresses using the callee's FBP.
-fn collect_callee_initial_params(next: Option<&NormalizedStep>, callee_fbp: u64, param_count: u8) -> Vec<(u64, u32)> {
-    let Some(next) = next else {
-        return vec![];
-    };
-    next.locals_snapshot
-        .iter()
-        .take(usize::from(param_count))
-        .enumerate()
-        .map(|(i, &v)| (callee_fbp + i as u64, v))
-        .collect()
-}
-
-/// `call_indirect` traps before calling when the table entry is a null
-/// funcref or the callee's normalized type id differs from the
-/// instruction's expected type id. Mirrors the CCS trap gates in
-/// `ccs/call.rs`.
-fn call_indirect_traps(table_value: Option<u32>, expected_type_id: Option<u32>, function_type_id: Option<u32>) -> bool {
-    table_value == Some(0) || (expected_type_id.is_some() && expected_type_id != function_type_id)
-}
-
-/// `call_indirect` also traps when the table index is out of bounds. This is
-/// the most upstream cause: there is no entry to read, so the funcref read is
-/// skipped (`table_value` stays `None`) and the null/type-mismatch causes do
-/// not apply. Mirrors `COL_CI_OOB` in `ccs/trap.rs`.
-fn call_indirect_oob(table_index: Option<u32>, table_size: Option<u32>) -> bool {
-    matches!((table_index, table_size), (Some(index), Some(size)) if index >= size)
-}
-
-fn write_lane(
-    current: &NormalizedStep,
-    next: Option<&NormalizedStep>,
-    sp_after: u64,
-    stack_writes: u8,
-) -> Result<Option<StackValueAccess>, WasmBuildError> {
-    if stack_writes == 0 {
-        return Ok(None);
-    }
-
-    let value = match current.opcode {
-        WasmOpcode::I32Const => current.immediate_i32.ok_or_else(|| {
-            WasmBuildError::Trace(format!(
-                "missing Wasmtime immediate for i32.const at cycle {}",
-                current.cycle
-            ))
-        })?,
-        WasmOpcode::RefFunc => current.immediate_i32.ok_or_else(|| {
-            WasmBuildError::Trace(format!(
-                "missing normalized funcref immediate at cycle {}",
-                current.cycle
-            ))
-        })?,
-        // local.get pushes the local's pre-execution value; no post-step stack needed.
-        WasmOpcode::LocalGet => current.local_value.ok_or_else(|| {
-            WasmBuildError::Trace(format!("missing local value for local.get at cycle {}", current.cycle))
-        })?,
-        WasmOpcode::GlobalGet => current.global_value_before.ok_or_else(|| {
-            WasmBuildError::Trace(format!(
-                "missing global value for global.get at cycle {}",
-                current.cycle
-            ))
-        })?,
-        WasmOpcode::TableGet => current.table_value.ok_or_else(|| {
-            WasmBuildError::Trace(format!("missing table value for table.get at cycle {}", current.cycle))
-        })?,
-        // local.tee leaves the current top of stack unchanged on the stack.
-        WasmOpcode::LocalTee => current.operand_stack.last().copied().ok_or_else(|| {
-            WasmBuildError::Trace(format!("missing stack top for local.tee at cycle {}", current.cycle))
-        })?,
-        _ => next
-            .and_then(|row| row.operand_stack.last().copied())
-            .ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing Wasmtime post-state stack value for {} at cycle {}",
-                    current.info.name, current.cycle
-                ))
-            })?,
-    };
-
-    Ok(Some(StackValueAccess::new(
-        sp_after.saturating_sub(1).saturating_mul(2),
-        value,
-    )))
-}
-
-fn write_lane_hi(
-    current: &NormalizedStep,
-    next: Option<&NormalizedStep>,
-    stack_writes: u8,
-) -> Result<Option<u32>, WasmBuildError> {
-    if stack_writes == 0 || !current.wide_values_enabled {
-        return Ok(None);
-    }
-
-    let write_value_hi = match current.opcode {
-        WasmOpcode::I64Const => next
-            .and_then(|row| row.operand_stack_hi.last().copied())
-            .ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing Wasmtime post-state high limb for {} at cycle {}",
-                    current.info.name, current.cycle
-                ))
-            })?,
-        WasmOpcode::I64Add
-        | WasmOpcode::I64Sub
-        | WasmOpcode::I64Load
-        | WasmOpcode::I64And
-        | WasmOpcode::I64Or
-        | WasmOpcode::I64Xor
-        | WasmOpcode::I64Mul
-        | WasmOpcode::I64Shl
-        | WasmOpcode::I64ShrS
-        | WasmOpcode::I64ShrU
-        | WasmOpcode::I64Rotl
-        | WasmOpcode::I64Rotr
-        | WasmOpcode::I64DivS
-        | WasmOpcode::I64DivU
-        | WasmOpcode::I64RemS
-        | WasmOpcode::I64RemU
-        | WasmOpcode::I64Clz
-        | WasmOpcode::I64Ctz
-        | WasmOpcode::I64Popcnt
-        // Signed subword/word loads sign-extend into the hi limb; wasmtime's
-        // post-state operand_stack_hi already holds the replicated sign bits.
-        | WasmOpcode::I64Load8S
-        | WasmOpcode::I64Load16S
-        | WasmOpcode::I64Load32S
-        | WasmOpcode::I64ExtendI32S
-        | WasmOpcode::I64Extend8S
-        | WasmOpcode::I64Extend16S
-        | WasmOpcode::I64Extend32S => next
-            .and_then(|row| row.operand_stack_hi.last().copied())
-            .ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing Wasmtime post-state high limb for {} at cycle {}",
-                    current.info.name, current.cycle
-                ))
-            })?,
-        WasmOpcode::LocalGet => current.local_value_hi.unwrap_or(0),
-        WasmOpcode::GlobalGet => current.global_value_before_hi.unwrap_or(0),
-        WasmOpcode::Call | WasmOpcode::CallIndirect => next
-            .and_then(|row| row.operand_stack_hi.last().copied())
-            .unwrap_or(0),
-        WasmOpcode::Select => next
-            .and_then(|row| row.operand_stack_hi.last().copied())
-            .unwrap_or(0),
-        _ => 0,
-    };
-
-    Ok(Some(write_value_hi))
-}
-
-struct TurnSetup<'g> {
-    fref: u32,
-    template: &'g crate::event_grammar::ExportTemplate,
-    entry_plans: Vec<GrammarBlockPlan>,
-}
-
-/// Resolve a turn's export template and entry rows, checking that bootstrap
-/// writes reproduce Wasmtime's entry-frame locals. Re-entry must write every
-/// local's low lane because locals memory persists across turns.
-fn setup_turn<'g>(
-    grammar_tables: &'g HostEventGrammar,
-    first: &NormalizedStep,
-    claims: &crate::event_grammar::TurnClaims,
-    re_entered: bool,
-) -> Result<TurnSetup<'g>, WasmBuildError> {
-    let fref = first.current_function_ref.unwrap_or(0);
-    // Every invoked export needs a template; an empty one opts out of
-    // boundary events.
-    let template = grammar_tables.exports.get(&fref).ok_or_else(|| {
-        WasmBuildError::Trace(format!(
-            "grammar mode requires an export template for the invoked export (fref {fref})"
-        ))
-    })?;
-    let local_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");
-    template.validate(local_bound)?;
-    let entry_blocks = crate::event_grammar::expand_export_entry(template, &claims.entry)
-        .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
-    let entry_plans = plan_export_blocks(&template.entry, &entry_blocks);
-
-    let mut expected_locals = vec![(false, 0u32, 0u32); first.locals_snapshot.len()];
-    for plan in &entry_plans {
-        for row in &plan.rows {
-            if let Some((local, limb, value)) = row.local_write {
-                let lanes = &mut expected_locals[local as usize];
-                if limb == 0 {
-                    *lanes = (true, value, 0);
-                } else {
-                    lanes.2 = value;
-                }
-            }
-        }
-    }
-    for (local, &(lo_written, lo, hi)) in expected_locals.iter().enumerate() {
-        if re_entered && !lo_written {
-            return Err(WasmBuildError::Trace(format!(
-                "re-entered turn must bootstrap-write every local: local {local} has no lo-lane write \
-                 (the locals RAM still holds the previous turn's values)"
-            )));
-        }
-        let ran_lo = first.locals_snapshot[local];
-        let ran_hi = first.locals_snapshot_hi.get(local).copied().unwrap_or(0);
-        if (lo, hi) != (ran_lo, ran_hi) {
-            return Err(WasmBuildError::Trace(format!(
-                "entry bootstrap does not reproduce the entry frame's locals: local {local} \
-                 is ({lo}, {hi}) after the bootstrap writes but wasmtime ran with ({ran_lo}, {ran_hi})"
-            )));
-        }
-    }
-    Ok(TurnSetup {
-        fref,
-        template,
-        entry_plans,
-    })
-}
-
-pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    traces_from_wasmtime_steps_impl(rows, None, Default::default())
-}
-
-/// Normalize a trace using the configured event grammar. Every reached host
-/// import and invoked export needs a template. `turns` supplies export claim
-/// words in invocation order; `ClaimLocal` words also initialize entry-frame
-/// locals. The final-chain transcript binds all claim words.
-pub fn traces_from_wasmtime_steps_with_grammar(
-    rows: &[WasmtimeTraceStep],
-    grammar: &HostEventGrammar,
-    turns: &[crate::event_grammar::TurnClaims],
-    initial_comm_chain: CommChainState,
-) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    traces_from_wasmtime_steps_impl(rows, Some((grammar, turns)), initial_comm_chain)
-}
-
-fn traces_from_wasmtime_steps_impl(
+pub(super) fn build_trace(
     rows: &[WasmtimeTraceStep],
     grammar: Option<(&HostEventGrammar, &[crate::event_grammar::TurnClaims])>,
     initial_comm_chain: CommChainState,
@@ -270,6 +41,9 @@ fn traces_from_wasmtime_steps_impl(
         if let Some(normalized) = normalize_step(row)? {
             supported.push(normalized);
         }
+    }
+    if grammar_mode {
+        tail_call::reject_event_grammar(&supported)?;
     }
 
     let mut out = Vec::with_capacity(supported.len());
@@ -285,6 +59,7 @@ fn traces_from_wasmtime_steps_impl(
     // locals start. FBP_callee = FBP_caller + num_locals_caller.
     let mut fbp: u64 = 0;
     let mut param_init_state = WasmCountdownState::ZERO;
+    let mut tail_call_pending = false;
     // Callee attribution carry: set on host-call rows, preserved everywhere
     // else (no clearing — see `WasmStepState::host_callee_fref`).
     let mut host_callee_fref: u32 = 0;
@@ -353,7 +128,10 @@ fn traces_from_wasmtime_steps_impl(
             .saturating_add(u64::from(stack_writes));
         // Guest call args are popped by aux rows, so derive call-row sp_after
         // from this row's own arity instead of the next Wasmtime frame.
-        let is_call_row = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect);
+        let is_call_row = matches!(
+            current.opcode,
+            WasmOpcode::Call | WasmOpcode::CallIndirect | WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect
+        );
         // A non-final return continues in the caller frame, whose base is on
         // the call stack (popped in the opcode match below). Only a function-
         // ending `end` is return-like; structured block/loop `end` rows stay
@@ -413,9 +191,11 @@ fn traces_from_wasmtime_steps_impl(
             let write_value_hi = write_lane_hi(current, next, stack_writes)?;
             write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi))
         };
-        let ci_trap = matches!(current.opcode, WasmOpcode::CallIndirect)
-            && (call_indirect_oob(current.table_index, current.table_size)
-                || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
+        let ci_trap = matches!(
+            current.opcode,
+            WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect
+        ) && (call_indirect_oob(current.table_index, current.table_size)
+            || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
         // A trap is terminal: wasmtime stops stepping at the faulting
         // instruction, so a trapping opcode can only be the last row.
         let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob;
@@ -473,6 +253,7 @@ fn traces_from_wasmtime_steps_impl(
 
         // FBP tracking and call/return handling.
         let current_fbp = fbp;
+        let current_stack_base = stack_base;
         let call_stack_depth_before = call_stack_depth;
         let call_stack_push;
         let call_stack_pop;
@@ -512,11 +293,11 @@ fn traces_from_wasmtime_steps_impl(
                         .ok_or_else(|| {
                             WasmBuildError::Trace(format!("callee frame base overflow at cycle {}", current.cycle))
                         })?;
-                    call_stack_push = Some((return_pc, current_fbp));
+                    call_stack_push = Some((return_pc, current_fbp, current_stack_base));
                     call_stack_pop = None;
                     callee_initial_params = collect_callee_initial_params(next, callee_fbp, param_count);
                     guest_callee_fbp = Some(callee_fbp);
-                    call_stack.push((return_pc, current_fbp, stack_base));
+                    call_stack.push((return_pc, current_fbp, current_stack_base));
                     call_stack_depth = call_stack_depth.checked_add(1).ok_or_else(|| {
                         WasmBuildError::Trace(format!("call stack depth overflow at cycle {}", current.cycle))
                     })?;
@@ -534,12 +315,43 @@ fn traces_from_wasmtime_steps_impl(
                         })?;
                 }
             }
+            WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect if !ci_trap => {
+                if !current.target_function_is_guest {
+                    return Err(WasmBuildError::Unsupported(format!(
+                        "{} to a host import at cycle {} is not supported yet",
+                        current.info.name, current.cycle
+                    )));
+                }
+                let param_count = current.call_param_count.ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "missing call parameter count for tail call at cycle {}",
+                        current.cycle
+                    ))
+                })?;
+                let expected_stack_reads = u8::from(matches!(current.opcode, WasmOpcode::ReturnCallIndirect));
+                if stack_reads != expected_stack_reads {
+                    return Err(WasmBuildError::Trace(format!(
+                        "tail-call stack read count {} does not match expected count {} at cycle {}",
+                        stack_reads, expected_stack_reads, current.cycle
+                    )));
+                }
+                let callee_fbp = current_fbp
+                    .checked_add(u64::from(current.num_locals))
+                    .ok_or_else(|| {
+                        WasmBuildError::Trace(format!("callee frame base overflow at cycle {}", current.cycle))
+                    })?;
+                call_stack_push = None;
+                call_stack_pop = None;
+                callee_initial_params = collect_callee_initial_params(next, callee_fbp, param_count);
+                guest_callee_fbp = Some(callee_fbp);
+                fbp = callee_fbp;
+            }
             WasmOpcode::Return | WasmOpcode::End if is_return_row => {
                 // Non-final return: restore the caller's FBP and operand-stack
                 // base from the call stack.
                 let (ret_pc, caller_fbp, caller_base) = call_stack.pop().unwrap();
                 call_stack_push = None;
-                call_stack_pop = Some((ret_pc, caller_fbp));
+                call_stack_pop = Some((ret_pc, caller_fbp, caller_base));
                 callee_initial_params = vec![];
                 guest_callee_fbp = None;
                 call_stack_depth = call_stack_depth.checked_sub(1).ok_or_else(|| {
@@ -560,7 +372,7 @@ fn traces_from_wasmtime_steps_impl(
         let program_cycle = out.len() as u64;
         let param_init_before = param_init_state;
         let mut param_init_after = WasmCountdownState::ZERO;
-        if call_stack_push.is_some() {
+        if guest_callee_fbp.is_some() {
             param_init_after = WasmCountdownState {
                 active: !callee_initial_params.is_empty(),
                 remaining: u32::try_from(callee_initial_params.len()).map_err(|_| {
@@ -571,6 +383,9 @@ fn traces_from_wasmtime_steps_impl(
                 })?,
             };
         }
+        let tail_call_pending_before = tail_call_pending;
+        let tail_call_pending_after =
+            matches!(current.opcode, WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect) && !ci_trap;
 
         // Host calls enter host-arg mode and may owe a result push; the aux
         // rows emitted below walk both back to zero before the next program
@@ -582,6 +397,7 @@ fn traces_from_wasmtime_steps_impl(
                 let mut ctx = GrammarAuxCtx {
                     pc: pc_before,
                     sp: sp_before,
+                    stack_frame_base: current_stack_base,
                     output: WasmOutputState {
                         enabled: output_enabled_before,
                         value_lo: output_value_lo_before,
@@ -811,6 +627,7 @@ fn traces_from_wasmtime_steps_impl(
             state_before: WasmStepState {
                 pc: pc_before,
                 sp: sp_before,
+                stack_frame_base: current_stack_base,
                 output: WasmOutputState {
                     enabled: output_enabled_before,
                     value_lo: output_value_lo_before,
@@ -823,6 +640,7 @@ fn traces_from_wasmtime_steps_impl(
                 halted: turn_done,
                 trapped: false,
                 param_init: param_init_before,
+                tail_call_pending: tail_call_pending_before,
                 // Host aux sequences complete within one normalizer
                 // iteration, so a program row always starts with the
                 // host-call state fully unwound.
@@ -837,6 +655,7 @@ fn traces_from_wasmtime_steps_impl(
             state_after: WasmStepState {
                 pc: pc_after,
                 sp: sp_after,
+                stack_frame_base: stack_base,
                 output: WasmOutputState {
                     enabled: output_enabled_after,
                     value_lo: output_value_lo_after,
@@ -849,6 +668,7 @@ fn traces_from_wasmtime_steps_impl(
                 halted: turn_done || halted,
                 trapped,
                 param_init: param_init_after,
+                tail_call_pending: tail_call_pending_after,
                 host_args: host_args_after,
                 host_result_pending: host_result_pending_after,
                 host_callee_fref,
@@ -927,7 +747,8 @@ fn traces_from_wasmtime_steps_impl(
         });
         turn_done = turn_done || halted;
         param_init_state = param_init_after;
-        if matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect) && !callee_initial_params.is_empty() {
+        tail_call_pending = tail_call_pending_after;
+        if is_call_row && !callee_initial_params.is_empty() {
             let param_count = callee_initial_params.len();
             let callee_function_ref = current.function_ref.ok_or_else(|| {
                 WasmBuildError::Trace(format!(
@@ -943,7 +764,10 @@ fn traces_from_wasmtime_steps_impl(
             })?;
             // Aux rows pop stack args top-down, so locals initialize in
             // reverse parameter order.
-            let index_pops = usize::from(matches!(current.opcode, WasmOpcode::CallIndirect));
+            let index_pops = usize::from(matches!(
+                current.opcode,
+                WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect
+            ));
             for (pop_index, &(dst_addr, value)) in callee_initial_params.iter().rev().enumerate() {
                 let param_index = param_count - 1 - pop_index;
                 let expected_dst_addr = callee_fbp.checked_add(param_index as u64).ok_or_else(|| {
@@ -996,6 +820,7 @@ fn traces_from_wasmtime_steps_impl(
                     state_before: WasmStepState {
                         pc: pc_after,
                         sp: aux_sp_before,
+                        stack_frame_base: stack_base,
                         output: WasmOutputState {
                             enabled: output_enabled,
                             value_lo: output_value_lo,
@@ -1008,6 +833,7 @@ fn traces_from_wasmtime_steps_impl(
                         halted: turn_done,
                         trapped: false,
                         param_init: aux_param_init_before,
+                        tail_call_pending,
                         host_args: WasmCountdownState::ZERO,
                         host_result_pending: false,
                         host_callee_fref,
@@ -1019,6 +845,7 @@ fn traces_from_wasmtime_steps_impl(
                     state_after: WasmStepState {
                         pc: pc_after,
                         sp: aux_sp_after,
+                        stack_frame_base: stack_base,
                         output: WasmOutputState {
                             enabled: output_enabled,
                             value_lo: output_value_lo,
@@ -1031,6 +858,7 @@ fn traces_from_wasmtime_steps_impl(
                         halted: turn_done,
                         trapped: false,
                         param_init: aux_param_init_after,
+                        tail_call_pending,
                         host_args: WasmCountdownState::ZERO,
                         host_result_pending: false,
                         host_callee_fref,
@@ -1091,6 +919,56 @@ fn traces_from_wasmtime_steps_impl(
                 param_init_state = aux_param_init_after;
             }
         }
+        if tail_call_pending {
+            let param_count = u64::from(current.call_param_count.unwrap_or(0));
+            let tail_sp_before = sp_after.checked_sub(param_count).ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "operand stack underflow after tail-call parameter initialization at cycle {}",
+                    current.cycle
+                ))
+            })?;
+            if tail_sp_before < stack_base {
+                return Err(WasmBuildError::Trace(format!(
+                    "tail-call frame base {} exceeds stack pointer {} at cycle {}",
+                    stack_base, tail_sp_before, current.cycle
+                )));
+            }
+            let state_before = WasmStepState {
+                pc: pc_after,
+                sp: tail_sp_before,
+                stack_frame_base: stack_base,
+                output: WasmOutputState {
+                    enabled: output_enabled,
+                    value_lo: output_value_lo,
+                    value_hi: output_value_hi,
+                },
+                call_stack_depth: call_stack_depth_after,
+                memory_pages: current.memory_pages_after,
+                max_memory_pages: current.max_memory_pages,
+                locals_fbp: fbp,
+                halted: turn_done,
+                trapped: false,
+                param_init: WasmCountdownState::ZERO,
+                tail_call_pending: true,
+                host_args: WasmCountdownState::ZERO,
+                host_result_pending: false,
+                host_callee_fref,
+                comm_chain,
+                event_absorb,
+                grammar_mode,
+                grammar: grammar_state,
+            };
+            let mut state_after = state_before;
+            state_after.sp = stack_base;
+            state_after.tail_call_pending = false;
+            out.push(tail_call::tail_enter_row(
+                out.len() as u64,
+                state_before,
+                state_after,
+                current.function_ref.unwrap_or(0),
+            ));
+            tail_call_pending = false;
+        }
         if let Some((param_count, result_count)) = host_call_arity {
             let host_aux_state =
                 |sp: u64,
@@ -1101,6 +979,7 @@ fn traces_from_wasmtime_steps_impl(
                  grammar: crate::ir::WasmGrammarState| WasmStepState {
                     pc: pc_after,
                     sp,
+                    stack_frame_base: stack_base,
                     output: WasmOutputState {
                         enabled: output_enabled,
                         value_lo: output_value_lo,
@@ -1113,6 +992,7 @@ fn traces_from_wasmtime_steps_impl(
                     halted: turn_done,
                     trapped: false,
                     param_init: WasmCountdownState::ZERO,
+                    tail_call_pending: false,
                     host_args,
                     host_result_pending,
                     host_callee_fref,
@@ -1178,6 +1058,7 @@ fn traces_from_wasmtime_steps_impl(
             let aux_ctx = |sp: u64, host_args: WasmCountdownState, host_result_pending: bool| GrammarAuxCtx {
                 pc: pc_after,
                 sp,
+                stack_frame_base: stack_base,
                 output: WasmOutputState {
                     enabled: output_enabled,
                     value_lo: output_value_lo,
@@ -1447,6 +1328,7 @@ fn traces_from_wasmtime_steps_impl(
             let mut ctx = GrammarAuxCtx {
                 pc: pc_after,
                 sp: sp_after,
+                stack_frame_base: stack_base,
                 output: WasmOutputState {
                     enabled: output_enabled_after,
                     value_lo: output_value_lo_after,
@@ -1511,6 +1393,7 @@ fn traces_from_wasmtime_steps_impl(
             let entry_count = setup.entry_plans.len() as u32;
             let boundary_state = |pc: u64,
                                   sp: u64,
+                                  stack_frame_base: u64,
                                   output: WasmOutputState,
                                   fref: u32,
                                   gstate: crate::ir::WasmGrammarState,
@@ -1518,6 +1401,7 @@ fn traces_from_wasmtime_steps_impl(
                 WasmStepState {
                     pc,
                     sp,
+                    stack_frame_base,
                     output,
                     call_stack_depth: 0,
                     memory_pages: current.memory_pages_after,
@@ -1526,6 +1410,7 @@ fn traces_from_wasmtime_steps_impl(
                     halted: done,
                     trapped: false,
                     param_init: WasmCountdownState::ZERO,
+                    tail_call_pending: false,
                     host_args: WasmCountdownState::ZERO,
                     host_result_pending: false,
                     host_callee_fref: fref,
@@ -1538,6 +1423,7 @@ fn traces_from_wasmtime_steps_impl(
             let state_before = boundary_state(
                 pc_after,
                 sp_after,
+                stack_base,
                 WasmOutputState {
                     enabled: output_enabled_after,
                     value_lo: output_value_lo_after,
@@ -1557,6 +1443,7 @@ fn traces_from_wasmtime_steps_impl(
             let state_after = boundary_state(
                 u64::from(next_row.pc),
                 0,
+                0,
                 WasmOutputState::ZERO,
                 host_callee_fref,
                 grammar_state,
@@ -1565,6 +1452,7 @@ fn traces_from_wasmtime_steps_impl(
             let helper_ctx = GrammarAuxCtx {
                 pc: pc_after,
                 sp: sp_after,
+                stack_frame_base: stack_base,
                 output: WasmOutputState::ZERO,
                 call_stack_depth: 0,
                 memory_pages: current.memory_pages_after,

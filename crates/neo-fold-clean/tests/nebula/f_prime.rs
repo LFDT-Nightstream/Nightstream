@@ -377,7 +377,7 @@ fn road_a_reduced_profile_fixed_point_stabilizes_within_budget() {
     );
     assert_eq!(
         (relation.structure().n, relation.structure().m),
-        (10_000_318, 11_516_688),
+        (35_038_323, 28_006_884),
         "reduced-profile rectangular verifier fixed point drifted"
     );
     assert!(

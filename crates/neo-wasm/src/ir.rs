@@ -166,6 +166,7 @@ impl Default for WasmGrammarState {
 pub struct WasmBoundaryState {
     pub pc: u64,
     pub sp: u64,
+    pub stack_frame_base: u64,
     pub output_enabled: bool,
     pub output_value_lo: u32,
     pub output_value_hi: u32,
@@ -174,6 +175,7 @@ pub struct WasmBoundaryState {
     pub halted: bool,
     pub trapped: bool,
     pub param_init: WasmCountdownState,
+    pub tail_call_pending: bool,
     pub host_args: WasmCountdownState,
     pub host_result_pending: bool,
     pub host_callee_fref: u32,
@@ -214,6 +216,8 @@ impl Default for WasmOutputState {
 pub struct WasmStepState {
     pub pc: u64,
     pub sp: u64,
+    /// Global operand-stack address at which the current function frame starts.
+    pub stack_frame_base: u64,
     pub output: WasmOutputState,
     pub call_stack_depth: u64,
     pub memory_pages: Option<u32>,
@@ -233,6 +237,9 @@ pub struct WasmStepState {
     /// verifier can assert "this execution trapped".
     pub trapped: bool,
     pub param_init: WasmCountdownState,
+    /// A tail call has initialized its replacement frame but still needs to
+    /// discard the replaced frame's residual operand stack.
+    pub tail_call_pending: bool,
     /// Host-call argument-pop mode: each `HostCallArg` aux row pops one
     /// pre-call operand while `remaining` counts down to zero.
     pub host_args: WasmCountdownState,
@@ -266,6 +273,9 @@ pub struct WasmStepState {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmAuxOpcode {
     CallParamInit,
+    /// Drops residual operands from the replaced frame after tail-call
+    /// parameters have been copied into the callee's locals.
+    TailEnter,
     /// Pops one host-call argument off the operand stack. The program call row
     /// pops only the indirect table index; argument arity is handled by these
     /// aux rows.
@@ -304,6 +314,10 @@ impl WasmRowKind {
 
     pub fn is_call_param_init(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::CallParamInit))
+    }
+
+    pub fn is_tail_enter(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::TailEnter))
     }
 
     pub fn is_host_call_arg(self) -> bool {
@@ -362,8 +376,8 @@ pub struct WasmVmStep {
     pub opcode: WasmOpcode,
     pub info: WasmOpcodeInfo,
     /// Dynamic stack read count when opcode metadata is not enough.
-    /// Call rows read only the `call_indirect` table index; args are popped
-    /// by param-init (guest) or host-arg (host) aux rows.
+    /// Call-like rows read only an indirect table index; args are popped by
+    /// guest param-init or host-arg aux rows.
     pub stack_reads_override: Option<u8>,
     /// Dynamic stack write count when opcode metadata is not enough.
     /// Guest calls produce their return values in later guest rows; host
@@ -420,12 +434,11 @@ pub struct WasmVmStep {
     /// Parameter/result arity for the selected call target.
     pub call_param_count: Option<u8>,
     pub call_result_count: Option<u8>,
-    /// Pushed to the runtime call stack at this step (populated for `call` instructions).
-    /// Contains (return_pc, caller_fbp) — the return context saved before entering the callee.
-    pub call_stack_push: Option<(u64, u64)>,
-    /// Popped from the runtime call stack at this step (populated for non-final `return`).
-    /// Contains (return_pc, caller_fbp) — restored when returning to the caller.
-    pub call_stack_pop: Option<(u64, u64)>,
+    /// Pushed by ordinary guest calls: return pc, caller locals base, and
+    /// caller operand-stack base.
+    pub call_stack_push: Option<(u64, u64, u64)>,
+    /// Popped by non-final returns, restoring the same three caller fields.
+    pub call_stack_pop: Option<(u64, u64, u64)>,
     /// Grammar-ROM slot entry for `HostEventGather` rows.
     pub grammar_rom_slot: Option<WasmGrammarRomEntry>,
     /// Grammar-ROM pre-result event count, read on grammar host-call rows.
@@ -459,6 +472,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                 WasmBoundaryState {
                     pc: row.state_before.pc,
                     sp: row.state_before.sp,
+                    stack_frame_base: row.state_before.stack_frame_base,
                     output_enabled: row.state_before.output.enabled,
                     output_value_lo: row.state_before.output.value_lo,
                     output_value_hi: row.state_before.output.value_hi,
@@ -467,6 +481,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     halted: row.state_before.halted,
                     trapped: row.state_before.trapped,
                     param_init: row.state_before.param_init,
+                    tail_call_pending: row.state_before.tail_call_pending,
                     host_args: row.state_before.host_args,
                     host_result_pending: row.state_before.host_result_pending,
                     host_callee_fref: row.state_before.host_callee_fref,
@@ -478,6 +493,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                 WasmBoundaryState {
                     pc: row.state_after.pc,
                     sp: row.state_after.sp,
+                    stack_frame_base: row.state_after.stack_frame_base,
                     output_enabled: row.state_after.output.enabled,
                     output_value_lo: row.state_after.output.value_lo,
                     output_value_hi: row.state_after.output.value_hi,
@@ -486,6 +502,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     halted: row.state_after.halted,
                     trapped: row.state_after.trapped,
                     param_init: row.state_after.param_init,
+                    tail_call_pending: row.state_after.tail_call_pending,
                     host_args: row.state_after.host_args,
                     host_result_pending: row.state_after.host_result_pending,
                     host_callee_fref: row.state_after.host_callee_fref,

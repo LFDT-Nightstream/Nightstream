@@ -257,12 +257,15 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     let fbp = prev.state_after.locals_fbp;
     let pc = prev.state_after.pc;
     let sp = prev.state_after.sp;
+    let stack_frame_base = prev.state_after.stack_frame_base;
     let call_stack_depth = prev.state_after.call_stack_depth;
     let param_init = prev.state_after.param_init;
+    let tail_call_pending = prev.state_after.tail_call_pending;
     debug_assert!(
         !param_init.active,
         "padding inside a param-init aux sequence is unsupported"
     );
+    debug_assert!(!tail_call_pending, "padding before a tail-enter aux row is unsupported");
     let host_args = prev.state_after.host_args;
     let host_result_pending = prev.state_after.host_result_pending;
     let host_callee_fref = prev.state_after.host_callee_fref;
@@ -284,6 +287,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         state_before: WasmStepState {
             pc,
             sp,
+            stack_frame_base,
             output: prev.state_after.output,
             call_stack_depth,
             memory_pages: pages,
@@ -292,6 +296,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             halted: prev.state_after.halted,
             trapped: prev.state_after.trapped,
             param_init,
+            tail_call_pending,
             host_args,
             host_result_pending,
             host_callee_fref,
@@ -303,6 +308,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         state_after: WasmStepState {
             pc,
             sp,
+            stack_frame_base,
             output: prev.state_after.output,
             call_stack_depth,
             memory_pages: pages,
@@ -311,6 +317,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             halted: prev.state_after.halted,
             trapped: prev.state_after.trapped,
             param_init,
+            tail_call_pending,
             host_args,
             host_result_pending,
             host_callee_fref,

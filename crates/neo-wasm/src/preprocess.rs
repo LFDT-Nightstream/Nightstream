@@ -30,7 +30,7 @@ use crate::layout::{
     COL_PERM_STATE0_BEFORE, COL_PERM_STATE10_BEFORE, COL_PERM_STATE11_BEFORE, COL_PERM_STATE1_BEFORE,
     COL_PERM_STATE2_BEFORE, COL_PERM_STATE3_BEFORE, COL_PERM_STATE4_BEFORE, COL_PERM_STATE5_BEFORE,
     COL_PERM_STATE6_BEFORE, COL_PERM_STATE7_BEFORE, COL_PERM_STATE8_BEFORE, COL_PERM_STATE9_BEFORE, COL_SP_BEFORE,
-    COL_TRAPPED_BEFORE,
+    COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_BEFORE,
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
@@ -173,6 +173,7 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
     WasmStepState {
         pc: entry_pc,
         sp: 0,
+        stack_frame_base: 0,
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
         memory_pages: tables.initial_memory_pages,
@@ -181,6 +182,7 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         halted: false,
         trapped: false,
         param_init: WasmCountdownState::ZERO,
+        tail_call_pending: false,
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
         host_callee_fref: 0,
@@ -255,6 +257,7 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
     match column.0 {
         COL_PC_BEFORE => F::from_u64(state.pc),
         COL_SP_BEFORE => F::from_u64(state.sp),
+        COL_STACK_FRAME_BASE_BEFORE => F::from_u64(state.stack_frame_base),
         COL_HALTED_BEFORE => bool_field(state.halted),
         COL_OUTPUT_ENABLED_BEFORE => bool_field(state.output.enabled),
         COL_OUTPUT_VALUE_LO_BEFORE => F::from_u64(u64::from(state.output.value_lo)),
@@ -265,6 +268,7 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_LOCALS_FBP_BEFORE => F::from_u64(state.locals_fbp),
         COL_PARAM_INIT_ACTIVE_BEFORE => bool_field(state.param_init.active),
         COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
+        COL_TAIL_CALL_PENDING_BEFORE => bool_field(state.tail_call_pending),
         COL_HOST_ARGS_ACTIVE_BEFORE => bool_field(state.host_args.active),
         COL_HOST_ARGS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_args.remaining)),
         COL_HOST_RESULT_PENDING_BEFORE => bool_field(state.host_result_pending),

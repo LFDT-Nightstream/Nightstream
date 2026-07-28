@@ -710,7 +710,9 @@ fn rom_component_bits(
 fn ram_component_bits(memory: &str, limits: WasmNebulaLimits) -> Result<Vec<u8>, WasmNebulaError> {
     let dimensions = match memory {
         "stack" => vec![limits.stack_cells],
-        "call_stack_return_pcs" | "call_stack_caller_fbps" => vec![limits.call_stack_cells],
+        "call_stack_return_pcs" | "call_stack_caller_fbps" | "call_stack_caller_sp_bases" => {
+            vec![limits.call_stack_cells]
+        }
         "linear_memory" => vec![limits.linear_memory_words],
         "locals" | "locals_hi" => vec![limits.local_frames, limits.locals_per_frame],
         "globals" | "globals_hi" => vec![limits.globals],

@@ -115,6 +115,7 @@ pub fn step(
         WasmStepState {
             pc,
             sp,
+            stack_frame_base: 0,
             output: WasmOutputState::ZERO,
             call_stack_depth: 0,
             memory_pages: None,
@@ -123,6 +124,7 @@ pub fn step(
             halted,
             trapped: false,
             param_init: WasmCountdownState::ZERO,
+            tail_call_pending: false,
             host_args: WasmCountdownState::ZERO,
             host_result_pending: false,
             host_callee_fref: 0,

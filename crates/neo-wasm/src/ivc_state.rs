@@ -20,7 +20,8 @@ use super::layout::{
     COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
     COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
     COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_PERM_STATE11_AFTER, COL_PERM_STATE11_BEFORE, COL_SP_AFTER,
-    COL_SP_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_AFTER,
+    COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -60,6 +61,14 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
             column_pairs: vec![WasmCrossStepColumnPair {
                 prev_after: Column(COL_SP_AFTER),
                 next_before: Column(COL_SP_BEFORE),
+            }],
+        },
+        WasmCrossStepLinkSpec {
+            name: "stack_frame_base_continuity",
+            description: "row[i].stack_frame_base_after must match row[i+1].stack_frame_base_before",
+            column_pairs: vec![WasmCrossStepColumnPair {
+                prev_after: Column(COL_STACK_FRAME_BASE_AFTER),
+                next_before: Column(COL_STACK_FRAME_BASE_BEFORE),
             }],
         },
         WasmCrossStepLinkSpec {
@@ -133,6 +142,14 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
                     next_before: Column(COL_PARAM_INIT_REMAINING_BEFORE),
                 },
             ],
+        },
+        WasmCrossStepLinkSpec {
+            name: "tail_call_continuity",
+            description: "row[i].tail_call_pending_after must match row[i+1].tail_call_pending_before",
+            column_pairs: vec![WasmCrossStepColumnPair {
+                prev_after: Column(COL_TAIL_CALL_PENDING_AFTER),
+                next_before: Column(COL_TAIL_CALL_PENDING_BEFORE),
+            }],
         },
         WasmCrossStepLinkSpec {
             name: "host_call_continuity",

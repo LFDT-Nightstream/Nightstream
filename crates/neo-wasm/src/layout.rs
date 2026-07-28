@@ -85,109 +85,33 @@ define_columns!(
     (COL_ONE, ""),
     (COL_OUTPUT_ENABLED_BEFORE, "carried simple-output flag before this row"),
     (COL_OUTPUT_ENABLED_AFTER, "carried simple-output flag after this row"),
-    (
-        COL_OUTPUT_VALUE_LO_BEFORE,
-        "carried simple-output low limb before this row"
-    ),
-    (
-        COL_OUTPUT_VALUE_LO_AFTER,
-        "carried simple-output low limb after this row"
-    ),
-    (
-        COL_OUTPUT_VALUE_HI_BEFORE,
-        "carried simple-output high limb before this row"
-    ),
-    (
-        COL_OUTPUT_VALUE_HI_AFTER,
-        "carried simple-output high limb after this row"
-    ),
+    (COL_OUTPUT_VALUE_LO_BEFORE, "carried output low limb before"),
+    (COL_OUTPUT_VALUE_LO_AFTER, "carried output low limb after"),
+    (COL_OUTPUT_VALUE_HI_BEFORE, "carried output high limb before"),
+    (COL_OUTPUT_VALUE_HI_AFTER, "carried output high limb after"),
     (COL_OPCODE_CODE, "opcode decode selector source", ColumnWidth::U32),
     (COL_PC_BEFORE, "transition source pc", ColumnWidth::U32),
     (COL_PC_AFTER, "transition destination pc", ColumnWidth::U32),
-    (
-        COL_CONTROL_CHOICE,
-        "normalized control-edge selector where 0 is default/fallthrough",
-        ColumnWidth::U32
-    ),
-    (
-        COL_PC_EDGE_KIND,
-        "static next-pc kind: static, return-like, dynamic call_indirect, or terminal",
-        ColumnWidth::U32
-    ),
-    (
-        COL_WIDE_VALUES_ENABLED,
-        "row flag enabling high limbs for i64-shaped values",
-        ColumnWidth::Boolean
-    ),
-    (
-        COL_OUTPUT_CAPTURED,
-        "one-row gate when the simple-output carry captures a halted result",
-        ColumnWidth::Boolean
-    ),
+    (COL_CONTROL_CHOICE, "control-edge choice", ColumnWidth::U32),
+    (COL_PC_EDGE_KIND, "pc edge kind", ColumnWidth::U32),
+    (COL_WIDE_VALUES_ENABLED, "wide-value flag", ColumnWidth::Boolean),
+    (COL_OUTPUT_CAPTURED, "output-capture gate", ColumnWidth::Boolean),
     (COL_SP_BEFORE, "transition source stack pointer", ColumnWidth::U32),
     (COL_SP_AFTER, "transition destination stack pointer", ColumnWidth::U32),
-    (
-        COL_STACK_FRAME_BASE_BEFORE,
-        "operand-stack base of the current function frame before this row",
-        ColumnWidth::U32
-    ),
-    (
-        COL_STACK_FRAME_BASE_AFTER,
-        "operand-stack base of the current function frame after this row",
-        ColumnWidth::U32
-    ),
+    (COL_STACK_FRAME_BASE_BEFORE, "operand-stack frame base before", ColumnWidth::U32),
+    (COL_STACK_FRAME_BASE_AFTER, "operand-stack frame base after", ColumnWidth::U32),
     (COL_HALTED, "terminal row flag", ColumnWidth::Boolean),
-    (
-        COL_IS_PROGRAM_ROW,
-        "real decoded wasm program row",
-        ColumnWidth::Boolean
-    ),
-    (
-        COL_PC_ROM_ACTIVE,
-        "program static edge ROM read gate",
-        ColumnWidth::Boolean
-    ),
-    (
-        COL_PC_EDGE_KIND_IS_STATIC,
-        "zero-test flag for static pc-edge rows",
-        ColumnWidth::Boolean
-    ),
+    (COL_IS_PROGRAM_ROW, "decoded wasm program row", ColumnWidth::Boolean),
+    (COL_PC_ROM_ACTIVE, "static pc-edge ROM gate", ColumnWidth::Boolean),
+    (COL_PC_EDGE_KIND_IS_STATIC, "static pc-edge flag", ColumnWidth::Boolean),
     (COL_PC_EDGE_KIND_INV, "inverse witness for pc edge-kind zero test"),
-    (
-        COL_PARAM_INIT_ACTIVE_BEFORE,
-        "call-parameter initialization mode before this row",
-        ColumnWidth::Boolean
-    ),
-    (
-        COL_PARAM_INIT_ACTIVE_AFTER,
-        "call-parameter initialization mode after this row",
-        ColumnWidth::Boolean
-    ),
-    (
-        COL_TAIL_CALL_PENDING_BEFORE,
-        "a tail-call frame replacement is pending before this row",
-        ColumnWidth::Boolean
-    ),
-    (
-        COL_TAIL_CALL_PENDING_AFTER,
-        "a tail-call frame replacement is pending after this row",
-        ColumnWidth::Boolean
-    ),
-    (
-        COL_TAIL_ENTER_ACTIVE,
-        "aux row discarding the replaced frame's residual operand stack",
-        ColumnWidth::Boolean
-    ),
-    (
-        COL_TAIL_DISCARD_COUNT,
-        "operand words discarded by a tail-enter aux row",
-        ColumnWidth::U32
-    ),
-    (
-        COL_PADDING_ACTIVE,
-        "synthetic state-preserving padding row flag",
-        ColumnWidth::Boolean
-    ),
+    (COL_PARAM_INIT_ACTIVE_BEFORE, "parameter-init mode before", ColumnWidth::Boolean),
+    (COL_PARAM_INIT_ACTIVE_AFTER, "parameter-init mode after", ColumnWidth::Boolean),
+    (COL_TAIL_CALL_PENDING_BEFORE, "tail-entry pending before", ColumnWidth::Boolean),
+    (COL_TAIL_CALL_PENDING_AFTER, "tail-entry pending after", ColumnWidth::Boolean),
+    (COL_TAIL_ENTER_ACTIVE, "tail-enter aux row", ColumnWidth::Boolean),
+    (COL_TAIL_DISCARD_COUNT, "tail-enter discard count", ColumnWidth::U32),
+    (COL_PADDING_ACTIVE, "padding row", ColumnWidth::Boolean),
     (
         COL_PARAM_INIT_REMAINING_BEFORE,
         "remaining call parameters to initialize before this row",
@@ -254,6 +178,16 @@ define_columns!(
     (
         COL_HOST_CALLEE_FREF_AFTER,
         "callee function ref of the most recent host call after this row (event attribution carry)",
+        ColumnWidth::U32
+    ),
+    (
+        COL_TURN_EXPORT_FREF_BEFORE,
+        "export function ref owning the current grammar turn before this row",
+        ColumnWidth::U32
+    ),
+    (
+        COL_TURN_EXPORT_FREF_AFTER,
+        "export function ref owning the current grammar turn after this row",
         ColumnWidth::U32
     ),
     (

@@ -8,8 +8,8 @@ use super::super::layout::{
     COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
     COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_FUNCTION_REF,
-    COL_GATHER_ACTIVE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_MODE_BEFORE, COL_GUEST_ENTRY_ACTIVE, COL_HALTED,
-    COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
+    COL_GATHER_ACTIVE, COL_GRAMMAR_EXIT_LATCH, COL_GUEST_ENTRY_ACTIVE, COL_HALTED, COL_HALTED_BEFORE,
+    COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
     COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE,
     COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
     COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX,
@@ -527,8 +527,8 @@ fn push_host_call_enter_mode_constraints(b: &mut R1csBuilder) {
             (selector_col(WasmOpcode::ReturnCall).unwrap(), -F::ONE),
             (COL_CALL_INDIRECT_IS_NOT_TRAP, -F::ONE),
             (COL_GUEST_ENTRY_ACTIVE, F::ONE),
-            // ...and the grammar exit latch repoints the attribution at the
-            // halting export; a turn boundary repoints it at the next one.
+            // ...and grammar boundaries repoint attribution to the current
+            // or next turn's export.
             (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
             (COL_TURN_BOUNDARY, -F::ONE),
         ],
@@ -869,11 +869,6 @@ fn push_tail_call_transition_constraints(b: &mut R1csBuilder) {
     let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
     let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
 
-    b.push_row(
-        [(return_call, F::ONE), (return_call_indirect, F::ONE)],
-        [(COL_GRAMMAR_MODE_BEFORE, F::ONE)],
-        [],
-    );
     b.push_row(
         [(return_call_indirect, F::ONE)],
         [(COL_ONE, F::ONE), (COL_CALL_INDIRECT_IS_TRAP, -F::ONE)],

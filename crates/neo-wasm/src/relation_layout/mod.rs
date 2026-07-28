@@ -50,6 +50,7 @@ use super::layout::{
     COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_HI_ACTIVE,
     COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED,
     COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TURN_BOUNDARY,
+    COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
 use super::tables::WasmLookupArity;
@@ -1076,7 +1077,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 // Exit latch: re-reads the export's entry count to continue
                 // the event numbering for exit events.
                 WasmMemoryColumnSpec {
-                    address_columns: vec![Column(COL_HOST_CALLEE_FREF_AFTER)],
+                    address_columns: vec![Column(COL_TURN_EXPORT_FREF_BEFORE)],
                     value_column: Column(COL_GRAMMAR_PRE_COUNT),
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_GRAMMAR_EXIT_LATCH)),
@@ -1093,11 +1094,10 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             is_rom: true,
         },
         // Exit latch: the export's exit-event count. Raw (no presence
-        // bias): the read key is the halting export's fref, already bound
-        // to a declared export by the turn's entry.
+        // bias): the turn's export fref was bound at entry.
         rom_read_spec(
             "grammar_export_exit_counts",
-            vec![Column(COL_HOST_CALLEE_FREF_AFTER)],
+            vec![Column(COL_TURN_EXPORT_FREF_BEFORE)],
             Column(COL_GRAMMAR_POST_COUNT),
             WasmMemoryActivation::BooleanGate(Column(COL_GRAMMAR_EXIT_LATCH)),
         ),

@@ -39,12 +39,13 @@ use super::super::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE, COL_EVBUF0_AFTER,
     COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_FUNCTION_REF, COL_GATHER_ACTIVE,
     COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
-    COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_RESULT_ACTIVE,
-    COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_ONE, COL_PERM_PENDING_AFTER,
-    COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
-    COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE,
-    COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
+    COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER,
+    COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_ONE,
+    COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
+    COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE,
+    COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
+    COL_STACK_READS, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
+    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -220,6 +221,22 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE)],
             [(COL_ONE, F::ONE), (COL_GRAMMAR_MODE_BEFORE, -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(COL_ONE, F::ONE), (COL_TURN_BOUNDARY, -F::ONE)],
+            [
+                (COL_TURN_EXPORT_FREF_AFTER, F::ONE),
+                (COL_TURN_EXPORT_FREF_BEFORE, -F::ONE),
+            ],
+            [],
+        );
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE)],
+            [
+                (COL_TURN_EXPORT_FREF_AFTER, F::ONE),
+                (COL_HOST_CALLEE_FREF_AFTER, -F::ONE),
+            ],
             [],
         );
         // On the last gather row, pending_after = 1 - advice.
@@ -574,10 +591,8 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         );
         b.push_row([(GK0 + 5, F::ONE)], [(GSLOT_VALUE, F::ONE), (GOUT_VAL, -F::ONE)], []);
 
-        // Export exit latch: the output-capture row in grammar mode loads
-        // the exit schedule — the exit-event count, the event index
-        // continuing after the entry events, and the event attribution
-        // repointed at the halting export's fref (all ROM/carried-bound).
+        // Export exit latch: load the owning turn's exit schedule and
+        // repoint gather attribution from the last import to that export.
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
             [(COL_GRAMMAR_MODE_BEFORE, F::ONE)],
@@ -598,8 +613,8 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         b.push_row(
             [(COL_GRAMMAR_EXIT_LATCH, F::ONE)],
             [
-                (super::super::layout::COL_HOST_CALLEE_FREF_AFTER, F::ONE),
-                (super::super::layout::COL_CURRENT_FUNCTION_REF, -F::ONE),
+                (COL_HOST_CALLEE_FREF_AFTER, F::ONE),
+                (COL_TURN_EXPORT_FREF_BEFORE, -F::ONE),
             ],
             [],
         );

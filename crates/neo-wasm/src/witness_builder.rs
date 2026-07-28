@@ -63,7 +63,8 @@ use super::layout::{
     COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
     COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE,
     COL_TAIL_DISCARD_COUNT, COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-    COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED, PC_ROM_CALL_RETURN_CHOICE,
+    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
+    PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::step_build::WasmStepBuild;
 use crate::layout::{
@@ -168,6 +169,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     };
     wit[COL_HOST_CALLEE_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_callee_fref));
     wit[COL_HOST_CALLEE_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.host_callee_fref));
+    wit[COL_TURN_EXPORT_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.grammar.turn_export_fref));
+    wit[COL_TURN_EXPORT_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.grammar.turn_export_fref));
     for (i, (before_col, after_col)) in [
         (COL_COMM_CHAIN0_BEFORE, COL_COMM_CHAIN0_AFTER),
         (COL_COMM_CHAIN1_BEFORE, COL_COMM_CHAIN1_AFTER),

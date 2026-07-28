@@ -42,10 +42,6 @@ pub(super) fn build_trace(
             supported.push(normalized);
         }
     }
-    if grammar_mode {
-        tail_call::reject_event_grammar(&supported)?;
-    }
-
     let mut out = Vec::with_capacity(supported.len());
     // Runtime call stack: (return_pc, caller_fbp, caller_stack_base) per live
     // guest frame. Grows on Call, shrinks on non-final Return.
@@ -80,6 +76,7 @@ pub(super) fn build_trace(
         })?;
         let setup = setup_turn(grammar_tables, first, claims, false)?;
         grammar_state = crate::ir::WasmGrammarState {
+            turn_export_fref: setup.fref,
             events_remaining: setup.entry_plans.len() as u32,
             event_index: 0,
             args_base: 0,
@@ -587,6 +584,7 @@ pub(super) fn build_trace(
         // argument-region base.
         if let Some(plan) = &grammar_plan {
             grammar_state = crate::ir::WasmGrammarState {
+                turn_export_fref: grammar_state.turn_export_fref,
                 events_remaining: plan.blocks.len() as u32,
                 event_index: 0,
                 args_base: plan.args_base,
@@ -608,6 +606,7 @@ pub(super) fn build_trace(
                 let plans = plan_export_blocks(&setup.template.exit, &exit_blocks);
                 host_callee_fref = setup.fref;
                 grammar_state = crate::ir::WasmGrammarState {
+                    turn_export_fref: grammar_state.turn_export_fref,
                     events_remaining: plans.len() as u32,
                     event_index: setup.template.entry.len() as u32,
                     args_base: grammar_state.args_base,
@@ -1395,7 +1394,7 @@ pub(super) fn build_trace(
                                   sp: u64,
                                   stack_frame_base: u64,
                                   output: WasmOutputState,
-                                  fref: u32,
+                                  host_fref: u32,
                                   gstate: crate::ir::WasmGrammarState,
                                   done: bool| {
                 WasmStepState {
@@ -1413,7 +1412,7 @@ pub(super) fn build_trace(
                     tail_call_pending: false,
                     host_args: WasmCountdownState::ZERO,
                     host_result_pending: false,
-                    host_callee_fref: fref,
+                    host_callee_fref: host_fref,
                     comm_chain,
                     event_absorb,
                     grammar_mode,
@@ -1435,6 +1434,7 @@ pub(super) fn build_trace(
             );
             host_callee_fref = setup.fref;
             grammar_state = crate::ir::WasmGrammarState {
+                turn_export_fref: setup.fref,
                 events_remaining: entry_count,
                 event_index: 0,
                 args_base: grammar_state.args_base,

@@ -30,7 +30,7 @@ use crate::layout::{
     COL_PERM_STATE0_BEFORE, COL_PERM_STATE10_BEFORE, COL_PERM_STATE11_BEFORE, COL_PERM_STATE1_BEFORE,
     COL_PERM_STATE2_BEFORE, COL_PERM_STATE3_BEFORE, COL_PERM_STATE4_BEFORE, COL_PERM_STATE5_BEFORE,
     COL_PERM_STATE6_BEFORE, COL_PERM_STATE7_BEFORE, COL_PERM_STATE8_BEFORE, COL_PERM_STATE9_BEFORE, COL_SP_BEFORE,
-    COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_BEFORE,
+    COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
@@ -226,6 +226,7 @@ pub fn grammar_top_level_initial_state(
     state.comm_chain = initial_comm_chain.canonical_u64();
     if let Some(template) = grammar.exports.get(&export_fref) {
         state.host_callee_fref = export_fref;
+        state.grammar.turn_export_fref = export_fref;
         state.grammar.events_remaining = template.entry.len() as u32;
     }
     state
@@ -273,6 +274,7 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_HOST_ARGS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_args.remaining)),
         COL_HOST_RESULT_PENDING_BEFORE => bool_field(state.host_result_pending),
         COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
+        COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.grammar.turn_export_fref)),
         COL_COMM_CHAIN0_BEFORE => F::from_u64(state.comm_chain[0]),
         COL_COMM_CHAIN1_BEFORE => F::from_u64(state.comm_chain[1]),
         COL_COMM_CHAIN2_BEFORE => F::from_u64(state.comm_chain[2]),

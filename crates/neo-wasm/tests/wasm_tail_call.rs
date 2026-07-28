@@ -1,9 +1,12 @@
 mod common;
 
-use neo_wasm::event_grammar::HostEventGrammar;
+use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
+use neo_wasm::event_grammar::{
+    ExportTemplate, GrammarEvent, HostEventGrammar, ImportTemplate, Limb, SlotSource, TurnClaims,
+};
 use neo_wasm::{
-    collect_wasmtime_steps, traces_from_wasmtime_steps_with_grammar, witness_builder::build_witness_vector,
-    CommChainState, WasmAuxOpcode, WasmBuildError, WasmOpcode, WasmRowKind,
+    collect_wasmtime_component_run_with_linker, traces_from_wasmtime_steps_with_grammar,
+    witness_builder::build_witness_vector, WasmAuxOpcode, WasmBuildError, WasmOpcode, WasmRowKind,
 };
 
 #[test]
@@ -43,11 +46,6 @@ fn return_call_replaces_the_top_level_frame() {
     );
     assert_eq!(enter.state_after.sp, 0, "tail entry discards the replaced frame");
     assert!(!enter.state_after.tail_call_pending);
-
-    let mut forged = tail.clone();
-    forged.state_before.grammar_mode = true;
-    forged.state_after.grammar_mode = true;
-    common::assert_rejected(&build_witness_vector(&forged), "grammar-mode tail call");
 }
 
 #[test]
@@ -140,26 +138,142 @@ fn return_call_indirect_trap_does_not_enter_a_frame() {
 }
 
 #[test]
-fn event_grammar_rejects_tail_calls_until_attribution_is_supported() {
-    let wasm = wat::parse_str(
-        r#"(module
-            (func $identity (param i32) (result i32)
-                local.get 0)
-            (func (export "main") (result i32)
-                i32.const 7
-                return_call $identity))"#,
+fn grammar_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call() {
+    let component = wat::parse_str(
+        r#"(component
+            (type $touch-type (func (param "x" s32)))
+            (type $run-type (func (result s32)))
+            (import "host-touch" (func $host-touch (type $touch-type)))
+            (core module $m
+                (import "" "0" (func $touch (param i32)))
+                (func $identity (param i32) (result i32)
+                    local.get 0)
+                (func (export "run") (result i32)
+                    i32.const 9
+                    call $touch
+                    i32.const 42
+                    return_call $identity))
+            (core func $lowered-touch (canon lower (func $host-touch)))
+            (core instance $host
+                (export "0" (func $lowered-touch)))
+            (core instance $i
+                (instantiate $m
+                    (with "" (instance $host))))
+            (alias core export $i "run" (core func $run))
+            (func (export "run") (type $run-type)
+                (canon lift (core func $run))))"#,
     )
-    .expect("valid WAT");
-    let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
-    let err = traces_from_wasmtime_steps_with_grammar(
-        &run.steps,
-        &HostEventGrammar::default(),
-        &[],
-        CommChainState::default(),
+    .expect("valid component");
+    let run = collect_wasmtime_component_run_with_linker(&component, "run", |linker| {
+        linker
+            .root()
+            .func_wrap("host-touch", |_store, (_x,): (i32,)| Ok(()))
+            .map_err(|err| WasmBuildError::Trace(format!("failed to define host-touch: {err}")))
+    })
+    .expect("component trace");
+    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
+    let export_fref = raw
+        .iter()
+        .find(|row| row.row_kind.is_program())
+        .expect("export program row")
+        .current_function_ref;
+    let import_fref = raw
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::Call && !row.target_function_is_guest)
+        .expect("import call")
+        .state_after
+        .host_callee_fref;
+    assert_ne!(import_fref, export_fref);
+
+    let mut slots = [SlotSource::Const(0); COMM_CHAIN_EVENT_ARGS];
+    slots[0] = SlotSource::OutputElem { limb: Limb::Lo };
+    let mut grammar = HostEventGrammar::default();
+    grammar
+        .imports
+        .insert(import_fref, ImportTemplate::default());
+    grammar.exports.insert(
+        export_fref,
+        ExportTemplate {
+            exit: vec![GrammarEvent::op(17, slots)],
+            ..Default::default()
+        },
+    );
+    let trace =
+        traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[TurnClaims::default()], Default::default())
+            .expect("guest tail call in grammar mode");
+    common::ccs_check_trace(&trace);
+    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+
+    let capture = trace
+        .iter()
+        .find(|row| row.output_captured)
+        .expect("output capture");
+    assert_ne!(
+        capture.current_function_ref, export_fref,
+        "the tail callee halts the turn"
+    );
+    assert_eq!(capture.state_before.grammar.turn_export_fref, export_fref);
+    let exit_rows: Vec<_> = trace
+        .iter()
+        .filter(|row| row.row_kind.is_host_event_gather())
+        .collect();
+    assert_eq!(exit_rows.len(), 8);
+    assert!(exit_rows.iter().all(|row| {
+        row.state_before.host_callee_fref == export_fref && row.state_before.grammar.turn_export_fref == export_fref
+    }));
+    assert_eq!(
+        exit_rows
+            .last()
+            .expect("exit word 7")
+            .state_after
+            .event_absorb
+            .evbuf,
+        [17, 42, 0, 0, 0, 0, 0, 0]
+    );
+
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component).expect("program artifacts");
+    let mut preload = neo_wasm::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    let witnesses: Vec<_> = trace.iter().map(build_witness_vector).collect();
+    neo_wasm::sanity_check_memory_rows(neo_wasm::build_wasm_relation_layout(), &witnesses, &preload)
+        .expect("memory and grammar ROM bindings");
+}
+
+#[test]
+fn return_call_to_an_import_remains_explicitly_unsupported() {
+    let component = wat::parse_str(
+        r#"(component
+            (type $identity-type (func (param "x" s32) (result s32)))
+            (import "host-identity" (func $host-identity (type $identity-type)))
+            (core module $m
+                (import "" "0" (func $identity (param i32) (result i32)))
+                (func (export "run") (param i32) (result i32)
+                    local.get 0
+                    return_call $identity))
+            (core func $lowered-identity (canon lower (func $host-identity)))
+            (core instance $host
+                (export "0" (func $lowered-identity)))
+            (core instance $i
+                (instantiate $m
+                    (with "" (instance $host))))
+            (alias core export $i "run" (core func $run))
+            (func (export "run") (type $identity-type)
+                (canon lift (core func $run))))"#,
     )
-    .expect_err("grammar tail calls must fail explicitly");
+    .expect("valid component");
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
+        &component,
+        "run",
+        &[wasmtime::component::Val::S32(7)],
+        |linker| {
+            linker
+                .root()
+                .func_wrap("host-identity", |_store, (x,): (i32,)| Ok((x,)))
+                .map_err(|err| WasmBuildError::Trace(format!("failed to define host-identity: {err}")))
+        },
+    )
+    .expect("component trace");
+    let err = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect_err("import tail call must fail explicitly");
     assert!(matches!(err, WasmBuildError::Unsupported(_)));
-    assert!(err
-        .to_string()
-        .contains("tail calls in event-grammar traces"));
+    assert!(err.to_string().contains("return_call to a host import"));
 }

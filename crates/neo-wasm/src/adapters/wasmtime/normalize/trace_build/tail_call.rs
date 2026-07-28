@@ -1,18 +1,5 @@
-use super::super::NormalizedStep;
 use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
-
-pub(super) fn reject_event_grammar(rows: &[NormalizedStep]) -> Result<(), crate::ir::WasmBuildError> {
-    if rows
-        .iter()
-        .any(|row| matches!(row.opcode, WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect))
-    {
-        return Err(crate::ir::WasmBuildError::Unsupported(
-            "tail calls in event-grammar traces are not supported yet".to_string(),
-        ));
-    }
-    Ok(())
-}
 
 pub(super) fn tail_enter_row(
     cycle: u64,

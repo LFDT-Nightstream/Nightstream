@@ -293,6 +293,10 @@ fn ccs_rejects_forged_turn_boundary() {
     forged[neo_wasm::layout::COL_SP_AFTER] = neo_math::F::ONE;
     common::assert_rejected(&forged, "boundary firing with a live operand stack");
 
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_TURN_EXPORT_FREF_AFTER] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "boundary carrying a different export from its target");
+
     // A boundary can't fire while the previous turn still owes events.
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE] = neo_math::F::ONE;
@@ -302,8 +306,10 @@ fn ccs_rejects_forged_turn_boundary() {
     // template reads the zero-filled count cell (the memory model pins the
     // claim; see memory_model_rejects_boundary_into_undeclared_fref), and
     // under the biased load no normal schedule satisfies the row.
+    let undeclared_fref = neo_math::F::from_u64(u64::from(setup.add_fref) + 7);
     let mut forged = witness.clone();
-    forged[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] = neo_math::F::from_u64(u64::from(setup.add_fref) + 7);
+    forged[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] = undeclared_fref;
+    forged[neo_wasm::layout::COL_TURN_EXPORT_FREF_AFTER] = undeclared_fref;
     forged[neo_wasm::layout::COL_GRAMMAR_PRE_COUNT] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "boundary entering an undeclared fref with a normal schedule");
 
@@ -483,6 +489,8 @@ fn resultless_turn_can_precede_another_turn() {
     assert!(!tb.state_after.output.enabled);
     assert!(tb.state_before.halted);
     assert!(!tb.state_after.halted);
+    assert_eq!(tb.state_before.grammar.turn_export_fref, poke_fref);
+    assert_eq!(tb.state_after.grammar.turn_export_fref, read_fref);
 
     let mut blocks =
         neo_wasm::event_grammar::expand_export_entry(&grammar.exports[&poke_fref], &[41]).expect("poke entry");

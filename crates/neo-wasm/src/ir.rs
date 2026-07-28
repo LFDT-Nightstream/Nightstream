@@ -133,6 +133,9 @@ impl Default for WasmEventAbsorbState {
 /// staged (see [`crate::event_grammar`]).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmGrammarState {
+    /// Export whose invocation owns this turn. Stable across import calls
+    /// and guest tail calls; changed only by a turn boundary.
+    pub turn_export_fref: u32,
     /// Events still owed in the current phase; loaded from the event-count
     /// ROM on the call row (pre) and the result row (post), decremented as
     /// each block's last slot row stages it. Program rows require zero.
@@ -149,6 +152,7 @@ pub struct WasmGrammarState {
 
 impl WasmGrammarState {
     pub const ZERO: Self = Self {
+        turn_export_fref: 0,
         events_remaining: 0,
         event_index: 0,
         args_base: 0,

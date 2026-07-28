@@ -37,6 +37,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
     let state_before = WasmStepState {
         pc: 2,
         sp: 1,
+        stack_frame_base: 0,
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
         memory_pages: None,
@@ -45,6 +46,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         halted: false,
         trapped: false,
         param_init: WasmCountdownState::ZERO,
+        tail_call_pending: false,
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
         host_callee_fref: 0,
@@ -56,6 +58,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
     let state_after = WasmStepState {
         pc: 3,
         sp: 1,
+        stack_frame_base: 0,
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
         memory_pages: None,
@@ -64,6 +67,7 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         halted: false,
         trapped: false,
         param_init: WasmCountdownState::ZERO,
+        tail_call_pending: false,
         host_args: WasmCountdownState::ZERO,
         host_result_pending: false,
         host_callee_fref: 0,

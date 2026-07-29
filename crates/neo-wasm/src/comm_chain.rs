@@ -186,6 +186,55 @@ pub fn commit_host_call_event_u64(
     .map(|limb| limb.as_canonical_u64())
 }
 
+/// Trace attribution accompanying an absorbed block.
+///
+/// In a valid wasm trace these fields are circuit-constrained, but they are
+/// not words in the event-chain commitment. Consumers must not authenticate
+/// them from the commitment alone.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AbsorbedEventMetadata {
+    /// Import or export template that supplied the event.
+    pub attributed_fref: u32,
+    /// Export fref owning the turn that emitted the event.
+    pub turn_export_fref: u32,
+}
+
+/// One committed grammar-mode block, extracted from the gather row that
+/// completed it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AbsorbedEventBlock {
+    /// Exact words absorbed by the event chain. Their interpretation belongs
+    /// to the embedder grammar; position zero is not necessarily a discriminant.
+    pub words: [u64; COMM_CHAIN_BLOCK_WORDS],
+    /// Trace-derived attribution, excluded from the event-chain commitment.
+    pub metadata: AbsorbedEventMetadata,
+}
+
+/// Committed event blocks of a grammar-mode trace, in absorb order: the
+/// exact stream the carried chain folds, for external consumers rebuilding
+/// the event sequence (e.g. the Starstream interleaving buffer). A block
+/// commits on the gather row that raises `perm_pending`; advice events stage
+/// `evbuf` without raising it and are excluded by construction. Raw-mode
+/// traces have no gather rows and yield an empty list. This extracts witness
+/// data; it does not validate the supplied trace.
+pub fn absorbed_event_blocks(trace: &[WasmVmStep]) -> Vec<AbsorbedEventBlock> {
+    trace
+        .iter()
+        .filter(|row| {
+            row.row_kind.is_host_event_gather()
+                && row.state_after.event_absorb.perm_pending
+                && !row.state_before.event_absorb.perm_pending
+        })
+        .map(|row| AbsorbedEventBlock {
+            words: row.state_after.event_absorb.evbuf,
+            metadata: AbsorbedEventMetadata {
+                attributed_fref: row.state_before.host_callee_fref,
+                turn_export_fref: row.state_before.grammar.turn_export_fref,
+            },
+        })
+        .collect()
+}
+
 /// Circuit rows per absorbed block: 4 initial full rounds, 11 partial-pair
 /// rows (2 internal rounds each), 4 terminal full rounds.
 pub const COMM_CHAIN_PERM_ROWS: usize = 19;

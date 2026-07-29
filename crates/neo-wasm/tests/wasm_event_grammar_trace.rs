@@ -398,6 +398,12 @@ fn advice_import_pushes_without_absorbing() {
         expected.map(|limb| p3_field::PrimeField64::as_canonical_u64(&limb))
     );
 
+    // Extraction sees exactly the committed stream: sink's block, no advice.
+    let events = neo_wasm::comm_chain::absorbed_event_blocks(&trace);
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].words, [7, 42, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(events[0].metadata.attributed_fref, frefs[1]);
+
     let advice_rows: Vec<&neo_wasm::WasmVmStep> = trace
         .iter()
         .filter(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.advice))

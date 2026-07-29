@@ -1065,7 +1065,12 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
             .is_some_and(|rom| rom.kind == 2 && rom.limb == 1);
     wit[crate::layout::COL_STACK_WRITE0_HI_ACTIVE] =
         wit[crate::layout::COL_STACK_WRITE0_ACTIVE] + bool_f(result_hi_gather);
-    wit[COL_GRAMMAR_EXIT_LATCH] = wit[COL_OUTPUT_CAPTURED] * mode;
+    wit[COL_GRAMMAR_EXIT_LATCH] = bool_f(
+        trace.state_before.grammar_mode
+            && !trace.state_before.halted
+            && trace.state_after.halted
+            && !trace.state_after.trapped,
+    );
     wit[crate::layout::COL_TURN_BOUNDARY] = bool_f(trace.row_kind.is_turn_boundary());
 
     // Grammar gather machinery: carried schedule/cursor/oracle state plus

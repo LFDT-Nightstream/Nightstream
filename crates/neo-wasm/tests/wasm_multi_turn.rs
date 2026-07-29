@@ -452,7 +452,7 @@ fn resultless_turn_can_precede_another_turn() {
                     },
                 )]),
             )],
-            exit: vec![],
+            exit: vec![GrammarEvent::op(16, slots(&[]))],
             entry_claim_count: 1,
             exit_claim_count: 0,
         },
@@ -498,11 +498,20 @@ fn resultless_turn_can_precede_another_turn() {
         .collect();
     assert_eq!(
         event_metadata,
-        [(poke_fref, poke_fref), (read_fref, read_fref), (read_fref, read_fref)]
+        [
+            (poke_fref, poke_fref),
+            (poke_fref, poke_fref),
+            (read_fref, read_fref),
+            (read_fref, read_fref),
+        ]
     );
 
     let mut blocks =
         neo_wasm::event_grammar::expand_export_entry(&grammar.exports[&poke_fref], &[41]).expect("poke entry");
+    blocks.extend(
+        neo_wasm::event_grammar::expand_export_exit(&grammar.exports[&poke_fref], None, &[])
+            .expect("resultless poke exit"),
+    );
     blocks.extend(neo_wasm::event_grammar::expand_export_entry(&grammar.exports[&read_fref], &[]).expect("read entry"));
     blocks.extend(
         neo_wasm::event_grammar::expand_export_exit(&grammar.exports[&read_fref], Some((41, 0)), &[]).expect("exit"),
@@ -518,7 +527,7 @@ fn resultless_turn_can_precede_another_turn() {
         neo_wasm::comm_chain::fold_event_blocks(Default::default(), &lifted).canonical_u64()
     );
 
-    // Exit events require a captured output.
+    // Resultless exits may not reference a captured output.
     let mut bad_grammar = grammar.clone();
     bad_grammar.exports.get_mut(&poke_fref).expect("poke").exit = vec![GrammarEvent::op(
         17,
@@ -527,6 +536,6 @@ fn resultless_turn_can_precede_another_turn() {
     assert!(
         neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &bad_grammar, &turns, Default::default())
             .is_err(),
-        "exit events on a resultless turn must be rejected"
+        "output-dependent exit events on a resultless turn must be rejected"
     );
 }

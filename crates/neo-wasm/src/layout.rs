@@ -408,7 +408,7 @@ define_columns!(
     ),
     (
         COL_GRAMMAR_EXIT_LATCH,
-        "output-capture row in grammar mode: loads the export's exit-event schedule",
+        "clean export-halt row in grammar mode: loads the export's exit-event schedule",
         ColumnWidth::Boolean
     ),
     (

@@ -2,8 +2,8 @@
 //! `Enter`/`Activation`/payload publication) absorb before the export's
 //! first instruction — with `ClaimLocal` slots bootstrapping the
 //! zero-initialized entry frame's locals from the claim inputs — and exit
-//! events (`Return` with the captured result) absorb after the halting
-//! row. Event values are bound by the final-chain transcript check: the
+//! events (`Return`, optionally with a captured result) absorb after the
+//! halting row. Event values are bound by the final-chain transcript check: the
 //! verifier folds the claimed transcript natively (`fold_event_blocks`)
 //! and compares it with the proof-carried final `comm_chain`. Single-turn
 //! V1. Discriminants below are example embedder data.
@@ -194,6 +194,11 @@ fn ccs_rejects_forged_exit_output() {
     let cursor = usize::from(output_slot_row.state_before.grammar.slot_cursor);
     witness[neo_wasm::layout::COL_EVBUF0_AFTER + cursor] += neo_math::F::ONE;
     common::assert_rejected(&witness, "exit gather row staging a forged output word");
+
+    let mut witness = build_witness_vector(output_slot_row);
+    witness[neo_wasm::layout::COL_OUTPUT_ENABLED_BEFORE] = neo_math::F::ZERO;
+    witness[neo_wasm::layout::COL_OUTPUT_ENABLED_AFTER] = neo_math::F::ZERO;
+    common::assert_rejected(&witness, "output slot row with no captured output");
 }
 
 /// An input-local gather row must write the very word it stages: forging

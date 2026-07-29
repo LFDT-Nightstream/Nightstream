@@ -492,6 +492,15 @@ fn resultless_turn_can_precede_another_turn() {
     assert_eq!(tb.state_before.grammar.turn_export_fref, poke_fref);
     assert_eq!(tb.state_after.grammar.turn_export_fref, read_fref);
 
+    let event_metadata: Vec<_> = neo_wasm::comm_chain::absorbed_event_blocks(&trace)
+        .into_iter()
+        .map(|event| (event.metadata.attributed_fref, event.metadata.turn_export_fref))
+        .collect();
+    assert_eq!(
+        event_metadata,
+        [(poke_fref, poke_fref), (read_fref, read_fref), (read_fref, read_fref)]
+    );
+
     let mut blocks =
         neo_wasm::event_grammar::expand_export_entry(&grammar.exports[&poke_fref], &[41]).expect("poke entry");
     blocks.extend(neo_wasm::event_grammar::expand_export_entry(&grammar.exports[&read_fref], &[]).expect("read entry"));

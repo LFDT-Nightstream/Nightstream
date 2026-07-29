@@ -66,29 +66,12 @@ use super::layout::{
     COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
     PC_ROM_CALL_RETURN_CHOICE,
 };
-use super::step_build::WasmStepBuild;
 use crate::layout::{
     COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
     COL_CMP_LO_IS_ZERO, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
 };
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-
-/// Build one R1CS-satisfying assignment per normalized wasm step.
-///
-/// The R1CS-F' chain builder in `neo-fold-clean` bit-decomposes each
-/// assignment during `compile_step` and constructs the foldable F'-encoded
-/// `CcsInstance` internally; neo-wasm does not commit to the assignment.
-/// Assignments match the canonical (range-checked) wasm CCS: the declared
-/// columns followed by the range-check bit columns.
-pub fn build_steps(steps: &[WasmVmStep]) -> Vec<WasmStepBuild> {
-    steps
-        .iter()
-        .map(|step| WasmStepBuild {
-            assignment: build_witness_vector(step),
-        })
-        .collect()
-}
 
 pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     let mut wit = vec![F::ZERO; crate::RANGE_CHECKED_WITNESS_WIDTH];

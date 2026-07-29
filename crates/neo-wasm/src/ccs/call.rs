@@ -22,7 +22,7 @@ use super::super::layout::{
     COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READ0_ADDR_LO,
     COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES,
     COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE, COL_TAIL_ENTER_ACTIVE,
-    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
+    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -376,6 +376,24 @@ fn push_simple_output_constraints(b: &mut R1csBuilder) {
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
             [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
+            [],
+        );
+        // A clean top-level halt leaves exactly the optional result above
+        // the current frame base. The boundary term cancels the halted-latch
+        // reset between turns.
+        b.push_row(
+            [
+                (COL_HALTED, F::ONE),
+                (COL_HALTED_BEFORE, -F::ONE),
+                (COL_TRAPPED_AFTER, -F::ONE),
+                (COL_TRAPPED_BEFORE, F::ONE),
+                (COL_TURN_BOUNDARY, F::ONE),
+            ],
+            [
+                (COL_SP_BEFORE, F::ONE),
+                (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
+                (COL_OUTPUT_CAPTURED, -F::ONE),
+            ],
             [],
         );
         b.push_row(

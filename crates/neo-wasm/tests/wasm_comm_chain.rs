@@ -234,6 +234,53 @@ fn ccs_rejects_suppressed_absorb_schedule() {
     common::assert_rejected(&witness, "buffer-filling row suppressing the pending absorb");
 }
 
+/// `absorbed_event_blocks` must reproduce the verifier-expected transcript,
+/// re-fold to the carried chain, and retain separate trace attribution.
+#[test]
+fn absorbed_event_blocks_reconstruct_the_grammar_transcript() {
+    use common::grammar_fixture::{expected_transcript, grammar_lifecycle_setup, mul_fref, sink_fref, ENTRY_CLAIMS};
+
+    let setup = grammar_lifecycle_setup();
+    let events = comm_chain::absorbed_event_blocks(&setup.trace);
+
+    let expected = expected_transcript(&setup.grammar, setup.run_fref, &ENTRY_CLAIMS);
+    assert_eq!(events.len(), expected.len());
+    for (event, expected) in events.iter().zip(&expected) {
+        assert_eq!(event.words.map(f), *expected);
+    }
+
+    let first = setup.trace.first().expect("rows");
+    let last = setup.trace.last().expect("rows");
+    let mut chain = first.state_before.comm_chain.map(f);
+    for event in &events {
+        chain = commit_event(
+            chain,
+            f(event.words[0]),
+            core::array::from_fn(|i| f(event.words[1 + i])),
+        );
+    }
+    assert_eq!(
+        chain.map(|limb| p3_field::PrimeField64::as_canonical_u64(&limb)),
+        last.state_after.comm_chain
+    );
+
+    // Entry pair → export, mul's two events → mul, sink's one → sink, exit
+    // → back to the export; the whole stream belongs to the export's turn.
+    let mul = mul_fref(&setup.grammar);
+    let sink = sink_fref(&setup.grammar);
+    let attributed: Vec<u32> = events
+        .iter()
+        .map(|event| event.metadata.attributed_fref)
+        .collect();
+    assert_eq!(
+        attributed,
+        [setup.run_fref, setup.run_fref, mul, mul, sink, setup.run_fref]
+    );
+    assert!(events
+        .iter()
+        .all(|event| event.metadata.turn_export_fref == setup.run_fref));
+}
+
 /// The debug checker must reject a forged carried chain state.
 #[test]
 fn comm_chain_checker_rejects_forged_state() {

@@ -291,9 +291,9 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         COL_GRAMMAR_PRE_COUNT as PRE_COUNT, COL_GRAMMAR_SLOT_ARG as SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI as CONST_HI,
         COL_GRAMMAR_SLOT_CONST_LO as CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A,
         COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B, COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_LIMB as SLOT_LIMB,
-        COL_IS_PROGRAM_ROW, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_OUTPUT_CAPTURED,
-        COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO,
-        COL_TURN_BOUNDARY,
+        COL_HALTED, COL_HALTED_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI,
+        COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE,
+        COL_STACK_READ0_ADDR_LO, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
@@ -590,12 +590,26 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [(GOUT_VAL, F::ONE), (COL_OUTPUT_VALUE_LO_BEFORE, -F::ONE)],
         );
         b.push_row([(GK0 + 5, F::ONE)], [(GSLOT_VALUE, F::ONE), (GOUT_VAL, -F::ONE)], []);
-
-        // Export exit latch: load the owning turn's exit schedule and
-        // repoint gather attribution from the last import to that export.
         b.push_row(
-            [(COL_OUTPUT_CAPTURED, F::ONE)],
+            [(GK0 + 5, F::ONE)],
+            [(COL_ONE, F::ONE), (COL_OUTPUT_ENABLED_BEFORE, -F::ONE)],
+            [],
+        );
+
+        // Export exit latch: a clean halt transition in grammar mode loads
+        // the owning turn's exit schedule and repoints gather attribution
+        // from the last import to that export. This is independent of result
+        // capture, so constant-only exit templates also cover resultless
+        // exports.
+        b.push_row(
             [(COL_GRAMMAR_MODE_BEFORE, F::ONE)],
+            [
+                (COL_HALTED, F::ONE),
+                (COL_HALTED_BEFORE, -F::ONE),
+                (COL_TRAPPED_AFTER, -F::ONE),
+                (COL_TRAPPED_BEFORE, F::ONE),
+                (COL_TURN_BOUNDARY, F::ONE),
+            ],
             [(COL_GRAMMAR_EXIT_LATCH, F::ONE)],
         );
         b.push_row(

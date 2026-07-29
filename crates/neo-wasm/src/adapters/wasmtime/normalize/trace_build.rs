@@ -591,15 +591,17 @@ pub(super) fn build_trace(
                 slot_cursor: 0,
             };
         }
-        // Capturing output loads the export's exit schedule and attribution.
+        // A clean export halt loads the exit schedule and attribution. Result
+        // publication is optional: constant-only exit events also apply to
+        // resultless exports.
         let mut exit_plans: Option<Vec<GrammarBlockPlan>> = None;
         let mut exit_counts: Option<(u32, u32)> = None;
-        if output_captured {
+        if halted && !trapped {
             if let (Some(setup), Some((_, turns))) = (&export_boundary, grammar) {
                 let exit_claims = turns[turn_index].exit.as_slice();
                 let exit_blocks = crate::event_grammar::expand_export_exit(
                     setup.template,
-                    Some((output_value_lo_after, output_value_hi_after)),
+                    output_captured.then_some((output_value_lo_after, output_value_hi_after)),
                     exit_claims,
                 )
                 .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
@@ -1354,20 +1356,6 @@ pub(super) fn build_trace(
                     &mut grammar_state,
                     plan,
                 );
-            }
-        }
-
-        // Without captured output, the exit latch cannot schedule exit events.
-        if halted && !trapped && !output_captured {
-            if let Some(setup) = &export_boundary {
-                if !setup.template.exit.is_empty() {
-                    return Err(WasmBuildError::Trace(format!(
-                        "resultless turn (fref {}) declares {} exit event(s) but nothing was captured to \
-                         fire the exit latch; resultless exports need an empty exit template",
-                        setup.fref,
-                        setup.template.exit.len()
-                    )));
-                }
             }
         }
 

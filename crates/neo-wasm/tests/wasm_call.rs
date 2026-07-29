@@ -364,6 +364,27 @@ fn final_halt_captures_simple_output() {
 }
 
 #[test]
+fn clean_halt_with_a_result_requires_output_capture() {
+    let wasm = add_one_wasm();
+    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
+    let mut final_row = trace
+        .iter()
+        .find(|row| row.state_after.halted)
+        .expect("halted row")
+        .clone();
+
+    final_row.output_captured = false;
+    final_row.state_after.output.enabled = false;
+    final_row.state_after.output.value_lo = 0;
+    final_row.state_after.output.value_hi = 0;
+    final_row.state_after.sp = final_row.state_before.sp;
+
+    let witness = neo_wasm::witness_builder::build_witness_vector(&final_row);
+    common::assert_rejected(&witness, "clean halt leaving its result uncaptured");
+}
+
+#[test]
 fn final_halt_output_low_is_row_bound() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");

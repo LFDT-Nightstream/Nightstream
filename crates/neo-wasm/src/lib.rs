@@ -21,7 +21,6 @@ pub mod preprocess;
 mod r1cs_builder;
 pub mod range_check;
 pub mod relation_layout;
-pub mod step_build;
 pub mod tables;
 pub mod tagged_r1cs_builder;
 mod witness_layout;
@@ -68,5 +67,5 @@ pub use relation_layout::{
 };
 pub use tables::WasmLookupArity;
 pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};
-pub use witness_builder::{build_steps, build_witness_vector};
+pub use witness_builder::build_witness_vector;
 pub use witness_layout::RANGE_CHECKED_WITNESS_WIDTH;

@@ -58,8 +58,9 @@ def select
     (select source projection).length = targetWidth := by
   simp [select]
 
-/-- Prior and next hashes share one physical projection.  The only semantic
-difference is the normalized first coordinate. -/
+/-- Both hash modes use one projection rule. For fixed payload operands, the
+mode changes only the normalized first coordinate. The actual F-prime prior
+and next calls can also have different current and running operands. -/
 def normalizedIteration
     (next : Bool)
     (iteration : Nat) : Field :=

@@ -441,19 +441,15 @@ def recursiveAssertionPlan
       oneColumn (activationColumn SourceOwners.stepBranchPath false)
       (CanonicalContexts.Step.afterEncodedEqualityWidths parameters profile))
 
-def recursiveNifsPlan
+/-- The exact invoked-call plan for the recursive NIFS instruction. This
+named boundary exposes the selected recipe and physical frame without
+reducing the complete Step plan. -/
+def recursiveNifsInvokePlan
     (parameters : Parameters)
     (profile : Profile parameters)
     (recipes :
-      CallRecipes (signature parameters) (profile.family parameters)) :
-    PrimitivePlan parameters profile
-      (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.nifsVerifyCall
-        parameters)
-      SourceOwners.stepRecursiveNifsPath
-      (CanonicalContexts.Step.afterEncodedEquality parameters)
-      oneColumn (activationColumn SourceOwners.stepBranchPath false) :=
-  .invoke
-    (CanonicalPrimitivePlan.invoke profile recipes
+      CallRecipes (signature parameters) (profile.family parameters)) :=
+  CanonicalPrimitivePlan.invoke profile recipes
       .nifsVerify
       (.cons
         (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.running
@@ -475,7 +471,32 @@ def recursiveNifsPlan
       (afterEncodedEquality_excludes parameters
         SourceOwners.stepRecursiveNifsPath
         (by decide) (by decide) (by decide) (by decide) (by decide)
-        (by decide)))
+        (by decide))
+
+def recursiveNifsPlan
+    (parameters : Parameters)
+    (profile : Profile parameters)
+    (recipes :
+      CallRecipes (signature parameters) (profile.family parameters)) :
+    PrimitivePlan parameters profile
+      (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.nifsVerifyCall
+        parameters)
+      SourceOwners.stepRecursiveNifsPath
+      (CanonicalContexts.Step.afterEncodedEquality parameters)
+      oneColumn (activationColumn SourceOwners.stepBranchPath false) :=
+  .invoke (recursiveNifsInvokePlan parameters profile recipes)
+
+/-- The recursive NIFS receipt contains the named selected recipe rows at the
+named canonical call frame. -/
+@[simp] theorem recursiveNifsPlan_receipt_rows
+    (parameters : Parameters)
+    (profile : Profile parameters)
+    (recipes :
+      CallRecipes (signature parameters) (profile.family parameters)) :
+    (recursiveNifsPlan parameters profile recipes).receipt.rows =
+      (recursiveNifsInvokePlan parameters profile recipes).recipe.rows
+        (recursiveNifsInvokePlan parameters profile recipes).frame :=
+  rfl
 
 def continuationHashPlan
     (parameters : Parameters)

@@ -5,21 +5,25 @@ import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.CanonicalStep
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.CanonicalTerminalPhysicalCompleteness
 
 /-!
-Contract: complete profile-indexed canonical encoding for the fixed-one Step
-and Terminal checkers.
+Contract: conditional profile-indexed assembly for the fixed-one Step and
+Terminal checkers.
 
 HyperNova Construction 2 supplies the application circuit, while the NIFS
 setup supplies its verifier.  Their physical encodings therefore enter this
 boundary as complete `CallRecipe` programs, not as acceptance propositions or
 caller-provided semantic conclusions.
 
-Owns: the final `step` and `nifsVerify` recipe boundary, assembly of all
-eleven recipes, the canonical Step and Terminal encodings, their exact
-checker correspondence, honest satisfying assignments, receipt ownership,
-conservation, and program-derived cost.
+Owns: the supplied `step` and `nifsVerify` recipe boundary, assembly of all
+eleven recipes once those two recipes exist, the canonical Step and Terminal
+encodings, their exact checker correspondence, honest satisfying assignments,
+receipt ownership, conservation, and program-derived cost.
 
 Does not own: a deployment application selection, Rust, generated rows,
-`BatchBadRoot` suppression, Fiat--Shamir, or cryptographic security.
+construction of either supplied Phase-5 recipe, Fiat--Shamir, or
+cryptographic security. The companion
+`ConcreteNifsStepPaperRefinement.recursiveNifs_refinesPaper_or_boundEvent`
+owns transport of the occurrence-bound event through the recursive Step
+receipt.
 -/
 
 set_option autoImplicit false
@@ -37,7 +41,8 @@ Both fields are the existing deep `CallRecipe` contract: each contains an
 executable row program, exact footprint and receipt, active soundness, honest
 active completeness, and inactive satisfiability.  A selected deployment must
 construct these programs on the Lean-owned encoding path; equality with Rust
-is a later refinement theorem, never an input to this boundary. -/
+is a later refinement theorem, never an input to this boundary.  This
+structure is an assembly premise; it does not construct either program. -/
 structure Phase5CallCertification
     (parameters : Parameters)
     (profile : Poseidon23ApplicationProfile parameters) where

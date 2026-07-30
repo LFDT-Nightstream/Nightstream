@@ -532,6 +532,43 @@ def receipt
         inputColumns one active) : InstructionReceipt :=
   InstructionReceipt.ofCall plan.recipe plan.frame
 
+/-! The allocation projection must not inspect the semantic recipe or any
+proof stored in its frame.  Only the canonical output and temporary column
+plans allocate columns. -/
+@[simp] theorem receipt_allocations_exact
+    {parameters : Parameters}
+    {profile : Profile parameters}
+    {context : Schema (typeSystem parameters)}
+    {call : (SelectedSignature parameters).Call}
+    {operands :
+      Refs (typeSystem parameters) context
+        ((SelectedSignature parameters).callInputs call)}
+    {path : OwnerPath}
+    {inputColumns : Columns context}
+    {one active : ColumnId}
+    (plan :
+      InvokePlan parameters profile call operands path
+        inputColumns one active) :
+    plan.receipt.allocations =
+      schemaOwnedColumns
+          (instructionColumns path
+            ((SelectedSignature parameters).callOutputs call)) ++
+        schemaOwnedColumns
+          (temporaryColumns path
+            ((SelectedSignature parameters).callOutputs call)
+            ((SelectedSignature parameters).callFootprint call).temporaries) := by
+  unfold receipt InstructionReceipt.ofCall CallFrame.allocations
+  change
+    plan.frame.outputs.columns ++ plan.frame.temporaries.columns =
+      _
+  have outputsEqual :=
+    congrArg SchemaBundles.columns plan.outputsExact
+  have temporariesEqual :=
+    congrArg LayoutBundles.columns plan.temporariesExact
+  rw [outputsEqual, temporariesEqual]
+  simp only [Columns.toSchemaBundles_columns,
+    Columns.toLayoutBundles_columns]
+
 end InvokePlan
 
 namespace LiteralPlan
@@ -570,6 +607,25 @@ def receipt
   InstructionReceipt.ofLiteral plan.recipe
     plan.allocationsOwned plan.rowsOwned
 
+@[simp] theorem receipt_allocations_exact
+    {parameters : Parameters}
+    {profile : Profile parameters}
+    {context : Schema (typeSystem parameters)}
+    {port : Port (typeSystem parameters)}
+    {value : (typeSystem parameters).Value port.kind}
+    {path : OwnerPath}
+    {inputColumns : Columns context}
+    {one active : ColumnId}
+    (plan :
+      LiteralPlan parameters profile port value path
+        inputColumns one active) :
+    plan.receipt.allocations =
+      bundleOwnedColumns port
+        (HVec.head (instructionColumns path [port])) := by
+  unfold receipt InstructionReceipt.ofLiteral
+  change plan.recipe.output.columns = _
+  exact congrArg ColumnBundle.columns plan.outputExact
+
 end LiteralPlan
 
 namespace AssertPlan
@@ -587,9 +643,47 @@ def receipt
         inputColumns one active) : InstructionReceipt :=
   InstructionReceipt.ofAssertion plan.recipe
 
+@[simp] theorem receipt_allocations_exact
+    {parameters : Parameters}
+    {profile : Profile parameters}
+    {context : Schema (typeSystem parameters)}
+    {condition : Ref (typeSystem parameters) context .bit}
+    {path : OwnerPath}
+    {inputColumns : Columns context}
+    {one active : ColumnId}
+    (plan :
+      AssertPlan parameters profile condition path
+        inputColumns one active) :
+    plan.receipt.allocations = [] :=
+  rfl
+
 end AssertPlan
 
 namespace PrimitivePlan
+
+/-! The allocation projection is a small proof-free description of the
+columns created by one typed primitive.  It deliberately omits input and
+context columns because those columns already have earlier receipt owners. -/
+def expectedAllocations
+    {parameters : Parameters}
+    {input output : Schema (typeSystem parameters)}
+    (path : OwnerPath) :
+    Primitive (SelectedSignature parameters) input output ->
+      List OwnedColumn
+  | .literal port _ =>
+      bundleOwnedColumns port
+        (HVec.head (instructionColumns path [port]))
+  | .linear _ _ _ => []
+  | .product _ _ _ => []
+  | .invoke call _ =>
+      schemaOwnedColumns
+          (instructionColumns path
+            ((SelectedSignature parameters).callOutputs call)) ++
+        schemaOwnedColumns
+          (temporaryColumns path
+            ((SelectedSignature parameters).callOutputs call)
+            ((SelectedSignature parameters).callFootprint call).temporaries)
+  | .assertTrue _ => []
 
 /-- The one and only physical receipt selected by a fixed-one primitive
 plan.  The indexed match rules out unsupported primitive forms rather than
@@ -610,6 +704,32 @@ def receipt
   | .invoke invokePlan => invokePlan.receipt
   | .literal literalPlan => literalPlan.receipt
   | .assertTrue assertPlan => assertPlan.receipt
+
+@[simp] theorem receipt_allocations_exact
+    {parameters : Parameters}
+    {profile : Profile parameters}
+    {input output : Schema (typeSystem parameters)}
+    {primitive :
+      Primitive (SelectedSignature parameters) input output}
+    {path : OwnerPath}
+    {inputColumns : Columns input}
+    {one active : ColumnId}
+    (plan :
+      PrimitivePlan parameters profile primitive path
+        inputColumns one active) :
+    plan.receipt.allocations = expectedAllocations path primitive := by
+  cases plan with
+  | invoke plan =>
+      simpa [PrimitivePlan.receipt, expectedAllocations] using
+        InvokePlan.receipt_allocations_exact plan
+  | literal plan =>
+      change
+        plan.receipt.allocations =
+          bundleOwnedColumns _ (HVec.head (instructionColumns path [_]))
+      exact LiteralPlan.receipt_allocations_exact plan
+  | assertTrue plan =>
+      simpa [PrimitivePlan.receipt, expectedAllocations] using
+        AssertPlan.receipt_allocations_exact plan
 
 /-- Every supported primitive receipt has exactly its source instruction
 owner. -/

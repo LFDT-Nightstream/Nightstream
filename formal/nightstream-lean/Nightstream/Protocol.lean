@@ -1,13 +1,13 @@
-import Nightstream.Protocol.FPrime.Paper
-import Nightstream.Protocol.FPrime.Paper.Completeness
-import Nightstream.Protocol.FPrime.ConcretePhi81
-import Nightstream.Protocol.Terminal.CE
+import Nightstream.Protocol.FPrime.Authority
 
 /-!
-Curated public surface for independent protocol semantics.
+Public protocol authority facade.
 
-The callback-oriented `FPrime.Step`, compact production `FPrime.XOut`, and
-generic `FPrime.Paper.CertificateVerifier` are implementation or legacy
-surfaces and are intentionally absent. They do not authorize constraint
-removal.
+`FPrime.Authority` exports only the selected HyperNova step and terminal
+relations, their canonical executable checkers, and the selected SuperNeo
+NIFS relation.
+
+Paper models, ConcretePhi81 implementation models, terminal CE witness
+authority, deviations, obstructions, and security bridges remain available
+through explicit imports. They are not alternate public authority paths.
 -/

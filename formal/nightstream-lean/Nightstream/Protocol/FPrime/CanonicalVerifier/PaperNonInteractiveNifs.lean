@@ -1,4 +1,4 @@
-import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive
+import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.HonestCompleteness
 import Nightstream.Protocol.FPrime.CanonicalVerifier.NifsRefinement
 
 /-!

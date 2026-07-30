@@ -1,5 +1,6 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PublicCarrier
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PublicInputBoundary
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.NifsPaper.PiRlc.PublicColumns
 import Nightstream.Implementation.R1CS.Ownership.FPrimeFullHistory.FPrimeFullHistoryProjectionArtifact
 import Nightstream.SuperNeo.Folding.PiRLC
 
@@ -65,55 +66,11 @@ structure ProjectionOpening (matrixCount : Nat) where
   x : XRings
   yRing : YRingRings matrixCount
 
-/-- Matrix-indexed public leaves in review order. `y_zcol` is deliberately
-absent. -/
-inductive PublicRole (matrixCount : Nat) where
-  | commitment (lane : Fin 18)
-  | x (column : Fin 5)
-  | yRing (row : Fin matrixCount) (limb : Fin 2)
-deriving DecidableEq, Repr
-
-def publicOrder (matrixCount : Nat) : List (PublicRole matrixCount) :=
-  (List.ofFn fun lane : Fin 18 => .commitment lane) ++
-  (List.ofFn fun column : Fin 5 => .x column) ++
-  (List.ofFn fun row : Fin matrixCount =>
-    List.ofFn fun limb : Fin 2 => .yRing row limb).flatten
-
-private theorem sum_ofFn_constant (count value : Nat) :
-    (List.ofFn fun _ : Fin count => value).sum = count * value := by
-  induction count with
-  | zero => simp
-  | succ count induction =>
-      rw [List.ofFn_succ]
-      rw [List.sum_cons, induction, Nat.succ_mul]
-      omega
-
-theorem public_role_count (matrixCount : Nat) :
-    (publicOrder matrixCount).length = 23 + 2 * matrixCount := by
-  simp only [publicOrder, List.length_append, List.length_ofFn,
-    List.length_flatten, List.map_ofFn]
-  change 18 + 5 + (List.ofFn fun _ : Fin matrixCount => 2).sum =
-    23 + 2 * matrixCount
-  rw [sum_ofFn_constant]
-  omega
-
 def ProjectionOpening.at {matrixCount : Nat}
     (opening : ProjectionOpening matrixCount) : PublicRole matrixCount -> Ring
   | .commitment lane => opening.commitment lane
   | .x column => opening.x column
   | .yRing row limb => opening.yRing row limb
-
-structure ProjectionColumns (matrixCount : Nat) where
-  commitment : Fin 18 -> List Nat
-  x : Fin 5 -> List Nat
-  yRing : Fin matrixCount -> Fin 2 -> List Nat
-
-def ProjectionColumns.at {matrixCount : Nat}
-    (columns : ProjectionColumns matrixCount) :
-    PublicRole matrixCount -> List Nat
-  | .commitment lane => columns.commitment lane
-  | .x column => columns.x column
-  | .yRing row limb => columns.yRing row limb
 
 def decodeOpening {matrixCount : Nat} (assignment : Nat -> Nat)
     (columns : ProjectionColumns matrixCount) :

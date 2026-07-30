@@ -77,15 +77,22 @@ private theorem list_all_of_get?_eq_some {α : Type} (predicate : α → Bool) :
       values.all predicate = true → values[index]? = some value →
         predicate value = true
   | [], _, _, _, lookup => by simp at lookup
-  | _ :: _, 0, _, allValid, lookup => by
-      have separated := Bool.and_eq_true.mp allValid
-      simp at lookup
-      subst_vars
-      exact separated.1
-  | _ :: values, index + 1, value, allValid, lookup => by
-      have separated := Bool.and_eq_true.mp allValid
-      exact list_all_of_get?_eq_some predicate
-        separated.2 lookup
+  | head :: _, 0, value, allValid, lookup => by
+      cases validHead : predicate head with
+      | false =>
+          simp [validHead] at allValid
+      | true =>
+          simp at lookup
+          subst value
+          exact validHead
+  | head :: values, index + 1, value, allValid, lookup => by
+      cases validHead : predicate head with
+      | false =>
+          simp [validHead] at allValid
+      | true =>
+          have tailValid : values.all predicate = true := by
+            simpa [validHead] using allValid
+          exact list_all_of_get?_eq_some predicate tailValid lookup
 
 private theorem generatedTemplateChunk_allValid
     {index : Nat} {chunk : List RawTemplate}
@@ -131,6 +138,7 @@ private theorem ownerInAtoms?_coverage
       simp [atomsSummary?] at summaryExact
       subst_vars
       simp [zeroSummary] at columnLt
+      omega
   | atom :: atoms, summary, summaryExact, sourceLe, columnLt => by
       cases atomExact : atomSummary? batches atom with
       | none => simp [atomsSummary?, atomExact] at summaryExact
@@ -225,8 +233,9 @@ private theorem ownerInChunks?_coverage
       CallChunksValid templateChunks contexts chunks →
       cursor.source ≤ column → column < stop.source →
       ∃ owner, ownerInChunks? batches templateChunks contexts chunks column = some owner
-  | _, cursor, [], [], _, _, summaryExact, _, sourceLe, columnLt => by
-      simp [callContextsSummary?] at summaryExact
+  | _, cursor, [], [], stop, _, summaryExact, _, sourceLe, columnLt => by
+      have cursorExact : cursor = stop := Option.some.inj summaryExact
+      subst_vars
       omega
   | chunkIndex, cursor, context :: contexts, calls :: chunks, stop, column,
       summaryExact, chunksExact, sourceLe, columnLt => by
@@ -246,12 +255,14 @@ private theorem ownerInChunks?_coverage
         by_cases equal : context.finalStart = cursor.final
         · exact equal
         · simp [callContextsSummary?, equal] at summaryExact
+      have cursorPacked : cursor.records = chunkIndex * 256 :=
+        callStart.symm.trans packedStart
       have tailExact :
           callContextsSummary? (chunkIndex + 1)
             { records := context.callStop, source := context.sourceStop,
               final := context.finalStop } contexts = some stop := by
         simpa [callContextsSummary?, contextStart, callStart, packedStart,
-          finalStart] using summaryExact
+          finalStart, cursorPacked] using summaryExact
       cases chunksExact with
       | cons chunkExact restExact =>
           by_cases inHead : column < context.sourceStop
@@ -259,13 +270,13 @@ private theorem ownerInChunks?_coverage
                 summarizeCalls? templateChunks context.sourceStart context.finalStart calls =
                   some (context.sourceStop, context.finalStop) := by
               have facts :
-                  calls.length ≤ 256 ∧
-                  context.callStop = context.callStart + calls.length ∧
+                  (calls.length ≤ 256 ∧
+                    context.callStop = context.callStart + calls.length) ∧
                   summarizeCalls? templateChunks context.sourceStart
-                    context.finalStart calls =
+                      context.finalStart calls =
                     some (context.sourceStop, context.finalStop) := by
                 simpa [callChunkValid] using chunkExact
-              exact facts.2.2
+              exact facts.2
             obtain ⟨owner, ownerExact⟩ :=
               ownerInCalls?_coverage batches templateChunks templateSound
                 context.callStart context.sourceStart context.finalStart column
@@ -300,7 +311,7 @@ private theorem generatedCallChunks_valid :
       (CallChunksValid.cons (chunkAt 10)
       (CallChunksValid.cons (chunkAt 11)
       (CallChunksValid.cons (chunkAt 12)
-      (CallChunksValid.cons (chunkAt 13) CallChunksValid.nil))))))))))))))
+      (CallChunksValid.cons (chunkAt 13) CallChunksValid.nil)))))))))))))
 
 /-- Every source column in the generated private range has a compact atom owner. -/
 theorem generatedSourceCoverage (column : Nat)

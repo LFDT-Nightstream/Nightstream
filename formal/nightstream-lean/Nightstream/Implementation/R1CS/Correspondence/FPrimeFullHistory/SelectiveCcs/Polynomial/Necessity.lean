@@ -6,7 +6,7 @@ term families.
 
 Owns: a precise "polynomial with one family omitted" relation and one closed
 Goldilocks point per family that the weakened polynomial accepts while the
-complete 27-term polynomial rejects.
+complete 66-term polynomial rejects.
 
 Does not own: protocol-level necessity, uniqueness or gate-minimality of an
 R1CS encoding, production row ownership, Rust conformance, or permission to
@@ -22,7 +22,7 @@ Emits constraints: no.
 | S-box | `g=1, s=1` | zero | nonzero |
 | centered | `g=1, u=2` | zero | nonzero |
 | evaluation | `e=1, bit=a=1` | zero | nonzero |
-| canonical | `g=1, nextBorrow=boundDigit=1` | zero | nonzero |
+| canonical | `g=1, class2=class3=1` | zero | nonzero |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Necessity
@@ -31,6 +31,8 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components
+
+set_option maxRecDepth 10000
 
 /-- Sum of the five retained component residuals after deleting exactly one
 named family. -/
@@ -133,8 +135,7 @@ theorem evaluation_necessary :
       ¬ FullAccepts evaluationWitness := by
   decide
 
-/-- Omitting the canonical transition family admits an inconsistent next
-borrow/bound-digit combination. -/
+/-- Omitting the canonical transition family admits two active bound classes. -/
 theorem canonical_necessary :
     AcceptsWithout .canonical canonicalWitness ∧
       ¬ FullAccepts canonicalWitness := by

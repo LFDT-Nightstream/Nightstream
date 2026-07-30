@@ -32,7 +32,7 @@ canonical-matrix construction and an equality proof against this payload.
 | `f_prime.fixed_point.payload.dimensions` | decoded rows/columns equal the stabilized emitted header | checked | `Refinement.rowsExact`, `Refinement.columnsExact` |
 | `f_prime.fixed_point.payload.roles` | every physical port has exactly one semantic role | computed | `decodedRelation_roleMatrix` |
 | `f_prime.fixed_point.payload.relation` | transport all decoded role matrices to the stabilized dimensions | computed | `Refinement.toRelation` |
-| `f_prime.fixed_point.payload.polynomial` | attach only the independent 27-term polynomial | computed | `toStructure_constraintPolynomial` |
+| `f_prime.fixed_point.payload.polynomial` | attach only the independent 66-term polynomial | computed | `toStructure_constraintPolynomial` |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.PayloadRefinement

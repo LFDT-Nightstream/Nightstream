@@ -427,9 +427,15 @@ private theorem evaluateRewritePoint {assignment : Nat → Nat}
           (-sourceValue assignment step.base +
             -previousValue assignment step.previous)) +
         factorSum assignment step.factors := by
+  have canonicalZero :
+      canonicalResidual (rewritePoint assignment step) = 0 :=
+    canonicalResidual_zero_of_generalSelector_zero _
+      (rewritePoint_generalSelector assignment step)
   rw [evaluate_eq_combinedResidual]
-  simp only [combinedResidual, booleanResidual, productResidual,
-    sboxResidual, centeredResidual, evaluationResidual, canonicalResidual,
+  unfold combinedResidual
+  rw [canonicalZero]
+  simp only [booleanResidual, productResidual,
+    sboxResidual, centeredResidual, evaluationResidual,
     rewritePoint_generalSelector, rewritePoint_evalSelector step selectorOne,
     Fin.zero_mul, Fin.mul_zero, Fin.zero_add, Fin.add_zero, Fin.one_mul,
     Fin.mul_one, Lean.Grind.AddCommGroup.neg_zero]
@@ -459,9 +465,19 @@ private theorem evaluateRetainedPoint {assignment : Nat → Nat}
     evaluate (retainedPoint assignment step) =
       sourceValue assignment step.a * sourceValue assignment step.b +
         -sourceValue assignment step.c := by
+  have canonicalZero :
+      canonicalResidual (retainedPoint assignment step) = 0 :=
+    canonicalResidual_zero_of_classPorts_zero _
+      (retainedPoint_canonicalDigit assignment step)
+      (retainedPoint_canonicalBorrow assignment step)
+      (retainedPoint_canonicalNextBorrow assignment step)
+      (retainedPoint_canonicalBoundDigit assignment step)
+      (retainedPoint_evalTailRight assignment step)
   rw [evaluate_eq_combinedResidual]
-  simp only [combinedResidual, booleanResidual, productResidual,
-    sboxResidual, centeredResidual, evaluationResidual, canonicalResidual,
+  unfold combinedResidual
+  rw [canonicalZero]
+  simp only [booleanResidual, productResidual,
+    sboxResidual, centeredResidual, evaluationResidual,
     retainedPoint_generalSelector step selectorOne,
     retainedPoint_evalSelector, retainedPoint_bit, retainedPoint_sboxInput,
     retainedPoint_centeredUnit, retainedPoint_canonicalDigit,

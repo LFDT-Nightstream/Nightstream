@@ -11,7 +11,7 @@ Stable model-level surface for the complete selective CCS gate polynomial.
 |---|---|---|---|
 | `Ports` | exact thirteen matrix-image roles and indices | no | model-level |
 | `Semantics` | exact 27 sparse terms and degree bound | no | model-level |
-| `Components` | exact six-family decomposition of all 27 terms | no | model-level |
+| `Components` | exact six-family decomposition of all 66 terms | no | model-level |
 | `Rows` | exact active components for six emitted row shapes | no | model-level |
 | `Necessity` | one omission counterexample per chosen term family | no | model-level |
 

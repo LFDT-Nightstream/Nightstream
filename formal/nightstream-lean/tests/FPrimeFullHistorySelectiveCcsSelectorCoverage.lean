@@ -11,7 +11,7 @@ Executable regression checks for the compact selector-coverage decoder.
 | reversed empty owner | cursor-anchored owner partition |
 | non-unit gate | literal final-matrix coefficient |
 | wrong gate port | ledger-to-gate reconciliation |
-| changed polynomial | independent 27-term syntax equality |
+| changed polynomial | independent 66-term syntax equality |
 
 Two accepted mutations pin the decoder's deliberate limit: selector support
 cannot distinguish arithmetic-family labels within one gate class, and it

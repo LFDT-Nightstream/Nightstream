@@ -18,7 +18,7 @@ Emits constraints: no.
 | Child | Mathematical ownership | Excluded boundary |
 |---|---|---|
 | `Semantics` | normalized typed zero pin and canonical completeness | sparse polynomial and physical rows |
-| `Refinement` | exact 27-term polynomial specialization to `-(z0*zpad)` | concrete row coefficients |
+| `Refinement` | exact 66-term polynomial specialization to `-(z0*zpad)` | concrete row coefficients |
 | `ArtifactRefinement` | decoded coefficient shape and exact residual | generated values and multiplicity |
 | `Necessity` | one countermodel for each omitted raw-input check | complete verifier minimality |
 

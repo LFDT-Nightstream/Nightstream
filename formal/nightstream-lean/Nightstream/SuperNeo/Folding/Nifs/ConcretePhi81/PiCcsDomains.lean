@@ -23,9 +23,10 @@ here.
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `nifs.concrete.pi_ccs.domain.public_prefix` | one `9/3/6` record owns the bounded five-ring profile | computed | `publicPrefix` |
-| `nifs.concrete.pi_ccs.domain.fixed_point` | one `24/19/6` record owns the complete fixed-point profile | computed | `fixedPointProduction` |
-| `nifs.concrete.pi_ccs.domain.fe` | the fixed-point FE compatibility view has 24 column variables | derived | `fixedPointProduction_fe` |
-| `nifs.concrete.pi_ccs.domain.nc` | canonical fixed-point NC has 19 block and 6 lane variables | derived | `fixedPointProduction_nc` |
+| `nifs.concrete.pi_ccs.domain.historical_fixed_point` | one `24/19/6` record owns the captured historical profile | computed | `fixedPointProduction` |
+| `nifs.concrete.pi_ccs.domain.current` | one `25/19/6` record covers the complete Lean-owned current program | computed | `currentLeanProduction` |
+| `nifs.concrete.pi_ccs.domain.fe` | the current FE compatibility view has 25 column variables | derived | `currentLeanProduction_fe` |
+| `nifs.concrete.pi_ccs.domain.nc` | canonical current NC has 19 block and 6 lane variables | derived | `currentLeanProduction_nc` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains
@@ -47,12 +48,12 @@ def publicPrefix : Domains where
 @[simp] theorem publicPrefix_nc : publicPrefix.nc = PiCcsDomain.blockDomain := by
   rfl
 
-/-- Complete fixed-point transcript capacity. The executable profile has
+/-- Captured historical fixed-point transcript capacity. The old profile has
 14,338,890 physical scalar columns, organized as exactly 265,535 Phi81 blocks
 with 54 live lanes, so its FE and NC transcript capacities use 24 column
-variables and 19 block variables. The implementation layer separately proves
-that the generated fixed-point relation fits these protocol dimensions;
-generated metadata is not imported as semantic authority here. -/
+variables and 19 block variables. This record remains the explicit authority
+for historical artifact correspondence. It is not the active current-program
+domain. -/
 def fixedPointProduction : Domains where
   columnVariables := 24
   blockVariables := 19
@@ -84,14 +85,50 @@ theorem fixedPointProduction_blockRoundCount :
         fixedPointProduction.nc.laneVariables = 25 := by
   decide
 
-/-- Active fixed-point contexts use the complete witness domain. The bounded
-public-prefix profile remains available explicitly as `publicPrefix`. -/
-abbrev production : Domains := fixedPointProduction
+/-- Current Lean-owned fixed-point transcript capacity.
 
-@[simp] theorem production_fe : production.fe = fixedPointProduction.fe := by
+The current complete Step compiler has a 25-variable row domain and needs a
+19-variable Phi81 block domain. These values are checked again by the concrete
+current-M4 fixed-point theorem; they are not copied from Rust. -/
+def currentLeanProduction : Domains where
+  columnVariables := 25
+  blockVariables := 19
+  laneVariables := 6
+
+@[simp] theorem currentLeanProduction_fe_columnVariables :
+    currentLeanProduction.fe.columnVariables = 25 := by
   rfl
 
-@[simp] theorem production_nc : production.nc = fixedPointProduction.nc := by
+@[simp] theorem currentLeanProduction_fe_laneVariables :
+    currentLeanProduction.fe.laneVariables = 6 := by
+  rfl
+
+@[simp] theorem currentLeanProduction_nc_blockVariables :
+    currentLeanProduction.nc.blockVariables = 19 := by
+  rfl
+
+@[simp] theorem currentLeanProduction_nc_laneVariables :
+    currentLeanProduction.nc.laneVariables = 6 := by
+  rfl
+
+theorem currentLeanProduction_flatRoundCount :
+    currentLeanProduction.fe.columnVariables +
+        currentLeanProduction.fe.laneVariables = 31 := by
+  decide
+
+theorem currentLeanProduction_blockRoundCount :
+    currentLeanProduction.nc.blockVariables +
+        currentLeanProduction.nc.laneVariables = 25 := by
+  decide
+
+/-- Active fixed-point contexts use the current Lean-owned domain. The
+historical and bounded public-prefix profiles remain available explicitly. -/
+abbrev production : Domains := currentLeanProduction
+
+@[simp] theorem production_fe : production.fe = currentLeanProduction.fe := by
+  rfl
+
+@[simp] theorem production_nc : production.nc = currentLeanProduction.nc := by
   rfl
 
 end Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains

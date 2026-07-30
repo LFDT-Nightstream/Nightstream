@@ -7,7 +7,7 @@ artifacts.
 
 Owns: selector-column separation, exact ledger and gate interval partitions,
 family-label-to-gate-class decoding, run-wise ledger/gate reconciliation, and
-comparison of the exported Rust polynomial with the independent Lean 27-term
+comparison of the exported Rust polynomial with the independent Lean 66-term
 syntax.
 
 Does not own: any generated fixture, full matrix rows, selector-port matrix
@@ -15,7 +15,7 @@ actions, arithmetic-family identity, an expected zero-cost-node inventory,
 branch semantics, production coverage, constraint necessity, or row removal.
 
 Emits constraints: no. Validation is linear in owner runs, gate runs, and the
-27 polynomial terms; it never enumerates physical rows.
+66 polynomial terms; it never enumerates physical rows.
 
 Authority boundary: a family label becomes usable only as a gate-class claim
 after an aligned run from the final selector matrices agrees with the
@@ -29,7 +29,7 @@ equality with the independent Lean syntax.
 | owner partition | every interval, including empty intervals, is cursor-anchored | owner runs |
 | gate partition | nonempty unit intervals exactly cover all rows | gate runs |
 | reconciliation | each nonempty owner has the same interval and expected gate | run count |
-| polynomial | ordered canonical terms equal Polynomial.Semantics.terms | 27 terms |
+| polynomial | ordered canonical terms equal Polynomial.Semantics.terms | 66 terms |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage
@@ -39,7 +39,7 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Wire
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage.Wire
 
-def supportedSchemaVersion : Nat := 1
+def supportedSchemaVersion : Nat := 2
 
 def ownerNonempty (run : RawOwnerRun) : Bool :=
   decide (run.start < run.stop)

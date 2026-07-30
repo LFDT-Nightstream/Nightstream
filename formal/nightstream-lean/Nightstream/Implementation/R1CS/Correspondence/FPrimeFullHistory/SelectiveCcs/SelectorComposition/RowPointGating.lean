@@ -7,7 +7,7 @@ interpreted selective-CCS row residual.
 
 Owns: the exact composition from the two physical selector matrix images,
 through the relation-owned thirteen-port row point, to the independent
-27-term selector-factorization theorem.
+66-term selector-factorization theorem.
 
 Does not own: a concrete matrix artifact, proof that an emitted row has the
 required selector images, arithmetic-family classification, branch

@@ -5,7 +5,7 @@ Contract: typed port vocabulary for the production selective CCS polynomial.
 
 Owns: the thirteen mathematical matrix-image roles, their exact numeric
 indices, and the inverse role/index equivalence. The shared ports at indices
-8--11 intentionally have both evaluation and canonical-digit meanings;
+8--12 intentionally have both evaluation and canonical-class meanings;
 selector disjointness decides which meaning is active on a row.
 
 Does not own: sparse terms, matrix rows, source-column maps, row schedules,
@@ -21,8 +21,8 @@ Emits constraints: no.
 | `f_prime.selective_ccs.port.sbox` | `sboxInput` | 5 | Seventh-power image |
 | `f_prime.selective_ccs.port.centered` | `centeredUnit` | 6 | Centered-unit cubic image |
 | `f_prime.selective_ccs.port.eval_selector` | `evalSelector` | 7 | Gates five product pairs |
-| `f_prime.selective_ccs.port.canonical` | digits/borrows | 8--11 | Shifted-ternary transition |
-| `f_prime.selective_ccs.port.eval_tail` | `evalTailRight` | 12 | Fifth evaluation pair RHS |
+| `f_prime.selective_ccs.port.canonical` | normalized bound classes 0--4 | 8--12 | Select one two-trit transition |
+| `f_prime.selective_ccs.port.eval_tail` | `evalTailRight` | 12 | Fifth evaluation pair RHS / class 4 |
 | `f_prime.selective_ccs.port.coverage` | all named roles | 0--12 | no unnamed or multiply named physical port |
 -/
 

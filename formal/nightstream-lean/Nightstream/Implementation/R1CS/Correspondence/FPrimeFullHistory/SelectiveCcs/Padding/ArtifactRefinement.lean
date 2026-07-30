@@ -19,7 +19,7 @@ Emits constraints: no.
 |---|---|---|---|
 | `f_prime.selective_ccs.padding.artifact.shape` | ports 1/4 are the two exact unit terms; every other port is empty | decoded sparse coefficients | `ValidatedPaddingRow` |
 | `f_prime.selective_ccs.padding.artifact.action` | matrix action is the independent padding point | validated shape | `rowPoint_eq_paddingPortPoint` |
-| `f_prime.selective_ccs.padding.artifact.residual` | full 27-term polynomial is `-(z0*zpad)` | independent polynomial theorem | `residual_eq_neg_product` |
+| `f_prime.selective_ccs.padding.artifact.residual` | full 66-term polynomial is `-(z0*zpad)` | independent polynomial theorem | `residual_eq_neg_product` |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Padding.ArtifactRefinement

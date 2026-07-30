@@ -1,6 +1,7 @@
 # AGENTS.md
 
 ## General
+- **Required communication standard.** Use ASD-STE100 Simplified Technical English for all user-facing answers and progress updates.
 - We don't care about backwards compatibility because we are still in development. Keep the code simple and lean.
 - Avoid adding new Rust features or ENVs unless it is explicitly approved.
 - Never modify this file without explicit approval.

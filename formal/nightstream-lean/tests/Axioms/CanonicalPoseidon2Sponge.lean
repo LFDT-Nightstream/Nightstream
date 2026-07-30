@@ -82,6 +82,11 @@ open Nightstream.Implementation.R1CS.Canonical
 #guard_msgs in
 #audit_axioms Poseidon2Sponge.RateChunk_capacity_untouched
 
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Sponge.absorbChunk_injective_at_lane' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Poseidon2Sponge.absorbChunk_injective_at_lane
+
 /-! The fixed 23-field recipe. -/
 
 /-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Sponge.sponge23_permutationCalls' does not depend on any axioms -/

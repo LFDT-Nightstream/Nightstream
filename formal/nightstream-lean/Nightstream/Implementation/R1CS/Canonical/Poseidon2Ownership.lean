@@ -94,6 +94,23 @@ theorem allOwners_length : allOwners.length = 352 := by
     List.length_finRange]
   decide
 
+/-- **An injective map preserves `Nodup`.**
+
+The forward direction of `nodup_of_map_nodup`, which core Lean does not have —
+`List.Nodup.map` is Mathlib's.  Kept beside its converse so a third private copy
+does not get written. -/
+theorem nodup_map_of_injective {α β : Type} (f : α → β)
+    (injective : ∀ first second, f first = f second → first = second) :
+    ∀ {list : List α}, list.Nodup → (list.map f).Nodup
+  | [], _ => by simp
+  | head :: tail, nodup => by
+      rw [List.nodup_cons] at nodup
+      rw [List.map_cons, List.nodup_cons]
+      refine ⟨?_, nodup_map_of_injective f injective nodup.2⟩
+      intro member
+      rcases List.mem_map.1 member with ⟨other, otherMember, equal⟩
+      exact nodup.1 (injective _ _ equal ▸ otherMember)
+
 /-- `List.Nodup.of_map` is not available without Mathlib: a duplicate in the
 source would survive the map. -/
 theorem nodup_of_map_nodup {α β : Type} (list : List α) (f : α → β)

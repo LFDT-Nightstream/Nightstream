@@ -43,4 +43,20 @@ open Nightstream.Implementation.R1CS.Canonical
 #guard_msgs in
 #audit_axioms Poseidon2Program.permutationProgram_cost_eq_receiptFold
 
+
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Program.sboxProgram_writes_sboxColumn' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Poseidon2Program.sboxProgram_writes_sboxColumn
+
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Program.sboxProgram_writes_auxiliaryColumns' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Poseidon2Program.sboxProgram_writes_auxiliaryColumns
+
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Program.permutationProgram_writes_auxiliaryColumns' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Poseidon2Program.permutationProgram_writes_auxiliaryColumns
+
 end NightstreamTests.Axioms.CanonicalPoseidon2Program

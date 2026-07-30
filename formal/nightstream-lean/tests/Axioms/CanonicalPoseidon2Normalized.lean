@@ -71,4 +71,13 @@ open Nightstream.Implementation.R1CS.Canonical
 #guard_msgs in
 #audit_axioms Poseidon2Normalized.honest_satisfies_normalized
 
+
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Normalized.fieldNormalize_singleton_one' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms Poseidon2Normalized.fieldNormalize_singleton_one
+
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Normalized.mentions_normalizeRow_singleton' depends on axioms: [propext] -/
+#guard_msgs in
+#audit_axioms Poseidon2Normalized.mentions_normalizeRow_singleton
+
 end NightstreamTests.Axioms.CanonicalPoseidon2Normalized

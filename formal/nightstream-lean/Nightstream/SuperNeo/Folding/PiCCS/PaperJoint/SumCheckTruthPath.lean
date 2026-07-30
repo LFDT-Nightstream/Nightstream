@@ -79,6 +79,49 @@ def equalityFactor
     (ops.mul (ops.sub ops.one left) (ops.sub ops.one right))
     (ops.mul left right)
 
+/-- The equality factor in affine form with respect to its first argument.
+
+This form is mathematically identical to `equalityFactor`, but exposes that a
+verifier needs only one multiplication when `right` is already available:
+
+`(1 - right) + left * (right - (1 - right))`.
+
+The canonical row encoder uses this theorem; the paper definition above
+remains unchanged. -/
+theorem equalityFactor_eq_affine
+    {Field : Type uField}
+    {ops : InterpolationOps Field}
+    (laws : InterpolationEvaluationLaws ops)
+    (left right : Field) :
+    equalityFactor ops left right =
+      ops.add (ops.sub ops.one right)
+        (ops.mul left (ops.sub right (ops.sub ops.one right))) := by
+  calc
+    equalityFactor ops left right =
+        ops.add
+          (ops.mul (ops.sub ops.one left) (ops.sub ops.one right))
+          (ops.mul left right) := by
+      rfl
+    _ = ops.add
+        (ops.add (ops.sub ops.one right)
+          (ops.neg (ops.mul left (ops.sub ops.one right))))
+        (ops.mul left right) := by
+      unfold InterpolationOps.sub
+      rw [laws.right_distrib ops.one (ops.neg left)
+        (ops.add ops.one (ops.neg right))]
+      rw [laws.one_mul, laws.neg_mul]
+    _ = ops.add (ops.sub ops.one right)
+        (ops.add (ops.mul left right)
+          (ops.neg (ops.mul left (ops.sub ops.one right)))) := by
+      letI : Std.Associative ops.add := ⟨laws.add_assoc⟩
+      letI : Std.Commutative ops.add := ⟨laws.add_comm⟩
+      ac_rfl
+    _ = ops.add (ops.sub ops.one right)
+        (ops.mul left (ops.sub right (ops.sub ops.one right))) := by
+      congr 1
+      exact (FiniteSumAlgebra.mul_sub ops laws left right
+        (ops.sub ops.one right)).symm
+
 /-- Total coordinate-list equality polynomial. Shape mismatches fail closed. -/
 def pointEqualityCoordinates
     {Field : Type uField}

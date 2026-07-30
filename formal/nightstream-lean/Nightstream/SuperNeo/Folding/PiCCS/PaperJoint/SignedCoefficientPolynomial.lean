@@ -374,6 +374,38 @@ private theorem canonicalCarriedPositions (shape : Shape) :
   simpa [List.range_eq_range', canonicalCarriedCoordinates_length] using
     canonicalCarriedCoordinates_localGammaExponents shape
 
+private theorem finiteSum_eq_foldr
+    {Field : Type uField}
+    (ops : InterpolationOps Field) :
+    ∀ values : List Field,
+      BooleanTable.finiteSum ops values = values.foldr ops.add ops.zero
+  | [] => rfl
+  | _ :: values => by
+      simp only [BooleanTable.finiteSum, List.foldr]
+      rw [finiteSum_eq_foldr ops values]
+
+/-- A carried-coordinate list in the canonical paper order evaluates exactly
+as the local carried-target polynomial.  This is the list-level bridge used by
+the Lean-owned verifier encoding: no caller supplies exponents or a reordered
+coefficient vector. -/
+theorem evaluate_canonicalCarriedMap_eq_targetLocal
+    {Field : Type uField}
+    {shape : Shape}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    (gamma : Field)
+    (coefficients : TargetPolynomial.CarriedTargetCoefficients Field shape) :
+    SumCheck.Finite.Message.evaluateCoefficients ops.toOps gamma
+        ((canonicalCarriedCoordinates shape).map coefficients.coefficient) =
+      TargetPolynomial.evaluateLocal ops.toOps coefficients gamma := by
+  rw [TargetPolynomial.evaluateLocal_eq_foldr]
+  rw [evaluate_map_eq_indexed ops laws gamma
+    (canonicalCarriedCoordinates shape)
+    CarriedCoordinate.localGammaExponent coefficients.coefficient
+    (canonicalCarriedPositions shape)]
+  rw [finiteSum_eq_foldr]
+  rfl
+
 private theorem ccsValues_evaluate
     {Field : Type uField}
     {shape : Shape}

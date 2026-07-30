@@ -196,6 +196,48 @@ def callFrameOfColumns
   outputsDisjointPreexisting := outputsDisjointPreexisting
   allocationsOwned := allocationsOwned
 
+@[simp] theorem callFrameOfColumns_operands
+    {signature : Signature.{u}}
+    {family : Family signature.types}
+    {call : signature.Call}
+    {context : Schema signature.types}
+    {references :
+      Refs signature.types context (signature.callInputs call)}
+    (owner : PhysicalOwner)
+    (one active : ColumnId)
+    (contextColumns : Columns context)
+    (outputColumns : Columns (signature.callOutputs call))
+    (temporaryColumns :
+      Columns ((signature.callFootprint call).temporaries.map fun layout =>
+        { kind := (TypeSystem.Kind.field : signature.types.Kind)
+          layout := layout }))
+    (operandWidths : RefBundles.WidthsAgree family references)
+    (outputWidths :
+      SchemaWidthAgrees family (signature.callOutputs call))
+    (allocationsNodup :
+      (outputColumns.toSchemaBundles.ids ++
+        temporaryColumns.toLayoutBundles.ids).Nodup)
+    (temporariesDisjointVisible :
+      IdsDisjoint temporaryColumns.toLayoutBundles.ids
+        ([one, active] ++
+          contextColumns.toSchemaBundles.ids ++
+          outputColumns.toSchemaBundles.ids))
+    (outputsDisjointPreexisting :
+      IdsDisjoint outputColumns.toSchemaBundles.ids
+        ([one, active] ++
+          contextColumns.toSchemaBundles.ids))
+    (allocationsOwned :
+      ∀ column,
+        column ∈ outputColumns.toSchemaBundles.columns ++
+            temporaryColumns.toLayoutBundles.columns ->
+          column.id.owner = owner) :
+    (callFrameOfColumns owner one active contextColumns outputColumns
+      temporaryColumns operandWidths outputWidths allocationsNodup
+      temporariesDisjointVisible outputsDisjointPreexisting
+      allocationsOwned).operands =
+        contextColumns.toRefBundles references :=
+  rfl
+
 @[simp] theorem callFrameOfColumns_allocations
     {signature : Signature.{u}}
     {family : Family signature.types}

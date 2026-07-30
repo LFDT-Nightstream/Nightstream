@@ -128,6 +128,100 @@ def numericAssignment
     Nat -> Nat :=
   fun source => (assignment (columnMap source)).val
 
+/-- Canonical representatives of an arbitrary numeric assignment. -/
+def canonicalAssignment (assignment : Nat → Nat) : Nat → Nat :=
+  fun source => assignment source % Numeric.modulus
+
+private theorem rawLcEval_canonical_mod
+    (assignment : Nat → Nat) :
+    ∀ terms : List (Nat × Nat),
+      Nightstream.Implementation.R1CS.Program.rawLcEval
+          (canonicalAssignment assignment) terms % Numeric.modulus =
+        Nightstream.Implementation.R1CS.Program.rawLcEval
+          assignment terms % Numeric.modulus
+  | [] => rfl
+  | term :: tail => by
+      simp only [Nightstream.Implementation.R1CS.Program.rawLcEval,
+        canonicalAssignment]
+      have termMod :
+          term.2 * (assignment term.1 % Numeric.modulus) %
+              Numeric.modulus =
+            term.2 * assignment term.1 % Numeric.modulus := by
+        calc
+          term.2 * (assignment term.1 % Numeric.modulus) %
+                Numeric.modulus =
+              (term.2 % Numeric.modulus *
+                  (assignment term.1 % Numeric.modulus) %
+                    Numeric.modulus) :=
+            by simpa only [Nat.mod_mod] using
+              Nat.mul_mod term.2
+                (assignment term.1 % Numeric.modulus) Numeric.modulus
+          _ = term.2 * assignment term.1 % Numeric.modulus :=
+            (Nat.mul_mod _ _ _).symm
+      calc
+        (term.2 * (assignment term.1 % Numeric.modulus) +
+            Nightstream.Implementation.R1CS.Program.rawLcEval
+              (canonicalAssignment assignment) tail) % Numeric.modulus =
+          (term.2 * (assignment term.1 % Numeric.modulus) %
+              Numeric.modulus +
+            Nightstream.Implementation.R1CS.Program.rawLcEval
+              (canonicalAssignment assignment) tail % Numeric.modulus) %
+              Numeric.modulus :=
+            Nat.add_mod _ _ _
+        _ = (term.2 * assignment term.1 % Numeric.modulus +
+            Nightstream.Implementation.R1CS.Program.rawLcEval
+              assignment tail % Numeric.modulus) % Numeric.modulus := by
+          rw [termMod, rawLcEval_canonical_mod assignment tail]
+        _ = (term.2 * assignment term.1 +
+            Nightstream.Implementation.R1CS.Program.rawLcEval
+              assignment tail) % Numeric.modulus :=
+          (Nat.add_mod _ _ _).symm
+
+theorem lcEval_canonical
+    (assignment : Nat → Nat) (terms : List (Nat × Nat)) :
+    Numeric.lcEval (canonicalAssignment assignment) terms =
+      Numeric.lcEval assignment terms := by
+  change
+    Nightstream.Implementation.R1CS.lcEval
+        (canonicalAssignment assignment) terms =
+      Nightstream.Implementation.R1CS.lcEval assignment terms
+  rw [Nightstream.Implementation.R1CS.Program.lcEval_eq_raw_mod,
+    Nightstream.Implementation.R1CS.Program.lcEval_eq_raw_mod]
+  change
+    Nightstream.Implementation.R1CS.Program.rawLcEval
+          (canonicalAssignment assignment) terms % Numeric.modulus =
+      Nightstream.Implementation.R1CS.Program.rawLcEval
+          assignment terms % Numeric.modulus
+  exact rawLcEval_canonical_mod assignment terms
+
+theorem satisfies_canonical
+    (rows : List Numeric.Row) (assignment : Nat → Nat)
+    (satisfied : Numeric.satisfies rows assignment) :
+    Numeric.satisfies rows (canonicalAssignment assignment) := by
+  intro row member
+  have holds := satisfied row member
+  change Nightstream.Implementation.R1CS.RowHolds
+    (canonicalAssignment assignment) row
+  change Nightstream.Implementation.R1CS.RowHolds assignment row at holds
+  unfold Nightstream.Implementation.R1CS.RowHolds at holds ⊢
+  have aEqual :
+      Nightstream.Implementation.R1CS.lcEval
+          (canonicalAssignment assignment) row.a =
+        Nightstream.Implementation.R1CS.lcEval assignment row.a :=
+    lcEval_canonical assignment row.a
+  have bEqual :
+      Nightstream.Implementation.R1CS.lcEval
+          (canonicalAssignment assignment) row.b =
+        Nightstream.Implementation.R1CS.lcEval assignment row.b :=
+    lcEval_canonical assignment row.b
+  have cEqual :
+      Nightstream.Implementation.R1CS.lcEval
+          (canonicalAssignment assignment) row.c =
+        Nightstream.Implementation.R1CS.lcEval assignment row.c :=
+    lcEval_canonical assignment row.c
+  rw [aEqual, bEqual, cEqual]
+  exact holds
+
 theorem numericAssignment_canonical
     (columnMap : Nat -> ColumnId)
     (assignment : ColumnId -> F)

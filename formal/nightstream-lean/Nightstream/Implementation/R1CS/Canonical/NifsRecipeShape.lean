@@ -1,8 +1,8 @@
 import Nightstream.Implementation.R1CS.Core.Projection.Polynomial
 
 /-!
-Contract: why the `nifsVerify` recipe cannot have the shape `CallRecipe`
-currently demands.
+Contract: separate exact operational NIFS verification from its
+coefficient-exact semantic refinement.
 
 Owns: a kernel-checked witness that the projection-root event is not vacuous at
 the exact operations F′ uses.
@@ -10,24 +10,19 @@ the exact operations F′ uses.
 Does not own: the `nifsVerify` row program, the `CallRecipe` contract, or any
 probability bound.
 
-## The obstruction
+## The two theorem layers
 
-`CallRecipe.activeSoundness` demands an unconditional conclusion — satisfying
-the rows gives `callEval call inputs = some outputs`. Every recipe constructed
-so far can meet that, because equality, affine maps, zero tests and Poseidon2
-are all *exact* arithmetic.
+`CallRecipe.activeSoundness` is an exact operational statement: satisfying
+rows must agree with the selected deterministic `callEval`. A projection
+collision does not make that verifier nondeterministic; it is one input on
+which the verifier accepts. A complete `nifsVerify` row program can and should
+therefore satisfy the existing exact `CallRecipe` contract.
 
-`nifsVerify` is the first call whose soundness is statistical. The honest
-statement, `FPrimeConcreteNifs.recursive_rows_nifsVerify_or_badRoot`, is a
-disjunction: accepted rows give the decoded accumulator **or** expose
-`BatchBadRoot`. That second disjunct is
-`¬identity.Exact ∧ eval lhs beta = eval rhs beta` — distinct coefficient vectors
-colliding at the sampled challenge. No row program can rule it out, because the
-rows only check the evaluation at `beta`; that is the entire point of the
-projection optimization.
-
-So `activeSoundness` is dischargeable for `nifsVerify` only if the event is
-vacuous. `badRoot_at_production_ops` shows it is not.
+The named `BatchBadRoot` event belongs to the subsequent semantic refinement:
+operational verifier acceptance implies the paper transition or the exact
+identity checked at the sampled point was a bad root. No row program can
+collapse that disjunction, because evaluation at `beta` is the optimization
+being encoded.
 
 ## What this witness does and does not establish
 
@@ -38,13 +33,8 @@ any general argument about the arithmetic.
 It is a *hand-built* identity, not one arising from `BatchIdentity
 recursiveTraces` on a real proof. It therefore says nothing about whether F′ is
 attackable, and it is not a production defect. It rules out exactly one thing:
-discharging `activeSoundness` by proving the event impossible.
-
-The consequence is a contract question, recorded as
-`FPRIME-NIFSVERIFY-SOUNDNESS-SHAPE`: either `CallRecipe` gains a named-event
-disjunct, or `nifsVerify` carries a no-bad-root premise. The premise route is
-the one §3 forbids — no real consumer can construct it, since constructing it is
-the whole difficulty.
+erasing the event from the verifier-to-paper refinement by proving it
+impossible.
 -/
 
 set_option autoImplicit false
@@ -82,8 +72,7 @@ theorem collidingIdentity_collides :
 /-- **The projection-root event is not vacuous at production operations.**
 
 `X ≠ 1` as coefficient vectors, yet both evaluate to `1` at `beta = 1`. So an
-accepted projection identity genuinely need not be exact, and no proof can
-discharge `activeSoundness` for `nifsVerify` by collapsing the disjunction. -/
+accepted projection identity genuinely need not be coefficient-exact. -/
 theorem badRoot_at_production_ops : BadRoot K.ops collidingIdentity where
   wellFormed := collidingIdentity_wellFormed
   notExact := collidingIdentity_not_exact
@@ -122,17 +111,21 @@ inductive CallEvent : Call -> (ColumnId -> Field) -> Prop where
 Closed, uninhabited for every call but one — and **still an escape hatch**, for a
 reason that is easy to miss. `unbound_event_is_inhabited` is the proof: an
 event carrying an *unquantified* identity is satisfiable for every assignment,
-because `collidingIdentity` witnesses it outright. A `nifsVerify` recipe could
-then discharge `activeSoundness` with `Or.inr` and prove nothing at all — the
-same defect as the reverted `badEvent := fun _ => True`, one level down.
+because `collidingIdentity` witnesses it outright. An event-aware semantic
+refinement theorem could then take its event branch for every execution and
+prove nothing at all.
 
 So the identity must be *bound*: it has to be the identity that this call
 occurrence's rows actually checked, derived from the assignment by the row
 program's own trace function.
 
-That function does not exist yet. It is defined by the Lean-owned NIFS row
-program, which means the event family cannot be defined before that program —
-the reverse of the order the queue assumed. This module records why. -/
+`KTraceProgram.Occurrence` now supplies this binding for the selected public
+PiRLC quotient subprogram, and `KTraceBadRootFixture` proves its exact event
+branch is reachable from satisfying rows. A complete operational
+`nifsVerify` recipe still needs the remaining PiCCS, PiDEC, transcript,
+point-binding, and accumulator programs. Its separate semantic-refinement
+theorem must bind this occurrence to that complete call rather than to the
+public subtotal alone. -/
 
 /-- **An unbound event is free.**  For any assignment whatsoever there is a bad
 root, so an event that merely asserts "some identity is a bad root" is no

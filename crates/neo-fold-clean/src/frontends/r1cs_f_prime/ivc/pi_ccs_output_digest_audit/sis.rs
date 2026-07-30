@@ -196,7 +196,8 @@ fn recover_openings(
         })?;
         if trace.negative_columns_start != start + BALANCED_TERNARY_DIGITS
             || trace.borrow_columns_start != start + 2 * BALANCED_TERNARY_DIGITS
-            || trace.transition_rows_start != trace.digit_rows_start + DIGIT_ROWS + 1
+            || trace.reconstruction_row != trace.digit_rows_start + DIGIT_ROWS
+            || trace.transition_rows_start != trace.reconstruction_row + 1
         {
             return Err(invalid(format!(
                 "canonical opening at digit column {start} does not have the exact 82+1+41 layout"
@@ -230,7 +231,7 @@ fn recover_openings(
             negative_columns: trace.negative_columns_start..trace.negative_columns_start + BALANCED_TERNARY_DIGITS,
             borrow_columns: trace.borrow_columns_start..trace.borrow_columns_start + BALANCED_TERNARY_DIGITS - 1,
             digit_rows: trace.digit_rows_start..trace.digit_rows_start + DIGIT_ROWS,
-            reconstruction_row: trace.transition_rows_start - 1,
+            reconstruction_row: trace.reconstruction_row,
             transition_rows: trace.transition_rows_start..transition_end,
             placement,
             owner: None,

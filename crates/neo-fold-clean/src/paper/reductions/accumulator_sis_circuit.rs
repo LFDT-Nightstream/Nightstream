@@ -45,10 +45,16 @@ pub struct SisAccumulatorConfig {
     pub domain: u64,
 }
 
-/// Minimum rank for protocol-binding compression maps. At the R7 maximum
-/// message width, rank 1 estimates at 59.9 rough bits; rank 2 estimates at
-/// 167.0 bits. See `scripts/estimate_nebula_sis.sage` for the pinned model.
+/// Rank selected for protocol-binding compression maps. At the formal
+/// security-model ceiling, rank 2 requires BKZ block size 495 under the
+/// selected post-quantum profile.
 pub const PROTOCOL_BINDING_KAPPA: usize = 2;
+
+/// Largest rank-2 message accepted by `formal/ajtai-lean/Ajtai/EstimatorModel.lean`.
+pub const PROTOCOL_BINDING_MAX_MESSAGE_COLS: usize = 50_371;
+
+/// Largest rank-1 message covered by the pinned short-map estimate.
+pub const DIGEST_COMPRESSION_MAX_MESSAGE_COLS: usize = 82;
 
 /// Independent short-message map used between the rank-2 binding and
 /// Poseidon2. Its input is at most one rank-2 commitment plus metadata, not
@@ -112,6 +118,18 @@ pub enum SisAccumulatorError {
     EmptyInput,
     #[error("SIS accumulator kappa must be nonzero")]
     ZeroKappa,
+    #[error("protocol-binding SIS maps support only kappa 1 or 2, got {kappa}")]
+    UnsupportedKappa { kappa: usize },
+    #[error(
+        "rank-{kappa} SIS message has {field_count} fields; at most {max_field_count} fields fit the \
+         security-model ceiling of {max_message_cols} ring columns"
+    )]
+    MessageTooWide {
+        kappa: usize,
+        field_count: usize,
+        max_field_count: usize,
+        max_message_cols: usize,
+    },
 }
 
 pub struct SisAccumulatorWires {
@@ -414,10 +432,12 @@ fn decompose_var_to_balanced_ternary(builder: &mut R1csBuilder, field: Var) -> [
     let borrows = enforce_shifted_base3_canonical(builder, &digits, &negative_indicators);
     let transition_rows_end = builder.rows();
     builder.record_shifted_ternary_canonical_trace(ShiftedTernaryCanonicalTrace {
+        field_column: field.col(),
         digit_columns_start: digits[0].col(),
         negative_columns_start: negative_indicators[0].col(),
         borrow_columns_start: borrows[0].col(),
         digit_rows_start,
+        reconstruction_row,
         transition_rows_start,
     });
     builder.record_balanced_ternary_decomposition(field, digits);
@@ -535,6 +555,20 @@ fn validate(config: SisAccumulatorConfig, field_count: usize) -> Result<(), SisA
     }
     if config.kappa == 0 {
         return Err(SisAccumulatorError::ZeroKappa);
+    }
+    let max_message_cols = match config.kappa {
+        1 => DIGEST_COMPRESSION_MAX_MESSAGE_COLS,
+        PROTOCOL_BINDING_KAPPA => PROTOCOL_BINDING_MAX_MESSAGE_COLS,
+        kappa => return Err(SisAccumulatorError::UnsupportedKappa { kappa }),
+    };
+    let max_field_count = max_message_cols * D / BALANCED_TERNARY_DIGITS;
+    if field_count > max_field_count {
+        return Err(SisAccumulatorError::MessageTooWide {
+            kappa: config.kappa,
+            field_count,
+            max_field_count,
+            max_message_cols,
+        });
     }
     Ok(())
 }

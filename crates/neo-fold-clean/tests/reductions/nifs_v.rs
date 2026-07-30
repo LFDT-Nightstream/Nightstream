@@ -882,6 +882,14 @@ fn nifs_v_rejects_coherent_fresh_output_non_ct_y_ring_relabel() {
     let combined = neo_reductions::api::rlc_public(
         fixture.prep.structure(),
         &raw_params,
+        fixture
+            .proof
+            .pi_ccs
+            .outputs
+            .first()
+            .expect("Π_CCS output batch must be nonempty")
+            .s_col
+            .len(),
         &rhos,
         &fixture.proof.pi_ccs.outputs,
         |rho_mats, commitments| (fixture.prep.mix_rhos_commits())(rho_mats, commitments),

@@ -767,7 +767,7 @@ fn selective_snapshot_selector_gate_coverage_matches_final_matrices() {
         );
     }
     assert_eq!(coverage.polynomial_arity(), 13);
-    assert_eq!(coverage.polynomial_terms().len(), 27);
+    assert_eq!(coverage.polynomial_terms().len(), 66);
     assert_selector_coverage_artifact_matches_committed(&coverage);
 }
 

@@ -336,7 +336,7 @@ fn folded_f_prime_shell_must_adopt_projection_budget() {
     assert!(
         layout.end <= PROJECTION_BUDGET_BITS,
         "production F' shell commits {} bits/step; the projection-checked budget is {} \
-         (encoding.md candidate E — integrate `enforce_ring_action_projection_batch`)",
+         (integrate `enforce_ring_action_projection_batch`)",
         layout.end,
         PROJECTION_BUDGET_BITS
     );

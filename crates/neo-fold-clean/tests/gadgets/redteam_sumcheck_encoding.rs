@@ -501,11 +501,7 @@ fn nifs_rejects_zero_nc_projection_laundered_into_valid_terminal_children() {
         "terminal child y_zcol checks must be present and non-vacuous"
     );
 
-    let next_running = RunningInstance {
-        claims: dec_out.claims,
-        witnesses: dec_out.witnesses,
-        parent_authority: Some(rlc_out.claim),
-    };
+    let next_running = RunningInstance::new(dec_out.claims, dec_out.witnesses, Some(rlc_out.claim), None);
     let proof = NifsProof {
         pi_ccs: pi_ccs_proof,
         pi_rlc: pi_rlc_proof,

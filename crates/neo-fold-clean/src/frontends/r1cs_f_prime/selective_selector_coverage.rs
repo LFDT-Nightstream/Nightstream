@@ -11,7 +11,7 @@
 //!
 //! Emits constraints: no. This is a read-only refinement audit over an already
 //! compiled relation. Runtime work is linear in the two selector-port column
-//! pointer arrays, their nonzero entries, the owner runs, and 27 polynomial
+//! pointer arrays, their nonzero entries, the owner runs, and 66 polynomial
 //! terms; it never scans the other eleven matrices or materializes one item per
 //! constraint row.
 //!
@@ -42,12 +42,12 @@ use super::selective_audit::{SelectiveEmittedRowFamily, SelectiveEmittedRowRunAu
 use super::selective_census::SelectiveMatrixTag;
 
 const SELECTIVE_PORT_COUNT: usize = 13;
-const SELECTIVE_POLYNOMIAL_TERM_COUNT: usize = 27;
+const SELECTIVE_POLYNOMIAL_TERM_COUNT: usize = 66;
 const GENERAL_SELECTOR_PORT: usize = 1;
 const EVALUATION_SELECTOR_PORT: usize = 7;
 
 /// Version of the run-compressed Rust-to-Lean selector-coverage wire format.
-pub const SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION: usize = 1;
+pub const SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION: usize = 2;
 
 /// The only two polynomial ports allowed to activate an emitted row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -164,7 +164,7 @@ pub enum SelectiveSelectorGateCoverageError {
     },
     #[error("selective relation dimensions must be nonzero, got {rows} rows and {columns} columns")]
     EmptyDimensions { rows: usize, columns: usize },
-    #[error("selective polynomial has {terms} terms; expected 27")]
+    #[error("selective polynomial has {terms} terms; expected 66")]
     PolynomialTermCount { terms: usize },
     #[error("selective polynomial term {term} has {exponents} exponents; expected 13")]
     PolynomialExponentCount { term: usize, exponents: usize },

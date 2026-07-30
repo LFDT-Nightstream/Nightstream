@@ -189,6 +189,57 @@ pub struct SelectiveLowNormWidthAudit {
     pub total_coordinates: usize,
 }
 
+/// Exact final-coordinate layout for one shifted-ternary opening.
+///
+/// The 41 digit coordinates are the Ajtai message word. The 20 borrow
+/// coordinates are the retained endpoints between adjacent two-trit chunks.
+/// Negative indicators and the other 20 source borrow columns are absent from
+/// the final selective assignment. Coordinates are distinct within this
+/// opening; separate openings may deliberately alias equal source values.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SelectiveCanonicalOpeningAudit {
+    source_field: usize,
+    digit_coordinates: Vec<usize>,
+    borrow_coordinates: Vec<usize>,
+    emitted_rows: Range<usize>,
+}
+
+impl SelectiveCanonicalOpeningAudit {
+    pub(super) fn new(
+        source_field: usize,
+        digit_coordinates: Vec<usize>,
+        borrow_coordinates: Vec<usize>,
+        emitted_rows: Range<usize>,
+    ) -> Self {
+        Self {
+            source_field,
+            digit_coordinates,
+            borrow_coordinates,
+            emitted_rows,
+        }
+    }
+
+    pub fn source_field(&self) -> usize {
+        self.source_field
+    }
+
+    pub fn digit_coordinates(&self) -> &[usize] {
+        &self.digit_coordinates
+    }
+
+    pub fn borrow_coordinates(&self) -> &[usize] {
+        &self.borrow_coordinates
+    }
+
+    pub fn emitted_rows(&self) -> Range<usize> {
+        self.emitted_rows.clone()
+    }
+
+    pub fn coordinate_count(&self) -> usize {
+        self.digit_coordinates.len() + self.borrow_coordinates.len()
+    }
+}
+
 /// Stable identifier assigned by the prepared row plan to one physical rewrite.
 ///
 /// The number is only a join key between source and emitted intervals. It does
@@ -525,6 +576,7 @@ pub struct SelectiveCompilerAudit {
     layout: SelectiveLayoutAudit,
     width: SelectiveLowNormWidthAudit,
     rows: SelectiveRowMappingAudit,
+    canonical_openings: Vec<Vec<SelectiveCanonicalOpeningAudit>>,
     source_arm_physical_stages: Vec<Vec<PhysicalStageRange>>,
 }
 
@@ -533,12 +585,14 @@ impl SelectiveCompilerAudit {
         layout: SelectiveLayoutAudit,
         width: SelectiveLowNormWidthAudit,
         rows: SelectiveRowMappingAudit,
+        canonical_openings: Vec<Vec<SelectiveCanonicalOpeningAudit>>,
         source_arm_physical_stages: Vec<Vec<PhysicalStageRange>>,
     ) -> Self {
         Self {
             layout,
             width,
             rows,
+            canonical_openings,
             source_arm_physical_stages,
         }
     }
@@ -553,6 +607,10 @@ impl SelectiveCompilerAudit {
 
     pub fn rows(&self) -> &SelectiveRowMappingAudit {
         &self.rows
+    }
+
+    pub fn canonical_openings(&self) -> &[Vec<SelectiveCanonicalOpeningAudit>] {
+        &self.canonical_openings
     }
 
     /// Sequential source-row intervals copied from each field-R1CS arm.

@@ -1,5 +1,4 @@
-//! Projection-checked batched ring action — encoding.md candidate E,
-//! prototype stage.
+//! Projection-checked batched ring action prototype.
 //!
 //! Parity: the projection identity accepts exactly the `out` that the
 //! trusted `D²`-product gadget (`enforce_ring_mul`) computes, for the
@@ -158,8 +157,7 @@ fn projection_rejects_tampered_operands() {
 }
 
 /// Head-to-head committed-wire cost vs the `D²` gadget, same operands.
-/// Prints the table encoding.md's candidate E cites; pins the ≥ 5×
-/// per-pair improvement so a regression reopens the design.
+/// Pins the ≥ 5× per-pair improvement so a regression reopens the design.
 #[test]
 fn projection_cost_beats_d_squared_materialization() {
     let mut rng = Rng(42);

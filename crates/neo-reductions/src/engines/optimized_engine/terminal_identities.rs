@@ -95,15 +95,8 @@ where
             for (i_abs, out) in out_me.iter().enumerate().skip(k_mcs) {
                 let y = &out.y_ring[j];
                 let mut y_eval = K::ZERO;
-                assert!(
-                    y.len() >= chi_alpha_prime.len(),
-                    "terminal FE: y_ring[{}] too short for chi(alpha') (len {} < {})",
-                    j,
-                    y.len(),
-                    chi_alpha_prime.len()
-                );
                 for rho in 0..chi_alpha_prime.len() {
-                    y_eval += y[rho] * chi_alpha_prime[rho];
+                    y_eval += y.get(rho).copied().unwrap_or(K::ZERO) * chi_alpha_prime[rho];
                 }
 
                 let mut weight = K::ONE;

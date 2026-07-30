@@ -67,7 +67,11 @@ fn ell_m_for_ccs(s: &CcsStructure<F>) -> usize {
     s.m.next_power_of_two().max(2).trailing_zeros() as usize
 }
 
-fn validate_mcs_claims(label: &str, s: &CcsStructure<F>, mcs_list: &[CcsClaim<Cmt, F>]) -> Result<(), PiCcsError> {
+pub(crate) fn validate_mcs_claims(
+    label: &str,
+    s: &CcsStructure<F>,
+    mcs_list: &[CcsClaim<Cmt, F>],
+) -> Result<(), PiCcsError> {
     for (idx, inst) in mcs_list.iter().enumerate() {
         if inst.m_in > s.m {
             return Err(PiCcsError::InvalidInput(format!(
@@ -179,7 +183,7 @@ fn validate_ce_claim_shape(
     Ok(())
 }
 
-fn validate_ce_claims_shape(
+pub(crate) fn validate_ce_claims_shape(
     label: &str,
     s: &CcsStructure<F>,
     column_point_len: usize,
@@ -189,6 +193,91 @@ fn validate_ce_claims_shape(
         validate_ce_claim_shape(&format!("{label}[{idx}]"), s, column_point_len, claim)?;
     }
     Ok(())
+}
+
+pub(crate) fn validate_pi_ccs_outputs(
+    label: &str,
+    s: &CcsStructure<F>,
+    outputs: &[CeClaim<Cmt, F, K>],
+) -> Result<(), PiCcsError> {
+    let d_pad = D.next_power_of_two();
+    for (index, output) in outputs.iter().enumerate() {
+        let owner = format!("{label}[{index}]");
+        if output.y_ring.len() != s.t() || output.ct.len() != s.t() {
+            return Err(PiCcsError::InvalidInput(format!(
+                "{owner}: y_ring and ct must each have exactly {} entries",
+                s.t()
+            )));
+        }
+        if !output.aux_openings.is_empty()
+            || !output.c_step_coords.is_empty()
+            || output.u_offset != 0
+            || output.u_len != 0
+        {
+            return Err(PiCcsError::InvalidInput(format!(
+                "{owner}: Π_CCS outputs cannot carry auxiliary or Pattern-A sidecars"
+            )));
+        }
+        for (matrix_index, (row, constant_term)) in output.y_ring.iter().zip(&output.ct).enumerate() {
+            if row.len() != D && row.len() != d_pad {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "{owner}: y_ring[{matrix_index}] must have unpadded length {D} or padded length {d_pad}, got {}",
+                    row.len()
+                )));
+            }
+            if row.first() != Some(constant_term) {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "{owner}: ct[{matrix_index}] does not equal the y_ring constant term"
+                )));
+            }
+            if row.iter().skip(D).any(|value| *value != K::ZERO) {
+                return Err(PiCcsError::InvalidInput(format!(
+                    "{owner}: y_ring[{matrix_index}] has nonzero padding"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_rlc_batch_compatibility(
+    label: &str,
+    params: &NeoParams,
+    claims: &[CeClaim<Cmt, F, K>],
+) -> Result<(), PiCcsError> {
+    let Some(first) = claims.first() else {
+        return Err(PiCcsError::InvalidInput(format!("{label}: empty inputs")));
+    };
+    for (index, claim) in claims.iter().enumerate() {
+        if claim.m_in != first.m_in {
+            return Err(PiCcsError::InvalidInput(format!(
+                "{label}: m_in mismatch at input {index} (expected {}, got {})",
+                first.m_in, claim.m_in
+            )));
+        }
+        if claim.fold_digest != first.fold_digest {
+            return Err(PiCcsError::InvalidInput(format!(
+                "{label}: fold transcript mismatch at input {index}"
+            )));
+        }
+    }
+    let required = crate::common::min_k_rho_for_rlc_count(params, &crate::common::RotRing::goldilocks(), claims.len())?;
+    if params.k_rho < required {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: {} inputs require k_rho >= {required}, got {}",
+            claims.len(),
+            params.k_rho
+        )));
+    }
+    Ok(())
+}
+
+fn checked_power_of_two(label: &str, exponent: usize) -> Result<usize, PiCcsError> {
+    let shift = u32::try_from(exponent)
+        .map_err(|_| PiCcsError::InvalidInput(format!("{label}: exponent does not fit u32: {exponent}")))?;
+    1usize
+        .checked_shl(shift)
+        .ok_or_else(|| PiCcsError::InvalidInput(format!("{label}: 2^{exponent} does not fit usize")))
 }
 
 fn validate_dec_boundary_inputs(
@@ -209,9 +298,7 @@ fn validate_dec_boundary_inputs(
             child_commitments.len()
         )));
     }
-    if 1usize.checked_shl(ell_d as u32).is_none() {
-        return Err(PiCcsError::InvalidInput(format!("DEC ell_d overflow: ell_d={ell_d}")));
-    }
+    checked_power_of_two("DEC ell_d", ell_d)?;
     for (idx, z) in z_split.iter().enumerate() {
         crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("dec: Z_split[{idx}]"))?;
     }
@@ -235,9 +322,7 @@ fn validate_dec_boundary_inputs_from_trusted_split(
             child_commitments.len()
         )));
     }
-    if 1usize.checked_shl(ell_d as u32).is_none() {
-        return Err(PiCcsError::InvalidInput(format!("DEC ell_d overflow: ell_d={ell_d}")));
-    }
+    checked_power_of_two("DEC ell_d", ell_d)?;
     for (idx, z) in z_split.iter().enumerate() {
         crate::common::validate_superneo_witness_mat(z, s.m)
             .map_err(|e| PiCcsError::InvalidInput(format!("dec trusted split: Z_split[{idx}] shape failed: {e}")))?;
@@ -356,6 +441,7 @@ pub fn verify(
     validate_mcs_claims("verify", s, mcs_list)?;
     validate_ce_claims_shape("verify: me_inputs", s, ell_m_for_ccs(s), me_inputs)?;
     validate_ce_claims_shape("verify: me_outputs", s, ell_m_for_ccs(s), me_outputs)?;
+    validate_pi_ccs_outputs("verify: me_outputs", s, me_outputs)?;
     let ell_n = ell_n_for_ccs(s);
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n)?;
     let _ = crate::engines::utils::shared_me_input_r(me_outputs, ell_n)?;
@@ -421,6 +507,8 @@ where
     }
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
     validate_ce_claims_shape("rlc_with_commit: me_inputs", s, column_point_len, me_inputs)?;
+    validate_rlc_batch_compatibility("rlc_with_commit", params, me_inputs)?;
+    checked_power_of_two("rlc_with_commit ell_d", ell_d)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     for (idx, z) in Zs.iter().enumerate() {
         crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("rlc_with_commit: Zs[{idx}]"))?;
@@ -493,6 +581,8 @@ where
     }
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
     validate_ce_claims_shape("rlc_with_commit_refs: me_inputs", s, column_point_len, me_inputs)?;
+    validate_rlc_batch_compatibility("rlc_with_commit_refs", params, me_inputs)?;
+    checked_power_of_two("rlc_with_commit_refs ell_d", ell_d)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     for (idx, z) in Zs.iter().enumerate() {
         crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("rlc_with_commit_refs: Zs[{idx}]"))?;
@@ -923,6 +1013,8 @@ where
             rhos.len()
         )));
     }
+    validate_ce_claims_shape("rlc_public: inputs", s, column_point_len, inputs)?;
+    validate_rlc_batch_compatibility("rlc_public", params, inputs)?;
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
     for (idx, inst) in inputs.iter().enumerate() {
         if inst.m_in > s.m {
@@ -935,9 +1027,7 @@ where
     let _ = crate::engines::utils::shared_me_input_r(inputs, inputs[0].r.len())?;
     let d = D;
     let m_in = inputs[0].m_in;
-    let d_pad = 1usize
-        .checked_shl(ell_d as u32)
-        .ok_or_else(|| PiCcsError::InvalidInput("rlc_public: 2^ell_d overflow".into()))?;
+    let d_pad = checked_power_of_two("rlc_public ell_d", ell_d)?;
     let t = inputs[0].y_ring.len();
     let aux_len = inputs[0].aux_openings.len();
     if t < s.t() {
@@ -1284,6 +1374,14 @@ where
             rhos.len()
         )));
     }
+    if validate_input_ce_invariants
+        && validate_ce_claims_shape("rlc_public_matches: inputs", s, column_point_len, inputs).is_err()
+    {
+        return Ok((false, RlcPublicVerifyPerf::default()));
+    }
+    if validate_rlc_batch_compatibility("rlc_public_matches", params, inputs).is_err() {
+        return Ok((false, RlcPublicVerifyPerf::default()));
+    }
     let rho_mats_started = Instant::now();
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
     let rho_mats_ms = rho_mats_started.elapsed().as_secs_f64() * 1_000.0;
@@ -1300,9 +1398,10 @@ where
     }
 
     let m_in = inputs[0].m_in;
-    let d_pad = 1usize
-        .checked_shl(ell_d as u32)
-        .ok_or_else(|| PiCcsError::InvalidInput("rlc_public_matches: 2^ell_d overflow".into()))?;
+    let d_pad = match checked_power_of_two("rlc_public_matches ell_d", ell_d) {
+        Ok(value) => value,
+        Err(_) => return Ok((false, RlcPublicVerifyPerf::default())),
+    };
     let t = inputs[0].y_ring.len();
     let aux_len = inputs[0].aux_openings.len();
     if t < s.t() {

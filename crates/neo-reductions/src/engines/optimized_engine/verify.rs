@@ -137,6 +137,13 @@ pub(super) fn optimized_verify_with_cache_and_public_instance_digest_impl(
 
     let bind_started = std::time::Instant::now();
     let dims = utils::build_dims_and_policy(params, s)?;
+    crate::api::validate_mcs_claims("optimized_verify", s, mcs_list)?;
+    crate::api::validate_ce_claims_shape("optimized_verify: me_inputs", s, dims.ell_m, me_inputs)?;
+    crate::api::validate_ce_claims_shape("optimized_verify: me_outputs", s, dims.ell_m, me_outputs)?;
+    crate::api::validate_pi_ccs_outputs("optimized_verify: me_outputs", s, me_outputs)?;
+    let _ = utils::shared_me_input_r(me_inputs, dims.ell_n)?;
+    let _ = utils::shared_me_input_r(me_outputs, dims.ell_n)?;
+    utils::validate_mcs_output_x_recomposition(params, s.m, mcs_list, me_outputs)?;
     let block_pending = match &binding.nc_mode {
         NcReplayMode::LegacyFlat => None,
         NcReplayMode::BlockLaneDelayed(pending) => Some(pending.clone()),

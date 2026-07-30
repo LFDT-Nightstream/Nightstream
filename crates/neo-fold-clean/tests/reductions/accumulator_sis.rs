@@ -17,7 +17,7 @@ mod full_history_manifest_identity_support;
 
 use neo_ajtai::{commit_row_major_seeded, Commitment};
 use neo_ccs::{CeClaim, Mat};
-use neo_fold_clean::engine::r1cs_circuit::builder::{RowFamilyRange, Var};
+use neo_fold_clean::engine::r1cs_circuit::builder::{RowFamilyRange, Var, BALANCED_TERNARY_DIGITS};
 use neo_fold_clean::engine::r1cs_circuit::{KVar, R1csBuilder};
 use neo_fold_clean::frontends::f_prime::gadget_native::encode_r1cs_gadget_native;
 use neo_fold_clean::frontends::r1cs_f_prime::{
@@ -32,9 +32,10 @@ use neo_fold_clean::paper::digest::{
 };
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{
     accumulator_digest, commit_fields, enforce_accumulator_digest, enforce_commit_fields, SisAccumulatorConfig,
-    ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG, NEBULA_LEAF_SIS_CONFIG,
-    PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG, PI_RLC_PROJECTION_SIS_CONFIG,
-    PROTOCOL_BINDING_KAPPA, SIS_DIGEST_COMPRESSION_CONFIG,
+    SisAccumulatorError, ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG,
+    DIGEST_COMPRESSION_MAX_MESSAGE_COLS, NEBULA_LEAF_SIS_CONFIG, PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG,
+    PI_CCS_OUTPUTS_SIS_CONFIG, PI_RLC_PROJECTION_SIS_CONFIG, PROTOCOL_BINDING_KAPPA, PROTOCOL_BINDING_MAX_MESSAGE_COLS,
+    SIS_DIGEST_COMPRESSION_CONFIG,
 };
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
     encode_pending_accumulator_family_preimage, PendingAccumulatorFamilyChildInputs,
@@ -385,6 +386,103 @@ fn seeded_phi81_blocks_change_authoritative_row_identity() {
 }
 
 #[test]
+fn rank_two_ajtai_maps_use_exact_rows_and_share_message_openings() {
+    const FIRST: SisAccumulatorConfig = SisAccumulatorConfig {
+        seed: [0x31; 32],
+        kappa: 2,
+        domain: 0x414a_5441_495f_3031,
+    };
+    const SECOND: SisAccumulatorConfig = SisAccumulatorConfig {
+        seed: [0x32; 32],
+        kappa: 2,
+        domain: 0x414a_5441_495f_3032,
+    };
+
+    let mut builder = R1csBuilder::new();
+    builder.enable_encoding_trace();
+    let fields = builder.alloc_vec(&[F::from_u64(3), F::from_u64(5), F::from_u64(8)]);
+
+    let first = enforce_commit_fields(&mut builder, FIRST, &fields).expect("first rank-two map");
+    let first_block = builder.seeded_phi81_a_blocks()[0].clone();
+    assert_eq!(first.data.len(), 2 * D);
+    assert_eq!(first_block.row_end() - first_block.row_start(), 2 * D);
+    assert_eq!(first.data.len() * BALANCED_TERNARY_DIGITS, 4_428);
+
+    let opening_count = builder.encoding_trace().balanced_ternary_openings().len();
+    let rows_before_second = builder.rows();
+    let columns_before_second = builder.cols();
+    let second = enforce_commit_fields(&mut builder, SECOND, &fields).expect("second rank-two map");
+    let second_block = builder.seeded_phi81_a_blocks()[1].clone();
+
+    assert_eq!(
+        builder.encoding_trace().balanced_ternary_openings().len(),
+        opening_count,
+        "the second map must reuse the same canonical message openings"
+    );
+    assert_eq!(builder.rows() - rows_before_second, 2 + 2 * D);
+    assert_eq!(builder.cols() - columns_before_second, 2 + 2 * D);
+    assert_eq!(second_block.row_start(), rows_before_second + 2);
+    assert_eq!(second_block.row_end() - second_block.row_start(), 2 * D);
+    assert_eq!(second_block.word_starts(), first_block.word_starts());
+
+    let snapshot = builder.snapshot();
+    for (offset, output) in second.data.iter().enumerate() {
+        let row = second_block.row_start() + offset;
+        assert_eq!(snapshot.b_row(row), [(Var::ONE.col(), F::ONE)]);
+        assert_eq!(snapshot.c_row(row), [(output.col(), F::ONE)]);
+    }
+
+    let changed = 37;
+    let mut invalid = snapshot.witness().to_vec();
+    invalid[second.data[changed].col()] += F::ONE;
+    assert_eq!(
+        snapshot.first_unsatisfied_row(&invalid),
+        Some(second_block.row_start() + changed)
+    );
+}
+
+#[test]
+fn repeated_rank_two_maps_reuse_the_same_compact_selective_openings() {
+    const FIRST: SisAccumulatorConfig = SisAccumulatorConfig {
+        seed: [0x41; 32],
+        kappa: 2,
+        domain: 0x414a_5441_495f_3131,
+    };
+    const SECOND: SisAccumulatorConfig = SisAccumulatorConfig {
+        seed: [0x42; 32],
+        kappa: 2,
+        domain: 0x414a_5441_495f_3132,
+    };
+
+    let mut builder = R1csBuilder::new();
+    let fields = builder.alloc_vec(&[F::from_u64(3), F::from_u64(5), F::from_u64(8)]);
+    enforce_commit_fields(&mut builder, FIRST, &fields).expect("first rank-two map");
+    enforce_commit_fields(&mut builder, SECOND, &fields).expect("second rank-two map");
+
+    let lowered = lower_field_r1cs(builder, &[]).expect("lower repeated rank-two maps");
+    let (shape, _) = lowered.into_parts();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&[shape.clone(), shape], 0, D, 0)
+        .expect("selective repeated rank-two maps");
+    let audit = relation
+        .selective_compiler_audit()
+        .expect("selective compiler audit");
+
+    for openings in audit.canonical_openings() {
+        assert_eq!(
+            openings.len(),
+            fields.len(),
+            "commitment reuse must not allocate a second opening for the same field"
+        );
+        assert!(openings.iter().all(|opening| {
+            opening.digit_coordinates().len() == 41
+                && opening.borrow_coordinates().len() == 20
+                && opening.coordinate_count() == 61
+                && opening.emitted_rows().len() == 21
+        }));
+    }
+}
+
+#[test]
 fn protocol_binding_maps_match_estimated_two_level_profile() {
     let long_maps = [
         CCS_CLAIM_SIS_CONFIG,
@@ -421,11 +519,56 @@ fn protocol_binding_maps_match_estimated_two_level_profile() {
 }
 
 #[test]
+fn protocol_binding_widths_stop_at_the_estimated_security_boundary() {
+    let rank_two_max_fields = PROTOCOL_BINDING_MAX_MESSAGE_COLS * D / BALANCED_TERNARY_DIGITS;
+    let rank_one_max_fields = DIGEST_COMPRESSION_MAX_MESSAGE_COLS * D / BALANCED_TERNARY_DIGITS;
+    assert_eq!(rank_two_max_fields, 66_342);
+    assert_eq!(rank_one_max_fields, 108);
+
+    let rank_two_error = commit_fields(CCS_CLAIM_SIS_CONFIG, &vec![F::ZERO; rank_two_max_fields + 1])
+        .expect_err("rank-two message above the estimated width must fail");
+    assert!(matches!(
+        rank_two_error,
+        SisAccumulatorError::MessageTooWide {
+            kappa: PROTOCOL_BINDING_KAPPA,
+            field_count: 66_343,
+            max_field_count: 66_342,
+            max_message_cols: PROTOCOL_BINDING_MAX_MESSAGE_COLS,
+        }
+    ));
+
+    let rank_one_error = commit_fields(SIS_DIGEST_COMPRESSION_CONFIG, &vec![F::ZERO; rank_one_max_fields + 1])
+        .expect_err("rank-one message above the estimated width must fail");
+    assert!(matches!(
+        rank_one_error,
+        SisAccumulatorError::MessageTooWide {
+            kappa: 1,
+            field_count: 109,
+            max_field_count: 108,
+            max_message_cols: DIGEST_COMPRESSION_MAX_MESSAGE_COLS,
+        }
+    ));
+
+    let folding_error = commit_fields(
+        SisAccumulatorConfig {
+            kappa: 18,
+            ..CCS_CLAIM_SIS_CONFIG
+        },
+        &[F::ZERO],
+    )
+    .expect_err("the rank-18 folding commitment must use its own module");
+    assert!(matches!(
+        folding_error,
+        SisAccumulatorError::UnsupportedKappa { kappa: 18 }
+    ));
+}
+
+#[test]
 fn pending_accumulator_family_matches_exact_lean_order_and_count() {
     const KAPPA: usize = 4;
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_DOMAIN.len(), 59);
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_CHILDREN, 14);
-    assert_eq!(PENDING_ACCUMULATOR_FAMILY_ROW_POINT, 24);
+    assert_eq!(PENDING_ACCUMULATOR_FAMILY_ROW_POINT, 23);
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT, 19);
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_M_IN, 270);
     assert_eq!(PENDING_ACCUMULATOR_FAMILY_MATRICES, 13);
@@ -434,13 +577,13 @@ fn pending_accumulator_family_matches_exact_lean_order_and_count() {
     let reference_none = reference_pending_family_preimage(&claims, None);
     let production_none = pending_accumulator_family_preimage(&claims, KAPPA, None).expect("valid fixed family");
     assert_eq!(production_none, reference_none);
-    assert_eq!(production_none.len(), 26_711, "Lean bounded_field_count");
+    assert_eq!(production_none.len(), 26_709, "Lean bounded_field_count");
     let production_claims = pending_family_claims(18);
     assert_eq!(
         pending_accumulator_family_preimage(&production_claims, 18, None)
             .expect("valid production-width family")
             .len(),
-        37_295,
+        37_293,
         "Lean production_field_count"
     );
 
@@ -463,7 +606,7 @@ fn pending_accumulator_family_matches_exact_lean_order_and_count() {
     let production_some =
         pending_accumulator_family_preimage(&claims, KAPPA, Some(pending)).expect("valid pending family");
     assert_eq!(production_some, reference_some);
-    assert_eq!(production_some.len(), 26_711, "pending option is fixed width");
+    assert_eq!(production_some.len(), 26_709, "pending option is fixed width");
     assert_ne!(production_none, production_some, "discriminator binds absence");
 
     let reference_digest = accumulator_digest(PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG, &reference_some)
@@ -632,7 +775,7 @@ fn pending_accumulator_family_circuit_preimage_matches_native_without_sis_loweri
         .map(|wire| builder.witness()[wire.col()])
         .collect();
     assert_eq!(circuit, native);
-    assert_eq!(circuit.len(), 26_711);
+    assert_eq!(circuit.len(), 26_709);
     assert!(builder.is_satisfied());
     assert!(
         builder.rows() < 200,
@@ -989,6 +1132,20 @@ fn sis_accumulator_reuses_authoritative_trits_in_selective_lowering() {
     let arms = [shape.clone(), shape];
     let relation =
         build_multi_branch_selective_low_norm_r1cs_with_alignment(&arms, 0, 1, 0).expect("selective low-norm lowering");
+    for openings in relation
+        .selective_compiler_audit()
+        .expect("selective compiler audit")
+        .canonical_openings()
+    {
+        assert_eq!(
+            openings.len(),
+            values.len() + D,
+            "the input fields and first-map outputs each need one canonical opening"
+        );
+        assert!(openings
+            .iter()
+            .all(|opening| opening.coordinate_count() == 61 && opening.emitted_rows().len() == 21));
+    }
     let mut encoded = relation
         .encode(0, &field_assignment)
         .expect("encoded SIS arm");
@@ -1010,4 +1167,69 @@ fn sis_accumulator_reuses_authoritative_trits_in_selective_lowering() {
 
     encoded[source_slot.0] = F::from_u64(2);
     assert!(!relation.is_satisfied(&encoded), "a non-unit SIS trit must be rejected");
+}
+
+#[test]
+fn rank_two_digest_chain_counts_each_distinct_opening_once() {
+    let values = [F::from_u64(7), F::from_u64(11), F::from_u64(13)];
+    let mut builder = R1csBuilder::new();
+    let fields = builder.alloc_vec(&values);
+    let wires =
+        enforce_accumulator_digest(&mut builder, CCS_CLAIM_SIS_CONFIG, &fields).expect("rank-two SIS digest circuit");
+    let rank_two_outputs = wires
+        .commitment
+        .data
+        .iter()
+        .map(|wire| wire.col())
+        .collect::<Vec<_>>();
+    let rank_one_outputs = wires
+        .digest_compression
+        .data
+        .iter()
+        .map(|wire| wire.col())
+        .collect::<Vec<_>>();
+    let lowered = lower_field_r1cs(builder, &[]).expect("field lowering");
+    let (shape, _) = lowered.into_parts();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&[shape.clone(), shape], 0, D, 0)
+        .expect("selective rank-two digest");
+
+    for openings in relation
+        .selective_compiler_audit()
+        .expect("selective compiler audit")
+        .canonical_openings()
+    {
+        assert_eq!(
+            openings.len(),
+            values.len() + 2 * D,
+            "three source fields plus the 108 rank-two output fields"
+        );
+        assert_eq!(
+            openings
+                .iter()
+                .map(|opening| opening.coordinate_count())
+                .sum::<usize>(),
+            61 * (values.len() + 2 * D)
+        );
+        assert_eq!(
+            openings
+                .iter()
+                .map(|opening| opening.emitted_rows().len())
+                .sum::<usize>(),
+            21 * (values.len() + 2 * D)
+        );
+        assert!(rank_two_outputs.iter().all(|output| openings
+            .iter()
+            .any(|opening| opening.source_field() == *output)));
+        assert!(rank_one_outputs.iter().all(|output| openings
+            .iter()
+            .all(|opening| opening.source_field() != *output)));
+    }
+    for arm in 0..2 {
+        assert!(rank_two_outputs.iter().all(|output| relation
+            .field_slot(arm, *output)
+            .is_some_and(|slot| slot.1 == 41)));
+        assert!(rank_one_outputs.iter().all(|output| relation
+            .field_slot(arm, *output)
+            .is_some_and(|slot| slot.1 == 41)));
+    }
 }

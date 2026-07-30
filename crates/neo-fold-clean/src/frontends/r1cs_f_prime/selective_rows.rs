@@ -31,7 +31,10 @@ use super::super::selective_audit::{
     SelectiveRewriteId, SelectiveRewriteKind, SelectiveRowMappingAudit, SelectiveSourceRowDisposition,
     SelectiveSourceRowRunAudit,
 };
-use super::{trace_error, LowNormR1csError, SelectiveArmPlan, SparseR1cs, BALANCED_FIELD_WIDTH, EVAL_GROUP_SIZE};
+use super::{
+    trace_error, LowNormR1csError, SelectiveArmPlan, SparseR1cs, BALANCED_FIELD_WIDTH, CANON_CHUNK_COUNT,
+    EVAL_GROUP_SIZE,
+};
 
 #[derive(Clone)]
 struct SourceClaim {
@@ -308,6 +311,7 @@ impl PreparedSelectiveRows {
             for trace in arm.shifted_ternary_canonical_traces() {
                 let source_rows = vec![
                     trace.digit_rows_start..trace.digit_rows_start + 2 * BALANCED_FIELD_WIDTH,
+                    trace.reconstruction_row..trace.reconstruction_row + 1,
                     trace.transition_rows_start..trace.transition_rows_start + BALANCED_FIELD_WIDTH,
                 ];
                 let id = allocate_rewrite(
@@ -446,7 +450,7 @@ impl PreparedSelectiveRows {
                     &mut emitted_runs,
                     &mut rewrites,
                     &mut row_cursor,
-                    2 * BALANCED_FIELD_WIDTH,
+                    CANON_CHUNK_COUNT,
                     SelectiveEmittedRowFamily::ShiftedTernaryCanonical,
                     arm_index,
                     id,
@@ -646,7 +650,17 @@ fn allocate_rewrite(
             }
         }
     }
-    rewrites.push(SelectiveRewriteAudit::new(id, arm, kind, source_rows, occurrence));
+    let mut normalized_rows = Vec::<Range<usize>>::with_capacity(source_rows.len());
+    for rows in source_rows {
+        if let Some(previous) = normalized_rows.last_mut() {
+            if previous.end == rows.start {
+                previous.end = rows.end;
+                continue;
+            }
+        }
+        normalized_rows.push(rows);
+    }
+    rewrites.push(SelectiveRewriteAudit::new(id, arm, kind, normalized_rows, occurrence));
     Ok(id)
 }
 
@@ -808,9 +822,14 @@ pub(super) fn skipped_selective_rows(arm: &SparseR1cs) -> Result<Vec<bool>, LowN
         )?;
     }
     for trace in arm.shifted_ternary_canonical_traces() {
+        validate_shifted_ternary_reconstruction_row(arm, trace)?;
         claim(
             trace.digit_rows_start..trace.digit_rows_start + 2 * BALANCED_FIELD_WIDTH,
             "shifted-ternary digit rows overlap another selective trace",
+        )?;
+        claim(
+            trace.reconstruction_row..trace.reconstruction_row + 1,
+            "shifted-ternary reconstruction row overlaps another selective trace",
         )?;
         claim(
             trace.transition_rows_start..trace.transition_rows_start + BALANCED_FIELD_WIDTH,
@@ -818,4 +837,34 @@ pub(super) fn skipped_selective_rows(arm: &SparseR1cs) -> Result<Vec<bool>, LowN
         )?;
     }
     Ok(skipped)
+}
+
+fn validate_shifted_ternary_reconstruction_row(
+    arm: &SparseR1cs,
+    trace: &crate::engine::r1cs_circuit::builder::ShiftedTernaryCanonicalTrace,
+) -> Result<(), LowNormR1csError> {
+    if trace.reconstruction_row != trace.digit_rows_start + 2 * BALANCED_FIELD_WIDTH
+        || trace.transition_rows_start != trace.reconstruction_row + 1
+    {
+        return Err(trace_error(
+            "shifted-ternary reconstruction row is not between its digit and transition rows",
+        ));
+    }
+    let decomposition = arm
+        .balanced_ternary_decompositions()
+        .iter()
+        .find(|decomposition| decomposition.digit_cols[0] == trace.digit_columns_start)
+        .ok_or_else(|| trace_error("shifted-ternary reconstruction has no source decomposition"))?;
+    if decomposition.field_col != trace.field_column
+        || decomposition
+            .digit_cols
+            .iter()
+            .copied()
+            .ne(trace.digit_columns_start..trace.digit_columns_start + BALANCED_FIELD_WIDTH)
+    {
+        return Err(trace_error(
+            "shifted-ternary reconstruction digits are not one exact word",
+        ));
+    }
+    Ok(())
 }

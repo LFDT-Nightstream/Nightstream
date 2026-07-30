@@ -378,7 +378,7 @@ fn reduce_lcs_mod_phi_81(coeffs: &mut [Lc]) {
     }
 }
 
-// ── Projection-checked batched ring action (encoding.md candidate E) ──────
+// ── Projection-checked batched ring action ────────────────────────────────
 //
 // The gadgets above materialize all `D²` partial products of one `ρ · c`
 // — the measured wall of the folded `enc(F')` regime (~197k committed

@@ -8,7 +8,7 @@ use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::pi_rlc_challenge_st
 use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::poseidon2::enforce_poseidon2_permutation;
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
-use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder};
+use neo_fold_clean::engine::r1cs_circuit::{BalancedTernaryOpeningTraceEntry, Lc, R1csBuilder};
 use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcRelation, R1CS_IVC_COMMITTED_COORDINATE_BUDGET};
 use neo_fold_clean::frontends::r1cs_f_prime::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
@@ -24,7 +24,7 @@ use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{
 use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::stage as pi_ccs_stage;
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 use neo_math::{D, F};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs, tiny_params};
 
 #[test]
@@ -263,12 +263,12 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (8_388_609, 270, 14_946_911, 11_725_506),
-            (14_946_911, 11_725_506, 14_946_911, 11_725_506),
+            (4_194_305, 270, 5_285_631, 9_740_898),
+            (5_285_631, 9_740_898, 5_285_631, 9_740_898),
         ],
         "the SIS-compressed production shape must stabilize at the measured fixed point",
     );
-    assert_eq!(width.total_coordinates, 11_725_454);
+    assert_eq!(width.total_coordinates, 9_740_860);
     assert_eq!(width.branch_start, 311);
     assert_eq!(width.shared_private_coordinates, 0);
     assert_eq!(
@@ -293,10 +293,10 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             .collect::<Vec<_>>(),
         vec![
             (13_049, 10_591, 75_059, 448, 0, 74_611, 0, 0, 74_611, 20, 70_776),
-            (4_468_023, 1_665_044, 5_976_446, 1_211_069, 384, 4_759_873, 2_276, 93_316, 4_853_189, 510, 1_801_354,),
+            (4_415_717, 2_290_300, 5_175_124, 1_376_463, 126, 3_793_495, 2_276, 93_316, 3_886_811, 429, 1_515_748,),
             (
-                11_049_111, 4_008_875, 13_840_135, 3_149_904, 1_760, 10_628_311, 26_752, 1_096_832, 11_725_143, 615,
-                2_185_920,
+                10_993_007, 5_644_723, 12_174_183, 3_470_114, 1_472, 8_643_717, 26_752, 1_096_832, 9_740_549, 534,
+                1_900_314,
             ),
         ],
         "each selector-disjoint arm must retain the measured compressed-width profile",
@@ -469,8 +469,8 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
         accumulator_stage_census,
         vec![
             (0, None, None, None),
-            (1, None, None, Some((1_104, 3_322_625, 2_218_656))),
-            (2, None, None, Some((10_862, 3_322_625, 2_218_656))),
+            (1, None, None, Some((1_104, 3_322_377, 562_532))),
+            (2, None, None, Some((10_862, 3_322_377, 562_532))),
         ],
         "every conservative outgoing-accumulator row must retain one exact source-stage owner",
     );
@@ -507,7 +507,7 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
 }
 
 #[test]
-#[ignore = "materializes the complete 14.9M-row by 11.7M-column production relation; run explicitly after fixed-point width changes"]
+#[ignore = "materializes the complete 5.3M-row by 9.7M-column production relation; run explicitly after fixed-point width changes"]
 fn active_fixed_point_materializes_after_accumulator_ce_compression() {
     let app = one_product_r1cs();
     let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
@@ -515,15 +515,15 @@ fn active_fixed_point_materializes_after_accumulator_ce_compression() {
         .expect("materialize SIS-compressed active fixed point");
 
     let structure = relation.structure();
-    assert_eq!(structure.n, 14_946_911);
-    assert_eq!(structure.m, 11_725_506);
+    assert_eq!(structure.n, 5_285_631);
+    assert_eq!(structure.m, 9_740_898);
     assert_eq!(relation.public_input_len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     assert_eq!(structure.t(), 13);
     assert_eq!(structure.matrices.len(), 13);
 
     let audit = relation.compilation_audit();
     assert_eq!(audit.rounds().len(), 2);
-    assert_eq!(audit.width().total_coordinates, 11_725_454);
+    assert_eq!(audit.width().total_coordinates, 9_740_860);
     assert_eq!(audit.layout().total_columns(), structure.m);
     assert_eq!(audit.rows().total_rows(), structure.n);
     let terminal = audit
@@ -563,7 +563,7 @@ fn selective_source_geometric_rows_are_remapped() {
     );
 }
 
-fn shifted_canonical_arm(split_trace_stage: bool) -> SparseR1cs {
+fn shifted_canonical_arm_and_assignment(split_trace_stage: bool) -> (SparseR1cs, Vec<F>) {
     let mut builder = R1csBuilder::new();
     builder.begin_encoding_stage("test.shifted_canonical");
     let field = builder.alloc(F::ZERO);
@@ -577,7 +577,24 @@ fn shifted_canonical_arm(split_trace_stage: bool) -> SparseR1cs {
     lower_field_r1cs(builder, &[commitment.d_var, commitment.kappa_var])
         .expect("lower shifted-canonical arm")
         .into_parts()
-        .0
+}
+
+fn shifted_canonical_arm(split_trace_stage: bool) -> SparseR1cs {
+    shifted_canonical_arm_and_assignment(split_trace_stage).0
+}
+
+fn shifted_canonical_private_arm_and_assignment() -> (SparseR1cs, Vec<F>, BalancedTernaryOpeningTraceEntry) {
+    let mut builder = R1csBuilder::new();
+    builder.enable_encoding_trace();
+    builder.begin_encoding_stage("test.shifted_canonical_private");
+    let field = builder.alloc(F::ZERO);
+    enforce_commit_fields(&mut builder, SIS_DIGEST_COMPRESSION_CONFIG, &[field]).expect("one-field SIS commitment");
+    let opening = builder.encoding_trace().balanced_ternary_openings()[0].clone();
+    builder.begin_encoding_stage("complete");
+    let (shape, assignment) = lower_field_r1cs(builder, &[])
+        .expect("lower private shifted-canonical arm")
+        .into_parts();
+    (shape, assignment, opening)
 }
 
 fn linear_definition_arm() -> SparseR1cs {
@@ -612,7 +629,7 @@ fn repeated_stage_arm() -> SparseR1cs {
 }
 
 #[test]
-fn shifted_ternary_rewrite_links_123_source_rows_to_82_emitted_rows() {
+fn shifted_ternary_rewrite_links_124_source_rows_to_21_emitted_rows() {
     let first = shifted_canonical_arm(false);
     let second = shifted_canonical_arm(false);
     let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&[first, second], 0, D, 0)
@@ -628,16 +645,16 @@ fn shifted_ternary_rewrite_links_123_source_rows_to_82_emitted_rows() {
             .iter()
             .find(|rewrite| rewrite.arm() == arm && rewrite.kind() == SelectiveRewriteKind::ShiftedTernaryCanonical)
             .expect("one shifted-ternary rewrite");
-        assert_eq!(rewrite.source_rows(), &[2..84, 85..126]);
+        assert_eq!(rewrite.source_rows(), &[2..126]);
         assert_eq!(
             rewrite
                 .source_rows()
                 .iter()
                 .map(|range| range.len())
                 .sum::<usize>(),
-            123
+            124
         );
-        assert_eq!(rewrite.emitted_rows().len(), 82);
+        assert_eq!(rewrite.emitted_rows().len(), 21);
         assert_eq!(rewrite.source_stage_occurrence(), Some(0));
 
         let linked_source = rows.arms()[arm]
@@ -646,9 +663,171 @@ fn shifted_ternary_rewrite_links_123_source_rows_to_82_emitted_rows() {
             .filter(|run| run.disposition().rewrite_id() == Some(rewrite.id()))
             .map(|run| run.source_rows())
             .collect::<Vec<_>>();
-        assert_eq!(linked_source, vec![2..84, 85..126]);
-        assert_eq!(rows.arms()[arm].emitted_rows().len(), 139);
+        assert_eq!(linked_source, vec![2..126]);
+        assert_eq!(rows.arms()[arm].emitted_rows().len(), 77);
     }
+}
+
+#[test]
+fn shifted_ternary_pairs_retain_only_endpoint_borrows_and_reject_tampering() {
+    let (first, first_assignment, _) = shifted_canonical_private_arm_and_assignment();
+    let (second, second_assignment, _) = shifted_canonical_private_arm_and_assignment();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&[first, second], 0, D, 0)
+        .expect("selective canonical relation");
+    let compiler_audit = relation
+        .selective_compiler_audit()
+        .expect("selective compiler audit");
+    for (arm, openings) in compiler_audit.canonical_openings().iter().enumerate() {
+        let [opening] = openings.as_slice() else {
+            panic!("arm {arm} must own one memoized opening")
+        };
+        assert_eq!(opening.digit_coordinates().len(), 41);
+        assert_eq!(opening.borrow_coordinates().len(), 20);
+        assert_eq!(opening.coordinate_count(), 61);
+        assert_eq!(opening.emitted_rows().len(), 21);
+    }
+
+    for (arm, source) in [first_assignment, second_assignment].iter().enumerate() {
+        let encoded = relation.encode(arm, source).expect("encode canonical arm");
+        assert!(relation.is_satisfied(&encoded), "honest arm {arm}");
+
+        let borrow_starts = (1..=source.len() - 40)
+            .filter(|&start| (0..40).all(|index| relation.field_slot(arm, start + index).is_some() == (index % 2 == 1)))
+            .collect::<Vec<_>>();
+        assert_eq!(borrow_starts.len(), 1, "one projected 40-borrow run");
+        let borrow_start = borrow_starts[0];
+        for index in 0..40 {
+            let slot = relation.field_slot(arm, borrow_start + index);
+            assert_eq!(
+                slot.is_some(),
+                index % 2 == 1,
+                "only the endpoint after each two-trit chunk is retained"
+            );
+        }
+
+        let endpoint = relation
+            .field_slot(arm, borrow_start + 1)
+            .expect("first chunk endpoint")
+            .0;
+        let mut tampered = encoded;
+        tampered[endpoint] = if tampered[endpoint] == F::ZERO { F::ONE } else { F::ZERO };
+        assert!(
+            !relation.is_satisfied(&tampered),
+            "the paired transition must bind its retained endpoint"
+        );
+    }
+}
+
+fn row_residual(structure: &neo_ccs::CcsStructure<F>, row: usize, assignment: &[F]) -> F {
+    let point = structure
+        .matrices
+        .iter()
+        .map(|matrix| {
+            matrix
+                .materialize_row(row)
+                .expect("in-range selective row")
+                .into_iter()
+                .fold(F::ZERO, |sum, (column, coefficient)| {
+                    sum + coefficient * assignment[column]
+                })
+        })
+        .collect::<Vec<_>>();
+    structure.f.eval(&point)
+}
+
+#[test]
+fn shifted_ternary_pair_rows_match_every_local_transition() {
+    let (first, _, opening) = shifted_canonical_private_arm_and_assignment();
+    let (second, _, _) = shifted_canonical_private_arm_and_assignment();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&[first, second], 0, D, 0)
+        .expect("selective canonical relation");
+    let rewrite = relation
+        .selective_compiler_audit()
+        .expect("selective compiler audit")
+        .rows()
+        .rewrites()
+        .iter()
+        .find(|rewrite| rewrite.arm() == 0 && rewrite.kind() == SelectiveRewriteKind::ShiftedTernaryCanonical)
+        .expect("one shifted-ternary rewrite")
+        .clone();
+    assert_eq!(rewrite.emitted_rows().len(), 21);
+
+    let digit_slots = opening
+        .digit_cols
+        .map(|column| relation.field_slot(0, column).expect("retained digit").0);
+    let borrow_slots = opening.borrow_cols.map(|column| {
+        relation
+            .field_slot(0, column)
+            .map(|(coordinate, _)| coordinate)
+    });
+    let selector = relation.selector_cols()[0];
+    let centered = [-F::ONE, F::ZERO, F::ONE];
+    let trit = |digit: F| {
+        if digit == -F::ONE {
+            0u64
+        } else if digit == F::ZERO {
+            1
+        } else {
+            2
+        }
+    };
+    let mut bound = F::ORDER_U64 - 1;
+
+    for chunk in 0..21 {
+        let digit_index = 2 * chunk;
+        let bound_zero = bound % 3;
+        bound /= 3;
+        let has_second = digit_index + 1 < 41;
+        let bound_one = if has_second {
+            let value = bound % 3;
+            bound /= 3;
+            value
+        } else {
+            0
+        };
+        let row = rewrite.emitted_rows().start + chunk;
+        let second_digits: &[F] = if has_second { &centered } else { &[-F::ONE] };
+        let inputs: &[u64] = if chunk == 0 { &[0] } else { &[0, 1] };
+        let outputs: &[F] = if chunk == 20 {
+            &[F::ZERO]
+        } else {
+            &[-F::ONE, F::ZERO, F::ONE]
+        };
+
+        for &digit_zero in &centered {
+            for &digit_one in second_digits {
+                for &borrow_in in inputs {
+                    let middle = u64::from(trit(digit_zero) + borrow_in > bound_zero);
+                    let expected = u64::from(trit(digit_one) + middle > bound_one);
+                    for &borrow_out in outputs {
+                        let mut assignment = vec![F::ZERO; relation.structure().m];
+                        assignment[0] = F::ONE;
+                        assignment[selector] = F::ONE;
+                        assignment[digit_slots[digit_index]] = digit_zero;
+                        if has_second {
+                            assignment[digit_slots[digit_index + 1]] = digit_one;
+                        }
+                        if chunk != 0 {
+                            assignment[borrow_slots[digit_index - 1].expect("retained input endpoint")] =
+                                F::from_u64(borrow_in);
+                        }
+                        if chunk != 20 {
+                            assignment[borrow_slots[digit_index + 1].expect("retained output endpoint")] = borrow_out;
+                        }
+                        assert_eq!(
+                            row_residual(relation.structure(), row, &assignment) == F::ZERO,
+                            borrow_out == F::from_u64(expected),
+                            "chunk={chunk} d0={} d1={} bin={borrow_in} bout={}",
+                            trit(digit_zero),
+                            trit(digit_one),
+                            borrow_out.as_canonical_u64(),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(bound, 0);
 }
 
 #[test]

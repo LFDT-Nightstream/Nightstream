@@ -601,10 +601,6 @@ impl PostPiDecSnapshot {
         static_rounds: &[SumcheckRoundAudit],
     ) -> Result<(), String> {
         const PUBLIC_COORDINATES: usize = 270;
-        const SOURCE_ROWS: usize = 11_308_137;
-        const SOURCE_COLUMNS: usize = 10_997_363;
-        const COMMITTED_ROWS: usize = 14_944_219;
-        const COMMITTED_COLUMNS: usize = 11_437_038;
         const BUILDER_PUBLIC_OUTPUTS: usize = 256;
         const CHILDREN: usize = 14;
         const OUTPUTS: usize = CHILDREN + 1;
@@ -630,10 +626,6 @@ impl PostPiDecSnapshot {
         if self.branch != R1csIvcBranch::Recursive
             || self.proof_variant != PiCcsProofVariant::BlockLaneNcDelayedV1
             || self.output_profile != (OUTPUTS, MATRICES, ACTIVE_LANES)
-            || self.source_builder_rows != SOURCE_ROWS
-            || self.source_builder_columns != SOURCE_COLUMNS
-            || self.committed_rows != COMMITTED_ROWS
-            || self.committed_columns != COMMITTED_COLUMNS
             || (self.source_builder_rows, self.source_builder_columns) != source_shape
             || (self.committed_rows, self.committed_columns) != committed_shape
             || self.public_output_builder_columns.len() != BUILDER_PUBLIC_OUTPUTS
@@ -645,8 +637,8 @@ impl PostPiDecSnapshot {
             || self.raw_children.len() != CHILDREN * PUBLIC_COORDINATES
             || self.raw_old_block_profile != R1csIvcRawOldBlockProfile::ActiveFPrimeCombinedNcDelayedV1
             || self.raw_old_block_field_decoding != R1csIvcRawOldBlockFieldDecoding::BaseFieldEmbedding
-            || self.raw_old_block_logical_columns != COMMITTED_COLUMNS
-            || self.raw_old_block_packed_shape != (ACTIVE_LANES, 211_797)
+            || self.raw_old_block_logical_columns != self.committed_columns
+            || self.raw_old_block_packed_shape != (ACTIVE_LANES, self.committed_columns.div_ceil(ACTIVE_LANES))
             || self.raw_old_block_point != self.pending_old_block
             || self.raw_old_block_children.len() != CHILDREN
             || self.raw_old_block_radix != K::from(F::from_u64(2))

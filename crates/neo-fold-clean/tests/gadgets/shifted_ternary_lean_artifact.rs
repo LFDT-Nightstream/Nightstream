@@ -22,7 +22,7 @@
 #[path = "lean_artifact_support.rs"]
 mod lean_artifact_support;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use lean_artifact_support::{lean_nat_list, lean_rows, lean_witness, sha256_hex, SCHEMA_VERSION};
@@ -32,6 +32,10 @@ use neo_fold_clean::engine::r1cs_circuit::{R1csBuilder, Var};
 use neo_fold_clean::frontends::f_prime::gadget_native::{
     encode_r1cs_gadget_native, BalancedTernarySharedSlotPlan, GadgetNativeCenteredFamily, GadgetNativeConstraintRow,
     GadgetNativeCoordinateGateRoles as Roles, GadgetNativeCoordinateRowAudit,
+};
+use neo_fold_clean::frontends::r1cs_f_prime::{
+    build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs, SelectiveEmittedRowFamily,
+    SelectiveRowArtifact,
 };
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{enforce_commit_fields, SisAccumulatorConfig};
 use neo_math::{D, F};
@@ -47,7 +51,10 @@ const ARTIFACT_REL_PATH: &str =
     "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/ShiftedTernary/Generated/ShiftedTernaryArtifact.lean";
 const SHARED_SLOTS_ARTIFACT_REL_PATH: &str =
     "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/ShiftedTernary/Generated/ShiftedTernarySharedSlotsArtifact.lean";
+const SELECTIVE_ARTIFACT_REL_PATH: &str =
+    "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/ShiftedTernary/Generated/ShiftedTernarySelectiveArtifact.lean";
 const SHARED_SLOTS_SCHEMA_VERSION: u64 = 3;
+const SELECTIVE_SCHEMA_VERSION: u64 = 1;
 // Independent artifact-side copy of the four production gate coordinates.
 // The runtime row reader also checks these against the concrete CCS
 // polynomial before returning any row to this generator.
@@ -631,6 +638,126 @@ fn render_shared_slots(builder: &R1csBuilder) -> String {
     rendered
 }
 
+fn lean_sparse_polynomial_terms(polynomial: &SparsePoly<F>) -> String {
+    let terms = polynomial
+        .terms()
+        .iter()
+        .map(|term| {
+            format!(
+                "({}, {})",
+                term.coeff.as_canonical_u64(),
+                lean_nat_list(term.exps.iter().map(|&power| power as usize))
+            )
+        })
+        .collect::<Vec<_>>();
+    format!("[{}]", terms.join(",\n   "))
+}
+
+fn lean_selective_rows(rows: &[SelectiveRowArtifact]) -> String {
+    let rows = rows
+        .iter()
+        .map(|row| {
+            let ports = row
+                .matrix_row()
+                .ports()
+                .iter()
+                .map(|terms| {
+                    lean_field_terms(
+                        &terms
+                            .iter()
+                            .map(|term| (term.column(), term.coefficient()))
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            format!("[{}]", ports.join(", "))
+        })
+        .collect::<Vec<_>>();
+    format!("[{}]", rows.join(",\n   "))
+}
+
+fn render_selective() -> String {
+    let (builder, _, _) = build(SAMPLE);
+    let lowered = lower_field_r1cs(builder, &[]).expect("lower selective shifted-ternary fixture");
+    let (shape, assignment) = lowered.into_parts();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&[shape.clone(), shape], 0, D, 0)
+        .expect("compile selective shifted-ternary fixture");
+    let encoded = relation
+        .encode(0, &assignment)
+        .expect("encode selected arm");
+    assert!(relation.is_satisfied(&encoded), "selected honest arm");
+
+    let snapshot = relation
+        .selective_snapshot()
+        .expect("checked selective snapshot");
+    let [opening] = snapshot.compiler_audit().canonical_openings()[0].as_slice() else {
+        panic!("one memoized opening in selected arm")
+    };
+    assert_eq!(opening.digit_coordinates().len(), 41);
+    assert_eq!(opening.borrow_coordinates().len(), 20);
+    assert_eq!(opening.coordinate_count(), 61);
+    assert_eq!(opening.emitted_rows().len(), 21);
+    let coordinates = opening
+        .digit_coordinates()
+        .iter()
+        .chain(opening.borrow_coordinates())
+        .copied()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(coordinates.len(), 61, "all compact coordinates are distinct");
+
+    let rows = opening
+        .emitted_rows()
+        .map(|row| {
+            snapshot
+                .materialize_row(row)
+                .expect("materialize final canonical row")
+        })
+        .collect::<Vec<_>>();
+    assert!(rows.iter().all(|row| {
+        row.family() == SelectiveEmittedRowFamily::ShiftedTernaryCanonical
+            && row.arm() == Some(0)
+            && row.matrix_row().ports().len() == 13
+    }));
+    assert_eq!(snapshot.structure().f.arity(), 13);
+    assert_eq!(snapshot.structure().f.terms().len(), 66);
+
+    let payload = format!(
+        "def structureRowCount : Nat := {}\n\
+         def structureColumnCount : Nat := {}\n\
+         def selectorColumn : Nat := {}\n\
+         def sourceField : Nat := {}\n\
+         def digitCoordinates : List Nat := {}\n\
+         def borrowCoordinates : List Nat := {}\n\
+         def canonicalRows : List Nat := {}\n\
+         def polynomialTerms : List (Nat × List Nat) :=\n  {}\n\
+         def rowPorts : List (List (List (Nat × Nat))) :=\n  {}",
+        snapshot.structure().n,
+        snapshot.structure().m,
+        snapshot.selector_cols()[0],
+        opening.source_field(),
+        lean_nat_list(opening.digit_coordinates().iter().copied()),
+        lean_nat_list(opening.borrow_coordinates().iter().copied()),
+        lean_nat_list(opening.emitted_rows()),
+        lean_sparse_polynomial_terms(&snapshot.structure().f),
+        lean_selective_rows(&rows),
+    );
+    let mut rendered = String::new();
+    rendered.push_str("import Nightstream.Implementation.R1CS.Core.Semantics\n\n");
+    rendered.push_str(
+        "/-! Generated exact selective shifted-ternary row artifact. Do not hand-edit.\n\n\
+Owns: one final 61-coordinate opening, its 21 physical rows, and the exact\n\
+13-port/66-term polynomial read from the compiled selective structure.\n\n\
+Does not own: row semantics, Split-NC truth, or production-profile multiplicity.\n\n\
+Emits constraints: no. Rust validates the checked compiler snapshot before rendering.\n-/\n\n",
+    );
+    rendered.push_str("namespace Nightstream.Implementation.R1CS.ShiftedTernarySelectiveArtifact\n\n");
+    writeln!(rendered, "def schemaVersion : Nat := {SELECTIVE_SCHEMA_VERSION}").expect("render");
+    writeln!(rendered, "def payloadSha256 : String := \"{}\"", sha256_hex(&payload)).expect("render");
+    rendered.push_str(&payload);
+    rendered.push_str("\n\nend Nightstream.Implementation.R1CS.ShiftedTernarySelectiveArtifact\n");
+    rendered
+}
+
 #[test]
 fn honest_and_forged_boundaries_are_pinned() {
     let (builder, _, _) = build(SAMPLE);
@@ -666,4 +793,23 @@ fn shifted_ternary_shared_slots_artifact_matches_committed_file() {
         std::fs::write(&expected, emitted).expect("write shifted-ternary shared-slot artifact");
         panic!("shifted-ternary shared-slot Lean artifact drifted; wrote {expected}");
     }
+}
+
+#[test]
+fn shifted_ternary_selective_artifact_matches_committed_file() {
+    let emitted = render_selective();
+    let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), SELECTIVE_ARTIFACT_REL_PATH);
+    let committed = std::fs::read_to_string(&path).unwrap_or_default();
+    if committed != emitted {
+        let expected = format!("{path}.expected");
+        std::fs::write(&expected, emitted).expect("write shifted-ternary selective artifact");
+        panic!("shifted-ternary selective Lean artifact drifted; wrote {expected}");
+    }
+}
+
+#[test]
+#[ignore = "deliberately rewrites reviewed generated Lean artifacts"]
+fn regenerate_shifted_ternary_selective_artifact() {
+    let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), SELECTIVE_ARTIFACT_REL_PATH);
+    std::fs::write(path, render_selective()).expect("write shifted-ternary selective artifact");
 }

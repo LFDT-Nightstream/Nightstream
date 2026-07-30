@@ -15,12 +15,15 @@ use neo_ccs::{CcsMatrix, CcsStructure};
 #[cfg(feature = "perf-timers")]
 use neo_fold_clean::config;
 #[cfg(feature = "perf-timers")]
-use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeChainBuilder, ROAD_A_COMMITTED_BIT_BUDGET};
+use neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeChainBuilder;
 use neo_fold_clean::frontends::r1cs_f_prime::R1csShape;
 use neo_fold_clean::paper::construction2::ProofState;
 use neo_fold_clean::paper::params::Params;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
+
+#[cfg(feature = "perf-timers")]
+const PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET: usize = 25_000_000;
 
 const PROFILE_WAT: &str = r#"
 (module
@@ -494,7 +497,7 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
     common::ccs_check_trace(&trace);
 
     let params = Params::for_ccs_shape_with(
-        ROAD_A_COMMITTED_BIT_BUDGET,
+        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
         13,
         8,
         config::MIN_EFFECTIVE_LAMBDA,
@@ -512,7 +515,7 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
 
     let entry_pc = common::single_function_entry_pc(&artifacts);
     let started = Instant::now();
-    let prep = neo_wasm::nebula::preprocess_seeded_unbounded_profile(
+    let prep = neo_wasm::nebula::preprocess_seeded(
         params.clone(),
         profile,
         &artifacts,
@@ -520,7 +523,7 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
         entry_pc,
         0x57a5_7018,
     )
-    .expect("unbounded production WASM + Nebula preprocessing");
+    .expect("production WASM + Nebula preprocessing");
     let preprocess_elapsed = started.elapsed();
 
     let relation = prep.inner().relation();
@@ -538,7 +541,7 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
     assert_eq!(structure.max_degree(), 8);
     assert_eq!(width.total_coordinates.div_ceil(D) * D, structure.m);
 
-    println!("\n== WASM + Nebula unbounded production-parameter prefix profile ==");
+    println!("\n== WASM + Nebula production-parameter prefix profile ==");
     println!(
         "parameters               kappa={} k_rho={} b={} B={} T={} lambda={} s={}",
         params.kappa(),
@@ -565,8 +568,10 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
         relation.public_input_len(),
         structure.t(),
         structure.max_degree(),
-        ROAD_A_COMMITTED_BIT_BUDGET,
-        structure.m.saturating_sub(ROAD_A_COMMITTED_BIT_BUDGET),
+        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
+        structure
+            .m
+            .saturating_sub(PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET),
     );
     println!(
         "SplitNc                  ell_n={} ell_m={} ell_d={} d_sc={} row_pad={} column_pad={}",

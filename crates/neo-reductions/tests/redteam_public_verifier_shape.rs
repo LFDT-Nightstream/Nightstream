@@ -124,6 +124,7 @@ fn build_me_from_z(
         y_zcol: Vec::new(),
         m_in,
         fold_digest: [0; 32],
+        adv: None,
     }
 }
 
@@ -392,6 +393,7 @@ fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
         c_step_coords: Vec::new(),
         u_offset: 0,
         u_len: 0,
+        adv: None,
     };
     let rhos = neo_reductions::api::rot_rhos_from_mats(&params, &[Mat::identity(D)], "ell_d narrowing regression")
         .expect("typed rho");

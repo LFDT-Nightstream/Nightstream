@@ -17,6 +17,7 @@ pub mod encoder;
 pub mod full_relation;
 pub mod instance;
 pub mod ivc;
+pub mod lean_manifest;
 pub mod lifecycle;
 pub mod lowering;
 mod selective;
@@ -63,10 +64,10 @@ pub use selective::{
     SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 pub use selective_audit::{
-    SelectiveArmRowMappingAudit, SelectiveArmWidthAudit, SelectiveCompilerAudit, SelectiveEmittedRowFamily,
-    SelectiveEmittedRowRunAudit, SelectiveFamilyWidthAudit, SelectiveLayoutAudit, SelectiveLowNormWidthAudit,
-    SelectiveRewriteAudit, SelectiveRewriteId, SelectiveRewriteKind, SelectiveRowMappingAudit,
-    SelectiveSourceRowDisposition, SelectiveSourceRowRunAudit, SelectiveTraceWidthAudit,
+    SelectiveArmRowMappingAudit, SelectiveArmWidthAudit, SelectiveCanonicalOpeningAudit, SelectiveCompilerAudit,
+    SelectiveEmittedRowFamily, SelectiveEmittedRowRunAudit, SelectiveFamilyWidthAudit, SelectiveLayoutAudit,
+    SelectiveLowNormWidthAudit, SelectiveRewriteAudit, SelectiveRewriteId, SelectiveRewriteKind,
+    SelectiveRowMappingAudit, SelectiveSourceRowDisposition, SelectiveSourceRowRunAudit, SelectiveTraceWidthAudit,
 };
 pub use selective_census::{
     SelectiveMatrixTag, SelectivePortCensus, SelectiveStructureCensus, SelectiveStructureCensusError,

@@ -35,6 +35,9 @@ where
     if params.b < 2 {
         return fail(format!("invalid decomposition base b={}", params.b));
     }
+    if let Err(error) = super::validate_ce_claim_shape("verify_dec_public: parent", s, column_point_len, parent) {
+        return fail(error);
+    }
     let k = children.len();
     if k == 0 {
         return fail("no children");
@@ -44,6 +47,21 @@ where
             "child count mismatch (expected k_rho={}, got {k})",
             params.k_rho
         ));
+    }
+    for (index, child) in children.iter().enumerate() {
+        if let Err(error) = super::validate_ce_claim_shape(
+            &format!("verify_dec_public: children[{index}]"),
+            s,
+            column_point_len,
+            child,
+        ) {
+            return fail(error);
+        }
+        if child.fold_digest != parent.fold_digest {
+            return fail(format!(
+                "child {index} fold digest does not match the parent transcript"
+            ));
+        }
     }
 
     let shared_children_r = match crate::engines::utils::shared_me_input_r(children, parent.r.len()) {
@@ -192,9 +210,9 @@ where
         }
     }
 
-    let Some(d_pad) = 1usize.checked_shl(ell_d as u32) else {
-        eprintln!("verify_dec_public failed: 2^ell_d overflow");
-        return false;
+    let d_pad = match super::checked_power_of_two("verify_dec_public ell_d", ell_d) {
+        Ok(value) => value,
+        Err(error) => return fail(error),
     };
     if wants_nc_point {
         if parent.y_zcol.len() != d_pad || parent.y_zcol[D..].iter().any(|&value| value != K::ZERO) {

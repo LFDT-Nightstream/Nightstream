@@ -826,6 +826,11 @@ noncomputable instance : RatCast F := ⟨Rat.castRec⟩
     fieldToZMod (a⁻¹) = (fieldToZMod a)⁻¹ := by
   simp [Inv.inv, fieldInv, zmodToField, fieldToZMod]
 
+private theorem field_inv_zero : (0 : F)⁻¹ = 0 := by
+  apply fieldToZMod_injective
+  rw [fieldToZMod_inv, fieldToZMod_zero]
+  exact inv_zero
+
 noncomputable instance : Field F :=
   Field.mk
     (div_eq_mul_inv := by
@@ -839,9 +844,7 @@ noncomputable instance : Field F :=
       exact mul_inv_cancel₀ (by
         intro h
         exact ha (fieldToZMod_injective h)))
-    (inv_zero := by
-      apply fieldToZMod_injective
-      simp)
+    (inv_zero := field_inv_zero)
     (nnqsmul := fun q a => (q : F) * a)
     (ratCast_def := by
       intro q

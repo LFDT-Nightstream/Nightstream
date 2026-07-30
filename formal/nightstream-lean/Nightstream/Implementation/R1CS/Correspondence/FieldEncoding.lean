@@ -7,6 +7,7 @@ import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.InactiveNoni
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.FreshAssignmentPacking
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.Phi81ColumnLayoutRefinement
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.Refinement.DerivedBorrow
+import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.Refinement.BorrowChunk
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.Refinement.OrdinaryPrivateField
 
 /-!
@@ -32,6 +33,7 @@ to the model theorems exported here.
 | `NormDischarged` | Centered alphabet follows from verifier-owned `b = 2` norm | no | semantic row discharge |
 | `DerivedNegative` | Reconstruct negative indicators from centered digits | no | candidate refinement |
 | `Refinement.DerivedBorrow` | Substitute reconstructed indicators into borrow equations with checked degree | no | candidate row schedule |
+| `Refinement.BorrowChunk` | Exact 21-row two-trit canonicality chain | no | model-level refinement |
 | `Refinement.OrdinaryPrivateField` | Exact 41-coordinate materializer, safe logical lowering, and same-index fresh-CCS authority contract | no | ordinary-private refinement boundary |
 | `LinearCompiler` | Transport arbitrary source rows through a proof-carrying 41-coordinate layout | no | generic compiler theorem |
 | `LayoutManifest` | Fail-closed source/encoded/CE ownership partitions for one generated branch | no | artifact interface |

@@ -553,13 +553,7 @@ private theorem vecAdd_vecScale_neg_eq_ofFn_sub
           simpa using (Lean.Grind.Fin.mul_comm (n := Goldilocks.q) (1 : F) (b[j]'hjB))
         _ = b[j]'hjB := by
           simpa using (Lean.Grind.Fin.mul_one (n := Goldilocks.q) (b[j]'hjB))
-    have hnegmul : (-1 : F) * b[j]'hjB = -(b[j]'hjB) := by
-      calc
-        (-1 : F) * b[j]'hjB = -(1 * b[j]'hjB) := by
-          simpa using (Lean.Grind.Fin.neg_mul (n := Goldilocks.q) (1 : F) (b[j]'hjB))
-        _ = -(b[j]'hjB) := by
-          simpa [hOneMul]
-    simpa [hnegmul] using
+    simpa [hOneMul] using
       (Lean.Grind.Fin.sub_eq_add_neg (n := Goldilocks.q) (a[j]'hjA) (b[j]'hjB)).symm
 
 theorem coeffSubNormBoundFromOperands_two_two_four :

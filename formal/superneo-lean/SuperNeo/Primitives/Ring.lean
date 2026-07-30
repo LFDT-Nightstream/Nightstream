@@ -544,7 +544,7 @@ private theorem neg_add_distrib (u v : F) : -(u + v) = (-u) + (-v) := by
     _ = ((- (1 : F)) * u) + ((- (1 : F)) * v) := by
       simpa using (Lean.Grind.Fin.left_distrib (n := Goldilocks.q) (-(1 : F)) u v)
     _ = (-u) + (-v) := by
-      simp [neg_one_mul]
+      rw [neg_one_mul, neg_one_mul]
 
 private theorem f_add_left_comm (a b c : F) : a + (b + c) = b + (a + c) := by
   calc

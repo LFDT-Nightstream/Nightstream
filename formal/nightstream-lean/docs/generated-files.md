@@ -36,7 +36,7 @@ The generator families are:
 | Fixed F' carrier-fixture NIFS/F' counterexample | `cargo test -p neo-fold-clean --release --test f_prime_fixed_carrier_nifs_lean_artifact` |
 | Canonical-u64 | `gadgets_lean_artifact` |
 | Seeded Phi81 | `gadgets_seeded_phi81_lean_artifact` |
-| Shifted ternary source and schema-3 isolated shared-slot lowering (20 residual pairs, one tail, 82 products) | `gadgets_shifted_ternary_lean_artifact` |
+| Shifted ternary source, exact 61-coordinate/21-row selective image, and schema-3 isolated shared-slot lowering | `gadgets_shifted_ternary_lean_artifact` |
 | Packed PiRLC Mod-5 leaf (20 source rows, six projected definitions, eight active rows, exact sparse polynomial) | `gadgets_packed_mod5_lean_artifact` |
 | PiRLC aggregate-acceptance leaf (arity 56, 40 role bindings, nine active rows, exact 25-term polynomial) | `gadgets_aggregate_acceptance_lean_artifact` |
 | Three-matrix diagnostic fixed-profile PiRLC aggregate outer image (15 challenge shards, 960 chunks, 720 source definitions, 16,560 selected physical rows) | `cargo test -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest -- aggregate_acceptance_outer_image::recursive_aggregate_acceptance_lean_outer_image_matches_sparse_production --exact --nocapture` |

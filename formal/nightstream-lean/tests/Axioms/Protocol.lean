@@ -1,5 +1,6 @@
 import Nightstream.HyperNova
 import Nightstream.Protocol
+import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.SemanticBoundary
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestBaseline.Context
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestBaseline.RunningAuthority
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.HonestBaseline.Sources
@@ -12,9 +13,11 @@ import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.Oblig
 import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveSemantics.Necessity.SideAnchor
 import Nightstream.Protocol.FPrime.XOut
 import Nightstream.Protocol.FPrime.Paper.CertificateVerifier
+import Nightstream.Protocol.FPrime.Paper.Completeness
 import Nightstream.Protocol.FPrime.Paper.Soundness
 import Nightstream.Protocol.FPrime.Paper.Necessity.OutputHash
 import Nightstream.Protocol.FPrime.Step
+import Nightstream.Protocol.Terminal.CE
 import tests.Axioms.Support
 
 /-!

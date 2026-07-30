@@ -41,6 +41,18 @@ while IFS= read -r -d '' file; do
 
   while IFS=: read -r line imported; do
     [[ -n "$imported" ]] || continue
+    if [[ "$relative" == "Protocol.lean" &&
+          "$imported" != "Nightstream.Protocol.FPrime.Authority" ]]; then
+      printf '%s:%s: public protocol facade may import only FPrime.Authority: %s\n' \
+        "$relative" "$line" "$imported" >&2
+      failed=1
+    fi
+    if [[ "$relative" == "Protocol/FPrime/Authority.lean" &&
+          "$imported" != "Nightstream.Protocol.FPrime.CanonicalVerifier.PaperNonInteractiveNifs" ]]; then
+      printf '%s:%s: F-prime authority facade has an unapproved direct import: %s\n' \
+        "$relative" "$line" "$imported" >&2
+      failed=1
+    fi
     target="${imported#Nightstream.}"
     if [[ "$imported" == "Nightstream" ]]; then
       target_layer="Umbrella"

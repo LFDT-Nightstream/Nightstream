@@ -388,8 +388,9 @@ pub struct FPrimeBaseInputs<'a> {
     /// Source image for F' public-boundary encodings. At this stage it
     /// backs `enc_inst` bits and selected u64 boundary counters only; it
     /// is not the full private `enc(F')` witness — internal F' computation
-    /// slots remain ordinary field values. See `encoding.md` for the generic
-    /// reference encoder and the production feasibility gate.
+    /// slots remain ordinary field values. The generic reference encoder lives
+    /// in `frontends/f_prime/low_norm_r1cs.rs`; production lowering lives in
+    /// `frontends/f_prime/gadget_native.rs`.
     pub source_image: &'a FPrimeSourceImage,
     /// Source-image word for `state.chunk_count_in` (Step 4).
     pub chunk_count_in_word: Word64Image,
@@ -735,7 +736,7 @@ pub fn enforce_construction2_f_prime_base_step_circuit(
     )
     .map_err(|error| Error::Inner(format!("canonical Construction-2 accumulator: {error}")))?;
     let zero_digest = crate::paper::digest::digest32_as_fields(
-        zero.accumulator_digest_for_relation_columns(relation.m())
+        zero.accumulator_digest_for_relation_shape(relation.n(), relation.m(), relation.t())
             .map_err(|error| Error::Inner(format!("canonical Construction-2 accumulator digest: {error}")))?,
     );
     enforce_f_prime_base_step_with_output_acc(builder, cfg, inputs, zero_digest)

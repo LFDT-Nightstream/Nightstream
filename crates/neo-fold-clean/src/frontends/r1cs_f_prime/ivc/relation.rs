@@ -1061,7 +1061,7 @@ impl R1csIvcRelation {
         // have fewer than 257 columns). Every later round uses the compiled
         // relation itself, and acceptance still requires exact stabilization.
         let variant = neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
-        // The delayed production codec has a fixed 25-element row point. The
+        // The delayed production codec has a fixed row-point width. The
         // matrix-independent seed must therefore start in that row domain;
         // otherwise the first synthesis round cannot encode its outgoing
         // pending family. This is only a verifier header -- no 2^24-row

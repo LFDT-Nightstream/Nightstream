@@ -17,6 +17,7 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
         c: commitment.clone(),
         x: vec![F::ZERO],
         m_in: 1,
+        adv: None,
     };
     let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
     let malformed = CeClaim {
@@ -33,6 +34,7 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
         y_zcol: Vec::new(),
         m_in: 1,
         fold_digest: [0; 32],
+        adv: None,
     };
     let proof = PiCcsProof::new(Vec::new(), None);
 
@@ -63,6 +65,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_y_ring() {
         c: commitment.clone(),
         x: vec![F::ZERO],
         m_in: 1,
+        adv: None,
     };
     let ell_n = structure.n.next_power_of_two().max(2).trailing_zeros() as usize;
     let claim = CeClaim {
@@ -79,6 +82,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_y_ring() {
         y_zcol: Vec::new(),
         m_in: 1,
         fold_digest: [0; 32],
+        adv: None,
     };
     let output = claim.clone();
     let proof = PiCcsProof::new(Vec::new(), None);

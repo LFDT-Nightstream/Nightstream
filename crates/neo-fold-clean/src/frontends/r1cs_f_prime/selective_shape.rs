@@ -17,16 +17,103 @@
 //! | Exact rows | `PreparedSelectiveRows::total_rows` | no | Prepared source-row plan |
 //! | CCS polynomial | `selective_polynomial` | no | Fixed selective gate vocabulary |
 
+use std::collections::BTreeMap;
+
 use neo_ccs::{SparsePoly, Term};
 use neo_math::{D, F};
 use p3_field::{Field, PrimeCharacteristicRing};
 
 use super::super::lowering::LowNormR1csError;
 use super::{
-    prepare_selective_layout, SelectiveCompilerAudit, SparseR1cs, A, B, BIT, C, CANON_BORROW, CANON_BOUND_DIGIT,
-    CANON_DIGIT, CANON_NEXT_BORROW, CENTERED_UNIT, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT,
-    SELECTIVE_ARITY,
+    prepare_selective_layout, SelectiveCompilerAudit, SparseR1cs, A, B, BIT, C, CANON_CHUNK_CLASS_SELECTORS,
+    CENTERED_UNIT, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT, SELECTIVE_ARITY,
 };
+
+type BorrowMonomial = [u32; 4];
+type BorrowPolynomial = BTreeMap<BorrowMonomial, F>;
+
+fn borrow_constant(value: F) -> BorrowPolynomial {
+    BTreeMap::from([([0; 4], value)])
+}
+
+fn borrow_variable(index: usize) -> BorrowPolynomial {
+    let mut powers = [0; 4];
+    powers[index] = 1;
+    BTreeMap::from([(powers, F::ONE)])
+}
+
+fn borrow_add_scaled(target: &mut BorrowPolynomial, source: &BorrowPolynomial, scale: F) {
+    for (&monomial, &coefficient) in source {
+        let entry = target.entry(monomial).or_insert(F::ZERO);
+        *entry += scale * coefficient;
+        if *entry == F::ZERO {
+            target.remove(&monomial);
+        }
+    }
+}
+
+fn borrow_mul(left: &BorrowPolynomial, right: &BorrowPolynomial) -> BorrowPolynomial {
+    let mut product = BorrowPolynomial::new();
+    for (&left_monomial, &left_coefficient) in left {
+        for (&right_monomial, &right_coefficient) in right {
+            let monomial = core::array::from_fn(|index| left_monomial[index] + right_monomial[index]);
+            let entry = product.entry(monomial).or_insert(F::ZERO);
+            *entry += left_coefficient * right_coefficient;
+            if *entry == F::ZERO {
+                product.remove(&monomial);
+            }
+        }
+    }
+    product
+}
+
+fn fixed_borrow_step(bound: usize, digit: &BorrowPolynomial, borrow: &BorrowPolynomial) -> BorrowPolynomial {
+    let half = F::from_u64(2).inverse();
+    let mut digit_minus_one = digit.clone();
+    borrow_add_scaled(&mut digit_minus_one, &borrow_constant(F::ONE), -F::ONE);
+    let negative = {
+        let mut value = borrow_mul(digit, &digit_minus_one);
+        for coefficient in value.values_mut() {
+            *coefficient *= half;
+        }
+        value
+    };
+    let mut positive = digit.clone();
+    borrow_add_scaled(&mut positive, &negative, F::ONE);
+    let mut zero = borrow_constant(F::ONE);
+    borrow_add_scaled(&mut zero, digit, -F::ONE);
+    borrow_add_scaled(&mut zero, &negative, -F::from_u64(2));
+
+    match bound {
+        0 => {
+            let mut one_minus_borrow = borrow_constant(F::ONE);
+            borrow_add_scaled(&mut one_minus_borrow, borrow, -F::ONE);
+            let mut result = borrow_constant(F::ONE);
+            borrow_add_scaled(&mut result, &borrow_mul(&negative, &one_minus_borrow), -F::ONE);
+            result
+        }
+        1 => {
+            let mut result = positive;
+            borrow_add_scaled(&mut result, &borrow_mul(&zero, borrow), F::ONE);
+            result
+        }
+        2 => borrow_mul(&positive, borrow),
+        _ => unreachable!("base-3 bound digit"),
+    }
+}
+
+/// `borrow_out - step(h₁, d₁, step(h₀, d₀, borrow_in))`.
+fn fixed_two_trit_borrow_relation(bound: usize) -> BorrowPolynomial {
+    let digit_zero = borrow_variable(0);
+    let digit_one = borrow_variable(1);
+    let borrow_in = borrow_variable(2);
+    let borrow_out = borrow_variable(3);
+    let first = fixed_borrow_step(bound % 3, &digit_zero, &borrow_in);
+    let second = fixed_borrow_step((bound / 3) % 3, &digit_one, &first);
+    let mut relation = borrow_out;
+    borrow_add_scaled(&mut relation, &second, -F::ONE);
+    relation
+}
 
 pub(crate) struct SelectiveLowNormShape {
     pub rows: usize,
@@ -95,38 +182,22 @@ pub(crate) fn selective_polynomial() -> SparsePoly<F> {
         terms.push(term(F::ONE, &[(EVAL_SELECTOR, 1), (left, 1), (right, 1)]));
     }
 
-    // Exact shifted-base-3 transition over
-    // d,h in {-1,0,1}, b in {0,1}:
-    //
-    //   b' = [d + 1 + b > h + 1].
-    //
-    // This is the Lagrange interpolation of the 18-point transition table.
-    // GENERAL_SELECTOR isolates these rows from the evaluation ports reused
-    // below. Its degree is six, within the existing degree-eight relation.
-    let half = F::from_u64(2).inverse();
-    let quarter = half * half;
-    let transition = [
-        (half, vec![(CANON_BOUND_DIGIT, 1)]),
-        (F::ONE, vec![(CANON_NEXT_BORROW, 1)]),
-        (-F::ONE, vec![(CANON_BORROW, 1)]),
-        (-half, vec![(CANON_DIGIT, 1)]),
-        (-half, vec![(CANON_BOUND_DIGIT, 2)]),
-        (quarter, vec![(CANON_DIGIT, 1), (CANON_BOUND_DIGIT, 1)]),
-        (-half, vec![(CANON_DIGIT, 2)]),
-        (F::ONE, vec![(CANON_BORROW, 1), (CANON_BOUND_DIGIT, 2)]),
-        (quarter, vec![(CANON_DIGIT, 1), (CANON_BOUND_DIGIT, 2)]),
-        (-half, vec![(CANON_DIGIT, 1), (CANON_BORROW, 1), (CANON_BOUND_DIGIT, 1)]),
-        (-quarter, vec![(CANON_DIGIT, 2), (CANON_BOUND_DIGIT, 1)]),
-        (F::ONE, vec![(CANON_DIGIT, 2), (CANON_BORROW, 1)]),
-        (F::from_u64(3) * quarter, vec![(CANON_DIGIT, 2), (CANON_BOUND_DIGIT, 2)]),
-        (
-            -F::from_u64(3) * half,
-            vec![(CANON_DIGIT, 2), (CANON_BORROW, 1), (CANON_BOUND_DIGIT, 2)],
-        ),
-    ];
-    for (coefficient, mut powers) in transition {
-        powers.push((GENERAL_SELECTOR, 1));
-        terms.push(term(coefficient, &powers));
+    // Pair adjacent radix-3 transitions. Bounds 5..=8 are normalized to
+    // 3..=0 by complementing both trits and the endpoint borrows. The five
+    // class ports are zero on ordinary GENERAL rows, while GENERAL is zero on
+    // evaluation rows. Each term therefore carries both selectors. The
+    // composed relation has degree five, hence degree seven after gating.
+    let variables = [CENTERED_UNIT, A, BIT, C];
+    for (bound, &class_selector) in CANON_CHUNK_CLASS_SELECTORS.iter().enumerate() {
+        for (monomial, coefficient) in fixed_two_trit_borrow_relation(bound) {
+            let mut powers = vec![(GENERAL_SELECTOR, 1), (class_selector, 1)];
+            for (variable, power) in variables.into_iter().zip(monomial) {
+                if power != 0 {
+                    powers.push((variable, power));
+                }
+            }
+            terms.push(term(coefficient, &powers));
+        }
     }
     SparsePoly::new(SELECTIVE_ARITY, terms)
 }

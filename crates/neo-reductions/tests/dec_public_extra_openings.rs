@@ -52,7 +52,8 @@ fn verify_dec_public_rejects_stale_ct_shell_and_checks_y_aux_and_x_entries() {
     let s = CcsStructure::new(vec![Mat::identity(D)], neo_ccs::poly::SparsePoly::new(1, vec![])).unwrap();
 
     let m_in = 1usize;
-    let r = vec![K::from(F::from_u64(3)), K::from(F::from_u64(5))];
+    let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let r = vec![K::from(F::from_u64(3)); ell_n];
 
     let t_eff = 3usize; // pretend we have extra appended openings
 
@@ -251,7 +252,8 @@ fn verify_dec_public_ignores_y_zcol_but_checks_s_col_when_present() {
     let s = CcsStructure::new(vec![Mat::identity(D)], neo_ccs::poly::SparsePoly::new(1, vec![])).unwrap();
 
     let m_in = 1usize;
-    let r = vec![K::from(F::from_u64(3)), K::from(F::from_u64(5))];
+    let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let r = vec![K::from(F::from_u64(3)); ell_n];
     let ell_m = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
     let s_col = vec![K::from(F::from_u64(7)); ell_m];
     let t_eff = 1usize;

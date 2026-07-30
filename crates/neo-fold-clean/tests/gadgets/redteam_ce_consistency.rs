@@ -34,6 +34,7 @@ fn zero_eval_claim(z: &Mat<F>, X: Mat<F>, m_in: usize, r: Vec<K>) -> CeClaim<Vec
         c_step_coords: vec![],
         u_offset: 0,
         u_len: 0,
+        adv: None,
     }
 }
 

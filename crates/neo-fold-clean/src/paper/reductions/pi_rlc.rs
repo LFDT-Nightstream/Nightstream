@@ -142,7 +142,7 @@ pub struct ResidentOutput<Resident> {
 }
 
 /// Post-mix β schedule for the projection-checked commitment
-/// combination (encoding.md candidate E; security-note Lemma 5 §4b).
+/// combination (`specs/nebula-superneo-security-note.md`, Lemma 5 §4b).
 /// Nothing here rides the wire: the verifier recomputes every field
 /// from ρ and the input commitments, so a carried value can never
 /// out-vote the transcript.
@@ -1005,7 +1005,7 @@ fn validate_s_col_shape_one(
     s: &crate::paper::relations::Structure,
     claim: &CeClaim,
 ) -> Result<(), Error> {
-    let expected = crate::paper::construction2::running::split_nc_column_point_len(s.m);
+    let expected = crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t());
     if claim.s_col.len() != expected {
         return Err(Error::SColShape(owner));
     }

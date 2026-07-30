@@ -20,7 +20,7 @@
 //! | CCS matrix emission | `structure::build_structure` | yes | Retained source rows and selectors |
 //! | Width audit | selective audit entrypoints | no | Exact prepared layout |
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use neo_ccs::{CcsMatrix, CscMat};
 use neo_math::{D, F};
@@ -28,8 +28,9 @@ use p3_field::{Field, PrimeCharacteristicRing};
 
 use super::lowering::{DerivedProductSumEncoding, LowNormR1csError, MultiBranchLowNormR1cs};
 use super::selective_audit::{
-    retained_trace_widths, row_family_width_audits, SelectiveArmWidthAudit, SelectiveCompilerAudit,
-    SelectiveLayoutAudit, SelectiveLowNormWidthAudit,
+    retained_trace_widths, row_family_width_audits, SelectiveArmWidthAudit, SelectiveCanonicalOpeningAudit,
+    SelectiveCompilerAudit, SelectiveLayoutAudit, SelectiveLowNormWidthAudit, SelectiveRewriteKind,
+    SelectiveRowMappingAudit,
 };
 use super::SparseR1cs;
 use crate::engine::r1cs_circuit::builder::{
@@ -80,6 +81,8 @@ pub(crate) use shape::{
 
 pub(super) const EVAL_GROUP_SIZE: usize = 5;
 const BALANCED_FIELD_WIDTH: usize = 41;
+const CANON_CHUNK_WIDTH: usize = 2;
+const CANON_CHUNK_COUNT: usize = BALANCED_FIELD_WIDTH.div_ceil(CANON_CHUNK_WIDTH);
 const BINARY_FIELD_WIDTH: usize = 64;
 const BIT: usize = 0;
 const GENERAL_SELECTOR: usize = 1;
@@ -89,13 +92,10 @@ const C: usize = 4;
 const SBOX_INPUT: usize = 5;
 const CENTERED_UNIT: usize = 6;
 const EVAL_SELECTOR: usize = 7;
-// These ports are shared with the last three evaluation pairs. Canonical
-// rows set GENERAL_SELECTOR and leave EVAL_SELECTOR zero; evaluation rows do
-// the converse, so the two direct row families remain disjoint.
-const CANON_DIGIT: usize = 8;
-const CANON_BORROW: usize = 9;
-const CANON_NEXT_BORROW: usize = 10;
-const CANON_BOUND_DIGIT: usize = 11;
+// Two-trit canonical rows use these otherwise ordinary evaluation-factor
+// ports as one-hot selectors for the normalized base-9 bound in 0..=4.
+// GENERAL_SELECTOR gates the family, so evaluation rows remain disjoint.
+const CANON_CHUNK_CLASS_SELECTORS: [usize; 5] = [8, 9, 10, 11, 12];
 const EVAL_PAIRS: [(usize, usize); EVAL_GROUP_SIZE] =
     [(BIT, A), (B, SBOX_INPUT), (CENTERED_UNIT, 8), (9, 10), (11, 12)];
 const SELECTIVE_ARITY: usize = 13;
@@ -325,13 +325,28 @@ fn prepare_selective_layout(
     let shared_private_start = cursor;
 
     for offset in 0..shared_private_fields {
-        let source = arms[0].m_in + offset;
-        let width = widths[0][source];
-        let slot = Some((cursor, width));
+        let shared_cursor = cursor;
+        let mut shared_slot = None;
         for (arm_index, arm) in arms.iter().enumerate() {
-            slots[arm_index][arm.m_in + offset] = slot;
+            let source = arm.m_in + offset;
+            let mut arm_cursor = shared_cursor;
+            assign_slot(
+                &mut slots[arm_index],
+                &widths[arm_index],
+                &aliases[arm_index],
+                &equal_aliases[arm_index],
+                source,
+                &mut arm_cursor,
+            )?;
+            if arm_index == 0 {
+                cursor = arm_cursor;
+                shared_slot = slots[arm_index][source];
+            } else if arm_cursor != cursor || slots[arm_index][source] != shared_slot {
+                return Err(trace_error(
+                    "shared private decomposition aliases disagree across selective arms",
+                ));
+            }
         }
-        cursor += width;
     }
     let branch_start = cursor;
     let mut arm_cursors = vec![branch_start; arms.len()];
@@ -490,6 +505,7 @@ fn prepare_selective_layout(
         cursor,
     )?;
     let row_audit = prepared_rows.audit();
+    let canonical_openings = audit_canonical_openings(arms, &slots, &row_audit, cursor)?;
     Ok(SelectiveLayout {
         plans,
         slots,
@@ -506,11 +522,122 @@ fn prepare_selective_layout(
             layout_audit,
             width_audit,
             row_audit,
+            canonical_openings,
             arms.iter()
                 .map(|arm| arm.physical_stage_ranges().to_vec())
                 .collect(),
         ),
     })
+}
+
+fn audit_canonical_openings(
+    arms: &[SparseR1cs],
+    slots: &[Vec<Option<(usize, usize)>>],
+    rows: &SelectiveRowMappingAudit,
+    columns: usize,
+) -> Result<Vec<Vec<SelectiveCanonicalOpeningAudit>>, LowNormR1csError> {
+    let mut result = Vec::with_capacity(arms.len());
+    for (arm_index, arm) in arms.iter().enumerate() {
+        let rewrites = rows
+            .rewrites()
+            .iter()
+            .filter(|rewrite| {
+                rewrite.arm() == arm_index && rewrite.kind() == SelectiveRewriteKind::ShiftedTernaryCanonical
+            })
+            .collect::<Vec<_>>();
+        if rewrites.len() != arm.shifted_ternary_canonical_traces().len() {
+            return Err(trace_error("shifted-ternary trace and emitted-rewrite counts disagree"));
+        }
+
+        let mut openings = Vec::with_capacity(rewrites.len());
+        for (trace, rewrite) in arm.shifted_ternary_canonical_traces().iter().zip(rewrites) {
+            let decomposition = arm
+                .balanced_ternary_decompositions()
+                .iter()
+                .find(|decomposition| decomposition.digit_cols[0] == trace.digit_columns_start)
+                .ok_or_else(|| trace_error("shifted-ternary trace has no source-field decomposition"))?;
+            if decomposition
+                .digit_cols
+                .iter()
+                .copied()
+                .ne(trace.digit_columns_start..trace.digit_columns_start + BALANCED_FIELD_WIDTH)
+            {
+                return Err(trace_error("shifted-ternary digit columns are not one exact word"));
+            }
+
+            let digit_coordinates = decomposition
+                .digit_cols
+                .iter()
+                .map(|&column| match slots[arm_index][column] {
+                    Some((coordinate, 1)) => Ok(coordinate),
+                    _ => Err(trace_error("shifted-ternary digit does not own one final coordinate")),
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let Some((source_coordinate, source_width)) = slots[arm_index][decomposition.field_col] else {
+                return Err(trace_error("shifted-ternary source field has no final low-norm slot"));
+            };
+            if source_width != BALANCED_FIELD_WIDTH
+                || digit_coordinates
+                    .iter()
+                    .enumerate()
+                    .any(|(digit, &coordinate)| coordinate != source_coordinate + digit)
+            {
+                return Err(trace_error(&format!(
+                    "arm {arm_index} shifted-ternary field {} uses slot ({source_coordinate}, {source_width}) \
+                     but its digit coordinates are not that exact alias",
+                    decomposition.field_col
+                )));
+            }
+            for column in trace.negative_columns_start..trace.negative_columns_start + BALANCED_FIELD_WIDTH {
+                if slots[arm_index][column].is_some() {
+                    return Err(trace_error(
+                        "shifted-ternary negative indicator survived selective lowering",
+                    ));
+                }
+            }
+
+            let mut borrow_coordinates = Vec::with_capacity(CANON_CHUNK_COUNT - 1);
+            for index in 0..BALANCED_FIELD_WIDTH - 1 {
+                let slot = slots[arm_index][trace.borrow_columns_start + index];
+                if index % CANON_CHUNK_WIDTH == 0 {
+                    if slot.is_some() {
+                        return Err(trace_error(
+                            "internal shifted-ternary borrow survived selective lowering",
+                        ));
+                    }
+                } else {
+                    let Some((coordinate, 1)) = slot else {
+                        return Err(trace_error(
+                            "shifted-ternary chunk endpoint does not own one final coordinate",
+                        ));
+                    };
+                    borrow_coordinates.push(coordinate);
+                }
+            }
+            if digit_coordinates.len() != BALANCED_FIELD_WIDTH
+                || borrow_coordinates.len() != CANON_CHUNK_COUNT - 1
+                || rewrite.emitted_rows().len() != CANON_CHUNK_COUNT
+            {
+                return Err(trace_error("shifted-ternary compact geometry drifted"));
+            }
+            let mut opening_coordinates = BTreeSet::new();
+            for &coordinate in digit_coordinates.iter().chain(&borrow_coordinates) {
+                if coordinate >= columns || !opening_coordinates.insert(coordinate) {
+                    return Err(trace_error(
+                        "one shifted-ternary opening overlaps itself or escapes the final assignment",
+                    ));
+                }
+            }
+            openings.push(SelectiveCanonicalOpeningAudit::new(
+                decomposition.field_col,
+                digit_coordinates,
+                borrow_coordinates,
+                rewrite.emitted_rows(),
+            ));
+        }
+        result.push(openings);
+    }
+    Ok(result)
 }
 
 fn selective_arm_plan(
@@ -605,8 +732,10 @@ fn selective_arm_plan(
         for column in trace.digit_columns_start..digit_end {
             eliminated[column] = false;
         }
-        for column in trace.borrow_columns_start..borrow_end {
-            eliminated[column] = false;
+        for (index, column) in (trace.borrow_columns_start..borrow_end).enumerate() {
+            // One retained endpoint serves each two-trit transition. Borrows
+            // internal to a pair are exact polynomial substitutions.
+            eliminated[column] = index % 2 == 0;
         }
     }
     for col in 1..arm.m {
@@ -633,13 +762,8 @@ fn selective_arm_plan(
             }
         }
     }
-    let canonical_sources = arm
-        .canonical_u64_decompositions()
-        .iter()
-        .map(|decomposition| decomposition.field_col)
-        .collect::<std::collections::HashSet<_>>();
     for decomposition in arm.balanced_ternary_decompositions() {
-        if widths[decomposition.field_col] != 0 && !canonical_sources.contains(&decomposition.field_col) {
+        if widths[decomposition.field_col] != 0 {
             widths[decomposition.field_col] = BALANCED_FIELD_WIDTH;
         }
         for &digit_col in &decomposition.digit_cols {
@@ -669,6 +793,14 @@ fn selective_arm_plan(
     widths[arm.m_in..shared_bit_end].fill(1);
     centered[..shared_bit_end].fill(false);
     let equality_roots = propagate_low_norm_equalities(arm, &mut widths, &mut centered, shared_bit_end)?;
+    for decomposition in arm.balanced_ternary_decompositions() {
+        if decomposition.field_col >= shared_bit_end && widths[decomposition.field_col] != 0 {
+            // The Ajtai word already needs these 41 coordinates. Keep them as
+            // the authoritative field slot even when an equality class also
+            // contains a bit, so the digit word aliases the field exactly.
+            widths[decomposition.field_col] = BALANCED_FIELD_WIDTH;
+        }
+    }
     let mut removed_rows = skipped_selective_rows(arm)?;
     for definition in &definitions.entries {
         if let Some(row) = definition.row {
@@ -1038,14 +1170,10 @@ fn decomposition_aliases(
         if *field_col == 0 || widths[*field_col] != BALANCED_FIELD_WIDTH {
             continue;
         }
-        if (arm.m_in..shared_end).contains(field_col) {
-            continue;
-        }
         let usable = digit_cols.iter().all(|&digit_col| {
             digit_col > *field_col
                 && digit_col < arm.m
                 && digit_col >= arm.m_in
-                && !(arm.m_in..shared_end).contains(&digit_col)
                 && widths[digit_col] == 1
                 && aliases[digit_col].is_none()
         });

@@ -625,10 +625,12 @@ pub fn lower_field_r1cs(
                 new_start
             };
             crate::engine::r1cs_circuit::builder::ShiftedTernaryCanonicalTrace {
+                field_column: old_to_new[trace.field_column],
                 digit_columns_start: remap_contiguous(trace.digit_columns_start, BALANCED_TERNARY_FIELD_WIDTH),
                 negative_columns_start: remap_contiguous(trace.negative_columns_start, BALANCED_TERNARY_FIELD_WIDTH),
                 borrow_columns_start: remap_contiguous(trace.borrow_columns_start, BALANCED_TERNARY_FIELD_WIDTH - 1),
                 digit_rows_start: trace.digit_rows_start,
+                reconstruction_row: trace.reconstruction_row,
                 transition_rows_start: trace.transition_rows_start,
             }
         })

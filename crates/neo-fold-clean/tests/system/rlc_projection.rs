@@ -1,5 +1,5 @@
-//! Π_RLC commitment combination, projection-checked — Road A Unit 1
-//! (encoding.md candidate E; security-note Lemma 5).
+//! Π_RLC commitment combination, projection-checked.
+//! Security argument: `specs/nebula-superneo-security-note.md`, Lemma 5 §4b.
 //!
 //! The projection variant must accept exactly the combined commitment
 //! the trusted Toom-3 D²-materialization variant accepts, reject any

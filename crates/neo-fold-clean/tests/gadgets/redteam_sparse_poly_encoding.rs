@@ -426,13 +426,14 @@ fn mixed_direct_sum_rejects_zero_mixing_scalar() {
 /// wrapping the output row domain and panicking while embedding entries.
 #[test]
 fn direct_sum_rejects_dimension_overflow_without_panicking() {
-    fn sparse_rows(nrows: usize, row_idx: Vec<usize>) -> CcsStructure<F> {
+    fn sparse_rows(nrows: usize, row_idx: Vec<u32>) -> CcsStructure<F> {
         let nnz = row_idx.len();
+        let nnz_u32 = u32::try_from(nnz).expect("test fixture has at most u32::MAX entries");
         CcsStructure::new_sparse(
             vec![CcsMatrix::Csc(CscMat {
                 nrows,
                 ncols: 1,
-                col_ptr: vec![0, nnz],
+                col_ptr: vec![0, nnz_u32],
                 row_idx,
                 vals: vec![F::ONE; nnz],
             })],

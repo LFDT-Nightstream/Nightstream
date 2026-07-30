@@ -590,6 +590,7 @@ fn native_recursive_step_rejects_counter_modulus_fold_replay() {
 
     let replayed = neo_fold_clean::paper::construction2::StepProof {
         fold: honest_step.fold,
+        nebula_open: honest_step.nebula_open,
         semantic_state_digest: honest_step.semantic_state_digest,
         x_out: aliased_step.x_out,
     };

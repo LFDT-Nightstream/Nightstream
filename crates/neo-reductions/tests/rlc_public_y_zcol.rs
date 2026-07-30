@@ -21,7 +21,8 @@ fn rlc_public_mixes_y_zcol_when_present() {
     let flat_column_point_len = column_point_len(&s);
 
     let m_in = 1usize;
-    let r = vec![K::from(F::from_u64(3)), K::from(F::from_u64(5))];
+    let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let r = vec![K::from(F::from_u64(3)); ell_n];
     let s_col = vec![K::from(F::from_u64(7)); flat_column_point_len];
 
     let mut X0 = Mat::zero(D, m_in, F::ZERO);
@@ -124,7 +125,8 @@ fn rlc_public_matches_rejects_y_zcol_and_s_col_shell_tamper() {
     let flat_column_point_len = column_point_len(&s);
 
     let m_in = 1usize;
-    let r = vec![K::from(F::from_u64(3)), K::from(F::from_u64(5))];
+    let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let r = vec![K::from(F::from_u64(3)); ell_n];
     let s_col = vec![K::from(F::from_u64(7)); flat_column_point_len];
 
     let mut X0 = Mat::zero(D, m_in, F::ZERO);

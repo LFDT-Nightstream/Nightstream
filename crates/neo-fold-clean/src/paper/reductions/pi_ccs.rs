@@ -615,7 +615,7 @@ fn validate_clean_split_nc_claim(s: &Structure, claim: &CeClaim) -> Result<(), E
 fn validate_clean_split_nc_claim_core(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
     let d_pad = D.next_power_of_two();
     let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
-    let ell_m = crate::paper::construction2::running::split_nc_column_point_len(s.m);
+    let ell_m = crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t());
 
     if claim.r.len() != ell_n {
         return Err(Error::Shape("CE r length must match SplitNc row point"));

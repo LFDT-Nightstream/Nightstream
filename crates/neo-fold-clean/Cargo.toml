@@ -39,6 +39,7 @@ rand_chacha    = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 rayon          = { workspace = true }
 serde          = { workspace = true }
+serde_json     = { workspace = true }
 thiserror      = { workspace = true }
 
 [dev-dependencies]
@@ -50,7 +51,6 @@ p3-field    = { workspace = true }
 rand_chacha = { workspace = true }
 bellpepper  = { workspace = true }
 sha2        = "0.10"
-serde_json  = { workspace = true }
 bincode     = { workspace = true }
 
 # Integration tests live under `tests/<category>/<file>.rs`. Cargo only picks
@@ -511,6 +511,10 @@ path = "tests/system/terminal_ce_merkle.rs"
 [[test]]
 name = "system_r1cs_compiler"
 path = "tests/system/r1cs_compiler.rs"
+
+[[test]]
+name = "system_lean_canonical_manifest"
+path = "tests/system/lean_canonical_manifest.rs"
 
 [[test]]
 name = "system_r1cs_stage_provenance"

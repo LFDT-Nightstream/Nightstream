@@ -27,8 +27,6 @@ pub const RAW_OLD_BLOCK_CHILD_COUNT: usize = 14;
 pub const RAW_OLD_BLOCK_ACTIVE_LANES: usize = D;
 pub const RAW_OLD_BLOCK_PADDED_LANES: usize = 64;
 pub const RAW_OLD_BLOCK_ZERO_PADDING_LANES: usize = RAW_OLD_BLOCK_PADDED_LANES - RAW_OLD_BLOCK_ACTIVE_LANES;
-pub const RAW_OLD_BLOCK_LOGICAL_COLUMNS: usize = 11_437_038;
-pub const RAW_OLD_BLOCK_PACKED_COLUMNS: usize = 211_797;
 
 /// Fixed production profile whose raw-witness dataflow is exported.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -222,17 +220,21 @@ pub fn validate_raw_old_block_execution(
 }
 
 fn validate_profile_geometry(witnesses: &[WitnessMat], logical_columns: usize) -> Result<(), String> {
+    let packed_columns = logical_columns.div_ceil(D);
+    let packed_point_len = packed_columns
+        .max(2)
+        .checked_next_power_of_two()
+        .map(|domain| domain.trailing_zeros() as usize);
     if D != 54
         || RAW_OLD_BLOCK_ZERO_PADDING_LANES != 10
-        || logical_columns != RAW_OLD_BLOCK_LOGICAL_COLUMNS
-        || logical_columns.div_ceil(D) != RAW_OLD_BLOCK_PACKED_COLUMNS
+        || packed_point_len.and_then(|point| point.checked_add(1)) != Some(BLOCK_PROJECTION_POINT_LEN)
         || witnesses.len() != RAW_OLD_BLOCK_CHILD_COUNT
     {
         return Err(format!(
             "raw old-block fixed profile drift: children={} lanes={D}+{} logical_columns={logical_columns} packed_columns={}",
             witnesses.len(),
             RAW_OLD_BLOCK_ZERO_PADDING_LANES,
-            logical_columns.div_ceil(D),
+            packed_columns,
         ));
     }
     Ok(())

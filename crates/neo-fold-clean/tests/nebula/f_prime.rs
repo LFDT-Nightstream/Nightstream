@@ -10,7 +10,7 @@ use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::frontends::nebula::circuit::StepData;
 use neo_fold_clean::frontends::nebula::f_prime::{
     enforce_nebula_f_prime_base_step, NebulaFPrimeBranch, NebulaFPrimeChainBuilder, NebulaFPrimePreprocessing,
-    NebulaFPrimeRelation, ROAD_A_COMMITTED_BIT_BUDGET,
+    NebulaFPrimeRelation, NebulaFPrimeRelationError,
 };
 use neo_fold_clean::frontends::nebula::fingerprint::Gammas;
 use neo_fold_clean::frontends::nebula::layout::{encode_delayed_f_prime_suffix, NebulaParams};
@@ -35,6 +35,7 @@ use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 const TRANSCRIPT_LABEL: &[u8] = b"nebula/f-prime/composed-test";
+const REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET: usize = 25_000_000;
 
 fn fields(seed: u64) -> [F; 4] {
     std::array::from_fn(|index| F::from_u64(seed + index as u64))
@@ -286,6 +287,19 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
 
     let (shape, field_assignment) = lowered.into_parts();
     let fixed = NebulaFPrimeRelation::compile(&shape, &shape, &shape, &plan).expect("fixed-shape Nebula F'");
+    let max_coordinates = fixed.structure().m - 1;
+    match NebulaFPrimeRelation::compile_with_coordinate_limit(&shape, &shape, &shape, &plan, max_coordinates) {
+        Err(NebulaFPrimeRelationError::CommittedCoordinateLimitExceeded {
+            required_coordinates,
+            max_coordinates: reported_limit,
+            ..
+        }) => {
+            assert_eq!(required_coordinates, fixed.structure().m);
+            assert_eq!(reported_limit, max_coordinates);
+        }
+        Err(other) => panic!("unexpected coordinate-limit error: {other}"),
+        Ok(_) => panic!("caller coordinate limit must reject before materialization"),
+    }
     support::install_ajtai_module(&fixed_params, fixed.structure());
     let fixed_prep = preprocess(fixed_params, fixed.structure().clone(), Some(fixed.public_input_len()))
         .expect("fixed relation preprocessing")
@@ -339,10 +353,10 @@ fn road_a_field_arms_must_fit_the_projection_budget() {
     );
 
     assert!(
-        width.total_coordinates <= ROAD_A_COMMITTED_BIT_BUDGET,
-        "the reduced-profile selective lowering requires {} committed coordinates, above the {} Road A budget: {audit:?}",
+        width.total_coordinates <= REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
+        "the reduced-profile selective lowering requires {} committed coordinates, above the {}-coordinate test target: {audit:?}",
         width.total_coordinates,
-        ROAD_A_COMMITTED_BIT_BUDGET,
+        REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
     );
 }
 
@@ -352,8 +366,12 @@ fn road_a_reduced_profile_fixed_point_stabilizes_within_budget() {
     let params = shape_test_params();
     let plan = NebulaPlan::new(nebula_params, vec![7], [0xD8; 32], params.kappa() as usize).expect("tiny Road A plan");
 
-    let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)
-        .expect("R2 requires one stabilized, selectively lowered authoritative relation");
+    let relation = NebulaFPrimeRelation::compile_fixed_point_with_coordinate_limit(
+        &params,
+        &plan,
+        REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
+    )
+    .expect("R2 requires one stabilized, selectively lowered authoritative relation within the test target");
     eprintln!(
         "Road A fixed point: {} coordinates, {} rows, {} matrices, degree {}",
         relation.structure().m,
@@ -381,13 +399,13 @@ fn road_a_reduced_profile_fixed_point_stabilizes_within_budget() {
         "reduced-profile rectangular verifier fixed point drifted"
     );
     assert!(
-        relation.structure().m <= ROAD_A_COMMITTED_BIT_BUDGET,
-        "selectively lowered fixed point is {} bits ({} rows, {} matrices, degree {}), budget is {}",
+        relation.structure().m <= REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
+        "selectively lowered fixed point has {} coordinates ({} rows, {} matrices, degree {}), test target is {}",
         relation.structure().m,
         relation.structure().n,
         relation.structure().t(),
         relation.structure().max_degree(),
-        ROAD_A_COMMITTED_BIT_BUDGET,
+        REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
     );
 }
 

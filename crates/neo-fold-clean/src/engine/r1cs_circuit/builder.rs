@@ -23,7 +23,7 @@
 //! | Seeded Φ81 block | deterministic linear A-matrix rows | emitted block plus B/C rows |
 //! | Encoding traces | row/column ownership only | none; consumers revalidate rows |
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use neo_ccs::SeededPhi81LinearBlock;
 use neo_math::F;
@@ -288,13 +288,16 @@ pub(crate) struct CenteredUnitTrace {
 ///
 /// The source R1CS remains authoritative. The selective compiler uses this
 /// schedule to replace the indicator-heavy alphabet and borrow rows with
-/// equivalent degree-eight CCS rows while retaining every borrow state.
+/// equivalent degree-seven CCS rows while retaining one borrow endpoint per
+/// two-trit chunk.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ShiftedTernaryCanonicalTrace {
+    pub(crate) field_column: usize,
     pub(crate) digit_columns_start: usize,
     pub(crate) negative_columns_start: usize,
     pub(crate) borrow_columns_start: usize,
     pub(crate) digit_rows_start: usize,
+    pub(crate) reconstruction_row: usize,
     pub(crate) transition_rows_start: usize,
 }
 
@@ -882,6 +885,51 @@ impl R1csBuilder {
 
     pub(crate) fn record_shifted_ternary_canonical_trace(&mut self, trace: ShiftedTernaryCanonicalTrace) {
         if self.record_structure {
+            assert_eq!(
+                trace.reconstruction_row,
+                trace.digit_rows_start + 2 * BALANCED_TERNARY_DIGITS,
+                "shifted-ternary reconstruction must follow its digit rows"
+            );
+            assert_eq!(
+                trace.transition_rows_start,
+                trace.reconstruction_row + 1,
+                "shifted-ternary transitions must follow reconstruction"
+            );
+            let canonical_row = |trips: &[(usize, usize, F)]| {
+                let mut terms = BTreeMap::new();
+                for &(_, column, coefficient) in trips
+                    .iter()
+                    .rev()
+                    .skip_while(|(row, _, _)| *row > trace.reconstruction_row)
+                    .take_while(|(row, _, _)| *row == trace.reconstruction_row)
+                {
+                    *terms.entry(column).or_insert(F::ZERO) += coefficient;
+                }
+                terms.retain(|_, coefficient| *coefficient != F::ZERO);
+                terms.into_iter().collect::<Vec<_>>()
+            };
+            let mut expected_a = Vec::with_capacity(BALANCED_TERNARY_DIGITS + 1);
+            expected_a.push((trace.field_column, F::ONE));
+            let mut power = F::ONE;
+            for digit in 0..BALANCED_TERNARY_DIGITS {
+                expected_a.push((trace.digit_columns_start + digit, -power));
+                power *= F::from_u64(3);
+            }
+            expected_a.sort_unstable_by_key(|term| term.0);
+            assert_eq!(
+                canonical_row(&self.a_trips),
+                expected_a,
+                "shifted-ternary reconstruction A row drifted"
+            );
+            assert_eq!(
+                canonical_row(&self.b_trips),
+                vec![(Var::ONE.col(), F::ONE)],
+                "shifted-ternary reconstruction B row drifted"
+            );
+            assert!(
+                canonical_row(&self.c_trips).is_empty(),
+                "shifted-ternary reconstruction C row drifted"
+            );
             self.shifted_ternary_canonical_traces.push(trace);
         }
     }
@@ -1186,6 +1234,7 @@ impl R1csBuilder {
             .collect()
     }
 
+    /// Emit one fixed linear R1CS row for each seeded-map output coefficient.
     pub(crate) fn enforce_seeded_phi81_a_block(&mut self, block: SeededPhi81LinearBlock, outputs: &[Var]) {
         assert_eq!(
             block.row_start(),

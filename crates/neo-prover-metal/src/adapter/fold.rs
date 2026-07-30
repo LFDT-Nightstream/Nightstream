@@ -478,11 +478,7 @@ impl MetalNifsProver {
             commit_on_metal: true,
         };
         Ok(PiDecPhase {
-            running: RunningInstance {
-                claims: children.claims,
-                witnesses: children.witnesses,
-                parent_authority: Some(parent_claim),
-            },
+            running: RunningInstance::new(children.claims, children.witnesses, Some(parent_claim), None),
             proof,
             resident_id,
             witness_snapshot,

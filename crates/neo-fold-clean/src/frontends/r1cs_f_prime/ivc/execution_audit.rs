@@ -70,8 +70,7 @@ use raw_old_block::capture_and_validate_raw_old_block_execution;
 pub use raw_old_block::{
     validate_raw_old_block_execution, R1csIvcRawOldBlockChildAudit, R1csIvcRawOldBlockExecutionAudit,
     R1csIvcRawOldBlockFieldDecoding, R1csIvcRawOldBlockProfile, RAW_OLD_BLOCK_ACTIVE_LANES, RAW_OLD_BLOCK_CHILD_COUNT,
-    RAW_OLD_BLOCK_LOGICAL_COLUMNS, RAW_OLD_BLOCK_PACKED_COLUMNS, RAW_OLD_BLOCK_PADDED_LANES,
-    RAW_OLD_BLOCK_ZERO_PADDING_LANES,
+    RAW_OLD_BLOCK_PADDED_LANES, RAW_OLD_BLOCK_ZERO_PADDING_LANES,
 };
 
 /// Compact identity and coordinate rule for one complete carried witness `Z`.

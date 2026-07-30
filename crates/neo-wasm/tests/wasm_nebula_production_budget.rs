@@ -4,9 +4,10 @@ mod common;
 
 use std::time::Instant;
 
-use neo_fold_clean::frontends::nebula::f_prime::ROAD_A_COMMITTED_BIT_BUDGET;
 use neo_fold_clean::{config, Params};
 use neo_math::D;
+
+const PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET: usize = 25_000_000;
 
 #[test]
 fn wasm_nebula_relation_stays_within_production_budget() {
@@ -17,7 +18,7 @@ fn wasm_nebula_relation_stays_within_production_budget() {
     );
     let entry_pc = common::single_function_entry_pc(&checked.artifacts);
     let params = Params::for_ccs_shape_with(
-        ROAD_A_COMMITTED_BIT_BUDGET,
+        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
         13,
         8,
         config::MIN_EFFECTIVE_LAMBDA,
@@ -25,13 +26,14 @@ fn wasm_nebula_relation_stays_within_production_budget() {
     )
     .expect("production WASM parameters");
     let started = Instant::now();
-    let prep = neo_wasm::nebula::preprocess_seeded(
+    let prep = neo_wasm::nebula::preprocess_seeded_with_coordinate_limit(
         params,
         neo_wasm::WasmNebulaProfile::production(),
         &checked.artifacts,
         &checked.run.initial_locals,
         entry_pc,
         0x57a5_7000,
+        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
     )
     .expect("production WASM + Nebula fixed point");
     let structure = prep.inner().relation().structure();
@@ -41,7 +43,7 @@ fn wasm_nebula_relation_stays_within_production_budget() {
         structure.m,
         started.elapsed()
     );
-    assert!(structure.m <= ROAD_A_COMMITTED_BIT_BUDGET);
+    assert!(structure.m <= PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET);
     assert_eq!((structure.n, structure.m), (3_260_306, 15_839_550));
     assert!(
         structure.n < structure.m,

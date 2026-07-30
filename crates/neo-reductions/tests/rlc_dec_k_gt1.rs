@@ -761,9 +761,11 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     let ell_m = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
     let mut parent_with_s_col = parent.clone();
     parent_with_s_col.s_col = vec![k(23); ell_m];
+    parent_with_s_col.y_zcol = vec![K::ZERO; 1usize << ell_d];
     let mut children_with_s_col = children.clone();
     for child in &mut children_with_s_col {
         child.s_col = parent_with_s_col.s_col.clone();
+        child.y_zcol = vec![K::ZERO; 1usize << ell_d];
     }
     assert!(verify_dec_public(
         &s,

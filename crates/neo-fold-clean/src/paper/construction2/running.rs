@@ -14,23 +14,34 @@ use thiserror::Error;
 use crate::paper::params::Params;
 use crate::paper::relations::{CeClaim, Structure, WitnessMat};
 
-/// Exact relation-column count of the production fixed-point profile that
-/// uses the block/lane delayed-projection accumulator family.
-pub(crate) const PRODUCTION_FIXED_POINT_RELATION_COLUMNS: usize = 11_437_038;
+fn challenge_len(size: usize) -> Option<usize> {
+    size.max(2)
+        .checked_next_power_of_two()
+        .map(|domain| domain.trailing_zeros() as usize)
+}
 
-pub(crate) fn uses_pending_accumulator_family_relation_columns(columns: usize) -> bool {
-    columns == PRODUCTION_FIXED_POINT_RELATION_COLUMNS
+/// Whether a relation has the verifier-fixed production block/lane profile.
+///
+/// This is a shape contract, not a sampled exact-width sentinel. The pending
+/// family codec separately checks its child count, public width, and claim
+/// geometry before accepting any value.
+pub(crate) fn uses_pending_accumulator_family_shape(rows: usize, columns: usize, matrices: usize) -> bool {
+    let packed_columns = columns.div_ceil(D);
+    challenge_len(rows) == Some(crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_ROW_POINT)
+        && challenge_len(packed_columns).and_then(|point| point.checked_add(1))
+            == Some(crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT)
+        && matrices == crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_MATRICES
 }
 
 pub fn uses_pending_accumulator_family(structure: &Structure) -> bool {
-    uses_pending_accumulator_family_relation_columns(structure.m)
+    uses_pending_accumulator_family_shape(structure.n, structure.m, structure.t())
 }
 
 /// Exact Split-NC column-point arity selected by the production relation.
 /// The delayed block/lane profile intentionally retains nineteen block
 /// coordinates even though the current live width fits in eighteen bits.
-pub(crate) fn split_nc_column_point_len(relation_columns: usize) -> usize {
-    if uses_pending_accumulator_family_relation_columns(relation_columns) {
+pub(crate) fn split_nc_column_point_len(relation_rows: usize, relation_columns: usize, matrices: usize) -> usize {
+    if uses_pending_accumulator_family_shape(relation_rows, relation_columns, matrices) {
         neo_reductions::optimized_engine::oracle::BLOCK_LANE_NC_BLOCK_VARIABLES
     } else {
         relation_columns.next_power_of_two().max(2).trailing_zeros() as usize
@@ -213,7 +224,7 @@ impl RunningInstance {
             });
         }
         let ell_n = relation_n.next_power_of_two().max(2).trailing_zeros() as usize;
-        let ell_m = split_nc_column_point_len(relation_m);
+        let ell_m = split_nc_column_point_len(relation_n, relation_m, relation_t);
         let d_pad = D.next_power_of_two();
         let zero_claim = CeClaim {
             c: Commitment::zeros(D, pp.kappa() as usize),
@@ -265,14 +276,15 @@ impl RunningInstance {
     /// its presence is validated here but it is not substituted for the exact
     /// child family.
     pub(crate) fn accumulator_digest(&self, structure: &Structure) -> Result<[u8; 32], RunningInstanceError> {
-        self.accumulator_digest_for_relation_columns(structure.m)
+        self.accumulator_digest_for_relation_shape(structure.n, structure.m, structure.t())
     }
 
-    /// Canonical accumulator digest when only the verifier-owned relation
-    /// width is available (for example while emitting the fixed base circuit).
-    pub(crate) fn accumulator_digest_for_relation_columns(
+    /// Canonical accumulator digest from the verifier-owned relation shape.
+    pub(crate) fn accumulator_digest_for_relation_shape(
         &self,
+        relation_rows: usize,
         relation_columns: usize,
+        matrices: usize,
     ) -> Result<[u8; 32], RunningInstanceError> {
         if self.claims.is_empty() {
             if self.parent_authority.is_some() {
@@ -287,7 +299,7 @@ impl RunningInstance {
             return Err(RunningInstanceError::MissingParentAuthority);
         }
 
-        if uses_pending_accumulator_family_relation_columns(relation_columns) {
+        if uses_pending_accumulator_family_shape(relation_rows, relation_columns, matrices) {
             let verifier_rows = self.claims[0].c.kappa;
             let pending =
                 self.pending_projection

@@ -52,6 +52,7 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
         c: commitment_scheme.commit(&z),
         x: vec![],
         m_in: 0,
+        adv: None,
     };
     let witness = CcsWitness {
         w: vec![F::ZERO; structure.m],

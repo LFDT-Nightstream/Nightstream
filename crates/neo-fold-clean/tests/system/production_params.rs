@@ -1,6 +1,18 @@
 //! Audit checks for the single production parameter profile.
 
+use neo_ccs::{CcsMatrix, CcsStructure, CscMat, SparsePoly};
 use neo_fold_clean::{config, Params};
+use neo_math::{D, F};
+
+fn empty_structure(rows: usize, columns: usize, matrices: usize) -> CcsStructure<F> {
+    let matrix = CcsMatrix::Csc(CscMat::from_triplets(Vec::new(), rows, columns));
+    CcsStructure {
+        matrices: vec![matrix; matrices],
+        f: SparsePoly::new(matrices, Vec::new()),
+        n: rows,
+        m: columns,
+    }
+}
 
 #[test]
 fn production_params_match_superneo_goldilocks_b2() {
@@ -122,4 +134,29 @@ fn r1cs_params_reject_when_full_d4_floor_is_too_high_for_s2() {
         err,
         neo_params::ParamsError::UnsupportedExtension { required: 3 }
     ));
+}
+
+#[test]
+fn pending_family_profile_is_domain_derived_not_an_exact_width_sentinel() {
+    use neo_fold_clean::paper::construction2::running::uses_pending_accumulator_family;
+
+    for columns in [11_437_038, 11_636_028] {
+        assert!(uses_pending_accumulator_family(&empty_structure(
+            6_956_163, columns, 13
+        )));
+    }
+
+    assert!(!uses_pending_accumulator_family(&empty_structure(
+        6_956_163,
+        D * (1 << 18) + 1,
+        13,
+    )));
+    assert!(!uses_pending_accumulator_family(&empty_structure(
+        6_956_163, 11_636_028, 12,
+    )));
+    assert!(!uses_pending_accumulator_family(&empty_structure(
+        (1 << 23) + 1,
+        11_636_028,
+        13,
+    )));
 }

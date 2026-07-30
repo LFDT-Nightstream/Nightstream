@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use neo_ccs::CcsMatrix;
 use neo_fold_clean::config;
-use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeRelation, ROAD_A_COMMITTED_BIT_BUDGET};
+use neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeRelation;
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
 use neo_fold_clean::frontends::nebula::prove::prove_segment;
@@ -27,6 +27,7 @@ use neo_math::D;
 mod support;
 
 const LANE_KAPPA: usize = 18;
+const PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET: usize = 25_000_000;
 
 /// R7 production preflight: Appendix B.2 SuperNeo parameters over the maximum
 /// normative v3.1 memory geometry. Width is audited before allocating the
@@ -38,13 +39,13 @@ fn nebula_v3_targets_folded_f_prime_production_preflight() {
         .with_stacks(2, 12)
         .expect("v3 targets plus maximum stack geometry");
     let params = neo_fold_clean::Params::for_ccs_shape_with(
-        ROAD_A_COMMITTED_BIT_BUDGET,
+        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
         13,
         8,
         config::MIN_EFFECTIVE_LAMBDA,
         config::EXTENSION_SAFETY_MARGIN_BITS,
     )
-    .expect("Road A budget must fit the supported extension policy");
+    .expect("production coordinate upper bound must fit the supported extension policy");
     let rom = vec![0u32; memory_params.rom_cells() as usize];
 
     let started = Instant::now();
@@ -161,15 +162,19 @@ fn nebula_v3_targets_folded_f_prime_production_preflight() {
         "production selective-width census drifted"
     );
     assert!(
-        width_audit.total_coordinates <= ROAD_A_COMMITTED_BIT_BUDGET,
-        "production selective lowering uses {} committed coordinates, above the {}-bit Road A budget",
+        width_audit.total_coordinates <= PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
+        "production selective lowering uses {} committed coordinates, above the {}-coordinate test target",
         width_audit.total_coordinates,
-        ROAD_A_COMMITTED_BIT_BUDGET,
+        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
     );
 
     let started = Instant::now();
-    let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)
-        .expect("production authoritative relation must stabilize within the Road A budget");
+    let relation = NebulaFPrimeRelation::compile_fixed_point_with_coordinate_limit(
+        &params,
+        &plan,
+        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
+    )
+    .expect("production authoritative relation must stabilize within the test target");
     let fixed_point_time = started.elapsed();
     let structure = relation.structure();
     let mut stored_sparse_nnz = 0usize;
@@ -324,10 +329,10 @@ fn nebula_v3_targets_folded_f_prime_production_preflight() {
         "production rectangular verifier fixed point drifted"
     );
     assert!(
-        structure.m <= ROAD_A_COMMITTED_BIT_BUDGET,
-        "production fixed relation uses {} committed coordinates, above the {}-bit Road A budget",
+        structure.m <= PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
+        "production fixed relation uses {} committed coordinates, above the {}-coordinate test target",
         structure.m,
-        ROAD_A_COMMITTED_BIT_BUDGET,
+        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
     );
 }
 

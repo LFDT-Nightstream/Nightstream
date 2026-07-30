@@ -700,15 +700,8 @@ where
             // ẏ_{(i,j)}(α) = ⟨ y_{(i,j)}, χ_{α} ⟩
             let yj = &out.y_ring[j];
             let mut y_eval = K::ZERO;
-            assert!(
-                yj.len() >= d_sz,
-                "claimed_initial_sum: y_ring[{}] too short for chi(alpha) (len {} < {})",
-                j,
-                yj.len(),
-                d_sz
-            );
             for rho in 0..d_sz {
-                y_eval += yj[rho] * chi_a[rho];
+                y_eval += yj.get(rho).copied().unwrap_or(K::ZERO) * chi_a[rho];
             }
 
             // Paper formula: γ^{i+(j-1)k-1} = γ^{i-1+(j-1)k} = γ^{i-1} · (γ^k)^{j-1}

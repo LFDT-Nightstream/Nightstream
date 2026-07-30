@@ -88,6 +88,7 @@ fn recursive_pi_dec_rejects_wrapped_empty_commitment_shape() {
         c_step_coords: Vec::new(),
         u_offset: 0,
         u_len: 0,
+        adv: None,
     };
     let children = vec![malformed.clone(); prep.params.k_rho() as usize];
     let mut builder = R1csBuilder::new();
@@ -140,6 +141,7 @@ fn lifecycle_rejects_nonzero_out_of_norm_fresh_witness_padding_lane() {
             c: prep.log.commit(&z),
             x: vec![F::ZERO],
             m_in: 1,
+            adv: None,
         },
         witness: CcsWitness { w: Vec::new(), Z: z },
     };

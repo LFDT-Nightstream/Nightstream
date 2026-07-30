@@ -950,11 +950,13 @@ fn metal_nifs_rejects_earlier_running_and_transcript_tampering() {
         &first_output.1,
     )
     .expect("verify first fold");
-    let mut earlier_running_tamper = RunningInstance {
-        claims: verified_first.claims,
-        witnesses: first_output.0.witnesses.clone(),
-        parent_authority: verified_first.parent_authority,
-    };
+    let pending_projection = verified_first.pending_projection().cloned();
+    let mut earlier_running_tamper = RunningInstance::new(
+        verified_first.claims,
+        first_output.0.witnesses.clone(),
+        verified_first.parent_authority,
+        pending_projection,
+    );
     earlier_running_tamper.claims[0].c.data[0] += F::ONE;
     assert!(nifs::verify(
         &mut verifier_transcript,

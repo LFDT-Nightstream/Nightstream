@@ -158,24 +158,26 @@ theorem carrierWidth_eq_artifact_relationColumns :
 
 /-- The legacy flat-column view covers every completed carrier coordinate and
 every live Phi81 lane. -/
-theorem flatDomain_covers : PiCcsDomains.production.fe.Covers semanticShape := by
+theorem flatDomain_covers :
+    PiCcsDomains.fixedPointProduction.fe.Covers semanticShape := by
   constructor <;> decide
 
 /-- The canonical block×lane view covers every live Phi81 block and lane. -/
-theorem blockLaneDomain_covers : PiCcsDomains.production.nc.Covers semanticShape := by
+theorem blockLaneDomain_covers :
+    PiCcsDomains.fixedPointProduction.nc.Covers semanticShape := by
   constructor <;> decide
 
 /-- Canonical block×lane NC uses 19 block rounds followed by 6 lane rounds. -/
 theorem blockLaneRoundCount :
-    PiCcsDomains.production.nc.blockVariables +
-        PiCcsDomains.production.nc.laneVariables = 25 := by
+    PiCcsDomains.fixedPointProduction.nc.blockVariables +
+        PiCcsDomains.fixedPointProduction.nc.laneVariables = 25 := by
   exact PiCcsDomains.fixedPointProduction_blockRoundCount
 
 /-- The legacy flat arithmetization would use 24 column rounds followed by 6
 lane rounds. This is a dimension comparison, not an implementation claim. -/
 theorem legacyFlatRoundCount :
-    PiCcsDomains.production.fe.columnVariables +
-        PiCcsDomains.production.fe.laneVariables = 30 := by
+    PiCcsDomains.fixedPointProduction.fe.columnVariables +
+        PiCcsDomains.fixedPointProduction.fe.laneVariables = 30 := by
   exact PiCcsDomains.fixedPointProduction_flatRoundCount
 
 /-- Number of semantically live lanes in each Phi81 block. -/
@@ -183,7 +185,7 @@ def liveLaneCount : Nat := ringDegree
 
 /-- Number of verifier-computed virtual zero lanes in the 64-lane cube. -/
 def virtualLaneCount : Nat :=
-  PiCcsDomains.production.nc.laneCount - liveLaneCount
+  PiCcsDomains.fixedPointProduction.nc.laneCount - liveLaneCount
 
 @[simp] theorem liveLaneCount_exact : liveLaneCount = 54 := by
   rfl
@@ -193,7 +195,7 @@ def virtualLaneCount : Nat :=
 
 theorem live_add_virtual_lanes :
     liveLaneCount + virtualLaneCount =
-      PiCcsDomains.production.nc.laneCount := by
+      PiCcsDomains.fixedPointProduction.nc.laneCount := by
   decide
 
 /-! ## Minimality -/
@@ -220,7 +222,7 @@ artifact-backed carrier. -/
 theorem flatColumnVariables_minimal
     {variables : Nat}
     (covers : semanticShape.carrierWidth <= 2 ^ variables) :
-    PiCcsDomains.production.fe.columnVariables <= variables := by
+    PiCcsDomains.fixedPointProduction.fe.columnVariables <= variables := by
   change 24 <= variables
   rcases Nat.lt_or_ge variables 24 with smaller | enough
   · have variablesLe : variables <= 23 := by omega
@@ -264,7 +266,7 @@ theorem blockVariables_minimal
 theorem laneVariables_minimal
     {variables : Nat}
     (covers : ringDegree <= 2 ^ variables) :
-    PiCcsDomains.production.nc.laneVariables <= variables := by
+    PiCcsDomains.fixedPointProduction.nc.laneVariables <= variables := by
   change 6 <= variables
   rcases Nat.lt_or_ge variables 6 with smaller | enough
   · have variablesLe : variables <= 5 := by omega

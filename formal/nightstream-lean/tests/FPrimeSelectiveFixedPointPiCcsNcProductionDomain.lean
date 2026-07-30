@@ -38,10 +38,10 @@ example : semanticShape.freshCount = 1 ∧
   decide
 
 example :
-    Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains.production.nc.blockVariables +
-        Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains.production.nc.laneVariables = 25 ∧
-      Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains.production.fe.columnVariables +
-        Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains.production.fe.laneVariables = 30 :=
+    Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains.fixedPointProduction.nc.blockVariables +
+        Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains.fixedPointProduction.nc.laneVariables = 25 ∧
+      Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains.fixedPointProduction.fe.columnVariables +
+        Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.PiCcsDomains.fixedPointProduction.fe.laneVariables = 30 :=
   ⟨blockLaneRoundCount, legacyFlatRoundCount⟩
 
 example : liveLaneCount = 54 ∧ virtualLaneCount = 10 ∧

@@ -20,7 +20,7 @@ Emits constraints: no.
 |---|---|---|
 | `SelectiveLayout` | typed public/padding/selector/private ranges and legacy selector-leak witness | concrete compiler instantiation |
 | `ProductionCarrier` | exact generated layout plus all thirteen public-padding rows | full fixed-point/private relation |
-| `SelectiveCcs.Polynomial` | exact 13-port, 27-term, degree-8 gate syntax and six-family decomposition | protocol minimality |
+| `SelectiveCcs.Polynomial` | exact 13-port, 66-term, degree-8 gate syntax and six-family decomposition | protocol minimality |
 | `SelectiveCcs.Polynomial.Necessity` | omission counterexample for each chosen term family | complete verifier minimality |
 | `SelectiveCcs.Padding` | normalized semantics, polynomial specialization, coefficient classifier, and local necessity | non-padding row families |
 

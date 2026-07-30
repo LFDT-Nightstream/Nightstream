@@ -25,7 +25,7 @@ namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage.Wire
 
 def rawCoverage : RawCoverage where
-  schemaVersion := 1
+  schemaVersion := 2
   rows := 753
   columns := 1458
   selectorColumns := [54, 55, 56]
@@ -44,20 +44,59 @@ def rawCoverage : RawCoverage where
   , { coefficient := 1, exponents := [0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0] }
   , { coefficient := 1, exponents := [0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0] }
   , { coefficient := 1, exponents := [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1] }
-  , { coefficient := 9223372034707292161, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0] }
-  , { coefficient := 1, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] }
+  , { coefficient := 18446744069414584320, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0] }
+  , { coefficient := 1, exponents := [0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0] }
+  , { coefficient := 13835058052060938241, exponents := [0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0] }
+  , { coefficient := 4611686017353646080, exponents := [1, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0] }
+  , { coefficient := 4611686017353646080, exponents := [0, 1, 2, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0] }
+  , { coefficient := 13835058052060938241, exponents := [1, 1, 2, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0] }
+  , { coefficient := 4611686017353646080, exponents := [0, 1, 1, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0] }
+  , { coefficient := 13835058052060938241, exponents := [1, 1, 1, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0] }
+  , { coefficient := 13835058052060938241, exponents := [0, 1, 2, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0] }
+  , { coefficient := 4611686017353646080, exponents := [1, 1, 2, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0] }
   , { coefficient := 18446744069414584320, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] }
-  , { coefficient := 9223372034707292160, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0] }
-  , { coefficient := 9223372034707292160, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0] }
-  , { coefficient := 13835058052060938241, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0] }
-  , { coefficient := 9223372034707292160, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0] }
-  , { coefficient := 1, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0] }
-  , { coefficient := 13835058052060938241, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0] }
-  , { coefficient := 9223372034707292160, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0] }
-  , { coefficient := 4611686017353646080, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0] }
-  , { coefficient := 1, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0] }
-  , { coefficient := 4611686017353646081, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0] }
-  , { coefficient := 9223372034707292159, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 2, 1, 0, 2, 0] }
+  , { coefficient := 1, exponents := [0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 9223372034707292160, exponents := [0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 9223372034707292161, exponents := [1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 9223372034707292161, exponents := [0, 1, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 9223372034707292160, exponents := [1, 1, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 13835058052060938241, exponents := [0, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 4611686017353646080, exponents := [0, 1, 2, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 13835058052060938241, exponents := [0, 1, 1, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 9223372034707292160, exponents := [1, 1, 1, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 4611686017353646080, exponents := [0, 1, 2, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 9223372034707292161, exponents := [1, 1, 2, 0, 0, 0, 2, 0, 0, 1, 0, 0, 0] }
+  , { coefficient := 18446744069414584320, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] }
+  , { coefficient := 1, exponents := [0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0] }
+  , { coefficient := 9223372034707292160, exponents := [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] }
+  , { coefficient := 9223372034707292161, exponents := [0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0] }
+  , { coefficient := 13835058052060938241, exponents := [1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0] }
+  , { coefficient := 4611686017353646080, exponents := [1, 1, 2, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0] }
+  , { coefficient := 13835058052060938241, exponents := [1, 1, 1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0] }
+  , { coefficient := 4611686017353646080, exponents := [1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0] }
+  , { coefficient := 18446744069414584320, exponents := [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 1, exponents := [0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292160, exponents := [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292161, exponents := [0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292160, exponents := [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292161, exponents := [1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292161, exponents := [0, 1, 2, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292160, exponents := [1, 1, 2, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292161, exponents := [0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292160, exponents := [1, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292160, exponents := [0, 1, 2, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 9223372034707292161, exponents := [1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0] }
+  , { coefficient := 1, exponents := [0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 18446744069414584320, exponents := [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 9223372034707292160, exponents := [0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 9223372034707292160, exponents := [0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 1, exponents := [1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 9223372034707292160, exponents := [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 9223372034707292161, exponents := [0, 1, 2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 9223372034707292160, exponents := [0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 1, exponents := [1, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 9223372034707292161, exponents := [0, 1, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1] }
+  , { coefficient := 18446744069414584320, exponents := [1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1] }
   ]
   ownerRuns := [
     { start := 0, stop := 3, family := .selectorDomain, arm := none }

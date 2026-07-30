@@ -19,7 +19,7 @@ Emits constraints: no.
 |---|---|---|---|
 | `f_prime.selective_ccs.artifact.row.matrix_action` | one exact finite dot product per port | decoded matrix plus typed assignment | `matrixImageAt` |
 | `f_prime.selective_ccs.artifact.row.paper_bridge` | numeric row action equals the paper's padded Boolean row action | row-domain coverage | `matrixImageAt_eq_paddedMatrixVectorAt` |
-| `f_prime.selective_ccs.artifact.row.residual` | evaluate the relation-owned 27-term polynomial | thirteen matrix images | `residualAt_eq_evaluate` |
+| `f_prime.selective_ccs.artifact.row.residual` | evaluate the relation-owned 66-term polynomial | thirteen matrix images | `residualAt_eq_evaluate` |
 | `f_prime.selective_ccs.artifact.row.shape.*` | exact port image activates only the stated residual components | extensional equality with a `Polynomial.Rows` point | six `residualAt_*Point` theorems |
 
 The shape hypotheses are deliberately extensional matrix-image equalities.

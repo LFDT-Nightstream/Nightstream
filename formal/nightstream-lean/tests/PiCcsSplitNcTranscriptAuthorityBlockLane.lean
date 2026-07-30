@@ -27,7 +27,7 @@ example : PiCcsDomains.publicPrefix.fe = PiCcsDomain.domain := by
 example : PiCcsDomains.publicPrefix.nc = PiCcsDomain.blockDomain := by
   exact PiCcsDomains.publicPrefix_nc
 
-example : PiCcsDomains.production.columnVariables = 24 := by
+example : PiCcsDomains.production.columnVariables = 25 := by
   rfl
 
 example : PiCcsDomains.production.blockVariables = 19 := by

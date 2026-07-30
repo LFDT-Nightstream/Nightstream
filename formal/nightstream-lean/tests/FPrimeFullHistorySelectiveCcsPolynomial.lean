@@ -10,7 +10,7 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ro
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Necessity
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Padding.Refinement
 
-example : terms.length = 27 := term_count_exact
+example : terms.length = 66 := term_count_exact
 
 example : polynomial.canonicalEqualityGatedDegreeBound = 9 :=
   canonicalEqualityGatedDegreeBound_exact

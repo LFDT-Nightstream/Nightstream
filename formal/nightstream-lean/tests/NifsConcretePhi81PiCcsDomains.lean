@@ -18,7 +18,7 @@ example : PiCcsDomains.publicPrefix.fe = PiCcsDomain.domain :=
 example : PiCcsDomains.publicPrefix.nc = PiCcsDomain.blockDomain :=
   PiCcsDomains.publicPrefix_nc
 
-example : PiCcsDomains.production.fe.columnVariables = 24 := by
+example : PiCcsDomains.production.fe.columnVariables = 25 := by
   rfl
 
 example : PiCcsDomains.production.nc.blockVariables = 19 := by
@@ -29,12 +29,12 @@ example : PiCcsDomains.production.nc.laneVariables = 6 := by
 
 example :
     PiCcsDomains.production.fe.columnVariables +
-        PiCcsDomains.production.fe.laneVariables = 30 :=
-  PiCcsDomains.fixedPointProduction_flatRoundCount
+        PiCcsDomains.production.fe.laneVariables = 31 :=
+  PiCcsDomains.currentLeanProduction_flatRoundCount
 
 example :
     PiCcsDomains.production.nc.blockVariables +
         PiCcsDomains.production.nc.laneVariables = 25 :=
-  PiCcsDomains.fixedPointProduction_blockRoundCount
+  PiCcsDomains.currentLeanProduction_blockRoundCount
 
 end NightstreamTests.NifsConcretePhi81PiCcsDomains

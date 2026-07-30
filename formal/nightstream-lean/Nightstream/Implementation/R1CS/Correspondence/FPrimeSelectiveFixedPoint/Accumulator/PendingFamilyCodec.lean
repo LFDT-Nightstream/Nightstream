@@ -31,7 +31,7 @@ canonical fields from accepted production rows.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
-| `fprime.accumulator.pending_family.point` | retain the shared 24-coordinate row point | direct dataflow | `Carrier.point` |
+| `fprime.accumulator.pending_family.point` | retain the shared 23-coordinate row point | direct dataflow | `Carrier.point` |
 | `fprime.accumulator.pending_family.column_point` | retain the shared 19-coordinate block point | direct dataflow | `Carrier.columnPoint` |
 | `fprime.accumulator.pending_family.m_in` | retain the shared input width until accepted production rows derive 270 | direct dataflow | `Carrier.mIn` |
 | `fprime.accumulator.pending_family.fold_digest` | retain the shared four-lane transcript cache until continuity derives it | direct dataflow | `Carrier.foldDigest` |
@@ -356,7 +356,7 @@ theorem encodeChildren_injective
         encodeChild_length encodeChild_injective same
 
 def pendingPayloadFieldCount : Nat :=
-  2 * PiCcsDomains.production.nc.blockVariables + 2 * ringDegree
+  2 * PiCcsDomains.fixedPointProduction.nc.blockVariables + 2 * ringDegree
 
 def encodePendingPayload
     (pending : ProductionDelayedBlockLane) : List F :=
@@ -370,7 +370,7 @@ def encodePendingPayload
 theorem encodePendingPayload_injective :
     Function.Injective encodePendingPayload := by
   intro left right same
-  let pointWidth := 2 * PiCcsDomains.production.nc.blockVariables
+  let pointWidth := 2 * PiCcsDomains.fixedPointProduction.nc.blockVariables
   have pointFields := congrArg (List.take pointWidth) same
   have ringFields := congrArg (List.drop pointWidth) same
   have pointEq : left.oldBlock = right.oldBlock := by
@@ -427,7 +427,7 @@ argument to the semantic projection and never becomes digest authority. -/
 structure Carrier (shape : Shape) (verifierRows count : Nat) where
   point : Point shape
   columnPoint : TypedCubePoint
-    PiCcsDomains.production.nc.blockVariables
+    PiCcsDomains.fixedPointProduction.nc.blockVariables
   mIn : F
   foldDigest : Fin 4 -> F
   children : Fin count -> Child shape verifierRows
@@ -463,7 +463,7 @@ def encodeCarrier
 def carrierFieldCount
     (shape : Shape) (verifierRows count : Nat) : Nat :=
   2 * shape.rowVariables +
-    2 * PiCcsDomains.production.nc.blockVariables +
+    2 * PiCcsDomains.fixedPointProduction.nc.blockVariables +
     1 +
     4 +
     count * childFieldCount shape verifierRows + pendingFieldCount
@@ -483,7 +483,7 @@ theorem encodeCarrier_injective
       (encodeCarrier : Carrier shape verifierRows count -> List F) := by
   intro left right same
   let pointWidth := 2 * shape.rowVariables
-  let columnWidth := 2 * PiCcsDomains.production.nc.blockVariables
+  let columnWidth := 2 * PiCcsDomains.fixedPointProduction.nc.blockVariables
   let mInWidth := 1
   let foldWidth := 4
   let childrenWidth := count * childFieldCount shape verifierRows
@@ -590,7 +590,7 @@ def productionDomainTagFields : List F :=
     3241519]
 
 def productionHeader : List F :=
-  productionDomainTagFields ++ [14, 24, 19]
+  productionDomainTagFields ++ [14, 23, 19]
 
 @[simp] theorem productionDomainTagFields_length :
     productionDomainTagFields.length = 10 := by
@@ -634,33 +634,33 @@ theorem fixed_child_field_count
 
 theorem fixed_carrier_field_count
     (shape : Shape)
-    (rowVariables : shape.rowVariables = 24)
+    (rowVariables : shape.rowVariables = 23)
     (publicWidth : shape.publicWidth = 270)
     (matrixCount : shape.matrixCount = 13)
     (verifierRows : Nat) :
     productionHeader.length +
         carrierFieldCount shape verifierRows 14 =
-      14 * (54 * verifierRows) + 23687 := by
+      14 * (54 * verifierRows) + 23685 := by
   simp [carrierFieldCount, pendingFieldCount,
     pendingPayloadFieldCount, childFieldCount, commitmentFieldCount,
     evaluationFieldCount, ringDegree, rowVariables, publicWidth, matrixCount,
-    PiCcsDomains.production, PiCcsDomains.fixedPointProduction, Domains.nc]
+    PiCcsDomains.fixedPointProduction, Domains.nc]
   omega
 
 theorem bounded_field_count
     (shape : Shape)
-    (rowVariables : shape.rowVariables = 24)
+    (rowVariables : shape.rowVariables = 23)
     (publicWidth : shape.publicWidth = 270)
     (matrixCount : shape.matrixCount = 13) :
-    productionHeader.length + carrierFieldCount shape 4 14 = 26711 := by
+    productionHeader.length + carrierFieldCount shape 4 14 = 26709 := by
   rw [fixed_carrier_field_count shape rowVariables publicWidth matrixCount 4]
 
 theorem production_field_count
     (shape : Shape)
-    (rowVariables : shape.rowVariables = 24)
+    (rowVariables : shape.rowVariables = 23)
     (publicWidth : shape.publicWidth = 270)
     (matrixCount : shape.matrixCount = 13) :
-    productionHeader.length + carrierFieldCount shape 18 14 = 37295 := by
+    productionHeader.length + carrierFieldCount shape 18 14 = 37293 := by
   rw [fixed_carrier_field_count shape rowVariables publicWidth matrixCount 18]
 
 /-- Current conservative two-level encoding count, before physical lowering.
@@ -671,7 +671,7 @@ def conservativeFamilyFieldCount (verifierRows : Nat) : Nat :=
 
 theorem pendingFamily_field_saving (verifierRows : Nat) :
     conservativeFamilyFieldCount verifierRows -
-        (14 * (54 * verifierRows) + 23687) = 5749 := by
+        (14 * (54 * verifierRows) + 23685) = 5751 := by
   simp [conservativeFamilyFieldCount]
 
 end Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.Accumulator.PendingFamilyCodec

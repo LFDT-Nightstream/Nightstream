@@ -1,6 +1,7 @@
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler.PaperBridge
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler.ArtifactRows
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler.ArtifactSemantics
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler.Differential
 import tests.Axioms.Support
 
 /-! Fail-closed dependency gate for the reduced production strict-`PiDEC`
@@ -48,6 +49,12 @@ compiler and its typed paper bridge. -/
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.PiDecStrictProductionCompiler.PaperBridge.active_source_rows_saved_3500
+
+/-! ## Compact executable differential -/
+
+/-- info: 'Nightstream.Implementation.R1CS.PiDecStrictProductionCompiler.Differential.generated_cases_agree' does not depend on any axioms -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.PiDecStrictProductionCompiler.Differential.generated_cases_agree
 
 /-! ## Live canonical-X artifact receipt -/
 

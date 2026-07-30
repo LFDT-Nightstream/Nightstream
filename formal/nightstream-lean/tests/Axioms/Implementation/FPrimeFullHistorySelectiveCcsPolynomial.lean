@@ -19,6 +19,17 @@ decomposition and omission witnesses.
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components.evaluate_eq_combinedResidual
 
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components.canonicalResidual_zero_of_generalSelector_zero' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components.canonicalResidual_zero_of_generalSelector_zero
+
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components.canonicalResidual_zero_of_classPorts_zero' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components.canonicalResidual_zero_of_classPorts_zero
+
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Necessity.boolean_necessary' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in

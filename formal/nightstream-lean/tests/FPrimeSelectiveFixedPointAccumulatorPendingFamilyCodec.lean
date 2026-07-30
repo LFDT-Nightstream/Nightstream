@@ -21,20 +21,20 @@ open Nightstream.Implementation.R1CS.Correspondence.FPrimeSelectiveFixedPoint.Ac
 #check pendingFamily_field_saving
 
 example (shape : Shape)
-    (rowVariables : shape.rowVariables = 24)
+    (rowVariables : shape.rowVariables = 23)
     (publicWidth : shape.publicWidth = 270)
     (matrixCount : shape.matrixCount = 13) :
-    productionHeader.length + carrierFieldCount shape 4 14 = 26711 :=
+    productionHeader.length + carrierFieldCount shape 4 14 = 26709 :=
   bounded_field_count shape rowVariables publicWidth matrixCount
 
 example (shape : Shape)
-    (rowVariables : shape.rowVariables = 24)
+    (rowVariables : shape.rowVariables = 23)
     (publicWidth : shape.publicWidth = 270)
     (matrixCount : shape.matrixCount = 13) :
-    productionHeader.length + carrierFieldCount shape 18 14 = 37295 :=
+    productionHeader.length + carrierFieldCount shape 18 14 = 37293 :=
   production_field_count shape rowVariables publicWidth matrixCount
 
-example : conservativeFamilyFieldCount 18 - 37295 = 5749 := by
+example : conservativeFamilyFieldCount 18 - 37293 = 5751 := by
   simpa using pendingFamily_field_saving 18
 
 end Nightstream.Tests.FPrimeSelectiveFixedPointAccumulatorPendingFamilyCodec

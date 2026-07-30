@@ -56,11 +56,12 @@ theorem paddingPortPoint_other
     paddingPortPoint constantValue paddingValue role.index = 0 := by
   cases role <;> simp_all [paddingPortPoint, Role.index]
 
-/-- Exact evaluation of all 27 sparse terms on the padding specialization. -/
+/-- Exact evaluation of all 66 sparse terms on the padding specialization. -/
 theorem evaluate_paddingPortPoint (constantValue paddingValue : F) :
     evaluate (paddingPortPoint constantValue paddingValue) =
       -(constantValue * paddingValue) := by
-  simp [evaluate, polynomial, terms, monomial, exponentVector,
+  simp [evaluate, polynomial, terms, baseTerms, canonicalTerms,
+    monomial, exponentVector,
     Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable.evaluatePolynomial,
     Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable.evaluateMonomial,
     Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable.pow,

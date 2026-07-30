@@ -175,9 +175,14 @@ private theorem evaluate_rewritePoint {sourceColumns : Nat}
     evaluate (rewritePoint assignment derivedValue step) =
       -(rewriteCValue assignment derivedValue step) +
         factorSum assignment step.factors := by
+  have canonicalZero :
+      canonicalResidual (rewritePoint assignment derivedValue step) = 0 :=
+    canonicalResidual_zero_of_generalSelector_zero _ rfl
   rw [evaluate_eq_combinedResidual]
-  simp only [combinedResidual, booleanResidual, productResidual,
-    sboxResidual, centeredResidual, evaluationResidual, canonicalResidual,
+  unfold combinedResidual
+  rw [canonicalZero]
+  simp only [booleanResidual, productResidual,
+    sboxResidual, centeredResidual, evaluationResidual,
     Role.index, rewritePoint, Fin.zero_mul, Fin.mul_zero, Fin.zero_add, Fin.add_zero,
     Fin.one_mul, Fin.mul_one, Lean.Grind.AddCommGroup.neg_zero]
   change
@@ -263,9 +268,14 @@ private theorem evaluate_retainedPoint {sourceColumns : Nat}
       linearCombinationValue step.a assignment *
           linearCombinationValue step.b assignment +
         -linearCombinationValue step.c assignment := by
+  have canonicalZero :
+      canonicalResidual (retainedPoint assignment step) = 0 :=
+    canonicalResidual_zero_of_classPorts_zero _ rfl rfl rfl rfl rfl
   rw [evaluate_eq_combinedResidual]
-  simp only [combinedResidual, booleanResidual, productResidual,
-    sboxResidual, centeredResidual, evaluationResidual, canonicalResidual,
+  unfold combinedResidual
+  rw [canonicalZero]
+  simp only [booleanResidual, productResidual,
+    sboxResidual, centeredResidual, evaluationResidual,
     Role.index, retainedPoint, Fin.zero_mul, Fin.mul_zero, Fin.zero_add, Fin.add_zero,
     Fin.one_mul, Fin.mul_one, Lean.Grind.AddCommGroup.neg_zero]
 

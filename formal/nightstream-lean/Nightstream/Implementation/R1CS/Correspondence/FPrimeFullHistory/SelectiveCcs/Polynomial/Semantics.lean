@@ -4,7 +4,7 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.Selectiv
 Contract: exact model-level syntax and evaluation of the production selective
 CCS polynomial.
 
-Owns: all 27 sparse monomials, their order, Goldilocks coefficients, the exact
+Owns: all 66 sparse monomials, their order, Goldilocks coefficients, the exact
 13-port arity, and the syntax-derived degree ceiling. This is an independent
 mathematical transcription of the currently emitted gate polynomial.
 
@@ -22,8 +22,8 @@ Emits constraints: no.
 | `f_prime.selective_ccs.polynomial.sbox` | `g * sbox^7` | 1 | 8 | `selective_polynomial` |
 | `f_prime.selective_ccs.polynomial.centered` | `g * (u^3-u)` | 2 | 4 | `selective_polynomial` |
 | `f_prime.selective_ccs.polynomial.evaluation` | `e * (sum five products - c)` | 6 | 3 | `selective_polynomial` |
-| `f_prime.selective_ccs.polynomial.canonical` | shifted-base-3 borrow transition | 14 | 6 | `selective_polynomial` |
-| **total** | exact sparse polynomial | **27** | **8** | `selective_polynomial` |
+| `f_prime.selective_ccs.polynomial.canonical` | selected two-trit borrow transition | 53 | 7 | `selective_polynomial` |
+| **total** | exact sparse polynomial | **66** | **8** | `selective_polynomial` |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics
@@ -56,9 +56,8 @@ def monomial (coefficient : F) (powers : List (Role × Nat)) :
   coefficient := coefficient
   exponents := exponentVector powers
 
-/-- Exact ordered 27-term sparse syntax produced by Rust's
-`selective_polynomial`. -/
-def terms : List (Monomial F 13) := [
+/-- The thirteen terms shared by ordinary and evaluation rows. -/
+def baseTerms : List (Monomial F 13) := [
   monomial 1 [(Role.generalSelector, 1), (Role.bit, 2)],
   monomial (-1) [(Role.generalSelector, 1), (Role.bit, 1)],
   monomial 1 [(Role.generalSelector, 1), (Role.a, 1), (Role.b, 1)],
@@ -69,34 +68,130 @@ def terms : List (Monomial F 13) := [
   monomial (-1) [(Role.evalSelector, 1), (Role.c, 1)],
   monomial 1 [(Role.evalSelector, 1), (Role.bit, 1), (Role.a, 1)],
   monomial 1 [(Role.evalSelector, 1), (Role.b, 1), (Role.sboxInput, 1)],
-  monomial 1 [(Role.evalSelector, 1), (Role.centeredUnit, 1), (Role.canonicalDigit, 1)],
-  monomial 1 [(Role.evalSelector, 1), (Role.canonicalBorrow, 1), (Role.canonicalNextBorrow, 1)],
-  monomial 1 [(Role.evalSelector, 1), (Role.canonicalBoundDigit, 1), (Role.evalTailRight, 1)],
-  monomial half [(Role.canonicalBoundDigit, 1), (Role.generalSelector, 1)],
-  monomial 1 [(Role.canonicalNextBorrow, 1), (Role.generalSelector, 1)],
-  monomial (-1) [(Role.canonicalBorrow, 1), (Role.generalSelector, 1)],
-  monomial (-half) [(Role.canonicalDigit, 1), (Role.generalSelector, 1)],
-  monomial (-half) [(Role.canonicalBoundDigit, 2), (Role.generalSelector, 1)],
-  monomial quarter [(Role.canonicalDigit, 1), (Role.canonicalBoundDigit, 1),
-    (Role.generalSelector, 1)],
-  monomial (-half) [(Role.canonicalDigit, 2), (Role.generalSelector, 1)],
-  monomial 1 [(Role.canonicalBorrow, 1), (Role.canonicalBoundDigit, 2),
-    (Role.generalSelector, 1)],
-  monomial quarter [(Role.canonicalDigit, 1), (Role.canonicalBoundDigit, 2),
-    (Role.generalSelector, 1)],
-  monomial (-half) [(Role.canonicalDigit, 1), (Role.canonicalBorrow, 1),
-    (Role.canonicalBoundDigit, 1), (Role.generalSelector, 1)],
-  monomial (-quarter) [(Role.canonicalDigit, 2), (Role.canonicalBoundDigit, 1),
-    (Role.generalSelector, 1)],
-  monomial 1 [(Role.canonicalDigit, 2), (Role.canonicalBorrow, 1),
-    (Role.generalSelector, 1)],
-  monomial (3 * quarter) [(Role.canonicalDigit, 2), (Role.canonicalBoundDigit, 2),
-    (Role.generalSelector, 1)],
-  monomial (-(3 * half)) [(Role.canonicalDigit, 2), (Role.canonicalBorrow, 1),
-    (Role.canonicalBoundDigit, 2), (Role.generalSelector, 1)]
+  monomial 1 [(Role.evalSelector, 1), (Role.centeredUnit, 1),
+    (Role.canonicalDigit, 1)],
+  monomial 1 [(Role.evalSelector, 1), (Role.canonicalBorrow, 1),
+    (Role.canonicalNextBorrow, 1)],
+  monomial 1 [(Role.evalSelector, 1), (Role.canonicalBoundDigit, 1),
+    (Role.evalTailRight, 1)]
 ]
 
-theorem term_count_exact : terms.length = 27 := by decide
+/-- Exact expansion of the five normalized two-trit borrow classes. Ports
+8--12 are the mutually exclusive class selectors on canonical rows. -/
+def canonicalTerms : List (Monomial F 13) := [
+  monomial (-1) [(Role.generalSelector, 1), (Role.canonicalDigit, 1)],
+  monomial 1 [(Role.generalSelector, 1), (Role.c, 1), (Role.canonicalDigit, 1)],
+  monomial quarter [(Role.generalSelector, 1), (Role.a, 1),
+    (Role.centeredUnit, 1), (Role.canonicalDigit, 1)],
+  monomial (-quarter) [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.a, 1), (Role.centeredUnit, 1), (Role.canonicalDigit, 1)],
+  monomial (-quarter) [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 1), (Role.canonicalDigit, 1)],
+  monomial quarter [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.a, 2), (Role.centeredUnit, 1), (Role.canonicalDigit, 1)],
+  monomial (-quarter) [(Role.generalSelector, 1), (Role.a, 1),
+    (Role.centeredUnit, 2), (Role.canonicalDigit, 1)],
+  monomial quarter [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.a, 1), (Role.centeredUnit, 2), (Role.canonicalDigit, 1)],
+  monomial quarter [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 2), (Role.canonicalDigit, 1)],
+  monomial (-quarter) [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.a, 2), (Role.centeredUnit, 2), (Role.canonicalDigit, 1)],
+  monomial (-1) [(Role.generalSelector, 1), (Role.canonicalBorrow, 1)],
+  monomial 1 [(Role.generalSelector, 1), (Role.c, 1),
+    (Role.canonicalBorrow, 1)],
+  monomial (-half) [(Role.generalSelector, 1), (Role.a, 1),
+    (Role.canonicalBorrow, 1)],
+  monomial half [(Role.bit, 1), (Role.generalSelector, 1), (Role.a, 1),
+    (Role.canonicalBorrow, 1)],
+  monomial half [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.canonicalBorrow, 1)],
+  monomial (-half) [(Role.bit, 1), (Role.generalSelector, 1), (Role.a, 2),
+    (Role.canonicalBorrow, 1)],
+  monomial quarter [(Role.generalSelector, 1), (Role.a, 1),
+    (Role.centeredUnit, 1), (Role.canonicalBorrow, 1)],
+  monomial (-quarter) [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 1), (Role.canonicalBorrow, 1)],
+  monomial quarter [(Role.generalSelector, 1), (Role.a, 1),
+    (Role.centeredUnit, 2), (Role.canonicalBorrow, 1)],
+  monomial (-half) [(Role.bit, 1), (Role.generalSelector, 1), (Role.a, 1),
+    (Role.centeredUnit, 2), (Role.canonicalBorrow, 1)],
+  monomial (-quarter) [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 2), (Role.canonicalBorrow, 1)],
+  monomial half [(Role.bit, 1), (Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 2), (Role.canonicalBorrow, 1)],
+  monomial (-1) [(Role.generalSelector, 1), (Role.canonicalNextBorrow, 1)],
+  monomial 1 [(Role.generalSelector, 1), (Role.c, 1),
+    (Role.canonicalNextBorrow, 1)],
+  monomial (-half) [(Role.generalSelector, 1), (Role.a, 1),
+    (Role.canonicalNextBorrow, 1)],
+  monomial half [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.canonicalNextBorrow, 1)],
+  monomial quarter [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.a, 1), (Role.centeredUnit, 1), (Role.canonicalNextBorrow, 1)],
+  monomial (-quarter) [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.a, 2), (Role.centeredUnit, 1), (Role.canonicalNextBorrow, 1)],
+  monomial quarter [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.a, 1), (Role.centeredUnit, 2), (Role.canonicalNextBorrow, 1)],
+  monomial (-quarter) [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.a, 2), (Role.centeredUnit, 2), (Role.canonicalNextBorrow, 1)],
+  monomial (-1) [(Role.generalSelector, 1), (Role.canonicalBoundDigit, 1)],
+  monomial 1 [(Role.generalSelector, 1), (Role.c, 1),
+    (Role.canonicalBoundDigit, 1)],
+  monomial (-half) [(Role.generalSelector, 1), (Role.a, 1),
+    (Role.canonicalBoundDigit, 1)],
+  monomial half [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.canonicalBoundDigit, 1)],
+  monomial (-half) [(Role.generalSelector, 1), (Role.centeredUnit, 1),
+    (Role.canonicalBoundDigit, 1)],
+  monomial half [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.centeredUnit, 1), (Role.canonicalBoundDigit, 1)],
+  monomial half [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 1), (Role.canonicalBoundDigit, 1)],
+  monomial (-half) [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.a, 2), (Role.centeredUnit, 1), (Role.canonicalBoundDigit, 1)],
+  monomial half [(Role.generalSelector, 1), (Role.centeredUnit, 2),
+    (Role.canonicalBoundDigit, 1)],
+  monomial (-half) [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.centeredUnit, 2), (Role.canonicalBoundDigit, 1)],
+  monomial (-half) [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 2), (Role.canonicalBoundDigit, 1)],
+  monomial half [(Role.bit, 1), (Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 2), (Role.canonicalBoundDigit, 1)],
+  monomial 1 [(Role.generalSelector, 1), (Role.c, 1),
+    (Role.evalTailRight, 1)],
+  monomial (-1) [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.evalTailRight, 1)],
+  monomial (-half) [(Role.generalSelector, 1), (Role.a, 1),
+    (Role.evalTailRight, 1)],
+  monomial (-half) [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.evalTailRight, 1)],
+  monomial 1 [(Role.bit, 1), (Role.generalSelector, 1), (Role.a, 2),
+    (Role.evalTailRight, 1)],
+  monomial (-half) [(Role.generalSelector, 1), (Role.centeredUnit, 1),
+    (Role.evalTailRight, 1)],
+  monomial half [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 1), (Role.evalTailRight, 1)],
+  monomial (-half) [(Role.generalSelector, 1), (Role.centeredUnit, 2),
+    (Role.evalTailRight, 1)],
+  monomial 1 [(Role.bit, 1), (Role.generalSelector, 1),
+    (Role.centeredUnit, 2), (Role.evalTailRight, 1)],
+  monomial half [(Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 2), (Role.evalTailRight, 1)],
+  monomial (-1) [(Role.bit, 1), (Role.generalSelector, 1), (Role.a, 2),
+    (Role.centeredUnit, 2), (Role.evalTailRight, 1)]
+]
+
+/-- Exact ordered 66-term sparse syntax produced by Rust's
+`selective_polynomial`. -/
+def terms : List (Monomial F 13) :=
+  baseTerms ++ canonicalTerms
+
+theorem base_term_count_exact : baseTerms.length = 13 := by decide
+
+theorem canonical_term_count_exact : canonicalTerms.length = 53 := by decide
+
+theorem term_count_exact : terms.length = 66 := by decide
 
 private theorem every_term_degree_checked :
     terms.all (fun term => decide (term.totalDegree < 9)) = true := by
@@ -112,6 +207,7 @@ def polynomial : ConstraintPolynomial F 13 where
     exact of_decide_eq_true
       ((List.all_eq_true.mp every_term_degree_checked) term member)
 
+set_option maxRecDepth 10000 in
 /-- The exact sparse syntax has maximum degree eight, hence equality-gating it
 for SumCheck requires the canonical ceiling nine. -/
 theorem canonicalEqualityGatedDegreeBound_exact :

@@ -44,6 +44,10 @@ def Accepted (case : Case) : Prop :=
   case.children.map fieldOfNat =
     List.ofFn (splitScalar (fieldOfNat case.parent))
 
+instance acceptedDecidable (case : Case) : Decidable (Accepted case) := by
+  unfold Accepted
+  infer_instance
+
 /-- Executable independent Lean verifier used by the differential fixture. -/
 def check (case : Case) : Bool :=
   decide (Accepted case)
@@ -60,6 +64,6 @@ row list, proof-carrying structure, or private assignment is evaluated. -/
 theorem generated_cases_agree :
     (cases.all fun case =>
         decide (check case = case.rustAccepted)) = true := by
-  native_decide
+  decide
 
 end Nightstream.Implementation.R1CS.PiDecStrictProductionCompiler.Differential

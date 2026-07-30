@@ -117,6 +117,24 @@ theorem decodes_of_encodes
   rw [coordinates]
   exact (family.codecFor kind).decode_encode value admissible
 
+/-- Successful decoding fixes the complete physical coordinate string to the
+selected canonical encoding.  Downstream protocol gadgets use this direction
+to project authoritative subfields from a decoded call operand; they never
+accept a second caller-supplied view of the same value. -/
+theorem values_eq_encode_of_decodes
+    {types : TypeSystem.{u}}
+    (family : Family types)
+    (kind : types.Kind)
+    {layout : Layout}
+    (bundle : ColumnBundle layout)
+    (assignment : ColumnId -> Field)
+    (value : types.Value kind)
+    (decoded : bundle.Decodes family kind assignment value) :
+    bundle.values assignment = (family.codecFor kind).encode value := by
+  exact
+    ((family.codecFor kind).encode_decode
+      (bundle.values assignment) value decoded).2.symm
+
 end ColumnBundle
 
 /-- Ordered bundles for an exact typed schema.  The constructor order is the

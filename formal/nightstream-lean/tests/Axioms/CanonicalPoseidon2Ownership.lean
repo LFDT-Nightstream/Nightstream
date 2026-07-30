@@ -67,4 +67,10 @@ open Nightstream.Implementation.R1CS.Canonical
 #guard_msgs in
 #audit_axioms Poseidon2Ownership.canonicalProgramFrom_eq_map_owners
 
+
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Ownership.nodup_map_of_injective' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Poseidon2Ownership.nodup_map_of_injective
+
 end NightstreamTests.Axioms.CanonicalPoseidon2Ownership

@@ -18,8 +18,12 @@ open Nightstream.Implementation.R1CS.Canonical
 #guard_msgs in
 #audit_axioms KMul.outLow_sound
 
-/-- info: 'Nightstream.Implementation.R1CS.Canonical.KMul.outHigh_sound' depends on axioms: [propext] -/
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.KMul.outHigh_sound' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #audit_axioms KMul.outHigh_sound
+
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.KMul.karatsuba_identity' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#audit_axioms KMul.karatsuba_identity
 
 end NightstreamTests.Axioms.CanonicalKMul

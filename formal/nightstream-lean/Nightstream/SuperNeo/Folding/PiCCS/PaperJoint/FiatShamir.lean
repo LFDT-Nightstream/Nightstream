@@ -102,15 +102,19 @@ theorem toFinite_rounds_length
 
 end Certificate
 
-private def alphaLabels (shape : Shape) : List (ChallengeLabel shape) :=
+/-- Canonical alpha-label order used by `derivePreSumcheck`.  Public so
+concrete transcript encodings can prove schedule refinement without
+redefining the paper machine. -/
+def alphaLabels (shape : Shape) : List (ChallengeLabel shape) :=
   (canonicalFinIndices shape.cubeVariables).map ChallengeLabel.alpha
 
-private theorem alphaLabels_length (shape : Shape) :
+theorem alphaLabels_length (shape : Shape) :
     (alphaLabels shape).length = shape.cubeVariables := by
   simp [alphaLabels, canonicalFinIndices_length]
 
-/-- Squeeze a fixed typed label list, threading state in program order. -/
-private def squeezeMany
+/-- Squeeze a fixed typed label list, threading state in program order.
+Public so concrete oracles can prove schedule refinement. -/
+def squeezeMany
     {Context : Type uContext}
     {Field : Type uField}
     {State : Type uState}
@@ -123,7 +127,7 @@ private def squeezeMany
       let tail := squeezeMany oracle sample.2 labels
       (sample.1 :: tail.1, tail.2)
 
-private theorem squeezeMany_values_length
+theorem squeezeMany_values_length
     {Context : Type uContext}
     {Field : Type uField}
     {State : Type uState}

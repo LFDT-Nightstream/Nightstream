@@ -260,6 +260,47 @@ theorem RateChunk_capacity_untouched
     absorbChunk chunk.values state lane = state lane :=
   absorbChunk_capacity_untouched chunk.values chunk.bounded state lane isCapacity
 
+/-! ## Absorption does not mask a difference
+
+`absorbChunk` **adds** the chunk into the rate lane modulo the prime.  Addition
+is injective, so a difference between two chunks survives into the state — which
+is the step that has to hold before any claim that a separator "reaches" the
+digest means anything.
+
+Without it, a recipe could absorb two different preimages into the same state
+and the separation would be lost before a single permutation ran.  That failure
+would be structural rather than cryptographic, and it is the one this rules
+out. -/
+
+private theorem add_mod_cancel_left
+    (state first second : Nat)
+    (firstCanonical : first < goldilocksP)
+    (secondCanonical : second < goldilocksP)
+    (equal : (state + first) % goldilocksP = (state + second) % goldilocksP) :
+    first = second := by
+  simp only [goldilocksP] at firstCanonical secondCanonical equal ⊢
+  omega
+
+/-- **Absorption is injective in the chunk, lane by lane.**
+
+Two canonical values absorbed at the same lane of the same state give different
+lanes exactly when they differ.  Stated at a lane rather than on whole chunks
+because that is where a separator lands: one slot, not a whole block. -/
+theorem absorbChunk_injective_at_lane
+    (first second : List Nat) (state : Values) (lane : Fin width)
+    (firstValue secondValue : Nat)
+    (firstAt : first[lane.val]? = some firstValue)
+    (secondAt : second[lane.val]? = some secondValue)
+    (firstCanonical : firstValue < goldilocksP)
+    (secondCanonical : secondValue < goldilocksP)
+    (differ : firstValue ≠ secondValue) :
+    absorbChunk first state lane ≠ absorbChunk second state lane := by
+  unfold absorbChunk
+  rw [firstAt, secondAt]
+  intro equal
+  exact differ (add_mod_cancel_left (state lane) firstValue secondValue
+    firstCanonical secondCanonical equal)
+
 
 /-! ## The fixed 23-field recipe
 

@@ -162,6 +162,58 @@ theorem sboxProgram_length (layout : Layout) (schedule : Schedule) :
   rw [length_flatMap_uniform _ _ 4 (by intro x; simp [sboxRows])]
   simp
 
+/-! ## The allocation is written, not only declared
+
+`auxiliaryColumns` lists what an S-box program allocates.  Ownership theorems
+bound which columns a row may mention; none said an allocated column is reached
+at all, so the list could have been longer than the program and every count
+would still have agreed.
+
+Each S-box writes its four columns in the `c` of its four rows — square, fourth,
+sixth, output — so the converse holds by construction and needs only to be
+stated. -/
+
+/-- **Every column an S-box allocates is written by one of its own rows.** -/
+theorem sboxProgram_writes_sboxColumn
+    (layout : Layout) (schedule : Schedule)
+    (index : Fin sboxCount) (slot : Fin columnsPerSbox) :
+    ∃ row ∈ sboxProgram layout schedule,
+      row.c = [(sboxColumn layout index slot, 1)] := by
+  have slotLt : slot.val < 4 := by
+    have := slot.isLt
+    simp only [columnsPerSbox] at this
+    omega
+  have inner : ∃ row ∈ sboxRows (frameAt layout index (schedule index)),
+      row.c = [(sboxColumn layout index slot, 1)] := by
+    have choice : slot.val = 0 ∨ slot.val = 1 ∨ slot.val = 2 ∨ slot.val = 3 := by
+      omega
+    rcases choice with slotIs | slotIs | slotIs | slotIs
+    · exact ⟨rowSquare (frameAt layout index (schedule index)),
+        by simp [sboxRows],
+        by simp [rowSquare, frameAt, sboxColumn, slotIs]⟩
+    · exact ⟨rowFourth (frameAt layout index (schedule index)),
+        by simp [sboxRows],
+        by simp [rowFourth, frameAt, sboxColumn, slotIs]⟩
+    · exact ⟨rowSixth (frameAt layout index (schedule index)),
+        by simp [sboxRows],
+        by simp [rowSixth, frameAt, sboxColumn, slotIs]⟩
+    · exact ⟨rowSeventh (frameAt layout index (schedule index)),
+        by simp [sboxRows],
+        by simp [rowSeventh, frameAt, sboxColumn, slotIs]⟩
+  rcases inner with ⟨row, rowMember, mentions⟩
+  exact ⟨row, List.mem_flatMap.2 ⟨index, List.mem_finRange _, rowMember⟩,
+    mentions⟩
+
+/-- **Every declared auxiliary column is written.**  The list form. -/
+theorem sboxProgram_writes_auxiliaryColumns
+    (layout : Layout) (schedule : Schedule)
+    (column : Nat) (member : column ∈ auxiliaryColumns layout) :
+    ∃ row ∈ sboxProgram layout schedule, row.c = [(column, 1)] := by
+  unfold auxiliaryColumns at member
+  rcases List.mem_flatMap.1 member with ⟨index, _, inIndex⟩
+  rcases List.mem_map.1 inIndex with ⟨slot, _, rfl⟩
+  exact sboxProgram_writes_sboxColumn layout schedule index slot
+
 /-- Terminal binding of the final state to declared output ports. -/
 def bindingProgram (layout : Layout) (final : State) : List Row :=
   terminalBindingRows final layout.outputPort
@@ -175,6 +227,16 @@ theorem bindingProgram_length (layout : Layout) (final : State) :
 def permutationProgram (layout : Layout) (schedule : Schedule) (final : State) :
     List Row :=
   sboxProgram layout schedule ++ bindingProgram layout final
+
+/-- **Every declared auxiliary column is written by the assembled program.** -/
+theorem permutationProgram_writes_auxiliaryColumns
+    (layout : Layout) (schedule : Schedule) (final : State)
+    (column : Nat) (member : column ∈ auxiliaryColumns layout) :
+    ∃ row ∈ permutationProgram layout schedule final,
+      row.c = [(column, 1)] := by
+  rcases sboxProgram_writes_auxiliaryColumns layout schedule column member with
+    ⟨row, rowMember, write⟩
+  exact ⟨row, List.mem_append_left _ rowMember, write⟩
 
 /-- **Row count from the assembled receipts.** -/
 theorem permutationProgram_length

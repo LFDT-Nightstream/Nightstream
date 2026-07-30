@@ -104,6 +104,29 @@ theorem mentions_normalizeRow (row : Row) (column : Nat) :
    fun m => (mentions_normalize _ _).1 (mentions_fieldNormalize_subset _ _ m),
    fun m => (mentions_normalize _ _).1 (mentions_fieldNormalize_subset _ _ m)⟩
 
+/-! ### The direction that does survive
+
+`mentions_normalizeRow` runs one way only, and its header says why: normalization
+drops a column whose coefficient vanishes modulo the prime, so support *equality*
+is false.
+
+That rules out lifting an arbitrary "this column is written" fact through
+normalization.  It does **not** rule out lifting one whose coefficient is `1`,
+and every column an S-box allocates is written with coefficient `1` — the `c` of
+each of its four rows is a singleton `[(column, 1)]`.  So the case that matters
+survives, for a reason rather than by luck. -/
+
+theorem fieldNormalize_singleton_one (column : Nat) :
+    fieldNormalize [(column, 1)] = [(column, 1)] := by
+  simp [fieldNormalize, normalize, insertTerm, reduceTerm, goldilocksP]
+
+/-- **A coefficient-one write survives normalization.** -/
+theorem mentions_normalizeRow_singleton (row : Row) (column : Nat)
+    (write : row.c = [(column, 1)]) :
+    Mentions (normalizeRow row).c column := by
+  simp only [normalizeRow, write, fieldNormalize_singleton_one]
+  simp [Mentions]
+
 /-! ## Counting the emitted program
 
 `rawTermCount` counts entries as they stand.  Applied to the normalized

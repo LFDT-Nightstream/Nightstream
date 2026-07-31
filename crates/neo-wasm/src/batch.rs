@@ -45,8 +45,7 @@ use p3_field::PrimeCharacteristicRing;
 use crate::ccs::WasmVmSpec;
 use crate::ir::{WasmAuxOpcode, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::isa::{opcode_info_from_code, WasmOpcode};
-use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE};
-use crate::range_checked_witness_width;
+use crate::layout::COL_ONE;
 use crate::relation_layout::build_wasm_relation_layout;
 use crate::witness_builder::build_witness_vector;
 
@@ -90,7 +89,7 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
         core.structure.m,
         core.m_in,
     )?;
-    let widths = wasm_app_private_var_widths(m_single);
+    let widths = crate::witness_layout::range_checked_variable_widths();
     batch_wasm_relation(&single, &widths, batch_size)
 }
 
@@ -200,7 +199,7 @@ pub(crate) fn batch_wasm_relation(
 /// `batch_size`, the tail is padded with synthetic state-preserving
 /// padding rows (see [`padding_step_after`]).
 pub fn build_batched_witness(traces: &[WasmVmStep], batch_size: usize, batch_idx: usize) -> Vec<F> {
-    let single_width = crate::range_check::range_checked_witness_width();
+    let single_width = crate::RANGE_CHECKED_WITNESS_WIDTH;
     assert!(batch_size >= 1, "batch_size must be at least 1");
     let start = batch_idx * batch_size;
     assert!(
@@ -258,17 +257,29 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     let fbp = prev.state_after.locals_fbp;
     let pc = prev.state_after.pc;
     let sp = prev.state_after.sp;
+    let stack_frame_base = prev.state_after.stack_frame_base;
     let call_stack_depth = prev.state_after.call_stack_depth;
     let param_init = prev.state_after.param_init;
+    let tail_call_pending = prev.state_after.tail_call_pending;
     debug_assert!(
         !param_init.active,
         "padding inside a param-init aux sequence is unsupported"
     );
+    debug_assert!(!tail_call_pending, "padding before a tail-enter aux row is unsupported");
     let host_args = prev.state_after.host_args;
     let host_result_pending = prev.state_after.host_result_pending;
+    let host_callee_fref = prev.state_after.host_callee_fref;
+    let comm_chain = prev.state_after.comm_chain;
+    let event_absorb = prev.state_after.event_absorb;
+    let grammar_mode = prev.state_after.grammar_mode;
+    let grammar = prev.state_after.grammar;
     debug_assert!(
         !host_args.active && !host_result_pending,
         "padding inside a host-call aux sequence is unsupported"
+    );
+    debug_assert!(
+        !event_absorb.perm_pending && event_absorb.perm_round == 0,
+        "padding inside a host-event perm group is unsupported"
     );
     WasmVmStep {
         cycle: prev.cycle + 1,
@@ -276,6 +287,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         state_before: WasmStepState {
             pc,
             sp,
+            stack_frame_base,
             output: prev.state_after.output,
             call_stack_depth,
             memory_pages: pages,
@@ -284,12 +296,19 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             halted: prev.state_after.halted,
             trapped: prev.state_after.trapped,
             param_init,
+            tail_call_pending,
             host_args,
             host_result_pending,
+            host_callee_fref,
+            comm_chain,
+            event_absorb,
+            grammar_mode,
+            grammar,
         },
         state_after: WasmStepState {
             pc,
             sp,
+            stack_frame_base,
             output: prev.state_after.output,
             call_stack_depth,
             memory_pages: pages,
@@ -298,8 +317,14 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             halted: prev.state_after.halted,
             trapped: prev.state_after.trapped,
             param_init,
+            tail_call_pending,
             host_args,
             host_result_pending,
+            host_callee_fref,
+            comm_chain,
+            event_absorb,
+            grammar_mode,
+            grammar,
         },
         control_choice: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
@@ -343,6 +368,9 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         call_result_count: None,
         call_stack_push: None,
         call_stack_pop: None,
+        grammar_rom_slot: None,
+        grammar_pre_count: None,
+        grammar_post_count: None,
     }
 }
 
@@ -361,22 +389,4 @@ fn matrix_triplets(m: &CcsMatrix<F>) -> Result<Vec<(usize, usize, F)>, BatchErro
         CcsMatrix::CscWithSeededPhi81 { .. } => return Err(BatchError::CompactSeededMatrixUnsupported),
     };
     Ok(triplets)
-}
-
-pub(crate) fn wasm_app_private_var_widths(witness_width: usize) -> Vec<usize> {
-    let mut widths: Vec<usize> = COLUMN_SPECS
-        .iter()
-        .map(|spec| match spec.width {
-            ColumnWidth::Boolean => 1,
-            ColumnWidth::Byte => 8,
-            ColumnWidth::U32 => 32,
-            ColumnWidth::Field => 64,
-        })
-        .collect();
-
-    debug_assert_eq!(witness_width, range_checked_witness_width());
-    // Columns added for range checks land after the base columns. All of those
-    // are bits, since they are used for the binary recomposition.
-    widths.resize(witness_width, 1);
-    widths
 }

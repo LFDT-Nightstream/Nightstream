@@ -9,9 +9,8 @@
 //! through `runtime_read` and opcode/control metadata through `decode`; it
 //! does not run the engine or parse binaries.
 
+mod grammar_emit;
 mod trace_build;
-
-pub use trace_build::traces_from_wasmtime_steps;
 
 use super::decode::{DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode};
 use super::runtime_read::{
@@ -23,6 +22,19 @@ use super::{LoweringTables, WasmtimeTraceMemoryAccess, WasmtimeTraceMemoryWordLa
 use crate::ir::{LinearMemoryAccess, LinearMemoryWordLane, WasmBuildError, WasmPcEdgeKind};
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeInfo};
 use wasmtime::{FrameHandle, StoreContextMut};
+
+pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
+    trace_build::build_trace(rows, None, Default::default())
+}
+
+pub fn traces_from_wasmtime_steps_with_grammar(
+    rows: &[WasmtimeTraceStep],
+    grammar: &crate::event_grammar::HostEventGrammar,
+    turns: &[crate::event_grammar::TurnClaims],
+    initial_comm_chain: crate::comm_chain::CommChainState,
+) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
+    trace_build::build_trace(rows, Some((grammar, turns)), initial_comm_chain)
+}
 
 #[derive(Clone, Debug)]
 struct NormalizedStep {
@@ -77,8 +89,12 @@ struct NormalizedStep {
     /// Parsed local values at this step (before execution). Used to build aux param-init rows at
     /// call boundaries.
     locals_snapshot: Vec<u32>,
+    /// High 32-bit lanes of the locals snapshot (i64 locals).
+    locals_snapshot_hi: Vec<u32>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
+    /// Oracle words recorded on this (host-call) row at collection time.
+    host_call_claims: Vec<u64>,
 }
 
 fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, WasmBuildError> {
@@ -109,8 +125,8 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
     // aux rows (param-init for guest callees, host-arg for host callees) and
     // host results are pushed by a host-result aux row.
     let (stack_reads_override, stack_writes_override) = match opcode {
-        WasmOpcode::Call => (Some(0), Some(0)),
-        WasmOpcode::CallIndirect => (Some(1), Some(0)),
+        WasmOpcode::Call | WasmOpcode::ReturnCall => (Some(0), Some(0)),
+        WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect => (Some(1), Some(0)),
         _ => (None, None),
     };
 
@@ -131,7 +147,11 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         _ => None,
     };
     let table_id = match opcode {
-        WasmOpcode::TableSize | WasmOpcode::TableGet | WasmOpcode::TableSet | WasmOpcode::CallIndirect => row.table_id,
+        WasmOpcode::TableSize
+        | WasmOpcode::TableGet
+        | WasmOpcode::TableSet
+        | WasmOpcode::CallIndirect
+        | WasmOpcode::ReturnCallIndirect => row.table_id,
         _ => None,
     };
     let memory_pages_before = row.memory_pages_before;
@@ -245,8 +265,10 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         pc_after_instruction: row.pc_after_instruction,
         num_locals: row.num_locals,
         locals_snapshot,
+        locals_snapshot_hi: row.locals_words_hi.clone(),
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
+        host_call_claims: row.host_call_claims.clone(),
     }))
 }
 
@@ -318,9 +340,13 @@ pub(crate) fn capture_frame<T>(
         _ => None,
     };
     let table_id = match opcode_decoded {
-        Some(WasmOpcode::TableSize | WasmOpcode::TableGet | WasmOpcode::TableSet | WasmOpcode::CallIndirect) => {
-            immediate_i32
-        }
+        Some(
+            WasmOpcode::TableSize
+            | WasmOpcode::TableGet
+            | WasmOpcode::TableSet
+            | WasmOpcode::CallIndirect
+            | WasmOpcode::ReturnCallIndirect,
+        ) => immediate_i32,
         _ => None,
     };
     let memory_pages_now = read_memory_pages_if_present(0, frame, store)?;
@@ -352,7 +378,7 @@ pub(crate) fn capture_frame<T>(
         Some(WasmOpcode::TableSet) => operand_stack_words
             .get(operand_stack_words.len().saturating_sub(2))
             .copied(),
-        Some(WasmOpcode::CallIndirect) => operand_stack_words.last().copied(),
+        Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => operand_stack_words.last().copied(),
         _ => None,
     };
     let table_value = match opcode_decoded {
@@ -369,7 +395,7 @@ pub(crate) fn capture_frame<T>(
         Some(WasmOpcode::TableSet) => operand_stack_words.last().copied(),
         // Skip the funcref read on an OOB index: there is no entry, and the
         // trap is derived from the index/size comparison instead.
-        Some(WasmOpcode::CallIndirect) => match (table_id, table_index, table_size) {
+        Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => match (table_id, table_index, table_size) {
             (Some(table_id), Some(table_index), Some(table_size)) if table_index < table_size => Some(
                 read_table_funcref_u32(table_id, table_index, frame, store, func_ref_ids)?,
             ),
@@ -381,33 +407,35 @@ pub(crate) fn capture_frame<T>(
         Some(WasmOpcode::RefFunc) => {
             immediate_i32.and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.function_metas))
         }
-        Some(WasmOpcode::TableGet | WasmOpcode::TableSet | WasmOpcode::CallIndirect) => {
-            table_value.and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.function_metas))
-        }
-        Some(WasmOpcode::Call) => immediate_i32
+        Some(
+            WasmOpcode::TableGet | WasmOpcode::TableSet | WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect,
+        ) => table_value.and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.function_metas)),
+        Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32
             .and_then(|function_index| function_index.checked_add(1))
             .and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.function_metas)),
         _ => None,
     };
     let function_ref = match opcode_decoded {
-        Some(WasmOpcode::Call) => immediate_i32.and_then(|function_index| function_index.checked_add(1)),
-        Some(WasmOpcode::CallIndirect) => table_value,
+        Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => {
+            immediate_i32.and_then(|function_index| function_index.checked_add(1))
+        }
+        Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => table_value,
         Some(WasmOpcode::RefFunc) => immediate_i32,
         Some(WasmOpcode::TableGet | WasmOpcode::TableSet) => table_value,
         _ => None,
     };
     let (call_param_count, call_result_count) = match opcode_decoded {
-        Some(WasmOpcode::Call) => immediate_i32
+        Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32
             .and_then(|function_index| function_index.checked_add(1))
             .and_then(|function_ref| function_arity_from_ref(function_ref, &tables.function_metas))
             .map_or((None, None), |(params, results)| (Some(params), Some(results))),
-        Some(WasmOpcode::CallIndirect) => table_value
+        Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => table_value
             .and_then(|function_ref| function_arity_from_ref(function_ref, &tables.function_metas))
             .map_or((None, None), |(params, results)| (Some(params), Some(results))),
         _ => (None, None),
     };
     let call_indirect_type_index = match opcode_decoded {
-        Some(WasmOpcode::CallIndirect) => decoded_opcode
+        Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => decoded_opcode
             .as_ref()
             .and_then(|d| d.call_indirect_type_index),
         _ => None,
@@ -494,6 +522,7 @@ pub(crate) fn capture_frame<T>(
         num_locals: num_locals as u32,
         call_return_pc: decoded_opcode.as_ref().and_then(|d| d.call_return_pc),
         pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
+        host_call_claims: Vec::new(),
     })
 }
 

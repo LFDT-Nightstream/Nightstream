@@ -219,6 +219,65 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
     preload
 }
 
+/// Preload the grammar-mode ROM families from an embedder grammar: the
+/// per-slot source descriptors keyed by `(fref, event_index, slot_cursor)`
+/// (exports number entry events then exit events) and the per-fref event
+/// counts. Call after [`preload_from_program_artifacts`] when checking a
+/// grammar-mode trace.
+pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::event_grammar::HostEventGrammar) {
+    use crate::event_grammar::{GrammarEvent, Limb, SlotSource};
+    let limb_bit = |limb| match limb {
+        Limb::Lo => 0,
+        Limb::Hi => 1,
+    };
+    let encode = |source: &SlotSource| match *source {
+        SlotSource::Const(value) => (0, 0, 0, value as u32, (value >> 32) as u32),
+        SlotSource::ArgElem { arg, limb } => (1, u32::from(arg), limb_bit(limb), 0, 0),
+        SlotSource::ResultElem { limb } => (2, 0, limb_bit(limb), 0, 0),
+        SlotSource::Claim { idx } => (3, u32::from(idx), 0, 0, 0),
+        SlotSource::ClaimLocal { local, limb, .. } => (4, u32::from(local), limb_bit(limb), 0, 0),
+        SlotSource::OutputElem { limb } => (5, 0, limb_bit(limb), 0, 0),
+    };
+    let insert_slots = |preload: &mut WasmMemoryPreload, fref: u32, events: Vec<&GrammarEvent>| {
+        for (event_index, event) in events.into_iter().enumerate() {
+            for (slot_index, source) in event.block.iter().enumerate() {
+                let key = vec![fref, event_index as u32, slot_index as u32];
+                let (kind, arg, limb, const_lo, const_hi) = encode(source);
+                // Bit 3 carries the per-event advice flag.
+                let kind = kind + 8 * u32::from(!event.absorb);
+                preload.insert("grammar_slot_kind", key.clone(), kind);
+                preload.insert("grammar_slot_arg", key.clone(), arg);
+                preload.insert("grammar_slot_limb", key.clone(), limb);
+                preload.insert("grammar_slot_const_lo", key.clone(), const_lo);
+                preload.insert("grammar_slot_const_hi", key, const_hi);
+            }
+        }
+    };
+    // Count cells in the fref-keyed-from-free-state families store
+    // count + 1 (presence bias): an undeclared fref reads the zero-filled 0
+    // and the CCS load rows subtract 1, poisoning the schedule to
+    // EVREM = p-1. See the relation-layout family comment for the full
+    // non-termination argument. Export exit counts stay raw: their read key
+    // is bound within an already-entered turn.
+    for (&fref, template) in &grammar.imports {
+        preload.insert(
+            "grammar_import_pre_counts",
+            vec![fref],
+            template.events.len() as u32 + 1,
+        );
+        insert_slots(preload, fref, template.events.iter().collect());
+    }
+    for (&fref, template) in &grammar.exports {
+        preload.insert(
+            "grammar_export_entry_counts",
+            vec![fref],
+            template.entry.len() as u32 + 1,
+        );
+        preload.insert("grammar_export_exit_counts", vec![fref], template.exit.len() as u32);
+        insert_slots(preload, fref, template.entry.iter().chain(&template.exit).collect());
+    }
+}
+
 pub fn sanity_check_memory_rows(
     layout: &WasmRelationLayout,
     witness_rows: &[Vec<F>],
@@ -227,7 +286,7 @@ pub fn sanity_check_memory_rows(
     assert_all_memory_specs_have_init_modes(layout)?;
     let mut state = preload.clone_cells();
     for (row_index, witness) in witness_rows.iter().enumerate() {
-        let expected = crate::range_check::range_checked_witness_width();
+        let expected = crate::RANGE_CHECKED_WITNESS_WIDTH;
         if witness.len() != expected {
             return Err(format!(
                 "memory sanity check expected witness width {}, got {} on row {}",
@@ -395,6 +454,7 @@ const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
     ("stack", DebugInitMode::Strict),
     ("call_stack_return_pcs", DebugInitMode::Strict),
     ("call_stack_caller_fbps", DebugInitMode::Strict),
+    ("call_stack_caller_sp_bases", DebugInitMode::Strict),
     // linear_memory: ZeroReadDefault. Bytes initialized by active `(data ...)`
     // segments are preloaded into the cells in `preload_from_program_artifacts`
     // (via `artifacts.tables.linear_memory_init`), so the RMW Read at data-initialized

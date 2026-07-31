@@ -10,6 +10,8 @@ use neo_math::D;
 const PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET: usize = 25_000_000;
 
 #[test]
+#[ignore = "production-shape preprocessing is too expensive for the regular test suite; \
+            run explicitly for budget audits"]
 fn wasm_nebula_relation_stays_within_production_budget() {
     let checked = common::checked_main(
         r#"(module

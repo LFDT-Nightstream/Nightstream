@@ -9,7 +9,7 @@ use neo_fold_clean::lifecycle::verify_uncompressed_audit;
 use neo_fold_clean::paper::digest::structure_digest;
 use neo_fold_clean::UncompressedAudit;
 use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, semantic_state_digest};
-use neo_wasm::range_check::range_checked_witness_width;
+use neo_wasm::RANGE_CHECKED_WITNESS_WIDTH;
 use neo_wasm::{batch, WasmStepState, WasmVmStep};
 
 pub struct AuditProof {
@@ -20,6 +20,7 @@ pub struct AuditProof {
 pub enum AuditProveError {
     Bridge(String),
     FinalStateMismatch,
+    TranscriptMismatch,
 }
 
 impl core::fmt::Display for AuditProveError {
@@ -29,6 +30,10 @@ impl core::fmt::Display for AuditProveError {
             Self::FinalStateMismatch => write!(
                 f,
                 "claimed final VM state does not match the replayed semantic-state digest"
+            ),
+            Self::TranscriptMismatch => write!(
+                f,
+                "the verified final commitment chain does not equal the claimed transcript's fold"
             ),
         }
     }
@@ -77,9 +82,28 @@ pub fn verify(
     Ok(())
 }
 
+/// [`verify`] plus transcript binding for the standalone (no interleaving
+/// proof) path: after the replayed chain verifies, the claimed final
+/// state's `comm_chain` must equal the native fold of `transcript` — the
+/// claimed event blocks in emission order.
+pub fn verify_with_transcript(
+    prep: &R1csFPrimePreprocessing,
+    proof: &AuditProof,
+    claimed_final_state: WasmStepState,
+    initial_comm_chain: neo_wasm::CommChainState,
+    transcript: &[[p3_goldilocks::Goldilocks; neo_wasm::comm_chain::COMM_CHAIN_BLOCK_WORDS]],
+) -> Result<(), AuditProveError> {
+    verify(prep, proof, claimed_final_state)?;
+    let fold = neo_wasm::comm_chain::fold_event_blocks(initial_comm_chain, transcript);
+    if claimed_final_state.comm_chain != fold.canonical_u64() {
+        return Err(AuditProveError::TranscriptMismatch);
+    }
+    Ok(())
+}
+
 fn validate_preprocessing(prep: &R1csFPrimePreprocessing) -> Result<(), AuditProveError> {
     let prep_widths = &prep.plan().app_private_var_widths;
-    let single_width = range_checked_witness_width();
+    let single_width = RANGE_CHECKED_WITNESS_WIDTH;
     if prep_widths.len() % single_width != 0 || prep_widths.is_empty() {
         return Err(AuditProveError::Bridge(format!(
             "preprocessing width-vector length {} is not a positive multiple of the single-step WASM witness width {single_width}",

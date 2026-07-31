@@ -21,12 +21,15 @@ use thiserror::Error;
 
 use crate::adapters::wasmtime::WasmProgramArtifacts;
 use crate::batch::padding_step_after;
+use crate::comm_chain::CommChainState;
+use crate::event_grammar::HostEventGrammar;
 use crate::ir::{WasmAuxOpcode, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::layout::COL_PADDING_ACTIVE;
 use crate::lookup_circuit::{extend_witness, LookupCircuitError};
+use crate::memory_semantics::preload_grammar_tables;
 use crate::preprocess::{
-    canonical_wasm_nebula_shape_batched_with_initial_state_digest, semantic_state_digest,
-    top_level_initial_state_digest, WasmPreprocessError,
+    canonical_wasm_nebula_shape_batched_with_initial_state_digest, grammar_top_level_initial_state_digest,
+    semantic_state_digest, top_level_initial_state_digest, WasmPreprocessError,
 };
 use crate::relation_layout::{build_wasm_relation_layout, WasmMemoryActivation, WasmMemoryColumnKind};
 use crate::witness_builder::build_witness_vector;
@@ -137,6 +140,13 @@ impl WasmNebulaProfile {
     #[doc(hidden)]
     pub fn test_profile() -> Self {
         let memory = NebulaParams::new(10, 10, 64, 1024, 16).expect("test WASM Nebula geometry");
+        Self::test_profile_with_geometry(memory)
+    }
+
+    /// Test profile over a caller-chosen memory geometry, for fixtures whose
+    /// ROM plan (pc space, grammar tables) outgrows the default `r = 10`.
+    #[doc(hidden)]
+    pub fn test_profile_with_geometry(memory: NebulaParams) -> Self {
         Self {
             memory: batched_memory_geometry(memory, WASM_NEBULA_BATCH_SIZE),
             limits: WasmNebulaLimits::test_profile(),
@@ -158,10 +168,18 @@ impl WasmNebulaProfile {
 }
 
 fn batched_memory_geometry(memory: NebulaParams, batch_size: usize) -> NebulaParams {
+    // The slot budget is the relation's own per-step port count: every
+    // declared memory column occupies one ops-lane slot per batched step.
+    let step_ports: usize = build_wasm_relation_layout()
+        .auxiliary
+        .memories
+        .iter()
+        .map(|memory| memory.columns.len())
+        .sum();
     NebulaParams::new(
         memory.r,
         memory.mu,
-        memory.b_ops * batch_size,
+        step_ports * batch_size,
         memory.b_scan,
         memory.seg_max,
     )
@@ -174,6 +192,9 @@ pub struct WasmNebulaPreprocessing {
     lookup_auxiliary_columns_per_instruction: usize,
     lookup_auxiliary_columns_total: usize,
     has_linear_memory: bool,
+    // Grammar-mode preprocessing binds host calls through the event chain,
+    // so `prove` accepts host-call rows instead of rejecting them.
+    allows_host_calls: bool,
 }
 
 impl WasmNebulaPreprocessing {
@@ -214,7 +235,7 @@ pub fn preprocess(
     entry_pc: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, None, None)
+    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, None, None, None)
 }
 
 /// Preprocess only when the final F′ relation fits the caller's committed-
@@ -235,6 +256,7 @@ pub fn preprocess_with_coordinate_limit(
         initial_locals,
         entry_pc,
         None,
+        None,
         Some(max_coordinates),
     )
 }
@@ -249,7 +271,16 @@ pub fn preprocess_seeded(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, Some(seed), None)
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        None,
+        Some(seed),
+        None,
+    )
 }
 
 #[doc(hidden)]
@@ -269,6 +300,7 @@ pub fn preprocess_seeded_with_coordinate_limit(
         artifacts,
         initial_locals,
         entry_pc,
+        None,
         Some(seed),
         Some(max_coordinates),
     )
@@ -286,7 +318,66 @@ pub fn preprocess_seeded_reduced_memory_test_only(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     reject_host_imports(artifacts)?;
-    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, Some(seed), None)
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        None,
+        Some(seed),
+        None,
+    )
+}
+
+/// Grammar preprocessing with an explicit initial commitment state.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub fn preprocess_seeded_grammar_test_only(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+    grammar: &HostEventGrammar,
+    export_fref: u32,
+    seed: u64,
+    initial_comm_chain: CommChainState,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    validate_grammar_program(artifacts, profile.limits)?;
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        Some((grammar, export_fref, initial_comm_chain)),
+        Some(seed),
+        None,
+    )
+}
+
+#[cfg(feature = "perf-timers")]
+#[doc(hidden)]
+pub fn preprocess_seeded_unbounded_profile(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+    seed: u64,
+) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+    validate_sound_program(artifacts, profile.limits)?;
+    preprocess_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        None,
+        Some(seed),
+        None,
+    )
 }
 
 fn preprocess_inner(
@@ -295,12 +386,28 @@ fn preprocess_inner(
     artifacts: &WasmProgramArtifacts,
     initial_locals: &[u32],
     entry_pc: u64,
+    grammar: Option<(&HostEventGrammar, u32, CommChainState)>,
     seed: Option<u64>,
     max_coordinates: Option<usize>,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
-    let initial_state = top_level_initial_state_digest(&artifacts.tables, entry_pc);
+    let initial_state = match grammar {
+        Some((grammar, export_fref, initial_comm_chain)) => grammar_top_level_initial_state_digest(
+            &artifacts.tables,
+            entry_pc,
+            grammar,
+            export_fref,
+            initial_comm_chain,
+        ),
+        None => top_level_initial_state_digest(&artifacts.tables, entry_pc),
+    };
     let canonical = canonical_wasm_nebula_shape_batched_with_initial_state_digest(profile.batch_size, initial_state)?;
-    let backend = build_memory_backend(artifacts, initial_locals, &profile, canonical.single_step_columns)?;
+    let backend = build_memory_backend(
+        artifacts,
+        initial_locals,
+        grammar.map(|(grammar, _, _)| grammar),
+        &profile,
+        canonical.single_step_columns,
+    )?;
     let plan = NebulaPlan::new_with_initial_ram(
         profile.memory,
         backend.rom_image,
@@ -336,6 +443,7 @@ fn preprocess_inner(
         lookup_auxiliary_columns_per_instruction,
         lookup_auxiliary_columns_total,
         has_linear_memory: artifacts.tables.initial_memory_pages.is_some(),
+        allows_host_calls: grammar.is_some(),
     })
 }
 
@@ -394,7 +502,9 @@ fn prove_inner(
     if !trace.last().expect("nonempty").state_after.halted {
         return Err(WasmNebulaError::NonTerminalTrace);
     }
-    reject_host_trace(trace)?;
+    if !prep.allows_host_calls {
+        reject_host_trace(trace)?;
+    }
 
     let plan = prep.inner.plan();
     let mut memory = Memory::new_with_initial_ram(*plan.params(), plan.rom_image(), plan.ram_image())?;
@@ -472,11 +582,15 @@ struct MemoryBackend {
 fn build_memory_backend(
     artifacts: &WasmProgramArtifacts,
     initial_locals: &[u32],
+    grammar: Option<&HostEventGrammar>,
     profile: &WasmNebulaProfile,
     single_step_columns: usize,
 ) -> Result<MemoryBackend, WasmNebulaError> {
     let relation = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(artifacts, initial_locals);
+    let mut preload = preload_from_program_artifacts(artifacts, initial_locals);
+    if let Some(grammar) = grammar {
+        preload_grammar_tables(&mut preload, grammar);
+    }
     let entries = preload.entries();
     let mut by_memory: BTreeMap<&str, Vec<(Vec<u32>, u32)>> = BTreeMap::new();
     for (memory, address, value) in &entries {
@@ -630,7 +744,9 @@ fn rom_component_bits(
 fn ram_component_bits(memory: &str, limits: WasmNebulaLimits) -> Result<Vec<u8>, WasmNebulaError> {
     let dimensions = match memory {
         "stack" => vec![limits.stack_cells],
-        "call_stack_return_pcs" | "call_stack_caller_fbps" => vec![limits.call_stack_cells],
+        "call_stack_return_pcs" | "call_stack_caller_fbps" | "call_stack_caller_sp_bases" => {
+            vec![limits.call_stack_cells]
+        }
         "linear_memory" => vec![limits.linear_memory_words],
         "locals" | "locals_hi" => vec![limits.local_frames, limits.locals_per_frame],
         "globals" | "globals_hi" => vec![limits.globals],
@@ -646,22 +762,43 @@ fn bits_for_bound(bound: u64) -> u8 {
     rounded.ilog2() as u8
 }
 
+fn reject_imported_state(artifacts: &WasmProgramArtifacts) -> Result<(), WasmNebulaError> {
+    if artifacts.tables.has_imported_memory || artifacts.tables.imported_global_count != 0 {
+        return Err(WasmNebulaError::ImportedStateUnsupported);
+    }
+    Ok(())
+}
+
 fn reject_host_imports(artifacts: &WasmProgramArtifacts) -> Result<(), WasmNebulaError> {
-    if artifacts.tables.has_imported_memory
-        || artifacts.tables.imported_global_count != 0
-        || artifacts
-            .tables
-            .function_guest_flags
-            .iter()
-            .any(|&(_, is_guest)| is_guest == 0)
+    reject_imported_state(artifacts)?;
+    if artifacts
+        .tables
+        .function_guest_flags
+        .iter()
+        .any(|&(_, is_guest)| is_guest == 0)
     {
         return Err(WasmNebulaError::HostImportsUnsupported);
     }
     Ok(())
 }
 
+/// Grammar mode binds host FUNCTION calls through the event chain; imported
+/// memories and globals are still verifier-unbound state, and the declared
+/// linear-memory limits apply regardless.
+fn validate_grammar_program(artifacts: &WasmProgramArtifacts, limits: WasmNebulaLimits) -> Result<(), WasmNebulaError> {
+    reject_imported_state(artifacts)?;
+    validate_linear_memory_limits(artifacts, limits)
+}
+
 fn validate_sound_program(artifacts: &WasmProgramArtifacts, limits: WasmNebulaLimits) -> Result<(), WasmNebulaError> {
     reject_host_imports(artifacts)?;
+    validate_linear_memory_limits(artifacts, limits)
+}
+
+fn validate_linear_memory_limits(
+    artifacts: &WasmProgramArtifacts,
+    limits: WasmNebulaLimits,
+) -> Result<(), WasmNebulaError> {
     let Some(initial_pages) = artifacts.tables.initial_memory_pages else {
         return Ok(());
     };
@@ -728,8 +865,10 @@ pub enum WasmNebulaError {
         expected: usize,
         actual: usize,
     },
-    #[error("imported host functions, memories, and globals are unsupported until their state is verifier-bound")]
+    #[error("imported host functions are unsupported without grammar templates binding their calls")]
     HostImportsUnsupported,
+    #[error("imported memories and globals are unsupported until their state is verifier-bound")]
+    ImportedStateUnsupported,
     #[error(
         "declared linear memory ({initial_pages} initial, {max_pages} maximum pages) exceeds the dense proof domain ({capacity_pages} pages)"
     )]

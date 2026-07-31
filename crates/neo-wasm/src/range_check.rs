@@ -6,50 +6,23 @@
 //!
 //! Also provides the function to compute the corresponding witness assignment.
 
-use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE, NAMED_COLUMN_COUNT};
+use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE};
 use crate::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder};
+use crate::witness_layout::{range_bit_region, RANGE_BITS, RANGE_CHECKED_WITNESS_WIDTH};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::ops::Range;
 
-fn decomposed_bits(width: ColumnWidth) -> usize {
-    match width {
-        ColumnWidth::Boolean | ColumnWidth::Field => 0,
-        ColumnWidth::Byte => 8,
-        ColumnWidth::U32 => 32,
-    }
-}
-
-/// Witness width of the range-checked wasm CCS: the declared columns plus
-/// one aux bit column per decomposed bit.
-pub fn range_checked_witness_width() -> usize {
-    NAMED_COLUMN_COUNT
-        + COLUMN_SPECS
-            .iter()
-            .map(|spec| decomposed_bits(spec.width))
-            .sum::<usize>()
-}
-
 /// Aux bit columns backing one declared byte/u32 column in the extended
 /// witness. Boolean and field columns have no separate decomposition.
 pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
-    let mut start = NAMED_COLUMN_COUNT;
-    for spec in COLUMN_SPECS {
-        let bits = decomposed_bits(spec.width);
-        if spec.index == column {
-            return (bits != 0).then_some(start..start + bits);
-        }
-        start += bits;
-    }
-    None
+    range_bit_region(column).map(|region| region.start..region.end())
 }
 
 /// Emit the range-check rows. Each row is tagged with the column's
 /// `COL_*` name so constraint provenance dumps itemize the cost per column.
 pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
-    let mut aux = NAMED_COLUMN_COUNT;
     for spec in COLUMN_SPECS {
-        let bits = decomposed_bits(spec.width);
         let tag = WasmConstraintTag {
             label: spec.name,
             scope: WasmConstraintScope::Always,
@@ -62,21 +35,22 @@ pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
                 });
             }
             ColumnWidth::Byte | ColumnWidth::U32 => {
+                let region = range_bit_region(spec.index).expect("decomposed column has a range-bit region");
                 b.with_tag(tag, |b| {
-                    for i in 0..bits {
-                        b.push_boolean(aux + i);
+                    for bit in region.start..region.end() {
+                        b.push_boolean(bit);
                     }
                     b.push_row(
-                        (0..bits).map(|i| (aux + i, F::from_u64(1u64 << i))),
+                        (region.start..region.end())
+                            .enumerate()
+                            .map(|(i, bit)| (bit, F::from_u64(1u64 << i))),
                         [(COL_ONE, F::ONE)],
                         [(spec.index, F::ONE)],
                     );
                 });
-                aux += bits;
             }
         }
     }
-    debug_assert_eq!(aux, range_checked_witness_width());
 }
 
 /// Compute (or refresh) the aux bit columns from the declared columns.
@@ -88,22 +62,20 @@ pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
 /// — the CCS failure then carries the column's name via the row tag.
 pub fn write_range_check_bits(witness: &mut Vec<F>) {
     assert!(
-        witness.len() == NAMED_COLUMN_COUNT || witness.len() == range_checked_witness_width(),
+        witness.len() == RANGE_BITS.start || witness.len() == RANGE_CHECKED_WITNESS_WIDTH,
         "witness length {} is neither the base width {} nor the range-checked width {}",
         witness.len(),
-        NAMED_COLUMN_COUNT,
-        range_checked_witness_width(),
+        RANGE_BITS.start,
+        RANGE_CHECKED_WITNESS_WIDTH,
     );
-    witness.truncate(NAMED_COLUMN_COUNT);
-    witness.reserve(range_checked_witness_width() - NAMED_COLUMN_COUNT);
+    witness.resize(RANGE_CHECKED_WITNESS_WIDTH, F::ZERO);
     for spec in COLUMN_SPECS {
-        let bits = decomposed_bits(spec.width);
-        if bits == 0 {
+        let Some(region) = range_bit_region(spec.index) else {
             continue;
-        }
+        };
         let value = witness[spec.index].as_canonical_u64();
-        for i in 0..bits {
-            witness.push(F::from_u64((value >> i) & 1));
+        for (i, bit) in (region.start..region.end()).enumerate() {
+            witness[bit] = F::from_u64((value >> i) & 1);
         }
     }
 }

@@ -7,9 +7,10 @@ mod common;
 use neo_math::F;
 use neo_wasm::layout::{
     COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV,
-    COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE,
-    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
-    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
+    COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_RESULT_PENDING_AFTER,
+    COL_HOST_RESULT_PENDING_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_STACK_WRITE0_ADDR_HI,
+    COL_STACK_WRITE0_ADDR_LO,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
@@ -440,4 +441,50 @@ fn host_arg_row_rejects_forged_param_init_mode() {
     witness[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = F::ZERO;
     witness[COL_PARAM_INIT_REMAINING_AFTER_INV] = F::ONE;
     common::assert_rejected(&witness, "host arg row entering param-init mode");
+}
+
+/// Every row of a host-call event carries the (ROM/table-bound) callee fref,
+/// so the future event absorb can key on which import was called.
+#[test]
+fn host_call_rows_carry_callee_attribution() {
+    let trace = five_arg_trace();
+    let call_row = trace
+        .iter()
+        .find(|row| row.row_kind.is_program() && row.state_after.host_args.active)
+        .expect("host call row");
+    let callee = call_row.function_ref.expect("call target fref");
+    assert_ne!(callee, 0);
+    assert_eq!(call_row.state_after.host_callee_fref, callee);
+    for row in host_arg_rows(&trace) {
+        assert_eq!(row.state_before.host_callee_fref, callee);
+        assert_eq!(row.state_after.host_callee_fref, callee);
+    }
+    assert_eq!(host_result_rows(&trace)[0].state_before.host_callee_fref, callee);
+}
+
+/// The call row must latch the callee fref that the `call_targets` ROM /
+/// table read pinned; claiming a different import identity is rejected.
+#[test]
+fn host_call_row_rejects_forged_callee_attribution() {
+    let trace = five_arg_trace();
+    let call_row = trace
+        .iter()
+        .find(|row| row.row_kind.is_program() && row.state_after.host_args.active)
+        .expect("host call row");
+    let mut witness = build_witness_vector(call_row);
+    common::assert_satisfied(&witness, "untampered host call row");
+    witness[COL_HOST_CALLEE_FREF_AFTER] = witness[COL_HOST_CALLEE_FREF_AFTER] + F::ONE;
+    common::assert_rejected(&witness, "host call row claiming a different callee");
+}
+
+/// Aux rows must preserve the latched callee fref; switching the attribution
+/// mid-event is rejected.
+#[test]
+fn host_arg_row_rejects_switched_callee_attribution() {
+    let trace = five_arg_trace();
+    let arg_row = host_arg_rows(&trace)[0];
+    let mut witness = build_witness_vector(arg_row);
+    common::assert_satisfied(&witness, "untampered host arg row");
+    witness[COL_HOST_CALLEE_FREF_AFTER] = witness[COL_HOST_CALLEE_FREF_AFTER] + F::ONE;
+    common::assert_rejected(&witness, "host arg row switching the callee attribution");
 }

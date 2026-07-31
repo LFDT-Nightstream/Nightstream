@@ -3,19 +3,21 @@ use super::ir::{WasmRowKind, WasmVmStep};
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_INDIRECT_TYPE_INDEX,
     COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE,
-    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT,
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_ENTRY_IS_NULL, COL_CI_ENTRY_NULL_INV, COL_CI_HOST_CALL, COL_CI_OOB,
-    COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW, COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV, COL_DIV_DIVISOR_INV,
-    COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
+    COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
+    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_ENTRY_IS_NULL,
+    COL_CI_ENTRY_NULL_INV, COL_CI_HOST_CALL, COL_CI_OOB, COL_CI_TYPE_EQ, COL_CI_TYPE_EQ_INV, COL_CMP_GE, COL_CMP_LOW,
+    COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE, COL_COMM_CHAIN1_AFTER, COL_COMM_CHAIN1_BEFORE,
+    COL_COMM_CHAIN2_AFTER, COL_COMM_CHAIN2_BEFORE, COL_COMM_CHAIN3_AFTER, COL_COMM_CHAIN3_BEFORE, COL_CONTROL_CHOICE,
+    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVIDEND_MIN_INV,
+    COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW,
     COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF,
     COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_GROW_SUCCESS,
-    COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
+    COL_GUEST_ENTRY_ACTIVE, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
     COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO,
-    COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
-    COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
-    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
-    COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
+    COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_ACTIVE,
+    COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
+    COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4,
+    COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
@@ -52,17 +54,18 @@ use super::layout::{
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
     COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
     COL_PC_ROM_CALL_RETURN_CHOICE, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_SIGN_EXT_BIT,
-    COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
-    COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE,
-    COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO,
-    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI,
-    COL_STACK_READ2_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI,
-    COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID,
-    COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE,
-    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1,
-    COL_WIDE_VALUES_ENABLED, NAMED_COLUMN_COUNT, PC_ROM_CALL_RETURN_CHOICE,
+    COL_SIGN_EXT_LOW7, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE,
+    COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
+    COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO,
+    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI,
+    COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS,
+    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
+    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE,
+    COL_TAIL_DISCARD_COUNT, COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
+    PC_ROM_CALL_RETURN_CHOICE,
 };
-use super::step_build::WasmStepBuild;
 use crate::layout::{
     COL_CMP_AND, COL_CMP_HI_DIFF, COL_CMP_HI_INV, COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV,
     COL_CMP_LO_IS_ZERO, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
@@ -70,24 +73,8 @@ use crate::layout::{
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-/// Build one R1CS-satisfying assignment per normalized wasm step.
-///
-/// The R1CS-F' chain builder in `neo-fold-clean` bit-decomposes each
-/// assignment during `compile_step` and constructs the foldable F'-encoded
-/// `CcsInstance` internally; neo-wasm does not commit to the assignment.
-/// Assignments match the canonical (range-checked) wasm CCS: the declared
-/// columns followed by the range-check bit columns.
-pub fn build_steps(steps: &[WasmVmStep]) -> Vec<WasmStepBuild> {
-    steps
-        .iter()
-        .map(|step| WasmStepBuild {
-            assignment: build_witness_vector(step),
-        })
-        .collect()
-}
-
 pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
-    let mut wit = vec![F::ZERO; NAMED_COLUMN_COUNT];
+    let mut wit = vec![F::ZERO; crate::RANGE_CHECKED_WITNESS_WIDTH];
     wit[COL_ONE] = F::ONE;
     // High-limb stack addresses are constrained unconditionally as
     // `addr_hi = addr_lo + 1`. Inactive low addresses default to 0 and
@@ -105,6 +92,26 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_OPCODE_CODE] = F::from_u64(u64::from(opcode_code));
     wit[COL_PC_BEFORE] = F::from_u64(trace.state_before.pc);
     wit[COL_PC_AFTER] = F::from_u64(trace.state_after.pc);
+    wit[COL_STACK_FRAME_BASE_BEFORE] = F::from_u64(trace.state_before.stack_frame_base);
+    wit[COL_STACK_FRAME_BASE_AFTER] = F::from_u64(trace.state_after.stack_frame_base);
+    wit[COL_TAIL_CALL_PENDING_BEFORE] = if trace.state_before.tail_call_pending {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_TAIL_CALL_PENDING_AFTER] = if trace.state_after.tail_call_pending {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    wit[COL_TAIL_ENTER_ACTIVE] = if trace.row_kind.is_tail_enter() {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    if trace.row_kind.is_tail_enter() {
+        wit[COL_TAIL_DISCARD_COUNT] = F::from_u64(trace.state_before.sp - trace.state_after.sp);
+    }
     wit[COL_CONTROL_CHOICE] = F::from_u64(u64::from(trace.control_choice));
     wit[COL_PC_EDGE_KIND] = F::from_u64(u64::from(trace.pc_edge_kind.as_u32()));
     let (pc_edge_kind_is_static, pc_edge_kind_inv) = zero_test_witness_u64(u64::from(trace.pc_edge_kind.as_u32()));
@@ -131,11 +138,34 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     } else {
         F::ZERO
     };
-    wit[COL_HOST_RESULT_ACTIVE] = if trace.state_before.host_result_pending && !trace.state_before.host_args.active {
+    // Result row = owed push, args mode done, and no perm rows running
+    // (mirrors `pending_before · (round_is_zero - args_active - perm_pending)`).
+    wit[COL_HOST_RESULT_ACTIVE] = if trace.state_before.host_result_pending
+        && !trace.state_before.host_args.active
+        && trace.state_before.event_absorb.perm_round == 0
+        && !trace.state_before.event_absorb.perm_pending
+        && !trace.row_kind.is_host_event_gather()
+    {
         F::ONE
     } else {
         F::ZERO
     };
+    wit[COL_HOST_CALLEE_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_callee_fref));
+    wit[COL_HOST_CALLEE_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.host_callee_fref));
+    wit[COL_TURN_EXPORT_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.grammar.turn_export_fref));
+    wit[COL_TURN_EXPORT_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.grammar.turn_export_fref));
+    for (i, (before_col, after_col)) in [
+        (COL_COMM_CHAIN0_BEFORE, COL_COMM_CHAIN0_AFTER),
+        (COL_COMM_CHAIN1_BEFORE, COL_COMM_CHAIN1_AFTER),
+        (COL_COMM_CHAIN2_BEFORE, COL_COMM_CHAIN2_AFTER),
+        (COL_COMM_CHAIN3_BEFORE, COL_COMM_CHAIN3_AFTER),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        wit[before_col] = F::from_u64(trace.state_before.comm_chain[i]);
+        wit[after_col] = F::from_u64(trace.state_after.comm_chain[i]);
+    }
     wit[COL_WIDE_VALUES_ENABLED] = if trace.wide_values_enabled { F::ONE } else { F::ZERO };
     wit[COL_SP_BEFORE] = F::from_u64(trace.state_before.sp);
     wit[COL_SP_AFTER] = F::from_u64(trace.state_after.sp);
@@ -176,17 +206,27 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     } else {
         F::ZERO
     };
-    // Guest call ⟺ a return context is pushed: the CCS defines this column
-    // as `(call + call_indirect) · is_guest`, and the call-stack push is one
-    // of its consequences; the trace's push record is the same fact.
-    wit[COL_GUEST_CALL_ACTIVE] = if trace.call_stack_push.is_some() {
+    wit[COL_CALL_STACK_PUSH_PRESENT] = if trace.call_stack_push.is_some() {
         F::ONE
     } else {
         F::ZERO
     };
-    if let Some((return_pc, caller_fbp)) = trace.call_stack_push.or(trace.call_stack_pop) {
+    wit[COL_GUEST_ENTRY_ACTIVE] = if trace.target_function_is_guest
+        && matches!(
+            trace.opcode,
+            super::isa::WasmOpcode::Call
+                | super::isa::WasmOpcode::CallIndirect
+                | super::isa::WasmOpcode::ReturnCall
+                | super::isa::WasmOpcode::ReturnCallIndirect
+        ) {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    if let Some((return_pc, caller_fbp, caller_stack_base)) = trace.call_stack_push.or(trace.call_stack_pop) {
         wit[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(return_pc);
         wit[COL_CALL_STACK_CALLER_FBP_VALUE] = F::from_u64(caller_fbp);
+        wit[COL_CALL_STACK_CALLER_SP_BASE_VALUE] = F::from_u64(caller_stack_base);
     }
     if trace.call_stack_push.is_some() {
         wit[COL_CALL_STACK_ADDR] = F::from_u64(trace.state_before.call_stack_depth);
@@ -245,7 +285,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     };
     wit[COL_TABLE_READ_ENABLED] = if matches!(
         trace.opcode,
-        super::isa::WasmOpcode::TableGet | super::isa::WasmOpcode::CallIndirect
+        super::isa::WasmOpcode::TableGet
+            | super::isa::WasmOpcode::CallIndirect
+            | super::isa::WasmOpcode::ReturnCallIndirect
     ) {
         F::ONE
     } else {
@@ -254,7 +296,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     // table_sizes is read by table.size and by call_indirect (the OOB check).
     wit[COL_TABLE_SIZE_READ_ENABLED] = if matches!(
         trace.opcode,
-        super::isa::WasmOpcode::TableSize | super::isa::WasmOpcode::CallIndirect
+        super::isa::WasmOpcode::TableSize
+            | super::isa::WasmOpcode::CallIndirect
+            | super::isa::WasmOpcode::ReturnCallIndirect
     ) {
         F::ONE
     } else {
@@ -664,6 +708,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         trace.opcode,
         super::isa::WasmOpcode::LocalGet | super::isa::WasmOpcode::LocalSet | super::isa::WasmOpcode::LocalTee
     ) || trace.row_kind.is_call_param_init()
+        // Bootstrap gather rows write claim inputs into the locals family.
+        || trace.row_kind.is_host_event_gather()
     {
         if let Some(idx) = trace.local_index {
             wit[COL_LOCAL_INDEX] = F::from_u64(u64::from(idx));
@@ -739,7 +785,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     // callee type mismatch) and the derived read-activation gates. Placed
     // after the table/type columns above, which the comparison and zero tests
     // read.
-    let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")];
+    let sel_call_indirect = wit[selector_col(super::isa::WasmOpcode::CallIndirect).expect("call_indirect selector")]
+        + wit[selector_col(super::isa::WasmOpcode::ReturnCallIndirect).expect("return_call_indirect selector")];
     // ge = (table_index >= table_size); the gadget is gated on call_indirect,
     // so the columns only carry meaning (and ci_oob) on those rows.
     if sel_call_indirect == F::ONE {
@@ -781,6 +828,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     if wit[COL_CI_HOST_CALL] == F::ONE {
         wit[COL_PC_ROM_CALL_RETURN_CHOICE] = F::from_u64(PC_ROM_CALL_RETURN_CHOICE);
     }
+
+    fill_event_absorb(&mut wit, trace);
+    crate::ccs::host_event_chain::fill_witness(&mut wit, trace);
 
     match trace.opcode {
         super::isa::WasmOpcode::I32Add => {
@@ -908,6 +958,132 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
 
     crate::range_check::write_range_check_bits(&mut wit);
     wit
+}
+
+/// Host-event absorb machinery witness: carried state columns, the perm-row
+/// position one-hot, buffer-write masks, pending-update products, and the
+/// S-box power columns (whose unconditional mult rows are witness-filled
+/// with the powers of their linear input expression on every row).
+/// Fill the named host-event absorb interface columns (carried state); the
+/// gadget-internal block is filled by `ccs::host_event_chain::fill_witness`.
+fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
+    use crate::layout::{
+        COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_GATHER_ACTIVE,
+        COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GRAMMAR_ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE,
+        COL_GRAMMAR_EVIDX_AFTER, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_AFTER, COL_GRAMMAR_EVREM_BEFORE,
+        COL_GRAMMAR_EVREM_BEFORE_INV, COL_GRAMMAR_EVREM_BEFORE_IS_ZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL,
+        COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT,
+        COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER,
+        COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB, COL_PERM_PENDING_AFTER,
+        COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
+        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE,
+        COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
+    };
+
+    let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
+    let before = trace.state_before.event_absorb;
+    let after = trace.state_after.event_absorb;
+
+    for j in 0..8 {
+        wit[COL_EVBUF0_BEFORE + j] = F::from_u64(before.evbuf[j]);
+        wit[COL_EVBUF0_AFTER + j] = F::from_u64(after.evbuf[j]);
+    }
+    for k in 0..4 {
+        wit[COL_EVBUF_SLOT0_BEFORE + k] = bool_f(usize::from(before.evbuf_slot) == k);
+        wit[COL_EVBUF_SLOT0_AFTER + k] = bool_f(usize::from(after.evbuf_slot) == k);
+    }
+    wit[COL_PERM_PENDING_BEFORE] = bool_f(before.perm_pending);
+    wit[COL_PERM_PENDING_AFTER] = bool_f(after.perm_pending);
+    wit[COL_PERM_ROUND_BEFORE] = F::from_u64(u64::from(before.perm_round));
+    wit[COL_PERM_ROUND_AFTER] = F::from_u64(u64::from(after.perm_round));
+    let (round_is_zero, round_inv) = zero_test_witness_u64(u64::from(before.perm_round));
+    wit[COL_PERM_ROUND_BEFORE_IS_ZERO] = round_is_zero;
+    wit[COL_PERM_ROUND_BEFORE_INV] = round_inv;
+    for lane in 0..12 {
+        wit[COL_PERM_STATE0_BEFORE + lane] = F::from_u64(before.perm_state[lane]);
+        wit[COL_PERM_STATE0_AFTER + lane] = F::from_u64(after.perm_state[lane]);
+    }
+
+    // Grammar mode flag, gather row kind, and the raw-machinery masks
+    // (`x · (1 - mode)`), read by the gadget's gates and witness fill.
+    let mode = bool_f(trace.state_before.grammar_mode);
+    wit[COL_GRAMMAR_MODE_BEFORE] = mode;
+    wit[COL_GRAMMAR_MODE_AFTER] = bool_f(trace.state_after.grammar_mode);
+    wit[COL_GATHER_ACTIVE] = bool_f(trace.row_kind.is_host_event_gather());
+    wit[crate::layout::COL_PC_FREF_ACTIVE] = bool_f(
+        !trace.row_kind.is_host_event_gather()
+            && !trace.row_kind.is_turn_boundary()
+            && !trace.row_kind.is_padding()
+            && trace.state_before.event_absorb.perm_round == 0
+            && !trace.state_before.event_absorb.perm_pending,
+    );
+    let host_call_gate = wit[selector_col(super::isa::WasmOpcode::Call).expect("call selector")]
+        + wit[selector_col(super::isa::WasmOpcode::ReturnCall).expect("return_call selector")]
+        + wit[COL_CALL_INDIRECT_IS_NOT_TRAP]
+        - wit[COL_GUEST_ENTRY_ACTIVE];
+    wit[COL_RAW_HOST_CALL] = host_call_gate * (F::ONE - mode);
+    wit[COL_RAW_ARGS_ACTIVE] = wit[COL_HOST_ARGS_ACTIVE_BEFORE] * (F::ONE - mode);
+    wit[COL_RAW_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * (F::ONE - mode);
+    wit[COL_GRAMMAR_HOST_CALL] = host_call_gate * mode;
+    wit[COL_GATHER_LOCAL_WRITE] =
+        if trace.row_kind.is_host_event_gather() && trace.grammar_rom_slot.is_some_and(|rom| rom.kind == 4) {
+            F::ONE
+        } else {
+            F::ZERO
+        };
+    wit[COL_GATHER_LOCAL_WRITE_LO] = if trace.row_kind.is_host_event_gather()
+        && trace
+            .grammar_rom_slot
+            .is_some_and(|rom| rom.kind == 4 && rom.limb == 0)
+    {
+        F::ONE
+    } else {
+        F::ZERO
+    };
+    // Hi-word stack write port gate: ordinary write0 activity, plus
+    // result-hi gather rows (which write only the pushed cell's hi lane).
+    let result_hi_gather = trace.row_kind.is_host_event_gather()
+        && trace
+            .grammar_rom_slot
+            .is_some_and(|rom| rom.kind == 2 && rom.limb == 1);
+    wit[crate::layout::COL_STACK_WRITE0_HI_ACTIVE] =
+        wit[crate::layout::COL_STACK_WRITE0_ACTIVE] + bool_f(result_hi_gather);
+    wit[COL_GRAMMAR_EXIT_LATCH] = bool_f(
+        trace.state_before.grammar_mode
+            && !trace.state_before.halted
+            && trace.state_after.halted
+            && !trace.state_after.trapped,
+    );
+    wit[crate::layout::COL_TURN_BOUNDARY] = bool_f(trace.row_kind.is_turn_boundary());
+
+    // Grammar gather machinery: carried schedule/cursor/oracle state plus
+    // the per-row grammar-ROM interface columns.
+    let g_before = trace.state_before.grammar;
+    let g_after = trace.state_after.grammar;
+    wit[COL_GRAMMAR_EVREM_BEFORE] = F::from_u64(u64::from(g_before.events_remaining));
+    wit[COL_GRAMMAR_EVREM_AFTER] = F::from_u64(u64::from(g_after.events_remaining));
+    let (evrem_is_zero, evrem_inv) = zero_test_witness_u64(u64::from(g_before.events_remaining));
+    wit[COL_GRAMMAR_EVREM_BEFORE_IS_ZERO] = evrem_is_zero;
+    wit[COL_GRAMMAR_EVREM_BEFORE_INV] = evrem_inv;
+    wit[COL_GRAMMAR_EVIDX_BEFORE] = F::from_u64(u64::from(g_before.event_index));
+    wit[COL_GRAMMAR_EVIDX_AFTER] = F::from_u64(u64::from(g_after.event_index));
+    wit[COL_GRAMMAR_ARGS_BASE_BEFORE] = F::from_u64(g_before.args_base);
+    wit[COL_GRAMMAR_ARGS_BASE_AFTER] = F::from_u64(g_after.args_base);
+    wit[COL_GRAMMAR_SLOT_CURSOR_BEFORE] = F::from_u64(u64::from(g_before.slot_cursor));
+    wit[COL_GRAMMAR_SLOT_CURSOR_AFTER] = F::from_u64(u64::from(g_after.slot_cursor));
+    if let Some(rom) = trace.grammar_rom_slot {
+        wit[COL_GRAMMAR_SLOT_KIND] = F::from_u64(u64::from(rom.kind) + 8 * u64::from(rom.advice));
+        wit[COL_GRAMMAR_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
+        wit[COL_GRAMMAR_SLOT_LIMB] = F::from_u64(u64::from(rom.limb));
+        wit[COL_GRAMMAR_SLOT_CONST_LO] = F::from_u64(u64::from(rom.const_lo));
+        wit[COL_GRAMMAR_SLOT_CONST_HI] = F::from_u64(u64::from(rom.const_hi));
+    }
+    if let Some(pre) = trace.grammar_pre_count {
+        wit[COL_GRAMMAR_PRE_COUNT] = F::from_u64(u64::from(pre));
+    }
+    if let Some(post) = trace.grammar_post_count {
+        wit[COL_GRAMMAR_POST_COUNT] = F::from_u64(u64::from(post));
+    }
 }
 
 fn write_param_init_state(wit: &mut [F], before: bool, state: super::ir::WasmCountdownState) {

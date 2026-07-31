@@ -24,7 +24,7 @@ pub use runtime_read::build_debug_function_id_map;
 use runtime_read::{build_single_trace_store_debug_function_id_map, val_to_string};
 // Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
 // (also brings the name into scope for the component wrappers below).
-pub use normalize::traces_from_wasmtime_steps;
+pub use normalize::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_grammar};
 pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables};
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
@@ -84,6 +84,11 @@ pub struct WasmtimeTraceStep {
     /// this is the return PC; for branches it is the linear successor, not
     /// necessarily the runtime next PC.
     pub pc_after_instruction: Option<u64>,
+    /// Per-call grammar claim words recorded by the embedder's host
+    /// function while servicing this host-call row (see
+    /// [`WasmtimeTraceState::record_call_claims`]). Consumed by grammar-mode
+    /// normalization; raw-mode normalization ignores it.
+    pub host_call_claims: Vec<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -239,6 +244,28 @@ impl WasmtimeTraceState {
     pub fn set_func_ref_ids(&mut self, func_ref_ids: BTreeMap<usize, u32>) {
         Arc::make_mut(&mut self.tables).func_ref_ids = func_ref_ids;
     }
+
+    /// Record per-call grammar claim words for the in-flight host call
+    /// (oracle values in Starstream terms: ref ids, callers). Call from
+    /// inside a host-function implementation (`store.data_mut()`): the debug
+    /// hook captures each instruction before it executes, so the latest
+    /// captured step is the host-call row being serviced and the batch
+    /// attaches to it — no call-order bookkeeping. Repeated calls append.
+    pub fn record_call_claims(&mut self, words: &[u64]) -> Result<(), WasmBuildError> {
+        let row = self.steps.last_mut().ok_or_else(|| {
+            WasmBuildError::Trace("record_call_claims: no captured step; not inside a traced host call".to_string())
+        })?;
+        let is_host_call = matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
+            && !row.target_function_is_guest;
+        if !is_host_call {
+            return Err(WasmBuildError::Trace(format!(
+                "record_call_claims: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
+                row.step, row.opcode
+            )));
+        }
+        row.host_call_claims.extend_from_slice(words);
+        Ok(())
+    }
 }
 
 /// Whether a wasmtime trap has a modeled terminal state, so the collected
@@ -362,6 +389,34 @@ pub fn collect_wasmtime_component_run_with_linker<F>(
 where
     F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
 {
+    collect_wasmtime_component_run_with_linker_and_args(component_bytes, export, &[], configure_linker)
+}
+
+/// [`collect_wasmtime_component_run_with_linker`] for exports with
+/// parameters: `args` are passed to the component-level call (canonical ABI
+/// lowering lands them in the export's locals).
+pub fn collect_wasmtime_component_run_with_linker_and_args<F>(
+    component_bytes: &[u8],
+    export: &str,
+    args: &[ComponentVal],
+    configure_linker: F,
+) -> Result<WasmtimeTraceRun, WasmBuildError>
+where
+    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
+{
+    collect_wasmtime_component_run_calls(component_bytes, &[(export, args.to_vec())], configure_linker)
+}
+
+/// Invoke component exports in order on one store and collect their steps in
+/// one trace. Grammar-mode normalization inserts boundaries between calls.
+pub fn collect_wasmtime_component_run_calls<F>(
+    component_bytes: &[u8],
+    calls: &[(&str, Vec<ComponentVal>)],
+    configure_linker: F,
+) -> Result<WasmtimeTraceRun, WasmBuildError>
+where
+    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
+{
     let parsed = parse_first_component_core_module_artifacts(component_bytes)?;
 
     let mut config = Config::new();
@@ -392,16 +447,20 @@ where
         .map_err(|err| WasmBuildError::Trace(format!("failed to instantiate Wasmtime component: {err}")))?;
     let func_ref_ids = build_single_trace_store_debug_function_id_map(&mut store)?;
     store.data_mut().set_func_ref_ids(func_ref_ids);
-    let func = instance
-        .get_func(&mut store, export)
-        .ok_or_else(|| WasmBuildError::Trace(format!("component export '{export}' not found")))?;
-    let mut results: Vec<ComponentVal> = func
-        .ty(&store)
-        .results()
-        .map(default_component_result_value)
-        .collect::<Result<_, _>>()?;
-    block_on(func.call_async(&mut store, &[], &mut results))
-        .map_err(|err| WasmBuildError::Trace(format!("failed to execute component export '{export}': {err}")))?;
+    let mut all_results: Vec<ComponentVal> = Vec::new();
+    for (export, args) in calls {
+        let func = instance
+            .get_func(&mut store, export)
+            .ok_or_else(|| WasmBuildError::Trace(format!("component export '{export}' not found")))?;
+        let mut results: Vec<ComponentVal> = func
+            .ty(&store)
+            .results()
+            .map(default_component_result_value)
+            .collect::<Result<_, _>>()?;
+        block_on(func.call_async(&mut store, args, &mut results))
+            .map_err(|err| WasmBuildError::Trace(format!("failed to execute component export '{export}': {err}")))?;
+        all_results.extend(results);
+    }
 
     let steps = store.data().steps.clone();
     let initial_locals = steps
@@ -416,7 +475,7 @@ where
         .unwrap_or_default();
 
     Ok(WasmtimeTraceRun {
-        results: results
+        results: all_results
             .iter()
             .map(component_val_to_string)
             .collect::<Result<_, _>>()?,

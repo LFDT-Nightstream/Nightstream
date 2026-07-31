@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod audit;
+pub mod grammar_fixture;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
@@ -85,6 +86,8 @@ pub fn sanity_check_trace(
     let preload = preload_from_program_artifacts(artifacts, initial_locals);
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
+    neo_wasm::comm_chain::sanity_check_comm_chain(trace)
+        .unwrap_or_else(|err| panic!("comm chain semantics rejected trace: {err}"));
     witnesses
 }
 
@@ -112,6 +115,7 @@ pub fn step(
         WasmStepState {
             pc,
             sp,
+            stack_frame_base: 0,
             output: WasmOutputState::ZERO,
             call_stack_depth: 0,
             memory_pages: None,
@@ -120,8 +124,14 @@ pub fn step(
             halted,
             trapped: false,
             param_init: WasmCountdownState::ZERO,
+            tail_call_pending: false,
             host_args: WasmCountdownState::ZERO,
             host_result_pending: false,
+            host_callee_fref: 0,
+            comm_chain: [0; 4],
+            event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
+            grammar_mode: false,
+            grammar: neo_wasm::WasmGrammarState::ZERO,
         }
     }
 
@@ -194,6 +204,9 @@ pub fn step(
         call_result_count: None,
         call_stack_push: None,
         call_stack_pop: None,
+        grammar_rom_slot: None,
+        grammar_pre_count: None,
+        grammar_post_count: None,
     }
 }
 

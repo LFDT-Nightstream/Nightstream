@@ -8,6 +8,7 @@
 //! `use super::*`.
 
 mod call;
+pub mod host_event_chain;
 mod linear_memory;
 mod memory_pages;
 mod stack_io;
@@ -148,10 +149,12 @@ fn opcodes_with_stack_signature(reads: u8, writes: u8) -> Vec<WasmOpcode> {
 
 fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
     let mut terms = vec![(COL_STACK_READS, F::ONE)];
-    for op in WasmOpcode::supported()
-        .into_iter()
-        .filter(|op| !matches!(op, WasmOpcode::Call | WasmOpcode::CallIndirect))
-    {
+    for op in WasmOpcode::supported().into_iter().filter(|op| {
+        !matches!(
+            op,
+            WasmOpcode::Call | WasmOpcode::CallIndirect | WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect
+        )
+    }) {
         let reads = opcode_info_from_code(opcode_code(op)).stack_reads;
         if reads != 0 {
             terms.push((
@@ -165,10 +168,12 @@ fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
 
 fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
     let mut terms = vec![(COL_STACK_WRITES, F::ONE)];
-    for op in WasmOpcode::supported()
-        .into_iter()
-        .filter(|op| !matches!(op, WasmOpcode::Call | WasmOpcode::CallIndirect))
-    {
+    for op in WasmOpcode::supported().into_iter().filter(|op| {
+        !matches!(
+            op,
+            WasmOpcode::Call | WasmOpcode::CallIndirect | WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect
+        )
+    }) {
         let writes = opcode_info_from_code(opcode_code(op)).stack_writes;
         if writes != 0 {
             terms.push((
@@ -180,16 +185,18 @@ fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
     terms
 }
 
-fn fixed_stack_arity_gate_terms() -> [(usize, F); 3] {
+fn fixed_stack_arity_gate_terms() -> [(usize, F); 5] {
     [
         (COL_IS_PROGRAM_ROW, F::ONE),
         (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
         (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::ReturnCall).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
     ]
 }
 
 fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String> {
-    let witness_width = crate::range_check::range_checked_witness_width();
+    let witness_width = crate::RANGE_CHECKED_WITNESS_WIDTH;
     let layout = build_wasm_relation_layout();
     let linear_memory = layout.linear_memory;
     let mut b = WasmTaggedR1csBuilder::new(witness_width, COL_ONE)?;
@@ -256,13 +263,20 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
     b.with_tag(always("halted state transition"), |b| {
         // No decoded instruction may execute after the carried state halted.
         b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_HALTED_BEFORE, F::ONE)], []);
-        // Auxiliary rows, including fixed-shape padding, preserve terminality.
+        // Auxiliary rows, including fixed-shape padding, preserve
+        // terminality — except a turn boundary, which clears the latch to
+        // re-enter the next export (see `ccs/call.rs`).
         b.push_row(
-            [(COL_ONE, F::ONE), (COL_IS_PROGRAM_ROW, -F::ONE)],
+            [
+                (COL_ONE, F::ONE),
+                (COL_IS_PROGRAM_ROW, -F::ONE),
+                (super::layout::COL_TURN_BOUNDARY, -F::ONE),
+            ],
             [(COL_HALTED, F::ONE), (COL_HALTED_BEFORE, -F::ONE)],
             [],
         );
     });
+    host_event_chain::push_constraints(&mut b);
 
     b.with_tag(always("opcode selector one hot"), |b| {
         b.push_linear_zero(
@@ -288,12 +302,18 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
-    // sp after + stack reads = sp before + stack writes
+    // Stack balance excludes non-popping grammar reads and treats a captured
+    // result as consumed by the host.
     b.push_linear_zero([
         (COL_SP_AFTER, F::ONE),
         (COL_SP_BEFORE, -F::ONE),
         (COL_STACK_READS, F::ONE),
         (COL_STACK_WRITES, -F::ONE),
+        (super::layout::COL_TAIL_DISCARD_COUNT, F::ONE),
+        (host_event_chain::gather_arg_read_kind_col(), -F::ONE),
+        (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
+        // Grammar host calls pop their args on the call row itself.
+        (host_event_chain::grammar_host_call_params_col(), F::ONE),
     ]);
     b.with_tag(always("fixed stack arity"), |b| {
         b.push_row(fixed_stack_arity_gate_terms(), fixed_stack_reads_terms(), []);
@@ -328,14 +348,17 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         // halts but keeps its Static edge kind, and a call_indirect trap
         // row halts but keeps its DynamicCallIndirect edge kind (the per-pc
         // edge-kind ROM binds both); the -trap terms absorb their `halted`
-        // contributions.
+        // contributions. A turn boundary clears the latch (its own rules pin
+        // halted_before = 1, halted = 0), so +TB cancels that -1 delta.
         b.push_linear_zero(
             [
                 (COL_HALTED, F::ONE),
                 (COL_HALTED_BEFORE, -F::ONE),
+                (super::layout::COL_TURN_BOUNDARY, F::ONE),
                 (COL_CALL_STACK_POP_PRESENT, F::ONE),
                 (COL_PC_EDGE_KIND, -F::ONE),
                 (selector_col(WasmOpcode::CallIndirect).unwrap(), F::from_u64(2)),
+                (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), F::from_u64(2)),
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
                 (COL_DIV_TRAP, -F::ONE),
                 (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
@@ -352,6 +375,11 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         push_gated_linear_zero(
             b,
             selector_col(WasmOpcode::CallIndirect).unwrap(),
+            [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(2))],
+        );
+        push_gated_linear_zero(
+            b,
+            selector_col(WasmOpcode::ReturnCallIndirect).unwrap(),
             [(COL_PC_EDGE_KIND, F::ONE), (COL_ONE, -F::from_u64(2))],
         );
         push_gated_linear_zero(

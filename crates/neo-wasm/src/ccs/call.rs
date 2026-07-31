@@ -1,47 +1,28 @@
-//! Owns the per-step call / frame / parameter-initialization CCS rows.
-//!
-//! Wasm guest calls split into three coupled mechanisms:
-//!
-//! 1. **Call-stack frame plumbing**: `frame.locals_fbp_*` advances on
-//!    push (enter callee) and rewinds on pop (return to caller);
-//!    `state.pc_after` is restored from the call-stack return-pc cell
-//!    on returns.
-//! 2. **Parameter initialization**: a guest call pushes
-//!    `function_types.param_count` parameters onto the stack, which the
-//!    callee must copy into its first `param_count` locals before
-//!    executing its body. We model that as a sequence of synthetic
-//!    "aux" rows immediately after the call row, each writing one
-//!    parameter and decrementing `param_init.param_init_remaining_*`
-//!    until it hits zero. `param_init_active_*` flags whether the
-//!    current row is one of these aux rows.
-//! 3. **Call arity**: `control.stack_{reads,writes}` is fixed for most
-//!    opcodes by the static one-hot decode, but `Call` and
-//!    `CallIndirect` are dynamic — their arities come from the callee's
-//!    declared type via the `function_types` lookup family.
-//!
-//! Host (imported) callees produce no guest rows. Their call row enters
-//! host-arg mode with `host_args.remaining = param_count`; each
-//! `HostCallArg` row pops one argument, and `HostCallResult` pushes the
-//! single flat result when `result_count = 1`.
+//! Owns call entry, return-context RAM, frame bases, parameter initialization,
+//! tail-frame replacement, and the raw host-call aux sequence.
 
 use super::super::gadgets::{push_gated_linear_zero, push_zero_test_gadget};
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
-    selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
-    COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE,
-    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_FUNCTION_REF, COL_GUEST_CALL_ACTIVE, COL_HALTED, COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE,
-    COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO,
-    COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
+    selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_PARAM_COUNT,
+    COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+    COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
+    COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_FUNCTION_REF,
+    COL_GATHER_ACTIVE, COL_GRAMMAR_EXIT_LATCH, COL_GUEST_ENTRY_ACTIVE, COL_HALTED, COL_HALTED_BEFORE,
+    COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
+    COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE,
+    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
     COL_HOST_RESULT_PENDING_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX,
     COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED,
     COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
     COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER,
     COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
     COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
-    COL_PC_ROM_CALL_RETURN_CHOICE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_READ0_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES, COL_TABLE_INDEX,
-    COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, PC_ROM_CALL_RETURN_CHOICE,
+    COL_PC_ROM_CALL_RETURN_CHOICE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO,
+    COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READ0_ADDR_LO,
+    COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES,
+    COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE, COL_TAIL_ENTER_ACTIVE,
+    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -57,21 +38,39 @@ type R1csBuilder = WasmTaggedR1csBuilder;
 /// transition → dynamic call-arity lookups.
 pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
     b.with_tag(always("row kind one hot"), |b| {
+        // The host-event perm row kind is the derived flag
+        // `perm_pending_before + (perm_round_before != 0)`; writing the sum
+        // as `... + pending - round_is_zero = 0` folds its `+1` into the
+        // one-hot's `-1`. `pending = 1 ∧ round != 0` would double-count, but
+        // is unreachable: every row that raises `pending` provably lands
+        // `round_after = 0` (see `ccs/poseidon.rs`).
         b.push_linear_zero([
             (COL_IS_PROGRAM_ROW, F::ONE),
             (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
+            (COL_TAIL_ENTER_ACTIVE, F::ONE),
             (COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE),
             (COL_HOST_RESULT_ACTIVE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
-            (COL_ONE, -F::ONE),
+            (COL_GATHER_ACTIVE, F::ONE),
+            (COL_TURN_BOUNDARY, F::ONE),
+            (COL_PERM_PENDING_BEFORE, F::ONE),
+            (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
         ]);
-        // host_result_active = host_result_pending_before · ¬host_args_active_before:
-        // the result row is the first row after the arg pops while a push is
-        // still owed. Feeding the one-hot above, this also forces the pending
-        // flag to be consumed before the next program row.
+        // host_result_active = pending_before · ¬(args mode or perm rows
+        // active): the result row is the first row after the arg pops — and
+        // after any interleaved perm group — while a push is still owed.
+        // `¬(args ∨ perm)` expands to `round_is_zero - args_active - pending`
+        // (the perm-row flag is `pending + 1 - round_is_zero`). Feeding the
+        // one-hot above, this also forces the owed push to be consumed
+        // before the next program row.
         b.push_row(
             [(COL_HOST_RESULT_PENDING_BEFORE, F::ONE)],
-            [(COL_ONE, F::ONE), (COL_HOST_ARGS_ACTIVE_BEFORE, -F::ONE)],
+            [
+                (COL_PERM_ROUND_BEFORE_IS_ZERO, F::ONE),
+                (COL_HOST_ARGS_ACTIVE_BEFORE, -F::ONE),
+                (COL_PERM_PENDING_BEFORE, -F::ONE),
+                (COL_GATHER_ACTIVE, -F::ONE),
+            ],
             [(COL_HOST_RESULT_ACTIVE, F::ONE)],
         );
     });
@@ -98,8 +97,24 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
             b,
             padding_gate,
             [
+                (COL_STACK_FRAME_BASE_AFTER, F::ONE),
+                (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
+            ],
+        );
+        push_gated_linear_zero(
+            b,
+            padding_gate,
+            [
                 (COL_CALL_STACK_DEPTH_AFTER, F::ONE),
                 (COL_CALL_STACK_DEPTH_BEFORE, -F::ONE),
+            ],
+        );
+        push_gated_linear_zero(
+            b,
+            padding_gate,
+            [
+                (COL_TAIL_CALL_PENDING_AFTER, F::ONE),
+                (COL_TAIL_CALL_PENDING_BEFORE, -F::ONE),
             ],
         );
         push_gated_linear_zero(
@@ -149,17 +164,34 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
     b.with_tag(always("non-program row shape"), |b| {
         // Aux rows keep pc fixed. Padding rows read and write nothing;
         // param-init and host-arg rows pop one arg slot each; host-result
-        // rows push the single host result.
-        let aux_row_gate = [
+        // rows push the single host result. (Host-event perm rows read and
+        // write nothing too; their rows live in `ccs/poseidon.rs`.) The
+        // pc-pin gate folds the perm-row flag `pending + 1 - round_is_zero`
+        // in directly.
+        let aux_row_gate_with_perm = [
             (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
+            (COL_TAIL_ENTER_ACTIVE, F::ONE),
             (COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE),
             (COL_HOST_RESULT_ACTIVE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
+            (COL_GATHER_ACTIVE, F::ONE),
+            (COL_PERM_PENDING_BEFORE, F::ONE),
+            (COL_ONE, F::ONE),
+            (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
         ];
 
-        b.push_row(aux_row_gate, [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)], []);
         b.push_row(
-            [(COL_PADDING_ACTIVE, F::ONE), (COL_HOST_RESULT_ACTIVE, F::ONE)],
+            aux_row_gate_with_perm,
+            [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [
+                (COL_PADDING_ACTIVE, F::ONE),
+                (COL_HOST_RESULT_ACTIVE, F::ONE),
+                (COL_TAIL_ENTER_ACTIVE, F::ONE),
+                (COL_TURN_BOUNDARY, F::ONE),
+            ],
             [(COL_STACK_READS, F::ONE)],
             [],
         );
@@ -176,6 +208,8 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
                 (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
                 (COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE),
                 (COL_PADDING_ACTIVE, F::ONE),
+                (COL_TAIL_ENTER_ACTIVE, F::ONE),
+                (COL_TURN_BOUNDARY, F::ONE),
             ],
             [(COL_STACK_WRITES, F::ONE)],
             [],
@@ -237,6 +271,30 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
         push_host_call_state_preservation_constraints(b);
     });
 
+    b.with_tag(always("halt terminality"), |b| {
+        // The carried `halted` latch is cleared only by a turn boundary
+        // (its preservation elsewhere lives in `ccs.rs`; program rows are
+        // barred there while it is set).
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_HALTED, F::ONE)]);
+        // Re-entry requires a finished turn.
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_ONE, F::ONE), (COL_HALTED_BEFORE, -F::ONE)]);
+    });
+
+    b.with_tag(always("turn boundary row"), |b| {
+        // Re-entry requires empty operand and call stacks. Other state-machine
+        // constraints require spent event schedules and an idle permutation.
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_SP_BEFORE, F::ONE)]);
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)]);
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_STACK_FRAME_BASE_BEFORE, F::ONE)]);
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_STACK_FRAME_BASE_AFTER, F::ONE)]);
+        // The next turn starts a fresh entry frame at the same base.
+        push_gated_linear_zero(
+            b,
+            COL_TURN_BOUNDARY,
+            [(COL_LOCALS_FBP_AFTER, F::ONE), (COL_LOCALS_FBP_BEFORE, -F::ONE)],
+        );
+    });
+
     b.with_tag(always("return pc restoration"), |b| {
         b.push_row(
             [(COL_CALL_STACK_POP_PRESENT, F::ONE)],
@@ -258,6 +316,14 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
         push_call_stack_transition_constraints(b);
     });
 
+    b.with_tag(always("tail call transition"), |b| {
+        push_tail_call_transition_constraints(b);
+    });
+
+    b.with_tag(always("stack frame base transition"), |b| {
+        push_stack_frame_base_transition_constraints(b);
+    });
+
     b.with_tag(always("locals fbp transition"), |b| {
         push_locals_fbp_transition_constraints(b);
     });
@@ -268,26 +334,40 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
 }
 
 fn push_simple_output_constraints(b: &mut R1csBuilder) {
-    let enabled_delta = [(COL_OUTPUT_ENABLED_AFTER, F::ONE), (COL_OUTPUT_ENABLED_BEFORE, -F::ONE)];
     b.with_tag(always("simple output carry"), |b| {
         for (after, before) in [
             (COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE),
             (COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE),
             (COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE),
         ] {
+            // Halt and boundary rows own output transitions.
             b.push_row(
-                [(COL_ONE, F::ONE), (COL_HALTED, -F::ONE)],
+                [(COL_ONE, F::ONE), (COL_HALTED, -F::ONE), (COL_TURN_BOUNDARY, -F::ONE)],
                 [(after, F::ONE), (before, -F::ONE)],
                 [],
             );
-            push_gated_linear_zero(b, COL_OUTPUT_ENABLED_BEFORE, [(after, F::ONE), (before, -F::ONE)]);
+            // Carry captured output until a boundary. A resultless boundary
+            // preserves the already-zero state.
+            b.push_row(
+                [(COL_OUTPUT_ENABLED_BEFORE, F::ONE), (COL_TURN_BOUNDARY, -F::ONE)],
+                [(after, F::ONE), (before, -F::ONE)],
+                [],
+            );
         }
 
-        b.push_linear_zero(
-            enabled_delta
-                .into_iter()
-                .chain([(COL_OUTPUT_CAPTURED, -F::ONE)]),
+        // Capture raises the flag; a boundary clears it only when set.
+        b.push_row(
+            [(COL_TURN_BOUNDARY, F::ONE)],
+            [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
+            [
+                (COL_OUTPUT_ENABLED_BEFORE, F::ONE),
+                (COL_OUTPUT_CAPTURED, F::ONE),
+                (COL_OUTPUT_ENABLED_AFTER, -F::ONE),
+            ],
         );
+        // The re-armed output is zeroed.
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_VALUE_LO_AFTER, F::ONE)]);
+        push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_VALUE_HI_AFTER, F::ONE)]);
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
             [(COL_ONE, F::ONE), (COL_HALTED, -F::ONE)],
@@ -296,6 +376,24 @@ fn push_simple_output_constraints(b: &mut R1csBuilder) {
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
             [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
+            [],
+        );
+        // A clean top-level halt leaves exactly the optional result above
+        // the current frame base. The boundary term cancels the halted-latch
+        // reset between turns.
+        b.push_row(
+            [
+                (COL_HALTED, F::ONE),
+                (COL_HALTED_BEFORE, -F::ONE),
+                (COL_TRAPPED_AFTER, -F::ONE),
+                (COL_TRAPPED_BEFORE, F::ONE),
+                (COL_TURN_BOUNDARY, F::ONE),
+            ],
+            [
+                (COL_SP_BEFORE, F::ONE),
+                (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
+                (COL_OUTPUT_CAPTURED, -F::ONE),
+            ],
             [],
         );
         b.push_row(
@@ -323,55 +421,69 @@ fn push_simple_output_constraints(b: &mut R1csBuilder) {
 fn push_dynamic_call_stack_arity_constraints(b: &mut R1csBuilder) {
     let call_selector = selector_col(WasmOpcode::Call).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
+    let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
+    let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
 
     // Call rows read nothing for direct calls, or only the table index for
     // indirect calls (trapping ones included). Guest args are popped by
     // param-init aux rows, host args by host-arg aux rows.
     b.push_row(
-        [(call_selector, F::ONE), (call_indirect, F::ONE)],
-        [(COL_STACK_READS, F::ONE), (call_indirect, -F::ONE)],
+        [
+            (call_selector, F::ONE),
+            (call_indirect, F::ONE),
+            (return_call, F::ONE),
+            (return_call_indirect, F::ONE),
+        ],
+        [
+            (COL_STACK_READS, F::ONE),
+            (call_indirect, -F::ONE),
+            (return_call_indirect, -F::ONE),
+        ],
         [],
     );
     push_gated_linear_zero(
         b,
-        call_indirect,
+        COL_CALL_INDIRECT_IS_NOT_TRAP,
         [(COL_FUNCTION_REF, F::ONE), (COL_TABLE_VALUE, -F::ONE)],
     );
     // Bind the table read to the index popped from the stack top.
-    push_gated_linear_zero(
-        b,
-        call_indirect,
+    b.push_row(
+        [(call_indirect, F::ONE), (return_call_indirect, F::ONE)],
         [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [],
     );
-    push_gated_linear_zero(
-        b,
-        call_indirect,
+    b.push_row(
+        [(call_indirect, F::ONE), (return_call_indirect, F::ONE)],
         [
             (COL_STACK_READ0_ADDR_LO, F::ONE),
             (COL_SP_BEFORE, -F::from_u64(2)),
             (COL_ONE, F::from_u64(2)),
         ],
+        [],
     );
 
     // Call rows never write: guest results land on the matching Return/End,
     // and host results land on the trailing host-result aux row.
     b.push_row(
-        [(call_selector, F::ONE), (call_indirect, F::ONE)],
+        [
+            (call_selector, F::ONE),
+            (call_indirect, F::ONE),
+            (return_call, F::ONE),
+            (return_call_indirect, F::ONE),
+        ],
         [(COL_STACK_WRITES, F::ONE)],
         [],
     );
 }
 
-/// Linear gate terms selecting host-call program rows: a `call` or
-/// non-trapping `call_indirect` whose callee is not a traced guest function.
-/// `guest_call_active = (call + ci)·is_guest` and `ci_not_trap = ci·¬trap`, so the
-/// sum is exactly 1 on host-call rows and 0 everywhere else (guest calls,
-/// ci-trap rows, non-call rows, aux rows).
-fn host_call_gate_terms() -> [(usize, F); 3] {
+/// Successful call-like rows minus guest entries. Supported tail calls are
+/// guest-only, so they cancel and only ordinary host calls remain.
+pub(super) fn host_call_gate_terms() -> [(usize, F); 4] {
     [
         (selector_col(WasmOpcode::Call).unwrap(), F::ONE),
+        (selector_col(WasmOpcode::ReturnCall).unwrap(), F::ONE),
         (COL_CALL_INDIRECT_IS_NOT_TRAP, F::ONE),
-        (COL_GUEST_CALL_ACTIVE, -F::ONE),
+        (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
     ]
 }
 
@@ -384,11 +496,10 @@ fn push_host_call_enter_mode_constraints(b: &mut R1csBuilder) {
     // and the zero-test gadget forces the counter itself.
     let non_host_program = [
         (COL_IS_PROGRAM_ROW, F::ONE),
-        // TODO: (minor) negation of host_call_gate_terms, may be worth
-        // generalizing in the future?
         (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::ReturnCall).unwrap(), -F::ONE),
         (COL_CALL_INDIRECT_IS_NOT_TRAP, -F::ONE),
-        (COL_GUEST_CALL_ACTIVE, F::ONE),
+        (COL_GUEST_ENTRY_ACTIVE, F::ONE),
     ];
     b.push_row(non_host_program, [(COL_HOST_ARGS_ACTIVE_AFTER, F::ONE)], []);
     b.push_row(non_host_program, [(COL_HOST_RESULT_PENDING_AFTER, F::ONE)], []);
@@ -418,31 +529,82 @@ fn push_host_call_enter_mode_constraints(b: &mut R1csBuilder) {
         ],
     );
 
-    // host call => remaining' == param_count and pending' == result_count,
-    // both ROM-bound to the callee's declared type. `pending` is a Boolean
-    // column, so a host signature with more than one result is unsatisfiable
-    // (the canonical ABI caps flat results at 1).
+    // Callee attribution carry: a host call latches the (ROM/table-bound)
+    // callee fref; every other row — program, aux, padding — preserves it.
+    // Consumers (the event absorb) read it only on rows of the event that
+    // set it, so the stale value between events is inert.
     b.push_row(
         host_call_gate_terms(),
+        [(COL_HOST_CALLEE_FREF_AFTER, F::ONE), (COL_FUNCTION_REF, -F::ONE)],
+        [],
+    );
+    b.push_row(
+        [
+            (COL_ONE, F::ONE),
+            (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
+            (selector_col(WasmOpcode::ReturnCall).unwrap(), -F::ONE),
+            (COL_CALL_INDIRECT_IS_NOT_TRAP, -F::ONE),
+            (COL_GUEST_ENTRY_ACTIVE, F::ONE),
+            // ...and grammar boundaries repoint attribution to the current
+            // or next turn's export.
+            (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
+            (COL_TURN_BOUNDARY, -F::ONE),
+        ],
+        [
+            (COL_HOST_CALLEE_FREF_AFTER, F::ONE),
+            (COL_HOST_CALLEE_FREF_BEFORE, -F::ONE),
+        ],
+        [],
+    );
+
+    // RAW host call => remaining' == param_count and pending' ==
+    // result_count, both ROM-bound to the callee's declared type. `pending`
+    // is a Boolean column, so a host signature with more than one result is
+    // unsatisfiable (the canonical ABI caps flat results at 1). In grammar
+    // mode the arg/result aux machinery is inert: the call row pops the
+    // args itself (sp identity) and the result push is a gather-row write,
+    // so both modes stay off.
+    b.push_row(
+        [(super::super::layout::COL_RAW_HOST_CALL, F::ONE)],
         [(COL_HOST_ARGS_REMAINING_AFTER, F::ONE), (COL_CALL_PARAM_COUNT, -F::ONE)],
         [],
     );
     b.push_row(
-        host_call_gate_terms(),
+        [(super::super::layout::COL_RAW_HOST_CALL, F::ONE)],
         [
             (COL_HOST_RESULT_PENDING_AFTER, F::ONE),
             (COL_CALL_RESULT_COUNT, -F::ONE),
         ],
         [],
     );
+    for after in [COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_RESULT_PENDING_AFTER] {
+        b.push_row(
+            [(super::super::layout::COL_GRAMMAR_HOST_CALL, F::ONE)],
+            [(after, F::ONE)],
+            [],
+        );
+    }
 }
 
 fn push_host_call_exit_mode_constraints(b: &mut R1csBuilder) {
-    b.push_linear_zero([
-        (COL_HOST_ARGS_ACTIVE_AFTER, F::ONE),
-        (COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, F::ONE),
-        (COL_ONE, -F::ONE),
-    ]);
+    // active' = ¬iszero(remaining') · ¬(perm group active next). The second
+    // factor suspends arg mode while a filled event block runs its perm rows
+    // (`pending'` raised, or the round counter is mid-group: `round' != 0`
+    // exactly when this is a perm row that is not the group's last, i.e.
+    // `perm_row_gate - P_last`), and hands it back on the group's last row.
+    // Both factors are {0,1}: pending' and a nonzero round counter are
+    // mutually exclusive (see `ccs/poseidon.rs`). Forcing `active' = 0` on
+    // idle rows still forces `remaining' = 0` through the first factor.
+    b.push_row(
+        [(COL_ONE, F::ONE), (COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, -F::ONE)],
+        [
+            (COL_PERM_ROUND_BEFORE_IS_ZERO, F::ONE),
+            (super::host_event_chain::perm_last_pos_col(), F::ONE),
+            (COL_PERM_PENDING_AFTER, -F::ONE),
+            (COL_PERM_PENDING_BEFORE, -F::ONE),
+        ],
+        [(COL_HOST_ARGS_ACTIVE_AFTER, F::ONE)],
+    );
 
     push_zero_test_gadget(
         b,
@@ -518,14 +680,27 @@ fn push_host_call_state_preservation_constraints(b: &mut R1csBuilder) {
         (COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_BEFORE),
         (COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE),
     ] {
-        push_gated_linear_zero(b, COL_PARAM_INIT_ACTIVE_BEFORE, [(after, F::ONE), (before, -F::ONE)]);
+        b.push_row(
+            [(COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE), (COL_TAIL_ENTER_ACTIVE, F::ONE)],
+            [(after, F::ONE), (before, -F::ONE)],
+            [],
+        );
     }
     for (after, before) in [
         (COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE),
         (COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE),
     ] {
         b.push_row(
-            [(COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE), (COL_HOST_RESULT_ACTIVE, F::ONE)],
+            [
+                (COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE),
+                (COL_HOST_RESULT_ACTIVE, F::ONE),
+                (COL_GATHER_ACTIVE, F::ONE),
+                (COL_TAIL_ENTER_ACTIVE, F::ONE),
+                // ... and host-event perm rows: `pending + 1 - round_is_zero`.
+                (COL_PERM_PENDING_BEFORE, F::ONE),
+                (COL_ONE, F::ONE),
+                (COL_PERM_ROUND_BEFORE_IS_ZERO, -F::ONE),
+            ],
             [(after, F::ONE), (before, -F::ONE)],
             [],
         );
@@ -535,19 +710,45 @@ fn push_host_call_state_preservation_constraints(b: &mut R1csBuilder) {
 fn push_guest_call_flag_constraints(b: &mut R1csBuilder) {
     let call_selector = selector_col(WasmOpcode::Call).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
+    let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
+    let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
 
+    b.push_row(
+        [
+            (call_selector, F::ONE),
+            (call_indirect, F::ONE),
+            (return_call, F::ONE),
+            (return_call_indirect, F::ONE),
+        ],
+        [(COL_TARGET_FUNCTION_IS_GUEST, F::ONE)],
+        [(COL_GUEST_ENTRY_ACTIVE, F::ONE)],
+    );
     b.push_row(
         [(call_selector, F::ONE), (call_indirect, F::ONE)],
         [(COL_TARGET_FUNCTION_IS_GUEST, F::ONE)],
-        [(COL_GUEST_CALL_ACTIVE, F::ONE)],
+        [(COL_CALL_STACK_PUSH_PRESENT, F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        return_call,
+        [(COL_TARGET_FUNCTION_IS_GUEST, F::ONE), (COL_ONE, -F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        return_call_indirect,
+        [
+            (COL_TARGET_FUNCTION_IS_GUEST, F::ONE),
+            (COL_ONE, -F::ONE),
+            (COL_CALL_INDIRECT_IS_TRAP, F::ONE),
+        ],
     );
 }
 
 fn push_call_param_init_enter_mode_constraints(b: &mut R1csBuilder) {
-    let guest_call = COL_GUEST_CALL_ACTIVE;
+    let guest_call = COL_GUEST_ENTRY_ACTIVE;
 
     b.push_row(
-        [(COL_IS_PROGRAM_ROW, F::ONE), (COL_GUEST_CALL_ACTIVE, -F::ONE)],
+        [(COL_IS_PROGRAM_ROW, F::ONE), (COL_GUEST_ENTRY_ACTIVE, -F::ONE)],
         // Only guest calls may enter param-init mode from a program row.
         // Aux rows are excluded by `is_program_row = 0`, so multi-param init
         // can continue until the global remaining-after zero test turns it off.
@@ -626,7 +827,7 @@ fn push_call_param_init_aux_row_constraints(b: &mut R1csBuilder) {
 }
 
 fn push_call_stack_transition_constraints(b: &mut R1csBuilder) {
-    let push = COL_GUEST_CALL_ACTIVE;
+    let push = COL_CALL_STACK_PUSH_PRESENT;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
     // Push increments the return-context stack, pop decrements it, and every
@@ -665,11 +866,96 @@ fn push_call_stack_transition_constraints(b: &mut R1csBuilder) {
             (COL_LOCALS_FBP_BEFORE, -F::ONE),
         ],
     );
-    push_gated_linear_zero(b, COL_HALTED, [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)]);
+    push_gated_linear_zero(
+        b,
+        push,
+        [
+            (COL_CALL_STACK_CALLER_SP_BASE_VALUE, F::ONE),
+            (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
+        ],
+    );
+    // A clean halt returns from the top-level frame, but a trap terminates
+    // immediately and may leave abandoned caller frames on the call stack.
+    b.push_row(
+        [(COL_HALTED, F::ONE), (COL_TRAPPED_AFTER, -F::ONE)],
+        [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)],
+        [],
+    );
+}
+
+fn push_tail_call_transition_constraints(b: &mut R1csBuilder) {
+    let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
+    let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
+
+    b.push_row(
+        [(return_call_indirect, F::ONE)],
+        [(COL_ONE, F::ONE), (COL_CALL_INDIRECT_IS_TRAP, -F::ONE)],
+        [
+            (COL_TAIL_CALL_PENDING_AFTER, F::ONE),
+            (COL_TAIL_CALL_PENDING_BEFORE, -F::ONE),
+            (return_call, -F::ONE),
+            (COL_TAIL_ENTER_ACTIVE, F::ONE),
+        ],
+    );
+    b.push_row(
+        [(COL_TAIL_CALL_PENDING_BEFORE, F::ONE)],
+        [(COL_ONE, F::ONE), (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE)],
+        [(COL_TAIL_ENTER_ACTIVE, F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        COL_TAIL_ENTER_ACTIVE,
+        [(COL_SP_AFTER, F::ONE), (COL_STACK_FRAME_BASE_BEFORE, -F::ONE)],
+    );
+    push_gated_linear_zero(
+        b,
+        COL_TAIL_ENTER_ACTIVE,
+        [
+            (super::super::layout::COL_TAIL_DISCARD_COUNT, F::ONE),
+            (COL_SP_BEFORE, -F::ONE),
+            (COL_STACK_FRAME_BASE_BEFORE, F::ONE),
+        ],
+    );
+    b.push_row(
+        [(COL_ONE, F::ONE), (COL_TAIL_ENTER_ACTIVE, -F::ONE)],
+        [(super::super::layout::COL_TAIL_DISCARD_COUNT, F::ONE)],
+        [],
+    );
+}
+
+fn push_stack_frame_base_transition_constraints(b: &mut R1csBuilder) {
+    let push = COL_CALL_STACK_PUSH_PRESENT;
+    let pop = COL_CALL_STACK_POP_PRESENT;
+
+    push_gated_linear_zero(
+        b,
+        push,
+        [
+            (COL_STACK_FRAME_BASE_AFTER, F::ONE),
+            (COL_SP_AFTER, -F::ONE),
+            (COL_CALL_PARAM_COUNT, F::ONE),
+        ],
+    );
+    push_gated_linear_zero(
+        b,
+        pop,
+        [
+            (COL_STACK_FRAME_BASE_AFTER, F::ONE),
+            (COL_CALL_STACK_CALLER_SP_BASE_VALUE, -F::ONE),
+        ],
+    );
+    b.push_row(
+        [(COL_ONE, F::ONE), (push, -F::ONE), (pop, -F::ONE)],
+        [
+            (COL_STACK_FRAME_BASE_AFTER, F::ONE),
+            (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
+        ],
+        [],
+    );
 }
 
 fn push_locals_fbp_transition_constraints(b: &mut R1csBuilder) {
-    let guest_call = COL_GUEST_CALL_ACTIVE;
+    let guest_call = COL_GUEST_ENTRY_ACTIVE;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
     push_gated_linear_zero(

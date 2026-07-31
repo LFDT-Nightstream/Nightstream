@@ -35,7 +35,7 @@ pub(super) fn chain_witness_refs<'a>(fresh: &'a [CcsWitness], running: &'a [Witn
 /// Construct the next one-fold state from an accepted block-lane Π_CCS point
 /// and the independently recomputed Π_RLC parent. The legacy proof format has
 /// no delayed state.
-pub(super) fn outgoing_pending_projection(
+pub fn outgoing_pending_projection(
     variant: PiCcsProofVariant,
     outputs: &[CeClaim],
     parent: &CeClaim,

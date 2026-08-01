@@ -2,6 +2,8 @@ import Nightstream.Checks.Common
 import Nightstream.Checks.Protocol
 import Nightstream.Implementation.Rust.FPrime
 import Nightstream.Implementation.Rust.Terminal
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.ModuleExport
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.ModuleProofExport
 import Nightstream.Protocol.Terminal.CE
 
 namespace Nightstream.Checks.Rust
@@ -139,7 +141,7 @@ def anchors : List (String × String) :=
   , ("../../crates/neo-fold-clean/src/paper/digest.rs",
      "pub fn public_trace_seed_digest")
   , ("../../crates/neo-fold-clean/src/paper/f_prime/native.rs",
-     "RunningInstance::default()")
+     "RunningInstance::canonical_zero(")
   , ("../../crates/neo-fold-clean/src/paper/f_prime/native.rs",
      "nifs::verify(")
   , ("../../crates/neo-fold-clean/src/paper/f_prime/native.rs",
@@ -170,6 +172,14 @@ def anchors : List (String × String) :=
      "fn conformance_manifest_fails_closed_on_rust_or_lean_drift")
   , ("../../crates/neo-fold-clean/tests/system/formal_conformance.rs",
      "fn compact_decider_is_explicitly_fail_closed")
+  , ("../../crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/lifecycle.rs",
+     "pub fn finish_with_spartan(")
+  , ("../../crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/lifecycle.rs",
+     "pub fn verify_spartan(")
+  , ("../../crates/toy-spartan/src/spartan/parallel_repetition.rs",
+     "direct-r1cs/parallel-3/v1")
+  , ("../../crates/toy-spartan/src/sumcheck.rs",
+     "fn verify_parallel_3(")
   ]
 
 def containsSubstr (haystack needle : String) : Bool :=
@@ -193,11 +203,41 @@ def runAnchors : IO Bool := do
       ok := false
   pure ok
 
+def runWasmModuleArtifact : IO Bool := do
+  let path := "../../crates/neo-wasm/tests/fixtures/wasm_benchmark_42x6.module.json"
+  let expected :=
+    Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.ModuleExport.render
+  let pass ← do
+    try
+      let content ← IO.FS.readFile ⟨path⟩
+      pure (content == expected)
+    catch _ =>
+      pure false
+  IO.println s!"rust_artifact {path} :: lean_wasm_module => {pass}"
+  flush
+  pure pass
+
+def runWasmProofArtifact : IO Bool := do
+  let path := "../../crates/neo-wasm/tests/fixtures/wasm_benchmark_42x6.proof.json"
+  let expected :=
+    Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.ModuleProofExport.render
+  let pass ← do
+    try
+      let content ← IO.FS.readFile ⟨path⟩
+      pure (content == expected)
+    catch _ =>
+      pure false
+  IO.println s!"rust_artifact {path} :: lean_wasm_proof => {pass}"
+  flush
+  pure pass
+
 def run : IO Bool := do
   let probesOk ← Nightstream.Checks.runProbes probes
   let anchorsOk ← runAnchors
-  IO.println "rust_conformance=M5-pass (supported uncompressed F-prime lifecycle and direct terminal CE); compact_decider=fail-closed-unsupported; DEC-SOUND=open"
+  let wasmModuleOk ← runWasmModuleArtifact
+  let wasmProofOk ← runWasmProofArtifact
+  IO.println "rust_conformance=M5-pass (supported uncompressed F-prime lifecycle and direct terminal CE); direct_terminal_spartan=artifact-checked-bounded-lockstep; compact_decider=fail-closed-unsupported; DEC-SOUND=open"
   flush
-  pure (probesOk && anchorsOk)
+  pure (probesOk && anchorsOk && wasmModuleOk && wasmProofOk)
 
 end Nightstream.Checks.Rust

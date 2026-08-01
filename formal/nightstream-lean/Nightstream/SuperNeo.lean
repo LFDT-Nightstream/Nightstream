@@ -11,6 +11,7 @@ import Nightstream.SuperNeo.Folding.PiCCS.OutputEvaluationAuthority
 import Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.Semantics
 import Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
+import Nightstream.SuperNeo.Folding.PiCCS.PaperRectangular
 import Nightstream.SuperNeo.Folding.PiCCS.SplitNc
 import Nightstream.SuperNeo.Folding.PiRLC
 import Nightstream.SuperNeo.Folding.PiDEC

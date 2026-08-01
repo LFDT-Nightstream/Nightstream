@@ -413,7 +413,7 @@ theorem matrixImagesAt_nativeRow
   funext matrix
   unfold matrixImagesAt system
   simp only
-  rw [DirectRows.matrixVectorAt_padRows_numeric]
+  unfold matrixVectorAt
   change
     DirectRows.LinearCombination.eval
         (finiteMatrices source matrix (nativeRowPosition source row))

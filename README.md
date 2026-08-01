@@ -2,7 +2,7 @@
 
 [![GitHub License](https://img.shields.io/github/license/nicarq/nightstream)](LICENSE)
 
-Nightstream is a **post-quantum** proving system built around a lattice-based folding scheme for **CCS** (SuperNeo, building on Neo, ePrint 2025/294) with a HyperNova-style recursive IVC layer. The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, Ajtai (module-SIS) commitments, and a Poseidon2-only transcript.
+Nightstream is a **post-quantum** proving system built around a lattice-based folding scheme for **CCS** (Neo and SuperNeo, ePrint 2026/242, which supersedes Neo ePrint 2025/294) with a HyperNova-style recursive IVC layer. The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, Ajtai (module-SIS) commitments, and a Poseidon2-only transcript.
 
 > **Status**: Research software under active development. `neo-fold-clean` is the main proving crate: it owns the lifecycle API, the F′ recursive-step circuit, and the decider. The earlier `neo-fold-prototype` sandbox (RV32IM/CHIP-8 end-to-end pipelines) has been removed from the tree. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
 
@@ -58,7 +58,7 @@ See `demos/ios-demo/README.md` and `demos/android-demo/README.md` for the native
 
 ### Paper-exact Reference Mode
 
-Most tests use `FoldingMode::Optimized`. The `FoldingMode::PaperExact` engine is an O(2^ℓ) brute-force reference for cross-checking only; it is not used in normal test runs.
+Most tests use `FoldingMode::Optimized`. `FoldingMode::PaperExact` is an independent O(2^ell) direct reference for the canonical rectangular-paper PiCCS algebra. The dedicated parity suite requires the optimized proof bytes and output claims to match it exactly.
 
 ---
 
@@ -193,10 +193,22 @@ cargo test -p neo-reductions --release
 | Mode                                  | Description                                          |
 |---------------------------------------|------------------------------------------------------|
 | `FoldingMode::Optimized`              | Default; used in all normal tests and integration   |
-| `FoldingMode::PaperExact`             | O(2^ℓ) reference engine, cross-check only            |
-| `FoldingMode::OptimizedWithCrosscheck`| Debug comparison mode                                |
+| `FoldingMode::PaperExact`             | Independent O(2^ell) canonical reference             |
+| `FoldingMode::OptimizedWithCrosscheck`| Concurrent exact output and proof-byte comparison     |
 
 Per project policy in [`CLAUDE.md`](CLAUDE.md), tests always use `FoldingMode::Optimized` unless the paper-exact engine is explicitly requested.
+
+In `neo-reductions`, the normal optimized PiCCS API always produces
+`PaperRectangularV1`. The old accelerator and block/lane protocol is isolated
+below `optimized_engine::legacy_split_nc`. The fixed-profile recursive circuit
+still uses that explicit legacy path while its canonical R1CS migration is
+open; it is not evidence for PaperExact or Lean conformance.
+
+Run the focused cross-check tests with:
+
+```bash
+cargo test -p neo-reductions --release --features paper-exact --test paper_rectangular_parity crosscheck
+```
 
 ### Debugging and Profiling
 
@@ -299,7 +311,7 @@ See [`TODO.md`](TODO.md) for in-flight work.
 
 ## References
 
-- **Neo**: Wilson Nguyen & Srinath Setty, "[Neo: Lattice-based folding scheme for CCS over small fields](https://eprint.iacr.org/2025/294)" (ePrint 2025/294).
+- **Neo and SuperNeo**: Wilson Nguyen & Srinath Setty, "[Neo and SuperNeo: Post-quantum folding with pay-per-bit costs over small fields](https://eprint.iacr.org/2026/242)" (ePrint 2026/242).
 - **HyperNova**: Abhiram Kothapalli & Srinath Setty, "HyperNova: Recursive arguments for customizable constraint systems". Local text: [`docs/hypernova-paper/`](docs/hypernova-paper/).
 - **Toy Spartan**: fork of Srinath Setty's "Spartan: Efficient and general-purpose zkSNARKs without trusted setup" (CRYPTO 2020), with a standalone WHIR PCS. See [`crates/toy-spartan`](crates/toy-spartan).
 - **Plonky3**: Goldilocks field and Poseidon2 primitives used by Nightstream.

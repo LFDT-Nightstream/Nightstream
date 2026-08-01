@@ -240,12 +240,14 @@ fn enforce_terminal_ce_public_digest(
     claim_count: usize,
 ) -> [Var; 4] {
     let mut preimage = Vec::new();
-    extend_packed_bytes_as_fields_wires(builder, &mut preimage, b"neo.fold.clean/terminal_ce_public/v1");
+    extend_packed_bytes_as_fields_wires(builder, &mut preimage, b"neo.fold.clean/terminal_ce_public/v2");
     preimage.extend_from_slice(&relation_digest);
     preimage.extend_from_slice(&structure_digest);
     preimage.extend_from_slice(&params_digest);
     preimage.extend_from_slice(&terminal_children_digest);
-    preimage.push(alloc_const(builder, F::from_u64(claim_count as u64)));
+    let claim_count = claim_count as u64;
+    preimage.push(alloc_const(builder, F::from_u64(claim_count & 0xffff_ffff)));
+    preimage.push(alloc_const(builder, F::from_u64(claim_count >> 32)));
     enforce_poseidon2_hash(builder, &preimage)
 }
 

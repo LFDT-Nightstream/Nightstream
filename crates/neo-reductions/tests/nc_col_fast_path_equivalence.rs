@@ -4,7 +4,7 @@ use neo_ccs::{CcsStructure, CcsWitness, Mat, SparsePoly};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::engines::utils::build_dims_and_policy;
-use neo_reductions::optimized_engine::oracle::{NcDigitTableView, NcOracle};
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::{NcDigitTableView, NcOracle};
 use neo_reductions::optimized_engine::Challenges;
 use neo_reductions::sumcheck::{interpolate_from_evals, RoundOracle};
 use p3_field::PrimeCharacteristicRing;

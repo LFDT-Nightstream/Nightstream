@@ -1,7 +1,8 @@
-//! Neo-Reductions: CCS folding engine implementing Π_CCS protocol
+//! SuperNeo reductions with one canonical rectangular-paper PiCCS protocol.
 //!
-//! This crate contains both the optimized engine and paper-exact reference implementations
-//! of the CCS reduction protocol described in the Neo paper.
+//! The optimized engine and independent PaperExact engine share only neutral
+//! protocol messages and transcript flow. Their polynomial evaluators are
+//! separate so tests can require exact proof-byte equality.
 
 #![allow(non_snake_case)]
 
@@ -19,15 +20,17 @@ pub use engines::pi_rlc_dec;
 
 // Re-export engine modules for convenience
 pub use engines::optimized_engine;
+#[cfg(feature = "paper-exact")]
 pub use engines::paper_exact_engine;
 
 // Re-exports for convenience
 pub use api as pi_ccs; // main public API
+#[cfg(feature = "paper-exact")]
 pub use engines::paper_exact_engine as pi_ccs_paper_exact;
 
 // Re-export commonly used types
 pub use engines::optimized_engine::{
-    pi_ccs_prove, pi_ccs_prove_simple, pi_ccs_verify, CcsOracle, Challenges, PiCcsProof,
+    pi_ccs_prove, pi_ccs_prove_simple, pi_ccs_verify, Challenges, PiCcsProof, PiCcsProofVariant,
 };
 
 pub use error::PiCcsError;

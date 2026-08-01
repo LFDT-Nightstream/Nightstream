@@ -28,10 +28,10 @@ use thiserror::Error;
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::f_prime::compiler::{
-    assemble_shared_chunk_traces, assemble_step_from_shared, canonical_ce_shape_and_child_count,
-    nifs_ce_shape_from_claim, nifs_ce_view_from_claim, nifs_payload_inputs_for_source_image, perp_nifs_ce_view,
-    start_f_prime_chain_context, verify_prior_fold, FPrimeChainState, FPrimeCompilerContext, FPrimeFoldForStep,
-    FPrimeFoldPostSummary, FPrimeShellCompilerError,
+    assemble_shared_chunk_traces, assemble_step_from_shared, canonical_base_accumulator_digest,
+    canonical_ce_shape_and_child_count, nifs_ce_shape_from_claim, nifs_ce_view_from_claim,
+    nifs_payload_inputs_for_source_image, perp_nifs_ce_view, start_f_prime_chain_context, verify_prior_fold,
+    FPrimeChainState, FPrimeCompilerContext, FPrimeFoldForStep, FPrimeFoldPostSummary, FPrimeShellCompilerError,
 };
 use crate::frontends::f_prime::encoder::EncodedFPrimeStep;
 use crate::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView};
@@ -40,7 +40,6 @@ use crate::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
 use crate::frontends::r1cs_f_prime::encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
 use crate::frontends::r1cs_f_prime::R1csFPrimePreprocessing;
 use crate::paper::construction2::TRIVIAL_PC;
-use crate::paper::digest::AccumulatorHandle;
 use crate::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 
 /// `pc` for an R1CS-F' chain.
@@ -244,7 +243,7 @@ fn compile_base_chunk(
     let (ce_shape, child_count) = canonical_ce_shape_and_child_count(&plan)?;
 
     let perp_view = perp_nifs_ce_view(&ce_shape);
-    let new_acc_digest = AccumulatorHandle::empty().digest_fields();
+    let new_acc_digest = canonical_base_accumulator_digest(&prep.prep)?;
     finalize_compile_chunk(
         prep,
         ctx,

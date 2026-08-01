@@ -32,15 +32,15 @@ pub(super) fn chain_witness_refs<'a>(fresh: &'a [CcsWitness], running: &'a [Witn
     out
 }
 
-/// Construct the next one-fold state from an accepted block-lane Π_CCS point
-/// and the independently recomputed Π_RLC parent. The legacy proof format has
-/// no delayed state.
+/// Construct the next one-fold delayed state only for the explicit block/lane
+/// protocol. Canonical rectangular and legacy flat proofs carry their column
+/// openings directly and therefore have no delayed state.
 pub fn outgoing_pending_projection(
     variant: PiCcsProofVariant,
     outputs: &[CeClaim],
     parent: &CeClaim,
 ) -> Result<Option<PendingProjectionState>, RunningInstanceError> {
-    if variant == PiCcsProofVariant::SplitNcV1 {
+    if variant != PiCcsProofVariant::BlockLaneNcDelayedV1 {
         return Ok(None);
     }
     let first = outputs

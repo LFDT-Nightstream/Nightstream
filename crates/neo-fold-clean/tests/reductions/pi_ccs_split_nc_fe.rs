@@ -26,8 +26,10 @@ use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
 use neo_math::ring::D;
 use neo_math::{from_complex, KExtensions, F, K};
 use neo_params::NeoParams;
-use neo_reductions::engines::claimed_initial_sum_from_inputs_with_k_mcs;
-use neo_reductions::engines::optimized_engine::{rhs_terminal_identity_fe_with_k_mcs, Challenges};
+use neo_reductions::engines::optimized_engine::legacy_split_nc::{
+    claimed_initial_sum_from_inputs_with_k_mcs, rhs_terminal_identity_fe_with_k_mcs,
+};
+use neo_reductions::engines::optimized_engine::Challenges;
 use neo_reductions::sumcheck::{verify_sumcheck_rounds_poseidon_v3, SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{Field, PrimeCharacteristicRing};

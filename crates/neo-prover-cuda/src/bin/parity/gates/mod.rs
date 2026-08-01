@@ -32,7 +32,7 @@ use neo_prover_cuda::reduce::dec::{DecOutputMode, DecParentWitness, DecRecomposi
 use neo_prover_cuda::reduce::rlc as device_rlc;
 use neo_prover_cuda::ring_forms::DeviceBarMatrices;
 use neo_prover_cuda::CudaNifsProver;
-use neo_reductions::optimized_engine::{BackendTranscriptMode, FeSumcheckBackend as _};
+use neo_reductions::optimized_engine::legacy_split_nc::{BackendTranscriptMode, FeSumcheckBackend as _};
 use neo_reductions::sumcheck::RoundOracle as _;
 use p3_field::PrimeCharacteristicRing;
 use rand::rngs::StdRng;

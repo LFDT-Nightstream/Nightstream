@@ -45,7 +45,7 @@ pub enum LeanManifestEmissionError {
     UnknownColumn { column: ColumnId },
 }
 
-fn invalid(path: impl Into<String>, detail: impl Into<String>) -> LeanManifestError {
+pub(super) fn invalid(path: impl Into<String>, detail: impl Into<String>) -> LeanManifestError {
     LeanManifestError::Invalid {
         path: path.into(),
         detail: detail.into(),
@@ -162,10 +162,10 @@ pub struct ManifestProgram {
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ManifestCost {
-    recurring_rows: usize,
-    committed_columns: usize,
-    public_columns: usize,
-    auxiliary_columns: usize,
+    pub(super) recurring_rows: usize,
+    pub(super) committed_columns: usize,
+    pub(super) public_columns: usize,
+    pub(super) auxiliary_columns: usize,
 }
 
 impl ManifestCost {
@@ -303,10 +303,10 @@ struct ManifestWire {
 }
 
 #[derive(Debug)]
-struct ProgramSummary {
-    cost: ManifestCost,
-    statistics: ManifestStatistics,
-    columns: HashMap<ColumnId, Ownership>,
+pub(super) struct ProgramSummary {
+    pub(super) cost: ManifestCost,
+    pub(super) statistics: ManifestStatistics,
+    pub(super) columns: HashMap<ColumnId, Ownership>,
 }
 
 /// A canonical manifest that passed all schema and structural checks.
@@ -793,7 +793,7 @@ fn manifest_receipt_cost(receipt: &ManifestReceipt, path: &str) -> Result<Manife
     Ok(cost)
 }
 
-fn validate_program(path: &str, program: &ManifestProgram) -> Result<ProgramSummary, LeanManifestError> {
+pub(super) fn validate_program(path: &str, program: &ManifestProgram) -> Result<ProgramSummary, LeanManifestError> {
     let expected_one = ColumnId {
         owner: PhysicalOwner::Prelude,
         bundle_index: 0,
@@ -924,7 +924,7 @@ fn validate_combination(
     Ok(())
 }
 
-fn validate_declared_columns<'a>(
+pub(super) fn validate_declared_columns<'a>(
     path: &str,
     declared: impl Iterator<Item = &'a ColumnId>,
     allocated: &HashMap<ColumnId, Ownership>,
@@ -945,7 +945,7 @@ fn validate_declared_columns<'a>(
     Ok(())
 }
 
-fn validate_owned_columns(
+pub(super) fn validate_owned_columns(
     path: &str,
     declared: &[OwnedColumn],
     allocated: &HashMap<ColumnId, Ownership>,
@@ -1030,7 +1030,7 @@ fn validate_input_columns(
     Ok(())
 }
 
-fn validate_activation_pair(
+pub(super) fn validate_activation_pair(
     path: &str,
     columns: &[ColumnId],
     allocated: &HashMap<ColumnId, Ownership>,
@@ -1072,7 +1072,7 @@ fn validate_activation_pair(
     Ok(())
 }
 
-fn emit_program(
+pub(super) fn emit_program(
     builder: &mut R1csBuilder,
     program: &ManifestProgram,
     mut values: impl FnMut(&ColumnId) -> Option<F>,

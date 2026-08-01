@@ -24,7 +24,7 @@ use crate::paper::reductions::accumulator_sis_circuit::{
 };
 use crate::paper::reductions::pi_ccs_output_message::{OUTPUTS_DOMAIN, OUTPUT_MESSAGE_DOMAIN};
 
-pub(crate) const F_PRIME_CHUNK_CLAIM_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_claim_digest/v1";
+pub(crate) const F_PRIME_CHUNK_CLAIM_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_claim_digest/v2";
 pub(crate) const F_PRIME_CHUNK_PUBLIC_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_public_digest/v1";
 
 // ── Field/byte plumbing ───────────────────────────────────────────────────
@@ -448,9 +448,9 @@ pub fn f_prime_chunk_claim_digest(claim: &CcsClaim<Commitment, F>) -> [F; 4] {
 
 fn f_prime_chunk_claim_shape_digest(d: usize, kappa: usize, m_in: usize) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(F_PRIME_CHUNK_CLAIM_DIGEST_TAG);
-    preimage.push(F::from_u64(d as u64));
-    preimage.push(F::from_u64(kappa as u64));
-    preimage.push(F::from_u64(m_in as u64));
+    preimage.extend(u64_halves(d as u64));
+    preimage.extend(u64_halves(kappa as u64));
+    preimage.extend(u64_halves(m_in as u64));
     // Deliberately do NOT absorb claim.x or claim.c.data: both depend on
     // the recursive-link x in direct-CCS (commitment covers full z).
     poseidon_digest_fields(&preimage)
@@ -863,12 +863,12 @@ pub fn terminal_ce_public_digest(
     terminal_children_digest: [F; 4],
     claim_count: usize,
 ) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_public/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_public/v2");
     preimage.extend_from_slice(&relation_digest);
     preimage.extend_from_slice(&structure_digest);
     preimage.extend_from_slice(&params_digest);
     preimage.extend_from_slice(&terminal_children_digest);
-    preimage.push(F::from_u64(claim_count as u64));
+    preimage.extend(u64_halves(claim_count as u64));
     poseidon_digest_fields(&preimage)
 }
 

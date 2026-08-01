@@ -44,7 +44,7 @@ use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs;
 use crate::paper::reductions::pi_ccs_split_nc_circuit::{SplitNcPiCcsVConfig, SplitNcVerifierRelation};
 use crate::paper::relations::{CcsClaim, CeClaim};
-use neo_reductions::optimized_engine::oracle::BLOCK_LANE_NC_ROUND_COEFFICIENTS;
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::BLOCK_LANE_NC_ROUND_COEFFICIENTS;
 
 pub(super) struct ArmShapes {
     pub base: SparseR1cs,
@@ -104,12 +104,7 @@ pub(super) fn synthesize_arm_shapes(
     plan: &RecursiveStepImagePlan,
 ) -> Result<SynthesizedArmShapes, R1csIvcError> {
     let context = shape_context(params, folded, folded_public_input_len, app, plan)?;
-    let (bootstrap_recursive, bootstrap_raw_running, _) = synthesize_recursive(&context, false)?;
-    if !bootstrap_raw_running.is_empty() {
-        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-            "bootstrap recursive arm unexpectedly exposed running-assignment columns".into(),
-        )));
-    }
+    let (bootstrap_recursive, _, _) = synthesize_recursive(&context, false)?;
     let (recursive, raw_running_source_columns, fresh_source_columns) = synthesize_recursive(&context, true)?;
     let arms = ArmShapes {
         base: synthesize_base(&context)?,
@@ -206,19 +201,15 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SparseR1cs, R1csIvcErro
 
 fn synthesize_recursive(
     context: &ShapeContext<'_>,
-    steady: bool,
+    with_pending_projection: bool,
 ) -> Result<(SparseR1cs, Vec<RawRunningSourceColumn>, Vec<FreshSourceColumn>), R1csIvcError> {
     let block_mode =
         context.folded.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
     let assignment = shape_app_assignment(context.app);
     let semantic = semantic_values(context.plan, &assignment)?;
     let ce = zero_ce_claim(context);
-    let running = if steady {
-        vec![ce.clone(); context.params.k_rho() as usize]
-    } else {
-        Vec::new()
-    };
-    let running_parent = steady.then(|| ce.clone());
+    let running = vec![ce.clone(); context.params.k_rho() as usize];
+    let running_parent = Some(ce.clone());
     let fresh = [zero_fresh_claim(context.params, context.folded_public_input_len)];
     let outputs = vec![ce.clone(); fresh.len() + running.len()];
     let mut sumcheck = pi_ccs::SumcheckProof::new(
@@ -254,7 +245,7 @@ fn synthesize_recursive(
     let combined = ce.clone();
     let children = vec![ce; context.params.k_rho() as usize];
     let running_pending_projection =
-        (steady && block_mode).then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
+        (with_pending_projection && block_mode).then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
     let nifs_msg = NifsVCircuitMessages {
         fresh: &fresh,
         running: &running,
@@ -265,7 +256,7 @@ fn synthesize_recursive(
         children: &children,
     };
 
-    let running_digest = if steady && block_mode {
+    let running_digest = if block_mode {
         pending_accumulator_family_digest(
             &running,
             context.params.kappa() as usize,
@@ -281,10 +272,8 @@ fn synthesize_recursive(
                 "shape running pending-family digest: {error}"
             )))
         })?
-    } else if steady {
-        AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields()
     } else {
-        AccumulatorHandle::empty().digest_fields()
+        AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields()
     };
     let outgoing_pending = block_mode.then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
     let output_digest = if block_mode {

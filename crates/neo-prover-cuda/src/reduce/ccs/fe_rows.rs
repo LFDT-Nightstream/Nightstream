@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use cuda_core::{CudaStream, DeviceBuffer};
 use neo_math::{F, K};
-use neo_reductions::optimized_engine::FeRowRoundSummary;
+use neo_reductions::optimized_engine::legacy_split_nc::FeRowRoundSummary;
 
 use crate::device::Device;
 use crate::field::k_from_device_words;

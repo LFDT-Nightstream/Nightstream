@@ -49,9 +49,8 @@ use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::{CcsClaim, CcsWitness, CeClaim, Structure};
 use neo_math::F;
 use neo_params::{goldilocks_paper_b2, NeoParams};
-use neo_reductions::optimized_engine::{
-    optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
-};
+use neo_reductions::optimized_engine::legacy_split_nc::optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf;
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 use neo_transcript::{Poseidon2Transcript, Transcript as _};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};

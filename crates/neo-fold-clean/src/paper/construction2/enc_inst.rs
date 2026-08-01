@@ -4,7 +4,7 @@
 //! Norm bound `‖x‖_∞ < 2` by construction.
 
 /// Bit-decomposition of a 32-byte digest, packed for use as F's public input.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct EncInst {
     pub(crate) digest_bytes: [u8; 32],
 }

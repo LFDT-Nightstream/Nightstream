@@ -1164,7 +1164,6 @@ fn lifecycle_all_recursive_steps_satisfy_f_prime_r1cs() {
     let chain = build_f_prime_honest_chain(6);
 
     let mut recursive_count = 0;
-    let mut saw_empty_running = false;
     let mut saw_nonempty_running = false;
     for idx in 0..chain.snapshots.len() {
         if !chain.is_recursive(idx) {
@@ -1173,11 +1172,11 @@ fn lifecycle_all_recursive_steps_satisfy_f_prime_r1cs() {
         recursive_count += 1;
 
         let view = chain.recursive_step(idx);
-        if view.running_claims.is_empty() {
-            saw_empty_running = true;
-        } else {
-            saw_nonempty_running = true;
-        }
+        assert!(
+            !view.running_claims.is_empty(),
+            "every recursive step must consume the paper default or a folded accumulator",
+        );
+        saw_nonempty_running = true;
 
         let b = run_recursive_check(&view, |_, _, _, _, _| ());
         assert!(
@@ -1189,10 +1188,6 @@ fn lifecycle_all_recursive_steps_satisfy_f_prime_r1cs() {
     assert_eq!(
         recursive_count, 5,
         "chain(6) should contain 5 FoldProof::Recursive steps (indices 1..5)"
-    );
-    assert!(
-        saw_empty_running,
-        "full-chain replay should cover the first recursive step with empty running"
     );
     assert!(
         saw_nonempty_running,

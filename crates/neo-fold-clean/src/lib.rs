@@ -40,8 +40,13 @@
 //! let proof = finish_uncompressed(&prep, audit)?;
 //! verify_uncompressed(&prep, &proof)?;
 //!
-//! // `compress` / compressed `verify` are reserved for the PR5 Spartan decider
-//! // and currently return an explicit unsupported error.
+//! // A Lean-native CCS relation can instead use `finish_with_spartan` and
+//! // `verify_spartan`. That path lowers only the terminal relation to R1CS
+//! // and uses WHIR inside repeated Spartan proofs. The terminal statement is
+//! // explicit and separate from the proof:
+//! // let terminal = finish_uncompressed(&prep, audit)?;
+//! // let (statement, proof) = finish_with_spartan(&prep, &manifest, terminal)?;
+//! // verify_spartan(&prep, &manifest, &expected, &statement, &proof)?;
 //! ```
 //!
 //! ## Audit / decider path (diagnostic + Spartan)
@@ -108,6 +113,10 @@ pub use lifecycle::{
     UncompressedAudit,
 };
 
+pub use frontends::r1cs_f_prime::{
+    finish_with_spartan, verify_spartan, LeanNativeCcsError, LeanNativeCcsManifest, LeanNativeCcsPreprocessing,
+    TerminalR1csError, TerminalSpartanProof, TerminalSpartanStatement,
+};
 pub use lifecycle::{FoldSchedule, ScheduleError};
 pub use paper::construction2::{
     FinalFoldProof, FoldProof, LatestInstance, ProofState, RunningInstance, State, StepProof, VerifierKey,

@@ -142,8 +142,7 @@ fn finish_uncompressed_with_audit_inner(
             prep.semantic_state_mode,
         )?
     } else {
-        construction2::prove_final_fold_with_backend(
-            prep.nifs_prover_backend(),
+        construction2::prove_final_fold(
             &prep.params,
             prep.structure(),
             prep.optimized_cache(),

@@ -23,14 +23,15 @@ use thiserror::Error;
 
 use neo_ajtai::AjtaiSModule;
 use neo_math::{D, F, K};
-use neo_reductions::optimized_engine::{
-    BackendTranscriptMode, FeSumcheckBackend, NcSumcheckBackend, OptimizedStructureCache, PiCcsPhaseBackend,
-    PiCcsTerminalOutputShell, PiDecProverPrecompute,
+use neo_reductions::optimized_engine::legacy_split_nc::{
+    BackendTranscriptMode, FeSumcheckBackend, NcSumcheckBackend, PiCcsDeferredProof, PiCcsPhaseBackend,
+    PiCcsTerminalOutputShell,
 };
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PiDecProverPrecompute};
 
 use crate::engine::optimized as engine;
 use crate::engine::transcript::Transcript;
-use crate::paper::construction2::RunningInstance;
+use crate::paper::construction2::{running::uses_pending_accumulator_family, LaneCommitmentMode, RunningInstance};
 use crate::paper::digest;
 use crate::paper::params::Params;
 use crate::paper::relations::{superneo_inactive_x_zero, CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
@@ -48,6 +49,8 @@ pub enum Error {
     Engine(#[from] engine::Error),
     #[error("Π_CCS: accelerator failed to compute the canonical output digest")]
     OutputDigestBackend,
+    #[error("Π_CCS: a first production fold must use the canonical zero accumulator")]
+    NoncanonicalBootstrapAccumulator,
 }
 
 /// Accelerator for the verifier-recomputable Π_CCS output digest.
@@ -75,7 +78,7 @@ pub struct Proof {
 /// Pi_CCS proof whose terminal outputs are available before proof logs are
 /// exported from the phase backend.
 pub struct DeferredProof {
-    inner: neo_reductions::optimized_engine::PiCcsDeferredProof,
+    inner: PiCcsDeferredProof,
 }
 
 impl DeferredProof {
@@ -247,8 +250,8 @@ pub fn prove_from_parts_with_backends_and_transcript_mode(
     fresh_claims: &[CcsClaim],
     fresh_witnesses: &[CcsWitness],
     running: &RunningInstance,
-    fe_backend: Option<&mut dyn neo_reductions::optimized_engine::FeSumcheckBackend>,
-    nc_backend: Option<&mut dyn neo_reductions::optimized_engine::NcSumcheckBackend>,
+    fe_backend: Option<&mut dyn FeSumcheckBackend>,
+    nc_backend: Option<&mut dyn NcSumcheckBackend>,
     transcript_mode: BackendTranscriptMode,
     running_parent_digest: Option<[F; 4]>,
     running_accumulator_handle: Option<[F; 4]>,
@@ -467,7 +470,7 @@ pub fn verify(
     running: &RunningInstance,
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
-    validate_verifier_shape(pp, s, fresh_claims, &running.claims, &proof.outputs)?;
+    validate_verifier_shape(pp, s, fresh_claims, running, &proof.outputs)?;
     validate_adv_forwarding(fresh_claims, &running.claims, &proof.outputs)?;
     if proof.outputs_digest != digest::pi_ccs_outputs_digest(&proof.outputs) {
         return Err(Error::Shape("Pi_CCS output digest mismatch"));
@@ -538,6 +541,7 @@ fn validate_input_shape(
             return Err(Error::Shape("fresh m_in + witness length must equal structure.m"));
         }
     }
+    validate_production_bootstrap_accumulator(pp, s, fresh_claims, running)?;
     validate_inactive_x_zero(&running.claims, "running inactive X columns must be zero")?;
     validate_clean_split_nc_claims(s, &running.claims)?;
     Ok(())
@@ -558,9 +562,10 @@ fn validate_verifier_shape(
     pp: &Params,
     s: &Structure,
     fresh_claims: &[CcsClaim],
-    running_claims: &[CeClaim],
+    running: &RunningInstance,
     fold_outputs: &[CeClaim],
 ) -> Result<(), Error> {
+    let running_claims = &running.claims;
     if fresh_claims.is_empty() {
         return Err(Error::Shape("K (fresh) must be \u{2265} 1"));
     }
@@ -572,10 +577,44 @@ fn validate_verifier_shape(
     if fold_outputs.len() != expected_outputs {
         return Err(Error::Shape("|fold_outputs| \u{2260} K + k"));
     }
+    validate_production_bootstrap_accumulator(pp, s, fresh_claims, running)?;
     validate_inactive_x_zero(running_claims, "running inactive X columns must be zero")?;
     validate_inactive_x_zero(fold_outputs, "fold output inactive X columns must be zero")?;
     validate_clean_split_nc_claims(s, running_claims)?;
     validate_clean_split_nc_claims(s, fold_outputs)?;
+    Ok(())
+}
+
+fn validate_production_bootstrap_accumulator(
+    pp: &Params,
+    s: &Structure,
+    fresh_claims: &[CcsClaim],
+    running: &RunningInstance,
+) -> Result<(), Error> {
+    if !uses_pending_accumulator_family(s) || running.pending_projection().is_some() {
+        return Ok(());
+    }
+    let m_in = fresh_claims
+        .first()
+        .ok_or(Error::Shape("K (fresh) must be at least 1"))?
+        .m_in;
+    let canonical = running
+        .is_canonical_zero_public(
+            pp,
+            s,
+            m_in,
+            LaneCommitmentMode::from_nebula(
+                fresh_claims
+                    .first()
+                    .expect("fresh claims were checked nonempty")
+                    .adv
+                    .is_some(),
+            ),
+        )
+        .map_err(|_| Error::NoncanonicalBootstrapAccumulator)?;
+    if !canonical {
+        return Err(Error::NoncanonicalBootstrapAccumulator);
+    }
     Ok(())
 }
 

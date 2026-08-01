@@ -37,7 +37,8 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 use thiserror::Error;
 
 use crate::paper::construction2::{
-    self, EncInst, FinalFoldProof, ProofState, RunningInstance, SemanticStateMode, State, StepProof, VerifierKey,
+    self, EncInst, FinalFoldProof, ProofState, RunningInstance, SemanticStateMode, State, StepProof,
+    TerminalFoldInputs, VerifierKey,
 };
 use crate::paper::digest::{initial_boundary_digest, public_trace_seed_digest, AccumulatorHandle};
 use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
@@ -85,7 +86,7 @@ pub enum Error {
 /// + the final fold.
 ///
 /// [`paper::construction2::compute_x_out`]: crate::paper::construction2
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct PublicImage {
     pub vk_fs_digest: [u8; 32],
     pub chunk_count: u64,
@@ -323,6 +324,11 @@ pub fn validate_witness(
         semantic_mode,
     )?;
 
+    let terminal_fold = final_fold
+        .as_ref()
+        .ok_or_else(|| Error::WalkFailed("decider witness must carry a terminal final_fold".into()))?;
+    validate_terminal_fold_snapshot(&state, &terminal_fold.terminal_inputs)?;
+
     // Flush trailing latest through the terminal fold.
     state = construction2::verify_final_fold(
         params,
@@ -410,6 +416,41 @@ pub fn validate_witness(
     {
         if log.commit(witness) != claim.c {
             return Err(Error::WitnessCommitmentMismatch { index });
+        }
+    }
+    Ok(())
+}
+
+/// Bind the proof-carried terminal snapshot to the state reconstructed by the
+/// audit walk. The snapshot is public input to the compact terminal verifier;
+/// it must not select a second running/latest pair or carry private witnesses.
+fn validate_terminal_fold_snapshot(state: &State, snapshot: &TerminalFoldInputs) -> Result<(), Error> {
+    let ProofState::Active { running, latest } = &state.proof else {
+        return Err(Error::WitnessShape);
+    };
+    let expected_running = running
+        .materialize_prover_input()
+        .map_err(|error| Error::WalkFailed(format!("terminal running snapshot: {error}")))?
+        .claims_only();
+    if !snapshot.pre_final_running.witnesses.is_empty()
+        || snapshot.pre_final_running.claims != expected_running.claims
+        || snapshot.pre_final_running.parent_authority != expected_running.parent_authority
+        || snapshot.pre_final_running.pending_projection() != expected_running.pending_projection()
+        || snapshot.pre_nebula != state.nebula
+        || snapshot.latest.instances.len() != latest.instances.len()
+    {
+        return Err(Error::WitnessShape);
+    }
+    for (provided, expected) in snapshot.latest.instances.iter().zip(&latest.instances) {
+        if provided.claim.c != expected.claim.c
+            || provided.claim.x != expected.claim.x
+            || provided.claim.m_in != expected.claim.m_in
+            || provided.claim.adv != expected.claim.adv
+            || !provided.witness.w.is_empty()
+            || provided.witness.Z.rows() != 0
+            || provided.witness.Z.cols() != 0
+        {
+            return Err(Error::WitnessShape);
         }
     }
     Ok(())

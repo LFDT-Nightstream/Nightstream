@@ -31,7 +31,9 @@ use crate::frontends::f_prime::recursive_plan::{
     build_state_x_out_preimage_fields_with_app_x, source_image_emits_nifs_payloads, RecursiveStepImagePlan,
 };
 use crate::lifecycle::Preprocessing;
-use crate::paper::construction2::{LatestInstance, ProofState, RunningInstance, State as PaperState};
+use crate::paper::construction2::{
+    LaneCommitmentMode, LatestInstance, ProofState, RunningInstance, State as PaperState,
+};
 use crate::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest, initial_boundary_digest,
     public_trace_seed_digest, AccumulatorHandle, StateXOutDigestMode,
@@ -191,6 +193,9 @@ pub enum FPrimeShellCompilerError {
     )]
     UnsupportedPublicInputShape { got: usize, expected: usize },
 
+    #[error("F' shell compiler: cannot derive the canonical base accumulator: {reason}")]
+    CanonicalBaseAccumulator { reason: String },
+
     #[error("F' shell compiler: base step (chunk_count == 0) must not carry a prior fold")]
     BaseStepUnexpectedPriorFold,
 
@@ -241,6 +246,30 @@ pub enum FPrimeShellCompilerError {
 // ─────────────────────────────────────────────────────────────────────────
 // Shared compiler entrypoints.
 // ─────────────────────────────────────────────────────────────────────────
+
+/// Derive the first active Construction-2 accumulator from verifier-owned
+/// preprocessing. The incoming pre-chain sentinel remains empty; the first
+/// compiled output commits to this fixed `CE(b,L)^k` value.
+pub(crate) fn canonical_base_accumulator_digest(prep: &Preprocessing) -> Result<[F; 4], FPrimeShellCompilerError> {
+    let m_in = prep
+        .public_input_len
+        .ok_or(FPrimeShellCompilerError::PreprocessingMissingPublicInputLen)?;
+    let running = RunningInstance::canonical_zero(
+        &prep.params,
+        prep.structure(),
+        m_in,
+        LaneCommitmentMode::from_nebula(prep.nebula().is_some()),
+    )
+    .map_err(|error| FPrimeShellCompilerError::CanonicalBaseAccumulator {
+        reason: error.to_string(),
+    })?;
+    let digest = running
+        .accumulator_digest(prep.structure())
+        .map_err(|error| FPrimeShellCompilerError::CanonicalBaseAccumulator {
+            reason: error.to_string(),
+        })?;
+    Ok(digest32_as_fields(digest))
+}
 
 /// Initialise an [`FPrimeCompilerContext`] from `prep`.
 ///
@@ -384,8 +413,8 @@ pub fn verify_prior_fold(
 /// so the perp payload's bits must be deterministic — but the
 /// payload's *authority* (its `c_data`, commitment, fold_digest, etc.)
 /// must not enter the base step's accumulator. The compiler achieves
-/// this by carrying the constant empty accumulator handle on base
-/// steps; recursive steps carry a handle computed from the full
+/// this by carrying the verifier-derived fixed-shape canonical-zero
+/// accumulator on base steps; recursive steps carry a handle computed from the full
 /// verified post-fold running accumulator.
 ///
 /// Audit hook: any future change must keep the base-step perp payload's

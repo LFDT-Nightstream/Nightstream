@@ -5,8 +5,8 @@
 
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
-use neo_reductions::optimized_engine::oracle::{NcColSnapshot, NcDigitTableView};
-use neo_reductions::optimized_engine::{NcColRoundTrace, NcFinalizedColState, NcSumcheckBackend};
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::{NcColSnapshot, NcDigitTableView};
+use neo_reductions::optimized_engine::legacy_split_nc::{NcColRoundTrace, NcFinalizedColState, NcSumcheckBackend};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::encoding::{

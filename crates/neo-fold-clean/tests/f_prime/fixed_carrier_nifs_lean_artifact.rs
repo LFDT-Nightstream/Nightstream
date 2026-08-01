@@ -144,8 +144,13 @@ fn f_prime_step_config(prep: &neo_fold_clean::Preprocessing) -> FPrimeStepConfig
 }
 
 fn canonical_accumulator_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
-    let zero = RunningInstance::canonical_zero(&prep.params, prep.structure(), F_PRIME_PUBLIC_INPUT_LEN)
-        .expect("canonical fixed-k accumulator");
+    let zero = RunningInstance::canonical_zero(
+        &prep.params,
+        prep.structure(),
+        F_PRIME_PUBLIC_INPUT_LEN,
+        neo_fold_clean::paper::construction2::LaneCommitmentMode::Plain,
+    )
+    .expect("canonical fixed-k accumulator");
     AccumulatorHandle::from_running_parts(&zero.claims, zero.parent_authority.as_ref()).digest_fields()
 }
 
@@ -451,8 +456,13 @@ fn capture() -> Snapshot {
     tail.witness.Z[(FIRST_TAIL_LANE, FIRST_TAIL_BLOCK)] = F::from_u64(TAIL_VALUE);
     tail.claim.c = prep.log.commit(&tail.witness.Z);
 
-    let running = RunningInstance::canonical_zero(&prep.params, prep.structure(), F_PRIME_PUBLIC_INPUT_LEN)
-        .expect("canonical fixed-k zero accumulator");
+    let running = RunningInstance::canonical_zero(
+        &prep.params,
+        prep.structure(),
+        F_PRIME_PUBLIC_INPUT_LEN,
+        neo_fold_clean::paper::construction2::LaneCommitmentMode::Plain,
+    )
+    .expect("canonical fixed-k zero accumulator");
     let fixed_running = FixedNifsAccumulator::canonical_zero(
         &prep.params,
         prep.structure(),

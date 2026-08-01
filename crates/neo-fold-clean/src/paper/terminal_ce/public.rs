@@ -5,7 +5,8 @@ use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::paper::digest::{
-    params_digest, structure_digest, terminal_ce_public_digest, terminal_ce_relation_digest, terminal_children_digest,
+    noncanonical_digest32_lane, params_digest, structure_digest, terminal_ce_public_digest,
+    terminal_ce_relation_digest, terminal_children_digest,
 };
 use crate::paper::params::Params;
 use crate::paper::relations::{superneo_public_x_cols, Structure};
@@ -151,6 +152,8 @@ pub enum TerminalCePublicError {
     YZcolPaddingNonZero { index: usize, lane: usize },
     #[error("terminal CE child {index} carries unsupported {field} (expected empty/zero)")]
     UnsupportedSidecar { index: usize, field: &'static str },
+    #[error("terminal CE child {index} fold digest lane {lane} is not a canonical Goldilocks element")]
+    NoncanonicalFoldDigest { index: usize, lane: usize },
 }
 
 fn validate_terminal_children(
@@ -306,6 +309,9 @@ fn validate_terminal_children(
         }
         if claim.u_len != 0 {
             return Err(TerminalCePublicError::UnsupportedSidecar { index, field: "u_len" });
+        }
+        if let Some(lane) = noncanonical_digest32_lane(claim.fold_digest) {
+            return Err(TerminalCePublicError::NoncanonicalFoldDigest { index, lane });
         }
     }
     Ok(())

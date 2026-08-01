@@ -7,7 +7,7 @@
 
 use cuda_core::DeviceBuffer;
 use neo_math::{KExtensions, D, K};
-use neo_reductions::optimized_engine::{FeEvalTable, FeMcsRowTables};
+use neo_reductions::optimized_engine::legacy_split_nc::{FeEvalTable, FeMcsRowTables};
 use neo_reductions::superneo_eval::{weighted_projection_basis_forms, SuperneoEvalCache, SuperneoZBlocks};
 use p3_field::PrimeField64;
 

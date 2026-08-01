@@ -24,8 +24,8 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::transcript::{Poseidon2TranscriptSnapshot, Transcript};
 use crate::paper::construction2::{
-    self, EncInst, FoldProof, LatestInstance, NebulaAdvance, NebulaLane, ProofState, RunningInstance,
-    SemanticStateAdvance, SemanticStateMode, State, StepProof, VerifierKey,
+    self, EncInst, FoldProof, LaneCommitmentMode, LatestInstance, NebulaAdvance, NebulaLane, ProofState,
+    RunningInstance, SemanticStateAdvance, SemanticStateMode, State, StepProof, VerifierKey,
 };
 use crate::paper::digest::digest32_as_fields;
 use crate::paper::nifs;
@@ -485,7 +485,8 @@ fn f_prime_step_transcript_recorded<R: VerifyStepRecorder>(
 /// One full F' invocation on the prover side.
 ///
 /// Reads `state.proof` to decide base-vs-recursive case:
-/// - **Initial** (i = 0): no NIFS.P runs. `next_running = empty`.
+/// - **Initial** (i = 0): no NIFS.P runs. `next_running` is the fixed
+///   Construction-2 default accumulator.
 ///   `FoldProof::NoFold`.
 /// - **Active** (i ≥ 1): NIFS.P folds `state.proof.latest` into
 ///   `state.proof.running`. `FoldProof::Recursive(π)`.
@@ -506,37 +507,7 @@ pub fn prove(
     state: State,
     next_latest: Vec<CcsInstance>,
 ) -> Result<(State, StepProof), Error> {
-    prove_with_backend(
-        nifs::NifsProverBackend::Cpu,
-        pp,
-        s,
-        cache,
-        structure_digest,
-        log,
-        mix_rhos_commits,
-        combine_b_pows,
-        vk,
-        state,
-        next_latest,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_backend(
-    nifs_backend: nifs::NifsProverBackend,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    structure_digest: &[F; 4],
-    log: &AjtaiSModule,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
-    vk: &VerifierKey,
-    state: State,
-    next_latest: Vec<CcsInstance>,
-) -> Result<(State, StepProof), Error> {
-    prove_with_backend_and_semantic_state(
-        nifs_backend,
+    prove_with_semantic_state(
         pp,
         s,
         cache,
@@ -569,43 +540,8 @@ pub fn prove_with_semantic_state(
     lanes: Option<&LaneScheme>,
     nebula_advance: Option<NebulaAdvance>,
 ) -> Result<(State, StepProof), Error> {
-    prove_with_backend_and_semantic_state(
-        nifs::NifsProverBackend::Cpu,
-        pp,
-        s,
-        cache,
-        structure_digest,
-        log,
-        mix_rhos_commits,
-        combine_b_pows,
-        vk,
-        state,
-        next_latest,
-        semantic_advance,
-        lanes,
-        nebula_advance,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_backend_and_semantic_state(
-    nifs_backend: nifs::NifsProverBackend,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    structure_digest: &[F; 4],
-    log: &AjtaiSModule,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
-    vk: &VerifierKey,
-    state: State,
-    next_latest: Vec<CcsInstance>,
-    semantic_advance: SemanticStateAdvance,
-    lanes: Option<&LaneScheme>,
-    nebula_advance: Option<NebulaAdvance>,
-) -> Result<(State, StepProof), Error> {
     let (state, proof, _) = prove_with_nifs_prover_and_semantic_state(
-        NifsProverSource::Backend(nifs_backend),
+        NifsProverSource::Cpu,
         pp,
         s,
         cache,
@@ -695,7 +631,7 @@ pub(crate) fn prove_with_adapter_output_and_semantic_state(
 }
 
 enum NifsProverSource<'a> {
-    Backend(nifs::NifsProverBackend),
+    Cpu,
     Adapter(&'a mut dyn nifs::NifsProverAdapter),
 }
 
@@ -751,12 +687,20 @@ fn prove_with_nifs_prover_and_semantic_state(
     // F' fold step — branch on the tagged ProofState.
     let (next_running, fold, post_fold_summary) = match prev_proof {
         ProofState::Initial => {
-            // i = 0: no NIFS.P; the running accumulator stays empty.
-            (
-                nifs::NifsRunningCarrier::materialized(RunningInstance::default()),
-                FoldProof::NoFold,
-                None,
-            )
+            // HyperNova Construction 2, base case: no NIFS.P runs, but U_1
+            // is the fixed vector of default satisfying R_1 instances.
+            let m_in = next_latest
+                .first()
+                .expect("nonempty next_latest was checked above")
+                .claim
+                .m_in;
+            let running = RunningInstance::canonical_zero(
+                pp,
+                s,
+                m_in,
+                LaneCommitmentMode::from_nebula(nebula_advance.is_some()),
+            )?;
+            (nifs::NifsRunningCarrier::materialized(running), FoldProof::NoFold, None)
         }
         ProofState::Active { running, latest } => {
             // Fresh per-step F' transcript: init label + state-in context
@@ -777,9 +721,8 @@ fn prove_with_nifs_prover_and_semantic_state(
             let mut tr = f_prime_step_transcript(vk, structure_digest, &state_in, chunk_digest);
             let running_input = materialize_running_for_nifs_input(&running)?;
             let (next_running, proof_carrier, post_fold_summary) = match &mut nifs_prover {
-                NifsProverSource::Backend(backend) => {
-                    let (running, proof) = nifs::prove_with_backend(
-                        *backend,
+                NifsProverSource::Cpu => {
+                    let (running, proof) = nifs::prove(
                         &mut tr,
                         pp,
                         s,
@@ -1042,8 +985,14 @@ fn verify_core<R: VerifyStepRecorder>(
     let next_running = match (prev_proof, &proof.fold) {
         (ProofState::Initial, FoldProof::NoFold) => {
             recorder.dispatch(VerifyStepDispatch::InitialNoFold);
-            // i = 0: no NIFS.V; running stays empty.
-            RunningInstance::default()
+            // HyperNova Construction 2, base case: the verifier derives the
+            // same fixed default accumulator as the prover. It is not proof
+            // advice and no NIFS.V call runs in this branch.
+            let m_in = next_latest_claims
+                .first()
+                .expect("nonempty next_latest_claims was checked above")
+                .m_in;
+            RunningInstance::canonical_zero(pp, s, m_in, LaneCommitmentMode::from_nebula(nebula_advance.is_some()))?
         }
         (ProofState::Active { running, latest }, FoldProof::Recursive(nifs_proof)) => {
             recorder.dispatch(VerifyStepDispatch::ActiveRecursive);

@@ -23,6 +23,7 @@ neo-ccs        = { path = "../neo-ccs" }
 neo-ajtai      = { path = "../neo-ajtai" }
 neo-transcript = { path = "../neo-transcript" }
 neo-reductions = { path = "../neo-reductions" }
+toy-spartan     = { workspace = true }
 bellpepper-core = { workspace = true }
 ff              = { workspace = true, features = ["derive"] }
 p3-field       = { workspace = true }
@@ -515,6 +516,10 @@ path = "tests/system/r1cs_compiler.rs"
 [[test]]
 name = "system_lean_canonical_manifest"
 path = "tests/system/lean_canonical_manifest.rs"
+
+[[test]]
+name = "system_lean_native_ccs_manifest"
+path = "tests/system/lean_native_ccs_manifest.rs"
 
 [[test]]
 name = "system_r1cs_stage_provenance"

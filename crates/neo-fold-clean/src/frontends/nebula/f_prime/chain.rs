@@ -28,7 +28,10 @@ use crate::frontends::r1cs_f_prime::lowering::{
     normalized_field_assignment, normalized_source_column, LowNormR1csError,
 };
 use crate::lifecycle::{self, Preprocessing, Uncompressed, UncompressedAudit};
-use crate::paper::construction2::{FoldProof, NebulaError, NebulaLane, ProofState, SemanticStateMode, State};
+use crate::paper::construction2::{
+    FoldProof, LaneCommitmentMode, NebulaError, NebulaLane, PendingProjectionState, ProofState, SemanticStateMode,
+    State,
+};
 use crate::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest_for_uniform_shape,
     initial_boundary_digest, public_trace_seed_digest, state_x_out_digest_with_mode, AccumulatorHandle,
@@ -623,7 +626,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             }) {
                 return Err(NebulaFPrimeChainError::SemanticInputMismatch);
             }
-            let post = pre.base_advance(&self.prep.prep, semantic.and_then(|values| values.output));
+            let post = pre.base_advance(&self.prep.prep, semantic.and_then(|values| values.output))?;
             return Ok(PreparedStep::Base { pre, post });
         };
 
@@ -636,33 +639,35 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             self.audit = Some(audit);
             return Err(NebulaFPrimeChainError::SemanticInputMismatch);
         }
-        let (running, running_parent_authority, fresh, placeholder) = match &audit.proof.state.proof {
-            ProofState::Active { running, latest } => {
-                let running = running
-                    .materialize_prover_input()
-                    .map_err(crate::paper::construction2::Error::from)
-                    .map_err(lifecycle::Error::from)?;
-                let prior = latest
-                    .instances
-                    .first()
-                    .ok_or(NebulaFPrimeChainError::ExpectedActiveState)?;
-                let placeholder = CcsInstance {
-                    claim: prior.claim.clone(),
-                    witness: CcsWitness {
-                        w: Vec::new(),
-                        Z: Mat::zero(0, 0, F::ZERO),
-                    },
-                };
-                (
-                    running.claims.clone(),
-                    running.parent_authority.clone(),
-                    latest.claims(),
-                    placeholder,
-                )
-            }
-            ProofState::Initial => return Err(NebulaFPrimeChainError::ExpectedActiveState),
-        };
-        let branch = if running.is_empty() {
+        let (running, running_parent_authority, running_pending_projection, fresh, placeholder) =
+            match &audit.proof.state.proof {
+                ProofState::Active { running, latest } => {
+                    let running = running
+                        .materialize_prover_input()
+                        .map_err(crate::paper::construction2::Error::from)
+                        .map_err(lifecycle::Error::from)?;
+                    let prior = latest
+                        .instances
+                        .first()
+                        .ok_or(NebulaFPrimeChainError::ExpectedActiveState)?;
+                    let placeholder = CcsInstance {
+                        claim: prior.claim.clone(),
+                        witness: CcsWitness {
+                            w: Vec::new(),
+                            Z: Mat::zero(0, 0, F::ZERO),
+                        },
+                    };
+                    (
+                        running.claims.clone(),
+                        running.parent_authority.clone(),
+                        running.pending_projection().cloned(),
+                        latest.claims(),
+                        placeholder,
+                    )
+                }
+                ProofState::Initial => return Err(NebulaFPrimeChainError::ExpectedActiveState),
+            };
+        let branch = if running_pending_projection.is_none() {
             NebulaFPrimeBranch::BootstrapRecursive
         } else {
             NebulaFPrimeBranch::Recursive
@@ -741,6 +746,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             fresh,
             running,
             running_parent_authority,
+            running_pending_projection,
             nifs,
             pending,
         })
@@ -834,6 +840,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 fresh,
                 running,
                 running_parent_authority,
+                running_pending_projection,
                 nifs,
                 ..
             } => {
@@ -844,7 +851,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                     fresh,
                     running,
                     running_parent_authority: running_parent_authority.as_ref(),
-                    running_pending_projection: None,
+                    running_pending_projection: running_pending_projection.as_ref(),
                     pi_ccs: &nifs.pi_ccs,
                     combined: &nifs.pi_rlc.combined,
                     children: &nifs.pi_dec.children,
@@ -1090,6 +1097,7 @@ enum PreparedStep {
         fresh: Vec<CcsClaim>,
         running: Vec<CeClaim>,
         running_parent_authority: Option<CeClaim>,
+        running_pending_projection: Option<PendingProjectionState>,
         nifs: NifsProof,
         pending: UncompressedAudit,
     },
@@ -1161,7 +1169,11 @@ impl StateCoordinates {
         }
     }
 
-    fn base_advance(&self, prep: &Preprocessing, semantic_output: Option<[F; 4]>) -> Self {
+    fn base_advance(
+        &self,
+        prep: &Preprocessing,
+        semantic_output: Option<[F; 4]>,
+    ) -> Result<Self, NebulaFPrimeChainError> {
         let z_i = f_prime_chunk_public_digest_for_uniform_shape(
             self.step_count,
             1,
@@ -1170,14 +1182,32 @@ impl StateCoordinates {
             prep.public_input_len
                 .expect("folded F' fixes public input length"),
         );
-        Self {
+        let m_in = prep
+            .public_input_len
+            .expect("folded F' fixes public input length");
+        let running = crate::paper::construction2::RunningInstance::canonical_zero(
+            &prep.params,
+            prep.structure(),
+            m_in,
+            LaneCommitmentMode::Nebula,
+        )
+        .map_err(crate::paper::construction2::Error::from)
+        .map_err(lifecycle::Error::from)?;
+        let acc_digest = digest32_as_fields(
+            running
+                .accumulator_digest(prep.structure())
+                .map_err(crate::paper::construction2::Error::from)
+                .map_err(lifecycle::Error::from)?,
+        );
+        Ok(Self {
             chunk_count: 1,
             step_count: 1,
             z_i,
-            semantic_state_digest: semantic_output.unwrap_or(self.semantic_state_digest),
+            semantic_state_digest: semantic_output.unwrap_or(acc_digest),
+            acc_digest,
             public_trace: z_i,
             ..self.clone()
-        }
+        })
     }
 
     fn as_f_prime_state(&self, prep: &Preprocessing) -> FPrimeStateIn {

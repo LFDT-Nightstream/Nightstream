@@ -65,6 +65,32 @@ where
 
     let m = acc.cols();
     let rho_data = rho.as_slice();
+    if let Some(&constant) = a.virtual_constant_value() {
+        if constant == Ff::ZERO {
+            return;
+        }
+        let add_row = |rr: usize, row_out: &mut [Ff]| {
+            let mut value = Ff::ZERO;
+            for kk in 0..D {
+                value += rho_data[rr * D + kk] * constant;
+            }
+            for entry in row_out {
+                *entry += value;
+            }
+        };
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        if rayon::current_num_threads() > 1 {
+            acc.as_mut_slice()
+                .par_chunks_exact_mut(m)
+                .enumerate()
+                .for_each(|(rr, row_out)| add_row(rr, row_out));
+            return;
+        }
+        for (rr, row_out) in acc.as_mut_slice().chunks_exact_mut(m).enumerate() {
+            add_row(rr, row_out);
+        }
+        return;
+    }
     if a.is_packed_signed_unit() {
         let mut row_nonzeros = (0..D)
             .map(|_| Vec::new())

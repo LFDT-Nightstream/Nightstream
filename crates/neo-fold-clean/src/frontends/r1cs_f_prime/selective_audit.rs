@@ -137,6 +137,51 @@ fn covered_rows(ranges: &[(usize, usize)]) -> usize {
     total
 }
 
+fn row_family_masks(row_count: usize, families: &[(&'static str, Vec<(usize, usize)>)]) -> Vec<u64> {
+    let mut events = Vec::with_capacity(families.iter().map(|(_, ranges)| 2 * ranges.len()).sum());
+    for (family_index, (_, ranges)) in families.iter().enumerate() {
+        for &(start, end) in ranges {
+            assert!(start <= end, "row-family range is reversed");
+            assert!(end <= row_count, "row-family range exceeds the relation");
+            events.push((start, family_index, 1isize));
+            events.push((end, family_index, -1isize));
+        }
+    }
+    events.sort_unstable_by_key(|&(row, family_index, _)| (row, family_index));
+
+    let mut masks = vec![0u64; row_count];
+    let mut active_counts = [0usize; u64::BITS as usize];
+    let mut active_mask = 0u64;
+    let mut cursor = 0;
+    let mut event_index = 0;
+    while event_index < events.len() {
+        let row = events[event_index].0;
+        masks[cursor..row].fill(active_mask);
+        while event_index < events.len() && events[event_index].0 == row {
+            let family_index = events[event_index].1;
+            let mut delta = 0isize;
+            while event_index < events.len() && events[event_index].0 == row && events[event_index].1 == family_index {
+                delta += events[event_index].2;
+                event_index += 1;
+            }
+            let next_count = active_counts[family_index]
+                .checked_add_signed(delta)
+                .expect("row-family range ends before it starts");
+            active_counts[family_index] = next_count;
+            let bit = 1 << family_index;
+            if next_count == 0 {
+                active_mask &= !bit;
+            } else {
+                active_mask |= bit;
+            }
+        }
+        cursor = row;
+    }
+    masks[cursor..].fill(active_mask);
+    assert_eq!(active_mask, 0, "row-family range exceeds the relation");
+    masks
+}
+
 /// Retained source values owned by direct selective trace classes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SelectiveTraceWidthAudit {
@@ -647,20 +692,14 @@ pub(super) fn row_family_width_audits(
         families.len() <= u64::BITS as usize,
         "too many row families for width audit"
     );
+    let row_masks = row_family_masks(arm.n, &families);
     let mut family_masks = vec![0u64; arm.m - branch_start];
     for matrix in [&arm.a, &arm.b, &arm.c] {
         for_each_explicit_term(matrix, |row, column| {
             if column < branch_start || widths[column] == 0 {
                 return;
             }
-            for (family_index, (_, ranges)) in families.iter().enumerate() {
-                if ranges
-                    .iter()
-                    .any(|&(start, end)| (start..end).contains(&row))
-                {
-                    family_masks[column - branch_start] |= 1 << family_index;
-                }
-            }
+            family_masks[column - branch_start] |= row_masks[row];
         });
     }
     families
@@ -819,3 +858,7 @@ fn for_each_explicit_term(matrix: &CcsMatrix<neo_math::F>, mut visit: impl FnMut
         CcsMatrix::CscWithSeededPhi81 { csc, .. } => visit_csc(csc),
     }
 }
+
+#[cfg(test)]
+#[path = "tests/selective_audit.rs"]
+mod tests;

@@ -8,9 +8,9 @@ use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{F, K};
 use neo_params::NeoParams;
 
+use super::legacy_types::PiCcsReplayTerminalState;
 use crate::engines::utils;
 use crate::error::PiCcsError;
-use crate::optimized_engine::PiCcsReplayTerminalState;
 
 pub(super) fn validate_replay_terminal_state(
     params: &NeoParams,

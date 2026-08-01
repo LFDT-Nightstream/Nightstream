@@ -1,7 +1,9 @@
-//! Optimized engine implementation for Π_CCS
+//! Optimized engine implementation for PiCCS.
 //!
-//! This module contains the optimized implementation with factored algebra
-//! and precomputed terms for efficient sumcheck proving.
+//! `paper_rectangular` is the canonical prover. The
+//! [`legacy_split_nc`] namespace contains the old block/lane, replay, and
+//! deferred accelerator protocol. Code outside that namespace must not use
+//! those computations as evidence of paper equivalence.
 
 #![allow(non_snake_case)]
 
@@ -10,8 +12,7 @@ use crate::error::PiCcsError;
 use crate::superneo_eval::{build_superneo_eval_cache, SuperneoEvalCache};
 use neo_ccs::CcsStructure;
 use neo_math::F;
-use neo_math::{KExtensions, K};
-use p3_field::PrimeCharacteristicRing;
+use neo_math::K;
 use p3_goldilocks::Goldilocks;
 use std::sync::Arc;
 
@@ -23,6 +24,8 @@ mod block_lane_terminal;
 mod common;
 mod delayed_projection;
 mod digit_table;
+mod legacy_types;
+mod paper_rectangular;
 mod phase_trace;
 mod proof_assembly;
 mod replay_binding;
@@ -35,38 +38,13 @@ mod terminal_identities;
 mod terminal_outputs;
 mod transcript_segments;
 
-pub mod oracle;
-pub mod prove;
-pub mod verify;
+mod oracle;
+mod prove;
+mod verify;
 
 // Re-export commonly used items
-pub use backend::{
-    NcPhaseRoundTrace, PiCcsPhaseBackend, PiCcsPhaseProofLog, PiCcsPhaseSummary, PiCcsPhaseTrace,
-    PiCcsPhaseTraceRequest, PiCcsTerminalOutputSurfaces,
-};
-pub use block_lane_entrypoints::{
-    optimized_prove_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
-    optimized_verify_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
-};
-pub use common::Challenges;
-pub use delayed_projection::{
-    beta_power_selector as delayed_beta_power_selector, claimed_initial_sum as delayed_claimed_initial_sum,
-    parent_evaluation as delayed_parent_evaluation, terminal_rhs as delayed_terminal_rhs,
-    validate_input as validate_delayed_projection_input, DelayedProjectionChallenges, DelayedProjectionConfig,
-    DelayedProjectionInput,
-};
-pub use digit_table::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
-pub use oracle::BlockLaneNcPending;
+pub use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof, PiCcsProofVariant};
 pub use sparse::{CscMat, SparseCache};
-
-/// Proof format variant for Π_CCS.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum PiCcsProofVariant {
-    /// Split-NC proof with two sumchecks: FE-only + NC-only.
-    SplitNcV1,
-    /// FE plus canonical 19-block/6-lane NC with one-fold delayed projection.
-    BlockLaneNcDelayedV1,
-}
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PiCcsProvePerf {
@@ -78,61 +56,10 @@ pub struct PiCcsProvePerf {
     pub total_ms: f64,
 }
 
-#[derive(Debug, Clone)]
-pub struct PiCcsTerminalOutputShell {
-    pub count: usize,
-    pub m_in: usize,
-    pub row_chals: Vec<K>,
-    pub s_col: Vec<K>,
-    pub has_y_zcol: bool,
-    pub fold_digest: [u8; 32],
-}
-
-#[derive(Debug, Clone)]
-pub struct PiCcsReplayTerminalState {
-    pub variant: PiCcsProofVariant,
-    pub me_outputs: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>>,
-    pub output_shell: PiCcsTerminalOutputShell,
-    pub sc_initial_sum: K,
-    pub sc_initial_sum_nc: K,
-    pub challenges_public: Challenges,
-    pub row_chals: Vec<K>,
-    pub alpha_prime: Vec<K>,
-    pub s_col: Vec<K>,
-    pub alpha_prime_nc: Vec<K>,
-    pub sumcheck_final: K,
-    pub sumcheck_final_nc: K,
-    pub fold_digest: [u8; 32],
-    pub perf: PiCcsProvePerf,
-    #[doc(hidden)]
-    pub pi_dec_precompute: Option<PiDecProverPrecompute>,
-}
-
 /// Prover-only data shared by adjacent Π_CCS and Π_DEC phases.
 #[derive(Debug, Clone)]
 pub struct PiDecProverPrecompute {
     pub row_chals: Vec<K>,
-}
-
-#[derive(Debug, Clone)]
-pub struct PiCcsReplayOutputs {
-    pub me_outputs: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>>,
-    pub fold_digest: [u8; 32],
-    pub perf: PiCcsProvePerf,
-}
-
-#[derive(Debug, Clone)]
-pub struct PiCcsReplayWitnessOutputs {
-    pub me_outputs: Vec<neo_ccs::CeClaim<neo_ajtai::Commitment, neo_math::F, neo_math::K>>,
-    pub replay_proof: PiCcsReplayProofWitness,
-    pub perf: PiCcsProvePerf,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct PiCcsReplayProofWitness {
-    pub sumcheck_rounds: Vec<Vec<K>>,
-    pub sumcheck_rounds_nc: Vec<Vec<K>>,
-    pub header_digest: [u8; 32],
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -151,200 +78,26 @@ pub struct PiCcsVerifyPerf {
     pub total_ms: f64,
 }
 
-// Re-export core functions for building proofs and cross-checking
+// Re-export the independent PiDEC and PiRLC computations. These are not part
+// of the legacy PiCCS split protocol.
+pub(crate) use common::claimed_initial_sum_from_inputs_with_k_mcs;
 pub use common::{
-    chi_ajtai_at_bool_point,
-
-    chi_row_at_bool_point,
-    // Public claimed sum for sumcheck
-    claimed_initial_sum_from_inputs_with_k_mcs,
-
-    dec_reduction_paper_exact,
-    dec_reduction_paper_exact_with_commit_check,
-    dec_reduction_paper_exact_with_sparse_cache,
-    dec_reduction_paper_exact_with_superneo_cache,
-    dec_reduction_paper_exact_with_superneo_cache_and_digit_flags,
-    // Core equalities & helpers
-    eq_points,
-    // Q(X) and sums
-    q_at_point_paper_exact,
-    q_eval_at_ext_point_paper_exact,
-    q_eval_at_ext_point_paper_exact_with_inputs,
-
-    // Utilities
-    recomposed_z_from_Z,
-
-    // Paper-exact RLC/DEC
-    rlc_reduction_paper_exact,
+    dec_reduction_paper_exact, dec_reduction_paper_exact_with_commit_check,
+    dec_reduction_paper_exact_with_sparse_cache, dec_reduction_paper_exact_with_superneo_cache,
+    dec_reduction_paper_exact_with_superneo_cache_and_digit_flags, recomposed_z_from_Z, rlc_reduction_paper_exact,
     rlc_reduction_paper_exact_with_commit_mix,
-    sum_q_over_hypercube_paper_exact,
 };
 pub use rlc::{
     rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized, rlc_reduction_optimized_with_commit_mix,
     rlc_reduction_optimized_with_mixers,
 };
-pub use terminal_identities::{
-    rhs_terminal_identity_fe, rhs_terminal_identity_fe_with_k_mcs, rhs_terminal_identity_nc,
-};
-
-/// Proof structure for the Π_CCS protocol
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PiCcsProof {
-    /// Proof format variant.
-    pub variant: PiCcsProofVariant,
-
-    /// Sumcheck rounds (each round is a vector of polynomial coefficients)
-    pub sumcheck_rounds: Vec<Vec<K>>,
-
-    /// Initial sum over the Boolean hypercube (optional, can be derived from round 0)
-    pub sc_initial_sum: Option<K>,
-
-    /// Sumcheck challenges (r' || α' from the sumcheck protocol)
-    pub sumcheck_challenges: Vec<K>,
-
-    /// NC-only sumcheck rounds (digit-range / norm-check).
-    pub sumcheck_rounds_nc: Vec<Vec<K>>,
-
-    /// Initial sum for the NC sumcheck (optional; typically 0).
-    pub sc_initial_sum_nc: Option<K>,
-
-    /// NC sumcheck challenges (s' || α'_nc from the sumcheck protocol)
-    pub sumcheck_challenges_nc: Vec<K>,
-
-    /// Public challenges (α, β, γ)
-    pub challenges_public: Challenges,
-
-    /// Final running sum after all sumcheck rounds
-    pub sumcheck_final: K,
-
-    /// Final running sum after all NC sumcheck rounds
-    pub sumcheck_final_nc: K,
-
-    /// Header digest for binding
-    pub header_digest: Vec<u8>,
-
-    /// Additional proof data (if needed)
-    pub _extra: Option<Vec<u8>>,
-}
-
-impl PiCcsProof {
-    /// Create a new proof
-    pub fn new(sumcheck_rounds: Vec<Vec<K>>, sc_initial_sum: Option<K>) -> Self {
-        Self {
-            variant: PiCcsProofVariant::SplitNcV1,
-            sumcheck_rounds,
-            sc_initial_sum,
-            sumcheck_challenges: Vec::new(),
-            sumcheck_rounds_nc: Vec::new(),
-            sc_initial_sum_nc: None,
-            sumcheck_challenges_nc: Vec::new(),
-            challenges_public: Challenges {
-                alpha: Vec::new(),
-                beta_a: Vec::new(),
-                beta_r: Vec::new(),
-                beta_m: Vec::new(),
-                gamma: K::ZERO,
-            },
-            sumcheck_final: K::ZERO,
-            sumcheck_final_nc: K::ZERO,
-            header_digest: Vec::new(),
-            _extra: None,
-        }
-    }
-
-    /// Normalize field elements before proofs cross a serialization boundary.
-    ///
-    /// `p3_goldilocks::Goldilocks` compares by canonical value, but serde
-    /// exposes its raw internal word. Without this pass, equal field elements
-    /// such as `0` and the modulus can serialize to different bytes.
-    pub fn canonicalize(&mut self) {
-        canonicalize_rounds(&mut self.sumcheck_rounds);
-        canonicalize_rounds(&mut self.sumcheck_rounds_nc);
-        canonicalize_vec(&mut self.sumcheck_challenges);
-        canonicalize_vec(&mut self.sumcheck_challenges_nc);
-        canonicalize_vec(&mut self.challenges_public.alpha);
-        canonicalize_vec(&mut self.challenges_public.beta_a);
-        canonicalize_vec(&mut self.challenges_public.beta_r);
-        canonicalize_vec(&mut self.challenges_public.beta_m);
-        self.challenges_public.gamma = canonical_k(self.challenges_public.gamma);
-        self.sc_initial_sum = self.sc_initial_sum.map(canonical_k);
-        self.sc_initial_sum_nc = self.sc_initial_sum_nc.map(canonical_k);
-        self.sumcheck_final = canonical_k(self.sumcheck_final);
-        self.sumcheck_final_nc = canonical_k(self.sumcheck_final_nc);
-    }
-}
-
-fn canonicalize_rounds(rounds: &mut [Vec<K>]) {
-    for round in rounds {
-        canonicalize_vec(round);
-    }
-}
-
-fn canonicalize_vec(values: &mut [K]) {
-    for value in values {
-        *value = canonical_k(*value);
-    }
-}
-
-fn canonical_k(value: K) -> K {
-    let (c0, c1) = value.to_limbs_u64();
-    neo_math::from_complex(F::from_u64(c0), F::from_u64(c1))
-}
-
-impl PiCcsReplayProofWitness {
-    pub fn from_proof(proof: &PiCcsProof) -> Result<Self, PiCcsError> {
-        if proof.variant != PiCcsProofVariant::SplitNcV1 {
-            return Err(PiCcsError::ProtocolError(
-                "unsupported Π_CCS replay proof variant".into(),
-            ));
-        }
-        let header_digest: [u8; 32] = proof
-            .header_digest
-            .as_slice()
-            .try_into()
-            .map_err(|_| PiCcsError::ProtocolError("Π_CCS header digest must be 32 bytes".into()))?;
-        Ok(Self {
-            sumcheck_rounds: proof.sumcheck_rounds.clone(),
-            sumcheck_rounds_nc: proof.sumcheck_rounds_nc.clone(),
-            header_digest,
-        })
-    }
-
-    pub fn to_pi_ccs_proof(&self) -> PiCcsProof {
-        let mut proof = PiCcsProof::new(self.sumcheck_rounds.clone(), None);
-        proof.variant = PiCcsProofVariant::SplitNcV1;
-        proof.sumcheck_rounds_nc = self.sumcheck_rounds_nc.clone();
-        proof.header_digest = self.header_digest.to_vec();
-        proof
-    }
-}
-
-// Re-export optimized prove/verify entrypoints as the main interface
-pub use backend::{
-    BackendTranscriptMode, FeEvalTable, FeMcsRowTables, FePhaseTraceRequest, FeRowRoundSummary, FeRowRoundTrace,
-    FeSumcheckBackend, NcColRoundTrace, NcColTraceRequest, NcFinalizedColState, NcSumcheckBackend, TranscriptSnapshot,
-};
-pub use proof_assembly::PiCcsDeferredProof;
-pub use prove::optimized_defer_prove_with_device_backends_and_transcript_mode;
-pub use prove::optimized_defer_prove_with_phase_backend_and_transcript_mode;
+pub(crate) use terminal_identities::{rhs_terminal_identity_fe_with_k_mcs, rhs_terminal_identity_nc};
+// The normal optimized interface implements PaperRectangularV1.
 pub use prove::optimized_prove as pi_ccs_prove;
 pub use prove::optimized_prove_with_cache;
 pub use prove::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf;
 pub use prove::optimized_prove_with_cache_and_instance_digest_and_perf;
 pub use prove::optimized_prove_with_cache_and_perf;
-pub use prove::optimized_prove_with_device_backends;
-pub use prove::optimized_prove_with_device_backends_and_transcript_mode;
-pub use prove::optimized_prove_with_phase_backend_and_transcript_mode;
-pub use replay_entrypoints::optimized_replay_outputs_with_cache_and_instance_digest_and_perf;
-pub use replay_entrypoints::optimized_replay_outputs_with_cache_and_perf;
-pub use replay_entrypoints::optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf;
-pub use replay_entrypoints::optimized_replay_terminal_state_with_cache_and_perf;
-pub use replay_entrypoints::optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf;
-pub use replay_entrypoints::optimized_replay_terminal_state_with_phase_backend_and_transcript_mode;
-pub use replay_entrypoints::optimized_replay_trace_with_cache_and_instance_digest_and_perf;
-pub use replay_entrypoints::optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf;
-pub use replay_entrypoints::optimized_replay_witness_with_cache_and_instance_digest_and_perf;
-pub use replay_entrypoints::optimized_replay_witness_with_cache_and_perf;
 pub use verify::optimized_verify as pi_ccs_verify;
 pub use verify::optimized_verify_with_cache;
 pub use verify::optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf;
@@ -354,8 +107,72 @@ pub use verify::optimized_verify_with_cache_and_perf;
 /// Wrapper for simple case (k=1, no ME inputs)
 pub use prove::optimized_prove_simple as pi_ccs_prove_simple;
 
-// Re-export the oracle for Route A integration
-pub use oracle::OptimizedOracle as CcsOracle;
+/// Canonical oracle types exposed only for the independent PaperExact audit
+/// suite. Normal clients use the prover and verifier entrypoints.
+#[cfg(feature = "paper-exact")]
+pub mod canonical_audit {
+    pub use super::paper_rectangular::{OptimizedPaperRectangularFeOracle, OptimizedPaperRectangularNcOracle};
+}
+
+/// Explicit access to the superseded block/lane SplitNC protocol.
+///
+/// This namespace exists only for the current accelerator and recursive-circuit
+/// migration. It does not implement `PaperRectangularV1`, and callers must not
+/// compare it with `PaperExact` as a paper-equivalence oracle.
+pub mod legacy_split_nc {
+    pub use super::backend::{
+        BackendTranscriptMode, FeEvalTable, FeMcsRowTables, FePhaseTraceRequest, FeRowRoundSummary, FeRowRoundTrace,
+        FeSumcheckBackend, NcColRoundTrace, NcColTraceRequest, NcFinalizedColState, NcPhaseRoundTrace,
+        NcSumcheckBackend, PiCcsPhaseBackend, PiCcsPhaseProofLog, PiCcsPhaseSummary, PiCcsPhaseTrace,
+        PiCcsPhaseTraceRequest, PiCcsTerminalOutputSurfaces, TranscriptSnapshot,
+    };
+    pub use super::block_lane_entrypoints::{
+        optimized_prove_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
+        optimized_verify_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
+    };
+    pub use super::common::{
+        chi_ajtai_at_bool_point, chi_row_at_bool_point, claimed_initial_sum_from_inputs_with_k_mcs, eq_points,
+        q_at_point_paper_exact, q_eval_at_ext_point_paper_exact, q_eval_at_ext_point_paper_exact_with_inputs,
+        sum_q_over_hypercube_paper_exact,
+    };
+    pub use super::delayed_projection::{
+        beta_power_selector as delayed_beta_power_selector, claimed_initial_sum as delayed_claimed_initial_sum,
+        parent_evaluation as delayed_parent_evaluation, terminal_rhs as delayed_terminal_rhs,
+        validate_input as validate_delayed_projection_input, DelayedProjectionChallenges, DelayedProjectionConfig,
+        DelayedProjectionInput,
+    };
+    pub use super::digit_table::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
+    pub use super::legacy_types::{
+        PiCcsReplayOutputs, PiCcsReplayProofWitness, PiCcsReplayTerminalState, PiCcsReplayWitnessOutputs,
+        PiCcsTerminalOutputShell,
+    };
+    pub use super::oracle::{BlockLaneNcPending, OptimizedOracle as CcsOracle};
+    pub use super::proof_assembly::PiCcsDeferredProof;
+    pub use super::prove::{
+        optimized_defer_prove_with_device_backends_and_transcript_mode,
+        optimized_defer_prove_with_phase_backend_and_transcript_mode, optimized_prove_with_device_backends,
+        optimized_prove_with_device_backends_and_transcript_mode,
+        optimized_prove_with_phase_backend_and_transcript_mode,
+    };
+    pub use super::replay_entrypoints::{
+        optimized_replay_outputs_with_cache_and_instance_digest_and_perf, optimized_replay_outputs_with_cache_and_perf,
+        optimized_replay_terminal_state_with_cache_and_instance_digest_and_perf,
+        optimized_replay_terminal_state_with_cache_and_perf,
+        optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf,
+        optimized_replay_terminal_state_with_phase_backend_and_transcript_mode,
+        optimized_replay_trace_with_cache_and_instance_digest_and_perf,
+        optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf,
+        optimized_replay_witness_with_cache_and_instance_digest_and_perf, optimized_replay_witness_with_cache_and_perf,
+    };
+    pub use super::terminal_identities::{
+        rhs_terminal_identity_fe, rhs_terminal_identity_fe_with_k_mcs, rhs_terminal_identity_nc,
+    };
+
+    /// Legacy CPU oracle internals used by accelerator parity tests.
+    pub mod oracle {
+        pub use super::super::oracle::*;
+    }
+}
 
 #[derive(Clone)]
 pub struct OptimizedStructureCache {

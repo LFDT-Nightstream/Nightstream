@@ -122,7 +122,7 @@ use std::time::Duration;
 
 use crate::lifecycle::{Error, Preprocessing, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{
-    self, FinalFoldProof, LatestInstance, ProofState, RunningInstance, State, TerminalFoldInputs,
+    self, FinalFoldProof, LaneCommitmentMode, LatestInstance, ProofState, RunningInstance, State, TerminalFoldInputs,
 };
 use crate::paper::decider;
 use crate::paper::digest::{
@@ -570,6 +570,9 @@ fn check_terminal_boundary_from_latest(
     post: &State,
     final_fold: &FinalFoldProof,
 ) -> Result<(), Error> {
+    if !terminal_fold_inputs_are_public(&final_fold.terminal_inputs) {
+        return Err(Error::PostStateMismatch);
+    }
     let latest_count = final_fold.terminal_inputs.latest.instances.len() as u64;
     if latest_count == 0 || latest_count > post.step_count {
         return Err(Error::PostStateMismatch);
@@ -586,16 +589,32 @@ fn check_terminal_boundary_from_latest(
             max: max_fresh,
         });
     }
-    if !prep.enforces_terminal_induction()
-        && !final_fold
+    if !prep.enforces_terminal_induction() {
+        let pre_running = &final_fold.terminal_inputs.pre_final_running;
+        let fresh_m_in = final_fold
             .terminal_inputs
-            .pre_final_running
-            .claims
-            .is_empty()
-    {
-        return Err(Error::TerminalOnlyMultiChunkUnsupported {
-            chunk_count: post.chunk_count,
-        });
+            .latest
+            .instances
+            .first()
+            .ok_or(Error::PostStateMismatch)?
+            .claim
+            .m_in;
+        let default_running = RunningInstance::canonical_zero(
+            &prep.params,
+            prep.structure(),
+            fresh_m_in,
+            LaneCommitmentMode::from_nebula(prep.nebula().is_some()),
+        )
+        .map_err(construction2::Error::from)?
+        .claims_only();
+        if pre_running.claims != default_running.claims
+            || pre_running.parent_authority != default_running.parent_authority
+            || pre_running.pending_projection() != default_running.pending_projection()
+        {
+            return Err(Error::TerminalOnlyMultiChunkUnsupported {
+                chunk_count: post.chunk_count,
+            });
+        }
     }
     if post.chunk_count == 0 {
         return Err(Error::PostStateMismatch);
@@ -611,6 +630,15 @@ fn check_terminal_boundary_from_latest(
         return Err(Error::PostStateMismatch);
     }
     Ok(())
+}
+
+/// A terminal-fold snapshot is a public statement. It must not carry any
+/// prover-only witness matrix, even if the verifier can otherwise ignore it.
+fn terminal_fold_inputs_are_public(inputs: &construction2::TerminalFoldInputs) -> bool {
+    inputs.pre_final_running.witnesses.is_empty()
+        && inputs.latest.instances.iter().all(|instance| {
+            instance.witness.w.is_empty() && instance.witness.Z.rows() == 0 && instance.witness.Z.cols() == 0
+        })
 }
 
 fn check_terminal_latest_link(prep: &Preprocessing, pre_state: &State, latest: &LatestInstance) -> Result<(), Error> {
@@ -880,8 +908,13 @@ fn check_pending_projection_authority(prep: &Preprocessing, running: &RunningIns
             .public_input_len
             .or_else(|| running.claims.first().map(|claim| claim.m_in))
             .ok_or(Error::MissingPendingProjection)?;
-        let canonical = RunningInstance::canonical_zero(&prep.params, prep.structure(), m_in)
-            .map_err(|_| Error::MissingPendingProjection)?;
+        let canonical = RunningInstance::canonical_zero(
+            &prep.params,
+            prep.structure(),
+            m_in,
+            LaneCommitmentMode::from_nebula(prep.nebula().is_some()),
+        )
+        .map_err(|_| Error::MissingPendingProjection)?;
         if running.claims == canonical.claims
             && running
                 .witnesses

@@ -1,115 +1,104 @@
-# PiCCS
+# PiCCS canonical rectangular protocol
 
-## Purpose
+## Contract
 
-- **What it is**: Strong interactive-reduction step Pi_CCS that converts CCS claims `(c, x)` into CE claims `(c, X, r, {y_j}, ct)` via a sum-check over the Q polynomial, plus terminal-identity verification.
-- **Key invariant**: `prove` produces a proof such that `verify` accepts iff the CCS relation holds: `f(M_1 z, ..., M_t z) = 0` row-wise and the commitment `c = L(Z)` is valid. The reduction is **strong** (Lemma 3): acceptance implies both `ceRelation` and `SumCheckClaimTrue`.
-- **Protocol role**: First step in the folding composition `Pi_DEC o Pi_RLC o Pi_CCS` (Theorem 1). Takes CCS claims from the current shard and produces CE claims that feed into Pi_RLC.
+The protocol follows the local SuperNeo paper, Section 7.3 and Appendix D.4.
+It makes one declared change: row and column domains can have different
+sizes, so the paper's joint SumCheck is split into one FE SumCheck and one NC
+SumCheck.
 
-## Target Formulas (Paper -> Rust)
+The implementation is pinned to the local paper snapshot by content:
 
-| Paper notation | Paper reference | Rust identifier | Notes |
-|---|---|---|---|
-| `Pi_CCS` | Section 7.3, line 481 | `api::prove`, `api::verify` | Strong interactive reduction |
-| `Q(alpha, r) = eq(alpha, beta_a) * eq(r, beta_r) * F(r, alpha)` | Section 7.3, line 490 | Q polynomial in `OptimizedOracle` / `PaperExactOracle` | Sum-check target polynomial |
-| `alpha in K^{ell_d}` | Section 7.3, line 483 | `Challenges::alpha` | Ajtai-dimension challenge |
-| `beta = (beta_a, beta_r) in K^{ell_d + ell_n}` | Section 7.3, line 484 | `Challenges::beta_a`, `Challenges::beta_r` | Eq-gate challenges |
-| `beta_m in K^{ell_m}` | Extension | `Challenges::beta_m` | NC channel column challenge |
-| `gamma in K` | Extension | `Challenges::gamma` | Batched witness linear combination weight |
-| `T = sum_{x in {0,1}^{ell_n+ell_d}} Q(x)` | Section 7.3, line 491 | `claimed_initial_sum_from_inputs_with_k_mcs` | Claimed sum from ME inputs |
-| `y_j = ct(bar(M_j) * z)` (Thm 4) | Section 5, line 384 | CE output `y_ring` | Matrix-vector product via SuperNeo transform |
-| `(c, X, r, y, ct)` CE claim | Def 13 | `CeClaim<Cmt, F, K>` | Output type |
+| Source | SHA-256 |
+|---|---|
+| `docs/superneo-paper/07-7-neo-s-folding-scheme-for-ccs.md` | `2ed776426ad25c37e9dfe8ee8970dc465605364d9557661ebb9eee6c75de0aed` |
+| `docs/superneo-paper/13-d-deferred-theorems-and-proofs.md` | `bb542f19749b44c037af2a430ed72460fc8fbb07c8a748ff8ac454a0f2a3c734` |
 
-## Paper Anchors
+The local Markdown has two known formula-display defects. The target is the
+absolute joint-Q target, so the carried block starts at `2K+k`. The strict
+range polynomial has roots `-(b-1), ..., b-1`. These corrections are explicit
+in the Lean `PaperJoint` model and are not rectangular-protocol changes.
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+This split preserves the paper's source order, signs, target, range
+polynomial, coefficient order, and absolute gamma exponents. It does not add a
+coefficient/lane SumCheck axis or delay the column opening.
 
-- Section 7.3 (Pi_CCS strong interactive reduction), lines 481-548.
-- Lemma 3 (Pi_CCS is a strong interactive reduction of CCS to CE), lines 545-546.
-- Section 7.1 (Relations), lines 449-465: CCS/CE relation definitions consumed by Pi_CCS.
-- Theorem 4 (Matrix-vector product transform), Section 5, lines 384-386: basis for SuperNeo evaluation.
-- Appendix D (Proof of Lemma 3): soundness argument.
+The concrete Goldilocks profile accepts at most 61 fresh sources and at most
+`k_rho = 14` running sources. Both prover and verifier enforce these limits
+before transcript sampling.
 
-## Lean Cross-Reference
+## Polynomials
 
-| Lean spec | Lean module | Relationship |
-|---|---|---|
-| `PiCCS.spec.md` | `SuperNeo/PiCCS.lean` | `piCCSStrongStatement` = `ceRelation` AND `SumCheckClaimTrue` |
-| `ProofSystem/Folding/PiCCS.spec.md` | `SuperNeo/ProofSystem/Folding/PiCCS.lean` | Proof-system wrapper; `soundness_relations` |
-| `ProtocolRelations.spec.md` | `SuperNeo/ProtocolRelations.lean` | `ccsRelation`, `ceRelation`, `ceRelaxedRelation` predicates |
-| `InteractiveReductions.spec.md` | `SuperNeo/InteractiveReductions.lean` | `strongCompositionStatement` uses Pi_CCS |
+Let `K` be the number of fresh CCS sources and `k` the number of running CE
+sources. Let `I(i,j,l) = i + k*j + k*t*l`, with zero-based coordinates.
 
-## Contract Surface
+The row polynomial contains:
 
-| Group | Rust symbol | Kind | Role | Guarantee |
-|---|---|---|---|---|
-| Prove | `api::prove(mode, tr, params, s, mcs_list, mcs_witnesses, me_inputs, me_witnesses, log)` | fn | Core | Returns `(Vec<CeClaim>, PiCcsProof)` or error |
-| Prove | `api::prove_simple(mode, tr, params, s, mcs_list, mcs_witnesses, log)` | fn | Core | k=1 shorthand (no ME inputs) |
-| Verify | `api::verify(mode, tr, params, s, mcs_list, me_inputs, me_outputs, proof)` | fn | Core | Returns `Ok(true)` iff proof is valid |
-| Mode | `FoldingMode` | enum | Core | `Optimized`, `PaperExact`, `OptimizedWithCrosscheck` |
-| Proof | `PiCcsProof` | struct | Core | Contains FE + NC sumcheck rounds, challenges, terminal values |
-| Proof | `PiCcsProofVariant::SplitNcV1` | enum variant | Core | Split-NC: separate FE-only + NC-only sumchecks |
-| Challenges | `Challenges` | struct | Core | `alpha`, `beta_a`, `beta_r`, `beta_m`, `gamma` |
-| Errors | `PiCcsError` | enum | Core | `InvalidInput`, `SumcheckError`, `ExtensionPolicyFailed`, `TranscriptError`, `ProtocolError` |
+```text
+Q_FE(r) =
+  eq(r, beta_r) * sum_i gamma^i * CCS_i(r)
+  + eq(r, r_old) * sum_(i,j,l) gamma^(2K+k+I(i,j,l)) * Eval_(i,j,l)(r)
+```
 
-## Invariant Obligations
+Its public initial claim is the same absolute carried target from the paper.
 
-| Invariant | Verification method | Lean theorem counterpart |
-|---|---|---|
-| Prove-verify roundtrip: `verify(prove(valid_witness)) == Ok(true)` | Integration test (existing `k_mcs_end_to_end`) | `piCCSStrong_of_assumptions` |
-| Invalid witness rejected: tampered Z fails prove or verify | Integration test | `piCCSStrong_of_ce` (contrapositive) |
-| FE sumcheck initial sum matches `T = sum_Q` | Unit test | `sumcheckClaimTrue` |
-| NC sumcheck initial sum is zero (pure range check) | Unit test | (none -- Nightstream extension) |
-| Terminal identity: verifier RHS matches prover's claimed final value | Unit test | (none -- verified structurally via sumcheck) |
-| Engine equivalence: optimized and paper-exact produce same outputs | Integration test (existing `optimized_oracle_me_outputs_match_paper_exact`) | (none) |
-| Input validation: empty mcs_list rejected | Unit test | (none) |
-| Input validation: shape mismatches rejected | Unit test | (none) |
+The column polynomial contains:
 
-## Assumption Ledger
+```text
+Q_NC(c) =
+  eq(c, beta_m) * sum_i gamma^(K+i) * Range_i(c)
+```
 
-| Assumption | Source | Justification |
-|---|---|---|
-| `SModuleHomomorphism` implementor is binding | neo-ajtai | MSIS hardness (Appendix B.2) |
-| Fiat-Shamir challenges are unpredictable | neo-transcript | Random-oracle model |
-| CCS structure `s` has valid dimensions (n, m powers of 2) | Caller guarantee | Validated at API boundary |
-| Witness norms bounded by `params.b^k` | Caller guarantee | Validated via `validate_packed_witness_nc_range` |
+Its public initial claim is zero. The raw `y_zcol` opening is materialized at
+the NC terminal point.
 
-## Dependency and Consumer Map
+For a square domain and one shared equality point:
 
-Upstream dependencies:
-- `neo-math`: `F`, `K`, `D`, field arithmetic
-- `neo-ajtai`: `Commitment` type
-- `neo-ccs`: `CcsStructure`, `CcsClaim`, `CcsWitness`, `CeClaim`, `Mat`, `SModuleHomomorphism`
-- `neo-params`: `NeoParams` (b, k, kappa, etc.)
-- `neo-transcript`: `Poseidon2Transcript`
-- `neo-reductions::sumcheck`: `run_sumcheck_prover`, `verify_sumcheck_rounds`
+```text
+Q_joint(x) = Q_FE(x) + Q_NC(x)
+```
 
-Downstream consumers:
-- `neo-fold::shard`: orchestrates `prove` / `verify` within the shard folding loop
-- `neo-fold::session`: sequences Pi_CCS -> Pi_RLC -> Pi_DEC across IVC steps
+The Rust `PaperJointSquareOracle` executes this baseline. Lean proves the
+pointwise and Boolean-sum identities in
+`Nightstream.SuperNeo.Folding.PiCCS.PaperRectangular`.
 
-## Lean Oracle Conformance
+## Transcript and proof
 
-| Test file | Oracle family | What it checks |
-|---|---|---|
-| (none yet) | (none) | Pi_CCS is verified via end-to-end prove/verify roundtrips; Lean spec proves `piCCSStrong_of_assumptions` |
+`PiCcsProofVariant::PaperRectangularV1` has:
 
-## Quality Expectations
+- one row equality point and one column equality point;
+- one shared gamma challenge;
+- exactly `ell_n` FE rounds and `ell_m` NC rounds;
+- fixed `d_sc + 1` coefficients in every round;
+- no `alpha` or `beta_a` lane challenge;
+- one direct row opening and one direct column opening in each output.
 
-- No `todo!()` or `unimplemented!()` in the contract surface
-- All `PiCcsError` variants carry context strings for debugging
-- Input validation performed before engine dispatch (fail-fast)
-- Transcript binding: all public challenges committed to transcript before sampling
+The neutral driver in `pi_ccs_rectangular.rs` owns transcript binding,
+SumCheck message encoding, proof assembly, and verifier replay. Both engines
+call this driver.
 
-## Acceptance Criteria
+## Verification obligations
 
-- `cargo test -p neo-reductions --release` succeeds
-- Spec-derived tests in `spec-tests/pi_ccs.rs` pass
-- Existing `k_mcs_end_to_end` and `k_mcs_parity` tests pass
-- `cargo clippy -p neo-reductions --all-targets --release -- -D warnings` clean
+The verifier recomputes all transcript challenges. It checks:
 
-## Out of Scope
+- proof variant and fixed round widths;
+- FE and NC initial claims;
+- all SumCheck transitions and terminal claims;
+- redundant stored challenges and final values;
+- fold digest on the proof and every output;
+- source order, commitments, public inputs, row points, and column points;
+- zero values in inactive packed public-input columns;
+- the canonical FE and NC terminal equations.
 
-- Oracle implementation details (OptimizedOracle, NcOracle) -- see Engines.spec.md
-- RLC/DEC operations -- see PiRLC.spec.md and PiDEC.spec.md
-- Shard-level orchestration -- belongs to neo-fold
+## Evidence and scope
+
+The Rust differential tests establish byte equality between the independent
+direct engine and the cached optimized engine for the tested square and both
+rectangular directions. The Lean theorem is model-level. The generated
+Rust-to-Lean artifact establishes exact fixed-shape gamma-layout conformance.
+It does not establish full transcript-byte or matrix-evaluator conformance.
+
+The legacy `SplitNcV1` and `BlockLaneNcDelayedV1` code is available only below
+`optimized_engine::legacy_split_nc` for the accelerator and recursive-circuit
+migration. It is not the canonical protocol. The fixed-profile recursive
+circuit does not yet establish R1CS conformance with `PaperRectangularV1`.

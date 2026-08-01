@@ -6,10 +6,11 @@
 use cuda_core::{DeviceBuffer, PinnedHostBuffer};
 use neo_ccs::Mat;
 use neo_math::{KExtensions, D, F, K};
-use neo_reductions::optimized_engine::oracle::{RowPhaseSnapshot, RowTableSnapshot};
-use neo_reductions::optimized_engine::{
-    Challenges, FeEvalTable, FeMcsRowTables, FePhaseTraceRequest, FeRowRoundSummary, FeRowRoundTrace, FeSumcheckBackend,
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::{RowPhaseSnapshot, RowTableSnapshot};
+use neo_reductions::optimized_engine::legacy_split_nc::{
+    FeEvalTable, FeMcsRowTables, FePhaseTraceRequest, FeRowRoundSummary, FeRowRoundTrace, FeSumcheckBackend,
 };
+use neo_reductions::optimized_engine::Challenges;
 use neo_reductions::superneo_eval::{SuperneoEvalCache, SuperneoZBlocks};
 use p3_field::PrimeCharacteristicRing;
 

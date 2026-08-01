@@ -46,9 +46,9 @@ pub fn enforce_f_prime_chunk_public_digest_circuit(
     m_in: usize,
 ) -> [Var; DIGEST_LEN] {
     let mut claim_preimage = alloc_const_tag(builder, F_PRIME_CHUNK_CLAIM_DIGEST_TAG);
-    claim_preimage.push(alloc_constant(builder, F::from_u64(c_d as u64)));
-    claim_preimage.push(alloc_constant(builder, F::from_u64(c_kappa as u64)));
-    claim_preimage.push(alloc_constant(builder, F::from_u64(m_in as u64)));
+    extend_u64_halves(builder, &mut claim_preimage, c_d as u64);
+    extend_u64_halves(builder, &mut claim_preimage, c_kappa as u64);
+    extend_u64_halves(builder, &mut claim_preimage, m_in as u64);
     let claim_digest = enforce_poseidon2_hash(builder, &claim_preimage);
 
     let mut chunk_preimage = alloc_const_tag(builder, F_PRIME_CHUNK_PUBLIC_DIGEST_TAG);
@@ -58,6 +58,11 @@ pub fn enforce_f_prime_chunk_public_digest_circuit(
         chunk_preimage.extend_from_slice(&claim_digest);
     }
     enforce_poseidon2_hash(builder, &chunk_preimage)
+}
+
+fn extend_u64_halves(builder: &mut R1csBuilder, out: &mut Vec<Var>, value: u64) {
+    out.push(alloc_constant(builder, F::from_u64(value & 0xffff_ffff)));
+    out.push(alloc_constant(builder, F::from_u64(value >> 32)));
 }
 
 /// Tag for `public_trace_update_digest`.

@@ -1,7 +1,9 @@
 //! This module implements the spartan SNARK protocol.
 //! It provides the prover and verifier keys, as well as the SNARK itself.
+mod parallel_repetition;
+
 use crate::{
-  CommitmentKey,
+  CommitmentKey, PCS,
   bellpepper::{
     r1cs::{PrecommittedState, SpartanShape, SpartanWitness},
     shape_cs::ShapeCS,
@@ -14,7 +16,7 @@ use crate::{
     eq::EqPolynomial,
     multilinear::{MultilinearPolynomial, SparsePolynomial},
   },
-  r1cs::{SparseMatrix, SplitR1CSInstance, SplitR1CSShape, SplitR1CSShapeDebugStats},
+  r1cs::{R1CSWitness, SparseMatrix, SplitR1CSInstance, SplitR1CSShape, SplitR1CSShapeDebugStats},
   start_span,
   sumcheck::SumcheckProof,
   traits::{
@@ -30,6 +32,21 @@ use once_cell::sync::OnceCell;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tracing::{info, info_span};
+
+/// Number of lockstep Poseidon2 Fiat--Shamir members used by the production
+/// direct-R1CS proof.
+pub const DIRECT_R1CS_REPETITIONS: usize = 3;
+
+/// Conservative cap for a 128-bit algebraic sum-check target from three
+/// lockstep Goldilocks members.
+///
+/// Goldilocks has more than 2^63 elements. If the sum of the per-round
+/// degree bounds is at most 2^20, one repetition has error below 2^-43.
+/// A shared transcript commits to all three messages before it derives their
+/// challenges, so one random-oracle query must satisfy all three members.
+/// This calculation assumes Poseidon2 Fiat--Shamir behaves as a random oracle;
+/// it is not a machine-checked cryptographic reduction.
+const DIRECT_R1CS_MAX_SUMCHECK_DEGREE_TERMS: usize = 1 << 20;
 
 /// A type that represents the prover's key
 #[derive(Serialize, Deserialize)]
@@ -139,12 +156,61 @@ pub struct PrepSNARK<E: Engine> {
 #[serde(bound = "")]
 pub struct R1CSSNARK<E: Engine> {
   U: SplitR1CSInstance<E>,
+  parallel_member: u8,
   sc_proof_outer: SumcheckProof<E>,
   claims_outer: (E::Scalar, E::Scalar, E::Scalar),
   sc_proof_inner: SumcheckProof<E>,
   eval_W: E::Scalar,
   eval_arg: <E::PCS as PCSEngineTrait<E>>::EvaluationArgument,
   claim_inner_sum: E::Scalar, // ← NEW: correct inner sum-check claim
+}
+
+/// Production direct-R1CS proof.
+///
+/// All members prove one committed instance in one Poseidon2 transcript.
+/// Each round absorbs every member message before it derives any challenge.
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct RepeatedR1CSSNARK<E: Engine> {
+  proofs: Vec<R1CSSNARK<E>>,
+}
+
+fn ensure_parallel_sumcheck_bound<E: Engine>(
+  shape: &SplitR1CSShape<E>,
+) -> Result<(), SpartanError> {
+  let num_vars = shape.num_shared + shape.num_precommitted + shape.num_rest;
+  let outer_rounds =
+    usize::try_from(shape.num_cons.ilog2()).map_err(|_| SpartanError::InternalError {
+      reason: "outer sum-check round count does not fit usize".to_string(),
+    })?;
+  let inner_rounds = usize::try_from(num_vars.ilog2())
+    .map_err(|_| SpartanError::InternalError {
+      reason: "inner sum-check round count does not fit usize".to_string(),
+    })?
+    .checked_add(1)
+    .ok_or_else(|| SpartanError::InternalError {
+      reason: "inner sum-check round count overflow".to_string(),
+    })?;
+  let degree_terms = outer_rounds
+    .checked_mul(3)
+    .and_then(|outer| {
+      inner_rounds
+        .checked_mul(2)
+        .and_then(|inner| outer.checked_add(inner))
+    })
+    .ok_or_else(|| SpartanError::InternalError {
+      reason: "sum-check degree-term count overflow".to_string(),
+    })?;
+  if degree_terms > DIRECT_R1CS_MAX_SUMCHECK_DEGREE_TERMS {
+    return Err(SpartanError::InternalError {
+      reason: format!(
+        "three lockstep Goldilocks members do not meet the conservative 128-bit \
+         sum-check bound: degree terms {degree_terms} exceed \
+         {DIRECT_R1CS_MAX_SUMCHECK_DEGREE_TERMS}"
+      ),
+    });
+  }
+  Ok(())
 }
 
 /// Serialized byte sizes for the major components of an `R1CSSNARK`.
@@ -237,6 +303,118 @@ impl<E: Engine> R1CSSNARK<E> {
     })
   }
 
+  /// Build Spartan keys directly from a sparse split R1CS shape.
+  ///
+  /// This path does not synthesize a Bellpepper circuit. It is the setup
+  /// boundary for relations emitted by an external, proof-carrying compiler.
+  pub fn setup_direct(
+    shape: SplitR1CSShape<E>,
+  ) -> Result<(SpartanProverKey<E>, SpartanVerifierKey<E>), SpartanError> {
+    let pcs_width = E::PCS::width();
+    if pcs_width == 0 || !pcs_width.is_power_of_two() {
+      return Err(SpartanError::InternalError {
+        reason: format!("PCS width must be a non-zero power of two, got {pcs_width}"),
+      });
+    }
+
+    let (ck, vk_ee) = SplitR1CSShape::commitment_key(&[&shape])?;
+    let vk = SpartanVerifierKey {
+      S: shape.clone(),
+      vk_ee,
+      digest: OnceCell::new(),
+    };
+    let pk = SpartanProverKey {
+      ck,
+      S: shape,
+      vk_digest: vk.digest()?,
+    };
+    Ok((pk, vk))
+  }
+
+  /// Prove a direct sparse R1CS assignment without Bellpepper synthesis.
+  ///
+  /// The direct interface uses one private witness region and no
+  /// verifier-derived circuit challenges. Public values remain explicit in
+  /// the Spartan instance and transcript.
+  pub fn prove_direct_with_perf(
+    pk: &SpartanProverKey<E>,
+    witness: &[E::Scalar],
+    public_values: &[E::Scalar],
+    is_small: bool,
+  ) -> Result<(Self, SpartanProvePerf), SpartanError> {
+    let total_started = std::time::Instant::now();
+    let (instance, witness) = Self::prepare_direct_instance(pk, witness, public_values, is_small)?;
+    let mut transcript = E::TE::new(b"R1CSSNARK");
+    transcript.absorb(b"vk", &pk.vk_digest);
+    instance.validate(&pk.S, &mut transcript)?;
+    Self::prove_instance_with_perf(pk, instance, witness, transcript, total_started, 0)
+  }
+
+  fn prepare_direct_instance(
+    pk: &SpartanProverKey<E>,
+    witness: &[E::Scalar],
+    public_values: &[E::Scalar],
+    is_small: bool,
+  ) -> Result<(SplitR1CSInstance<E>, R1CSWitness<E>), SpartanError> {
+    if pk.S.num_shared_unpadded != 0
+      || pk.S.num_precommitted_unpadded != 0
+      || pk.S.num_challenges != 0
+    {
+      return Err(SpartanError::InvalidInputLength {
+        reason: "direct R1CS requires one private witness region and no circuit challenges"
+          .to_string(),
+      });
+    }
+    if witness.len() != pk.S.num_rest_unpadded {
+      return Err(SpartanError::InvalidWitnessLength);
+    }
+    if public_values.len() != pk.S.num_public {
+      return Err(SpartanError::InvalidInputLength {
+        reason: format!(
+          "direct R1CS expected {} public values, got {}",
+          pk.S.num_public,
+          public_values.len()
+        ),
+      });
+    }
+
+    let mut padded_witness = witness.to_vec();
+    padded_witness.resize(pk.S.num_rest, E::Scalar::ZERO);
+    let blind = PCS::<E>::blind(&pk.ck, pk.S.num_rest);
+    let (commitment, blind) = PCS::<E>::commit_partial(&pk.ck, &padded_witness, &blind, is_small)?;
+
+    let instance = SplitR1CSInstance::new(
+      &pk.S,
+      None,
+      None,
+      commitment,
+      public_values.to_vec(),
+      Vec::new(),
+    )?;
+    let witness = R1CSWitness::new_unchecked(padded_witness, blind, is_small)?;
+
+    let regular = instance.to_regular_instance()?;
+    let z = [witness.W.clone(), vec![E::Scalar::ONE], regular.X.clone()].concat();
+    let (az, bz, cz) = pk.S.multiply_vec(&z)?;
+    if az.iter().zip(&bz).zip(&cz).any(|((a, b), c)| *a * *b != *c) {
+      return Err(SpartanError::UnSat {
+        reason: "direct sparse R1CS witness does not satisfy the supplied shape".to_string(),
+      });
+    }
+
+    Ok((instance, witness))
+  }
+
+  /// Prove a direct sparse R1CS assignment without timing output.
+  pub fn prove_direct(
+    pk: &SpartanProverKey<E>,
+    witness: &[E::Scalar],
+    public_values: &[E::Scalar],
+    is_small: bool,
+  ) -> Result<Self, SpartanError> {
+    Self::prove_direct_with_perf(pk, witness, public_values, is_small).map(|(proof, _)| proof)
+  }
+
   /// Produces a Spartan proof together with a direct phase timing breakdown.
   pub fn prove_with_perf<C: SpartanCircuit<E>>(
     pk: &SpartanProverKey<E>,
@@ -245,7 +423,6 @@ impl<E: Engine> R1CSSNARK<E> {
     is_small: bool,
   ) -> Result<(Self, SpartanProvePerf), SpartanError> {
     let total_started = std::time::Instant::now();
-    let mut perf = SpartanProvePerf::default();
     let mut prep_snark = prep_snark.clone(); // make a copy so we can modify it
 
     let mut transcript = E::TE::new(b"R1CSSNARK");
@@ -268,6 +445,19 @@ impl<E: Engine> R1CSSNARK<E> {
       is_small,
       &mut transcript,
     )?;
+
+    Self::prove_instance_with_perf(pk, U, W, transcript, total_started, 0)
+  }
+
+  fn prove_instance_with_perf(
+    pk: &SpartanProverKey<E>,
+    U: SplitR1CSInstance<E>,
+    W: R1CSWitness<E>,
+    mut transcript: E::TE,
+    total_started: std::time::Instant,
+    parallel_member: u8,
+  ) -> Result<(Self, SpartanProvePerf), SpartanError> {
+    let mut perf = SpartanProvePerf::default();
 
     // Get U_regular for both matrix operations and Z polynomial construction
     let U_regular = U.to_regular_instance()?;
@@ -527,6 +717,7 @@ impl<E: Engine> R1CSSNARK<E> {
     Ok((
       R1CSSNARK {
         U,
+        parallel_member,
         sc_proof_outer,
         claims_outer: (claim_Az, claim_Bz, claim_Cz),
         sc_proof_inner,
@@ -597,6 +788,9 @@ impl<E: Engine> R1CSSNARKTrait<E> for R1CSSNARK<E> {
   /// verifies a proof of satisfiability of a `RelaxedR1CS` instance
   fn verify(&self, vk: &Self::VerifierKey) -> Result<Vec<E::Scalar>, SpartanError> {
     let (_verify_span, verify_t) = start_span!("r1cs_snark_verify");
+    if self.parallel_member != 0 {
+      return Err(SpartanError::InvalidSumcheckProof);
+    }
     let mut transcript = E::TE::new(b"R1CSSNARK");
 
     // append the digest of R1CS matrices

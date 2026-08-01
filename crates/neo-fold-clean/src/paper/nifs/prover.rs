@@ -14,7 +14,7 @@
 //! |---|---|---|---|
 //! | CPU composition | [`prove`] | no | Prover witness and protocol transcript |
 //! | Reduction order | `prove_owned` | no | Pi_CCS, Pi_RLC, then Pi_DEC outputs |
-//! | Backend dispatch | [`prove_with_backend`], adapter entrypoints | no | Materialized proof verified by NIFS.V |
+//! | Adapter dispatch | Adapter entrypoints | no | Materialized proof verified by NIFS.V |
 
 use neo_ajtai::AjtaiSModule;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
@@ -22,9 +22,7 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
 use crate::paper::nifs::work::{chain_witness_refs, outgoing_pending_projection, split_fresh_instances};
-use crate::paper::nifs::{
-    CpuNifsProver, Error, NifsProof, NifsProverAdapter, NifsProverBackend, NifsProverOutput, NifsProverRequest,
-};
+use crate::paper::nifs::{CpuNifsProver, Error, NifsProof, NifsProverAdapter, NifsProverOutput, NifsProverRequest};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsInstance, DecMixer, LaneScheme, RlcMixer, Structure};
 use crate::paper::{pi_ccs, pi_dec, pi_rlc};
@@ -158,49 +156,6 @@ pub(crate) fn prove_owned(
     );
     crate::heap::release_unused_pages();
     Ok(out)
-}
-
-/// Backend-selected NIFS.P entrypoint.
-///
-/// `Cpu` is the canonical in-crate implementation. `Cuda` is intentionally
-/// explicit and unavailable until an external cuda-oxide adapter can supply
-/// the same proof/public material without adding CUDA dependencies to this
-/// crate's default build.
-pub fn prove_with_backend(
-    backend: NifsProverBackend,
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    log: &AjtaiSModule,
-    lanes: Option<&LaneScheme>,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
-    fresh: Vec<CcsInstance>,
-    running: &RunningInstance,
-) -> Result<(RunningInstance, NifsProof), Error> {
-    match backend {
-        NifsProverBackend::Cpu => {
-            let mut cpu = CpuNifsProver;
-            prove_with_adapter(
-                &mut cpu,
-                tr,
-                pp,
-                s,
-                cache,
-                log,
-                lanes,
-                mix_rhos_commits,
-                combine_b_pows,
-                fresh,
-                running,
-            )
-        }
-        NifsProverBackend::Cuda => Err(Error::BackendUnavailable {
-            backend: backend.as_str(),
-            reason: "cuda-oxide backend adapter is not linked",
-        }),
-    }
 }
 
 pub fn prove_with_adapter(

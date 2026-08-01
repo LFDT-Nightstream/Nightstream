@@ -57,7 +57,7 @@ pub fn dec() {
         beta_m: Vec::new(),
         gamma,
     };
-    let expected = neo_reductions::optimized_engine::claimed_initial_sum_from_inputs_with_k_mcs(
+    let expected = neo_reductions::optimized_engine::legacy_split_nc::claimed_initial_sum_from_inputs_with_k_mcs(
         fixture.structure(),
         &challenges,
         1,
@@ -83,7 +83,7 @@ pub fn dec() {
         assert_eq!(claim.y_ring, child_surfaces[..fixture.structure().t()]);
         assert_eq!(claim.y_zcol, child_surfaces[fixture.structure().t()]);
     }
-    let sparse_expected = neo_reductions::optimized_engine::claimed_initial_sum_from_inputs_with_k_mcs(
+    let sparse_expected = neo_reductions::optimized_engine::legacy_split_nc::claimed_initial_sum_from_inputs_with_k_mcs(
         fixture.structure(),
         &challenges,
         1,

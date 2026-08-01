@@ -5,11 +5,11 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::optimized_engine::{
+use neo_reductions::optimized_engine::legacy_split_nc::{
     optimized_prove_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
     optimized_verify_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
-    OptimizedStructureCache, PiCcsProofVariant,
 };
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PiCcsProofVariant};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;

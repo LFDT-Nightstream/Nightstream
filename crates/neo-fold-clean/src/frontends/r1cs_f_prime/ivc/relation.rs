@@ -1261,6 +1261,33 @@ impl R1csIvcRelation {
         #[cfg(feature = "perf-timers")]
         let encode_start = std::time::Instant::now();
         let assignment = self.encode(branch, field_assignment)?;
+        if let Some(row) = self.relation.first_unsatisfied_row(&assignment) {
+            let owner = self
+                .compilation_audit
+                .rows()
+                .emitted_runs()
+                .iter()
+                .find(|run| run.emitted_rows().contains(&row))
+                .map(|run| {
+                    let stage = run.arm().and_then(|arm| {
+                        run.source_stage_occurrence().and_then(|occurrence| {
+                            self.compilation_audit
+                                .source_arm_physical_stages()
+                                .get(arm)?
+                                .get(occurrence)
+                                .map(|stage| stage.path())
+                        })
+                    });
+                    format!(
+                        "family={:?}, arm={:?}, rewrite={:?}, source_stage={stage:?}",
+                        run.family(),
+                        run.arm(),
+                        run.rewrite_id()
+                    )
+                })
+                .unwrap_or_else(|| "no compiler owner".into());
+            return Err(R1csIvcError::UnsatisfiedEncodedRelation { branch, row, owner });
+        }
         #[cfg(feature = "perf-timers")]
         let encode_elapsed = encode_start.elapsed();
         #[cfg(feature = "perf-timers")]

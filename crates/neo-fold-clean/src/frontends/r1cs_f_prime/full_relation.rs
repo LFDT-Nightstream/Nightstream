@@ -45,7 +45,7 @@ use crate::paper::construction2::VerifierKey;
 use crate::paper::digest::{digest32_as_fields, digest_fields_as_digest32, pack_bytes_as_fields, StateXOutDigestMode};
 use crate::paper::f_prime::digest_circuit::enforce_vk_fs_digest_circuit;
 use crate::paper::f_prime::r1cs::{
-    enforce_construction2_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit_with_header_bundle_wires,
+    enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit_with_header_bundle_wires,
     Error as FPrimeError, FPrimeBaseInputs, FPrimeRecursiveInputs, FPrimeStepConfig, FPrimeStepOutput,
 };
 use crate::paper::f_prime::stage as fprime_stage;
@@ -199,7 +199,7 @@ impl<'a> FullFPrimeRelation<'a> {
         builder.begin_encoding_stage(fprime_stage::BASE_ROOT);
         builder.begin_encoding_stage(fprime_stage::BASE_VERIFIER_KEY);
         let verifier_key = alloc_verifier_key_wires(&mut builder, &self.context, self.cfg.nifs.pi_ccs.params);
-        let output = enforce_construction2_f_prime_base_step_circuit(&mut builder, &self.cfg, inputs)?;
+        let output = enforce_f_prime_base_step_circuit(&mut builder, &self.cfg, inputs)?;
         finish_full_relation(&mut builder, BranchKind::Base, &verifier_key, output, &application)
     }
 

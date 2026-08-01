@@ -1,7 +1,7 @@
-//! Prover-backend boundary for NIFS.P.
+//! Prover-backend adapter boundary for NIFS.P.
 //!
-//! Owns: backend selection, prover requests, deferred proof/running carriers,
-//! post-fold summaries, and the adapter interface.
+//! Owns: prover requests, deferred proof/running carriers, post-fold
+//! summaries, and the adapter interface.
 //!
 //! Does not own: reduction semantics, backend kernels, or verifier acceptance.
 //!
@@ -32,22 +32,6 @@ use crate::paper::construction2::RunningInstance;
 use crate::paper::nifs::{Error, NifsProof};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsInstance, DecMixer, LaneScheme, RlcMixer, Structure};
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum NifsProverBackend {
-    #[default]
-    Cpu,
-    Cuda,
-}
-
-impl NifsProverBackend {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Cpu => "cpu",
-            Self::Cuda => "cuda",
-        }
-    }
-}
 
 pub struct NifsProverRequest<'a> {
     pub tr: &'a mut Transcript,

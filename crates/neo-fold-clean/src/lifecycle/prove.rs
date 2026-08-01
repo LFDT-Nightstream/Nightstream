@@ -328,8 +328,7 @@ fn extend_in_place_inner_with_nifs_prover(
             nebula_advance,
         )?
     } else {
-        let (next_state, step_proof) = construction2::step_with_backend_and_semantic_state(
-            prep.nifs_prover_backend(),
+        let (next_state, step_proof) = construction2::step_with_semantic_state(
             &prep.params,
             prep.structure(),
             prep.optimized_cache(),

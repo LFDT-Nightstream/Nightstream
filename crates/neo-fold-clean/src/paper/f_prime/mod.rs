@@ -48,9 +48,8 @@ pub mod stage;
 // siblings.
 pub(crate) use native::prove_with_adapter_output_and_semantic_state;
 pub use native::{
-    prove, prove_with_adapter_and_semantic_state, prove_with_backend, prove_with_backend_and_semantic_state,
-    prove_with_semantic_state, verify, verify_with_execution_receipt, Error, NifsVerifyExecutionOutcome,
-    VerifyStepDispatch, VerifyStepExecutionEvent, VerifyStepExecutionFoldProof, VerifyStepExecutionInput,
-    VerifyStepExecutionProof, VerifyStepExecutionProofState, VerifyStepExecutionReceipt,
+    prove, prove_with_adapter_and_semantic_state, prove_with_semantic_state, verify, verify_with_execution_receipt,
+    Error, NifsVerifyExecutionOutcome, VerifyStepDispatch, VerifyStepExecutionEvent, VerifyStepExecutionFoldProof,
+    VerifyStepExecutionInput, VerifyStepExecutionProof, VerifyStepExecutionProofState, VerifyStepExecutionReceipt,
     VerifyStepExecutionReceiptError, VerifyStepExecutionStage, VerifyStepExecutionState,
 };

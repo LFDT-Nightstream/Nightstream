@@ -1,56 +1,21 @@
-//! Paper-exact reference implementations (CCS, RLC, DEC).
+//! Independent direct references for corrected SuperNeo reductions.
 //!
-//! This module mirrors the equations in docs/neo-paper §§4.4–4.6 as literally as possible.
-//! All computations are done with direct loops over the Boolean hypercube and dense matrices.
-//!
-//! Goals
-//! - Clarity and 1:1 parity with the paper formulas.
-//! - No CSR, no half-table eq, no partial folding caches.
-//! - Suitable as a cross-check oracle for tests and debugging.
+//! `paper_rectangular` owns the two-domain derivation from the paper's joint
+//! polynomial. The only protocol change is the second SumCheck required when
+//! row and column dimensions differ. This module does not import optimized
+//! or cached evaluator code.
 
 #![allow(non_snake_case)]
 
-pub mod oracle;
-mod paper_exact;
+pub mod paper_rectangular;
 pub mod prove;
+mod rlc_dec;
 pub mod verify;
 
-pub use paper_exact::{
-    // Step 3 outputs
-    build_me_outputs_paper_exact,
-
-    chi_ajtai_at_bool_point,
-
-    chi_row_at_bool_point,
-    // Public claimed sum for sumcheck
-    claimed_initial_sum_from_inputs_with_k_mcs,
-
-    dec_reduction_paper_exact,
-    dec_reduction_paper_exact_with_commit_check,
-    // Core equalities & helpers
-    eq_points,
-    // Q(X) and sums
-    q_at_point_paper_exact,
-    q_eval_at_ext_point_fe_paper_exact,
-    q_eval_at_ext_point_fe_paper_exact_with_inputs,
-
-    q_eval_at_ext_point_paper_exact,
-    q_eval_at_ext_point_paper_exact_with_inputs,
-    // Utilities
-    recomposed_z_from_Z,
-
-    rhs_terminal_identity_fe_paper_exact,
-    rhs_terminal_identity_fe_paper_exact_with_k_mcs,
-    rhs_terminal_identity_nc_paper_exact,
-
-    // Terminal identity (verifier RHS)
-    rhs_terminal_identity_paper_exact,
-    rhs_terminal_identity_paper_exact_with_k_mcs,
-    // Paper-exact RLC/DEC
-    rlc_reduction_paper_exact,
+pub use rlc_dec::{
+    dec_reduction_paper_exact, dec_reduction_paper_exact_with_commit_check, rlc_reduction_paper_exact,
     rlc_reduction_paper_exact_with_commit_mix,
-    sum_q_over_hypercube_paper_exact,
 };
 
-pub use prove::paper_exact_prove;
+pub use prove::{paper_exact_prove, paper_joint_square_prove_phase};
 pub use verify::paper_exact_verify;

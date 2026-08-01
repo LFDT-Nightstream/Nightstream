@@ -23,7 +23,7 @@ pub use super::crosscheck_engine::{CrossCheckEngine, CrosscheckCfg};
 
 /// A minimal trait implemented by each Π_CCS engine.
 pub trait PiCcsEngine {
-    fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
         &self,
         tr: &mut Poseidon2Transcript,
         params: &NeoParams,
@@ -52,7 +52,7 @@ pub trait PiCcsEngine {
 pub struct OptimizedEngine;
 
 impl PiCcsEngine for OptimizedEngine {
-    fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
         &self,
         tr: &mut Poseidon2Transcript,
         params: &NeoParams,
@@ -87,7 +87,7 @@ pub struct PaperExactEngine;
 
 #[cfg(feature = "paper-exact")]
 impl PiCcsEngine for PaperExactEngine {
-    fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
         &self,
         tr: &mut Poseidon2Transcript,
         params: &NeoParams,
@@ -126,8 +126,8 @@ impl PiCcsEngine for PaperExactEngine {
 
 /// Cross-check engine trait implementation.
 #[cfg(feature = "paper-exact")]
-impl<I: PiCcsEngine, R: PiCcsEngine> PiCcsEngine for CrossCheckEngine<I, R> {
-    fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+impl<I: PiCcsEngine, R: PiCcsEngine + Sync> PiCcsEngine for CrossCheckEngine<I, R> {
+    fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
         &self,
         tr: &mut Poseidon2Transcript,
         params: &NeoParams,
@@ -140,6 +140,7 @@ impl<I: PiCcsEngine, R: PiCcsEngine> PiCcsEngine for CrossCheckEngine<I, R> {
     ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
         super::crosscheck_engine::crosscheck_prove(
             &self.inner,
+            &self.ref_oracle,
             &self.cfg,
             tr,
             params,
@@ -162,6 +163,16 @@ impl<I: PiCcsEngine, R: PiCcsEngine> PiCcsEngine for CrossCheckEngine<I, R> {
         me_outputs: &[CeClaim<Cmt, F, K>],
         proof: &PiCcsProof,
     ) -> Result<bool, PiCcsError> {
-        super::crosscheck_engine::crosscheck_verify(&self.inner, tr, params, s, mcs_list, me_inputs, me_outputs, proof)
+        super::crosscheck_engine::crosscheck_verify(
+            &self.inner,
+            &self.ref_oracle,
+            tr,
+            params,
+            s,
+            mcs_list,
+            me_inputs,
+            me_outputs,
+            proof,
+        )
     }
 }

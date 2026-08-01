@@ -23,7 +23,7 @@
 //!
 //! | Branch/phase | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
 //! |---|---|---|---|---|
-//! | Base | Initialize state and the canonical empty accumulator | yes | this file | FPrime base semantics |
+//! | Base | Initialize state and the canonical fixed-shape accumulator | yes | this file | FPrime base semantics |
 //! | Recursive transcript | Bind the prior public state before NIFS | yes | this file | transcript refinement open |
 //! | NIFS transition | Fold fresh/running claims into checked parent plus exact children | yes | `paper/nifs/circuit/` | NIFS/FPrime bridge |
 //! | Accumulator continuity | Link incoming authority and recompute outgoing authority | yes | this file | authority refinement open |
@@ -31,7 +31,8 @@
 //!
 //!   - [`enforce_f_prime_base_step_circuit`] (i = 0). No NIFS.V; enforces
 //!     `z_i = z_0`, `chunk_count_in = 0`, and `acc_digest_in = empty_acc`.
-//!     `acc_digest_out` is the same empty-acc constant. Strict mode also
+//!     `acc_digest_out` commits to the fixed `CE(b,L)^k` zero accumulator.
+//!     Strict mode also
 //!     requires `rows_in_chunk >= 1`, matching lifecycle's no-empty-batch
 //!     boundary.
 //!   - [`enforce_f_prime_recursive_step_circuit`] (i ≥ 1). Runs NIFS.V to
@@ -70,7 +71,7 @@ use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::u64_arith::{
     alloc_u64_bits, decompose_var_to_u64_bits, enforce_u64_add, enforce_u64_constant, enforce_u64_increment,
 };
-use crate::paper::construction2::{NebulaConfig, NebulaLane, TRIVIAL_PC};
+use crate::paper::construction2::{LaneCommitmentMode, NebulaConfig, NebulaLane, TRIVIAL_PC};
 use crate::paper::digest::AccumulatorHandle;
 use crate::paper::digest::StateXOutDigestMode;
 use crate::paper::f_prime::digest_circuit::{
@@ -705,23 +706,10 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; DIGEST_LEN], b: &[Var;
 
 /// F' **base** step (i = 0). No NIFS.V. Enforces `chunk_count_in == 0`,
 /// `z_i_in == z_0`, and `acc_digest_in == AccumulatorHandle::empty()`.
-/// Sets `acc_digest_out = empty_acc_digest`. Returns the `x_out` wires.
+/// Sets `acc_digest_out` to the verifier-derived `CE(b,L)^k` zero
+/// accumulator. The accumulator carries zero Nebula lane commitments exactly
+/// when the selected step configuration enables Nebula.
 pub fn enforce_f_prime_base_step_circuit(
-    builder: &mut R1csBuilder,
-    cfg: &FPrimeStepConfig<'_>,
-    inputs: &FPrimeBaseInputs<'_>,
-) -> Result<FPrimeStepOutput, Error> {
-    enforce_f_prime_base_step_with_output_acc(builder, cfg, inputs, AccumulatorHandle::empty().digest_fields())
-}
-
-/// Authoritative Construction-2 base branch.
-///
-/// Unlike the legacy shell entrypoint, this emits the formal SuperNeo
-/// `u_perp in CE(b,L)^k`: exactly `k` zero CE children plus their derived
-/// decomposition parent. The incoming pre-chain sentinel remains empty, but
-/// the first `x_out` commits to the fixed-shape accumulator that the next
-/// recursive NIFS call consumes.
-pub fn enforce_construction2_f_prime_base_step_circuit(
     builder: &mut R1csBuilder,
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeBaseInputs<'_>,
@@ -733,6 +721,7 @@ pub fn enforce_construction2_f_prime_base_step_circuit(
         relation.m(),
         relation.t(),
         cfg.public_input_layout.total_len(),
+        LaneCommitmentMode::from_nebula(cfg.nebula.is_some()),
     )
     .map_err(|error| Error::Inner(format!("canonical Construction-2 accumulator: {error}")))?;
     let zero_digest = crate::paper::digest::digest32_as_fields(

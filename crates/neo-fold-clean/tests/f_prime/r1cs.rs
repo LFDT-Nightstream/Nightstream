@@ -36,7 +36,7 @@ use neo_ccs::Mat;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::construction2::{LaneCommitmentMode, RunningInstance};
 use neo_fold_clean::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest, state_x_out_digest_with_mode,
     AccumulatorHandle, StateXOutDigestMode,
@@ -426,6 +426,15 @@ fn running_acc_digest(running: &RunningInstance) -> [F; 4] {
     AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields()
 }
 
+fn canonical_base_acc_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
+    let m_in = prep
+        .public_input_len
+        .expect("fixture pins the public input width");
+    let running = RunningInstance::canonical_zero(&prep.params, prep.structure(), m_in, LaneCommitmentMode::Plain)
+        .expect("construct canonical base accumulator");
+    AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields()
+}
+
 fn base_state(b: u32, z_0: [F; 4]) -> FPrimeStateIn {
     let _ = b;
     let empty_acc = AccumulatorHandle::empty().digest_fields();
@@ -486,13 +495,18 @@ fn native_x_out(
     ))
 }
 
-/// Raw `x_out` (`[F; 4]`) for the **base** step: post-state is `(empty_acc,
-/// 1, rows_in_chunk)`. Callers wrap this in an `FPrimeSourceImage` via
+/// Raw `x_out` (`[F; 4]`) for the **base** step: post-state contains the
+/// fixed-shape canonical accumulator and `(1, rows_in_chunk)`. Callers wrap this in an `FPrimeSourceImage` via
 /// `push_enc_inst` to get the bit-encoded `BitRange`.
-fn base_step_x_out(b: u32, state: &FPrimeStateIn, chunk_digest: [F; 4], rows_in_chunk: u64) -> [F; 4] {
+fn base_step_x_out(
+    b: u32,
+    state: &FPrimeStateIn,
+    chunk_digest: [F; 4],
+    base_acc: [F; 4],
+    rows_in_chunk: u64,
+) -> [F; 4] {
     let _ = b;
-    let empty_acc = AccumulatorHandle::empty().digest_fields();
-    native_x_out(state, chunk_digest, empty_acc, empty_acc, 1, rows_in_chunk)
+    native_x_out(state, chunk_digest, base_acc, base_acc, 1, rows_in_chunk)
 }
 
 /// Raw `x_out` (`[F; 4]`) for the **recursive** step: post-state's
@@ -524,12 +538,13 @@ fn f_prime_base_step_emits_and_satisfies() {
     let state = base_state(cfg.b, z_0);
     let rows_in_chunk = 3;
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, rows_in_chunk, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, rows_in_chunk);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, rows_in_chunk);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -576,12 +591,13 @@ fn f_prime_base_step_rejects_zero_rows_in_chunk() {
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 0, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 0);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, 0);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: 0,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -607,12 +623,13 @@ fn f_prime_base_step_rejects_nonzero_chunk_count_in() {
     let mut state = base_state(cfg.b, z_0);
     state.chunk_count_in = 1;
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, 3);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -636,7 +653,8 @@ fn f_prime_base_rejects_noncanonical_zero_chunk_count_source_word() {
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, 3);
     let mut source = base_source_image(&state, expected_x_out);
     let start = source.chunk_count_in_word.bits().start();
     let noncanonical: u64 = 0xFFFF_FFFF_0000_0001;
@@ -648,7 +666,7 @@ fn f_prime_base_rejects_noncanonical_zero_chunk_count_source_word() {
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -676,7 +694,8 @@ fn f_prime_base_step_rejects_source_image_step_count_mismatch() {
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, 3);
     let mut source = base_source_image(&state, expected_x_out);
     let idx = source.step_count_in_word.bits().start();
     source
@@ -685,7 +704,7 @@ fn f_prime_base_step_rejects_source_image_step_count_mismatch() {
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -713,7 +732,8 @@ fn f_prime_base_step_rejects_tampered_public_x_out_bits() {
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, 3);
     let mut source = base_source_image(&state, expected_x_out);
     let idx = source.public_x_out_bits.start();
     source
@@ -722,7 +742,7 @@ fn f_prime_base_step_rejects_tampered_public_x_out_bits() {
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -750,7 +770,8 @@ fn f_prime_base_step_rejects_noncanonical_source_image_pc_word() {
     let z_0 = rand_digest(0x100);
     let state = base_state(cfg.b, z_0);
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, 3);
     let mut source = base_source_image(&state, expected_x_out);
     let start = source.pc_word.bits().start();
     let noncanonical: u64 = 0xFFFF_FFFF_0000_0002;
@@ -762,7 +783,7 @@ fn f_prime_base_step_rejects_noncanonical_source_image_pc_word() {
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -787,12 +808,13 @@ fn f_prime_base_step_rejects_nonzero_step_count_in() {
     let mut state = base_state(cfg.b, z_0);
     state.step_count_in = 1;
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, 3);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -814,12 +836,13 @@ fn f_prime_base_step_rejects_nonempty_acc_digest_in() {
     let mut state = base_state(cfg.b, z_0);
     state.acc_digest_in[0] += F::ONE;
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, 3);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,
@@ -844,12 +867,13 @@ fn f_prime_base_step_rejects_z_i_neq_z_0() {
     let mut state = base_state(cfg.b, z_0);
     state.z_i_in = rand_digest(0x101);
     let chunk_digest = repeated_shape_chunk_digest(state.step_count_in, 3, &fixture.fresh_claims[0]);
-    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, 3);
+    let base_acc = canonical_base_acc_digest(&fixture.prep);
+    let expected_x_out = base_step_x_out(cfg.b, &state, chunk_digest, base_acc, 3);
     let source = base_source_image(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
         state: state.clone(),
         chunk_digest,
-        semantic_state_digest_out: state.semantic_state_digest_in,
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: 3,
         source_image: &source.image,
         chunk_count_in_word: source.chunk_count_in_word,

@@ -1,34 +1,28 @@
-//! Optimized RoundOracle for Q(X) evaluation in Π_CCS.
+//! Legacy SplitNc and block/lane PiCCS oracles.
 //!
-//! This oracle uses factored algebra, precomputed terms, and cached sparse formats
-//! to efficiently evaluate the Q polynomial during sumcheck rounds. Mathematically
-//! equivalent to paper-exact but ~10x faster.
-//!
-//! Variable order (rounds): first the `ell_n` row bits, then the `ell_d` Ajtai bits.
+//! These types remain for explicit accelerator and circuit compatibility. They
+//! are not paper-exact. The canonical optimized oracle is owned by
+//! `paper_rectangular.rs`.
 
 #![allow(non_snake_case)]
-
 mod block_lane_nc;
 mod nc;
 mod optimized;
-
+use crate::sumcheck::RoundOracle;
 pub use block_lane_nc::{
     BlockLaneNcChallenges, BlockLaneNcOracle, BlockLaneNcPending, BLOCK_LANE_NC_BLOCK_VARIABLES,
     BLOCK_LANE_NC_LANE_VARIABLES, BLOCK_LANE_NC_ROUND_COEFFICIENTS,
 };
 pub use nc::NcOracle;
-pub use optimized::OptimizedOracle;
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{Fq, KExtensions, D, K};
+pub use optimized::OptimizedOracle;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 use std::sync::Arc;
-
-use crate::sumcheck::RoundOracle;
 
 use super::backend::{FeEvalTable, FeMcsRowTables, FeSumcheckBackend};
 use super::common::Challenges;

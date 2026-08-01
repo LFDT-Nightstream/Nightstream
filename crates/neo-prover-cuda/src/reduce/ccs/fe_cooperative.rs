@@ -5,7 +5,7 @@
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::{F, K};
-use neo_reductions::optimized_engine::FeRowRoundTrace;
+use neo_reductions::optimized_engine::legacy_split_nc::FeRowRoundTrace;
 
 use crate::field::k_from_device_words;
 use crate::kernels::pi_ccs_fe::launch_fe_cooperative_row_rounds;

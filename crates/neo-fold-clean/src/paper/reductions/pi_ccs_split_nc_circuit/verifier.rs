@@ -65,7 +65,7 @@
 use neo_ccs::{CcsStructure, SparsePoly};
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
-use neo_reductions::optimized_engine::oracle::BLOCK_LANE_NC_ROUND_COEFFICIENTS;
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::BLOCK_LANE_NC_ROUND_COEFFICIENTS;
 use p3_field::PrimeCharacteristicRing;
 
 use super::stage;
@@ -96,6 +96,10 @@ use crate::paper::reductions::pi_dec_circuit::{
 };
 use crate::paper::relations::product_commitment_circuit::{alloc_adv, enforce_adv_equality, AdvCommitmentWires};
 use crate::paper::relations::{validate_adv_shape, CcsClaim, CeClaim};
+
+#[path = "verifier_claims.rs"]
+mod claims;
+use claims::*;
 
 /// Matrix-independent CCS header consumed by the in-circuit verifier.
 ///
@@ -468,6 +472,7 @@ fn enforce_split_nc_pi_ccs_v_inner(
             cfg.params.k_rho()
         )));
     }
+    let canonical_bootstrap = block_mode && k_me != 0 && msg.running_pending_projection.is_none();
     match (block_mode, k_me, msg.running_pending_projection) {
         (false, _, Some(_)) => {
             return Err(Error::Shape(
@@ -477,11 +482,6 @@ fn enforce_split_nc_pi_ccs_v_inner(
         (true, 0, Some(_)) => {
             return Err(Error::Shape(
                 "bootstrap block/lane relation received a pending projection".into(),
-            ))
-        }
-        (true, _, None) if k_me != 0 => {
-            return Err(Error::Shape(
-                "steady block/lane relation is missing its pending projection".into(),
             ))
         }
         _ => {}
@@ -510,6 +510,9 @@ fn enforce_split_nc_pi_ccs_v_inner(
                 "non-empty running accumulator missing Pi_RLC parent authority".into(),
             ))
         }
+    }
+    if canonical_bootstrap {
+        validate_canonical_bootstrap_shape(msg)?;
     }
     for (i, o) in msg.outputs.iter().enumerate() {
         // Outputs may have different X cols than running (fresh outputs use
@@ -558,6 +561,15 @@ fn enforce_split_nc_pi_ccs_v_inner(
     let authority_start = builder.rows();
     builder.begin_encoding_stage(stage::RUNNING_AUTHORITY);
     builder.begin_encoding_stage(stage::RUNNING_AUTHORITY_PARENT_DEC);
+    if canonical_bootstrap {
+        enforce_canonical_bootstrap_zero(
+            builder,
+            &running_wires,
+            running_parent_authority_wires
+                .as_ref()
+                .expect("canonical bootstrap shape requires a parent"),
+        )?;
+    }
     // The compact accumulator handle below is valid only after the running
     // children have been checked as a strict Pi_DEC reduction of their
     // parent. Keep that precondition in this verifier, beside the handle,
@@ -1164,205 +1176,6 @@ fn as_dec_claim_wires(claim: &CeClaimWires) -> DecCeClaimWires {
     }
 }
 
-/// Native-mirror shape check for one fresh CCS claim. Catches kappa /
-/// commitment-data length / m_in / public-input-length mismatches before
-/// the verifier reaches indexing-heavy gadgets.
-fn validate_fresh_shape(cfg: &SplitNcPiCcsVConfig<'_>, idx: usize, f: &CcsClaim) -> Result<(), Error> {
-    let kappa = cfg.params.kappa() as usize;
-    if f.m_in > cfg.structure.m() {
-        return Err(Error::Shape(format!(
-            "fresh[{idx}].m_in ({}) > structure.m ({})",
-            f.m_in,
-            cfg.structure.m()
-        )));
-    }
-    if f.x.len() != f.m_in {
-        return Err(Error::Shape(format!(
-            "fresh[{idx}].x.len ({}) != m_in ({})",
-            f.x.len(),
-            f.m_in
-        )));
-    }
-    if f.c.d != D {
-        return Err(Error::Shape(format!("fresh[{idx}].c.d ({}) != D ({})", f.c.d, D)));
-    }
-    if f.c.kappa != kappa {
-        return Err(Error::Shape(format!(
-            "fresh[{idx}].c.kappa ({}) != params.kappa ({})",
-            f.c.kappa, kappa
-        )));
-    }
-    if f.c.data.len() != D * kappa {
-        return Err(Error::Shape(format!(
-            "fresh[{idx}].c.data.len ({}) != D*kappa ({})",
-            f.c.data.len(),
-            D * kappa
-        )));
-    }
-    validate_adv_shape(f.adv.as_ref(), D, kappa, &format!("fresh[{idx}]")).map_err(Error::Shape)?;
-    Ok(())
-}
-
-/// The checked Π_RLC parent retains a fixed-width `y_zcol` view for the
-/// current verifier, but that view is not yet semantic accumulator authority.
-fn validate_running_parent_authority_shape(cfg: &SplitNcPiCcsVConfig<'_>, ce: &CeClaim) -> Result<(), Error> {
-    validate_ce_shape_without_y_zcol(cfg, "running_parent_authority", ce)
-}
-
-fn validate_ce_shape_without_y_zcol(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeClaim) -> Result<(), Error> {
-    let kappa = cfg.params.kappa() as usize;
-    let d_pad = 1usize << cfg.ell_d;
-
-    if ce.c.d != D {
-        return Err(Error::Shape(format!("{label}.c.d ({}) != D ({D})", ce.c.d)));
-    }
-    if ce.c.kappa != kappa {
-        return Err(Error::Shape(format!(
-            "{label}.c.kappa ({}) != params.kappa ({kappa})",
-            ce.c.kappa
-        )));
-    }
-    if ce.c.data.len() != D * kappa {
-        return Err(Error::Shape(format!(
-            "{label}.c.data.len ({}) != D*kappa ({})",
-            ce.c.data.len(),
-            D * kappa
-        )));
-    }
-    validate_adv_shape(ce.adv.as_ref(), D, kappa, label).map_err(Error::Shape)?;
-    if ce.m_in > cfg.structure.m() {
-        return Err(Error::Shape(format!(
-            "{label}.m_in ({}) > structure.m ({})",
-            ce.m_in,
-            cfg.structure.m()
-        )));
-    }
-    if ce.X.rows() != D || ce.X.cols() != ce.m_in {
-        return Err(Error::Shape(format!(
-            "{label}.X shape ({}×{}) != ({D}×{})",
-            ce.X.rows(),
-            ce.X.cols(),
-            ce.m_in
-        )));
-    }
-    validate_ce_common_shape(cfg, label, ce, d_pad)
-}
-
-/// Output CE invariants that don't depend on whether the output is a fresh
-/// or running slot — kappa / X.rows / r / s_col / y_ring / y_zcol shapes.
-/// The X.cols check is in `bind_outputs_to_inputs` where it can compare
-/// against either fresh.m_in or running.X.cols.
-fn validate_output_ce_shape(cfg: &SplitNcPiCcsVConfig<'_>, label: &str, ce: &CeClaim) -> Result<(), Error> {
-    let kappa = cfg.params.kappa() as usize;
-    let d_pad = 1usize << cfg.ell_d;
-
-    if ce.c.d != D {
-        return Err(Error::Shape(format!("{label}.c.d ({}) != D ({D})", ce.c.d)));
-    }
-    if ce.c.kappa != kappa {
-        return Err(Error::Shape(format!(
-            "{label}.c.kappa ({}) != params.kappa ({kappa})",
-            ce.c.kappa
-        )));
-    }
-    if ce.c.data.len() != D * kappa {
-        return Err(Error::Shape(format!(
-            "{label}.c.data.len ({}) != D*kappa ({})",
-            ce.c.data.len(),
-            D * kappa
-        )));
-    }
-    validate_adv_shape(ce.adv.as_ref(), D, kappa, label).map_err(Error::Shape)?;
-    if ce.m_in > cfg.structure.m() {
-        return Err(Error::Shape(format!(
-            "{label}.m_in ({}) > structure.m ({})",
-            ce.m_in,
-            cfg.structure.m()
-        )));
-    }
-    if ce.X.rows() != D {
-        return Err(Error::Shape(format!("{label}.X.rows ({}) != D ({D})", ce.X.rows())));
-    }
-    validate_ce_common_shape(cfg, label, ce, d_pad)?;
-    validate_y_zcol_shape(label, ce, d_pad)
-}
-
-fn validate_ce_common_shape(
-    cfg: &SplitNcPiCcsVConfig<'_>,
-    label: &str,
-    ce: &CeClaim,
-    d_pad: usize,
-) -> Result<(), Error> {
-    if ce.r.len() != cfg.ell_n {
-        return Err(Error::Shape(format!(
-            "{label}.r.len ({}) != ell_n ({})",
-            ce.r.len(),
-            cfg.ell_n
-        )));
-    }
-    let expected_s_col = nc_column_variables(cfg);
-    if ce.s_col.len() != expected_s_col {
-        return Err(Error::Shape(format!(
-            "{label}.s_col.len ({}) != selected NC column variables ({})",
-            ce.s_col.len(),
-            expected_s_col
-        )));
-    }
-    if ce.y_ring.len() != cfg.structure.t() {
-        return Err(Error::Shape(format!(
-            "{label}.y_ring.len ({}) != structure.t ({})",
-            ce.y_ring.len(),
-            cfg.structure.t()
-        )));
-    }
-    if ce.ct.len() != cfg.structure.t() {
-        return Err(Error::Shape(format!(
-            "{label}.ct.len ({}) != structure.t ({})",
-            ce.ct.len(),
-            cfg.structure.t()
-        )));
-    }
-    for (j, row) in ce.y_ring.iter().enumerate() {
-        if row.len() != d_pad {
-            return Err(Error::Shape(format!(
-                "{label}.y_ring[{j}].len ({}) != d_pad ({})",
-                row.len(),
-                d_pad
-            )));
-        }
-    }
-    validate_ce_sidecars(label, ce)
-}
-
-fn validate_y_zcol_shape(label: &str, ce: &CeClaim, d_pad: usize) -> Result<(), Error> {
-    if ce.y_zcol.len() != d_pad {
-        return Err(Error::Shape(format!(
-            "{label}.y_zcol.len ({}) != d_pad ({})",
-            ce.y_zcol.len(),
-            d_pad
-        )));
-    }
-    Ok(())
-}
-
-fn validate_ce_sidecars(label: &str, ce: &CeClaim) -> Result<(), Error> {
-    if !ce.aux_openings.is_empty() {
-        return Err(Error::Shape(format!(
-            "{label}.aux_openings.len ({}) != 0 for clean SplitNc circuit",
-            ce.aux_openings.len()
-        )));
-    }
-    if !ce.c_step_coords.is_empty() || ce.u_offset != 0 || ce.u_len != 0 {
-        return Err(Error::Shape(format!(
-            "{label} carries unsupported Pattern-A fields (c_step_coords.len={}, u_offset={}, u_len={})",
-            ce.c_step_coords.len(),
-            ce.u_offset,
-            ce.u_len
-        )));
-    }
-    Ok(())
-}
-
 fn enforce_kvar_eq(builder: &mut R1csBuilder, a: KVar, b: KVar) {
     builder.enforce_eq(&Lc::from_var(a.c0), &Lc::from_var(b.c0));
     builder.enforce_eq(&Lc::from_var(a.c1), &Lc::from_var(b.c1));
@@ -1450,122 +1263,6 @@ fn enforce_y_zcol_padding_zero(builder: &mut R1csBuilder, claim: &CeClaimWires) 
     for lane in claim.y_zcol.iter().skip(D) {
         builder.enforce_eq(&Lc::from_var(lane.c0), &Lc::zero());
         builder.enforce_eq(&Lc::from_var(lane.c1), &Lc::zero());
-    }
-}
-
-fn alloc_k(builder: &mut R1csBuilder, v: K) -> KVar {
-    let [c0, c1] = v.as_coeffs();
-    KVar::alloc(builder, c0, c1)
-}
-
-fn alloc_k_vec(builder: &mut R1csBuilder, xs: &[K]) -> Vec<KVar> {
-    xs.iter().copied().map(|x| alloc_k(builder, x)).collect()
-}
-
-fn alloc_k_rows(builder: &mut R1csBuilder, rows: &[Vec<K>]) -> Vec<Vec<KVar>> {
-    rows.iter().map(|r| alloc_k_vec(builder, r)).collect()
-}
-
-/// Decode a 32-byte digest (e.g. `fold_digest`) into 4 F lanes and allocate
-/// each as a witness wire. The verifier doesn't pin these — the constraints
-/// come from the digest gadget that absorbs them.
-fn digest32_witness_fields(builder: &mut R1csBuilder, bytes: &[u8]) -> Result<[Var; 4], Error> {
-    let fields = header_digest_bytes_to_fields(bytes)?;
-    Ok(std::array::from_fn(|i| builder.alloc(fields[i])))
-}
-
-fn alloc_fresh_wires(builder: &mut R1csBuilder, fresh: &CcsClaim) -> CcsClaimWires {
-    CcsClaimWires {
-        c_d: fresh.c.d,
-        c_d_var: alloc_usize(builder, fresh.c.d),
-        c_kappa: fresh.c.kappa,
-        c_kappa_var: alloc_usize(builder, fresh.c.kappa),
-        c_data: builder.alloc_vec(&fresh.c.data),
-        adv: alloc_adv(builder, fresh.adv.as_ref()),
-        x: builder.alloc_vec(&fresh.x),
-        m_in: fresh.m_in,
-        m_in_var: alloc_usize(builder, fresh.m_in),
-    }
-}
-
-/// Allocate wires for one CE claim. `x` is stored as a flat row-major
-/// `Vec<Var>` of length `x_rows * x_cols`; the SuperNeo-packed view is
-/// derived on demand via [`CeClaimWires::x_packed`].
-fn alloc_ce_wires(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWires, Error> {
-    alloc_ce_wires_from_y_zcol(builder, ce, &ce.y_zcol)
-}
-
-/// Allocate the paper-level CE core consumed by strict Π_DEC and the exact
-/// Construction-2 child handle. The optimized `y_zcol` sidecar is omitted
-/// until a verifier-owned source relation is proved for it.
-fn alloc_ce_wires_without_y_zcol(builder: &mut R1csBuilder, ce: &CeClaim) -> Result<CeClaimWires, Error> {
-    let d_pad = D.next_power_of_two();
-    if ce.y_zcol.len() != d_pad || ce.y_zcol.iter().skip(D).any(|value| *value != K::ZERO) {
-        return Err(Error::Shape(
-            "running CE y_zcol must have the padded ring shape with zero padding".into(),
-        ));
-    }
-    alloc_ce_wires_from_y_zcol(builder, ce, &[])
-}
-
-/// Allocate the current fixed-width parent `y_zcol` view. Native Π_DEC.V does
-/// not treat it as accumulator authority; canonicalizing the shape only keeps
-/// the verifier relation fixed while the delayed-NC bridge remains open.
-fn alloc_ce_wires_with_canonical_y_zcol(
-    builder: &mut R1csBuilder,
-    ce: &CeClaim,
-    lanes: usize,
-) -> Result<CeClaimWires, Error> {
-    let canonical: Vec<K> = (0..lanes)
-        .map(|lane| ce.y_zcol.get(lane).copied().unwrap_or(K::ZERO))
-        .collect();
-    alloc_ce_wires_from_y_zcol(builder, ce, &canonical)
-}
-
-fn alloc_ce_wires_from_y_zcol(builder: &mut R1csBuilder, ce: &CeClaim, y_zcol: &[K]) -> Result<CeClaimWires, Error> {
-    let mut x: Vec<Var> = Vec::with_capacity(ce.X.rows() * ce.X.cols());
-    let active_cols = crate::paper::relations::superneo_public_x_cols(ce.m_in);
-    let inactive_nonzero = (0..ce.X.rows()).any(|r| (active_cols..ce.X.cols()).any(|c| ce.X[(r, c)] != F::ZERO));
-    let inactive_zero = builder.alloc(if inactive_nonzero { F::ONE } else { F::ZERO });
-    builder.enforce_eq(&Lc::from_var(inactive_zero), &Lc::zero());
-    for r in 0..ce.X.rows() {
-        for c in 0..ce.X.cols() {
-            x.push(if c < active_cols {
-                builder.alloc(ce.X[(r, c)])
-            } else {
-                inactive_zero
-            });
-        }
-    }
-    Ok(CeClaimWires {
-        c_d: ce.c.d,
-        c_d_var: alloc_usize(builder, ce.c.d),
-        c_kappa: ce.c.kappa,
-        c_kappa_var: alloc_usize(builder, ce.c.kappa),
-        c_data: builder.alloc_vec(&ce.c.data),
-        adv: alloc_adv(builder, ce.adv.as_ref()),
-        x,
-        x_rows: ce.X.rows(),
-        x_rows_var: alloc_usize(builder, ce.X.rows()),
-        x_cols: ce.X.cols(),
-        x_cols_var: alloc_usize(builder, ce.X.cols()),
-        r: alloc_k_vec(builder, &ce.r),
-        s_col: alloc_k_vec(builder, &ce.s_col),
-        y_ring: alloc_k_rows(builder, &ce.y_ring),
-        ct: alloc_k_vec(builder, &ce.ct),
-        y_zcol: alloc_k_vec(builder, y_zcol),
-        m_in: ce.m_in,
-        m_in_var: alloc_usize(builder, ce.m_in),
-        fold_digest_fields: digest32_witness_fields(builder, &ce.fold_digest)?,
-    })
-}
-
-fn enforce_unique_zero_wires(builder: &mut R1csBuilder, wires: impl Iterator<Item = Var>) {
-    let mut constrained = std::collections::HashSet::new();
-    for wire in wires {
-        if constrained.insert(wire.col()) {
-            builder.enforce_eq(&Lc::from_var(wire), &Lc::zero());
-        }
     }
 }
 

@@ -1264,10 +1264,10 @@ fn replay_combined_nc(
         self, PiCcsTranscriptVariant, PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG, PI_CCS_SUMCHECK_INITIAL_RAW_TAG,
         PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG,
     };
-    use neo_reductions::optimized_engine::oracle::{
+    use neo_reductions::optimized_engine::legacy_split_nc::oracle::{
         BLOCK_LANE_NC_BLOCK_VARIABLES, BLOCK_LANE_NC_LANE_VARIABLES, BLOCK_LANE_NC_ROUND_COEFFICIENTS,
     };
-    use neo_reductions::optimized_engine::{
+    use neo_reductions::optimized_engine::legacy_split_nc::{
         claimed_initial_sum_from_inputs_with_k_mcs, delayed_beta_power_selector, eq_points,
     };
     use neo_reductions::sumcheck::{

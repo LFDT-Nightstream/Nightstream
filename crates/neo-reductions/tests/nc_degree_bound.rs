@@ -3,7 +3,7 @@
 use neo_ccs::{CcsStructure, CcsWitness, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::optimized_engine::oracle::NcOracle;
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::NcOracle;
 use neo_reductions::optimized_engine::Challenges;
 use neo_reductions::sumcheck::{interpolate_from_evals, poly_eval_k, RoundOracle};
 use p3_field::PrimeCharacteristicRing;

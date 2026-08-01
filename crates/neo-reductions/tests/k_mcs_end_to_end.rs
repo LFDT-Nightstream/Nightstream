@@ -287,7 +287,7 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
 }
 
 #[test]
-fn pi_ccs_verify_rejects_permuted_mcs_output_x_columns() {
+fn pi_ccs_verify_rejects_moving_active_x_into_inactive_column() {
     let n = D;
     let ccs = identity_ccs(n);
     let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
@@ -313,7 +313,7 @@ fn pi_ccs_verify_rejects_permuted_mcs_output_x_columns() {
     )
     .expect("pi_ccs prove");
 
-    // Swap the first two public-input columns in the MCS-derived output X.
+    // Move the active packed public-input column into a structural-zero column.
     for rho in 0..out[0].X.rows() {
         let a = out[0].X[(rho, 0)];
         let b = out[0].X[(rho, 1)];
@@ -334,8 +334,5 @@ fn pi_ccs_verify_rejects_permuted_mcs_output_x_columns() {
     )
     .expect_err("verify must reject permuted MCS output X columns");
 
-    assert!(
-        err.to_string().contains("does not match mcs_list"),
-        "unexpected error: {err}"
-    );
+    assert!(err.to_string().contains("inactive X entry"), "unexpected error: {err}");
 }

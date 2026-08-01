@@ -21,6 +21,9 @@ use tracing::{info, info_span};
 /// 4 k elements is a good cut-off on a 16-core machine.
 const PAR_THRESHOLD: usize = 4 << 10; // 4096
 
+const PARALLEL_MESSAGE_LABELS: [&[u8]; 3] = [b"p/0", b"p/1", b"p/2"];
+const PARALLEL_CHALLENGE_LABELS: [&[u8]; 3] = [b"c/0", b"c/1", b"c/2"];
+
 /// Adaptive parallel-for helper.
 /// Falls back to a plain `for` loop when the slice is small **or**
 /// we are already inside a Rayon worker, avoiding nested pools.
@@ -126,6 +129,188 @@ impl<E: Engine> SumcheckProof<E> {
 
     info!(elapsed_ms = %verify_t.elapsed().as_millis(), "sumcheck_verify");
     Ok((e, r))
+  }
+
+  /// Verifies three sum-check instances in lockstep.
+  ///
+  /// Every round absorbs all three prover messages before it derives any
+  /// challenge. This ordering makes one Fiat--Shamir attempt commit to all
+  /// three round messages at once.
+  pub(crate) fn verify_parallel_3(
+    proofs: [&Self; 3],
+    claims: [E::Scalar; 3],
+    num_rounds: usize,
+    degree_bound: usize,
+    transcript: &mut E::TE,
+  ) -> Result<([E::Scalar; 3], [Vec<E::Scalar>; 3]), SpartanError> {
+    if proofs
+      .iter()
+      .any(|proof| proof.compressed_polys.len() != num_rounds)
+    {
+      return Err(SpartanError::InvalidSumcheckProof);
+    }
+
+    let mut current_claims = claims;
+    let mut challenges: [Vec<E::Scalar>; 3] = std::array::from_fn(|_| Vec::new());
+
+    for round in 0..num_rounds {
+      let polys: [UniPoly<E::Scalar>; 3] = std::array::from_fn(|member| {
+        proofs[member].compressed_polys[round].decompress(&current_claims[member])
+      });
+      if polys.iter().any(|poly| poly.degree() != degree_bound) {
+        return Err(SpartanError::InvalidSumcheckProof);
+      }
+
+      for member in 0..3 {
+        debug_assert_eq!(
+          polys[member].eval_at_zero() + polys[member].eval_at_one(),
+          current_claims[member]
+        );
+        transcript.absorb(PARALLEL_MESSAGE_LABELS[member], &polys[member]);
+      }
+
+      let round_challenges = [
+        transcript.squeeze(PARALLEL_CHALLENGE_LABELS[0])?,
+        transcript.squeeze(PARALLEL_CHALLENGE_LABELS[1])?,
+        transcript.squeeze(PARALLEL_CHALLENGE_LABELS[2])?,
+      ];
+      for member in 0..3 {
+        challenges[member].push(round_challenges[member]);
+        current_claims[member] = polys[member].evaluate(&round_challenges[member]);
+      }
+    }
+
+    Ok((current_claims, challenges))
+  }
+
+  /// Proves three quadratic sum-check instances in lockstep.
+  pub(crate) fn prove_quad_parallel_3<F>(
+    claims: [E::Scalar; 3],
+    num_rounds: usize,
+    poly_a: &mut [MultilinearPolynomial<E::Scalar>; 3],
+    poly_b: &mut [MultilinearPolynomial<E::Scalar>; 3],
+    comb_func: F,
+    transcript: &mut E::TE,
+  ) -> Result<([Self; 3], [Vec<E::Scalar>; 3], [[E::Scalar; 2]; 3]), SpartanError>
+  where
+    F: Fn(&E::Scalar, &E::Scalar) -> E::Scalar + Sync,
+  {
+    let mut current_claims = claims;
+    let mut challenges: [Vec<E::Scalar>; 3] = std::array::from_fn(|_| Vec::new());
+    let mut compressed: [Vec<CompressedUniPoly<E::Scalar>>; 3] =
+      std::array::from_fn(|_| Vec::new());
+
+    for _round in 0..num_rounds {
+      let mut polys = Vec::with_capacity(3);
+      for member in 0..3 {
+        let (eval_zero, eval_two) =
+          Self::compute_eval_points_quad(&poly_a[member], &poly_b[member], &comb_func);
+        polys.push(UniPoly::from_evals(&[
+          eval_zero,
+          current_claims[member] - eval_zero,
+          eval_two,
+        ])?);
+      }
+
+      for member in 0..3 {
+        transcript.absorb(PARALLEL_MESSAGE_LABELS[member], &polys[member]);
+      }
+      let round_challenges = [
+        transcript.squeeze(PARALLEL_CHALLENGE_LABELS[0])?,
+        transcript.squeeze(PARALLEL_CHALLENGE_LABELS[1])?,
+        transcript.squeeze(PARALLEL_CHALLENGE_LABELS[2])?,
+      ];
+
+      for member in 0..3 {
+        let challenge = round_challenges[member];
+        challenges[member].push(challenge);
+        compressed[member].push(polys[member].compress());
+        current_claims[member] = polys[member].evaluate(&challenge);
+        poly_a[member].bind_poly_var_top(&challenge);
+        poly_b[member].bind_poly_var_top(&challenge);
+      }
+    }
+
+    let final_evaluations = std::array::from_fn(|member| [poly_a[member][0], poly_b[member][0]]);
+    Ok((
+      compressed.map(|compressed_polys| Self { compressed_polys }),
+      challenges,
+      final_evaluations,
+    ))
+  }
+
+  /// Proves three cubic sum-check instances in lockstep.
+  #[allow(clippy::too_many_arguments)]
+  pub(crate) fn prove_cubic_parallel_3<F>(
+    claims: [E::Scalar; 3],
+    num_rounds: usize,
+    poly_a: &mut [MultilinearPolynomial<E::Scalar>; 3],
+    poly_b: &mut [MultilinearPolynomial<E::Scalar>; 3],
+    poly_c: &mut [MultilinearPolynomial<E::Scalar>; 3],
+    poly_d: &mut [MultilinearPolynomial<E::Scalar>; 3],
+    comb_func: F,
+    transcript: &mut E::TE,
+  ) -> Result<([Self; 3], [Vec<E::Scalar>; 3], [[E::Scalar; 4]; 3]), SpartanError>
+  where
+    F: Fn(&E::Scalar, &E::Scalar, &E::Scalar, &E::Scalar) -> E::Scalar + Sync,
+  {
+    let mut current_claims = claims;
+    let mut challenges: [Vec<E::Scalar>; 3] = std::array::from_fn(|_| Vec::new());
+    let mut compressed: [Vec<CompressedUniPoly<E::Scalar>>; 3] =
+      std::array::from_fn(|_| Vec::new());
+
+    for _round in 0..num_rounds {
+      let mut polys = Vec::with_capacity(3);
+      for member in 0..3 {
+        let (eval_zero, eval_two, eval_three) = Self::compute_eval_points_cubic_with_additive_term(
+          &poly_a[member],
+          &poly_b[member],
+          &poly_c[member],
+          &poly_d[member],
+          &comb_func,
+        );
+        polys.push(UniPoly::from_evals(&[
+          eval_zero,
+          current_claims[member] - eval_zero,
+          eval_two,
+          eval_three,
+        ])?);
+      }
+
+      for member in 0..3 {
+        transcript.absorb(PARALLEL_MESSAGE_LABELS[member], &polys[member]);
+      }
+      let round_challenges = [
+        transcript.squeeze(PARALLEL_CHALLENGE_LABELS[0])?,
+        transcript.squeeze(PARALLEL_CHALLENGE_LABELS[1])?,
+        transcript.squeeze(PARALLEL_CHALLENGE_LABELS[2])?,
+      ];
+
+      for member in 0..3 {
+        let challenge = round_challenges[member];
+        challenges[member].push(challenge);
+        compressed[member].push(polys[member].compress());
+        current_claims[member] = polys[member].evaluate(&challenge);
+        poly_a[member].bind_poly_var_top(&challenge);
+        poly_b[member].bind_poly_var_top(&challenge);
+        poly_c[member].bind_poly_var_top(&challenge);
+        poly_d[member].bind_poly_var_top(&challenge);
+      }
+    }
+
+    let final_evaluations = std::array::from_fn(|member| {
+      [
+        poly_a[member][0],
+        poly_b[member][0],
+        poly_c[member][0],
+        poly_d[member][0],
+      ]
+    });
+    Ok((
+      compressed.map(|compressed_polys| Self { compressed_polys }),
+      challenges,
+      final_evaluations,
+    ))
   }
 
   #[inline]

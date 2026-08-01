@@ -29,7 +29,10 @@ use crate::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
 use crate::frontends::r1cs_f_prime::lowering::normalized_field_assignment;
 use crate::frontends::r1cs_f_prime::R1csShape;
 use crate::lifecycle::{self, Preprocessing, Uncompressed, UncompressedAudit};
-use crate::paper::construction2::{FoldProof, LatestInstance, ProofState, SemanticStateMode, State};
+use crate::paper::construction2::{
+    running::uses_pending_accumulator_family, FoldProof, LaneCommitmentMode, LatestInstance, ProofState,
+    SemanticStateMode, State,
+};
 use crate::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest_for_uniform_shape,
     initial_boundary_digest, public_trace_seed_digest, state_x_out_digest_with_mode, AccumulatorHandle,
@@ -166,7 +169,7 @@ impl<'a> R1csIvc<'a> {
             if semantic_input.is_some_and(|input| input != pre.semantic_state_digest) {
                 return Err(R1csIvcError::SemanticInputMismatch);
             }
-            let post = pre.base_advance(&self.prep.prep, semantic_output);
+            let post = pre.base_advance(&self.prep.prep, semantic_output)?;
             return Ok(PreparedStep::Base { pre, post });
         };
 
@@ -212,7 +215,13 @@ impl<'a> R1csIvc<'a> {
                 }
                 ProofState::Initial => return Err(R1csIvcError::ExpectedActiveState),
             };
-        let branch = if running.is_empty() {
+        let branch = if uses_pending_accumulator_family(self.prep.prep.structure()) {
+            if running_pending_projection.is_none() {
+                R1csIvcBranch::BootstrapRecursive
+            } else {
+                R1csIvcBranch::Recursive
+            }
+        } else if running.is_empty() {
             R1csIvcBranch::BootstrapRecursive
         } else {
             R1csIvcBranch::Recursive
@@ -525,7 +534,7 @@ impl StateCoordinates {
         }
     }
 
-    fn base_advance(&self, prep: &Preprocessing, semantic_output: Option<[F; 4]>) -> Self {
+    fn base_advance(&self, prep: &Preprocessing, semantic_output: Option<[F; 4]>) -> Result<Self, R1csIvcError> {
         let z_i = f_prime_chunk_public_digest_for_uniform_shape(
             self.step_count,
             1,
@@ -534,14 +543,32 @@ impl StateCoordinates {
             prep.public_input_len
                 .expect("R1CS IVC fixes public input length"),
         );
-        Self {
+        let m_in = prep
+            .public_input_len
+            .expect("R1CS IVC fixes public input length");
+        let running = crate::paper::construction2::RunningInstance::canonical_zero(
+            &prep.params,
+            prep.structure(),
+            m_in,
+            LaneCommitmentMode::Plain,
+        )
+        .map_err(crate::paper::construction2::Error::from)
+        .map_err(lifecycle::Error::from)?;
+        let acc_digest = digest32_as_fields(
+            running
+                .accumulator_digest(prep.structure())
+                .map_err(crate::paper::construction2::Error::from)
+                .map_err(lifecycle::Error::from)?,
+        );
+        Ok(Self {
             chunk_count: 1,
             step_count: 1,
             z_i,
-            semantic_state_digest: semantic_output.unwrap_or(self.acc_digest),
+            semantic_state_digest: semantic_output.unwrap_or(acc_digest),
+            acc_digest,
             public_trace: z_i,
             ..self.clone()
-        }
+        })
     }
 
     fn as_f_prime_state(&self, prep: &Preprocessing) -> FPrimeStateIn {

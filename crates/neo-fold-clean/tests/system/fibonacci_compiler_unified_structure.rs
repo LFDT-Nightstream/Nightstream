@@ -13,8 +13,8 @@
 //!   (only the `state_x_out` one-shot trace, no source-image selector,
 //!   `is_base = 0`). Catches a compiler that records `is_base` but
 //!   leaves the structure in legacy single-accumulator shape.
-//! - `compiler_base_step_uses_empty_accumulator_digest` — base step's
-//!   `new_acc_digest` equals `AccumulatorHandle::empty()`.
+//! - `compiler_base_step_uses_canonical_zero_accumulator_digest` — base
+//!   step commits the fixed-shape Construction-2 zero accumulator.
 //! - `compiler_base_step_elides_source_image_nifs_payload` — the base
 //!   step reserves no source-image NIFS payload columns; verifier-plan
 //!   shape metadata still exists for compiler validation.
@@ -65,7 +65,7 @@ use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_recursive_step_image_config, AccumulatorPlanOptions, RecursiveStepImagePlan, StateXOutPlanOptions,
 };
 use neo_fold_clean::lifecycle;
-use neo_fold_clean::paper::construction2::{FoldProof, ProofState};
+use neo_fold_clean::paper::construction2::{FoldProof, LaneCommitmentMode, ProofState, RunningInstance};
 use neo_fold_clean::paper::digest::{digest32_as_fields, structure_digest, AccumulatorHandle};
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
@@ -444,16 +444,28 @@ fn compiler_recursive_step_emits_unified_structure() {
 // ─────────────────────────────────────────────────────────────────────────
 
 #[test]
-fn compiler_base_step_uses_empty_accumulator_digest() {
+fn compiler_base_step_uses_canonical_zero_accumulator_digest() {
     let prep = shared_canonical_prep();
     let mut ctx = start_fibonacci_chain(prep).expect("start chain");
 
     let compiled = compile_fibonacci_step(prep, &mut ctx, valid_app_step(1, 1, 0)).expect("base compile");
     let state_out = compiled.encoded.image.decode_state_out();
-    let expected_empty = AccumulatorHandle::empty().digest_fields();
+    let m_in = prep
+        .prep
+        .public_input_len
+        .expect("Fibonacci preprocessing pins public input width");
+    let canonical = RunningInstance::canonical_zero(
+        &prep.prep.params,
+        prep.prep.structure(),
+        m_in,
+        LaneCommitmentMode::Plain,
+    )
+    .expect("construct canonical base accumulator");
+    let expected =
+        AccumulatorHandle::from_running_parts(&canonical.claims, canonical.parent_authority.as_ref()).digest_fields();
     assert_eq!(
-        state_out.new_acc_digest, expected_empty,
-        "base step must commit `new_acc_digest = AccumulatorHandle::empty()`"
+        state_out.new_acc_digest, expected,
+        "base step must commit the fixed-shape Construction-2 zero accumulator"
     );
     assert!(
         compiled.encoded.image.decode_is_base(),

@@ -15,7 +15,8 @@ fn canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance() {
         .expect("canonical zero accumulator");
     assert_eq!(zero.claims().len(), prep.params.k_rho() as usize);
     assert!(zero.claims().iter().all(|claim| {
-        claim.c.data.iter().all(|&value| value == F::ZERO) && claim.X.as_slice().iter().all(|&value| value == F::ZERO)
+        claim.c.data.iter().all(|&value| value == F::ZERO)
+            && claim.X.to_dense_vec().iter().all(|&value| value == F::ZERO)
     }));
 
     let fresh = support::toy_instance(&prep, 7);

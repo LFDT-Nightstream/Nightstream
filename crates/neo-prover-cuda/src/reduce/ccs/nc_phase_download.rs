@@ -6,7 +6,7 @@
 
 use cuda_core::DeviceBuffer;
 use neo_math::K;
-use neo_reductions::optimized_engine::{NcFinalizedColState, NcPhaseRoundTrace, TranscriptSnapshot};
+use neo_reductions::optimized_engine::legacy_split_nc::{NcFinalizedColState, NcPhaseRoundTrace, TranscriptSnapshot};
 
 use crate::device::Device;
 use crate::field::k_from_device_words;

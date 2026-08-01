@@ -25,7 +25,8 @@ use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{
 use neo_math::ring::D;
 use neo_math::{from_complex, KExtensions, F, K};
 use neo_params::NeoParams;
-use neo_reductions::engines::optimized_engine::{rhs_terminal_identity_nc, Challenges};
+use neo_reductions::engines::optimized_engine::legacy_split_nc::rhs_terminal_identity_nc;
+use neo_reductions::engines::optimized_engine::Challenges;
 use neo_reductions::engines::utils::{PI_CCS_SUMCHECK_INITIAL_RAW_TAG, PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG};
 use neo_reductions::sumcheck::{verify_sumcheck_rounds_poseidon_v3, SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG};
 use neo_transcript::{Poseidon2Transcript, Transcript};

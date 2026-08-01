@@ -6,9 +6,10 @@
 use neo_math::K;
 
 use crate::error::PiCcsError;
-use crate::optimized_engine::{PiCcsProof, PiCcsProvePerf, PiCcsReplayTerminalState, PiCcsTerminalOutputShell};
+use crate::optimized_engine::{PiCcsProof, PiCcsProvePerf};
 
 use super::backend::{FeSumcheckBackend, PiCcsPhaseBackend, PiCcsPhaseProofLog};
+use super::legacy_types::{PiCcsReplayTerminalState, PiCcsTerminalOutputShell};
 
 pub(super) struct OptimizedProofRounds {
     pub(super) sumcheck_rounds: Vec<Vec<K>>,

@@ -15,7 +15,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - (No direct paper anchor -- gadgets implement the embedded verifier architecture described informally in the protocol.)
 - Implicit in the folding pipeline: the verifier circuit must check commitment openings and linear combinations.

@@ -16,7 +16,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Section 7.4 (Π_RLC), lines 571-579: random linear combination `z ← Σ ρ_i · z_i` with `ρ_i ∈ C`.
 - Definition 15 (Module Homomorphism), line 741: `R_F`-module homomorphism properties.

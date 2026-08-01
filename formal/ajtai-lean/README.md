@@ -44,11 +44,14 @@ searches the width. It proves:
 
 ## Trust boundary
 
-Lean proves the interval arithmetic, search result, packing limit, and the
-existing SuperNeo collision-to-MSIS reduction. It does not prove the
-Core-SVP cost model, the Euclidean lattice-attack model, pseudorandomness of
-the structured matrix, or Module-SIS hardness. `binding_of_msis_boundary` requires
-SuperNeo's `MSISHardnessBoundary` explicitly.
+Lean proves the interval arithmetic, search result, and packing limit. The
+local security interface composes an explicit collision-to-MSIS extractor with
+the matching MSIS boundary. It does not construct either input. It also does
+not prove the Core-SVP cost model, the Euclidean lattice-attack model,
+pseudorandomness of the structured matrix, or Module-SIS hardness.
+
+The concrete Nightstream commitment relation must instantiate both events and
+the extractor before this boundary can support a protocol security claim.
 
 The estimator's collision bound and SuperNeo's generic relaxed-binding norm
 parameter are different statements. The estimator result does not instantiate

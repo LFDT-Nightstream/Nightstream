@@ -17,7 +17,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Theorem 3 (Inner Product Transform), Section 5, lines 368-372: `ct(bar(a) · bar(b)) = <a, b>`.
 - Definition 8 (Lifting the Transform), Section 5, lines 376-382: block-wise vector/matrix lift.

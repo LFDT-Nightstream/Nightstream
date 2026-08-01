@@ -77,17 +77,11 @@ def elabPrintAuditedAxioms : CommandElab
 #guard_msgs in
 #audit_axioms Ajtai.EstimatorModel.computedMaxSourceFields_eq
 
-/-- info: 'Ajtai.SecurityBoundary.collision_implies_msis_break' depends on axioms: [propext,
- Classical.choice,
- trustCompiler,
- Quot.sound] -/
+/-- info: 'Ajtai.SecurityBoundary.collision_implies_msis_break' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #audit_axioms Ajtai.SecurityBoundary.collision_implies_msis_break
 
-/-- info: 'Ajtai.SecurityBoundary.binding_of_msis_boundary' depends on axioms: [propext,
- Classical.choice,
- trustCompiler,
- Quot.sound] -/
+/-- info: 'Ajtai.SecurityBoundary.binding_of_msis_boundary' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #audit_axioms Ajtai.SecurityBoundary.binding_of_msis_boundary
 

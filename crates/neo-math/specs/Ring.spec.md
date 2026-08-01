@@ -22,7 +22,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Definition 1 (Fields, Rings, Dimensions), Section 4, lines 278-282: `R_F := F[X]/(Phi(X))`, `d = deg(Phi)`.
 - Definition 2 (Coefficient maps), Section 4, lines 286-288: `cf`, `ct`.

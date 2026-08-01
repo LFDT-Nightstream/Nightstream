@@ -1,7 +1,0 @@
-import DirectCcsFPrime.ProofSystem.Production.Impl.RawProduction.Core
-import DirectCcsFPrime.ProofSystem.Production.Impl.RawProduction.Exact
-import DirectCcsFPrime.ProofSystem.Production.Impl.RawProduction.ExactAccepted
-import DirectCcsFPrime.ProofSystem.Production.Impl.RawProduction.RuntimeAuthority
-import DirectCcsFPrime.ProofSystem.Production.Impl.RawProduction.Raw
-import DirectCcsFPrime.ProofSystem.Production.Impl.RawProduction.RuntimeAuthorityCompressed
-import DirectCcsFPrime.ProofSystem.Production.Impl.RawProduction.RuntimeExact

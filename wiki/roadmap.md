@@ -48,7 +48,6 @@ four-branch relation `S_nebula` (D3), a dedicated challenge-derivation step (D4)
 address-ordered commitment lists as segment boundaries (D5), canonical-u64 timestamp
 lanes with a global per-pair counter (D7). Until O(1)-terminal accumulation of the
 per-pair commitment equalities is designed (D8), Nebula chains are audit-path-only.
-`formal/twist-shout-lean` covers the adjacent Twist/Shout theory.
 
 ### Other
 

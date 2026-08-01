@@ -14,7 +14,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - (No direct paper anchor -- Poseidon2 is transcript infrastructure, not part of the mathematical protocol definitions.)
 - Implicit in Section 7 reductions: Fiat-Shamir challenges require a collision-resistant hash.

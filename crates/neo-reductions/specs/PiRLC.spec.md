@@ -20,7 +20,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Section 7.4 (Pi_RLC weak interactive reduction), lines 549-583.
 - Lemma 4 (Pi_RLC is a weak interactive reduction), lines 582-583.

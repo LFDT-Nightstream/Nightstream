@@ -16,7 +16,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Definition 1 (Fields, Rings, Dimensions), Section 4, lines 275-282: defines `F`, `K`, and the requirement `1/|K| = negl(λ)`.
 - Appendix B.2 (Goldilocks parameters), lines 709-727: `q = 2^64 - 2^32 + 1`, `K = F_{q^2}`.

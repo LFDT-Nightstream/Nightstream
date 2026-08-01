@@ -2,6 +2,7 @@ import Nightstream.Implementation.FPrime.Envelope
 import Nightstream.Implementation.FPrime.CounterRefinement
 import Nightstream.Implementation.Rust.FPrime
 import Nightstream.Implementation.Rust.Terminal
+import Nightstream.Implementation.Rust.CanonicalConformance.PiCcsPaperRectangular.Conformance
 import Nightstream.Implementation.Rust.CanonicalConformance.NativeStep.CanonicalPublicInputLinkProgramRefinement
 import Nightstream.Implementation.Rust.CanonicalConformance.NativeStep.StateXOutProgramRefinement
 import Nightstream.Implementation.Rust.CanonicalConformance.NativeStep.FixedOneCanonicalAdapter

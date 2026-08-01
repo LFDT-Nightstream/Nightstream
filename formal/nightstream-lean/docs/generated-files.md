@@ -32,6 +32,7 @@ The generator families are:
 | Terminal-link source program and bounded two-claim physical rows | `cargo test -p neo-fold-clean --release --test system_formal_conformance terminal_link_ -- --nocapture` |
 | Current two-step terminal diagnostic fixture: exact owner ranges and source hashes, fourteen three-evaluation terminal-CE column schedules, coefficient-complete affine shell `[9657286,9673659)`, and the 270-row `terminal.latest_link` placement | `cargo test -p neo-fold-clean --release --test system_decider_r1cs m4_manifest::current_terminal_link_full_history_placement_matches_exact_rows -- --exact --nocapture` |
 | Phi81 runtime bar matrix | `cargo test -p neo-math --release --test phi81_bar_lean_artifact` |
+| Canonical rectangular-paper PiCCS gamma layout (324 carried slots and both rectangular directions) | `cargo test -p neo-reductions --release --test paper_rectangular_lean_artifact` |
 | SplitNc packed-carrier counterexample | `cargo test -p neo-reductions --release --test pi_ccs_nc_carrier_lean_artifact` |
 | Fixed F' carrier-fixture NIFS/F' counterexample | `cargo test -p neo-fold-clean --release --test f_prime_fixed_carrier_nifs_lean_artifact` |
 | Canonical-u64 | `gadgets_lean_artifact` |

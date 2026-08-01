@@ -41,6 +41,32 @@ private abbrev Field := Nightstream.SuperNeo.Concrete.F
 private abbrev Dense (columns : Nat) :=
   DirectRows.LinearCombination columns
 
+private theorem matrixVectorAt_constantRow
+    {variables columns : Nat}
+    (combination : Dense columns)
+    (assignment : Fin columns -> Field)
+    (vertex : BooleanVertex variables) :
+    matrixVectorAt baseOps (fun _ => combination) assignment vertex =
+      DirectRows.LinearCombination.eval combination assignment :=
+  rfl
+
+private theorem denseZero_eval
+    {columns : Nat}
+    (assignment : Fin columns -> Field) :
+    DirectRows.LinearCombination.eval (fun _ => 0) assignment = 0 := by
+  unfold DirectRows.LinearCombination.eval
+  generalize canonicalFinIndices columns = indices
+  induction indices with
+  | nil => rfl
+  | cons column rest inductionHypothesis =>
+      rw [List.foldl_cons]
+      change
+        List.foldl (fun accumulated next =>
+          accumulated + 0 * assignment next) (0 + 0 * assignment column)
+            rest = 0
+      simp only [Fin.zero_mul, Fin.add_zero]
+      simpa only [Fin.zero_mul, Fin.add_zero] using inductionHypothesis
+
 /-- Source data required to compile one native program together with the
 selected standalone Nebula program. -/
 structure Source (program : NativeCcsProgram.Program) where
@@ -67,6 +93,12 @@ def rowCount {program : NativeCcsProgram.Program}
 def columnCount {program : NativeCcsProgram.Program}
     (source : Source program) : Nat :=
   source.dimensions.logicalWidth
+
+/-- The source coverage field restated at the named combined row count. -/
+def rowCoverage {program : NativeCcsProgram.Program}
+    (source : Source program) :
+    source.rowCount <= 2 ^ source.rowVariables :=
+  source.rowsCovered
 
 theorem rowCount_eq {program : NativeCcsProgram.Program}
     (source : Source program) :
@@ -407,28 +439,36 @@ theorem matrixImagesAt_nativeRow
     (assignment : Fin source.columnCount -> Field)
     (row : Fin program.rows.length) :
     matrixImagesAt baseOps (system source) assignment
-        (RowPadding.numericRowVertex source.rowsCovered
+        (RowPadding.numericRowVertex source.rowCoverage
           (nativeRowPosition source row)) =
       nativeCombinedPoint source (program.rows.get row) assignment := by
   funext matrix
   unfold matrixImagesAt system
   simp only
-  unfold matrixVectorAt
-  change
-    DirectRows.LinearCombination.eval
-        (finiteMatrices source matrix (nativeRowPosition source row))
-        assignment =
-      nativeCombinedPoint source (program.rows.get row) assignment matrix
-  have finiteRow :
-      finiteMatrices source matrix (nativeRowPosition source row) =
-        nativeDenseRow source (program.rows.get row) matrix := by
-    simp [finiteMatrices, nativeRowPosition, row.isLt]
-  rw [finiteRow]
-  by_cases nativeRole : matrix.val < NativeCcsSelector.matrixCount
-  · rw [nativeDenseRow_eval source (program.rows.get row) matrix
-      nativeRole assignment]
-    rfl
-  · simp [nativeDenseRow, nativeCombinedPoint, nativeRole]
+  calc
+    _ = matrixVectorAt baseOps
+          (fun _ => finiteMatrices source matrix
+            (nativeRowPosition source row))
+          assignment
+          (RowPadding.numericRowVertex source.rowCoverage
+            (nativeRowPosition source row)) := by
+      exact DirectRows.matrixVectorAt_padRows_numeric
+        (finiteMatrices source matrix) source.rowCoverage assignment
+        (nativeRowPosition source row)
+    _ = nativeCombinedPoint source (program.rows.get row) assignment matrix := by
+      have finiteRow :
+          finiteMatrices source matrix (nativeRowPosition source row) =
+            nativeDenseRow source (program.rows.get row) matrix := by
+        unfold finiteMatrices nativeRowPosition
+        rw [dif_pos row.isLt]
+      rw [finiteRow]
+      rw [matrixVectorAt_constantRow]
+      by_cases nativeRole : matrix.val < NativeCcsSelector.matrixCount
+      · rw [nativeDenseRow_eval source (program.rows.get row) matrix
+          nativeRole assignment]
+        simp only [nativeCombinedPoint, dif_pos nativeRole]
+      · simp only [nativeDenseRow, nativeCombinedPoint, dif_neg nativeRole]
+        exact denseZero_eval assignment
 
 theorem residualAt_nativeRow
     {program : NativeCcsProgram.Program}
@@ -436,7 +476,7 @@ theorem residualAt_nativeRow
     (assignment : Fin source.columnCount -> Field)
     (row : Fin program.rows.length) :
     residualAt baseOps (system source) assignment
-        (RowPadding.numericRowVertex source.rowsCovered
+        (RowPadding.numericRowVertex source.rowCoverage
           (nativeRowPosition source row)) =
       NativeCcsSelector.evaluate
         (NativeCcsCompiler.rowPoint (program.rows.get row)
@@ -445,7 +485,7 @@ theorem residualAt_nativeRow
   change
     NebulaCombinedPolynomial.evaluate
         (matrixImagesAt baseOps (system source) assignment
-          (RowPadding.numericRowVertex source.rowsCovered
+          (RowPadding.numericRowVertex source.rowCoverage
             (nativeRowPosition source row))) = _
   rw [matrixImagesAt_nativeRow]
   rw [NebulaCombinedPolynomial.evaluate_native_only]
@@ -459,12 +499,230 @@ theorem residualAt_nativeRow_eq_zero_iff
     (assignment : Fin source.columnCount -> Field)
     (row : Fin program.rows.length) :
     residualAt baseOps (system source) assignment
-        (RowPadding.numericRowVertex source.rowsCovered
+        (RowPadding.numericRowVertex source.rowCoverage
           (nativeRowPosition source row)) = 0 <->
       (program.rows.get row).Holds (nativeAssignment source assignment) := by
   rw [residualAt_nativeRow]
   rw [NativeCcsSelector.evaluate_exact]
   rfl
+
+theorem matrixImagesAt_nebulaRow
+    {program : NativeCcsProgram.Program}
+    (source : Source program)
+    (assignment : Fin source.columnCount -> Field)
+    (row : Fin (Nebula.Compiler.rows Nebula.Layout.wasm42x6).length) :
+    matrixImagesAt baseOps (system source) assignment
+        (RowPadding.numericRowVertex source.rowCoverage
+          (nebulaRowPosition source row)) =
+      nebulaCombinedPoint source
+        ((Nebula.Compiler.rows Nebula.Layout.wasm42x6).get row)
+        assignment := by
+  funext matrix
+  unfold matrixImagesAt system
+  simp only
+  calc
+    _ = matrixVectorAt baseOps
+          (fun _ => finiteMatrices source matrix
+            (nebulaRowPosition source row))
+          assignment
+          (RowPadding.numericRowVertex source.rowCoverage
+            (nebulaRowPosition source row)) := by
+      exact DirectRows.matrixVectorAt_padRows_numeric
+        (finiteMatrices source matrix) source.rowCoverage assignment
+        (nebulaRowPosition source row)
+    _ = nebulaCombinedPoint source
+          ((Nebula.Compiler.rows Nebula.Layout.wasm42x6).get row)
+          assignment matrix := by
+      have finiteRow :
+          finiteMatrices source matrix (nebulaRowPosition source row) =
+            nebulaDenseRow source
+              ((Nebula.Compiler.rows Nebula.Layout.wasm42x6).get row)
+              matrix := by
+        unfold finiteMatrices
+        rw [dif_neg (by
+          simp only [nebulaRowPosition]
+          omega)]
+        apply congrArg (fun selected => nebulaDenseRow source selected matrix)
+        apply congrArg
+          (fun index =>
+            (Nebula.Compiler.rows Nebula.Layout.wasm42x6).get index)
+        apply Fin.ext
+        simp only [nebulaRowPosition]
+        omega
+      rw [finiteRow]
+      rw [matrixVectorAt_constantRow]
+      by_cases nebulaRole : NativeCcsSelector.matrixCount <= matrix.val
+      · rw [nebulaDenseRow_eval source
+          ((Nebula.Compiler.rows Nebula.Layout.wasm42x6).get row)
+          matrix nebulaRole assignment]
+        simp only [nebulaCombinedPoint, dif_pos nebulaRole,
+          Nebula.Rows.Row.point]
+      · simp only [nebulaDenseRow, nebulaCombinedPoint,
+          dif_neg nebulaRole]
+        exact denseZero_eval assignment
+
+theorem residualAt_nebulaRow
+    {program : NativeCcsProgram.Program}
+    (source : Source program)
+    (assignment : Fin source.columnCount -> Field)
+    (row : Fin (Nebula.Compiler.rows Nebula.Layout.wasm42x6).length) :
+    residualAt baseOps (system source) assignment
+        (RowPadding.numericRowVertex source.rowCoverage
+          (nebulaRowPosition source row)) =
+      Nebula.StepPolynomial.evaluate
+        (((Nebula.Compiler.rows Nebula.Layout.wasm42x6).get row).point
+          (nebulaAssignment source assignment)) := by
+  unfold residualAt
+  change
+    NebulaCombinedPolynomial.evaluate
+        (matrixImagesAt baseOps (system source) assignment
+          (RowPadding.numericRowVertex source.rowCoverage
+            (nebulaRowPosition source row))) = _
+  rw [matrixImagesAt_nebulaRow]
+  rw [NebulaCombinedPolynomial.evaluate_nebula_only]
+  · rw [nebulaPoint_nebulaCombinedPoint]
+  · exact nativePoint_nebulaCombinedPoint_zero source
+      ((Nebula.Compiler.rows Nebula.Layout.wasm42x6).get row) assignment
+
+theorem residualAt_nebulaRow_eq_zero_iff
+    {program : NativeCcsProgram.Program}
+    (source : Source program)
+    (assignment : Fin source.columnCount -> Field)
+    (row : Fin (Nebula.Compiler.rows Nebula.Layout.wasm42x6).length) :
+    residualAt baseOps (system source) assignment
+        (RowPadding.numericRowVertex source.rowCoverage
+          (nebulaRowPosition source row)) = 0 <->
+      ((Nebula.Compiler.rows Nebula.Layout.wasm42x6).get row).Holds
+        (nebulaAssignment source assignment) := by
+  rw [residualAt_nebulaRow]
+  rfl
+
+theorem matrixImagesAt_padding
+    {program : NativeCcsProgram.Program}
+    (source : Source program)
+    (assignment : Fin source.columnCount -> Field)
+    (vertex : BooleanVertex source.rowVariables)
+    (padding : source.rowCount <= rowIndex vertex) :
+    matrixImagesAt baseOps (system source) assignment vertex = fun _ => 0 := by
+  funext matrix
+  unfold matrixImagesAt system
+  simp only
+  exact DirectRows.matrixVectorAt_padRows_padding
+    (finiteMatrices source matrix) assignment vertex padding
+
+theorem residualAt_padding
+    {program : NativeCcsProgram.Program}
+    (source : Source program)
+    (assignment : Fin source.columnCount -> Field)
+    (vertex : BooleanVertex source.rowVariables)
+    (padding : source.rowCount <= rowIndex vertex) :
+    residualAt baseOps (system source) assignment vertex = 0 := by
+  unfold residualAt
+  rw [matrixImagesAt_padding source assignment vertex padding]
+  change NebulaCombinedPolynomial.evaluate (fun _ => 0) = 0
+  rw [NebulaCombinedPolynomial.evaluate_native_only]
+  · rw [NativeCcsSelector.evaluate_exact]
+    rfl
+  · intro index
+    rfl
+
+private theorem native_satisfies_iff_forall_index
+    (rows : List NativeCcsSelector.SelectedRow)
+    (assignment : ColumnId -> Field) :
+    NativeCcsSelector.Satisfies rows assignment <->
+      forall row : Fin rows.length, (rows.get row).Holds assignment := by
+  induction rows with
+  | nil =>
+      constructor
+      · intro _ row
+        exact Fin.elim0 row
+      · intro _
+        trivial
+  | cons head tail inductionHypothesis =>
+      constructor
+      · intro satisfied row
+        refine Fin.cases ?_ (fun tailRow => ?_) row
+        · exact satisfied.1
+        · exact inductionHypothesis.mp satisfied.2 tailRow
+      · intro all
+        exact ⟨
+          all ⟨0, by simp⟩,
+          inductionHypothesis.mpr
+            (fun row => by simpa using all (Fin.succ row))
+        ⟩
+
+/-- The nineteen-matrix system accepts exactly the native F-prime rows and
+the selected Nebula rows under their exact column placements. This is both
+finite-row soundness and honest completeness for the same assignment. -/
+theorem constraintSatisfied_iff
+    {program : NativeCcsProgram.Program}
+    (source : Source program)
+    (assignment : Fin source.columnCount -> Field) :
+    ConstraintSatisfied baseOps (system source) assignment <->
+      NativeCcsSelector.Satisfies program.rows
+          (nativeAssignment source assignment) /\
+        Nebula.Rows.Satisfies
+          (Nebula.Compiler.rows Nebula.Layout.wasm42x6)
+          (nebulaAssignment source assignment) := by
+  rw [native_satisfies_iff_forall_index]
+  constructor
+  · intro satisfied
+    constructor
+    · intro row
+      exact (residualAt_nativeRow_eq_zero_iff source assignment row).mp
+        (satisfied
+          (RowPadding.numericRowVertex source.rowCoverage
+            (nativeRowPosition source row)))
+    · intro row rowMember
+      rcases List.mem_iff_get.mp rowMember with ⟨index, rowEq⟩
+      rw [← rowEq]
+      exact (residualAt_nebulaRow_eq_zero_iff source assignment index).mp
+        (satisfied
+          (RowPadding.numericRowVertex source.rowCoverage
+            (nebulaRowPosition source index)))
+  · rintro ⟨nativeHolds, nebulaHolds⟩ vertex
+    by_cases nativeLive : rowIndex vertex < program.rows.length
+    · let row : Fin program.rows.length := ⟨rowIndex vertex, nativeLive⟩
+      have vertexEq :
+          RowPadding.numericRowVertex source.rowCoverage
+              (nativeRowPosition source row) = vertex := by
+        unfold RowPadding.numericRowVertex
+        rw [show
+          (⟨(nativeRowPosition source row).val,
+              Nat.lt_of_lt_of_le (nativeRowPosition source row).isLt
+                source.rowCoverage⟩ : Fin (2 ^ source.rowVariables)) =
+            ⟨rowIndex vertex, rowIndex_lt_twoPow vertex⟩ by
+              apply Fin.ext
+              rfl]
+        exact rowVertex_rowIndex vertex
+      rw [← vertexEq]
+      exact (residualAt_nativeRow_eq_zero_iff source assignment row).mpr
+        (nativeHolds row)
+    · by_cases combinedLive : rowIndex vertex < source.rowCount
+      · let row : Fin (Nebula.Compiler.rows Nebula.Layout.wasm42x6).length :=
+          ⟨rowIndex vertex - program.rows.length, by
+            unfold Source.rowCount at combinedLive
+            omega⟩
+        have vertexEq :
+            RowPadding.numericRowVertex source.rowCoverage
+                (nebulaRowPosition source row) = vertex := by
+          unfold RowPadding.numericRowVertex
+          have lower : program.rows.length <= rowIndex vertex :=
+            Nat.le_of_not_gt nativeLive
+          rw [show
+            (⟨(nebulaRowPosition source row).val,
+                Nat.lt_of_lt_of_le (nebulaRowPosition source row).isLt
+                  source.rowCoverage⟩ : Fin (2 ^ source.rowVariables)) =
+              ⟨rowIndex vertex, rowIndex_lt_twoPow vertex⟩ by
+                apply Fin.ext
+                simp only [nebulaRowPosition, row]
+                omega]
+          exact rowVertex_rowIndex vertex
+        rw [← vertexEq]
+        exact (residualAt_nebulaRow_eq_zero_iff source assignment row).mpr
+          (nebulaHolds _ (List.get_mem _ row))
+      · exact residualAt_padding source assignment vertex
+          (Nat.le_of_not_gt combinedLive)
 
 theorem rows_and_columns_exact
     {program : NativeCcsProgram.Program}

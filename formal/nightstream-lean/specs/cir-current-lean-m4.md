@@ -50,6 +50,12 @@ This benchmark uses the reduced test lifecycle profile. The theorem is a
 model-level method fixture. It does not select a production deployment and
 does not establish Rust equality or a security reduction.
 
+The separate [WASM application module proof](wasm-application-module-proof.md)
+now closes a 63-row deployment-local backend path for the exact module bytes
+and result. It proves and verifies with Spartan and WHIR. It does not replace
+the 19,859,562-row recursive M4 theorem described here, and it does not claim
+that the full recursive terminal relation fits the current backend.
+
 ## Evidence matrix
 
 | M4 obligation | Current Lean theorem |

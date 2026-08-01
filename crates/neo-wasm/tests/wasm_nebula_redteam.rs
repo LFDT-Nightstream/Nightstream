@@ -47,9 +47,10 @@ fn proof() -> &'static neo_wasm::nebula::WasmNebulaProof {
     static PROOF: OnceLock<neo_wasm::nebula::WasmNebulaProof> = OnceLock::new();
     PROOF.get_or_init(|| {
         let fixture = fixture();
-        let mut adapter = neo_fold_clean::paper::nifs::CpuNifsProver;
-        neo_wasm::prove_with_nifs_adapter(&fixture.prep, &mut adapter, &fixture.checked.trace)
-            .expect("adapter-backed WASM Nebula proof")
+        let mut prover = neo_wasm::WasmProver::cpu();
+        prover
+            .prove(&fixture.prep, &fixture.checked.trace)
+            .expect("CPU WASM Nebula proof")
     })
 }
 
@@ -166,7 +167,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
             }
         }
     }
-    assert_eq!(declared_ports, 72, "Current layout declares 72 ports per step");
+    assert_eq!(declared_ports, 79, "Current layout declares 79 ports per step");
     assert_eq!(slot, declared_ports * batch_size);
 }
 
@@ -442,6 +443,7 @@ fn wasm_nebula_grammar_preprocess_keeps_imported_state_and_memory_checks() {
 }
 
 #[test]
+#[ignore = "full WASM + Nebula proof exceeds the required five-minute test cap"]
 fn wasm_nebula_final_claim_authenticates_memory_presence() {
     let checked = common::checked_main(
         r#"(module

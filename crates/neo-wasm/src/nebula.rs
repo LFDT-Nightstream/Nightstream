@@ -477,24 +477,28 @@ pub fn build_application_segment_for_profile(
     Ok(application.trace_segment(&mut memory, assignments)?)
 }
 
+/// Prove a WASM execution with automatic CUDA, Metal, or CPU selection.
+///
+/// The proof format and verifier do not depend on the selected prover.
 pub fn prove(prep: &WasmNebulaPreprocessing, trace: &[WasmVmStep]) -> Result<WasmNebulaProof, WasmNebulaError> {
-    prove_inner(prep, trace, None)
+    crate::WasmProver::auto().prove(prep, trace)
 }
 
 /// Prove a WASM execution while routing recursive and terminal NIFS folds
 /// through `adapter`.
+#[doc(hidden)]
 pub fn prove_with_nifs_adapter(
     prep: &WasmNebulaPreprocessing,
     adapter: &mut dyn NifsProverAdapter,
     trace: &[WasmVmStep],
 ) -> Result<WasmNebulaProof, WasmNebulaError> {
-    prove_inner(prep, trace, Some(adapter))
+    prove_inner(prep, trace, adapter)
 }
 
 fn prove_inner(
     prep: &WasmNebulaPreprocessing,
     trace: &[WasmVmStep],
-    mut adapter: Option<&mut dyn NifsProverAdapter>,
+    adapter: &mut dyn NifsProverAdapter,
 ) -> Result<WasmNebulaProof, WasmNebulaError> {
     if trace.is_empty() {
         return Err(WasmNebulaError::EmptyTrace);
@@ -528,16 +532,9 @@ fn prove_inner(
             .collect::<Result<Vec<_>, _>>()?;
         debug_assert_eq!(assignments.len(), steps_per_segment);
         let segment = application.trace_segment(&mut memory, assignments)?;
-        if let Some(adapter) = adapter.as_mut() {
-            chain.append_application_segment_with_nifs_adapter(&segment, &mut **adapter)?;
-        } else {
-            chain.append_application_segment(&segment)?;
-        }
+        chain.append_application_segment_with_nifs_adapter(&segment, adapter)?;
     }
-    let proof = match adapter {
-        Some(adapter) => chain.finish_with_nifs_adapter(adapter)?,
-        None => chain.finish()?,
-    };
+    let proof = chain.finish_with_nifs_adapter(adapter)?;
     Ok(WasmNebulaProof { proof })
 }
 
@@ -895,4 +892,9 @@ pub enum WasmNebulaError {
     FinalStateMismatch,
     #[error("WASM Nebula preprocessing is missing its application relation")]
     MissingApplication,
+    #[error("WASM prover backend `{backend}` is unavailable: {reason}")]
+    ProverBackendUnavailable {
+        backend: &'static str,
+        reason: String,
+    },
 }

@@ -11,7 +11,11 @@ use neo_fold_clean::paper::nifs::{
 use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::CcsInstance;
 use neo_prover_metal::{MetalNifsProfile, MetalNifsProver};
-use neo_wasm::{WasmNebulaPreprocessing, WasmNebulaProof, WasmStepState, WasmVmStep};
+use neo_wasm::{
+    WasmApplicationModule, WasmNebulaPreprocessing, WasmNebulaProof, WasmProver, WasmStepState, WasmVmStep,
+};
+
+const PROFILE_MANIFEST: &[u8] = include_bytes!("../../neo-wasm/tests/fixtures/wasm_benchmark_42x6.module.json");
 
 const PROFILE_WAT: &str = r#"
 (module
@@ -293,7 +297,7 @@ fn wasm_nebula_two_chain_metal_throughput_proves_and_verifies() {
     let cpu_aggregate_ms = milliseconds(cpu_elapsed) * CHAINS as f64;
     let report = serde_json::json!({
         "benchmark": "wasm_nebula_two_chain_throughput",
-        "proof_pipeline": "two independent neo_wasm::prove_with_nifs_adapter calls",
+        "proof_pipeline": "two independent low-level Metal adapter proof calls",
         "chains": CHAINS,
         "cpu_single_ms": milliseconds(cpu_elapsed),
         "cpu_aggregate_ms": cpu_aggregate_ms,
@@ -318,9 +322,11 @@ fn wasm_nebula_two_chain_metal_throughput_proves_and_verifies() {
 }
 
 fn build_fixture() -> Fixture {
-    let wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
-    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let module = WasmApplicationModule::from_json_slice(PROFILE_MANIFEST).expect("Lean-owned benchmark module");
+    let independent_wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
+    assert_eq!(module.bytes(), independent_wasm);
+    let artifacts = module.artifacts();
+    let run = neo_wasm::collect_wasmtime_steps(module.bytes(), module.entrypoint(), &[]).expect("wasmtime trace");
     assert_eq!(run.results.as_slice(), &["252".to_owned()]);
     let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalized trace");
     let final_state = trace.last().expect("nonempty WASM trace").state_after;
@@ -338,7 +344,7 @@ fn build_fixture() -> Fixture {
     let prep = neo_wasm::nebula::preprocess_seeded_reduced_memory_test_only(
         test_params(),
         neo_wasm::WasmNebulaProfile::test_profile(),
-        &artifacts,
+        artifacts,
         &run.initial_locals,
         *entry_pc,
         0x57a5_b001,
@@ -352,8 +358,11 @@ fn build_fixture() -> Fixture {
 }
 
 fn prove_cpu(fixture: &Fixture) -> (WasmNebulaProof, Duration) {
+    let mut cpu = WasmProver::cpu();
     let started = Instant::now();
-    let proof = neo_wasm::prove(&fixture.prep, &fixture.trace).expect("CPU WASM + Nebula proof");
+    let proof = cpu
+        .prove(&fixture.prep, &fixture.trace)
+        .expect("CPU WASM + Nebula proof");
     let elapsed = started.elapsed();
     neo_wasm::verify(&fixture.prep, &proof, fixture.final_state).expect("verify CPU WASM + Nebula proof");
     (proof, elapsed)
@@ -368,8 +377,8 @@ fn prove_metal(fixture: &Fixture, metal: &mut MetalNifsProver) -> (WasmNebulaPro
 fn prove_metal_unverified(fixture: &Fixture, metal: &mut MetalNifsProver) -> (WasmNebulaProof, Duration) {
     prepare_metal_static(fixture, metal);
     let started = Instant::now();
-    let proof =
-        neo_wasm::prove_with_nifs_adapter(&fixture.prep, metal, &fixture.trace).expect("Metal WASM + Nebula proof");
+    let proof = neo_wasm::nebula::prove_with_nifs_adapter(&fixture.prep, metal, &fixture.trace)
+        .expect("Metal WASM + Nebula proof");
     let elapsed = started.elapsed();
     (proof, elapsed)
 }
@@ -384,7 +393,7 @@ fn prove_metal_unverified_with_profiles(
         metal,
         profiles: Vec::new(),
     };
-    let proof = neo_wasm::prove_with_nifs_adapter(&fixture.prep, &mut capture, &fixture.trace)
+    let proof = neo_wasm::nebula::prove_with_nifs_adapter(&fixture.prep, &mut capture, &fixture.trace)
         .expect("profiled Metal WASM + Nebula proof");
     let elapsed = started.elapsed();
     (proof, elapsed, capture.profiles)

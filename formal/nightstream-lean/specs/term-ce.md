@@ -20,7 +20,7 @@ sidecar data. A prover-recorded child list is never authority for itself.
 
 `non_goals`:
 
-- Soundness of a compact Spartan or terminal-CE proof.
+- Cryptographic soundness of the direct Spartan/WHIR terminal proof.
 - Probability bounds for Ajtai binding, SumCheck, Fiat-Shamir, or Poseidon2.
 - Circuit correspondence for the terminal verifier.
 
@@ -34,6 +34,8 @@ by the final Construction-2 fold.
 - `paper::decider::validate_witness`
 - `paper::decider::{prove, verify}` only for their explicit fail-closed
   `Unsupported` result
+- `frontends::r1cs_f_prime::terminal_r1cs::{finish_with_spartan,
+  verify_spartan}` for the separate bounded direct terminal proof path
 
 `circuit_or_encoding_artifacts`: Not applicable. This property concerns the
 native direct verifier over in-memory claims and witnesses. `ENC-CANON` and the
@@ -67,7 +69,11 @@ The Rust-shaped refinement and rejection theorems use `propext` and
 - Rust-shaped verifier: `sha256:5920e181bf541cef0fa9711798dbe92e5ee27528ec9323efd2bea6f4a18341ca`
 
 `conformance_status`: `rust-conformant` for the supported direct terminal CE
-verifier. The compact decider remains fail-closed and is owned by `DEC-SOUND`.
+verifier. The bounded direct terminal R1CS lifecycle is `artifact-checked`: it
+reconstructs the verifier-owned statement and passes Spartan/WHIR proving and
+verification at 32,780 rows. Its three Goldilocks sum-check members use one
+lockstep Poseidon2 transcript, but the Fiat--Shamir and WHIR security reduction
+remains owned by `DEC-SOUND`. The older compact entrypoint remains fail-closed.
 
 `retest_commands`:
 

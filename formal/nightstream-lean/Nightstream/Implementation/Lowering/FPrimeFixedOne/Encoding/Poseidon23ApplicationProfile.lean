@@ -1,4 +1,4 @@
-import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.TerminalEqualityProfile
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.DirectCalls.Footprints
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.CanonicalPoseidon2Sponge23RecipeSemantics
 import Nightstream.Implementation.Lowering.Goldilocks.NumericRowBridge
 
@@ -148,7 +148,7 @@ The two semantic equations bind the finite projections to the unchanged
 frozen machine hash.  They are serialization/refinement facts, not supplied
 acceptance conclusions. -/
 structure Poseidon23ApplicationProfile (parameters : Parameters)
-    extends TerminalEqualityProfile parameters where
+    extends DirectCalls.DirectProfile parameters where
   alignmentWidth : Nat
   hashPlan :
     Poseidon23Hash.CoordinatePlan
@@ -195,7 +195,7 @@ def family
     (parameters : Parameters)
     (profile : Poseidon23ApplicationProfile parameters) :
     Family (typeSystem parameters) :=
-  profile.toTerminalEqualityProfile.family parameters
+  profile.toDirectProfile.family parameters
 
 end Poseidon23ApplicationProfile
 

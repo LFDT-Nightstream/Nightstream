@@ -182,7 +182,7 @@ private theorem operational_priorLane_index
         (publicFits dimensions) lane).index.val := by
   simp only [ConcreteNifsCanonicalOperationalProfile.operational,
     Poseidon23ApplicationProfile.family,
-    TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+    DirectCalls.DirectProfile.family,
     Profile.family, DataCodecs.family]
   apply fView_mpr_index_val
   exact application.proofCodec_exact
@@ -333,7 +333,7 @@ theorem proof_decodes_of_rawRows
   refine ⟨proof, ?_⟩
   unfold ColumnBundle.Decodes
   simpa only [FamilyFor, Poseidon23ApplicationProfile.family,
-    TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+    DirectCalls.DirectProfile.family,
     Profile.family, DataCodecs.family,
     application.proofCodec_exact] using proofDecoded
 
@@ -434,7 +434,7 @@ theorem operands_decode_of_rawRows
         (.data .running) assignment running := by
     unfold ColumnBundle.Decodes
     simpa only [FamilyFor, Poseidon23ApplicationProfile.family,
-      TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+      DirectCalls.DirectProfile.family,
       Profile.family, DataCodecs.family,
       application.runningCodec_exact] using runningDecodedCanonical
   have freshDecoded :
@@ -444,7 +444,7 @@ theorem operands_decode_of_rawRows
         (.data .fresh) assignment fresh := by
     unfold ColumnBundle.Decodes
     simpa only [FamilyFor, Poseidon23ApplicationProfile.family,
-      TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+      DirectCalls.DirectProfile.family,
       Profile.family, DataCodecs.family,
       application.freshCodec_exact] using freshDecodedCanonical
   refine ⟨running, fresh, proof, ?_⟩

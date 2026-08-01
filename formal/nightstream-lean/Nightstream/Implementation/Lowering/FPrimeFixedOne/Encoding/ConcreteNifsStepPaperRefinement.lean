@@ -78,14 +78,14 @@ local notation "Selected" =>
     terminalRelations terminalChecks widths footprints
 
 private abbrev FamilyFor
-    (application : Poseidon23ApplicationProfile Selected) :=
-  application.family Selected
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected) :=
+  application.profile.family Selected
 
 /-- The exact recursive NIFS receipt is a member of the complete Step
 receipt list. -/
 private theorem recursiveNifs_receipt_mem
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected) (FamilyFor application) Call.step)
     (defaultRunningAdmissible :
@@ -125,8 +125,8 @@ physical Step satisfaction yields the output decoded by the exact embedded
 `nifsVerify` occurrence and either the unchanged fixed-active paper
 transition or one occurrence-bound named event. -/
 theorem recursiveNifs_refinesPaper_or_boundEvent
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected) (FamilyFor application) Call.step)
     (defaultRunningAdmissible :
@@ -271,14 +271,14 @@ theorem recursiveNifs_refinesPaper_or_boundEvent
   have selectedRows :
       Satisfies
         (ConcreteNifsActivatedProgram.rows
-          application nifs.operational plan.frame)
+          application.profile nifs.operational plan.frame)
         assignment := by
     simpa [plan, complete,
       CanonicalStepConstructionPlans.recursiveNifs,
       CanonicalStepPlan.recursiveNifsPlan] using receiptRows
   exact
     ConcreteNifsPaperRefinement.selectedNifs_refinesPaper_or_boundEvent
-      application nifs plan.frame assignment
+      application.profile nifs plan.frame assignment
       (input.running Vocabulary.Step.selected) input.fresh input.nifsProof
       constantOne activeOne operandsDecoded selectedRows
 

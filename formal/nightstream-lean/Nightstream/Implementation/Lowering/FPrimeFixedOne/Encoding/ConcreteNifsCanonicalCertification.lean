@@ -155,7 +155,7 @@ noncomputable def complete
         terminalChecks widths footprints) :
     CompleteApplicationCertification Selected :=
   ConcreteNifsCompleteApplication.complete
-    deployment.application.phase4.profile
+    deployment.application.phase4
     (nifs setup defaultRunning machine terminalRelations terminalChecks
       widths footprints deployment)
     deployment.step
@@ -168,7 +168,7 @@ noncomputable def recursiveNifs_refinesPaper_or_boundEvent
       Deployment setup defaultRunning machine terminalRelations
         terminalChecks widths footprints) :=
   ConcreteNifsStepPaperRefinement.recursiveNifs_refinesPaper_or_boundEvent
-    deployment.application.phase4.profile
+    deployment.application.phase4
     (nifs setup defaultRunning machine terminalRelations terminalChecks
       widths footprints deployment)
     deployment.step
@@ -184,7 +184,7 @@ noncomputable def manifest
         terminalChecks widths footprints) :
     ConcreteNifsRustManifest.Manifest :=
   ConcreteNifsRustManifest.manifest
-    deployment.application.phase4.profile
+    deployment.application.phase4
     (nifs setup defaultRunning machine terminalRelations terminalChecks
       widths footprints deployment)
     deployment.step
@@ -241,7 +241,7 @@ theorem manifest_stepCost_split
       value.fixedProtocolCost + value.applicationStepCost := by
   exact
     ConcreteNifsRustManifest.stepCost_eq_fixedProtocol_add_application
-      deployment.application.phase4.profile
+      deployment.application.phase4
       (nifs setup defaultRunning machine terminalRelations terminalChecks
         widths footprints deployment)
       deployment.step deployment.defaultRunningAdmissible

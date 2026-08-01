@@ -123,7 +123,9 @@ theorem SchemaBundles.get_encodes
       cases values
       exact inductionHypothesis _ _ encoded.2
 
-private theorem RefBundles.fromSchema_decodes
+/-- Decoding a complete schema also decodes any ordered reference projection
+from that schema. -/
+theorem RefBundles.fromSchema_decodes
     {types : TypeSystem.{u}}
     (family : Family types)
     (assignment : ColumnId -> Field)

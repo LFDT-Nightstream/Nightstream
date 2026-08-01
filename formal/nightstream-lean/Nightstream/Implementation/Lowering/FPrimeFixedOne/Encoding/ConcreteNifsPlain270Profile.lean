@@ -190,6 +190,12 @@ shape. The fixed-one/plain/270 use applies it to `selected ...`, which
 constructs those parameters from the protocol-owned relation above. -/
 structure Phase4Application (parameters : Parameters) where
   profile : Poseidon23ApplicationProfile parameters
+  runningCheck :
+    CallRecipe (signature parameters) (profile.family parameters)
+      Call.runningCheck
+  freshCheck :
+    CallRecipe (signature parameters) (profile.family parameters)
+      Call.freshCheck
   separating :
     Poseidon23SeparatorConformance.SeparatingPlan
       profile.codecs profile.alignmentWidth
@@ -198,29 +204,27 @@ structure Phase4Application (parameters : Parameters) where
 
 namespace Phase4Application
 
-/-- The complete four-call Phase-4 certification. Both terminal calls are
-constructed from the same proof-carrying application profile but remain
-independent calls. -/
+/-- The complete four-call Phase-4 certification. The hash profile and the
+two terminal programs are independent proof-carrying inputs. -/
 def certification
     {parameters : Parameters}
     (phase4 : Phase4Application parameters) :
     ApplicationCertification parameters :=
   ApplicationCertification.poseidon23 parameters phase4.profile
+    phase4.runningCheck phase4.freshCheck
 
 @[simp] theorem certification_runningCheck
     {parameters : Parameters}
     (phase4 : Phase4Application parameters) :
     phase4.certification.runningCheck =
-      RunningCheckRecipe.recipe parameters
-        phase4.profile.toTerminalEqualityProfile :=
+      phase4.runningCheck :=
   rfl
 
 @[simp] theorem certification_freshCheck
     {parameters : Parameters}
     (phase4 : Phase4Application parameters) :
     phase4.certification.freshCheck =
-      FreshCheckRecipe.recipe parameters
-        phase4.profile.toTerminalEqualityProfile :=
+      phase4.freshCheck :=
   rfl
 
 /-- The selected binding preimage has exactly 23 coordinates. -/
@@ -265,32 +269,17 @@ theorem terminal_calls_independent
     Call.runningCheck ≠ Call.freshCheck :=
   ApplicationCertification.terminal_calls_distinct
 
-/-- The Phase-3/4 four-call cost is the receipt-derived cost of the four
-constructed recipes. No separate cross-call equal-tail program is valid or
-included. -/
+/-- The Phase-3/4 four-call cost is the receipt-derived sum of the four
+selected call footprints. No terminal implementation is assumed here. -/
 theorem cost_exact
     {parameters : Parameters}
     (phase4 : Phase4Application parameters) :
     ApplicationCertification.phase34Cost parameters phase4.certification =
-      ⟨(2 * phase4.profile.alignmentWidth +
-            phase4.profile.alignmentWidth.pred + 2503) +
-          (2 * phase4.profile.alignmentWidth +
-            phase4.profile.alignmentWidth.pred + 2503) +
-          (2 * phase4.profile.codecs.running.width +
-            phase4.profile.codecs.running.width.pred + 1) +
-          (2 * phase4.profile.codecs.fresh.width +
-            phase4.profile.codecs.fresh.width.pred + 1),
-        0,
-        5,
-        (2 * phase4.profile.alignmentWidth +
-            phase4.profile.alignmentWidth.pred + 2499) +
-          (2 * phase4.profile.alignmentWidth +
-            phase4.profile.alignmentWidth.pred + 2494) +
-          (2 * phase4.profile.codecs.running.width +
-            phase4.profile.codecs.running.width.pred + 1) +
-          (2 * phase4.profile.codecs.fresh.width +
-            phase4.profile.codecs.fresh.width.pred + 1)⟩ :=
-  ApplicationCertification.phase34Cost_exact parameters phase4.profile
+      (signature parameters).callCost Call.hashPrior +
+        (signature parameters).callCost Call.hashNext +
+        (signature parameters).callCost Call.runningCheck +
+        (signature parameters).callCost Call.freshCheck :=
+  rfl
 
 end Phase4Application
 

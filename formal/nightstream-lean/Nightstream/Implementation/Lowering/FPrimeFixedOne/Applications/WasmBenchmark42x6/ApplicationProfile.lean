@@ -1,6 +1,8 @@
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.ApplicationData
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.StepRecipe
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsCanonicalOperationalProfile
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.RunningCheckRecipe
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.FreshCheckRecipe
 import Nightstream.Implementation.R1CS.Canonical.GoldilocksField
 
 /-!
@@ -357,38 +359,26 @@ The NIFS footprint remains an argument until the selected verifier program
 derives it for every physical frame. -/
 noncomputable def applicationProfile :
     Poseidon23ApplicationProfile BenchmarkParameters where
-  toTerminalEqualityProfile := {
-    toDirectProfile := {
-      toProfile := {
-        codecs :=
-          dataCodecs setup defaultRunning Plan
-            (widths setup)
-            (footprints
-              (dimensions := dimensions)
-              (verifierRows := verifierRows)
-              nifsFootprint)
-        widthsExact := rfl
-      }
-      fieldLaws := fieldLaws
-      inverseLaw := inverseLaw
-      freshPublicMap := freshPublicMap
-      encodeInstanceMap := encodeInstanceMap
-      iterationZeroFootprint := rfl
-      stateEqualFootprint := rfl
-      freshPublicFootprint := rfl
-      encodeInstanceFootprint := rfl
-      encodedEqualFootprint := rfl
-    }
-    runningWidthsEqual := rfl
-    freshWidthsEqual := rfl
-    runningFootprint := rfl
-    freshFootprint := rfl
-    runningCheck_exact := by
-      intro key running witness
-      rfl
-    freshCheck_exact := by
-      intro key fresh witness
-      rfl
+  toDirectProfile := {
+    toProfile := {
+      codecs :=
+        dataCodecs setup defaultRunning Plan
+          (widths setup)
+          (footprints
+            (dimensions := dimensions)
+            (verifierRows := verifierRows)
+            nifsFootprint)
+      widthsExact := rfl
+  }
+    fieldLaws := fieldLaws
+    inverseLaw := inverseLaw
+    freshPublicMap := freshPublicMap
+    encodeInstanceMap := encodeInstanceMap
+    iterationZeroFootprint := rfl
+    stateEqualFootprint := rfl
+    freshPublicFootprint := rfl
+    encodeInstanceFootprint := rfl
+    encodedEqualFootprint := rfl
   }
   alignmentWidth := 0
   hashPlan := Plan
@@ -404,11 +394,38 @@ noncomputable def applicationProfile :
     exact hashNext_encoded setup defaultRunning nifsFootprint
       iteration z0 current running
 
+/-- Equality-only terminal profile used by this benchmark fixture. It is not
+the selected SuperNeo terminal relation. -/
+noncomputable def terminalEqualityProfile :
+    TerminalEqualityProfile BenchmarkParameters where
+  toDirectProfile :=
+    (applicationProfile setup defaultRunning nifsFootprint).toDirectProfile
+  runningWidthsEqual := rfl
+  freshWidthsEqual := rfl
+  runningFootprint := rfl
+  freshFootprint := rfl
+  runningCheck_exact := by
+    intro key running witness
+    rfl
+  freshCheck_exact := by
+    intro key fresh witness
+    rfl
+
 /-- Phase-4 wrapper with the iteration slot proved to be source coordinate
 zero. -/
 noncomputable def phase4 :
     Phase4Application BenchmarkParameters where
   profile := applicationProfile setup defaultRunning nifsFootprint
+  runningCheck := by
+    simpa [Poseidon23ApplicationProfile.family,
+      TerminalEqualityProfile.family, DirectProfile.family] using
+      RunningCheckRecipe.recipe BenchmarkParameters
+        (terminalEqualityProfile setup defaultRunning nifsFootprint)
+  freshCheck := by
+    simpa [Poseidon23ApplicationProfile.family,
+      TerminalEqualityProfile.family, DirectProfile.family] using
+      FreshCheckRecipe.recipe BenchmarkParameters
+        (terminalEqualityProfile setup defaultRunning nifsFootprint)
   separating := {
     plan := Plan
     slotZero := rfl
@@ -421,7 +438,7 @@ noncomputable def stepProfile :
     StepProfile BenchmarkParameters where
   toProfile :=
     (applicationProfile setup defaultRunning nifsFootprint
-      ).toTerminalEqualityProfile.toDirectProfile.toProfile
+      ).toDirectProfile.toProfile
   stateEquiv := {
     toBenchmark := fun state => state
     fromBenchmark := fun state => state

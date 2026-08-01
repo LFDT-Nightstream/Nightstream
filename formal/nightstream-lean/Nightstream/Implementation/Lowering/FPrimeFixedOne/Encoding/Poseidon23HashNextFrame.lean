@@ -102,7 +102,7 @@ private theorem iteration_width_one
     iteration.port.layout.owners.length = 1 := by
   have width := frame.operandWidthsAgree.1
   simpa [Poseidon23ApplicationProfile.family,
-    TerminalEqualityProfile.family, Profile.family, DataCodecs.family,
+    DirectProfile.family, Profile.family, DataCodecs.family,
     Family.codecFor] using width.symm
 
 private def iterationColumn
@@ -161,17 +161,17 @@ private theorem sourceTail_length
   have z0Exact :
       z0.port.layout.owners.length = profile.codecs.state.width := by
     simpa [Poseidon23ApplicationProfile.family,
-      TerminalEqualityProfile.family, Profile.family, DataCodecs.family,
+      DirectProfile.family, Profile.family, DataCodecs.family,
       Family.codecFor] using z0Width.symm
   have currentExact :
       current.port.layout.owners.length = profile.codecs.state.width := by
     simpa [Poseidon23ApplicationProfile.family,
-      TerminalEqualityProfile.family, Profile.family, DataCodecs.family,
+      DirectProfile.family, Profile.family, DataCodecs.family,
       Family.codecFor] using currentWidth.symm
   have runningExact :
       running.port.layout.owners.length = profile.codecs.running.width := by
     simpa [Poseidon23ApplicationProfile.family,
-      TerminalEqualityProfile.family, Profile.family, DataCodecs.family,
+      DirectProfile.family, Profile.family, DataCodecs.family,
       Family.codecFor] using runningWidth.symm
   unfold sourceTail Poseidon23Hash.sourceWidth
   rw [List.length_append, List.length_append,
@@ -220,7 +220,7 @@ private theorem output_length
         profile.codecs.digest.width := by
     unfold PortWidthAgrees at width
     simpa [Poseidon23ApplicationProfile.family,
-      TerminalEqualityProfile.family, Profile.family, DataCodecs.family,
+      DirectProfile.family, Profile.family, DataCodecs.family,
       Family.codecFor] using width.symm
   rw [ColumnBundle.length_eq, exact, profile.digestWidth]
 

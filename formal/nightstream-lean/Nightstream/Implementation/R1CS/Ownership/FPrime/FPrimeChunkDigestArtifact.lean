@@ -4,6 +4,7 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrime.Generated.FPrimeChunkDig
 import Nightstream.Implementation.R1CS.Artifacts.FPrime.Generated.FPrimeChunkDigestDefinitions3
 import Nightstream.Implementation.R1CS.Artifacts.FPrime.Generated.FPrimeChunkDigestDefinitions4
 import Nightstream.Implementation.R1CS.Artifacts.FPrime.Generated.FPrimeChunkDigestDefinitions5
+import Nightstream.Implementation.R1CS.Artifacts.FPrime.Generated.FPrimeChunkDigestDefinitions6
 
 /-! Exact sharded SSA artifact for the production F' chunk-shape digest. -/
 
@@ -17,15 +18,15 @@ set_option maxRecDepth 262144
 def schemaVersion : Nat := 1
 def artifactKind : String := "r1cs/f-prime-chunk-shape-digest"
 def sourceAnchor : String := "enforce_f_prime_chunk_public_digest_circuit"
-def artifactSha256 : String := "cb9587540e95fe4cef093a9bfbe9957281a37144978cc4625ba69bd512a17b7b"
-def witnessSha256 : String := "f273609f24aedadfc97ced41aa4d4c47e29ba7d52f0bb273d850508dad6b9a8f"
+def artifactSha256 : String := "ba805f614665abd53dbc25416b067db62ee1efecc2691a773c2b57446a9da3da"
+def witnessSha256 : String := "0a823e9eaaf616899b7f376c3cf9122fb1f39fb76411d4c8da61fec5f17e28e4"
 
 def inputColumns : List Nat := [0, 1]
 def claimedColumns : List Nat := [2, 3, 4, 5]
-def computedColumns : List Nat := [6655, 6656, 6657, 6658]
-def bindingRowStart : Nat := 6657
-def fullRowCount : Nat := 6661
-def fullColCount : Nat := 6663
+def computedColumns : List Nat := [7261, 7262, 7263, 7264]
+def bindingRowStart : Nat := 7263
+def fullRowCount : Nat := 7267
+def fullColCount : Nat := 7269
 
 def definitions : List Definition :=
     Generated.definitions0 ++
@@ -33,7 +34,8 @@ def definitions : List Definition :=
     Generated.definitions2 ++
     Generated.definitions3 ++
     Generated.definitions4 ++
-    Generated.definitions5
+    Generated.definitions5 ++
+    Generated.definitions6
 
 def rows : List Row := definitions.map Definition.builderRow
 

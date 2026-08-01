@@ -59,6 +59,12 @@ codec's honest domain because the base branch materializes it without prover
 advice. -/
 structure CompleteApplicationCertification (parameters : Parameters) where
   profile : Poseidon23ApplicationProfile parameters
+  runningCheck :
+    CallRecipe (signature parameters)
+      (profile.family parameters) Call.runningCheck
+  freshCheck :
+    CallRecipe (signature parameters)
+      (profile.family parameters) Call.freshCheck
   phase5 : Phase5CallCertification parameters profile
   defaultRunningAdmissible :
     ((profile.family parameters).codecFor (.data .running)).Admissible
@@ -70,7 +76,7 @@ def directProfile
     {parameters : Parameters}
     (certificate : CompleteApplicationCertification parameters) :
     DirectCalls.DirectProfile parameters :=
-  certificate.profile.toTerminalEqualityProfile.toDirectProfile
+  certificate.profile.toDirectProfile
 
 def baseProfile
     {parameters : Parameters}
@@ -83,6 +89,7 @@ def phase34
     (certificate : CompleteApplicationCertification parameters) :
     ApplicationCertification parameters :=
   ApplicationCertification.poseidon23 parameters certificate.profile
+    certificate.runningCheck certificate.freshCheck
 
 /-- The exact six-call remainder consumed by `DirectCalls.allRecipes`. -/
 def remainingRecipes

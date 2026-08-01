@@ -1,6 +1,5 @@
-import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.CanonicalStepPlan
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.CanonicalStepEvidence
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.PrimitiveRefinement
-import Nightstream.Implementation.Lowering.Goldilocks.ReceiptSatisfaction
 
 /-!
 Contract: artifact-independent row soundness for the selected canonical
@@ -29,20 +28,6 @@ open Nightstream.Implementation.Lowering.FPrimeFixedOne.Vocabulary
 
 namespace CanonicalStepSoundness
 
-def encoding
-    (parameters : Parameters)
-    (profile : Profile parameters)
-    (recipes :
-      CallRecipes (signature parameters) (profile.family parameters))
-    (defaultAdmissible :
-      (profile.family parameters).codecFor (.data .running) |>.Admissible
-        (defaultRunning parameters)) :
-    Goldilocks.Encoding
-      (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.program
-        parameters) :=
-  (CanonicalStepPlan.physical
-    parameters profile recipes defaultAdmissible).toEncoding
-
 private theorem receiptRows
     (parameters : Parameters)
     (profile : Profile parameters)
@@ -52,19 +37,16 @@ private theorem receiptRows
       (profile.family parameters).codecFor (.data .running) |>.Admissible
         (defaultRunning parameters))
     (assignment : ColumnId -> Field)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     (receipt : InstructionReceipt)
     (member :
       receipt ∈
         CanonicalStepPlan.receipts
-          parameters profile recipes defaultAdmissible) :
+          parameters profile recipes defaultAdmissible)
+    (notRecursive : receipt.owner ≠ recursiveNifsOwner) :
     Satisfies receipt.rows assignment := by
-  apply
-    (encoding parameters profile recipes defaultAdmissible
-      ).receiptSatisfies assignment physical receipt
-  simpa [encoding, CanonicalStepPlan.physical] using member
+  exact evidence.ordinaryRows receipt member notRecursive
 
 private theorem bodyReceiptMember
     (parameters : Parameters)
@@ -95,9 +77,8 @@ private theorem planRows
       (profile.family parameters).codecFor (.data .running) |>.Admissible
         (defaultRunning parameters))
     (assignment : ColumnId -> Field)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     {input output : Schema (typeSystem parameters)}
     {primitive : Primitive (signature parameters) input output}
     {path : OwnerPath}
@@ -109,10 +90,14 @@ private theorem planRows
     (member :
       plan.receipt ∈
         CanonicalStepPlan.receipts
-          parameters profile recipes defaultAdmissible) :
+          parameters profile recipes defaultAdmissible)
+    (notRecursive : path ≠ SourceOwners.stepRecursiveNifsPath) :
     Satisfies plan.receipt.rows assignment := by
   exact receiptRows parameters profile recipes defaultAdmissible
-    assignment physical plan.receipt member
+    assignment evidence plan.receipt member
+      (by
+        rw [PrimitivePlan.receipt_owner]
+        simpa [recursiveNifsOwner] using notRecursive)
 
 private theorem bodyPlanRows
     (parameters : Parameters)
@@ -123,9 +108,8 @@ private theorem bodyPlanRows
       (profile.family parameters).codecFor (.data .running) |>.Admissible
         (defaultRunning parameters))
     (assignment : ColumnId -> Field)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     {input output : Schema (typeSystem parameters)}
     {primitive : Primitive (signature parameters) input output}
     {path : OwnerPath}
@@ -137,12 +121,14 @@ private theorem bodyPlanRows
     (member :
       plan.receipt ∈
         CanonicalStepPlan.bodyReceipts
-          parameters profile recipes defaultAdmissible) :
+          parameters profile recipes defaultAdmissible)
+    (notRecursive : path ≠ SourceOwners.stepRecursiveNifsPath) :
     Satisfies plan.receipt.rows assignment := by
   apply planRows parameters profile recipes defaultAdmissible
-    assignment physical plan
+    assignment evidence plan
   exact bodyReceiptMember parameters profile recipes defaultAdmissible
     plan.receipt member
+  exact notRecursive
 
 theorem decodedBitReference
     (parameters : Parameters)
@@ -212,7 +198,7 @@ private theorem decodedOfExactExecution
 
 /-- The two unconditional prefix calls of every satisfying Step assignment
 decode to the exact typed common branch context. -/
-theorem commonDecoded
+private theorem commonDecodedFromEvidence
     (parameters : Parameters)
     (profile : Profile parameters)
     (recipes :
@@ -226,9 +212,8 @@ theorem commonDecoded
       Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Canonical.Input
         parameters.State parameters.Witness parameters.Running
         parameters.Fresh parameters.NifsProof)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     (inputDecoded :
       Columns.Decodes (profile.family parameters)
         (CanonicalContexts.Step.input parameters) assignment
@@ -240,15 +225,15 @@ theorem commonDecoded
   let applyPlan := CanonicalStepPlan.applyPlan parameters profile recipes
   have applyRows : Satisfies applyPlan.receipt.rows assignment :=
     planRows parameters profile recipes defaultAdmissible assignment
-      physical applyPlan (by
+      evidence applyPlan (by
         rw [CanonicalStepPlan.receipts]
         apply List.mem_cons_of_mem
         apply List.mem_append_right
         rw [CanonicalStepPlan.bodyReceipts]
-        exact List.mem_cons_self)
+        exact List.mem_cons_self) (by decide)
   have afterStepDecoded :=
     decodedOfExactExecution applyPlan laws assignment
-      physical.1 physical.1
+      evidence.constantOne evidence.constantOne
       (stepInputValues parameters input)
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterStepValues
         parameters input)
@@ -267,15 +252,15 @@ theorem commonDecoded
     CanonicalStepPlan.selectorPlan parameters profile recipes
   have selectorRows : Satisfies selectorPlan.receipt.rows assignment :=
     planRows parameters profile recipes defaultAdmissible assignment
-      physical selectorPlan (by
+      evidence selectorPlan (by
         rw [CanonicalStepPlan.receipts]
         apply List.mem_cons_of_mem
         apply List.mem_append_right
         rw [CanonicalStepPlan.bodyReceipts]
-        exact List.mem_cons_of_mem _ List.mem_cons_self)
+        exact List.mem_cons_of_mem _ List.mem_cons_self) (by decide)
   have common :=
     decodedOfExactExecution selectorPlan laws assignment
-      physical.1 physical.1
+      evidence.constantOne evidence.constantOne
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterStepValues
         parameters input)
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.commonValues
@@ -289,6 +274,117 @@ theorem commonDecoded
 /-- The receipt-owned activation rows derive both arm activations from the
 internally computed selector; neither activation is a prover-selected branch
 premise. -/
+private theorem branchControlsFromEvidence
+    (parameters : Parameters)
+    (profile : Profile parameters)
+    (recipes :
+      CallRecipes (signature parameters) (profile.family parameters))
+    (defaultAdmissible :
+      (profile.family parameters).codecFor (.data .running) |>.Admissible
+        (defaultRunning parameters))
+    (laws : FieldLaws)
+    (assignment : ColumnId -> Field)
+    (input :
+      Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Canonical.Input
+        parameters.State parameters.Witness parameters.Running
+        parameters.Fresh parameters.NifsProof)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
+    (inputDecoded :
+      Columns.Decodes (profile.family parameters)
+        (CanonicalContexts.Step.input parameters) assignment
+        (stepInputValues parameters input)) :
+    boolCodec.decode
+        [assignment (CanonicalContexts.Step.selector parameters profile)] =
+        some (decide (input.iteration = 0)) ∧
+      assignment
+          (activationColumn SourceOwners.stepBranchPath true) =
+        (if input.iteration = 0 then 1 else 0) ∧
+      assignment
+          (activationColumn SourceOwners.stepBranchPath false) =
+        (if input.iteration = 0 then 0 else 1) := by
+  have common :=
+    commonDecodedFromEvidence parameters profile recipes defaultAdmissible laws
+      assignment input evidence inputDecoded
+  have selectorDecoded :
+      boolCodec.decode
+          [assignment (CanonicalContexts.Step.selector parameters profile)] =
+        some (decide (input.iteration = 0)) := by
+    simpa [CanonicalContexts.Step.selector,
+      Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.commonValues,
+      Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.commonValuesWith]
+      using
+        decodedBitReference parameters profile assignment
+          (CanonicalContexts.Step.common parameters)
+          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.commonValues
+            parameters input)
+          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.CommonRefs.iterationZero
+            parameters)
+          (CanonicalContexts.Step.commonWidths parameters profile)
+          common
+  let activation :=
+    CanonicalBranchPlan.activationRecipe
+      SourceOwners.stepBranchPath oneColumn oneColumn
+      (CanonicalContexts.Step.selector parameters profile)
+  have trueRows :
+      Satisfies
+        (CanonicalBranchPlan.trueActivationReceipt
+          SourceOwners.stepBranchPath oneColumn oneColumn
+          (CanonicalContexts.Step.selector parameters profile)).rows
+        assignment := by
+    apply receiptRows parameters profile recipes defaultAdmissible
+      assignment evidence
+    apply bodyReceiptMember parameters profile recipes defaultAdmissible
+    rw [CanonicalStepPlan.bodyReceipts]
+    exact
+      List.mem_cons_of_mem _
+        (List.mem_cons_of_mem _ List.mem_cons_self)
+    simp [recursiveNifsOwner]
+  have falseRows :
+      Satisfies
+        (CanonicalBranchPlan.falseActivationReceipt
+          SourceOwners.stepBranchPath oneColumn oneColumn
+          (CanonicalContexts.Step.selector parameters profile)).rows
+        assignment := by
+    apply receiptRows parameters profile recipes defaultAdmissible
+      assignment evidence
+    apply bodyReceiptMember parameters profile recipes defaultAdmissible
+    rw [CanonicalStepPlan.bodyReceipts]
+    exact
+      List.mem_cons_of_mem _
+        (List.mem_cons_of_mem _
+          (List.mem_cons_of_mem _ List.mem_cons_self))
+    simp [recursiveNifsOwner]
+  have activationRows : Satisfies activation.rows assignment := by
+    rw [← CanonicalBranchPlan.activation_rows_conserved]
+    exact
+      (satisfies_append_iff _ _ assignment).2
+        ⟨trueRows, falseRows⟩
+  have parentActive : assignment activation.active = 1 := by
+    simpa [activation] using evidence.constantOne
+  constructor
+  · exact selectorDecoded
+  · by_cases iterationZero : input.iteration = 0
+    · have selectedTrue :
+          boolCodec.decode [assignment activation.selector] = some true := by
+        simpa [activation, iterationZero] using selectorDecoded
+      have selected :=
+        activation.selected_true_sound assignment evidence.constantOne
+          selectedTrue activationRows
+      constructor
+      · simpa [activation, iterationZero] using selected.1.trans parentActive
+      · simpa [activation, iterationZero] using selected.2
+    · have selectedFalse :
+          boolCodec.decode [assignment activation.selector] = some false := by
+        simpa [activation, iterationZero] using selectorDecoded
+      have selected :=
+        activation.selected_false_sound assignment evidence.constantOne
+          selectedFalse activationRows
+      constructor
+      · simpa [activation, iterationZero] using selected.1
+      · simpa [activation, iterationZero] using selected.2.trans parentActive
+
+/-- Compatibility projection for the legacy all-R1CS physical encoding. -/
 theorem branchControls
     (parameters : Parameters)
     (profile : Profile parameters)
@@ -319,84 +415,12 @@ theorem branchControls
       assignment
           (activationColumn SourceOwners.stepBranchPath false) =
         (if input.iteration = 0 then 0 else 1) := by
-  have common :=
-    commonDecoded parameters profile recipes defaultAdmissible laws
-      assignment input physical inputDecoded
-  have selectorDecoded :
-      boolCodec.decode
-          [assignment (CanonicalContexts.Step.selector parameters profile)] =
-        some (decide (input.iteration = 0)) := by
-    simpa [CanonicalContexts.Step.selector,
-      Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.commonValues,
-      Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.commonValuesWith]
-      using
-        decodedBitReference parameters profile assignment
-          (CanonicalContexts.Step.common parameters)
-          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.commonValues
-            parameters input)
-          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.CommonRefs.iterationZero
-            parameters)
-          (CanonicalContexts.Step.commonWidths parameters profile)
-          common
-  let activation :=
-    CanonicalBranchPlan.activationRecipe
-      SourceOwners.stepBranchPath oneColumn oneColumn
-      (CanonicalContexts.Step.selector parameters profile)
-  have trueRows :
-      Satisfies
-        (CanonicalBranchPlan.trueActivationReceipt
-          SourceOwners.stepBranchPath oneColumn oneColumn
-          (CanonicalContexts.Step.selector parameters profile)).rows
-        assignment := by
-    apply receiptRows parameters profile recipes defaultAdmissible
-      assignment physical
-    apply bodyReceiptMember parameters profile recipes defaultAdmissible
-    rw [CanonicalStepPlan.bodyReceipts]
-    exact
-      List.mem_cons_of_mem _
-        (List.mem_cons_of_mem _ List.mem_cons_self)
-  have falseRows :
-      Satisfies
-        (CanonicalBranchPlan.falseActivationReceipt
-          SourceOwners.stepBranchPath oneColumn oneColumn
-          (CanonicalContexts.Step.selector parameters profile)).rows
-        assignment := by
-    apply receiptRows parameters profile recipes defaultAdmissible
-      assignment physical
-    apply bodyReceiptMember parameters profile recipes defaultAdmissible
-    rw [CanonicalStepPlan.bodyReceipts]
-    exact
-      List.mem_cons_of_mem _
-        (List.mem_cons_of_mem _
-          (List.mem_cons_of_mem _ List.mem_cons_self))
-  have activationRows : Satisfies activation.rows assignment := by
-    rw [← CanonicalBranchPlan.activation_rows_conserved]
-    exact
-      (satisfies_append_iff _ _ assignment).2
-        ⟨trueRows, falseRows⟩
-  have parentActive : assignment activation.active = 1 := by
-    simpa [activation] using physical.1
-  constructor
-  · exact selectorDecoded
-  · by_cases iterationZero : input.iteration = 0
-    · have selectedTrue :
-          boolCodec.decode [assignment activation.selector] = some true := by
-        simpa [activation, iterationZero] using selectorDecoded
-      have selected :=
-        activation.selected_true_sound assignment physical.1
-          selectedTrue activationRows
-      constructor
-      · simpa [activation, iterationZero] using selected.1.trans parentActive
-      · simpa [activation, iterationZero] using selected.2
-    · have selectedFalse :
-          boolCodec.decode [assignment activation.selector] = some false := by
-        simpa [activation, iterationZero] using selectorDecoded
-      have selected :=
-        activation.selected_false_sound assignment physical.1
-          selectedFalse activationRows
-      constructor
-      · simpa [activation, iterationZero] using selected.1
-      · simpa [activation, iterationZero] using selected.2.trans parentActive
+  exact
+    branchControlsFromEvidence
+      parameters profile recipes defaultAdmissible laws assignment input
+      (evidenceOfPhysical parameters profile recipes defaultAdmissible
+        assignment physical)
+      inputDecoded
 
 private theorem baseInitial
     (parameters : Parameters)
@@ -412,9 +436,8 @@ private theorem baseInitial
       Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Canonical.Input
         parameters.State parameters.Witness parameters.Running
         parameters.Fresh parameters.NifsProof)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     (inputDecoded :
       Columns.Decodes (profile.family parameters)
         (CanonicalContexts.Step.input parameters) assignment
@@ -425,11 +448,12 @@ private theorem baseInitial
         (profile.family parameters) (.data .running) assignment
         (defaultRunning parameters) := by
   have common :=
-    commonDecoded parameters profile recipes defaultAdmissible laws
-      assignment input physical inputDecoded
+    commonDecodedFromEvidence parameters profile recipes defaultAdmissible laws
+      assignment input evidence inputDecoded
   have controls :=
-    branchControls parameters profile recipes defaultAdmissible laws
-      assignment input physical inputDecoded
+    branchControlsFromEvidence
+      parameters profile recipes defaultAdmissible laws
+      assignment input evidence inputDecoded
   have activeTrue :
       assignment
           (activationColumn SourceOwners.stepBranchPath true) = 1 := by
@@ -438,17 +462,17 @@ private theorem baseInitial
     CanonicalStepPlan.baseEqualityPlan parameters profile recipes
   have equalityRows : Satisfies equalityPlan.receipt.rows assignment :=
     bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical equalityPlan (by
+      assignment evidence equalityPlan (by
         dsimp [equalityPlan]
         rw [CanonicalStepPlan.bodyReceipts]
         exact
           List.mem_cons_of_mem _
             (List.mem_cons_of_mem _
               (List.mem_cons_of_mem _
-                (List.mem_cons_of_mem _ List.mem_cons_self))))
+                (List.mem_cons_of_mem _ List.mem_cons_self)))) (by decide)
   have afterEquality :=
     decodedOfExactExecution equalityPlan laws assignment
-      physical.1 activeTrue
+      evidence.constantOne activeTrue
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.commonValues
         parameters input)
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterBaseEqualityValues
@@ -468,7 +492,7 @@ private theorem baseInitial
     CanonicalStepPlan.baseAssertionPlan parameters profile
   have assertionRows : Satisfies assertionPlan.receipt.rows assignment :=
     bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical assertionPlan (by
+      assignment evidence assertionPlan (by
         dsimp [assertionPlan]
         rw [CanonicalStepPlan.bodyReceipts]
         exact
@@ -476,8 +500,8 @@ private theorem baseInitial
             (List.mem_cons_of_mem _
               (List.mem_cons_of_mem _
                 (List.mem_cons_of_mem _
-                  (List.mem_cons_of_mem _ List.mem_cons_self)))))
-  rcases assertionPlan.activeSound laws assignment physical.1 activeTrue
+                  (List.mem_cons_of_mem _ List.mem_cons_self))))) (by decide)
+  rcases assertionPlan.activeSound laws assignment evidence.constantOne activeTrue
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterBaseEqualityValues
         parameters input)
       afterEquality' assertionRows with
@@ -491,7 +515,7 @@ private theorem baseInitial
       parameters profile defaultAdmissible
   have literalRows : Satisfies literalPlan.receipt.rows assignment :=
     bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical literalPlan (by
+      assignment evidence literalPlan (by
         dsimp [literalPlan]
         rw [CanonicalStepPlan.bodyReceipts]
         right
@@ -500,10 +524,10 @@ private theorem baseInitial
         right
         right
         right
-        exact List.mem_cons_self)
+        exact List.mem_cons_self) (by decide)
   have afterLiteral :=
     decodedOfExactExecution literalPlan laws assignment
-      physical.1 activeTrue
+      evidence.constantOne activeTrue
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterBaseEqualityValues
         parameters input)
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterBaseLiteralValues
@@ -547,9 +571,8 @@ private theorem recursiveAccepted
       Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Canonical.Input
         parameters.State parameters.Witness parameters.Running
         parameters.Fresh parameters.NifsProof)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     (inputDecoded :
       Columns.Decodes (profile.family parameters)
         (CanonicalContexts.Step.input parameters) assignment
@@ -570,11 +593,12 @@ private theorem recursiveAccepted
             parameters).toColumnBundle.Decodes
           (profile.family parameters) (.data .running) assignment folded := by
   have common :=
-    commonDecoded parameters profile recipes defaultAdmissible laws
-      assignment input physical inputDecoded
+    commonDecodedFromEvidence parameters profile recipes defaultAdmissible laws
+      assignment input evidence inputDecoded
   have controls :=
-    branchControls parameters profile recipes defaultAdmissible laws
-      assignment input physical inputDecoded
+    branchControlsFromEvidence
+      parameters profile recipes defaultAdmissible laws
+      assignment input evidence inputDecoded
   have activeFalse :
       assignment
           (activationColumn SourceOwners.stepBranchPath false) = 1 := by
@@ -583,7 +607,7 @@ private theorem recursiveAccepted
     CanonicalStepPlan.recursiveHashPlan parameters profile recipes
   have hashRows : Satisfies hashPlan.receipt.rows assignment :=
     bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical hashPlan (by
+      assignment evidence hashPlan (by
         dsimp [hashPlan]
         rw [CanonicalStepPlan.bodyReceipts]
         right
@@ -593,10 +617,10 @@ private theorem recursiveAccepted
         right
         right
         right
-        exact List.mem_cons_self)
+        exact List.mem_cons_self) (by decide)
   have afterHash :=
     decodedOfExactExecution hashPlan laws assignment
-      physical.1 activeFalse
+      evidence.constantOne activeFalse
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.commonValues
         parameters input)
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterHashValues
@@ -616,7 +640,7 @@ private theorem recursiveAccepted
     CanonicalStepPlan.recursiveFreshPublicPlan parameters profile recipes
   have freshRows : Satisfies freshPlan.receipt.rows assignment :=
     bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical freshPlan (by
+      assignment evidence freshPlan (by
         dsimp [freshPlan]
         rw [CanonicalStepPlan.bodyReceipts]
         right
@@ -627,10 +651,10 @@ private theorem recursiveAccepted
         right
         right
         right
-        exact List.mem_cons_self)
+        exact List.mem_cons_self) (by decide)
   have afterFresh :=
     decodedOfExactExecution freshPlan laws assignment
-      physical.1 activeFalse
+      evidence.constantOne activeFalse
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterHashValues
         parameters input)
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterFreshPublicValues
@@ -650,7 +674,7 @@ private theorem recursiveAccepted
     CanonicalStepPlan.recursiveEncodePlan parameters profile recipes
   have encodeRows : Satisfies encodePlan.receipt.rows assignment :=
     bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical encodePlan (by
+      assignment evidence encodePlan (by
         dsimp [encodePlan]
         rw [CanonicalStepPlan.bodyReceipts]
         right
@@ -662,10 +686,10 @@ private theorem recursiveAccepted
         right
         right
         right
-        exact List.mem_cons_self)
+        exact List.mem_cons_self) (by decide)
   have afterEncode :=
     decodedOfExactExecution encodePlan laws assignment
-      physical.1 activeFalse
+      evidence.constantOne activeFalse
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterFreshPublicValues
         parameters input)
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterEncodeValues
@@ -686,7 +710,7 @@ private theorem recursiveAccepted
       parameters profile recipes
   have equalityRows : Satisfies equalityPlan.receipt.rows assignment :=
     bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical equalityPlan (by
+      assignment evidence equalityPlan (by
         dsimp [equalityPlan]
         rw [CanonicalStepPlan.bodyReceipts]
         right
@@ -699,10 +723,10 @@ private theorem recursiveAccepted
         right
         right
         right
-        exact List.mem_cons_self)
+        exact List.mem_cons_self) (by decide)
   have afterEquality :=
     decodedOfExactExecution equalityPlan laws assignment
-      physical.1 activeFalse
+      evidence.constantOne activeFalse
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterEncodeValues
         parameters input)
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterEncodedEqualityValues
@@ -723,7 +747,7 @@ private theorem recursiveAccepted
     CanonicalStepPlan.recursiveAssertionPlan parameters profile
   have assertionRows : Satisfies assertionPlan.receipt.rows assignment :=
     bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical assertionPlan (by
+      assignment evidence assertionPlan (by
         dsimp [assertionPlan]
         rw [CanonicalStepPlan.bodyReceipts]
         right
@@ -737,8 +761,8 @@ private theorem recursiveAccepted
         right
         right
         right
-        exact List.mem_cons_self)
-  rcases assertionPlan.activeSound laws assignment physical.1 activeFalse
+        exact List.mem_cons_self) (by decide)
+  rcases assertionPlan.activeSound laws assignment evidence.constantOne activeFalse
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterEncodedEqualityValues
         parameters input)
       afterEquality' assertionRows with
@@ -756,75 +780,103 @@ private theorem recursiveAccepted
   have priorPublic :=
     (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.priorLinkAccepted_eq_true_iff
       parameters input).mp priorLinkTrue
-  let nifsPlan :=
-    CanonicalStepPlan.recursiveNifsPlan parameters profile recipes
-  have nifsRows : Satisfies nifsPlan.receipt.rows assignment :=
-    bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical nifsPlan (by
-        dsimp [nifsPlan]
-        rw [CanonicalStepPlan.bodyReceipts]
-        right
-        right
-        right
-        right
-        right
-        right
-        right
-        right
-        right
-        right
-        right
-        right
-        exact List.mem_cons_self)
-  rcases nifsPlan.activeSound laws assignment physical.1 activeFalse
+  let invokePlan :=
+    CanonicalStepPlan.recursiveNifsInvokePlan
+      parameters profile recipes
+  let nifsInputs :=
+    (Refs.cons
+      (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.running
+        parameters)
+      (Refs.cons
+        (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.fresh
+          parameters)
+        (Refs.cons
+          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.nifsProof
+            parameters)
+          Refs.nil))).get
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterEncodedEqualityValues
         parameters input)
-      afterEquality' nifsRows with
-    ⟨nifsResult, nifsSemantic, nifsDecoded⟩
-  have nifsExecuted :=
-    (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.nifsVerifyCall
-      parameters).complete
-      (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterEncodedEqualityValues
-        parameters input)
-      nifsResult nifsSemantic
-  rw [Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.nifsVerifyCall_exec
-    parameters input] at nifsExecuted
+  have operandsDecoded :
+      invokePlan.frame.operands.Decodes
+        (profile.family parameters) assignment nifsInputs := by
+    rw [CallFrame.operands, invokePlan.contextExact]
+    exact
+      RefBundles.fromSchema_decodes
+        (profile.family parameters) assignment
+        (Refs.cons
+          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.running
+            parameters)
+          (Refs.cons
+            (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.fresh
+              parameters)
+            (Refs.cons
+              (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.nifsProof
+                parameters)
+              Refs.nil)))
+        (CanonicalContexts.Step.afterEncodedEquality
+          parameters).toSchemaBundles
+        (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterEncodedEqualityValues
+          parameters input)
+        afterEquality'
+  have frameOne : assignment invokePlan.frame.one = 1 := by
+    rw [invokePlan.oneExact]
+    exact evidence.constantOne
+  have frameActive : assignment invokePlan.frame.active = 1 := by
+    rw [invokePlan.activeExact]
+    exact activeFalse
+  rcases evidence.recursiveNifs nifsInputs frameOne frameActive operandsDecoded with
+    ⟨nifsOutputs, nifsEvaluated, nifsOutputsDecoded⟩
+  have nifsEvaluated' :
+      callEval parameters Call.nifsVerify
+          ((Refs.cons
+            (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.running
+              parameters)
+            (Refs.cons
+              (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.fresh
+                parameters)
+              (Refs.cons
+                (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.RecursiveRefs.nifsProof
+                  parameters)
+                Refs.nil))).get
+            (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterEncodedEqualityValues
+              parameters input)) =
+        some nifsOutputs := by
+    simpa [nifsInputs, signature] using nifsEvaluated
+  rw [Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.nifsCallEval
+    parameters input] at nifsEvaluated'
   cases verifierResult :
       parameters.setup.nifs.verify
         (parameters.setup.verifierKeys Vocabulary.Step.selected)
         (input.running Vocabulary.Step.selected)
         input.fresh input.nifsProof with
   | none =>
-      rw [verifierResult] at nifsExecuted
+      rw [verifierResult] at nifsEvaluated'
       contradiction
   | some folded =>
-      rw [verifierResult] at nifsExecuted
-      have resultExact :
-          nifsResult =
-            Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterNifsValues
-              parameters input folded :=
-        Option.some.inj nifsExecuted.symm
-      subst nifsResult
-      have afterNifs' :
-          Columns.Decodes (profile.family parameters)
-            (CanonicalContexts.Step.afterNifs parameters) assignment
-            (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterNifsValues
-              parameters input folded) := by
-        simpa [nifsPlan, CanonicalStepPlan.recursiveNifsPlan,
-          PrimitivePlan.resultColumns,
-          CanonicalContexts.Step.afterNifs] using nifsDecoded
-      have runningDecoded :=
-        SchemaBundles.get_decodes
-          (profile.family parameters) assignment
-          (.here (Ports.committedRunning parameters))
-          (CanonicalContexts.Step.afterNifs parameters).toSchemaBundles
-          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterNifsValues
-            parameters input folded)
-          afterNifs'
+      rw [verifierResult] at nifsEvaluated'
+      have outputsExact :
+          nifsOutputs = .cons folded .nil :=
+        Option.some.inj nifsEvaluated'.symm
+      subst nifsOutputs
+      have canonicalOutputsDecoded :
+          (instructionColumns SourceOwners.stepRecursiveNifsPath
+              [(Ports.committedRunning parameters)]).toSchemaBundles.Decodes
+            (profile.family parameters) assignment (.cons folded .nil) := by
+        have decoded := nifsOutputsDecoded
+        change
+          invokePlan.frame.outputs.Decodes
+            (profile.family parameters) assignment (.cons folded .nil) at decoded
+        rw [invokePlan.outputsExact] at decoded
+        exact decoded
+      have runningDecoded :
+          (CanonicalContexts.Step.recursiveRunning
+              parameters).toColumnBundle.Decodes
+            (profile.family parameters) (.data .running)
+            assignment folded := by
+        simpa [CanonicalContexts.Step.recursiveRunning,
+          Columns.toSchemaBundles_get] using canonicalOutputsDecoded.1
       refine ⟨folded, priorPublic, rfl, ?_⟩
-      simpa [CanonicalContexts.Step.recursiveRunning,
-        CanonicalContexts.Step.afterNifs,
-        Columns.toSchemaBundles_get] using runningDecoded
+      exact runningDecoded
 
 private theorem joinRows
     (parameters : Parameters)
@@ -835,9 +887,8 @@ private theorem joinRows
       (profile.family parameters).codecFor (.data .running) |>.Admissible
         (defaultRunning parameters))
     (assignment : ColumnId -> Field)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment) :
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment) :
     Satisfies
       (CanonicalBranchPlan.onePortJoinRecipe
         SourceOwners.stepBranchPath
@@ -856,7 +907,7 @@ private theorem joinRows
           (CanonicalContexts.Step.recursiveRunning parameters)).rows
         assignment := by
     apply receiptRows parameters profile recipes defaultAdmissible
-      assignment physical
+      assignment evidence
     apply bodyReceiptMember parameters profile recipes defaultAdmissible
     rw [CanonicalStepPlan.bodyReceipts]
     right
@@ -873,6 +924,7 @@ private theorem joinRows
     right
     right
     exact List.mem_cons_self
+    simp [recursiveNifsOwner]
   simpa [CanonicalBranchPlan.onePortJoinReceipt] using rows
 
 private theorem baseJoinedDecoded
@@ -889,9 +941,8 @@ private theorem baseJoinedDecoded
       Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Canonical.Input
         parameters.State parameters.Witness parameters.Running
         parameters.Fresh parameters.NifsProof)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     (inputDecoded :
       Columns.Decodes (profile.family parameters)
         (CanonicalContexts.Step.input parameters) assignment
@@ -906,8 +957,9 @@ private theorem baseJoinedDecoded
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.joinedValues
         parameters (defaultRunning parameters)) := by
   have controls :=
-    branchControls parameters profile recipes defaultAdmissible laws
-      assignment input physical inputDecoded
+    branchControlsFromEvidence
+      parameters profile recipes defaultAdmissible laws
+      assignment input evidence inputDecoded
   have selectorTrue :
       boolCodec.decode
           [assignment (CanonicalContexts.Step.selector parameters profile)] =
@@ -928,7 +980,7 @@ private theorem baseJoinedDecoded
       (by
         simpa [mux] using
           joinRows parameters profile recipes defaultAdmissible
-            assignment physical)
+            assignment evidence)
   have joinedHead :
       mux.joined.Decodes (profile.family parameters) (.data .running)
         assignment (defaultRunning parameters) := by
@@ -955,9 +1007,8 @@ private theorem recursiveJoinedDecoded
       Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Canonical.Input
         parameters.State parameters.Witness parameters.Running
         parameters.Fresh parameters.NifsProof)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     (inputDecoded :
       Columns.Decodes (profile.family parameters)
         (CanonicalContexts.Step.input parameters) assignment
@@ -973,8 +1024,9 @@ private theorem recursiveJoinedDecoded
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.joinedValues
         parameters folded) := by
   have controls :=
-    branchControls parameters profile recipes defaultAdmissible laws
-      assignment input physical inputDecoded
+    branchControlsFromEvidence
+      parameters profile recipes defaultAdmissible laws
+      assignment input evidence inputDecoded
   have selectorFalse :
       boolCodec.decode
           [assignment (CanonicalContexts.Step.selector parameters profile)] =
@@ -995,7 +1047,7 @@ private theorem recursiveJoinedDecoded
       (by
         simpa [mux] using
           joinRows parameters profile recipes defaultAdmissible
-            assignment physical)
+            assignment evidence)
   have joinedHead :
       mux.joined.Decodes (profile.family parameters) (.data .running)
         assignment folded := by
@@ -1023,9 +1075,8 @@ private theorem resultDecodedFromRunning
         parameters.State parameters.Witness parameters.Running
         parameters.Fresh parameters.NifsProof)
     (runningNext : parameters.Running)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     (inputDecoded :
       Columns.Decodes (profile.family parameters)
         (CanonicalContexts.Step.input parameters) assignment
@@ -1040,8 +1091,8 @@ private theorem resultDecodedFromRunning
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.resultValuesFor
         parameters input runningNext) := by
   have common :=
-    commonDecoded parameters profile recipes defaultAdmissible laws
-      assignment input physical inputDecoded
+    commonDecodedFromEvidence parameters profile recipes defaultAdmissible laws
+      assignment input evidence inputDecoded
   have continuationInput :=
     Columns.append_decodes
       (profile.family parameters) assignment
@@ -1057,7 +1108,7 @@ private theorem resultDecodedFromRunning
   have continuationRows :
       Satisfies continuationPlan.receipt.rows assignment :=
     bodyPlanRows parameters profile recipes defaultAdmissible
-      assignment physical continuationPlan (by
+      assignment evidence continuationPlan (by
         dsimp [continuationPlan]
         rw [CanonicalStepPlan.bodyReceipts]
         right
@@ -1074,10 +1125,10 @@ private theorem resultDecodedFromRunning
         right
         right
         right
-        exact List.mem_cons_self)
+        exact List.mem_cons_self) (by decide)
   have afterHashNext :=
     decodedOfExactExecution continuationPlan laws assignment
-      physical.1 physical.1
+      evidence.constantOne evidence.constantOne
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.continuationInputValues
         parameters input runningNext)
       (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.afterHashNextValues
@@ -1105,11 +1156,10 @@ private theorem resultDecodedFromRunning
   simpa [CanonicalContexts.Step.result,
     CanonicalContexts.Step.resultExports] using exported
 
-/-- Every satisfying selected physical Step encoding, at an input that
-decodes to typed protocol data, yields an accepted canonical Step transition.
-The accepted output is derived from the verifier semantics rather than chosen
-as an extra physical premise. -/
-theorem physicalSound
+/-- Any row evidence accepted by the common Step proof yields an accepted
+canonical Step transition. This is the semantic boundary shared by the legacy
+R1CS wrapper and the native CCS selector. -/
+theorem soundFromEvidence
     (parameters : Parameters)
     (profile : Profile parameters)
     (recipes :
@@ -1123,9 +1173,8 @@ theorem physicalSound
       Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Canonical.Input
         parameters.State parameters.Witness parameters.Running
         parameters.Fresh parameters.NifsProof)
-    (physical :
-      (encoding parameters profile recipes defaultAdmissible
-        ).PhysicalSatisfies assignment)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
     (inputDecoded :
       Columns.Decodes (profile.family parameters)
         (CanonicalContexts.Step.input parameters) assignment
@@ -1140,7 +1189,7 @@ theorem physicalSound
   by_cases iterationZero : input.iteration = 0
   · have base :=
       baseInitial parameters profile recipes defaultAdmissible laws
-        assignment input physical inputDecoded iterationZero
+        assignment input evidence inputDecoded iterationZero
     have initialState := base.1
     let output :=
       Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.outputFor
@@ -1159,7 +1208,7 @@ theorem physicalSound
     rfl
   · rcases
       recursiveAccepted parameters profile recipes defaultAdmissible laws
-        assignment input physical inputDecoded iterationZero with
+        assignment input evidence inputDecoded iterationZero with
       ⟨folded, priorPublic, verifierResult, runningDecoded⟩
     let output :=
       Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.outputFor
@@ -1188,11 +1237,10 @@ theorem physicalSound
     rw [verifierResultCanonical]
     rfl
 
-/-- Physical Step soundness with exact output-coordinate alignment.  The
-accepted typed output is the value decoded by the selected encoding's final
-export columns, so the existential result cannot float free of the physical
-assignment. -/
-theorem physicalSoundAligned
+/-- Every satisfying selected legacy R1CS Step encoding, at an input that
+decodes to typed protocol data, yields an accepted canonical Step transition.
+The accepted output is derived from verifier semantics. -/
+theorem physicalSound
     (parameters : Parameters)
     (profile : Profile parameters)
     (recipes :
@@ -1217,6 +1265,42 @@ theorem physicalSoundAligned
         Nightstream.HyperNova.Construction2.Paper.Output
           parameters.Digest parameters.State parameters.Running 1,
       Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Accepts
+        parameters input output := by
+  exact
+    soundFromEvidence
+      parameters profile recipes defaultAdmissible laws assignment input
+      (evidenceOfPhysical parameters profile recipes defaultAdmissible
+        assignment physical)
+      inputDecoded
+
+/-- Physical Step soundness with exact output-coordinate alignment.  The
+accepted typed output is the value decoded by the selected encoding's final
+export columns, so the existential result cannot float free of the physical
+assignment. -/
+theorem soundAlignedFromEvidence
+    (parameters : Parameters)
+    (profile : Profile parameters)
+    (recipes :
+      CallRecipes (signature parameters) (profile.family parameters))
+    (defaultAdmissible :
+      (profile.family parameters).codecFor (.data .running) |>.Admissible
+        (defaultRunning parameters))
+    (laws : FieldLaws)
+    (assignment : ColumnId -> Field)
+    (input :
+      Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Canonical.Input
+        parameters.State parameters.Witness parameters.Running
+        parameters.Fresh parameters.NifsProof)
+    (evidence :
+      Evidence parameters profile recipes defaultAdmissible assignment)
+    (inputDecoded :
+      Columns.Decodes (profile.family parameters)
+        (CanonicalContexts.Step.input parameters) assignment
+        (stepInputValues parameters input)) :
+    ∃ output :
+        Nightstream.HyperNova.Construction2.Paper.Output
+          parameters.Digest parameters.State parameters.Running 1,
+      Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Accepts
           parameters input output ∧
         Columns.Decodes (profile.family parameters)
           (CanonicalContexts.Step.result parameters) assignment
@@ -1226,14 +1310,14 @@ theorem physicalSoundAligned
   by_cases iterationZero : input.iteration = 0
   · have base :=
       baseInitial parameters profile recipes defaultAdmissible laws
-        assignment input physical inputDecoded iterationZero
+        assignment input evidence inputDecoded iterationZero
     have joinedDecoded :=
       baseJoinedDecoded parameters profile recipes defaultAdmissible laws
-        assignment input physical inputDecoded iterationZero base.2
+        assignment input evidence inputDecoded iterationZero base.2
     have resultDecoded :=
       resultDecodedFromRunning
         parameters profile recipes defaultAdmissible laws assignment input
-        (defaultRunning parameters) physical inputDecoded joinedDecoded
+        (defaultRunning parameters) evidence inputDecoded joinedDecoded
     let output :=
       Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.outputFor
         parameters.setup parameters.machine input
@@ -1254,16 +1338,16 @@ theorem physicalSoundAligned
         using resultDecoded
   · rcases
       recursiveAccepted parameters profile recipes defaultAdmissible laws
-        assignment input physical inputDecoded iterationZero with
+        assignment input evidence inputDecoded iterationZero with
       ⟨folded, priorPublic, verifierResult, runningDecoded⟩
     have joinedDecoded :=
       recursiveJoinedDecoded
         parameters profile recipes defaultAdmissible laws assignment input
-        physical inputDecoded iterationZero folded runningDecoded
+        evidence inputDecoded iterationZero folded runningDecoded
     have resultDecoded :=
       resultDecodedFromRunning
         parameters profile recipes defaultAdmissible laws assignment input
-        folded physical inputDecoded joinedDecoded
+        folded evidence inputDecoded joinedDecoded
     let output :=
       Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.outputFor
         parameters.setup parameters.machine input (fun _ => folded)
@@ -1293,6 +1377,44 @@ theorem physicalSoundAligned
     · simpa [output,
         Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.resultValuesFor]
         using resultDecoded
+
+/-- Compatibility projection for the legacy all-R1CS physical encoding, with
+exact output-coordinate alignment. -/
+theorem physicalSoundAligned
+    (parameters : Parameters)
+    (profile : Profile parameters)
+    (recipes :
+      CallRecipes (signature parameters) (profile.family parameters))
+    (defaultAdmissible :
+      (profile.family parameters).codecFor (.data .running) |>.Admissible
+        (defaultRunning parameters))
+    (laws : FieldLaws)
+    (assignment : ColumnId -> Field)
+    (input :
+      Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Canonical.Input
+        parameters.State parameters.Witness parameters.Running
+        parameters.Fresh parameters.NifsProof)
+    (physical :
+      (encoding parameters profile recipes defaultAdmissible
+        ).PhysicalSatisfies assignment)
+    (inputDecoded :
+      Columns.Decodes (profile.family parameters)
+        (CanonicalContexts.Step.input parameters) assignment
+        (stepInputValues parameters input)) :
+    ∃ output :
+        Nightstream.HyperNova.Construction2.Paper.Output
+          parameters.Digest parameters.State parameters.Running 1,
+      Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.Accepts
+          parameters input output ∧
+        Columns.Decodes (profile.family parameters)
+          (CanonicalContexts.Step.result parameters) assignment
+          (stepResultValues parameters output) := by
+  exact
+    soundAlignedFromEvidence
+      parameters profile recipes defaultAdmissible laws assignment input
+      (evidenceOfPhysical parameters profile recipes defaultAdmissible
+        assignment physical)
+      inputDecoded
 
 end CanonicalStepSoundness
 

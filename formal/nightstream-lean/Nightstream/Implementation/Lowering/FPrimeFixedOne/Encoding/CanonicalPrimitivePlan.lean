@@ -203,7 +203,9 @@ theorem branch
 
 end ContextExcludesOwner
 
-private theorem instruction_id_owner
+/-- Every coordinate of a canonical instruction output has the exact
+instruction owner used to allocate it. -/
+theorem instruction_id_owner
     {types : TypeSystem.{u}}
     (path : OwnerPath)
     (schema : Schema types)
@@ -296,7 +298,9 @@ theorem inputDisjointActivations
   exact ColumnPlan.typed_activation_ids_disjoint
     (fun slot => .input slot) 0 schema branchPath
 
-private theorem temporary_id_owner
+/-- Every canonical temporary coordinate has the exact instruction owner
+used to allocate it. -/
+theorem temporary_id_owner
     {types : TypeSystem.{u}}
     (path : OwnerPath)
     (outputSchema : Schema types)

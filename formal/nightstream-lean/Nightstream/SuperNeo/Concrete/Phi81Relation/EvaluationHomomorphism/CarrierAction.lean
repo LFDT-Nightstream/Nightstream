@@ -518,6 +518,53 @@ private theorem basisTerm_as_scaled_monomial
   · exact (ConcreteCarrier.baseLaws.mul_one _).symm
   · exact (ConcreteCarrier.baseLaws.mul_zero _).symm
 
+/-! ## Public linearization for verifier-owned constants -/
+
+/-- Coefficient of one right-input lane when a verifier-owned ring value
+multiplies a private ring value. -/
+def rightCoefficient
+    (left : RingF)
+    (output input : Fin ringDegree) : F :=
+  ringFMul left (ringFMonomial input.val 1) output
+
+/-- Multiplication by a fixed left operand is the exact finite linear
+combination of the right operand's 54 coefficients. This is the semantic
+bridge used by the terminal Ajtai R1CS compiler. -/
+theorem ringFMul_apply_eq_rightLinear
+    (left right : RingF)
+    (output : Fin ringDegree) :
+    ringFMul left right output =
+      sumRange ConcreteCarrier.baseOps ringDegree fun index =>
+        if indexLt : index < ringDegree then
+          rightCoefficient left output ⟨index, indexLt⟩ *
+            right ⟨index, indexLt⟩
+        else
+          0 := by
+  calc
+    ringFMul left right output =
+        ringFMul left (basisExpansion right) output := by
+      rw [basisExpansion_eq]
+    _ = ringFSumRange ringDegree
+          (fun index => ringFMul left (basisTerm right index)) output := by
+      unfold basisExpansion
+      rw [ringFMul_ringFSumRange_right]
+    _ = sumRange ConcreteCarrier.baseOps ringDegree
+          (fun index => ringFMul left (basisTerm right index) output) :=
+      ringFSumRange_apply _ _ _
+    _ = sumRange ConcreteCarrier.baseOps ringDegree
+          (fun index =>
+            if indexLt : index < ringDegree then
+              rightCoefficient left output ⟨index, indexLt⟩ *
+                right ⟨index, indexLt⟩
+            else
+              0) := by
+      apply sumRange_congr
+      intro index indexLt
+      rw [basisTerm_as_scaled_monomial right index indexLt,
+        ringFMul_scale_right, dif_pos indexLt]
+      unfold rightCoefficient ringFScale
+      exact ConcreteCarrier.baseLaws.mul_comm _ _
+
 /-! ## Canonical basis-kernel image -/
 
 /-- Finite coefficient image of one transformed matrix-row basis acting on

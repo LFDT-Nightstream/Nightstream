@@ -1,4 +1,6 @@
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ApplicationCertification
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.RunningCheckRecipe
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.FreshCheckRecipe
 import tests.Axioms.Support
 
 namespace NightstreamTests.Axioms.Poseidon23ApplicationCertification
@@ -50,33 +52,13 @@ open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding
 #audit_axioms ApplicationCertification.call_multiplicities
 
 /-- info: 'Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ApplicationCertification.hashPriorCost_exact' depends on axioms: [propext,
- Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms ApplicationCertification.hashPriorCost_exact
 
 /-- info: 'Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ApplicationCertification.hashNextCost_exact' depends on axioms: [propext,
- Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms ApplicationCertification.hashNextCost_exact
-
-/-- info: 'Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ApplicationCertification.runningCheckCost_exact' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms ApplicationCertification.runningCheckCost_exact
-
-/-- info: 'Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ApplicationCertification.freshCheckCost_exact' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms ApplicationCertification.freshCheckCost_exact
-
-/-- info: 'Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ApplicationCertification.phase34Cost_exact' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms ApplicationCertification.phase34Cost_exact
 
 end NightstreamTests.Axioms.Poseidon23ApplicationCertification

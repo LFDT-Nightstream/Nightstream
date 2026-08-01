@@ -1,7 +1,5 @@
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.Poseidon23HashPriorRecipe
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.Poseidon23HashNextRecipe
-import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.RunningCheckRecipe
-import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.FreshCheckRecipe
 
 /-!
 Contract: the application-supplied certification boundary for the four
@@ -34,7 +32,7 @@ physical row program carrying the existing artifact-independent soundness,
 honest-completeness, inactive-satisfiability, ownership, and receipt contract.
 -/
 structure ApplicationCertification (parameters : Parameters) where
-  profile : Profile parameters
+  profile : DirectCalls.DirectProfile parameters
   hashPrior :
     CallRecipe (signature parameters) (profile.family parameters)
       Call.hashPrior
@@ -95,51 +93,77 @@ private theorem publicLayout_cost_exact (width : Nat) :
         simp [Cost.oneColumn] <;>
         omega
 
-/-- The complete profile-indexed Phase 3/4 certificate.
+/-- Construct the Phase 3/4 certificate from one hash profile and two
+independent terminal recipes.
 
-All four executable recipes are constructed from one application profile.
-No call outcome, relation-validity proposition, or deployment artifact is
-accepted from the caller. -/
+The hash profile does not select terminal semantics. Each terminal relation
+must supply its own complete physical `CallRecipe`. -/
 def poseidon23
     (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
+    (profile : Poseidon23ApplicationProfile parameters)
+    (runningCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.runningCheck)
+    (freshCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.freshCheck) :
     ApplicationCertification parameters where
-  profile := profile.toTerminalEqualityProfile.toProfile
+  profile := profile.toDirectProfile
   hashPrior := Poseidon23HashPriorRecipe.recipe parameters profile
   hashNext := Poseidon23HashNextRecipe.recipe parameters profile
-  runningCheck :=
-    RunningCheckRecipe.recipe parameters profile.toTerminalEqualityProfile
-  freshCheck :=
-    FreshCheckRecipe.recipe parameters profile.toTerminalEqualityProfile
+  runningCheck := runningCheck
+  freshCheck := freshCheck
 
 @[simp] theorem poseidon23_hashPrior
     (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
-    (poseidon23 parameters profile).hashPrior =
+    (profile : Poseidon23ApplicationProfile parameters)
+    (runningCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.runningCheck)
+    (freshCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.freshCheck) :
+    (poseidon23 parameters profile runningCheck freshCheck).hashPrior =
       Poseidon23HashPriorRecipe.recipe parameters profile :=
   rfl
 
 @[simp] theorem poseidon23_hashNext
     (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
-    (poseidon23 parameters profile).hashNext =
+    (profile : Poseidon23ApplicationProfile parameters)
+    (runningCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.runningCheck)
+    (freshCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.freshCheck) :
+    (poseidon23 parameters profile runningCheck freshCheck).hashNext =
       Poseidon23HashNextRecipe.recipe parameters profile :=
   rfl
 
 @[simp] theorem poseidon23_runningCheck
     (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
-    (poseidon23 parameters profile).runningCheck =
-      RunningCheckRecipe.recipe parameters
-        profile.toTerminalEqualityProfile :=
+    (profile : Poseidon23ApplicationProfile parameters)
+    (runningCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.runningCheck)
+    (freshCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.freshCheck) :
+    (poseidon23 parameters profile runningCheck freshCheck).runningCheck =
+      runningCheck :=
   rfl
 
 @[simp] theorem poseidon23_freshCheck
     (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
-    (poseidon23 parameters profile).freshCheck =
-      FreshCheckRecipe.recipe parameters
-        profile.toTerminalEqualityProfile :=
+    (profile : Poseidon23ApplicationProfile parameters)
+    (runningCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.runningCheck)
+    (freshCheck :
+      CallRecipe (signature parameters) (profile.family parameters)
+        Call.freshCheck) :
+    (poseidon23 parameters profile runningCheck freshCheck).freshCheck =
+      freshCheck :=
   rfl
 
 /-- Exact application-dependent call order.  The two hash occurrences remain
@@ -187,7 +211,7 @@ theorem hash_outputs_distinct
       (callOutputs parameters Call.hashNext).map
           (fun port => port.layout.owners) := by
   have digestWidth : parameters.widths.digest = 5 :=
-    (profile.toTerminalEqualityProfile.toProfile.digest_width_eq_codec
+    (profile.toDirectProfile.toProfile.digest_width_eq_codec
       parameters).trans profile.digestWidth
   rw [hashPrior_output_ownership, hashNext_output_ownership,
     digestWidth]
@@ -232,13 +256,14 @@ def phase34Cost
 
 theorem hashPriorCost_exact
     (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
-    hashPriorCost parameters (poseidon23 parameters profile) =
+    (profile : Poseidon23ApplicationProfile parameters)
+    (certificate : ApplicationCertification parameters) :
+    hashPriorCost parameters certificate =
       ⟨2 * profile.alignmentWidth + profile.alignmentWidth.pred + 2503,
         0, 0,
         2 * profile.alignmentWidth + profile.alignmentWidth.pred + 2499⟩ := by
   have digestWidth : parameters.widths.digest = 5 :=
-    (profile.toTerminalEqualityProfile.toProfile.digest_width_eq_codec
+    (profile.toDirectProfile.toProfile.digest_width_eq_codec
       parameters).trans profile.digestWidth
   unfold hashPriorCost Signature.callCost CallFootprint.cost Schema.cost
   rw [show (signature parameters).callFootprint Call.hashPrior =
@@ -254,13 +279,14 @@ theorem hashPriorCost_exact
 
 theorem hashNextCost_exact
     (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
-    hashNextCost parameters (poseidon23 parameters profile) =
+    (profile : Poseidon23ApplicationProfile parameters)
+    (certificate : ApplicationCertification parameters) :
+    hashNextCost parameters certificate =
       ⟨2 * profile.alignmentWidth + profile.alignmentWidth.pred + 2503,
         0, 5,
         2 * profile.alignmentWidth + profile.alignmentWidth.pred + 2494⟩ := by
   have digestWidth : parameters.widths.digest = 5 :=
-    (profile.toTerminalEqualityProfile.toProfile.digest_width_eq_codec
+    (profile.toDirectProfile.toProfile.digest_width_eq_codec
       parameters).trans profile.digestWidth
   unfold hashNextCost Signature.callCost CallFootprint.cost Schema.cost
   rw [show (signature parameters).callFootprint Call.hashNext =
@@ -274,76 +300,6 @@ theorem hashNextCost_exact
     simp only [Cost.add_recurringRows, Cost.add_committedColumns,
       Cost.add_publicColumns, Cost.add_auxiliaryColumns, Cost.zero] <;>
     omega
-
-theorem runningCheckCost_exact
-    (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
-    runningCheckCost parameters (poseidon23 parameters profile) =
-      ⟨2 * profile.codecs.running.width +
-          profile.codecs.running.width.pred + 1,
-        0, 0,
-        2 * profile.codecs.running.width +
-          profile.codecs.running.width.pred + 1⟩ := by
-  have bitWidth :
-      parameters.widths.bit = 1 :=
-    profile.toTerminalEqualityProfile.toProfile.bit_width_eq_one parameters
-  unfold runningCheckCost Signature.callCost CallFootprint.cost Schema.cost
-  rw [show (signature parameters).callFootprint Call.runningCheck =
-      DirectCalls.equalityFootprint profile.codecs.running.width by
-    simpa [signature, callFootprint] using profile.runningFootprint]
-  simp only [DirectCalls.equalityFootprint, List.map_cons, List.map_nil,
-    Cost.sum, auxiliaryLayout_cost_exact, signature, callOutputs,
-    Ports.auxiliaryBit, bitPort, Port.cost, bitWidth]
-  apply cost_extensionality <;>
-    simp only [Cost.add_recurringRows, Cost.add_committedColumns,
-      Cost.add_publicColumns, Cost.add_auxiliaryColumns, Cost.zero] <;>
-    omega
-
-theorem freshCheckCost_exact
-    (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
-    freshCheckCost parameters (poseidon23 parameters profile) =
-      ⟨2 * profile.codecs.fresh.width +
-          profile.codecs.fresh.width.pred + 1,
-        0, 0,
-        2 * profile.codecs.fresh.width +
-          profile.codecs.fresh.width.pred + 1⟩ := by
-  have bitWidth :
-      parameters.widths.bit = 1 :=
-    profile.toTerminalEqualityProfile.toProfile.bit_width_eq_one parameters
-  unfold freshCheckCost Signature.callCost CallFootprint.cost Schema.cost
-  rw [show (signature parameters).callFootprint Call.freshCheck =
-      DirectCalls.equalityFootprint profile.codecs.fresh.width by
-    simpa [signature, callFootprint] using profile.freshFootprint]
-  simp only [DirectCalls.equalityFootprint, List.map_cons, List.map_nil,
-    Cost.sum, auxiliaryLayout_cost_exact, signature, callOutputs,
-    Ports.auxiliaryBit, bitPort, Port.cost, bitWidth]
-  apply cost_extensionality <;>
-    simp only [Cost.add_recurringRows, Cost.add_committedColumns,
-      Cost.add_publicColumns, Cost.add_auxiliaryColumns, Cost.zero] <;>
-    omega
-
-theorem phase34Cost_exact
-    (parameters : Parameters)
-    (profile : Poseidon23ApplicationProfile parameters) :
-    phase34Cost parameters (poseidon23 parameters profile) =
-      ⟨(2 * profile.alignmentWidth + profile.alignmentWidth.pred + 2503) +
-          (2 * profile.alignmentWidth + profile.alignmentWidth.pred + 2503) +
-          (2 * profile.codecs.running.width +
-            profile.codecs.running.width.pred + 1) +
-          (2 * profile.codecs.fresh.width +
-            profile.codecs.fresh.width.pred + 1),
-        0,
-        5,
-        (2 * profile.alignmentWidth + profile.alignmentWidth.pred + 2499) +
-          (2 * profile.alignmentWidth + profile.alignmentWidth.pred + 2494) +
-          (2 * profile.codecs.running.width +
-            profile.codecs.running.width.pred + 1) +
-          (2 * profile.codecs.fresh.width +
-            profile.codecs.fresh.width.pred + 1)⟩ := by
-  rw [phase34Cost, hashPriorCost_exact, hashNextCost_exact,
-    runningCheckCost_exact, freshCheckCost_exact]
-  rfl
 
 end ApplicationCertification
 

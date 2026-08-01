@@ -375,6 +375,37 @@ theorem ownRows_row_mem
     owned.row ∈ rows :=
   ownRowsFrom_row_mem owner 0 rows owned member
 
+/-- Every raw row occurrence has one corresponding owned occurrence in the
+position-preserving owner wrapper. -/
+theorem ownRowsFrom_row_complete
+    (owner : PhysicalOwner)
+    (ordinal : Nat)
+    (rows : List Row)
+    (row : Row)
+    (member : row ∈ rows) :
+    ∃ owned,
+      owned ∈ ownRowsFrom owner ordinal rows ∧ owned.row = row := by
+  induction rows generalizing ordinal with
+  | nil =>
+      simp at member
+  | cons head tail inductionHypothesis =>
+      rcases List.mem_cons.1 member with rfl | tailMember
+      · exact ⟨
+          { id := { owner := owner, ordinal := ordinal }, row := row },
+          List.mem_cons_self,
+          rfl⟩
+      · rcases inductionHypothesis (ordinal + 1) tailMember with
+          ⟨owned, ownedMember, rowExact⟩
+        exact ⟨owned, List.mem_cons_of_mem _ ownedMember, rowExact⟩
+
+theorem ownRows_row_complete
+    (owner : PhysicalOwner)
+    (rows : List Row)
+    (row : Row)
+    (member : row ∈ rows) :
+    ∃ owned, owned ∈ ownRows owner rows ∧ owned.row = row :=
+  ownRowsFrom_row_complete owner 0 rows row member
+
 private theorem ownRowsFrom_ordinal_lower_bound
     (owner : PhysicalOwner)
     (ordinal : Nat)

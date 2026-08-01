@@ -1,4 +1,5 @@
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.CompleteApplicationCertification
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsPlain270Profile
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsVerifyCallRecipe
 
 /-!
@@ -70,80 +71,88 @@ local notation "Selected" =>
 /-- Complete protocol-owned assembly for every proof-carrying application
 `step`.  No application semantics or numeric step cost is fabricated here. -/
 def complete
-    (application : Poseidon23ApplicationProfile Selected)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
     (nifs :
-      ConcreteNifsVerifyCallRecipe.Certification application)
+      ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor
+        (.data .running)).Admissible
         defaultRunning) :
     CompleteApplicationCertification Selected where
-  profile := application
+  profile := application.profile
+  runningCheck := application.runningCheck
+  freshCheck := application.freshCheck
   phase5 := {
     step := step
-    nifsVerify := ConcreteNifsVerifyCallRecipe.recipe application nifs
+    nifsVerify :=
+      ConcreteNifsVerifyCallRecipe.recipe application.profile nifs
   }
   defaultRunningAdmissible := defaultRunningAdmissible
 
 @[simp] theorem complete_step
-    (application : Poseidon23ApplicationProfile Selected)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
     (nifs :
-      ConcreteNifsVerifyCallRecipe.Certification application)
+      ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor
+        (.data .running)).Admissible
         defaultRunning) :
     (complete application nifs step defaultRunningAdmissible).phase5.step =
       step :=
   rfl
 
 @[simp] theorem complete_nifsVerify
-    (application : Poseidon23ApplicationProfile Selected)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
     (nifs :
-      ConcreteNifsVerifyCallRecipe.Certification application)
+      ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor
+        (.data .running)).Admissible
         defaultRunning) :
     (complete application nifs step
       defaultRunningAdmissible).phase5.nifsVerify =
-        ConcreteNifsVerifyCallRecipe.recipe application nifs :=
+        ConcreteNifsVerifyCallRecipe.recipe application.profile nifs :=
   rfl
 
 /-- The complete eleven-recipe family contains the selected NIFS program
 definitionally. -/
 @[simp] theorem allRecipes_nifsVerify
-    (application : Poseidon23ApplicationProfile Selected)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
     (nifs :
-      ConcreteNifsVerifyCallRecipe.Certification application)
+      ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor
+        (.data .running)).Admissible
         defaultRunning) :
     (complete application nifs step defaultRunningAdmissible
       ).allRecipes.recipe Call.nifsVerify =
-        ConcreteNifsVerifyCallRecipe.recipe application nifs :=
+        ConcreteNifsVerifyCallRecipe.recipe application.profile nifs :=
   rfl
 
 /-- The complete eleven-recipe family retains the caller's certified
 application step exactly once and unchanged. -/
 @[simp] theorem allRecipes_step
-    (application : Poseidon23ApplicationProfile Selected)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
     (nifs :
-      ConcreteNifsVerifyCallRecipe.Certification application)
+      ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor
+        (.data .running)).Admissible
         defaultRunning) :
     (complete application nifs step defaultRunningAdmissible
       ).allRecipes.recipe Call.step = step :=

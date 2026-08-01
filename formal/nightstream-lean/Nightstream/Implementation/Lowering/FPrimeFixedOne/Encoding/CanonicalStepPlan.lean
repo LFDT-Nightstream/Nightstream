@@ -498,6 +498,38 @@ named canonical call frame. -/
         (recursiveNifsInvokePlan parameters profile recipes).frame :=
   rfl
 
+/-- The exact invoked-call plan for the continuation hash. This boundary
+exposes its recipe and frame without dependent elimination of `PrimitivePlan`. -/
+def continuationHashInvokePlan
+    (parameters : Parameters)
+    (profile : Profile parameters)
+    (recipes :
+      CallRecipes (signature parameters) (profile.family parameters)) :=
+  CanonicalPrimitivePlan.invoke profile recipes
+    .hashNext
+    (.cons
+      (.there
+        (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.CommonRefs.iteration
+          parameters))
+      (.cons
+        (.there
+          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.CommonRefs.z0
+            parameters))
+        (.cons
+          (.there
+            (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.CommonRefs.zNext
+              parameters))
+          (.cons (.here (Ports.committedRunning parameters)) .nil))))
+    SourceOwners.stepContinuationHashPath
+    (CanonicalContexts.Step.continuationInput parameters)
+    oneColumn oneColumn
+    (CanonicalContexts.Step.continuationInputWidths parameters profile)
+    (one_excludes_instruction SourceOwners.stepContinuationHashPath)
+    (one_excludes_instruction SourceOwners.stepContinuationHashPath)
+    (continuationInput_excludes parameters
+      SourceOwners.stepContinuationHashPath
+      (by decide) (by decide))
+
 def continuationHashPlan
     (parameters : Parameters)
     (profile : Profile parameters)
@@ -509,31 +541,7 @@ def continuationHashPlan
       SourceOwners.stepContinuationHashPath
       (CanonicalContexts.Step.continuationInput parameters)
       oneColumn oneColumn :=
-  .invoke
-    (CanonicalPrimitivePlan.invoke profile recipes
-      .hashNext
-      (.cons
-        (.there
-          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.CommonRefs.iteration
-            parameters))
-        (.cons
-          (.there
-            (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.CommonRefs.z0
-              parameters))
-          (.cons
-            (.there
-              (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.CommonRefs.zNext
-                parameters))
-            (.cons (.here (Ports.committedRunning parameters)) .nil))))
-      SourceOwners.stepContinuationHashPath
-      (CanonicalContexts.Step.continuationInput parameters)
-      oneColumn oneColumn
-      (CanonicalContexts.Step.continuationInputWidths parameters profile)
-      (one_excludes_instruction SourceOwners.stepContinuationHashPath)
-      (one_excludes_instruction SourceOwners.stepContinuationHashPath)
-      (continuationInput_excludes parameters
-        SourceOwners.stepContinuationHashPath
-        (by decide) (by decide)))
+  .invoke (continuationHashInvokePlan parameters profile recipes)
 
 /-- Exact non-input receipt order induced by the Step AST. -/
 def bodyReceipts

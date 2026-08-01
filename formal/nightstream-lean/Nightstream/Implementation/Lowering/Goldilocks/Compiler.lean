@@ -168,6 +168,41 @@ theorem oneAllocated
     rfl
   ⟩
 
+/-- Any scoped receipt prefix supports all dependencies of all rows that it
+contains. The result keeps the initial available prefix explicit. -/
+theorem receipts_rows_supported
+    (available : List ColumnId)
+    (receipts : List InstructionReceipt)
+    (scoping : ReceiptsWellScoped available receipts)
+    (receipt : InstructionReceipt)
+    (receiptMember : receipt ∈ receipts)
+    (row : OwnedRow)
+    (rowMember : row ∈ receipt.rows)
+    (column : ColumnId)
+    (columnMember : column ∈ row.columnIds) :
+    column ∈
+      available ++ receipts.flatMap InstructionReceipt.columnIds := by
+  induction receipts generalizing available with
+  | nil =>
+      simp at receiptMember
+  | cons head tail inductionHypothesis =>
+      rcases scoping with ⟨headScoped, tailScoped⟩
+      rcases List.mem_cons.1 receiptMember with rfl | tailMember
+      · have referenced :
+          column ∈ InstructionReceipt.referencedColumns receipt := by
+          apply List.mem_flatMap.mpr
+          refine ⟨row, rowMember, ?_⟩
+          simpa [InstructionReceipt.rowColumns, OwnedRow.columnIds,
+            Row.columnIds] using columnMember
+        rcases headScoped column referenced with prior | current
+        · exact List.mem_append_left _ prior
+        · exact List.mem_append_right available
+            (List.mem_append_left _ current)
+      · have supported :=
+          inductionHypothesis
+            (available ++ head.columnIds) tailScoped tailMember
+        simpa [List.append_assoc] using supported
+
 def rowIds
     {signature : Signature.{u}}
     {input output : Schema signature.types}
@@ -298,6 +333,26 @@ theorem columnIds_eq_receipt_columnIds
   | cons head tail inductionHypothesis =>
       simp only [List.flatMap_cons, List.map_append,
         InstructionReceipt.columnIds, inductionHypothesis]
+
+/-- Every dependency of every emitted row occurs in the exact flattened
+allocation list. This is a consequence of receipt order and does not use a
+separate column census. -/
+theorem rows_supported
+    {signature : Signature.{u}}
+    {input output : Schema signature.types}
+    {source : Program signature input output}
+    (encoding : Encoding source)
+    (receipt : InstructionReceipt)
+    (receiptMember : receipt ∈ encoding.receipts)
+    (row : OwnedRow)
+    (rowMember : row ∈ receipt.rows)
+    (column : ColumnId)
+    (columnMember : column ∈ row.columnIds) :
+    column ∈ encoding.columnIds := by
+  rw [encoding.columnIds_eq_receipt_columnIds]
+  simpa using
+    receipts_rows_supported [] encoding.receipts encoding.wellScoped
+      receipt receiptMember row rowMember column columnMember
 
 /-- Physical row identities are exactly the receipt-local identity lists. -/
 theorem rowIds_eq_receipt_rowIds

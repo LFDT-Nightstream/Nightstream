@@ -275,7 +275,7 @@ noncomputable def operational
           verifierRows)
         (ConcreteNifsCanonicalKey.selected setup) := by
     simpa only [Poseidon23ApplicationProfile.family,
-      TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+      DirectCalls.DirectProfile.family,
       Profile.family, DataCodecs.family, application.runningCodec_exact,
       application.freshCodec_exact, application.proofCodec_exact] using
         canonicalStatementData
@@ -318,7 +318,7 @@ noncomputable def operational
         (ConcreteNifsCanonicalKey.selectedSerialization dimensions
           verifierRows) := by
     simpa only [Poseidon23ApplicationProfile.family,
-      TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+      DirectCalls.DirectProfile.family,
       Profile.family, DataCodecs.family, application.runningCodec_exact,
       application.freshCodec_exact, application.proofCodec_exact] using
         canonicalOutputData
@@ -339,7 +339,7 @@ noncomputable def operational
         ((application.phase4.profile.family Selected).codecFor
           (.data .running)) := by
     simpa only [Poseidon23ApplicationProfile.family,
-      TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+      DirectCalls.DirectProfile.family,
       Profile.family, DataCodecs.family,
       application.runningCodec_exact] using canonicalRunningData
   exact {
@@ -351,7 +351,7 @@ noncomputable def operational
     proofAdmissiblePolynomial := by
       intro proof admissible
       simp only [Poseidon23ApplicationProfile.family,
-        TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+        DirectCalls.DirectProfile.family,
         Profile.family, DataCodecs.family,
         application.proofCodec_exact] at admissible
       change ProofAdmissible polynomial 0 proof at admissible
@@ -359,7 +359,7 @@ noncomputable def operational
     proofAdmissibleCursor := by
       intro proof admissible
       simp only [Poseidon23ApplicationProfile.family,
-        TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+        DirectCalls.DirectProfile.family,
         Profile.family, DataCodecs.family,
         application.proofCodec_exact] at admissible
       change ProofAdmissible polynomial 0 proof at admissible
@@ -367,7 +367,7 @@ noncomputable def operational
     proofAdmissiblePriorState := by
       intro proof admissible
       simp only [Poseidon23ApplicationProfile.family,
-        TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+        DirectCalls.DirectProfile.family,
         Profile.family, DataCodecs.family,
         application.proofCodec_exact] at admissible
       change ProofAdmissible polynomial 0 proof at admissible
@@ -375,7 +375,7 @@ noncomputable def operational
     proofAdmissibleLanes := by
       intro proof admissible lane
       simp only [Poseidon23ApplicationProfile.family,
-        TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+        DirectCalls.DirectProfile.family,
         Profile.family, DataCodecs.family,
         application.proofCodec_exact] at admissible
       change ProofAdmissible polynomial 0 proof at admissible
@@ -387,7 +387,7 @@ noncomputable def operational
     priorLane := fun lane =>
       by
         simpa only [Poseidon23ApplicationProfile.family,
-          TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+          DirectCalls.DirectProfile.family,
           Profile.family, DataCodecs.family,
           application.proofCodec_exact] using
           proofPriorLaneView shape polynomial 0
@@ -401,7 +401,7 @@ noncomputable def operational
     outputCursorOne := outputData.cursorOne
     messageViews := by
       simpa only [Poseidon23ApplicationProfile.family,
-        TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+        DirectCalls.DirectProfile.family,
         Profile.family, DataCodecs.family,
         application.proofCodec_exact] using
         ConcreteNifsCanonicalProfileViews.messageViews
@@ -409,7 +409,7 @@ noncomputable def operational
             (publicFits dimensions)
     samplerViews := by
       simpa only [Poseidon23ApplicationProfile.family,
-        TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+        DirectCalls.DirectProfile.family,
         Profile.family, DataCodecs.family,
         application.proofCodec_exact] using
         ConcreteNifsCanonicalProfileViews.samplerViews
@@ -417,7 +417,7 @@ noncomputable def operational
             (publicFits dimensions)
     endpointViews := by
       simpa only [Poseidon23ApplicationProfile.family,
-        TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+        DirectCalls.DirectProfile.family,
         Profile.family, DataCodecs.family,
         application.proofCodec_exact] using
         ConcreteNifsCanonicalProfileViews.endpointViews
@@ -427,14 +427,14 @@ noncomputable def operational
     runningCoverage := runningData.coverage
     freshViews := by
       simpa only [Poseidon23ApplicationProfile.family,
-        TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+        DirectCalls.DirectProfile.family,
         Profile.family, DataCodecs.family,
         application.freshCodec_exact] using
         ConcreteNifsCanonicalViews.freshViews
           shape publicRingColumns verifierRows (publicFits dimensions)
     payloadViews := by
       simpa only [Poseidon23ApplicationProfile.family,
-        TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+        DirectCalls.DirectProfile.family,
         Profile.family, DataCodecs.family,
         application.proofCodec_exact] using
         ConcreteNifsCanonicalProfileViews.payloadViews
@@ -495,7 +495,7 @@ theorem operational_priorLane_index
         setup.system.constraintPolynomial 0 publicRingColumns verifierRows
         (publicFits dimensions) lane).index.val := by
   simp only [operational, Poseidon23ApplicationProfile.family,
-    TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+    DirectCalls.DirectProfile.family,
     Profile.family, DataCodecs.family]
   apply fView_mpr_index_val
   exact application.proofCodec_exact
@@ -520,7 +520,7 @@ theorem operational_priorLane_index
           (ConcreteNifsPlain270Profile.Shape dimensions).matrixCount *
           ringDegree * 2 := by
   simpa only [Poseidon23ApplicationProfile.family,
-    TerminalEqualityProfile.family, DirectCalls.DirectProfile.family,
+    DirectCalls.DirectProfile.family,
     Profile.family, DataCodecs.family, application.runningCodec_exact,
     application.freshCodec_exact] using
       (operational setup defaultRunning machine terminalRelations

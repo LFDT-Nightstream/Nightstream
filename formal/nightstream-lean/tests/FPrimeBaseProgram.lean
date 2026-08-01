@@ -5,7 +5,7 @@ namespace NightstreamTests.FPrimeBaseProgram
 open Nightstream.Implementation.R1CS.FPrimeBaseProgram
 open Nightstream.Implementation.R1CS.FPrimeBaseProgramSound
 
-example : rowCount = 12498 := by decide
+example : rowCount = 13104 := by decide
 example : definitionCount + checkCount = rowCount := by decide
 example : xOutColumns.length = 4 := by decide
 

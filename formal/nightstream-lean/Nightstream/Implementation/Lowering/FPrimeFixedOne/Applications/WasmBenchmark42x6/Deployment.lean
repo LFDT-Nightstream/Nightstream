@@ -1,5 +1,6 @@
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.DeploymentData
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsCanonicalCertification
+import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsNativeCcsManifest
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsStaticFootprint
 
 /-!
@@ -166,5 +167,25 @@ noncomputable def manifest
     (widths setup)
     (selectedFootprints setup)
     (deployment setup)
+
+/-- Closed proof-free native CCS manifest for the same benchmark deployment.
+The recursive selected-NIFS receipt uses the fourth CCS selector matrix and
+contains no activation residual rows or columns. -/
+noncomputable def nativeManifest
+    {dimensions : Dimensions} {verifierRows : Nat}
+    (setup : RelationSetup dimensions verifierRows) :=
+  ConcreteNifsNativeCcsManifest.manifest
+    (deployment setup).application.phase4
+    (ConcreteNifsCanonicalCertification.nifs
+      setup
+      (defaultRunning dimensions verifierRows)
+      (machine benchmarkHashPlan)
+      (terminalRelations dimensions verifierRows)
+      (terminalChecks dimensions verifierRows)
+      (widths setup)
+      (selectedFootprints setup)
+      (deployment setup))
+    (deployment setup).step
+    (deployment setup).defaultRunningAdmissible
 
 end Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6

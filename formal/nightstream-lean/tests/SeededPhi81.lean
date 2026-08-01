@@ -23,6 +23,20 @@ which production schedules exercise far beyond the first four blocks. -/
 example : Nightstream.Implementation.R1CS.ChaCha8Fast.words seed highWordStart 64 =
     expectedHighWords := by native_decide
 
+/-- The verifier-owned master seed expands into the exact row/chunk seeds
+used by Rust `setup_par`, including the first multi-chunk boundary. -/
+example :
+    (Nightstream.Implementation.R1CS.SeededAjtai.schedule
+      seed setupRows setupMessageCols 4).chunkSize =
+        expectedSetupChunkSize := by
+  native_decide
+
+example :
+    (Nightstream.Implementation.R1CS.SeededAjtai.schedule
+      seed setupRows setupMessageCols 4).seedsByOutput =
+        expectedSetupSeedsByOutput := by
+  native_decide
+
 /-- The compact seed/geometry certificate is checked, not assumed. -/
 example : block.Valid := by native_decide
 

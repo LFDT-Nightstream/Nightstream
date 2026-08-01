@@ -264,13 +264,13 @@ local notation "Selected" =>
     terminalRelations terminalChecks widths footprints
 
 def completeCertificate
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     CompleteApplicationCertification Selected :=
   ConcreteNifsCompleteApplication.complete application nifs step
@@ -279,13 +279,13 @@ def completeCertificate
 /-- Deterministic proof-free image of the complete canonical Step and
 Terminal programs. -/
 def manifest
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) : Manifest :=
   let certificate :=
     completeCertificate application nifs step defaultRunningAdmissible
@@ -328,13 +328,13 @@ def manifest
   }
 
 theorem manifest_profile_exact
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step defaultRunningAdmissible).profile =
       profileIdentifier dimensions :=
@@ -343,13 +343,13 @@ theorem manifest_profile_exact
 /-- Decoding the Step manifest recovers the normalized image of the exact
 canonical Step encoding. -/
 theorem step_roundTrip
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
       defaultRunningAdmissible).stepProgram.decode =
@@ -361,13 +361,13 @@ theorem step_roundTrip
 /-- Decoding the Terminal manifest recovers the normalized image of the exact
 canonical Terminal encoding. -/
 theorem terminal_roundTrip
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
       defaultRunningAdmissible).terminalProgram.decode =
@@ -377,13 +377,13 @@ theorem terminal_roundTrip
   exact CanonicalManifest.Program.decode_ofEncoding _
 
 theorem step_manifest_satisfies_iff
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning)
     (assignment : ColumnId → F) :
     Satisfies
@@ -396,13 +396,13 @@ theorem step_manifest_satisfies_iff
   exact CanonicalManifest.Program.decoded_satisfies_iff _ _
 
 theorem terminal_manifest_satisfies_iff
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning)
     (assignment : ColumnId → F) :
     Satisfies
@@ -417,13 +417,13 @@ theorem terminal_manifest_satisfies_iff
 /-- Exact application-parametric Step cost. Both summands are receipt folds
 over constructed programs. -/
 theorem stepCost_eq_fixedProtocol_add_application
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step defaultRunningAdmissible).stepCost =
       (manifest application nifs step
@@ -438,13 +438,13 @@ theorem stepCost_eq_fixedProtocol_add_application
 /-- The Step cost stored in the manifest is recomputed exactly from its
 proof-free receipt stream. -/
 theorem stepManifest_cost_exact
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
         defaultRunningAdmissible).stepProgram.cost =
@@ -455,13 +455,13 @@ theorem stepManifest_cost_exact
 /-- The Terminal cost stored in the manifest is recomputed exactly from its
 proof-free receipt stream. -/
 theorem terminalManifest_cost_exact
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
         defaultRunningAdmissible).terminalProgram.cost =
@@ -470,13 +470,13 @@ theorem terminalManifest_cost_exact
   exact CanonicalManifest.Program.cost_ofEncoding _
 
 theorem stepManifest_rows_length
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
         defaultRunningAdmissible).stepProgram.rows.length =
@@ -490,13 +490,13 @@ theorem stepManifest_rows_length
         defaultRunningAdmissible).stepProgram).symm
 
 theorem terminalManifest_rows_length
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
         defaultRunningAdmissible).terminalProgram.rows.length =
@@ -510,13 +510,13 @@ theorem terminalManifest_rows_length
         defaultRunningAdmissible).terminalProgram).symm
 
 theorem stepResultColumns_exact
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
       defaultRunningAdmissible).stepResultColumns =
@@ -524,13 +524,13 @@ theorem stepResultColumns_exact
   rfl
 
 theorem selectors_exact
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     let certificate :=
       completeCertificate application nifs step defaultRunningAdmissible
@@ -546,13 +546,13 @@ theorem selectors_exact
 /-- The advertised Step selector occurs in the exact allocation stream
 recovered from the proof-free manifest. -/
 theorem stepSelector_allocated
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
         defaultRunningAdmissible).stepSelector ∈
@@ -615,13 +615,13 @@ theorem stepSelector_allocated
 /-- The advertised Terminal selector occurs in the exact allocation stream
 recovered from the proof-free manifest. -/
 theorem terminalSelector_allocated
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
         defaultRunningAdmissible).terminalSelector ∈
@@ -680,13 +680,13 @@ theorem terminalSelector_allocated
           Selected .iterationZero)
 
 theorem activations_exact
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     (manifest application nifs step
         defaultRunningAdmissible).stepActivations =
@@ -701,13 +701,13 @@ theorem activations_exact
 /-- Both advertised Step activation columns occur in the exact allocation
 stream recovered from the proof-free manifest. -/
 theorem stepActivations_allocated
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     ∀ column ∈
         (manifest application nifs step
@@ -787,13 +787,13 @@ theorem stepActivations_allocated
 /-- Both advertised Terminal activation columns occur in the exact allocation
 stream recovered from the proof-free manifest. -/
 theorem terminalActivations_allocated
-    (application : Poseidon23ApplicationProfile Selected)
-    (nifs : ConcreteNifsVerifyCallRecipe.Certification application)
+    (application : ConcreteNifsPlain270Profile.Phase4Application Selected)
+    (nifs : ConcreteNifsVerifyCallRecipe.Certification application.profile)
     (step :
       CallRecipe (signature Selected)
-        (application.family Selected) Call.step)
+        (application.profile.family Selected) Call.step)
     (defaultRunningAdmissible :
-      ((application.family Selected).codecFor (.data .running)).Admissible
+      ((application.profile.family Selected).codecFor (.data .running)).Admissible
         defaultRunning) :
     ∀ column ∈
         (manifest application nifs step

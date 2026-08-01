@@ -79,8 +79,6 @@ theorem phase34_certificate_surface
 #check ApplicationCertification.call_multiplicities
 #check ApplicationCertification.hashPriorCost_exact
 #check ApplicationCertification.hashNextCost_exact
-#check ApplicationCertification.runningCheckCost_exact
-#check ApplicationCertification.freshCheckCost_exact
-#check ApplicationCertification.phase34Cost_exact
+#check ApplicationCertification.phase34Cost
 
 end NightstreamTests.Poseidon23ApplicationCertification

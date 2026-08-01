@@ -79,7 +79,7 @@ def overheadCost (sourceRows : Nat) : Cost where
 def cost (intrinsic : Cost) : Cost :=
   intrinsic + overheadCost intrinsic.recurringRows
 
-private theorem linearCombination_eval_append
+theorem linearCombination_eval_append
     (left right : LinearCombination)
     (assignment : ColumnId → Field) :
     (left ++ right).eval assignment =
@@ -475,6 +475,58 @@ private theorem gate_mem_of_residual_mem
           · exact List.mem_cons_of_mem _
               (List.mem_cons_of_mem _
                 (inductionHypothesis residuals lengthEqual tailMember))
+
+/-- Every dependency of an intrinsic source row remains present in one
+owned activated row. This is the occurrence bridge used when removing the
+activation wrapper. -/
+theorem source_column_emitted
+    (owner : PhysicalOwner)
+    (active : ColumnId)
+    (source : List Row)
+    (residuals : List ColumnId)
+    (lengthEqual : source.length = residuals.length)
+    (row : Row)
+    (rowMember : row ∈ source)
+    (column : ColumnId)
+    (columnMember : column ∈ row.columnIds) :
+    ∃ emitted,
+      emitted ∈ rows owner active source residuals ∧
+        column ∈ emitted.columnIds := by
+  rcases lifted_mem_of_source_mem active source residuals lengthEqual
+      row rowMember with
+    ⟨residual, _, liftedMember⟩
+  rcases ownRows_row_complete owner (rawRows active source residuals)
+      (liftedRow row residual) liftedMember with
+    ⟨emitted, emittedMember, emittedExact⟩
+  refine ⟨emitted, emittedMember, ?_⟩
+  rw [OwnedRow.columnIds, emittedExact, liftedRow_columnIds]
+  exact List.mem_append_left _ columnMember
+
+/-- The selector coordinate is present in the gate row paired with every
+intrinsic source row. -/
+theorem selector_emitted_of_source_mem
+    (owner : PhysicalOwner)
+    (active : ColumnId)
+    (source : List Row)
+    (residuals : List ColumnId)
+    (lengthEqual : source.length = residuals.length)
+    (row : Row)
+    (rowMember : row ∈ source) :
+    ∃ emitted,
+      emitted ∈ rows owner active source residuals ∧
+        active ∈ emitted.columnIds := by
+  rcases lifted_mem_of_source_mem active source residuals lengthEqual
+      row rowMember with
+    ⟨residual, residualMember, _⟩
+  have gateMember :=
+    gate_mem_of_residual_mem active source residuals lengthEqual
+      residual residualMember
+  rcases ownRows_row_complete owner (rawRows active source residuals)
+      (gateRow active residual) gateMember with
+    ⟨emitted, emittedMember, emittedExact⟩
+  refine ⟨emitted, emittedMember, ?_⟩
+  rw [OwnedRow.columnIds, emittedExact, gateRow_columnIds]
+  exact List.mem_cons_self
 
 /-- Every source allocation remains mentioned by its lifted equation. -/
 theorem source_coverage

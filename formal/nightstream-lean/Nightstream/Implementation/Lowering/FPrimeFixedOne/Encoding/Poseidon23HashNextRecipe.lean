@@ -499,7 +499,7 @@ def recipe
                                             Poseidon23HashOccurrence.outputValues,
                                             ColumnBundle.values,
                                             Poseidon23ApplicationProfile.family,
-                                            TerminalEqualityProfile.family,
+                                            DirectProfile.family,
                                             Profile.family, DataCodecs.family,
                                             Family.codecFor] using
                                             outputEncoded.2

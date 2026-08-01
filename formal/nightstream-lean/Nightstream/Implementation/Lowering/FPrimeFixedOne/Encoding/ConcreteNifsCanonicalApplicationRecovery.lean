@@ -137,7 +137,7 @@ theorem terminalInput_decode_exists
   rcases
       (CanonicalContexts.Terminal.input Selected).decode_exists assignment
         (CanonicalContexts.Terminal.inputWidths Selected
-          deployment.application.phase4.certification.profile)
+          deployment.application.phase4.certification.profile.toProfile)
         (terminalInputSchema_exactWidthRecoverable
           setup defaultRunning machine terminalRelations terminalChecks
             widths footprints deployment) with
@@ -208,7 +208,7 @@ theorem stepInputRef_decode_exists
     rw [ColumnBundle.values_length]
     have widthAtPort :=
       CanonicalContexts.Step.inputWidths Selected
-        deployment.application.phase4.certification.profile
+        deployment.application.phase4.certification.profile.toProfile
         reference.port (ref_port_mem reference)
     unfold PortWidthAgrees at widthAtPort
     rw [reference.port_sort] at widthAtPort

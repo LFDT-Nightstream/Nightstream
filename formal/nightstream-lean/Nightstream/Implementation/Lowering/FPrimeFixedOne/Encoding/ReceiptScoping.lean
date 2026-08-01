@@ -410,6 +410,21 @@ theorem wellScoped_append
           tailScoped
         simpa [List.flatMap_cons, List.append_assoc] using rightScoped
 
+/-- A prefix of a scoped receipt sequence remains scoped from the same
+initial allocation prefix. -/
+theorem wellScoped_prefix
+    (available : List ColumnId)
+    (left right : List InstructionReceipt)
+    (sequenceScoped : ReceiptsWellScoped available (left ++ right)) :
+    ReceiptsWellScoped available left := by
+  induction left generalizing available with
+  | nil =>
+      trivial
+  | cons head tail inductionHypothesis =>
+      rcases sequenceScoped with ⟨headScoped, restScoped⟩
+      exact ⟨headScoped,
+        inductionHypothesis (available ++ head.columnIds) restScoped⟩
+
 end ReceiptScoping
 
 end Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding

@@ -12,6 +12,10 @@ That parity validation is a gate, not the fast-path benchmark contract:
 reported CUDA proving time should exclude CPU replay/byte-comparison once the
 device-owned path no longer needs the host transcript to continue.
 
+WASM callers use `neo_wasm::prove` for automatic selection or create a
+reusable prover with `WasmProver::auto` or `WasmProver::cuda`. The canonical
+`neo_wasm::verify` path is backend-independent.
+
 Bit-exactness is cheaper than it sounds because field sums are
 order-independent: parallel reductions, different multiplication algorithms
 (Toom-3 vs schoolbook), and skipped zero terms are all value-equal in exact

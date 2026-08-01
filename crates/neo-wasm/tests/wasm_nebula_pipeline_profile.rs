@@ -22,9 +22,6 @@ use neo_fold_clean::paper::params::Params;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
-#[cfg(feature = "perf-timers")]
-const PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET: usize = 25_000_000;
-
 const PROFILE_WAT: &str = r#"
 (module
   (memory 1 1)
@@ -496,14 +493,9 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
     let _witnesses = common::sanity_check_trace(&trace, &artifacts, &run.initial_locals);
     common::ccs_check_trace(&trace);
 
-    let params = Params::for_ccs_shape_with(
-        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
-        13,
-        8,
-        config::MIN_EFFECTIVE_LAMBDA,
-        config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("production WASM parameters");
+    // The current relation pads both CCS axes to 2^25. This selects soundness
+    // parameters for that domain. It is not a coordinate limit.
+    let params = config::ccs_params(1 << 25, 1 << 25, 13, 8).expect("production WASM parameters");
     assert_eq!(params.kappa(), 18);
     assert_eq!(params.k_rho(), 14);
     assert_eq!(params.b(), 2);
@@ -562,16 +554,12 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
         profile.batch_size(),
     );
     println!(
-        "relation                 rows={} columns={} public={} matrices={} degree={} budget={} over_budget={}",
+        "relation                 rows={} columns={} public={} matrices={} degree={}",
         structure.n,
         structure.m,
         relation.public_input_len(),
         structure.t(),
         structure.max_degree(),
-        PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET,
-        structure
-            .m
-            .saturating_sub(PRODUCTION_F_PRIME_COMMITTED_COORDINATE_TARGET),
     );
     println!(
         "SplitNc                  ell_n={} ell_m={} ell_d={} d_sc={} row_pad={} column_pad={}",

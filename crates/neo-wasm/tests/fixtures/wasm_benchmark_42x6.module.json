@@ -1,0 +1,1 @@
+{"data_hex":"2a000000","data_offset":0,"entrypoint_hex":"6d61696e","format":"nightstream/wasm-application-module","memory_maximum_pages":1,"memory_minimum_pages":1,"module_hex":"0061736d010000000105016000017f03020100050401010101070801046d61696e00000a0c010a00410028020041066c0b0b0a010041000b042a000000","module_id":"wasm-benchmark-42x6","schema":1}

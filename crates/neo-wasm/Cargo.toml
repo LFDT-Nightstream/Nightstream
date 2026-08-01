@@ -9,7 +9,9 @@ license = "Apache-2.0"
 workspace = true
 
 [features]
-default = []
+default = ["metal"]
+metal = ["dep:neo-prover-metal", "neo-prover-metal/metal"]
+cuda = ["dep:neo-prover-cuda", "neo-prover-cuda/cuda"]
 perf-timers = ["neo-fold-clean/perf-timers"]
 
 [dependencies]
@@ -18,8 +20,10 @@ neo-ccs = { path = "../neo-ccs" }
 neo-fold-clean = { path = "../neo-fold-clean" }
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }
+neo-prover-cuda = { path = "../neo-prover-cuda", optional = true }
 neo-reductions = { path = "../neo-reductions" }
 neo-transcript = { path = "../neo-transcript" }
+toy-spartan = { workspace = true }
 bincode = { workspace = true }
 ff = { workspace = true, features = ["derive"] }
 futures = "0.3"
@@ -31,10 +35,14 @@ p3-symmetric = { workspace = true }
 rayon = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 sha2 = "0.10"
 thiserror = { workspace = true }
 wasmparser = "0.240"
 wasmtime = { version = "47.0.0", features = ["debug", "cranelift"] }
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+neo-prover-metal = { path = "../neo-prover-metal", optional = true }
 
 [dev-dependencies]
 object = "0.37"

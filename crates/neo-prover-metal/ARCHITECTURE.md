@@ -10,6 +10,7 @@ A Metal result is never verifier authority by itself. Deferred carriers eventual
 
 | Entry point | Location | Responsibility |
 |---|---|---|
+| `WasmProver::auto` / `WasmProver::metal` | `../neo-wasm/src/prover.rs` | Select Metal automatically or require it for a WASM proof. |
 | `MetalNifsProver::new` | `src/adapter.rs` | Create one prover and its device session. |
 | `MetalNifsProver::prepare_static` | `src/adapter.rs` | Prepare reusable Ajtai, lane, FE-oracle, and DEC-form plans. |
 | `NifsProverAdapter::build_fresh_instances` | `src/adapter.rs` | Pack low-norm witnesses and construct canonical fresh claims. |

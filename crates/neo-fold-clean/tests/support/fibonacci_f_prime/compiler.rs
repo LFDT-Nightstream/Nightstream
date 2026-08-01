@@ -28,8 +28,8 @@
 //! - **Base step** (`chunk_count == 0`): caller must NOT pass
 //!   `fold_for_step` (rejected with
 //!   `FibonacciCompilerError::Shell(FPrimeShellCompilerError::BaseStepUnexpectedPriorFold)`).
-//!   The shell assembles `is_base = 1` with the base accumulator handle
-//!   taken from `AccumulatorHandle::empty()`; this frontend fills the NIFS
+//!   The shell assembles `is_base = 1` with the fixed-shape canonical-zero
+//!   accumulator; this frontend fills the NIFS
 //!   payload with a **perp** view via the shell's
 //!   [`perp_nifs_ce_view`][`neo_fold_clean::frontends::f_prime::compiler::perp_nifs_ce_view`]
 //!   — deterministic filler, NOT authority. The unified structure's
@@ -94,7 +94,7 @@ use neo_fold_clean::frontends::f_prime::encoder::{
 };
 use neo_fold_clean::frontends::f_prime::image::NifsCeClaimView;
 use neo_fold_clean::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
-use neo_fold_clean::paper::construction2::TRIVIAL_PC;
+use neo_fold_clean::paper::construction2::{LaneCommitmentMode, RunningInstance, TRIVIAL_PC};
 use neo_fold_clean::paper::digest::AccumulatorHandle;
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -242,10 +242,24 @@ fn compile_base_step(
     let (ce_shape, child_count) = canonical_ce_shape_and_child_count(&plan)?;
 
     // Base step: perp NIFS payload, `is_base = 1`. The perp payload is
-    // deterministic filler only; the authoritative accumulator handle
-    // is the empty base handle selected by the shell.
+    // deterministic filler only; the authoritative accumulator handle is
+    // the fixed-shape canonical-zero value selected from preprocessing.
     let perp_view = perp_nifs_ce_view(&ce_shape);
-    let new_acc_digest = AccumulatorHandle::empty().digest_fields();
+    let m_in = prep
+        .prep
+        .public_input_len
+        .ok_or(FPrimeShellCompilerError::PreprocessingMissingPublicInputLen)?;
+    let canonical = RunningInstance::canonical_zero(
+        &prep.prep.params,
+        prep.prep.structure(),
+        m_in,
+        LaneCommitmentMode::Plain,
+    )
+    .map_err(|error| FPrimeShellCompilerError::CanonicalBaseAccumulator {
+        reason: error.to_string(),
+    })?;
+    let new_acc_digest =
+        AccumulatorHandle::from_running_parts(&canonical.claims, canonical.parent_authority.as_ref()).digest_fields();
     finalize_compile(
         prep,
         ctx,

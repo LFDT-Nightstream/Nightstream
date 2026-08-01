@@ -23,8 +23,8 @@ use neo_fold_clean::paper::reductions::{pi_ccs, pi_dec, pi_rlc};
 use neo_fold_clean::paper::relations::{CcsClaim, CcsInstance, CcsWitness};
 use neo_fold_clean::{config, preprocess};
 use neo_math::{from_complex, KExtensions, D, F, K};
-use neo_reductions::optimized_engine::oracle::{NcColSnapshot, RowPhaseSnapshot};
-use neo_reductions::optimized_engine::{
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::{NcColSnapshot, RowPhaseSnapshot};
+use neo_reductions::optimized_engine::legacy_split_nc::{
     BackendTranscriptMode, FeRowRoundSummary, FeRowRoundTrace, FeSumcheckBackend, NcColRoundTrace, NcFinalizedColState,
     NcSumcheckBackend,
 };

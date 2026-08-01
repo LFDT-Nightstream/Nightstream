@@ -746,8 +746,13 @@ fn metal_fe_live_prefix_ignores_recycled_odd_suffix() {
 fn metal_nifs_all_zero_running_witnesses_match_cpu() {
     let r1cs = relation();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c5a).expect("preprocess");
-    let running = RunningInstance::canonical_zero(&prep.params, prep.structure(), r1cs.m_in)
-        .expect("canonical zero running instance");
+    let running = RunningInstance::canonical_zero(
+        &prep.params,
+        prep.structure(),
+        r1cs.m_in,
+        neo_fold_clean::paper::construction2::LaneCommitmentMode::Plain,
+    )
+    .expect("canonical zero running instance");
     let zero_assignment = vec![F::ZERO; 2 * D];
     let fresh = direct_ccs::build_instance(&prep, &r1cs, &zero_assignment).expect("all-zero fresh instance");
     assert!(!running.witnesses.is_empty());

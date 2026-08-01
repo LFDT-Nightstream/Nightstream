@@ -14,7 +14,9 @@ use neo_ccs::Mat;
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::common::build_witness_nc_digit_table_with_masks;
-use neo_reductions::engines::optimized_engine::{build_nc_digit_table_compact, NcDigitMasks, NcDigitTable};
+use neo_reductions::engines::optimized_engine::legacy_split_nc::{
+    build_nc_digit_table_compact, NcDigitMasks, NcDigitTable,
+};
 use p3_field::PrimeCharacteristicRing;
 
 const COLS: usize = 7;

@@ -1,10 +1,7 @@
-//! Common utilities and reference implementations for Π_CCS.
+//! Legacy SplitNc formulas and optimized RLC/DEC helpers.
 //!
-//! This module contains:
-//! - The `Challenges` struct used by all engines
-//! - Utility functions (eq_points, chi, recomposition, etc.)
-//! - Reference implementations for Q evaluation and output building
-//! - These reference functions are used for cross-checking and verification
+//! The canonical PaperExact implementation does not import this file. New
+//! PiCCS code must use `pi_ccs_protocol` and `paper_rectangular`.
 //!
 //! SplitNcV1 symbol mapping used by these references:
 //! - `beta_a`,`beta_r`: FE/full-Q eq-gate point β over (Ajtai,row) bits.
@@ -21,19 +18,7 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-/// Challenges sampled in Step 1 of the protocol
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Challenges {
-    /// α ∈ K^{log d} - for Ajtai dimension
-    pub alpha: Vec<K>,
-    /// β = (β_a, β_r) ∈ K^{log(dn)} split into Ajtai and row parts
-    pub beta_a: Vec<K>,
-    pub beta_r: Vec<K>,
-    /// β_m ∈ K^{log m} - column part for the split-NC variant
-    pub beta_m: Vec<K>,
-    /// γ ∈ K - random linear combination weight
-    pub gamma: K,
-}
+pub use crate::engines::pi_ccs_protocol::Challenges;
 
 /// --- Utilities -------------------------------------------------------------
 

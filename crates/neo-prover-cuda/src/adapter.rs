@@ -22,7 +22,8 @@ use neo_fold_clean::paper::{pi_ccs, pi_rlc};
 use neo_fold_clean::{CcsInstance, CcsWitness, RunningInstance};
 use neo_math::{D, F, K};
 use neo_reductions::common::ct_from_y_ring_for_ccs_m;
-use neo_reductions::optimized_engine::{BackendTranscriptMode, OptimizedStructureCache};
+use neo_reductions::optimized_engine::legacy_split_nc::BackendTranscriptMode;
+use neo_reductions::optimized_engine::OptimizedStructureCache;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::fold_output::{

@@ -1,7 +1,7 @@
 use neo_ajtai::Commitment;
 use neo_ccs::{CeClaim, Mat};
 use neo_math::{D, F, K};
-use neo_reductions::optimized_engine::{
+use neo_reductions::optimized_engine::legacy_split_nc::{
     delayed_beta_power_selector, delayed_claimed_initial_sum, delayed_terminal_rhs, DelayedProjectionChallenges,
     DelayedProjectionConfig, DelayedProjectionInput,
 };

@@ -18,14 +18,17 @@ pub mod full_relation;
 pub mod instance;
 pub mod ivc;
 pub mod lean_manifest;
+pub mod lean_native_ccs_manifest;
 pub mod lifecycle;
 pub mod lowering;
+pub mod native_ccs;
 mod selective;
 mod selective_audit;
 mod selective_census;
 mod selective_row_artifact;
 mod selective_selector_coverage;
 pub mod structure;
+pub mod terminal_r1cs;
 mod ternary_encoding;
 
 pub use compiler::{
@@ -38,6 +41,7 @@ pub use full_relation::{
     FullFPrimeRelation, FullFPrimeShape,
 };
 pub use instance::build_instance;
+pub use lean_native_ccs_manifest::LeanNativeCcsManifest;
 pub use lifecycle::{prove_encoded_steps, R1csChainBuilder};
 pub use lowering::{
     build_fixed_shape_low_norm_r1cs, build_fixed_shape_low_norm_r1cs_with_shared_private_prefix,
@@ -45,9 +49,12 @@ pub use lowering::{
     lower_sparse_r1cs_to_low_norm, FieldR1csLoweringError, FixedR1csBranch, FixedShapeLowNormR1cs, LowNormR1cs,
     LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs,
 };
+pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
 pub(crate) use selective::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
-    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, SelectiveLowNormShape,
+    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix,
+    prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, SelectiveLowNormShape,
+    SelectiveLowNormShapeSummary,
 };
 pub use selective::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
@@ -81,6 +88,9 @@ pub use selective_selector_coverage::{
     SelectiveSelectorPolynomialTerm, SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION,
 };
 pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
+pub use terminal_r1cs::{
+    finish_with_spartan, verify_spartan, TerminalR1csError, TerminalSpartanProof, TerminalSpartanStatement,
+};
 
 use std::sync::Arc;
 

@@ -18,7 +18,7 @@ use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_fold_clean::paper::{pi_ccs, pi_dec, pi_rlc};
 use neo_fold_clean::{CcsWitness, RunningInstance};
 use neo_math::{D, F};
-use neo_reductions::optimized_engine::BackendTranscriptMode;
+use neo_reductions::optimized_engine::legacy_split_nc::BackendTranscriptMode;
 
 use super::{
     activity_delta, backend_failure, backend_unavailable, mix_witnesses_on_metal, split_dec_on_metal, CachedFreshMasks,

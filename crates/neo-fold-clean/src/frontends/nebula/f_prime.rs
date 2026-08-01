@@ -12,6 +12,7 @@ pub use chain::{NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePr
 use neo_math::D;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::engine::r1cs_circuit::boolean::enforce_bit;
@@ -22,8 +23,10 @@ use crate::frontends::nebula::plan::NebulaPlan;
 use crate::frontends::r1cs_f_prime::{
     audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix,
     audit_multi_branch_selective_low_norm_width_with_alignment,
-    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, FieldR1csLoweringError, LowNormR1csError,
-    MultiBranchLowNormR1cs, SelectiveLowNormShape, SelectiveLowNormWidthAudit, SparseR1cs,
+    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
+    prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, FieldR1csLoweringError,
+    LowNormR1csError, MultiBranchLowNormR1cs, SelectiveLowNormShape, SelectiveLowNormShapeSummary,
+    SelectiveLowNormWidthAudit, SparseR1cs,
 };
 use crate::lifecycle::Preprocessing;
 use crate::paper::construction2::NebulaConfig;
@@ -101,9 +104,9 @@ pub enum NebulaFPrimeRelationError {
     },
 }
 
-/// Branches of the single folded relation. Bootstrap-recursive is distinct
-/// because its NIFS input accumulator is empty; steady recursive carries
-/// exactly `k_rho` running claims.
+/// Branches of the single folded relation. Both recursive branches carry the
+/// fixed `k_rho` accumulator. Bootstrap-recursive has no delayed projection;
+/// steady recursive carries one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NebulaFPrimeBranch {
     Base,
@@ -236,8 +239,8 @@ impl NebulaFPrimeRelation {
             let lowering_started = std::time::Instant::now();
             let arm_relations = [arms.base, arms.bootstrap_recursive, arms.recursive];
             let (shared_private_fields, next_shape, candidate_widths) =
-                select_low_norm_shape(&arm_relations, plan, shared_private_candidates)?;
-            let output_signature = shape_signature(&next_shape);
+                select_low_norm_shape_summary(&arm_relations, plan, shared_private_candidates)?;
+            let output_signature = shape_summary_signature(&next_shape);
             #[cfg(feature = "perf-timers")]
             eprintln!(
                 "[fprime-fixed-point] round={round} input={}x{} t={} u={} arms=base:{}x{},bootstrap:{}x{},recursive:{}x{} output={}x{} t={} u={} synth={:.3}s lower={:.3}s total={:.3}s",
@@ -261,12 +264,13 @@ impl NebulaFPrimeRelation {
             );
             last_output = (next_shape.rows, next_shape.columns);
             if round > 0 && input_signature == output_signature {
+                let shape = audit_selected_low_norm_shape(&arm_relations, plan, shared_private_fields, &next_shape)?;
                 return Self::compile_owned_selected(
                     arm_relations,
                     plan,
                     application.clone(),
                     shared_private_fields,
-                    next_shape,
+                    shape,
                     candidate_widths,
                     max_coordinates,
                 );
@@ -590,43 +594,102 @@ fn shape_signature(shape: &SelectiveLowNormShape) -> (usize, usize, usize, u32) 
     )
 }
 
+fn shape_summary_signature(shape: &SelectiveLowNormShapeSummary) -> (usize, usize, usize, u32) {
+    (
+        shape.rows,
+        shape.columns,
+        shape.polynomial.arity(),
+        shape.polynomial.max_degree(),
+    )
+}
+
 fn select_low_norm_shape(
     arms: &[SparseR1cs; 3],
     plan: &NebulaPlan,
-    mut shared_private_candidates: Vec<usize>,
+    shared_private_candidates: Vec<usize>,
 ) -> Result<(usize, SelectiveLowNormShape, Vec<(usize, usize)>), NebulaFPrimeRelationError> {
+    let (shared_private_fields, summary, candidate_widths) =
+        select_low_norm_shape_summary(arms, plan, shared_private_candidates)?;
+    let shape = audit_selected_low_norm_shape(arms, plan, shared_private_fields, &summary)?;
+    Ok((shared_private_fields, shape, candidate_widths))
+}
+
+fn select_low_norm_shape_summary(
+    arms: &[SparseR1cs; 3],
+    plan: &NebulaPlan,
+    mut shared_private_candidates: Vec<usize>,
+) -> Result<(usize, SelectiveLowNormShapeSummary, Vec<(usize, usize)>), NebulaFPrimeRelationError> {
     let circuit = plan.circuit();
     let shared_private_bit_fields = circuit.cols() - circuit.m_in();
     shared_private_candidates.push(shared_private_bit_fields);
     shared_private_candidates.sort_unstable();
     shared_private_candidates.dedup();
+    shared_private_candidates.retain(|&shared_private_fields| shared_private_fields >= shared_private_bit_fields);
 
-    let mut best = None;
-    let mut candidate_widths = Vec::new();
-    for shared_private_fields in shared_private_candidates {
-        if shared_private_fields < shared_private_bit_fields {
-            continue;
-        }
-        let shape = audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix(
-            arms,
-            shared_private_fields,
-            shared_private_bit_fields,
-            D,
-            circuit.m_in() % D,
-        )?;
-        candidate_widths.push((shared_private_fields, shape.compiler_audit.width().total_coordinates));
-        if best
-            .as_ref()
-            .is_none_or(|(_, best_shape): &(usize, SelectiveLowNormShape)| {
-                shape.compiler_audit.width().total_coordinates < best_shape.compiler_audit.width().total_coordinates
-            })
-        {
-            best = Some((shared_private_fields, shape));
-        }
+    // Each candidate owns large per-column plan vectors. Keep only two live at
+    // once so useful parallel work does not scale memory with candidate count.
+    let mut candidates = Vec::with_capacity(shared_private_candidates.len());
+    for batch in shared_private_candidates.chunks(2) {
+        let mut batch = batch
+            .par_iter()
+            .copied()
+            .map(
+                |shared_private_fields| -> Result<_, NebulaFPrimeRelationError> {
+                    #[cfg(feature = "perf-timers")]
+                    let candidate_started = std::time::Instant::now();
+                    let shape = prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix(
+                        arms,
+                        shared_private_fields,
+                        shared_private_bit_fields,
+                        D,
+                        circuit.m_in() % D,
+                    )?;
+                    #[cfg(feature = "perf-timers")]
+                    eprintln!(
+                        "[fprime-low-norm-candidate] shared_private_fields={shared_private_fields} rows={} columns={} coordinates={} total={:.3}s",
+                        shape.rows,
+                        shape.columns,
+                        shape.total_coordinates,
+                        candidate_started.elapsed().as_secs_f64(),
+                    );
+                    Ok((shared_private_fields, shape))
+                },
+            )
+            .collect::<Result<Vec<_>, _>>()?;
+        candidates.append(&mut batch);
     }
-    let (shared_private_fields, shape) =
-        best.ok_or_else(|| NebulaFPrimeRelationError::Geometry("no valid shared-private prefix candidate".into()))?;
+    let candidate_widths = candidates
+        .iter()
+        .map(|(shared_private_fields, shape)| (*shared_private_fields, shape.total_coordinates))
+        .collect();
+    let (shared_private_fields, shape) = candidates
+        .into_iter()
+        .min_by_key(|(_, shape)| shape.total_coordinates)
+        .ok_or_else(|| NebulaFPrimeRelationError::Geometry("no valid shared-private prefix candidate".into()))?;
     Ok((shared_private_fields, shape, candidate_widths))
+}
+
+fn audit_selected_low_norm_shape(
+    arms: &[SparseR1cs; 3],
+    plan: &NebulaPlan,
+    shared_private_fields: usize,
+    summary: &SelectiveLowNormShapeSummary,
+) -> Result<SelectiveLowNormShape, NebulaFPrimeRelationError> {
+    let circuit = plan.circuit();
+    let shared_private_bit_fields = circuit.cols() - circuit.m_in();
+    let shape = audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix(
+        arms,
+        shared_private_fields,
+        shared_private_bit_fields,
+        D,
+        circuit.m_in() % D,
+    )?;
+    if !summary.matches(&shape) {
+        return Err(NebulaFPrimeRelationError::Geometry(
+            "lightweight shape differs from the complete selective audit".into(),
+        ));
+    }
+    Ok(shape)
 }
 
 fn enforce_coordinate_limit(

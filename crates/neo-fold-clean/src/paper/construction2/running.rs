@@ -6,13 +6,49 @@
 //! equals `pp.k_rho()`.
 
 use neo_ajtai::Commitment;
-use neo_ccs::Mat;
+use neo_ccs::{LaneCommitments, Mat};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::paper::params::Params;
 use crate::paper::relations::{CeClaim, Structure, WitnessMat};
+
+/// Product-commitment shape of the verifier-selected accumulator relation.
+///
+/// Plain SuperNeo claims omit the Nebula sidecar. Nebula claims carry a full
+/// three-commitment tuple, including for the canonical zero accumulator.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LaneCommitmentMode {
+    Plain,
+    Nebula,
+}
+
+impl LaneCommitmentMode {
+    pub const fn from_nebula(enabled: bool) -> Self {
+        if enabled {
+            Self::Nebula
+        } else {
+            Self::Plain
+        }
+    }
+
+    fn zero(self, pp: &Params) -> Option<LaneCommitments<Commitment>> {
+        match self {
+            Self::Plain => None,
+            Self::Nebula => Some(zero_lane_commitments(pp)),
+        }
+    }
+}
+
+pub(crate) fn zero_lane_commitments(pp: &Params) -> LaneCommitments<Commitment> {
+    let zero = Commitment::zeros(D, pp.kappa() as usize);
+    LaneCommitments {
+        ops: zero.clone(),
+        is: zero.clone(),
+        fs: zero,
+    }
+}
 
 fn challenge_len(size: usize) -> Option<usize> {
     size.max(2)
@@ -42,7 +78,7 @@ pub fn uses_pending_accumulator_family(structure: &Structure) -> bool {
 /// coordinates even though the current live width fits in eighteen bits.
 pub(crate) fn split_nc_column_point_len(relation_rows: usize, relation_columns: usize, matrices: usize) -> usize {
     if uses_pending_accumulator_family_shape(relation_rows, relation_columns, matrices) {
-        neo_reductions::optimized_engine::oracle::BLOCK_LANE_NC_BLOCK_VARIABLES
+        neo_reductions::optimized_engine::legacy_split_nc::oracle::BLOCK_LANE_NC_BLOCK_VARIABLES
     } else {
         relation_columns.next_power_of_two().max(2).trailing_zeros() as usize
     }
@@ -206,8 +242,13 @@ impl RunningInstance {
     /// deterministic radix-`b` recomposition of those children; it is retained
     /// only because the optimized Π_CCS transcript consumes that derived
     /// cache. The formal accumulator instance is `claims` alone.
-    pub fn canonical_zero(pp: &Params, structure: &Structure, m_in: usize) -> Result<Self, RunningInstanceError> {
-        Self::canonical_zero_for_shape(pp, structure.n, structure.m, structure.t(), m_in)
+    pub fn canonical_zero(
+        pp: &Params,
+        structure: &Structure,
+        m_in: usize,
+        lane_mode: LaneCommitmentMode,
+    ) -> Result<Self, RunningInstanceError> {
+        Self::canonical_zero_for_shape(pp, structure.n, structure.m, structure.t(), m_in, lane_mode)
     }
 
     pub(crate) fn canonical_zero_for_shape(
@@ -216,6 +257,7 @@ impl RunningInstance {
         relation_m: usize,
         relation_t: usize,
         m_in: usize,
+        lane_mode: LaneCommitmentMode,
     ) -> Result<Self, RunningInstanceError> {
         if m_in > relation_m {
             return Err(RunningInstanceError::PublicInputTooLarge {
@@ -240,7 +282,7 @@ impl RunningInstance {
             c_step_coords: Vec::new(),
             u_offset: 0,
             u_len: 0,
-            adv: None,
+            adv: lane_mode.zero(pp),
         };
         let zero_witness = Mat::virtual_constant(D, relation_m.div_ceil(D), F::ZERO);
         Ok(Self {
@@ -249,6 +291,25 @@ impl RunningInstance {
             parent_authority: Some(zero_claim),
             pending_projection: None,
         })
+    }
+
+    /// Whether the verifier-visible accumulator is the exact Construction-2
+    /// default for this relation and public-input width.
+    ///
+    /// Witness matrices are not compared here. Their openings are private and
+    /// are checked by the folding proof. This predicate fixes the public
+    /// accumulator that is allowed to omit the first delayed projection.
+    pub(crate) fn is_canonical_zero_public(
+        &self,
+        pp: &Params,
+        structure: &Structure,
+        m_in: usize,
+        lane_mode: LaneCommitmentMode,
+    ) -> Result<bool, RunningInstanceError> {
+        let expected = Self::canonical_zero(pp, structure, m_in, lane_mode)?;
+        Ok(self.claims == expected.claims
+            && self.parent_authority == expected.parent_authority
+            && self.pending_projection.is_none())
     }
 
     /// Formal `R1` instance. The parent cache is deliberately excluded.

@@ -7,8 +7,8 @@
 use cuda_core::{DeviceBuffer, PinnedHostBuffer};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::engines::utils::{PI_CCS_SUMCHECK_INITIAL_RAW_TAG, PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG};
-use neo_reductions::optimized_engine::oracle::{NcColSnapshot, NcDigitTableView};
-use neo_reductions::optimized_engine::{
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::{NcColSnapshot, NcDigitTableView};
+use neo_reductions::optimized_engine::legacy_split_nc::{
     NcColRoundTrace, NcColTraceRequest, NcFinalizedColState, NcPhaseRoundTrace, NcSumcheckBackend,
 };
 use neo_reductions::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG;

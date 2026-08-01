@@ -164,7 +164,7 @@ fn fe_transcript_trace_parity(fixture: &Fixture, k_fresh: usize, rng: &mut StdRn
         gamma: rand_k(rng),
     };
 
-    let mut cpu = neo_reductions::optimized_engine::CcsOracle::new_with_sparse_and_superneo_cache(
+    let mut cpu = neo_reductions::optimized_engine::legacy_split_nc::CcsOracle::new_with_sparse_and_superneo_cache(
         structure,
         params,
         &witnesses,
@@ -241,7 +241,7 @@ fn fe_ajtai_tail_parity(fixture: &Fixture, k_fresh: usize, k_carried: usize, rng
         gamma: rand_k(rng),
     };
     let r_inputs: Option<Vec<K>> = (k_carried > 0).then(|| (0..dims.ell_n).map(|_| rand_k(rng)).collect());
-    let mut cpu = neo_reductions::optimized_engine::CcsOracle::new_with_sparse_and_superneo_cache(
+    let mut cpu = neo_reductions::optimized_engine::legacy_split_nc::CcsOracle::new_with_sparse_and_superneo_cache(
         structure,
         params,
         &witnesses,
@@ -395,7 +395,7 @@ fn fe_rounds_parity(fixture: &Fixture, k_fresh: usize, k_carried: usize, rng: &m
     };
     let r_inputs: Option<Vec<K>> = (k_carried > 0).then(|| (0..dims.ell_n).map(|_| rand_k(rng)).collect());
 
-    let mut cpu = neo_reductions::optimized_engine::CcsOracle::new_with_sparse_and_superneo_cache(
+    let mut cpu = neo_reductions::optimized_engine::legacy_split_nc::CcsOracle::new_with_sparse_and_superneo_cache(
         structure,
         params,
         &witnesses,
@@ -460,7 +460,7 @@ pub fn ccs_nc() {
         gamma: rand_k(&mut rng),
     };
 
-    let mut cpu = neo_reductions::optimized_engine::oracle::NcOracle::new(
+    let mut cpu = neo_reductions::optimized_engine::legacy_split_nc::oracle::NcOracle::new(
         structure,
         params,
         &witnesses,
@@ -541,7 +541,7 @@ fn nc_device_transcript_trace_parity(fixture: &Fixture, k_fresh: usize, rng: &mu
     let initial_sum = rand_k(rng);
     let mut tr = neo_transcript::Poseidon2Transcript::new_raw_fields(&[rand_f(rng)]);
 
-    let mut cpu = neo_reductions::optimized_engine::oracle::NcOracle::new(
+    let mut cpu = neo_reductions::optimized_engine::legacy_split_nc::oracle::NcOracle::new(
         structure,
         params,
         &witnesses,
@@ -560,7 +560,7 @@ fn nc_device_transcript_trace_parity(fixture: &Fixture, k_fresh: usize, rng: &mu
         .col_round_trace_with_prolog(
             &device,
             &kernels,
-            neo_reductions::optimized_engine::NcColTraceRequest {
+            neo_reductions::optimized_engine::legacy_split_nc::NcColTraceRequest {
                 transcript_state: tr.state(),
                 transcript_absorbed: tr.absorbed(),
                 rounds: dims.ell_m,
@@ -635,7 +635,7 @@ type CcsProveOutput = (
 );
 
 type CcsTerminalOutput = (
-    neo_reductions::optimized_engine::PiCcsReplayTerminalState,
+    neo_reductions::optimized_engine::legacy_split_nc::PiCcsReplayTerminalState,
     neo_transcript::Poseidon2Transcript,
 );
 
@@ -678,7 +678,7 @@ impl CcsProveCase {
     fn terminal_cpu(&self, fixture: &Fixture) -> CcsTerminalOutput {
         let mut tr = neo_transcript::Poseidon2Transcript::new_raw_fields(&self.transcript_init);
         let terminal =
-            neo_reductions::optimized_engine::optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf(
+            neo_reductions::optimized_engine::legacy_split_nc::optimized_replay_terminal_state_with_cache_instance_digest_and_me_input_handle_and_perf(
                 &mut tr,
                 fixture.prep.params.inner(),
                 fixture.structure(),
@@ -722,22 +722,23 @@ impl CcsProveCase {
         fe_backend.set_witness_planes(planes, witness_count);
         nc_backend.set_witness_planes(planes, witness_count);
         let mut tr = neo_transcript::Poseidon2Transcript::new_raw_fields(&self.transcript_init);
-        let (outputs, proof, _) = neo_reductions::optimized_engine::optimized_prove_with_device_backends(
-            &mut tr,
-            fixture.prep.params.inner(),
-            fixture.structure(),
-            &self.mcs_list,
-            &self.mcs_witnesses,
-            &self.me_inputs,
-            &self.me_witnesses,
-            self.digest,
-            self.handle,
-            &fixture.prep.log,
-            fixture.prep.optimized_cache(),
-            Some(fe_backend),
-            Some(nc_backend),
-        )
-        .expect("GPU-backed pi_ccs prove");
+        let (outputs, proof, _) =
+            neo_reductions::optimized_engine::legacy_split_nc::optimized_prove_with_device_backends(
+                &mut tr,
+                fixture.prep.params.inner(),
+                fixture.structure(),
+                &self.mcs_list,
+                &self.mcs_witnesses,
+                &self.me_inputs,
+                &self.me_witnesses,
+                self.digest,
+                self.handle,
+                &fixture.prep.log,
+                fixture.prep.optimized_cache(),
+                Some(fe_backend),
+                Some(nc_backend),
+            )
+            .expect("GPU-backed pi_ccs prove");
         (outputs, proof, tr)
     }
 
@@ -751,7 +752,7 @@ impl CcsProveCase {
         phase_backend.enable_whole_fe_trace_for_parity();
         let mut tr = neo_transcript::Poseidon2Transcript::new_raw_fields(&self.transcript_init);
         let (outputs, proof, _) =
-            neo_reductions::optimized_engine::optimized_prove_with_phase_backend_and_transcript_mode(
+            neo_reductions::optimized_engine::legacy_split_nc::optimized_prove_with_phase_backend_and_transcript_mode(
                 &mut tr,
                 fixture.prep.params.inner(),
                 fixture.structure(),
@@ -782,7 +783,7 @@ impl CcsProveCase {
         phase_backend.enable_whole_fe_trace_for_parity();
         let mut tr = neo_transcript::Poseidon2Transcript::new_raw_fields(&self.transcript_init);
         let terminal =
-            neo_reductions::optimized_engine::optimized_replay_terminal_state_with_phase_backend_and_transcript_mode(
+            neo_reductions::optimized_engine::legacy_split_nc::optimized_replay_terminal_state_with_phase_backend_and_transcript_mode(
                 &mut tr,
                 fixture.prep.params.inner(),
                 fixture.structure(),

@@ -3,9 +3,7 @@
 #![allow(non_snake_case)]
 
 use crate::error::PiCcsError;
-use crate::optimized_engine::{
-    PiCcsDeferredProof, PiCcsProof, PiCcsProvePerf, PiCcsReplayTerminalState, PiCcsTerminalOutputShell,
-};
+use crate::optimized_engine::{PiCcsProof, PiCcsProvePerf};
 use crate::sumcheck::RoundOracle;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
@@ -18,13 +16,14 @@ use super::backend::{
     BackendTranscriptMode, FePhaseTraceRequest, FeSumcheckBackend, NcColTraceRequest, NcSumcheckBackend,
     PiCcsPhaseBackend, PiCcsPhaseTraceRequest,
 };
+use super::legacy_types::{PiCcsReplayTerminalState, PiCcsTerminalOutputShell};
 use super::phase_trace::{
     apply_fe_backend_summary, apply_fe_backend_trace, apply_nc_backend_trace, apply_pi_ccs_phase_summary,
     apply_pi_ccs_phase_trace, AppliedPiCcsPhase, FeBackendSummaryApply, FeBackendTraceApply, NcBackendTraceApply,
     PiCcsPhaseApply, PiCcsPhaseSummaryApply,
 };
 use super::proof_assembly::{
-    proof_from_terminal_state, DeferredFeRowRounds, DeferredProofRounds, OptimizedProofRounds,
+    proof_from_terminal_state, DeferredFeRowRounds, DeferredProofRounds, OptimizedProofRounds, PiCcsDeferredProof,
 };
 use super::replay_binding::ReplayBinding;
 use super::terminal_outputs::build_me_outputs_from_terminal_surfaces;
@@ -127,7 +126,7 @@ pub fn optimized_prove_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphi
     log: &L,
     cache: &OptimizedStructureCache,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, PiCcsProvePerf), PiCcsError> {
-    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+    super::paper_rectangular::prove(
         tr,
         params,
         s,
@@ -137,18 +136,7 @@ pub fn optimized_prove_with_cache_and_perf<L: neo_ccs::traits::SModuleHomomorphi
         me_witnesses,
         log,
         cache,
-        ReplayBinding::claims(),
-        ReplayTraceMode::Prove,
-        false,
-        None,
-        None,
-        None,
-        BackendTranscriptMode::Replay,
-    )?;
-    let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
-    let proof = proof_from_terminal_state(&terminal_state, rounds);
-
-    Ok((terminal_state.me_outputs, proof, terminal_state.perf))
+    )
 }
 
 pub fn optimized_prove_with_cache_and_instance_digest_and_perf<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
@@ -163,7 +151,7 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_perf<L: neo_ccs::trait
     log: &L,
     cache: &OptimizedStructureCache,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, PiCcsProvePerf), PiCcsError> {
-    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+    super::paper_rectangular::prove_with_binding(
         tr,
         params,
         s,
@@ -173,18 +161,8 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_perf<L: neo_ccs::trait
         me_witnesses,
         log,
         cache,
-        ReplayBinding::instance_digest(public_instance_digest),
-        ReplayTraceMode::Prove,
-        false,
-        None,
-        None,
-        None,
-        BackendTranscriptMode::Replay,
-    )?;
-    let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
-    let proof = proof_from_terminal_state(&terminal_state, rounds);
-
-    Ok((terminal_state.me_outputs, proof, terminal_state.perf))
+        crate::engines::pi_ccs_rectangular::TranscriptBinding::digest(public_instance_digest),
+    )
 }
 
 /// Variant of [`optimized_prove_with_cache_and_instance_digest_and_perf`] that
@@ -217,7 +195,7 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
     ),
     PiCcsError,
 > {
-    let (terminal_state, rounds) = run_optimized_replay_with_cache_and_perf(
+    let (outputs, proof, perf) = super::paper_rectangular::prove_with_binding(
         tr,
         params,
         s,
@@ -227,22 +205,15 @@ pub fn optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_pe
         me_witnesses,
         log,
         cache,
-        ReplayBinding::legacy_handle(public_instance_digest, me_input_accumulator_handle),
-        ReplayTraceMode::Prove,
-        true,
-        None,
-        None,
-        None,
-        BackendTranscriptMode::Replay,
+        crate::engines::pi_ccs_rectangular::TranscriptBinding::digest_and_handle(
+            public_instance_digest,
+            me_input_accumulator_handle,
+        ),
     )?;
-    let rounds = owned_rounds(rounds.expect("optimized prove trace must capture proof rounds"))?;
-    let proof = proof_from_terminal_state(&terminal_state, rounds);
-    let pi_dec_precompute = terminal_state
-        .pi_dec_precompute
-        .clone()
-        .ok_or_else(|| PiCcsError::InvalidInput("CPU Pi_CCS prove did not produce Pi_DEC precomputation".into()))?;
-
-    Ok((terminal_state.me_outputs, proof, terminal_state.perf, pi_dec_precompute))
+    let pi_dec_precompute = super::PiDecProverPrecompute {
+        row_chals: proof.sumcheck_challenges.clone(),
+    };
+    Ok((outputs, proof, perf, pi_dec_precompute))
 }
 
 /// `optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf`
@@ -604,7 +575,7 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
         eprintln!("[prove] initial_sum (public T) = {:?}", initial_sum);
 
         // For debugging: compute the full hypercube sum to compare
-        let full_sum = super::sum_q_over_hypercube_paper_exact(
+        let full_sum = super::common::sum_q_over_hypercube_paper_exact(
             s,
             params,
             mcs_witnesses,
@@ -1039,8 +1010,8 @@ pub(super) fn run_optimized_replay_with_cache_and_perf<L: neo_ccs::traits::SModu
                 eprintln!("[prove] difference = {:?}", (ys[0] + ys[1]) - running_sum);
             }
             return Err(PiCcsError::SumcheckError(format!(
-                "round {} invariant failed: p(0)+p(1) ≠ running_sum (paper-exact)",
-                round_idx
+                "round {round_idx} invariant failed: p(0)+p(1)={:?}, running_sum={running_sum:?}",
+                ys[0] + ys[1]
             )));
         }
         // Sumcheck requires coefficients in low→high order (c0, c1, ..., cn) so that

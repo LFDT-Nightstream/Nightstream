@@ -7,7 +7,7 @@ use neo_reductions::engines::utils::{
     PiCcsTranscriptVariant, PI_CCS_BLOCK_NC_BATCH_WEIGHT_RAW_TAG, PI_CCS_BLOCK_NC_BETA_RAW_TAG,
     PI_CCS_BLOCK_NC_PRODUCER_BETA_RAW_TAG,
 };
-use neo_reductions::optimized_engine::oracle::BLOCK_LANE_NC_BLOCK_VARIABLES;
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::BLOCK_LANE_NC_BLOCK_VARIABLES;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 

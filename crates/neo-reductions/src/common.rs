@@ -85,6 +85,17 @@ pub fn split_b_matrix_k_with_nonzero_flags(
     let Z_rows = Z.rows();
     let Z_cols = Z.cols();
 
+    if Z.virtual_constant_value()
+        .is_some_and(|value| *value == F::ZERO)
+    {
+        return Ok((
+            (0..k)
+                .map(|_| Mat::virtual_constant(Z_rows, Z_cols, F::ZERO))
+                .collect(),
+            vec![false; k],
+        ));
+    }
+
     let mut out_data = (0..k).map(|_| None::<Vec<F>>).collect::<Vec<_>>();
     let mut digit_nonzero = vec![false; k];
 

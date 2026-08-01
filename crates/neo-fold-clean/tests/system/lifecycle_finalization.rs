@@ -7,7 +7,7 @@ use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::ProofState;
-use neo_fold_clean::paper::nifs::{self, NifsProverAdapter, NifsProverBackend, NifsProverOutput, NifsProverRequest};
+use neo_fold_clean::paper::nifs::{self, NifsProverAdapter, NifsProverOutput, NifsProverRequest};
 use neo_fold_clean::CcsInstance;
 
 /// Toy instance whose public input is a specified low-norm `F` value, so
@@ -39,18 +39,6 @@ fn invalid_bitness_instance_with_valid_shape(prep: &neo_fold_clean::Preprocessin
     let invalid_low_norm = F::ZERO - F::ONE;
     CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[invalid_low_norm], 1)
         .expect("shape-valid low-norm instance that intentionally violates z*z=z")
-}
-
-fn assert_cuda_backend_unavailable(err: neo_fold_clean::Error) {
-    assert!(matches!(
-        err,
-        neo_fold_clean::Error::Construction2(neo_fold_clean::paper::construction2::Error::Nifs(
-            neo_fold_clean::paper::nifs::Error::BackendUnavailable {
-                backend: "cuda",
-                reason: "cuda-oxide backend adapter is not linked",
-            },
-        ))
-    ));
 }
 
 fn final_running(proof: &neo_fold_clean::Uncompressed) -> neo_fold_clean::RunningInstance {
@@ -100,8 +88,7 @@ impl NifsProverAdapter for CountingCpuNifsAdapter {
             running,
             ..
         } = request;
-        let (running, proof) = nifs::prove_with_backend(
-            NifsProverBackend::Cpu,
+        let (running, proof) = nifs::prove(
             tr,
             pp,
             s,
@@ -118,11 +105,8 @@ impl NifsProverAdapter for CountingCpuNifsAdapter {
 }
 
 #[test]
-fn lifecycle_nifs_backend_defaults_to_cpu_and_can_be_selected() {
+fn lifecycle_default_cpu_prover_finishes() {
     let prep = support::toy_preprocessing();
-    assert_eq!(prep.nifs_prover_backend(), NifsProverBackend::Cpu);
-
-    let prep = prep.with_nifs_prover_backend(NifsProverBackend::Cpu);
     let audit = neo_fold_clean::prove(
         &prep,
         [
@@ -130,8 +114,8 @@ fn lifecycle_nifs_backend_defaults_to_cpu_and_can_be_selected() {
             vec![support::toy_instance(&prep, 2)],
         ],
     )
-    .expect("explicit CPU backend lifecycle prove");
-    neo_fold_clean::finish_uncompressed_with_audit(&prep, audit).expect("explicit CPU backend finalize");
+    .expect("CPU lifecycle prove");
+    neo_fold_clean::finish_uncompressed_with_audit(&prep, audit).expect("CPU backend finalize");
 }
 
 #[test]
@@ -156,28 +140,6 @@ fn lifecycle_nifs_adapter_covers_recursive_and_terminal_folds() {
     assert_eq!(adapter.calls, 2, "finalization should run the terminal NIFS.P");
 
     neo_fold_clean::verify_uncompressed_audit(&prep, &finalized).expect("adapter-backed lifecycle proof verifies");
-}
-
-#[test]
-fn lifecycle_cuda_backend_is_explicit_until_adapter_is_linked() {
-    let prep = support::toy_preprocessing().with_nifs_prover_backend(NifsProverBackend::Cuda);
-    assert_eq!(prep.nifs_prover_backend(), NifsProverBackend::Cuda);
-
-    let err = neo_fold_clean::prove(
-        &prep,
-        [
-            vec![support::toy_instance(&prep, 1)],
-            vec![support::toy_instance(&prep, 2)],
-        ],
-    )
-    .expect_err("recursive F' step must reach unavailable CUDA backend");
-    assert_cuda_backend_unavailable(err);
-
-    let audit = neo_fold_clean::prove(&prep, [vec![support::toy_instance(&prep, 3)]])
-        .expect("first lifecycle step does not run NIFS.P yet");
-    let err = neo_fold_clean::finish_uncompressed_with_audit(&prep, audit)
-        .expect_err("terminal fold must reach unavailable CUDA backend");
-    assert_cuda_backend_unavailable(err);
 }
 
 #[test]
@@ -1071,7 +1033,7 @@ fn final_witness_authority_rejects_zero_commitment_with_wrong_ajtai_shape() {
 
     assert!(
         running.witnesses[0]
-            .as_slice()
+            .to_dense_vec()
             .iter()
             .all(|&entry| entry == F::ZERO),
         "toy fixture must exercise the zero-witness fast path"
@@ -1114,7 +1076,7 @@ fn final_witness_authority_rejects_zero_witness_with_wrong_packed_shape() {
 
     assert!(
         running.witnesses[0]
-            .as_slice()
+            .to_dense_vec()
             .iter()
             .all(|&entry| entry == F::ZERO),
         "toy fixture must exercise the zero-witness fast path"
@@ -1144,7 +1106,7 @@ fn final_witness_authority_rejects_zero_witness_m_in_exceeds_structure_m() {
 
     assert!(
         running.witnesses[0]
-            .as_slice()
+            .to_dense_vec()
             .iter()
             .all(|&entry| entry == F::ZERO),
         "toy fixture must exercise the zero-witness fast path"
@@ -1181,7 +1143,7 @@ fn final_witness_authority_rejects_m_in_relabel_below_program_public_input_len()
 
     assert!(
         running.witnesses[0]
-            .as_slice()
+            .to_dense_vec()
             .iter()
             .all(|&entry| entry == F::ZERO),
         "toy fixture must exercise a self-consistent zero-witness relabel"
@@ -1221,7 +1183,7 @@ fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_pu
 
     assert!(
         running.witnesses[0]
-            .as_slice()
+            .to_dense_vec()
             .iter()
             .any(|&entry| entry != F::ZERO),
         "test setup must carry a non-zero terminal witness so this is not a zero-fast-path check"

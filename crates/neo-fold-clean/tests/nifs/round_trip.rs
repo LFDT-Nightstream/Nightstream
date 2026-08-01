@@ -50,47 +50,6 @@ fn nifs_prove_verify_round_trip_matches_children() {
 }
 
 #[test]
-fn nifs_cpu_backend_selector_matches_prover_contract() {
-    let prep = support::toy_preprocessing();
-    let fresh = vec![support::toy_instance(&prep, 17), support::toy_instance(&prep, 19)];
-    let fresh_claims = fresh.iter().map(|i| i.claim.clone()).collect::<Vec<_>>();
-    let running = RunningInstance::default();
-
-    let mut prover_tr = Transcript::session();
-    let (next_running, proof) = nifs::prove_with_backend(
-        nifs::NifsProverBackend::Cpu,
-        &mut prover_tr,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        &prep.log,
-        None,
-        prep.mix_rhos_commits(),
-        prep.combine_b_pows(),
-        fresh,
-        &running,
-    )
-    .expect("NIFS.P CPU backend");
-
-    let mut verifier_tr = Transcript::session();
-    let verified_children = nifs::verify(
-        &mut verifier_tr,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        prep.mix_rhos_commits(),
-        prep.combine_b_pows(),
-        &fresh_claims,
-        &running,
-        &proof,
-    )
-    .expect("NIFS.V");
-
-    assert_eq!(verified_children.claims, next_running.claims);
-    assert_eq!(verified_children.parent_authority, next_running.parent_authority);
-}
-
-#[test]
 fn nifs_cpu_adapter_matches_prover_contract() {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, 43), support::toy_instance(&prep, 47)];
@@ -191,37 +150,6 @@ fn pi_rlc_rho_derivation_replays_after_pi_ccs() {
         &proof,
     )
     .expect("NIFS.V");
-}
-
-#[test]
-fn nifs_cuda_backend_selector_is_explicit_until_adapter_is_linked() {
-    let prep = support::toy_preprocessing();
-    let fresh = vec![support::toy_instance(&prep, 41)];
-    let running = RunningInstance::default();
-
-    let mut prover_tr = Transcript::session();
-    let err = nifs::prove_with_backend(
-        nifs::NifsProverBackend::Cuda,
-        &mut prover_tr,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        &prep.log,
-        None,
-        prep.mix_rhos_commits(),
-        prep.combine_b_pows(),
-        fresh,
-        &running,
-    )
-    .expect_err("CUDA backend should be unavailable until adapter is linked");
-
-    assert!(matches!(
-        err,
-        nifs::Error::BackendUnavailable {
-            backend: "cuda",
-            reason: "cuda-oxide backend adapter is not linked",
-        }
-    ));
 }
 
 #[test]

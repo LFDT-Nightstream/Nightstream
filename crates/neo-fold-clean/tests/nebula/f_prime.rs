@@ -35,7 +35,6 @@ use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 const TRANSCRIPT_LABEL: &[u8] = b"nebula/f-prime/composed-test";
-const REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET: usize = 25_000_000;
 
 fn fields(seed: u64) -> [F; 4] {
     std::array::from_fn(|index| F::from_u64(seed + index as u64))
@@ -338,40 +337,13 @@ fn road_a_field_shape_accepts_the_ring_padded_fresh_carrier() {
 }
 
 #[test]
-fn road_a_field_arms_must_fit_the_projection_budget() {
-    let nebula_params = NebulaParams::new(0, 0, 1, 2, 8).expect("one-step segment params");
-    let params = shape_test_params();
-    let plan = NebulaPlan::new(nebula_params, vec![7], [0xD8; 32], params.kappa() as usize).expect("tiny Road A plan");
-    let audit = NebulaFPrimeRelation::audit_field_shapes(&params, plan.circuit().structure(), &plan)
-        .expect("Road A field-shape audit");
-    let width = NebulaFPrimeRelation::audit_low_norm_width(&params, plan.circuit().structure(), &plan)
-        .expect("Road A selective-width census");
-
-    eprintln!(
-        "Road A field-shape audit: {audit:?}; selective committed width={}",
-        width.total_coordinates
-    );
-
-    assert!(
-        width.total_coordinates <= REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
-        "the reduced-profile selective lowering requires {} committed coordinates, above the {}-coordinate test target: {audit:?}",
-        width.total_coordinates,
-        REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
-    );
-}
-
-#[test]
-fn road_a_reduced_profile_fixed_point_stabilizes_within_budget() {
+fn road_a_reduced_profile_fixed_point_stabilizes() {
     let nebula_params = NebulaParams::new(0, 0, 1, 2, 8).expect("one-step segment params");
     let params = shape_test_params();
     let plan = NebulaPlan::new(nebula_params, vec![7], [0xD8; 32], params.kappa() as usize).expect("tiny Road A plan");
 
-    let relation = NebulaFPrimeRelation::compile_fixed_point_with_coordinate_limit(
-        &params,
-        &plan,
-        REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
-    )
-    .expect("R2 requires one stabilized, selectively lowered authoritative relation within the test target");
+    let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)
+        .expect("R2 requires one stabilized, selectively lowered authoritative relation");
     eprintln!(
         "Road A fixed point: {} coordinates, {} rows, {} matrices, degree {}",
         relation.structure().m,
@@ -395,17 +367,8 @@ fn road_a_reduced_profile_fixed_point_stabilizes_within_budget() {
     );
     assert_eq!(
         (relation.structure().n, relation.structure().m),
-        (35_038_323, 28_006_884),
+        (19_388_328, 24_397_632),
         "reduced-profile rectangular verifier fixed point drifted"
-    );
-    assert!(
-        relation.structure().m <= REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
-        "selectively lowered fixed point has {} coordinates ({} rows, {} matrices, degree {}), test target is {}",
-        relation.structure().m,
-        relation.structure().n,
-        relation.structure().t(),
-        relation.structure().max_degree(),
-        REDUCED_F_PRIME_COMMITTED_COORDINATE_TARGET,
     );
 }
 

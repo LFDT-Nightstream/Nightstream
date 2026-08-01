@@ -55,7 +55,7 @@ impl OptimizedRlcDec {
         ell_d: usize,
         child_commitments: &[Cmt],
         combine_b_pows: Comb,
-        sparse: Option<&super::optimized_engine::oracle::SparseCache<F>>,
+        sparse: Option<&super::optimized_engine::SparseCache<F>>,
     ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,

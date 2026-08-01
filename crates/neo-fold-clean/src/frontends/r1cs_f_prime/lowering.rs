@@ -134,8 +134,8 @@ pub struct FixedShapeLowNormR1cs {
 /// One low-norm CCS structure containing an arbitrary fixed set of
 /// one-hot-selected field-R1CS arms.
 ///
-/// Road A uses three arms: base, recursive with an empty accumulator, and
-/// steady recursive with `k_rho` running claims. Public columns and a
+/// Road A uses three arms: base, bootstrap recursive with fixed `k_rho`
+/// zero claims, and steady recursive with `k_rho` running claims. Public columns and a
 /// caller-selected application-private prefix are shared by every arm.
 /// Branch-local advice reuses one low-norm arena. Exactly one selector is
 /// active, so bitness and centered-digit rows are gated to that arm.

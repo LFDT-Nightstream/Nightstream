@@ -21,7 +21,7 @@ use neo_ajtai::AjtaiSModule;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::transcript::Transcript;
-use crate::paper::construction2::RunningInstance;
+use crate::paper::construction2::{LaneCommitmentMode, RunningInstance};
 use crate::paper::nifs::{Error, NifsProof};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, DecMixer, RlcMixer, Structure};
@@ -45,7 +45,7 @@ impl FixedNifsAccumulator {
         combine_b_pows: DecMixer,
         m_in: usize,
     ) -> Result<Self, Error> {
-        let running = RunningInstance::canonical_zero(pp, structure, m_in)?;
+        let running = RunningInstance::canonical_zero(pp, structure, m_in, LaneCommitmentMode::Plain)?;
         Self::from_prover_running(pp, structure, combine_b_pows, running)
     }
 

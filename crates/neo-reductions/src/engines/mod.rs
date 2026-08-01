@@ -12,6 +12,8 @@ pub mod utils;
 // Engine implementation modules
 pub mod optimized_engine;
 pub mod pi_ccs;
+pub mod pi_ccs_protocol;
+pub mod pi_ccs_rectangular;
 pub mod pi_rlc_dec;
 
 #[cfg(feature = "paper-exact")]
@@ -28,9 +30,3 @@ pub use pi_ccs::PaperExactEngine;
 
 #[cfg(feature = "paper-exact")]
 pub use crosscheck_engine::{CrossCheckEngine, CrosscheckCfg};
-
-// Re-export paper-exact helpers used by Route A finalization
-#[cfg(feature = "paper-exact")]
-pub use paper_exact_engine::{build_me_outputs_paper_exact, claimed_initial_sum_from_inputs_with_k_mcs};
-
-pub use optimized_engine::CcsOracle;

@@ -15,6 +15,7 @@ use neo_ccs::Mat;
 use neo_fold_clean::engine::r1cs_circuit::builder::{Poseidon2HashRoundAuditKind, Poseidon2PermutationAudit};
 use neo_fold_clean::engine::r1cs_circuit::{R1csBuilder, Var};
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
+use neo_fold_clean::paper::construction2::{LaneCommitmentMode, RunningInstance};
 use neo_fold_clean::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest, state_x_out_digest_with_mode,
     AccumulatorHandle, StateXOutDigestMode,
@@ -137,8 +138,16 @@ fn base_state(chunk_count: u64) -> FPrimeStateIn {
     }
 }
 
-fn native_x_out(state: &FPrimeStateIn, chunk_digest: [F; 4]) -> [F; 4] {
-    let empty_acc = AccumulatorHandle::empty().digest_fields();
+fn canonical_base_acc_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
+    let m_in = prep
+        .public_input_len
+        .expect("artifact fixture pins public input width");
+    let running = RunningInstance::canonical_zero(&prep.params, prep.structure(), m_in, LaneCommitmentMode::Plain)
+        .expect("construct canonical base accumulator");
+    AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields()
+}
+
+fn native_x_out(state: &FPrimeStateIn, chunk_digest: [F; 4], base_acc: [F; 4]) -> [F; 4] {
     let boundary = digest_fields_as_digest32(chunk_digest);
     digest32_as_fields(state_x_out_digest_with_mode(
         StateXOutDigestMode::Stateless,
@@ -150,8 +159,8 @@ fn native_x_out(state: &FPrimeStateIn, chunk_digest: [F; 4]) -> [F; 4] {
         digest_fields_as_digest32(state.z_0),
         boundary,
         state.pc,
-        digest_fields_as_digest32(empty_acc),
-        digest_fields_as_digest32(empty_acc),
+        digest_fields_as_digest32(base_acc),
+        digest_fields_as_digest32(base_acc),
         boundary,
         None,
     ))
@@ -200,12 +209,13 @@ fn build(chunk_count: u64, mutate_chunk_digest: bool) -> BuiltBase {
     if mutate_chunk_digest {
         chunk_digest[0] += F::ONE;
     }
-    let expected_x_out = native_x_out(&state, chunk_digest);
+    let base_acc = canonical_base_acc_digest(&prep);
+    let expected_x_out = native_x_out(&state, chunk_digest, base_acc);
     let source = source_fixture(&state, expected_x_out);
     let inputs = FPrimeBaseInputs {
         state,
         chunk_digest,
-        semantic_state_digest_out: AccumulatorHandle::empty().digest_fields(),
+        semantic_state_digest_out: base_acc,
         rows_in_chunk: ROWS_IN_CHUNK,
         source_image: &source.image,
         chunk_count_in_word: source.chunkCount,

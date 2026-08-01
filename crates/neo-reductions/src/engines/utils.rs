@@ -1,4 +1,4 @@
-//! Minimal protocol utilities for paper-exact implementation
+//! Shared PiCCS transcript binding, dimensions, and public-output checks.
 //!
 //! Contains only the essential functions needed by prove and verify.
 
@@ -35,6 +35,7 @@ pub struct Dims {
 pub enum PiCcsTranscriptVariant {
     SplitNcV1,
     BlockLaneNcDelayedV1,
+    PaperRectangularV1,
 }
 
 impl PiCcsTranscriptVariant {
@@ -42,13 +43,15 @@ impl PiCcsTranscriptVariant {
         match self {
             Self::SplitNcV1 => b"SplitNcV1",
             Self::BlockLaneNcDelayedV1 => b"BlockLaneNcDelayedV1",
+            Self::PaperRectangularV1 => b"PaperRectangularV1",
         }
     }
 
-    fn nc_variables(self, dims: Dims) -> (usize, usize) {
+    fn variables(self, dims: Dims) -> (usize, usize, usize) {
         match self {
-            Self::SplitNcV1 => (dims.ell_m, dims.ell_nc),
-            Self::BlockLaneNcDelayedV1 => (19, 25),
+            Self::SplitNcV1 => (dims.ell, dims.ell_m, dims.ell_nc),
+            Self::BlockLaneNcDelayedV1 => (dims.ell, 19, 25),
+            Self::PaperRectangularV1 => (dims.ell_n, dims.ell_m, dims.ell_m),
         }
     }
 }
@@ -89,6 +92,7 @@ pub const PI_CCS_SUMCHECK_INITIAL_LABEL: &[u8] = b"si";
 pub const PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG: u64 = 7;
 pub const PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG: u64 = 8;
 pub const PI_CCS_SUMCHECK_INITIAL_RAW_TAG: u64 = 9;
+pub const PI_CCS_SUMCHECK_JOINT_RAW_DOMAIN_TAG: u64 = 17;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PiCcsBindHeaderPerf {
@@ -410,8 +414,8 @@ pub fn pi_ccs_header_bundle_digest_fields_from_parts_for_variant(
         )));
     }
 
-    let (nc_point_variables, nc_variables) = variant.nc_variables(dims);
-    let ell_max = core::cmp::max(dims.ell, nc_variables);
+    let (fe_variables, nc_point_variables, nc_variables) = variant.variables(dims);
+    let ell_max = core::cmp::max(fe_variables, nc_variables);
     let ext = params
         .extension_check(ell_max as u32, dims.d_sc as u32)
         .map_err(|e| PiCcsError::ExtensionPolicyFailed(e.to_string()))?;
@@ -426,7 +430,7 @@ pub fn pi_ccs_header_bundle_digest_fields_from_parts_for_variant(
             64,
             ext.s_supported as u64,
             params.lambda as u64,
-            dims.ell as u64,
+            fe_variables as u64,
             nc_variables as u64,
             ell_max as u64,
             dims.d_sc as u64,
@@ -746,6 +750,7 @@ where
     }
 
     for (idx, out) in me_outputs.iter().enumerate() {
+        crate::engines::pi_ccs_protocol::validate_inactive_x_zero(&format!("me_outputs[{idx}]"), out)?;
         if out.r.as_slice() != r_prime {
             return Err(PiCcsError::ProtocolError(format!(
                 "split Π_CCS: me_outputs[{idx}].r does not match FE r'"
@@ -841,6 +846,29 @@ pub fn sample_challenges(tr: &mut Poseidon2Transcript, ell_d: usize, ell: usize)
         beta_m: Vec::new(),
         gamma,
     })
+}
+
+/// Sample the corrected rectangular-paper challenges.
+///
+/// The first point gates the row-domain FE polynomial. The second point gates
+/// the column-domain NC polynomial. There is no coefficient-lane challenge.
+pub fn sample_paper_rectangular_challenges(
+    tr: &mut Poseidon2Transcript,
+    ell_n: usize,
+    ell_m: usize,
+) -> Result<Challenges, PiCcsError> {
+    tr.append_fields_raw(&[F::from_u64(2)]);
+    let values = sample_k_batch(tr, ell_n + ell_m + 1);
+    if values.len() != ell_n + ell_m + 1 {
+        return Err(PiCcsError::ProtocolError(
+            "rectangular row/column/gamma challenge batch length mismatch".into(),
+        ));
+    }
+    Ok(Challenges::paper_rectangular(
+        values[..ell_n].to_vec(),
+        values[ell_n..ell_n + ell_m].to_vec(),
+        values[ell_n + ell_m],
+    ))
 }
 
 /// Sample the column-domain β_m ∈ K^{log m} for the split-NC variant.
@@ -1293,7 +1321,7 @@ fn push_field_digest_chunks<'a, Ff>(leaves: &mut Vec<CcsDigestLeaf<'a, Ff>>, mat
 /// because both sides bind the same domain, dimensions, matrix order, and full CSC content.
 pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64 + Sync>(
     s: &CcsStructure<Ff>,
-    sparse: Option<&crate::engines::optimized_engine::oracle::SparseCache<Ff>>,
+    sparse: Option<&crate::engines::optimized_engine::SparseCache<Ff>>,
 ) -> Vec<Goldilocks> {
     let mut leaves = Vec::new();
 

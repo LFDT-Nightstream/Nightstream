@@ -128,6 +128,7 @@ fn validate_ce_claim_shape(
             ce.m_in
         )));
     }
+    crate::engines::pi_ccs_protocol::validate_inactive_x_zero(label, ce)?;
     let ell_n = ell_n_for_ccs(s);
     if ce.r.len() != ell_n {
         return Err(PiCcsError::InvalidInput(format!(
@@ -345,7 +346,7 @@ pub enum FoldingMode {
 // ---------------------------------------------------------------------------
 
 /// Prove Π_CCS folding.
-pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -410,7 +411,7 @@ pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
 }
 
 /// Prove Π_CCS in the simple (k=1) case without ME inputs.
-pub fn prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub fn prove_simple<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync>(
     mode: FoldingMode,
     tr: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -705,7 +706,7 @@ pub fn dec_children_with_commit_cached<Comb>(
     ell_d: usize,
     child_commitments: &[Cmt],
     combine_b_pows: Comb,
-    sparse: Option<&crate::engines::optimized_engine::oracle::SparseCache<F>>,
+    sparse: Option<&crate::engines::optimized_engine::SparseCache<F>>,
 ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
 where
     Comb: Fn(&[Cmt], u32) -> Cmt,

@@ -1,110 +1,85 @@
-# Engines
+# PiCCS engines
 
 ## Purpose
 
-- **What it is**: Engine trait and backend implementations for Pi_CCS proving/verification: `OptimizedEngine` (production), `PaperExactEngine` (audit reference), and `CrossCheckEngine` (development debugging wrapper).
-- **Key invariant**: All engines implement `PiCcsEngine` and produce identical logical outputs (CE claims, proof acceptance) for the same inputs. The optimized engine uses factored algebra and CSC sparse caching for performance; the paper-exact engine uses literal paper formulas.
-- **Protocol role**: The engine abstraction enables `FoldingMode`-based dispatch, allowing production use (Optimized), auditability (PaperExact), and development verification (CrossCheck) with the same API surface.
+`PaperExactEngine` is the independent correctness oracle. `OptimizedEngine`
+computes the same polynomial with cached matrix tables. On native targets,
+`CrossCheckEngine` runs both concurrently from the same transcript state. It
+requires equal transcript checkpoints, selected proof surfaces, outputs, and
+canonical proof bytes before it returns the optimized result.
 
-## Target Formulas (Paper -> Rust)
+The active protocol is `PiCcsProofVariant::PaperRectangularV1`. The old
+`SplitNcV1` and `BlockLaneNcDelayedV1` variants are legacy diagnostic paths.
+The normal optimized verifier does not accept them.
 
-| Paper notation | Paper reference | Rust identifier | Notes |
-|---|---|---|---|
-| `Q(alpha, r) = eq(alpha, beta_a) * eq(r, beta_r) * F(r, alpha)` | Section 7.3, line 490 | `OptimizedOracle::evals_at`, `PaperExactOracle::evals_at` | FE sumcheck target |
-| `Q_nc(s, alpha) = eq(s, beta_m) * eq(alpha, beta_a) * Sigma gamma^i * N_i(...)` | Extension | `NcOracle::evals_at` | NC sumcheck target (norm-check range poly) |
-| `eq(p, q) = Pi (1-p_i)(1-q_i) + p_i*q_i` | Standard | `eq_points(p, q)` | Multilinear equality function |
-| `chi_r(row)` | Standard | `chi_row_at_bool_point(row, xr_mask)` | Row selector for boolean hypercube |
-| `chi_a(rho)` | Standard | `chi_ajtai_at_bool_point(rho, xa_mask)` | Ajtai-dimension selector |
-| Terminal identity (RHS) | Section 7.3 | `rhs_terminal_identity_fe`, `rhs_terminal_identity_nc` | Verifier computes RHS to compare against sumcheck final value |
+## Ownership
 
-## Paper Anchors
+| Owner | Responsibility |
+|---|---|
+| `engines/pi_ccs_protocol.rs` | Neutral messages, canonical bytes, absolute gamma layout, initial and terminal equations |
+| `engines/pi_ccs_rectangular.rs` | Shared Poseidon2 transcript order, SumCheck phase driver, proof assembly, verifier replay |
+| `engines/paper_exact_engine/paper_rectangular.rs` | Direct FE, NC, and one-joint square evaluators |
+| `engines/optimized_engine/paper_rectangular.rs` | Cached Boolean tables for the same FE and NC polynomials |
+| `engines/crosscheck_engine` | Exact outputs, rounds, folds, terminals, and canonical-byte comparison |
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+PaperExact does not import an optimized oracle, transformed evaluator cache,
+sparse cache, digit table, or binary-search matrix lookup. A source dependency
+test enforces this boundary. Its gamma layout, corrected target, FE terminal,
+and NC terminal are also literal local formulas. They do not call the
+optimized engine's canonical formula helpers.
 
-- Section 7.3 (Pi_CCS), lines 481-548: Q polynomial, sumcheck variable order, terminal identity.
-- Lemma 3 (Pi_CCS is strong), lines 545-546.
-- Section 7.5 (Pi_DEC), lines 585-593: DEC operations shared between engines.
+## Canonical equations
 
-## Lean Cross-Reference
+For `K` fresh sources, `k` running sources, `t` matrices, and `d` ring
+coefficients, the absolute gamma blocks are:
 
-| Lean spec | Lean module | Relationship |
-|---|---|---|
-| `PiCCS.spec.md` | `SuperNeo/PiCCS.lean` | Defines the Q polynomial structure that engines evaluate |
-| `MatrixTransform.spec.md` | `SuperNeo/MatrixTransform.lean` | `matrixTransformIdentity` underpins SuperNeo evaluations |
-| `EvalHom.spec.md` | `SuperNeo/EvalHom.lean` | Theorem 5 linearity used by optimized engine |
+| Block | Exponents |
+|---|---|
+| fresh CCS | `i`, for `0 <= i < K` |
+| all-source norm | `K + i`, for `0 <= i < K + k` |
+| carried evaluation | `2K + k + i + k*j + k*t*l` |
 
-## Contract Surface
+FE uses only the padded row cube. NC uses only the padded column cube. There
+is no coefficient or Ajtai SumCheck axis. A second transcript phase and a
+second terminal point are the only rectangular-domain changes.
 
-| Group | Rust symbol | Kind | Role | Guarantee |
-|---|---|---|---|---|
-| Trait | `PiCcsEngine` | trait | Core | `prove` + `verify` interface for all backends |
-| Optimized | `OptimizedEngine` | struct | Core | Production engine with CSC caching and factored algebra |
-| PaperExact | `PaperExactEngine` | struct | Core | Literal paper formulas for audit (feature-gated: `paper-exact`) |
-| CrossCheck | `CrossCheckEngine<I, R>` | struct | Helper | Wraps inner + reference engine; compares outputs |
-| CrossCheck | `CrosscheckCfg` | struct | Helper | Configuration for cross-checking behavior |
-| Oracle (opt) | `OptimizedOracle` | struct | Core | FE sumcheck oracle with factored eq-gate and CSC operations |
-| Oracle (opt) | `NcOracle` | struct | Core | NC-only sumcheck oracle (split-NC variant) |
-| Oracle (opt) | `CcsOracle` | type alias | Core | Alias for `OptimizedOracle` |
-| Oracle (ref) | Paper-exact oracle | struct | Helper | Literal Q evaluation (feature-gated) |
-| Sparse | `SparseCache<F>` | struct | Core | CSC matrix cache for efficient `A^T * x` |
-| Challenges | `Challenges` | struct | Core | `alpha`, `beta_a`, `beta_r`, `beta_m`, `gamma` |
-| Common | `eq_points(p, q)` | fn | Core | Multilinear equality `eq(p,q)` |
-| RLC/DEC | `RlcDecOps` | trait | Core | `rlc_with_commit`, `dec_children_with_commit` interface |
-| RLC/DEC | `OptimizedRlcDec` | struct | Core | Optimized RLC/DEC with optional CSC cache reuse |
+## Executable references
 
-## Invariant Obligations
+- `PaperJointSquareOracle` executes the paper's one-polynomial square case.
+- `PaperRectangularFeOracle` and `PaperRectangularNcOracle` execute the exact
+  row/column decomposition.
+- `OptimizedPaperRectangularFeOracle` and
+  `OptimizedPaperRectangularNcOracle` fold cached Boolean tables in place.
 
-| Invariant | Verification method | Lean theorem counterpart |
-|---|---|---|
-| Engine equivalence: optimized and paper-exact produce same CE claims | Integration test (existing tests) | (none) |
-| Engine equivalence: optimized and paper-exact produce same sumcheck rounds | Integration test | (none) |
-| `eq_points` symmetry: `eq(p,q) == eq(q,p)` | Unit test | (none) |
-| `eq_points` identity: `eq(p,p) == 1` for boolean points | Unit test | (none) |
-| `SparseCache`: CSC format matches dense matrix operations | Unit test | (none) |
-| `CrossCheckEngine`: detects intentional mismatches | Unit test | (none) |
-| `RlcDecOps`: optimized and paper-exact produce same RLC/DEC results | Integration test | (none) |
+## Evidence
 
-## Assumption Ledger
+| Property | Evidence |
+|---|---|
+| optimized proof bytes equal PaperExact | `tests/paper_rectangular_parity.rs` |
+| cross-check prover and verifier start both engines concurrently | `crosscheck_starts_both_engines_concurrently` |
+| public cross-check mode covers `n < m`, `n > m`, and carried inputs | `public_crosscheck_mode_enforces_exact_reference_parity` |
+| both `n < m` and `n > m` | `paper_exact_and_optimized_are_byte_exact_for_both_rectangular_directions` |
+| every FE and NC round polynomial and fold on nontrivial invalid witnesses | `every_round_polynomial_and_fold_matches_on_nontrivial_invalid_witnesses` |
+| one-joint square decomposition, including an invalid witness | `square_joint_oracle_is_exactly_the_fe_nc_decomposition` |
+| FE, NC, gamma, source-order, and output mutations fail | `canonical_verifier_rejects_independent_protocol_mutations` |
+| PaperExact has no optimized dependency | `paper_exact_active_sources_have_no_optimized_dependency` |
+| all 324 fixed-shape Rust gamma slots match Lean | `paper_rectangular_lean_artifact.rs` and `PiCcsPaperRectangular/Conformance.lean` |
+| model-level square identity | `PaperRectangular.Square.joint_qAt_eq_fe_add_nc` and `joint_summedQ_eq_summedFe_add_summedNc` |
 
-| Assumption | Source | Justification |
-|---|---|---|
-| `OptimizedOracle` factored algebra is equivalent to paper formulas | Cross-check tests | Validated by `OptimizedWithCrosscheck` mode |
-| CSC sparse format produces same matrix-vector products as dense | Unit tests | Standard sparse matrix correctness |
-| Paper-exact engine faithfully implements paper formulas | Code review + Lean cross-reference | 1:1 mapping to paper equations |
+## Legacy boundary
 
-## Dependency and Consumer Map
+All block/lane, device-backend, replay, and deferred computations are below
+`optimized_engine::legacy_split_nc`. They are not available from the normal
+optimized API, are not a PaperExact oracle, and are not accepted by the normal
+optimized verifier. The current fixed-profile recursive circuit still uses
+this explicit namespace. It is migration code and is not covered by the
+`PaperRectangular` Lean theorem or the byte-equality claim.
 
-Upstream dependencies:
-- `neo-reductions::sumcheck`: `RoundOracle`, `run_sumcheck_prover`, `verify_sumcheck_rounds`
-- `neo-reductions::common`: balanced splitting, rotation sampling, witness helpers
-- `neo-reductions::superneo_eval`: `SuperneoMatrixCache`, `SuperneoLinearForm`
-- `neo-ccs`: `CcsStructure`, `CcsMatrix`, `CeClaim`, `Mat`
+## Acceptance commands
 
-Downstream consumers:
-- `neo-reductions::api`: dispatches to engines based on `FoldingMode`
-- `neo-fold`: may use `SparseCache` for cached DEC operations
-
-## Lean Oracle Conformance
-
-| Test file | Oracle family | What it checks |
-|---|---|---|
-| (none yet) | (none) | Engines verified via cross-check and end-to-end roundtrip tests |
-
-## Quality Expectations
-
-- `PaperExactEngine` and `CrossCheckEngine` are feature-gated behind `paper-exact`
-- `OptimizedOracle` uses `SparseCache` for O(nnz) column operations instead of O(n*m) dense scans
-- `NcOracle` variable order: first `ell_m` column bits, then `ell_d` Ajtai bits
-
-## Acceptance Criteria
-
-- `cargo test -p neo-reductions --release` succeeds
-- Spec-derived tests in `spec-tests/engines.rs` pass
-- Existing engine equivalence tests (`optimized_oracle_all_base_equivalence`, `optimized_oracle_me_outputs_match_paper_exact`) pass
-- `cargo clippy -p neo-reductions --all-targets --release -- -D warnings` clean
-
-## Out of Scope
-
-- Sumcheck protocol details -- see SumCheck.spec.md
-- High-level API -- see PiCCS.spec.md
-- SuperNeo evaluation helpers -- see SuperNeoEval.spec.md
+```text
+cargo test -p neo-reductions --release --test paper_rectangular_parity
+cargo test -p neo-reductions --release --features paper-exact --test paper_rectangular_parity crosscheck
+cargo test -p neo-reductions --release --test paper_rectangular_lean_artifact
+cargo test -p neo-reductions --release --test k_mcs_end_to_end
+```

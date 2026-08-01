@@ -62,7 +62,7 @@ fn build_fixture(
 }
 
 #[test]
-fn split_nc_rejects_missing_y_zcol() {
+fn paper_rectangular_rejects_missing_y_zcol() {
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(b"test/split_nc/missing_y_zcol", 4, D);
 
     let (mut out_me, proof) = neo_reductions::api::prove(
@@ -78,7 +78,7 @@ fn split_nc_rejects_missing_y_zcol() {
     )
     .expect("prove");
 
-    assert_eq!(proof.variant, PiCcsProofVariant::SplitNcV1);
+    assert_eq!(proof.variant, PiCcsProofVariant::PaperRectangularV1);
 
     for out in out_me.iter_mut() {
         out.y_zcol.clear();
@@ -99,7 +99,7 @@ fn split_nc_rejects_missing_y_zcol() {
 }
 
 #[test]
-fn split_nc_rejects_s_col_mismatch() {
+fn paper_rectangular_rejects_s_col_mismatch() {
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(b"test/split_nc/s_col_mismatch", 4, D);
 
     let (mut out_me, proof) = neo_reductions::api::prove(
@@ -115,7 +115,7 @@ fn split_nc_rejects_s_col_mismatch() {
     )
     .expect("prove");
 
-    assert_eq!(proof.variant, PiCcsProofVariant::SplitNcV1);
+    assert_eq!(proof.variant, PiCcsProofVariant::PaperRectangularV1);
     assert!(!out_me.is_empty());
     out_me[0].s_col[0] += K::ONE;
 
@@ -134,7 +134,7 @@ fn split_nc_rejects_s_col_mismatch() {
 }
 
 #[test]
-fn split_nc_rejects_missing_nc_sumcheck_rounds() {
+fn paper_rectangular_rejects_missing_nc_sumcheck_rounds() {
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(b"test/split_nc/missing_nc_rounds", 4, D);
 
     let (out_me, mut proof) = neo_reductions::api::prove(
@@ -150,7 +150,7 @@ fn split_nc_rejects_missing_nc_sumcheck_rounds() {
     )
     .expect("prove");
 
-    assert_eq!(proof.variant, PiCcsProofVariant::SplitNcV1);
+    assert_eq!(proof.variant, PiCcsProofVariant::PaperRectangularV1);
     proof.sumcheck_rounds_nc.clear();
 
     let mut tr_v = Poseidon2Transcript::new(b"test/split_nc/missing_nc_rounds");
@@ -168,7 +168,7 @@ fn split_nc_rejects_missing_nc_sumcheck_rounds() {
 }
 
 #[test]
-fn split_nc_uses_ell_m_for_s_col_when_rectangular() {
+fn paper_rectangular_uses_ell_m_for_s_col() {
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(b"test/split_nc/ell_m", 4, D);
     let dims = neo_reductions::engines::utils::build_dims_and_policy(&params, &s).expect("dims");
     assert_ne!(dims.ell_n, dims.ell_m, "test requires ell_n != ell_m");
@@ -186,8 +186,8 @@ fn split_nc_uses_ell_m_for_s_col_when_rectangular() {
     )
     .expect("prove");
 
-    assert_eq!(proof.variant, PiCcsProofVariant::SplitNcV1);
-    assert_eq!(proof.sumcheck_rounds_nc.len(), dims.ell_nc);
+    assert_eq!(proof.variant, PiCcsProofVariant::PaperRectangularV1);
+    assert_eq!(proof.sumcheck_rounds_nc.len(), dims.ell_m);
     assert!(!out_me.is_empty());
     assert_eq!(out_me[0].s_col.len(), dims.ell_m);
 
@@ -207,7 +207,7 @@ fn split_nc_uses_ell_m_for_s_col_when_rectangular() {
 }
 
 #[test]
-fn split_nc_verify_ignores_stale_ct_shell() {
+fn paper_rectangular_verify_rejects_stale_ct_shell() {
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(b"test/split_nc/stale_ct", 4, D);
 
     let (mut out_me, proof) = neo_reductions::api::prove(
@@ -223,12 +223,12 @@ fn split_nc_verify_ignores_stale_ct_shell() {
     )
     .expect("prove");
 
-    assert_eq!(proof.variant, PiCcsProofVariant::SplitNcV1);
+    assert_eq!(proof.variant, PiCcsProofVariant::PaperRectangularV1);
     assert!(!out_me.is_empty());
     out_me[0].ct[0] += K::ONE;
 
     let mut tr_v = Poseidon2Transcript::new(b"test/split_nc/stale_ct");
-    let ok = neo_reductions::api::verify(
+    let result = neo_reductions::api::verify(
         FoldingMode::Optimized,
         &mut tr_v,
         &params,
@@ -237,13 +237,12 @@ fn split_nc_verify_ignores_stale_ct_shell() {
         &[],
         &out_me,
         &proof,
-    )
-    .expect("verify should not error");
-    assert!(ok, "stale ct shell must not fail optimized verify");
+    );
+    assert!(!matches!(result, Ok(true)), "stale ct shell was accepted");
 }
 
 #[test]
-fn split_nc_raw_verify_rejects_unbound_output_ct() {
+fn paper_rectangular_raw_verify_rejects_unbound_output_ct() {
     let label = b"test/split_nc/redteam/unbound_output_ct";
     let (params, s, l, mcs_inst, mcs_wit, mut tr_p) = build_fixture(label, 4, D);
 
@@ -265,7 +264,7 @@ fn split_nc_raw_verify_rejects_unbound_output_ct() {
     assert_ne!(outputs[0].ct[0], outputs[0].y_ring[0][0]);
 
     let mut tr_v = Poseidon2Transcript::new(label);
-    let accepted = neo_reductions::api::verify(
+    let result = neo_reductions::api::verify(
         FoldingMode::Optimized,
         &mut tr_v,
         &params,
@@ -274,17 +273,16 @@ fn split_nc_raw_verify_rejects_unbound_output_ct() {
         &[],
         &outputs,
         &proof,
-    )
-    .expect("malformed output must receive a verdict");
+    );
 
     assert!(
-        !accepted,
+        !matches!(result, Ok(true)),
         "raw Pi_CCS accepted an output CE claim whose ct disagrees with y_ring"
     );
 }
 
 #[test]
-fn split_nc_tampered_y_zcol_is_rejected() {
+fn paper_rectangular_tampered_y_zcol_is_rejected() {
     // If `eq((α',s'),β)` happens to be zero, a single attempt may not detect tampering.
     // Try a few transcript labels and require that at least one detects it.
     const LABELS: [&[u8]; 16] = [
@@ -363,7 +361,7 @@ fn split_nc_tampered_y_zcol_is_rejected() {
 }
 
 #[test]
-fn split_nc_raw_verify_rejects_unbound_inactive_output_x() {
+fn paper_rectangular_raw_verify_rejects_unbound_inactive_output_x() {
     let label = b"test/split_nc/redteam/inactive_output_x";
     let (params, s, l, mut mcs, mut wit, mut tr_p) = build_fixture(label, 4, D);
     mcs.m_in = 2;
@@ -388,7 +386,7 @@ fn split_nc_raw_verify_rejects_unbound_inactive_output_x() {
     outputs[0].X[(0, 1)] = F::ONE;
 
     let mut tr_v = Poseidon2Transcript::new(label);
-    let accepted = neo_reductions::api::verify(
+    let result = neo_reductions::api::verify(
         FoldingMode::Optimized,
         &mut tr_v,
         &params,
@@ -397,11 +395,10 @@ fn split_nc_raw_verify_rejects_unbound_inactive_output_x() {
         &[],
         &outputs,
         &proof,
-    )
-    .expect("malformed output must receive a verdict");
+    );
 
     assert!(
-        !accepted,
+        !matches!(result, Ok(true)),
         "raw Pi_CCS accepted an output CE claim with unbound inactive X data"
     );
 }
@@ -414,7 +411,7 @@ fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
     let claims = vec![claim; count];
     let witnesses = vec![witness; count];
 
-    let (outputs, proof) = neo_reductions::api::prove(
+    let result = neo_reductions::api::prove(
         FoldingMode::Optimized,
         &mut tr_p,
         &params,
@@ -424,24 +421,10 @@ fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
         &[],
         &[],
         &l,
-    )
-    .expect("raw Pi_CCS currently accepts a fresh count above its installed profile");
-
-    let mut tr_v = Poseidon2Transcript::new(label);
-    let accepted = neo_reductions::api::verify(
-        FoldingMode::Optimized,
-        &mut tr_v,
-        &params,
-        &s,
-        &claims,
-        &[],
-        &outputs,
-        &proof,
-    )
-    .expect("raw verifier must return a verdict");
+    );
 
     assert!(
-        !accepted,
+        result.is_err(),
         "raw Pi_CCS accepted {} fresh claims under a profile capped at {}",
         count,
         neo_params::goldilocks_paper_b2::MAX_FRESH_K
@@ -471,7 +454,7 @@ fn raw_pi_ccs_rejects_running_count_above_parameter_profile() {
     let running_witnesses = vec![running_witness; count];
     let label = b"test/split_nc/redteam/running_count_policy";
     let mut tr_p = Poseidon2Transcript::new(label);
-    let (outputs, proof) = neo_reductions::api::prove(
+    let result = neo_reductions::api::prove(
         FoldingMode::Optimized,
         &mut tr_p,
         &params,
@@ -481,24 +464,10 @@ fn raw_pi_ccs_rejects_running_count_above_parameter_profile() {
         &running,
         &running_witnesses,
         &l,
-    )
-    .expect("raw Pi_CCS currently accepts a running count above its installed profile");
-
-    let mut tr_v = Poseidon2Transcript::new(label);
-    let accepted = neo_reductions::api::verify(
-        FoldingMode::Optimized,
-        &mut tr_v,
-        &params,
-        &s,
-        core::slice::from_ref(&claim),
-        &running,
-        &outputs,
-        &proof,
-    )
-    .expect("raw verifier must return a verdict");
+    );
 
     assert!(
-        !accepted,
+        result.is_err(),
         "raw Pi_CCS accepted {count} running claims under a profile fixed to k_rho={}",
         params.k_rho
     );

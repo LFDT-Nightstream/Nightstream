@@ -96,6 +96,12 @@ pub enum R1csIvcError {
     },
     #[error("R1CS IVC preprocessing does not match the compiled relation")]
     PreprocessingMismatch,
+    #[error("R1CS IVC branch {branch:?} encoded an unsatisfied CCS row at index {row} ({owner})")]
+    UnsatisfiedEncodedRelation {
+        branch: R1csIvcBranch,
+        row: usize,
+        owner: String,
+    },
     #[error("R1CS IVC expected an active lifecycle state")]
     ExpectedActiveState,
     #[error("R1CS IVC expected a recursive fold proof")]

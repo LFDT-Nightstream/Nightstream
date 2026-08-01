@@ -8,12 +8,13 @@ use std::sync::Arc;
 
 use cuda_core::{CudaStream, DeviceBuffer, PinnedHostBuffer};
 use neo_math::{KExtensions, D, F, K};
-use neo_reductions::optimized_engine::oracle::{NcColSnapshot, RowPhaseSnapshot};
-use neo_reductions::optimized_engine::{
-    Challenges, FePhaseTraceRequest, FeRowRoundTrace, FeSumcheckBackend, NcFinalizedColState, NcSumcheckBackend,
-    PiCcsPhaseBackend, PiCcsPhaseProofLog, PiCcsPhaseSummary, PiCcsPhaseTrace, PiCcsPhaseTraceRequest,
-    PiCcsTerminalOutputSurfaces, TranscriptSnapshot,
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::{NcColSnapshot, RowPhaseSnapshot};
+use neo_reductions::optimized_engine::legacy_split_nc::{
+    FePhaseTraceRequest, FeRowRoundTrace, FeSumcheckBackend, NcFinalizedColState, NcSumcheckBackend, PiCcsPhaseBackend,
+    PiCcsPhaseProofLog, PiCcsPhaseSummary, PiCcsPhaseTrace, PiCcsPhaseTraceRequest, PiCcsTerminalOutputSurfaces,
+    TranscriptSnapshot,
 };
+use neo_reductions::optimized_engine::Challenges;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::device::{uninit_u64_device_buffer, upload_u64_device_buffer};

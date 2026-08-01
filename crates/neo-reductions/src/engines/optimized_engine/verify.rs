@@ -57,17 +57,22 @@ pub fn optimized_verify_with_cache_and_perf(
     proof: &PiCcsProof,
     cache: &OptimizedStructureCache,
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
-    optimized_verify_with_cache_and_public_instance_digest_impl(
-        tr,
-        params,
-        s,
-        mcs_list,
-        me_inputs,
-        me_outputs,
-        proof,
-        cache,
-        ReplayBinding::claims(),
-    )
+    if proof.variant == PiCcsProofVariant::PaperRectangularV1 {
+        return verify_rectangular_bound(
+            tr,
+            params,
+            s,
+            mcs_list,
+            me_inputs,
+            me_outputs,
+            proof,
+            crate::engines::pi_ccs_rectangular::TranscriptBinding::claims(),
+        );
+    }
+    let _ = cache;
+    Err(PiCcsError::ProtocolError(
+        "the normal optimized verifier accepts only PaperRectangularV1".into(),
+    ))
 }
 
 pub fn optimized_verify_with_cache_and_instance_digest_and_perf(
@@ -81,17 +86,22 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_perf(
     cache: &OptimizedStructureCache,
     public_instance_digest: [F; 4],
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
-    optimized_verify_with_cache_and_public_instance_digest_impl(
-        tr,
-        params,
-        s,
-        mcs_list,
-        me_inputs,
-        me_outputs,
-        proof,
-        cache,
-        ReplayBinding::instance_digest(public_instance_digest),
-    )
+    if proof.variant == PiCcsProofVariant::PaperRectangularV1 {
+        return verify_rectangular_bound(
+            tr,
+            params,
+            s,
+            mcs_list,
+            me_inputs,
+            me_outputs,
+            proof,
+            crate::engines::pi_ccs_rectangular::TranscriptBinding::digest(public_instance_digest),
+        );
+    }
+    let _ = cache;
+    Err(PiCcsError::ProtocolError(
+        "the digest-bound optimized verifier accepts only PaperRectangularV1".into(),
+    ))
 }
 
 pub fn optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
@@ -106,17 +116,57 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_p
     public_instance_digest: [F; 4],
     me_input_accumulator_handle: [F; 4],
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
-    optimized_verify_with_cache_and_public_instance_digest_impl(
-        tr,
+    if proof.variant == PiCcsProofVariant::PaperRectangularV1 {
+        return verify_rectangular_bound(
+            tr,
+            params,
+            s,
+            mcs_list,
+            me_inputs,
+            me_outputs,
+            proof,
+            crate::engines::pi_ccs_rectangular::TranscriptBinding::digest_and_handle(
+                public_instance_digest,
+                me_input_accumulator_handle,
+            ),
+        );
+    }
+    let _ = cache;
+    Err(PiCcsError::ProtocolError(
+        "the handle-bound optimized verifier accepts only PaperRectangularV1; use the explicit legacy block-lane entrypoint for old proofs"
+            .into(),
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_rectangular_bound(
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    binding: crate::engines::pi_ccs_rectangular::TranscriptBinding,
+) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
+    let started = std::time::Instant::now();
+    let valid = crate::engines::pi_ccs_rectangular::verify_with_binding(
+        transcript,
         params,
-        s,
-        mcs_list,
-        me_inputs,
-        me_outputs,
+        structure,
+        fresh_claims,
+        running_claims,
+        outputs,
         proof,
-        cache,
-        ReplayBinding::legacy_handle(public_instance_digest, me_input_accumulator_handle),
-    )
+        binding,
+    )?;
+    Ok((
+        valid,
+        PiCcsVerifyPerf {
+            total_ms: started.elapsed().as_secs_f64() * 1_000.0,
+            ..PiCcsVerifyPerf::default()
+        },
+    ))
 }
 
 pub(super) fn optimized_verify_with_cache_and_public_instance_digest_impl(
@@ -137,18 +187,23 @@ pub(super) fn optimized_verify_with_cache_and_public_instance_digest_impl(
 
     let bind_started = std::time::Instant::now();
     let dims = utils::build_dims_and_policy(params, s)?;
-    crate::api::validate_mcs_claims("optimized_verify", s, mcs_list)?;
-    crate::api::validate_ce_claims_shape("optimized_verify: me_inputs", s, dims.ell_m, me_inputs)?;
-    crate::api::validate_ce_claims_shape("optimized_verify: me_outputs", s, dims.ell_m, me_outputs)?;
-    crate::api::validate_pi_ccs_outputs("optimized_verify: me_outputs", s, me_outputs)?;
-    let _ = utils::shared_me_input_r(me_inputs, dims.ell_n)?;
-    let _ = utils::shared_me_input_r(me_outputs, dims.ell_n)?;
-    utils::validate_mcs_output_x_recomposition(params, s.m, mcs_list, me_outputs)?;
     let block_pending = match &binding.nc_mode {
         NcReplayMode::LegacyFlat => None,
         NcReplayMode::BlockLaneDelayed(pending) => Some(pending.clone()),
     };
     let block_mode = block_pending.is_some();
+    let column_point_len = if block_mode {
+        super::oracle::BLOCK_LANE_NC_BLOCK_VARIABLES
+    } else {
+        dims.ell_m
+    };
+    crate::api::validate_mcs_claims("optimized_verify", s, mcs_list)?;
+    crate::api::validate_ce_claims_shape("optimized_verify: me_inputs", s, column_point_len, me_inputs)?;
+    crate::api::validate_ce_claims_shape("optimized_verify: me_outputs", s, column_point_len, me_outputs)?;
+    crate::api::validate_pi_ccs_outputs("optimized_verify: me_outputs", s, me_outputs)?;
+    let _ = utils::shared_me_input_r(me_inputs, dims.ell_n)?;
+    let _ = utils::shared_me_input_r(me_outputs, dims.ell_n)?;
+    utils::validate_mcs_output_x_recomposition(params, s.m, mcs_list, me_outputs)?;
     if block_mode && params.b != 2 {
         return Err(PiCcsError::InvalidInput(
             "block-lane delayed Π_CCS requires the strict base-two norm relation".into(),

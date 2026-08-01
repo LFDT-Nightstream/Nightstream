@@ -5,7 +5,7 @@
 
 use neo_ccs::Mat;
 use neo_math::{from_complex, D, F, K};
-use neo_reductions::optimized_engine::oracle::{NcDigitTableView, RowTableSnapshot};
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::{NcDigitTableView, RowTableSnapshot};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::{KWords, MetalSumcheckTrace};

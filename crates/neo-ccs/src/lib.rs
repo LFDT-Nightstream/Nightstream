@@ -36,7 +36,7 @@ pub use error::{CcsError, DimMismatch, RelationError};
 pub use geometric::GeometricRowRun;
 pub use matrix::{CsrMatrix, Mat, MatRef};
 pub use poly::{SparsePoly, Term};
-pub use r1cs::{r1cs_to_ccs, sparse_r1cs_to_ccs};
+pub use r1cs::{r1cs_to_ccs, sparse_r1cs_to_ccs, sparse_selected_r1cs_to_ccs};
 pub use seeded_phi81::{SeededPhi81Error, SeededPhi81LinearBlock};
 pub use sparse::{CcsMatrix, CscMat, SparseCache};
 

@@ -238,7 +238,11 @@ fn finish_uncompressed_rejects_manual_oversized_latest() {
             let running = running
                 .as_materialized()
                 .expect("one-step fixture running must be materialized");
-            assert!(running.is_empty(), "one-step fixture must have empty running");
+            assert_eq!(
+                running.claims.len(),
+                prep.params.k_rho() as usize,
+                "one-step fixture must carry the paper default accumulator",
+            );
             *latest = LatestInstance::from_instances(oversized);
         }
         ProofState::Initial => panic!("one-step fixture must be active"),

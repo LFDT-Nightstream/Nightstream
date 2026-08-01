@@ -48,6 +48,51 @@ impl<F: PrimeField> SparseMatrix<F> {
     self.indptr.last().copied().unwrap_or(0)
   }
 
+  /// Construct a sparse matrix from canonical CSR arrays.
+  ///
+  /// Each row must contain strictly increasing column indices. Zero
+  /// coefficients are rejected so that one relation has one canonical sparse
+  /// representation.
+  pub fn from_csr(
+    rows: usize,
+    cols: usize,
+    data: Vec<F>,
+    indices: Vec<usize>,
+    indptr: Vec<usize>,
+  ) -> Result<Self, SpartanError> {
+    if indptr.len() != rows.saturating_add(1)
+      || indptr.first().copied() != Some(0)
+      || data.len() != indices.len()
+      || indptr.last().copied() != Some(data.len())
+      || indptr.windows(2).any(|window| window[0] > window[1])
+    {
+      return Err(SpartanError::InvalidInputLength {
+        reason: "invalid CSR dimensions or row pointers".to_string(),
+      });
+    }
+
+    for row in indptr.windows(2) {
+      let row_indices = &indices[row[0]..row[1]];
+      if row_indices.iter().any(|&column| column >= cols)
+        || row_indices.windows(2).any(|window| window[0] >= window[1])
+      {
+        return Err(SpartanError::InvalidIndex);
+      }
+    }
+    if data.iter().any(|value| *value == F::ZERO) {
+      return Err(SpartanError::InvalidInputLength {
+        reason: "canonical CSR matrices cannot contain zero coefficients".to_string(),
+      });
+    }
+
+    Ok(Self {
+      data,
+      indices,
+      indptr,
+      cols,
+    })
+  }
+
   /// Construct from the COO representation; Vec<usize(row), usize(col), F>.
   /// We assume that the rows are sorted during construction.
   #[cfg(test)]

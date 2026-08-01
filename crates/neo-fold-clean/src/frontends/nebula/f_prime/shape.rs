@@ -4,7 +4,7 @@
 //! They are used only to emit verifier matrices during preprocessing.
 
 use neo_ajtai::Commitment;
-use neo_ccs::{LaneCommitments, Mat};
+use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
@@ -17,8 +17,10 @@ use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::frontends::nebula::application::NebulaApplication;
 use crate::frontends::nebula::plan::NebulaPlan;
 use crate::frontends::r1cs_f_prime::{lower_field_r1cs, SparseR1cs};
-use crate::paper::construction2::{NebulaConfig, NebulaLane};
-use crate::paper::digest::{AccumulatorHandle, StateXOutDigestMode};
+use crate::paper::construction2::{running::zero_lane_commitments, NebulaConfig, NebulaLane, PendingProjectionState};
+use crate::paper::digest::{
+    pending_accumulator_family_digest, AccumulatorHandle, PendingAccumulatorFamilyState, StateXOutDigestMode,
+};
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use crate::paper::f_prime::r1cs::{
@@ -67,9 +69,36 @@ pub(super) fn synthesize_arm_shapes(
 ) -> Result<ArmShapes, NebulaFPrimeRelationError> {
     let context = shape_context(params, folded, plan, application)?;
 
+    #[cfg(feature = "perf-timers")]
+    let arm_started = std::time::Instant::now();
     let base = synthesize_base(&context)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[fprime-arm-shape] branch=base rows={} columns={} total={:.3}s",
+        base.shape.n,
+        base.shape.m,
+        arm_started.elapsed().as_secs_f64(),
+    );
+    #[cfg(feature = "perf-timers")]
+    let arm_started = std::time::Instant::now();
     let bootstrap_recursive = synthesize_recursive(&context, false)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[fprime-arm-shape] branch=bootstrap_recursive rows={} columns={} total={:.3}s",
+        bootstrap_recursive.shape.n,
+        bootstrap_recursive.shape.m,
+        arm_started.elapsed().as_secs_f64(),
+    );
+    #[cfg(feature = "perf-timers")]
+    let arm_started = std::time::Instant::now();
     let recursive = synthesize_recursive(&context, true)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[fprime-arm-shape] branch=recursive rows={} columns={} total={:.3}s",
+        recursive.shape.n,
+        recursive.shape.m,
+        arm_started.elapsed().as_secs_f64(),
+    );
     if base.shared_private_fields != bootstrap_recursive.shared_private_fields
         || base.shared_private_fields != recursive.shared_private_fields
         || base.shared_private_candidates != bootstrap_recursive.shared_private_candidates
@@ -197,17 +226,15 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SynthesizedArm, NebulaF
 }
 
 fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<SynthesizedArm, NebulaFPrimeRelationError> {
+    let block_mode =
+        context.folded.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
     let application_assignment = shape_application_assignment(context.application);
     let semantic = application_semantic_values(context.application, &application_assignment)?;
     let public_input_len =
         FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(context.config.stacks)).total_len();
     let ce = zero_ce_claim(context, public_input_len);
-    let running = if steady {
-        vec![ce.clone(); context.params.k_rho() as usize]
-    } else {
-        Vec::new()
-    };
-    let running_parent = steady.then(|| ce.clone());
+    let running = vec![ce.clone(); context.params.k_rho() as usize];
+    let running_parent = Some(ce.clone());
     let fresh = [zero_fresh_claim(context, public_input_len)];
     let outputs = vec![ce.clone(); fresh.len() + running.len()];
     let mut sumcheck = pi_ccs::SumcheckProof::new(
@@ -225,10 +252,20 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Synt
         3 => 7,
         _ => context.d_sc + 1,
     };
-    sumcheck.sumcheck_rounds_nc = (0..context.ell_m)
-        .map(|_| vec![K::ZERO; nc_column_coefficients])
-        .chain((0..context.ell_d).map(|_| vec![K::ZERO; context.d_sc + 1]))
-        .collect();
+    sumcheck.sumcheck_rounds_nc = if block_mode {
+        vec![
+            vec![K::ZERO; neo_reductions::optimized_engine::legacy_split_nc::oracle::BLOCK_LANE_NC_ROUND_COEFFICIENTS];
+            crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT + context.ell_d
+        ]
+    } else {
+        (0..context.ell_m)
+            .map(|_| vec![K::ZERO; nc_column_coefficients])
+            .chain((0..context.ell_d).map(|_| vec![K::ZERO; context.d_sc + 1]))
+            .collect()
+    };
+    if block_mode {
+        sumcheck.variant = neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
+    }
     sumcheck.header_digest = vec![0u8; 32];
     let outputs_digest = crate::paper::digest::pi_ccs_outputs_digest(&outputs);
     let proof = pi_ccs::Proof {
@@ -238,22 +275,49 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Synt
     };
     let combined = ce.clone();
     let children = vec![ce; context.params.k_rho() as usize];
+    let running_pending_projection =
+        (steady && block_mode).then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
     let nifs_msg = NifsVCircuitMessages {
         fresh: &fresh,
         running: &running,
         running_parent_authority: running_parent.as_ref(),
-        running_pending_projection: None,
+        running_pending_projection: running_pending_projection.as_ref(),
         pi_ccs: &proof,
         combined: &combined,
         children: &children,
     };
 
-    let running_digest = if steady {
-        AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields()
+    let running_digest = if block_mode {
+        pending_accumulator_family_digest(
+            &running,
+            context.params.kappa() as usize,
+            running_pending_projection
+                .as_ref()
+                .map(|pending| PendingAccumulatorFamilyState {
+                    old_block: pending.old_block(),
+                    parent_y_zcol: pending.parent_y_zcol(),
+                }),
+        )
+        .map_err(|error| NebulaFPrimeRelationError::Geometry(format!("shape running digest: {error}")))?
     } else {
-        AccumulatorHandle::empty().digest_fields()
+        AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields()
     };
-    let output_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
+    let outgoing_pending = block_mode.then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
+    let output_digest = if block_mode {
+        pending_accumulator_family_digest(
+            &children,
+            context.params.kappa() as usize,
+            outgoing_pending
+                .as_ref()
+                .map(|pending| PendingAccumulatorFamilyState {
+                    old_block: pending.old_block(),
+                    parent_y_zcol: pending.parent_y_zcol(),
+                }),
+        )
+        .map_err(|error| NebulaFPrimeRelationError::Geometry(format!("shape output digest: {error}")))?
+    } else {
+        AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields()
+    };
     let mut source = FPrimeSourceImage::new();
     let chunk_count_in_word = source.push_u64_le(1);
     let step_count_in_word = source.push_u64_le(1);
@@ -393,7 +457,7 @@ fn zero_fresh_claim(context: &ShapeContext<'_>, m_in: usize) -> CcsClaim {
         c: Commitment::zeros(D, context.params.kappa() as usize),
         x,
         m_in,
-        adv: Some(zero_adv(context.params.kappa() as usize)),
+        adv: Some(zero_lane_commitments(context.params)),
     }
 }
 
@@ -413,14 +477,6 @@ fn zero_ce_claim(context: &ShapeContext<'_>, m_in: usize) -> CeClaim {
         c_step_coords: Vec::new(),
         u_offset: 0,
         u_len: 0,
-        adv: Some(zero_adv(context.params.kappa() as usize)),
-    }
-}
-
-fn zero_adv(kappa: usize) -> LaneCommitments<Commitment> {
-    LaneCommitments {
-        ops: Commitment::zeros(D, kappa),
-        is: Commitment::zeros(D, kappa),
-        fs: Commitment::zeros(D, kappa),
+        adv: Some(zero_lane_commitments(context.params)),
     }
 }

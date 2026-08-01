@@ -8,8 +8,10 @@ use std::time::{Duration, Instant};
 
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
-use neo_reductions::optimized_engine::oracle::RowPhaseSnapshot;
-use neo_reductions::optimized_engine::{FeEvalTable, FeMcsRowTables, FeRowRoundTrace, FeSumcheckBackend};
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::RowPhaseSnapshot;
+use neo_reductions::optimized_engine::legacy_split_nc::{
+    FeEvalTable, FeMcsRowTables, FeRowRoundTrace, FeSumcheckBackend,
+};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::encoding::{

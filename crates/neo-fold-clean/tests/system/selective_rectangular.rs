@@ -263,12 +263,12 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (4_194_305, 270, 5_285_631, 9_740_898),
-            (5_285_631, 9_740_898, 5_285_631, 9_740_898),
+            (4_194_305, 270, 7_734_522, 9_744_408),
+            (7_734_522, 9_744_408, 7_734_522, 9_744_408),
         ],
         "the SIS-compressed production shape must stabilize at the measured fixed point",
     );
-    assert_eq!(width.total_coordinates, 9_740_860);
+    assert_eq!(width.total_coordinates, 9_744_386);
     assert_eq!(width.branch_start, 311);
     assert_eq!(width.shared_private_coordinates, 0);
     assert_eq!(
@@ -292,11 +292,14 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (13_049, 10_591, 75_059, 448, 0, 74_611, 0, 0, 74_611, 20, 70_776),
-            (4_415_717, 2_290_300, 5_175_124, 1_376_463, 126, 3_793_495, 2_276, 93_316, 3_886_811, 429, 1_515_748,),
+            (13_655, 11_111, 78_585, 448, 0, 78_137, 0, 0, 78_137, 21, 74_302),
             (
-                10_993_007, 5_644_723, 12_174_183, 3_470_114, 1_472, 8_643_717, 26_752, 1_096_832, 9_740_549, 534,
-                1_900_314,
+                10_992_757, 5_644_768, 12_162_088, 3_470_114, 1_472, 8_631_622, 26_746, 1_096_586, 9_728_208, 535,
+                1_903_840,
+            ),
+            (
+                10_993_613, 5_645_243, 12_177_709, 3_470_114, 1_472, 8_647_243, 26_752, 1_096_832, 9_744_075, 535,
+                1_903_840,
             ),
         ],
         "each selector-disjoint arm must retain the measured compressed-width profile",
@@ -469,7 +472,7 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
         accumulator_stage_census,
         vec![
             (0, None, None, None),
-            (1, None, None, Some((1_104, 3_322_377, 562_532))),
+            (1, None, None, Some((10_862, 3_322_377, 562_532))),
             (2, None, None, Some((10_862, 3_322_377, 562_532))),
         ],
         "every conservative outgoing-accumulator row must retain one exact source-stage owner",

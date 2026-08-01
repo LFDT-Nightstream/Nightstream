@@ -1,6 +1,6 @@
 use neo_ccs::{CcsStructure, CcsWitness, Mat, SparsePoly};
 use neo_math::{D, F, K};
-use neo_reductions::optimized_engine::oracle::{
+use neo_reductions::optimized_engine::legacy_split_nc::oracle::{
     BlockLaneNcChallenges, BlockLaneNcOracle, BlockLaneNcPending, BLOCK_LANE_NC_BLOCK_VARIABLES,
     BLOCK_LANE_NC_LANE_VARIABLES,
 };

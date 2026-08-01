@@ -25,6 +25,7 @@ use std::collections::{BTreeSet, HashMap};
 use neo_ccs::{CcsMatrix, CscMat};
 use neo_math::{D, F};
 use p3_field::{Field, PrimeCharacteristicRing};
+use rayon::prelude::*;
 
 use super::lowering::{DerivedProductSumEncoding, LowNormR1csError, MultiBranchLowNormR1cs};
 use super::selective_audit::{
@@ -73,10 +74,12 @@ pub use projected_rows::{
     SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot,
     SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
-use rows::{skipped_selective_rows, PreparedSelectiveRows};
+use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_rows, PreparedSelectiveRows};
 pub(crate) use shape::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
-    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix, selective_polynomial, SelectiveLowNormShape,
+    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix,
+    prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, selective_polynomial,
+    SelectiveLowNormShape, SelectiveLowNormShapeSummary,
 };
 
 pub(super) const EVAL_GROUP_SIZE: usize = 5;
@@ -114,6 +117,44 @@ struct SelectiveLayout {
     prepared_rows: PreparedSelectiveRows,
     compiler_audit: SelectiveCompilerAudit,
 }
+
+struct SelectiveLayoutCore {
+    plans: Vec<SelectiveArmPlan>,
+    slots: Vec<Vec<Option<(usize, usize)>>>,
+    aliases: Vec<Vec<Option<(usize, usize)>>>,
+    equal_aliases: Vec<Vec<Option<usize>>>,
+    derived_product_sums: Vec<Vec<DerivedProductSumEncoding>>,
+    selector_cols: Vec<usize>,
+    public_padding_cols: Vec<usize>,
+    private_padding_cols: Vec<usize>,
+    public_input_len: usize,
+    columns: usize,
+    logical_public_input_len: usize,
+    shared_private_start: usize,
+    branch_start: usize,
+    branch_coordinates: Vec<usize>,
+    prepared_rows: PreparedSelectiveRows,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct SelectiveLayoutSummary {
+    pub rows: usize,
+    pub columns: usize,
+    pub public_input_len: usize,
+    pub total_coordinates: usize,
+}
+
+impl SelectiveLayoutCore {
+    fn summary(&self) -> SelectiveLayoutSummary {
+        SelectiveLayoutSummary {
+            rows: self.prepared_rows.total_rows(),
+            columns: self.columns.next_multiple_of(D),
+            public_input_len: self.public_input_len,
+            total_coordinates: self.columns,
+        }
+    }
+}
+
 struct SelectiveArmPlan {
     widths: Vec<usize>,
     centered: Vec<bool>,
@@ -252,13 +293,15 @@ pub fn audit_multi_branch_selective_low_norm_width_with_shared_bit_prefix(
     )
 }
 
-fn prepare_selective_layout(
+fn prepare_selective_layout_core(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
     shared_private_bit_fields: usize,
     modulus: usize,
     residue: usize,
-) -> Result<SelectiveLayout, LowNormR1csError> {
+) -> Result<SelectiveLayoutCore, LowNormR1csError> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
     if arms.len() < 2 {
         return Err(LowNormR1csError::TooFewArms(arms.len()));
     }
@@ -276,26 +319,36 @@ fn prepare_selective_layout(
     }
 
     let public_field_count = arms[0].m_in;
+    #[cfg(feature = "perf-timers")]
+    let phase_started = std::time::Instant::now();
     let plans = arms
-        .iter()
+        .par_iter()
         .map(|arm| selective_arm_plan(arm, shared_private_fields, shared_private_bit_fields))
         .collect::<Result<Vec<_>, _>>()?;
+    #[cfg(feature = "perf-timers")]
+    let plans_elapsed = phase_started.elapsed();
     let widths = plans
         .iter()
         .map(|plan| plan.widths.as_slice())
         .collect::<Vec<_>>();
     validate_shared_shapes(arms, &widths, public_field_count, shared_private_fields)?;
+    #[cfg(feature = "perf-timers")]
+    let phase_started = std::time::Instant::now();
     let aliases = arms
-        .iter()
+        .par_iter()
         .zip(&plans)
         .map(|(arm, plan)| decomposition_aliases(arm, &plan.widths, shared_private_fields))
         .collect::<Vec<_>>();
     let equal_aliases = arms
-        .iter()
+        .par_iter()
         .zip(&plans)
         .zip(&aliases)
         .map(|((arm, plan), aliases)| equality_aliases(arm, plan, aliases, shared_private_fields))
         .collect::<Vec<_>>();
+    #[cfg(feature = "perf-timers")]
+    let aliases_elapsed = phase_started.elapsed();
+    #[cfg(feature = "perf-timers")]
+    let phase_started = std::time::Instant::now();
     let mut cursor = 1usize;
     let mut slots = arms.iter().map(|arm| vec![None; arm.m]).collect::<Vec<_>>();
     for col in 1..public_field_count {
@@ -417,9 +470,104 @@ fn prepare_selective_layout(
         }
         cursor = cursor.max(arm_cursors[arm_index]);
     }
+    #[cfg(feature = "perf-timers")]
+    let layout_elapsed = phase_started.elapsed();
 
+    #[cfg(feature = "perf-timers")]
+    let phase_started = std::time::Instant::now();
+    let prepared_rows = PreparedSelectiveRows::prepare(
+        arms,
+        &plans,
+        &slots,
+        &aliases,
+        &equal_aliases,
+        shared_private_fields,
+        &derived_product_sums,
+        selector_cols.len(),
+        public_padding_cols.len(),
+        private_padding_cols.len(),
+        cursor,
+    )?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[selective-layout-core] shared_private_fields={shared_private_fields} plans={:.3}s aliases={:.3}s layout={:.3}s rows={:.3}s total={:.3}s",
+        plans_elapsed.as_secs_f64(),
+        aliases_elapsed.as_secs_f64(),
+        layout_elapsed.as_secs_f64(),
+        phase_started.elapsed().as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+    );
+    Ok(SelectiveLayoutCore {
+        plans,
+        slots,
+        aliases,
+        equal_aliases,
+        derived_product_sums,
+        selector_cols,
+        public_padding_cols,
+        private_padding_cols,
+        public_input_len,
+        columns: cursor,
+        logical_public_input_len,
+        shared_private_start,
+        branch_start,
+        branch_coordinates,
+        prepared_rows,
+    })
+}
+
+fn prepare_selective_layout(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+) -> Result<SelectiveLayout, LowNormR1csError> {
+    let core = prepare_selective_layout_core(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
+    finish_selective_layout(arms, shared_private_fields, core)
+}
+
+pub(super) fn prepare_selective_layout_summary(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+) -> Result<SelectiveLayoutSummary, LowNormR1csError> {
+    Ok(
+        prepare_selective_layout_core(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?
+            .summary(),
+    )
+}
+
+fn finish_selective_layout(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    core: SelectiveLayoutCore,
+) -> Result<SelectiveLayout, LowNormR1csError> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    let SelectiveLayoutCore {
+        plans,
+        slots,
+        aliases,
+        equal_aliases,
+        derived_product_sums,
+        selector_cols,
+        public_padding_cols,
+        private_padding_cols,
+        public_input_len,
+        columns,
+        logical_public_input_len,
+        shared_private_start,
+        branch_start,
+        branch_coordinates,
+        prepared_rows,
+    } = core;
+    #[cfg(feature = "perf-timers")]
+    let phase_started = std::time::Instant::now();
     let arms_audit = arms
-        .iter()
+        .par_iter()
         .enumerate()
         .map(|(arm_index, arm)| {
             let branch_range = arm.m_in + shared_private_fields..arm.m;
@@ -469,6 +617,8 @@ fn prepare_selective_layout(
             }
         })
         .collect();
+    #[cfg(feature = "perf-timers")]
+    let width_audit_elapsed = phase_started.elapsed();
     let width_audit = SelectiveLowNormWidthAudit {
         constant_coordinate: 1,
         logical_public_coordinates: logical_public_input_len - 1,
@@ -479,7 +629,7 @@ fn prepare_selective_layout(
         shared_private_coordinates: branch_start - public_input_len - selector_cols.len() - private_padding_cols.len(),
         branch_start,
         arms: arms_audit,
-        total_coordinates: cursor,
+        total_coordinates: columns,
     };
     let layout_audit = SelectiveLayoutAudit::from_prepared_layout(
         logical_public_input_len,
@@ -488,24 +638,20 @@ fn prepare_selective_layout(
         selector_cols.clone(),
         private_padding_cols.clone(),
         shared_private_start..branch_start,
-        branch_start..cursor,
-        cursor..cursor.next_multiple_of(D),
+        branch_start..columns,
+        columns..columns.next_multiple_of(D),
     );
-    let prepared_rows = PreparedSelectiveRows::prepare(
-        arms,
-        &plans,
-        &slots,
-        &aliases,
-        &equal_aliases,
-        shared_private_fields,
-        &derived_product_sums,
-        selector_cols.len(),
-        public_padding_cols.len(),
-        private_padding_cols.len(),
-        cursor,
-    )?;
     let row_audit = prepared_rows.audit();
-    let canonical_openings = audit_canonical_openings(arms, &slots, &row_audit, cursor)?;
+    #[cfg(feature = "perf-timers")]
+    let phase_started = std::time::Instant::now();
+    let canonical_openings = audit_canonical_openings(arms, &slots, &row_audit, columns)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[selective-layout-audit] shared_private_fields={shared_private_fields} width_audit={:.3}s openings={:.3}s total={:.3}s",
+        width_audit_elapsed.as_secs_f64(),
+        phase_started.elapsed().as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+    );
     Ok(SelectiveLayout {
         plans,
         slots,
@@ -516,7 +662,7 @@ fn prepare_selective_layout(
         public_padding_cols,
         private_padding_cols,
         public_input_len,
-        columns: cursor,
+        columns,
         prepared_rows,
         compiler_audit: SelectiveCompilerAudit::new(
             layout_audit,
@@ -538,6 +684,7 @@ fn audit_canonical_openings(
 ) -> Result<Vec<Vec<SelectiveCanonicalOpeningAudit>>, LowNormR1csError> {
     let mut result = Vec::with_capacity(arms.len());
     for (arm_index, arm) in arms.iter().enumerate() {
+        let decompositions = balanced_ternary_decompositions_by_digit_start(arm.balanced_ternary_decompositions())?;
         let rewrites = rows
             .rewrites()
             .iter()
@@ -551,10 +698,9 @@ fn audit_canonical_openings(
 
         let mut openings = Vec::with_capacity(rewrites.len());
         for (trace, rewrite) in arm.shifted_ternary_canonical_traces().iter().zip(rewrites) {
-            let decomposition = arm
-                .balanced_ternary_decompositions()
-                .iter()
-                .find(|decomposition| decomposition.digit_cols[0] == trace.digit_columns_start)
+            let decomposition = decompositions
+                .get(&trace.digit_columns_start)
+                .copied()
                 .ok_or_else(|| trace_error("shifted-ternary trace has no source-field decomposition"))?;
             if decomposition
                 .digit_cols
@@ -746,7 +892,8 @@ fn selective_arm_plan(
     if eliminated[1..arm.m_in].iter().any(|&value| value) {
         return Err(trace_error("selective trace attempted to eliminate a public output"));
     }
-    let definitions = find_linear_definitions(arm, shared_end, &eliminated)?;
+    let skipped = skipped_selective_rows(arm)?;
+    let definitions = find_linear_definitions(arm, shared_end, &eliminated, &skipped)?;
     for (column, definition) in definitions.by_column.iter().enumerate() {
         if definition.is_some() {
             widths[column] = 0;
@@ -792,7 +939,7 @@ fn selective_arm_plan(
     widths[1..arm.m_in].fill(1);
     widths[arm.m_in..shared_bit_end].fill(1);
     centered[..shared_bit_end].fill(false);
-    let equality_roots = propagate_low_norm_equalities(arm, &mut widths, &mut centered, shared_bit_end)?;
+    let equality_roots = propagate_low_norm_equalities(arm, &mut widths, &mut centered, shared_bit_end, &skipped)?;
     for decomposition in arm.balanced_ternary_decompositions() {
         if decomposition.field_col >= shared_bit_end && widths[decomposition.field_col] != 0 {
             // The Ajtai word already needs these 41 coordinates. Keep them as
@@ -801,7 +948,7 @@ fn selective_arm_plan(
             widths[decomposition.field_col] = BALANCED_FIELD_WIDTH;
         }
     }
-    let mut removed_rows = skipped_selective_rows(arm)?;
+    let mut removed_rows = skipped;
     for definition in &definitions.entries {
         if let Some(row) = definition.row {
             removed_rows[row] = true;
@@ -826,8 +973,8 @@ fn find_linear_definitions(
     arm: &SparseR1cs,
     shared_end: usize,
     directly_eliminated: &[bool],
+    skipped: &[bool],
 ) -> Result<LinearDefinitions, LowNormR1csError> {
-    let skipped = skipped_selective_rows(arm)?;
     let mut protected = directly_eliminated.to_vec();
     protected[..shared_end].fill(true);
     for decomposition in arm.canonical_u64_decompositions() {
@@ -984,8 +1131,8 @@ fn propagate_low_norm_equalities(
     widths: &mut [usize],
     centered: &mut [bool],
     shared_end: usize,
+    skipped: &[bool],
 ) -> Result<Vec<usize>, LowNormR1csError> {
-    let skipped = skipped_selective_rows(arm)?;
     let mut parents = (0..arm.m).collect::<Vec<_>>();
     for &(row, lhs, rhs) in arm.equality_pairs() {
         if !skipped[row] {

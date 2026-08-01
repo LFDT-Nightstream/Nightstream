@@ -5,6 +5,7 @@
 //! Phi81 rotations, input-word mapping, sparse zero elision, and output-column
 //! equations against the compact Lean compiler.
 
+use neo_ajtai::seeded_pp_chunk_seeds;
 use neo_ccs::SeededPhi81LinearBlock;
 use neo_math::{D, F};
 use p3_field::PrimeField64;
@@ -18,6 +19,8 @@ const WORD_STARTS: [usize; 2] = [1, 3];
 const WORD_WIDTH: usize = 2;
 const OUTPUT_START: usize = 10;
 const HIGH_WORD_START: u128 = 100_000;
+const SETUP_ROWS: usize = 2;
+const SETUP_MESSAGE_COLS: usize = (1 << 15) + 1;
 
 fn seed() -> [u8; 32] {
     core::array::from_fn(|index| index as u8)
@@ -47,15 +50,31 @@ fn lean_nat_list(values: impl IntoIterator<Item = usize>) -> String {
     format!("[{}]", values.join(", "))
 }
 
+fn lean_seed_schedule(values: &[Vec<[u8; 32]>]) -> String {
+    let rows = values
+        .iter()
+        .map(|row| {
+            let chunks = row
+                .iter()
+                .map(|seed| lean_nat_list(seed.iter().copied().map(usize::from)))
+                .collect::<Vec<_>>();
+            format!("[{}]", chunks.join(", "))
+        })
+        .collect::<Vec<_>>();
+    format!("[{}]", rows.join(", "))
+}
+
 fn emit_lean() -> String {
     let block = block();
+    let (setup_chunk_size, setup_chunk_seeds) = seeded_pp_chunk_seeds(seed(), SETUP_ROWS, SETUP_MESSAGE_COLS);
     let mut rows = vec![Vec::<(usize, u64)>::new(); D];
     block.for_each_term::<F, _>(|row, column, coefficient| {
         rows[row].push((column, coefficient.as_canonical_u64()));
     });
 
     let mut out = String::new();
-    out.push_str("import Nightstream.Implementation.R1CS.Core.SeededPhi81\n\n");
+    out.push_str("import Nightstream.Implementation.R1CS.Core.SeededPhi81\n");
+    out.push_str("import Nightstream.Implementation.R1CS.Core.SeededAjtai\n\n");
     out.push_str("/-!\nGENERATED FILE - do not edit by hand.\n\n");
     out.push_str("Small exact Rust fixture for the compact SeededPhi81 compiler.\n");
     out.push_str("The 64 stream words come directly from `rand_chacha::ChaCha8Rng`;\n");
@@ -73,6 +92,13 @@ fn emit_lean() -> String {
     out.push_str(&format!(
         "def expectedHighWords : List Nat :=\n  {}\n\n",
         lean_nat_list(high_words().into_iter().map(|word| word as usize))
+    ));
+    out.push_str(&format!("def setupRows : Nat := {SETUP_ROWS}\n\n"));
+    out.push_str(&format!("def setupMessageCols : Nat := {SETUP_MESSAGE_COLS}\n\n"));
+    out.push_str(&format!("def expectedSetupChunkSize : Nat := {setup_chunk_size}\n\n"));
+    out.push_str(&format!(
+        "def expectedSetupSeedsByOutput : List (List (List Nat)) :=\n  {}\n\n",
+        lean_seed_schedule(&setup_chunk_seeds)
     ));
     out.push_str("def block : SeededPhi81.Block :=\n");
     out.push_str("  { rowStart := 0\n");

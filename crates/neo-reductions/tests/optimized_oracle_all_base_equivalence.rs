@@ -4,8 +4,8 @@ use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::{CcsStructure, CcsWitness, Mat};
 use neo_math::{from_complex, D, F, K};
 use neo_params::{goldilocks_paper_b2, NeoParams};
-use neo_reductions::engines::optimized_engine::oracle::{OptimizedOracle, SparseCache};
-use neo_reductions::engines::optimized_engine::{FeMcsRowTables, FeSumcheckBackend};
+use neo_reductions::engines::optimized_engine::legacy_split_nc::oracle::{OptimizedOracle, SparseCache};
+use neo_reductions::engines::optimized_engine::legacy_split_nc::{FeMcsRowTables, FeSumcheckBackend};
 use neo_reductions::superneo_eval::build_superneo_eval_cache;
 use neo_reductions::Challenges;
 use p3_field::PrimeCharacteristicRing;
@@ -200,7 +200,10 @@ struct RecordingMcsLiveLenBackend {
 }
 
 impl FeSumcheckBackend for RecordingMcsLiveLenBackend {
-    fn start(&mut self, _snapshot: &neo_reductions::engines::optimized_engine::oracle::RowPhaseSnapshot<'_>) -> bool {
+    fn start(
+        &mut self,
+        _snapshot: &neo_reductions::engines::optimized_engine::legacy_split_nc::oracle::RowPhaseSnapshot<'_>,
+    ) -> bool {
         false
     }
 

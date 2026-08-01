@@ -98,7 +98,7 @@ pub use finalization::FINAL_FOLD_TRANSCRIPT_LABEL;
 pub use latest::LatestInstance;
 pub use nebula_lane::{NebulaAdvance, NebulaConfig, NebulaError, NebulaLane, NebulaStepX, NebulaXError, StackShape};
 pub use proof_state::ProofState;
-pub use running::{PendingProjectionState, RunningInstance, PENDING_PROJECTION_OLD_BLOCK_LEN};
+pub use running::{LaneCommitmentMode, PendingProjectionState, RunningInstance, PENDING_PROJECTION_OLD_BLOCK_LEN};
 pub use state::State;
 pub use step_proof::{FinalFoldProof, FoldProof, StepProof, TerminalFoldInputs};
 pub use verifier_key::VerifierKey;
@@ -108,7 +108,6 @@ pub use verifier_key::VerifierKey;
 pub use crate::paper::f_prime::prove as step;
 pub use crate::paper::f_prime::prove_with_adapter_and_semantic_state as step_with_adapter_and_semantic_state;
 pub(crate) use crate::paper::f_prime::prove_with_adapter_output_and_semantic_state as step_with_adapter_output_and_semantic_state;
-pub use crate::paper::f_prime::prove_with_backend_and_semantic_state as step_with_backend_and_semantic_state;
 pub use crate::paper::f_prime::prove_with_semantic_state as step_with_semantic_state;
 pub use crate::paper::f_prime::verify as verify_step;
 pub use crate::paper::f_prime::verify_with_execution_receipt as verify_step_with_execution_receipt;
@@ -119,7 +118,7 @@ pub use crate::paper::f_prime::{
 };
 
 // Transition + finalization helpers exposed `pub(crate)` for f_prime and lifecycle.
-pub(crate) use finalization::{prove_final_fold_with_adapter, prove_final_fold_with_backend, verify_final_fold};
+pub(crate) use finalization::{prove_final_fold, prove_final_fold_with_adapter, verify_final_fold};
 pub(crate) use transition::{
     advance_state_recorded, advance_state_with_acc_digest, compute_x_out, compute_x_out_recorded, enforce_pc_in_range,
     f_prime_chunk_public_digest_for_step, f_prime_chunk_public_digest_from_claims, state_base_case_check,

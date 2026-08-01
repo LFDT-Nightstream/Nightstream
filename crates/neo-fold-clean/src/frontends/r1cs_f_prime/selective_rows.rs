@@ -22,7 +22,9 @@
 //! | Ring alignment | none | ring padding |
 
 use core::ops::Range;
+use std::collections::HashMap;
 
+use crate::engine::r1cs_circuit::builder::BalancedTernaryDecomposition;
 use crate::engine::r1cs_circuit::PhysicalStageRange;
 
 use super::super::lowering::DerivedProductSumEncoding;
@@ -793,6 +795,7 @@ fn push_source_run(
 }
 
 pub(super) fn skipped_selective_rows(arm: &SparseR1cs) -> Result<Vec<bool>, LowNormR1csError> {
+    let decompositions = balanced_ternary_decompositions_by_digit_start(arm.balanced_ternary_decompositions())?;
     let mut skipped = vec![false; arm.n];
     let mut claim = |range: Range<usize>, overlap: &'static str| {
         for row in range {
@@ -822,7 +825,11 @@ pub(super) fn skipped_selective_rows(arm: &SparseR1cs) -> Result<Vec<bool>, LowN
         )?;
     }
     for trace in arm.shifted_ternary_canonical_traces() {
-        validate_shifted_ternary_reconstruction_row(arm, trace)?;
+        let decomposition = decompositions
+            .get(&trace.digit_columns_start)
+            .copied()
+            .ok_or_else(|| trace_error("shifted-ternary reconstruction has no source decomposition"))?;
+        validate_shifted_ternary_reconstruction_row(decomposition, trace)?;
         claim(
             trace.digit_rows_start..trace.digit_rows_start + 2 * BALANCED_FIELD_WIDTH,
             "shifted-ternary digit rows overlap another selective trace",
@@ -839,8 +846,25 @@ pub(super) fn skipped_selective_rows(arm: &SparseR1cs) -> Result<Vec<bool>, LowN
     Ok(skipped)
 }
 
+pub(super) fn balanced_ternary_decompositions_by_digit_start(
+    decompositions: &[BalancedTernaryDecomposition],
+) -> Result<HashMap<usize, &BalancedTernaryDecomposition>, LowNormR1csError> {
+    let mut by_digit_start = HashMap::with_capacity(decompositions.len());
+    for decomposition in decompositions {
+        if by_digit_start
+            .insert(decomposition.digit_cols[0], decomposition)
+            .is_some()
+        {
+            return Err(trace_error(
+                "balanced-ternary decompositions have duplicate digit starts",
+            ));
+        }
+    }
+    Ok(by_digit_start)
+}
+
 fn validate_shifted_ternary_reconstruction_row(
-    arm: &SparseR1cs,
+    decomposition: &BalancedTernaryDecomposition,
     trace: &crate::engine::r1cs_circuit::builder::ShiftedTernaryCanonicalTrace,
 ) -> Result<(), LowNormR1csError> {
     if trace.reconstruction_row != trace.digit_rows_start + 2 * BALANCED_FIELD_WIDTH
@@ -850,11 +874,6 @@ fn validate_shifted_ternary_reconstruction_row(
             "shifted-ternary reconstruction row is not between its digit and transition rows",
         ));
     }
-    let decomposition = arm
-        .balanced_ternary_decompositions()
-        .iter()
-        .find(|decomposition| decomposition.digit_cols[0] == trace.digit_columns_start)
-        .ok_or_else(|| trace_error("shifted-ternary reconstruction has no source decomposition"))?;
     if decomposition.field_col != trace.field_column
         || decomposition
             .digit_cols
@@ -868,3 +887,7 @@ fn validate_shifted_ternary_reconstruction_row(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tests/selective_rows.rs"]
+mod tests;

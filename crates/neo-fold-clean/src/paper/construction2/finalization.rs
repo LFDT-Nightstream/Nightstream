@@ -47,8 +47,7 @@ fn final_fold_transcript() -> Transcript {
 /// either the state was `Initial` (no extends ever ran) or the trailing
 /// latest was already empty.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn prove_final_fold_with_backend(
-    nifs_backend: nifs::NifsProverBackend,
+pub(crate) fn prove_final_fold(
     pp: &Params,
     s: &Structure,
     cache: &OptimizedStructureCache,
@@ -63,7 +62,7 @@ pub(crate) fn prove_final_fold_with_backend(
     semantic_mode: SemanticStateMode,
 ) -> Result<(State, Option<FinalFoldProof>), Error> {
     prove_final_fold_with_nifs_prover(
-        FinalFoldNifsProver::Backend(nifs_backend),
+        FinalFoldNifsProver::Cpu,
         pp,
         s,
         cache,
@@ -113,7 +112,7 @@ pub(crate) fn prove_final_fold_with_adapter(
 }
 
 enum FinalFoldNifsProver<'a> {
-    Backend(nifs::NifsProverBackend),
+    Cpu,
     Adapter(&'a mut dyn nifs::NifsProverAdapter),
 }
 
@@ -177,7 +176,7 @@ fn prove_final_fold_with_nifs_prover(
             latest,
         } => {
             let running = match &nifs_prover {
-                FinalFoldNifsProver::Backend(_) => running_carrier.materialize()?,
+                FinalFoldNifsProver::Cpu => running_carrier.materialize()?,
                 FinalFoldNifsProver::Adapter(_) => running_carrier.materialize_prover_input()?,
             };
             if let Some(cfg) = delayed_nebula {
@@ -203,9 +202,8 @@ fn prove_final_fold_with_nifs_prover(
 
             let mut tr = final_fold_transcript();
             let (post_running_carrier, post_running, nifs_proof, post_acc_digest_override) = match &mut nifs_prover {
-                FinalFoldNifsProver::Backend(backend) => {
-                    let (running, proof) = nifs::prove_with_backend(
-                        *backend,
+                FinalFoldNifsProver::Cpu => {
+                    let (running, proof) = nifs::prove(
                         &mut tr,
                         pp,
                         s,

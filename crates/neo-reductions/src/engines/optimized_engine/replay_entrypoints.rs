@@ -5,10 +5,7 @@
 //! remains in `prove.rs`.
 
 use crate::error::PiCcsError;
-use crate::optimized_engine::{
-    OptimizedStructureCache, PiCcsReplayOutputs, PiCcsReplayProofWitness, PiCcsReplayTerminalState,
-    PiCcsReplayWitnessOutputs,
-};
+use crate::optimized_engine::OptimizedStructureCache;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};
@@ -16,6 +13,9 @@ use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
 
 use super::backend::{BackendTranscriptMode, PiCcsPhaseBackend};
+use super::legacy_types::{
+    PiCcsReplayOutputs, PiCcsReplayProofWitness, PiCcsReplayTerminalState, PiCcsReplayWitnessOutputs,
+};
 use super::prove::{run_optimized_replay_with_cache_and_perf, ReplayTraceMode};
 use super::replay_binding::ReplayBinding;
 use super::replay_validation::validate_replay_terminal_state;

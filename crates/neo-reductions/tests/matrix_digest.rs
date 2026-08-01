@@ -1,6 +1,6 @@
 use neo_ccs::{CcsMatrix, CcsStructure, CscMat, GeometricRowRun, Mat, SparsePoly};
 use neo_math::F;
-use neo_reductions::engines::optimized_engine::oracle::SparseCache;
+use neo_reductions::engines::optimized_engine::SparseCache;
 use neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache;
 use p3_field::PrimeCharacteristicRing;
 

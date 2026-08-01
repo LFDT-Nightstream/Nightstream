@@ -25,8 +25,9 @@ use p3_field::{Field, PrimeCharacteristicRing};
 
 use super::super::lowering::LowNormR1csError;
 use super::{
-    prepare_selective_layout, SelectiveCompilerAudit, SparseR1cs, A, B, BIT, C, CANON_CHUNK_CLASS_SELECTORS,
-    CENTERED_UNIT, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT, SELECTIVE_ARITY,
+    prepare_selective_layout, prepare_selective_layout_summary, SelectiveCompilerAudit, SparseR1cs, A, B, BIT, C,
+    CANON_CHUNK_CLASS_SELECTORS, CENTERED_UNIT, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT,
+    SELECTIVE_ARITY,
 };
 
 type BorrowMonomial = [u32; 4];
@@ -123,6 +124,34 @@ pub(crate) struct SelectiveLowNormShape {
     pub compiler_audit: SelectiveCompilerAudit,
 }
 
+pub(crate) struct SelectiveLowNormShapeSummary {
+    pub rows: usize,
+    pub columns: usize,
+    pub public_input_len: usize,
+    pub polynomial: SparsePoly<F>,
+    pub total_coordinates: usize,
+}
+
+impl SelectiveLowNormShapeSummary {
+    pub fn matches(&self, shape: &SelectiveLowNormShape) -> bool {
+        self.rows == shape.rows
+            && self.columns == shape.columns
+            && self.public_input_len == shape.public_input_len
+            && self.total_coordinates == shape.compiler_audit.width().total_coordinates
+            && polynomials_match(&self.polynomial, &shape.polynomial)
+    }
+}
+
+fn polynomials_match(left: &SparsePoly<F>, right: &SparsePoly<F>) -> bool {
+    left.arity() == right.arity()
+        && left.terms().len() == right.terms().len()
+        && left
+            .terms()
+            .iter()
+            .zip(right.terms())
+            .all(|(left, right)| left.coeff == right.coeff && left.exps == right.exps)
+}
+
 pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_alignment(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
@@ -154,6 +183,24 @@ pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix
         public_input_len: layout.public_input_len,
         polynomial: selective_polynomial(),
         compiler_audit: layout.compiler_audit,
+    })
+}
+
+pub(crate) fn prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+) -> Result<SelectiveLowNormShapeSummary, LowNormR1csError> {
+    let layout =
+        prepare_selective_layout_summary(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
+    Ok(SelectiveLowNormShapeSummary {
+        rows: layout.rows,
+        columns: layout.columns,
+        public_input_len: layout.public_input_len,
+        polynomial: selective_polynomial(),
+        total_coordinates: layout.total_coordinates,
     })
 }
 
@@ -201,3 +248,7 @@ pub(crate) fn selective_polynomial() -> SparsePoly<F> {
     }
     SparsePoly::new(SELECTIVE_ARITY, terms)
 }
+
+#[cfg(test)]
+#[path = "tests/selective_shape.rs"]
+mod tests;

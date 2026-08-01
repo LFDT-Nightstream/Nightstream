@@ -14,16 +14,19 @@ use neo_math::{F, K};
 use neo_reductions::api as nr;
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRho};
-use neo_reductions::optimized_engine::{
+use neo_reductions::optimized_engine::legacy_split_nc::{
     optimized_defer_prove_with_device_backends_and_transcript_mode,
     optimized_defer_prove_with_phase_backend_and_transcript_mode,
     optimized_prove_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
-    optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
     optimized_prove_with_phase_backend_and_transcript_mode,
     optimized_verify_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
-    optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, BackendTranscriptMode,
-    BlockLaneNcPending, FeSumcheckBackend, NcSumcheckBackend, OptimizedStructureCache, PiCcsDeferredProof,
-    PiCcsPhaseBackend, PiDecProverPrecompute,
+    BackendTranscriptMode, BlockLaneNcPending, FeSumcheckBackend, NcSumcheckBackend, PiCcsDeferredProof,
+    PiCcsPhaseBackend,
+};
+use neo_reductions::optimized_engine::{
+    optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
+    optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
+    PiCcsProofVariant, PiDecProverPrecompute,
 };
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
@@ -402,14 +405,10 @@ fn prover_instance_digest(
 /// Recomputes `instance_digest` from `(fresh_claims, running_claims)` —
 /// the verifier never trusts a prover-supplied digest.
 ///
-/// **Transcript symmetry**: the optimized engine's prove path internally
-/// squeezes the transcript to produce its `header_digest` (the same value
-/// that flows out as `proof.header_digest`). The verify path does not
-/// squeeze internally — its caller must catch up by calling
-/// `tr.digest32()` so the post-Π_CCS transcript states match on both
-/// sides. We do that here AND check the squeezed digest against the
-/// prover's recorded `proof.header_digest` (so a tampered header gets
-/// rejected before Π_RLC samples its ρ_i).
+/// **Transcript symmetry**: `PaperRectangularV1` verification performs the
+/// final transcript squeeze and checks its digest inside `neo-reductions`.
+/// The explicit legacy block/lane verifier does not, so this wrapper performs
+/// that squeeze only for the legacy proof variant.
 pub fn verify_pi_ccs(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
@@ -472,17 +471,16 @@ pub fn verify_pi_ccs(
     if !ok {
         return Ok(false);
     }
-    // Catch-up squeeze: bring the verifier's transcript to the same state
-    // the prover's transcript reaches at the end of Π_CCS prove. The
-    // squeezed digest must match `proof.header_digest`, otherwise the
-    // prover lied about the transcript and we reject before any Π_RLC work.
-    let observed = tr.digest32();
-    if proof.header_digest.as_slice() != observed {
-        return Ok(false);
-    }
-    for output in fold_outputs {
-        if output.fold_digest != observed {
+    if proof.variant != PiCcsProofVariant::PaperRectangularV1 {
+        // Catch up the explicit legacy verifier to its prover transcript.
+        let observed = tr.digest32();
+        if proof.header_digest.as_slice() != observed {
             return Ok(false);
+        }
+        for output in fold_outputs {
+            if output.fold_digest != observed {
+                return Ok(false);
+            }
         }
     }
     let _ = FoldingMode::Optimized; // keep the explicit folding-mode dependency visible

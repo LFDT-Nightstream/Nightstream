@@ -5,8 +5,8 @@ use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim};
 use neo_math::{F, K};
 use neo_params::NeoParams;
 
+use super::backend::PiCcsTerminalOutputSurfaces;
 use crate::error::PiCcsError;
-use crate::optimized_engine::PiCcsTerminalOutputSurfaces;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_me_outputs_from_terminal_surfaces(

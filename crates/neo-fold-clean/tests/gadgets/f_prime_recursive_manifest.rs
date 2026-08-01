@@ -157,13 +157,6 @@ mod aggregate_acceptance_outer_image;
 mod output_authority_poseidon2_sbox;
 #[path = "f_prime_recursive_manifest/output_authority_sbox_lean.rs"]
 mod output_authority_sbox_lean;
-#[path = "f_prime_recursive_manifest/pi_rlc_transcript_schedule.rs"]
-mod pi_rlc_transcript_schedule;
-#[path = "f_prime_recursive_manifest/projection_binding_shape.rs"]
-mod projection_binding_shape;
-#[path = "f_prime_recursive_manifest/projection_certificate.rs"]
-mod projection_certificate;
-
 struct Fixture {
     prep: neo_fold_clean::Preprocessing,
     fresh_claims: Vec<CcsClaim>,

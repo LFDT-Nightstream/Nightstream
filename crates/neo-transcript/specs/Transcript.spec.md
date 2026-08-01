@@ -19,7 +19,7 @@ The transcript is not explicitly formalized in the SuperNeo paper. Fiat-Shamir i
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Sections 7.3-7.5: Interactive reductions Pi_CCS, Pi_RLC, Pi_DEC are defined as public-coin protocols. The transcript makes them non-interactive via Fiat-Shamir.
 - No dedicated transcript formalization in the paper; the construction is a standard cryptographic primitive.

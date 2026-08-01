@@ -9,7 +9,7 @@ Nightstream `ajtaiCommit` map, and fixed-width distinctness of the packed ring
 witnesses.
 
 Does not own: Ajtai key shape or serialization, correspondence with the
-canonical `formal/superneo-lean` opening relation, cyclotomic multiplication
+independent `formal/ajtai-lean` security boundary, cyclotomic multiplication
 refinement, norm translation to canonical coefficient arrays, an MSIS kernel
 witness, Rust conformance, or permission to remove rows.
 

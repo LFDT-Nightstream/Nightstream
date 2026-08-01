@@ -15,7 +15,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Definition 18 Setup, lines 753-756: `Setup(kappa, m) -> M` (PRG implements the deterministic version).
 - (Balanced conversion is not directly in the paper but is used by `decomp_b`.)

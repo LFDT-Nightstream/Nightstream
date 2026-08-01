@@ -16,7 +16,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Definition 11 (CCS Structure), Section 7.1, lines 449-455: polynomial `f` is part of the CCS structure.
 - Note: `f` is the "encoded image family" in the Lean formalization.

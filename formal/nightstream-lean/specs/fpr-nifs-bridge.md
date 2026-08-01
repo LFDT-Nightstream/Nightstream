@@ -107,9 +107,9 @@ lean_surfaces:
 
 legacy_artifact_migration:
   - The active Lean package imports none of the legacy formal projects.
-  - Three Rust artifact generators still target `formal/superneo-lean`: the
-    projection identity, projection-binding shape, and transcript-schedule
-    diagnostics. The old directory therefore cannot be deleted yet.
+  - No Rust artifact generator targets a removed formal project. The three
+    obsolete projection and transcript diagnostic generators were removed;
+    active artifacts must target Nightstream-owned schemas.
   - Packed Mod-5 now has a selective active schema and isolated role-point
     refinement. Its physical decoder/image bridge remains open and it
     authorizes no row removal. Aggregate acceptance now has an active schema-2

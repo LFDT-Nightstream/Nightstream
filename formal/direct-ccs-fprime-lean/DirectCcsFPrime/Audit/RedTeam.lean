@@ -1,4 +1,0 @@
-import DirectCcsFPrime.Audit.RedTeam.ProductionPrivateDecNoSwapAudit
-import DirectCcsFPrime.Audit.RedTeam.ProductionSecondFoldRedTeam
-import DirectCcsFPrime.Audit.RedTeam.FPrimeTraceAuthorityRedTeam
-import DirectCcsFPrime.Audit.RedTeam.FPrimeTraceAuthorityWeaknessRedTeam

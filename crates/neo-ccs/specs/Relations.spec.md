@@ -26,7 +26,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Definition 11 (CCS Structure), Section 7.1, lines 449-455: `s = ({M_j}_{j in [t]}, f, n, m)`.
 - Definition 12 (Norm-bounded CCS relation), Section 7.1, lines 457-459: `c = L(z)`, `||z||_inf < b`, `f(M z) = 0`.

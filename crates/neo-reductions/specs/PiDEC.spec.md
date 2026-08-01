@@ -21,7 +21,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Section 7.5 (Pi_DEC decomposition reduction), lines 585-593.
 - Theorem 7 (Pi_DEC is a reduction of knowledge), lines 594-596.

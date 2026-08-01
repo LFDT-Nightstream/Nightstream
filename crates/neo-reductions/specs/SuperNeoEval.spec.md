@@ -20,7 +20,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Theorem 3 (Inner Product Transform), Section 5, lines 372-378: `ct(bar(a) * b) = <a, b>`.
 - Theorem 4 (Matrix-Vector Product Transform), Section 5, lines 384-386: `(Mz)[i] = sum_t ct(cf_inv(bar(m_t)) * cf_inv(z_t))`.

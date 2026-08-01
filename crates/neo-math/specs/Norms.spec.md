@@ -16,7 +16,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Definition 3 (Norm), Section 4, lines 290-292: `‖a‖_∞` for field elements via centered representative; for ring elements via max over coefficients.
 - Definition 12 (CCS), Section 7.1, line 459: `‖z‖_∞ < b` norm bound in CCS relation.

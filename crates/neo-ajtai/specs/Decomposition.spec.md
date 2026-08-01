@@ -17,7 +17,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Section 4, lines 294-296: `split_b(z) := (z_1, ..., z_k)` with `z = Sigma b^{i-1} z_i` and `||z_i||_inf < b`.
 - Section 7.5, lines 585-593: Pi_DEC decomposition reduction.

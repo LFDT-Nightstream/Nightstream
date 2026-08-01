@@ -18,7 +18,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Definition 4 (Ring Commitment Scheme), Section 4, lines 298-301.
 - Definition 18 (Ajtai Commitment), lines 753-756: `Setup(kappa,m) -> M; Commit(pp, z) -> Mz`.

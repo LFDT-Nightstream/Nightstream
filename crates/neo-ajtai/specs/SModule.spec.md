@@ -15,7 +15,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Theorem 2, lines 319-321: Ajtai commitment is homomorphic (implicit S-module structure).
 - (S-module homomorphism is an implementation detail, not explicitly formalized in the paper.)

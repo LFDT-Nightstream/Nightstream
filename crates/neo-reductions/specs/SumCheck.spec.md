@@ -20,7 +20,7 @@
 
 ## Paper Anchors
 
-Source: ./formal/superneo-lean/SuperNeo.pdf.md
+Source: ./docs/superneo-paper/
 
 - Definition 6 (Sum-check protocol), Section 4, lines 352-355: prover sends `p_i`, verifier checks `p_i(0)+p_i(1)=T_{i-1}`, samples `r_i`.
 - Section 7.3 (Pi_CCS), lines 481-548: sum-check invoked for the Q polynomial over row/Ajtai dimensions.

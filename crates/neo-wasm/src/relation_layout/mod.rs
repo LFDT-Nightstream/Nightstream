@@ -110,6 +110,9 @@ pub enum WasmMemoryColumnKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WasmMemoryActivation {
+    // TODO: Review removing this variant together with its Nebula
+    // `MemoryPortActivation::UnlessColumn` lowering; the current WASM layout
+    // declares no always-active memory ports.
     Always,
     BooleanGate(Column),
 }

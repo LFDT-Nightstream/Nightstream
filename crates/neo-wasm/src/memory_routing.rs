@@ -21,7 +21,7 @@ pub(crate) fn build_batched_memory_slots(
     batched
 }
 
-fn build_single_step_memory_slots(relation: &WasmRelationLayout) -> Vec<MemoryOpSlot> {
+pub(crate) fn build_single_step_memory_slots(relation: &WasmRelationLayout) -> Vec<MemoryOpSlot> {
     let mut singleton_slots = Vec::new();
     let mut selector_slots: Vec<Vec<MemoryPort>> = Vec::new();
 

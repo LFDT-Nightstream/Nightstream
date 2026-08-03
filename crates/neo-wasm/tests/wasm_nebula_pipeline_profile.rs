@@ -16,6 +16,7 @@ use neo_ccs::{CcsMatrix, CcsStructure};
 use neo_fold_clean::config;
 #[cfg(feature = "perf-timers")]
 use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeChainBuilder, ROAD_A_COMMITTED_BIT_BUDGET};
+use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::r1cs_f_prime::R1csShape;
 use neo_fold_clean::paper::construction2::ProofState;
 use neo_fold_clean::paper::params::Params;
@@ -37,13 +38,32 @@ const PROFILE_WAT: &str = r#"
     i32.add))
 "#;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct StorageStats {
     explicit_nnz: usize,
     seeded_blocks: usize,
     seeded_slots: u128,
     geometric_runs: usize,
     geometric_slots: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RelationStructureStats {
+    application_constraints: usize,
+    application_columns: usize,
+    application_nnz: usize,
+    s_mem_constraints: usize,
+    s_mem_assignment_bits: usize,
+    s_mem_public_bits: usize,
+    s_mem_private_bits: usize,
+    s_mem_nnz: usize,
+    logical_ports: usize,
+    routed_slots: usize,
+    b_ops: usize,
+    final_constraints: usize,
+    final_columns: usize,
+    final_committed_coordinates: usize,
+    final_explicit_nnz: usize,
 }
 
 fn ms(duration: Duration) -> f64 {
@@ -127,13 +147,14 @@ fn test_params() -> Params {
     Params::test_only_from_neo_params(raw)
 }
 
-#[test]
-#[ignore = "full F-prime structural census; builds preprocessing but does not prove"]
-fn wasm_nebula_relation_structure_census() {
+fn collect_relation_structure_census(
+    profile: neo_wasm::WasmNebulaProfile,
+    seed: u64,
+    label: &str,
+) -> RelationStructureStats {
     let wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
-    let profile = neo_wasm::WasmNebulaProfile::test_profile();
     let entry_pc = common::single_function_entry_pc(&artifacts);
     let prep = neo_wasm::nebula::preprocess_seeded_reduced_memory_test_only(
         test_params(),
@@ -141,7 +162,7 @@ fn wasm_nebula_relation_structure_census() {
         &artifacts,
         &run.initial_locals,
         entry_pc,
-        0x57a5_7019,
+        seed,
     )
     .expect("WASM Nebula structural preprocessing");
 
@@ -154,31 +175,44 @@ fn wasm_nebula_relation_structure_census() {
     let storage = structure_stats(structure);
     let final_committed_coordinates = structure.m - width.constant_coordinate;
     let s_mem_assignment_bits = s_mem.cols() - 1;
+    let stats = RelationStructureStats {
+        application_constraints: app_shape.n(),
+        application_columns: app_shape.m(),
+        application_nnz: r1cs_nnz(app_shape),
+        s_mem_constraints: s_mem.rows(),
+        s_mem_assignment_bits,
+        s_mem_public_bits: s_mem.m_in() - 1,
+        s_mem_private_bits: s_mem.cols() - s_mem.m_in(),
+        s_mem_nnz: s_mem.nnz(),
+        logical_ports: application.memory().logical_port_count(),
+        routed_slots: application.memory().slot_count(),
+        b_ops: profile.memory().b_ops,
+        final_constraints: structure.n,
+        final_columns: structure.m,
+        final_committed_coordinates,
+        final_explicit_nnz: storage.explicit_nnz,
+    };
 
-    println!("== WASM + Nebula structural census (reduced test profile) ==");
+    println!("== WASM + Nebula structural census ({label}) ==");
     println!(
         "application R1CS         constraints={} columns={} nnz={}",
-        app_shape.n(),
-        app_shape.m(),
-        r1cs_nnz(app_shape),
+        stats.application_constraints, stats.application_columns, stats.application_nnz,
     );
     println!(
         "S_mem                   constraints={} assignment_bits={} public_bits={} private_bits={} nnz={}",
-        s_mem.rows(),
-        s_mem_assignment_bits,
-        s_mem.m_in() - 1,
-        s_mem.cols() - s_mem.m_in(),
-        s_mem.nnz(),
+        stats.s_mem_constraints,
+        stats.s_mem_assignment_bits,
+        stats.s_mem_public_bits,
+        stats.s_mem_private_bits,
+        stats.s_mem_nnz,
     );
     println!(
-        "memory routing           logical_ports={} physical_slots={} B_ops={}",
-        application.memory().logical_port_count(),
-        application.memory().slot_count(),
-        profile.memory().b_ops,
+        "memory routing           logical_ports={} routed_slots={} B_ops={}",
+        stats.logical_ports, stats.routed_slots, stats.b_ops,
     );
     println!(
         "final selective CCS      constraints={} columns={} committed_coordinates={} explicit_nnz={}",
-        structure.n, structure.m, final_committed_coordinates, storage.explicit_nnz,
+        stats.final_constraints, stats.final_columns, stats.final_committed_coordinates, stats.final_explicit_nnz,
     );
     println!(
         "compact matrix storage   seeded_blocks={} virtual_seeded_slots={} geometric_runs={} virtual_run_slots={}",
@@ -195,38 +229,130 @@ fn wasm_nebula_relation_structure_census() {
         );
     }
 
-    assert_eq!(application.memory().logical_port_count(), 79 * profile.batch_size());
-    assert_eq!(application.memory().slot_count(), profile.memory().b_ops);
+    assert_eq!(stats.logical_ports, 79 * profile.batch_size());
+    assert!(stats.routed_slots <= stats.b_ops);
     assert_eq!(width.total_coordinates.div_ceil(D) * D, structure.m);
     assert_eq!(
-        s_mem_assignment_bits,
-        (s_mem.m_in() - 1) + (s_mem.cols() - s_mem.m_in())
+        stats.s_mem_assignment_bits,
+        stats.s_mem_public_bits + stats.s_mem_private_bits
     );
+
+    stats
+}
+
+#[test]
+#[ignore = "full F-prime structural census; builds preprocessing but does not prove"]
+fn wasm_nebula_relation_structure_census() {
+    let stats = collect_relation_structure_census(
+        neo_wasm::WasmNebulaProfile::test_profile(),
+        0x57a5_7019,
+        "reduced test profile, compact geometry",
+    );
+
+    assert_eq!(stats.routed_slots, stats.b_ops);
     assert_eq!(
-        (app_shape.n(), app_shape.m(), r1cs_nnz(app_shape)),
+        (
+            stats.application_constraints,
+            stats.application_columns,
+            stats.application_nnz,
+        ),
         (51_308, 23_625, 209_511),
         "application R1CS structure changed; review the structural census",
     );
     assert_eq!(
         (
-            s_mem.rows(),
-            s_mem_assignment_bits,
-            s_mem.m_in() - 1,
-            s_mem.cols() - s_mem.m_in(),
-            s_mem.nnz(),
+            stats.s_mem_constraints,
+            stats.s_mem_assignment_bits,
+            stats.s_mem_public_bits,
+            stats.s_mem_private_bits,
+            stats.s_mem_nnz,
         ),
         (504_398, 499_089, 1_400, 497_689, 3_188_297),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
     assert_eq!(
         (
-            structure.n,
-            structure.m,
-            final_committed_coordinates,
-            storage.explicit_nnz,
+            stats.final_constraints,
+            stats.final_columns,
+            stats.final_committed_coordinates,
+            stats.final_explicit_nnz,
         ),
         (36_890_810, 29_677_590, 29_677_589, 186_552_280),
         "final selective CCS structure changed; review the relation census",
+    );
+}
+
+#[test]
+#[ignore = "full legacy-geometry F-prime census; builds preprocessing but does not prove"]
+fn wasm_nebula_legacy_slot_relation_structure_census() {
+    let compact_profile = neo_wasm::WasmNebulaProfile::test_profile();
+    let compact_memory = compact_profile.memory();
+    let legacy_memory = NebulaParams::new(
+        compact_memory.r,
+        compact_memory.mu,
+        79 * compact_profile.batch_size(),
+        compact_memory.b_scan,
+        compact_memory.seg_max,
+    )
+    .expect("legacy logical-port geometry");
+    let legacy_profile = neo_wasm::WasmNebulaProfile::test_profile_with_batched_memory_geometry(legacy_memory);
+    let legacy = collect_relation_structure_census(
+        legacy_profile,
+        0x57a5_701a,
+        "reduced test profile, legacy 237-slot geometry",
+    );
+
+    const COMPACT_S_MEM_CONSTRAINTS: usize = 504_398;
+    const COMPACT_S_MEM_ASSIGNMENT_BITS: usize = 499_089;
+    const COMPACT_S_MEM_NNZ: usize = 3_188_297;
+    const COMPACT_FINAL_CONSTRAINTS: usize = 36_890_810;
+    const COMPACT_FINAL_COMMITTED_COORDINATES: usize = 29_677_589;
+    const COMPACT_FINAL_EXPLICIT_NNZ: usize = 186_552_280;
+
+    let s_mem_constraints_saved = legacy.s_mem_constraints - COMPACT_S_MEM_CONSTRAINTS;
+    let s_mem_assignment_bits_saved = legacy.s_mem_assignment_bits - COMPACT_S_MEM_ASSIGNMENT_BITS;
+    let s_mem_nnz_saved = legacy.s_mem_nnz - COMPACT_S_MEM_NNZ;
+    let final_constraints_saved = legacy.final_constraints - COMPACT_FINAL_CONSTRAINTS;
+    let final_committed_coordinates_saved = legacy.final_committed_coordinates - COMPACT_FINAL_COMMITTED_COORDINATES;
+    let final_explicit_nnz_saved = legacy.final_explicit_nnz - COMPACT_FINAL_EXPLICIT_NNZ;
+
+    println!("== Slot-compaction amplification ==");
+    println!(
+        "constraints             S_mem -{s_mem_constraints_saved} -> final -{final_constraints_saved} ({:.2}x)",
+        final_constraints_saved as f64 / s_mem_constraints_saved as f64,
+    );
+    println!(
+        "committed coordinates   S_mem -{s_mem_assignment_bits_saved} -> final -{final_committed_coordinates_saved} ({:.2}x)",
+        final_committed_coordinates_saved as f64 / s_mem_assignment_bits_saved as f64,
+    );
+    println!(
+        "explicit nnz            S_mem -{s_mem_nnz_saved} -> final -{final_explicit_nnz_saved} ({:.2}x)",
+        final_explicit_nnz_saved as f64 / s_mem_nnz_saved as f64,
+    );
+
+    assert_eq!(legacy.logical_ports, 237);
+    assert_eq!(legacy.routed_slots, 186);
+    assert_eq!(legacy.b_ops, 237);
+    assert_eq!(
+        (
+            legacy.s_mem_constraints,
+            legacy.s_mem_assignment_bits,
+            legacy.s_mem_public_bits,
+            legacy.s_mem_private_bits,
+            legacy.s_mem_nnz,
+        ),
+        (527_030, 521_007, 1_400, 519_607, 3_338_939),
+        "legacy-geometry S_mem structure changed; review the amplification census",
+    );
+    assert_eq!(
+        (
+            legacy.final_constraints,
+            legacy.final_columns,
+            legacy.final_committed_coordinates,
+            legacy.final_explicit_nnz,
+        ),
+        (36_962_072, 29_741_364, 29_741_363, 187_479_316),
+        "legacy-geometry selective CCS changed; review the amplification census",
     );
 }
 

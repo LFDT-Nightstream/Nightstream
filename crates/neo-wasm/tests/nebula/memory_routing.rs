@@ -2,25 +2,68 @@
 
 use super::{
     activation_column, activations_are_disjoint, build_batched_memory_slots, build_single_step_memory_slots,
-    exclusive_activation_families,
+    program_activation_supports,
 };
-use crate::layout::SELECTOR_COLS;
+use crate::layout::{
+    selector_col, COL_LOCAL_WRITE_ENABLED, COL_STACK_READ0_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED,
+};
 use crate::nebula::WasmNebulaProfile;
-use crate::{build_wasm_relation_layout, RANGE_CHECKED_WITNESS_WIDTH};
+use crate::{build_wasm_relation_layout, WasmOpcode, RANGE_CHECKED_WITNESS_WIDTH};
 use neo_fold_clean::frontends::nebula::application::{MemoryPortActivation, MemoryPortKind};
 use neo_fold_clean::frontends::nebula::circuit::SMemCircuit;
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use std::collections::BTreeSet;
 
 #[test]
+fn program_support_derives_only_known_disjointness() {
+    let supports = program_activation_supports();
+
+    assert!(activations_are_disjoint(
+        selector_col(WasmOpcode::GlobalGet).unwrap(),
+        selector_col(WasmOpcode::GlobalSet).unwrap(),
+        &supports,
+    ));
+    assert!(!activations_are_disjoint(
+        selector_col(WasmOpcode::GlobalGet).unwrap(),
+        selector_col(WasmOpcode::GlobalGet).unwrap(),
+        &supports,
+    ));
+    assert!(activations_are_disjoint(
+        COL_LOCAL_WRITE_ENABLED,
+        COL_TABLE_READ_ENABLED,
+        &supports,
+    ));
+    assert!(!activations_are_disjoint(
+        COL_TABLE_READ_ENABLED,
+        COL_TABLE_SIZE_READ_ENABLED,
+        &supports,
+    ));
+    assert!(activations_are_disjoint(
+        COL_LOCAL_WRITE_ENABLED,
+        selector_col(WasmOpcode::GlobalGet).unwrap(),
+        &supports,
+    ));
+    assert!(!activations_are_disjoint(
+        COL_LOCAL_WRITE_ENABLED,
+        selector_col(WasmOpcode::LocalSet).unwrap(),
+        &supports,
+    ));
+    assert!(!activations_are_disjoint(
+        COL_STACK_READ0_ACTIVE,
+        selector_col(WasmOpcode::GlobalGet).unwrap(),
+        &supports,
+    ));
+}
+
+#[test]
 fn routing_is_deterministic_complete_and_pairwise_disjoint() {
     let relation = build_wasm_relation_layout();
     let first = build_single_step_memory_slots(relation);
     let second = build_single_step_memory_slots(relation);
-    let exclusive_families = exclusive_activation_families();
+    let activation_supports = program_activation_supports();
 
     assert_eq!(first, second);
-    assert_eq!(first.len(), 62, "current selector-only physical slot census");
+    assert_eq!(first.len(), 58, "current physical slot census");
     assert_eq!(
         first
             .iter()
@@ -30,11 +73,11 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
         "current logical port census"
     );
     let shared = first.iter().filter(|slot| slot.candidates().len() > 1);
-    assert_eq!(shared.clone().count(), 4, "one shared lane per selector ordinal");
+    assert_eq!(shared.clone().count(), 4, "current shared-slot census");
     assert_eq!(
         shared.map(|slot| slot.candidates().len()).sum::<usize>(),
-        21,
-        "current opcode-selector-gated logical port census"
+        25,
+        "current shared logical-port census"
     );
 
     let mut expected = relation
@@ -56,7 +99,7 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
         .collect::<Vec<_>>();
 
     for slot in &first {
-        let mut selectors = BTreeSet::new();
+        let mut activations = BTreeSet::new();
         for (candidate_index, port) in slot.candidates().iter().enumerate() {
             let position = expected
                 .iter()
@@ -74,21 +117,20 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
             expected.remove(position);
 
             if slot.candidates().len() > 1 {
-                let MemoryPortActivation::Column(selector) = port.activation() else {
+                let MemoryPortActivation::Column(activation) = port.activation() else {
                     panic!("only column-activated ports may share a slot");
                 };
-                assert!(SELECTOR_COLS.contains(&selector));
                 assert!(
-                    selectors.insert(selector),
-                    "one opcode cannot use a physical slot twice"
+                    activations.insert(activation),
+                    "one activation cannot use a physical slot twice"
                 );
                 for other in &slot.candidates()[..candidate_index] {
                     let other_activation =
                         activation_column(other.activation()).expect("shared slot candidates use activation columns");
                     assert!(activations_are_disjoint(
-                        selector,
+                        activation,
                         other_activation,
-                        &exclusive_families,
+                        &activation_supports,
                     ));
                 }
             }
@@ -156,7 +198,7 @@ fn nebula_geometry_uses_the_physical_slot_count() {
     for profile in [WasmNebulaProfile::test_profile(), WasmNebulaProfile::production()] {
         assert_eq!(profile.memory().b_ops, physical_slots * profile.batch_size());
     }
-    assert_eq!(physical_slots, 62);
+    assert_eq!(physical_slots, 58);
 }
 
 #[test]
@@ -203,7 +245,7 @@ fn s_mem_structure_census() {
     );
 
     assert_eq!(public_bits + private_bits, circuit.cols() - 1);
-    assert_eq!(profile.memory().b_ops, 62 * profile.batch_size());
+    assert_eq!(profile.memory().b_ops, 58 * profile.batch_size());
     assert_eq!(
         (
             circuit.rows(),
@@ -212,7 +254,7 @@ fn s_mem_structure_census() {
             private_bits,
             circuit.nnz(),
         ),
-        (110_768, 108_555, 1_400, 107_155, 724_295),
+        (105_344, 103_347, 1_400, 101_947, 688_295),
         "production S_mem structure changed; review the constraint and committed-bit census",
     );
 }

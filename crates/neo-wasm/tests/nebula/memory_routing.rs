@@ -1,6 +1,9 @@
 //! Fast structural checks for the private WASM-to-Nebula routing compiler.
 
-use super::{build_batched_memory_slots, build_single_step_memory_slots};
+use super::{
+    activation_column, activations_are_disjoint, build_batched_memory_slots, build_single_step_memory_slots,
+    exclusive_activation_families,
+};
 use crate::layout::SELECTOR_COLS;
 use crate::nebula::WasmNebulaProfile;
 use crate::{build_wasm_relation_layout, RANGE_CHECKED_WITNESS_WIDTH};
@@ -10,10 +13,11 @@ use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use std::collections::BTreeSet;
 
 #[test]
-fn routing_is_deterministic_complete_and_selector_disjoint() {
+fn routing_is_deterministic_complete_and_pairwise_disjoint() {
     let relation = build_wasm_relation_layout();
     let first = build_single_step_memory_slots(relation);
     let second = build_single_step_memory_slots(relation);
+    let exclusive_families = exclusive_activation_families();
 
     assert_eq!(first, second);
     assert_eq!(first.len(), 62, "current selector-only physical slot census");
@@ -53,7 +57,7 @@ fn routing_is_deterministic_complete_and_selector_disjoint() {
 
     for slot in &first {
         let mut selectors = BTreeSet::new();
-        for port in slot.candidates() {
+        for (candidate_index, port) in slot.candidates().iter().enumerate() {
             let position = expected
                 .iter()
                 .position(|(region, address, value, kind, activation)| {
@@ -71,13 +75,22 @@ fn routing_is_deterministic_complete_and_selector_disjoint() {
 
             if slot.candidates().len() > 1 {
                 let MemoryPortActivation::Column(selector) = port.activation() else {
-                    panic!("only opcode-selector ports may share a slot");
+                    panic!("only column-activated ports may share a slot");
                 };
                 assert!(SELECTOR_COLS.contains(&selector));
                 assert!(
                     selectors.insert(selector),
                     "one opcode cannot use a physical slot twice"
                 );
+                for other in &slot.candidates()[..candidate_index] {
+                    let other_activation =
+                        activation_column(other.activation()).expect("shared slot candidates use activation columns");
+                    assert!(activations_are_disjoint(
+                        selector,
+                        other_activation,
+                        &exclusive_families,
+                    ));
+                }
             }
         }
     }

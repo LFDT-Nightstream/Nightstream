@@ -2,6 +2,7 @@
 
 use super::{build_batched_memory_slots, build_single_step_memory_slots};
 use crate::layout::SELECTOR_COLS;
+use crate::nebula::WasmNebulaProfile;
 use crate::{build_wasm_relation_layout, RANGE_CHECKED_WITNESS_WIDTH};
 use neo_fold_clean::frontends::nebula::application::{MemoryPortActivation, MemoryPortKind};
 use std::collections::BTreeSet;
@@ -130,6 +131,17 @@ fn batching_offsets_every_candidate_without_changing_the_route() {
             );
         }
     }
+}
+
+#[test]
+fn nebula_geometry_uses_the_physical_slot_count() {
+    let relation = build_wasm_relation_layout();
+    let physical_slots = build_single_step_memory_slots(relation).len();
+
+    for profile in [WasmNebulaProfile::test_profile(), WasmNebulaProfile::production()] {
+        assert_eq!(profile.memory().b_ops, physical_slots * profile.batch_size());
+    }
+    assert_eq!(physical_slots, 62);
 }
 
 fn memory_kinds_match(declared: crate::WasmMemoryColumnKind, routed: MemoryPortKind) -> bool {

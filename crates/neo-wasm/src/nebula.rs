@@ -153,6 +153,18 @@ impl WasmNebulaProfile {
         }
     }
 
+    /// Structural-test profile whose memory geometry already includes the
+    /// instruction batch. This permits comparisons against a fixed historical
+    /// `B_ops` without changing the verifier-owned routing plan.
+    #[doc(hidden)]
+    pub fn test_profile_with_batched_memory_geometry(memory: NebulaParams) -> Self {
+        Self {
+            memory,
+            limits: WasmNebulaLimits::test_profile(),
+            batch_size: WASM_NEBULA_BATCH_SIZE,
+        }
+    }
+
     pub fn memory(&self) -> &NebulaParams {
         &self.memory
     }

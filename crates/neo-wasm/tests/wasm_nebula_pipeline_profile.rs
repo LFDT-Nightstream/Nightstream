@@ -267,7 +267,7 @@ fn wasm_nebula_relation_structure_census() {
             stats.s_mem_private_bits,
             stats.s_mem_nnz,
         ),
-        (504_398, 499_089, 1_400, 497_689, 3_188_297),
+        (499_076, 493_935, 1_400, 492_535, 3_152_855),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
     assert_eq!(
@@ -277,7 +277,7 @@ fn wasm_nebula_relation_structure_census() {
             stats.final_committed_coordinates,
             stats.final_explicit_nnz,
         ),
-        (36_890_810, 29_677_590, 29_677_589, 186_552_280),
+        (36_874_004, 29_662_632, 29_662_631, 186_336_823),
         "final selective CCS structure changed; review the relation census",
     );
 }
@@ -302,12 +302,12 @@ fn wasm_nebula_legacy_slot_relation_structure_census() {
         "reduced test profile, legacy 237-slot geometry",
     );
 
-    const COMPACT_S_MEM_CONSTRAINTS: usize = 504_398;
-    const COMPACT_S_MEM_ASSIGNMENT_BITS: usize = 499_089;
-    const COMPACT_S_MEM_NNZ: usize = 3_188_297;
-    const COMPACT_FINAL_CONSTRAINTS: usize = 36_890_810;
-    const COMPACT_FINAL_COMMITTED_COORDINATES: usize = 29_677_589;
-    const COMPACT_FINAL_EXPLICIT_NNZ: usize = 186_552_280;
+    const COMPACT_S_MEM_CONSTRAINTS: usize = 499_076;
+    const COMPACT_S_MEM_ASSIGNMENT_BITS: usize = 493_935;
+    const COMPACT_S_MEM_NNZ: usize = 3_152_855;
+    const COMPACT_FINAL_CONSTRAINTS: usize = 36_874_004;
+    const COMPACT_FINAL_COMMITTED_COORDINATES: usize = 29_662_631;
+    const COMPACT_FINAL_EXPLICIT_NNZ: usize = 186_336_823;
 
     let s_mem_constraints_saved = legacy.s_mem_constraints - COMPACT_S_MEM_CONSTRAINTS;
     let s_mem_assignment_bits_saved = legacy.s_mem_assignment_bits - COMPACT_S_MEM_ASSIGNMENT_BITS;
@@ -331,7 +331,7 @@ fn wasm_nebula_legacy_slot_relation_structure_census() {
     );
 
     assert_eq!(legacy.logical_ports, 237);
-    assert_eq!(legacy.routed_slots, 186);
+    assert_eq!(legacy.routed_slots, 174);
     assert_eq!(legacy.b_ops, 237);
     assert_eq!(
         (
@@ -351,7 +351,7 @@ fn wasm_nebula_legacy_slot_relation_structure_census() {
             legacy.final_committed_coordinates,
             legacy.final_explicit_nnz,
         ),
-        (36_962_072, 29_741_364, 29_741_363, 187_479_316),
+        (36_961_970, 29_741_364, 29_741_363, 187_481_839),
         "legacy-geometry selective CCS changed; review the amplification census",
     );
 }

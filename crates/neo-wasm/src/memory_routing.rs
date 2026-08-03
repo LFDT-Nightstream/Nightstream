@@ -1,11 +1,45 @@
 //! Compiles logical WASM memory declarations into verifier-owned Nebula slots.
 
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 use neo_fold_clean::frontends::nebula::application::{MemoryOpSlot, MemoryPort, MemoryPortActivation, MemoryPortKind};
 
 use crate::layout::{COL_PADDING_ACTIVE, SELECTOR_COLS};
 use crate::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmRelationLayout};
+
+#[derive(Debug)]
+struct ExclusiveActivationFamily {
+    columns: BTreeSet<usize>,
+}
+
+impl ExclusiveActivationFamily {
+    fn new(name: &'static str, columns: impl IntoIterator<Item = usize>) -> Self {
+        let mut unique = BTreeSet::new();
+        for column in columns {
+            assert!(
+                unique.insert(column),
+                "exclusive activation family {name:?} repeats column {column}",
+            );
+        }
+        assert!(
+            unique.len() >= 2,
+            "exclusive activation family {name:?} needs at least two columns"
+        );
+        Self { columns: unique }
+    }
+
+    fn contains(&self, column: usize) -> bool {
+        self.columns.contains(&column)
+    }
+
+    fn contains_pair(&self, left: usize, right: usize) -> bool {
+        self.contains(left) && self.contains(right)
+    }
+}
+
+fn exclusive_activation_families() -> Vec<ExclusiveActivationFamily> {
+    vec![ExclusiveActivationFamily::new("opcode selectors", SELECTOR_COLS)]
+}
 
 pub(crate) fn build_batched_memory_slots(
     relation: &WasmRelationLayout,
@@ -22,11 +56,9 @@ pub(crate) fn build_batched_memory_slots(
 }
 
 pub(crate) fn build_single_step_memory_slots(relation: &WasmRelationLayout) -> Vec<MemoryOpSlot> {
+    let exclusive_families = exclusive_activation_families();
     let mut singleton_slots = Vec::new();
-    let mut selector_slots: Vec<Vec<MemoryPort>> = Vec::new();
-
-    // used to assign slot "ids" (index)
-    let mut selector_port_count = BTreeMap::new();
+    let mut shared_slots: Vec<Vec<MemoryPort>> = Vec::new();
 
     for (region, memory) in relation.auxiliary.memories.iter().enumerate() {
         for column in &memory.columns {
@@ -50,32 +82,48 @@ pub(crate) fn build_single_step_memory_slots(relation: &WasmRelationLayout) -> V
                 },
             );
 
-            let Some(selector) = opcode_selector(port.activation()) else {
+            let Some(activation) = activation_column(port.activation()) else {
                 singleton_slots.push(MemoryOpSlot::new(vec![port]));
                 continue;
             };
-
-            // Different opcode selectors are circuit-proven disjoint. The nth
-            // port used by each opcode therefore shares selector slot n, while
-            // repeated ports for one opcode necessarily occupy separate slots.
-            let next_slot_index_for_selector = selector_port_count.entry(selector).or_insert(0);
-            if selector_slots.len() == *next_slot_index_for_selector {
-                selector_slots.push(Vec::new());
+            if !exclusive_families
+                .iter()
+                .any(|family| family.contains(activation))
+            {
+                singleton_slots.push(MemoryOpSlot::new(vec![port]));
+                continue;
             }
-            selector_slots[*next_slot_index_for_selector].push(port);
-            *next_slot_index_for_selector += 1;
+
+            let target = shared_slots.iter().position(|slot| {
+                slot.iter().all(|candidate| {
+                    let candidate_activation = activation_column(candidate.activation())
+                        .expect("shared slots contain only column-activated ports");
+                    activations_are_disjoint(activation, candidate_activation, &exclusive_families)
+                })
+            });
+            match target {
+                Some(index) => shared_slots[index].push(port),
+                None => shared_slots.push(vec![port]),
+            }
         }
     }
 
-    singleton_slots.extend(selector_slots.into_iter().map(MemoryOpSlot::new));
+    singleton_slots.extend(shared_slots.into_iter().map(MemoryOpSlot::new));
     singleton_slots
 }
 
-fn opcode_selector(activation: MemoryPortActivation) -> Option<usize> {
+fn activation_column(activation: MemoryPortActivation) -> Option<usize> {
     match activation {
-        MemoryPortActivation::Column(column) if SELECTOR_COLS.contains(&column) => Some(column),
+        MemoryPortActivation::Column(column) => Some(column),
         _ => None,
     }
+}
+
+fn activations_are_disjoint(left: usize, right: usize, exclusive_families: &[ExclusiveActivationFamily]) -> bool {
+    left != right
+        && exclusive_families
+            .iter()
+            .any(|family| family.contains_pair(left, right))
 }
 
 fn offset_slot(slot: &MemoryOpSlot, offset: usize) -> MemoryOpSlot {

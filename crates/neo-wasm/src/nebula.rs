@@ -156,6 +156,8 @@ impl WasmNebulaProfile {
     /// Structural-test profile whose memory geometry already includes the
     /// instruction batch. This permits comparisons against a fixed historical
     /// `B_ops` without changing the verifier-owned routing plan.
+    // TODO: Remove this experimental constructor together with the legacy
+    // amplification census once physical-slot compaction has stabilized.
     #[doc(hidden)]
     pub fn test_profile_with_batched_memory_geometry(memory: NebulaParams) -> Self {
         Self {

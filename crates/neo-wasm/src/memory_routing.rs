@@ -1,44 +1,84 @@
 //! Compiles logical WASM memory declarations into verifier-owned Nebula slots.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use neo_fold_clean::frontends::nebula::application::{MemoryOpSlot, MemoryPort, MemoryPortActivation, MemoryPortKind};
 
-use crate::layout::{COL_PADDING_ACTIVE, SELECTOR_COLS};
+use crate::isa::WasmOpcode;
+use crate::layout::{
+    selector_col, COL_LOCAL_WRITE_ENABLED, COL_PADDING_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED,
+    SELECTOR_COLS,
+};
 use crate::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmRelationLayout};
 
-#[derive(Debug)]
-struct ExclusiveActivationFamily {
-    columns: BTreeSet<usize>,
+fn program_activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
+    let mut supports = SELECTOR_COLS
+        .into_iter()
+        .map(|selector| (selector, BTreeSet::from([selector])))
+        .collect();
+    insert_derived_activation_support(
+        &mut supports,
+        "local writes",
+        COL_LOCAL_WRITE_ENABLED,
+        [
+            selector_col(WasmOpcode::LocalSet).unwrap(),
+            selector_col(WasmOpcode::LocalTee).unwrap(),
+        ],
+    );
+    insert_derived_activation_support(
+        &mut supports,
+        "table reads",
+        COL_TABLE_READ_ENABLED,
+        [
+            selector_col(WasmOpcode::TableGet).unwrap(),
+            selector_col(WasmOpcode::CallIndirect).unwrap(),
+            selector_col(WasmOpcode::ReturnCallIndirect).unwrap(),
+        ],
+    );
+    insert_derived_activation_support(
+        &mut supports,
+        "table-size reads",
+        COL_TABLE_SIZE_READ_ENABLED,
+        [
+            selector_col(WasmOpcode::TableSize).unwrap(),
+            selector_col(WasmOpcode::CallIndirect).unwrap(),
+            selector_col(WasmOpcode::ReturnCallIndirect).unwrap(),
+        ],
+    );
+    supports
 }
 
-impl ExclusiveActivationFamily {
-    fn new(name: &'static str, columns: impl IntoIterator<Item = usize>) -> Self {
-        let mut unique = BTreeSet::new();
-        for column in columns {
-            assert!(
-                unique.insert(column),
-                "exclusive activation family {name:?} repeats column {column}",
-            );
-        }
+/// Record the verifier-owned implication `gate = 1 => one of selectors = 1`.
+/// These support bounds come from the WASM CCS, not sampled traces.
+fn insert_derived_activation_support(
+    supports: &mut BTreeMap<usize, BTreeSet<usize>>,
+    name: &'static str,
+    gate: usize,
+    possible_selectors: impl IntoIterator<Item = usize>,
+) {
+    assert!(
+        !SELECTOR_COLS.contains(&gate),
+        "program-gate support {name:?} uses opcode selector {gate} as a derived gate",
+    );
+    let mut unique = BTreeSet::new();
+    for selector in possible_selectors {
         assert!(
-            unique.len() >= 2,
-            "exclusive activation family {name:?} needs at least two columns"
+            SELECTOR_COLS.contains(&selector),
+            "program-gate support {name:?} contains non-selector column {selector}",
         );
-        Self { columns: unique }
+        assert!(
+            unique.insert(selector),
+            "program-gate support {name:?} repeats selector {selector}",
+        );
     }
-
-    fn contains(&self, column: usize) -> bool {
-        self.columns.contains(&column)
-    }
-
-    fn contains_pair(&self, left: usize, right: usize) -> bool {
-        self.contains(left) && self.contains(right)
-    }
-}
-
-fn exclusive_activation_families() -> Vec<ExclusiveActivationFamily> {
-    vec![ExclusiveActivationFamily::new("opcode selectors", SELECTOR_COLS)]
+    assert!(
+        !unique.is_empty(),
+        "program-gate support {name:?} needs at least one possible selector",
+    );
+    assert!(
+        supports.insert(gate, unique).is_none(),
+        "program-gate support {name:?} repeats gate column {gate}",
+    )
 }
 
 pub(crate) fn build_batched_memory_slots(
@@ -56,7 +96,7 @@ pub(crate) fn build_batched_memory_slots(
 }
 
 pub(crate) fn build_single_step_memory_slots(relation: &WasmRelationLayout) -> Vec<MemoryOpSlot> {
-    let exclusive_families = exclusive_activation_families();
+    let activation_supports = program_activation_supports();
     let mut singleton_slots = Vec::new();
     let mut shared_slots: Vec<Vec<MemoryPort>> = Vec::new();
 
@@ -86,10 +126,7 @@ pub(crate) fn build_single_step_memory_slots(relation: &WasmRelationLayout) -> V
                 singleton_slots.push(MemoryOpSlot::new(vec![port]));
                 continue;
             };
-            if !exclusive_families
-                .iter()
-                .any(|family| family.contains(activation))
-            {
+            if !activation_supports.contains_key(&activation) {
                 singleton_slots.push(MemoryOpSlot::new(vec![port]));
                 continue;
             }
@@ -98,7 +135,7 @@ pub(crate) fn build_single_step_memory_slots(relation: &WasmRelationLayout) -> V
                 slot.iter().all(|candidate| {
                     let candidate_activation = activation_column(candidate.activation())
                         .expect("shared slots contain only column-activated ports");
-                    activations_are_disjoint(activation, candidate_activation, &exclusive_families)
+                    activations_are_disjoint(activation, candidate_activation, &activation_supports)
                 })
             });
             match target {
@@ -119,11 +156,11 @@ fn activation_column(activation: MemoryPortActivation) -> Option<usize> {
     }
 }
 
-fn activations_are_disjoint(left: usize, right: usize, exclusive_families: &[ExclusiveActivationFamily]) -> bool {
-    left != right
-        && exclusive_families
-            .iter()
-            .any(|family| family.contains_pair(left, right))
+fn activations_are_disjoint(left: usize, right: usize, activation_supports: &BTreeMap<usize, BTreeSet<usize>>) -> bool {
+    let (Some(left), Some(right)) = (activation_supports.get(&left), activation_supports.get(&right)) else {
+        return false;
+    };
+    left.is_disjoint(right)
 }
 
 fn offset_slot(slot: &MemoryOpSlot, offset: usize) -> MemoryOpSlot {

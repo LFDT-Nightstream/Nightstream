@@ -302,9 +302,10 @@ fn wasm_nebula_pipeline_profile() {
         prep.total_lookup_auxiliary_columns(),
     );
     println!(
-        "memory layout            regions={} ports={} R={} M={} B_ops={} B_scan={} N={}",
+        "memory layout            regions={} logical_ports={} physical_slots={} R={} M={} B_ops={} B_scan={} N={}",
         application.memory().regions().len(),
-        application.memory().port_count(),
+        application.memory().logical_port_count(),
+        application.memory().slot_count(),
         profile.memory().rom_cells(),
         profile.memory().ram_cells(),
         profile.memory().b_ops,

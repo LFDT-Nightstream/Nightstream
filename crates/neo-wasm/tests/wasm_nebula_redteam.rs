@@ -105,7 +105,8 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
         .map(|memory| memory.columns.len())
         .sum::<usize>();
     assert_eq!(memory.regions().len(), declared.auxiliary.memories.len());
-    assert_eq!(memory.port_count(), declared_ports * batch_size);
+    assert_eq!(memory.slot_count(), declared_ports * batch_size);
+    assert_eq!(memory.logical_port_count(), declared_ports * batch_size);
 
     let mut slot = 0;
     for block in 0..batch_size {
@@ -122,7 +123,9 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
                 }
             );
             for declared_port in &declared_memory.columns {
-                let port = &memory.ports()[slot];
+                let candidates = memory.slots()[slot].candidates();
+                assert_eq!(candidates.len(), 1, "slot {slot}");
+                let port = &candidates[0];
                 assert_eq!(port.region(), region_index, "slot {slot}");
                 assert_eq!(
                     port.address_columns(),
@@ -164,7 +167,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
             }
         }
     }
-    assert_eq!(declared_ports, 72, "Current layout declares 72 ports per step");
+    assert_eq!(declared_ports, 79, "Current layout declares 79 ports per step");
     assert_eq!(slot, declared_ports * batch_size);
 }
 

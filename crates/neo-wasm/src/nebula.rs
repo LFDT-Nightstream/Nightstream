@@ -23,7 +23,7 @@ use crate::comm_chain::CommChainState;
 use crate::event_grammar::HostEventGrammar;
 use crate::ir::{WasmAuxOpcode, WasmRowKind, WasmStepState, WasmVmStep};
 use crate::lookup_circuit::{extend_witness, LookupCircuitError};
-use crate::memory_routing::build_batched_memory_slots;
+use crate::memory_routing::{build_batched_memory_slots, build_single_step_memory_slots};
 use crate::memory_semantics::preload_grammar_tables;
 use crate::preprocess::{
     canonical_wasm_nebula_shape_batched_with_initial_state_digest, grammar_top_level_initial_state_digest,
@@ -152,18 +152,11 @@ impl WasmNebulaProfile {
 }
 
 fn batched_memory_geometry(memory: NebulaParams, batch_size: usize) -> NebulaParams {
-    // The slot budget is the relation's own per-step port count: every
-    // declared memory column occupies one ops-lane slot per batched step.
-    let step_ports: usize = build_wasm_relation_layout()
-        .auxiliary
-        .memories
-        .iter()
-        .map(|memory| memory.columns.len())
-        .sum();
+    let step_slots = build_single_step_memory_slots(build_wasm_relation_layout()).len();
     NebulaParams::new(
         memory.r,
         memory.mu,
-        step_ports * batch_size,
+        step_slots * batch_size,
         memory.b_scan,
         memory.seg_max,
     )

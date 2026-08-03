@@ -112,8 +112,8 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
     assert_eq!(memory.logical_port_count(), declared_ports * batch_size);
     assert_eq!(
         fixture.prep.profile().memory().b_ops,
-        declared_ports * batch_size,
-        "geometry stays deliberately oversized until routing is established"
+        physical_slots_per_step * batch_size,
+        "geometry must be sized by physical slots rather than logical ports"
     );
 
     for block in 0..batch_size {

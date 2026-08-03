@@ -14,6 +14,7 @@ mod ivc_state;
 pub mod layout;
 mod lookup_circuit;
 pub mod lookup_semantics;
+mod memory_routing;
 pub mod memory_semantics;
 pub mod nebula;
 #[doc(hidden)]

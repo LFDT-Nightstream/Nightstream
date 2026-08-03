@@ -5,6 +5,8 @@ use crate::layout::SELECTOR_COLS;
 use crate::nebula::WasmNebulaProfile;
 use crate::{build_wasm_relation_layout, RANGE_CHECKED_WITNESS_WIDTH};
 use neo_fold_clean::frontends::nebula::application::{MemoryPortActivation, MemoryPortKind};
+use neo_fold_clean::frontends::nebula::circuit::SMemCircuit;
+use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use std::collections::BTreeSet;
 
 #[test]
@@ -142,6 +144,64 @@ fn nebula_geometry_uses_the_physical_slot_count() {
         assert_eq!(profile.memory().b_ops, physical_slots * profile.batch_size());
     }
     assert_eq!(physical_slots, 62);
+}
+
+#[test]
+fn s_mem_structure_census() {
+    let profile = WasmNebulaProfile::production();
+    let circuit = SMemCircuit::new(*profile.memory());
+    let previous_params = NebulaParams::new(
+        profile.memory().r,
+        profile.memory().mu,
+        79 * profile.batch_size(),
+        profile.memory().b_scan,
+        profile.memory().seg_max,
+    )
+    .expect("previous logical-port geometry");
+    let previous = SMemCircuit::new(previous_params);
+    let public_bits = circuit.m_in() - 1;
+    let private_bits = circuit.cols() - circuit.m_in();
+
+    println!("WASM Nebula S_mem structural census");
+    println!(
+        "  physical slots    {} -> {}",
+        previous_params.b_ops,
+        profile.memory().b_ops
+    );
+    println!(
+        "  constraints       {} -> {} (-{})",
+        previous.rows(),
+        circuit.rows(),
+        previous.rows() - circuit.rows()
+    );
+    println!(
+        "  assignment bits   {} -> {} (-{})",
+        previous.cols() - 1,
+        circuit.cols() - 1,
+        previous.cols() - circuit.cols()
+    );
+    println!("    public bits     {public_bits}");
+    println!("    private bits    {private_bits}");
+    println!(
+        "  nonzero entries   {} -> {} (-{})",
+        previous.nnz(),
+        circuit.nnz(),
+        previous.nnz() - circuit.nnz()
+    );
+
+    assert_eq!(public_bits + private_bits, circuit.cols() - 1);
+    assert_eq!(profile.memory().b_ops, 62 * profile.batch_size());
+    assert_eq!(
+        (
+            circuit.rows(),
+            circuit.cols() - 1,
+            public_bits,
+            private_bits,
+            circuit.nnz(),
+        ),
+        (110_768, 108_555, 1_400, 107_155, 724_295),
+        "production S_mem structure changed; review the constraint and committed-bit census",
+    );
 }
 
 fn memory_kinds_match(declared: crate::WasmMemoryColumnKind, routed: MemoryPortKind) -> bool {

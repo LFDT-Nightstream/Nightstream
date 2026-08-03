@@ -1,8 +1,8 @@
 //! Data-driven composition of an application R1CS with Nebula memory ports.
 //!
 //! The application owns its relation and state-transition plan. This module
-//! owns only the verifier-fixed mapping from application columns to `S_mem`
-//! slots and physical ROM/RAM ranges.
+//! owns only the verifier-fixed mapping from logical memory ports to physical
+//! `S_mem` slots and ROM/RAM ranges.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -193,13 +193,28 @@ impl MemoryPort {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MemoryOpSlot {
+    candidates: Vec<MemoryPort>,
+}
+
+impl MemoryOpSlot {
+    pub fn new(candidates: Vec<MemoryPort>) -> Self {
+        Self { candidates }
+    }
+
+    pub fn candidates(&self) -> &[MemoryPort] {
+        &self.candidates
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MemoryPortLayout {
     regions: Vec<MemoryRegion>,
-    ports: Vec<MemoryPort>,
+    slots: Vec<MemoryOpSlot>,
 }
 
 impl MemoryPortLayout {
-    pub fn new(regions: Vec<MemoryRegion>, ports: Vec<MemoryPort>) -> Result<Self, ApplicationError> {
+    pub fn new(regions: Vec<MemoryRegion>, slots: Vec<MemoryOpSlot>) -> Result<Self, ApplicationError> {
         let mut names = BTreeSet::new();
         for region in &regions {
             if !names.insert(region.name.clone()) {
@@ -221,47 +236,56 @@ impl MemoryPortLayout {
                 }
             }
         }
-        for (slot, port) in ports.iter().enumerate() {
-            let region = regions
-                .get(port.region)
-                .ok_or(ApplicationError::UnknownRegion {
-                    slot,
-                    region: port.region,
-                })?;
-            if port.address_columns.len() != region.component_bits.len() {
-                return Err(ApplicationError::AddressArity {
-                    region: region.name.clone(),
-                    expected: region.component_bits.len(),
-                    actual: port.address_columns.len(),
-                });
+        for (slot, physical) in slots.iter().enumerate() {
+            if physical.candidates.is_empty() {
+                return Err(ApplicationError::EmptyMemorySlot { slot });
             }
-            if region.kind == MemoryRegionKind::Rom && matches!(port.kind, MemoryPortKind::Write { .. }) {
-                return Err(ApplicationError::RomWritePort { slot });
+            for port in &physical.candidates {
+                let region = regions
+                    .get(port.region)
+                    .ok_or(ApplicationError::UnknownRegion {
+                        slot,
+                        region: port.region,
+                    })?;
+                if port.address_columns.len() != region.component_bits.len() {
+                    return Err(ApplicationError::AddressArity {
+                        region: region.name.clone(),
+                        expected: region.component_bits.len(),
+                        actual: port.address_columns.len(),
+                    });
+                }
+                if region.kind == MemoryRegionKind::Rom && matches!(port.kind, MemoryPortKind::Write { .. }) {
+                    return Err(ApplicationError::RomWritePort { slot });
+                }
             }
         }
-        Ok(Self { regions, ports })
+        Ok(Self { regions, slots })
     }
 
     pub fn regions(&self) -> &[MemoryRegion] {
         &self.regions
     }
 
-    pub fn ports(&self) -> &[MemoryPort] {
-        &self.ports
+    pub fn slots(&self) -> &[MemoryOpSlot] {
+        &self.slots
     }
 
-    pub fn port_count(&self) -> usize {
-        self.ports.len()
+    pub fn slot_count(&self) -> usize {
+        self.slots.len()
+    }
+
+    pub fn logical_port_count(&self) -> usize {
+        self.slots.iter().map(|slot| slot.candidates.len()).sum()
     }
 
     pub fn validate_for(&self, app_columns: usize, params: &NebulaParams) -> Result<(), ApplicationError> {
         if params.num_stacks != 0 {
             return Err(ApplicationError::ApplicationRequiresStacklessNebula);
         }
-        if self.ports.len() > params.b_ops {
-            return Err(ApplicationError::TooManyPorts {
-                ports: self.ports.len(),
-                slots: params.b_ops,
+        if self.slots.len() > params.b_ops {
+            return Err(ApplicationError::TooManySlots {
+                declared: self.slots.len(),
+                available: params.b_ops,
             });
         }
         for region in &self.regions {
@@ -277,21 +301,23 @@ impl MemoryPortLayout {
                 });
             }
         }
-        for (slot, port) in self.ports.iter().enumerate() {
-            for &column in &port.address_columns {
-                validate_column(slot, column, app_columns)?;
-            }
-            validate_column(slot, port.value_column, app_columns)?;
-            if let MemoryPortKind::Write {
-                value_before_column: Some(column),
-            } = port.kind
-            {
-                validate_column(slot, column, app_columns)?;
-            }
-            match port.activation {
-                MemoryPortActivation::Always => {}
-                MemoryPortActivation::Column(column) | MemoryPortActivation::UnlessColumn(column) => {
+        for (slot, physical) in self.slots.iter().enumerate() {
+            for port in &physical.candidates {
+                for &column in &port.address_columns {
                     validate_column(slot, column, app_columns)?;
+                }
+                validate_column(slot, port.value_column, app_columns)?;
+                if let MemoryPortKind::Write {
+                    value_before_column: Some(column),
+                } = port.kind
+                {
+                    validate_column(slot, column, app_columns)?;
+                }
+                match port.activation {
+                    MemoryPortActivation::Always => {}
+                    MemoryPortActivation::Column(column) | MemoryPortActivation::UnlessColumn(column) => {
+                        validate_column(slot, column, app_columns)?;
+                    }
                 }
             }
         }
@@ -303,23 +329,26 @@ impl MemoryPortLayout {
         segment: &mut SegmentRun<'_>,
         assignment: &[F],
     ) -> Result<Vec<Option<MemOpRecord>>, ApplicationError> {
-        let mut slots = Vec::with_capacity(self.ports.len());
-        for (slot, port) in self.ports.iter().enumerate() {
-            let active = match port.activation {
-                MemoryPortActivation::Always => true,
-                MemoryPortActivation::Column(column) | MemoryPortActivation::UnlessColumn(column) => {
-                    let value = assignment_value(assignment, slot, column)?;
-                    match value {
-                        0 => matches!(port.activation, MemoryPortActivation::UnlessColumn(_)),
-                        1 => matches!(port.activation, MemoryPortActivation::Column(_)),
-                        value => return Err(ApplicationError::NonBooleanActivation { slot, value }),
-                    }
+        let mut slots = Vec::with_capacity(self.slots.len());
+        for (slot, physical) in self.slots.iter().enumerate() {
+            let mut selected = None;
+            for (candidate, port) in physical.candidates.iter().enumerate() {
+                if !activation_value(assignment, slot, port.activation)? {
+                    continue;
                 }
-            };
-            if !active {
+                if let Some((first, _)) = selected {
+                    return Err(ApplicationError::MemorySlotCollision {
+                        slot,
+                        first,
+                        second: candidate,
+                    });
+                }
+                selected = Some((candidate, port));
+            }
+            let Some((_, port)) = selected else {
                 slots.push(None);
                 continue;
-            }
+            };
             let region = &self.regions[port.region];
             let components = port
                 .address_columns
@@ -539,7 +568,7 @@ pub enum ApplicationError {
     DuplicateRegion(String),
     #[error("memory regions `{left}` and `{right}` overlap")]
     OverlappingRegions { left: String, right: String },
-    #[error("memory port {slot} references unknown region {region}")]
+    #[error("memory slot {slot} references unknown region {region}")]
     UnknownRegion { slot: usize, region: usize },
     #[error("memory region `{region}` expects {expected} address components, got {actual}")]
     AddressArity {
@@ -547,29 +576,37 @@ pub enum ApplicationError {
         expected: usize,
         actual: usize,
     },
-    #[error("ROM memory port {slot} is a write")]
+    #[error("ROM memory slot {slot} contains a write port")]
     RomWritePort { slot: usize },
+    #[error("physical memory slot {slot} has no logical port candidates")]
+    EmptyMemorySlot { slot: usize },
+    #[error("physical memory slot {slot} activated both candidate {first} and candidate {second}")]
+    MemorySlotCollision {
+        slot: usize,
+        first: usize,
+        second: usize,
+    },
     #[error("application memory requires a stackless Nebula plan")]
     ApplicationRequiresStacklessNebula,
-    #[error("application declares {ports} memory ports but S_mem has {slots} slots")]
-    TooManyPorts { ports: usize, slots: usize },
+    #[error("application declares {declared} physical memory slots but S_mem has {available}")]
+    TooManySlots { declared: usize, available: usize },
     #[error("memory region `{region}` ends at {end}, beyond its namespace capacity {capacity}")]
     RegionOutOfBounds {
         region: String,
         end: u64,
         capacity: u64,
     },
-    #[error("memory port {slot} references application column {column}, but the app has {columns} columns")]
+    #[error("memory slot {slot} references application column {column}, but the app has {columns} columns")]
     ColumnOutOfBounds {
         slot: usize,
         column: usize,
         columns: usize,
     },
-    #[error("memory port {slot} activation carried non-Boolean value {value}")]
+    #[error("memory slot {slot} activation carried non-Boolean value {value}")]
     NonBooleanActivation { slot: usize, value: u64 },
-    #[error("memory port {slot} reads outside application assignment at column {column}")]
+    #[error("memory slot {slot} reads outside application assignment at column {column}")]
     AssignmentColumn { slot: usize, column: usize },
-    #[error("memory port {slot} {role} value {value} does not fit u32")]
+    #[error("memory slot {slot} {role} value {value} does not fit u32")]
     ValueRange {
         slot: usize,
         role: &'static str,
@@ -581,7 +618,7 @@ pub enum ApplicationError {
         value: u64,
         bits: u8,
     },
-    #[error("memory port {slot} reads `{region}` address {address} as {actual}, but memory contains {expected}")]
+    #[error("memory slot {slot} reads `{region}` address {address} as {actual}, but memory contains {expected}")]
     ReadValueMismatch {
         slot: usize,
         region: String,
@@ -590,7 +627,7 @@ pub enum ApplicationError {
         actual: u32,
     },
     #[error(
-        "memory port {slot} writes `{region}` address {address} with prior value {actual}, but memory contains {expected}"
+        "memory slot {slot} writes `{region}` address {address} with prior value {actual}, but memory contains {expected}"
     )]
     WriteBeforeMismatch {
         slot: usize,
@@ -627,57 +664,94 @@ pub(crate) fn enforce_memory_ports(
     let value_write_offset = value_read_offset + VAL_BITS;
     let mut address_bits = BTreeMap::new();
 
-    for (slot, port) in layout.ports.iter().enumerate() {
-        let port_start = builder.rows();
-        let region = &layout.regions[port.region];
+    let mut logical_port = 0;
+    for (slot, physical) in layout.slots.iter().enumerate() {
         let start = circuit.op_slot_column(slot);
-        let active = activation_lc(builder, assignment, app_vars, slot, port.activation)?;
-        let not_active = Lc::from_const(F::ONE).add_scaled(&active, -F::ONE);
+        let activations = physical
+            .candidates
+            .iter()
+            .map(|port| activation_lc(builder, assignment, app_vars, slot, port.activation))
+            .collect::<Result<Vec<_>, _>>()?;
+        let slot_active = activations
+            .iter()
+            .fold(Lc::zero(), |sum, active| sum.add_scaled(active, F::ONE));
+        let slot_is_write = physical
+            .candidates
+            .iter()
+            .zip(&activations)
+            .filter(|(port, _)| matches!(port.kind, MemoryPortKind::Write { .. }))
+            .fold(Lc::zero(), |sum, (_, active)| sum.add_scaled(active, F::ONE));
+        let slot_is_ram = physical
+            .candidates
+            .iter()
+            .zip(&activations)
+            .filter(|(port, _)| layout.regions[port.region].kind == MemoryRegionKind::Ram)
+            .fold(Lc::zero(), |sum, (_, active)| sum.add_scaled(active, F::ONE));
+        let not_active = Lc::from_const(F::ONE).add_scaled(&slot_active, -F::ONE);
+        builder.enforce(&slot_active, &not_active, &Lc::zero());
         builder.enforce_eq(&Lc::from_var(s_mem[start]), &not_active);
+        builder.enforce_eq(&Lc::from_var(s_mem[start + 1]), &slot_is_write);
+        builder.enforce_eq(&Lc::from_var(s_mem[start + 2]), &slot_is_ram);
 
-        bind_active_constant(
-            builder,
-            s_mem[start + 1],
-            &active,
-            matches!(port.kind, MemoryPortKind::Write { .. }),
-        );
-        bind_active_constant(builder, s_mem[start + 2], &active, region.kind == MemoryRegionKind::Ram);
-
-        let slot_address = bits_lc(&s_mem[start + address_offset..start + address_offset + params.addr_bits()]);
-        let mut app_address = Lc::from_const(F::from_u64(region.base));
-        let mut stride = 1u64;
-        for (&column, &bits) in port.address_columns.iter().zip(&region.component_bits) {
-            constrain_component(builder, assignment, app_vars, column, bits, &active, &mut address_bits);
-            app_address.add_term(app_vars[column], F::from_u64(stride));
-            stride <<= bits;
-        }
-        builder.enforce(&active, &app_address, &slot_address);
-
-        let slot_read = bits_lc(&s_mem[start + value_read_offset..start + value_read_offset + VAL_BITS]);
-        let slot_write = bits_lc(&s_mem[start + value_write_offset..start + value_write_offset + VAL_BITS]);
-        let value = Lc::from_var(app_vars[port.value_column]);
-        match port.kind {
-            MemoryPortKind::Read => {
-                builder.enforce(&active, &value, &slot_read);
-                builder.enforce(&active, &value, &slot_write);
+        for (port, active) in physical.candidates.iter().zip(&activations) {
+            let port_start = builder.rows();
+            let region = &layout.regions[port.region];
+            let slot_address = bits_lc(&s_mem[start + address_offset..start + address_offset + params.addr_bits()]);
+            let mut app_address = Lc::from_const(F::from_u64(region.base));
+            let mut stride = 1u64;
+            for (&column, &bits) in port.address_columns.iter().zip(&region.component_bits) {
+                constrain_component(builder, assignment, app_vars, column, bits, active, &mut address_bits);
+                app_address.add_term(app_vars[column], F::from_u64(stride));
+                stride <<= bits;
             }
-            MemoryPortKind::Write { value_before_column } => {
-                builder.enforce(&active, &value, &slot_write);
-                if let Some(column) = value_before_column {
-                    builder.enforce(&active, &Lc::from_var(app_vars[column]), &slot_read);
+            enforce_gated_equality(builder, active, &app_address, &slot_address);
+
+            let slot_read = bits_lc(&s_mem[start + value_read_offset..start + value_read_offset + VAL_BITS]);
+            let slot_write = bits_lc(&s_mem[start + value_write_offset..start + value_write_offset + VAL_BITS]);
+            let value = Lc::from_var(app_vars[port.value_column]);
+            match port.kind {
+                MemoryPortKind::Read => {
+                    enforce_gated_equality(builder, active, &value, &slot_read);
+                    enforce_gated_equality(builder, active, &value, &slot_write);
+                }
+                MemoryPortKind::Write { value_before_column } => {
+                    enforce_gated_equality(builder, active, &value, &slot_write);
+                    if let Some(column) = value_before_column {
+                        enforce_gated_equality(builder, active, &Lc::from_var(app_vars[column]), &slot_read);
+                    }
                 }
             }
+            builder.record_indexed_row_family("nebula.application.memory_port", logical_port, port_start);
+            logical_port += 1;
         }
-        builder.record_indexed_row_family("nebula.application.memory_port", slot, port_start);
     }
 
-    for slot in layout.ports.len()..params.b_ops {
+    for slot in layout.slots.len()..params.b_ops {
         builder.enforce_eq(
             &Lc::from_var(s_mem[circuit.op_slot_column(slot)]),
             &Lc::from_const(F::ONE),
         );
     }
     Ok(())
+}
+
+fn enforce_gated_equality(builder: &mut R1csBuilder, active: &Lc, lhs: &Lc, rhs: &Lc) {
+    let difference = lhs.clone().add_scaled(rhs, -F::ONE);
+    builder.enforce(active, &difference, &Lc::zero());
+}
+
+fn activation_value(assignment: &[F], slot: usize, activation: MemoryPortActivation) -> Result<bool, ApplicationError> {
+    match activation {
+        MemoryPortActivation::Always => Ok(true),
+        MemoryPortActivation::Column(column) | MemoryPortActivation::UnlessColumn(column) => {
+            let value = assignment_value(assignment, slot, column)?;
+            match value {
+                0 => Ok(matches!(activation, MemoryPortActivation::UnlessColumn(_))),
+                1 => Ok(matches!(activation, MemoryPortActivation::Column(_))),
+                value => Err(ApplicationError::NonBooleanActivation { slot, value }),
+            }
+        }
+    }
 }
 
 fn activation_lc(
@@ -708,11 +782,6 @@ fn activation_lc(
             Ok(active)
         }
     }
-}
-
-fn bind_active_constant(builder: &mut R1csBuilder, wire: Var, active: &Lc, set: bool) {
-    let expected = if set { active.clone() } else { Lc::zero() };
-    builder.enforce_eq(&Lc::from_var(wire), &expected);
 }
 
 fn bits_lc(bits: &[Var]) -> Lc {
@@ -768,3 +837,7 @@ fn assignment_value(assignment: &[F], slot: usize, column: usize) -> Result<u64,
 fn narrow_u32(value: u64, slot: usize, role: &'static str) -> Result<u32, ApplicationError> {
     u32::try_from(value).map_err(|_| ApplicationError::ValueRange { slot, role, value })
 }
+
+#[cfg(test)]
+#[path = "../../../tests/nebula/application_r1cs.rs"]
+mod constraint_tests;

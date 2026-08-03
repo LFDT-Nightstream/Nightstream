@@ -100,7 +100,7 @@ fn wasm_nebula_relation_stays_within_production_budget() {
     );
     assert_eq!(prep.inner().prep.params.k_rho(), 14);
     assert_eq!(prep.profile().batch_size(), 3);
-    assert_eq!(prep.profile().memory().b_ops, 192);
+    assert_eq!(prep.profile().memory().b_ops, 186);
     assert_eq!(prep.lookup_auxiliary_columns_per_instruction(), 4_694);
     assert_eq!(prep.total_lookup_auxiliary_columns(), 14_082);
 }

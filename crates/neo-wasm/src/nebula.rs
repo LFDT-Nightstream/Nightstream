@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 #[cfg(feature = "perf-timers")]
 use neo_fold_clean::frontends::nebula::application::ApplicationSegmentTrace;
 use neo_fold_clean::frontends::nebula::application::{
-    ApplicationError, MemoryPort, MemoryPortActivation, MemoryPortKind, MemoryPortLayout, MemoryRegion,
+    ApplicationError, MemoryOpSlot, MemoryPort, MemoryPortActivation, MemoryPortKind, MemoryPortLayout, MemoryRegion,
     MemoryRegionKind, NebulaApplication,
 };
 use neo_fold_clean::frontends::nebula::f_prime::{
@@ -611,7 +611,7 @@ fn build_memory_backend(
             ));
         }
     }
-    let mut ports = Vec::with_capacity(single_ports.len() * profile.batch_size);
+    let mut slots = Vec::with_capacity(single_ports.len() * profile.batch_size);
     for block in 0..profile.batch_size {
         let offset = block * single_step_columns;
         for port in &single_ports {
@@ -626,7 +626,7 @@ fn build_memory_backend(
                 MemoryPortActivation::Column(column) => MemoryPortActivation::Column(column + offset),
                 MemoryPortActivation::UnlessColumn(column) => MemoryPortActivation::UnlessColumn(column + offset),
             };
-            ports.push(MemoryPort::new(
+            slots.push(MemoryOpSlot::new(vec![MemoryPort::new(
                 port.region(),
                 port.address_columns()
                     .iter()
@@ -635,11 +635,11 @@ fn build_memory_backend(
                 port.value_column() + offset,
                 kind,
                 activation,
-            ));
+            )]));
         }
     }
     Ok(MemoryBackend {
-        layout: MemoryPortLayout::new(regions, ports)?,
+        layout: MemoryPortLayout::new(regions, slots)?,
         rom_image,
         ram_image,
     })

@@ -128,6 +128,109 @@ fn test_params() -> Params {
 }
 
 #[test]
+#[ignore = "full F-prime structural census; builds preprocessing but does not prove"]
+fn wasm_nebula_relation_structure_census() {
+    let wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let profile = neo_wasm::WasmNebulaProfile::test_profile();
+    let entry_pc = common::single_function_entry_pc(&artifacts);
+    let prep = neo_wasm::nebula::preprocess_seeded_reduced_memory_test_only(
+        test_params(),
+        profile,
+        &artifacts,
+        &run.initial_locals,
+        entry_pc,
+        0x57a5_7019,
+    )
+    .expect("WASM Nebula structural preprocessing");
+
+    let relation = prep.inner().relation();
+    let structure = relation.structure();
+    let application = relation.application().expect("WASM application relation");
+    let app_shape = application.shape();
+    let s_mem = prep.inner().plan().circuit();
+    let width = relation.low_norm_width_audit();
+    let storage = structure_stats(structure);
+    let final_committed_coordinates = structure.m - width.constant_coordinate;
+    let s_mem_assignment_bits = s_mem.cols() - 1;
+
+    println!("== WASM + Nebula structural census (reduced test profile) ==");
+    println!(
+        "application R1CS         constraints={} columns={} nnz={}",
+        app_shape.n(),
+        app_shape.m(),
+        r1cs_nnz(app_shape),
+    );
+    println!(
+        "S_mem                   constraints={} assignment_bits={} public_bits={} private_bits={} nnz={}",
+        s_mem.rows(),
+        s_mem_assignment_bits,
+        s_mem.m_in() - 1,
+        s_mem.cols() - s_mem.m_in(),
+        s_mem.nnz(),
+    );
+    println!(
+        "memory routing           logical_ports={} physical_slots={} B_ops={}",
+        application.memory().logical_port_count(),
+        application.memory().slot_count(),
+        profile.memory().b_ops,
+    );
+    println!(
+        "final selective CCS      constraints={} columns={} committed_coordinates={} explicit_nnz={}",
+        structure.n, structure.m, final_committed_coordinates, storage.explicit_nnz,
+    );
+    println!(
+        "compact matrix storage   seeded_blocks={} virtual_seeded_slots={} geometric_runs={} virtual_run_slots={}",
+        storage.seeded_blocks, storage.seeded_slots, storage.geometric_runs, storage.geometric_slots,
+    );
+    println!("memory-related recursive-arm families (inclusive; ranges may overlap):");
+    for family in width.arms[2].row_families.iter().filter(|family| {
+        family.name.starts_with("nebula.application.s_mem")
+            || family.name.starts_with("nebula.application.memory_ports")
+    }) {
+        println!(
+            "  {:<42} rows={} source_coordinates={} poseidon2_coordinates={}",
+            family.name, family.inclusive_rows, family.coordinates_before_aliases, family.poseidon2_coordinates,
+        );
+    }
+
+    assert_eq!(application.memory().logical_port_count(), 79 * profile.batch_size());
+    assert_eq!(application.memory().slot_count(), profile.memory().b_ops);
+    assert_eq!(width.total_coordinates.div_ceil(D) * D, structure.m);
+    assert_eq!(
+        s_mem_assignment_bits,
+        (s_mem.m_in() - 1) + (s_mem.cols() - s_mem.m_in())
+    );
+    assert_eq!(
+        (app_shape.n(), app_shape.m(), r1cs_nnz(app_shape)),
+        (51_308, 23_625, 209_511),
+        "application R1CS structure changed; review the structural census",
+    );
+    assert_eq!(
+        (
+            s_mem.rows(),
+            s_mem_assignment_bits,
+            s_mem.m_in() - 1,
+            s_mem.cols() - s_mem.m_in(),
+            s_mem.nnz(),
+        ),
+        (504_398, 499_089, 1_400, 497_689, 3_188_297),
+        "reduced-profile S_mem structure changed; review the memory-overhead census",
+    );
+    assert_eq!(
+        (
+            structure.n,
+            structure.m,
+            final_committed_coordinates,
+            storage.explicit_nnz,
+        ),
+        (36_890_810, 29_677_590, 29_677_589, 186_552_280),
+        "final selective CCS structure changed; review the relation census",
+    );
+}
+
+#[test]
 #[ignore = "end-to-end profiling census; run explicitly with --nocapture"]
 fn wasm_nebula_pipeline_profile() {
     let wall_started = Instant::now();

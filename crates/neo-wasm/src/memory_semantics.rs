@@ -154,18 +154,11 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
             narrow(type_id, "function_types.type_id"),
         );
     }
-    for &(function_ref, param_count) in &tables.function_param_counts {
+    for &(function_ref, metadata) in &tables.function_call_metadata {
         preload.insert(
-            "function_param_counts",
-            vec![narrow(function_ref, "function_param_counts.function_ref")],
-            narrow(param_count, "function_param_counts.param_count"),
-        );
-    }
-    for &(function_ref, result_count) in &tables.function_result_counts {
-        preload.insert(
-            "function_result_counts",
-            vec![narrow(function_ref, "function_result_counts.function_ref")],
-            narrow(result_count, "function_result_counts.result_count"),
+            "function_call_metadata",
+            vec![narrow(function_ref, "function_call_metadata.function_ref")],
+            narrow(metadata, "function_call_metadata.metadata"),
         );
     }
     for &(function_ref, local_count) in &tables.function_local_counts {
@@ -173,13 +166,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
             "function_local_counts",
             vec![narrow(function_ref, "function_local_counts.function_ref")],
             narrow(local_count, "function_local_counts.local_count"),
-        );
-    }
-    for &(function_ref, is_guest) in &tables.function_guest_flags {
-        preload.insert(
-            "function_guest_flags",
-            vec![narrow(function_ref, "function_guest_flags.function_ref")],
-            narrow(is_guest, "function_guest_flags.is_guest"),
         );
     }
     for &(pc_before, function_ref) in &tables.call_targets {

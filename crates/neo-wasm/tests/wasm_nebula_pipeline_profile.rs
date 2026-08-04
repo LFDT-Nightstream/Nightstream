@@ -229,7 +229,7 @@ fn collect_relation_structure_census(
         );
     }
 
-    assert_eq!(stats.logical_ports, 79 * profile.batch_size());
+    assert_eq!(stats.logical_ports, 73 * profile.batch_size());
     assert!(stats.routed_slots <= stats.b_ops);
     assert_eq!(width.total_coordinates.div_ceil(D) * D, structure.m);
     assert_eq!(
@@ -256,7 +256,7 @@ fn wasm_nebula_relation_structure_census() {
             stats.application_columns,
             stats.application_nnz,
         ),
-        (51_431, 23_637, 212_229),
+        (51_290, 23_496, 211_668),
         "application R1CS structure changed; review the structural census",
     );
     assert_eq!(
@@ -267,16 +267,16 @@ fn wasm_nebula_relation_structure_census() {
             stats.s_mem_private_bits,
             stats.s_mem_nnz,
         ),
-        (452_507, 448_836, 1_400, 447_436, 2_842_391),
+        (449_816, 446_229, 1_400, 444_829, 2_824_355),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
     assert!(
         stats.final_constraints < 36_874_004,
-        "23-slot routing should use fewer final constraints than the previous 58-slot route",
+        "21-slot routing should use fewer final constraints than the previous 58-slot route",
     );
     assert!(
         stats.final_committed_coordinates < 29_662_631,
-        "23-slot routing should commit fewer coordinates than the previous 58-slot route",
+        "21-slot routing should commit fewer coordinates than the previous 58-slot route",
     );
 }
 
@@ -300,9 +300,9 @@ fn wasm_nebula_legacy_slot_relation_structure_census() {
         "reduced test profile, legacy 237-slot geometry",
     );
 
-    const COMPACT_S_MEM_CONSTRAINTS: usize = 452_507;
-    const COMPACT_S_MEM_ASSIGNMENT_BITS: usize = 448_836;
-    const COMPACT_S_MEM_NNZ: usize = 2_842_391;
+    const COMPACT_S_MEM_CONSTRAINTS: usize = 449_816;
+    const COMPACT_S_MEM_ASSIGNMENT_BITS: usize = 446_229;
+    const COMPACT_S_MEM_NNZ: usize = 2_824_355;
 
     let s_mem_constraints_saved = legacy.s_mem_constraints - COMPACT_S_MEM_CONSTRAINTS;
     let s_mem_assignment_bits_saved = legacy.s_mem_assignment_bits - COMPACT_S_MEM_ASSIGNMENT_BITS;
@@ -314,7 +314,7 @@ fn wasm_nebula_legacy_slot_relation_structure_census() {
     println!("explicit nnz            -{s_mem_nnz_saved}");
 
     assert_eq!(legacy.logical_ports, 237);
-    assert_eq!(legacy.routed_slots, 69);
+    assert_eq!(legacy.routed_slots, 63);
     assert_eq!(legacy.b_ops, 237);
     assert_eq!(
         (

@@ -678,17 +678,21 @@ define_columns!(
     (
         COL_CALL_PARAM_COUNT,
         "parameter count for the selected call target",
-        ColumnWidth::U32
+        ColumnWidth::Byte
     ),
     (
         COL_CALL_RESULT_COUNT,
         "result count for the selected call target",
-        ColumnWidth::U32
+        ColumnWidth::Byte
     ),
     (
         COL_TARGET_FUNCTION_IS_GUEST,
         "true when the selected call target is a guest-defined function",
         ColumnWidth::Boolean
+    ),
+    (
+        COL_CALL_TARGET_METADATA,
+        "packed call-target arity and guest flag; range follows from unpacking"
     ),
     (
         COL_CALL_INDIRECT_TYPE_INDEX,

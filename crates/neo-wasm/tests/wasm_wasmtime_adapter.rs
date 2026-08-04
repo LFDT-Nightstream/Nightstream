@@ -511,6 +511,34 @@ fn float_global_initializer_is_rejected_at_parse() {
 }
 
 #[test]
+fn function_type_arity_limit_is_checked_without_truncation() {
+    let params_255 = vec!["i32"; 255].join(" ");
+    let params_256 = vec!["i32"; 256].join(" ");
+    let results_255 = vec!["i32"; 255].join(" ");
+    let results_256 = vec!["i32"; 256].join(" ");
+
+    let accepted_params = wat::parse_str(format!("(module (type (func (param {params_255}))))")).expect("wat");
+    extract_wasm_program_artifacts(&accepted_params).expect("255 parameters are supported");
+    let rejected_params = wat::parse_str(format!("(module (type (func (param {params_256}))))")).expect("wat");
+    let err = extract_wasm_program_artifacts(&rejected_params).expect_err("256 parameters must be rejected");
+    assert!(
+        err.to_string()
+            .contains("256 parameters; neo-wasm supports at most 255"),
+        "unexpected parameter-limit error: {err}",
+    );
+
+    let accepted_results = wat::parse_str(format!("(module (type (func (result {results_255}))))")).expect("wat");
+    extract_wasm_program_artifacts(&accepted_results).expect("255 results are supported");
+    let rejected_results = wat::parse_str(format!("(module (type (func (result {results_256}))))")).expect("wat");
+    let err = extract_wasm_program_artifacts(&rejected_results).expect_err("256 results must be rejected");
+    assert!(
+        err.to_string()
+            .contains("256 results; neo-wasm supports at most 255"),
+        "unexpected result-limit error: {err}",
+    );
+}
+
+#[test]
 fn wasmtime_trace_normalizes_memory_size_and_grow_rows() {
     let wasm = wat::parse_str(
         r#"(module

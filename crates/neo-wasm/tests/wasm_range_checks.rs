@@ -2,7 +2,10 @@ mod common;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
-use neo_wasm::layout::{ColumnWidth, COLUMN_SPECS, COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT};
+use neo_wasm::layout::{
+    ColumnWidth, COLUMN_SPECS, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_RETURN_PC_VALUE,
+    NAMED_COLUMN_COUNT,
+};
 use neo_wasm::range_check::range_checked_bit_columns;
 use neo_wasm::{write_range_check_bits, WasmOpcode, WasmVmSpec, RANGE_CHECKED_WITNESS_WIDTH};
 use p3_field::PrimeCharacteristicRing;
@@ -56,6 +59,15 @@ fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
 
     assert_eq!(next, RANGE_CHECKED_WITNESS_WIDTH);
     assert_eq!(range_checked_bit_columns(NAMED_COLUMN_COUNT), None);
+}
+
+#[test]
+fn packed_function_metadata_counts_are_byte_ranged() {
+    // The packed ROM word is unpacked linearly. These byte bounds make that
+    // decomposition unique: without them, `param += 256; result -= 1` would
+    // preserve the authoritative packed value while changing call semantics.
+    assert_eq!(COLUMN_SPECS[COL_CALL_PARAM_COUNT].width, ColumnWidth::Byte);
+    assert_eq!(COLUMN_SPECS[COL_CALL_RESULT_COUNT].width, ColumnWidth::Byte);
 }
 
 /// An out-of-range value in a column no semantic row pins (the call-stack

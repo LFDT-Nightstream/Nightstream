@@ -2,13 +2,14 @@
 //! tail-frame replacement, and the raw host-call aux sequence.
 
 use super::super::gadgets::{push_gated_linear_zero, push_zero_test_gadget};
+use super::super::ir::{FUNCTION_CALL_METADATA_GUEST_FACTOR, FUNCTION_CALL_METADATA_RESULT_FACTOR};
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_PARAM_COUNT,
     COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
     COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_FUNCTION_REF,
-    COL_GATHER_ACTIVE, COL_GRAMMAR_EXIT_LATCH, COL_GUEST_ENTRY_ACTIVE, COL_HALTED, COL_HALTED_BEFORE,
+    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS,
+    COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GRAMMAR_EXIT_LATCH, COL_GUEST_ENTRY_ACTIVE, COL_HALTED, COL_HALTED_BEFORE,
     COL_HOST_ARGS_ACTIVE_AFTER, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
     COL_HOST_ARGS_REMAINING_AFTER_INV, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE,
     COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER,
@@ -37,6 +38,21 @@ type R1csBuilder = WasmTaggedR1csBuilder;
 /// per-aux-row witness shape → return-pc restoration → frame fbp
 /// transition → dynamic call-arity lookups.
 pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
+    b.with_tag(always("function call metadata"), |b| {
+        b.push_linear_zero([
+            (COL_CALL_TARGET_METADATA, F::ONE),
+            (COL_CALL_PARAM_COUNT, -F::ONE),
+            (
+                COL_CALL_RESULT_COUNT,
+                -F::from_u64(FUNCTION_CALL_METADATA_RESULT_FACTOR),
+            ),
+            (
+                COL_TARGET_FUNCTION_IS_GUEST,
+                -F::from_u64(FUNCTION_CALL_METADATA_GUEST_FACTOR),
+            ),
+        ]);
+    });
+
     b.with_tag(always("row kind one hot"), |b| {
         // The host-event perm row kind is the derived flag
         // `perm_pending_before + (perm_round_before != 0)`; writing the sum

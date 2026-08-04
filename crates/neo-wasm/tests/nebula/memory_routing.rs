@@ -128,23 +128,23 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
         .count();
 
     assert_eq!(first, second);
-    assert_eq!(max_atom_load, 23, "support-induced slot lower bound");
+    assert_eq!(max_atom_load, 21, "support-induced slot lower bound");
     assert_eq!(conservative_singletons, 0, "unmapped logical-port census");
     assert_eq!(first.len(), max_atom_load + conservative_singletons);
-    assert_eq!(first.len(), 23, "current physical slot census");
+    assert_eq!(first.len(), 21, "current physical slot census");
     assert_eq!(
         first
             .iter()
             .map(|slot| slot.candidates().len())
             .sum::<usize>(),
-        79,
+        73,
         "current logical port census"
     );
     let shared = first.iter().filter(|slot| slot.candidates().len() > 1);
     assert_eq!(shared.clone().count(), 12, "current shared-slot census");
     assert_eq!(
         shared.map(|slot| slot.candidates().len()).sum::<usize>(),
-        68,
+        64,
         "current shared logical-port census"
     );
 
@@ -299,7 +299,7 @@ fn nebula_geometry_uses_the_physical_slot_count() {
     for profile in [WasmNebulaProfile::test_profile(), WasmNebulaProfile::production()] {
         assert_eq!(profile.memory().b_ops, physical_slots * profile.batch_size());
     }
-    assert_eq!(physical_slots, 23);
+    assert_eq!(physical_slots, 21);
 }
 
 #[test]
@@ -363,10 +363,10 @@ fn s_mem_structure_census() {
             reduced.cols() - reduced.m_in(),
             reduced.nnz(),
         ),
-        (452_507, 448_836, 1_400, 447_436, 2_842_391),
+        (449_816, 446_229, 1_400, 444_829, 2_824_355),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
-    assert_eq!(profile.memory().b_ops, 23 * profile.batch_size());
+    assert_eq!(profile.memory().b_ops, 21 * profile.batch_size());
     assert_eq!(
         (
             circuit.rows(),
@@ -375,7 +375,7 @@ fn s_mem_structure_census() {
             private_bits,
             circuit.nnz(),
         ),
-        (57_707, 57_600, 1_400, 56_200, 372_773),
+        (54_938, 54_939, 1_400, 53_539, 354_431),
         "production S_mem structure changed; review the constraint and committed-bit census",
     );
 }

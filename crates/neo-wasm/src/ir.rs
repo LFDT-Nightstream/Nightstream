@@ -1,5 +1,20 @@
 use super::isa::{WasmOpcode, WasmOpcodeInfo};
 
+// Proof-visible `function_call_metadata` ROM encoding: parameter count in
+// bits 0..7, result count in bits 8..15, and the guest flag in bit 16.
+pub(crate) const FUNCTION_CALL_METADATA_RESULT_FACTOR: u64 = 1 << 8;
+pub(crate) const FUNCTION_CALL_METADATA_GUEST_FACTOR: u64 = 1 << 16;
+
+pub(crate) const fn pack_function_call_metadata(param_count: u8, result_count: u8, is_guest: bool) -> u64 {
+    param_count as u64
+        + (result_count as u64) * FUNCTION_CALL_METADATA_RESULT_FACTOR
+        + (is_guest as u64) * FUNCTION_CALL_METADATA_GUEST_FACTOR
+}
+
+pub(crate) const fn function_call_metadata_is_guest(metadata: u64) -> bool {
+    metadata & FUNCTION_CALL_METADATA_GUEST_FACTOR != 0
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmPcEdgeKind {
     Static = 0,

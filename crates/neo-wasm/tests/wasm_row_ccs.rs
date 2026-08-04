@@ -4,11 +4,14 @@ use common::{assert_rejected, assert_satisfied, step};
 use neo_math::F;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE,
-    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_GUEST_ENTRY_ACTIVE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
-    COL_MEMORY_PAGES_AFTER, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_GUEST_ENTRY_ACTIVE, COL_LINEAR_MEM_USE_LANE0, COL_LOCALS_FBP_AFTER,
+    COL_LOCALS_FBP_BEFORE, COL_MEMORY_PAGES_AFTER, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
+    COL_OUTPUT_ENABLED_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE,
-    COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE, COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
+    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+    COL_PROGRAM_TABLE_ID_ACTIVE, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
+    COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
@@ -22,6 +25,67 @@ fn trace_from_wat(wat_src: &str) -> Vec<WasmVmStep> {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
     let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
     traces_from_wasmtime_steps(&run.steps).expect("normalize trace")
+}
+
+fn assert_program_immediate_gates_required(wat_src: &str, opcode: WasmOpcode, gates: &[usize]) {
+    let trace = trace_from_wat(wat_src);
+    let step = trace
+        .iter()
+        .find(|step| step.opcode == opcode)
+        .expect("immediate-consuming row");
+    let honest = build_witness_vector(step);
+    assert_satisfied(&honest, "honest immediate-consuming row");
+    for &gate in gates {
+        let mut suppressed = honest.clone();
+        suppressed[gate] = F::ZERO;
+        assert_rejected(&suppressed, "consumer cannot suppress its program-immediate ROM read");
+    }
+}
+
+#[test]
+fn program_immediate_consumers_require_their_rom_gates() {
+    assert_program_immediate_gates_required(
+        r#"(module (func (export "main") (result i32) (local i32) local.get 0))"#,
+        WasmOpcode::LocalGet,
+        &[COL_PROGRAM_LOCAL_INDEX_ACTIVE],
+    );
+    assert_program_immediate_gates_required(
+        r#"(module (global $g (mut i32) (i32.const 0)) (func (export "main") (result i32) global.get $g))"#,
+        WasmOpcode::GlobalGet,
+        &[COL_PROGRAM_GLOBAL_INDEX_ACTIVE],
+    );
+    assert_program_immediate_gates_required(
+        r#"(module (memory 1) (func (export "main") (result i32) i32.const 0 i32.load offset=8))"#,
+        WasmOpcode::I32Load,
+        &[COL_LINEAR_MEM_USE_LANE0],
+    );
+    assert_program_immediate_gates_required(
+        r#"(module
+            (type $t (func (result i32)))
+            (func $f (type $t) (result i32) i32.const 7)
+            (table 1 funcref)
+            (elem (i32.const 0) func $f)
+            (func (export "main") (result i32)
+                i32.const 0
+                call_indirect (type $t)))"#,
+        WasmOpcode::CallIndirect,
+        &[COL_PROGRAM_TABLE_ID_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE],
+    );
+}
+
+#[test]
+fn padding_row_rejects_forged_output_capture() {
+    let trace = trace_from_wat(r#"(module (func (export "main") (result i32) i32.const 0))"#);
+    let mut row = build_witness_vector(&neo_wasm::batch::padding_step_after(
+        trace.last().expect("terminal row"),
+    ));
+    row[COL_OUTPUT_CAPTURED] = F::ONE;
+    row[COL_OUTPUT_ENABLED_BEFORE] = F::ZERO;
+    row[COL_OUTPUT_ENABLED_AFTER] = F::ONE;
+    row[COL_SP_BEFORE] = F::ONE;
+    row[COL_SP_AFTER] = F::ZERO;
+
+    assert_rejected(&row, "padding row cannot capture a program output");
 }
 
 #[test]

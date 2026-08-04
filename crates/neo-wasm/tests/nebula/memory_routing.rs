@@ -1,22 +1,35 @@
 //! Fast structural checks for the private WASM-to-Nebula routing compiler.
 
 use super::{
-    activation_column, activations_are_disjoint, build_batched_memory_slots, build_single_step_memory_slots,
-    program_activation_supports,
+    activation_column, activation_supports, activations_are_disjoint, build_batched_memory_slots,
+    build_single_step_memory_slots, derived_activation_supports,
 };
 use crate::layout::{
-    selector_col, COL_LOCAL_WRITE_ENABLED, COL_STACK_READ0_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED,
+    selector_col, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_STACK_READ0_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED,
 };
 use crate::nebula::WasmNebulaProfile;
 use crate::{build_wasm_relation_layout, WasmOpcode, RANGE_CHECKED_WITNESS_WIDTH};
-use neo_fold_clean::frontends::nebula::application::{MemoryPortActivation, MemoryPortKind};
+use neo_fold_clean::frontends::nebula::application::{MemoryOpSlot, MemoryPortActivation, MemoryPortKind};
 use neo_fold_clean::frontends::nebula::circuit::SMemCircuit;
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use std::collections::BTreeSet;
 
 #[test]
-fn program_support_derives_only_known_disjointness() {
-    let supports = program_activation_supports();
+fn activation_support_derives_only_known_disjointness() {
+    let supports = activation_supports();
+    let derived = derived_activation_supports();
+    assert_eq!(
+        (
+            derived.len(),
+            derived
+                .iter()
+                .map(|support| support.atoms.len())
+                .sum::<usize>(),
+        ),
+        (28, 777),
+        "derived support-constraint census changed",
+    );
 
     assert!(activations_are_disjoint(
         selector_col(WasmOpcode::GlobalGet).unwrap(),
@@ -48,9 +61,34 @@ fn program_support_derives_only_known_disjointness() {
         selector_col(WasmOpcode::LocalSet).unwrap(),
         &supports,
     ));
-    assert!(!activations_are_disjoint(
+    assert!(activations_are_disjoint(
         COL_STACK_READ0_ACTIVE,
         selector_col(WasmOpcode::GlobalGet).unwrap(),
+        &supports,
+    ));
+    assert!(!activations_are_disjoint(
+        COL_STACK_READ0_ACTIVE,
+        selector_col(WasmOpcode::LocalSet).unwrap(),
+        &supports,
+    ));
+    assert!(activations_are_disjoint(
+        COL_PARAM_INIT_ACTIVE_BEFORE,
+        selector_col(WasmOpcode::GlobalGet).unwrap(),
+        &supports,
+    ));
+    assert!(!activations_are_disjoint(
+        COL_GATHER_LOCAL_WRITE,
+        COL_GATHER_ACTIVE,
+        &supports,
+    ));
+    assert!(activations_are_disjoint(
+        COL_OUTPUT_CAPTURED,
+        selector_col(WasmOpcode::GlobalGet).unwrap(),
+        &supports,
+    ));
+    assert!(!activations_are_disjoint(
+        COL_OUTPUT_CAPTURED,
+        selector_col(WasmOpcode::End).unwrap(),
         &supports,
     ));
 }
@@ -60,10 +98,40 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
     let relation = build_wasm_relation_layout();
     let first = build_single_step_memory_slots(relation);
     let second = build_single_step_memory_slots(relation);
-    let activation_supports = program_activation_supports();
+    let activation_supports = activation_supports();
+
+    let mut atom_loads = std::collections::BTreeMap::<usize, usize>::new();
+    for memory in &relation.auxiliary.memories {
+        for column in &memory.columns {
+            let crate::relation_layout::WasmMemoryActivation::BooleanGate(gate) = column.activation else {
+                continue;
+            };
+            if let Some(support) = activation_supports.get(&gate.0) {
+                for atom in support {
+                    *atom_loads.entry(*atom).or_default() += 1;
+                }
+            }
+        }
+    }
+    let max_atom_load = atom_loads.values().copied().max().unwrap_or_default();
+    let conservative_singletons = relation
+        .auxiliary
+        .memories
+        .iter()
+        .flat_map(|memory| &memory.columns)
+        .filter(|column| match column.activation {
+            crate::relation_layout::WasmMemoryActivation::Always => true,
+            crate::relation_layout::WasmMemoryActivation::BooleanGate(gate) => {
+                !activation_supports.contains_key(&gate.0)
+            }
+        })
+        .count();
 
     assert_eq!(first, second);
-    assert_eq!(first.len(), 58, "current physical slot census");
+    assert_eq!(max_atom_load, 26, "support-induced slot lower bound");
+    assert_eq!(conservative_singletons, 0, "unmapped logical-port census");
+    assert_eq!(first.len(), max_atom_load + conservative_singletons);
+    assert_eq!(first.len(), 26, "current physical slot census");
     assert_eq!(
         first
             .iter()
@@ -73,10 +141,10 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
         "current logical port census"
     );
     let shared = first.iter().filter(|slot| slot.candidates().len() > 1);
-    assert_eq!(shared.clone().count(), 4, "current shared-slot census");
+    assert_eq!(shared.clone().count(), 12, "current shared-slot census");
     assert_eq!(
         shared.map(|slot| slot.candidates().len()).sum::<usize>(),
-        25,
+        65,
         "current shared logical-port census"
     );
 
@@ -143,6 +211,39 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
 }
 
 #[test]
+fn routing_preserves_observable_declaration_order() {
+    let relation = build_wasm_relation_layout();
+    let slots = build_single_step_memory_slots(relation);
+    let supports = activation_supports();
+
+    // Before compaction each declaration occupied its own physical slot, so
+    // declaration order was execution order. Preserve that order whenever
+    // co-active accesses to one region include a mutation.
+    for (region, memory) in relation.auxiliary.memories.iter().enumerate() {
+        for (earlier_index, earlier) in memory.columns.iter().enumerate() {
+            for (later_index, later) in memory.columns.iter().enumerate().skip(earlier_index + 1) {
+                if matches!(earlier.kind, crate::WasmMemoryColumnKind::Read)
+                    && matches!(later.kind, crate::WasmMemoryColumnKind::Read)
+                {
+                    continue;
+                }
+                if declared_activations_are_disjoint(earlier.activation, later.activation, &supports) {
+                    continue;
+                }
+
+                let earlier_slot = routed_slot(&slots, region, earlier);
+                let later_slot = routed_slot(&slots, region, later);
+                assert!(
+                    earlier_slot < later_slot,
+                    "routing reversed observable order in region {:?}: logical ports {earlier_index} and {later_index} use physical slots {earlier_slot} and {later_slot}",
+                    memory.name,
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn batching_offsets_every_candidate_without_changing_the_route() {
     let relation = build_wasm_relation_layout();
     let single = build_single_step_memory_slots(relation);
@@ -198,13 +299,22 @@ fn nebula_geometry_uses_the_physical_slot_count() {
     for profile in [WasmNebulaProfile::test_profile(), WasmNebulaProfile::production()] {
         assert_eq!(profile.memory().b_ops, physical_slots * profile.batch_size());
     }
-    assert_eq!(physical_slots, 58);
+    assert_eq!(physical_slots, 26);
 }
 
 #[test]
 fn s_mem_structure_census() {
     let profile = WasmNebulaProfile::production();
     let circuit = SMemCircuit::new(*profile.memory());
+    let reduced = SMemCircuit::new(*WasmNebulaProfile::test_profile().memory());
+    println!(
+        "reduced-profile S_mem: constraints={} assignment_bits={} public_bits={} private_bits={} nnz={}",
+        reduced.rows(),
+        reduced.cols() - 1,
+        reduced.m_in() - 1,
+        reduced.cols() - reduced.m_in(),
+        reduced.nnz(),
+    );
     let previous_params = NebulaParams::new(
         profile.memory().r,
         profile.memory().mu,
@@ -245,7 +355,18 @@ fn s_mem_structure_census() {
     );
 
     assert_eq!(public_bits + private_bits, circuit.cols() - 1);
-    assert_eq!(profile.memory().b_ops, 58 * profile.batch_size());
+    assert_eq!(
+        (
+            reduced.rows(),
+            reduced.cols() - 1,
+            reduced.m_in() - 1,
+            reduced.cols() - reduced.m_in(),
+            reduced.nnz(),
+        ),
+        (456_476, 452_679, 1_400, 451_279, 2_868_905),
+        "reduced-profile S_mem structure changed; review the memory-overhead census",
+    );
+    assert_eq!(profile.memory().b_ops, 26 * profile.batch_size());
     assert_eq!(
         (
             circuit.rows(),
@@ -254,7 +375,7 @@ fn s_mem_structure_census() {
             private_bits,
             circuit.nnz(),
         ),
-        (105_344, 103_347, 1_400, 101_947, 688_295),
+        (61_766, 61_497, 1_400, 60_097, 399_719),
         "production S_mem structure changed; review the constraint and committed-bit census",
     );
 }
@@ -280,4 +401,40 @@ fn activations_match(declared: crate::WasmMemoryActivation, routed: MemoryPortAc
         (crate::WasmMemoryActivation::BooleanGate(column), MemoryPortActivation::Column(routed)) => column.0 == routed,
         _ => false,
     }
+}
+
+fn declared_activations_are_disjoint(
+    left: crate::WasmMemoryActivation,
+    right: crate::WasmMemoryActivation,
+    supports: &std::collections::BTreeMap<usize, BTreeSet<usize>>,
+) -> bool {
+    match (left, right) {
+        (crate::WasmMemoryActivation::BooleanGate(left), crate::WasmMemoryActivation::BooleanGate(right)) => {
+            activations_are_disjoint(left.0, right.0, supports)
+        }
+        _ => false,
+    }
+}
+
+fn routed_slot(
+    slots: &[MemoryOpSlot],
+    region: usize,
+    declared: &crate::relation_layout::WasmMemoryColumnSpec,
+) -> usize {
+    slots
+        .iter()
+        .position(|slot| {
+            slot.candidates().iter().any(|port| {
+                port.region() == region
+                    && declared
+                        .address_columns
+                        .iter()
+                        .map(|column| column.0)
+                        .eq(port.address_columns().iter().copied())
+                    && declared.value_column.0 == port.value_column()
+                    && memory_kinds_match(declared.kind, port.kind())
+                    && activations_match(declared.activation, port.activation())
+            })
+        })
+        .expect("every logical declaration has a physical slot")
 }

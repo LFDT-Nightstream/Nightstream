@@ -844,9 +844,9 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             "pc_function_refs",
             vec![Column(COL_PC_BEFORE)],
             Column(COL_CURRENT_FUNCTION_REF),
-            // Every row except gather rows: post-halt exit gathers carry the
-            // one-past-the-end pc, which has no function-ref entry (their
-            // frame identity is never consumed).
+            // Program and frame-transition rows only. Gather rows carry the
+            // one-past-the-end pc, while permutation, turn-boundary, and
+            // padding rows do not consume frame identity either.
             WasmMemoryActivation::BooleanGate(Column(COL_PC_FREF_ACTIVE)),
         ),
         WasmMemorySpec {

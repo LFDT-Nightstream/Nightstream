@@ -287,6 +287,25 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
+    b.with_tag(always("memory activation support"), |b| {
+        // These implications are deliberately redundant with the WASM
+        // semantics. They are not needed for soundness: the physical-slot
+        // binding independently rejects multiple active candidates. Keeping
+        // them here makes every routing support claim a local circuit
+        // contract, so a bad claim rejects honest rows in the fast CCS tests
+        // instead of surfacing only during memory execution.
+        //
+        // TODO: prove in Lean that the semantic CCS implies these support
+        // rows, then remove the redundant rows from the production relation.
+        for support in crate::memory_routing::derived_activation_supports() {
+            b.push_row(
+                [(support.gate, F::ONE)],
+                std::iter::once((COL_ONE, F::ONE)).chain(support.atoms.into_iter().map(|atom| (atom, -F::ONE))),
+                [],
+            );
+        }
+    });
+
     b.with_tag(always("opcode decode"), |b| {
         // opcode_code = Σ_op selector(op) · opcode_code(op). Selectors are
         // one-hot per program row, so this pins opcode_code to the active

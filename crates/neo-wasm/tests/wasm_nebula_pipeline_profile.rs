@@ -16,7 +16,6 @@ use neo_ccs::{CcsMatrix, CcsStructure};
 use neo_fold_clean::config;
 #[cfg(feature = "perf-timers")]
 use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeChainBuilder, ROAD_A_COMMITTED_BIT_BUDGET};
-use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::r1cs_f_prime::R1csShape;
 use neo_fold_clean::paper::construction2::ProofState;
 use neo_fold_clean::paper::params::Params;
@@ -277,55 +276,6 @@ fn wasm_nebula_relation_structure_census() {
     assert!(
         stats.final_committed_coordinates < 29_662_631,
         "21-slot routing should commit fewer coordinates than the previous 58-slot route",
-    );
-}
-
-#[test]
-#[ignore = "full legacy-geometry F-prime census; builds preprocessing but does not prove"]
-fn wasm_nebula_legacy_slot_relation_structure_census() {
-    let compact_profile = neo_wasm::WasmNebulaProfile::test_profile();
-    let compact_memory = compact_profile.memory();
-    let legacy_memory = NebulaParams::new(
-        compact_memory.r,
-        compact_memory.mu,
-        79 * compact_profile.batch_size(),
-        compact_memory.b_scan,
-        compact_memory.seg_max,
-    )
-    .expect("legacy logical-port geometry");
-    let legacy_profile = neo_wasm::WasmNebulaProfile::test_profile_with_batched_memory_geometry(legacy_memory);
-    let legacy = collect_relation_structure_census(
-        legacy_profile,
-        0x57a5_701a,
-        "reduced test profile, legacy 237-slot geometry",
-    );
-
-    const COMPACT_S_MEM_CONSTRAINTS: usize = 449_816;
-    const COMPACT_S_MEM_ASSIGNMENT_BITS: usize = 446_229;
-    const COMPACT_S_MEM_NNZ: usize = 2_824_355;
-
-    let s_mem_constraints_saved = legacy.s_mem_constraints - COMPACT_S_MEM_CONSTRAINTS;
-    let s_mem_assignment_bits_saved = legacy.s_mem_assignment_bits - COMPACT_S_MEM_ASSIGNMENT_BITS;
-    let s_mem_nnz_saved = legacy.s_mem_nnz - COMPACT_S_MEM_NNZ;
-
-    println!("== Direct S_mem slot-compaction savings ==");
-    println!("constraints             -{s_mem_constraints_saved}");
-    println!("assignment bits         -{s_mem_assignment_bits_saved}");
-    println!("explicit nnz            -{s_mem_nnz_saved}");
-
-    assert_eq!(legacy.logical_ports, 237);
-    assert_eq!(legacy.routed_slots, 63);
-    assert_eq!(legacy.b_ops, 237);
-    assert_eq!(
-        (
-            legacy.s_mem_constraints,
-            legacy.s_mem_assignment_bits,
-            legacy.s_mem_public_bits,
-            legacy.s_mem_private_bits,
-            legacy.s_mem_nnz,
-        ),
-        (527_030, 521_007, 1_400, 519_607, 3_338_939),
-        "legacy-geometry S_mem structure changed; review the amplification census",
     );
 }
 

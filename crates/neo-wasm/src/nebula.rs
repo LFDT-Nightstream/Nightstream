@@ -649,9 +649,9 @@ fn reject_host_imports(artifacts: &WasmProgramArtifacts) -> Result<(), WasmNebul
     reject_imported_state(artifacts)?;
     if artifacts
         .tables
-        .function_guest_flags
+        .function_call_metadata
         .iter()
-        .any(|&(_, is_guest)| is_guest == 0)
+        .any(|&(_, metadata)| !crate::ir::function_call_metadata_is_guest(metadata))
     {
         return Err(WasmNebulaError::HostImportsUnsupported);
     }

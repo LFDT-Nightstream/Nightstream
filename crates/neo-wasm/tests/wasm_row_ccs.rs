@@ -5,9 +5,10 @@ use neo_math::F;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE,
     COL_CURRENT_FUNCTION_NUM_LOCALS, COL_GUEST_ENTRY_ACTIVE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
-    COL_MEMORY_PAGES_AFTER, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE,
-    COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE, COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
+    COL_MEMORY_PAGES_AFTER, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
+    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
+    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE,
+    COL_STACK_READ1_ACTIVE, COL_STACK_READ2_ACTIVE, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
     COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
 };
 use neo_wasm::witness_builder::build_witness_vector;
@@ -22,6 +23,21 @@ fn trace_from_wat(wat_src: &str) -> Vec<WasmVmStep> {
     let wasm = wat::parse_str(wat_src).expect("valid WAT");
     let run = collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
     traces_from_wasmtime_steps(&run.steps).expect("normalize trace")
+}
+
+#[test]
+fn padding_row_rejects_forged_output_capture() {
+    let trace = trace_from_wat(r#"(module (func (export "main") (result i32) i32.const 0))"#);
+    let mut row = build_witness_vector(&neo_wasm::batch::padding_step_after(
+        trace.last().expect("terminal row"),
+    ));
+    row[COL_OUTPUT_CAPTURED] = F::ONE;
+    row[COL_OUTPUT_ENABLED_BEFORE] = F::ZERO;
+    row[COL_OUTPUT_ENABLED_AFTER] = F::ONE;
+    row[COL_SP_BEFORE] = F::ONE;
+    row[COL_SP_AFTER] = F::ZERO;
+
+    assert_rejected(&row, "padding row cannot capture a program output");
 }
 
 #[test]

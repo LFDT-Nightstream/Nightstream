@@ -27,7 +27,7 @@ fn activation_support_derives_only_known_disjointness() {
                 .map(|support| support.atoms.len())
                 .sum::<usize>(),
         ),
-        (28, 777),
+        (33, 808),
         "derived support-constraint census changed",
     );
 
@@ -128,10 +128,10 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
         .count();
 
     assert_eq!(first, second);
-    assert_eq!(max_atom_load, 26, "support-induced slot lower bound");
+    assert_eq!(max_atom_load, 23, "support-induced slot lower bound");
     assert_eq!(conservative_singletons, 0, "unmapped logical-port census");
     assert_eq!(first.len(), max_atom_load + conservative_singletons);
-    assert_eq!(first.len(), 26, "current physical slot census");
+    assert_eq!(first.len(), 23, "current physical slot census");
     assert_eq!(
         first
             .iter()
@@ -144,7 +144,7 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
     assert_eq!(shared.clone().count(), 12, "current shared-slot census");
     assert_eq!(
         shared.map(|slot| slot.candidates().len()).sum::<usize>(),
-        65,
+        68,
         "current shared logical-port census"
     );
 
@@ -299,7 +299,7 @@ fn nebula_geometry_uses_the_physical_slot_count() {
     for profile in [WasmNebulaProfile::test_profile(), WasmNebulaProfile::production()] {
         assert_eq!(profile.memory().b_ops, physical_slots * profile.batch_size());
     }
-    assert_eq!(physical_slots, 26);
+    assert_eq!(physical_slots, 23);
 }
 
 #[test]
@@ -363,10 +363,10 @@ fn s_mem_structure_census() {
             reduced.cols() - reduced.m_in(),
             reduced.nnz(),
         ),
-        (456_476, 452_679, 1_400, 451_279, 2_868_905),
+        (452_507, 448_836, 1_400, 447_436, 2_842_391),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
-    assert_eq!(profile.memory().b_ops, 26 * profile.batch_size());
+    assert_eq!(profile.memory().b_ops, 23 * profile.batch_size());
     assert_eq!(
         (
             circuit.rows(),
@@ -375,7 +375,7 @@ fn s_mem_structure_census() {
             private_bits,
             circuit.nnz(),
         ),
-        (61_766, 61_497, 1_400, 60_097, 399_719),
+        (57_707, 57_600, 1_400, 56_200, 372_773),
         "production S_mem structure changed; review the constraint and committed-bit census",
     );
 }

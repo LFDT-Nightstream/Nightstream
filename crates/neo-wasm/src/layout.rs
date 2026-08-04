@@ -610,6 +610,26 @@ define_columns!(
         ColumnWidth::Boolean
     ),
     (
+        COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+        "PC-indexed local immediate ROM gate",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+        "PC-indexed global immediate ROM gate",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PROGRAM_TABLE_ID_ACTIVE,
+        "PC-indexed table-id immediate ROM gate",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+        "PC-indexed call-indirect immediate ROM gate",
+        ColumnWidth::Boolean
+    ),
+    (
         COL_TABLE_READ_ENABLED,
         "table memory read gate for table.get and indirect calls",
         ColumnWidth::Boolean

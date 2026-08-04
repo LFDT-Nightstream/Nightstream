@@ -256,7 +256,7 @@ fn wasm_nebula_relation_structure_census() {
             stats.application_columns,
             stats.application_nnz,
         ),
-        (51_392, 23_625, 212_010),
+        (51_431, 23_637, 212_229),
         "application R1CS structure changed; review the structural census",
     );
     assert_eq!(
@@ -267,16 +267,16 @@ fn wasm_nebula_relation_structure_census() {
             stats.s_mem_private_bits,
             stats.s_mem_nnz,
         ),
-        (456_476, 452_679, 1_400, 451_279, 2_868_905),
+        (452_507, 448_836, 1_400, 447_436, 2_842_391),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
     assert!(
         stats.final_constraints < 36_874_004,
-        "26-slot routing should use fewer final constraints than the previous 58-slot route",
+        "23-slot routing should use fewer final constraints than the previous 58-slot route",
     );
     assert!(
         stats.final_committed_coordinates < 29_662_631,
-        "26-slot routing should commit fewer coordinates than the previous 58-slot route",
+        "23-slot routing should commit fewer coordinates than the previous 58-slot route",
     );
 }
 
@@ -300,9 +300,9 @@ fn wasm_nebula_legacy_slot_relation_structure_census() {
         "reduced test profile, legacy 237-slot geometry",
     );
 
-    const COMPACT_S_MEM_CONSTRAINTS: usize = 456_476;
-    const COMPACT_S_MEM_ASSIGNMENT_BITS: usize = 452_679;
-    const COMPACT_S_MEM_NNZ: usize = 2_868_905;
+    const COMPACT_S_MEM_CONSTRAINTS: usize = 452_507;
+    const COMPACT_S_MEM_ASSIGNMENT_BITS: usize = 448_836;
+    const COMPACT_S_MEM_NNZ: usize = 2_842_391;
 
     let s_mem_constraints_saved = legacy.s_mem_constraints - COMPACT_S_MEM_CONSTRAINTS;
     let s_mem_assignment_bits_saved = legacy.s_mem_assignment_bits - COMPACT_S_MEM_ASSIGNMENT_BITS;
@@ -314,7 +314,7 @@ fn wasm_nebula_legacy_slot_relation_structure_census() {
     println!("explicit nnz            -{s_mem_nnz_saved}");
 
     assert_eq!(legacy.logical_ports, 237);
-    assert_eq!(legacy.routed_slots, 78);
+    assert_eq!(legacy.routed_slots, 69);
     assert_eq!(legacy.b_ops, 237);
     assert_eq!(
         (

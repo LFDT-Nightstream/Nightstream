@@ -11,10 +11,12 @@ use crate::layout::{
     COL_GATHER_LOCAL_WRITE_LO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL, COL_GUEST_ENTRY_ACTIVE,
     COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_RESULT_ACTIVE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_LANE0_LOAD_ACTIVE,
     COL_LINEAR_MEM_LANE0_STORE_ACTIVE, COL_LINEAR_MEM_LANE1_LOAD_ACTIVE, COL_LINEAR_MEM_LANE1_STORE_ACTIVE,
-    COL_LINEAR_MEM_LANE2_LOAD_ACTIVE, COL_LINEAR_MEM_LANE2_STORE_ACTIVE, COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED,
-    COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE, COL_STACK_READ0_ACTIVE,
-    COL_STACK_READ1_ACTIVE, COL_STACK_READ2_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_HI_ACTIVE,
-    COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE, COL_TURN_BOUNDARY, SELECTOR_COLS,
+    COL_LINEAR_MEM_LANE2_LOAD_ACTIVE, COL_LINEAR_MEM_LANE2_STORE_ACTIVE, COL_LINEAR_MEM_USE_LANE0,
+    COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_FREF_ACTIVE,
+    COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
+    COL_STACK_READ2_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED,
+    COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE, COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
 use crate::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmRelationLayout};
 
@@ -64,6 +66,46 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             selector_col(WasmOpcode::ReturnCallIndirect).unwrap(),
         ],
     );
+
+    let immediate_gates: [(&str, usize, fn(WasmOpcode) -> bool); 5] = [
+        (
+            "program local-index immediates",
+            COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+            WasmOpcode::uses_local_index_immediate,
+        ),
+        (
+            "program global-index immediates",
+            COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+            WasmOpcode::uses_global_index_immediate,
+        ),
+        (
+            "program table-id immediates",
+            COL_PROGRAM_TABLE_ID_ACTIVE,
+            WasmOpcode::uses_table_id_immediate,
+        ),
+        (
+            "program call-indirect immediates",
+            COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+            WasmOpcode::uses_call_indirect_immediates,
+        ),
+        (
+            "program linear-memory offsets",
+            COL_LINEAR_MEM_USE_LANE0,
+            WasmOpcode::uses_linear_memory,
+        ),
+    ];
+    for (name, gate, uses_immediate) in immediate_gates {
+        insert_derived_activation_support(
+            &mut supports,
+            name,
+            gate,
+            opcode_selectors(
+                WasmOpcode::supported()
+                    .into_iter()
+                    .filter(|opcode| uses_immediate(*opcode)),
+            ),
+        );
+    }
 
     let load_selectors = memory_access_selectors(WasmMemoryAccessKind::Load);
     let store_selectors = memory_access_selectors(WasmMemoryAccessKind::Store);

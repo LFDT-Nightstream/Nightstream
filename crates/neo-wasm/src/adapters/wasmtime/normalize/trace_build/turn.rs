@@ -25,7 +25,7 @@ pub(super) fn setup_turn<'g>(
     template.validate(local_bound)?;
     let entry_blocks = crate::event_grammar::expand_export_entry(template, &claims.entry)
         .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
-    let entry_plans = plan_export_blocks(&template.entry, &entry_blocks);
+    let entry_plans = plan_export_blocks(&template.entry, &entry_blocks, &first.locals_snapshot, &[])?;
 
     let mut expected_locals = vec![(false, 0u32, 0u32); first.locals_snapshot.len()];
     for plan in &entry_plans {

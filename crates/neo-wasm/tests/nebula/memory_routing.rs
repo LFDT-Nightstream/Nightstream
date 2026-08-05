@@ -27,7 +27,7 @@ fn activation_support_derives_only_known_disjointness() {
                 .map(|support| support.atoms.len())
                 .sum::<usize>(),
         ),
-        (33, 808),
+        (36, 811),
         "derived support-constraint census changed",
     );
 
@@ -137,14 +137,14 @@ fn routing_is_deterministic_complete_and_pairwise_disjoint() {
             .iter()
             .map(|slot| slot.candidates().len())
             .sum::<usize>(),
-        73,
+        76,
         "current logical port census"
     );
     let shared = first.iter().filter(|slot| slot.candidates().len() > 1);
-    assert_eq!(shared.clone().count(), 12, "current shared-slot census");
+    assert_eq!(shared.clone().count(), 14, "current shared-slot census");
     assert_eq!(
         shared.map(|slot| slot.candidates().len()).sum::<usize>(),
-        64,
+        69,
         "current shared logical-port census"
     );
 

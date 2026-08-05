@@ -9,7 +9,7 @@ use super::layout::{
     COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
     COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL, COL_GRAMMAR_POST_COUNT,
     COL_GRAMMAR_PRE_COUNT, COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO,
-    COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB, COL_GUEST_ENTRY_ACTIVE,
+    COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT, COL_GUEST_ENTRY_ACTIVE,
     COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
     COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4,
     COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
@@ -592,6 +592,24 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: WasmMemoryActivation::BooleanGate(linear_memory.lane2_store_active),
                 },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![linear_memory.lane0_addr],
+                    value_column: linear_memory.lane0_value,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        crate::ccs::host_event_chain::gather_memory_read_kind_col(),
+                    )),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![linear_memory.lane0_addr],
+                    value_column: linear_memory.lane0_value,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        crate::ccs::host_event_chain::gather_memory_write_kind_col(),
+                    )),
+                },
             ],
             is_rom: false,
         },
@@ -604,6 +622,14 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::LocalGet).unwrap(),
+                    )),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
+                    value_column: Column(COL_LOCAL_VALUE),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        crate::ccs::host_event_chain::gather_memory_local_base_col(),
                     )),
                 },
                 WasmMemoryColumnSpec {
@@ -963,13 +989,13 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
-            "grammar_slot_limb",
+            "grammar_slot_variant",
             vec![
                 Column(COL_HOST_CALLEE_FREF_BEFORE),
                 Column(COL_GRAMMAR_EVIDX_BEFORE),
                 Column(COL_GRAMMAR_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_GRAMMAR_SLOT_LIMB),
+            Column(COL_GRAMMAR_SLOT_VARIANT),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(

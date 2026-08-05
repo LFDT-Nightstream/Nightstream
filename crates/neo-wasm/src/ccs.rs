@@ -354,6 +354,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         (COL_STACK_WRITES, -F::ONE),
         (super::layout::COL_TAIL_DISCARD_COUNT, F::ONE),
         (host_event_chain::gather_arg_read_kind_col(), -F::ONE),
+        (host_event_chain::gather_memory_read_kind_col(), -F::ONE),
+        (host_event_chain::gather_memory_write_kind_col(), -F::ONE),
+        (host_event_chain::gather_memory_local_base_col(), F::ONE),
         (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
         // Grammar host calls pop their args on the call row itself.
         (host_event_chain::grammar_host_call_params_col(), F::ONE),

@@ -64,6 +64,9 @@ where
     debug_assert_eq!(a.cols(), acc.cols());
 
     let m = acc.cols();
+    if m == 0 {
+        return;
+    }
     let rho_data = rho.as_slice();
     if let Some(&constant) = a.virtual_constant_value() {
         if constant == Ff::ZERO {
@@ -611,16 +614,21 @@ where
         .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid rho set: {e}"));
 
     let d_pad = 1usize << ell_d;
-    let t_core = s.t();
+    let t_core = me_inputs[0].y_ring.len();
+    assert_eq!(
+        t_core,
+        s.t() + 1,
+        "PiRLC requires the identity-first paper matrix count"
+    );
     let m_in = me_inputs[0].m_in;
     let r = me_inputs[0].r.clone();
-    let aux_len = me_inputs[0].aux_openings.len();
     for (idx, inst) in me_inputs.iter().enumerate() {
         assert_eq!(
-            inst.aux_openings.len(),
-            aux_len,
-            "Π_RLC: aux_openings.len mismatch at input {idx}"
+            inst.y_ring.len(),
+            t_core,
+            "PiRLC: y_ring matrix count mismatch at input {idx}"
         );
+        assert_eq!(inst.ct.len(), t_core, "PiRLC: ct matrix count mismatch at input {idx}");
     }
 
     #[cfg(feature = "perf-timers")]
@@ -645,40 +653,11 @@ where
     #[cfg(feature = "perf-timers")]
     let y_ring_s = t_y_ring.elapsed().as_secs_f64();
 
-    let wants_nc_channel = !(me_inputs[0].s_col.is_empty() && me_inputs[0].y_zcol.is_empty());
-    if wants_nc_channel {
-        assert!(
-            !me_inputs[0].s_col.is_empty() && !me_inputs[0].y_zcol.is_empty(),
-            "Π_RLC: incomplete NC channel on input 0 (expected both s_col and y_zcol)"
-        );
-        for (idx, inst) in me_inputs.iter().enumerate() {
-            assert_eq!(inst.s_col, me_inputs[0].s_col, "Π_RLC: s_col mismatch at input {idx}");
-            assert_eq!(
-                inst.y_zcol.len(),
-                d_pad,
-                "Π_RLC: y_zcol len mismatch at input {idx} (expected {d_pad}, got {})",
-                inst.y_zcol.len()
-            );
-        }
-    }
-
     #[cfg(feature = "perf-timers")]
     let t_ct = std::time::Instant::now();
     let ct = crate::common::ct_from_y_ring_for_ccs_m(&y_ring, params, s.m);
     #[cfg(feature = "perf-timers")]
     let ct_s = t_ct.elapsed().as_secs_f64();
-
-    #[cfg(feature = "perf-timers")]
-    let t_aux = std::time::Instant::now();
-    let mut aux_openings = vec![K::ZERO; aux_len];
-    for (rho, inst) in rhos.iter().zip(me_inputs.iter()) {
-        let w = K::from(rho[(0, 0)]);
-        for (dst, src) in aux_openings.iter_mut().zip(inst.aux_openings.iter()) {
-            *dst += w * *src;
-        }
-    }
-    #[cfg(feature = "perf-timers")]
-    let aux_s = t_aux.elapsed().as_secs_f64();
 
     #[cfg(feature = "perf-timers")]
     let t_x = std::time::Instant::now();
@@ -690,44 +669,18 @@ where
     let x_s = t_x.elapsed().as_secs_f64();
 
     #[cfg(feature = "perf-timers")]
-    let t_y_zcol = std::time::Instant::now();
-    let y_zcol = if wants_nc_channel {
-        let mut acc = vec![K::ZERO; d_pad];
-        for i in 0..k1 {
-            for rr in 0..D {
-                let mut sum = K::ZERO;
-                for kk in 0..D {
-                    sum += K::from(rhos[i][(rr, kk)]) * me_inputs[i].y_zcol[kk];
-                }
-                acc[rr] += sum;
-            }
-        }
-        acc
-    } else {
-        Vec::new()
-    };
-    #[cfg(feature = "perf-timers")]
-    let y_zcol_s = t_y_zcol.elapsed().as_secs_f64();
-
-    #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[pi-rlc] y_ring {:>7.2}s ct {:>7.2}s aux {:>7.2}s X_mix {:>7.2}s y_zcol {:>7.2}s",
-        y_ring_s, ct_s, aux_s, x_s, y_zcol_s,
+        "[pi-rlc] y_ring {:>7.2}s ct {:>7.2}s X_mix {:>7.2}s",
+        y_ring_s, ct_s, x_s,
     );
 
     CeClaim::<Cmt, Ff, K> {
         adv: None,
-        c_step_coords: vec![],
-        u_offset: 0,
-        u_len: 0,
         c: me_inputs[0].c.clone(),
         X,
         r,
-        s_col: me_inputs[0].s_col.clone(),
         y_ring,
         ct,
-        aux_openings,
-        y_zcol,
         m_in,
         fold_digest: me_inputs[0].fold_digest,
     }

@@ -4,10 +4,6 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
 
-fn column_point_len(structure: &CcsStructure<F>) -> usize {
-    structure.m.next_power_of_two().max(2).trailing_zeros() as usize
-}
-
 fn f_signed(value: i64) -> F {
     if value >= 0 {
         F::from_u64(value as u64)
@@ -40,23 +36,17 @@ fn structure() -> CcsStructure<F> {
 
 fn claim(params: &NeoParams, x: F) -> CeClaim<Commitment, F, K> {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-    let mut public_x = Mat::zero(D, 1, F::ZERO);
+    let mut public_x = Mat::zero(D, D, F::ZERO);
     public_x[(0, 0)] = x;
     CeClaim {
         adv: None,
         c: Commitment::zeros(params.d as usize, 1),
         X: public_x,
-        r: Vec::new(),
-        s_col: Vec::new(),
-        y_ring: vec![vec![K::ZERO; 1usize << ell_d]],
-        ct: vec![K::ZERO],
-        aux_openings: Vec::new(),
-        y_zcol: Vec::new(),
-        m_in: 1,
+        r: vec![K::ZERO; D.next_power_of_two().trailing_zeros() as usize],
+        y_ring: vec![vec![K::ZERO; 1usize << ell_d]; 2],
+        ct: vec![K::ZERO; 2],
+        m_in: D,
         fold_digest: [0; 32],
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
     }
 }
 
@@ -76,7 +66,6 @@ fn verify(params: &NeoParams, parent: &CeClaim<Commitment, F, K>, children: &[Ce
     neo_reductions::api::verify_dec_public(
         &structure,
         params,
-        column_point_len(&structure),
         parent,
         children,
         combine_zero_commitments,

@@ -10,7 +10,9 @@
 #![allow(non_snake_case)]
 
 use neo_ccs::{CcsStructure, Mat};
-use neo_math::{balanced::to_balanced_i128, balanced::within_nc_bound, KExtensions, D, F, K};
+use neo_math::{
+    balanced::to_balanced_i128, balanced::within_nc_bound, superneo_bar_block, Fq, KExtensions, Rq, D, F, K,
+};
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
@@ -832,6 +834,12 @@ pub fn min_k_rho_for_rlc_count(params: &NeoParams, ring: &RotRing, count: usize)
 // ME Relation Helpers
 // ---------------------------------------------------------------------------
 
+/// Number of physical coefficients in the complete packed carrier.
+#[inline]
+pub fn superneo_carrier_width(logical_width: usize) -> usize {
+    logical_width.div_ceil(D) * D
+}
+
 /// Validate the packed SuperNeo witness shape against the expected CCS width.
 pub fn validate_superneo_witness_mat<Ff>(Z: &Mat<Ff>, expected_m: usize) -> Result<(), PiCcsError>
 where
@@ -862,6 +870,22 @@ where
         Z.rows(),
         Z.cols(),
     )))
+}
+
+/// Fresh sources do not own the completed carrier tail.
+pub fn validate_fresh_witness_tail_zero<Ff>(Z: &Mat<Ff>, logical_width: usize, label: &str) -> Result<(), PiCcsError>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy,
+{
+    validate_superneo_witness_mat(Z, logical_width)?;
+    for carrier_col in logical_width..superneo_carrier_width(logical_width) {
+        if Z[(carrier_col % D, carrier_col / D)] != Ff::ZERO {
+            return Err(PiCcsError::InvalidInput(format!(
+                "{label}: fresh carrier_col={carrier_col} must be zero"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Read `Z[rho, col]` in the logical `D×expected_m` view of a packed SuperNeo witness.
@@ -957,7 +981,7 @@ where
     K: From<Ff>,
 {
     validate_superneo_witness_mat(Z, expected_m)?;
-    let m_eff = expected_m.div_ceil(D) * D;
+    let m_eff = superneo_carrier_width(expected_m);
     let mut z = vec![K::ZERO; m_eff];
     // Keep all packed lanes, including padded tail lanes, so RLC/DEC stay closed in block space.
     for (c, zc) in z.iter_mut().enumerate() {
@@ -1118,8 +1142,9 @@ where
             params.b
         )));
     }
-    let mut out = vec![[K::ZERO; D]; expected_m];
-    let mut masks = vec![0u64; expected_m];
+    let carrier_width = superneo_carrier_width(expected_m);
+    let mut out = vec![[K::ZERO; D]; carrier_width];
+    let mut masks = vec![0u64; carrier_width];
     let active_cols = expected_m.div_ceil(D);
     // Process column blocks in parallel; each block writes to disjoint
     // slices of `out` and `masks` (D contiguous columns per block).
@@ -1129,7 +1154,7 @@ where
         }
         for (rho, (dst, mask_slot)) in out_chunk.iter_mut().zip(mask_chunk.iter_mut()).enumerate() {
             let col = blk * D + rho;
-            if col >= expected_m {
+            if col >= carrier_width {
                 break;
             }
             let raw = Z[(rho, blk)];
@@ -1163,68 +1188,6 @@ where
     }
 
     Ok((out, masks))
-}
-
-/// Compute linear channel opening `y_zcol := Z · χ_s`, padded to `d_pad`.
-///
-/// This projection is linear in `Z`, so it composes directly under Π_RLC/Π_DEC.
-pub fn compute_y_zcol_from_witness<Ff>(
-    _params: &NeoParams,
-    Z: &Mat<Ff>,
-    expected_m: usize,
-    chi_s: &[K],
-    d_pad: usize,
-) -> Result<Vec<K>, PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
-    K: From<Ff>,
-{
-    validate_superneo_witness_mat(Z, expected_m)?;
-    let mut yz = vec![K::ZERO; d_pad.max(D)];
-    for col in 0..expected_m {
-        let w = chi_s.get(col).copied().unwrap_or(K::ZERO);
-        if w == K::ZERO {
-            continue;
-        }
-        let off = col % D;
-        yz[off] += witness_mat_get_k(Z, expected_m, off, col) * w;
-    }
-    yz.truncate(d_pad);
-    Ok(yz)
-}
-
-/// Compute NC channel opening `y_zcol := Z_digits · χ_s`, padded to `d_pad`.
-///
-/// `Z_digits` is the balanced decomposition rows for the PaperExact
-/// reference path. Optimized/lifecycle paths should use
-/// [`compute_y_zcol_from_witness`], which is linear in the packed witness.
-pub fn compute_y_zcol_from_witness_digits<Ff>(
-    params: &NeoParams,
-    Z: &Mat<Ff>,
-    expected_m: usize,
-    chi_s: &[K],
-    d_pad: usize,
-) -> Result<Vec<K>, PiCcsError>
-where
-    Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
-    K: From<Ff>,
-{
-    validate_superneo_witness_mat(Z, expected_m)?;
-    let mut yz = vec![K::ZERO; d_pad.max(D)];
-    for col in 0..expected_m {
-        let w = chi_s.get(col).copied().unwrap_or(K::ZERO);
-        if w == K::ZERO {
-            continue;
-        }
-        let raw = witness_mat_get_f(Z, expected_m, col % D, col);
-        let digits = decompose_balanced_fixed_d_digits_k(raw, params.b)
-            .map_err(|e| PiCcsError::InvalidInput(format!("witness logical_col={col} decomposition failed: {e}")))?;
-        for rho in 0..D {
-            yz[rho] += digits[rho] * w;
-        }
-    }
-    yz.truncate(d_pad);
-    Ok(yz)
 }
 
 /// Enforce DEC/RLC packed-witness representability.
@@ -1262,13 +1225,13 @@ where
             D, params.b, x,
         )));
     }
-    for col in 0..expected_m {
+    for col in 0..superneo_carrier_width(expected_m) {
         let off = col % D;
-        let v = witness_mat_get_f(Z, expected_m, off, col);
+        let v = Z[(off, col / D)];
         if !is_representable_balanced_fixed_d_digits(v, params.b)? {
             let x = to_balanced_i128(v);
             return Err(PiCcsError::InvalidInput(format!(
-                "{label}: witness logical_col={col} is not representable in D={} balanced base-{} digits (centered value {})",
+                "{label}: witness carrier_col={col} is not representable in D={} balanced base-{} digits (centered value {})",
                 D, params.b, x,
             )));
         }
@@ -1293,13 +1256,13 @@ where
             params.b
         )));
     }
-    for col in 0..expected_m {
+    for col in 0..superneo_carrier_width(expected_m) {
         let off = col % D;
-        let v = witness_mat_get_f(Z, expected_m, off, col);
+        let v = Z[(off, col / D)];
         if !within_nc_bound(v, params.b) {
             let x = to_balanced_i128(v);
             return Err(PiCcsError::InvalidInput(format!(
-                "{label}: witness logical_col={col} violates NC alphabet |x| < b={} (centered value {})",
+                "{label}: witness carrier_col={col} violates NC alphabet |x| < b={} (centered value {})",
                 params.b, x,
             )));
         }
@@ -1336,10 +1299,12 @@ pub fn ct_from_y_ring_for_ccs_m(y_ring: &[Vec<K>], params: &NeoParams, expected_
         .collect()
 }
 
-/// Compute y from Z and r according to the ME relation: y_j := Z · (M_j^T · r^b).
+/// Compute the selected identity-first CE images from `Z` and `r`.
 ///
 /// Returns (y, y_scalars) where:
-/// - y[j] is padded to 2^{ell_d} and contains the first D digits
+/// - y[0] is the padded identity image;
+/// - y[j + 1] is the image of application matrix `M_j`;
+/// - every row is padded to 2^{ell_d} and contains the first D digits;
 /// - y_scalars[j] is the SuperNeo constant term
 pub fn compute_y_from_Z_and_r<Ff>(
     s: &CcsStructure<Ff>,
@@ -1357,37 +1322,7 @@ where
     compute_y_from_Z_and_rb_with_cache(s, Z, &rb, ell_d, superneo_cache.as_ref())
 }
 
-/// Compute y from Z and a precomputed row tensor point `r^b`.
-///
-/// This variant enables callers to amortize the tensor-point and SuperNeo matrix-cache
-/// construction across many ME claims that share `(s, r)`.
-pub fn compute_y_from_z_blocks_and_rb_with_cache<Ff>(
-    s: &CcsStructure<Ff>,
-    z_blocks: &crate::superneo_eval::SuperneoZBlocks,
-    rb: &[K],
-    ell_d: usize,
-    superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
-) -> (Vec<Vec<K>>, Vec<K>)
-where
-    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    let d_pad = 1usize << ell_d;
-    let n_eff = core::cmp::min(s.n, rb.len());
-    let mut y_new: Vec<Vec<K>> = Vec::with_capacity(s.t());
-    let y_ring = crate::superneo_eval::eval_all_mats_ring_cached_with_blocks(superneo_cache, z_blocks, rb, n_eff);
-    for coeffs in y_ring.into_iter().take(s.t()) {
-        let mut yj_pad = coeffs.to_vec();
-        if d_pad > yj_pad.len() {
-            yj_pad.resize(d_pad, K::ZERO);
-        }
-        y_new.push(yj_pad);
-    }
-    let y_scalars = ct_from_y_ring(&y_new);
-    (y_new, y_scalars)
-}
-
-/// Compute y from Z and a precomputed row tensor point `r^b`.
+/// Compute identity-first y from Z and a precomputed row tensor point `r^b`.
 ///
 /// This variant enables callers to amortize the tensor-point and SuperNeo matrix-cache
 /// construction across many ME claims that share `(s, r)`.
@@ -1413,7 +1348,45 @@ where
     let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m)
         .unwrap_or_else(|e| panic!("compute_y_from_Z_and_r: failed to decode packed witness coefficients: {e}"));
     let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_vec);
-    compute_y_from_z_blocks_and_rb_with_cache(s, &z_blocks, rb, ell_d, cache)
+    let d_pad = 1usize << ell_d;
+    let mut y_new = Vec::with_capacity(s.t() + 1);
+    let mut identity = identity_ring_mle(&z_vec, rb).to_vec();
+    identity.resize(d_pad, K::ZERO);
+    y_new.push(identity);
+
+    let n_eff = core::cmp::min(s.n, rb.len());
+    let application_images = crate::superneo_eval::eval_all_mats_ring_cached_with_blocks(cache, &z_blocks, rb, n_eff);
+    for coefficients in application_images.into_iter().take(s.t()) {
+        let mut row = coefficients.to_vec();
+        row.resize(d_pad, K::ZERO);
+        y_new.push(row);
+    }
+    let y_scalars = ct_from_y_ring(&y_new);
+    (y_new, y_scalars)
+}
+
+fn identity_ring_mle(assignment: &[K], weights: &[K]) -> [K; D] {
+    let mut output = [K::ZERO; D];
+    for (row, &weight) in weights.iter().take(assignment.len()).enumerate() {
+        let block = row / D;
+        let mut basis = [Fq::ZERO; D];
+        basis[row % D] = Fq::ONE;
+        let transformed = Rq(superneo_bar_block(basis));
+        let mut real = [Fq::ZERO; D];
+        let mut imaginary = [Fq::ZERO; D];
+        for lane in 0..D {
+            let [low, high] = assignment[block * D + lane].as_coeffs();
+            real[lane] = low;
+            imaginary[lane] = high;
+        }
+        let real_product = transformed.mul(&Rq(real));
+        let imaginary_product = transformed.mul(&Rq(imaginary));
+        for coefficient in 0..D {
+            output[coefficient] +=
+                weight * K::from_coeffs([real_product.0[coefficient], imaginary_product.0[coefficient]]);
+        }
+    }
+    output
 }
 
 // ---------------------------------------------------------------------------

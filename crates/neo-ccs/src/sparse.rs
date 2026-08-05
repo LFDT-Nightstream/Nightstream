@@ -47,6 +47,39 @@ impl<Ff> CscMat<Ff> {
     }
 }
 
+impl<Ff: Field> CscMat<Ff> {
+    /// Check the unique CSC representation used at the public relation boundary.
+    ///
+    /// Each column must contain strictly increasing row indices, no duplicate
+    /// coordinates, and no stored zero. Column pointers must cover every entry
+    /// exactly once.
+    pub fn is_canonical(&self) -> bool {
+        if self.col_ptr.len() != self.ncols + 1
+            || self.row_idx.len() != self.vals.len()
+            || self.col_ptr.first().copied() != Some(0)
+            || self.col_ptr.last().copied().map(|value| value as usize) != Some(self.vals.len())
+        {
+            return false;
+        }
+
+        for column in 0..self.ncols {
+            let start = self.col_ptr[column] as usize;
+            let end = self.col_ptr[column + 1] as usize;
+            if start > end || end > self.vals.len() {
+                return false;
+            }
+            let rows = &self.row_idx[start..end];
+            if rows.iter().any(|&row| row as usize >= self.nrows)
+                || rows.windows(2).any(|pair| pair[0] >= pair[1])
+                || self.vals[start..end].iter().any(|value| *value == Ff::ZERO)
+            {
+                return false;
+            }
+        }
+        true
+    }
+}
+
 impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
     /// Build a CSC matrix from (row, col, val) triplets.
     ///
@@ -556,6 +589,16 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::CscWithSeededPhi81 { geometric_runs, .. } => geometric_runs,
             CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) => &[],
+        }
+    }
+}
+
+impl<Ff: Field> CcsMatrix<Ff> {
+    /// Check the canonical ordinary CSC component of this matrix.
+    pub fn has_canonical_csc(&self) -> bool {
+        match self {
+            Self::Identity { n } => *n > 0,
+            Self::Csc(csc) | Self::CscWithSeededPhi81 { csc, .. } => csc.is_canonical(),
         }
     }
 }

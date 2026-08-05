@@ -15,7 +15,6 @@ use p3_field::PrimeCharacteristicRing;
 pub fn verify_dec_public<MB>(
     s: &CcsStructure<F>,
     params: &NeoParams,
-    column_point_len: usize,
     parent: &CeClaim<Cmt, F, K>,
     children: &[CeClaim<Cmt, F, K>],
     combine_b_pows: MB,
@@ -35,7 +34,12 @@ where
     if params.b < 2 {
         return fail(format!("invalid decomposition base b={}", params.b));
     }
-    if let Err(error) = super::validate_ce_claim_shape("verify_dec_public: parent", s, column_point_len, parent) {
+    if let Err(error) = super::validate_ce_claim_shape("verify_dec_public: parent", s, parent) {
+        return fail(error);
+    }
+    if let Err(error) =
+        super::validate_pi_ccs_outputs("verify_dec_public: selected parent", s, std::slice::from_ref(parent))
+    {
         return fail(error);
     }
     let k = children.len();
@@ -49,11 +53,13 @@ where
         ));
     }
     for (index, child) in children.iter().enumerate() {
-        if let Err(error) = super::validate_ce_claim_shape(
-            &format!("verify_dec_public: children[{index}]"),
+        if let Err(error) = super::validate_ce_claim_shape(&format!("verify_dec_public: children[{index}]"), s, child) {
+            return fail(error);
+        }
+        if let Err(error) = super::validate_pi_ccs_outputs(
+            &format!("verify_dec_public: selected child[{index}]"),
             s,
-            column_point_len,
-            child,
+            std::slice::from_ref(child),
         ) {
             return fail(error);
         }
@@ -112,47 +118,13 @@ where
             return false;
         }
     }
-    let wants_nc_point = !parent.s_col.is_empty()
-        || !parent.y_zcol.is_empty()
-        || children
-            .iter()
-            .any(|child| !child.s_col.is_empty() || !child.y_zcol.is_empty());
-    let enforce_y_zcol_recomposition = wants_nc_point && column_point_len < super::ell_m_for_ccs(s);
-    if wants_nc_point {
-        if parent.s_col.is_empty() || parent.y_zcol.is_empty() {
-            return fail("parent has an incomplete NC channel");
-        }
-        if parent.s_col.len() != column_point_len {
-            return fail(format!(
-                "parent s_col length mismatch (expected {}, got {})",
-                column_point_len,
-                parent.s_col.len()
-            ));
-        }
-        for (idx, ch) in children.iter().enumerate() {
-            if ch.s_col.is_empty() || ch.y_zcol.is_empty() {
-                return fail(format!("child {idx} has an incomplete NC channel"));
-            }
-            if ch.s_col.len() != column_point_len {
-                return fail(format!(
-                    "child {} s_col length mismatch (expected {}, got {})",
-                    idx,
-                    column_point_len,
-                    ch.s_col.len()
-                ));
-            }
-            if ch.s_col != parent.s_col {
-                return fail(format!("child {} s_col does not match parent", idx));
-            }
-        }
-    }
-    // Optional NC point: s_col is shared by DEC parent and children. The
-    // current verifier does not validate the parent's old-point y_zcol here.
-    // Terminal child checks alone do not close that authority chain; the
-    // parent projection must be state-bound and checked before s_col changes.
     let t = parent.y_ring.len();
-    if t < s.t() {
-        eprintln!("verify_dec_public failed: parent y.len()={} < s.t()={}", t, s.t());
+    if t != s.t() + 1 {
+        eprintln!(
+            "verify_dec_public failed: parent y.len()={} != identity-first count {}",
+            t,
+            s.t() + 1
+        );
         return false;
     }
     for (idx, ch) in children.iter().enumerate() {
@@ -174,15 +146,6 @@ where
             );
             return false;
         }
-        if ch.aux_openings.len() != parent.aux_openings.len() {
-            eprintln!(
-                "verify_dec_public failed: child aux_openings.len mismatch (child {} has {}, expected {})",
-                idx,
-                ch.aux_openings.len(),
-                parent.aux_openings.len()
-            );
-            return false;
-        }
     }
     if parent.ct.len() != t {
         eprintln!(
@@ -193,11 +156,7 @@ where
         return false;
     }
 
-    // The verifier, rather than the prover, determines the public-X split.
-    // Failure to represent the parent in exactly k radix-b digits is a rejected
-    // transition. The parent's old-point y_zcol is intentionally not checked
-    // here; the delayed-projection authority bridge must close that gap before
-    // this omission can be treated as sound.
+    // The verifier determines the public-X split.
     let expected_child_x = match crate::common::split_b_matrix_k(&parent.X, k, params.b) {
         Ok(split) => split,
         Err(e) => return fail(format!("parent X is not representable by split_b: {e}")),
@@ -210,24 +169,10 @@ where
         }
     }
 
-    let d_pad = match super::checked_power_of_two("verify_dec_public ell_d", ell_d) {
+    let d_pad = match super::checked_superneo_d_pad("verify_dec_public ell_d", ell_d) {
         Ok(value) => value,
         Err(error) => return fail(error),
     };
-    if wants_nc_point {
-        if parent.y_zcol.len() != d_pad || parent.y_zcol[D..].iter().any(|&value| value != K::ZERO) {
-            return fail(format!(
-                "parent y_zcol must contain {D} live lanes and zero padding to length {d_pad}"
-            ));
-        }
-        for (index, child) in children.iter().enumerate() {
-            if child.y_zcol.len() != d_pad || child.y_zcol[D..].iter().any(|&value| value != K::ZERO) {
-                return fail(format!(
-                    "child {index} y_zcol must contain {D} live lanes and zero padding to length {d_pad}"
-                ));
-            }
-        }
-    }
     let b_k = K::from(F::from_u64(params.b as u64));
     let mut b_pows_k = Vec::with_capacity(k);
     let mut p_k = K::ONE;
@@ -264,29 +209,6 @@ where
         }
         if y_lhs != parent.y_ring[j] {
             eprintln!("verify_dec_public failed: y check mismatch at j={}", j);
-            return false;
-        }
-    }
-
-    if enforce_y_zcol_recomposition {
-        let mut lhs = vec![K::ZERO; d_pad];
-        for (pow, child) in b_pows_k.iter().zip(children) {
-            for (dst, value) in lhs.iter_mut().zip(&child.y_zcol) {
-                *dst += *pow * *value;
-            }
-        }
-        if lhs != parent.y_zcol {
-            return fail("y_zcol radix recomposition mismatch");
-        }
-    }
-
-    for j in 0..parent.aux_openings.len() {
-        let mut lhs = K::ZERO;
-        for (pow, child) in b_pows_k.iter().zip(children.iter()) {
-            lhs += *pow * child.aux_openings[j];
-        }
-        if lhs != parent.aux_openings[j] {
-            eprintln!("verify_dec_public failed: aux_openings check mismatch at j={j}");
             return false;
         }
     }

@@ -79,6 +79,28 @@ pub enum SumcheckError {
         expected: K,
         actual: K,
     },
+    #[error("round {round} oracle returned {actual} evaluations, expected {expected}")]
+    OracleEvaluationCount {
+        round: usize,
+        expected: usize,
+        actual: usize,
+    },
+    #[error(
+        "round {round} oracle returned {actual} evaluations for claim {claim_idx} ({label:?}), expected {expected}"
+    )]
+    BatchedOracleEvaluationCount {
+        round: usize,
+        claim_idx: usize,
+        label: &'static [u8],
+        expected: usize,
+        actual: usize,
+    },
+    #[error("claim {claim_idx} has {actual} rounds, expected {expected}")]
+    BatchedRoundCount {
+        claim_idx: usize,
+        expected: usize,
+        actual: usize,
+    },
 }
 
 /// Evaluate a polynomial (given as coefficients) at a point
@@ -92,6 +114,11 @@ pub fn poly_eval_k(coeffs: &[K], x: K) -> K {
         result = result * x + c;
     }
     result
+}
+
+#[inline]
+fn exceeds_degree_bound(coeffs: &[K], degree_bound: usize) -> bool {
+    coeffs.is_empty() || coeffs.len() - 1 > degree_bound
 }
 
 /// Evaluate a polynomial at a base-field point `x ∈ Fq ⊂ K` (imag=0).
@@ -182,7 +209,13 @@ fn interpolation_plan_for_degree_cached(deg: usize) -> std::sync::Arc<Interpolat
 
 #[inline]
 fn build_interpolation_plan_for_degree(deg: usize) -> InterpolationPlan {
-    let xs: Vec<K> = (0..=deg).map(|t| K::from(Fq::from_u64(t as u64))).collect();
+    // Even a degree-zero round must be evaluated at both 0 and 1 to check the
+    // sumcheck invariant. Its interpolated coefficient vector is truncated
+    // back to one constant coefficient below.
+    let evaluation_degree = deg.max(1);
+    let xs: Vec<K> = (0..=evaluation_degree)
+        .map(|t| K::from(Fq::from_u64(t as u64)))
+        .collect();
     let n = xs.len();
     let mut basis = vec![vec![K::ZERO; n]; n];
 
@@ -243,6 +276,21 @@ fn interpolate_from_evals_with_plan(plan: &InterpolationPlan, ys: &[K]) -> Vec<K
     coeffs
 }
 
+fn round_polynomial<O: RoundOracle + ?Sized>(oracle: &mut O) -> Result<(Vec<K>, Vec<K>, K), (usize, usize)> {
+    let degree = oracle.degree_bound();
+    let plan = interpolation_plan_for_degree_cached(degree);
+    let ys = oracle.evals_at(plan.xs.as_slice());
+    if ys.len() != plan.xs.len() {
+        return Err((plan.xs.len(), ys.len()));
+    }
+    let sum_at_01 = ys[0] + ys[1];
+    let mut coeffs = interpolate_from_evals_with_plan(plan.as_ref(), &ys);
+    if degree == 0 {
+        coeffs.truncate(1);
+    }
+    Ok((ys, coeffs, sum_at_01))
+}
+
 /// Run the sumcheck prover against a [`RoundOracle`].
 ///
 /// This mirrors the verifier in `verify_sumcheck_rounds`, interpolating the
@@ -256,7 +304,6 @@ pub fn run_sumcheck_prover<O: RoundOracle, Tr: Transcript>(
     let mut running_sum = initial_sum;
     let mut rounds = Vec::with_capacity(total_rounds);
     let mut challenges = Vec::with_capacity(total_rounds);
-    let mut interp_cache = std::collections::BTreeMap::<usize, std::sync::Arc<InterpolationPlan>>::new();
 
     #[cfg(feature = "debug-logs")]
     eprintln!(
@@ -267,11 +314,14 @@ pub fn run_sumcheck_prover<O: RoundOracle, Tr: Transcript>(
     );
 
     for round_idx in 0..total_rounds {
+        #[cfg(feature = "debug-logs")]
         let deg = oracle.degree_bound();
-        let plan = interp_cache
-            .entry(deg)
-            .or_insert_with(|| interpolation_plan_for_degree_cached(deg));
-        let ys = oracle.evals_at(plan.xs.as_slice());
+        let (ys, coeffs, sum_at_01) =
+            round_polynomial(oracle).map_err(|(expected, actual)| SumcheckError::OracleEvaluationCount {
+                round: round_idx,
+                expected,
+                actual,
+            })?;
 
         #[cfg(feature = "debug-logs")]
         if round_idx < 3 {
@@ -294,7 +344,6 @@ pub fn run_sumcheck_prover<O: RoundOracle, Tr: Transcript>(
             eprintln!("  expected running_sum={}", format_k(&running_sum));
         }
 
-        let sum_at_01 = ys[0] + ys[1];
         if sum_at_01 != running_sum {
             #[cfg(feature = "debug-logs")]
             eprintln!(
@@ -311,12 +360,7 @@ pub fn run_sumcheck_prover<O: RoundOracle, Tr: Transcript>(
         }
 
         // Interpolate and normalize to low→high coefficient order.
-        let coeffs = interpolate_from_evals_with_plan(plan.as_ref(), &ys);
-        debug_assert!(plan
-            .xs
-            .iter()
-            .zip(ys.iter())
-            .all(|(&x, &y)| poly_eval_k(&coeffs, x) == y));
+        debug_assert!((0..ys.len()).all(|index| poly_eval_k(&coeffs, K::from(Fq::from_u64(index as u64))) == ys[index]));
 
         // Commit coefficients to the transcript.
         append_round_coeffs(tr, &coeffs);
@@ -355,7 +399,7 @@ pub fn verify_sumcheck_rounds<Tr: Transcript>(
 
     for (i, round_poly) in rounds.iter().enumerate() {
         // Check degree bound
-        if round_poly.len() > degree_bound + 1 {
+        if exceeds_degree_bound(round_poly, degree_bound) {
             eprintln!(
                 "Round {} failed: degree check. len={}, degree_bound={}",
                 i,
@@ -439,7 +483,7 @@ pub fn verify_sumcheck_rounds_poseidon_v3(
     let mut running_sum = initial_sum;
 
     for round_poly in rounds {
-        if round_poly.len() > degree_bound + 1 {
+        if exceeds_degree_bound(round_poly, degree_bound) {
             return (challenges, running_sum, false);
         }
 
@@ -548,12 +592,11 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
     let num_rounds = claims[0].oracle.num_rounds();
     for (i, claim) in claims.iter().enumerate() {
         if claim.oracle.num_rounds() != num_rounds {
-            panic!(
-                "Batched sum-check: claim {} has {} rounds, expected {} (all must match)",
-                i,
-                claim.oracle.num_rounds(),
-                num_rounds
-            );
+            return Err(SumcheckError::BatchedRoundCount {
+                claim_idx: i,
+                expected: num_rounds,
+                actual: claim.oracle.num_rounds(),
+            });
         }
     }
 
@@ -565,7 +608,6 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
             final_value: K::ZERO,
         })
         .collect();
-    let mut interp_cache = std::collections::BTreeMap::<usize, std::sync::Arc<InterpolationPlan>>::new();
     let mut packed_round_poly = Vec::<Fq>::new();
     // Track running sums per claim
     let mut running_sums: Vec<K> = claims.iter().map(|c| c.claimed_sum).collect();
@@ -602,12 +644,17 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
                 .par_iter_mut()
                 .enumerate()
                 .map(|(claim_idx, claim)| {
-                    let deg = claim.oracle.degree_bound();
-                    let plan = interpolation_plan_for_degree_cached(deg);
-                    let ys = claim.oracle.evals_at(plan.xs.as_slice());
+                    let (_ys, coeffs, sum_at_01) = round_polynomial(claim.oracle).map_err(|(expected, actual)| {
+                        SumcheckError::BatchedOracleEvaluationCount {
+                            round: round_idx,
+                            claim_idx,
+                            label: claim.label,
+                            expected,
+                            actual,
+                        }
+                    })?;
 
                     // Check invariant: p(0) + p(1) = running_sum
-                    let sum_at_01 = ys[0] + ys[1];
                     if sum_at_01 != running_sums[claim_idx] {
                         return Err(SumcheckError::BatchedInvariant {
                             round: round_idx,
@@ -618,7 +665,7 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
                         });
                     }
 
-                    Ok(interpolate_from_evals_with_plan(plan.as_ref(), &ys))
+                    Ok(coeffs)
                 })
                 .collect();
 
@@ -630,14 +677,17 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
         } else {
             for claim_idx in 0..claims.len() {
                 let claim = &mut claims[claim_idx];
-                let deg = claim.oracle.degree_bound();
-                let plan = interp_cache
-                    .entry(deg)
-                    .or_insert_with(|| interpolation_plan_for_degree_cached(deg));
-                let ys = claim.oracle.evals_at(plan.xs.as_slice());
+                let (_ys, coeffs, sum_at_01) = round_polynomial(claim.oracle).map_err(|(expected, actual)| {
+                    SumcheckError::BatchedOracleEvaluationCount {
+                        round: round_idx,
+                        claim_idx,
+                        label: claim.label,
+                        expected,
+                        actual,
+                    }
+                })?;
 
                 // Check invariant: p(0) + p(1) = running_sum
-                let sum_at_01 = ys[0] + ys[1];
                 if sum_at_01 != running_sums[claim_idx] {
                     return Err(SumcheckError::BatchedInvariant {
                         round: round_idx,
@@ -649,7 +699,6 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
                 }
 
                 // Interpolate to get polynomial coefficients
-                let coeffs = interpolate_from_evals_with_plan(plan.as_ref(), &ys);
                 per_claim_results[claim_idx].round_polys.push(coeffs);
             }
         }
@@ -657,14 +706,17 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
         {
             for claim_idx in 0..claims.len() {
                 let claim = &mut claims[claim_idx];
-                let deg = claim.oracle.degree_bound();
-                let plan = interp_cache
-                    .entry(deg)
-                    .or_insert_with(|| interpolation_plan_for_degree_cached(deg));
-                let ys = claim.oracle.evals_at(plan.xs.as_slice());
+                let (_ys, coeffs, sum_at_01) = round_polynomial(claim.oracle).map_err(|(expected, actual)| {
+                    SumcheckError::BatchedOracleEvaluationCount {
+                        round: round_idx,
+                        claim_idx,
+                        label: claim.label,
+                        expected,
+                        actual,
+                    }
+                })?;
 
                 // Check invariant: p(0) + p(1) = running_sum
-                let sum_at_01 = ys[0] + ys[1];
                 if sum_at_01 != running_sums[claim_idx] {
                     return Err(SumcheckError::BatchedInvariant {
                         round: round_idx,
@@ -676,7 +728,6 @@ pub fn run_batched_sumcheck_prover<Tr: Transcript>(
                 }
 
                 // Interpolate to get polynomial coefficients
-                let coeffs = interpolate_from_evals_with_plan(plan.as_ref(), &ys);
                 per_claim_results[claim_idx].round_polys.push(coeffs);
             }
         }
@@ -768,6 +819,9 @@ pub fn verify_batched_sumcheck_rounds<Tr: Transcript>(
     }
 
     let num_claims = per_claim_rounds.len();
+    if per_claim_sums.len() != num_claims || per_claim_labels.len() != num_claims || degree_bounds.len() != num_claims {
+        return (vec![], vec![K::ZERO; num_claims], false);
+    }
     if num_claims == 0 {
         return (vec![], vec![], true);
     }
@@ -806,7 +860,7 @@ pub fn verify_batched_sumcheck_rounds<Tr: Transcript>(
             let degree_bound = degree_bounds[claim_idx];
 
             // Check degree bound
-            if round_poly.len() > degree_bound + 1 {
+            if exceeds_degree_bound(round_poly, degree_bound) {
                 eprintln!(
                     "Claim {} round {} failed: degree check. len={}, degree_bound={}",
                     claim_idx,

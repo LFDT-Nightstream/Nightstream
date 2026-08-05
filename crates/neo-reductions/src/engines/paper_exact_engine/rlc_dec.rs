@@ -1,169 +1,139 @@
-//! Direct paper reference for the RLC and DEC reductions.
+//! Direct paper reference for PiRLC and PiDEC.
 //!
-//! This file uses explicit matrix and vector loops. It does not use a
-//! transformed matrix evaluator or an optimized evaluation cache.
+//! PiRLC reads the raw quotient-ring coefficient of each challenge and uses
+//! schoolbook ring multiplication. PiDEC independently checks the canonical
+//! signed `split_(b,k)` map before it constructs child evaluation claims.
 
 #![allow(non_snake_case)]
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
-use neo_math::{D, K};
+use neo_math::{Fq, D, ETA, K};
 use neo_params::NeoParams;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
-fn field_entry<Ff>(matrix: &Mat<Ff>, row: usize, column: usize) -> Ff
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    if row < matrix.rows() && column < matrix.cols() {
-        matrix[(row, column)]
-    } else {
-        Ff::ZERO
-    }
-}
+use super::paper_ring::PaperRing;
 
-fn left_multiply_add<Ff>(accumulator: &mut Mat<Ff>, left: &Mat<Ff>, right: &Mat<Ff>)
+fn read_rho<Ff>(params: &NeoParams, matrix: &Mat<Ff>) -> [Fq; D]
 where
-    Ff: Field + PrimeCharacteristicRing + Copy,
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
 {
-    for row in 0..accumulator.rows() {
-        for column in 0..accumulator.cols() {
-            for inner in 0..left.cols() {
-                accumulator[(row, column)] += field_entry(left, row, inner) * field_entry(right, inner, column);
-            }
+    assert_eq!(params.d as usize, D, "PaperExact PiRLC ring degree mismatch");
+    assert_eq!(params.eta as usize, ETA, "PaperExact PiRLC cyclotomic mismatch");
+    assert_eq!(matrix.rows(), D, "PaperExact PiRLC rho row count");
+    assert_eq!(matrix.cols(), D, "PaperExact PiRLC rho column count");
+
+    let coefficients = core::array::from_fn(|row| Fq::from_u64(matrix[(row, 0)].as_canonical_u64()));
+    let mut column = coefficients;
+    for column_index in 0..D {
+        for row in 0..D {
+            assert_eq!(
+                matrix[(row, column_index)].as_canonical_u64(),
+                column[row].as_canonical_u64(),
+                "PaperExact PiRLC rho is not quotient-ring multiplication"
+            );
         }
+        let last = column[D - 1];
+        let mut next = [Fq::ZERO; D];
+        next[0] = -last;
+        next[1..].copy_from_slice(&column[..D - 1]);
+        next[27] -= last;
+        column = next;
     }
+    coefficients
 }
 
-fn direct_column_opening<Ff>(
-    witness: &Mat<Ff>,
-    logical_width: usize,
-    column_weights: &[K],
-    output_width: usize,
-) -> Vec<K>
+fn base_block<Ff>(matrix: &Mat<Ff>, column: usize) -> [Fq; D]
 where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-    K: From<Ff>,
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
 {
-    let mut output = vec![K::ZERO; output_width];
-    for column in 0..logical_width {
-        output[column % D] += K::from(witness[(column % D, column / D)]) * column_weights[column];
-    }
-    output
+    core::array::from_fn(|row| Fq::from_u64(matrix[(row, column)].as_canonical_u64()))
 }
 
-/// Apply the paper RLC relation with explicit matrix loops.
-pub fn rlc_reduction_paper_exact<Ff>(
+fn extension_block(values: &[K]) -> [K; D] {
+    core::array::from_fn(|coefficient| values[coefficient])
+}
+
+fn validate_claim<Ff>(structure: &CcsStructure<Ff>, claim: &CeClaim<Cmt, Ff, K>, ell_d: usize)
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
+{
+    assert_eq!(ell_d, D.next_power_of_two().trailing_zeros() as usize);
+    assert_eq!(claim.m_in % D, 0, "PaperExact requires whole-ring public inputs");
+    assert_eq!(claim.X.rows(), D);
+    assert_eq!(claim.X.cols(), claim.m_in);
+    assert_eq!(claim.y_ring.len(), structure.t() + 1);
+    assert_eq!(claim.ct.len(), structure.t() + 1);
+    for (matrix, image) in claim.y_ring.iter().enumerate() {
+        assert_eq!(image.len(), D.next_power_of_two());
+        assert_eq!(image[0], claim.ct[matrix]);
+        assert!(image.iter().skip(D).all(|&value| value == K::ZERO));
+    }
+}
+
+/// Compute the public PaperExact PiRLC claim without a prover witness.
+#[doc(hidden)]
+pub fn rlc_claim_paper_exact_with_commit_mix<Ff, Combine>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
     rhos: &[Mat<Ff>],
     inputs: &[CeClaim<Cmt, Ff, K>],
-    witnesses: &[Mat<Ff>],
     ell_d: usize,
-) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
+    combine: Combine,
+) -> CeClaim<Cmt, Ff, K>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
+    Combine: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
 {
-    assert!(!inputs.is_empty(), "paper RLC needs at least one input");
-    assert_eq!(rhos.len(), inputs.len(), "paper RLC rho count mismatch");
-    assert_eq!(witnesses.len(), inputs.len(), "paper RLC witness count mismatch");
-    crate::common::validate_rhos_are_rotation_matrices(params, rhos, "paper RLC rhos")
-        .unwrap_or_else(|error| panic!("paper RLC invalid rho set: {error}"));
-
-    let d_pad = 1usize << ell_d;
-    let witness_columns = witnesses[0].cols();
-    let matrix_outputs = inputs[0].y_ring.len();
+    assert!(!inputs.is_empty(), "PaperExact PiRLC needs at least one source");
+    assert_eq!(rhos.len(), inputs.len());
+    let ring = PaperRing::new();
+    let coefficients: Vec<[Fq; D]> = rhos.iter().map(|rho| read_rho(params, rho)).collect();
     let m_in = inputs[0].m_in;
-    let wants_column = !inputs[0].s_col.is_empty() || !inputs[0].y_zcol.is_empty();
-    for (index, (input, witness)) in inputs.iter().zip(witnesses).enumerate() {
-        crate::common::validate_superneo_witness_mat(witness, structure.m)
-            .unwrap_or_else(|error| panic!("paper RLC witness {index}: {error}"));
-        assert_eq!(witness.cols(), witness_columns, "paper RLC witness width mismatch");
-        assert_eq!(input.r, inputs[0].r, "paper RLC row point mismatch");
-        assert_eq!(input.m_in, m_in, "paper RLC public-input width mismatch");
-        assert_eq!(input.y_ring.len(), matrix_outputs, "paper RLC matrix count mismatch");
-        assert_eq!(input.s_col, inputs[0].s_col, "paper RLC column point mismatch");
-        assert_eq!(
-            !input.s_col.is_empty() || !input.y_zcol.is_empty(),
-            wants_column,
-            "paper RLC column-channel presence mismatch"
-        );
+    let point = inputs[0].r.clone();
+    for claim in inputs {
+        validate_claim(structure, claim, ell_d);
+        assert_eq!(claim.m_in, m_in);
+        assert_eq!(claim.r, point);
     }
 
-    let mut mixed_witness = Mat::zero(D, witness_columns, Ff::ZERO);
     let mut X = Mat::zero(D, m_in, Ff::ZERO);
-    for ((rho, input), witness) in rhos.iter().zip(inputs).zip(witnesses) {
-        left_multiply_add(&mut mixed_witness, rho, witness);
-        left_multiply_add(&mut X, rho, &input.X);
-    }
-
-    let mut y_ring = vec![vec![K::ZERO; d_pad]; matrix_outputs];
-    for (source, rho) in rhos.iter().enumerate() {
-        for (matrix, output) in y_ring.iter_mut().enumerate() {
-            for row in 0..D.min(d_pad) {
-                for column in 0..D.min(inputs[source].y_ring[matrix].len()) {
-                    output[row] += K::from(field_entry(rho, row, column)) * inputs[source].y_ring[matrix][column];
-                }
-            }
-        }
-    }
-
-    let mut y_zcol = if wants_column { vec![K::ZERO; d_pad] } else { Vec::new() };
-    if wants_column {
-        for (source, rho) in rhos.iter().enumerate() {
-            assert_eq!(
-                inputs[source].y_zcol.len(),
-                d_pad,
-                "paper RLC column opening width mismatch"
-            );
+    for (rho, input) in coefficients.iter().zip(inputs) {
+        for column in 0..m_in {
+            let product = ring.multiply_base(*rho, base_block(&input.X, column));
             for row in 0..D {
-                for column in 0..D {
-                    y_zcol[row] += K::from(field_entry(rho, row, column)) * inputs[source].y_zcol[column];
-                }
+                X[(row, column)] += Ff::from_u64(product[row].as_canonical_u64());
             }
         }
     }
 
-    let ct = y_ring.iter().map(|output| output[0]).collect();
-    let output = CeClaim {
-        c: inputs[0].c.clone(),
+    let matrix_count = structure.t() + 1;
+    let mut y_ring = vec![vec![K::ZERO; D.next_power_of_two()]; matrix_count];
+    for (rho, input) in coefficients.iter().zip(inputs) {
+        let rho_extension = rho.map(K::from);
+        for (matrix, output) in y_ring.iter_mut().enumerate() {
+            let product = ring.multiply_extension(rho_extension, extension_block(&input.y_ring[matrix]));
+            for coefficient in 0..D {
+                output[coefficient] += product[coefficient];
+            }
+        }
+    }
+    let ct = y_ring.iter().map(|image| image[0]).collect();
+    let commitments: Vec<Cmt> = inputs.iter().map(|input| input.c.clone()).collect();
+    CeClaim {
+        c: combine(rhos, &commitments),
         X,
-        r: inputs[0].r.clone(),
-        s_col: inputs[0].s_col.clone(),
+        r: point,
         y_ring,
         ct,
-        aux_openings: Vec::new(),
-        y_zcol,
         m_in,
         fold_digest: inputs[0].fold_digest,
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
         adv: None,
-    };
-    (output, mixed_witness)
-}
-
-fn mix_aux_openings<Ff>(rhos: &[Mat<Ff>], inputs: &[CeClaim<Cmt, Ff, K>]) -> Vec<K>
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-    K: From<Ff>,
-{
-    let width = inputs[0].aux_openings.len();
-    let mut output = vec![K::ZERO; width];
-    for (source, input) in inputs.iter().enumerate() {
-        assert_eq!(input.aux_openings.len(), width, "paper RLC auxiliary width mismatch");
-        let weight = K::from(field_entry(&rhos[source], 0, 0));
-        for (target, &value) in output.iter_mut().zip(&input.aux_openings) {
-            *target += weight * value;
-        }
     }
-    output
 }
 
-/// Apply RLC and replace the placeholder commitment with the supplied linear
-/// commitment combination.
+/// Apply the complete paper PiRLC relation and its commitment action.
+#[doc(hidden)]
 pub fn rlc_reduction_paper_exact_with_commit_mix<Ff, Combine>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
@@ -175,113 +145,107 @@ pub fn rlc_reduction_paper_exact_with_commit_mix<Ff, Combine>(
 ) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
     Combine: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
 {
-    let (mut output, witness) = rlc_reduction_paper_exact(structure, params, rhos, inputs, witnesses, ell_d);
-    let commitments: Vec<Cmt> = inputs.iter().map(|input| input.c.clone()).collect();
-    output.c = combine(rhos, &commitments);
-    output.aux_openings = mix_aux_openings(rhos, inputs);
-    (output, witness)
+    assert_eq!(witnesses.len(), inputs.len());
+    let output = rlc_claim_paper_exact_with_commit_mix(structure, params, rhos, inputs, ell_d, combine);
+    let ring = PaperRing::new();
+    let coefficients: Vec<[Fq; D]> = rhos.iter().map(|rho| read_rho(params, rho)).collect();
+    let witness_columns = structure.m.div_ceil(D);
+    let mut mixed_witness = Mat::zero(D, witness_columns, Ff::ZERO);
+    for (rho, witness) in coefficients.iter().zip(witnesses) {
+        assert_eq!(witness.rows(), D);
+        assert_eq!(witness.cols(), witness_columns);
+        for column in 0..witness_columns {
+            let product = ring.multiply_base(*rho, base_block(witness, column));
+            for row in 0..D {
+                mixed_witness[(row, column)] += Ff::from_u64(product[row].as_canonical_u64());
+            }
+        }
+    }
+    (output, mixed_witness)
 }
 
-/// Apply the paper DEC relation and compute child openings with direct matrix
-/// loops.
-pub fn dec_reduction_paper_exact<Ff>(
-    structure: &CcsStructure<Ff>,
-    params: &NeoParams,
-    parent: &CeClaim<Cmt, Ff, K>,
-    split_witnesses: &[Mat<Ff>],
-    ell_d: usize,
-) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
+fn centered<Ff>(value: Ff) -> i128
 where
-    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
+    Ff: PrimeField64,
 {
-    assert!(!split_witnesses.is_empty(), "paper DEC needs child witnesses");
-    let d_pad = 1usize << ell_d;
-    let row_weights = neo_ccs::utils::tensor_point::<K>(&parent.r);
-    let column_weights = neo_ccs::utils::tensor_point::<K>(&parent.s_col);
-    let wants_column = !parent.s_col.is_empty() || !parent.y_zcol.is_empty();
-    if wants_column {
-        assert!(!parent.s_col.is_empty(), "paper DEC parent column point is missing");
-        assert_eq!(
-            parent.y_zcol.len(),
-            d_pad,
-            "paper DEC parent column opening width mismatch"
-        );
+    let canonical = value.as_canonical_u64() as i128;
+    let modulus = Ff::ORDER_U64 as i128;
+    if canonical <= (modulus - 1) / 2 {
+        canonical
+    } else {
+        canonical - modulus
     }
-
-    let mut children = Vec::with_capacity(split_witnesses.len());
-    for (index, witness) in split_witnesses.iter().enumerate() {
-        let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m)
-            .unwrap_or_else(|error| panic!("paper DEC witness {index}: {error}"));
-        let y_ring: Vec<Vec<K>> = structure
-            .matrices
-            .iter()
-            .map(|matrix| {
-                let mut coefficients =
-                    super::paper_rectangular::direct_ring_mle(matrix, &assignment, &row_weights).to_vec();
-                coefficients.resize(d_pad, K::ZERO);
-                coefficients
-            })
-            .collect();
-        let ct = y_ring.iter().map(|output| output[0]).collect();
-        let y_zcol = if wants_column {
-            direct_column_opening(witness, structure.m, &column_weights, d_pad)
-        } else {
-            Vec::new()
-        };
-        children.push(CeClaim {
-            c: parent.c.clone(),
-            X: crate::common::project_x_from_witness_mat(witness, structure.m, parent.m_in)
-                .unwrap_or_else(|error| panic!("paper DEC child projection: {error}")),
-            r: parent.r.clone(),
-            s_col: parent.s_col.clone(),
-            y_ring,
-            ct,
-            aux_openings: Vec::new(),
-            y_zcol,
-            m_in: parent.m_in,
-            fold_digest: parent.fold_digest,
-            c_step_coords: Vec::new(),
-            u_offset: 0,
-            u_len: 0,
-            adv: None,
-        });
-    }
-
-    let base_f = Ff::from_u64(params.b as u64);
-    let base_k = K::from(base_f);
-    let mut y_valid = parent.y_ring.len() == structure.t();
-    for matrix in 0..structure.t() {
-        let mut reconstructed = vec![K::ZERO; d_pad];
-        let mut power = K::ONE;
-        for child in &children {
-            for (target, &value) in reconstructed.iter_mut().zip(&child.y_ring[matrix]) {
-                *target += power * value;
-            }
-            power *= base_k;
-        }
-        y_valid &= parent.y_ring.get(matrix) == Some(&reconstructed);
-    }
-
-    let mut x_valid = parent.X.rows() == D && parent.X.cols() == parent.m_in;
-    for row in 0..D {
-        for column in 0..parent.m_in {
-            let mut reconstructed = Ff::ZERO;
-            let mut power = Ff::ONE;
-            for child in &children {
-                reconstructed += power * child.X[(row, column)];
-                power *= base_f;
-            }
-            x_valid &= reconstructed == parent.X[(row, column)];
-        }
-    }
-    (children, y_valid, x_valid)
 }
 
-/// Apply DEC and check the supplied child commitments against the parent.
+fn signed_field<Ff>(value: i128) -> Ff
+where
+    Ff: Field + PrimeCharacteristicRing,
+{
+    if value >= 0 {
+        Ff::from_u64(value as u64)
+    } else {
+        -Ff::from_u64((-value) as u64)
+    }
+}
+
+fn canonical_digits<Ff>(value: Ff, count: usize, base: u32) -> Option<Vec<Ff>>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
+{
+    let mut remaining = centered(value);
+    let base = base as i128;
+    let mut digits = Vec::with_capacity(count);
+    for _ in 0..count {
+        let digit = remaining % base;
+        digits.push(signed_field(digit));
+        remaining = (remaining - digit) / base;
+    }
+    (remaining == 0).then_some(digits)
+}
+
+fn canonical_split_matches<Ff>(split: &[Mat<Ff>], base: u32) -> bool
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
+{
+    if split.is_empty() || base < 2 {
+        return false;
+    }
+    let rows = split[0].rows();
+    let columns = split[0].cols();
+    if split
+        .iter()
+        .any(|matrix| matrix.rows() != rows || matrix.cols() != columns)
+    {
+        return false;
+    }
+    let base_field = Ff::from_u64(base as u64);
+    for row in 0..rows {
+        for column in 0..columns {
+            let mut value = Ff::ZERO;
+            let mut power = Ff::ONE;
+            for digit in split {
+                value += power * digit[(row, column)];
+                power *= base_field;
+            }
+            let Some(expected) = canonical_digits(value, split.len(), base) else {
+                return false;
+            };
+            if split
+                .iter()
+                .zip(expected)
+                .any(|(matrix, digit)| matrix[(row, column)] != digit)
+            {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Apply the complete paper PiDEC relation and check child commitments.
+#[doc(hidden)]
 pub fn dec_reduction_paper_exact_with_commit_check<Ff, Combine>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
@@ -296,22 +260,164 @@ where
     K: From<Ff>,
     Combine: Fn(&[Cmt], u32) -> Cmt,
 {
-    let (mut children, y_valid, x_valid) = dec_reduction_paper_exact(structure, params, parent, split_witnesses, ell_d);
-    assert_eq!(
-        children.len(),
-        child_commitments.len(),
-        "paper DEC commitment count mismatch"
-    );
-    for (child, commitment) in children.iter_mut().zip(child_commitments) {
-        child.c = commitment.clone();
+    validate_claim(structure, parent, ell_d);
+    assert_eq!(split_witnesses.len(), params.k_rho as usize);
+    assert_eq!(split_witnesses.len(), child_commitments.len());
+    assert!(params.b >= 2);
+    let split_valid = canonical_split_matches(split_witnesses, params.b);
+    let ring = PaperRing::new();
+    let matrix_count = structure.t() + 1;
+    let mut children = Vec::with_capacity(split_witnesses.len());
+
+    for (witness, commitment) in split_witnesses.iter().zip(child_commitments) {
+        assert_eq!(witness.rows(), D);
+        assert_eq!(witness.cols(), structure.m.div_ceil(D));
+        let assignment: Vec<K> = (0..witness.cols() * D)
+            .map(|column| K::from(witness[(column % D, column / D)]))
+            .collect();
+        let mut y_ring = Vec::with_capacity(matrix_count);
+        let mut identity = super::paper_joint::direct_identity_ring_mle(&ring, &assignment, &parent.r).to_vec();
+        identity.resize(D.next_power_of_two(), K::ZERO);
+        y_ring.push(identity);
+        for matrix in &structure.matrices {
+            let mut image = super::paper_joint::direct_ring_mle(&ring, matrix, &assignment, &parent.r).to_vec();
+            image.resize(D.next_power_of_two(), K::ZERO);
+            y_ring.push(image);
+        }
+        let ct = y_ring.iter().map(|image| image[0]).collect();
+        children.push(CeClaim {
+            c: commitment.clone(),
+            X: super::paper_joint::direct_public_input(witness, structure.m, parent.m_in)
+                .expect("validated PaperExact PiDEC public projection"),
+            r: parent.r.clone(),
+            y_ring,
+            ct,
+            m_in: parent.m_in,
+            fold_digest: parent.fold_digest,
+            adv: None,
+        });
     }
-    for (index, child) in children.iter_mut().enumerate() {
-        child.aux_openings = if index == 0 {
-            parent.aux_openings.clone()
-        } else {
-            vec![K::ZERO; parent.aux_openings.len()]
-        };
+
+    let base_f = Ff::from_u64(params.b as u64);
+    let base_k = K::from(base_f);
+    let mut y_valid = split_valid;
+    for matrix in 0..matrix_count {
+        for coefficient in 0..D.next_power_of_two() {
+            let mut reconstructed = K::ZERO;
+            let mut power = K::ONE;
+            for child in &children {
+                reconstructed += power * child.y_ring[matrix][coefficient];
+                power *= base_k;
+            }
+            y_valid &= reconstructed == parent.y_ring[matrix][coefficient];
+        }
     }
-    let commitment_valid = combine(child_commitments, params.b) == parent.c;
+
+    let mut x_valid = split_valid;
+    for row in 0..D {
+        for column in 0..parent.m_in {
+            let mut reconstructed = Ff::ZERO;
+            let mut power = Ff::ONE;
+            for child in &children {
+                reconstructed += power * child.X[(row, column)];
+                power *= base_f;
+            }
+            x_valid &= reconstructed == parent.X[(row, column)];
+        }
+    }
+    let commitment_valid = split_valid && combine(child_commitments, params.b) == parent.c;
     (children, y_valid, x_valid, commitment_valid)
+}
+
+/// Verify the public PaperExact PiDEC recomposition with direct loops.
+#[doc(hidden)]
+pub fn verify_dec_public_paper_exact<Ff, Combine>(
+    params: &NeoParams,
+    parent: &CeClaim<Cmt, Ff, K>,
+    children: &[CeClaim<Cmt, Ff, K>],
+    combine: Combine,
+) -> bool
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
+    K: From<Ff>,
+    Combine: Fn(&[Cmt], u32) -> Cmt,
+{
+    if children.len() != params.k_rho as usize || children.is_empty() {
+        return false;
+    }
+    if children.iter().any(|child| {
+        child.X.rows() != parent.X.rows()
+            || child.X.cols() != parent.X.cols()
+            || child.r != parent.r
+            || child.y_ring.len() != parent.y_ring.len()
+            || child.ct.len() != parent.ct.len()
+            || child.m_in != parent.m_in
+            || child.fold_digest != parent.fold_digest
+            || child
+                .y_ring
+                .iter()
+                .zip(&parent.y_ring)
+                .any(|(child_row, parent_row)| child_row.len() != parent_row.len())
+    }) {
+        return false;
+    }
+
+    let commitments = children
+        .iter()
+        .map(|child| child.c.clone())
+        .collect::<Vec<_>>();
+    if combine(&commitments, params.b) != parent.c {
+        return false;
+    }
+    let base_f = Ff::from_u64(params.b as u64);
+    let base_k = K::from(base_f);
+
+    for row in 0..parent.X.rows() {
+        for column in 0..parent.X.cols() {
+            let Some(expected_digits) = canonical_digits(parent.X[(row, column)], children.len(), params.b) else {
+                return false;
+            };
+            if children
+                .iter()
+                .zip(expected_digits)
+                .any(|(child, expected)| child.X[(row, column)] != expected)
+            {
+                return false;
+            }
+            let mut value = Ff::ZERO;
+            let mut power = Ff::ONE;
+            for child in children {
+                value += power * child.X[(row, column)];
+                power *= base_f;
+            }
+            if value != parent.X[(row, column)] {
+                return false;
+            }
+        }
+    }
+    for matrix in 0..parent.y_ring.len() {
+        for coefficient in 0..parent.y_ring[matrix].len() {
+            let mut value = K::ZERO;
+            let mut power = K::ONE;
+            for child in children {
+                value += power * child.y_ring[matrix][coefficient];
+                power *= base_k;
+            }
+            if value != parent.y_ring[matrix][coefficient] {
+                return false;
+            }
+        }
+    }
+    for coordinate in 0..parent.ct.len() {
+        let mut value = K::ZERO;
+        let mut power = K::ONE;
+        for child in children {
+            value += power * child.ct[coordinate];
+            power *= base_k;
+        }
+        if value != parent.ct[coordinate] {
+            return false;
+        }
+    }
+    true
 }

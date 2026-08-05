@@ -1000,11 +1000,6 @@ impl SuperneoZBlocks {
     }
 
     #[inline]
-    pub(crate) fn all_zero(&self) -> bool {
-        (0..self.block_len()).all(|block| !self.block_nonzero(block))
-    }
-
-    #[inline]
     fn block_len(&self) -> usize {
         self.re.len()
     }

@@ -19,7 +19,7 @@ use crate::error::PiCcsError;
 pub use super::optimized_engine::PiCcsProof;
 
 #[cfg(feature = "paper-exact")]
-pub use super::crosscheck_engine::{CrossCheckEngine, CrosscheckCfg};
+pub use super::crosscheck_engine::CrossCheckEngine;
 
 /// A minimal trait implemented by each Π_CCS engine.
 pub trait PiCcsEngine {
@@ -141,7 +141,6 @@ impl<I: PiCcsEngine, R: PiCcsEngine + Sync> PiCcsEngine for CrossCheckEngine<I, 
         super::crosscheck_engine::crosscheck_prove(
             &self.inner,
             &self.ref_oracle,
-            &self.cfg,
             tr,
             params,
             s,

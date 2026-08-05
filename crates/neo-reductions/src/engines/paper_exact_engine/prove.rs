@@ -1,25 +1,23 @@
-//! Independent prover for corrected rectangular-paper `Pi_CCS`.
+//! Independent prover for the one-joint padded-row paper protocol.
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};
 use neo_params::NeoParams;
-use neo_transcript::{Poseidon2Transcript, Transcript};
-use p3_field::PrimeCharacteristicRing;
+use neo_transcript::Poseidon2Transcript;
 
+use crate::engines::pi_ccs_joint::ProtocolTrace;
 use crate::engines::pi_ccs_protocol::PiCcsProof;
-use crate::engines::pi_ccs_rectangular;
 use crate::error::PiCcsError;
 
-use super::paper_rectangular::{
-    build_outputs, paper_fe_initial, paper_fe_terminal, paper_nc_terminal, PaperJointSquareOracle,
-    PaperRectangularFeOracle, PaperRectangularNcOracle,
+use super::paper_joint::{
+    build_outputs, dimensions, initial_claim, paper_prior_point, terminal, validate_fresh_assignment,
+    validate_public_instances, PaperJointOracle,
 };
+use super::transcript::{absorb_outputs, assemble_proof, bind_and_sample, prove_sumcheck, PaperTranscriptBinding};
 
-/// Execute the paper's original one-polynomial square-domain SumCheck. This
-/// function is a conformance baseline and is not a transport proof variant.
 #[allow(clippy::too_many_arguments)]
-pub fn paper_joint_square_prove_phase(
+pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -27,42 +25,103 @@ pub fn paper_joint_square_prove_phase(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    challenges: crate::engines::pi_ccs_protocol::Challenges,
-) -> Result<(K, pi_ccs_rectangular::PhaseProof), PiCcsError> {
-    if fresh_claims.len() != fresh_witnesses.len() || running_claims.len() != running_witnesses.len() {
+    commitment: &L,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
+    paper_exact_prove_with_trace_and_binding(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        commitment,
+        PaperTranscriptBinding::claims(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn paper_exact_prove_with_trace_and_binding<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    commitment: &L,
+    binding: PaperTranscriptBinding,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
+    if fresh_claims.len() != fresh_witnesses.len() {
         return Err(PiCcsError::InvalidInput(
-            "paper joint square claim/witness count mismatch".into(),
+            "PaperExact fresh claim/witness count mismatch".into(),
         ));
     }
-    let dims = crate::engines::utils::build_dims_and_policy(params, structure)?;
-    if dims.ell_n != dims.ell_m {
+    if running_claims.len() != running_witnesses.len() {
         return Err(PiCcsError::InvalidInput(
-            "paper joint square requires equal padded row and column domains".into(),
+            "PaperExact running claim/witness count mismatch".into(),
         ));
     }
-    let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.ell_n)?;
-    let initial = paper_fe_initial(structure, &challenges, fresh_claims.len(), running_claims)?;
-    let mut oracle = PaperJointSquareOracle::new(
+
+    validate_public_instances(structure, fresh_claims, running_claims)?;
+    let dims = dimensions(params, structure, fresh_claims.len(), running_claims.len())?;
+    for witness in fresh_witnesses {
+        validate_fresh_assignment(&witness.Z, structure.m, dims)?;
+    }
+    let prior_point = paper_prior_point(running_claims, dims.variables)?;
+    let mut trace = ProtocolTrace::default();
+    let challenges = bind_and_sample(
+        transcript,
+        &mut trace,
+        structure,
+        fresh_claims,
+        running_claims,
+        dims,
+        binding,
+    )?;
+    let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
+    let mut oracle = PaperJointOracle::new(
         structure,
         params,
         fresh_witnesses,
         running_witnesses,
-        challenges,
+        challenges.clone(),
         prior_point,
-        dims.ell_n,
-        dims.d_sc,
+        dims,
     )?;
-    let phase = pi_ccs_rectangular::prove_phase(
-        transcript,
-        crate::engines::utils::PI_CCS_SUMCHECK_JOINT_RAW_DOMAIN_TAG,
-        initial,
-        &mut oracle,
+    let (rounds, round_challenges, final_claim) = prove_sumcheck(transcript, &mut trace, initial, &mut oracle)?;
+    let mut outputs = build_outputs(
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        &round_challenges,
+        dims,
+        commitment,
     )?;
-    Ok((initial, phase))
+    let expected = terminal::<F>(
+        structure,
+        params,
+        &challenges,
+        fresh_claims.len(),
+        prior_point,
+        &round_challenges,
+        &outputs,
+    )?;
+    if final_claim != expected {
+        return Err(PiCcsError::SumcheckError(
+            "PaperExact terminal value does not match the paper output message".into(),
+        ));
+    }
+    let digest = absorb_outputs(transcript, &mut trace, &outputs, fresh_claims.len(), dims)?;
+    for output in &mut outputs {
+        output.fold_digest = digest;
+    }
+    let proof = assemble_proof(rounds);
+    Ok((outputs, proof, trace))
 }
 
-/// Prove the corrected paper algebra with one row-domain FE SumCheck and one
-/// column-domain NC SumCheck.
 pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -73,86 +132,47 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     running_witnesses: &[Mat<F>],
     commitment: &L,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
-    if fresh_claims.is_empty() {
-        return Err(PiCcsError::InvalidInput(
-            "paper_exact_prove: empty fresh claim list".into(),
-        ));
-    }
-    if fresh_claims.len() != fresh_witnesses.len() {
-        return Err(PiCcsError::InvalidInput(
-            "paper_exact_prove: fresh claim/witness count mismatch".into(),
-        ));
-    }
-    if running_claims.len() != running_witnesses.len() {
-        return Err(PiCcsError::InvalidInput(
-            "paper_exact_prove: running claim/witness count mismatch".into(),
-        ));
-    }
-
-    let (dims, challenges) =
-        pi_ccs_rectangular::bind_and_sample(transcript, params, structure, fresh_claims, running_claims)?;
-    let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.ell_n)?;
-    let initial_fe = paper_fe_initial(structure, &challenges, fresh_claims.len(), running_claims)?;
-
-    let mut fe_oracle = PaperRectangularFeOracle::new(
-        structure,
-        fresh_witnesses,
-        running_witnesses,
-        challenges.clone(),
-        prior_point,
-        dims.ell_n,
-        dims.d_sc,
-    )?;
-    let fe = pi_ccs_rectangular::prove_phase(
+    let (outputs, proof, _) = paper_exact_prove_with_trace(
         transcript,
-        crate::engines::utils::PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG,
-        initial_fe,
-        &mut fe_oracle,
-    )?;
-
-    let mut nc_oracle = PaperRectangularNcOracle::new(
-        structure,
         params,
-        fresh_witnesses,
-        running_witnesses,
-        challenges.clone(),
-        dims.ell_m,
-        dims.d_sc,
-    )?;
-    let nc = pi_ccs_rectangular::prove_phase(
-        transcript,
-        crate::engines::utils::PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG,
-        K::ZERO,
-        &mut nc_oracle,
-    )?;
-
-    let fold_digest = transcript.digest32();
-    let outputs = build_outputs(
         structure,
         fresh_claims,
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        &fe.challenges,
-        &nc.challenges,
-        fold_digest,
         commitment,
     )?;
-    let expected_fe = paper_fe_terminal(
-        structure,
-        &challenges,
-        fresh_claims.len(),
-        prior_point,
-        &fe.challenges,
-        &outputs,
-    )?;
-    let expected_nc = paper_nc_terminal::<F>(params, &challenges, fresh_claims.len(), &nc.challenges, &outputs)?;
-    if fe.final_claim != expected_fe || nc.final_claim != expected_nc {
-        return Err(PiCcsError::SumcheckError(
-            "paper exact terminal evaluation does not match direct output openings".into(),
-        ));
-    }
+    Ok((outputs, proof))
+}
 
-    let proof = pi_ccs_rectangular::assemble_proof(challenges, initial_fe, fe, nc, fold_digest);
+/// PaperExact prover entrypoint for the compact NIFS statement binding.
+///
+/// The two digests are recomputed by the paper layer from authoritative
+/// claims. This function only selects the matching independent transcript
+/// encoding; it does not accept them as proof authority.
+#[allow(clippy::too_many_arguments)]
+pub fn paper_exact_prove_with_instance_digest_and_me_input_handle<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    public_instance_digest: [F; 4],
+    running_accumulator_handle: [F; 4],
+    commitment: &L,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
+    let (outputs, proof, _) = paper_exact_prove_with_trace_and_binding(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        commitment,
+        PaperTranscriptBinding::digests(public_instance_digest, Some(running_accumulator_handle)),
+    )?;
     Ok((outputs, proof))
 }

@@ -21,22 +21,16 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
     };
     let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
     let malformed = CeClaim {
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
         c: commitment,
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO; ell_n],
-        s_col: Vec::new(),
         y_ring: Vec::new(),
         ct: Vec::new(),
-        aux_openings: Vec::new(),
-        y_zcol: Vec::new(),
         m_in: 1,
         fold_digest: [0; 32],
         adv: None,
     };
-    let proof = PiCcsProof::new(Vec::new(), None);
+    let proof = PiCcsProof::new(Vec::new());
 
     let result = catch_unwind(AssertUnwindSafe(|| {
         let mut tr = Poseidon2Transcript::new(b"redteam/raw_pi_ccs_shape");
@@ -69,23 +63,17 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_y_ring() {
     };
     let ell_n = structure.n.next_power_of_two().max(2).trailing_zeros() as usize;
     let claim = CeClaim {
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
         c: commitment,
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO; ell_n],
-        s_col: Vec::new(),
         y_ring: vec![vec![K::ZERO; D]],
         ct: vec![K::ZERO],
-        aux_openings: Vec::new(),
-        y_zcol: Vec::new(),
         m_in: 1,
         fold_digest: [0; 32],
         adv: None,
     };
     let output = claim.clone();
-    let proof = PiCcsProof::new(Vec::new(), None);
+    let proof = PiCcsProof::new(Vec::new());
     let result = catch_unwind(AssertUnwindSafe(|| {
         let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded_y_ring");
         neo_reductions::api::verify(

@@ -12,8 +12,9 @@ pub mod utils;
 // Engine implementation modules
 pub mod optimized_engine;
 pub mod pi_ccs;
+pub mod pi_ccs_joint;
+pub mod pi_ccs_joint_protocol;
 pub mod pi_ccs_protocol;
-pub mod pi_ccs_rectangular;
 pub mod pi_rlc_dec;
 
 #[cfg(feature = "paper-exact")]
@@ -29,4 +30,4 @@ pub use pi_ccs::{OptimizedEngine, PiCcsEngine, PiCcsProof};
 pub use pi_ccs::PaperExactEngine;
 
 #[cfg(feature = "paper-exact")]
-pub use crosscheck_engine::{CrossCheckEngine, CrosscheckCfg};
+pub use crosscheck_engine::CrossCheckEngine;

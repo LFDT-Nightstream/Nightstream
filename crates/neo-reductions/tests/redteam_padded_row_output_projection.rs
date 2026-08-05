@@ -1,3 +1,5 @@
+//! Rejects noncanonical public outputs for the selected padded-row PiCCS protocol.
+
 use std::sync::Arc;
 
 use neo_ajtai::{setup as ajtai_setup, AjtaiSModule, Commitment};
@@ -99,36 +101,6 @@ fn raw_accepts(fixture: &HonestProof, outputs: &[OutputClaim], proof: &PiCcsProo
 }
 
 #[test]
-fn raw_pi_ccs_rejects_unsupported_output_sidecars() {
-    let fixture = honest_proof(b"redteam/raw-pi-ccs/output-sidecars");
-    assert!(
-        raw_accepts(&fixture, &fixture.outputs, &fixture.proof),
-        "baseline proof must verify"
-    );
-
-    let mutations: [(&str, fn(&mut OutputClaim)); 4] = [
-        ("aux_openings", |output| output.aux_openings.push(K::ONE)),
-        ("c_step_coords", |output| output.c_step_coords.push(F::ONE)),
-        ("u_offset", |output| output.u_offset = 1),
-        ("u_len", |output| output.u_len = 1),
-    ];
-    let mut accepted = Vec::new();
-
-    for (name, mutate) in mutations {
-        let mut malformed = fixture.outputs.clone();
-        mutate(&mut malformed[0]);
-        if raw_accepts(&fixture, &malformed, &fixture.proof) {
-            accepted.push(name);
-        }
-    }
-
-    assert!(
-        accepted.is_empty(),
-        "raw Pi_CCS accepted unsupported output sidecars: {accepted:?}"
-    );
-}
-
-#[test]
 fn raw_pi_ccs_rejects_nonzero_fresh_output_y_ring_padding() {
     let fixture = honest_proof(b"redteam/raw-pi-ccs/y-ring-padding");
     let mut malformed = fixture.outputs.clone();
@@ -138,5 +110,30 @@ fn raw_pi_ccs_rejects_nonzero_fresh_output_y_ring_padding() {
     assert!(
         !raw_accepts(&fixture, &malformed, &fixture.proof),
         "raw Pi_CCS accepted a nonzero fresh-output y_ring padding lane"
+    );
+}
+
+#[test]
+fn raw_pi_ccs_rejects_noncanonical_output_widths() {
+    let fixture = honest_proof(b"redteam/raw-pi-ccs/output-widths");
+    assert!(
+        raw_accepts(&fixture, &fixture.outputs, &fixture.proof),
+        "baseline proof must verify"
+    );
+
+    let mut extra_matrix = fixture.outputs.clone();
+    extra_matrix[0]
+        .y_ring
+        .push(vec![K::ZERO; D.next_power_of_two()]);
+    assert!(
+        !raw_accepts(&fixture, &extra_matrix, &fixture.proof),
+        "raw Pi_CCS accepted an extra matrix output"
+    );
+
+    let mut extra_constant = fixture.outputs.clone();
+    extra_constant[0].ct.push(K::ZERO);
+    assert!(
+        !raw_accepts(&fixture, &extra_constant, &fixture.proof),
+        "raw Pi_CCS accepted an extra constant-term output"
     );
 }

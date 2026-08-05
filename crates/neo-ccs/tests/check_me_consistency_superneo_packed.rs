@@ -67,17 +67,11 @@ fn me_consistency_superneo_packed_enforces_constant_term_ct() {
 
     let inst = CeClaim::<_, Fq, K> {
         adv: None,
-        c_step_coords: vec![],
-        u_offset: 0,
-        u_len: 0,
         c,
         X,
         r,
-        s_col: vec![],
         y_ring: vec![y0.clone()],
         ct: vec![y0[0]],
-        aux_openings: vec![],
-        y_zcol: vec![],
         m_in,
         fold_digest: [0u8; 32],
     };

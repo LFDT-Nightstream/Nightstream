@@ -6,6 +6,8 @@ use p3_goldilocks::Goldilocks;
 use p3_symmetric::Permutation;
 use rand_chacha::rand_core::{CryptoRng, RngCore};
 
+const WITNESS_REKEY_DOMAIN: u64 = 0x52_4e_47_5f_57_49_54;
+
 #[derive(Clone)]
 pub struct TranscriptRngBuilder {
     st: [Goldilocks; p2::WIDTH],
@@ -42,6 +44,8 @@ impl TranscriptRngBuilder {
     }
 
     pub fn rekey_with_witness_fields(mut self, label: &'static [u8], ws: &[F]) -> Self {
+        self.absorb_elem(WITNESS_REKEY_DOMAIN);
+        self.absorb_elem(label.len() as u64);
         for &b in label {
             self.absorb_elem(b as u64);
         }

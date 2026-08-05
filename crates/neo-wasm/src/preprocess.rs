@@ -348,24 +348,11 @@ pub(crate) fn wasm_tiny_params() -> NeoParams {
 /// at the requested batch size, together with the F' structure that
 /// matches it.
 ///
-/// The post-parent CE claim has `r ∈ K^{ell_n}` (row-domain sumcheck
-/// challenge) and `s_col ∈ K^{ell_m}` (column-domain point for the NC
-/// check), where
+/// The post-parent CE claim has one evaluation point over the padded row
+/// cube. Its length is `ceil_log2(max(structure.n, structure.m))`.
 ///
-///   ell_n = ceil_log2(next_pow2(F' structure.n))
-///   ell_m = ceil_log2(next_pow2(F' structure.m))
-///
-/// Downstream validation in `compiler.rs:181` reads the actual NIFS
-/// proof's `r.len()` / `s_col.len()` and demands exact equality with
-/// the canonical shape, so tracking them as separate lengths matters
-/// even when they coincide for the current shape.
-///
-/// `r_len` / `s_col_len` feed back into the F' structure (each adds
-/// `len · NIFS_K_LIMB_BITS` bits to the image), so the two lengths and
-/// the structure they index are mutually constrained. Iterate to the
-/// fixed point: seed both, build the structure, recompute the required
-/// lengths, repeat until stable. The dependency is logarithmic in both
-/// directions, so convergence is 1-2 iterations.
+/// `r_len` feeds back into the F' structure, so the point length and the
+/// structure are mutually constrained. Iterate until the value is stable.
 pub(crate) fn wasm_recursive_plan_and_structure(
     sparse_r1cs: &SparseR1cs,
     app_private_var_widths: &[usize],
@@ -377,15 +364,14 @@ pub(crate) fn wasm_recursive_plan_and_structure(
     const C_DATA_ENTRIES: usize = 108;
     // = K_RHO.
     const CHILD_COUNT: u64 = 14;
-    // Safety bound: each sumcheck length contributes linearly to F'
-    // structure rows, so log2(rows) grows by at most ~1 per +1 of either
-    // length. Eight rounds is far more than needed; the bound just guards
+    // Safety bound: the sumcheck length contributes linearly to F' structure
+    // rows, so log2(rows) grows by at most about one per added round. Eight
+    // iterations are more than needed; the bound guards
     // against an unexpected non-monotone iteration.
     const MAX_ITERATIONS: usize = 8;
 
     let limbs = app_private_var_widths.iter().sum::<usize>() + 1;
     let mut r_len = 8usize;
-    let mut s_col_len = 8usize;
     assert_eq!(
         sparse_r1cs.m % batch_size,
         0,
@@ -401,8 +387,6 @@ pub(crate) fn wasm_recursive_plan_and_structure(
             x_active_cols: 5,
             r_len,
             y_ring_inner_lens: vec![64; 8],
-            y_zcol_len: 64,
-            s_col_len,
         };
         let probe_plan = RecursiveStepImagePlan {
             limbs,
@@ -444,18 +428,16 @@ pub(crate) fn wasm_recursive_plan_and_structure(
 
         let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
         let (structure, _) = build_r1cs_f_prime_structure(layout, sparse_r1cs);
-        let required_r = ceil_log2(structure.ccs.n.max(2));
-        let required_s = ceil_log2(structure.ccs.m.max(2));
-        if required_r == r_len && required_s == s_col_len {
+        let required_r = ceil_log2(structure.ccs.n.max(structure.ccs.m).max(2));
+        if required_r == r_len {
             return (plan, structure);
         }
         r_len = required_r;
-        s_col_len = required_s;
     }
 
     panic!(
         "wasm_recursive_plan_and_structure did not converge within {MAX_ITERATIONS} iterations \
-         (last r_len = {r_len}, s_col_len = {s_col_len}); the dependency should be logarithmic, \
+         (last r_len = {r_len}); the dependency should be logarithmic, \
          so non-convergence indicates a deeper protocol mismatch"
     );
 }

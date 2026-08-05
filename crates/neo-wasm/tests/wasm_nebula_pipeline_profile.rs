@@ -196,15 +196,11 @@ fn wasm_nebula_pipeline_profile() {
     let s_mem = plan.circuit();
     let width = relation.low_norm_width_audit();
     let arms = relation.field_arm_shapes();
-    let dims = prep
-        .inner()
-        .prep
-        .nifs_v_circuit_config()
-        .expect("SplitNc dimensions");
+    let padded_rows = structure.n.max(structure.m).next_power_of_two();
+    let ell = padded_rows.ilog2();
     let final_storage = structure_stats(structure);
 
-    assert_ne!(structure.n, structure.m, "profile must exercise rectangular SplitNc");
-    assert_ne!(dims.pi_ccs.ell_n, dims.pi_ccs.ell_m);
+    assert_ne!(structure.n, structure.m, "profile must exercise a rectangular relation");
     assert!(width.total_coordinates <= structure.m);
     assert!(
         structure.m - width.total_coordinates < D,
@@ -286,13 +282,10 @@ fn wasm_nebula_pipeline_profile() {
         final_storage.explicit_nnz,
     );
     println!(
-        "SplitNc dimensions       ell_n={} ell_m={} ell_d={} d_sc={} | row pad={} column pad={}",
-        dims.pi_ccs.ell_n,
-        dims.pi_ccs.ell_m,
-        dims.pi_ccs.ell_d,
-        dims.pi_ccs.d_sc,
-        (1usize << dims.pi_ccs.ell_n) - structure.n,
-        (1usize << dims.pi_ccs.ell_m) - structure.m,
+        "padded one-SumCheck      ell={} | row pad={} column pad={}",
+        ell,
+        padded_rows - structure.n,
+        padded_rows - structure.m,
     );
     println!(
         "batched app overhead     rows=+{} columns=+{} lookup_aux={}/step, {}/batch",
@@ -429,7 +422,7 @@ fn wasm_nebula_pipeline_profile() {
         terminal.final_fold.is_some(),
     );
     println!(
-        "PROFILE_JSON={{\"trace_steps\":{},\"padded_wasm_steps\":{},\"batch_size\":{},\"folded_steps\":{},\"unbatched_folded_steps\":{},\"segments\":{},\"kappa\":{},\"parameter_m\":{},\"k_rho\":{},\"rows\":{},\"columns\":{},\"matrices\":{},\"ell_n\":{},\"ell_m\":{},\"explicit_nnz\":{},\"seeded_blocks\":{},\"geometric_runs\":{},\"geometric_slots\":{},\"preprocess_ms\":{:.3},\"prove_ms\":{:.3},\"verify_ms\":{:.3},\"total_ms\":{:.3}}}",
+        "PROFILE_JSON={{\"trace_steps\":{},\"padded_wasm_steps\":{},\"batch_size\":{},\"folded_steps\":{},\"unbatched_folded_steps\":{},\"segments\":{},\"kappa\":{},\"parameter_m\":{},\"k_rho\":{},\"rows\":{},\"columns\":{},\"matrices\":{},\"ell\":{},\"explicit_nnz\":{},\"seeded_blocks\":{},\"geometric_runs\":{},\"geometric_slots\":{},\"preprocess_ms\":{:.3},\"prove_ms\":{:.3},\"verify_ms\":{:.3},\"total_ms\":{:.3}}}",
         trace.len(),
         padded_wasm_rows,
         batch_size,
@@ -442,8 +435,7 @@ fn wasm_nebula_pipeline_profile() {
         structure.n,
         structure.m,
         structure.t(),
-        dims.pi_ccs.ell_n,
-        dims.pi_ccs.ell_m,
+        ell,
         final_storage.explicit_nnz,
         final_storage.seeded_blocks,
         final_storage.geometric_runs,
@@ -523,12 +515,9 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
     let width = relation.low_norm_width_audit();
     let arms = relation.field_arm_shapes();
     let storage = structure_stats(structure);
-    let dims = prep
-        .inner()
-        .prep
-        .nifs_v_circuit_config()
-        .expect("SplitNc dimensions");
-    assert_ne!(structure.n, structure.m, "production SplitNc must remain rectangular");
+    let padded_rows = structure.n.max(structure.m).next_power_of_two();
+    let ell = padded_rows.ilog2();
+    assert_ne!(structure.n, structure.m, "production relation must remain rectangular");
     assert_eq!(structure.t(), 13);
     assert_eq!(structure.max_degree(), 8);
     assert_eq!(width.total_coordinates.div_ceil(D) * D, structure.m);
@@ -562,13 +551,10 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
         structure.max_degree(),
     );
     println!(
-        "SplitNc                  ell_n={} ell_m={} ell_d={} d_sc={} row_pad={} column_pad={}",
-        dims.pi_ccs.ell_n,
-        dims.pi_ccs.ell_m,
-        dims.pi_ccs.ell_d,
-        dims.pi_ccs.d_sc,
-        (1usize << dims.pi_ccs.ell_n) - structure.n,
-        (1usize << dims.pi_ccs.ell_m) - structure.m,
+        "padded one-SumCheck      ell={} row_pad={} column_pad={}",
+        ell,
+        padded_rows - structure.n,
+        padded_rows - structure.m,
     );
     println!(
         "matrix storage           explicit_nnz={} seeded_blocks={} virtual_seeded_slots={} geometric_runs={} virtual_run_slots={}",
@@ -673,7 +659,7 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
     );
     println!("wall total                 {:>12.2}ms", ms(wall_started.elapsed()));
     println!(
-        "PROFILE_PRODUCTION_JSON={{\"trace_steps\":{},\"padded_wasm_steps\":{},\"batch_size\":{},\"prefix_folds\":{},\"segment_folds\":{},\"kappa\":{},\"k_rho\":{},\"lambda\":{},\"rows\":{},\"columns\":{},\"matrices\":{},\"ell_n\":{},\"ell_m\":{},\"explicit_nnz\":{},\"seeded_blocks\":{},\"geometric_runs\":{},\"preprocess_ms\":{:.3},\"segment_build_ms\":{:.3},\"prefix_ms\":{:.3},\"naive_segment_ms\":{:.3},\"wall_ms\":{:.3}}}",
+        "PROFILE_PRODUCTION_JSON={{\"trace_steps\":{},\"padded_wasm_steps\":{},\"batch_size\":{},\"prefix_folds\":{},\"segment_folds\":{},\"kappa\":{},\"k_rho\":{},\"lambda\":{},\"rows\":{},\"columns\":{},\"matrices\":{},\"ell\":{},\"explicit_nnz\":{},\"seeded_blocks\":{},\"geometric_runs\":{},\"preprocess_ms\":{:.3},\"segment_build_ms\":{:.3},\"prefix_ms\":{:.3},\"naive_segment_ms\":{:.3},\"wall_ms\":{:.3}}}",
         trace.len(),
         segment_steps * profile.batch_size(),
         profile.batch_size(),
@@ -685,8 +671,7 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
         structure.n,
         structure.m,
         structure.t(),
-        dims.pi_ccs.ell_n,
-        dims.pi_ccs.ell_m,
+        ell,
         storage.explicit_nnz,
         storage.seeded_blocks,
         storage.geometric_runs,

@@ -23,8 +23,6 @@ neo-params = { path = "../neo-params" }
 neo-prover-cuda = { path = "../neo-prover-cuda", optional = true }
 neo-reductions = { path = "../neo-reductions" }
 neo-transcript = { path = "../neo-transcript" }
-toy-spartan = { workspace = true }
-bincode = { workspace = true }
 ff = { workspace = true, features = ["derive"] }
 futures = "0.3"
 once_cell = { workspace = true }

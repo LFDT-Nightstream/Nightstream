@@ -1,43 +1,25 @@
 //! NIFS prover construction and static-plan ownership.
 //!
-//! Online Pi_CCS -> Pi_RLC -> Pi_DEC ordering lives in `adapter::fold`; this
-//! module owns reusable plans and fresh-instance construction.
-
-mod dec;
-mod fold;
-mod profile;
-
-pub use profile::{
-    MetalAjtaiProfile, MetalFeProfile, MetalFreshProfile, MetalNcProfile, MetalNifsProfile, MetalPiCcsProfile,
-    MetalPiDecProfile, MetalPiRlcProfile, MetalResidencyProfile,
-};
+//! The selected one-joint NIFS proof uses the canonical host prover. This
+//! module owns reusable Metal plans for fresh-instance construction only.
 
 use std::sync::{Arc, Weak};
-use std::time::{Duration, Instant};
 
 use neo_ajtai::{Commitment, PP};
 use neo_ccs::{LaneCommitments, Mat};
-use neo_fold_clean::frontends::f_prime::compiler::{nifs_ce_shape_from_claim, FPrimeFoldPostSummary};
-use neo_fold_clean::paper::digest::{self, AccumulatorHandle};
 use neo_fold_clean::paper::nifs::{
-    Error, NifsFreshInstancesRequest, NifsFreshSignedUnitAssignment, NifsFreshSignedUnitInstancesRequest,
-    NifsPostFoldSummary, NifsProverAdapter, NifsProverOutput, NifsProverRequest,
+    AcceleratorCrosscheckNifsProver, Error, NifsFreshInstancesRequest, NifsFreshSignedUnitAssignment,
+    NifsFreshSignedUnitInstancesRequest, NifsProverAdapter, NifsProverOutput, NifsProverRequest,
+    OptimizedCpuNifsProver, OptimizedNifsProverAdapter,
 };
-use neo_fold_clean::paper::pi_ccs;
-use neo_fold_clean::paper::reductions::accumulator_sis_circuit::PI_CCS_OUTPUTS_SIS_CONFIG;
-use neo_fold_clean::paper::relations::{CcsClaim, CeClaim, LaneRanges, LaneScheme, Structure};
-use neo_fold_clean::{CcsInstance, CcsWitness, RunningInstance};
+use neo_fold_clean::paper::relations::{CcsClaim, LaneRanges, LaneScheme, Structure};
+use neo_fold_clean::{CcsInstance, CcsWitness};
 use neo_math::ring::Rq;
 use neo_math::{D, F};
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use crate::sumcheck::MetalNcBackend;
-use crate::{
-    MetalActivity, MetalAjtaiLowNormPlan, MetalDecFormPlan, MetalError, MetalFeOraclePlan, MetalResidentWitness,
-    MetalSession, MetalWitnessMasks,
-};
-use dec::split_dec_on_metal;
+use crate::{MetalAjtaiLowNormPlan, MetalError, MetalSession};
 
 /// Stateful Metal implementation of the canonical NIFS prover adapter.
 ///
@@ -47,10 +29,6 @@ pub struct MetalNifsProver {
     session: MetalSession,
     fresh_commitment_plan: Option<FreshCommitmentPlan>,
     fresh_lane_commitment_plan: Option<FreshLaneCommitmentPlan>,
-    dec_form_plan: Option<MetalDecFormPlan>,
-    fe_oracle_plan: Option<MetalFeOraclePlan>,
-    cached_fresh_masks: Option<CachedFreshMasks>,
-    last_profile: Option<MetalNifsProfile>,
 }
 
 struct FreshCommitmentPlan {
@@ -85,42 +63,22 @@ struct FreshLaneCommitmentPlan {
     mem: MetalAjtaiLowNormPlan,
 }
 
-struct CachedFreshMasks {
-    host_commitments: Vec<Commitment>,
-    masks: MetalWitnessMasks,
-    commit_total: Duration,
-    commit_gpu: Duration,
-    lane_commit_gpu: Duration,
-    lane_commit_count: usize,
-}
-
-struct MetalPiCcsOutputsDigest<'a> {
-    session: &'a MetalSession,
-}
-
-impl pi_ccs::PiCcsOutputsDigestBackend for MetalPiCcsOutputsDigest<'_> {
-    fn digest_outputs(&mut self, outputs: &[CeClaim]) -> Result<[F; 4], pi_ccs::Error> {
-        self.session
-            .sis_accumulator_digest_resident(PI_CCS_OUTPUTS_SIS_CONFIG, &digest::pi_ccs_outputs_preimage(outputs))
-            .map_err(|_| pi_ccs::Error::OutputDigestBackend)
-    }
-}
-
 impl MetalNifsProver {
     pub fn new() -> Result<Self, MetalError> {
         Ok(Self {
             session: MetalSession::new()?,
             fresh_commitment_plan: None,
             fresh_lane_commitment_plan: None,
-            dec_form_plan: None,
-            fe_oracle_plan: None,
-            cached_fresh_masks: None,
-            last_profile: None,
         })
     }
 
     pub fn session(&self) -> &MetalSession {
         &self.session
+    }
+
+    /// Wrap this complete Metal selection in an optimized-CPU NIFS crosscheck.
+    pub fn crosschecked(self) -> AcceleratorCrosscheckNifsProver<Self> {
+        AcceleratorCrosscheckNifsProver::new(self)
     }
 
     /// Prepare verifier-owned Metal state before the online fold loop.
@@ -133,7 +91,7 @@ impl MetalNifsProver {
         &mut self,
         log: &neo_ajtai::AjtaiSModule,
         s: &Structure,
-        cache: &OptimizedStructureCache,
+        _cache: &OptimizedStructureCache,
         lanes: Option<&LaneScheme>,
     ) -> Result<(), Error> {
         let cols = s.m.div_ceil(D);
@@ -141,17 +99,7 @@ impl MetalNifsProver {
         if let Some(lanes) = lanes {
             self.ensure_lane_ajtai_plan(lanes, cols)?;
         }
-        self.ensure_dec_form_plan(s, cache)
-            .map_err(|error| backend_failure("prepare static matrix state", error))?;
         Ok(())
-    }
-
-    pub fn last_profile(&self) -> Option<MetalNifsProfile> {
-        self.last_profile
-    }
-
-    pub fn take_last_profile(&mut self) -> Option<MetalNifsProfile> {
-        self.last_profile.take()
     }
 
     fn ensure_ajtai_plan(&mut self, log: &neo_ajtai::AjtaiSModule, cols: usize) -> Result<(), Error> {
@@ -252,32 +200,6 @@ impl MetalNifsProver {
         Ok(())
     }
 
-    fn ensure_dec_form_plan(&mut self, s: &Structure, cache: &OptimizedStructureCache) -> Result<bool, MetalError> {
-        let _ = s;
-        if self
-            .fe_oracle_plan
-            .as_ref()
-            .is_none_or(|plan| !plan.matches(cache.superneo()))
-        {
-            self.fe_oracle_plan = Some(self.session.prepare_fe_oracle(cache.superneo())?);
-        }
-        if self
-            .dec_form_plan
-            .as_ref()
-            .is_none_or(|plan| !plan.matches(cache.superneo()))
-        {
-            self.dec_form_plan = Some(
-                self.session.prepare_dec_ring_forms(
-                    cache.superneo(),
-                    self.fe_oracle_plan
-                        .as_ref()
-                        .expect("FE oracle plan installed above"),
-                )?,
-            );
-        }
-        Ok(true)
-    }
-
     fn build_fresh_signed_unit_instances_inner(
         &mut self,
         log: &neo_ajtai::AjtaiSModule,
@@ -286,7 +208,6 @@ impl MetalNifsProver {
         assignments: &[NifsFreshSignedUnitAssignment],
         lane_scheme: Option<&LaneScheme>,
     ) -> Result<Option<Vec<CcsInstance>>, Error> {
-        self.cached_fresh_masks = None;
         if assignments
             .iter()
             .any(|assignment| assignment.len() != s.m || m_in > assignment.len())
@@ -306,10 +227,9 @@ impl MetalNifsProver {
             return Ok(Some(Vec::new()));
         }
 
-        let commit_started = Instant::now();
         // Layout is witness-major, then ring block, with one positive and one
-        // negative bitset per block. The same upload feeds commitments, FE,
-        // NC, Pi_RLC, and optional Nebula lane commitments.
+        // negative bitset per block. The same upload feeds the full and
+        // optional Nebula lane commitments.
         let mut mask_words = Vec::with_capacity(assignments.len() * cols * 2);
         let mut witnesses = Vec::with_capacity(assignments.len());
         for assignment in assignments {
@@ -333,7 +253,7 @@ impl MetalNifsProver {
             .expect("Ajtai commitment plan installed above");
         let plan = &cached_plan.plan;
         let kappa = cached_plan.kappa;
-        let (commitment_words, commit_gpu) = self
+        let (commitment_words, _commit_gpu) = self
             .session
             .ajtai_low_norm_many_from_masks(plan, &masks, assignments.len())
             .map_err(|error| backend_failure("compute batched Ajtai commitments", error))?;
@@ -347,7 +267,7 @@ impl MetalNifsProver {
             .chunks_exact(words_per_commitment)
             .map(|words| commitment_from_words(words, kappa))
             .collect::<Vec<_>>();
-        let (lane_commitments, lane_commit_gpu) = if lane_scheme.is_some() {
+        let (lane_commitments, _lane_commit_gpu) = if lane_scheme.is_some() {
             let lane_plan = self
                 .fresh_lane_commitment_plan
                 .as_ref()
@@ -382,7 +302,7 @@ impl MetalNifsProver {
                 .collect::<Vec<_>>();
             (Some(lanes), gpu)
         } else {
-            (None, Duration::ZERO)
+            (None, std::time::Duration::ZERO)
         };
         let mut instances = Vec::with_capacity(assignments.len());
         for (index, ((assignment, z), commitment)) in assignments
@@ -403,39 +323,13 @@ impl MetalNifsProver {
                 witness: CcsWitness { w: Vec::new(), Z: z },
             });
         }
-        self.cached_fresh_masks = Some(CachedFreshMasks {
-            host_commitments: commitments,
-            masks,
-            commit_total: commit_started.elapsed(),
-            commit_gpu,
-            lane_commit_gpu,
-            lane_commit_count: lane_commitments.as_ref().map_or(0, Vec::len),
-        });
         Ok(Some(instances))
-    }
-
-    fn post_fold_summary(&self, running: &RunningInstance) -> Result<NifsPostFoldSummary, Error> {
-        let parent = running
-            .parent_authority
-            .as_ref()
-            .ok_or_else(|| backend_unavailable("post-fold running accumulator is missing its Pi_RLC parent"))?;
-        let handle = AccumulatorHandle::from_claims(&running.claims);
-        let f_prime = FPrimeFoldPostSummary {
-            parent_shape: nifs_ce_shape_from_claim(parent, 0),
-            child_count: running.claims.len() as u64,
-            acc_digest: handle.digest_fields(),
-        };
-        Ok(NifsPostFoldSummary::new(Some(handle.digest()), Some(f_prime)))
     }
 }
 
 impl NifsProverAdapter for MetalNifsProver {
     fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
-        self.prove_fold(request)
-    }
-
-    fn requires_recursive_compile_reverify(&self) -> bool {
-        false
+        OptimizedCpuNifsProver.prove(request)
     }
 
     fn build_fresh_instances(
@@ -479,85 +373,13 @@ impl NifsProverAdapter for MetalNifsProver {
     }
 }
 
+impl OptimizedNifsProverAdapter for MetalNifsProver {}
+
 fn commitment_from_words(words: &[u64], kappa: usize) -> Commitment {
     Commitment {
         d: D,
         kappa,
         data: words.iter().copied().map(F::from_u64).collect(),
-    }
-}
-
-fn mix_witnesses_on_metal(
-    session: &MetalSession,
-    nc_backend: &MetalNcBackend<'_>,
-    rhos: &[Mat<F>],
-    witnesses: &[&Mat<F>],
-    fresh_count: usize,
-    resident_id: Option<u64>,
-) -> Result<(MetalResidentWitness, bool), MetalError> {
-    let Some(cols) = witnesses.first().map(|witness| witness.cols()) else {
-        return Err(MetalError::Shape("Pi_RLC witness input is empty"));
-    };
-    if rhos.len() != witnesses.len()
-        || rhos.iter().any(|rho| rho.rows() != D || rho.cols() != D)
-        || witnesses
-            .iter()
-            .any(|witness| witness.rows() != D || witness.cols() != cols)
-    {
-        return Err(MetalError::Shape("Pi_RLC witness inputs have inconsistent dimensions"));
-    }
-    let mut rho_coefficients = Vec::with_capacity(rhos.len() * D * D);
-    for rho in rhos {
-        for row in 0..D {
-            for column in 0..D {
-                let coefficient = neo_math::balanced::to_balanced_i128(rho[(row, column)]);
-                if !(-6..=6).contains(&coefficient) {
-                    return Err(MetalError::Shape(
-                        "Pi_RLC rho entry exceeds the fixed Phi81 challenge bound",
-                    ));
-                }
-                rho_coefficients.push(coefficient as i8);
-            }
-        }
-    }
-    // Prefer the NC plan's existing signed masks. If that representation is
-    // unavailable, upload only fresh witnesses when the running tail still has
-    // a valid resident generation.
-    if let Some(witness) = nc_backend.enqueue_rlc_witness_mix_from_resident_masks(
-        &rho_coefficients,
-        fresh_count,
-        witnesses.len(),
-        cols,
-        resident_id,
-    )? {
-        return Ok((witness, true));
-    }
-    let uploaded_witnesses = if resident_id.is_some() {
-        &witnesses[..fresh_count]
-    } else {
-        witnesses
-    };
-    let witness_words = uploaded_witnesses
-        .iter()
-        .flat_map(|witness| {
-            (0..D).flat_map(move |row| (0..cols).map(move |column| witness[(row, column)].as_canonical_u64()))
-        })
-        .collect::<Vec<_>>();
-    if let Some(resident_id) = resident_id {
-        session
-            .enqueue_rlc_witness_mix_with_resident_id(
-                &rho_coefficients,
-                &witness_words,
-                fresh_count,
-                witnesses.len(),
-                cols,
-                resident_id,
-            )
-            .map(|witness| (witness, false))
-    } else {
-        session
-            .enqueue_rlc_witness_mix(&rho_coefficients, &witness_words, witnesses.len(), cols)
-            .map(|witness| (witness, false))
     }
 }
 
@@ -573,19 +395,5 @@ fn backend_failure(phase: &'static str, error: impl std::fmt::Display) -> Error 
         backend: "metal",
         phase,
         reason: error.to_string(),
-    }
-}
-
-fn activity_delta(before: MetalActivity, after: MetalActivity) -> MetalActivity {
-    MetalActivity {
-        command_buffers: after.command_buffers.saturating_sub(before.command_buffers),
-        dispatches: after.dispatches.saturating_sub(before.dispatches),
-        host_waits: after.host_waits.saturating_sub(before.host_waits),
-        allocated_bytes: after.allocated_bytes.saturating_sub(before.allocated_bytes),
-        uploaded_bytes: after.uploaded_bytes.saturating_sub(before.uploaded_bytes),
-        downloaded_bytes: after
-            .downloaded_bytes
-            .saturating_sub(before.downloaded_bytes),
-        current_allocated_bytes: after.current_allocated_bytes,
     }
 }

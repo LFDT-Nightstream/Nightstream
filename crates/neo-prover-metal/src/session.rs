@@ -3,9 +3,8 @@
 //! Protocol phase ordering stays in the adapter. This layer owns command
 //! encoding and accounts for online-path CPU reads, writes, and waits.
 
-use std::cell::{Cell, RefCell};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use dispatch2::DispatchData;
 use objc2::rc::Retained;
@@ -22,28 +21,11 @@ use crate::{
 };
 
 mod ajtai_batch;
-mod carrier;
-mod dec;
-mod dec_public;
-mod dec_seeded;
-mod fe_streaming;
-mod oracle;
-mod resident;
-mod sis;
-pub(crate) use carrier::{MetalResidentWitness, MetalResidentWitnessSnapshot};
-pub(crate) use dec::{MetalAjtaiRingForms, MetalDecFormPlan};
-pub(crate) use dec_public::MetalDecPublicProjection;
-pub(crate) use oracle::{MetalDeferredEvalTable, MetalDeferredMcsRowTables, MetalFeOraclePlan};
-pub(crate) use resident::{
-    MetalFeSumcheckInputs, MetalFeSumcheckPlan, MetalFeTableInput, MetalNcDigitInput, MetalNcFinalState,
-    MetalNcSumcheckInputs, MetalNcSumcheckPlan, MetalNcSumcheckTrace, MetalSumcheckTrace, MetalWitnessMasks,
-};
-use sis::MetalSisMap;
+mod masks;
+pub(crate) use masks::MetalWitnessMasks;
 
 static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/nightstream-metal.metallib"));
 static POSEIDON2_CONSTANT_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/poseidon2.constants"));
-static NEXT_SESSION_OWNERSHIP_ID: AtomicU64 = AtomicU64::new(1);
-
 type Device = Retained<ProtocolObject<dyn MTLDevice>>;
 type Queue = Retained<ProtocolObject<dyn MTLCommandQueue>>;
 type Buffer = Retained<ProtocolObject<dyn MTLBuffer>>;
@@ -64,90 +46,32 @@ struct ActivityCounters {
 /// The primary queue preserves dependencies within the proof pipeline. The
 /// independent queue is reserved for work that can overlap that pipeline.
 pub struct MetalSession {
-    ownership_id: u64,
     device: Device,
     queue: Queue,
-    independent_queue: Queue,
     // Primitive arithmetic, hashing, and transcript pipelines.
     goldilocks_ops: Pipeline,
     goldilocks_ops_native: Pipeline,
     copy_k_words: Pipeline,
-    copy_base_to_k: Pipeline,
     kx_mul_add: Pipeline,
     poseidon2_permute: Pipeline,
     poseidon2_hash: Pipeline,
     poseidon2_hash_simd: Pipeline,
     poseidon2_hash_uniform: Pipeline,
     poseidon2_hash_uniform_simd: Pipeline,
-    transcript_absorb_challenge2: Pipeline,
     poseidon2_constants: Buffer,
-    // Ajtai and SIS commitment pipelines.
+    // Ajtai commitment pipelines.
     ajtai_mat_vec: Pipeline,
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
     seeded_ajtai_matrix: Pipeline,
-    sis_balanced_ternary_message: Pipeline,
-    sis_pack_signed_masks: Pipeline,
-    // Shared table construction and sumcheck pipelines.
     fold_k_table: Pipeline,
-    tensor_point_expand_k: Pipeline,
-    fe_carried_mask_lin_comb: Pipeline,
-    fe_weighted_basis_dots: Pipeline,
-    fe_weighted_row_table: Pipeline,
-    fe_build_mcs_row_tables: Pipeline,
-    fe_add_sparse_base_rows: Pipeline,
-    fe_seeded_k_partials: Pipeline,
-    fe_seeded_k_reduce: Pipeline,
-    fe_stream_mcs_round_partials: Pipeline,
-    fe_stream_mcs_factored_round_partials: Pipeline,
-    fe_stream_eval_round_partials: Pipeline,
-    fe_stream_constant_round_partials: Pipeline,
-    fe_fold_base_tables_in_place: Pipeline,
-    fe_fold_k_tables_live: Pipeline,
-    fe_copy_k_tables_live: Pipeline,
-    fe_round_partials: Pipeline,
-    nc_round_mask_partials: Pipeline,
-    nc_fold_signed_masks: Pipeline,
-    nc_expand_mask_basis: Pipeline,
-    nc_materialize_mask_dense: Pipeline,
-    nc_round_partials: Pipeline,
-    nc_reduce_partials: Pipeline,
-    sumcheck_reduce_partials: Pipeline,
-    nc_fold_compact: Pipeline,
-    // Cross-phase witness mixing and Pi_DEC pipelines.
-    rlc_witness_mix: Pipeline,
-    rlc_witness_mix_dense_fresh_resident_masks: Pipeline,
-    rlc_witness_mix_signed_masks: Pipeline,
-    dec_split_base2_masks: Pipeline,
-    dec_build_ring_forms: Pipeline,
-    dec_build_parallel_original_forms: Pipeline,
-    dec_build_parallel_original_form_tiles: Pipeline,
-    dec_reduce_parallel_original_form_tiles: Pipeline,
-    dec_bar_ring_forms_in_place: Pipeline,
-    dec_build_seeded_ring_forms: Pipeline,
-    dec_add_bar_seeded_ring_forms: Pipeline,
-    dec_add_sparse_ring_forms: Pipeline,
+    // Shared convolution kernels for batched full and lane commitments.
     dec_ring_partials: Pipeline,
     dec_ring_sum_chunks: Pipeline,
-    dec_sparse_ring_partials: Pipeline,
-    dec_sparse_ring_sum_chunks: Pipeline,
     dec_ring_reduce_phi81: Pipeline,
-    dec_y_zcol_partials: Pipeline,
-    dec_y_zcol_reduce: Pipeline,
     ajtai_lane_ring_partials: Pipeline,
     ajtai_lane_ring_sum_chunks: Pipeline,
     ajtai_lane_ring_reduce_phi81: Pipeline,
-    // Structure-static caches, the current running generation, and bounded
-    // recycling slots. Protocol code sees opaque plans rather than buffers.
-    sis_maps: RefCell<Vec<MetalSisMap>>,
-    resident_running: RefCell<Option<(u64, carrier::MetalResidentChildren)>>,
-    recycled_nc_plan: RefCell<Option<MetalNcSumcheckPlan>>,
-    recycled_ajtai_forms: RefCell<Option<Buffer>>,
-    recycled_seeded_forms: RefCell<Option<Buffer>>,
-    recycled_dec_partials: RefCell<Option<Buffer>>,
-    next_resident_id: Cell<u64>,
-    fe_sumcheck_duration: Cell<Duration>,
-    nc_sumcheck_duration: Cell<Duration>,
     activity: ActivityCounters,
 }
 
@@ -184,8 +108,6 @@ impl MetalSession {
         let device = MTLCreateSystemDefaultDevice().ok_or(MetalError::Device)?;
         let queue = device.newCommandQueue().ok_or(MetalError::Queue)?;
         queue.setLabel(Some(&NSString::from_str("nightstream.compute")));
-        let independent_queue = device.newCommandQueue().ok_or(MetalError::Queue)?;
-        independent_queue.setLabel(Some(&NSString::from_str("nightstream.independent")));
         let data = DispatchData::from_static_bytes(METALLIB);
         let library = device
             .newLibraryWithData_error(&data)
@@ -193,157 +115,50 @@ impl MetalSession {
         let goldilocks_ops = pipeline(&device, &library, "goldilocks_ops")?;
         let goldilocks_ops_native = pipeline(&device, &library, "goldilocks_ops_native")?;
         let copy_k_words = pipeline(&device, &library, "copy_k_words")?;
-        let copy_base_to_k = pipeline(&device, &library, "copy_base_to_k")?;
         let kx_mul_add = pipeline(&device, &library, "kx_mul_add")?;
         let poseidon2_permute = pipeline(&device, &library, "poseidon2_permute_states")?;
         let poseidon2_hash = pipeline(&device, &library, "poseidon2_hash_fields")?;
         let poseidon2_hash_simd = pipeline(&device, &library, "poseidon2_hash_fields_simd")?;
         let poseidon2_hash_uniform = pipeline(&device, &library, "poseidon2_hash_uniform")?;
         let poseidon2_hash_uniform_simd = pipeline(&device, &library, "poseidon2_hash_uniform_simd")?;
-        let transcript_absorb_challenge2 = pipeline(&device, &library, "transcript_absorb_challenge2")?;
         let poseidon2_constants = buffer_from_slice(&device, &poseidon2_round_constants())?;
         let ajtai_mat_vec = pipeline(&device, &library, "ajtai_mat_vec")?;
         let ajtai_low_norm_products = pipeline(&device, &library, "ajtai_low_norm_products")?;
         let ajtai_reduce_columns = pipeline(&device, &library, "ajtai_reduce_columns")?;
         let seeded_ajtai_matrix = pipeline(&device, &library, "seeded_ajtai_matrix")?;
-        let sis_balanced_ternary_message = pipeline(&device, &library, "sis_balanced_ternary_message")?;
-        let sis_pack_signed_masks = pipeline(&device, &library, "sis_pack_signed_masks")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
-        let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
-        let fe_carried_mask_lin_comb = pipeline(&device, &library, "fe_carried_mask_lin_comb")?;
-        let fe_weighted_basis_dots = pipeline(&device, &library, "fe_weighted_basis_dots")?;
-        let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
-        let fe_build_mcs_row_tables = pipeline(&device, &library, "fe_build_mcs_row_tables")?;
-        let fe_add_sparse_base_rows = pipeline(&device, &library, "fe_add_sparse_base_rows")?;
-        let fe_seeded_k_partials = pipeline(&device, &library, "fe_seeded_k_partials")?;
-        let fe_seeded_k_reduce = pipeline(&device, &library, "fe_seeded_k_reduce")?;
-        let fe_stream_mcs_round_partials = pipeline(&device, &library, "fe_stream_mcs_round_partials")?;
-        let fe_stream_mcs_factored_round_partials =
-            pipeline(&device, &library, "fe_stream_mcs_factored_round_partials")?;
-        let fe_stream_eval_round_partials = pipeline(&device, &library, "fe_stream_eval_round_partials")?;
-        let fe_stream_constant_round_partials = pipeline(&device, &library, "fe_stream_constant_round_partials")?;
-        let fe_fold_base_tables_in_place = pipeline(&device, &library, "fe_fold_base_tables_in_place")?;
-        let fe_fold_k_tables_live = pipeline(&device, &library, "fe_fold_k_tables_live")?;
-        let fe_copy_k_tables_live = pipeline(&device, &library, "fe_copy_k_tables_live")?;
-        let fe_round_partials = pipeline(&device, &library, "fe_round_partials")?;
-        let nc_round_mask_partials = pipeline(&device, &library, "nc_round_mask_partials")?;
-        let nc_fold_signed_masks = pipeline(&device, &library, "nc_fold_signed_masks")?;
-        let nc_expand_mask_basis = pipeline(&device, &library, "nc_expand_mask_basis")?;
-        let nc_materialize_mask_dense = pipeline(&device, &library, "nc_materialize_mask_dense")?;
-        let nc_round_partials = pipeline(&device, &library, "nc_round_partials")?;
-        let nc_reduce_partials = pipeline(&device, &library, "nc_reduce_partials")?;
-        let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
-        let nc_fold_compact = pipeline(&device, &library, "nc_fold_compact")?;
-        let rlc_witness_mix = pipeline(&device, &library, "rlc_witness_mix")?;
-        let rlc_witness_mix_dense_fresh_resident_masks =
-            pipeline(&device, &library, "rlc_witness_mix_dense_fresh_resident_masks")?;
-        let rlc_witness_mix_signed_masks = pipeline(&device, &library, "rlc_witness_mix_signed_masks")?;
-        let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
-        let dec_build_ring_forms = pipeline(&device, &library, "dec_build_ring_forms")?;
-        let dec_build_parallel_original_forms = pipeline(&device, &library, "dec_build_parallel_original_forms")?;
-        let dec_build_parallel_original_form_tiles =
-            pipeline(&device, &library, "dec_build_parallel_original_form_tiles")?;
-        let dec_reduce_parallel_original_form_tiles =
-            pipeline(&device, &library, "dec_reduce_parallel_original_form_tiles")?;
-        let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
-        let dec_build_seeded_ring_forms = pipeline(&device, &library, "dec_build_seeded_ring_forms")?;
-        let dec_add_bar_seeded_ring_forms = pipeline(&device, &library, "dec_add_bar_seeded_ring_forms")?;
-        let dec_add_sparse_ring_forms = pipeline(&device, &library, "dec_add_sparse_ring_forms")?;
         let dec_ring_partials = pipeline(&device, &library, "dec_ring_partials")?;
         let dec_ring_sum_chunks = pipeline(&device, &library, "dec_ring_sum_chunks")?;
-        let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
-        let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
-        let dec_y_zcol_partials = pipeline(&device, &library, "dec_y_zcol_partials")?;
-        let dec_y_zcol_reduce = pipeline(&device, &library, "dec_y_zcol_reduce")?;
         let ajtai_lane_ring_partials = pipeline(&device, &library, "ajtai_lane_ring_partials")?;
         let ajtai_lane_ring_sum_chunks = pipeline(&device, &library, "ajtai_lane_ring_sum_chunks")?;
         let ajtai_lane_ring_reduce_phi81 = pipeline(&device, &library, "ajtai_lane_ring_reduce_phi81")?;
         Ok(Self {
-            ownership_id: NEXT_SESSION_OWNERSHIP_ID.fetch_add(1, Ordering::Relaxed),
             device,
             queue,
-            independent_queue,
             goldilocks_ops,
             goldilocks_ops_native,
             copy_k_words,
-            copy_base_to_k,
             kx_mul_add,
             poseidon2_permute,
             poseidon2_hash,
             poseidon2_hash_simd,
             poseidon2_hash_uniform,
             poseidon2_hash_uniform_simd,
-            transcript_absorb_challenge2,
             poseidon2_constants,
             ajtai_mat_vec,
             ajtai_low_norm_products,
             ajtai_reduce_columns,
             seeded_ajtai_matrix,
-            sis_balanced_ternary_message,
-            sis_pack_signed_masks,
             fold_k_table,
-            tensor_point_expand_k,
-            fe_carried_mask_lin_comb,
-            fe_weighted_basis_dots,
-            fe_weighted_row_table,
-            fe_build_mcs_row_tables,
-            fe_add_sparse_base_rows,
-            fe_seeded_k_partials,
-            fe_seeded_k_reduce,
-            fe_stream_mcs_round_partials,
-            fe_stream_mcs_factored_round_partials,
-            fe_stream_eval_round_partials,
-            fe_stream_constant_round_partials,
-            fe_fold_base_tables_in_place,
-            fe_fold_k_tables_live,
-            fe_copy_k_tables_live,
-            fe_round_partials,
-            nc_round_mask_partials,
-            nc_fold_signed_masks,
-            nc_expand_mask_basis,
-            nc_materialize_mask_dense,
-            nc_round_partials,
-            nc_reduce_partials,
-            sumcheck_reduce_partials,
-            nc_fold_compact,
-            rlc_witness_mix,
-            rlc_witness_mix_dense_fresh_resident_masks,
-            rlc_witness_mix_signed_masks,
-            dec_split_base2_masks,
-            dec_build_ring_forms,
-            dec_build_parallel_original_forms,
-            dec_build_parallel_original_form_tiles,
-            dec_reduce_parallel_original_form_tiles,
-            dec_bar_ring_forms_in_place,
-            dec_build_seeded_ring_forms,
-            dec_add_bar_seeded_ring_forms,
-            dec_add_sparse_ring_forms,
             dec_ring_partials,
             dec_ring_sum_chunks,
-            dec_sparse_ring_partials,
-            dec_sparse_ring_sum_chunks,
             dec_ring_reduce_phi81,
-            dec_y_zcol_partials,
-            dec_y_zcol_reduce,
             ajtai_lane_ring_partials,
             ajtai_lane_ring_sum_chunks,
             ajtai_lane_ring_reduce_phi81,
-            sis_maps: RefCell::new(Vec::new()),
-            resident_running: RefCell::new(None),
-            recycled_nc_plan: RefCell::new(None),
-            recycled_ajtai_forms: RefCell::new(None),
-            recycled_seeded_forms: RefCell::new(None),
-            recycled_dec_partials: RefCell::new(None),
-            next_resident_id: Cell::new(1),
-            fe_sumcheck_duration: Cell::new(Duration::ZERO),
-            nc_sumcheck_duration: Cell::new(Duration::ZERO),
             activity: ActivityCounters::default(),
         })
-    }
-
-    pub(crate) fn ownership_id(&self) -> u64 {
-        self.ownership_id
     }
 
     pub fn goldilocks_ops(&self, lhs: &[u64], rhs: &[u64]) -> Result<Vec<GoldilocksOps>, MetalError> {
@@ -821,16 +636,7 @@ impl MetalSession {
         self.ajtai_low_norm_with_plan_on_queue(plan, message, &self.queue)
     }
 
-    pub(super) fn ajtai_low_norm_with_plan_independent(
-        &self,
-        plan: &MetalAjtaiLowNormPlan,
-        message: &[i8],
-    ) -> Result<Vec<u64>, MetalError> {
-        self.ajtai_low_norm_with_plan_on_queue(plan, message, &self.independent_queue)
-    }
-
-    /// Packs the signed-unit message and executes the prepared commitment on the
-    /// selected queue; the independent queue permits overlap with the fold path.
+    /// Packs the signed-unit message and executes the prepared commitment.
     fn ajtai_low_norm_with_plan_on_queue(
         &self,
         plan: &MetalAjtaiLowNormPlan,
@@ -1075,21 +881,8 @@ impl MetalSession {
         Ok(buffer)
     }
 
-    pub(super) fn record_host_write(&self, bytes: usize) {
-        self.activity
-            .uploaded_bytes
-            .fetch_add(bytes as u64, Ordering::Relaxed);
-    }
-
     fn command_buffer(&self, label: &str) -> Result<Retained<ProtocolObject<dyn MTLCommandBuffer>>, MetalError> {
         self.command_buffer_on(&self.queue, label)
-    }
-
-    fn independent_command_buffer(
-        &self,
-        label: &str,
-    ) -> Result<Retained<ProtocolObject<dyn MTLCommandBuffer>>, MetalError> {
-        self.command_buffer_on(&self.independent_queue, label)
     }
 
     fn command_buffer_on(
@@ -1115,43 +908,9 @@ impl MetalSession {
         dispatch(encoder, pipeline, elements);
     }
 
-    fn dispatch_threadgroups(
-        &self,
-        encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>,
-        _pipeline: &ProtocolObject<dyn MTLComputePipelineState>,
-        groups: usize,
-        threads: usize,
-    ) {
-        self.activity.dispatches.fetch_add(1, Ordering::Relaxed);
-        encoder.dispatchThreadgroups_threadsPerThreadgroup(
-            MTLSize {
-                width: groups,
-                height: 1,
-                depth: 1,
-            },
-            MTLSize {
-                width: threads,
-                height: 1,
-                depth: 1,
-            },
-        );
-    }
-
     fn finish(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {
         self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
         finish(command)
-    }
-
-    // Commit without a host wait. Queue ordering keeps later commands correct
-    // while allowing the CPU to continue encoding independent work.
-    fn submit(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) {
-        command.commit();
-    }
-
-    // Waiting is reserved for a real CPU dependency or an explicit readback.
-    fn wait(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {
-        self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
-        wait(command)
     }
 
     fn read_buffer<T: Copy>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {
@@ -1159,18 +918,6 @@ impl MetalSession {
             .downloaded_bytes
             .fetch_add((len * size_of::<T>()) as u64, Ordering::Relaxed);
         read_buffer(buffer, len)
-    }
-
-    fn read_buffer_range<T: Copy>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, start: usize, len: usize) -> Vec<T> {
-        self.activity
-            .downloaded_bytes
-            .fetch_add((len * size_of::<T>()) as u64, Ordering::Relaxed);
-        let mut out = Vec::<T>::with_capacity(len);
-        unsafe {
-            std::ptr::copy_nonoverlapping(buffer.contents().as_ptr().cast::<T>().add(start), out.as_mut_ptr(), len);
-            out.set_len(len);
-        }
-        out
     }
 
     pub fn device_info(&self) -> Result<MetalDeviceInfo, MetalError> {
@@ -1200,15 +947,6 @@ impl MetalSession {
         self.activity.allocated_bytes.store(0, Ordering::Relaxed);
         self.activity.uploaded_bytes.store(0, Ordering::Relaxed);
         self.activity.downloaded_bytes.store(0, Ordering::Relaxed);
-    }
-
-    pub(crate) fn reset_sumcheck_durations(&self) {
-        self.fe_sumcheck_duration.set(Duration::ZERO);
-        self.nc_sumcheck_duration.set(Duration::ZERO);
-    }
-
-    pub(crate) fn sumcheck_durations(&self) -> (Duration, Duration) {
-        (self.fe_sumcheck_duration.get(), self.nc_sumcheck_duration.get())
     }
 }
 
@@ -1279,17 +1017,6 @@ fn wait(command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError
         return Err(MetalError::Execution(format!("{error:?}")));
     }
     Ok(())
-}
-
-fn nonempty(values: &[u64]) -> &[u64] {
-    // Metal does not provide a useful zero-length binding. Kernels use shape
-    // metadata to ignore this sentinel whenever the logical input is empty.
-    static ZERO: [u64; 1] = [0];
-    if values.is_empty() {
-        &ZERO
-    } else {
-        values
-    }
 }
 
 pub(super) fn command_gpu_duration(command: &ProtocolObject<dyn MTLCommandBuffer>) -> std::time::Duration {

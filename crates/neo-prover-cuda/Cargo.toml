@@ -18,43 +18,15 @@ default = []
 # without a GPU or the cuda-oxide codegen backend.
 cuda = [
     "dep:cuda-core",
-    "dep:cuda-device",
-    "dep:cuda-host",
-    "dep:rayon",
-    "dep:serde_json",
-    "dep:bellpepper",
-    "dep:bellpepper-core",
-    "dep:ff",
-    "dep:sha2",
 ]
 # Per-phase stderr timings, following the workspace perf-timers convention.
-perf-timers = ["neo-reductions/perf-timers", "neo-fold-clean/perf-timers"]
+perf-timers = ["neo-fold-clean/perf-timers"]
 
 [dependencies]
 cuda-core = { git = "https://github.com/NVlabs/cuda-oxide.git", rev = "baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8", optional = true }
-cuda-device = { git = "https://github.com/NVlabs/cuda-oxide.git", rev = "baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8", optional = true }
-cuda-host = { git = "https://github.com/NVlabs/cuda-oxide.git", rev = "baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8", optional = true }
-neo-ajtai = { path = "../neo-ajtai" }
-neo-ccs = { path = "../neo-ccs" }
 neo-fold-clean = { path = "../neo-fold-clean" }
-neo-math = { path = "../neo-math" }
-neo-reductions = { path = "../neo-reductions" }
-neo-transcript = { path = "../neo-transcript" }
-p3-field = { workspace = true }
-rand = { workspace = true }
-rand_chacha = { workspace = true }
-rayon = { workspace = true, optional = true }
-# Parity-bin proof byte comparison only; gated behind `cuda` with the bin.
-serde_json = { workspace = true, optional = true }
-# SHA-256 serial-pair workload for the parity bin's `e2e_bench` gate only.
-bellpepper = { workspace = true, optional = true }
-bellpepper-core = { workspace = true, optional = true }
-ff = { workspace = true, optional = true }
-sha2 = { version = "0.10", optional = true }
-thiserror = { workspace = true }
 
-[[bin]]
-name = "parity"
-path = "src/bin/parity/main.rs"
-required-features = ["cuda"]
-test = false
+[dev-dependencies]
+neo-ccs = { path = "../neo-ccs" }
+neo-math = { path = "../neo-math" }
+p3-field = { workspace = true }

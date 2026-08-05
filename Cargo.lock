@@ -660,27 +660,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cuda-device"
-version = "0.2.1"
-source = "git+https://github.com/NVlabs/cuda-oxide.git?rev=baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8#baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8"
-dependencies = [
- "cuda-macros",
-]
-
-[[package]]
-name = "cuda-host"
-version = "0.2.1"
-source = "git+https://github.com/NVlabs/cuda-oxide.git?rev=baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8#baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8"
-dependencies = [
- "cuda-core",
- "cuda-macros",
- "half 2.7.1",
- "libnvvm-sys",
- "nvjitlink-sys",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "cuda-macros"
 version = "0.2.1"
 source = "git+https://github.com/NVlabs/cuda-oxide.git?rev=baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8#baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8"
@@ -1324,15 +1303,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
-name = "libnvvm-sys"
-version = "0.2.1"
-source = "git+https://github.com/NVlabs/cuda-oxide.git?rev=baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8#baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8"
-dependencies = [
- "libloading",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "libredox"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1510,25 +1480,11 @@ dependencies = [
 name = "neo-prover-cuda"
 version = "0.1.0"
 dependencies = [
- "bellpepper",
- "bellpepper-core",
  "cuda-core",
- "cuda-device",
- "cuda-host",
- "ff",
- "neo-ajtai",
  "neo-ccs",
  "neo-fold-clean",
  "neo-math",
- "neo-reductions",
- "neo-transcript",
  "p3-field 0.5.3",
- "rand 0.9.5",
- "rand_chacha 0.9.0",
- "rayon",
- "serde_json",
- "sha2",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1550,29 +1506,6 @@ dependencies = [
  "rayon",
  "serde_json",
  "thiserror 2.0.18",
-]
-
-[[package]]
-name = "neo-prover-metal-bench"
-version = "0.1.0"
-dependencies = [
- "bellpepper",
- "bellpepper-core",
- "ff",
- "neo-ajtai",
- "neo-ccs",
- "neo-fold-clean",
- "neo-math",
- "neo-params",
- "neo-prover-metal",
- "neo-wasm",
- "p3-field 0.5.3",
- "rayon",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.18",
- "wat",
 ]
 
 [[package]]
@@ -1624,7 +1557,6 @@ dependencies = [
 name = "neo-wasm"
 version = "0.1.0"
 dependencies = [
- "bincode",
  "ff",
  "futures",
  "neo-ajtai",
@@ -1649,7 +1581,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "thiserror 2.0.18",
- "toy-spartan",
  "wasmparser 0.240.0",
  "wasmtime",
  "wat",
@@ -1729,15 +1660,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
-]
-
-[[package]]
-name = "nvjitlink-sys"
-version = "0.2.1"
-source = "git+https://github.com/NVlabs/cuda-oxide.git?rev=baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8#baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8"
-dependencies = [
- "libloading",
- "thiserror 2.0.18",
 ]
 
 [[package]]

@@ -196,18 +196,19 @@ cargo test -p neo-reductions --release
 | `FoldingMode::PaperExact`             | Independent O(2^ell) canonical reference             |
 | `FoldingMode::OptimizedWithCrosscheck`| Concurrent exact output and proof-byte comparison     |
 
-Per project policy in [`CLAUDE.md`](CLAUDE.md), tests always use `FoldingMode::Optimized` unless the paper-exact engine is explicitly requested.
+Per project policy in [`AGENTS.md`](AGENTS.md), tests use
+`FoldingMode::Optimized` unless the paper-exact engine is explicitly
+requested.
 
-In `neo-reductions`, the normal optimized PiCCS API always produces
-`PaperRectangularV1`. The old accelerator and block/lane protocol is isolated
-below `optimized_engine::legacy_split_nc`. The fixed-profile recursive circuit
-still uses that explicit legacy path while its canonical R1CS migration is
-open; it is not evidence for PaperExact or Lean conformance.
+In `neo-reductions`, PaperExact and the optimized engine implement
+`PaddedRowIdentityV1`. It zero-pads the rectangular relation, adds the padded
+identity matrix, and runs one joint 24-round PiCCS SumCheck. The production
+recursive circuit uses the same protocol and transcript profile.
 
 Run the focused cross-check tests with:
 
 ```bash
-cargo test -p neo-reductions --release --features paper-exact --test paper_rectangular_parity crosscheck
+cargo test -p neo-reductions --release --features paper-exact --test padded_row_identity_parity public_crosscheck
 ```
 
 ### Debugging and Profiling
@@ -222,7 +223,7 @@ cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored -
 cargo test -p neo-fold-clean --release --test perf_fibonacci_bits -- --ignored --nocapture fibonacci_decider_r1cs_shape_snapshot
 ```
 
-For CPU/memory profiling see [`scripts/profile_for_ai.sh`](scripts/profile_for_ai.sh), [`scripts/profile_xctrace.sh`](scripts/profile_xctrace.sh), and [`scripts/profile_memory_deep.sh`](scripts/profile_memory_deep.sh). Usage is documented in [`CLAUDE.md`](CLAUDE.md).
+For CPU/memory profiling see [`scripts/profile_for_ai.sh`](scripts/profile_for_ai.sh), [`scripts/profile_xctrace.sh`](scripts/profile_xctrace.sh), and [`scripts/profile_memory_deep.sh`](scripts/profile_memory_deep.sh). Usage is documented in [`AGENTS.md`](AGENTS.md).
 
 ### Formal (Lean)
 

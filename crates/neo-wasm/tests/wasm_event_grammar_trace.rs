@@ -7,10 +7,10 @@
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
-use neo_wasm::event_grammar::{GrammarEvent, HostEventGrammar, ImportTemplate, Limb, SlotSource};
+use neo_wasm::event_grammar::{GrammarEvent, HostEventGrammar, ImportTemplate, Limb, MemoryBase, SlotSource};
 use neo_wasm::layout::{COL_GATHER_ACTIVE, COL_GRAMMAR_MODE_AFTER, COL_RAW_HOST_CALL};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{WasmRowKind, WasmVmStep};
+use neo_wasm::{WasmGrammarSlotKind, WasmRowKind, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 const ZERO: SlotSource = SlotSource::Const(0);
@@ -280,7 +280,7 @@ fn i64_result_lane_writes() {
             row.row_kind.is_host_event_gather()
                 && row
                     .grammar_rom_slot
-                    .is_some_and(|rom| rom.kind == 2 && rom.limb == 0)
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant == 0)
         })
         .expect("result lo slot row");
     let write = lo_row.stack_write0.expect("result push");
@@ -314,7 +314,7 @@ fn i64_result_lane_writes() {
             row.row_kind.is_host_event_gather()
                 && row
                     .grammar_rom_slot
-                    .is_some_and(|rom| rom.kind == 2 && rom.limb == 1)
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant == 1)
         })
         .expect("result hi slot row");
     assert_eq!(
@@ -419,7 +419,7 @@ fn advice_import_pushes_without_absorbing() {
         .iter()
         .find(|row| {
             row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == 2 && rom.limb == 0)
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant == 0)
         })
         .expect("advice result-lo row");
     assert_eq!(lo_row.stack_write0.expect("push").value_lo, 42);
@@ -598,7 +598,9 @@ fn ccs_rejects_forged_gather_word() {
         .iter()
         .find(|row| {
             row.row_kind.is_host_event_gather()
-                && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 0)
+                && row
+                    .grammar_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Const)
                 && row.state_before.grammar.slot_cursor == 0
         })
         .expect("discriminant slot row");
@@ -614,7 +616,12 @@ fn ccs_rejects_redirected_gather_read() {
     let trace = grammar_trace();
     let arg_slot_row = trace
         .iter()
-        .find(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 1))
+        .find(|row| {
+            row.row_kind.is_host_event_gather()
+                && row
+                    .grammar_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Arg)
+        })
         .expect("arg slot row");
     let mut witness = build_witness_vector(arg_slot_row);
     common::assert_satisfied(&witness, "untampered arg slot row");
@@ -648,7 +655,12 @@ fn memory_rows_reject_forged_rom_claim() {
 
     let idx = trace
         .iter()
-        .position(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 0))
+        .position(|row| {
+            row.row_kind.is_host_event_gather()
+                && row
+                    .grammar_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Const)
+        })
         .expect("const slot row");
     if let Some(rom) = &mut trace[idx].grammar_rom_slot {
         rom.const_lo ^= 1;
@@ -785,7 +797,12 @@ fn claim_words_are_row_free_and_transcript_bound() {
     let trace = grammar_trace();
     let claim_row = trace
         .iter()
-        .find(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 3))
+        .find(|row| {
+            row.row_kind.is_host_event_gather()
+                && row
+                    .grammar_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Claim)
+        })
         .expect("claim slot row");
     let mut witness = build_witness_vector(claim_row);
     common::assert_satisfied(&witness, "untampered claim slot row");
@@ -797,4 +814,144 @@ fn claim_words_are_row_free_and_transcript_bound() {
     // ... but any divergence between the absorbed words and the claimed
     // transcript is caught by the final-chain fold (see
     // wasm_grammar_lifecycle's verify_with_transcript rejection).
+}
+
+#[test]
+fn import_memory32_reads_and_writes_at_argument_based_addresses() {
+    let component_bytes = wat::parse_str(
+        r#"
+        (component
+          (type $host-touch (func (param "ptr" s32)))
+          (type $run-type (func))
+          (import "host-touch" (func $host-touch (type $host-touch)))
+          (core module $m
+            (import "" "0" (func $touch (param i32)))
+            (memory 1)
+            (func (export "run")
+              i32.const 16
+              i32.const 99
+              i32.store
+              i32.const 16
+              call $touch))
+          (core func $lowered (canon lower (func $host-touch)))
+          (core instance $host (export "0" (func $lowered)))
+          (core instance $i (instantiate $m (with "" (instance $host))))
+          (alias core export $i "run" (core func $run))
+          (func (export "run") (type $run-type)
+            (canon lift (core func $run))))
+        "#,
+    )
+    .expect("component wat");
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
+        linker
+            .root()
+            .func_wrap("host-touch", |mut store, (_ptr,): (i32,)| {
+                store.data_mut().record_call_claims(&[77])?;
+                store.data_mut().record_call_memory_reads(&[99])?;
+                Ok(())
+            })
+            .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-touch: {err}")))
+    })
+    .expect("component run");
+    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
+    let host_fref = host_call_frefs(&raw)[0];
+    let export_fref = raw
+        .iter()
+        .find(|row| row.row_kind.is_program())
+        .expect("program row")
+        .current_function_ref;
+    let mut grammar = HostEventGrammar::default();
+    grammar.imports.insert(
+        host_fref,
+        ImportTemplate {
+            events: vec![GrammarEvent::op(
+                40,
+                slots(&[
+                    (
+                        0,
+                        SlotSource::MemoryRead32 {
+                            base: MemoryBase::Arg(0),
+                            byte_offset: 0,
+                        },
+                    ),
+                    (
+                        1,
+                        SlotSource::MemoryWrite32 {
+                            claim: 0,
+                            base: MemoryBase::Arg(0),
+                            byte_offset: 4,
+                        },
+                    ),
+                ]),
+            )],
+            claim_count: 1,
+        },
+    );
+    grammar
+        .exports
+        .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
+
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &grammar,
+        &[Default::default()],
+        Default::default(),
+    )
+    .expect("grammar trace");
+    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::ccs_check_trace(&trace);
+
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    let witnesses: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+    neo_wasm::memory_semantics::sanity_check_memory_rows(layout, &witnesses, &preload)
+        .expect("grammar argument base and linear-memory accesses match");
+
+    let read = trace
+        .iter()
+        .find(|row| {
+            row.grammar_rom_slot
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+        })
+        .expect("memory read gather");
+    let mut forged = build_witness_vector(read);
+    common::assert_satisfied(&forged, "untampered argument-base memory read");
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_ADDR] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "grammar memory read redirected to another word");
+
+    // Move both the authenticated pointer value and its derived word address
+    // to the first lane beyond memory. The witness builder recomputes the
+    // comparison columns, so this exercises the grammar's no-OOB semantics
+    // rather than failing the pointer/address identity above.
+    let mut oob_read = read.clone();
+    let first_oob_word = u64::from(oob_read.state_before.memory_pages.expect("memory pages")) * 16384;
+    oob_read
+        .stack_read0
+        .as_mut()
+        .expect("pointer argument read")
+        .value_lo = u32::try_from(first_oob_word * 4).expect("wasm32 byte address");
+    oob_read
+        .linear_memory
+        .as_mut()
+        .expect("grammar memory access")
+        .lane0
+        .word_addr = first_oob_word;
+    let forged = build_witness_vector(&oob_read);
+    assert_eq!(forged[neo_wasm::layout::COL_CMP_GE], neo_math::F::ONE);
+    assert_eq!(forged[neo_wasm::layout::COL_MEM_OOB], neo_math::F::ONE);
+    common::assert_rejected(&forged, "aligned OOB grammar memory read");
+
+    let write = trace
+        .iter()
+        .find(|row| {
+            row.grammar_rom_slot
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryWrite)
+        })
+        .expect("memory write gather");
+    let mut forged = build_witness_vector(write);
+    common::assert_satisfied(&forged, "untampered grammar memory write");
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "grammar memory write diverging from the staged claim");
 }

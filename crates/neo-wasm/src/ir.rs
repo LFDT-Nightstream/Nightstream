@@ -364,16 +364,43 @@ impl WasmRowKind {
     }
 }
 
+/// The source binding selected by one grammar gather slot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum WasmGrammarSlotKind {
+    Const,
+    Arg,
+    Result,
+    Claim,
+    ClaimLocal,
+    Output,
+    MemoryRead,
+    MemoryWrite,
+}
+
+impl WasmGrammarSlotKind {
+    pub const COUNT: usize = 8;
+
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
+    pub const fn code(self) -> u8 {
+        self as u8
+    }
+}
+
 /// The grammar-ROM entry a gather row claims (bound by the `grammar_slot_*`
 /// families at key `(fref, event_index, slot_cursor)`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmGrammarRomEntry {
-    /// 0 const, 1 arg element, 2 result element, 3 oracle.
-    pub kind: u8,
-    /// Arg index (kind 1), 0 (kind 2), oracle index (kind 3).
+    pub kind: WasmGrammarSlotKind,
+    /// Argument/local/claim index, depending on `kind`.
     pub arg: u8,
-    /// Limb select for kinds 1-2: 0 lo, 1 hi.
-    pub limb: u8,
+    /// Kind-dependent slot variant. Value kinds use `0 = lo`, `1 = hi`;
+    /// memory kinds use `0 = argument base`, `1 = local base`; kinds without
+    /// a variant use zero.
+    pub variant: u8,
     pub const_lo: u32,
     pub const_hi: u32,
     /// Whether this slot belongs to an unabsorbed event.

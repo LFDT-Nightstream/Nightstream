@@ -17,12 +17,12 @@ use self::values::{call_indirect_oob, call_indirect_traps, collect_callee_initia
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
 use super::grammar_emit::{
-    absorb_premix, emit_block_plan, emit_perm_group, perm_group_plan, plan_export_blocks, plan_grammar_blocks,
+    absorb_premix, emit_block_plan, emit_perm_group, perm_group_plan, plan_export_blocks, plan_import_call,
     GrammarAuxCtx, GrammarBlockPlan, GrammarCallPlan,
 };
 use super::normalize_step;
 use crate::comm_chain::{host_call_event_stream, CommChainState, COMM_CHAIN_BLOCK_WORDS};
-use crate::event_grammar::{expand_import_events, HostEventGrammar};
+use crate::event_grammar::HostEventGrammar;
 use crate::ir::{
     StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
@@ -529,20 +529,23 @@ pub(super) fn build_trace(
                     ))
                 })?;
                 template.validate(param_count, result_count)?;
-                let call_claims = current.host_call_claims.as_slice();
-                let expanded =
-                    expand_import_events(template, &arg_limbs, result_limbs, call_claims).map_err(|err| {
+                let args_base = sp_before - index_pops as u64 - u64::from(param_count);
+                grammar_plan = Some(
+                    plan_import_call(
+                        template,
+                        args_base,
+                        &arg_limbs,
+                        result_limbs,
+                        &current.host_call_claims,
+                        &current.host_call_memory_reads,
+                    )
+                    .map_err(|err| {
                         WasmBuildError::Trace(format!(
                             "host call to fref {host_callee_fref} at cycle {}: {err}",
                             current.cycle
                         ))
-                    })?;
-
-                let args_base = sp_before - index_pops as u64 - u64::from(param_count);
-                grammar_plan = Some(GrammarCallPlan {
-                    blocks: plan_grammar_blocks(&template.events, &expanded, args_base, &arg_limbs, result_limbs),
-                    args_base,
-                });
+                    })?,
+                );
                 // The call row pops all args itself in grammar mode; the
                 // result push happens on its (possibly advice) gather row.
                 sp_after = args_base;
@@ -603,9 +606,15 @@ pub(super) fn build_trace(
                     setup.template,
                     output_captured.then_some((output_value_lo_after, output_value_hi_after)),
                     exit_claims,
+                    &turns[turn_index].exit_memory_reads,
                 )
                 .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
-                let plans = plan_export_blocks(&setup.template.exit, &exit_blocks);
+                let plans = plan_export_blocks(
+                    &setup.template.exit,
+                    &exit_blocks,
+                    &current.locals_snapshot,
+                    &turns[turn_index].exit_memory_reads,
+                )?;
                 host_callee_fref = setup.fref;
                 grammar_state = crate::ir::WasmGrammarState {
                     turn_export_fref: grammar_state.turn_export_fref,

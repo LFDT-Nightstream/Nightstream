@@ -385,9 +385,12 @@ define_columns!(
     (COL_GRAMMAR_ARGS_BASE_AFTER, "stack slot index of the current call's first argument, after this row"),
     (COL_GRAMMAR_SLOT_CURSOR_BEFORE, "next block word a gather row stages (0..=7), before this row"),
     (COL_GRAMMAR_SLOT_CURSOR_AFTER, "next block word a gather row stages (0..=7), after this row"),
-    (COL_GRAMMAR_SLOT_KIND, "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 oracle, 4 input-local, 5 output, 6 input)"),
+    (COL_GRAMMAR_SLOT_KIND, "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 claim, 4 input-local, 5 output, 6 memory-read, 7 memory-write)"),
     (COL_GRAMMAR_SLOT_ARG, "grammar-ROM slot arg/oracle index"),
-    (COL_GRAMMAR_SLOT_LIMB, "grammar-ROM slot limb select (0 lo, 1 hi)"),
+    (
+        COL_GRAMMAR_SLOT_VARIANT,
+        "grammar-ROM kind-dependent slot variant: value kinds use 0 lo / 1 hi; memory kinds use 0 argument base / 1 local base; unused kinds use 0"
+    ),
     (COL_GRAMMAR_SLOT_CONST_LO, "grammar-ROM slot constant, low 32 bits"),
     (COL_GRAMMAR_SLOT_CONST_HI, "grammar-ROM slot constant, high 32 bits"),
     (COL_GRAMMAR_PRE_COUNT, "grammar-ROM event count for the called import / entered export (biased +1)"),
@@ -403,7 +406,7 @@ define_columns!(
     ),
     (
         COL_GATHER_LOCAL_WRITE_LO,
-        "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_limb)",
+        "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_variant)",
         ColumnWidth::Boolean
     ),
     (

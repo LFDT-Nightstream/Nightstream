@@ -9,8 +9,8 @@
 //! never interprets them.
 //!
 //! One grammar event is exactly one absorb block: `[discriminant | 7 slots]`.
-//! Templates are static per import (V1 flat-only: every slot resolves to a
-//! constant, an argument limb, a result limb, or a per-phase claim word).
+//! Templates are static per import. Slots resolve from flat values, claims,
+//! or aligned 32-bit linear-memory accesses.
 
 use crate::comm_chain::{COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_EVENT_ARGS};
 use crate::ir::WasmBuildError;
@@ -23,6 +23,17 @@ use std::collections::BTreeMap;
 pub enum Limb {
     Lo,
     Hi,
+}
+
+/// Runtime source of a wasm32 byte pointer used by a grammar memory slot.
+/// Invalid effective addresses make trace construction or proving fail;
+/// grammar memory slots do not model Wasm traps.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MemoryBase {
+    /// An import argument, read from the call's operand-stack argument area.
+    Arg(u8),
+    /// An export-frame local, read from the locals memory.
+    Local(u8),
 }
 
 /// Where one event slot's value comes from.
@@ -52,6 +63,16 @@ pub enum SlotSource {
     /// Export exit templates only: a limb of the export's captured result
     /// (the carried simple-output value).
     OutputElem { limb: Limb },
+    /// Read one naturally aligned 32-bit linear-memory word and stage it as
+    /// this event word.
+    MemoryRead32 { base: MemoryBase, byte_offset: u32 },
+    /// Write one naturally aligned 32-bit claim word to linear memory and
+    /// stage the same word in this event slot.
+    MemoryWrite32 {
+        claim: u8,
+        base: MemoryBase,
+        byte_offset: u32,
+    },
 }
 
 /// One grammar event: one block of 8 arbitrary slot sources.
@@ -95,7 +116,8 @@ impl GrammarEvent {
 ///
 /// SLOT-ORDER RULES (validated here, deliberately not in-circuit): the
 /// result push lands in argument 0's stack cell, so every
-/// `ArgElem { arg: 0, .. }` slot must come before the `ResultElem` Lo slot,
+/// slot reading argument 0 (directly or as a memory pointer) must come
+/// before the `ResultElem` Lo slot,
 /// and the `ResultElem` Hi slot (which writes the pushed cell's hi lane)
 /// must come after it. A returning import must contain exactly one Lo slot
 /// (the push — a narrow total write, hi lane zeroed) and a Hi slot (an i64
@@ -126,6 +148,21 @@ pub struct ExportTemplate {
     pub exit_claim_count: u8,
 }
 
+#[derive(Clone, Copy)]
+enum ExportPhase {
+    Entry,
+    Exit,
+}
+
+impl ExportPhase {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Entry => "entry",
+            Self::Exit => "exit",
+        }
+    }
+}
+
 impl ExportTemplate {
     /// Check the template against the export's locals bound. Entry events
     /// source from consts and entry claim words (`Claim`/`ClaimLocal`);
@@ -135,18 +172,19 @@ impl ExportTemplate {
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
         let mut written = std::collections::BTreeSet::new();
         for (phase, events, claim_count) in [
-            ("entry", &self.entry, self.entry_claim_count),
-            ("exit", &self.exit, self.exit_claim_count),
+            (ExportPhase::Entry, &self.entry, self.entry_claim_count),
+            (ExportPhase::Exit, &self.exit, self.exit_claim_count),
         ] {
+            let phase_name = phase.name();
             for (idx, event) in events.iter().enumerate() {
-                let ctx = |what: &str| format!("export template {phase} event {idx}: {what}");
+                let ctx = |what: &str| format!("export template {phase_name} event {idx}: {what}");
                 if !event.absorb {
                     return err(ctx("export boundary events must absorb; advice events are import-only"));
                 }
                 let check_claim_idx = |idx: u8| {
                     if idx >= claim_count {
                         return err(ctx(&format!(
-                            "claim index {idx} out of range for {claim_count} {phase} claim words"
+                            "claim index {idx} out of range for {claim_count} {phase_name} claim words"
                         )));
                     }
                     Ok(())
@@ -160,7 +198,7 @@ impl ExportTemplate {
                         }
                         SlotSource::Claim { idx } => check_claim_idx(idx)?,
                         SlotSource::ClaimLocal { idx, local, limb } => {
-                            if phase == "exit" {
+                            if matches!(phase, ExportPhase::Exit) {
                                 return err(ctx("locals bootstrap only applies to the entry phase"));
                             }
                             check_claim_idx(idx)?;
@@ -181,8 +219,29 @@ impl ExportTemplate {
                             }
                         }
                         SlotSource::OutputElem { .. } => {
-                            if phase == "entry" {
+                            if matches!(phase, ExportPhase::Entry) {
                                 return err(ctx("output reference before the export halts"));
+                            }
+                        }
+                        SlotSource::MemoryRead32 { base, .. } => {
+                            if matches!(phase, ExportPhase::Entry) {
+                                return err(ctx("memory reads only apply to the export exit phase"));
+                            }
+                            validate_export_memory_base(base, local_bound, &ctx)?;
+                        }
+                        SlotSource::MemoryWrite32 { claim, base, .. } => {
+                            if matches!(phase, ExportPhase::Exit) {
+                                return err(ctx("memory writes only apply to the export entry phase"));
+                            }
+                            check_claim_idx(claim)?;
+                            validate_export_memory_base(base, local_bound, &ctx)?;
+                            let MemoryBase::Local(local) = base else {
+                                unreachable!("validated export memory base")
+                            };
+                            if !written.contains(&(local, false)) {
+                                return err(ctx(&format!(
+                                    "memory base local {local} must be bootstrap-written by an earlier ClaimLocal Lo slot"
+                                )));
                             }
                         }
                         SlotSource::ArgElem { .. } | SlotSource::ResultElem { .. } => {
@@ -202,6 +261,7 @@ impl ExportTemplate {
 pub struct TurnClaims {
     pub entry: Vec<u64>,
     pub exit: Vec<u64>,
+    pub exit_memory_reads: Vec<u32>,
 }
 
 /// Per-program grammar: import templates keyed by callee function ref, and
@@ -289,6 +349,28 @@ impl ImportTemplate {
                             )));
                         }
                     }
+                    SlotSource::MemoryRead32 { base, .. } => {
+                        if base == MemoryBase::Arg(0) && result_lo_seen {
+                            return err(ctx(
+                                "argument 0 is overwritten by the result push; move this memory slot earlier",
+                            ));
+                        }
+                        validate_import_memory_base(base, param_count, &ctx)?;
+                    }
+                    SlotSource::MemoryWrite32 { claim, base, .. } => {
+                        if claim >= self.claim_count {
+                            return err(ctx(&format!(
+                                "claim index {claim} out of range for {} claim words",
+                                self.claim_count
+                            )));
+                        }
+                        if base == MemoryBase::Arg(0) && result_lo_seen {
+                            return err(ctx(
+                                "argument 0 is overwritten by the result push; move this memory slot earlier",
+                            ));
+                        }
+                        validate_import_memory_base(base, param_count, &ctx)?;
+                    }
                     SlotSource::ClaimLocal { .. } | SlotSource::OutputElem { .. } => {
                         return err(ctx("export-boundary sources do not apply to import templates"));
                     }
@@ -325,15 +407,18 @@ pub fn expand_import_events(
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
     claims: &[u64],
+    memory_reads: &[u32],
 ) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
     check_claims("per-call", claims, template.claim_count)?;
+    check_memory_reads("per-call", memory_reads, &template.events)?;
+    let mut memory_index = 0usize;
     template
         .events
         .iter()
         .map(|event| {
             let mut block = [0u64; COMM_CHAIN_BLOCK_WORDS];
             for (word, slot) in block.iter_mut().zip(&event.block) {
-                *word = resolve_slot(*slot, args, result, claims)?;
+                *word = resolve_slot(*slot, args, result, claims, memory_reads, &mut memory_index)?;
             }
             Ok(block)
         })
@@ -387,6 +472,7 @@ pub fn expand_export_entry(
                         }
                         value
                     }
+                    SlotSource::MemoryWrite32 { claim, .. } => entry_claims[usize::from(claim)],
                     other => {
                         return Err(WasmBuildError::Trace(format!(
                             "slot source {other:?} does not apply to the export entry phase"
@@ -405,8 +491,11 @@ pub fn expand_export_exit(
     template: &ExportTemplate,
     output: Option<(u32, u32)>,
     exit_claims: &[u64],
+    memory_reads: &[u32],
 ) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
     check_claims("exit", exit_claims, template.exit_claim_count)?;
+    check_memory_reads("exit", memory_reads, &template.exit)?;
+    let mut memory_index = 0usize;
     template
         .exit
         .iter()
@@ -419,6 +508,11 @@ pub fn expand_export_exit(
                         .map(|pair| limb_of(pair, limb))
                         .ok_or_else(|| WasmBuildError::Trace("export slot references a missing output".to_string()))?,
                     SlotSource::Claim { idx } => exit_claims[usize::from(idx)],
+                    SlotSource::MemoryRead32 { .. } => {
+                        let value = memory_reads[memory_index];
+                        memory_index += 1;
+                        u64::from(value)
+                    }
                     other => {
                         return Err(WasmBuildError::Trace(format!(
                             "slot source {other:?} does not apply to the export exit phase"
@@ -449,6 +543,51 @@ fn check_claims(phase: &str, claims: &[u64], declared: u8) -> Result<(), WasmBui
     Ok(())
 }
 
+fn check_memory_reads(phase: &str, memory_reads: &[u32], events: &[GrammarEvent]) -> Result<(), WasmBuildError> {
+    let expected = events
+        .iter()
+        .flat_map(|event| &event.block)
+        .filter(|source| matches!(source, SlotSource::MemoryRead32 { .. }))
+        .count();
+    if memory_reads.len() != expected {
+        return Err(WasmBuildError::Trace(format!(
+            "{phase} expansion expected {expected} grammar memory reads, got {}",
+            memory_reads.len()
+        )));
+    }
+    Ok(())
+}
+
+fn validate_import_memory_base(
+    base: MemoryBase,
+    param_count: u8,
+    ctx: &impl Fn(&str) -> String,
+) -> Result<(), WasmBuildError> {
+    match base {
+        MemoryBase::Arg(arg) if arg < param_count => Ok(()),
+        MemoryBase::Arg(arg) => Err(WasmBuildError::Trace(ctx(&format!(
+            "memory base arg {arg} out of range for {param_count} params"
+        )))),
+        MemoryBase::Local(_) => Err(WasmBuildError::Trace(ctx(
+            "import memory slots require an argument base",
+        ))),
+    }
+}
+
+fn validate_export_memory_base(
+    base: MemoryBase,
+    local_bound: u8,
+    ctx: &impl Fn(&str) -> String,
+) -> Result<(), WasmBuildError> {
+    match base {
+        MemoryBase::Local(local) if local < local_bound => Ok(()),
+        MemoryBase::Local(local) => Err(WasmBuildError::Trace(ctx(&format!(
+            "memory base local {local} out of range for {local_bound} locals"
+        )))),
+        MemoryBase::Arg(_) => Err(WasmBuildError::Trace(ctx("export memory slots require a local base"))),
+    }
+}
+
 fn limb_of((lo, hi): (u32, u32), limb: Limb) -> u64 {
     match limb {
         Limb::Lo => u64::from(lo),
@@ -461,6 +600,8 @@ fn resolve_slot(
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
     claims: &[u64],
+    memory_reads: &[u32],
+    memory_index: &mut usize,
 ) -> Result<u64, WasmBuildError> {
     match slot {
         SlotSource::Const(value) => Ok(value),
@@ -475,6 +616,15 @@ fn resolve_slot(
             .get(usize::from(idx))
             .copied()
             .ok_or_else(|| WasmBuildError::Trace(format!("grammar slot references missing claim {idx}"))),
+        SlotSource::MemoryRead32 { .. } => {
+            let value = memory_reads[*memory_index];
+            *memory_index += 1;
+            Ok(u64::from(value))
+        }
+        SlotSource::MemoryWrite32 { claim, .. } => claims
+            .get(usize::from(claim))
+            .copied()
+            .ok_or_else(|| WasmBuildError::Trace(format!("grammar slot references missing claim {claim}"))),
         SlotSource::ClaimLocal { .. } | SlotSource::OutputElem { .. } => Err(WasmBuildError::Trace(
             "export-boundary sources do not apply to import templates".to_string(),
         )),

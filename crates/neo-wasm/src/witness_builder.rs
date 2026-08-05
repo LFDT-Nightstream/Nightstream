@@ -1,5 +1,5 @@
 use super::gadgets::{unsigned_ge_witness, zero_test_witness_field, zero_test_witness_u64};
-use super::ir::{pack_function_call_metadata, WasmRowKind, WasmVmStep};
+use super::ir::{pack_function_call_metadata, WasmGrammarSlotKind, WasmRowKind, WasmVmStep};
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_INDIRECT_TYPE_INDEX,
     COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE,
@@ -276,7 +276,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_STACK_READ2_ACTIVE] = if stack_reads >= 3 { F::ONE } else { F::ZERO };
     wit[COL_STACK_WRITE0_ACTIVE] = if stack_writes >= 1 { F::ONE } else { F::ZERO };
     wit[COL_OP_TABLE_ENABLED] = if trace.info.uses_op_table { F::ONE } else { F::ZERO };
-    wit[COL_LINEAR_MEM_USE_LANE0] = if trace.linear_memory.is_some() { F::ONE } else { F::ZERO };
+    let is_core_linear_memory = trace.row_kind.is_program() && trace.opcode.uses_linear_memory();
+    wit[COL_LINEAR_MEM_USE_LANE0] = if is_core_linear_memory { F::ONE } else { F::ZERO };
     wit[COL_LOCAL_WRITE_ENABLED] = if matches!(
         trace.opcode,
         super::isa::WasmOpcode::LocalSet | super::isa::WasmOpcode::LocalTee
@@ -412,10 +413,12 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         wit[COL_OP_TABLE_ENABLED] = F::ZERO;
     }
     if let Some(access) = trace.linear_memory {
-        wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);
-        wit[COL_LINEAR_MEM_BYTE_OFFSET] = F::from_u64(u64::from(access.byte_offset));
-        wit[COL_LINEAR_MEM_USE_LANE1] = if access.lane1.is_some() { F::ONE } else { F::ZERO };
-        wit[COL_LINEAR_MEM_USE_LANE2] = if access.lane2.is_some() { F::ONE } else { F::ZERO };
+        if is_core_linear_memory {
+            wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);
+            wit[COL_LINEAR_MEM_BYTE_OFFSET] = F::from_u64(u64::from(access.byte_offset));
+            wit[COL_LINEAR_MEM_USE_LANE1] = if access.lane1.is_some() { F::ONE } else { F::ZERO };
+            wit[COL_LINEAR_MEM_USE_LANE2] = if access.lane2.is_some() { F::ONE } else { F::ZERO };
+        }
         // Witness the CCS-bound load/store lane gates used by the memory spec.
         let is_load = trace
             .opcode
@@ -444,65 +447,67 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         wit[COL_LINEAR_MEM_LANE0_STORE_ACTIVE] = store_live;
         wit[COL_LINEAR_MEM_LANE1_STORE_ACTIVE] = if access.lane1.is_some() { store_live } else { F::ZERO };
         wit[COL_LINEAR_MEM_LANE2_STORE_ACTIVE] = if access.lane2.is_some() { store_live } else { F::ZERO };
-        match access.byte_offset {
-            0 => wit[COL_LINEAR_MEM_OFFSET_IS_0] = F::ONE,
-            1 => wit[COL_LINEAR_MEM_OFFSET_IS_1] = F::ONE,
-            2 => wit[COL_LINEAR_MEM_OFFSET_IS_2] = F::ONE,
-            3 => wit[COL_LINEAR_MEM_OFFSET_IS_3] = F::ONE,
-            _ => {}
-        }
-        if access.width_bytes == 4 {
-            wit[COL_LINEAR_MEM_IS_FULL_WIDTH] = F::ONE;
+        if is_core_linear_memory {
             match access.byte_offset {
-                0 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0] = F::ONE,
-                1 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1] = F::ONE,
-                2 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2] = F::ONE,
-                3 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3] = F::ONE,
+                0 => wit[COL_LINEAR_MEM_OFFSET_IS_0] = F::ONE,
+                1 => wit[COL_LINEAR_MEM_OFFSET_IS_1] = F::ONE,
+                2 => wit[COL_LINEAR_MEM_OFFSET_IS_2] = F::ONE,
+                3 => wit[COL_LINEAR_MEM_OFFSET_IS_3] = F::ONE,
                 _ => {}
             }
-        } else if access.width_bytes == 8 {
-            wit[COL_LINEAR_MEM_IS_DOUBLE_WIDTH] = F::ONE;
-            match access.byte_offset {
-                0 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0] = F::ONE,
-                1 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1] = F::ONE,
-                2 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2] = F::ONE,
-                3 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3] = F::ONE,
-                _ => {}
-            }
-            match trace.opcode {
-                super::isa::WasmOpcode::I64Load => match access.byte_offset {
-                    0 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0] = F::ONE,
-                    1 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1] = F::ONE,
-                    2 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2] = F::ONE,
-                    3 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3] = F::ONE,
+            if access.width_bytes == 4 {
+                wit[COL_LINEAR_MEM_IS_FULL_WIDTH] = F::ONE;
+                match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_FULL_WIDTH_OFFSET_IS_3] = F::ONE,
                     _ => {}
-                },
-                super::isa::WasmOpcode::I64Store => match access.byte_offset {
-                    0 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0] = F::ONE,
-                    1 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1] = F::ONE,
-                    2 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2] = F::ONE,
-                    3 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3] = F::ONE,
+                }
+            } else if access.width_bytes == 8 {
+                wit[COL_LINEAR_MEM_IS_DOUBLE_WIDTH] = F::ONE;
+                match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_3] = F::ONE,
                     _ => {}
-                },
-                _ => {}
-            }
-        } else if access.width_bytes == 1 {
-            wit[COL_LINEAR_MEM_IS_BYTE_WIDTH] = F::ONE;
-            match access.byte_offset {
-                0 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0] = F::ONE,
-                1 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1] = F::ONE,
-                2 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2] = F::ONE,
-                3 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3] = F::ONE,
-                _ => {}
-            }
-        } else if access.width_bytes == 2 {
-            wit[COL_LINEAR_MEM_IS_HALF_WIDTH] = F::ONE;
-            match access.byte_offset {
-                0 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0] = F::ONE,
-                1 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1] = F::ONE,
-                2 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2] = F::ONE,
-                3 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3] = F::ONE,
-                _ => {}
+                }
+                match trace.opcode {
+                    super::isa::WasmOpcode::I64Load => match access.byte_offset {
+                        0 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_0] = F::ONE,
+                        1 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_1] = F::ONE,
+                        2 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_2] = F::ONE,
+                        3 => wit[COL_LINEAR_MEM_I64_LOAD_OFFSET_IS_3] = F::ONE,
+                        _ => {}
+                    },
+                    super::isa::WasmOpcode::I64Store => match access.byte_offset {
+                        0 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0] = F::ONE,
+                        1 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1] = F::ONE,
+                        2 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2] = F::ONE,
+                        3 => wit[COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3] = F::ONE,
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            } else if access.width_bytes == 1 {
+                wit[COL_LINEAR_MEM_IS_BYTE_WIDTH] = F::ONE;
+                match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3] = F::ONE,
+                    _ => {}
+                }
+            } else if access.width_bytes == 2 {
+                wit[COL_LINEAR_MEM_IS_HALF_WIDTH] = F::ONE;
+                match access.byte_offset {
+                    0 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_0] = F::ONE,
+                    1 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_1] = F::ONE,
+                    2 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_2] = F::ONE,
+                    3 => wit[COL_LINEAR_MEM_HALF_WIDTH_OFFSET_IS_3] = F::ONE,
+                    _ => {}
+                }
             }
         }
         wit[COL_LINEAR_MEM_LANE0_ADDR] = F::from_u64(access.lane0.word_addr);
@@ -994,7 +999,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         COL_GRAMMAR_EVREM_BEFORE_INV, COL_GRAMMAR_EVREM_BEFORE_IS_ZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL,
         COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT,
         COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER,
-        COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB, COL_PERM_PENDING_AFTER,
+        COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT, COL_PERM_PENDING_AFTER,
         COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
         COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE,
         COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
@@ -1045,16 +1050,19 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_RAW_ARGS_ACTIVE] = wit[COL_HOST_ARGS_ACTIVE_BEFORE] * (F::ONE - mode);
     wit[COL_RAW_RESULT_ACTIVE] = wit[COL_HOST_RESULT_ACTIVE] * (F::ONE - mode);
     wit[COL_GRAMMAR_HOST_CALL] = host_call_gate * mode;
-    wit[COL_GATHER_LOCAL_WRITE] =
-        if trace.row_kind.is_host_event_gather() && trace.grammar_rom_slot.is_some_and(|rom| rom.kind == 4) {
-            F::ONE
-        } else {
-            F::ZERO
-        };
+    wit[COL_GATHER_LOCAL_WRITE] = if trace.row_kind.is_host_event_gather()
+        && trace
+            .grammar_rom_slot
+            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::ClaimLocal)
+    {
+        F::ONE
+    } else {
+        F::ZERO
+    };
     wit[COL_GATHER_LOCAL_WRITE_LO] = if trace.row_kind.is_host_event_gather()
         && trace
             .grammar_rom_slot
-            .is_some_and(|rom| rom.kind == 4 && rom.limb == 0)
+            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::ClaimLocal && rom.variant == 0)
     {
         F::ONE
     } else {
@@ -1065,7 +1073,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     let result_hi_gather = trace.row_kind.is_host_event_gather()
         && trace
             .grammar_rom_slot
-            .is_some_and(|rom| rom.kind == 2 && rom.limb == 1);
+            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant == 1);
     wit[crate::layout::COL_STACK_WRITE0_HI_ACTIVE] =
         wit[crate::layout::COL_STACK_WRITE0_ACTIVE] + bool_f(result_hi_gather);
     wit[COL_GRAMMAR_EXIT_LATCH] = bool_f(
@@ -1092,9 +1100,10 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_GRAMMAR_SLOT_CURSOR_BEFORE] = F::from_u64(u64::from(g_before.slot_cursor));
     wit[COL_GRAMMAR_SLOT_CURSOR_AFTER] = F::from_u64(u64::from(g_after.slot_cursor));
     if let Some(rom) = trace.grammar_rom_slot {
-        wit[COL_GRAMMAR_SLOT_KIND] = F::from_u64(u64::from(rom.kind) + 8 * u64::from(rom.advice));
+        wit[COL_GRAMMAR_SLOT_KIND] =
+            F::from_u64(u64::from(rom.kind.code()) + WasmGrammarSlotKind::COUNT as u64 * u64::from(rom.advice));
         wit[COL_GRAMMAR_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
-        wit[COL_GRAMMAR_SLOT_LIMB] = F::from_u64(u64::from(rom.limb));
+        wit[COL_GRAMMAR_SLOT_VARIANT] = F::from_u64(u64::from(rom.variant));
         wit[COL_GRAMMAR_SLOT_CONST_LO] = F::from_u64(u64::from(rom.const_lo));
         wit[COL_GRAMMAR_SLOT_CONST_HI] = F::from_u64(u64::from(rom.const_hi));
     }

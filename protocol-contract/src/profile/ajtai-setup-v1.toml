@@ -1,0 +1,45 @@
+[ajtai_setup_v1]
+id = "nightstream-ajtai-chacha8-setup-par-v1"
+reference = "ChaCha8 with 64-bit block counter and 64-bit zero stream ID"
+rounds = 8
+seed_bytes = 32
+stream_id = 0
+initial_block_counter = 0
+word_encoding = "sixteen-u32-little-endian-words-per-64-byte-block"
+next_u64_encoding = "low-u32-then-high-u32"
+matrix_order = "output-row-then-message-column-then-ring-coefficient"
+row_seed_derivation = "first-18-consecutive-32-byte-blocks-from-master-stream"
+chunk_size_formula = "max(1024,min(message_columns,32768))"
+selected_chunk_size = 32768
+selected_chunk_count = 7
+chunk_seed_derivation = "consecutive-32-byte-blocks-from-each-row-seed-stream"
+column_to_chunk = "chunk=floor(column/chunk_size);local-column=column-mod-chunk-size"
+chunk_stream_order = "local-column-then-ring-coefficient"
+chunk_stream_counter_reset = "zero-for-each-chunk-seed"
+ring_coefficient_count = 54
+coefficient_batch = "read-54-consecutive-u64-values-before-any-fallback"
+coefficient_accept = "x<18446744069414584321"
+coefficient_fallback = "replace-rejected-slots-in-index-order-with-next-accepted-u64"
+selected_output_rows = 18
+selected_message_columns = 211797
+
+test_seed = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+test_first_64_u32 = [
+  2410812736, 1789596270, 2070341849, 856868145, 655855607, 1339667088, 3610143538, 3418275071,
+  917348095, 1003391327, 3159703663, 4254113141, 656245647, 2480910535, 2196617651, 3596001848,
+  258873974, 1505276616, 2935204341, 2574584343, 3458445488, 2607142777, 930737714, 2305978942,
+  2314350449, 526651379, 4163863245, 3640612582, 4170274418, 867477305, 1393604261, 3769539545,
+  4001331010, 4129929097, 3673175628, 1215036948, 47647076, 766653499, 1898596918, 2391297935,
+  261009703, 613077258, 1916366683, 4018368524, 3358057343, 762743414, 607156324, 972467821,
+  4230198361, 2916956629, 2450352400, 104939653, 1541629096, 2746188747, 2059405616, 585274592,
+  1542962425, 3463275805, 2077343308, 562523710, 4245274536, 2262433704, 639770842, 2478107708,
+]
+test_high_word_start = 100000
+test_high_8_u32 = [4148008685, 3707911544, 3652273745, 1498415893, 1818086804, 397883558, 2155761108, 4253169178]
+test_setup_rows = 2
+test_setup_message_columns = 32769
+test_setup_chunk_size = 32768
+test_setup_chunk_seeds = [
+  [[219, 215, 72, 182, 23, 0, 39, 87, 148, 105, 71, 104, 243, 16, 219, 104, 219, 69, 252, 42, 14, 42, 203, 57, 65, 73, 180, 126, 145, 135, 74, 13], [31, 220, 26, 41, 124, 49, 232, 13, 50, 46, 34, 220, 132, 190, 234, 119, 250, 212, 20, 99, 65, 45, 187, 125, 189, 168, 92, 215, 156, 136, 59, 20]],
+  [[68, 26, 203, 165, 212, 68, 214, 154, 96, 48, 39, 78, 17, 21, 114, 1, 4, 247, 14, 93, 111, 249, 133, 205, 233, 217, 172, 194, 47, 88, 71, 63], [15, 236, 209, 116, 28, 176, 183, 66, 148, 192, 189, 143, 213, 109, 139, 217, 164, 214, 41, 58, 213, 125, 187, 228, 157, 100, 77, 101, 108, 227, 49, 24]],
+]

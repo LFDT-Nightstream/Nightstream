@@ -1,0 +1,641 @@
+# Generated from src/profile, src/sources, src/security, and assurance state.
+schema_version = 4
+contract_id = "nightstream-superneo-v1"
+profile_id = "nightstream-superneo-fprime-v1"
+status = "candidate-draft"
+current_gate = "G0-MECHANICAL-SOURCE"
+profile_semantic_sha256 = "54c7769a62d12e12e9474b70f4f49ee48df9ef28c97fa1da69078bfec688cd64"
+
+[documents]
+profile = "protocol-contract/superneo-v1.toml"
+normative = "protocol-contract/superneo-v1.md"
+literal = "protocol-contract/literal-paper-model.md"
+base_literal = "protocol-contract/base-paper-model.md"
+sources = "protocol-contract/sources.md"
+reviewed_errata = "protocol-contract/reviewed-errata.md"
+decisions = "protocol-contract/deviations.md"
+coverage = "protocol-contract/coverage.csv"
+rust_evidence_schema = "protocol-contract/rust-evidence.schema.json"
+transcript_profile_schema = "protocol-contract/transcript-profile.schema.json"
+circuit_manifest_schema = "protocol-contract/circuit-correspondence.schema.json"
+security_instantiation_schema = "protocol-contract/security-instantiation.schema.json"
+lean_semantic_model = "protocol-contract/lean-semantic-model.md"
+rust_conformance = "protocol-contract/rust-conformance.md"
+circuit_correspondence = "protocol-contract/circuit-correspondence.md"
+security_reduction = "protocol-contract/security-reduction.md"
+review = "protocol-contract/review.md"
+migration = "protocol-contract/migration.md"
+obligations = "protocol-contract/obligations.toml"
+obligation_graph = "protocol-contract/obligation-graph.md"
+release = "protocol-contract/release.toml"
+extended_review = "protocol-contract/REVIEW-EXTENSION.md"
+assurance_architecture = "protocol-contract/assurance-architecture.md"
+rule_index_schema = "protocol-contract/rule-index.schema.json"
+rule_index = "protocol-contract/rule-index.json"
+assurance_status_schema = "protocol-contract/assurance-status.schema.json"
+assurance_status = "protocol-contract/generated/assurance-status.json"
+protocol_events_schema = "protocol-contract/protocol-events.schema.json"
+protocol_events = "protocol-contract/protocol-events.json"
+protocol_state_machine = "protocol-contract/protocol-state-machine.md"
+conformance_vector_schema = "protocol-contract/conformance-vector.schema.json"
+conformance_plan = "protocol-contract/conformance-plan.md"
+contract_validator = "protocol-contract/check_contract.py"
+contract_model = "protocol-contract/contract_model.py"
+contract_assurance = "protocol-contract/contract_assurance.py"
+contract_protocol = "protocol-contract/contract_protocol.py"
+contract_migration = "protocol-contract/contract_migration.py"
+contract_checks = "protocol-contract/contract_checks.py"
+contract_render = "protocol-contract/contract_render.py"
+refresh_derived = "protocol-contract/refresh_derived.py"
+
+[review]
+mechanical_source_lock = "blocked"
+literal_extraction = "blocked"
+candidate_decisions = "blocked"
+rust_provenance = "blocked"
+current_circuit = "blocked"
+end_to_end_security = "blocked"
+
+[registry]
+repository_commit = "8c0b45bdd7d45421ef528d60feb3c9881cbd16c5"
+external_v3_archive_sha256 = "d2d7f0864d2fa717ee5ded0898b46921f3c817089463700d7d7df097dd5e8636"
+
+[source_derivation]
+patch_source_id = "SRC-ERRATA-V4"
+paper_directory = "protocol-contract/paper-sources"
+old_prefix = "a/docs/superneo-paper/"
+new_prefix = "b/docs/superneo-paper/"
+paper_file_count = 15
+changed_file_count = 8
+mode = "exact-forward-and-reverse-no-fuzz"
+
+[[sources]]
+id = "SRC-PAPER-00"
+path = "protocol-contract/paper-sources/00-front-matter.md"
+sha256 = "a87c04df841d749d5832adf28f30d64a4950be204c4751b25c194b92cde7972d"
+base_sha256 = "a87c04df841d749d5832adf28f30d64a4950be204c4751b25c194b92cde7972d"
+role = "Front matter"
+
+[[sources]]
+id = "SRC-PAPER-01"
+path = "protocol-contract/paper-sources/01-1-introduction.md"
+sha256 = "5aac1d36ba5a5f7cc998a5ed510a2d6a6dca9a598e66da70bac4d920dea591b9"
+base_sha256 = "6d6a04e1ac5e7d4d8d31a85206b04e41f81818ee061631a79ef78bc73caf6325"
+role = "Introduction and challenge-field statement"
+
+[[sources]]
+id = "SRC-PAPER-02"
+path = "protocol-contract/paper-sources/02-2-technical-overview.md"
+sha256 = "7119aba5e9ee194584cece91aaa4ff4280037a5ac784cf8fc1dd960549edb6c5"
+base_sha256 = "7119aba5e9ee194584cece91aaa4ff4280037a5ac784cf8fc1dd960549edb6c5"
+role = "Technical overview"
+
+[[sources]]
+id = "SRC-PAPER-03"
+path = "protocol-contract/paper-sources/03-3-overview-of-the-following-sections.md"
+sha256 = "bf9f24240669c23d81ba6b4c531741ccfa30ee57b456026f67fcf1ce87c4f152"
+base_sha256 = "bf9f24240669c23d81ba6b4c531741ccfa30ee57b456026f67fcf1ce87c4f152"
+role = "Section overview"
+
+[[sources]]
+id = "SRC-PAPER-04"
+path = "protocol-contract/paper-sources/04-4-preliminaries.md"
+sha256 = "b6b3b5ad0dfb4646bdcba814c3912c6efc2994aafef6ae64302e0ade6f4cfd25"
+base_sha256 = "94ca3c26d99c737b1834982048f5533f84fbe2712ae28c4b59cc2f5905c6b64b"
+role = "Fields, dimensions, norm, split, commitment, and reduction definitions"
+
+[[sources]]
+id = "SRC-PAPER-05"
+path = "protocol-contract/paper-sources/05-5-embedding-products-with-evaluation-homomorphism.md"
+sha256 = "946b4464700f730572c7b93d7249ee76088dea052222c2f0e3f93f8d8e2df855"
+base_sha256 = "946b4464700f730572c7b93d7249ee76088dea052222c2f0e3f93f8d8e2df855"
+role = "Coefficient embedding and evaluation homomorphism"
+
+[[sources]]
+id = "SRC-PAPER-06"
+path = "protocol-contract/paper-sources/06-6-strong-and-weak-interactive-reductions.md"
+sha256 = "69e3eb15db27c41a180d0f6fbe95aaf54d60276cb385aec7e959a67c3c560abc"
+base_sha256 = "69e3eb15db27c41a180d0f6fbe95aaf54d60276cb385aec7e959a67c3c560abc"
+role = "Strong and weak composition theorem"
+
+[[sources]]
+id = "SRC-PAPER-07"
+path = "protocol-contract/paper-sources/07-7-neo-s-folding-scheme-for-ccs.md"
+sha256 = "14ca44334a21a59b414c7bee9a56c5cde44cce7302c5eaa632e1a1327c784136"
+base_sha256 = "2ed776426ad25c37e9dfe8ee8970dc465605364d9557661ebb9eee6c75de0aed"
+role = "CCS, CE, PiCCS, PiRLC, and PiDEC"
+
+[[sources]]
+id = "SRC-PAPER-08"
+path = "protocol-contract/paper-sources/08-references.md"
+sha256 = "76829bc29328d816deb0647cb35baf7cdd20c6d86680335df226c9f7687c34c2"
+base_sha256 = "76829bc29328d816deb0647cb35baf7cdd20c6d86680335df226c9f7687c34c2"
+role = "References"
+
+[[sources]]
+id = "SRC-PAPER-09"
+path = "protocol-contract/paper-sources/09-supplementary-material.md"
+sha256 = "4377333f3baaeaae7f3f1553a2e15dec73086b3ef93cbdbaa4e4219e9e62d902"
+base_sha256 = "22ff49e20b2681f49310370057e42749039fc83e3ec6e2899abf1a092d30b6e7"
+role = "Reviewed errata and security changelog"
+
+[[sources]]
+id = "SRC-PAPER-10"
+path = "protocol-contract/paper-sources/10-a-ai-disclaimer.md"
+sha256 = "5906b91ed3a5c3ad4e8f63ca712604dd46a54caf7f1f7be8fb0ac10758bfa04a"
+base_sha256 = "5906b91ed3a5c3ad4e8f63ca712604dd46a54caf7f1f7be8fb0ac10758bfa04a"
+role = "Paper disclaimer"
+
+[[sources]]
+id = "SRC-PAPER-11"
+path = "protocol-contract/paper-sources/11-b-concrete-parameters.md"
+sha256 = "1505d203b2a07dc339c8c3c652b0cd1fa5f64bb89deb0e34923cdee659bd11ad"
+base_sha256 = "7628750679e2a765f2682e98992c51adf109701f5edfad1c695190d1fde4a0c1"
+role = "Concrete parameter profiles"
+
+[[sources]]
+id = "SRC-PAPER-12"
+path = "protocol-contract/paper-sources/12-c-additional-background.md"
+sha256 = "c448c85a43d187d457bfb2cbbd09291721555b72986243ab51f8e4b95f48c406"
+base_sha256 = "23be1f2fbff571b2959d0c1d6a2f81445a8719176d276e9697defedced645f16"
+role = "Sampling, extraction, and Module-SIS definitions"
+
+[[sources]]
+id = "SRC-PAPER-13"
+path = "protocol-contract/paper-sources/13-d-deferred-theorems-and-proofs.md"
+sha256 = "727c471a324b6ea5d1b22a894119a91b4f5ed6e5b4bee87233d5166cd5d55c08"
+base_sha256 = "bb542f19749b44c037af2a430ed72460fc8fbb07c8a748ff8ac454a0f2a3c734"
+role = "Deferred proofs and concrete losses"
+
+[[sources]]
+id = "SRC-PAPER-INDEX"
+path = "protocol-contract/paper-sources/INDEX.md"
+sha256 = "ac7e5d671fa7a2519f238bed2118bd56d49bd5450914f05938dfe9a3c68ae6cf"
+base_sha256 = "f828403728c0d40ec9bad122a73311b1a0bdd443219592c46025b0d18cb9c3b8"
+role = "Paper index and source inventory"
+
+[[sources]]
+id = "SRC-ERRATA-V4"
+path = "protocol-contract/paper-sources/superneo-paper-errata-v4.patch"
+sha256 = "de684304c5be073ab5b3f50eabfd39f98f4d8900840a77de6d8d9dc2d766a5c9"
+role = "Exact base-to-reviewed patch"
+
+[paper_goldilocks]
+field = "Goldilocks"
+q_decimal = "18446744069414584321"
+q_hex = "0xffffffff00000001"
+extension_degree = 2
+eta = 81
+phi_degree = 54
+phi_nonzero_degrees = [0, 27, 54]
+kappa = 18
+n_f_declared = 1073741824
+n_f_mod_phi_degree = 46
+dimension_relation_satisfied = false
+b = 2
+k = 14
+B = 16384
+max_fresh_claims = 61
+expansion_T = 216
+challenge_alphabet = [-2, -1, 0, 1, 2]
+challenge_set_bits_approx = 125
+msis_bits_approx = 129
+msis_infinity_bound = 28311552
+
+[nightstream_candidate]
+status = "approved"
+profile_version = 1
+fresh_claims = 1
+running_claims = 14
+source_claims = 15
+source_index_map = "source-0=fresh-0;sources-1-through-14=running-0-through-13"
+fresh_ccs_source_indices = [0]
+norm_source_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+carried_evaluation_source_indices = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+carried_local_to_global_offset = 1
+logical_rows = 14944219
+padded_rows = 16777216
+row_variables = 24
+logical_assignment_width = 11437038
+assignment_ring_columns = 211797
+public_ring_columns = 5
+public_field_width = 270
+fresh_logical_width = 257
+fresh_zero_padding = 13
+application_matrix_count = 13
+matrix_count = 14
+polynomial_total_degree = 8
+sumcheck_degree = 9
+piccs_variant = "PaddedRowIdentity"
+row_domain = "single-little-endian-boolean-cube-24"
+domain_padding_map = "logical-prefix-then-zero"
+identity_matrix = "M_0=[I_11437038;0]"
+norm_binding_closure = "padded-row-identity"
+norm_terminal = "constant-term-of-y_ring-source-M_0"
+column_sumcheck = "absent"
+extra_batch_challenges = "absent"
+public_carrier_authority = "x-only"
+derived_carrier_evaluations = "verifier-recompute-or-discard"
+split_algorithm = "centered-common-sign-binary-little-endian-14"
+split_out_of_bound = "prover-assignment-or-verifier-public-input-error"
+hash_family = "Poseidon2-only"
+transcript_profile = "nightstream-poseidon2-field-duplex-v1"
+sampler_profile = "phi81-alphabet5-bounded3-v1"
+circuit_target = "PaddedRowIdentity-current-circuit-replacement"
+decider_family = "Spartan-with-WHIR-profile-manifest-v1"
+
+[algebra_encoding]
+base_field_modulus = "18446744069414584321"
+base_field_bytes = 8
+base_field_byte_order = "little-endian"
+extension_degree = 2
+extension_polynomial = "U^2-7"
+extension_basis = ["1", "U"]
+extension_coefficient_order = ["c0", "c1"]
+ring_polynomial = "X^54+X^27+1"
+ring_coefficient_order = "degree-0-through-degree-53"
+ring_element_base_fields = 54
+public_input_order = "five-consecutive-ring-elements"
+proof_container_magic = "NSPFV1\u0000\u0000"
+statement_container_magic = "NSSV1\u0000\u0000\u0000"
+container_version = 1
+container_variant = 1
+container_header = "magic[8]||version_u16_le||variant_u16_le||section_count_u32_le"
+section_header = "section_id_u32_le||field_count_u32_le"
+container_body = "for-each-section-in-declared-order:section-header||base-field-values"
+section_payload = "field_count-consecutive-8-byte-canonical-base-fields"
+unknown_section = "reject"
+duplicate_section = "reject"
+trailing_bytes = "reject"
+noncanonical_field = "reject"
+
+[commitment_profile]
+scheme = "Ajtai-Phi81-v1"
+kappa = 18
+message_ring_columns = 211797
+commitment_ring_elements = 18
+orientation = "left-matrix-vector"
+commitment_equation = "commitment[row]=sum_column(A[row,column]*message[column])"
+transposed_or_affine_variant = "reject"
+setup_mode = "verifier-key-seeded-matrix"
+setup_seed_bytes = 32
+setup_expander = "nightstream-ajtai-chacha8-setup-par-v1"
+setup_scope = "commitment-parameter-generation-only"
+matrix_entries = "uniform-R_F-by-coefficient-rejection"
+commitment_encoding = "18-ring-elements-in-row-order"
+seed_and_dimensions_bound_by = "verifier-key-Poseidon2-digest"
+msis_infinity_bound = 28311552
+
+[structure_encoding_v1]
+id = "nightstream-sparse-structure-v1"
+encoding_version = 1
+identity_variant_code = 1
+header_fields = ["encoding_version", "logical_rows", "padded_rows", "row_variables", "logical_assignment_width", "public_field_width", "application_matrix_count", "matrix_count", "polynomial_total_degree", "identity_variant_code"]
+integer_encoding = "canonical-base-field"
+identity_encoding = "M_0-is-implicit-from-identity-variant-code"
+padding_encoding = "logical-prefix-only-zero-padding-is-implicit"
+application_matrix_indices = "1-through-13"
+application_matrix_layout = "matrix_index||nonzero_count||row_column_value_triples"
+matrix_entry_order = "strict-row-major-then-column-major"
+matrix_entry_constraints = "row<logical_rows,column<logical_assignment_width,0<value<q,no-duplicates"
+polynomial_variable_count = 13
+polynomial_layout = "term_count||coefficient_and_13_exponents_per_term"
+polynomial_term_order = "strict-lexicographic-exponent-tuples"
+polynomial_term_constraints = "0<coefficient<q,each-exponent<=8,1<=sum-exponents<=8,no-duplicates,maximum-sum-is-8"
+lift_rule = "prepend-zero-exponent-for-u_0"
+
+[verifier_key_digest_v1]
+id = "nightstream-verifier-key-poseidon2-v1"
+algorithm = "fresh-nightstream-poseidon2-field-duplex-v1"
+session_frame_tag = "session"
+session_frame_payload = ["contract_domain_tag", "profile_version_tag"]
+preimage_frame_tag = "verifier_key_preimage"
+preimage_layout = ["setup_variant_code", "kappa", "message_ring_columns", "setup_seed_byte_count", "setup_seed_bytes_as_field_lanes", "structure_stream_field_count", "structure_stream"]
+setup_variant_code = 1
+setup_seed_byte_count = 32
+setup_seed_lane_encoding = "one-u8-value-per-canonical-base-field"
+structure_encoding = "nightstream-sparse-structure-v1"
+digest_squeeze_tag = "verifier_key_digest"
+digest_base_fields = 4
+
+[strong_set_profile]
+eta = 81
+theorem8_divisor = 3
+order_mod_eta = 27
+tau = 3
+phi_divisor = 2
+alphabet = [-2, -1, 0, 1, 2]
+maximum_member_norm = 2
+maximum_difference_norm = 4
+expansion_T = 216
+norm_guard_left = 3240
+norm_guard_right = 16384
+challenge_set_cardinality = "5^54"
+
+[transcript_profile]
+id = "nightstream-poseidon2-field-duplex-v1"
+state_field = "Goldilocks"
+width = 8
+rate = 4
+capacity = 4
+absorb = "additive-rate-lanes"
+initial_state = "eight-zero-field-elements"
+absorb_cursor_initial = 0
+absorb_cursor_after_permutation = 0
+frame = "tag||payload-length||payload"
+frame_tag_type = "canonical-base-field"
+absorb_to_squeeze_padding = "add-1-at-cursor-and-add-2-at-rate-lane-3"
+squeeze_to_absorb_ratchet = "add-3-at-capacity-lane-4-then-permute"
+absorb_padding_cursor_value = 1
+absorb_padding_last_rate_value = 2
+ratchet_capacity_value = 3
+continuation_capacity_value = 4
+last_rate_lane = 3
+first_capacity_lane = 4
+squeeze_request_frame = "challenge_frame||2||squeeze_tag||requested_base_field_count"
+squeeze_block_order = "rate-lanes-0-through-3"
+challenge_extension_codec = "two-consecutive-base-field-lanes-c0-c1"
+contract_domain_tag = 1314062592
+profile_version_tag = 1
+
+[container_sections]
+statement_section_ids = [1, 2, 3, 4]
+statement_section_names = ["lifecycle", "fresh-claim", "shared-row-point", "running-claims"]
+statement_section_field_counts = [2, 1242, 48, 38556]
+statement_total_base_fields = 39848
+statement_total_bytes = 318832
+proof_section_ids = [16, 17, 18]
+proof_section_names = ["piccs-round-polynomials", "piccs-output-evaluations", "pidec-child-claims"]
+proof_section_field_counts = [480, 22680, 34776]
+proof_total_base_fields = 57936
+proof_total_bytes = 463528
+container_header_bytes = 16
+section_header_bytes = 8
+field_bytes = 8
+length_arithmetic = "checked-before-payload-allocation"
+lifecycle_fields = ["fold_index", "fold_count"]
+lifecycle_condition = "0<=fold_index<fold_count<=64"
+fresh_claim_order = "commitment-then-270-field-x"
+shared_row_point_order = "coordinate-0-through-23-each-as-c0-then-c1"
+running_claim_order = "source-0-through-13-each-as-commitment-then-270-field-x-then-14-y_ring-values"
+piccs_round_order = "round-0-through-23-each-as-degree-0-through-9-each-c0-then-c1"
+piccs_output_order = "source-0-through-14-then-matrix-0-through-13-each-R_K-in-ring-order"
+pidec_child_order = "child-0-through-13-each-as-commitment-then-14-y_ring-values; child-x-is-verifier-derived"
+
+[lifecycle_profile]
+id = "nightstream-bounded-fold-sequence-v1"
+sequence_input = "ordered-array-of-one-fold-statement-proof-container-pairs"
+minimum_folds = 1
+maximum_folds = 64
+index_order = "0-through-fold_count-minus-1"
+fold_count_consistency = "same-fold_count-in-every-statement"
+verifier_key_consistency = "one-selected-verifier-key-for-all-folds"
+transcript_initialization = "fresh-zero-state-duplex-per-fold"
+state_link = "ordered-children-of-fold-j-equal-ordered-running-claims-of-fold-j-plus-1-as-canonical-typed-CE-claims"
+initial_running_state = "first-fold-statement-input"
+terminal_running_state = "last-fold-ordered-children"
+fold_transcript_digest_base_fields = 4
+fold_transcript_digest_role = "verifier-derived-receipt-only"
+fold_transcript_digest_next_fold_input = false
+
+[public_image_v1]
+id = "nightstream-statement-public-image-v1"
+algorithm = "fresh-nightstream-poseidon2-field-duplex-v1"
+session_frame_tag = "session"
+session_frame_payload = ["contract_domain_tag", "profile_version_tag"]
+verifier_key_frame_tag = "verifier_key"
+verifier_key_digest_base_fields = 4
+statement_frame_tag = "statement"
+statement_field_stream = "canonical-statement-section-payloads-in-section-id-order"
+statement_field_count = 39848
+digest_squeeze_tag = "statement_digest"
+digest_base_fields = 4
+public_field_order = ["contract_domain_tag", "profile_version_tag", "container_variant", "fold_index", "fold_count", "statement_digest_0", "statement_digest_1", "statement_digest_2", "statement_digest_3"]
+public_base_fields = 9
+explicit_field_check = "match-selected-profile-and-decoded-statement"
+
+[transcript_tags]
+session = 1314062593
+verifier_key = 1314062594
+statement = 1314062595
+verifier_key_preimage = 1314062596
+verifier_key_digest = 1314062597
+statement_digest = 1314062598
+piccs_input = 1314062608
+piccs_alpha = 1314062609
+piccs_gamma = 1314062610
+sumcheck_round = 1314062611
+piccs_output = 1314062612
+pirlc_candidate = 1314062624
+pirlc_output = 1314062625
+pidec_output = 1314062640
+fold_finalize = 1314062656
+challenge_frame = 1314062832
+
+[duplex_test_v1]
+first_frame_tag = "session"
+first_frame_payload = [1314062592, 1]
+first_squeeze_tag = "piccs_alpha"
+first_squeeze_base_fields = 6
+first_squeeze_output = [2951997334621974115, 7930223955076166223, 13769997529589691137, 17756951492757928185, 12959994832329847499, 12971660343991932743]
+second_frame_tag = "statement"
+second_frame_payload = [5, 6, 7]
+second_squeeze_tag = "fold_finalize"
+second_squeeze_base_fields = 4
+second_squeeze_output = [3054587558125561286, 16691457812014967941, 3540203928858384697, 2099151995682871985]
+
+[sampler_profile]
+id = "phi81-alphabet5-bounded3-v1"
+alphabet = [-2, -1, 0, 1, 2]
+ring_degree = 54
+source_count = 15
+coefficients_per_fold = 810
+candidate_domain = "uniform-Goldilocks-field-element"
+acceptance_threshold = "q-1"
+accepted_condition = "candidate<q-1"
+digit_map = "candidate-mod-5 maps 0,1,2,3,4 to -2,-1,0,1,2 then iota_q"
+maximum_attempts_per_coefficient = 3
+counter_order = "source-major-then-coefficient-then-attempt"
+exhaustion = "reject-proof"
+per_candidate_reject_probability = "1/q"
+per_coefficient_exhaustion_probability = "1/q^3"
+per_fold_exhaustion_upper_bound = "810/q^3"
+
+[security_policy]
+model = "classical-ROM"
+production_target_bits = 96
+maximum_folds_per_proof = 64
+maximum_sessions_per_key = 1
+maximum_proofs_per_key = 1
+maximum_adaptive_oracle_queries = 262144
+proof_of_knowledge = true
+setup_trust = "uniform-Ajtai-matrix-or-stated-seeded-PRG-assumption"
+quantum_security_claim = false
+
+[decider_profile]
+family = "Spartan-with-WHIR-profile-manifest-v1"
+terminal_relation = "selected-current-circuit-R1CS"
+public_image = "nightstream-statement-public-image-v1"
+unsupported_backend = "reject"
+backend_parameters = "verifier-key-owned-versioned-manifest"
+on_chain_parser = "same-canonical-container-rules"
+security_release_requires_concrete_manifest = true
+
+[ajtai_setup_v1]
+id = "nightstream-ajtai-chacha8-setup-par-v1"
+reference = "ChaCha8 with 64-bit block counter and 64-bit zero stream ID"
+rounds = 8
+seed_bytes = 32
+stream_id = 0
+initial_block_counter = 0
+word_encoding = "sixteen-u32-little-endian-words-per-64-byte-block"
+next_u64_encoding = "low-u32-then-high-u32"
+matrix_order = "output-row-then-message-column-then-ring-coefficient"
+row_seed_derivation = "first-18-consecutive-32-byte-blocks-from-master-stream"
+chunk_size_formula = "max(1024,min(message_columns,32768))"
+selected_chunk_size = 32768
+selected_chunk_count = 7
+chunk_seed_derivation = "consecutive-32-byte-blocks-from-each-row-seed-stream"
+column_to_chunk = "chunk=floor(column/chunk_size);local-column=column-mod-chunk-size"
+chunk_stream_order = "local-column-then-ring-coefficient"
+chunk_stream_counter_reset = "zero-for-each-chunk-seed"
+ring_coefficient_count = 54
+coefficient_batch = "read-54-consecutive-u64-values-before-any-fallback"
+coefficient_accept = "x<18446744069414584321"
+coefficient_fallback = "replace-rejected-slots-in-index-order-with-next-accepted-u64"
+selected_output_rows = 18
+selected_message_columns = 211797
+
+test_seed = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+test_first_64_u32 = [
+  2410812736, 1789596270, 2070341849, 856868145, 655855607, 1339667088, 3610143538, 3418275071,
+  917348095, 1003391327, 3159703663, 4254113141, 656245647, 2480910535, 2196617651, 3596001848,
+  258873974, 1505276616, 2935204341, 2574584343, 3458445488, 2607142777, 930737714, 2305978942,
+  2314350449, 526651379, 4163863245, 3640612582, 4170274418, 867477305, 1393604261, 3769539545,
+  4001331010, 4129929097, 3673175628, 1215036948, 47647076, 766653499, 1898596918, 2391297935,
+  261009703, 613077258, 1916366683, 4018368524, 3358057343, 762743414, 607156324, 972467821,
+  4230198361, 2916956629, 2450352400, 104939653, 1541629096, 2746188747, 2059405616, 585274592,
+  1542962425, 3463275805, 2077343308, 562523710, 4245274536, 2262433704, 639770842, 2478107708,
+]
+test_high_word_start = 100000
+test_high_8_u32 = [4148008685, 3707911544, 3652273745, 1498415893, 1818086804, 397883558, 2155761108, 4253169178]
+test_setup_rows = 2
+test_setup_message_columns = 32769
+test_setup_chunk_size = 32768
+test_setup_chunk_seeds = [
+  [[219, 215, 72, 182, 23, 0, 39, 87, 148, 105, 71, 104, 243, 16, 219, 104, 219, 69, 252, 42, 14, 42, 203, 57, 65, 73, 180, 126, 145, 135, 74, 13], [31, 220, 26, 41, 124, 49, 232, 13, 50, 46, 34, 220, 132, 190, 234, 119, 250, 212, 20, 99, 65, 45, 187, 125, 189, 168, 92, 215, 156, 136, 59, 20]],
+  [[68, 26, 203, 165, 212, 68, 214, 154, 96, 48, 39, 78, 17, 21, 114, 1, 4, 247, 14, 93, 111, 249, 133, 205, 233, 217, 172, 194, 47, 88, 71, 63], [15, 236, 209, 116, 28, 176, 183, 66, 148, 192, 189, 143, 213, 109, 139, 217, 164, 214, 41, 58, 213, 125, 187, 228, 157, 100, 77, 101, 108, 227, 49, 24]],
+]
+
+[poseidon2_goldilocks_v1]
+field_modulus = "18446744069414584321"
+width = 8
+rate = 4
+capacity = 4
+sbox = "x^7"
+initial_full_rounds = 4
+partial_rounds = 22
+terminal_full_rounds = 4
+schedule = "external-linear;4*(add-all,x7-all,external-linear);22*(add-lane0,x7-lane0,internal-linear);4*(add-all,x7-all,external-linear)"
+state_orientation = "column-vector"
+linear_application = "new_state[row]=sum_column(matrix[row,column]*old_state[column])"
+constant_order = "round-major-then-lane-major"
+external_matrix = "[[2*M4,M4],[M4,2*M4]]"
+external_m4_rows = ["2,3,1,1", "1,2,3,1", "1,1,2,3", "3,1,1,2"]
+internal_matrix = "all-ones-plus-diagonal"
+internal_diagonal = [18446744069414584319, 1, 2, 9223372034707292161, 3, 9223372034707292160, 18446744069414584318, 18446744069414584317]
+
+initial_round_constants = [
+  15504881536434223753, 2212164856944708396, 1885257220781225929, 17531637481572944510, 16769640728293682348, 445908668462176974, 1308472042479836079, 17465001500823438575,
+  1922033642430128704, 2657514617275794404, 17238706657248448792, 7348277157222259646, 10777112892842897939, 1771261721914735482, 9409693344407549465, 16619731096074499912,
+  1922036059108268922, 2681686362645798986, 12432722052283819565, 2826979200512189741, 5080805286413226676, 16827966425431695029, 9196241087337510154, 2350771591198563053,
+  2989012136977041732, 4359939046747977080, 16089932437481530267, 6601984573273403484, 13005272261058756234, 17128237926164276121, 8240789415616872849, 8676316357341090631,
+]
+
+partial_round_constants = [
+  7482194551502142718, 3471957803411196592, 8846669050136897522, 4431017908497072775, 14382646627736292998, 15636596632746594248, 14521990061611210983, 4351091752509404379, 14119848206371842921, 528205008764728916, 15379406877060454284, 13572057177474709483, 780214424511389757, 10591233664360718633, 1849508423779478786, 7345390174439848870, 14580881241235634775, 8777273265976228774, 1758781345554053863, 9701442189086298420, 15685565327448534444, 5672331717709479627,
+]
+
+terminal_round_constants = [
+  16452552554259143025, 17874550554210084887, 3031715677034868367, 18215520516675091549, 18186005068527139405, 11138995707668647102, 15098195648006184282, 2025927025270509469,
+  9957669227203243937, 11554336633716867616, 9729067570563846225, 4239770196713589268, 4390607796152185292, 17647511975646925721, 7671337049037340193, 4209452938403606590,
+  6593973666654839090, 8390781086037206386, 7324343054784993307, 17780748563735894140, 15974082699116886783, 13213371256836887512, 7312926934405385057, 10393853239698468203,
+  2710107888698774842, 2801523468128575786, 15894340394120906162, 13510783799941644149, 7917164295139071913, 13839801071899888959, 6672989303670154677, 4519956214037211385,
+]
+
+test_zero_input = [0, 0, 0, 0, 0, 0, 0, 0]
+test_zero_output = [15468221733441503290, 4328265064113056485, 12164561341973176253, 5248716478215577124, 10941313504057156628, 12983976802143116950, 2583794798543698119, 5059554291875945806]
+test_sequence_input = [0, 1, 2, 3, 4, 5, 6, 7]
+test_sequence_output = [5488585136800735649, 15788908966630034145, 16079255763572629144, 18141420471353752734, 15609380996481485392, 2967186249397356049, 3405496945520602869, 15650816165326155396]
+
+[security_accounting]
+model = "classical-ROM"
+production_target_bits = 96
+maximum_folds = 64
+maximum_sessions_per_key = 1
+maximum_proofs_per_key = 1
+maximum_adaptive_oracle_queries = 262144
+maximum_fold_transcript_squeezes_per_fold = 2457
+maximum_public_image_squeezes_per_fold = 1
+maximum_protocol_squeezes_per_fold = 2458
+maximum_protocol_squeezes_per_proof = 157312
+maximum_verifier_key_squeezes_per_key = 1
+maximum_protocol_squeezes_per_key = 157313
+coordinate_fork_factor = 16
+included_terms = ["joint-sumcheck", "schwartz-zippel-mixing", "coordinate-fork", "bounded-sampler-exhaustion"]
+open_terms = [
+  "padded-identity-refinement-and-strong-extraction",
+  "strong-weak-composition",
+  "relaxed-ajtai-binding",
+  "concrete-module-sis-estimate",
+  "seeded-setup-prg-assumption",
+  "poseidon2-random-oracle-instantiation",
+  "fiat-shamir-transform",
+  "canonical-encoding-injectivity",
+  "adaptive-lifetime-composition",
+  "rust-refinement",
+  "current-circuit-correspondence",
+  "terminal-decider-and-on-chain-verifier",
+]
+
+[selected_joint_piccs]
+fresh_claims = 1
+running_claims = 14
+source_claims = 15
+row_variables = 24
+matrix_count = 14
+ring_degree = 54
+polynomial_total_degree = 8
+sumcheck_degree = 9
+N_SC = 216
+D_SZ_fresh = 24
+D_SZ_norm = 39
+D_SZ_carried = 10599
+D_SZ = 10599
+N_field = 10815
+coordinate_fork_factor = 16
+one_fold_algebraic_bits_floor = 114
+maximum_fold_algebraic_bits_floor = 108
+
+[sampler_accounting]
+source_count = 15
+coefficients_per_source = 54
+coefficients_per_fold = 810
+maximum_attempts_per_coefficient = 3
+per_fold_exhaustion_numerator = 810
+per_fold_exhaustion_denominator_power = 3
+per_fold_exhaustion_bits_floor = 182
+maximum_fold_exhaustion_numerator = 51840
+maximum_fold_exhaustion_bits_floor = 176
+
+[assurance]
+allowed_tiers = ["model-cited", "model-level", "artifact-checked", "Rust-conformant", "security-reduced"]
+workflow_states = ["open", "not-applicable"]
+applicability_values = ["required", "not-applicable"]
+
+[conformance]
+required_gate = "G5-SECURITY"
+implementation_ready = false
+release_blocked = true
+decision_dependencies = []
+open_blockers = []

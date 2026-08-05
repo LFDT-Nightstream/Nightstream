@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:nightstream:protocol-contract:conformance-vector:v1",
+  "title": "Nightstream conformance vector specification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "vector_id",
+    "contract_id",
+    "contract_hash",
+    "profile_id",
+    "profile_hash",
+    "target_rule",
+    "kind",
+    "input",
+    "mutation",
+    "semantic_oracle",
+    "required_events",
+    "required_trace_rules",
+    "content_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "vector_id": {
+      "type": "string",
+      "pattern": "^NV-[A-Z0-9-]+$"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contract_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "profile_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "target_rule": {
+      "type": "string",
+      "pattern": "^(?:SN|NS)-[A-Z0-9-]+$"
+    },
+    "kind": {
+      "enum": [
+        "positive",
+        "mutation",
+        "boundary",
+        "serialization",
+        "differential"
+      ]
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codec",
+        "artifact_path",
+        "artifact_hash"
+      ],
+      "properties": {
+        "codec": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "artifact_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "mutation": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "operator",
+            "target",
+            "parameters"
+          ],
+          "properties": {
+            "operator": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target": {
+              "type": "string",
+              "minLength": 1
+            },
+            "parameters": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "semantic_oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "predicate",
+        "checker_path",
+        "checker_hash"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "predicate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checker_path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "checker_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "required_trace_rules": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(?:SN|NS)-[A-Z0-9-]+$"
+      }
+    },
+    "required_events": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^EV-[A-Z0-9-]+$"
+      }
+    },
+    "content_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the RFC 8785 canonical object with this content_hash member omitted."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "positive"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mutation": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "mutation"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "mutation": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ]
+}

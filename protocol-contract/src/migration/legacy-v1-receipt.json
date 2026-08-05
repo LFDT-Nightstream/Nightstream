@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "id": "MIG-LEGACY-V1-MODULAR",
+  "contract_id": "nightstream-superneo-v1",
+  "baseline_path": "src/migration/legacy-v1-baseline.json",
+  "baseline_sha256": "71c65bfe2e0c318f7dfb42a51f52722a4cc4ed3be4ecf30ebb3c1561d17ce226",
+  "verification_state": "verified",
+  "review_owner": "protocol-contract-maintainers",
+  "verified_legacy_files": {
+    "assurance-claims.json": "573cc692092ccbe58191d50c9d40a4707c9643999c52380c8c65bc94dc58ae07",
+    "coverage.csv": "bcbef19d38ff40499134d7df5103a8bd93ff21b6f9515fcc8c9e0b8f83e8b170",
+    "deviations.md": "b108767179ba5131703897dd980b6cadce80687e7e9d6473936d1eb80382dfda",
+    "literal-paper-model.md": "2561aedfd5f96ebf6ddd5e35b60a52303f2a7c1ec08692a45a58a88a8b288d73",
+    "obligations.toml": "27bff48d3e718c1bbb61d4167a26a57e0a6e7cb1f2a7cc98a2ed5e63efb9abd8",
+    "protocol-events.json": "05922a02797cbc523dd327661195c13f8e55e37e68f472b8818ede1c0309252e",
+    "release.toml": "4e1afd8e785e075189297ff460f8821abb168588eeba35c2cf8d3772baea204e",
+    "rule-index.json": "5f897f0c18783a12c16905ed5d831402d18d1a3f2fcc529370a7814699206004",
+    "superneo-v1.md": "1e8ddb5396462be2973e667a35536fb14f4bc07ec0b9e19542e52e93425389cb",
+    "superneo-v1.toml": "0cc25cb57ed38e4311e176f08942f78edde44bf5dfc9899c0a05d16fff4a87e7"
+  },
+  "verified_counts": {
+    "normative_rules": 42,
+    "literal_paper_items": 41,
+    "decisions": 20,
+    "coverage_rows": 42,
+    "assurance_claims": 39,
+    "assurance_rollups": 9,
+    "assurance_artifacts": 20,
+    "protocol_events": 12,
+    "protocol_challenges": 9
+  },
+  "checks": [
+    "normative-rule-blocks-byte-identical",
+    "literal-paper-items-byte-identical",
+    "decision-rows-lossless",
+    "coverage-rows-byte-identical",
+    "assurance-claims-lossless",
+    "assurance-rollup-scopes-lossless",
+    "protocol-events-lossless",
+    "release-gates-lossless"
+  ],
+  "note": "This receipt records the completed one-time import gate. It is migration evidence, not protocol authority and not a constraint on later workflow state. In migrated versions, --verify-import audits this sealed record; it does not compare live semantics with the superseded candidate."
+}

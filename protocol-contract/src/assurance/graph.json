@@ -1,0 +1,116 @@
+{
+  "schema_version": 2,
+  "contract_id": "nightstream-superneo-v1",
+  "root_claim": "E2E-NIGHTSTREAM-SECURITY",
+  "implementation_ready_gate": "G1-DECISIONS",
+  "claim_files": [
+    "src/assurance/source.jsonl",
+    "src/assurance/decisions.jsonl",
+    "src/assurance/lean.jsonl",
+    "src/assurance/rust.jsonl",
+    "src/assurance/circuit.jsonl",
+    "src/assurance/security.jsonl"
+  ],
+  "issue_file": "src/assurance/issues.jsonl",
+  "review_file": "src/assurance/reviews.jsonl",
+  "gate_order": [
+    "G0-MECHANICAL-SOURCE",
+    "G0B-SEMANTIC-SOURCE",
+    "G1-DECISIONS",
+    "G2-LEAN",
+    "G3-RUST",
+    "G4-CIRCUIT",
+    "G5-SECURITY"
+  ],
+  "gates": [
+    {
+      "id": "G0-MECHANICAL-SOURCE",
+      "requires": [
+        "SRC-REVIEWED-LOCK",
+        "SRC-BASE-DERIVATION"
+      ]
+    },
+    {
+      "id": "G0B-SEMANTIC-SOURCE",
+      "requires": [
+        "SOURCE-NORMALIZATION-REVIEW"
+      ]
+    },
+    {
+      "id": "G1-DECISIONS",
+      "requires": [
+        "DEC-DOMAINS",
+        "DEC-NORM-BINDING",
+        "DEC-PICCS",
+        "DEC-BATCH-COINS",
+        "DEC-CARRIER",
+        "DEC-SPLIT",
+        "DEC-ENCODING",
+        "DEC-TRANSCRIPT",
+        "DEC-SAMPLER",
+        "DEC-AUTHORITY",
+        "DEC-REDUCTION-FRAMEWORK",
+        "DEC-SECURITY-POLICY",
+        "DEC-CIRCUIT-PROFILE",
+        "DEC-DECIDER-PROFILE",
+        "DEC-PROVENANCE"
+      ]
+    },
+    {
+      "id": "G2-LEAN",
+      "requires": [
+        "LEAN-PAPER-CORE",
+        "LEAN-REDUCTION-FRAMEWORK",
+        "LEAN-PADDED-IDENTITY",
+        "LEAN-PADDING-REFINEMENT",
+        "LEAN-NIGHTSTREAM-SECURITY"
+      ]
+    },
+    {
+      "id": "G3-RUST",
+      "requires": [
+        "RUST-BUILD-IDENTITY",
+        "RUST-VERIFIER-REFINEMENT",
+        "RUST-ORIGIN-ARTIFACTS"
+      ]
+    },
+    {
+      "id": "G4-CIRCUIT",
+      "requires": [
+        "CIRCUIT-MANIFEST",
+        "CIRCUIT-COMPLETENESS",
+        "CIRCUIT-SOUNDNESS",
+        "CIRCUIT-PUBLIC-INPUT",
+        "CIRCUIT-HINT-LOWERING"
+      ]
+    },
+    {
+      "id": "G5-SECURITY",
+      "requires": [
+        "SEC-INTERACTIVE-CORE",
+        "SEC-NORM-BINDING",
+        "SEC-STRONG-WEAK",
+        "SEC-PADDED-PICCS",
+        "SEC-COMMITMENT",
+        "SEC-FIAT-SHAMIR",
+        "SEC-SAMPLER",
+        "SEC-IMPLEMENTATION-TRANSFER",
+        "SEC-DECIDER",
+        "SEC-COMPOSITION",
+        "E2E-NIGHTSTREAM-SECURITY"
+      ]
+    }
+  ],
+  "forbidden_claims": [
+    "the current Rust verifier implements PaddedRowIdentity",
+    "the padded identity and zero-row embedding have completed Lean proofs",
+    "the Nightstream stages satisfy the strong and weak composition conditions",
+    "the Poseidon2 transcript has a complete Fiat-Shamir reduction",
+    "the native and circuit samplers have proved conformance",
+    "the current circuit is equivalent to the normative verifier",
+    "the selected decider and on-chain verifier close the terminal relation",
+    "Nightstream has a concrete end-to-end production security level"
+  ],
+  "artifact_file": "src/assurance/artifacts.jsonl",
+  "rollup_file": "src/assurance/rollups.jsonl"
+}

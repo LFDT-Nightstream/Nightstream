@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nightstream.dev/schema/transcript-profile-v1.json",
+  "title": "Nightstream Poseidon2 transcript profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "profile_id",
+    "contract_id",
+    "source_registry_hash",
+    "hash",
+    "encodings",
+    "session",
+    "events",
+    "finalization",
+    "security_model"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "status": { "enum": ["illustrative-only", "draft", "approved"] },
+    "profile_id": { "type": "string", "minLength": 1 },
+    "contract_id": { "const": "nightstream-superneo-v1" },
+    "source_registry_hash": { "$ref": "#/$defs/sha256" },
+    "hash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primitive", "parameter_hash", "state_field", "width", "rate", "capacity"],
+      "properties": {
+        "primitive": { "const": "Poseidon2" },
+        "parameter_hash": { "$ref": "#/$defs/sha256" },
+        "state_field": { "type": "string", "minLength": 1 },
+        "width": { "type": "integer", "minimum": 1 },
+        "rate": { "type": "integer", "minimum": 1 },
+        "capacity": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "encodings": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "canonicality", "framing", "encoding_hash"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "minLength": 1 },
+          "canonicality": { "type": "string", "minLength": 1 },
+          "framing": { "type": "string", "minLength": 1 },
+          "encoding_hash": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["domain_tag_hex", "version", "bound_values"],
+      "properties": {
+        "domain_tag_hex": { "$ref": "#/$defs/hex" },
+        "version": { "type": "integer", "minimum": 1 },
+        "bound_values": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "finalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_ordinal", "binds_full_proof", "output_encoding", "recursive_binding"],
+      "properties": {
+        "event_ordinal": { "type": "integer", "minimum": 0 },
+        "binds_full_proof": { "type": "boolean" },
+        "output_encoding": { "type": "string", "minLength": 1 },
+        "recursive_binding": { "type": "string", "minLength": 1 }
+      }
+    },
+    "security_model": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "theorem", "query_limit", "session_limit"],
+          "properties": {
+            "model": { "enum": ["classical-rom", "qrom", "standard-model"] },
+            "theorem": { "type": "string", "minLength": 1 },
+            "query_limit": { "type": "integer", "minimum": 0 },
+            "session_limit": { "type": "integer", "minimum": 1 }
+          }
+        },
+        { "type": "null" }
+      ]
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "hex": { "type": "string", "pattern": "^(?:[0-9a-f]{2})*$" },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordinal", "phase", "operation", "tag_hex", "payload_type", "encoding_id", "count", "depends_on", "challenge", "failure_rule"],
+      "properties": {
+        "ordinal": { "type": "integer", "minimum": 0 },
+        "phase": { "type": "string", "minLength": 1 },
+        "operation": { "enum": ["absorb", "squeeze", "retry", "abort", "finalize"] },
+        "tag_hex": { "$ref": "#/$defs/hex" },
+        "payload_type": { "type": "string", "minLength": 1 },
+        "encoding_id": { "type": ["string", "null"] },
+        "count": { "type": "integer", "minimum": 0 },
+        "depends_on": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "uniqueItems": true },
+        "challenge": { "oneOf": [{ "$ref": "#/$defs/challenge" }, { "type": "null" }] },
+        "failure_rule": { "type": ["string", "null"], "pattern": "^(SN|NS)-[A-Z0-9-]+$" }
+      }
+    },
+    "challenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "domain", "decoder", "distribution", "max_retries", "retry_counter_encoding", "on_exhaustion"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "domain": { "type": "string", "minLength": 1 },
+        "decoder": { "type": "string", "minLength": 1 },
+        "distribution": { "type": "string", "minLength": 1 },
+        "max_retries": { "type": "integer", "minimum": 0 },
+        "retry_counter_encoding": { "type": "string", "minLength": 1 },
+        "on_exhaustion": { "enum": ["reject", "abort-proving"] }
+      }
+    }
+  }
+}

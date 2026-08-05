@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "scope": "one-fold",
+  "lifecycle_repetition_id": "REP-FOLD-STEPS",
+  "lifecycle_profile_id": "nightstream-bounded-fold-sequence-v1",
+  "steps": [
+    {
+      "id": "FR-SESSION",
+      "kind": "frame",
+      "event_id": "EV-PICCS-ABSORB",
+      "tag": "session",
+      "payload_layout": ["contract_domain_tag", "profile_version_tag"],
+      "base_field_count": 2
+    },
+    {
+      "id": "FR-VERIFIER-KEY",
+      "kind": "frame",
+      "event_id": "EV-PICCS-ABSORB",
+      "tag": "verifier_key",
+      "payload_layout": ["verifier_key_digest[0..3]"],
+      "base_field_count": 4
+    },
+    {
+      "id": "FR-STATEMENT",
+      "kind": "frame",
+      "event_id": "EV-PICCS-ABSORB",
+      "tag": "statement",
+      "payload_layout": ["canonical_statement_sections_in_section_id_order"],
+      "base_field_count": 39848
+    },
+    {
+      "id": "FR-PICCS-INPUT",
+      "kind": "frame",
+      "event_id": "EV-PICCS-ABSORB",
+      "tag": "piccs_input",
+      "payload_layout": [],
+      "base_field_count": 0
+    },
+    {
+      "id": "SQ-PICCS-ALPHA",
+      "kind": "squeeze",
+      "event_id": "EV-PICCS-COINS",
+      "tag": "piccs_alpha",
+      "requested_base_fields": 48,
+      "challenge_id": "CH-PICCS-ALPHA"
+    },
+    {
+      "id": "SQ-PICCS-GAMMA",
+      "kind": "squeeze",
+      "event_id": "EV-PICCS-COINS",
+      "tag": "piccs_gamma",
+      "requested_base_fields": 2,
+      "challenge_id": "CH-PICCS-GAMMA"
+    },
+    {
+      "id": "LOOP-PICCS-ROUNDS",
+      "kind": "repeat",
+      "repetition_id": "REP-PICCS-ROUNDS",
+      "body": [
+        {
+          "id": "FR-PICCS-ROUND",
+          "kind": "frame",
+          "event_id": "EV-PICCS-SUMCHECK",
+          "tag": "sumcheck_round",
+          "payload_layout": ["round_index", "g_round_coefficients_degree_0_through_9_as_c0_c1"],
+          "base_field_count": 21
+        },
+        {
+          "id": "SQ-PICCS-ROUND",
+          "kind": "squeeze",
+          "event_id": "EV-PICCS-SUMCHECK",
+          "tag": "sumcheck_round",
+          "requested_base_fields": 2,
+          "challenge_id": "CH-SUMCHECK-ROUND"
+        }
+      ]
+    },
+    {
+      "id": "FR-PICCS-OUTPUT",
+      "kind": "frame",
+      "event_id": "EV-PICCS-OUTPUT",
+      "tag": "piccs_output",
+      "payload_layout": ["15_sources_x_14_matrices_x_54_ring_coefficients_x_c0_c1"],
+      "base_field_count": 22680
+    },
+    {
+      "id": "LOOP-RHO-SOURCES",
+      "kind": "repeat",
+      "repetition_id": "REP-RHO-SOURCES",
+      "body": [
+        {
+          "id": "LOOP-RHO-COEFFICIENTS",
+          "kind": "repeat",
+          "repetition_id": "REP-RHO-COEFFICIENTS",
+          "body": [
+            {
+              "id": "LOOP-RHO-ATTEMPTS",
+              "kind": "repeat",
+              "repetition_id": "REP-RHO-ATTEMPTS",
+              "body": [
+                {
+                  "id": "FR-PIRLC-CANDIDATE",
+                  "kind": "frame",
+                  "event_id": "EV-PIRLC-SAMPLE",
+                  "tag": "pirlc_candidate",
+                  "payload_layout": ["source_index", "coefficient_index", "attempt_index"],
+                  "base_field_count": 3
+                },
+                {
+                  "id": "SQ-PIRLC-CANDIDATE",
+                  "kind": "squeeze",
+                  "event_id": "EV-PIRLC-SAMPLE",
+                  "tag": "pirlc_candidate",
+                  "requested_base_fields": 1,
+                  "challenge_id": "CH-PIRLC-CANDIDATE"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "FR-PIRLC-OUTPUT",
+      "kind": "frame",
+      "event_id": "EV-PIRLC-FINALIZE",
+      "tag": "pirlc_output",
+      "payload_layout": ["mixed_commitment", "mixed_public_input", "mixed_y_ring", "shared_row_point_excluded_as_already_bound"],
+      "base_field_count": 2754
+    },
+    {
+      "id": "FR-PIDEC-OUTPUT",
+      "kind": "frame",
+      "event_id": "EV-PIDEC",
+      "tag": "pidec_output",
+      "payload_layout": ["14_children_in_child_order_each_as_commitment_then_derived_public_input_then_y_ring"],
+      "base_field_count": 38556
+    },
+    {
+      "id": "FR-FOLD-FINALIZE",
+      "kind": "frame",
+      "event_id": "EV-FOLD-FINALIZE",
+      "tag": "fold_finalize",
+      "payload_layout": ["fold_index", "fold_count"],
+      "base_field_count": 2
+    },
+    {
+      "id": "SQ-FOLD-DIGEST",
+      "kind": "squeeze",
+      "event_id": "EV-FOLD-FINALIZE",
+      "tag": "fold_finalize",
+      "requested_base_fields": 4,
+      "challenge_id": null
+    }
+  ]
+}

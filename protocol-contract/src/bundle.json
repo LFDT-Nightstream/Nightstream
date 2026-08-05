@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "contract_id": "nightstream-superneo-v1",
+  "profile_id": "nightstream-superneo-fprime-v1",
+  "migration": {
+    "lossless_import": "verified",
+    "requirement_granularity": "atomic",
+    "semantic_dependency_review": "reviewed"
+  },
+  "authored": {
+    "normative_modules": [
+      "src/normative/00-preamble.md",
+      "src/normative/10-paper-foundations.md",
+      "src/normative/20-paper-reductions.md",
+      "src/normative/30-paper-piccs.md",
+      "src/normative/40-paper-fold.md",
+      "src/normative/50-nightstream-profile.md",
+      "src/normative/60-nightstream-piccs.md",
+      "src/normative/70-nightstream-fold.md",
+      "src/normative/80-nightstream-verifier.md",
+      "src/normative/90-nightstream-assurance.md"
+    ],
+    "literal_paper_modules": [
+      "src/paper/00-preamble.md",
+      "src/paper/10-foundations.md",
+      "src/paper/20-reductions.md",
+      "src/paper/30-relations.md",
+      "src/paper/40-folding.md",
+      "src/paper/50-profile-conflicts.md"
+    ],
+    "requirement_files": [
+      "src/requirements/paper.jsonl",
+      "src/requirements/nightstream.jsonl"
+    ],
+    "evidence_files": {
+      "lean": "src/evidence/lean.jsonl",
+      "rust": "src/evidence/rust.jsonl",
+      "rust-origin": "src/evidence/rust-origin.jsonl",
+      "circuit": "src/evidence/circuit.jsonl",
+      "security": "src/evidence/security.jsonl"
+    },
+    "decision_file": "src/decisions/decisions.jsonl",
+    "protocol": {
+      "machine": "src/protocol/machine.json",
+      "states": "src/protocol/states.jsonl",
+      "events": "src/protocol/events.jsonl",
+      "challenges": "src/protocol/challenges.jsonl",
+      "repetitions": "src/protocol/repetitions.jsonl",
+      "rejections": "src/protocol/rejections.jsonl",
+      "transcript_schedule": "src/protocol/transcript-schedule.json"
+    },
+    "legacy_baseline": "src/migration/legacy-v1-baseline.json",
+    "migration_receipt": "src/migration/legacy-v1-receipt.json",
+    "assurance": {
+      "graph": "src/assurance/graph.json",
+      "policy": "src/assurance/policy.toml"
+    },
+    "source_lock": "src/sources/lock.toml",
+    "profile_inputs": [
+      "src/profile/paper-goldilocks.toml",
+      "src/profile/nightstream-candidate.toml",
+      "src/profile/ajtai-setup-v1.toml",
+      "src/profile/poseidon2-goldilocks-v1.toml"
+    ],
+    "profile_hash_inputs": [
+      "src/profile/paper-goldilocks.toml",
+      "src/profile/nightstream-candidate.toml",
+      "src/profile/ajtai-setup-v1.toml",
+      "src/profile/poseidon2-goldilocks-v1.toml",
+      "src/security/planning.toml",
+      "src/protocol/machine.json",
+      "src/protocol/states.jsonl",
+      "src/protocol/events.jsonl",
+      "src/protocol/challenges.jsonl",
+      "src/protocol/repetitions.jsonl",
+      "src/protocol/rejections.jsonl",
+      "src/protocol/transcript-schedule.json"
+    ],
+    "security_planning": "src/security/planning.toml"
+  },
+  "generated": {
+    "normative": "superneo-v1.md",
+    "decisions": "deviations.md",
+    "literal_paper": "literal-paper-model.md",
+    "sources": "sources.md",
+    "coverage": "coverage.csv",
+    "rule_index": "rule-index.json",
+    "protocol_events": "protocol-events.json",
+    "assurance_status": "generated/assurance-status.json",
+    "profile": "superneo-v1.toml",
+    "release": "release.toml",
+    "obligations": "obligations.toml",
+    "requirement_graph": "requirement-graph.md"
+  },
+  "limits": {
+    "max_authored_lines": 500,
+    "max_file_lines": 1500,
+    "max_rule_lines": 25,
+    "max_normative_keywords_per_rule": 4
+  },
+  "documents": {
+    "profile": "protocol-contract/superneo-v1.toml",
+    "normative": "protocol-contract/superneo-v1.md",
+    "literal": "protocol-contract/literal-paper-model.md",
+    "base_literal": "protocol-contract/base-paper-model.md",
+    "sources": "protocol-contract/sources.md",
+    "reviewed_errata": "protocol-contract/reviewed-errata.md",
+    "decisions": "protocol-contract/deviations.md",
+    "coverage": "protocol-contract/coverage.csv",
+    "rust_evidence_schema": "protocol-contract/rust-evidence.schema.json",
+    "transcript_profile_schema": "protocol-contract/transcript-profile.schema.json",
+    "circuit_manifest_schema": "protocol-contract/circuit-correspondence.schema.json",
+    "security_instantiation_schema": "protocol-contract/security-instantiation.schema.json",
+    "lean_semantic_model": "protocol-contract/lean-semantic-model.md",
+    "rust_conformance": "protocol-contract/rust-conformance.md",
+    "circuit_correspondence": "protocol-contract/circuit-correspondence.md",
+    "security_reduction": "protocol-contract/security-reduction.md",
+    "review": "protocol-contract/review.md",
+    "migration": "protocol-contract/migration.md",
+    "obligations": "protocol-contract/obligations.toml",
+    "obligation_graph": "protocol-contract/obligation-graph.md",
+    "release": "protocol-contract/release.toml",
+    "extended_review": "protocol-contract/REVIEW-EXTENSION.md",
+    "assurance_architecture": "protocol-contract/assurance-architecture.md",
+    "rule_index_schema": "protocol-contract/rule-index.schema.json",
+    "rule_index": "protocol-contract/rule-index.json",
+    "assurance_status_schema": "protocol-contract/assurance-status.schema.json",
+    "assurance_status": "protocol-contract/generated/assurance-status.json",
+    "protocol_events_schema": "protocol-contract/protocol-events.schema.json",
+    "protocol_events": "protocol-contract/protocol-events.json",
+    "protocol_state_machine": "protocol-contract/protocol-state-machine.md",
+    "conformance_vector_schema": "protocol-contract/conformance-vector.schema.json",
+    "conformance_plan": "protocol-contract/conformance-plan.md",
+    "contract_validator": "protocol-contract/check_contract.py",
+    "contract_model": "protocol-contract/contract_model.py",
+    "contract_assurance": "protocol-contract/contract_assurance.py",
+    "contract_protocol": "protocol-contract/contract_protocol.py",
+    "contract_migration": "protocol-contract/contract_migration.py",
+    "contract_checks": "protocol-contract/contract_checks.py",
+    "contract_render": "protocol-contract/contract_render.py",
+    "refresh_derived": "protocol-contract/refresh_derived.py"
+  }
+}

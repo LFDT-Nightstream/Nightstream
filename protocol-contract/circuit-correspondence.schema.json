@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nightstream.dev/schema/circuit-correspondence-v1.json",
+  "title": "Nightstream circuit correspondence manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "manifest_id",
+    "contract",
+    "native_verifier",
+    "circuit",
+    "public_inputs",
+    "rule_coverage",
+    "hints",
+    "correspondence",
+    "differential_artifacts"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "status": { "enum": ["illustrative-only", "draft", "approved"] },
+    "manifest_id": { "type": "string", "minLength": 1 },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_id", "source_registry_hash", "profile_hash", "transcript_profile_hash", "public_image_profile_id"],
+      "properties": {
+        "contract_id": { "const": "nightstream-superneo-v1" },
+        "source_registry_hash": { "$ref": "#/$defs/sha256" },
+        "profile_hash": { "$ref": "#/$defs/sha256" },
+        "transcript_profile_hash": { "$ref": "#/$defs/sha256" },
+        "public_image_profile_id": { "const": "nightstream-statement-public-image-v1" }
+      }
+    },
+    "native_verifier": { "$ref": "#/$defs/build" },
+    "circuit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["build", "frontend_relation_hash", "constraint_system_hash", "backend_relation_hash", "verifier_key_hash", "verifier_key_digest_fields", "public_input_count"],
+      "properties": {
+        "build": { "$ref": "#/$defs/build" },
+        "frontend_relation_hash": { "$ref": "#/$defs/sha256" },
+        "constraint_system_hash": { "$ref": "#/$defs/sha256" },
+        "backend_relation_hash": { "$ref": "#/$defs/sha256" },
+        "verifier_key_hash": { "$ref": "#/$defs/sha256" },
+        "verifier_key_digest_fields": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/field-decimal" }
+        },
+        "public_input_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "public_inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "start", "length", "encoding", "authority", "rule_ids"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "start": { "type": "integer", "minimum": 0 },
+          "length": { "type": "integer", "minimum": 1 },
+          "encoding": { "type": "string", "minLength": 1 },
+          "authority": { "enum": ["relation-authority", "verifier-derived", "non-authoritative"] },
+          "rule_ids": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/rule" }, "uniqueItems": true }
+        }
+      }
+    },
+    "rule_coverage": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "status", "constraint_regions", "evidence"],
+        "properties": {
+          "rule_id": { "$ref": "#/$defs/rule" },
+          "status": { "enum": ["open", "tested", "proved", "not-applicable"] },
+          "constraint_regions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    },
+    "hints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "classification", "dependencies", "constraints", "mutation_test"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "classification": { "enum": ["fully-constrained-derived", "arbitrary-checked-witness", "recomputed-cache", "unsafe-unconstrained"] },
+          "dependencies": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "constraints": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "mutation_test": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "correspondence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["public_encoding_injective", "verifier_key_digest_bound", "statement_digest_bound", "native_to_circuit_complete", "circuit_to_native_sound", "frontend_to_backend_sound"],
+      "properties": {
+        "public_encoding_injective": { "$ref": "#/$defs/claim" },
+        "verifier_key_digest_bound": { "$ref": "#/$defs/claim" },
+        "statement_digest_bound": { "$ref": "#/$defs/claim" },
+        "native_to_circuit_complete": { "$ref": "#/$defs/claim" },
+        "circuit_to_native_sound": { "$ref": "#/$defs/claim" },
+        "frontend_to_backend_sound": { "$ref": "#/$defs/claim" }
+      }
+    },
+    "differential_artifacts": { "type": "array", "items": { "$ref": "#/$defs/sha256" }, "uniqueItems": true }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "approved" } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "circuit": { "properties": { "public_input_count": { "const": 9 } } },
+          "hints": { "items": { "properties": { "classification": { "enum": ["fully-constrained-derived", "arbitrary-checked-witness", "recomputed-cache"] } } } },
+          "correspondence": {
+            "properties": {
+              "public_encoding_injective": { "properties": { "status": { "const": "proved" } } },
+              "verifier_key_digest_bound": { "properties": { "status": { "const": "proved" } }, "required": ["status"] },
+              "statement_digest_bound": { "properties": { "status": { "const": "proved" } }, "required": ["status"] },
+              "native_to_circuit_complete": { "properties": { "status": { "const": "proved" } }, "required": ["status"] },
+              "circuit_to_native_sound": { "properties": { "status": { "const": "proved" } }, "required": ["status"] },
+              "frontend_to_backend_sound": { "properties": { "status": { "const": "proved" } }, "required": ["status"] }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "field-decimal": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+    "rule": { "type": "string", "pattern": "^(SN|NS)-[A-Z0-9-]+$" },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "revision", "dirty", "binary_hash"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+        "dirty": { "type": "boolean" },
+        "binary_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidence"],
+      "properties": {
+        "status": { "enum": ["open", "tested", "proved"] },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}

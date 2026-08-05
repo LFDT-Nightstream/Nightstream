@@ -1,0 +1,634 @@
+# Generated from src/assurance/*.jsonl. Do not edit this view.
+schema_version = 2
+contract_id = "nightstream-superneo-v1"
+root = "E2E-NIGHTSTREAM-SECURITY"
+
+[[obligation]]
+id = "SRC-REVIEWED-LOCK"
+kind = "source"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "satisfied"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = []
+evidence = ["protocol-contract/src/sources/lock.toml", "protocol-contract/check_contract.py", "protocol-contract/contract_checks.py", "protocol-contract/contract_model.py"]
+blocker_ids = []
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "SRC-BASE-DERIVATION"
+kind = "source"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["SRC-REVIEWED-LOCK"]
+evidence = ["protocol-contract/paper-sources/superneo-paper-errata-v4.patch", "protocol-contract/src/sources/lock.toml", "protocol-contract/base-paper-model.md", "protocol-contract/reviewed-errata.md", "protocol-contract/check_contract.py", "protocol-contract/contract_checks.py", "protocol-contract/contract_model.py"]
+blocker_ids = []
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "SOURCE-NORMALIZATION-REVIEW"
+kind = "source"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["SRC-BASE-DERIVATION"]
+evidence = ["protocol-contract/base-paper-model.md", "protocol-contract/src/paper/00-preamble.md", "protocol-contract/src/paper/10-foundations.md", "protocol-contract/src/paper/20-reductions.md", "protocol-contract/src/paper/30-relations.md", "protocol-contract/src/paper/40-folding.md", "protocol-contract/src/paper/50-profile-conflicts.md", "protocol-contract/src/requirements/paper.jsonl", "protocol-contract/reviewed-errata.md", "protocol-contract/review.md"]
+blocker_ids = ["ISSUE-INDEPENDENT-SEMANTIC-REVIEW"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-DOMAINS"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["SOURCE-NORMALIZATION-REVIEW"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/profile/nightstream-candidate.toml", "protocol-contract/src/normative/50-nightstream-profile.md"]
+blocker_ids = ["NSD-DOMAIN-001", "NSD-DOMAIN-MAP-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-NORM-BINDING"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-DOMAINS"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/profile/nightstream-candidate.toml", "protocol-contract/src/normative/60-nightstream-piccs.md", "protocol-contract/review.md"]
+blocker_ids = ["NSD-NORM-BINDING-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-PICCS"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-NORM-BINDING"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/profile/nightstream-candidate.toml", "protocol-contract/src/normative/60-nightstream-piccs.md", "protocol-contract/src/protocol"]
+blocker_ids = ["NSD-PICCS-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-BATCH-COINS"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-PICCS"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/normative/60-nightstream-piccs.md", "protocol-contract/src/protocol/challenges.jsonl"]
+blocker_ids = ["NSD-BATCH-COINS-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-CARRIER"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-NORM-BINDING"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/normative/50-nightstream-profile.md", "protocol-contract/src/normative/60-nightstream-piccs.md"]
+blocker_ids = ["NSD-CARRIER-001", "NSD-COLUMN-001", "NSD-COLUMN-MAP-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-SPLIT"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["SOURCE-NORMALIZATION-REVIEW"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/normative/50-nightstream-profile.md", "protocol-contract/src/normative/70-nightstream-fold.md"]
+blocker_ids = ["NSD-SPLIT-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-ENCODING"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-DOMAINS"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/profile/nightstream-candidate.toml", "protocol-contract/src/profile/ajtai-setup-v1.toml", "protocol-contract/src/profile/poseidon2-goldilocks-v1.toml", "protocol-contract/src/normative/50-nightstream-profile.md", "protocol-contract/src/normative/80-nightstream-verifier.md"]
+blocker_ids = ["NSD-ENCODING-001", "NSD-HASH-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-TRANSCRIPT"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-BATCH-COINS", "DEC-CARRIER", "DEC-ENCODING"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/profile/nightstream-candidate.toml", "protocol-contract/src/profile/poseidon2-goldilocks-v1.toml", "protocol-contract/src/protocol", "protocol-contract/src/normative/80-nightstream-verifier.md"]
+blocker_ids = ["NSD-TRANSCRIPT-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-SAMPLER"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-TRANSCRIPT"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/profile/nightstream-candidate.toml", "protocol-contract/src/protocol/repetitions.jsonl", "protocol-contract/src/normative/80-nightstream-verifier.md"]
+blocker_ids = ["NSD-SAMPLER-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-AUTHORITY"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-CARRIER", "DEC-ENCODING"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/normative/80-nightstream-verifier.md"]
+blocker_ids = ["NSD-AUTHORITY-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-REDUCTION-FRAMEWORK"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-BATCH-COINS", "DEC-CARRIER", "DEC-SPLIT"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/normative/70-nightstream-fold.md", "protocol-contract/security-reduction.md"]
+blocker_ids = ["NSD-REDUCTION-FRAMEWORK-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-SECURITY-POLICY"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-REDUCTION-FRAMEWORK", "DEC-SAMPLER"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/security/planning.toml", "protocol-contract/src/normative/80-nightstream-verifier.md", "protocol-contract/security-reduction.md"]
+blocker_ids = ["NSD-SECURITY-001", "NSD-THREAT-MODEL-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-CIRCUIT-PROFILE"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-AUTHORITY", "DEC-SAMPLER"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/profile/nightstream-candidate.toml", "protocol-contract/src/normative/90-nightstream-assurance.md", "protocol-contract/circuit-correspondence.md"]
+blocker_ids = ["NSD-CIRCUIT-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-DECIDER-PROFILE"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-CIRCUIT-PROFILE", "DEC-SECURITY-POLICY"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/profile/nightstream-candidate.toml", "protocol-contract/src/normative/80-nightstream-verifier.md", "protocol-contract/security-reduction.md"]
+blocker_ids = ["NSD-DECIDER-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "DEC-PROVENANCE"
+kind = "decision"
+applicability = "required"
+evidence_state = "complete"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "partial"
+freshness = "stale"
+depends_on = ["DEC-CIRCUIT-PROFILE"]
+evidence = ["protocol-contract/src/decisions/decisions.jsonl", "protocol-contract/src/normative/90-nightstream-assurance.md", "protocol-contract/rust-conformance.md"]
+blocker_ids = ["NSD-PROVENANCE-001"]
+unresolved_blocker_ids = []
+
+[[obligation]]
+id = "LEAN-PAPER-CORE"
+kind = "lean"
+applicability = "required"
+evidence_state = "partial"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "partial"
+freshness = "missing"
+depends_on = ["SOURCE-NORMALIZATION-REVIEW"]
+evidence = ["protocol-contract/lean-semantic-model.md", "formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint", "protocol-contract/src/evidence/lean.jsonl"]
+blocker_ids = ["ISSUE-EXACT-BUILD-AND-THEOREM-REVIEW"]
+unresolved_blocker_ids = ["ISSUE-EXACT-BUILD-AND-THEOREM-REVIEW"]
+
+[[obligation]]
+id = "LEAN-REDUCTION-FRAMEWORK"
+kind = "lean"
+applicability = "required"
+evidence_state = "partial"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "partial"
+freshness = "missing"
+depends_on = ["LEAN-PAPER-CORE"]
+evidence = ["formal/nightstream-lean/Nightstream/SuperNeo/InteractiveReduction/Paper.lean", "formal/nightstream-lean/Nightstream/SuperNeo/InteractiveReduction/StrongWeakComposition.lean", "protocol-contract/src/evidence/lean.jsonl"]
+blocker_ids = ["ISSUE-PADDED-RELATION-STRONG-WEAK"]
+unresolved_blocker_ids = ["ISSUE-PADDED-RELATION-STRONG-WEAK"]
+
+[[obligation]]
+id = "LEAN-PADDED-IDENTITY"
+kind = "lean"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["LEAN-PAPER-CORE", "DEC-PICCS"]
+evidence = ["protocol-contract/src/normative/60-nightstream-piccs.md", "protocol-contract/src/evidence/lean.jsonl"]
+blocker_ids = ["ISSUE-PADDED-IDENTITY-THEOREM"]
+unresolved_blocker_ids = ["ISSUE-PADDED-IDENTITY-THEOREM"]
+
+[[obligation]]
+id = "LEAN-PADDING-REFINEMENT"
+kind = "lean"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["LEAN-PADDED-IDENTITY"]
+evidence = ["protocol-contract/src/normative/50-nightstream-profile.md", "protocol-contract/src/normative/60-nightstream-piccs.md", "protocol-contract/src/evidence/lean.jsonl"]
+blocker_ids = ["ISSUE-ZERO-PADDING-REFINEMENT"]
+unresolved_blocker_ids = ["ISSUE-ZERO-PADDING-REFINEMENT"]
+
+[[obligation]]
+id = "LEAN-NIGHTSTREAM-SECURITY"
+kind = "lean"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["LEAN-REDUCTION-FRAMEWORK", "LEAN-PADDING-REFINEMENT", "DEC-SECURITY-POLICY"]
+evidence = ["protocol-contract/lean-semantic-model.md", "protocol-contract/security-reduction.md", "protocol-contract/src/evidence/lean.jsonl"]
+blocker_ids = ["ISSUE-PADDED-PICCS-EXTRACTOR-AND-LOSSES"]
+unresolved_blocker_ids = ["ISSUE-PADDED-PICCS-EXTRACTOR-AND-LOSSES"]
+
+[[obligation]]
+id = "RUST-BUILD-IDENTITY"
+kind = "rust"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["SOURCE-NORMALIZATION-REVIEW"]
+evidence = ["Cargo.lock", "protocol-contract/rust-conformance.md"]
+blocker_ids = ["ISSUE-RELEASE-BUILD-NOT-PINNED"]
+unresolved_blocker_ids = ["ISSUE-RELEASE-BUILD-NOT-PINNED"]
+
+[[obligation]]
+id = "RUST-VERIFIER-REFINEMENT"
+kind = "rust"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["RUST-BUILD-IDENTITY", "LEAN-PADDING-REFINEMENT", "DEC-PROVENANCE"]
+evidence = ["protocol-contract/rust-conformance.md", "crates/neo-reductions", "crates/neo-fold-clean"]
+blocker_ids = ["ISSUE-JOINT-PICCS-IMPLEMENTATION", "ISSUE-TRANSCRIPT-SAMPLER-IMPLEMENTATION"]
+unresolved_blocker_ids = ["ISSUE-JOINT-PICCS-IMPLEMENTATION", "ISSUE-TRANSCRIPT-SAMPLER-IMPLEMENTATION"]
+
+[[obligation]]
+id = "RUST-ORIGIN-ARTIFACTS"
+kind = "artifact"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["RUST-VERIFIER-REFINEMENT"]
+evidence = ["protocol-contract/rust-evidence.schema.json"]
+blocker_ids = ["ISSUE-RUST-ORIGIN-SUITE-MISSING"]
+unresolved_blocker_ids = ["ISSUE-RUST-ORIGIN-SUITE-MISSING"]
+
+[[obligation]]
+id = "CIRCUIT-MANIFEST"
+kind = "circuit"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["RUST-VERIFIER-REFINEMENT"]
+evidence = ["protocol-contract/circuit-correspondence.schema.json"]
+blocker_ids = ["ISSUE-CURRENT-SHIPPING-MANIFEST-MISSING"]
+unresolved_blocker_ids = ["ISSUE-CURRENT-SHIPPING-MANIFEST-MISSING"]
+
+[[obligation]]
+id = "CIRCUIT-COMPLETENESS"
+kind = "circuit"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["CIRCUIT-MANIFEST", "RUST-ORIGIN-ARTIFACTS"]
+evidence = ["protocol-contract/circuit-correspondence.md"]
+blocker_ids = ["ISSUE-NATIVE-TO-CIRCUIT-THEOREM"]
+unresolved_blocker_ids = ["ISSUE-NATIVE-TO-CIRCUIT-THEOREM"]
+
+[[obligation]]
+id = "CIRCUIT-SOUNDNESS"
+kind = "circuit"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["CIRCUIT-MANIFEST", "LEAN-NIGHTSTREAM-SECURITY"]
+evidence = ["protocol-contract/circuit-correspondence.md"]
+blocker_ids = ["ISSUE-ARBITRARY-ASSIGNMENT-THEOREM"]
+unresolved_blocker_ids = ["ISSUE-ARBITRARY-ASSIGNMENT-THEOREM"]
+
+[[obligation]]
+id = "CIRCUIT-PUBLIC-INPUT"
+kind = "circuit"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["CIRCUIT-MANIFEST"]
+evidence = ["protocol-contract/circuit-correspondence.md"]
+blocker_ids = ["ISSUE-INJECTIVE-PUBLIC-DECODER"]
+unresolved_blocker_ids = ["ISSUE-INJECTIVE-PUBLIC-DECODER"]
+
+[[obligation]]
+id = "CIRCUIT-HINT-LOWERING"
+kind = "circuit"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["CIRCUIT-MANIFEST"]
+evidence = ["protocol-contract/circuit-correspondence.md"]
+blocker_ids = ["ISSUE-HINT-SOUNDNESS", "ISSUE-FRONTEND-BACKEND-LOWERING"]
+unresolved_blocker_ids = ["ISSUE-HINT-SOUNDNESS", "ISSUE-FRONTEND-BACKEND-LOWERING"]
+
+[[obligation]]
+id = "SEC-INTERACTIVE-CORE"
+kind = "security"
+applicability = "required"
+evidence_state = "partial"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "partial"
+freshness = "missing"
+depends_on = ["LEAN-PAPER-CORE", "DEC-SECURITY-POLICY"]
+evidence = ["protocol-contract/security-reduction.md", "protocol-contract/src/security/planning.toml"]
+blocker_ids = ["ISSUE-CONCRETE-PROFILE-INSTANTIATION"]
+unresolved_blocker_ids = ["ISSUE-CONCRETE-PROFILE-INSTANTIATION"]
+
+[[obligation]]
+id = "SEC-NORM-BINDING"
+kind = "security"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["LEAN-PADDING-REFINEMENT", "SEC-INTERACTIVE-CORE"]
+evidence = ["protocol-contract/security-reduction.md"]
+blocker_ids = ["ISSUE-PADDED-IDENTITY-THEOREM"]
+unresolved_blocker_ids = ["ISSUE-PADDED-IDENTITY-THEOREM"]
+
+[[obligation]]
+id = "SEC-STRONG-WEAK"
+kind = "security"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["LEAN-REDUCTION-FRAMEWORK", "SEC-INTERACTIVE-CORE"]
+evidence = ["protocol-contract/security-reduction.md"]
+blocker_ids = ["ISSUE-PADDED-RELATION-STRONG-WEAK"]
+unresolved_blocker_ids = ["ISSUE-PADDED-RELATION-STRONG-WEAK"]
+
+[[obligation]]
+id = "SEC-PADDED-PICCS"
+kind = "security"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["LEAN-NIGHTSTREAM-SECURITY", "SEC-NORM-BINDING", "SEC-STRONG-WEAK"]
+evidence = ["protocol-contract/security-reduction.md"]
+blocker_ids = ["ISSUE-PADDED-PICCS-EXTRACTOR-AND-LOSSES"]
+unresolved_blocker_ids = ["ISSUE-PADDED-PICCS-EXTRACTOR-AND-LOSSES"]
+
+[[obligation]]
+id = "SEC-COMMITMENT"
+kind = "security"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["DEC-SECURITY-POLICY"]
+evidence = ["protocol-contract/security-reduction.md"]
+blocker_ids = ["ISSUE-CONCRETE-MSIS-ESTIMATE-AND-GENERATION"]
+unresolved_blocker_ids = ["ISSUE-CONCRETE-MSIS-ESTIMATE-AND-GENERATION"]
+
+[[obligation]]
+id = "SEC-FIAT-SHAMIR"
+kind = "security"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["DEC-SECURITY-POLICY"]
+evidence = ["protocol-contract/security-reduction.md"]
+blocker_ids = ["ISSUE-NAMED-ROM-THEOREM"]
+unresolved_blocker_ids = ["ISSUE-NAMED-ROM-THEOREM"]
+
+[[obligation]]
+id = "SEC-SAMPLER"
+kind = "security"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["DEC-SECURITY-POLICY"]
+evidence = ["protocol-contract/security-reduction.md", "protocol-contract/src/security/planning.toml"]
+blocker_ids = ["ISSUE-SAMPLER-ABORT-COMPOSITION"]
+unresolved_blocker_ids = ["ISSUE-SAMPLER-ABORT-COMPOSITION"]
+
+[[obligation]]
+id = "SEC-IMPLEMENTATION-TRANSFER"
+kind = "security"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["CIRCUIT-COMPLETENESS", "CIRCUIT-SOUNDNESS", "CIRCUIT-PUBLIC-INPUT", "CIRCUIT-HINT-LOWERING"]
+evidence = ["protocol-contract/security-reduction.md"]
+blocker_ids = ["ISSUE-RUST-AND-CIRCUIT-REFINEMENT"]
+unresolved_blocker_ids = ["ISSUE-RUST-AND-CIRCUIT-REFINEMENT"]
+
+[[obligation]]
+id = "SEC-DECIDER"
+kind = "security"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["DEC-DECIDER-PROFILE", "CIRCUIT-SOUNDNESS", "CIRCUIT-PUBLIC-INPUT"]
+evidence = ["protocol-contract/security-reduction.md"]
+blocker_ids = ["ISSUE-OUTER-PROOF-AND-ON-CHAIN-REDUCTION"]
+unresolved_blocker_ids = ["ISSUE-OUTER-PROOF-AND-ON-CHAIN-REDUCTION"]
+
+[[obligation]]
+id = "SEC-COMPOSITION"
+kind = "security"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "blocked"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["SEC-PADDED-PICCS", "SEC-COMMITMENT", "SEC-FIAT-SHAMIR", "SEC-SAMPLER", "SEC-IMPLEMENTATION-TRANSFER", "SEC-DECIDER"]
+evidence = ["protocol-contract/security-reduction.md", "protocol-contract/security-instantiation.schema.json"]
+blocker_ids = ["ISSUE-FOLD-SESSION-AND-EXTRACTOR-COMPOSITION"]
+unresolved_blocker_ids = ["ISSUE-FOLD-SESSION-AND-EXTRACTOR-COMPOSITION"]
+
+[[obligation]]
+id = "E2E-NIGHTSTREAM-SECURITY"
+kind = "release"
+applicability = "required"
+evidence_state = "none"
+dependency_state = "waiting"
+blocker_state = "clear"
+closure_state = "open"
+display_status = "blocked"
+freshness = "missing"
+depends_on = ["SEC-COMPOSITION"]
+evidence = ["protocol-contract/security-reduction.md", "protocol-contract/security-instantiation.schema.json"]
+blocker_ids = []
+unresolved_blocker_ids = []

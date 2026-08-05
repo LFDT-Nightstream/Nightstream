@@ -1,0 +1,1096 @@
+{
+  "schema_version": 4,
+  "contract_id": "nightstream-superneo-v1",
+  "contract_hash": "31817a413c81c7d3c338dd8030c7c93eb3f9abd530f6b4c50827ccebb8b78f7d",
+  "profile_id": "nightstream-superneo-fprime-v1",
+  "profile_hash": "54c7769a62d12e12e9474b70f4f49ee48df9ef28c97fa1da69078bfec688cd64",
+  "status": "specified",
+  "states": [
+    {
+      "id": "ST-START",
+      "terminal": false,
+      "description": "No statement or proof byte is accepted."
+    },
+    {
+      "id": "ST-DECODED",
+      "terminal": false,
+      "description": "The statement and proof containers are canonically decoded."
+    },
+    {
+      "id": "ST-PROFILE-BOUND",
+      "terminal": false,
+      "description": "The verifier-owned structure, profile, and verifier key are bound."
+    },
+    {
+      "id": "ST-PICCS-INPUT",
+      "terminal": false,
+      "description": "The ordered PiCCS source instances and prover input are transcript-bound."
+    },
+    {
+      "id": "ST-PICCS-COINS",
+      "terminal": false,
+      "description": "The 24 alpha coordinates and gamma are sampled from the bound PiCCS prefix."
+    },
+    {
+      "id": "ST-PICCS-SUMCHECK",
+      "terminal": false,
+      "description": "All 24 joint PiCCS SumCheck rounds are accepted."
+    },
+    {
+      "id": "ST-PICCS-OUTPUT",
+      "terminal": false,
+      "description": "The 15-by-14 ordered ring-output family is transcript-bound."
+    },
+    {
+      "id": "ST-PICCS-ACCEPTED",
+      "terminal": false,
+      "description": "The joint terminal equation and padded-identity norm binding are accepted."
+    },
+    {
+      "id": "ST-PIRLC-SAMPLING",
+      "terminal": false,
+      "description": "All bounded strong-set sampler counters are active after PiCCS acceptance."
+    },
+    {
+      "id": "ST-PIRLC-ACCEPTED",
+      "terminal": false,
+      "description": "The PiRLC equations and global norm guard are accepted."
+    },
+    {
+      "id": "ST-PIDEC-ACCEPTED",
+      "terminal": false,
+      "description": "The 14 child instances and all recomposition equations are accepted."
+    },
+    {
+      "id": "ST-FOLD-ACCEPTED",
+      "terminal": true,
+      "description": "One normative fold result and its final fold transcript digest are accepted."
+    },
+    {
+      "id": "ST-REJECT",
+      "terminal": true,
+      "description": "A fail-closed check rejected the proof."
+    }
+  ],
+  "challenges": [
+    {
+      "id": "CH-PICCS-ALPHA",
+      "role": "Twenty-four equality-selector coordinates for the joint row cube",
+      "sample_space": "K_ext^24",
+      "sampled_in_event": "EV-PICCS-COINS",
+      "transcript_tag": "piccs_alpha",
+      "decoder": "48 consecutive base-field lanes, paired as (c0,c1) in coordinate order",
+      "after_events": [
+        "EV-PICCS-ABSORB"
+      ],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "rule_ids": [
+        "NS-PICCS-COINS",
+        "NS-CHALLENGE-EXTENSION"
+      ]
+    },
+    {
+      "id": "CH-PICCS-GAMMA",
+      "role": "Absolute disjoint-block mixing challenge",
+      "sample_space": "K_ext",
+      "sampled_in_event": "EV-PICCS-COINS",
+      "transcript_tag": "piccs_gamma",
+      "decoder": "two consecutive base-field lanes interpreted as (c0,c1)",
+      "after_events": [
+        "EV-PICCS-ABSORB"
+      ],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "rule_ids": [
+        "SN-PICCS-TARGET",
+        "NS-PICCS-COINS",
+        "NS-CHALLENGE-EXTENSION"
+      ]
+    },
+    {
+      "id": "CH-SUMCHECK-ROUND",
+      "role": "One verifier challenge after each accepted joint SumCheck round message",
+      "sample_space": "K_ext",
+      "sampled_in_event": "EV-PICCS-SUMCHECK",
+      "transcript_tag": "sumcheck_round",
+      "decoder": "two consecutive base-field lanes interpreted as (c0,c1)",
+      "after_events": [
+        "EV-PICCS-COINS"
+      ],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "rule_ids": [
+        "SN-SUMCHECK-ROUNDS",
+        "NS-PICCS-SUMCHECK",
+        "NS-CHALLENGE-EXTENSION"
+      ]
+    },
+    {
+      "id": "CH-PIRLC-CANDIDATE",
+      "role": "One indexed base-field candidate for a bounded strong-set coefficient",
+      "sample_space": "F_q",
+      "sampled_in_event": "EV-PIRLC-SAMPLE",
+      "transcript_tag": "pirlc_candidate",
+      "decoder": "one canonical base-field squeeze lane",
+      "after_events": [
+        "EV-PIRLC-START"
+      ],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-SAMPLER-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "rule_ids": [
+        "NS-SAMPLER-CANDIDATES",
+        "NS-SAMPLER-REPETITIONS"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "EV-DECODE",
+      "phase": "decode",
+      "from_state": "ST-START",
+      "to_state": "ST-DECODED",
+      "authority": "verifier",
+      "rule_ids": [
+        "NS-ENC-BASE",
+        "NS-ENC-EXTENSION",
+        "NS-ENC-RING",
+        "NS-ENC-CONTAINER",
+        "NS-SECURITY-POLICY"
+      ],
+      "challenge_ids": [],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-ENCODING-001",
+        "NSD-SECURITY-001",
+        "NSD-THREAT-MODEL-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "statement-bytes",
+        "proof-bytes"
+      ],
+      "outputs": [
+        "typed-statement",
+        "typed-proof"
+      ],
+      "reject_conditions": [
+        "REJECT-NONCANONICAL",
+        "REJECT-UNKNOWN-SECTION",
+        "REJECT-DUPLICATE-SECTION",
+        "REJECT-SECTION-ORDER",
+        "REJECT-LENGTH",
+        "REJECT-TRAILING-BYTES",
+        "REJECT-FOLD-LIMIT"
+      ]
+    },
+    {
+      "id": "EV-BIND-PROFILE",
+      "phase": "profile",
+      "from_state": "ST-DECODED",
+      "to_state": "ST-PROFILE-BOUND",
+      "authority": "verifier",
+      "rule_ids": [
+        "NS-ALGEBRA-PROFILE",
+        "NS-SHAPE-LOGICAL",
+        "NS-SHAPE-PADDING",
+        "NS-SHAPE-IDENTITY",
+        "NS-SHAPE-POLYNOMIAL",
+        "NS-AUTH-STRUCTURE",
+        "NS-ENC-STRUCTURE",
+        "NS-ENC-COMMITMENT",
+        "NS-VERIFIER-KEY-DIGEST"
+      ],
+      "challenge_ids": [],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-AUTHORITY-001",
+        "NSD-DOMAIN-MAP-001",
+        "NSD-ENCODING-001",
+        "NSD-HASH-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "typed-statement",
+        "typed-proof",
+        "verifier-key"
+      ],
+      "outputs": [
+        "selected-structure",
+        "selected-profile",
+        "recomputed-verifier-key-digest"
+      ],
+      "reject_conditions": [
+        "REJECT-PROFILE-ID",
+        "REJECT-STRUCTURE",
+        "REJECT-SHAPE",
+        "REJECT-PADDING"
+      ]
+    },
+    {
+      "id": "EV-PICCS-ABSORB",
+      "phase": "piccs-input",
+      "from_state": "ST-PROFILE-BOUND",
+      "to_state": "ST-PICCS-INPUT",
+      "authority": "verifier",
+      "rule_ids": [
+        "NS-PUBLIC-CARRIER",
+        "NS-AUTH-CLAIM",
+        "NS-PICCS-VARIANT",
+        "NS-TRANSCRIPT-ORDER"
+      ],
+      "challenge_ids": [],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-AUTHORITY-001",
+        "NSD-CARRIER-001",
+        "NSD-PICCS-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "session-frame",
+        "verifier-key-frame",
+        "canonical-statement-frame-with-ordered-source-instances",
+        "empty-piccs-input-frame"
+      ],
+      "outputs": [
+        "bound-piccs-prefix"
+      ],
+      "reject_conditions": [
+        "REJECT-CLAIM-AUTHORITY",
+        "REJECT-SOURCE-COUNT",
+        "REJECT-FRESH-PUBLIC-PADDING",
+        "REJECT-PICCS-SHAPE"
+      ]
+    },
+    {
+      "id": "EV-PICCS-COINS",
+      "phase": "piccs-challenges",
+      "from_state": "ST-PICCS-INPUT",
+      "to_state": "ST-PICCS-COINS",
+      "authority": "verifier",
+      "rule_ids": [
+        "NS-PICCS-COINS",
+        "NS-TRANSCRIPT-FRAMING",
+        "NS-CHALLENGE-EXTENSION"
+      ],
+      "challenge_ids": [
+        "CH-PICCS-ALPHA",
+        "CH-PICCS-GAMMA"
+      ],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-BATCH-COINS-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "bound-piccs-prefix"
+      ],
+      "outputs": [
+        "alpha-24",
+        "gamma"
+      ],
+      "reject_conditions": [
+        "REJECT-TRANSCRIPT-STATE",
+        "REJECT-CHALLENGE-COUNT"
+      ]
+    },
+    {
+      "id": "EV-PICCS-SUMCHECK",
+      "phase": "piccs-sumcheck",
+      "from_state": "ST-PICCS-COINS",
+      "to_state": "ST-PICCS-SUMCHECK",
+      "authority": "verifier",
+      "rule_ids": [
+        "SN-SUMCHECK-ROUNDS",
+        "NS-PICCS-SUMCHECK",
+        "NS-TRANSCRIPT-ORDER"
+      ],
+      "challenge_ids": [
+        "CH-SUMCHECK-ROUND"
+      ],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-PICCS-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "alpha-24",
+        "gamma",
+        "24-ordered-round-polynomials"
+      ],
+      "outputs": [
+        "24-round-challenges",
+        "sumcheck-terminal-claim"
+      ],
+      "reject_conditions": [
+        "REJECT-ROUND-COUNT",
+        "REJECT-ROUND-DEGREE",
+        "REJECT-ROUND-RECURRENCE",
+        "REJECT-ROUND-ENCODING"
+      ],
+      "note": "For round j, absorb j and the ten ordered extension coefficients, check the SumCheck recurrence, and only then squeeze challenge j. Repeat for j=0 through 23."
+    },
+    {
+      "id": "EV-PICCS-OUTPUT",
+      "phase": "piccs-output",
+      "from_state": "ST-PICCS-SUMCHECK",
+      "to_state": "ST-PICCS-OUTPUT",
+      "authority": "verifier",
+      "rule_ids": [
+        "NS-PICCS-TERMINAL",
+        "NS-TRANSCRIPT-ORDER"
+      ],
+      "challenge_ids": [],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-AUTHORITY-001",
+        "NSD-PICCS-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "sumcheck-terminal-claim",
+        "210-ordered-ring-outputs"
+      ],
+      "outputs": [
+        "bound-piccs-output-family"
+      ],
+      "reject_conditions": [
+        "REJECT-OUTPUT-COUNT",
+        "REJECT-OUTPUT-ORDER",
+        "REJECT-OUTPUT-ENCODING"
+      ]
+    },
+    {
+      "id": "EV-PICCS-CHECK",
+      "phase": "piccs-terminal",
+      "from_state": "ST-PICCS-OUTPUT",
+      "to_state": "ST-PICCS-ACCEPTED",
+      "authority": "verifier",
+      "rule_ids": [
+        "NS-PICCS-PADDING-EQUIVALENCE",
+        "NS-PICCS-TERMINAL",
+        "NS-PICCS-NORM-BINDING",
+        "NS-PICCS-NO-COLUMN"
+      ],
+      "challenge_ids": [],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-DOMAIN-MAP-001",
+        "NSD-NORM-BINDING-001",
+        "NSD-PICCS-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "bound-piccs-output-family",
+        "sumcheck-terminal-claim",
+        "selected-structure"
+      ],
+      "outputs": [
+        "15-ce-output-instances"
+      ],
+      "reject_conditions": [
+        "REJECT-TERMINAL-EQUATION"
+      ]
+    },
+    {
+      "id": "EV-PIRLC-START",
+      "phase": "pirlc-prefix",
+      "from_state": "ST-PICCS-ACCEPTED",
+      "to_state": "ST-PIRLC-SAMPLING",
+      "authority": "verifier",
+      "rule_ids": [
+        "NS-PIRLC-PROFILE",
+        "NS-TRANSCRIPT-ORDER"
+      ],
+      "challenge_ids": [],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-SAMPLER-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "15-ce-output-instances",
+        "piccs-output-frame"
+      ],
+      "outputs": [
+        "bound-pirlc-prefix"
+      ],
+      "reject_conditions": [
+        "REJECT-PICCS-OUTPUT-FRAME",
+        "REJECT-PIRLC-SOURCE-COUNT"
+      ]
+    },
+    {
+      "id": "EV-PIRLC-SAMPLE",
+      "phase": "pirlc-sampling",
+      "from_state": "ST-PIRLC-SAMPLING",
+      "to_state": "ST-PIRLC-SAMPLING",
+      "authority": "verifier",
+      "rule_ids": [
+        "NS-SAMPLER-CANDIDATES",
+        "NS-SAMPLER-REPETITIONS",
+        "NS-SAMPLER-LOSS"
+      ],
+      "challenge_ids": [
+        "CH-PIRLC-CANDIDATE"
+      ],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-SAMPLER-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "bound-pirlc-prefix",
+        "source-index",
+        "coefficient-index",
+        "attempt-index"
+      ],
+      "outputs": [
+        "accepted-strong-set-digit"
+      ],
+      "reject_conditions": [
+        "REJECT-SAMPLER-ORDER",
+        "REJECT-SAMPLER-EXHAUSTION"
+      ],
+      "note": "Process source, coefficient, and attempt counters in lexicographic order. Absorb all three counters before each candidate squeeze. Candidate q-1 advances the local attempt counter; only exhaustion rejects the proof."
+    },
+    {
+      "id": "EV-PIRLC-FINALIZE",
+      "phase": "pirlc-output",
+      "from_state": "ST-PIRLC-SAMPLING",
+      "to_state": "ST-PIRLC-ACCEPTED",
+      "authority": "verifier",
+      "rule_ids": [
+        "SN-PIRLC-EQUATIONS",
+        "SN-PIRLC-OUTPUT",
+        "NS-PIRLC-PROFILE",
+        "NS-RED-PADDED-RELATIONS"
+      ],
+      "challenge_ids": [],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-REDUCTION-FRAMEWORK-001",
+        "NSD-SAMPLER-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "15-sampled-ring-challenges",
+        "15-ce-output-instances"
+      ],
+      "outputs": [
+        "mixed-ce-instance",
+        "pirlc-output-frame"
+      ],
+      "reject_conditions": []
+    },
+    {
+      "id": "EV-PIDEC",
+      "phase": "pidec",
+      "from_state": "ST-PIRLC-ACCEPTED",
+      "to_state": "ST-PIDEC-ACCEPTED",
+      "authority": "verifier",
+      "rule_ids": [
+        "SN-PIDEC-EQUATIONS",
+        "SN-PIDEC-OUTPUT",
+        "NS-SPLIT-BINARY",
+        "NS-PIDEC-PROFILE",
+        "NS-TRANSCRIPT-ORDER"
+      ],
+      "challenge_ids": [],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-AUTHORITY-001",
+        "NSD-SPLIT-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "mixed-ce-instance",
+        "14-child-commitment-and-evaluation-messages"
+      ],
+      "outputs": [
+        "14-accepted-child-instances-with-derived-public-inputs",
+        "pidec-output-frame"
+      ],
+      "reject_conditions": [
+        "REJECT-PUBLIC-SPLIT-BOUND",
+        "REJECT-CHILD-COUNT",
+        "REJECT-COMMITMENT-RECOMPOSITION",
+        "REJECT-EVALUATION-RECOMPOSITION"
+      ]
+    },
+    {
+      "id": "EV-FOLD-FINALIZE",
+      "phase": "fold-output",
+      "from_state": "ST-PIDEC-ACCEPTED",
+      "to_state": "ST-FOLD-ACCEPTED",
+      "authority": "verifier",
+      "rule_ids": [
+        "SN-COMP-ORDER",
+        "SN-COMP-BINDING",
+        "SN-FOLD-TYPE",
+        "NS-PIDEC-PROFILE",
+        "NS-RED-COMPOSITION",
+        "NS-TRANSCRIPT-ORDER"
+      ],
+      "challenge_ids": [],
+      "status": "specified",
+      "blocked_by": [
+        "NSD-REDUCTION-FRAMEWORK-001",
+        "NSD-TRANSCRIPT-001"
+      ],
+      "unresolved_blocker_ids": [],
+      "inputs": [
+        "14-accepted-child-instances",
+        "next-fold-running-instances-when-present"
+      ],
+      "outputs": [
+        "14-ordered-terminal-or-next-fold-instances",
+        "verifier-derived-fold-transcript-digest"
+      ],
+      "reject_conditions": [
+        "REJECT-FOLD-STATE",
+        "REJECT-FOLD-LINK"
+      ]
+    }
+  ],
+  "repetitions": [
+    {
+      "id": "REP-PICCS-ROUNDS",
+      "event_id": "EV-PICCS-SUMCHECK",
+      "kind": "exact",
+      "parent_id": null,
+      "unit": "round",
+      "index_variable": "round_index",
+      "minimum": 24,
+      "maximum": 24,
+      "index_order": "0-through-23",
+      "on_exhaustion": "reject-proof"
+    },
+    {
+      "id": "REP-RHO-SOURCES",
+      "event_id": "EV-PIRLC-SAMPLE",
+      "kind": "exact",
+      "parent_id": null,
+      "unit": "source",
+      "index_variable": "source_index",
+      "minimum": 15,
+      "maximum": 15,
+      "index_order": "0-through-14",
+      "on_exhaustion": "reject-proof"
+    },
+    {
+      "id": "REP-RHO-COEFFICIENTS",
+      "event_id": "EV-PIRLC-SAMPLE",
+      "kind": "exact",
+      "parent_id": "REP-RHO-SOURCES",
+      "unit": "coefficient",
+      "index_variable": "coefficient_index",
+      "minimum": 54,
+      "maximum": 54,
+      "index_order": "0-through-53-for-each-source",
+      "on_exhaustion": "reject-proof"
+    },
+    {
+      "id": "REP-RHO-ATTEMPTS",
+      "event_id": "EV-PIRLC-SAMPLE",
+      "kind": "bounded-retry",
+      "parent_id": "REP-RHO-COEFFICIENTS",
+      "unit": "candidate-attempt",
+      "index_variable": "attempt_index",
+      "minimum": 1,
+      "maximum": 3,
+      "index_order": "0-through-2-until-first-accepted-candidate",
+      "on_exhaustion": "reject-proof"
+    },
+    {
+      "id": "REP-FOLD-STEPS",
+      "event_id": "EV-FOLD-FINALIZE",
+      "kind": "bounded-lifecycle",
+      "parent_id": null,
+      "unit": "fold",
+      "index_variable": "fold_index",
+      "minimum": 1,
+      "maximum": 64,
+      "index_order": "0-through-fold_count-minus-1",
+      "on_exhaustion": "reject-additional-fold"
+    }
+  ],
+  "rejections": [
+    {
+      "id": "REJECT-NONCANONICAL",
+      "description": "A decoded field or typed value is not in its unique canonical encoding.",
+      "rule_ids": [
+        "NS-ENC-BASE",
+        "NS-ENC-EXTENSION",
+        "NS-ENC-RING"
+      ]
+    },
+    {
+      "id": "REJECT-UNKNOWN-SECTION",
+      "description": "A statement or proof contains an undeclared section ID.",
+      "rule_ids": [
+        "NS-ENC-CONTAINER",
+        "NS-PICCS-NORM-BINDING",
+        "NS-PICCS-NO-COLUMN"
+      ]
+    },
+    {
+      "id": "REJECT-DUPLICATE-SECTION",
+      "description": "A statement or proof repeats a section ID.",
+      "rule_ids": [
+        "NS-ENC-CONTAINER"
+      ]
+    },
+    {
+      "id": "REJECT-SECTION-ORDER",
+      "description": "Statement or proof sections are not in the required increasing order.",
+      "rule_ids": [
+        "NS-ENC-CONTAINER"
+      ]
+    },
+    {
+      "id": "REJECT-LENGTH",
+      "description": "A container, section, or fixed-width value has the wrong length.",
+      "rule_ids": [
+        "NS-ENC-CONTAINER",
+        "NS-PICCS-NORM-BINDING",
+        "NS-PICCS-NO-COLUMN"
+      ]
+    },
+    {
+      "id": "REJECT-TRAILING-BYTES",
+      "description": "Bytes remain after the unique canonical container has been decoded.",
+      "rule_ids": [
+        "NS-ENC-CONTAINER"
+      ]
+    },
+    {
+      "id": "REJECT-PROFILE-ID",
+      "description": "The input profile or variant differs from the verifier-key profile.",
+      "rule_ids": [
+        "NS-AUTH-STRUCTURE",
+        "NS-ENC-CONTAINER"
+      ]
+    },
+    {
+      "id": "REJECT-STRUCTURE",
+      "description": "The Structure stream is malformed or differs from the verifier-owned Structure.",
+      "rule_ids": [
+        "NS-AUTH-STRUCTURE",
+        "NS-ENC-STRUCTURE"
+      ]
+    },
+    {
+      "id": "REJECT-SHAPE",
+      "description": "A relation dimension or matrix count differs from the selected shape.",
+      "rule_ids": [
+        "NS-SHAPE-LOGICAL",
+        "NS-SHAPE-POLYNOMIAL"
+      ]
+    },
+    {
+      "id": "REJECT-PADDING",
+      "description": "The common prefix injection, zero padding, or padded identity differs from v1.",
+      "rule_ids": [
+        "NS-SHAPE-PADDING",
+        "NS-SHAPE-IDENTITY"
+      ]
+    },
+    {
+      "id": "REJECT-CLAIM-AUTHORITY",
+      "description": "A claim has an undeclared field, wrong authority, or verifier-owned shape value.",
+      "rule_ids": [
+        "NS-AUTH-CLAIM"
+      ]
+    },
+    {
+      "id": "REJECT-SOURCE-COUNT",
+      "description": "The PiCCS input does not contain one fresh and fourteen running sources.",
+      "rule_ids": [
+        "NS-SHAPE-LOGICAL",
+        "NS-PICCS-VARIANT"
+      ]
+    },
+    {
+      "id": "REJECT-FRESH-PUBLIC-PADDING",
+      "description": "A fresh source has a nonzero public-input field at index 257 through 269.",
+      "rule_ids": [
+        "NS-PUBLIC-CARRIER"
+      ]
+    },
+    {
+      "id": "REJECT-PICCS-SHAPE",
+      "description": "The PiCCS input relation, point, or output shape differs from PaddedRowIdentity.",
+      "rule_ids": [
+        "NS-PICCS-VARIANT",
+        "NS-PICCS-SUMCHECK"
+      ]
+    },
+    {
+      "id": "REJECT-TRANSCRIPT-STATE",
+      "description": "A transcript operation occurs in the wrong mode or event position.",
+      "rule_ids": [
+        "NS-TRANSCRIPT-SPONGE",
+        "NS-TRANSCRIPT-ORDER"
+      ]
+    },
+    {
+      "id": "REJECT-CHALLENGE-COUNT",
+      "description": "A challenge squeeze returns or consumes the wrong declared field count.",
+      "rule_ids": [
+        "NS-TRANSCRIPT-FRAMING",
+        "NS-CHALLENGE-EXTENSION"
+      ]
+    },
+    {
+      "id": "REJECT-ROUND-COUNT",
+      "description": "The joint SumCheck does not contain exactly twenty-four rounds.",
+      "rule_ids": [
+        "NS-PICCS-SUMCHECK"
+      ]
+    },
+    {
+      "id": "REJECT-ROUND-DEGREE",
+      "description": "A SumCheck round polynomial exceeds degree nine or has the wrong coefficient count.",
+      "rule_ids": [
+        "SN-SUMCHECK-ROUNDS",
+        "NS-PICCS-SUMCHECK"
+      ]
+    },
+    {
+      "id": "REJECT-ROUND-RECURRENCE",
+      "description": "A SumCheck round does not satisfy the current equals g(0) plus g(1) equation.",
+      "rule_ids": [
+        "SN-SUMCHECK-ROUNDS"
+      ]
+    },
+    {
+      "id": "REJECT-ROUND-ENCODING",
+      "description": "A SumCheck coefficient or round index is not in canonical order or encoding.",
+      "rule_ids": [
+        "NS-PICCS-SUMCHECK",
+        "NS-ENC-EXTENSION"
+      ]
+    },
+    {
+      "id": "REJECT-OUTPUT-COUNT",
+      "description": "The PiCCS terminal family does not contain exactly 210 ring values.",
+      "rule_ids": [
+        "NS-PICCS-TERMINAL"
+      ]
+    },
+    {
+      "id": "REJECT-OUTPUT-ORDER",
+      "description": "PiCCS terminal values are not in source-major then matrix-major order.",
+      "rule_ids": [
+        "NS-PICCS-TERMINAL"
+      ]
+    },
+    {
+      "id": "REJECT-OUTPUT-ENCODING",
+      "description": "A PiCCS terminal ring value is not canonically encoded.",
+      "rule_ids": [
+        "NS-PICCS-TERMINAL",
+        "NS-ENC-RING"
+      ]
+    },
+    {
+      "id": "REJECT-TERMINAL-EQUATION",
+      "description": "The final SumCheck value differs from the reviewed joint PiCCS equation.",
+      "rule_ids": [
+        "SN-PICCS-OUTPUT",
+        "NS-PICCS-TERMINAL"
+      ]
+    },
+    {
+      "id": "REJECT-PICCS-OUTPUT-FRAME",
+      "description": "The PiCCS output frame is absent, malformed, or has the wrong field count.",
+      "rule_ids": [
+        "NS-PICCS-TERMINAL",
+        "NS-TRANSCRIPT-ORDER"
+      ]
+    },
+    {
+      "id": "REJECT-PIRLC-SOURCE-COUNT",
+      "description": "PiRLC does not receive exactly the fifteen accepted PiCCS outputs.",
+      "rule_ids": [
+        "NS-PIRLC-PROFILE"
+      ]
+    },
+    {
+      "id": "REJECT-SAMPLER-ORDER",
+      "description": "A source, coefficient, or attempt counter is processed out of order.",
+      "rule_ids": [
+        "NS-SAMPLER-CANDIDATES",
+        "NS-SAMPLER-REPETITIONS"
+      ]
+    },
+    {
+      "id": "REJECT-SAMPLER-EXHAUSTION",
+      "description": "All three sampler candidates for one coefficient equal q minus one.",
+      "rule_ids": [
+        "NS-SAMPLER-REPETITIONS"
+      ]
+    },
+    {
+      "id": "REJECT-PUBLIC-SPLIT-BOUND",
+      "description": "A public parent-input coefficient is outside the strict 2^14 centered split domain.",
+      "rule_ids": [
+        "NS-SPLIT-BINARY"
+      ]
+    },
+    {
+      "id": "REJECT-CHILD-COUNT",
+      "description": "PiDEC does not contain exactly fourteen ordered children.",
+      "rule_ids": [
+        "NS-PIDEC-PROFILE"
+      ]
+    },
+    {
+      "id": "REJECT-COMMITMENT-RECOMPOSITION",
+      "description": "Child commitments do not recompose to the parent commitment.",
+      "rule_ids": [
+        "SN-PIDEC-EQUATIONS",
+        "NS-PIDEC-PROFILE"
+      ]
+    },
+    {
+      "id": "REJECT-EVALUATION-RECOMPOSITION",
+      "description": "A child ring-evaluation family does not recompose to the parent family.",
+      "rule_ids": [
+        "SN-PIDEC-EQUATIONS",
+        "NS-PIDEC-PROFILE"
+      ]
+    },
+    {
+      "id": "REJECT-FOLD-STATE",
+      "description": "The fold output is not the required fourteen-child CE state.",
+      "rule_ids": [
+        "SN-FOLD-TYPE",
+        "NS-RED-COMPOSITION"
+      ]
+    },
+    {
+      "id": "REJECT-FOLD-LIMIT",
+      "description": "The lifecycle fields do not satisfy 0 <= fold_index < fold_count <= 64.",
+      "rule_ids": [
+        "NS-ENC-CONTAINER",
+        "NS-SECURITY-POLICY"
+      ]
+    },
+    {
+      "id": "REJECT-FOLD-LINK",
+      "description": "A bounded sequence omits, inserts, reorders, or changes a fold, or the prior ordered children do not equal the next ordered running claims as canonical typed CE claims.",
+      "rule_ids": [
+        "NS-PIDEC-PROFILE",
+        "NS-TRANSCRIPT-ORDER"
+      ]
+    }
+  ],
+  "transcript_schedule": {
+    "schema_version": 1,
+    "scope": "one-fold",
+    "lifecycle_repetition_id": "REP-FOLD-STEPS",
+    "lifecycle_profile_id": "nightstream-bounded-fold-sequence-v1",
+    "steps": [
+      {
+        "id": "FR-SESSION",
+        "kind": "frame",
+        "event_id": "EV-PICCS-ABSORB",
+        "tag": "session",
+        "payload_layout": [
+          "contract_domain_tag",
+          "profile_version_tag"
+        ],
+        "base_field_count": 2
+      },
+      {
+        "id": "FR-VERIFIER-KEY",
+        "kind": "frame",
+        "event_id": "EV-PICCS-ABSORB",
+        "tag": "verifier_key",
+        "payload_layout": [
+          "verifier_key_digest[0..3]"
+        ],
+        "base_field_count": 4
+      },
+      {
+        "id": "FR-STATEMENT",
+        "kind": "frame",
+        "event_id": "EV-PICCS-ABSORB",
+        "tag": "statement",
+        "payload_layout": [
+          "canonical_statement_sections_in_section_id_order"
+        ],
+        "base_field_count": 39848
+      },
+      {
+        "id": "FR-PICCS-INPUT",
+        "kind": "frame",
+        "event_id": "EV-PICCS-ABSORB",
+        "tag": "piccs_input",
+        "payload_layout": [],
+        "base_field_count": 0
+      },
+      {
+        "id": "SQ-PICCS-ALPHA",
+        "kind": "squeeze",
+        "event_id": "EV-PICCS-COINS",
+        "tag": "piccs_alpha",
+        "requested_base_fields": 48,
+        "challenge_id": "CH-PICCS-ALPHA"
+      },
+      {
+        "id": "SQ-PICCS-GAMMA",
+        "kind": "squeeze",
+        "event_id": "EV-PICCS-COINS",
+        "tag": "piccs_gamma",
+        "requested_base_fields": 2,
+        "challenge_id": "CH-PICCS-GAMMA"
+      },
+      {
+        "id": "LOOP-PICCS-ROUNDS",
+        "kind": "repeat",
+        "repetition_id": "REP-PICCS-ROUNDS",
+        "body": [
+          {
+            "id": "FR-PICCS-ROUND",
+            "kind": "frame",
+            "event_id": "EV-PICCS-SUMCHECK",
+            "tag": "sumcheck_round",
+            "payload_layout": [
+              "round_index",
+              "g_round_coefficients_degree_0_through_9_as_c0_c1"
+            ],
+            "base_field_count": 21
+          },
+          {
+            "id": "SQ-PICCS-ROUND",
+            "kind": "squeeze",
+            "event_id": "EV-PICCS-SUMCHECK",
+            "tag": "sumcheck_round",
+            "requested_base_fields": 2,
+            "challenge_id": "CH-SUMCHECK-ROUND"
+          }
+        ]
+      },
+      {
+        "id": "FR-PICCS-OUTPUT",
+        "kind": "frame",
+        "event_id": "EV-PICCS-OUTPUT",
+        "tag": "piccs_output",
+        "payload_layout": [
+          "15_sources_x_14_matrices_x_54_ring_coefficients_x_c0_c1"
+        ],
+        "base_field_count": 22680
+      },
+      {
+        "id": "LOOP-RHO-SOURCES",
+        "kind": "repeat",
+        "repetition_id": "REP-RHO-SOURCES",
+        "body": [
+          {
+            "id": "LOOP-RHO-COEFFICIENTS",
+            "kind": "repeat",
+            "repetition_id": "REP-RHO-COEFFICIENTS",
+            "body": [
+              {
+                "id": "LOOP-RHO-ATTEMPTS",
+                "kind": "repeat",
+                "repetition_id": "REP-RHO-ATTEMPTS",
+                "body": [
+                  {
+                    "id": "FR-PIRLC-CANDIDATE",
+                    "kind": "frame",
+                    "event_id": "EV-PIRLC-SAMPLE",
+                    "tag": "pirlc_candidate",
+                    "payload_layout": [
+                      "source_index",
+                      "coefficient_index",
+                      "attempt_index"
+                    ],
+                    "base_field_count": 3
+                  },
+                  {
+                    "id": "SQ-PIRLC-CANDIDATE",
+                    "kind": "squeeze",
+                    "event_id": "EV-PIRLC-SAMPLE",
+                    "tag": "pirlc_candidate",
+                    "requested_base_fields": 1,
+                    "challenge_id": "CH-PIRLC-CANDIDATE"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "FR-PIRLC-OUTPUT",
+        "kind": "frame",
+        "event_id": "EV-PIRLC-FINALIZE",
+        "tag": "pirlc_output",
+        "payload_layout": [
+          "mixed_commitment",
+          "mixed_public_input",
+          "mixed_y_ring",
+          "shared_row_point_excluded_as_already_bound"
+        ],
+        "base_field_count": 2754
+      },
+      {
+        "id": "FR-PIDEC-OUTPUT",
+        "kind": "frame",
+        "event_id": "EV-PIDEC",
+        "tag": "pidec_output",
+        "payload_layout": [
+          "14_children_in_child_order_each_as_commitment_then_derived_public_input_then_y_ring"
+        ],
+        "base_field_count": 38556
+      },
+      {
+        "id": "FR-FOLD-FINALIZE",
+        "kind": "frame",
+        "event_id": "EV-FOLD-FINALIZE",
+        "tag": "fold_finalize",
+        "payload_layout": [
+          "fold_index",
+          "fold_count"
+        ],
+        "base_field_count": 2
+      },
+      {
+        "id": "SQ-FOLD-DIGEST",
+        "kind": "squeeze",
+        "event_id": "EV-FOLD-FINALIZE",
+        "tag": "fold_finalize",
+        "requested_base_fields": 4,
+        "challenge_id": null
+      }
+    ]
+  },
+  "open_profile_dependencies": []
+}

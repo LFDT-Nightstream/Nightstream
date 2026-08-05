@@ -1,0 +1,123 @@
+[registry]
+repository_commit = "8c0b45bdd7d45421ef528d60feb3c9881cbd16c5"
+external_v3_archive_sha256 = "d2d7f0864d2fa717ee5ded0898b46921f3c817089463700d7d7df097dd5e8636"
+
+[source_derivation]
+patch_source_id = "SRC-ERRATA-V4"
+paper_directory = "protocol-contract/paper-sources"
+old_prefix = "a/docs/superneo-paper/"
+new_prefix = "b/docs/superneo-paper/"
+paper_file_count = 15
+changed_file_count = 8
+mode = "exact-forward-and-reverse-no-fuzz"
+
+[[sources]]
+id = "SRC-PAPER-00"
+path = "protocol-contract/paper-sources/00-front-matter.md"
+sha256 = "a87c04df841d749d5832adf28f30d64a4950be204c4751b25c194b92cde7972d"
+base_sha256 = "a87c04df841d749d5832adf28f30d64a4950be204c4751b25c194b92cde7972d"
+role = "Front matter"
+
+[[sources]]
+id = "SRC-PAPER-01"
+path = "protocol-contract/paper-sources/01-1-introduction.md"
+sha256 = "5aac1d36ba5a5f7cc998a5ed510a2d6a6dca9a598e66da70bac4d920dea591b9"
+base_sha256 = "6d6a04e1ac5e7d4d8d31a85206b04e41f81818ee061631a79ef78bc73caf6325"
+role = "Introduction and challenge-field statement"
+
+[[sources]]
+id = "SRC-PAPER-02"
+path = "protocol-contract/paper-sources/02-2-technical-overview.md"
+sha256 = "7119aba5e9ee194584cece91aaa4ff4280037a5ac784cf8fc1dd960549edb6c5"
+base_sha256 = "7119aba5e9ee194584cece91aaa4ff4280037a5ac784cf8fc1dd960549edb6c5"
+role = "Technical overview"
+
+[[sources]]
+id = "SRC-PAPER-03"
+path = "protocol-contract/paper-sources/03-3-overview-of-the-following-sections.md"
+sha256 = "bf9f24240669c23d81ba6b4c531741ccfa30ee57b456026f67fcf1ce87c4f152"
+base_sha256 = "bf9f24240669c23d81ba6b4c531741ccfa30ee57b456026f67fcf1ce87c4f152"
+role = "Section overview"
+
+[[sources]]
+id = "SRC-PAPER-04"
+path = "protocol-contract/paper-sources/04-4-preliminaries.md"
+sha256 = "b6b3b5ad0dfb4646bdcba814c3912c6efc2994aafef6ae64302e0ade6f4cfd25"
+base_sha256 = "94ca3c26d99c737b1834982048f5533f84fbe2712ae28c4b59cc2f5905c6b64b"
+role = "Fields, dimensions, norm, split, commitment, and reduction definitions"
+
+[[sources]]
+id = "SRC-PAPER-05"
+path = "protocol-contract/paper-sources/05-5-embedding-products-with-evaluation-homomorphism.md"
+sha256 = "946b4464700f730572c7b93d7249ee76088dea052222c2f0e3f93f8d8e2df855"
+base_sha256 = "946b4464700f730572c7b93d7249ee76088dea052222c2f0e3f93f8d8e2df855"
+role = "Coefficient embedding and evaluation homomorphism"
+
+[[sources]]
+id = "SRC-PAPER-06"
+path = "protocol-contract/paper-sources/06-6-strong-and-weak-interactive-reductions.md"
+sha256 = "69e3eb15db27c41a180d0f6fbe95aaf54d60276cb385aec7e959a67c3c560abc"
+base_sha256 = "69e3eb15db27c41a180d0f6fbe95aaf54d60276cb385aec7e959a67c3c560abc"
+role = "Strong and weak composition theorem"
+
+[[sources]]
+id = "SRC-PAPER-07"
+path = "protocol-contract/paper-sources/07-7-neo-s-folding-scheme-for-ccs.md"
+sha256 = "14ca44334a21a59b414c7bee9a56c5cde44cce7302c5eaa632e1a1327c784136"
+base_sha256 = "2ed776426ad25c37e9dfe8ee8970dc465605364d9557661ebb9eee6c75de0aed"
+role = "CCS, CE, PiCCS, PiRLC, and PiDEC"
+
+[[sources]]
+id = "SRC-PAPER-08"
+path = "protocol-contract/paper-sources/08-references.md"
+sha256 = "76829bc29328d816deb0647cb35baf7cdd20c6d86680335df226c9f7687c34c2"
+base_sha256 = "76829bc29328d816deb0647cb35baf7cdd20c6d86680335df226c9f7687c34c2"
+role = "References"
+
+[[sources]]
+id = "SRC-PAPER-09"
+path = "protocol-contract/paper-sources/09-supplementary-material.md"
+sha256 = "4377333f3baaeaae7f3f1553a2e15dec73086b3ef93cbdbaa4e4219e9e62d902"
+base_sha256 = "22ff49e20b2681f49310370057e42749039fc83e3ec6e2899abf1a092d30b6e7"
+role = "Reviewed errata and security changelog"
+
+[[sources]]
+id = "SRC-PAPER-10"
+path = "protocol-contract/paper-sources/10-a-ai-disclaimer.md"
+sha256 = "5906b91ed3a5c3ad4e8f63ca712604dd46a54caf7f1f7be8fb0ac10758bfa04a"
+base_sha256 = "5906b91ed3a5c3ad4e8f63ca712604dd46a54caf7f1f7be8fb0ac10758bfa04a"
+role = "Paper disclaimer"
+
+[[sources]]
+id = "SRC-PAPER-11"
+path = "protocol-contract/paper-sources/11-b-concrete-parameters.md"
+sha256 = "1505d203b2a07dc339c8c3c652b0cd1fa5f64bb89deb0e34923cdee659bd11ad"
+base_sha256 = "7628750679e2a765f2682e98992c51adf109701f5edfad1c695190d1fde4a0c1"
+role = "Concrete parameter profiles"
+
+[[sources]]
+id = "SRC-PAPER-12"
+path = "protocol-contract/paper-sources/12-c-additional-background.md"
+sha256 = "c448c85a43d187d457bfb2cbbd09291721555b72986243ab51f8e4b95f48c406"
+base_sha256 = "23be1f2fbff571b2959d0c1d6a2f81445a8719176d276e9697defedced645f16"
+role = "Sampling, extraction, and Module-SIS definitions"
+
+[[sources]]
+id = "SRC-PAPER-13"
+path = "protocol-contract/paper-sources/13-d-deferred-theorems-and-proofs.md"
+sha256 = "727c471a324b6ea5d1b22a894119a91b4f5ed6e5b4bee87233d5166cd5d55c08"
+base_sha256 = "bb542f19749b44c037af2a430ed72460fc8fbb07c8a748ff8ac454a0f2a3c734"
+role = "Deferred proofs and concrete losses"
+
+[[sources]]
+id = "SRC-PAPER-INDEX"
+path = "protocol-contract/paper-sources/INDEX.md"
+sha256 = "ac7e5d671fa7a2519f238bed2118bd56d49bd5450914f05938dfe9a3c68ae6cf"
+base_sha256 = "f828403728c0d40ec9bad122a73311b1a0bdd443219592c46025b0d18cb9c3b8"
+role = "Paper index and source inventory"
+
+[[sources]]
+id = "SRC-ERRATA-V4"
+path = "protocol-contract/paper-sources/superneo-paper-errata-v4.patch"
+sha256 = "de684304c5be073ab5b3f50eabfd39f98f4d8900840a77de6d8d9dc2d766a5c9"
+role = "Exact base-to-reviewed patch"

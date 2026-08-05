@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
+num-bigint = { workspace = true }
 
 [dev-dependencies]
 serde_json = "1"

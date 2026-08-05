@@ -8,7 +8,6 @@
 
 // Public modules
 pub mod api; // public API for Π_CCS folding and RLC/DEC operations
-pub mod block_projection; // fixed production block-point projection over raw witnesses
 pub mod common; // shared utilities and helper functions
 pub mod cuda_backend; // dependency-free CUDA resident-session contract
 pub mod engines; // internal engine trait + wrappers (includes optimized_engine, paper_exact_engine, crosscheck_engine)
@@ -29,9 +28,7 @@ pub use api as pi_ccs; // main public API
 pub use engines::paper_exact_engine as pi_ccs_paper_exact;
 
 // Re-export commonly used types
-pub use engines::optimized_engine::{
-    pi_ccs_prove, pi_ccs_prove_simple, pi_ccs_verify, Challenges, PiCcsProof, PiCcsProofVariant,
-};
+pub use engines::optimized_engine::{pi_ccs_prove, pi_ccs_prove_simple, pi_ccs_verify, Challenges, PiCcsProof};
 
 pub use error::PiCcsError;
 

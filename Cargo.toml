@@ -34,6 +34,7 @@ thiserror = "2"
 subtle = "2.6"
 rayon = "1.12"
 once_cell = "1.19"
+num-bigint = "0.4"
 
 # Plonky3 core (Poseidon2 transcript only)
 p3-field = "=0.5.3"

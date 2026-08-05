@@ -7,6 +7,14 @@ use p3_symmetric::Permutation;
 
 const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w8-r4";
 
+const OP_APPEND_MESSAGE: u64 = 1;
+const OP_APPEND_FIELDS: u64 = 2;
+const OP_APPEND_U64S: u64 = 3;
+const QUERY_FIELDS: u64 = 0x101;
+const QUERY_BYTES: u64 = 0x102;
+const QUERY_NONZERO_FIELD: u64 = 0x103;
+const QUERY_DIGEST32: u64 = 0x104;
+
 #[derive(Clone)]
 pub struct Poseidon2Transcript {
     st: [Goldilocks; p2::WIDTH],
@@ -138,6 +146,12 @@ impl Poseidon2Transcript {
         self.absorbed = 0;
     }
 
+    #[inline]
+    fn bind_query(&mut self, query: u64, output_len: usize) {
+        self.absorb_elem(Goldilocks::from_u64(query));
+        self.absorb_elem(Goldilocks::from_u64(output_len as u64));
+    }
+
     /// Export current internal state (for RNG binding).
     pub fn state(&self) -> [Goldilocks; p2::WIDTH] {
         self.st
@@ -174,6 +188,7 @@ impl Transcript for Poseidon2Transcript {
     }
 
     fn append_message(&mut self, label: &'static [u8], msg: &[u8]) {
+        self.absorb_elem(Goldilocks::from_u64(OP_APPEND_MESSAGE));
         self.absorb_packed_bytes_with_len(label);
         self.absorb_packed_bytes_with_len(msg);
         #[cfg(feature = "debug-log")]
@@ -184,6 +199,7 @@ impl Transcript for Poseidon2Transcript {
     }
 
     fn append_fields(&mut self, label: &'static [u8], fs: &[F]) {
+        self.absorb_elem(Goldilocks::from_u64(OP_APPEND_FIELDS));
         self.absorb_packed_bytes_with_len(label);
         self.absorb_elem(Goldilocks::from_u64(fs.len() as u64));
         self.absorb_slice(fs);
@@ -212,6 +228,7 @@ impl Transcript for Poseidon2Transcript {
                 }
             }
         }
+        self.bind_query(QUERY_BYTES, out.len());
         #[cfg(feature = "debug-log")]
         if std::env::var("NEO_TRANSCRIPT_DUMP").ok().as_deref() == Some("1") {
             self.dump_and_clear("challenge_bytes");
@@ -226,6 +243,7 @@ impl Transcript for Poseidon2Transcript {
         self.absorb_elem(Goldilocks::ONE);
         self.permute();
         let out = F::from_u64(self.st[0].as_canonical_u64());
+        self.bind_query(QUERY_FIELDS, 1);
         #[cfg(feature = "debug-log")]
         if std::env::var("NEO_TRANSCRIPT_DUMP").ok().as_deref() == Some("1") {
             self.dump_and_clear("challenge_field");
@@ -245,6 +263,7 @@ impl Transcript for Poseidon2Transcript {
                 out.push(F::from_u64(self.st[i].as_canonical_u64()));
             }
         }
+        self.bind_query(QUERY_FIELDS, n);
         #[cfg(feature = "debug-log")]
         if std::env::var("NEO_TRANSCRIPT_DUMP").ok().as_deref() == Some("1") {
             self.dump_and_clear("challenge_fields");
@@ -267,6 +286,7 @@ impl Transcript for Poseidon2Transcript {
         for i in 0..4 {
             out[i * 8..(i + 1) * 8].copy_from_slice(&self.st[i].as_canonical_u64().to_le_bytes());
         }
+        self.bind_query(QUERY_DIGEST32, out.len());
         #[cfg(feature = "debug-log")]
         self.log
             .push(crate::debug::Event::new("digest32", b"", 0, &self.st));
@@ -308,6 +328,29 @@ impl TranscriptProtocol for Poseidon2Transcript {
 
 // Convenience helpers (not in the Transcript trait for minimal surface)
 impl Poseidon2Transcript {
+    /// Absorb protocol fields without an implicit length word.
+    ///
+    /// Use this only for schedules that carry explicit tags and lengths. It
+    /// matches the value-level `Poseidon2Duplex.absorbList` model used by the
+    /// canonical Lean verifier.
+    pub fn append_fields_unframed(&mut self, fs: &[F]) {
+        self.absorb_slice(fs);
+        #[cfg(feature = "debug-log")]
+        self.log.push(crate::debug::Event::new(
+            "append_fields_unframed",
+            b"",
+            fs.len(),
+            &self.st,
+        ));
+        #[cfg(feature = "fs-guard")]
+        crate::fs_guard::record(crate::debug::Event::new(
+            "append_fields_unframed",
+            b"",
+            fs.len(),
+            &self.st,
+        ));
+    }
+
     pub fn append_fields_raw(&mut self, fs: &[F]) {
         self.absorb_elem(Goldilocks::from_u64(fs.len() as u64));
         self.absorb_slice(fs);
@@ -344,11 +387,13 @@ impl Poseidon2Transcript {
             self.permute();
             let x = F::from_u64(self.st[0].as_canonical_u64());
             if x != F::ZERO {
+                self.bind_query(QUERY_NONZERO_FIELD, 1);
                 return x;
             }
         }
     }
     pub fn append_u64s(&mut self, label: &'static [u8], us: &[u64]) {
+        self.absorb_elem(Goldilocks::from_u64(OP_APPEND_U64S));
         self.absorb_packed_bytes_with_len(label);
         self.absorb_elem(Goldilocks::from_u64(us.len() as u64));
         self.absorb_u64_slice(us);
@@ -361,6 +406,7 @@ impl Poseidon2Transcript {
     where
         I: IntoIterator<Item = u64>,
     {
+        self.absorb_elem(Goldilocks::from_u64(OP_APPEND_U64S));
         self.absorb_packed_bytes_with_len(label);
         self.absorb_elem(Goldilocks::from_u64(len as u64));
 
@@ -395,6 +441,7 @@ impl Poseidon2Transcript {
     where
         I: IntoIterator<Item = F>,
     {
+        self.absorb_elem(Goldilocks::from_u64(OP_APPEND_FIELDS));
         self.absorb_packed_bytes_with_len(label);
         self.absorb_elem(Goldilocks::from_u64(len as u64));
 
@@ -427,6 +474,7 @@ impl Poseidon2Transcript {
     }
 
     pub fn append_bytes_packed(&mut self, label: &'static [u8], bytes: &[u8]) {
+        self.absorb_elem(Goldilocks::from_u64(OP_APPEND_MESSAGE));
         self.absorb_packed_bytes_with_len(label);
         self.absorb_packed_bytes_with_len(bytes);
         #[cfg(feature = "debug-log")]

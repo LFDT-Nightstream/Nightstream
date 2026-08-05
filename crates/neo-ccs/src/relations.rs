@@ -80,6 +80,11 @@ impl<F: Field> CcsStructure<F> {
             if mj.rows() == 0 || mj.cols() == 0 {
                 return Err(RelationError::InvalidStructure);
             }
+            if !mj.has_canonical_csc() {
+                return Err(RelationError::Message(
+                    "CCS sparse matrix is not in canonical CSC form".into(),
+                ));
+            }
         }
         let t = matrices.len();
         if f.arity() != t {
@@ -338,8 +343,7 @@ fn transform_ccs_matrix_superneo(
     }
 }
 
-/// Nebula split-witness lane commitments — the `adv` tuple of
-/// `specs/nebula-superneo-implementation.md` §5.1.
+/// Nebula split-witness lane commitments in the `adv` tuple.
 ///
 /// Exactly three commitments, one per memory lane, each under its own
 /// Ajtai matrix (`ops` under `A_ops`; `is` and `fs` under a shared
@@ -368,7 +372,7 @@ pub struct CcsClaim<C, F> {
     pub m_in: usize,
     /// Nebula lane-commitment tuple; `None` for non-Nebula claims.
     /// Folds component-wise beside `c` and is opened by the terminal
-    /// decider against its lane slices (spec §5.2).
+    /// decider against its lane slices.
     #[serde(default = "Option::default")]
     pub adv: Option<LaneCommitments<C>>,
 }
@@ -425,11 +429,6 @@ pub struct CeClaim<C, F, K> {
     pub X: Mat<F>,
     /// r ∈ K^{log n}
     pub r: Vec<K>,
-    /// s_col ∈ K^{log m}: column-domain point used for the digit-range (NC) check.
-    ///
-    /// Callers may leave this empty when the NC channel is not part of the checked surface.
-    #[serde(default)]
-    pub s_col: Vec<K>,
     /// Ring-digit rows per CCS matrix output (j=0..t-1).
     ///
     /// Callers may store either:
@@ -442,32 +441,13 @@ pub struct CeClaim<C, F, K> {
     /// In SuperNeo embedding, core entries are constant terms of each `y_ring[j]`.
     /// Existing pipelines may append additional scalar openings to this vector.
     pub ct: Vec<K>,
-    /// Additional scalar openings that are not core CCS matrix outputs.
-    ///
-    /// This field is the CE-native home for sidecar/Route-A openings.
-    #[serde(default)]
-    pub aux_openings: Vec<K>,
-    /// y_zcol := Z · χ_{s_col} ∈ K^{d} (digit rows, typically padded to 2^{ell_d}).
-    ///
-    /// Callers may leave this empty when the NC channel is not part of the checked surface.
-    #[serde(default)]
-    pub y_zcol: Vec<K>,
     /// m_in
     pub m_in: usize,
     /// **SECURITY**: Transcript-derived digest binding this ME to the folding proof
     pub fold_digest: [u8; 32],
-    /// **PATTERN A**: Pre-commitment coordinates for linear link constraints
-    /// c_step_coords[i] are the coordinates of the pre-commitment (with ρ=0 for EV part)
-    /// Used to enforce: c_full[i] - c_step_coords[i] = ⟨L_i, U⟩ where U = ρ·y_step
-    pub c_step_coords: Vec<F>,
-    /// Pattern A: Offset where ρ-dependent part starts in witness vector (unused in Pattern B)
-    pub u_offset: usize,
-    /// Pattern A: Length of the ρ-dependent part (unused in Pattern B)
-    pub u_len: usize,
     /// Nebula lane-commitment tuple; `None` for non-Nebula claims.
     /// Mixed by the same public ρ/`b`-power arithmetic as `c` through
-    /// Π_RLC/Π_DEC (spec §5.2 R2) — never semantically inspected by the
-    /// reductions themselves.
+    /// Π_RLC/Π_DEC. The reductions do not inspect its semantics.
     #[serde(default = "Option::default")]
     pub adv: Option<LaneCommitments<C>>,
 }
@@ -597,7 +577,7 @@ pub fn build_superneo_ring_forms<
     s: &CcsStructure<F>,
     r: &[K],
 ) -> Result<Vec<Vec<[K; D]>>, CcsError> {
-    let n_pad = s.n.next_power_of_two();
+    let n_pad = s.n.max(s.m.div_ceil(D) * D).next_power_of_two();
     let ell = n_pad.trailing_zeros() as usize;
     if r.len() != ell {
         return Err(CcsError::Len {
@@ -679,7 +659,7 @@ where
 /// Check `X == L_x(Z)` and SuperNeo CE output consistency.
 pub fn check_ce_consistency<
     F: Field + PrimeCharacteristicRing + Copy + Into<GoldiF>,
-    K: Field + From<F> + KExtensions + Copy,
+    K: Field + From<F> + From<GoldiF> + KExtensions + Copy,
     C,
     L: SModuleHomomorphism<F, C>,
 >(
@@ -708,7 +688,7 @@ where
     // y_j == \widehat{\bar{M}_j z}(r) in SuperNeo ring-coefficient form.
     // Allow arbitrary n by deriving ℓ from the next power of two.
     // χ_r is length 2^ℓ, and we consume only the first n entries.
-    let n_pad = s.n.next_power_of_two();
+    let n_pad = s.n.max(wit.Z.cols() * D).next_power_of_two();
     let ell = n_pad.trailing_zeros() as usize;
     if inst.r.len() != ell {
         return Err(CcsError::Len {
@@ -718,66 +698,47 @@ where
         });
     }
 
-    // Optional NC channel: y_zcol == Z · χ_{s_col} (column-domain).
-    //
-    // This is only checked when both `s_col` and `y_zcol` are present; some paper
-    // CE openings do not include the backend NC channel.
-    if !(inst.s_col.is_empty() && inst.y_zcol.is_empty()) {
-        if inst.s_col.is_empty() || inst.y_zcol.is_empty() {
-            return Err(CcsError::Relation(
-                "incomplete NC channel: expected both s_col and y_zcol".into(),
-            ));
-        }
-
-        // Column-domain length is derived from CCS width `m` (not `n`).
-        let m_pad = s.m.next_power_of_two().max(2);
-        let ell_m = m_pad.trailing_zeros() as usize;
-        if inst.s_col.len() != ell_m {
-            return Err(CcsError::Len {
-                context: "s_col (column extension point)",
-                expected: ell_m,
-                got: inst.s_col.len(),
-            });
-        }
-
-        // Ajtai padding length for digit rows (matches `1 << ell_d` used by Π_CCS dims).
-        let d_pad = D.next_power_of_two();
-        let ell_d = d_pad.trailing_zeros() as usize;
-        let d_pad = 1usize << ell_d;
-        if inst.y_zcol.len() != d_pad {
-            return Err(CcsError::Len {
-                context: "y_zcol (padded digit rows)",
-                expected: d_pad,
-                got: inst.y_zcol.len(),
-            });
-        }
-
-        // Compute y_zcol = Z · χ_{s_col}.
-        let chi_s = crate::utils::tensor_point::<K>(&inst.s_col);
-        let mut y_star = vec![K::ZERO; D];
-        for rho in 0..D {
-            let mut acc = K::ZERO;
-            for c in 0..s.m {
-                acc += K::from(witness_get(&wit.Z, rho, c)) * chi_s[c];
-            }
-            y_star[rho] = acc;
-        }
-        y_star.resize(d_pad, K::ZERO);
-
-        if y_star.as_slice() != inst.y_zcol.as_slice() {
-            return Err(CcsError::Relation("y_zcol != Z · χ_{s_col}".into()));
-        }
-    }
-    if inst.y_ring.len() != s.t() {
+    let has_padded_identity = inst.y_ring.len() == s.t() + 1;
+    if !has_padded_identity && inst.y_ring.len() != s.t() {
         return Err(CcsError::Len {
             context: "|y_ring|",
-            expected: s.t(),
+            expected: s.t() + 1,
             got: inst.y_ring.len(),
         });
     }
 
     // Ajtai padding length for digit rows (matches `1 << ell_d` used by Π_CCS dims).
     let d_pad = D.next_power_of_two();
+
+    if has_padded_identity {
+        let row_weights = tensor_point::<K>(&inst.r);
+        let assignment_width = wit.Z.cols() * D;
+        let mut identity_value = vec![K::ZERO; D];
+        for (row, &weight) in row_weights.iter().take(assignment_width).enumerate() {
+            let block = row / D;
+            let mut basis = [GoldiF::ZERO; D];
+            basis[row % D] = GoldiF::ONE;
+            let transformed = Rq(superneo_bar_block(basis));
+            let assignment = Rq(std::array::from_fn(|lane| wit.Z[(lane, block)].into()));
+            let product = transformed.mul(&assignment);
+            for coefficient in 0..D {
+                identity_value[coefficient] += weight * K::from(product.0[coefficient]);
+            }
+        }
+        let supplied = &inst.y_ring[0];
+        if supplied.len() != D && supplied.len() != d_pad {
+            return Err(CcsError::Len {
+                context: "padded identity y_ring[0]",
+                expected: d_pad,
+                got: supplied.len(),
+            });
+        }
+        if identity_value.as_slice() != &supplied[..D] || supplied[D..].iter().any(|&value| value != K::ZERO) {
+            return Err(CcsError::Relation(
+                "y_ring[0] != transformed padded-identity evaluation".into(),
+            ));
+        }
+    }
 
     let ring_forms = build_superneo_ring_forms(s, &inst.r)?;
     for (j, forms) in ring_forms.iter().enumerate() {
@@ -793,7 +754,7 @@ where
             }
             y_star[rho] = acc;
         }
-        let yj = &inst.y_ring[j];
+        let yj = &inst.y_ring[j + usize::from(has_padded_identity)];
         let d = y_star.len();
         if yj.len() < d {
             return Err(CcsError::Len {
@@ -818,14 +779,14 @@ where
     }
 
     // Core CE invariant (SuperNeo-only): `ct[j] == y_ring[j][0]`.
-    if inst.ct.len() < s.t() {
+    if inst.ct.len() != inst.y_ring.len() {
         return Err(CcsError::Len {
             context: "ct (core entries)",
-            expected: s.t(),
+            expected: inst.y_ring.len(),
             got: inst.ct.len(),
         });
     }
-    for j in 0..s.t() {
+    for j in 0..inst.y_ring.len() {
         let want = ct_from_y_digits_for_ccs_m(&inst.y_ring[j], s.m);
         if inst.ct[j] != want {
             return Err(CcsError::Relation("ct[j] != y_ring[j][0]".into()));

@@ -1500,6 +1500,7 @@ dependencies = [
 name = "neo-params"
 version = "0.1.0"
 dependencies = [
+ "num-bigint 0.4.8",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

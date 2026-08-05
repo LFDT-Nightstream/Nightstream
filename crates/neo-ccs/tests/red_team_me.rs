@@ -85,17 +85,11 @@ fn me_consistency_rejects_tamper() {
 
     let inst = CeClaim::<_, Fq, K> {
         adv: None,
-        c_step_coords: vec![],
-        u_offset: 0,
-        u_len: 0,
         c: c.clone(),
         X: X.clone(),
         r: r.clone(),
-        s_col: vec![],
         y_ring: vec![y0_padded.clone()],
         ct: vec![ct0],
-        aux_openings: vec![],
-        y_zcol: vec![],
         m_in,
         fold_digest: [0u8; 32],
     };

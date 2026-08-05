@@ -225,3 +225,41 @@ fn test_split_b_matrix_k_base3_accepts_full_norm_bound_digit() {
     assert_eq!(split[0][(0, 0)], F::from_u64(2));
     assert_eq!(split[0][(0, 1)], F::ZERO - F::from_u64(2));
 }
+
+#[test]
+fn split_b_matrix_round_trip_preserves_signed_values_and_digit_bound() {
+    let base = 4u32;
+    let digit_count = 6usize;
+    let signed_values = [-100i64, -25, -4, -3, -1, 0, 1, 3, 4, 17, 63, 99, -77, 28, 2, -2];
+    let values = signed_values
+        .into_iter()
+        .map(|value| {
+            if value < 0 {
+                F::ZERO - F::from_u64(value.unsigned_abs())
+            } else {
+                F::from_u64(value as u64)
+            }
+        })
+        .collect();
+    let input = Mat::from_row_major(2, 8, values);
+    let digits = split_b_matrix_k(&input, digit_count, base).expect("signed values must decompose");
+
+    let mut reconstructed = Mat::zero(input.rows(), input.cols(), F::ZERO);
+    let mut power = F::ONE;
+    let base_field = F::from_u64(base as u64);
+    let bound = (base - 1) as u64;
+    for digit in &digits {
+        for row in 0..input.rows() {
+            for column in 0..input.cols() {
+                let canonical = digit[(row, column)].as_canonical_u64();
+                assert!(
+                    canonical <= bound || canonical >= F::ORDER_U64 - bound,
+                    "digit at ({row},{column}) exceeds the strict SuperNeo bound"
+                );
+                reconstructed[(row, column)] += power * digit[(row, column)];
+            }
+        }
+        power *= base_field;
+    }
+    assert_eq!(reconstructed, input);
+}

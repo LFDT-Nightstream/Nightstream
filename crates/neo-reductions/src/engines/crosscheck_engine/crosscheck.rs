@@ -1,15 +1,10 @@
-//! Exact cross-check wrapper for canonical rectangular `Pi_CCS`.
+//! Complete optimized-versus-PaperExact PiCCS comparison.
 //!
-//! On native targets, the wrapper starts the optimized engine and PaperExact
-//! concurrently from the same transcript state. It compares both transcript
-//! checkpoints, each proof surface, all outputs, and the canonical proof
-//! bytes before it returns the optimized result. Single-threaded Wasm uses a
-//! sequential fallback.
+//! Every check is mandatory. The wrapper compares the independent event
+//! traces, challenges, rounds, terminal value, outputs, transcript state, and
+//! versioned proof bytes before it returns the optimized result.
 
-#![allow(non_snake_case)]
-
-use crate::engines::optimized_engine::{PiCcsProof, PiCcsProofVariant};
-use crate::engines::PiCcsEngine;
+use crate::engines::optimized_engine::{OptimizedStructureCache, PiCcsProof};
 use crate::error::PiCcsError;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
@@ -17,8 +12,11 @@ use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_transcript::{Poseidon2Transcript, Transcript};
 
+use crate::engines::paper_exact_engine::PaperTranscriptBinding;
+use crate::engines::pi_ccs_joint_protocol::TranscriptBinding;
+
 #[cfg(not(target_arch = "wasm32"))]
-fn run_engine_pair<Optimized, Reference, RunOptimized, RunReference>(
+fn run_pair<Optimized, Reference, RunOptimized, RunReference>(
     run_optimized: RunOptimized,
     run_reference: RunReference,
 ) -> Result<(Optimized, Reference), PiCcsError>
@@ -32,13 +30,13 @@ where
         let optimized = run_optimized();
         let reference = reference
             .join()
-            .map_err(|_| PiCcsError::ProtocolError("PaperExact cross-check worker panicked".into()))?;
+            .map_err(|_| PiCcsError::ProtocolError("PaperExact crosscheck worker panicked".into()))?;
         Ok((optimized, reference))
     })
 }
 
 #[cfg(target_arch = "wasm32")]
-fn run_engine_pair<Optimized, Reference, RunOptimized, RunReference>(
+fn run_pair<Optimized, Reference, RunOptimized, RunReference>(
     run_optimized: RunOptimized,
     run_reference: RunReference,
 ) -> Result<(Optimized, Reference), PiCcsError>
@@ -49,47 +47,20 @@ where
     Ok((run_optimized(), run_reference()))
 }
 
-fn transcript_checkpoint(transcript: &Poseidon2Transcript) -> [u8; 32] {
-    let mut checkpoint = transcript.clone();
-    checkpoint.digest32()
-}
-
-/// Surfaces checked by `OptimizedWithCrosscheck`.
-#[derive(Clone, Debug)]
-pub struct CrosscheckCfg {
-    pub fail_fast: bool,
-    pub initial_sum: bool,
-    pub per_round: bool,
-    pub terminal: bool,
-    pub outputs: bool,
-    pub byte_exact: bool,
-}
-
-impl Default for CrosscheckCfg {
-    fn default() -> Self {
-        Self {
-            fail_fast: true,
-            initial_sum: true,
-            per_round: true,
-            terminal: true,
-            outputs: true,
-            byte_exact: true,
-        }
-    }
+fn checkpoint(transcript: &Poseidon2Transcript) -> [u8; 32] {
+    transcript.clone().digest32()
 }
 
 #[derive(Clone, Debug)]
 pub struct CrossCheckEngine<I, R> {
     pub inner: I,
     pub ref_oracle: R,
-    pub cfg: CrosscheckCfg,
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn crosscheck_prove<I, R, L>(
-    inner: &I,
-    reference: &R,
-    cfg: &CrosscheckCfg,
+    _inner: &I,
+    _reference: &R,
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -100,14 +71,56 @@ pub fn crosscheck_prove<I, R, L>(
     commitment: &L,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>
 where
-    I: PiCcsEngine,
-    R: PiCcsEngine + Sync,
     L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync,
 {
+    crosscheck_prove_with_binding(
+        _inner,
+        _reference,
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        commitment,
+        TranscriptBinding::claims(),
+    )
+}
+
+fn reference_binding(binding: TranscriptBinding) -> PaperTranscriptBinding {
+    match binding {
+        TranscriptBinding::Claims => PaperTranscriptBinding::Claims,
+        TranscriptBinding::Digests {
+            public_instance_digest,
+            running_accumulator_handle,
+        } => PaperTranscriptBinding::digests(public_instance_digest, running_accumulator_handle),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn crosscheck_prove_with_binding<I, R, L>(
+    _inner: &I,
+    _reference: &R,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    commitment: &L,
+    binding: TranscriptBinding,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync,
+{
+    let cache = OptimizedStructureCache::build(structure)?;
     let mut reference_transcript = transcript.clone();
-    let (optimized, reference) = run_engine_pair(
+    let paper_binding = reference_binding(binding);
+    let (optimized, reference) = run_pair(
         || {
-            inner.prove(
+            crate::engines::optimized_engine::paper_joint::prove_with_trace(
                 transcript,
                 params,
                 structure,
@@ -116,10 +129,12 @@ where
                 running_claims,
                 running_witnesses,
                 commitment,
+                &cache,
+                binding,
             )
         },
         || {
-            reference.prove(
+            crate::engines::paper_exact_engine::prove::paper_exact_prove_with_trace_and_binding(
                 &mut reference_transcript,
                 params,
                 structure,
@@ -128,10 +143,14 @@ where
                 running_claims,
                 running_witnesses,
                 commitment,
+                paper_binding,
             )
         },
     )?;
-    let ((optimized_outputs, optimized_proof), (reference_outputs, reference_proof)) = match (optimized, reference) {
+    let (
+        (optimized_outputs, optimized_proof, _, optimized_trace),
+        (reference_outputs, reference_proof, reference_trace),
+    ) = match (optimized, reference) {
         (Ok(optimized), Ok(reference)) => (optimized, reference),
         (Err(optimized), Ok(_)) => {
             return Err(PiCcsError::ProtocolError(format!(
@@ -145,69 +164,39 @@ where
         }
         (Err(optimized), Err(reference)) => {
             return Err(PiCcsError::ProtocolError(format!(
-                "both cross-check provers failed (optimized: {optimized}; PaperExact: {reference})"
+                "both crosscheck provers failed (optimized: {optimized}; PaperExact: {reference})"
             )))
         }
     };
-    if transcript_checkpoint(transcript) != transcript_checkpoint(&reference_transcript) {
-        return Err(PiCcsError::ProtocolError(
-            "cross-check prover transcript states differ".into(),
-        ));
-    }
 
-    if optimized_proof.variant != PiCcsProofVariant::PaperRectangularV1
-        || reference_proof.variant != PiCcsProofVariant::PaperRectangularV1
-    {
+    if optimized_trace != reference_trace {
         return Err(PiCcsError::ProtocolError(
-            "cross-check requires PaperRectangularV1 from both engines".into(),
+            "crosscheck protocol event traces differ".into(),
         ));
     }
-    if cfg.initial_sum
-        && (optimized_proof.sc_initial_sum != reference_proof.sc_initial_sum
-            || optimized_proof.sc_initial_sum_nc != reference_proof.sc_initial_sum_nc)
-    {
-        return Err(PiCcsError::ProtocolError("cross-check initial claims differ".into()));
+    if checkpoint(transcript) != checkpoint(&reference_transcript) {
+        return Err(PiCcsError::ProtocolError("crosscheck transcript states differ".into()));
     }
-    if cfg.per_round
-        && (optimized_proof.sumcheck_rounds != reference_proof.sumcheck_rounds
-            || optimized_proof.sumcheck_rounds_nc != reference_proof.sumcheck_rounds_nc
-            || optimized_proof.sumcheck_challenges != reference_proof.sumcheck_challenges
-            || optimized_proof.sumcheck_challenges_nc != reference_proof.sumcheck_challenges_nc)
-    {
+    if optimized_outputs != reference_outputs || optimized_proof != reference_proof {
         return Err(PiCcsError::ProtocolError(
-            "cross-check SumCheck rounds or folds differ".into(),
+            "crosscheck proof or output values differ".into(),
         ));
     }
-    if cfg.terminal
-        && (optimized_proof.sumcheck_final != reference_proof.sumcheck_final
-            || optimized_proof.sumcheck_final_nc != reference_proof.sumcheck_final_nc)
-    {
-        return Err(PiCcsError::ProtocolError("cross-check terminal claims differ".into()));
-    }
-    if cfg.outputs && optimized_outputs != reference_outputs {
-        return Err(PiCcsError::ProtocolError("cross-check output claims differ".into()));
-    }
-    if cfg.byte_exact
-        && optimized_proof
-            .canonical_bytes()
-            .map_err(|error| PiCcsError::ProtocolError(format!("cannot serialize optimized proof: {error}")))?
-            != reference_proof
-                .canonical_bytes()
-                .map_err(|error| PiCcsError::ProtocolError(format!("cannot serialize reference proof: {error}")))?
+    if optimized_proof.canonical_bytes()
+        != crate::engines::paper_exact_engine::encode_proof(&reference_proof)
+            .map_err(|error| PiCcsError::ProtocolError(format!("PaperExact codec failed: {error}")))?
     {
         return Err(PiCcsError::ProtocolError(
-            "cross-check canonical proof bytes differ".into(),
+            "crosscheck canonical proof bytes differ".into(),
         ));
     }
-
-    let _ = cfg.fail_fast;
     Ok((optimized_outputs, optimized_proof))
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn crosscheck_verify<I, R>(
-    inner: &I,
-    reference: &R,
+    _inner: &I,
+    _reference: &R,
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -215,15 +204,39 @@ pub fn crosscheck_verify<I, R>(
     running_claims: &[CeClaim<Cmt, F, K>],
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
-) -> Result<bool, PiCcsError>
-where
-    I: PiCcsEngine,
-    R: PiCcsEngine + Sync,
-{
+) -> Result<bool, PiCcsError> {
+    crosscheck_verify_with_binding(
+        _inner,
+        _reference,
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        running_claims,
+        outputs,
+        proof,
+        TranscriptBinding::claims(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn crosscheck_verify_with_binding<I, R>(
+    _inner: &I,
+    _reference: &R,
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    binding: TranscriptBinding,
+) -> Result<bool, PiCcsError> {
     let mut reference_transcript = transcript.clone();
-    let (optimized, checked) = run_engine_pair(
+    let paper_binding = reference_binding(binding);
+    let (optimized, reference) = run_pair(
         || {
-            inner.verify(
+            crate::engines::pi_ccs_joint_protocol::verify_with_trace(
                 transcript,
                 params,
                 structure,
@@ -231,10 +244,11 @@ where
                 running_claims,
                 outputs,
                 proof,
+                binding,
             )
         },
         || {
-            reference.verify(
+            crate::engines::paper_exact_engine::verify::paper_exact_verify_with_trace_and_binding(
                 &mut reference_transcript,
                 params,
                 structure,
@@ -242,34 +256,35 @@ where
                 running_claims,
                 outputs,
                 proof,
+                paper_binding,
             )
         },
     )?;
-    let (optimized, checked) = match (optimized, checked) {
-        (Ok(optimized), Ok(checked)) => (optimized, checked),
+    let ((optimized_valid, optimized_trace), (reference_valid, reference_trace)) = match (optimized, reference) {
+        (Ok(optimized), Ok(reference)) => (optimized, reference),
+        (Err(optimized), Err(reference)) => {
+            return Err(PiCcsError::ProtocolError(format!(
+                "both crosscheck verifiers failed (optimized: {optimized}; PaperExact: {reference})"
+            )))
+        }
         (Err(optimized), Ok(_)) => {
             return Err(PiCcsError::ProtocolError(format!(
-                "optimized verifier failed while PaperExact succeeded: {optimized}"
+                "optimized verifier failed while PaperExact completed: {optimized}"
             )))
         }
         (Ok(_), Err(reference)) => {
             return Err(PiCcsError::ProtocolError(format!(
-                "PaperExact verifier failed while optimized succeeded: {reference}"
-            )))
-        }
-        (Err(optimized), Err(reference)) => {
-            return Err(PiCcsError::ProtocolError(format!(
-                "both cross-check verifiers failed (optimized: {optimized}; PaperExact: {reference})"
+                "PaperExact verifier failed while optimized completed: {reference}"
             )))
         }
     };
-    if transcript_checkpoint(transcript) != transcript_checkpoint(&reference_transcript) {
+    if optimized_trace != reference_trace
+        || checkpoint(transcript) != checkpoint(&reference_transcript)
+        || optimized_valid != reference_valid
+    {
         return Err(PiCcsError::ProtocolError(
-            "cross-check verifier transcript states differ".into(),
+            "crosscheck verifier traces or decisions differ".into(),
         ));
     }
-    if optimized != checked {
-        return Err(PiCcsError::ProtocolError("cross-check verifier results differ".into()));
-    }
-    Ok(optimized)
+    Ok(optimized_valid)
 }

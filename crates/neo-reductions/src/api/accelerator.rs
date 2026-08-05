@@ -10,7 +10,6 @@ pub fn rlc_with_commit_refs_and_witness_mix<Comb, MixWitness>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
-    column_point_len: usize,
     rhos: &[RotRho],
     me_inputs: &[CeClaim<Cmt, F, K>],
     witnesses: &[&Mat<F>],
@@ -26,7 +25,6 @@ where
         mode,
         s,
         params,
-        column_point_len,
         rhos,
         me_inputs,
         witnesses,
@@ -46,7 +44,6 @@ pub fn rlc_with_commit_refs_and_resident_witness<Comb, MixWitness, Resident>(
     mode: FoldingMode,
     s: &CcsStructure<F>,
     params: &NeoParams,
-    column_point_len: usize,
     rhos: &[RotRho],
     me_inputs: &[CeClaim<Cmt, F, K>],
     witnesses: &[&Mat<F>],
@@ -73,12 +70,7 @@ where
     }
     #[cfg(feature = "perf-timers")]
     let shape_started = std::time::Instant::now();
-    validate_ce_claims_shape(
-        "rlc_with_commit_refs_and_witness_mix: me_inputs",
-        s,
-        column_point_len,
-        me_inputs,
-    )?;
+    validate_ce_claims_shape("rlc_with_commit_refs_and_witness_mix: me_inputs", s, me_inputs)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, ell_n_for_ccs(s))?;
     #[cfg(feature = "perf-timers")]
     let shape_elapsed = shape_started.elapsed();
@@ -135,7 +127,7 @@ where
             Ok((out, resident))
         }
         #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact | FoldingMode::OptimizedWithCrosscheck(_) => Err(PiCcsError::InvalidInput(
+        FoldingMode::PaperExact | FoldingMode::OptimizedWithCrosscheck => Err(PiCcsError::InvalidInput(
             "accelerator witness mixing is available only in FoldingMode::Optimized".into(),
         )),
     }

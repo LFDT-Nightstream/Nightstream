@@ -3,7 +3,7 @@
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::utils::tensor_point;
 use neo_ccs::{CcsStructure, Mat};
-use neo_math::{D, F, K};
+use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_reductions::common::{
     compute_y_from_Z_and_r, decode_superneo_coeffs_from_witness_mat, validate_superneo_witness_mat,
 };
@@ -47,7 +47,32 @@ fn manual_compute_y(s: &CcsStructure<F>, Z: &Mat<F>, r: &[K], ell_d: usize, b: u
     let n_eff = core::cmp::min(s.n, rb.len());
     let cache = build_superneo_eval_cache(s).expect("expected SuperNeo cache");
     let z = decode_superneo_coeffs_from_witness_mat(Z, s.m).expect("decode packed coefficients");
-    let mut y_ring: Vec<Vec<K>> = Vec::with_capacity(s.t());
+    let mut y_ring: Vec<Vec<K>> = Vec::with_capacity(s.t() + 1);
+
+    let mut identity = [K::ZERO; D];
+    for (row, &weight) in rb.iter().take(z.len()).enumerate() {
+        let block = row / D;
+        let mut basis = [Fq::ZERO; D];
+        basis[row % D] = Fq::ONE;
+        let transformed = Rq(superneo_bar_block(basis));
+        let mut real = [Fq::ZERO; D];
+        let mut imaginary = [Fq::ZERO; D];
+        for lane in 0..D {
+            let [low, high] = z[block * D + lane].as_coeffs();
+            real[lane] = low;
+            imaginary[lane] = high;
+        }
+        let real_product = transformed.mul(&Rq(real));
+        let imaginary_product = transformed.mul(&Rq(imaginary));
+        for coefficient in 0..D {
+            identity[coefficient] +=
+                weight * K::from_coeffs([real_product.0[coefficient], imaginary_product.0[coefficient]]);
+        }
+    }
+    let mut identity = identity.to_vec();
+    identity.resize(d_pad, K::ZERO);
+    y_ring.push(identity);
+
     let y_raw = neo_reductions::superneo_eval::eval_all_mats_ring_cached(&cache, &z, &rb, n_eff);
     for coeffs in y_raw.into_iter().take(s.t()) {
         let mut row = coeffs.to_vec();

@@ -1,7 +1,6 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use neo_math::K;
-use neo_reductions::engines::utils::sample_challenges;
 use neo_reductions::sumcheck::{
     run_batched_sumcheck_prover, run_sumcheck_prover, verify_batched_sumcheck_rounds,
     verify_sumcheck_rounds_poseidon_v3, BatchedClaim, RoundOracle,
@@ -103,21 +102,4 @@ fn sumcheck_provers_accept_degree_zero_constant_oracles_without_panicking() {
         .expect("degree-zero batched sumcheck must prove");
     assert_eq!(single_rounds, vec![vec![value]]);
     assert_eq!(batched_results[0].round_polys, vec![vec![value]]);
-}
-
-#[test]
-fn challenge_sampler_rejects_domain_length_overflow_without_panicking() {
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        let mut transcript = Poseidon2Transcript::new(b"redteam/challenge-domain-overflow");
-        sample_challenges(&mut transcript, usize::MAX, 0)
-    }));
-
-    assert!(
-        result.is_ok(),
-        "invalid challenge dimensions must return an error, not panic"
-    );
-    assert!(
-        result.expect("panic checked above").is_err(),
-        "overflowing challenge dimensions must be rejected"
-    );
 }

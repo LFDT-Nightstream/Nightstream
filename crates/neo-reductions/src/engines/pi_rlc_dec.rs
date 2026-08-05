@@ -9,6 +9,43 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{F, K};
 use neo_params::NeoParams;
+use p3_field::PrimeCharacteristicRing;
+
+fn canonical_dec_split(split: &[Mat<F>], base: u32) -> bool {
+    if split.is_empty() || base < 2 {
+        return false;
+    }
+    let rows = split[0].rows();
+    let columns = split[0].cols();
+    if split
+        .iter()
+        .any(|matrix| matrix.rows() != rows || matrix.cols() != columns)
+    {
+        return false;
+    }
+
+    let mut reconstructed = Mat::zero(rows, columns, F::ZERO);
+    let base_u32 = base;
+    let base = F::from_u64(base_u32 as u64);
+    let mut power = F::ONE;
+    for digit in split {
+        for row in 0..rows {
+            for column in 0..columns {
+                reconstructed[(row, column)] += power * digit[(row, column)];
+            }
+        }
+        power *= base;
+    }
+
+    crate::common::split_b_matrix_k(&reconstructed, split.len(), base_u32).is_ok_and(|expected| expected == split)
+}
+
+fn digit_flags_match(split: &[Mat<F>], digit_nonzero: &[bool]) -> bool {
+    split.len() == digit_nonzero.len()
+        && split.iter().zip(digit_nonzero).all(|(matrix, &flag)| {
+            flag == (0..matrix.rows()).any(|row| (0..matrix.cols()).any(|column| matrix[(row, column)] != F::ZERO))
+        })
+}
 
 /// Trait for RLC/DEC algebraic operations over ME instances.
 pub trait RlcDecOps {
@@ -60,19 +97,20 @@ impl OptimizedRlcDec {
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
-        let (mut children, ok_y, ok_X) = match sparse {
-            Some(cache) => super::optimized_engine::dec_reduction_paper_exact_with_sparse_cache::<F>(
-                s, params, parent, Z_split, ell_d, cache,
-            ),
-            None => super::optimized_engine::dec_reduction_paper_exact::<F>(s, params, parent, Z_split, ell_d),
-        };
+        if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
+            return (Vec::new(), false, false, false);
+        }
+        let split_valid = canonical_dec_split(Z_split, params.b);
+        let _ = sparse;
+        let (mut children, ok_y, ok_X) =
+            super::optimized_engine::dec_reduction_optimized::<F>(s, params, parent, Z_split, ell_d);
 
         // Patch children commitments and check c relation.
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
             ch.c = c.clone();
         }
-        let ok_c = combine_b_pows(child_commitments, params.b) == parent.c;
-        (children, ok_y, ok_X, ok_c)
+        let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
+        (children, split_valid && ok_y, split_valid && ok_X, ok_c)
     }
 
     /// Optimized DEC that reuses a caller-provided SuperNeo eval cache.
@@ -89,7 +127,11 @@ impl OptimizedRlcDec {
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
-        let (mut children, ok_y, ok_X) = super::optimized_engine::dec_reduction_paper_exact_with_superneo_cache::<F>(
+        if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
+            return (Vec::new(), false, false, false);
+        }
+        let split_valid = canonical_dec_split(Z_split, params.b);
+        let (mut children, ok_y, ok_X) = super::optimized_engine::dec_reduction_optimized_with_superneo_cache::<F>(
             s,
             params,
             parent,
@@ -101,8 +143,8 @@ impl OptimizedRlcDec {
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
             ch.c = c.clone();
         }
-        let ok_c = combine_b_pows(child_commitments, params.b) == parent.c;
-        (children, ok_y, ok_X, ok_c)
+        let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
+        (children, split_valid && ok_y, split_valid && ok_X, ok_c)
     }
 
     pub fn dec_children_with_commit_superneo_cached_with_digit_flags<Comb>(
@@ -117,30 +159,31 @@ impl OptimizedRlcDec {
         superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
         ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
         precomputed_y_ring: Option<&[Vec<[K; neo_math::D]>]>,
-        precomputed_y_zcol: Option<&[[K; neo_math::D]]>,
     ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
-        let (mut children, ok_y, ok_X) =
-            super::optimized_engine::dec_reduction_paper_exact_with_superneo_cache_and_digit_flags::<F>(
-                s,
-                params,
-                parent,
-                Z_split,
-                digit_nonzero,
-                ell_d,
-                superneo_cache,
-                ring_linear_forms,
-                precomputed_y_ring,
-                precomputed_y_zcol,
-            );
+        if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
+            return (Vec::new(), false, false, false);
+        }
+        let split_valid = canonical_dec_split(Z_split, params.b) && digit_flags_match(Z_split, digit_nonzero);
+        let (mut children, ok_y, ok_X) = super::optimized_engine::dec_reduction_optimized_with_digit_flags::<F>(
+            s,
+            params,
+            parent,
+            Z_split,
+            digit_nonzero,
+            ell_d,
+            superneo_cache,
+            ring_linear_forms,
+            precomputed_y_ring,
+        );
 
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
             ch.c = c.clone();
         }
-        let ok_c = combine_b_pows(child_commitments, params.b) == parent.c;
-        (children, ok_y, ok_X, ok_c)
+        let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
+        (children, split_valid && ok_y, split_valid && ok_X, ok_c)
     }
 }
 
@@ -175,15 +218,18 @@ impl RlcDecOps for OptimizedRlcDec {
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
-        // For now, delegate to paper-exact algebra (implemented in optimized_engine).
+        if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
+            return (Vec::new(), false, false, false);
+        }
+        let split_valid = canonical_dec_split(Z_split, params.b);
         let (mut children, ok_y, ok_X) =
-            super::optimized_engine::dec_reduction_paper_exact(s, params, parent, Z_split, ell_d);
+            super::optimized_engine::dec_reduction_optimized(s, params, parent, Z_split, ell_d);
         // Patch children commitments and check c relation
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
             ch.c = c.clone();
         }
-        let ok_c = combine_b_pows(child_commitments, params.b) == parent.c;
-        (children, ok_y, ok_X, ok_c)
+        let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
+        (children, split_valid && ok_y, split_valid && ok_X, ok_c)
     }
 }
 

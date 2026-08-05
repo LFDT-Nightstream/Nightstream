@@ -93,10 +93,6 @@ fn build_wide_structure(n: usize, m: usize) -> CcsStructure<F> {
     CcsStructure::new(vec![m0, m1], f).expect("valid wide CCS structure")
 }
 
-fn column_point_len(structure: &CcsStructure<F>) -> usize {
-    structure.m.next_power_of_two().max(2).trailing_zeros() as usize
-}
-
 fn make_z(seed: u64, m: usize) -> Mat<F> {
     assert!(m.is_multiple_of(D), "SuperNeo-only test requires m divisible by D");
     let cols = m / D;
@@ -198,23 +194,17 @@ fn build_me_from_z(
     ell_d: usize,
     m_in: usize,
     c: Commitment,
-    aux_seed: u64,
+    _aux_seed: u64,
 ) -> CeClaim<Commitment, F, K> {
     let (y_ring, ct) = compute_y_from_Z_and_r(s, Z, r, ell_d, params.b);
     let X = neo_reductions::common::project_x_from_witness_mat(Z, s.m, m_in).expect("project X");
     CeClaim {
         adv: None,
-        c_step_coords: vec![],
-        u_offset: 0,
-        u_len: 0,
         c,
         X,
         r: r.to_vec(),
-        s_col: vec![],
         y_ring,
         ct,
-        aux_openings: vec![k(aux_seed), k(aux_seed + 1)],
-        y_zcol: vec![],
         m_in,
         fold_digest: [0u8; 32],
     }
@@ -225,7 +215,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
-    let m_in = 2usize;
+    let m_in = D;
     let r = vec![k(3); 6];
 
     let mut Zs = Vec::new();
@@ -253,7 +243,6 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -262,16 +251,8 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     )
     .expect("rlc_with_commit optimized");
 
-    let parent_public = rlc_public(
-        &s,
-        &params,
-        column_point_len(&s),
-        &rhos_typed,
-        &me_inputs,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("rlc_public recompute");
+    let parent_public = rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d)
+        .expect("rlc_public recompute");
     assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
 
     let witness_refs = Zs.iter().collect::<Vec<_>>();
@@ -279,7 +260,6 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &witness_refs,
@@ -293,19 +273,17 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
 
     let mut me_inputs_stale = me_inputs.clone();
     me_inputs_stale[1].ct[0] += K::ONE;
-    let parent_public_stale = rlc_public(
+    let stale_result = rlc_public(
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs_stale,
         mix_commitments_from_rhos,
         ell_d,
-    )
-    .expect("rlc_public stale ct");
-    assert_eq!(
-        parent_public_stale, parent,
-        "public RLC recompute must ignore stale ct shell on inputs"
+    );
+    assert!(
+        stale_result.is_err(),
+        "selected public RLC must reject a stale ct shell"
     );
 
     let want_Z_mix = combine_z_with_rhos(&rhos, &Zs);
@@ -317,7 +295,6 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     let parent_tampered = rlc_public(
         &s,
         &params,
-        column_point_len(&s),
         &rhos_tampered_typed,
         &me_inputs,
         mix_commitments_from_rhos,
@@ -332,7 +309,7 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
-    let m_in = 2usize;
+    let m_in = D;
     let r = vec![k(31); 6];
 
     let mut Zs = Vec::new();
@@ -362,7 +339,6 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -377,16 +353,8 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
         "Z_mix must equal Σ ρ_i · Z_i for non-diagonal rotation rhos"
     );
 
-    let parent_public = rlc_public(
-        &s,
-        &params,
-        column_point_len(&s),
-        &rhos_typed,
-        &me_inputs,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("rlc_public");
+    let parent_public =
+        rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d).expect("rlc_public");
     assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
 }
 
@@ -395,8 +363,8 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_wide_structure(D, D * 512);
-    let m_in = 2usize;
-    let r = vec![k(37); 6];
+    let m_in = D;
+    let r = vec![k(37); s.n.max(s.m).next_power_of_two().trailing_zeros() as usize];
 
     let mut Zs = Vec::new();
     let mut me_inputs = Vec::new();
@@ -425,7 +393,6 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -440,16 +407,8 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
         "sparse RHS rotation fast path must equal generic Σ ρ_i · Z_i"
     );
 
-    let parent_public = rlc_public(
-        &s,
-        &params,
-        column_point_len(&s),
-        &rhos_typed,
-        &me_inputs,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("rlc_public");
+    let parent_public =
+        rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d).expect("rlc_public");
     assert_eq!(parent, parent_public, "public RLC recompute must match engine output");
 }
 
@@ -458,7 +417,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
-    let m_in = 3;
+    let m_in = D;
     let r = vec![k(11); 6];
 
     let mut Zs = Vec::new();
@@ -492,7 +451,6 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -513,7 +471,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
-    let m_in = 2usize;
+    let m_in = D;
     let r = vec![k(5); 6];
 
     let mut Zs = Vec::new();
@@ -540,7 +498,6 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -552,7 +509,6 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (full_ok, _) = rlc_public_matches_with_perf(
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &parent,
@@ -563,7 +519,6 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (verified_ok, _) = rlc_public_matches_verified_inputs_with_perf(
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &parent,
@@ -581,7 +536,6 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (full_ok_stale, _) = rlc_public_matches_with_perf(
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs_stale,
         &parent_stale,
@@ -592,7 +546,6 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (verified_ok_stale, _) = rlc_public_matches_verified_inputs_with_perf(
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs_stale,
         &parent_stale,
@@ -613,7 +566,6 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (full_bad, _) = rlc_public_matches_with_perf(
         &s,
         &params,
-        column_point_len(&s),
         &rhos_tampered,
         &me_inputs,
         &parent,
@@ -624,7 +576,6 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
     let (verified_bad, _) = rlc_public_matches_verified_inputs_with_perf(
         &s,
         &params,
-        column_point_len(&s),
         &rhos_tampered,
         &me_inputs,
         &parent,
@@ -642,7 +593,7 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
-    let m_in = 2usize;
+    let m_in = D;
     let r = vec![k(7); 6];
 
     let mut Zs = Vec::new();
@@ -670,7 +621,6 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -683,7 +633,6 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
         FoldingMode::PaperExact,
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -701,7 +650,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
-    let m_in = 2usize;
+    let m_in = D;
     let r = vec![k(13); 6];
 
     let k_dec = params.k_rho as usize;
@@ -728,7 +677,6 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &parent,
         &Z_split,
         ell_d,
@@ -739,7 +687,6 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     assert!(verify_dec_public(
         &s,
         &params,
-        column_point_len(&s),
         &parent,
         &children,
         combine_commitments_b_pows,
@@ -751,51 +698,8 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     assert!(!verify_dec_public(
         &s,
         &params,
-        column_point_len(&s),
         &parent,
         &tampered_child,
-        combine_commitments_b_pows,
-        ell_d
-    ));
-
-    let ell_m = s.m.next_power_of_two().max(2).trailing_zeros() as usize;
-    let mut parent_with_s_col = parent.clone();
-    parent_with_s_col.s_col = vec![k(23); ell_m];
-    parent_with_s_col.y_zcol = vec![K::ZERO; 1usize << ell_d];
-    let mut children_with_s_col = children.clone();
-    for child in &mut children_with_s_col {
-        child.s_col = parent_with_s_col.s_col.clone();
-        child.y_zcol = vec![K::ZERO; 1usize << ell_d];
-    }
-    assert!(verify_dec_public(
-        &s,
-        &params,
-        column_point_len(&s),
-        &parent_with_s_col,
-        &children_with_s_col,
-        combine_commitments_b_pows,
-        ell_d
-    ));
-
-    children_with_s_col[1].s_col[0] += K::ONE;
-    assert!(!verify_dec_public(
-        &s,
-        &params,
-        column_point_len(&s),
-        &parent_with_s_col,
-        &children_with_s_col,
-        combine_commitments_b_pows,
-        ell_d
-    ));
-
-    let mut tampered_aux = children.clone();
-    tampered_aux[0].aux_openings[0] += K::ONE;
-    assert!(!verify_dec_public(
-        &s,
-        &params,
-        column_point_len(&s),
-        &parent,
-        &tampered_aux,
         combine_commitments_b_pows,
         ell_d
     ));
@@ -806,9 +710,9 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
-    let m_in = 2usize;
+    let m_in = D;
     let r = vec![k(17); 6];
-    let k_dec = 4usize;
+    let k_dec = params.k_rho as usize;
 
     let cols = s.m / D;
     let mut z_parent = Mat::zero(D, cols, F::ZERO);
@@ -842,7 +746,6 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &parent,
         &z_split,
         &digit_nonzero,
@@ -855,7 +758,6 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &parent,
         &z_split,
         &digit_nonzero,
@@ -863,7 +765,6 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         &child_commitments,
         combine_commitments_b_pows,
         &superneo_cache,
-        None,
         None,
         None,
     );
@@ -877,31 +778,17 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
 
 #[cfg(feature = "paper-exact")]
 #[test]
-fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
+fn dec_children_with_commit_optimized_matches_paper_exact() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
-    let m_in = 2usize;
+    let m_in = D;
     let r = vec![k(19); 6];
 
-    let k_dec = 4usize;
-    let mut Z_split = Vec::with_capacity(k_dec);
-    for i in 0..k_dec {
-        Z_split.push(make_z(1300 + i as u64 * 127, s.m));
-    }
-
-    let bF = F::from_u64(params.b as u64);
-    let z_cols = Z_split[0].cols();
-    let mut Z_parent = Mat::zero(D, z_cols, F::ZERO);
-    let mut pow = F::ONE;
-    for Zi in &Z_split {
-        for r_ in 0..D {
-            for c_ in 0..z_cols {
-                Z_parent[(r_, c_)] += pow * Zi[(r_, c_)];
-            }
-        }
-        pow *= bF;
-    }
+    let k_dec = params.k_rho as usize;
+    let Z_parent = make_z(1300, s.m);
+    let (Z_split, _) =
+        split_b_matrix_k_with_nonzero_flags(&Z_parent, k_dec, params.b).expect("parent must have a canonical split");
 
     let mut parent = build_me_from_z(
         &params,
@@ -923,7 +810,6 @@ fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &parent,
         &Z_split,
         ell_d,
@@ -934,7 +820,6 @@ fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
         FoldingMode::PaperExact,
         &s,
         &params,
-        column_point_len(&s),
         &parent,
         &Z_split,
         ell_d,
@@ -946,6 +831,7 @@ fn dec_children_with_commit_k4_optimized_matches_paper_exact() {
     assert_eq!(out_opt.2, out_paper.2, "ok_X mismatch");
     assert_eq!(out_opt.3, out_paper.3, "ok_c mismatch");
     assert_eq!(out_opt.0, out_paper.0, "DEC children mismatch between engines");
+    assert!(out_opt.1 && out_opt.2 && out_opt.3, "canonical DEC split must verify");
 }
 
 #[test]
@@ -953,7 +839,7 @@ fn rlc_with_commit_k61_boundary_smoke() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_structure(D, D);
-    let m_in = 1usize;
+    let m_in = D;
     let r = vec![k(29); 6];
 
     let k_inputs = 61usize;
@@ -983,7 +869,6 @@ fn rlc_with_commit_k61_boundary_smoke() {
         FoldingMode::Optimized,
         &s,
         &params,
-        column_point_len(&s),
         &rhos_typed,
         &me_inputs,
         &Zs,
@@ -992,16 +877,8 @@ fn rlc_with_commit_k61_boundary_smoke() {
     )
     .expect("k=61 rlc_with_commit");
 
-    let parent_public = rlc_public(
-        &s,
-        &params,
-        column_point_len(&s),
-        &rhos_typed,
-        &me_inputs,
-        mix_commitments_from_rhos,
-        ell_d,
-    )
-    .expect("k=61 rlc_public");
+    let parent_public =
+        rlc_public(&s, &params, &rhos_typed, &me_inputs, mix_commitments_from_rhos, ell_d).expect("k=61 rlc_public");
     assert_eq!(parent, parent_public, "k=61: public recompute mismatch");
-    assert_eq!(parent.aux_openings.len(), me_inputs[0].aux_openings.len());
+    assert_eq!(parent.y_ring.len(), s.t() + 1);
 }

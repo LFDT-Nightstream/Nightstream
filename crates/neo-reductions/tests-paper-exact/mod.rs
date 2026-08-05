@@ -1,4 +1,4 @@
-// Canonical PaperExact coverage is in tests/paper_rectangular_parity.rs.
-// This explicit target remains empty so old pre-SuperNeo fixtures cannot be
-// mistaken for the active paper reference.
+// Canonical PaperExact coverage is in tests/padded_row_identity_parity.rs.
+// This explicit target remains empty so superseded fixtures cannot be
+// mistaken for the active one-joint paper reference.
 #![cfg(all(feature = "paper-exact", feature = "testing"))]

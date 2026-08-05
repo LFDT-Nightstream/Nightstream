@@ -483,7 +483,7 @@ fn r1cs_compiler_satisfies_fibonacci_relation() {
 // one prove + extend takes > 5 min. Under a
 // test-only smaller params profile (kappa = 4, m = 2^16, lambda = 60)
 // the same fixed point structure shrinks to `c_data = 216, child_count
-// = 14, r_len = 13, s_col_len = 18` and the full base → prove → extend →
+// = 14, r_len = 24` and the full base → prove → extend →
 // recursive-compile flow fits in ~55 s.
 //
 // The smaller profile preserves the protocol's algebraic correctness:

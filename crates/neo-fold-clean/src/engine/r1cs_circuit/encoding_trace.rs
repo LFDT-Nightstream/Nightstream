@@ -51,9 +51,6 @@ pub enum ProjectionIdentityRole {
         row: usize,
         limb: usize,
     },
-    YZColLimb {
-        limb: usize,
-    },
 }
 
 /// Deliberate balanced-ternary provenance corruptions used by fail-closed

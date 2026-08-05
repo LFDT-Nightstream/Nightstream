@@ -18,7 +18,7 @@ use neo_fold_clean::paper::f_prime::r1cs::{
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use neo_fold_clean::paper::nifs::NifsProof;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig;
 use neo_fold_clean::paper::relations::{CcsClaim, CcsInstance, CeClaim};
 use neo_fold_clean::{Uncompressed, UncompressedAudit};
 use neo_math::{KExtensions, F, K};
@@ -57,38 +57,18 @@ fn compute_x_out_native(prep: &neo_fold_clean::Preprocessing, state: &State) -> 
     ))
 }
 
-fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
-        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params");
-    let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &mat_digest,
-    )
-    .expect("header bundle digest");
-    SplitNcPiCcsVConfig {
+fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'a> {
+    PiCcsVerifierConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle,
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: prep.pi_ccs_header_bundle(),
     }
 }
 
 fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepConfig<'a> {
     FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(prep),
+            pi_ccs: pi_ccs_config(prep),
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
@@ -213,7 +193,6 @@ struct RecursiveStepView<'a> {
     fresh: Vec<CcsClaim>,
     running_claims: Vec<CeClaim>,
     running_parent_authority: Option<CeClaim>,
-    running_pending_projection: Option<neo_fold_clean::paper::construction2::PendingProjectionState>,
     nifs: NifsProof,
     chunk_digest: [F; 4],
     prior_x_out: [F; 4],
@@ -229,22 +208,15 @@ impl ChainFixture {
         let nifs = nifs
             .materialize()
             .expect("recursive NIFS proof materialization");
-        let (running_claims, running_parent_authority, running_pending_projection, fresh) =
-            match &snapshot.state_in.proof {
-                ProofState::Active { running, latest } => {
-                    let running = running
-                        .materialize()
-                        .expect("recursive step running materialization");
-                    let pending_projection = running.pending_projection().cloned();
-                    (
-                        running.claims,
-                        running.parent_authority,
-                        pending_projection,
-                        latest.claims(),
-                    )
-                }
-                ProofState::Initial => panic!("step {idx} state-in is Initial; can't be recursive"),
-            };
+        let (running_claims, running_parent_authority, fresh) = match &snapshot.state_in.proof {
+            ProofState::Active { running, latest } => {
+                let running = running
+                    .materialize()
+                    .expect("recursive step running materialization");
+                (running.claims, running.parent_authority, latest.claims())
+            }
+            ProofState::Initial => panic!("step {idx} state-in is Initial; can't be recursive"),
+        };
         let chunk_digest = f_prime_chunk_public_digest(snapshot.state_in.step_count, &snapshot.public_batch);
         let prior_x_out = compute_x_out_native(&self.prep, &snapshot.state_in);
         let post_step_x_out = compute_x_out_native(&self.prep, &snapshot.state_out);
@@ -255,7 +227,6 @@ impl ChainFixture {
             fresh,
             running_claims,
             running_parent_authority,
-            running_pending_projection,
             nifs,
             chunk_digest,
             prior_x_out,
@@ -403,7 +374,6 @@ fn run_recursive_check_with_semantic(
             fresh: &fresh,
             running: view.running_claims.as_slice(),
             running_parent_authority: view.running_parent_authority.as_ref(),
-            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,
@@ -440,7 +410,6 @@ fn run_recursive_check_with_output_authority(
             fresh: &view.fresh,
             running: view.running_claims.as_slice(),
             running_parent_authority: view.running_parent_authority.as_ref(),
-            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined,
             children,
@@ -678,7 +647,6 @@ fn lifecycle_recursive_step_rejects_zero_step_count_even_with_matching_fresh_and
             fresh: &fresh_claims,
             running: &running.claims,
             running_parent_authority: running.parent_authority.as_ref(),
-            running_pending_projection: running.pending_projection(),
             pi_ccs: &forged_nifs.pi_ccs,
             combined: &forged_nifs.pi_rlc.combined,
             children: &forged_nifs.pi_dec.children,
@@ -822,7 +790,6 @@ fn lifecycle_recursive_step_rejects_running_child_field_tamper_even_if_handle_an
             fresh: &view.fresh,
             running: &running_claims,
             running_parent_authority: parent_authority.as_ref(),
-            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,
@@ -874,7 +841,6 @@ fn lifecycle_recursive_step_rejects_running_child_fold_digest_tamper_even_if_han
             fresh: &view.fresh,
             running: &running_claims,
             running_parent_authority: parent_authority.as_ref(),
-            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,
@@ -928,7 +894,6 @@ fn lifecycle_recursive_step_rejects_running_parent_field_tamper_even_if_handle_a
             fresh: &view.fresh,
             running: view.running_claims.as_slice(),
             running_parent_authority: Some(&parent_authority),
-            running_pending_projection: view.running_pending_projection.as_ref(),
             pi_ccs: &view.nifs.pi_ccs,
             combined: &view.nifs.pi_rlc.combined,
             children: &view.nifs.pi_dec.children,

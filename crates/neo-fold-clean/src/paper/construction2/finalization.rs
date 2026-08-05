@@ -290,7 +290,6 @@ fn strip_running_witnesses(running: &RunningInstance) -> RunningInstance {
         // value, so empty `witnesses` is the right snapshot here.
         witnesses: Vec::new(),
         parent_authority: running.parent_authority.clone(),
-        pending_projection: running.pending_projection.clone(),
     }
 }
 

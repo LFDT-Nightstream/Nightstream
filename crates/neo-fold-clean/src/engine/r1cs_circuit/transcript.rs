@@ -44,6 +44,10 @@ use crate::engine::r1cs_circuit::poseidon2::enforce_poseidon2_permutation;
 const WIDTH: usize = 8;
 const RATE: usize = 4;
 const DIGEST_LEN: usize = 4;
+const OP_APPEND_MESSAGE: u64 = 1;
+const OP_APPEND_FIELDS: u64 = 2;
+const QUERY_FIELDS: u64 = 0x101;
+const QUERY_DIGEST32: u64 = 0x104;
 
 /// In-circuit Poseidon2 sponge state.
 pub struct TranscriptGadget {
@@ -85,6 +89,7 @@ impl TranscriptGadget {
 
     /// Replicates `Poseidon2Transcript::append_message(label, msg)`.
     pub fn append_message(&mut self, builder: &mut R1csBuilder, label: &[u8], msg: &[u8]) {
+        self.absorb_const_elem(builder, F::from_u64(OP_APPEND_MESSAGE));
         self.absorb_packed_bytes_with_len(builder, label);
         self.absorb_packed_bytes_with_len(builder, msg);
     }
@@ -112,8 +117,16 @@ impl TranscriptGadget {
         self.absorb_slice(builder, fs);
     }
 
+    /// Replicates `Poseidon2Transcript::append_fields_unframed(fs)` for
+    /// witness values. No length field or label is added. The selected
+    /// one-joint PiCCS profile owns all framing inside `fs`.
+    pub fn append_fields_unframed_vars(&mut self, builder: &mut R1csBuilder, fs: &[Var]) {
+        self.absorb_slice(builder, fs);
+    }
+
     /// Replicates `Poseidon2Transcript::append_fields(label, fs)`.
     pub fn append_fields(&mut self, builder: &mut R1csBuilder, label: &[u8], fs: &[Var]) {
+        self.absorb_const_elem(builder, F::from_u64(OP_APPEND_FIELDS));
         self.absorb_packed_bytes_with_len(builder, label);
         self.absorb_const_elem(builder, F::from_u64(fs.len() as u64));
         self.absorb_slice(builder, fs);
@@ -125,14 +138,18 @@ impl TranscriptGadget {
         self.append_message(builder, b"chal/label", label);
         self.absorb_const_elem(builder, F::ONE);
         self.permute(builder);
-        self.state[0]
+        let out = self.state[0];
+        self.bind_query(builder, QUERY_FIELDS, 1);
+        out
     }
 
     /// Replicates `Poseidon2Transcript::challenge_fields(label, n)`. Returns
     /// `n` Vars whose witnesses equal the native squeezed fields.
     pub fn challenge_fields(&mut self, builder: &mut R1csBuilder, label: &[u8], n: usize) -> Vec<Var> {
         self.append_message(builder, b"chal/label", label);
-        self.squeeze_n_raw(builder, n)
+        let out = self.squeeze_n_raw(builder, n);
+        self.bind_query(builder, QUERY_FIELDS, n);
+        out
     }
 
     /// Replicates `Poseidon2Transcript::challenge_fields_raw(n)` — no
@@ -200,6 +217,7 @@ impl TranscriptGadget {
         self.permute(builder);
         let mut out = [Var::ONE; DIGEST_LEN];
         out.copy_from_slice(&self.state[..DIGEST_LEN]);
+        self.bind_query(builder, QUERY_DIGEST32, DIGEST_LEN * 8);
         out
     }
 
@@ -220,6 +238,11 @@ impl TranscriptGadget {
     fn absorb_const_elem(&mut self, builder: &mut R1csBuilder, c: F) {
         let v = alloc_constant(builder, c);
         self.absorb_elem(builder, v);
+    }
+
+    fn bind_query(&mut self, builder: &mut R1csBuilder, query: u64, output_len: usize) {
+        self.absorb_const_elem(builder, F::from_u64(query));
+        self.absorb_const_elem(builder, F::from_u64(output_len as u64));
     }
 
     /// Mirrors `Poseidon2Transcript::absorb_slice` — fill the buffer, then
@@ -328,7 +351,10 @@ mod tests {
             assert_eq!(builder.witness()[wire.col()], expected_lane);
             builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(expected_lane));
         }
-        assert_eq!(gadget.absorbed, 0, "digest squeeze must reset the rate cursor");
+        assert_eq!(
+            gadget.absorbed, 2,
+            "digest query metadata must remain in the rate buffer"
+        );
         assert!(
             builder.is_satisfied(),
             "raw absorb + digest parity failed (first bad row: {:?})",

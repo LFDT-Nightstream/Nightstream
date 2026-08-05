@@ -1,4 +1,4 @@
-//! Red-team suite — spec §12, against the real pipeline (real `S_mem`
+//! Red-team suite against the real pipeline (real `S_mem`
 //! structure, real fingerprints, real folding). Every attack lands on
 //! the specific named check the spec's table points at — never a host
 //! replay comparison.
@@ -25,13 +25,13 @@ use p3_field::PrimeCharacteristicRing;
 fn lane_error(err: SegmentError) -> NebulaError {
     match err {
         SegmentError::Lifecycle(LifecycleError::Construction2(C2Error::Nebula(e))) => e,
-        other => panic!("expected a §6.3 lane rejection, got {other}"),
+        other => panic!("expected a lane-transition rejection, got {other}"),
     }
 }
 
-/// §12 "Stale read (classic memory lie)": a read claiming the initial
+/// "Stale read (classic memory lie)": a read claiming the initial
 /// value after it was overwritten. The multiset product equation fails at
-/// segment close, except with the §9 probability.
+/// segment close, except with the configured fingerprint-collision probability.
 #[test]
 fn stale_read_fails_the_product_equation() {
     let plan = plan();
@@ -59,7 +59,7 @@ fn stale_read_fails_the_product_equation() {
     assert_eq!(lane_error(err), NebulaError::ProductEquation);
 }
 
-/// §12 "Fresh memory at segment start": segment 1 is internally
+/// "Fresh memory at segment start": segment 1 is internally
 /// consistent against a *different* memory history. Its products balance,
 /// its chains match its own precommitments — only the boundary check
 /// (`D_seen[is] == D_mem`) catches it.
@@ -91,7 +91,7 @@ fn fresh_memory_at_segment_start_fails_the_boundary() {
     assert_eq!(lane_error(err), NebulaError::BoundaryMismatch);
 }
 
-/// §12 "Swap IS and FS lanes of one step" (whole-segment variant): the
+/// "Swap IS and FS lanes of one step" (whole-segment variant): the
 /// tuples are committed consistently with the swap, so `D_seen == D_pre`
 /// holds — the product identity is what rejects.
 #[test]
@@ -107,7 +107,7 @@ fn swapped_is_fs_snapshots_fail_the_product_equation() {
     assert_eq!(lane_error(err), NebulaError::ProductEquation);
 }
 
-/// §12 "Reset timestamps between segments": a segment relabeled to start
+/// "Reset timestamps between segments": a segment relabeled to start
 /// at ts 0 disagrees with the carried global counter.
 #[test]
 fn timestamp_reset_between_segments_is_rejected() {
@@ -126,9 +126,9 @@ fn timestamp_reset_between_segments_is_rejected() {
     assert!(matches!(err, SegmentError::ChainPositionMismatch { .. }));
 }
 
-/// §12 "Squeeze γ before absorbing all lane commitments" (payload form):
+/// "Squeeze γ before absorbing all lane commitments" (payload form):
 /// tampering the recorded segment-open `D_pre` diverges the verifier's γ
-/// replay, so the folded claims' x fails the §6.3 γ equality.
+/// replay, so the folded claims' x fails the lane γ equality.
 #[test]
 fn tampered_segment_open_payload_fails_verification() {
     let (_, prep, mut audit) = honest_two_segment_chain();
@@ -143,10 +143,10 @@ fn tampered_segment_open_payload_fails_verification() {
     );
 }
 
-/// §12 "Flip a lane bit after committing" at the terminal. Defense in
+/// "Flip a lane bit after committing" at the terminal. Defense in
 /// depth: the decider preflight's full-`z` opening rejects first (the
 /// flip breaks `commit(Z) == c` before the lane checks even run), and
-/// the R3 slice-opening — Lemma 1's extraction anchor — independently
+/// the terminal slice opening independently
 /// pins each tuple to the same witness, probed here directly against the
 /// real chain's terminal children.
 #[test]
@@ -159,7 +159,7 @@ fn terminal_lane_bit_flip_fails_the_openings() {
         .as_materialized_mut()
         .expect("CPU Nebula fixture has materialized running state");
 
-    // R3 probe on the untampered chain: every terminal child's tuple
+    // On the untampered chain, every terminal child's tuple
     // opens against its own lane slices...
     for (claim, witness) in running.claims.iter().zip(&running.witnesses) {
         let adv = claim.adv.as_ref().expect("terminal children carry tuples");
@@ -175,7 +175,7 @@ fn terminal_lane_bit_flip_fails_the_openings() {
             .scheme()
             .open_matches(adv, &running.witnesses[0])
             .expect("openable"),
-        "R3 slice-opening must reject the flipped lane"
+        "terminal slice opening must reject the flipped lane"
     );
 
     // Full-pipeline rejection (whichever layered check fires first).
@@ -185,7 +185,7 @@ fn terminal_lane_bit_flip_fails_the_openings() {
     );
 }
 
-/// §12 "Wrong ROM image with correct shape": the same proof verified
+/// "Wrong ROM image with correct shape": the same proof verified
 /// against a different program's plan diverges at the plan-bound γ and
 /// the `D_init` boundary.
 #[test]

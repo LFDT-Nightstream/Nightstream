@@ -14,5 +14,6 @@
 pub mod ccs_native;
 pub mod decider;
 pub mod optimized;
+pub mod paper_exact;
 pub mod r1cs_circuit;
 pub mod transcript;

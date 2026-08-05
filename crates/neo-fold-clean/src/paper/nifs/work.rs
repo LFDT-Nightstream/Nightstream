@@ -4,10 +4,7 @@
 //! length K+k for Π_RLC after Π_CCS hands it back the K+k output claims.
 //! These helpers are pure data-movement — no math.
 
-use neo_reductions::optimized_engine::PiCcsProofVariant;
-
-use crate::paper::construction2::running::{PendingProjectionState, RunningInstanceError};
-use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, WitnessMat};
+use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, WitnessMat};
 
 /// Split fresh CCS instances by moving their public claims and private
 /// witnesses into parallel arrays. No witness matrix is cloned here.
@@ -30,24 +27,4 @@ pub(super) fn chain_witness_refs<'a>(fresh: &'a [CcsWitness], running: &'a [Witn
     out.extend(fresh.iter().map(|w| &w.Z));
     out.extend(running.iter());
     out
-}
-
-/// Construct the next one-fold delayed state only for the explicit block/lane
-/// protocol. Canonical rectangular and legacy flat proofs carry their column
-/// openings directly and therefore have no delayed state.
-pub fn outgoing_pending_projection(
-    variant: PiCcsProofVariant,
-    outputs: &[CeClaim],
-    parent: &CeClaim,
-) -> Result<Option<PendingProjectionState>, RunningInstanceError> {
-    if variant != PiCcsProofVariant::BlockLaneNcDelayedV1 {
-        return Ok(None);
-    }
-    let first = outputs
-        .first()
-        .ok_or(RunningInstanceError::PendingOldBlockLength {
-            expected: crate::paper::construction2::running::PENDING_PROJECTION_OLD_BLOCK_LEN,
-            got: 0,
-        })?;
-    PendingProjectionState::try_from_block_and_parent(&first.s_col, &parent.y_zcol).map(Some)
 }

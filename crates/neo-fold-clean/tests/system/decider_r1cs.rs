@@ -19,9 +19,8 @@
 //!   - **CE-claim continuity links** wiring every recursive step's
 //!     NIFS children to the next step's (or terminal fold's) running
 //!     (`accumulator_claim_links == recursive_step_count`). This is an
-//!     explicit wire-for-wire continuity check for the paper-level CE core,
-//!     not a substitute for the exact-running `acc_digest` handle. The
-//!     optimized `y_zcol` source relation remains open.
+//!     explicit wire-for-wire continuity check for the paper-level CE claim,
+//!     not a substitute for the exact-running `acc_digest` handle.
 //!   - **Parent-authority continuity links** wiring every recursive step's
 //!     Π_RLC parent authority to the next step's (or terminal fold's)
 //!     running parent (`parent_authority_links == recursive_step_count`).
@@ -40,26 +39,20 @@
 
 #![allow(non_snake_case)]
 
-use std::fmt::Write as _;
-use std::fs;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use neo_ajtai::{setup as setup_ajtai, AjtaiSModule};
 use neo_ccs::{traits::SModuleHomomorphism, Mat};
 use neo_fold_clean::engine::decider::{
     __test_isolation::{
-        enforce_base_state_constants_against, enforce_ce_continuity_against_self, enforce_ce_continuity_between,
-        enforce_ce_relations_many_with_raw_pending_against, enforce_public_image_pins_against,
+        enforce_base_state_constants_against, enforce_ce_continuity_against_self, enforce_public_image_pins_against,
         enforce_public_image_pins_against_chain, enforce_state_link_against_self,
         enforce_terminal_fold_against_last_acc_digest, enforce_terminal_fold_children_continuity_against_self,
         enforce_terminal_fold_parent_authority_against_self, enforce_terminal_latest_link_against,
-        enforce_terminal_raw_old_block_projection_against, CeContinuityProbeWires,
+        CeContinuityProbeWires,
     },
     synthesize_last_step_terminal_r1cs, synthesize_statement_r1cs, REQUIRED_PUBLIC_IMAGE_PINS,
 };
-use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
-use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::{self, EncInst, ProofState, State, TRIVIAL_PC};
 use neo_fold_clean::paper::decider::{self, PublicImage};
@@ -72,23 +65,9 @@ use neo_fold_clean::paper::f_prime::r1cs::{
 };
 use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
-use neo_math::{D, F, K};
+use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand_chacha::{rand_core::SeedableRng, ChaCha20Rng};
-use serde_json::{json, Value};
-
-const FULL_HISTORY_MANIFEST_PATH: &str = "formal/nightstream-lean/assurance/fprime-full-history-program-manifest.json";
-const FULL_HISTORY_LEAN_PATH: &str =
-    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistoryManifestData.lean";
-const FULL_HISTORY_TOP_LEVEL: &[&str] = &[
-    "decider.step.base",
-    "decider.step.recursive",
-    "decider.state_link",
-    "decider.terminal_fold",
-    "decider.terminal_continuity",
-    "decider.public_pins",
-    "decider.terminal_ce",
-];
 
 // ── Fixture helpers ─────────────────────────────────────────────────────────
 
@@ -1127,12 +1106,8 @@ fn decider_ce_continuity_rejects_tampered_point_limbs() {
         .first()
         .expect("final running has at least one claim");
 
-    let cases: [(&str, fn(&CeContinuityProbeWires) -> usize); 4] = [
-        ("r.c0", |p| p.r_c0.col()),
-        ("r.c1", |p| p.r_c1.col()),
-        ("s_col.c0", |p| p.s_col_c0.col()),
-        ("s_col.c1", |p| p.s_col_c1.col()),
-    ];
+    let cases: [(&str, fn(&CeContinuityProbeWires) -> usize); 2] =
+        [("r.c0", |p| p.r_c0.col()), ("r.c1", |p| p.r_c1.col())];
     for (name, probe_col) in cases {
         let (mut builder, probes) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
         assert!(
@@ -1233,51 +1208,6 @@ fn decider_ce_continuity_rejects_tampered_y_ring_c1_limb() {
         "CE continuity accepted a running-side y_ring.c1 limb that diverged from the child"
     );
 }
-
-#[test]
-fn decider_ce_continuity_omits_child_and_running_y_zcol() {
-    let (_prep, finished) = build_honest_finished_proof(2);
-    let claim = finished
-        .proof
-        .state
-        .proof
-        .running()
-        .expect("finished proof has final running")
-        .claims
-        .first()
-        .expect("final running has at least one claim");
-
-    let (baseline_builder, _) = enforce_ce_continuity_against_self(claim).expect("emit continuity rows");
-    assert!(
-        baseline_builder.is_satisfied(),
-        "honest CE-continuity isolation must satisfy (first bad row: {:?})",
-        baseline_builder.first_unsatisfied_row()
-    );
-    let baseline = baseline_builder.snapshot();
-
-    let mut child_mutation = claim.clone();
-    child_mutation.y_zcol[0] += K::ONE;
-    let (child_builder, _) = enforce_ce_continuity_between(&child_mutation, claim).expect("emit child mutation");
-    let child = child_builder.snapshot();
-    assert!(baseline.has_same_relation(&child));
-    assert_eq!(
-        baseline.witness(),
-        child.witness(),
-        "child y_zcol leaked into continuity"
-    );
-
-    let mut running_mutation = claim.clone();
-    running_mutation.y_zcol[0] += K::ONE;
-    let (running_builder, _) = enforce_ce_continuity_between(claim, &running_mutation).expect("emit running mutation");
-    let running = running_builder.snapshot();
-    assert!(baseline.has_same_relation(&running));
-    assert_eq!(
-        baseline.witness(),
-        running.witness(),
-        "running y_zcol leaked into continuity"
-    );
-}
-
 #[test]
 fn decider_state_link_rejects_tampered_state_field_wires() {
     let cases: [(
@@ -1429,10 +1359,6 @@ fn decider_r1cs_synthesis_accepts_varying_size_batched_chunks() {
     assert_eq!(statement.public.step_count, 5, "total ops folded = 2 + 3 = 5");
 }
 
-#[path = "decider_r1cs_manifest.rs"]
-mod m4_manifest;
-#[path = "raw_old_block_projection.rs"]
-mod raw_old_block_projection;
 // The previous end-to-end "tamper Z, bypass preflight, expect
 // `!is_satisfied`" test has been replaced by the gadget-level
 // isolation tests in `tests/system/decider_ce_relation_isolation.rs`.

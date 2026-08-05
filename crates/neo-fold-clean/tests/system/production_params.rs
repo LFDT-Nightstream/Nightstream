@@ -1,18 +1,6 @@
 //! Audit checks for the single production parameter profile.
 
-use neo_ccs::{CcsMatrix, CcsStructure, CscMat, SparsePoly};
 use neo_fold_clean::{config, Params};
-use neo_math::{D, F};
-
-fn empty_structure(rows: usize, columns: usize, matrices: usize) -> CcsStructure<F> {
-    let matrix = CcsMatrix::Csc(CscMat::from_triplets(Vec::new(), rows, columns));
-    CcsStructure {
-        matrices: vec![matrix; matrices],
-        f: SparsePoly::new(matrices, Vec::new()),
-        n: rows,
-        m: columns,
-    }
-}
 
 #[test]
 fn production_params_match_superneo_goldilocks_b2() {
@@ -80,19 +68,32 @@ fn r1cs_params_keep_production_core_and_make_effective_lambda_explicit() {
     assert!((config::MIN_EFFECTIVE_LAMBDA..=config::LAMBDA).contains(&pp.lambda()));
     assert_eq!(
         pp.lambda(),
-        107,
+        114,
         "current Fibonacci-sized R1CS shape should choose the strongest s=2 lambda above the 100-bit floor"
     );
 }
 
 #[test]
-fn r1cs_params_are_sized_by_rows_or_variables_whichever_is_larger() {
+fn r1cs_params_charge_the_joint_cube_for_rows_and_the_padded_carrier() {
     let row_heavy = config::r1cs_params(60, 54).expect("row-heavy params");
-    let same_shape = config::r1cs_params(60, 12).expect("same row-heavy params");
+    let narrow_columns = config::r1cs_params(60, 12).expect("narrow-column params");
     let var_heavy = config::r1cs_params(12, 60).expect("var-heavy params");
 
-    assert_eq!(row_heavy.lambda(), same_shape.lambda());
-    assert_eq!(row_heavy.lambda(), var_heavy.lambda());
+    let row_heavy_summary = row_heavy
+        .validate_ccs_shape(60, 54, 3, 2)
+        .expect("row-heavy census");
+    let narrow_column_summary = narrow_columns
+        .validate_ccs_shape(60, 12, 3, 2)
+        .expect("narrow-column census");
+    let var_heavy_summary = var_heavy
+        .validate_ccs_shape(12, 60, 3, 2)
+        .expect("var-heavy census");
+
+    assert_eq!(row_heavy_summary.cube_variables, 6);
+    assert_eq!(narrow_column_summary.cube_variables, 6);
+    assert_eq!(var_heavy_summary.cube_variables, 7);
+    assert_eq!(row_heavy_summary.field_factor, narrow_column_summary.field_factor);
+    assert!(var_heavy_summary.field_factor > row_heavy_summary.field_factor);
 }
 
 #[test]
@@ -101,15 +102,16 @@ fn ccs_params_charge_matrix_count_and_degree() {
     let t8 = config::ccs_params(60, 54, 8, 2).expect("t=8 CCS params");
     let degree7 = config::ccs_params(60, 54, 3, 7).expect("degree-7 CCS params");
 
-    assert_eq!(r1cs.lambda(), 107);
-    assert_eq!(t8.lambda(), 106);
-    assert_eq!(degree7.lambda(), 107);
+    assert_eq!(r1cs.lambda(), 114);
+    assert_eq!(t8.lambda(), 113);
+    assert_eq!(degree7.lambda(), 114);
 }
 
 #[test]
 fn actual_ccs_shape_validation_rejects_an_undercharged_matrix_count() {
     let params = Params::for_ccs_shape_with(
         1 << 24,
+        1,
         1,
         8,
         config::MIN_EFFECTIVE_LAMBDA,
@@ -118,45 +120,23 @@ fn actual_ccs_shape_validation_rejects_an_undercharged_matrix_count() {
     .expect("small-t profile");
 
     params
-        .validate_ccs_shape(1 << 24, 1, 8)
+        .validate_ccs_shape(1 << 24, 1, 1, 8)
         .expect("the selected shape must validate itself");
     assert!(
-        params.validate_ccs_shape(1 << 24, 1_000, 8).is_err(),
+        params.validate_ccs_shape(1 << 24, 1, 1_000, 8).is_err(),
         "preprocessing must not reuse parameters selected for a much smaller t"
     );
 }
 
 #[test]
-fn r1cs_params_reject_when_full_d4_floor_is_too_high_for_s2() {
-    let err = Params::for_r1cs_shape_with(60, 108, config::EXTENSION_SAFETY_MARGIN_BITS)
-        .expect_err("s=2 cannot satisfy a higher full-D4 floor for this profile");
+fn r1cs_params_reject_when_combined_floor_is_too_high_for_s2() {
+    let err = Params::for_r1cs_shape_with(60, 54, 115, config::EXTENSION_SAFETY_MARGIN_BITS)
+        .expect_err("the combined rectangular census cannot provide 117 bits");
     assert!(matches!(
         err,
-        neo_params::ParamsError::UnsupportedExtension { required: 3 }
+        neo_params::ParamsError::InsufficientStatisticalSecurity {
+            required: 117,
+            available: 116
+        }
     ));
-}
-
-#[test]
-fn pending_family_profile_is_domain_derived_not_an_exact_width_sentinel() {
-    use neo_fold_clean::paper::construction2::running::uses_pending_accumulator_family;
-
-    for columns in [11_437_038, 11_636_028] {
-        assert!(uses_pending_accumulator_family(&empty_structure(
-            6_956_163, columns, 13
-        )));
-    }
-
-    assert!(!uses_pending_accumulator_family(&empty_structure(
-        6_956_163,
-        D * (1 << 18) + 1,
-        13,
-    )));
-    assert!(!uses_pending_accumulator_family(&empty_structure(
-        6_956_163, 11_636_028, 12,
-    )));
-    assert!(!uses_pending_accumulator_family(&empty_structure(
-        (1 << 23) + 1,
-        11_636_028,
-        13,
-    )));
 }

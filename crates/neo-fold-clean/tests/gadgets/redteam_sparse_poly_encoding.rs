@@ -112,12 +112,12 @@ fn sumcheck_policy_rejects_round_degree_that_exceeds_u32() {
     assert_eq!(structure.max_degree(), u32::MAX);
 
     let params = neo_fold_clean::Params::production();
-    let result = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), &structure);
+    let result = neo_reductions::engines::pi_ccs_joint::build_joint_dims(params.inner(), &structure, 1, 0);
 
     assert!(
         result.is_err(),
         "soundness-policy failure: true sumcheck round degree 2^32 was truncated to zero for extension checking; returned d_sc={}",
-        result.expect("assertion is reporting an accepted dimension policy").d_sc
+        result.expect("assertion is reporting an accepted dimension policy").degree
     );
 }
 
@@ -155,7 +155,7 @@ fn sumcheck_policy_rejects_wrapped_extreme_domain_dimensions() {
         "fixture requires production s=2 to be insufficient for the true domain"
     );
 
-    let result = neo_reductions::engines::utils::build_dims_and_policy(&params, &structure);
+    let result = neo_reductions::engines::pi_ccs_joint::build_joint_dims(&params, &structure, 1, 0);
     assert!(
         result.is_err(),
         "soundness-policy failure: usize::MAX domain dimensions wrapped through next_power_of_two and were accepted as {:?}",

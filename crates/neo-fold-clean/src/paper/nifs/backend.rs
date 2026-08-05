@@ -528,5 +528,44 @@ pub trait NifsProverAdapter {
     }
 }
 
+/// Marker for complete NIFS adapters that always use optimized reductions.
+///
+/// Built-in CUDA and Metal provers implement this marker. Their public NIFS
+/// selection therefore includes optimized PiCCS, PiRLC, and PiDEC; callers do
+/// not select a second reduction mode.
+pub trait OptimizedNifsProverAdapter: NifsProverAdapter {}
+
+/// Canonical optimized host implementation of the complete NIFS prover.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct CpuNifsProver;
+pub struct OptimizedCpuNifsProver;
+
+/// Independent direct implementation of the complete NIFS prover.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PaperExactNifsProver;
+
+/// Complete optimized-host versus PaperExact NIFS crosscheck.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CrosscheckNifsProver;
+
+/// One optimized accelerator backend checked against optimized CPU NIFS.
+pub struct AcceleratorCrosscheckNifsProver<A> {
+    accelerator: A,
+}
+
+impl<A> AcceleratorCrosscheckNifsProver<A> {
+    pub fn new(accelerator: A) -> Self {
+        Self { accelerator }
+    }
+
+    pub fn accelerator(&self) -> &A {
+        &self.accelerator
+    }
+
+    pub fn accelerator_mut(&mut self) -> &mut A {
+        &mut self.accelerator
+    }
+
+    pub fn into_accelerator(self) -> A {
+        self.accelerator
+    }
+}

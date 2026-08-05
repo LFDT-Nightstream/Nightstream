@@ -1,6 +1,7 @@
 //! Stable diagnostic paths for the NIFS tail after Pi_CCS and Pi_RLC.
 //!
-//! Owns: Pi_DEC and point-binding stage names and immediate-child ownership.
+//! Owns: incoming and outgoing Pi_DEC stage names, point-binding stage names,
+//! and immediate-child ownership.
 //!
 //! Does not own: Pi_CCS/Pi_RLC nodes, constraint emission, or cost totals.
 //!
@@ -18,8 +19,9 @@ use crate::paper::reductions::pi_dec_circuit::stage as pi_dec_stage;
 
 pub const PI_DEC: &str = pi_dec_stage::ROOT;
 pub const PI_DEC_VERIFY: &str = pi_dec_stage::VERIFY;
+pub const RUNNING_PARENT_PI_DEC: &str = "nifs.running_parent_pi_dec";
 pub const POINT_BINDING: &str = "nifs.point_binding";
 
-pub const ALL: &[&str] = &[PI_DEC, PI_DEC_VERIFY, POINT_BINDING];
+pub const ALL: &[&str] = &[RUNNING_PARENT_PI_DEC, PI_DEC, PI_DEC_VERIFY, POINT_BINDING];
 
 pub const HIERARCHY: &[(&str, &[&str])] = &[(PI_DEC, &[PI_DEC_VERIFY])];

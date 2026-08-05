@@ -7,7 +7,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use neo_fold_clean::paper::construction2::ProofState;
-use neo_math::{F, K};
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 static TRACK_ALLOCATIONS: AtomicBool = AtomicBool::new(false);
@@ -83,45 +83,5 @@ fn final_witness_authority_rejects_commitment_shape_before_attacker_sized_alloca
     assert!(
         largest <= MAX_REASONABLE_REJECTION_ALLOCATION,
         "verifier resource-exhaustion failure: malformed d={ATTACKER_D} caused a {largest}-byte allocation before the shape check"
-    );
-}
-
-/// The NC-channel point is proof-controlled and expands to a tensor of size
-/// `2^s_col.len()`.  Its verifier-owned expected length must be checked before
-/// constructing that tensor; otherwise a malformed proof can force an
-/// exponential allocation even though it is guaranteed to reject later.
-#[test]
-fn final_witness_authority_rejects_s_col_length_before_exponential_allocation() {
-    const ATTACKER_S_COL_LEN: usize = 20;
-    const MAX_REASONABLE_REJECTION_ALLOCATION: usize = 256 * 1024;
-
-    let prep = support::toy_preprocessing();
-    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 29)]]).expect("one-step proof");
-    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finalized proof");
-    let ProofState::Active { running, .. } = &finished.state.proof else {
-        panic!("finalized proof must be active");
-    };
-    let mut running = running.materialize().expect("materialized final running");
-    assert!(
-        running.claims.len() > 1,
-        "fixture must enter the shared-r verifier path"
-    );
-    let first_r = running.claims[0].r.clone();
-    assert!(
-        running.claims.iter().all(|claim| claim.r == first_r),
-        "fixture must share the row challenge so the verifier hoists chi(s_col)"
-    );
-
-    running.claims[0].s_col = vec![K::ZERO; ATTACKER_S_COL_LEN];
-    MAX_TRACKED_ALLOCATION.store(0, Ordering::Relaxed);
-    TRACK_ALLOCATIONS.store(true, Ordering::Release);
-    let result = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running);
-    TRACK_ALLOCATIONS.store(false, Ordering::Release);
-
-    assert!(result.is_err(), "malformed NC-channel point length must reject");
-    let largest = MAX_TRACKED_ALLOCATION.load(Ordering::Relaxed);
-    assert!(
-        largest <= MAX_REASONABLE_REJECTION_ALLOCATION,
-        "verifier resource-exhaustion failure: malformed s_col length {ATTACKER_S_COL_LEN} caused a {largest}-byte allocation before the shape check"
     );
 }

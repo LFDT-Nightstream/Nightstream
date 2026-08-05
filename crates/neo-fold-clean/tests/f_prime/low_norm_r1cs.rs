@@ -10,6 +10,7 @@
 
 use neo_ajtai::{has_global_pp_for_dims, set_global_pp_seeded, AjtaiSModule};
 use neo_ccs::SparsePoly;
+use neo_fold_clean::config;
 use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::{enforce_alphabet_sample_5_d, pi_rlc_challenge_stage};
 use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::encoding_trace::{
@@ -472,6 +473,19 @@ fn gadget_native_lowering_is_differentially_equal_to_the_source_r1cs() {
     assert_eq!(encoded.structure.m, estimate.encoded_cols);
     assert_eq!(encoded.structure.n, estimate.encoded_rows);
     assert_eq!(encoded.structure.max_degree(), estimate.max_degree);
+    let params = config::ccs_params(
+        encoded.structure.n,
+        encoded.structure.m,
+        encoded.structure.t(),
+        encoded.structure.max_degree(),
+    )
+    .expect("selected relation parameters");
+    let joint_dims = neo_reductions::engines::pi_ccs_joint::build_joint_dims(params.inner(), &encoded.structure, 1, 0)
+        .expect("selected one-joint dimensions");
+    assert_eq!(
+        joint_dims.degree, 9,
+        "degree-eight relation needs ten SumCheck coefficients"
+    );
     assert_eq!(encoded.decode_source().expect("inverse"), source.witness());
     assert!(encoded
         .plan

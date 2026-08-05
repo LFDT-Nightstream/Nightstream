@@ -1,22 +1,20 @@
-//! Padded K-vector implementation branch adjacent to Π_RLC.V.
+//! Padded ring-vector arithmetic for the in-circuit Π_RLC verifier.
 //!
-//! Owns: active two-limb ring combination and canonical zero tails for padded
-//! `y_ring` and `y_zcol` vectors. Active `y_ring` is paper CE data; its tail is
-//! encoding only. `y_zcol` is a delayed-NC sidecar, not a paper CE evaluation.
+//! The active `D` coefficients use the ring action. Every encoding tail
+//! coefficient is constrained to zero. Transcript binding and claim iteration
+//! are owned by the NIFS circuit.
 //!
-//! Does not own: transcript binding or outer row/claim iteration.
+//! Owns: padded ring-vector allocation, active ring action, and zero tails.
 //!
-//! Emits constraints: yes; allocation helpers emit none.
+//! Does not own: transcript binding, claim iteration, or challenge sampling.
 //!
-//! Authority boundary: only lanes `[0,D)` enter ring action; every tail lane
-//! is explicitly zero in every input and output.
+//! Emits constraints: ring multiplication, projection identities, and
+//! canonical zero padding.
 //!
-//! | Stage path | Function | Equation | Multiplicity | Emitted rows/formula | Lowered gate | Lean theorem |
-//! |---|---|---|---:|---|---|---|
-//! | `identities.y_ring/y_zcol` | projection helper | two active-limb identities at beta | one pair per vector | polynomial rows | product-sum | `paddedKCombinationWithIntermediates_iff_direct` |
-//! | `padding.y_ring/y_zcol` | `enforce_rlc_padded_k_padding_glue` | all `[D,d_pad)` limbs are zero | inputs/output × tail × 2 | one equality each | linear | `PaddingZero` |
-//! | full padded combination | `enforce_rlc_padded_k_vector_combination` | active fold plus zero tail | inputs × 2 limbs | ring products/equalities | ring product | `paddedKCombinationWithIntermediates_iff_direct` |
-//! | `y_zcol` aliases | `alloc/enforce_rlc_y_zcol_*` | same exact padded equation | one vector | delegated | none extra | `yZcolCombinationWithIntermediates_iff_direct` |
+//! | Region | Constraint family |
+//! | --- | --- |
+//! | active coefficients | Phi81 ring action |
+//! | encoding tail | equality to zero |
 
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
@@ -332,31 +330,4 @@ fn validate_rlc_padded_k_projection_shape(wires: &RlcPaddedKVectorWires) -> Resu
         }
     }
     Ok(())
-}
-
-/// Allocate `y_zcol` witnesses under the padded K-vector contract.
-pub fn alloc_rlc_y_zcol_inputs(
-    builder: &mut R1csBuilder,
-    rhos_first_col: &[[F; D]],
-    inputs_y_zcol: &[Vec<K>],
-    combined_y_zcol: &[K],
-    d_pad: usize,
-) -> Result<RlcPaddedKVectorWires, Error> {
-    alloc_rlc_padded_k_vector_inputs(builder, rhos_first_col, inputs_y_zcol, combined_y_zcol, d_pad)
-}
-
-/// Allocate `y_zcol` witnesses while reusing transcript-derived rho wires.
-pub fn alloc_rlc_y_zcol_inputs_with_rhos(
-    builder: &mut R1csBuilder,
-    rho_wires: &[[Var; D]],
-    inputs_y_zcol: &[Vec<K>],
-    combined_y_zcol: &[K],
-    d_pad: usize,
-) -> Result<RlcPaddedKVectorWires, Error> {
-    alloc_rlc_padded_k_vector_inputs_with_rhos(builder, rho_wires, inputs_y_zcol, combined_y_zcol, d_pad)
-}
-
-/// Enforce the padded K-vector contract under the `y_zcol` protocol name.
-pub fn enforce_rlc_y_zcol_combination(builder: &mut R1csBuilder, wires: &RlcPaddedKVectorWires) {
-    enforce_rlc_padded_k_vector_combination(builder, wires);
 }

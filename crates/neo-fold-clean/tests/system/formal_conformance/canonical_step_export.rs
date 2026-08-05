@@ -192,16 +192,10 @@ struct CeClaimAtom {
     commitment: CommitmentAtom,
     public_input_matrix: MatrixAtom,
     row_point: Vec<Ext>,
-    column_point: Vec<Ext>,
     ring_evaluations: Vec<Vec<Ext>>,
     constant_terms: Vec<Ext>,
-    auxiliary_openings: Vec<Ext>,
-    column_evaluation: Vec<Ext>,
     public_input_len: usize,
     fold_digest: [u8; 32],
-    step_coordinates: Vec<Felt>,
-    u_offset: usize,
-    u_len: usize,
     adv: Option<AdvAtom>,
 }
 
@@ -211,25 +205,13 @@ impl CeClaimAtom {
             commitment: commitment(&value.c),
             public_input_matrix: matrix(&value.X),
             row_point: exts(&value.r),
-            column_point: exts(&value.s_col),
             ring_evaluations: value.y_ring.iter().map(|row| exts(row)).collect(),
             constant_terms: exts(&value.ct),
-            auxiliary_openings: exts(&value.aux_openings),
-            column_evaluation: exts(&value.y_zcol),
             public_input_len: value.m_in,
             fold_digest: value.fold_digest,
-            step_coordinates: felts(&value.c_step_coords),
-            u_offset: value.u_offset,
-            u_len: value.u_len,
             adv: value.adv.as_ref().map(adv),
         }
     }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PendingProjectionAtom {
-    old_block: Vec<Ext>,
-    parent_y_zcol: Vec<Ext>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -240,14 +222,12 @@ struct RunningAtom {
     equality_key: RunningEqualityKey,
     ordered_child_count: usize,
     parent_authority_present: bool,
-    pending_projection_present: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct RunningEqualityKey {
     ordered_children: Vec<CeClaimAtom>,
     parent_authority: Option<CeClaimAtom>,
-    pending_projection: Option<PendingProjectionAtom>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -270,7 +250,6 @@ struct NifsProofAtom {
     equality_key: String,
     kind: &'static str,
     pi_ccs_rounds: usize,
-    pi_ccs_nc_rounds: usize,
     pi_ccs_outputs: usize,
     pi_dec_children: usize,
 }
@@ -431,16 +410,16 @@ enum StepTraceMap {
     },
 }
 
-struct Snapshot {
-    state_in: State,
-    state_out: State,
+pub(super) struct Snapshot {
+    pub(super) state_in: State,
+    pub(super) state_out: State,
     next_latest: Vec<CcsClaim>,
     proof: StepProof,
 }
 
-struct Fixture {
-    prep: Preprocessing,
-    snapshots: Vec<Snapshot>,
+pub(super) struct Fixture {
+    pub(super) prep: Preprocessing,
+    pub(super) snapshots: Vec<Snapshot>,
 }
 
 fn bit_carrier_r1cs() -> R1cs {
@@ -504,7 +483,7 @@ fn peek_next_state(prep: &Preprocessing, state: &State, batch: &[CcsInstance]) -
     .0
 }
 
-fn build_fixture() -> Fixture {
+pub(super) fn build_fixture() -> Fixture {
     let r1cs = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&r1cs, 42).expect("linked profile preprocessing");
     assert_eq!(prep.semantic_state_mode(), SemanticStateMode::Stateless);
@@ -604,23 +583,15 @@ impl Builder {
     fn running(&mut self, value: &RunningInstance) -> u32 {
         let ordered_children = value.claims.iter().map(CeClaimAtom::from_claim).collect();
         let parent_authority = value.parent_authority.as_ref().map(CeClaimAtom::from_claim);
-        let pending_projection = value
-            .pending_projection()
-            .map(|pending| PendingProjectionAtom {
-                old_block: exts(pending.old_block()),
-                parent_y_zcol: exts(pending.parent_y_zcol()),
-            });
         intern(
             &mut self.atoms.running,
             RunningAtom {
                 equality_key: RunningEqualityKey {
                     ordered_children,
                     parent_authority,
-                    pending_projection,
                 },
                 ordered_child_count: value.claims.len(),
                 parent_authority_present: value.parent_authority.is_some(),
-                pending_projection_present: value.pending_projection().is_some(),
             },
         )
     }
@@ -631,7 +602,6 @@ impl Builder {
                 equality_key: "<no recursive NIFS proof>".to_owned(),
                 kind: "absent",
                 pi_ccs_rounds: 0,
-                pi_ccs_nc_rounds: 0,
                 pi_ccs_outputs: 0,
                 pi_dec_children: 0,
             },
@@ -639,7 +609,6 @@ impl Builder {
                 equality_key: format!("{proof:#?}"),
                 kind: "materialized_recursive",
                 pi_ccs_rounds: proof.pi_ccs.sumcheck.sumcheck_rounds.len(),
-                pi_ccs_nc_rounds: proof.pi_ccs.sumcheck.sumcheck_rounds_nc.len(),
                 pi_ccs_outputs: proof.pi_ccs.outputs.len(),
                 pi_dec_children: proof.pi_dec.children.len(),
             },
@@ -845,7 +814,19 @@ fn mapped_output(builder: &mut Builder, state: &State, x: [u8; 32]) -> MappedOut
 
 fn add_case(builder: &mut Builder, prep: &Preprocessing, source: SourceCase) {
     let key = builder.key(prep.vk.digest());
-    let default_running = builder.running(&RunningInstance::default());
+    let m_in = source
+        .next_latest
+        .first()
+        .expect("canonical step carries one fresh instance")
+        .m_in;
+    let canonical_default = RunningInstance::canonical_zero(
+        &prep.params,
+        prep.structure(),
+        m_in,
+        construction2::LaneCommitmentMode::Plain,
+    )
+    .expect("canonical HyperNova default accumulator");
+    let default_running = builder.running(&canonical_default);
     let (rust_state, running, fresh) = builder.rust_state(&source.state);
     let witness = builder.witness(&source.next_latest);
     let (fold, nifs_proof) = builder.proof_map(&source.proof);

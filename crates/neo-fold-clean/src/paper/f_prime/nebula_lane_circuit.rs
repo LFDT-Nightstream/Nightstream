@@ -47,8 +47,8 @@ use crate::paper::relations::product_commitment_circuit::{validate_adv_shape, Ad
 /// `paper::digest`; the parity test is the lockstep guard).
 const NEBULA_LANE_DIGEST_TAG: &[u8] = b"neo.fold.clean/nebula/lane_digest/v3";
 
-/// Wire view of the carried [`crate::paper::construction2::NebulaLane`]
-/// (spec §6.1). `gamma` is meaningful only while a segment is open —
+/// Wire view of the carried [`crate::paper::construction2::NebulaLane`].
+/// `gamma` is meaningful only while a segment is open —
 /// a closed lane's digest uses [`GammaWires::Absent`].
 #[derive(Clone, Copy)]
 pub struct NebulaLaneWires {
@@ -165,8 +165,7 @@ pub fn enforce_nebula_lane_constant_circuit(builder: &mut R1csBuilder, wires: &N
     }
 }
 
-/// Wire view of a deposited claim's decoded step input
-/// ([`crate::paper::construction2::NebulaStepX`], spec §4.4).
+/// Wire view of a deposited claim's decoded step input.
 #[derive(Clone)]
 pub struct NebulaStepXWires {
     pub seg_idx: Var,
@@ -360,7 +359,7 @@ pub fn enforce_nebula_leaf_digest_circuit(
 }
 
 /// Mirror of [`crate::paper::digest::nebula_lane_leaf_digests`]: the
-/// (ops, is, fs) leaves with the §6.1 tag discipline — ops-domain tag
+/// (ops, is, fs) leaves with the carried-lane tag discipline — ops-domain tag
 /// for ops, the shared lane-NEUTRAL mem-domain tag for is and fs.
 pub fn enforce_nebula_lane_leaf_digests_circuit(
     builder: &mut R1csBuilder,
@@ -518,15 +517,15 @@ pub fn enforce_nebula_maybe_open_circuit(
     }
 }
 
-// ── The §6.3 transition ───────────────────────────────────────────────────
+// ── Nebula lane transition ────────────────────────────────────────────────
 
-/// One `advance_nebula` (spec §6.3) as rows, **excluding** the close —
+/// One `advance_nebula` as rows, **excluding** the close —
 /// mirror of the open-segment body of
 /// [`crate::paper::construction2::NebulaLane::advance`]:
 ///
 /// - the six per-claim equalities (`seg_idx`, `idx`, `ts_in`, γ, `h_in`,
 ///   `sp_in`) against the lane;
-/// - the three `D_seen` chain links over the supplied leaves (§6.1 tag
+/// - the three `D_seen` chain links over the supplied leaves (carried-lane tag
 ///   discipline);
 /// - the carried-state update (`h ← h_out`, `sp ← sp_out`,
 ///   `ts ← ts_out`, `idx ← idx + 1`).
@@ -583,11 +582,11 @@ pub fn enforce_nebula_advance_circuit(
     }
 }
 
-/// Segment close (spec §6.3) as rows — mirror of the native `close`:
+/// Segment close as rows — mirror of the native `close`:
 ///
 /// - `sp = 0` (v3.1 segment-local stacks, the deterministic companion
 ///   to the product equation);
-/// - `D_seen == D_pre` per lane (the L0b retroactive authority);
+/// - `D_seen == D_pre` per lane (retroactive authority for `D_pre`);
 /// - the Nebula product equation `h_is · h_ws == h_rs · h_fs` — two
 ///   in-circuit K-mults plus one K-equality;
 /// - the boundary handoff `D_seen[is] == D_mem`, then

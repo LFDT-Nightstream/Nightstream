@@ -4,7 +4,7 @@
 //! layout and every sparse A/B/C row in its contiguous strict source range.
 //!
 //! Does not own: selective-CCS row materialization, decoder provenance,
-//! witness values, delayed `y_zcol`, production-security parameters, or
+//! witness values, production-security parameters, or
 //! permission to remove constraints.
 
 #[path = "../support/mod.rs"]
@@ -188,7 +188,7 @@ fn render_claim(claim: &PiDecClaimAudit) -> String {
         .collect::<Vec<_>>()
         .join(",\n        ");
     format!(
-        "{{\n      commitment := {}\n      xActiveCols := {}\n      xInactiveCol := {}\n      xRows := {}\n      xWidth := {}\n      xRowsCol := {}\n      xWidthCol := {}\n      mIn := {}\n      mInCol := {}\n      yRingCols :=\n        [{}]\n      ctCols := {}\n      rCols := {}\n      sColCols := {}\n      foldDigestCols := {} }}",
+        "{{\n      commitment := {}\n      xActiveCols := {}\n      xInactiveCol := {}\n      xRows := {}\n      xWidth := {}\n      xRowsCol := {}\n      xWidthCol := {}\n      mIn := {}\n      mInCol := {}\n      yRingCols :=\n        [{}]\n      ctCols := {}\n      rCols := {}\n      foldDigestCols := {} }}",
         render_commitment(&claim.commitment),
         lean_compact_nat_sequence(&active_x),
         inactive_column,
@@ -201,7 +201,6 @@ fn render_claim(claim: &PiDecClaimAudit) -> String {
         y_rows,
         render_pairs(&claim.ct_cols),
         render_pairs(&claim.r_cols),
-        render_pairs(&claim.s_col_cols),
         lean_compact_nat_sequence(&claim.fold_digest_cols),
     )
 }

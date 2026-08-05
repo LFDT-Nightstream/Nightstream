@@ -42,20 +42,16 @@ struct ProofShape {
     pi_ccs_outputs_total: usize,
     pi_dec_children_total: usize,
     pi_rlc_parents: usize,
-    fe_rounds_total: usize,
-    nc_rounds_total: usize,
-    max_fe_round_width: usize,
-    max_nc_round_width: usize,
+    sumcheck_rounds_total: usize,
+    max_round_width: usize,
 }
 
 struct FoldRow {
     label: String,
     pi_ccs_outputs: usize,
     pi_dec_children: usize,
-    fe_rounds: usize,
-    nc_rounds: usize,
-    max_fe_round_width: usize,
-    max_nc_round_width: usize,
+    sumcheck_rounds: usize,
+    max_round_width: usize,
     /// Wall-clock for the prover-side work that produced this fold.
     /// For step rows: the time of the matching `extend` call. For the
     /// `final` row: the `finish_uncompressed` time (which is where
@@ -458,9 +454,8 @@ fn proof_shape(
 }
 
 fn record_nifs(shape: &mut ProofShape, rows: &mut Vec<FoldRow>, label: String, nifs: &NifsProof, prove_ms: f64) {
-    let fe_rounds = nifs.pi_ccs.sumcheck.sumcheck_rounds.len();
-    let nc_rounds = nifs.pi_ccs.sumcheck.sumcheck_rounds_nc.len();
-    let max_fe_round_width = nifs
+    let sumcheck_rounds = nifs.pi_ccs.sumcheck.sumcheck_rounds.len();
+    let max_round_width = nifs
         .pi_ccs
         .sumcheck
         .sumcheck_rounds
@@ -468,32 +463,19 @@ fn record_nifs(shape: &mut ProofShape, rows: &mut Vec<FoldRow>, label: String, n
         .map(Vec::len)
         .max()
         .unwrap_or(0);
-    let max_nc_round_width = nifs
-        .pi_ccs
-        .sumcheck
-        .sumcheck_rounds_nc
-        .iter()
-        .map(Vec::len)
-        .max()
-        .unwrap_or(0);
-
     shape.nifs_folds += 1;
     shape.pi_ccs_outputs_total += nifs.pi_ccs.outputs.len();
     shape.pi_dec_children_total += nifs.pi_dec.children.len();
     shape.pi_rlc_parents += 1;
-    shape.fe_rounds_total += fe_rounds;
-    shape.nc_rounds_total += nc_rounds;
-    shape.max_fe_round_width = shape.max_fe_round_width.max(max_fe_round_width);
-    shape.max_nc_round_width = shape.max_nc_round_width.max(max_nc_round_width);
+    shape.sumcheck_rounds_total += sumcheck_rounds;
+    shape.max_round_width = shape.max_round_width.max(max_round_width);
 
     rows.push(FoldRow {
         label,
         pi_ccs_outputs: nifs.pi_ccs.outputs.len(),
         pi_dec_children: nifs.pi_dec.children.len(),
-        fe_rounds,
-        nc_rounds,
-        max_fe_round_width,
-        max_nc_round_width,
+        sumcheck_rounds,
+        max_round_width,
         prove_ms,
     });
 }
@@ -798,14 +780,9 @@ fn print_report(
     kv("Π_CCS outputs", shape.pi_ccs_outputs_total);
     kv("Π_DEC children", shape.pi_dec_children_total);
     kv_with_note(
-        "FE rounds",
-        shape.fe_rounds_total,
-        &format!("max round width {}", shape.max_fe_round_width),
-    );
-    kv_with_note(
-        "NC rounds",
-        shape.nc_rounds_total,
-        &format!("max round width {}", shape.max_nc_round_width),
+        "SumCheck rounds",
+        shape.sumcheck_rounds_total,
+        &format!("max round width {}", shape.max_round_width),
     );
 
     section("Timing (ms)");
@@ -825,32 +802,30 @@ fn print_report(
 
     section("Per-fold shape and prover timing");
     println!(
-        "    {:>4}  {:<10}  {:>7}  {:>8}  {:>8}  {:>8}  {:>6}  {:>6}  {:>9}",
-        "idx", "source", "ccs_out", "dec_chld", "fe_rounds", "nc_rounds", "fe_max", "nc_max", "prove_ms",
+        "    {:>4}  {:<10}  {:>7}  {:>8}  {:>8}  {:>8}  {:>9}",
+        "idx", "source", "ccs_out", "dec_chld", "sc_rounds", "sc_max", "prove_ms",
     );
     println!(
-        "    {:>4}  {:<10}  {:>7}  {:>8}  {:>8}  {:>8}  {:>6}  {:>6}  {:>9}",
-        "----", "----------", "-------", "--------", "---------", "---------", "------", "------", "---------",
+        "    {:>4}  {:<10}  {:>7}  {:>8}  {:>8}  {:>8}  {:>9}",
+        "----", "----------", "-------", "--------", "---------", "------", "---------",
     );
     let mut prove_ms_sum = 0.0;
     for (idx, row) in fold_rows.iter().enumerate() {
         prove_ms_sum += row.prove_ms;
         println!(
-            "    {:>4}  {:<10}  {:>7}  {:>8}  {:>8}  {:>8}  {:>6}  {:>6}  {:>9.3}",
+            "    {:>4}  {:<10}  {:>7}  {:>8}  {:>8}  {:>8}  {:>9.3}",
             idx,
             row.label,
             row.pi_ccs_outputs,
             row.pi_dec_children,
-            row.fe_rounds,
-            row.nc_rounds,
-            row.max_fe_round_width,
-            row.max_nc_round_width,
+            row.sumcheck_rounds,
+            row.max_round_width,
             row.prove_ms,
         );
     }
     println!(
-        "    {:>4}  {:<10}  {:>7}  {:>8}  {:>8}  {:>8}  {:>6}  {:>6}  {:>9.3}",
-        "", "Σ", "", "", "", "", "", "", prove_ms_sum,
+        "    {:>4}  {:<10}  {:>7}  {:>8}  {:>8}  {:>8}  {:>9.3}",
+        "", "Σ", "", "", "", "", prove_ms_sum,
     );
 
     println!();

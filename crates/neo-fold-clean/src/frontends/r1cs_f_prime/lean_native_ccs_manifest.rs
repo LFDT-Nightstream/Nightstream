@@ -199,6 +199,8 @@ pub struct TerminalR1csDescriptor {
     row_variables: usize,
     logical_width: usize,
     recursive_rows: usize,
+    fresh_relation_rows: usize,
+    fresh_relation_auxiliary_columns: usize,
     matrix_count: usize,
     public_ring_columns: usize,
     verifier_rows: usize,
@@ -216,6 +218,14 @@ impl TerminalR1csDescriptor {
 
     pub fn recursive_rows(self) -> usize {
         self.recursive_rows
+    }
+
+    pub fn fresh_relation_rows(self) -> usize {
+        self.fresh_relation_rows
+    }
+
+    pub fn fresh_relation_auxiliary_columns(self) -> usize {
+        self.fresh_relation_auxiliary_columns
     }
 
     pub fn matrix_count(self) -> usize {
@@ -665,6 +675,19 @@ impl NativeManifestWire {
                 "does not match the native Step row count",
             ));
         }
+        let expected_fresh_rows = checked_mul("terminal_r1cs.fresh_relation_rows", 2, descriptor.recursive_rows)?;
+        if descriptor.fresh_relation_rows != expected_fresh_rows {
+            return Err(invalid(
+                "terminal_r1cs.fresh_relation_rows",
+                "does not equal the exact native selected-R1CS lowering",
+            ));
+        }
+        if descriptor.fresh_relation_auxiliary_columns != descriptor.recursive_rows {
+            return Err(invalid(
+                "terminal_r1cs.fresh_relation_auxiliary_columns",
+                "does not equal the exact native residual-column count",
+            ));
+        }
         if descriptor.matrix_count != self.step_program.matrix_count {
             return Err(invalid(
                 "terminal_r1cs.matrix_count",
@@ -777,7 +800,7 @@ fn terminal_r1cs_cost(
     let fresh_rows = checked_add(
         "terminal_r1cs.cost",
         checked_add("terminal_r1cs.cost", fresh_statement, two_carriers)?,
-        checked_mul("terminal_r1cs.cost", 2, descriptor.recursive_rows)?,
+        descriptor.fresh_relation_rows,
     )?;
     let claims = checked_add("terminal_r1cs.cost", running_claims, fresh_claims)?;
     Ok(ManifestCost {
@@ -799,7 +822,7 @@ fn terminal_r1cs_cost(
         auxiliary_columns: checked_add(
             "terminal_r1cs.cost",
             checked_mul("terminal_r1cs.cost", claims, carrier)?,
-            descriptor.recursive_rows,
+            descriptor.fresh_relation_auxiliary_columns,
         )?,
     })
 }

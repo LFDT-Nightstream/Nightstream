@@ -81,7 +81,7 @@ pub struct State {
     pub public_trace: [u8; 32],
     /// The fold pair `(U_i, u_i)`, tagged Initial/Active.
     pub proof: ProofState,
-    /// Nebula commitment-carrying memory lane (spec §6.1); `None` for
+    /// Nebula commitment-carrying memory lane (the carried-lane rules); `None` for
     /// plain chains. Its digest is absorbed into `state_x_out` and the
     /// F′ step transcript (present-only, so plain chains keep the
     /// pre-Nebula preimages and the F′ R1CS mirrors stay in parity).

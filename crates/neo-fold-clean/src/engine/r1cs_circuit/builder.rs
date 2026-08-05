@@ -40,7 +40,6 @@ use super::encoding_trace::{
 };
 pub use super::encoding_trace::{ProjectionIdentityRole, ProjectionNebulaCoordinate};
 use super::stage_provenance::PhysicalStageCheckpoint;
-use super::{PiRlcYZcolBoundaryAudit, TerminalPendingProjectionAudit};
 pub(crate) type PolynomialEvaluationTrace = PolynomialEvaluationTraceEntry;
 pub use super::relation::{R1csRelation, R1csSnapshot};
 
@@ -357,32 +356,6 @@ pub struct SumcheckRoundAudit {
     pub claim_out_cols: [usize; 2],
 }
 
-/// Exact boundary wires and row intervals for the production block-by-lane
-/// delayed NC verifier. This record assigns no meaning to a stage label: an
-/// exporter must compare every referenced sparse row with the generated
-/// program before using the columns as a protocol refinement boundary.
-#[doc(hidden)]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BlockLaneNcBoundaryAudit {
-    pub claimed_initial_rows: std::ops::Range<usize>,
-    pub round_audit_indices: std::ops::Range<usize>,
-    pub terminal_identity_rows: std::ops::Range<usize>,
-    pub terminal_final_equality_rows: std::ops::Range<usize>,
-    pub gamma_cols: [usize; 2],
-    pub beta_lane_cols: Vec<[usize; 2]>,
-    pub beta_block_cols: Vec<[usize; 2]>,
-    pub producer_beta_cols: [usize; 2],
-    pub batch_weight_cols: [usize; 2],
-    pub pending_old_block_cols: Option<Vec<[usize; 2]>>,
-    pub pending_parent_y_zcol_cols: Option<Vec<[usize; 2]>>,
-    pub output_y_zcol_cols: Vec<Vec<[usize; 2]>>,
-    pub block_point_cols: Vec<[usize; 2]>,
-    pub lane_point_cols: Vec<[usize; 2]>,
-    pub claimed_initial_cols: [usize; 2],
-    pub final_sum_cols: [usize; 2],
-    pub terminal_rhs_cols: [usize; 2],
-}
-
 /// Compact wire schedule for one generated beta-power ladder.
 ///
 /// This is read-only assurance metadata. The exact emitted rows remain the
@@ -404,7 +377,6 @@ pub struct ProjectionLadderAudit {
 pub enum ProjectionGlueRole {
     InactiveXZero,
     YRingPaddingZero { row: usize },
-    YZColPaddingZero,
 }
 
 /// Exact contiguous range of affine projection glue rows.
@@ -495,14 +467,11 @@ pub struct R1csBuilder {
     row_family_ranges: Vec<RowFamilyRange>,
     program_range_audits: Vec<ProgramRangeAudit>,
     sumcheck_round_audits: Vec<SumcheckRoundAudit>,
-    block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
     pi_dec_strict_audits: Vec<PiDecStrictAudit>,
     terminal_ce_claim_audits: Vec<TerminalCeClaimAudit>,
-    pub(super) terminal_pending_projection_audits: Vec<TerminalPendingProjectionAudit>,
     projection_ladder_audits: Vec<ProjectionLadderAudit>,
     projection_identity_audits: Vec<ProjectionIdentityAudit>,
     projection_glue_audits: Vec<ProjectionGlueAudit>,
-    pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
     indexed_row_family_ranges: Vec<IndexedRowFamilyRange>,
     column_family_ranges: Vec<ColumnFamilyRange>,
     physical_stage_checkpoints: Vec<PhysicalStageCheckpoint>,
@@ -536,11 +505,9 @@ pub(crate) struct R1csSynthesis {
     pub(crate) equality_pairs: Vec<(usize, usize, usize)>,
     pub(crate) row_family_ranges: Vec<RowFamilyRange>,
     pub(crate) sumcheck_round_audits: Vec<SumcheckRoundAudit>,
-    pub(crate) block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
     pub(crate) pi_dec_strict_audits: Vec<PiDecStrictAudit>,
     pub(crate) column_family_ranges: Vec<ColumnFamilyRange>,
     pub(crate) physical_stage_checkpoints: Vec<PhysicalStageCheckpoint>,
-    pub(crate) pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
 
 impl Default for R1csBuilder {
@@ -603,14 +570,11 @@ impl R1csBuilder {
             row_family_ranges: Vec::new(),
             program_range_audits: Vec::new(),
             sumcheck_round_audits: Vec::new(),
-            block_lane_nc_boundary_audits: Vec::new(),
             pi_dec_strict_audits: Vec::new(),
             terminal_ce_claim_audits: Vec::new(),
-            terminal_pending_projection_audits: Vec::new(),
             projection_ladder_audits: Vec::new(),
             projection_identity_audits: Vec::new(),
             projection_glue_audits: Vec::new(),
-            pi_rlc_y_zcol_boundary_audits: Vec::new(),
             indexed_row_family_ranges: Vec::new(),
             column_family_ranges: Vec::new(),
             physical_stage_checkpoints: Vec::new(),
@@ -967,12 +931,6 @@ impl R1csBuilder {
         &self.sumcheck_round_audits
     }
 
-    /// Exact block-by-lane delayed-NC boundary schedules.
-    #[doc(hidden)]
-    pub fn block_lane_nc_boundary_audits(&self) -> &[BlockLaneNcBoundaryAudit] {
-        &self.block_lane_nc_boundary_audits
-    }
-
     /// Exact input schedules for strict PiDEC compiler invocations.
     #[doc(hidden)]
     pub fn pi_dec_strict_audits(&self) -> &[PiDecStrictAudit] {
@@ -983,12 +941,6 @@ impl R1csBuilder {
     #[doc(hidden)]
     pub fn terminal_ce_claim_audits(&self) -> &[TerminalCeClaimAudit] {
         &self.terminal_ce_claim_audits
-    }
-
-    /// Exact terminal delayed-projection row owners and CE endpoints.
-    #[doc(hidden)]
-    pub fn terminal_pending_projection_audits(&self) -> &[TerminalPendingProjectionAudit] {
-        &self.terminal_pending_projection_audits
     }
 
     /// Exact single-wire equality rows, used to audit verifier-owned point
@@ -1014,11 +966,6 @@ impl R1csBuilder {
         self.sumcheck_round_audits.push(audit);
     }
 
-    pub(crate) fn record_block_lane_nc_boundary(&mut self, audit: BlockLaneNcBoundaryAudit) {
-        debug_assert_eq!(audit.terminal_final_equality_rows.end, self.rows);
-        self.block_lane_nc_boundary_audits.push(audit);
-    }
-
     pub(crate) fn record_pi_dec_strict(&mut self, audit: PiDecStrictAudit) {
         // The bounded strict-PiDEC schedule also joins live witness values to
         // normalized source columns.  Retain it in witness-only builders;
@@ -1032,13 +979,6 @@ impl R1csBuilder {
         if self.record_structure {
             debug_assert_eq!(audit.row_end, self.rows);
             self.terminal_ce_claim_audits.push(audit);
-        }
-    }
-
-    pub(crate) fn record_terminal_pending_projection(&mut self, audit: TerminalPendingProjectionAudit) {
-        if self.record_structure {
-            debug_assert_eq!(audit.row_end, self.rows);
-            self.terminal_pending_projection_audits.push(audit);
         }
     }
 
@@ -1071,12 +1011,6 @@ impl R1csBuilder {
         if self.record_structure {
             debug_assert_eq!(audit.row_end, self.rows);
             self.projection_identity_audits.push(audit);
-        }
-    }
-
-    pub(crate) fn record_pi_rlc_y_zcol_boundary(&mut self, audit: PiRlcYZcolBoundaryAudit) {
-        if self.record_structure {
-            self.pi_rlc_y_zcol_boundary_audits.push(audit);
         }
     }
 
@@ -1451,11 +1385,9 @@ impl R1csBuilder {
             equality_pairs: self.equality_pairs,
             row_family_ranges: self.row_family_ranges,
             sumcheck_round_audits: self.sumcheck_round_audits,
-            block_lane_nc_boundary_audits: self.block_lane_nc_boundary_audits,
             pi_dec_strict_audits: self.pi_dec_strict_audits,
             column_family_ranges: self.column_family_ranges,
             physical_stage_checkpoints: self.physical_stage_checkpoints,
-            pi_rlc_y_zcol_boundary_audits: self.pi_rlc_y_zcol_boundary_audits,
         }
     }
 

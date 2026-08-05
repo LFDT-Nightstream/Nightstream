@@ -14,7 +14,7 @@
 //! | Child surface | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
 //! |---|---|---|---|---|
 //! | Base/recursive FPrime `ALL/HIERARCHY` | Every complete branch stage has exactly one owner | no | `paper::f_prime::stage` | concrete full bridge open |
-//! | PiCCS `ROOT/ALL/HIERARCHY` | Every verifier phase and constraint family reconciles | no | `pi_ccs_split_nc_circuit::stage` | concrete bridges remain scoped |
+//! | PiCCS `ROOT/ALL/HIERARCHY` | Every verifier phase and constraint family reconciles | no | `pi_ccs_circuit::stage` | concrete bridges remain scoped |
 //! | Lifecycle `ROOT/LIFECYCLE_ALL` | Challenge, parent/child shape, and algebra reconcile under one PiRLC root | no | `nifs::circuit::pi_rlc` | ownership only |
 //! | Challenge `ALL/HIERARCHY` | Every transcript/sampler node, including the three packed Mod-5 leaves, reconciles | no | `alphabet_sampling` plus `gadget_native::mod5` | PiRlcChallenge hierarchy |
 //! | Algebra `ALL/HIERARCHY` | Every verifier node reconciles | no | `pi_rlc_circuit::stage` | PiRlcAlgebra hierarchy |
@@ -24,12 +24,8 @@
 //! | Common/canonical gate families | Boolean, centered-unit, and per-origin canonical rows reconcile at every parent | no | `cost_tree::row_family_snapshots` | no theorem claim |
 //! | `FPRIME_DIRECT_SELECTOR_FORMULA` | Legacy 258M arithmetic is decomposed without claiming an emitted relation | no | direct selector estimator | no theorem claim |
 //! | `FPRIME_FIXED_FORMULA` | Selector cost formula reconciles without claiming trace ownership or selector soundness | no | selector-gated estimator | inactive packed binding proved; combined materializer open |
-//! | Dominant SIS snapshots | Pin the three generic-lowering cost centers | no | this file | concrete refinement still open |
+//! | Dominant SIS snapshots | Pin the two selected generic-lowering cost centers | no | this file | concrete refinement still open |
 
-#[path = "cost_tree/pi_rlc_identity_groups.rs"]
-mod pi_rlc_identity_groups;
-#[path = "cost_tree/pi_rlc_projection_identity_costs.rs"]
-mod pi_rlc_projection_identity_costs;
 #[path = "cost_tree/row_family_snapshots.rs"]
 mod row_family_snapshots;
 #[path = "cost_tree/selector_formula.rs"]
@@ -37,7 +33,7 @@ mod selector_formula;
 #[path = "cost_tree/stage_output.rs"]
 mod stage_output;
 
-pub(super) use row_family_snapshots::{assert_pi_ccs_nc_terminal_row_families, assert_protocol_row_family_snapshots};
+pub(super) use row_family_snapshots::assert_protocol_row_family_snapshots;
 pub(super) use selector_formula::{assert_direct_selector_cost_formula, assert_fixed_selector_cost_formula};
 use stage_output::{print_stage_cost_header, print_stage_cost_line};
 
@@ -50,7 +46,7 @@ use neo_fold_clean::frontends::f_prime::gadget_native::{
 };
 use neo_fold_clean::paper::f_prime::stage as fprime_stage;
 use neo_fold_clean::paper::nifs::circuit::stage as nifs_stage;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::stage as pi_ccs_stage;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::stage as pi_ccs_stage;
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 
 const CANONICALITY_RELATIONS_PER_SLOT: usize = 32;
@@ -61,27 +57,6 @@ fn pair_tail(coordinates: usize) -> GadgetNativePairTailCount {
         coordinates,
         pair_rows: coordinates / 2,
         tail_rows: coordinates % 2,
-    }
-}
-
-fn repeated_pair_tail(coordinates_per_stage: usize, stages: usize) -> GadgetNativePairTailCount {
-    let unit = pair_tail(coordinates_per_stage);
-    GadgetNativePairTailCount {
-        coordinates: unit.coordinates * stages,
-        pair_rows: unit.pair_rows * stages,
-        tail_rows: unit.tail_rows * stages,
-    }
-}
-
-fn repeated_canonical_field_rows(
-    fields_per_stage: usize,
-    stages: usize,
-) -> GadgetNativeCanonicalBinaryFieldRowBreakdown {
-    GadgetNativeCanonicalBinaryFieldRowBreakdown {
-        raw_bits: repeated_pair_tail(fields_per_stage * 64, stages),
-        prefix_aux: repeated_pair_tail(fields_per_stage * 31, stages),
-        canonicality_relations: fields_per_stage * stages * CANONICALITY_RELATIONS_PER_SLOT,
-        canonicality_pair_rows: fields_per_stage * stages * CANONICALITY_PAIR_ROWS_PER_SLOT,
     }
 }
 
@@ -128,6 +103,7 @@ pub(super) fn assert_f_prime_recursive_stage_hierarchy(profile: &GadgetNativeSta
         .chain([
             pi_ccs_stage::ROOT,
             pi_rlc_stage::ROOT,
+            nifs_stage::RUNNING_PARENT_PI_DEC,
             nifs_stage::PI_DEC,
             nifs_stage::PI_DEC_VERIFY,
             nifs_stage::POINT_BINDING,
@@ -179,7 +155,6 @@ pub(super) fn assert_pi_rlc_stage_hierarchy(profile: &GadgetNativeStageProfile) 
         false,
     );
     assert_packed_mod5_cost_leaves(profile);
-    pi_rlc_projection_identity_costs::assert_costs(profile);
 }
 
 fn assert_packed_mod5_cost_leaves(profile: &GadgetNativeStageProfile) {
@@ -843,7 +818,7 @@ fn assert_zero_cost_checkpoint(stage: &GadgetNativeStageEstimate) {
     );
 }
 
-/// Pin the three SIS-backed stages whose generic canonical-field lowering
+/// Pin the two selected SIS-backed stages whose generic canonical-field lowering
 /// dominates the complete recursive fixture. These snapshots deliberately
 /// separate source arithmetic from encoding tax: a future selective lowering
 /// must change the field classes and row families here, not merely the total.
@@ -872,10 +847,10 @@ pub(super) fn assert_dominant_sis_snapshots(profile: &GadgetNativeStageProfile) 
 
     let expected = [
         Snapshot {
-            path: "nifs.pi_ccs.output_message_hashes",
-            source_rows: 852_733,
-            source_cols: 839_151,
-            encoded_rows: 728_983,
+            path: "nifs.pi_ccs.padded_row.output_digest.sis",
+            source_rows: 852_526,
+            source_cols: 838_944,
+            encoded_rows: 728_780,
             encoded_cols: 890_658,
             one_bit_fields: 550_071,
             canonical_fields: 0,
@@ -884,9 +859,9 @@ pub(super) fn assert_dominant_sis_snapshots(profile: &GadgetNativeStageProfile) 
             balanced_aliases: 278_431,
             balanced_binary: 550_071,
             centered_coords: 340_587,
-            linear_fields: 4_436,
+            linear_fields: 4_432,
             gadget_fields: 4_386,
-            fallback_rows: 557_227,
+            fallback_rows: 557_024,
             sbox_rows: 1_462,
             common_boolean: GadgetNativePairTailCount {
                 coordinates: 0,
@@ -920,39 +895,6 @@ pub(super) fn assert_dominant_sis_snapshots(profile: &GadgetNativeStageProfile) 
             linear_fields: 4_432,
             gadget_fields: 4_386,
             fallback_rows: 305_530,
-            sbox_rows: 1_462,
-            common_boolean: GadgetNativePairTailCount {
-                coordinates: 0,
-                pair_rows: 0,
-                tail_rows: 0,
-            },
-            source_raw64: GadgetNativePairTailCount {
-                coordinates: 0,
-                pair_rows: 0,
-                tail_rows: 0,
-            },
-            source_prefix31: GadgetNativePairTailCount {
-                coordinates: 0,
-                pair_rows: 0,
-                tail_rows: 0,
-            },
-        },
-        Snapshot {
-            path: "nifs.pi_ccs.fresh_claim_hashes",
-            source_rows: 177_605,
-            source_cols: 174_909,
-            encoded_rows: 170_883,
-            encoded_cols: 226_612,
-            one_bit_fields: 109_188,
-            canonical_fields: 0,
-            ordinary_private_fields: 1_516,
-            balanced_fields: 1_348,
-            balanced_aliases: 55_268,
-            balanced_binary: 109_188,
-            centered_coords: 117_424,
-            linear_fields: 4_432,
-            gadget_fields: 4_386,
-            fallback_rows: 110_709,
             sbox_rows: 1_462,
             common_boolean: GadgetNativePairTailCount {
                 coordinates: 0,

@@ -20,7 +20,7 @@
 //! | finalization | Bind context, application, and semantic state | yes | `full_relation` | full-relation bridge open |
 
 use crate::paper::nifs::circuit::stage as nifs_stage;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::stage as pi_ccs_stage;
+use crate::paper::reductions::pi_ccs_circuit::stage as pi_ccs_stage;
 use crate::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 
 pub const BASE_ROOT: &str = "fprime.base";
@@ -80,8 +80,6 @@ pub const RECURSIVE_ACCUMULATOR_OUTPUT: &str = "fprime.recursive.step.accumulato
 pub const RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS: &str =
     "fprime.recursive.step.accumulator.output_authority.child_digests";
 pub const RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE: &str = "fprime.recursive.step.accumulator.output_authority.aggregate";
-pub const RECURSIVE_ACCUMULATOR_OUTPUT_PENDING_FAMILY: &str =
-    "fprime.recursive.step.accumulator.output_authority.pending_family";
 pub const RECURSIVE_COUNTERS: &str = "fprime.recursive.step.counters";
 pub const RECURSIVE_OUTPUT: &str = "fprime.recursive.step.output";
 pub const RECURSIVE_FINALIZE: &str = "fprime.recursive.finalize";
@@ -108,7 +106,6 @@ pub const RECURSIVE_ALL: &[&str] = &[
     RECURSIVE_ACCUMULATOR_OUTPUT,
     RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS,
     RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
-    RECURSIVE_ACCUMULATOR_OUTPUT_PENDING_FAMILY,
     RECURSIVE_COUNTERS,
     RECURSIVE_OUTPUT,
     RECURSIVE_FINALIZE,
@@ -140,6 +137,7 @@ pub const RECURSIVE_HIERARCHY: &[(&str, &[&str])] = &[
         &[
             pi_ccs_stage::ROOT,
             pi_rlc_stage::ROOT,
+            nifs_stage::RUNNING_PARENT_PI_DEC,
             nifs_stage::PI_DEC,
             nifs_stage::POINT_BINDING,
         ],
@@ -161,7 +159,6 @@ pub const RECURSIVE_HIERARCHY: &[(&str, &[&str])] = &[
         &[
             RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS,
             RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
-            RECURSIVE_ACCUMULATOR_OUTPUT_PENDING_FAMILY,
         ],
     ),
     (

@@ -1,6 +1,6 @@
-//! Exact compiler artifact for the claimed-chain core shared by both Π_CCS
-//! SumChecks.  Full-history call-site maps are added below this isolated
-//! semantic anchor; the generated rows, not audit metadata, remain authority.
+//! Exact compiler artifact for the claimed-chain core used by the one-joint
+//! Π_CCS SumCheck. Production call sites are checked against this isolated
+//! semantic anchor without generating a second full-history artifact.
 
 #[path = "checked_program_artifact_support.rs"]
 #[allow(dead_code)]
@@ -29,8 +29,6 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const ARTIFACT_PATH: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/Sumcheck/SumcheckRoundArtifact.lean";
-const CALLS_PATH: &str =
-    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeFullHistory/FPrimeFullHistorySumcheckArtifact.lean";
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -157,11 +155,12 @@ fn polynomial_eval(coefficients: &[K], point: K) -> K {
 struct Artifact {
     source: String,
     rows: usize,
+    coefficient_count: usize,
     instructions: Vec<checked_program_artifact_support::Instruction>,
 }
 
 fn build_artifact() -> Artifact {
-    // Production has d_sc=4, hence five K coefficients per round.
+    // This tiny direct-CCS fixture has the protocol minimum degree four.
     let coefficients = [kval(2, 3), kval(5, 7), kval(11, 13), kval(17, 19), kval(23, 29)];
     let challenge = kval(31, 37);
     let claim_in = coefficients
@@ -297,6 +296,7 @@ fn build_artifact() -> Artifact {
     Artifact {
         source,
         rows: row_end - row_start,
+        coefficient_count: coefficients.len(),
         instructions: canonical.instructions,
     }
 }
@@ -316,68 +316,45 @@ fn isolated_sumcheck_round_artifact_matches() {
     );
 }
 
-fn maps_in_range(builder: &R1csBuilder, row_start: usize, row_end: usize, anchor: &Artifact) -> Vec<Vec<usize>> {
+fn validate_rounds_in_range(builder: &R1csBuilder, row_start: usize, row_end: usize, anchor: &Artifact) -> usize {
     let mut audits: Vec<_> = builder
         .sumcheck_round_audits()
         .iter()
         .filter(|audit| row_start <= audit.row_start && audit.row_end <= row_end)
         .collect();
     audits.sort_by_key(|audit| audit.row_start);
-    let maps: Vec<Vec<usize>> = audits
-        .into_iter()
-        .map(|audit| {
-            assert_eq!(audit.row_end - audit.row_start, anchor.rows, "SumCheck round row count");
-            assert_eq!(
-                audit.coefficient_cols.len(),
-                5,
-                "production degree-four coefficient count"
-            );
-            let normalized = normalize_range(builder, audit.row_start, audit.row_end, audit.first_allocated_column);
-            let canonical = canonicalize_program(&normalized);
-            assert_eq!(
-                canonical.instructions, anchor.instructions,
-                "production SumCheck round differs from isolated exact compiler"
-            );
-            let map = canonical.column_map;
-            let pair = |low: usize, high: usize| [map[low], map[high]];
-            assert_eq!(
-                audit.coefficient_cols,
-                vec![pair(2, 8), pair(3, 9), pair(4, 10), pair(5, 11), pair(6, 12)],
-                "coefficient decoder map"
-            );
-            assert_eq!(audit.challenge_cols, pair(13, 15), "challenge decoder map");
-            assert_eq!(audit.claim_in_cols, pair(1, 7), "claim-in decoder map");
-            assert_eq!(audit.claim_out_cols, pair(41, 42), "claim-out decoder map");
-            map
-        })
-        .collect();
-    for pair in maps.windows(2) {
+    for pair in audits.windows(2) {
         assert_eq!(
-            [pair[0][41], pair[0][42]],
-            [pair[1][1], pair[1][7]],
+            pair[0].claim_out_cols, pair[1].claim_in_cols,
             "SumCheck running claim must be reused wire-for-wire"
         );
     }
-    maps
+    for audit in &audits {
+        assert_eq!(audit.row_end - audit.row_start, anchor.rows, "SumCheck round row count");
+        assert_eq!(
+            audit.coefficient_cols.len(),
+            anchor.coefficient_count,
+            "call-site degree differs from the isolated relation"
+        );
+        let normalized = normalize_range(builder, audit.row_start, audit.row_end, audit.first_allocated_column);
+        let canonical = canonicalize_program(&normalized);
+        assert_eq!(
+            canonical.instructions, anchor.instructions,
+            "production SumCheck round differs from isolated exact compiler"
+        );
+    }
+    audits.len()
 }
 
-fn lean_maps(maps: &[Vec<usize>]) -> String {
-    maps.iter()
-        .map(|map| {
-            format!(
-                "  [{}]",
-                map.iter()
-                    .map(usize::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        })
-        .collect::<Vec<_>>()
-        .join("\n, ")
-}
-
-fn full_history_call_artifact(anchor: &Artifact) -> String {
+fn validate_full_history_call_sites(anchor: &Artifact) {
     let (prep, finished) = full_history_fixture();
+    let dims = neo_reductions::engines::pi_ccs_joint::build_joint_dims(prep.params.inner(), prep.structure(), 1, 0)
+        .expect("fixture joint dimensions");
+    assert_eq!(
+        anchor.coefficient_count,
+        dims.degree + 1,
+        "isolated compiler degree must match the fixture relation"
+    );
     let statement = neo_fold_clean::build_decider_statement(&prep, &finished);
     let synthesis = synthesize_statement_r1cs(&prep, &statement).expect("full-history synthesis");
     assert!(
@@ -395,75 +372,23 @@ fn full_history_call_artifact(anchor: &Artifact) -> String {
         matches.sort_by_key(|range| range.row_start);
         matches
     };
-    let fe = ranges("nifs.pi_ccs.fe_sumcheck");
-    let nc = ranges("nifs.pi_ccs.nc_sumcheck");
-    assert_eq!(fe.len(), 2, "recursive and terminal FE owners");
-    assert_eq!(nc.len(), 2, "recursive and terminal NC owners");
+    let joint = ranges("nifs.pi_ccs.padded_row.sumcheck");
+    assert_eq!(joint.len(), 2, "recursive and terminal joint owners");
 
-    let recursive_fe = maps_in_range(builder, fe[0].row_start, fe[0].row_end, anchor);
-    let terminal_fe = maps_in_range(builder, fe[1].row_start, fe[1].row_end, anchor);
-    let recursive_nc = maps_in_range(builder, nc[0].row_start, nc[0].row_end, anchor);
-    let terminal_nc = maps_in_range(builder, nc[1].row_start, nc[1].row_end, anchor);
-    let audited = recursive_fe.len() + terminal_fe.len() + recursive_nc.len() + terminal_nc.len();
+    let recursive_rounds = validate_rounds_in_range(builder, joint[0].row_start, joint[0].row_end, anchor);
+    let terminal_rounds = validate_rounds_in_range(builder, joint[1].row_start, joint[1].row_end, anchor);
+    assert_eq!(recursive_rounds, dims.variables, "recursive padded-row rounds");
+    assert_eq!(terminal_rounds, dims.variables, "terminal padded-row rounds");
+    let audited = recursive_rounds + terminal_rounds;
     assert_eq!(
         audited,
         builder.sumcheck_round_audits().len(),
-        "every emitted SumCheck round belongs to one exported FE/NC owner"
+        "every emitted SumCheck round belongs to one exported joint owner"
     );
-
-    format!(
-        "import Nightstream.Implementation.R1CS.Correspondence.Sumcheck.SumcheckChainSound\n\n\
-         /-!\n\
-         Generated exact affine maps for every full-history Π_CCS FE/NC round.\n\n\
-         Owns: call-site relabeling of the isolated SumCheck-round compiler.\n\
-         Does not own: transcript challenges, initial claims, terminal identities,\n\
-         or soundness of Π_CCS outside the isolated round equations.\n\
-         Emits constraints: no; the four row lists reconstruct already emitted rows.\n\
-         Authority boundary: every map is extracted from one exact production row\n\
-         range and checked against the isolated canonical compiler artifact.\n\n\
-         | Branch | Mathematical obligation | Emitted by |\n\
-         |---|---|---|\n\
-         | recursive FE | Seven linked degree-four SumCheck rounds | nifs.pi_ccs.fe_sumcheck |\n\
-         | recursive NC | Fifteen linked degree-four SumCheck rounds | nifs.pi_ccs.nc_sumcheck |\n\
-         | terminal FE | Seven linked degree-four SumCheck rounds | nifs.pi_ccs.fe_sumcheck |\n\
-         | terminal NC | Fifteen linked degree-four SumCheck rounds | nifs.pi_ccs.nc_sumcheck |\n\
-         -/\n\n\
-         namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySumcheckArtifact\n\n\
-         open Nightstream.Implementation.R1CS.SumcheckChainSound\n\n\
-         set_option maxRecDepth 1048576\n\n\
-         def recursiveFeMaps : List ColumnMap :=\n[{}]\n\
-         def recursiveNcMaps : List ColumnMap :=\n[{}]\n\
-         def terminalFeMaps : List ColumnMap :=\n[{}]\n\
-         def terminalNcMaps : List ColumnMap :=\n[{}]\n\n\
-         def recursiveFeRows : List Nightstream.Implementation.R1CS.Row :=\n  recursiveFeMaps.flatMap Rows\n\
-         def recursiveNcRows : List Nightstream.Implementation.R1CS.Row :=\n  recursiveNcMaps.flatMap Rows\n\
-         def terminalFeRows : List Nightstream.Implementation.R1CS.Row :=\n  terminalFeMaps.flatMap Rows\n\
-         def terminalNcRows : List Nightstream.Implementation.R1CS.Row :=\n  terminalNcMaps.flatMap Rows\n\n\
-         theorem recursive_fe_shape : recursiveFeMaps.length = {} ∧\n    MapsOne recursiveFeMaps ∧ Linked recursiveFeMaps := by native_decide\n\
-         theorem recursive_nc_shape : recursiveNcMaps.length = {} ∧\n    MapsOne recursiveNcMaps ∧ Linked recursiveNcMaps := by native_decide\n\
-         theorem terminal_fe_shape : terminalFeMaps.length = {} ∧\n    MapsOne terminalFeMaps ∧ Linked terminalFeMaps := by native_decide\n\
-         theorem terminal_nc_shape : terminalNcMaps.length = {} ∧\n    MapsOne terminalNcMaps ∧ Linked terminalNcMaps := by native_decide\n\n\
-         end Nightstream.Implementation.R1CS.FPrimeFullHistorySumcheckArtifact\n",
-        lean_maps(&recursive_fe),
-        lean_maps(&recursive_nc),
-        lean_maps(&terminal_fe),
-        lean_maps(&terminal_nc),
-        recursive_fe.len(),
-        recursive_nc.len(),
-        terminal_fe.len(),
-        terminal_nc.len(),
-    )
 }
 
 #[test]
 fn full_history_sumcheck_call_sites_match_isolated_compiler() {
     let anchor = build_artifact();
-    let source = full_history_call_artifact(&anchor);
-    let path = repo_root().join(CALLS_PATH);
-    let existing = fs::read_to_string(&path).unwrap_or_default();
-    if existing != source {
-        let expected = path.with_extension("lean.expected");
-        fs::write(&expected, source).expect("write full-history SumCheck expected artifact");
-        panic!("{CALLS_PATH} drifted: {}", expected.display());
-    }
+    validate_full_history_call_sites(&anchor);
 }

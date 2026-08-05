@@ -332,47 +332,6 @@ fn audit_verifier_rejects_contradictory_terminal_input_snapshot() {
         "soundness failure: the audit verifier ignored contradictory final_fold.terminal_inputs accepted by its public proof type"
     );
 }
-
-/// The recorded running parent is a separately checked terminal cache, not the
-/// accumulator handle. Every carried field must still be re-derived or checked;
-/// otherwise production verification and audit replay accept different wire
-/// languages.
-#[test]
-fn terminal_verifier_rejects_unbound_parent_y_zcol() {
-    let prep = support::toy_preprocessing();
-    let audit =
-        neo_fold_clean::prove(&prep, [vec![support::toy_instance(&prep, 31)]]).expect("construct one-batch audit");
-    let mut finalized = neo_fold_clean::finish_uncompressed_with_audit(&prep, audit).expect("finalize one-batch audit");
-    neo_fold_clean::verify_uncompressed(&prep, &finalized.proof)
-        .expect("honest terminal proof verifies before mutation");
-    neo_fold_clean::verify_uncompressed_audit(&prep, &finalized).expect("honest audit verifies before mutation");
-
-    let neo_fold_clean::paper::construction2::ProofState::Active { running, .. } = &mut finalized.proof.state.proof
-    else {
-        panic!("finalized proof must be active");
-    };
-    running
-        .as_materialized_mut()
-        .expect("fixture uses a materialized final running accumulator")
-        .parent_authority
-        .as_mut()
-        .expect("nonempty final running carries Pi_RLC parent authority")
-        .y_zcol[0] += K::ONE;
-
-    assert!(
-        neo_fold_clean::verify_uncompressed_audit(&prep, &finalized).is_err(),
-        "attack precondition: audit replay must bind and reject the changed parent authority"
-    );
-    assert!(
-        neo_fold_clean::verify_uncompressed(&prep, &finalized.proof).is_err(),
-        "soundness failure: terminal verifier accepted a mutated running.parent_authority.y_zcol that is absent from both its derived-state comparison and accumulator digest"
-    );
-}
-
-/// Inactive X columns are required to be zero by the native Π_RLC/Π_DEC
-/// language.  The separately recorded terminal parent must not be able to
-/// smuggle data into those digest-skipped columns after the verifier has
-/// derived the honest parent and children.
 #[test]
 fn terminal_verifier_rejects_unbound_parent_inactive_x() {
     let structure = CcsStructure::new(vec![Mat::zero(1, 2, F::ZERO)], SparsePoly::<F>::new(1, Vec::new()))
@@ -554,19 +513,14 @@ fn terminal_ce_public_digest_binds_full_claim_count() {
 fn terminal_ce_public_rejects_noncanonical_fold_digest_alias() {
     let prep = support::toy_preprocessing();
     let d_pad = D.next_power_of_two();
-    let ell_n = prep
+    let ell = prep
         .structure()
         .n
+        .max(prep.structure().m)
         .next_power_of_two()
         .max(2)
         .trailing_zeros() as usize;
-    let ell_m = prep
-        .structure()
-        .m
-        .next_power_of_two()
-        .max(2)
-        .trailing_zeros() as usize;
-    let t = prep.structure().t();
+    let evaluation_count = prep.structure().t() + 1;
     let kappa = prep.params.kappa() as usize;
 
     let canonical_child = neo_fold_clean::CeClaim {
@@ -577,17 +531,11 @@ fn terminal_ce_public_rejects_noncanonical_fold_digest_alias() {
             data: vec![F::ZERO; D * kappa],
         },
         X: Mat::zero(D, 1, F::ZERO),
-        r: vec![K::ZERO; ell_n],
-        s_col: vec![K::ZERO; ell_m],
-        y_ring: vec![vec![K::ZERO; d_pad]; t],
-        ct: vec![K::ZERO; t],
-        aux_openings: Vec::new(),
-        y_zcol: vec![K::ZERO; d_pad],
+        r: vec![K::ZERO; ell],
+        y_ring: vec![vec![K::ZERO; d_pad]; evaluation_count],
+        ct: vec![K::ZERO; evaluation_count],
         m_in: 1,
         fold_digest: [0u8; 32],
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
     };
     let canonical_public =
         TerminalCePublic::from_terminal_children(&prep.params, prep.structure(), &[canonical_child.clone()])

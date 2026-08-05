@@ -1,11 +1,12 @@
-//! Reference-model tests — the protocol logic of spec §1/§3/§6 exercised
+//! Reference-model tests — the protocol logic of the segment, encoding, and carried-lane contracts exercised
 //! natively, honest and adversarial. The trace is the test oracle (never
 //! verifier authority); every attack here must reappear in the red-team
-//! suite against the real pipeline once it exists (spec §12).
+//! suite against the real pipeline once it exists.
 //!
 //! For honest traces the Blum invariant `IS ∪ WS = RS ∪ FS` holds exactly,
 //! so balance assertions carry no soundness slack; tampered traces fail
-//! except with the negligible §9 probability (fixed challenge seeds keep
+//! except with the configured negligible fingerprint-collision probability
+//! (fixed challenge seeds keep
 //! that deterministic here).
 
 use neo_fold_clean::frontends::nebula::fingerprint::{self, Gammas};
@@ -200,7 +201,7 @@ fn segment_boundary_chains_memory_and_timestamps() {
     let t1 = honest_segment(&mut mem, &mut rng);
     let t2 = honest_segment(&mut mem, &mut rng);
 
-    // The model-level analogs of the F′ close checks (spec §6.3/§6.4):
+    // The model-level analogs of the F′ close checks:
     // FS(k) == IS(k+1) cell-for-cell, and the global timestamp carries.
     assert_eq!(t1.fs_cells, t2.is_cells);
     assert_eq!(t2.ts_in, t1.ts_out);

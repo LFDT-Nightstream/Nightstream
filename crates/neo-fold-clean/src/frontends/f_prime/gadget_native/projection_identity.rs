@@ -680,10 +680,9 @@ fn expected_roles() -> Vec<ProjectionIdentityRole> {
     let mut roles = Vec::with_capacity(IDENTITY_COUNT);
     roles.extend((0..18).map(|lane| ProjectionIdentityRole::CommitmentLane { lane }));
     roles.extend((0..5).map(|column| ProjectionIdentityRole::ActiveXColumn { column }));
-    for row in 0..3 {
+    for row in 0..4 {
         roles.extend((0..2).map(|limb| ProjectionIdentityRole::YRingLimb { row, limb }));
     }
-    roles.extend((0..2).map(|limb| ProjectionIdentityRole::YZColLimb { limb }));
     roles
 }
 

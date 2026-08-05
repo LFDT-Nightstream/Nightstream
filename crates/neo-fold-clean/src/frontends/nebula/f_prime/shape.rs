@@ -17,10 +17,8 @@ use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::frontends::nebula::application::NebulaApplication;
 use crate::frontends::nebula::plan::NebulaPlan;
 use crate::frontends::r1cs_f_prime::{lower_field_r1cs, SparseR1cs};
-use crate::paper::construction2::{running::zero_lane_commitments, NebulaConfig, NebulaLane, PendingProjectionState};
-use crate::paper::digest::{
-    pending_accumulator_family_digest, AccumulatorHandle, PendingAccumulatorFamilyState, StateXOutDigestMode,
-};
+use crate::paper::construction2::{running::zero_lane_commitments, NebulaConfig, NebulaLane};
+use crate::paper::digest::{AccumulatorHandle, StateXOutDigestMode};
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use crate::paper::f_prime::r1cs::{
@@ -31,7 +29,7 @@ use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{SplitNcPiCcsVConfig, SplitNcVerifierRelation};
+use crate::paper::reductions::pi_ccs_circuit::{PiCcsVerifierConfig, PiCcsVerifierRelation};
 use crate::paper::relations::{CcsClaim, CeClaim, Structure};
 
 pub(super) struct ArmShapes {
@@ -52,18 +50,16 @@ struct ShapeContext<'a> {
     params: &'a Params,
     plan: &'a NebulaPlan,
     config: NebulaConfig,
-    header_bundle: [F; 4],
-    ell_d: usize,
-    ell_n: usize,
-    ell_m: usize,
-    d_sc: usize,
-    folded: &'a SplitNcVerifierRelation,
+    matrix_digest: [F; 4],
+    folded: &'a PiCcsVerifierRelation,
     application: Option<&'a NebulaApplication>,
+    joint_variables: usize,
+    joint_degree: usize,
 }
 
 pub(super) fn synthesize_arm_shapes(
     params: &Params,
-    folded: &SplitNcVerifierRelation,
+    folded: &PiCcsVerifierRelation,
     plan: &NebulaPlan,
     application: Option<&NebulaApplication>,
 ) -> Result<ArmShapes, NebulaFPrimeRelationError> {
@@ -122,7 +118,7 @@ pub(super) fn audit_arm_shapes(
     folded: &Structure,
     plan: &NebulaPlan,
 ) -> Result<NebulaFPrimeFieldShapeAudit, NebulaFPrimeRelationError> {
-    let folded_relation = SplitNcVerifierRelation::from_structure(folded);
+    let folded_relation = PiCcsVerifierRelation::from_structure(folded);
     let context = shape_context(params, &folded_relation, plan, None)?;
     let base = arm_shape(synthesize_base(&context)?.shape);
     let bootstrap_recursive = arm_shape(synthesize_recursive(&context, false)?.shape);
@@ -138,29 +134,29 @@ pub(super) fn audit_arm_shapes(
 
 fn shape_context<'a>(
     params: &'a Params,
-    folded: &'a SplitNcVerifierRelation,
+    folded: &'a PiCcsVerifierRelation,
     plan: &'a NebulaPlan,
     application: Option<&'a NebulaApplication>,
 ) -> Result<ShapeContext<'a>, NebulaFPrimeRelationError> {
-    let dims = neo_reductions::engines::utils::build_dims_and_policy_for_shape(
+    let dims = neo_reductions::engines::pi_ccs_joint::build_joint_dims_for_shape(
         params.inner(),
         folded.n(),
         folded.m(),
         folded.t(),
         folded.max_degree(),
+        1,
+        params.k_rho() as usize,
     )
     .map_err(|error| NebulaFPrimeRelationError::Geometry(format!("verifier dimensions: {error}")))?;
     Ok(ShapeContext {
         params,
         plan,
         config: plan.config(),
-        header_bundle: [F::ZERO; 4],
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: [F::ZERO; 4],
         folded,
         application,
+        joint_variables: dims.variables,
+        joint_degree: dims.degree,
     })
 }
 
@@ -225,9 +221,10 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SynthesizedArm, NebulaF
     })
 }
 
-fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<SynthesizedArm, NebulaFPrimeRelationError> {
-    let block_mode =
-        context.folded.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
+fn synthesize_recursive(
+    context: &ShapeContext<'_>,
+    _steady: bool,
+) -> Result<SynthesizedArm, NebulaFPrimeRelationError> {
     let application_assignment = shape_application_assignment(context.application);
     let semantic = application_semantic_values(context.application, &application_assignment)?;
     let public_input_len =
@@ -237,36 +234,7 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Synt
     let running_parent = Some(ce.clone());
     let fresh = [zero_fresh_claim(context, public_input_len)];
     let outputs = vec![ce.clone(); fresh.len() + running.len()];
-    let mut sumcheck = pi_ccs::SumcheckProof::new(
-        vec![vec![K::ZERO; context.d_sc + 1]; context.ell_n + context.ell_d],
-        None,
-    );
-    // Split-NC has two canonical polynomial shapes. Under the adopted b=2
-    // profile, column rounds use the optimized degree-4 formula (5
-    // coefficients); the trailing Ajtai rounds use the full FE degree.
-    // Modeling every NC round at d_sc+1 produces a relation that honest
-    // optimized proofs cannot inhabit even when its coarse dimensions look
-    // stable.
-    let nc_column_coefficients = match context.params.b() {
-        2 => 5,
-        3 => 7,
-        _ => context.d_sc + 1,
-    };
-    sumcheck.sumcheck_rounds_nc = if block_mode {
-        vec![
-            vec![K::ZERO; neo_reductions::optimized_engine::legacy_split_nc::oracle::BLOCK_LANE_NC_ROUND_COEFFICIENTS];
-            crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT + context.ell_d
-        ]
-    } else {
-        (0..context.ell_m)
-            .map(|_| vec![K::ZERO; nc_column_coefficients])
-            .chain((0..context.ell_d).map(|_| vec![K::ZERO; context.d_sc + 1]))
-            .collect()
-    };
-    if block_mode {
-        sumcheck.variant = neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
-    }
-    sumcheck.header_digest = vec![0u8; 32];
+    let sumcheck = pi_ccs::SumcheckProof::new(vec![vec![K::ZERO; context.joint_degree + 1]; context.joint_variables]);
     let outputs_digest = crate::paper::digest::pi_ccs_outputs_digest(&outputs);
     let proof = pi_ccs::Proof {
         sumcheck,
@@ -275,49 +243,17 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Synt
     };
     let combined = ce.clone();
     let children = vec![ce; context.params.k_rho() as usize];
-    let running_pending_projection =
-        (steady && block_mode).then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
     let nifs_msg = NifsVCircuitMessages {
         fresh: &fresh,
         running: &running,
         running_parent_authority: running_parent.as_ref(),
-        running_pending_projection: running_pending_projection.as_ref(),
         pi_ccs: &proof,
         combined: &combined,
         children: &children,
     };
 
-    let running_digest = if block_mode {
-        pending_accumulator_family_digest(
-            &running,
-            context.params.kappa() as usize,
-            running_pending_projection
-                .as_ref()
-                .map(|pending| PendingAccumulatorFamilyState {
-                    old_block: pending.old_block(),
-                    parent_y_zcol: pending.parent_y_zcol(),
-                }),
-        )
-        .map_err(|error| NebulaFPrimeRelationError::Geometry(format!("shape running digest: {error}")))?
-    } else {
-        AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields()
-    };
-    let outgoing_pending = block_mode.then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
-    let output_digest = if block_mode {
-        pending_accumulator_family_digest(
-            &children,
-            context.params.kappa() as usize,
-            outgoing_pending
-                .as_ref()
-                .map(|pending| PendingAccumulatorFamilyState {
-                    old_block: pending.old_block(),
-                    parent_y_zcol: pending.parent_y_zcol(),
-                }),
-        )
-        .map_err(|error| NebulaFPrimeRelationError::Geometry(format!("shape output digest: {error}")))?
-    } else {
-        AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields()
-    };
+    let running_digest = AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields();
+    let output_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
     let mut source = FPrimeSourceImage::new();
     let chunk_count_in_word = source.push_u64_le(1);
     let step_count_in_word = source.push_u64_le(1);
@@ -374,14 +310,10 @@ fn synthesize_recursive(context: &ShapeContext<'_>, steady: bool) -> Result<Synt
 fn step_config<'a>(context: &'a ShapeContext<'a>) -> FPrimeStepConfig<'a> {
     FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: SplitNcPiCcsVConfig {
+            pi_ccs: PiCcsVerifierConfig {
                 params: context.params,
                 structure: context.folded.clone(),
-                header_bundle: context.header_bundle,
-                ell_d: context.ell_d,
-                ell_n: context.ell_n,
-                ell_m: context.ell_m,
-                d_sc: context.d_sc,
+                matrix_digest: context.matrix_digest,
             },
         },
         b: context.params.b(),
@@ -406,7 +338,7 @@ fn shape_state(
 ) -> FPrimeStateIn {
     FPrimeStateIn {
         vk_fs_digest: [F::ZERO; 4],
-        pi_ccs_header_bundle: context.header_bundle,
+        pi_ccs_header_bundle: context.matrix_digest,
         chunk_count_in: u64::from(recursive),
         step_count_in: u64::from(recursive),
         z_0: [F::ZERO; 4],
@@ -462,21 +394,15 @@ fn zero_fresh_claim(context: &ShapeContext<'_>, m_in: usize) -> CcsClaim {
 }
 
 fn zero_ce_claim(context: &ShapeContext<'_>, m_in: usize) -> CeClaim {
-    let d_pad = 1usize << context.ell_d;
+    let d_pad = D.next_power_of_two();
     CeClaim {
         c: Commitment::zeros(D, context.params.kappa() as usize),
         X: Mat::zero(D, m_in, F::ZERO),
-        r: vec![K::ZERO; context.ell_n],
-        s_col: vec![K::ZERO; context.ell_m],
-        y_ring: vec![vec![K::ZERO; d_pad]; context.folded.t()],
-        ct: vec![K::ZERO; context.folded.t()],
-        aux_openings: Vec::new(),
-        y_zcol: vec![K::ZERO; d_pad],
+        r: vec![K::ZERO; context.joint_variables],
+        y_ring: vec![vec![K::ZERO; d_pad]; context.folded.t() + 1],
+        ct: vec![K::ZERO; context.folded.t() + 1],
         m_in,
         fold_digest: [0u8; 32],
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
         adv: Some(zero_lane_commitments(context.params)),
     }
 }

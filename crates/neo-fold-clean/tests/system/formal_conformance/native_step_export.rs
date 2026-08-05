@@ -13,7 +13,6 @@ use neo_fold_clean::paper::nifs::{self, NifsProof};
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_fold_clean::{CcsInstance, Preprocessing, RunningInstance};
 use neo_math::{F, K};
-use neo_reductions::optimized_engine::PiCcsProofVariant;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use serde::Serialize;
 
@@ -62,8 +61,8 @@ pub fn checked_native_step_receipts() -> (String, String) {
             &Outcome::Rejected(StableError::StatelessSemanticInvariantViolated),
             &Outcome::Rejected(StableError::XOutMismatch),
             &Outcome::Rejected(StableError::NifsPiDecVerifyRejected),
-            &Outcome::Rejected(StableError::NifsPiCcsProtocolMeOutputRowPointMismatch),
-            &Outcome::Rejected(StableError::NifsPiCcsProtocolMeOutputRowPointMismatch),
+            &Outcome::Rejected(StableError::NifsPiCcsOutputShapeMismatch),
+            &Outcome::Rejected(StableError::NifsPiCcsOutputShapeMismatch),
         ]
     );
     let case = |name: &str| {
@@ -352,7 +351,7 @@ enum StableError {
     StatelessSemanticInvariantViolated,
     XOutMismatch,
     NifsPiDecVerifyRejected,
-    NifsPiCcsProtocolMeOutputRowPointMismatch,
+    NifsPiCcsOutputShapeMismatch,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -448,16 +447,10 @@ struct CeClaimAtom {
     commitment: CommitmentAtom,
     public_input_matrix: MatrixAtom,
     row_point: Vec<Ext>,
-    column_point: Vec<Ext>,
     ring_evaluations: Vec<Vec<Ext>>,
     constant_terms: Vec<Ext>,
-    auxiliary_openings: Vec<Ext>,
-    column_evaluation: Vec<Ext>,
     public_input_len: usize,
     fold_digest: [u8; 32],
-    step_coordinates: Vec<Felt>,
-    u_offset: usize,
-    u_len: usize,
     adv: Option<AdvAtom>,
 }
 
@@ -467,32 +460,19 @@ impl CeClaimAtom {
             commitment: commitment(&value.c),
             public_input_matrix: matrix(&value.X),
             row_point: exts(&value.r),
-            column_point: exts(&value.s_col),
             ring_evaluations: value.y_ring.iter().map(|row| exts(row)).collect(),
             constant_terms: exts(&value.ct),
-            auxiliary_openings: exts(&value.aux_openings),
-            column_evaluation: exts(&value.y_zcol),
             public_input_len: value.m_in,
             fold_digest: value.fold_digest,
-            step_coordinates: felts(&value.c_step_coords),
-            u_offset: value.u_offset,
-            u_len: value.u_len,
             adv: value.adv.as_ref().map(adv),
         }
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-struct PendingProjectionAtom {
-    old_block: Vec<Ext>,
-    parent_y_zcol: Vec<Ext>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 struct RunningAtom {
     ordered_children: Vec<u32>,
     parent_authority: Option<u32>,
-    pending_projection: Option<PendingProjectionAtom>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -509,36 +489,9 @@ struct NifsProofAtom {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 struct PiCcsProofAtom {
-    variant: PiCcsVariant,
     sumcheck_rounds: Vec<Vec<Ext>>,
-    initial_sum: Option<Ext>,
-    sumcheck_challenges: Vec<Ext>,
-    nc_sumcheck_rounds: Vec<Vec<Ext>>,
-    nc_initial_sum: Option<Ext>,
-    nc_sumcheck_challenges: Vec<Ext>,
-    public_challenges: PublicChallengesAtom,
-    final_sum: Ext,
-    nc_final_sum: Ext,
-    header_digest: Vec<u8>,
-    extra: Option<Vec<u8>>,
     ordered_outputs: Vec<u32>,
     outputs_digest: [Felt; 4],
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum PiCcsVariant {
-    SplitNcV1,
-    BlockLaneNcDelayedV1,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-struct PublicChallengesAtom {
-    alpha: Vec<Ext>,
-    beta_a: Vec<Ext>,
-    beta_r: Vec<Ext>,
-    beta_m: Vec<Ext>,
-    gamma: Ext,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -661,18 +614,11 @@ impl<'a> CorpusBuilder<'a> {
             .parent_authority
             .as_ref()
             .map(|claim| self.intern_ce_claim(claim));
-        let pending_projection = running
-            .pending_projection()
-            .map(|pending| PendingProjectionAtom {
-                old_block: exts(pending.old_block()),
-                parent_y_zcol: exts(pending.parent_y_zcol()),
-            });
         intern(
             &mut self.atoms.running,
             RunningAtom {
                 ordered_children,
                 parent_authority,
-                pending_projection,
             },
         )
     }
@@ -700,37 +646,12 @@ impl<'a> CorpusBuilder<'a> {
             .map(|claim| self.intern_ce_claim(claim))
             .collect();
         let sumcheck = &proof.pi_ccs.sumcheck;
-        let variant = match sumcheck.variant {
-            PiCcsProofVariant::SplitNcV1 => PiCcsVariant::SplitNcV1,
-            PiCcsProofVariant::BlockLaneNcDelayedV1 => PiCcsVariant::BlockLaneNcDelayedV1,
-        };
         let pi_ccs = PiCcsProofAtom {
-            variant,
             sumcheck_rounds: sumcheck
                 .sumcheck_rounds
                 .iter()
                 .map(|round| exts(round))
                 .collect(),
-            initial_sum: sumcheck.sc_initial_sum.as_ref().map(ext),
-            sumcheck_challenges: exts(&sumcheck.sumcheck_challenges),
-            nc_sumcheck_rounds: sumcheck
-                .sumcheck_rounds_nc
-                .iter()
-                .map(|round| exts(round))
-                .collect(),
-            nc_initial_sum: sumcheck.sc_initial_sum_nc.as_ref().map(ext),
-            nc_sumcheck_challenges: exts(&sumcheck.sumcheck_challenges_nc),
-            public_challenges: PublicChallengesAtom {
-                alpha: exts(&sumcheck.challenges_public.alpha),
-                beta_a: exts(&sumcheck.challenges_public.beta_a),
-                beta_r: exts(&sumcheck.challenges_public.beta_r),
-                beta_m: exts(&sumcheck.challenges_public.beta_m),
-                gamma: ext(&sumcheck.challenges_public.gamma),
-            },
-            final_sum: ext(&sumcheck.sumcheck_final),
-            nc_final_sum: ext(&sumcheck.sumcheck_final_nc),
-            header_digest: sumcheck.header_digest.clone(),
-            extra: sumcheck._extra.clone(),
             ordered_outputs,
             outputs_digest: proof.pi_ccs.outputs_digest.map(felt),
         };
@@ -866,7 +787,10 @@ impl<'a> CorpusBuilder<'a> {
             final_stage,
             result,
         } = execution;
-        let stable_result_error = result.as_ref().err().map(stable_step_error);
+        let stable_result_error = result
+            .as_ref()
+            .err()
+            .map(|error| stable_step_error(name, error));
         let input_state = self.intern_execution_state(&input.state);
         let ordered_claims = input
             .next_latest_claims
@@ -1053,7 +977,7 @@ impl<'a> CorpusBuilder<'a> {
         };
         let (recorded_next, outcome) = match result {
             Ok(state) => (Some(self.intern_state(&state)), Outcome::Accepted),
-            Err(error) => (None, Outcome::Rejected(stable_step_error(&error))),
+            Err(error) => (None, Outcome::Rejected(stable_step_error(name, &error))),
         };
         self.cases.push(Receipt {
             name: name.to_owned(),
@@ -1085,8 +1009,8 @@ fn build_native_step_corpus() -> NativeStepCorpus {
     let prep = super::support::toy_preprocessing();
     assert_eq!(
         (prep.structure().n, prep.structure().m, prep.structure().t()),
-        (1, 1, 1),
-        "native-step receipt profile must remain the tiny identity/zero-polynomial fixture"
+        (54, 54, 1),
+        "native-step receipt profile must remain the one-slot Phi81 zero-polynomial fixture"
     );
     assert_eq!(prep.semantic_state_mode(), SemanticStateMode::Stateless);
     assert!(prep.nebula().is_none());
@@ -1320,30 +1244,30 @@ fn enc_inst_digest(proof: &StepProof) -> [u8; 32] {
     digest
 }
 
-fn stable_step_error(error: &construction2::Error) -> StableError {
+fn stable_step_error(case: &str, error: &construction2::Error) -> StableError {
     match error {
         construction2::Error::EmptyStep => StableError::EmptyStep,
         construction2::Error::FoldProofVariantMismatch => StableError::FoldProofVariantMismatch,
         construction2::Error::StatelessSemanticInvariantViolated => StableError::StatelessSemanticInvariantViolated,
         construction2::Error::XOutMismatch => StableError::XOutMismatch,
-        construction2::Error::Nifs(error) => stable_nifs_error(error),
-        other => panic!("unexpected native verify_step error in fixed corpus: {other:?}"),
+        construction2::Error::Nifs(error) => stable_nifs_error(case, error),
+        other => panic!("unexpected native verify_step error in fixed corpus case {case}: {other:?}"),
     }
 }
 
-fn stable_nifs_error(error: &nifs::Error) -> StableError {
+fn stable_nifs_error(case: &str, error: &nifs::Error) -> StableError {
     match error {
         nifs::Error::PiDec(neo_fold_clean::paper::pi_dec::Error::VerifyRejected) => {
             StableError::NifsPiDecVerifyRejected
         }
         nifs::Error::PiCcs(neo_fold_clean::paper::pi_ccs::Error::Engine(
-            neo_fold_clean::engine::optimized::Error::Reductions(neo_reductions::error::PiCcsError::ProtocolError(
+            neo_fold_clean::engine::optimized::Error::Reductions(neo_reductions::error::PiCcsError::InvalidInput(
                 message,
             )),
-        )) if message == "split Π_CCS: me_outputs[0].r does not match FE r'" => {
-            StableError::NifsPiCcsProtocolMeOutputRowPointMismatch
+        )) if message == "optimized output does not have the one-joint shape" => {
+            StableError::NifsPiCcsOutputShapeMismatch
         }
-        other => panic!("unexpected NIFS error in fixed native-step corpus: {other:?}"),
+        other => panic!("unexpected NIFS error in fixed native-step corpus case {case}: {other:?}"),
     }
 }
 

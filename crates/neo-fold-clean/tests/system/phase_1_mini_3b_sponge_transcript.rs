@@ -16,12 +16,9 @@ use neo_fold_clean::paper::digest::digest32_as_fields;
 use neo_fold_clean::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
 use neo_math::F;
-use neo_reductions::engines::utils::{
-    PI_CCS_HEADER_BUNDLE_RAW_TAG, PI_CCS_INSTANCE_DIGEST_RAW_TAG, PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG,
-    PI_CCS_ME_COUNT_RAW_TAG, PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG, PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG,
-    PI_CCS_SUMCHECK_INITIAL_RAW_TAG, PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG,
+use neo_reductions::engines::pi_ccs_joint::{
+    ALPHA_TAG, GAMMA_TAG, PROTOCOL_VERSION, PUBLIC_INPUT_TAG, ROUND_CHALLENGE_TAG, ROUND_TAG, STATEMENT_TAG,
 };
-use neo_reductions::sumcheck::SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG;
 use neo_transcript::{Poseidon2Transcript, Transcript as _};
 use p3_field::PrimeCharacteristicRing;
 
@@ -103,32 +100,23 @@ fn append_f_prime_state_prefix(native: &mut Poseidon2Transcript, builder: &mut S
 }
 
 fn append_engine_prefix(native: &mut Poseidon2Transcript, builder: &mut SpongeTraceBuilder) {
-    let header = deterministic_digest(2_000);
-    let instance = deterministic_digest(3_000);
-    let handle = deterministic_digest(4_000);
-    let sequences: [Vec<F>; 5] = [
+    let public = deterministic_digest(2_000);
+    let statement = deterministic_digest(3_000);
+    let sequences: [Vec<F>; 2] = [
         vec![
-            F::from_u64(PI_CCS_HEADER_BUNDLE_RAW_TAG),
-            header[0],
-            header[1],
-            header[2],
-            header[3],
+            F::from_u64(PUBLIC_INPUT_TAG),
+            F::from_u64(PROTOCOL_VERSION),
+            public[0],
+            public[1],
+            public[2],
+            public[3],
         ],
         vec![
-            F::from_u64(PI_CCS_INSTANCE_DIGEST_RAW_TAG),
-            instance[0],
-            instance[1],
-            instance[2],
-            instance[3],
-        ],
-        vec![F::from_u64(PI_CCS_ME_INPUTS_RAW_DOMAIN_TAG)],
-        vec![F::from_u64(PI_CCS_ME_COUNT_RAW_TAG), F::from_u64(2)],
-        vec![
-            F::from_u64(PI_CCS_ME_ACCUMULATOR_HANDLE_RAW_TAG),
-            handle[0],
-            handle[1],
-            handle[2],
-            handle[3],
+            F::from_u64(STATEMENT_TAG),
+            statement[0],
+            statement[1],
+            statement[2],
+            statement[3],
         ],
     ];
     for fields in &sequences {
@@ -168,92 +156,51 @@ fn phase_1_mini_3b_f_prime_state_absorbs_preserve_sponge_state() {
 #[test]
 fn phase_1_mini_3b_engine_challenge_batch_decodes() {
     let (mut native, mut builder) = start_prefixed_transcripts();
-    let ell_d = 2usize;
-    let ell_n = 3usize;
-    let total_k = ell_d + ell_d + ell_n + 1;
+    let variables = 3usize;
+    let mut expected = Vec::with_capacity(2 * (variables + 1));
 
-    native.append_fields_raw(&[F::from_u64(2)]);
-    builder.append_fields_raw(&[F::from_u64(2)]);
-    let expected = native.challenge_fields_raw(2 * total_k);
-    let got = builder.challenge_fields_raw(2 * total_k);
+    for index in 0..variables {
+        let tag = [F::from_u64(ALPHA_TAG), F::from_u64(index as u64)];
+        native.append_fields_raw(&tag);
+        builder.append_fields_raw(&tag);
+        let challenge = native.challenge_fields_raw(2);
+        assert_eq!(builder.challenge_fields_raw(2), challenge);
+        expected.extend(challenge);
+    }
+    let tag = [F::from_u64(GAMMA_TAG)];
+    native.append_fields_raw(&tag);
+    builder.append_fields_raw(&tag);
+    let challenge = native.challenge_fields_raw(2);
+    assert_eq!(builder.challenge_fields_raw(2), challenge);
+    expected.extend(challenge);
     let image = builder.finish();
 
-    assert_eq!(got, expected, "builder challenge values");
     assert_trace_matches_native(&image, &native, &expected);
     eprintln!(
-        "mini-3b R-12: {} K challenges, {} squeezed F lanes, {} permutes",
-        total_k,
+        "mini-3b R-12: {} alpha/gamma K challenges, {} squeezed F lanes, {} permutes",
+        variables + 1,
         expected.len(),
         image.layout.permute_offsets.len()
     );
 }
 
 #[test]
-fn phase_1_mini_3b_beta_m_raw_squeeze_decodes_after_engine_challenges() {
-    let (mut native, mut builder) = start_prefixed_transcripts();
-    let ell_d = 2usize;
-    let ell_n = 3usize;
-    let ell_m = 2usize;
-    let total_k = ell_d + ell_d + ell_n + 1;
-
-    native.append_fields_raw(&[F::from_u64(2)]);
-    builder.append_fields_raw(&[F::from_u64(2)]);
-    let mut expected = native.challenge_fields_raw(2 * total_k);
-    let got_engine = builder.challenge_fields_raw(2 * total_k);
-    assert_eq!(got_engine, expected);
-
-    native.append_fields_raw(&[F::from_u64(3)]);
-    builder.append_fields_raw(&[F::from_u64(3)]);
-    let beta_m = native.challenge_fields_raw(2 * ell_m);
-    let got_beta_m = builder.challenge_fields_raw(2 * ell_m);
-    expected.extend(beta_m.iter().copied());
-    let image = builder.finish();
-
-    assert_eq!(got_beta_m, beta_m, "builder beta_m values");
-    assert_trace_matches_native(&image, &native, &expected);
-    eprintln!(
-        "mini-3b R-20: beta_m {} K challenges, {} total squeezed F lanes",
-        ell_m,
-        expected.len()
-    );
-}
-
-#[test]
-fn phase_1_mini_3b_fe_and_nc_sumcheck_round_squeezes_decode() {
+fn phase_1_mini_3b_joint_sumcheck_round_squeezes_decode() {
     let (mut native, mut builder) = start_prefixed_transcripts();
     let mut expected = Vec::new();
 
-    native.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
-    builder.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_FE_RAW_DOMAIN_TAG)]);
-    native.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
-    builder.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
-    native.append_fields_raw(&[F::from_u64(71), F::from_u64(72)]);
-    builder.append_fields_raw(&[F::from_u64(71), F::from_u64(72)]);
-    native.append_fields_raw(&[F::from_u64(SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
-    builder.append_fields_raw(&[F::from_u64(SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
-
-    for round in deterministic_k_rounds(3, 4, 5_000) {
-        let fields = flatten_k_round(&round);
+    for (round_index, round) in deterministic_k_rounds(5, 10, 5_000).iter().enumerate() {
+        let mut fields = vec![
+            F::from_u64(ROUND_TAG),
+            F::from_u64(round_index as u64),
+            F::from_u64(round.len() as u64),
+        ];
+        fields.extend(flatten_k_round(round));
         native.append_fields_raw(&fields);
         builder.append_fields_raw(&fields);
-        let challenge = native.challenge_fields_raw(2);
-        assert_eq!(builder.challenge_fields_raw(2), challenge);
-        expected.extend(challenge);
-    }
-
-    native.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
-    builder.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_NC_RAW_DOMAIN_TAG)]);
-    native.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
-    builder.append_fields_raw(&[F::from_u64(PI_CCS_SUMCHECK_INITIAL_RAW_TAG)]);
-    native.append_fields_raw(&[F::ZERO, F::ZERO]);
-    builder.append_fields_raw(&[F::ZERO, F::ZERO]);
-    native.append_fields_raw(&[F::from_u64(SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
-    builder.append_fields_raw(&[F::from_u64(SUMCHECK_TRANSCRIPT_V3_RAW_DOMAIN_TAG)]);
-
-    for round in deterministic_k_rounds(2, 3, 6_000) {
-        let fields = flatten_k_round(&round);
-        native.append_fields_raw(&fields);
-        builder.append_fields_raw(&fields);
+        let challenge_tag = [F::from_u64(ROUND_CHALLENGE_TAG), F::from_u64(round_index as u64)];
+        native.append_fields_raw(&challenge_tag);
+        builder.append_fields_raw(&challenge_tag);
         let challenge = native.challenge_fields_raw(2);
         assert_eq!(builder.challenge_fields_raw(2), challenge);
         expected.extend(challenge);
@@ -262,7 +209,7 @@ fn phase_1_mini_3b_fe_and_nc_sumcheck_round_squeezes_decode() {
     let image = builder.finish();
     assert_trace_matches_native(&image, &native, &expected);
     eprintln!(
-        "mini-3b R-22/R-23: {} sumcheck rounds, {} squeezed F lanes",
+        "mini-3b R-22: {} joint SumCheck rounds, {} squeezed F lanes",
         5,
         expected.len()
     );

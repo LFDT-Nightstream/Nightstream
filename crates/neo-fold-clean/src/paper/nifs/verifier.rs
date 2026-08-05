@@ -22,7 +22,6 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
-use crate::paper::nifs::work::outgoing_pending_projection;
 use crate::paper::nifs::{Error, NifsProof};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, DecMixer, RlcMixer, Structure};
@@ -61,7 +60,6 @@ pub fn verify(
     #[cfg(feature = "perf-timers")]
     let pi_rlc_started = std::time::Instant::now();
     let combined = pi_rlc::verify(tr, pp, s, mix_rhos_commits, &ccs_out_claims, &proof.pi_rlc)?;
-    let pending_projection = outgoing_pending_projection(proof.pi_ccs.sumcheck.variant, &ccs_out_claims, &combined)?;
     #[cfg(feature = "perf-timers")]
     let pi_rlc_elapsed = pi_rlc_started.elapsed();
     #[cfg(feature = "perf-timers")]
@@ -80,12 +78,44 @@ pub fn verify(
         ccs_out_claims.len(),
         children.len(),
     );
-    Ok(RunningInstance::new(
-        children,
-        Vec::new(),
-        Some(combined),
-        pending_projection,
-    ))
+    Ok(RunningInstance::new(children, Vec::new(), Some(combined)))
+}
+
+/// Independent PaperExact verifier replay for the same NIFS proof bytes.
+pub fn verify_paper_exact(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh_claims: &[CcsClaim],
+    running: &RunningInstance,
+    proof: &NifsProof,
+) -> Result<RunningInstance, Error> {
+    validate_running_parent_authority_paper_exact(pp, s, combine_b_pows, running)?;
+    let ccs_out_claims = pi_ccs::verify_paper_exact(tr, pp, s, fresh_claims, running, &proof.pi_ccs)?;
+    let combined = pi_rlc::verify_paper_exact(tr, pp, s, mix_rhos_commits, &ccs_out_claims, &proof.pi_rlc)?;
+    let children = pi_dec::verify_paper_exact(pp, s, combine_b_pows, &combined, &proof.pi_dec)?;
+    Ok(RunningInstance::new(children, Vec::new(), Some(combined)))
+}
+
+fn validate_running_parent_authority_paper_exact(
+    pp: &Params,
+    s: &Structure,
+    combine: DecMixer,
+    running: &RunningInstance,
+) -> Result<(), Error> {
+    match (running.claims.is_empty(), running.parent_authority.as_ref()) {
+        (true, None) => Ok(()),
+        (true, Some(_)) | (false, None) => Err(pi_dec::Error::VerifyRejected.into()),
+        (false, Some(parent)) => {
+            let proof = pi_dec::Proof {
+                children: running.claims.clone(),
+            };
+            pi_dec::verify_paper_exact(pp, s, combine, parent, &proof)?;
+            Ok(())
+        }
+    }
 }
 
 fn validate_running_parent_authority(

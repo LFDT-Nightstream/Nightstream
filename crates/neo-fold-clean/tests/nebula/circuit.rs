@@ -1,5 +1,5 @@
-//! `S_mem` circuit tests — spec §4 rows, honest and adversarial, plus the
-//! PR-3 cost gate (spec §10's 2× rule as an executable assertion).
+//! `S_mem` circuit tests — the step circuit rows, honest and adversarial, plus the
+//! The 2× cost bound as an executable assertion.
 //!
 //! The load-bearing test is `full_segment_chains_and_matches_oracle`: every
 //! step of a native segment satisfies the circuit, steps chain through
@@ -257,7 +257,7 @@ fn field_native_r1cs_lowering_matches_s_mem_acceptance_and_rejection() {
 
 #[test]
 fn cost_gate_within_spec_budget() {
-    // Spec §10: `S_mem` ≈ 58k rows at v3 targets; off by 2× reopens the
+    // the cost bound: `S_mem` ≈ 58k rows at v3 targets; off by 2× reopens the
     // spec. This test is that rule, executable.
     let v3 = SMemCircuit::new(NebulaParams::v3_targets());
     println!(

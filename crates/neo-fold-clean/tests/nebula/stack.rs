@@ -1,8 +1,8 @@
-//! v3.1 stacks — spec §2/§3.1 discipline, the §4.1 rows E10–E14, the
-//! §6.3 `sp` carry, and every §12 stack red-team row, from the native
+//! v3.1 stacks — plan and stack discipline, operation rows E10–E14, the
+//! `sp` carry, and every stack red-team row, from the native
 //! machine up through the full two-segment pipeline.
 //!
-//! Layering under test (spec §9 Lemma 4): the *rows* enforce pointer
+//! The rows enforce pointer
 //! discipline (addr = sp, no under/overflow, one-hot selectors, pinned
 //! `sw`, dead push fields); the *product equation* enforces value/time
 //! truth (a wrong-value pop satisfies every row and dies at close); the
@@ -88,7 +88,7 @@ fn segment1(memory: &mut Memory) -> SegmentTrace {
 fn lane_error(err: SegmentError) -> NebulaError {
     match err {
         SegmentError::Lifecycle(LifecycleError::Construction2(C2Error::Nebula(e))) => e,
-        other => panic!("expected a §6.3 lane rejection, got {other}"),
+        other => panic!("expected a lane-transition rejection, got {other}"),
     }
 }
 
@@ -127,7 +127,7 @@ fn stack_segment_balances_exactly_with_one_tuple_per_op() {
 }
 
 /// The honest-path API guards: under/overflow, unknown stacks, and the
-/// segment-local discipline at close (spec §3.1).
+/// segment-local discipline at close.
 #[test]
 fn stack_api_rejects_misuse() {
     let mut memory = Memory::new(stack_params(), &ROM).expect("memory");
@@ -136,7 +136,7 @@ fn stack_api_rejects_misuse() {
     assert_eq!(run.pop(0), Err(TraceError::StackUnderflow(0)));
     assert_eq!(run.push(2, 1), Err(TraceError::StackIndex { got: 2, stacks: 2 }));
 
-    // Capacity is 2^σ − 1 = 3 cells (bitness-pure bound, spec §2).
+    // Capacity is 2^σ − 1 = 3 cells (bitness-pure bound, the plan).
     run.push(0, 1).expect("1");
     run.push(0, 2).expect("2");
     run.push(0, 3).expect("3");
@@ -287,7 +287,7 @@ fn stack_segments_prove_and_verify_end_to_end() {
     assert_eq!(lane.seg_idx, 2);
 }
 
-/// §12 "Pop a different value than was pushed": every row holds, the
+/// "Pop a different value than was pushed": every row holds, the
 /// commitments match `D_pre` — only the product equation catches it.
 #[test]
 fn wrong_value_pop_fails_the_product_equation() {
@@ -306,7 +306,7 @@ fn wrong_value_pop_fails_the_product_equation() {
     assert_eq!(lane_error(err), NebulaError::ProductEquation);
 }
 
-/// §12 "Pop claiming a wrong `push_time`": the RS tuple matches no WS
+/// "Pop claiming a wrong `push_time`": the RS tuple matches no WS
 /// push tuple, so the products cannot balance.
 #[test]
 fn wrong_push_time_pop_fails_the_product_equation() {
@@ -322,9 +322,10 @@ fn wrong_push_time_pop_fails_the_product_equation() {
     assert_eq!(lane_error(err), NebulaError::ProductEquation);
 }
 
-/// §12 "Push without popping": the trace API refuses at `finish`; a
+/// "Push without popping": the trace API refuses at `finish`; a
 /// forged trace that drops a trailing pop lands on the deterministic
-/// `sp = 0` close check (the product equation backs it, w.p. §9).
+/// `sp = 0` close check, backed by the product equation except with the
+/// configured fingerprint-collision probability.
 #[test]
 fn unpopped_push_fails_the_close() {
     let plan = plan();
@@ -345,7 +346,7 @@ fn unpopped_push_fails_the_close() {
     assert_eq!(lane_error(err), NebulaError::StackNotEmptyAtClose);
 }
 
-/// §12 "Cross-stack splice": pop from stack 1 what was pushed to stack 0.
+/// "Cross-stack splice": pop from stack 1 what was pushed to stack 0.
 /// Both pointer disciplines are locally consistent, but the tuples live
 /// in disjoint `g`-ranges — the product equation rejects.
 #[test]

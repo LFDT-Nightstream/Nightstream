@@ -1494,69 +1494,6 @@ pub(crate) fn project_rows_with_alignment(
     )
 }
 
-pub(crate) fn project_rows_with_source_provenance_with_alignment(
-    arms: &[SparseR1cs],
-    shared_private_fields: usize,
-    shared_private_bit_fields: usize,
-    modulus: usize,
-    residue: usize,
-    selected_rows: &[usize],
-    source_arm: usize,
-    source_columns: &[usize],
-    retained_row_pairs: &[(usize, usize)],
-    decoder_source_columns: &[usize],
-) -> Result<SelectiveProjectedRowsAudit, LowNormR1csError> {
-    project_rows_inner(
-        arms,
-        shared_private_fields,
-        shared_private_bit_fields,
-        modulus,
-        residue,
-        selected_rows,
-        Some((
-            source_arm,
-            source_columns,
-            retained_row_pairs,
-            Some(decoder_source_columns),
-        )),
-        None,
-    )
-}
-
-/// Project a selected row slice and, in the same prepared-layout pass,
-/// export one complete run-compressed decoder interval.  The extra decoder
-/// request does not add selected rows or change the row projection.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn project_rows_with_source_provenance_and_decoder_runs_with_alignment(
-    arms: &[SparseR1cs],
-    shared_private_fields: usize,
-    shared_private_bit_fields: usize,
-    modulus: usize,
-    residue: usize,
-    selected_rows: &[usize],
-    source_arm: usize,
-    source_columns: &[usize],
-    retained_row_pairs: &[(usize, usize)],
-    decoder_source_columns: &[usize],
-    decoder_run_source_range: std::ops::Range<usize>,
-) -> Result<SelectiveProjectedRowsAudit, LowNormR1csError> {
-    project_rows_inner(
-        arms,
-        shared_private_fields,
-        shared_private_bit_fields,
-        modulus,
-        residue,
-        selected_rows,
-        Some((
-            source_arm,
-            source_columns,
-            retained_row_pairs,
-            Some(decoder_source_columns),
-        )),
-        Some((source_arm, decoder_run_source_range)),
-    )
-}
-
 /// Project rows once and decode the exact transitive source-column closure
 /// computed by that same provenance pass.
 pub(crate) fn project_rows_with_complete_source_provenance_with_alignment(

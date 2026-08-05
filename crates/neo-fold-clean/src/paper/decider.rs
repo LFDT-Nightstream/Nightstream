@@ -243,10 +243,10 @@ pub fn validate_witness(
             &state,
             semantic_mode,
         )?;
-        // Nebula lane replay (spec §6.3): recompute the advanced lane
+        // Nebula lane replay (the lane transition): recompute the advanced lane
         // from the deposited claims and the step's segment-open payload —
         // the same shared transition the prover ran. Divergence surfaces
-        // as the specific §6.3 check that failed, before x_out.
+        // as the specific lane-transition check that failed, before x_out.
         let nebula_advance = match (nebula, &state.nebula) {
             (Some(cfg), Some(lane)) => {
                 let mut lane_out = lane.clone();
@@ -394,7 +394,6 @@ pub fn validate_witness(
     let prover_running = final_running(final_state)?;
     if prover_running.claims != walked_running.claims
         || prover_running.parent_authority != walked_running.parent_authority
-        || prover_running.pending_projection() != walked_running.pending_projection()
     {
         return Err(Error::WitnessShape);
     }
@@ -435,7 +434,6 @@ fn validate_terminal_fold_snapshot(state: &State, snapshot: &TerminalFoldInputs)
     if !snapshot.pre_final_running.witnesses.is_empty()
         || snapshot.pre_final_running.claims != expected_running.claims
         || snapshot.pre_final_running.parent_authority != expected_running.parent_authority
-        || snapshot.pre_final_running.pending_projection() != expected_running.pending_projection()
         || snapshot.pre_nebula != state.nebula
         || snapshot.latest.instances.len() != latest.instances.len()
     {

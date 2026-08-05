@@ -15,16 +15,13 @@ mod support;
 use neo_ajtai::{s_mul_add, Commitment};
 use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_fold_clean::engine::optimized;
-use neo_fold_clean::engine::r1cs_circuit::field_ext::KVar;
-use neo_fold_clean::engine::r1cs_circuit::Lc;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::engine::transcript::Transcript as PaperTranscript;
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::digest::pi_ccs_outputs_digest;
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::{
-    alloc_rlc_commitment_inputs, alloc_rlc_x_inputs, alloc_rlc_y_row_inputs, alloc_rlc_y_zcol_inputs,
-    enforce_rlc_commitment_combination, enforce_rlc_s_col_consistency, enforce_rlc_x_combination,
-    enforce_rlc_y_row_combination, enforce_rlc_y_zcol_combination,
+    alloc_rlc_commitment_inputs, alloc_rlc_x_inputs, alloc_rlc_y_row_inputs, enforce_rlc_commitment_combination,
+    enforce_rlc_x_combination, enforce_rlc_y_row_combination,
 };
 use neo_fold_clean::paper::relations::CcsClaim;
 use neo_fold_clean::paper::{nifs, pi_ccs, pi_rlc};
@@ -636,34 +633,6 @@ fn pi_rlc_commitment_combination_rejects_tampered_rho_under_transcript() {
 // ── Native Π_RLC.V sidecar authority ─────────────────────────────────────
 
 #[test]
-fn pi_rlc_native_rejects_combined_s_col_not_inherited_from_outputs() {
-    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(901);
-    assert!(!proof.pi_rlc.combined.s_col.is_empty(), "fixture must carry s_col");
-    proof.pi_rlc.combined.s_col[0] += K::ONE;
-
-    let err = verify_pi_rlc_only(&prep, &fresh_claims, &running, &proof)
-        .expect_err("native Π_RLC.V accepted a same-shape combined.s_col relabel");
-    assert!(
-        matches!(err, pi_rlc::Error::SColConsistency),
-        "expected SColConsistency, got {err:?}"
-    );
-}
-
-#[test]
-fn pi_rlc_native_rejects_combined_y_zcol_not_folded_from_outputs() {
-    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(902);
-    assert!(!proof.pi_rlc.combined.y_zcol.is_empty(), "fixture must carry y_zcol");
-    proof.pi_rlc.combined.y_zcol[0] += K::ONE;
-
-    let err = verify_pi_rlc_only(&prep, &fresh_claims, &running, &proof)
-        .expect_err("native Π_RLC.V accepted combined.y_zcol not equal to the RLC of Π_CCS outputs");
-    assert!(
-        matches!(err, pi_rlc::Error::YZcolConsistency),
-        "expected YZcolConsistency, got {err:?}"
-    );
-}
-
-#[test]
 fn pi_rlc_native_rejects_combined_ct_not_derived_from_y_ring() {
     let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(903);
     assert!(!proof.pi_rlc.combined.ct.is_empty(), "fixture must carry ct");
@@ -715,44 +684,6 @@ fn pi_rlc_native_rejects_extra_self_consistent_y_ring_row() {
             pi_rlc::Error::YRingShape("input") | pi_rlc::Error::YRingShape("combined")
         ),
         "expected y_ring row-count rejection, got {err:?}"
-    );
-}
-
-#[test]
-fn pi_rlc_native_rejects_extra_self_consistent_s_col_limb() {
-    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture(905);
-    let mut tr = PaperTranscript::session();
-    let mut outputs = pi_ccs::verify(
-        &mut tr,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        &fresh_claims,
-        &running,
-        &proof.pi_ccs,
-    )
-    .expect("Π_CCS.V fixture must accept");
-
-    for output in &mut outputs {
-        output.s_col.push(K::ZERO);
-    }
-    proof.pi_rlc.combined.s_col.push(K::ZERO);
-
-    let err = pi_rlc::verify(
-        &mut tr,
-        &prep.params,
-        prep.structure(),
-        prep.mix_rhos_commits(),
-        &outputs,
-        &proof.pi_rlc,
-    )
-    .expect_err("native Π_RLC.V accepted an extra self-consistent s_col limb");
-    assert!(
-        matches!(
-            err,
-            pi_rlc::Error::SColShape("input") | pi_rlc::Error::SColShape("combined")
-        ),
-        "expected s_col shape rejection, got {err:?}"
     );
 }
 
@@ -859,87 +790,8 @@ fn pi_rlc_native_rejects_input_fold_digest_not_inherited_by_combined_parent() {
 }
 
 #[test]
-fn pi_rlc_native_rejects_extra_self_consistent_aux_openings_sidecar() {
-    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture_many(908, 2);
-    let mut tr = PaperTranscript::session();
-    let mut outputs = pi_ccs::verify(
-        &mut tr,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        &fresh_claims,
-        &running,
-        &proof.pi_ccs,
-    )
-    .expect("Π_CCS.V fixture must accept");
-
-    for output in &mut outputs {
-        output.aux_openings.push(K::ZERO);
-    }
-    proof.pi_rlc.combined.aux_openings.push(K::ZERO);
-
-    let err = pi_rlc::verify(
-        &mut tr,
-        &prep.params,
-        prep.structure(),
-        prep.mix_rhos_commits(),
-        &outputs,
-        &proof.pi_rlc,
-    )
-    .expect_err("native Π_RLC.V accepted an unsupported self-consistent aux_openings sidecar");
-    assert!(
-        matches!(
-            err,
-            pi_rlc::Error::UnsupportedSidecar {
-                owner: "input",
-                field: "aux_openings"
-            }
-        ),
-        "expected aux_openings sidecar rejection, got {err:?}"
-    );
-}
-
-#[test]
-fn pi_rlc_native_rejects_input_pattern_a_sidecar() {
-    let (prep, fresh_claims, running, proof) = native_pi_rlc_fixture_many(909, 2);
-    let mut tr = PaperTranscript::session();
-    let mut outputs = pi_ccs::verify(
-        &mut tr,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        &fresh_claims,
-        &running,
-        &proof.pi_ccs,
-    )
-    .expect("Π_CCS.V fixture must accept");
-
-    outputs[0].c_step_coords.push(F::ONE);
-
-    let err = pi_rlc::verify(
-        &mut tr,
-        &prep.params,
-        prep.structure(),
-        prep.mix_rhos_commits(),
-        &outputs,
-        &proof.pi_rlc,
-    )
-    .expect_err("native Π_RLC.V accepted an unsupported input c_step_coords sidecar");
-    assert!(
-        matches!(
-            err,
-            pi_rlc::Error::UnsupportedSidecar {
-                owner: "input",
-                field: "c_step_coords"
-            }
-        ),
-        "expected c_step_coords sidecar rejection, got {err:?}"
-    );
-}
-
-#[test]
 fn pi_rlc_native_rejects_nonzero_inactive_input_x() {
-    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture_public_input_len_2(911, 2);
+    let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture_complete_public_ring(911, 2);
 
     let mut raw_tr = Poseidon2Transcript::new(b"neo.fold.clean/session/v1");
     let pi_ccs_ok = neo_fold_clean::engine::optimized::verify_pi_ccs(
@@ -1135,20 +987,21 @@ fn native_pi_rlc_fixture_many(
     (prep, fresh_claims, running, proof)
 }
 
-fn native_pi_rlc_fixture_public_input_len_2(
+fn native_pi_rlc_fixture_complete_public_ring(
     seed: u64,
     fresh_count: usize,
 ) -> (Preprocessing, Vec<CcsClaim>, RunningInstance, nifs::NifsProof) {
     assert!(fresh_count > 0);
     let structure =
-        CcsStructure::new(vec![Mat::identity(2)], SparsePoly::new(1, vec![])).expect("m_in=2 toy CCS structure");
+        CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, vec![])).expect("whole-ring toy CCS structure");
     let params = config::r1cs_params(structure.n, structure.m).expect("production-core toy params");
     support::install_ajtai_module(&params, &structure);
-    let prep = preprocess(params, structure, Some(2)).expect("m_in=2 toy preprocessing");
+    let prep = preprocess(params, structure, Some(D)).expect("whole-ring toy preprocessing");
     let fresh = (0..fresh_count)
         .map(|idx| {
-            CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[F::ZERO, F::ZERO], 2)
-                .unwrap_or_else(|err| panic!("m_in=2 toy instance {}: {err}", seed + idx as u64))
+            let assignment = vec![F::ZERO; D];
+            CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, D)
+                .unwrap_or_else(|err| panic!("whole-ring toy instance {}: {err}", seed + idx as u64))
         })
         .collect::<Vec<_>>();
     let fresh_claims = fresh
@@ -1169,7 +1022,7 @@ fn native_pi_rlc_fixture_public_input_len_2(
         fresh,
         &running,
     )
-    .expect("NIFS.P m_in=2 fixture");
+    .expect("NIFS.P whole-ring fixture");
     (prep, fresh_claims, running, proof)
 }
 
@@ -1227,7 +1080,7 @@ fn pi_rlc_native_rejects_noncanonical_fold_digest_limb_alias() {
     let rhos = optimized::sample_rho_n(&mut rho_tr, &prep.params, outputs.len()).expect("sample forged rhos");
     let dummy_witnesses = outputs
         .iter()
-        .map(|_| Mat::zero(D, prep.structure().m, F::ZERO))
+        .map(|_| Mat::zero(D, prep.structure().m.div_ceil(D), F::ZERO))
         .collect::<Vec<_>>();
     let (combined, _) = optimized::prove_pi_rlc(
         &prep.params,
@@ -1261,259 +1114,6 @@ fn pi_rlc_native_rejects_noncanonical_fold_digest_limb_alias() {
         "expected input fold-digest canonicality rejection, got {err:?}"
     );
 }
-
-// ── SplitNc NC-channel: y_zcol combination + s_col consistency ────────────
-
-/// Native mirror of the padded-K-vector RLC combination:
-/// `acc[0..D] = Σ_i (ρ_i · input_i[0..D])`, `acc[D..d_pad] = 0`. This is
-/// the production semantics that SplitNc y_zcol / y_ring rows obey.
-fn native_padded_y_combine(rhos: &[Rq], ys: &[Vec<K>], d_pad: usize) -> Vec<K> {
-    let mut out = vec![K::ZERO; d_pad];
-    for (rho, y_i) in rhos.iter().zip(ys.iter()) {
-        let mut y_c0 = [F::ZERO; D];
-        let mut y_c1 = [F::ZERO; D];
-        for kk in 0..D {
-            let [c0, c1] = y_i[kk].as_coeffs();
-            y_c0[kk] = c0;
-            y_c1[kk] = c1;
-        }
-        let prod_c0 = rot_apply_vec(rho, &y_c0);
-        let prod_c1 = rot_apply_vec(rho, &y_c1);
-        for rr in 0..D {
-            out[rr] += K::from_coeffs([prod_c0[rr], prod_c1[rr]]);
-        }
-        // Lanes [D, d_pad) deliberately untouched — native leaves them zero.
-    }
-    out
-}
-
-fn deterministic_padded_y(seed: u64, d_pad: usize) -> Vec<K> {
-    // First D lanes carry data; lanes [D, d_pad) are zero on input too
-    // (real SplitNc proofs have zero-padded tail on both inputs and
-    // outputs after one fold).
-    let head = deterministic_y_row(seed);
-    let mut out = vec![K::ZERO; d_pad];
-    for (i, v) in head.into_iter().enumerate() {
-        out[i] = v;
-    }
-    out
-}
-
-#[test]
-fn rlc_y_zcol_combination_accepts_honest_combination_at_d_pad_equal_to_d() {
-    // Degenerate case: d_pad == D so there's no tail to zero.
-    let d_pad = D;
-    let rhos = vec![deterministic_rq(701), deterministic_rq(702)];
-    let ys = vec![deterministic_padded_y(801, d_pad), deterministic_padded_y(802, d_pad)];
-    let combined = native_padded_y_combine(&rhos, &ys, d_pad);
-    let rho_cols: Vec<[F; D]> = rhos.iter().copied().map(cf).collect();
-
-    let mut b = R1csBuilder::new();
-    let wires = alloc_rlc_y_zcol_inputs(&mut b, &rho_cols, &ys, &combined, d_pad).expect("alloc y_zcol");
-    enforce_rlc_y_zcol_combination(&mut b, &wires);
-
-    assert!(b.is_satisfied(), "honest y_zcol combination rejected at d_pad=D");
-}
-
-#[test]
-fn rlc_y_zcol_combination_accepts_honest_combination_at_production_d_pad() {
-    // Production shape: D=54, d_pad=64. The combined output's lanes
-    // [D, d_pad) are constrained to zero in-circuit; verifying that
-    // native_padded_y_combine produces zero there.
-    let d_pad = D.next_power_of_two();
-    assert!(d_pad > D, "test only meaningful when d_pad > D");
-
-    let rhos = vec![deterministic_rq(721), deterministic_rq(722)];
-    let ys = vec![deterministic_padded_y(821, d_pad), deterministic_padded_y(822, d_pad)];
-    let combined = native_padded_y_combine(&rhos, &ys, d_pad);
-    // Sanity: native leaves the tail zero.
-    for rr in D..d_pad {
-        assert_eq!(combined[rr], K::ZERO, "native combine should zero lane {rr}");
-    }
-    let rho_cols: Vec<[F; D]> = rhos.iter().copied().map(cf).collect();
-
-    let mut b = R1csBuilder::new();
-    let wires = alloc_rlc_y_zcol_inputs(&mut b, &rho_cols, &ys, &combined, d_pad).expect("alloc y_zcol");
-    enforce_rlc_y_zcol_combination(&mut b, &wires);
-
-    assert!(
-        b.is_satisfied(),
-        "honest y_zcol combination rejected at production d_pad (first bad row: {:?})",
-        b.first_unsatisfied_row()
-    );
-    assert_no_unconstrained_columns(&b, "production-shaped Π_RLC.V padded y_zcol");
-}
-
-#[test]
-fn rlc_y_zcol_combination_rejects_nonzero_tail() {
-    // Soundness witness: if the combined.y_zcol tail [D, d_pad) is non-zero,
-    // the gadget must reject. This catches a prover trying to smuggle a
-    // non-rotation contribution through the padded slot.
-    let d_pad = D.next_power_of_two();
-    assert!(d_pad > D);
-
-    let rhos = vec![deterministic_rq(731), deterministic_rq(732)];
-    let ys = vec![deterministic_padded_y(831, d_pad), deterministic_padded_y(832, d_pad)];
-    let mut combined = native_padded_y_combine(&rhos, &ys, d_pad);
-    // Stuff a non-zero value into the first tail lane.
-    combined[D] = K::ONE;
-    let rho_cols: Vec<[F; D]> = rhos.iter().copied().map(cf).collect();
-
-    let mut b = R1csBuilder::new();
-    let wires = alloc_rlc_y_zcol_inputs(&mut b, &rho_cols, &ys, &combined, d_pad).expect("alloc y_zcol");
-    enforce_rlc_y_zcol_combination(&mut b, &wires);
-
-    assert!(
-        !b.is_satisfied(),
-        "circuit accepted a non-zero combined.y_zcol[D] (tail-must-be-zero violated)"
-    );
-}
-
-#[test]
-fn rlc_y_zcol_combination_rejects_nonzero_input_tail() {
-    // The rotation fold consumes only lanes 0..D. Without explicit input-tail
-    // zero pins, a non-zero padded lane in an input claim would be allocated
-    // but never constrained, while the honest combined output remains zero.
-    let d_pad = D.next_power_of_two();
-    assert!(d_pad > D);
-
-    let rhos = vec![deterministic_rq(741), deterministic_rq(742)];
-    let mut ys = vec![deterministic_padded_y(841, d_pad), deterministic_padded_y(842, d_pad)];
-    let combined = native_padded_y_combine(&rhos, &ys, d_pad);
-    ys[0][D] = K::ONE;
-    let rho_cols: Vec<[F; D]> = rhos.iter().copied().map(cf).collect();
-
-    let mut b = R1csBuilder::new();
-    let wires = alloc_rlc_y_zcol_inputs(&mut b, &rho_cols, &ys, &combined, d_pad).expect("alloc y_zcol");
-    enforce_rlc_y_zcol_combination(&mut b, &wires);
-
-    assert!(
-        !b.is_satisfied(),
-        "circuit accepted a non-zero input.y_zcol[D] padding lane"
-    );
-}
-
-#[test]
-fn rlc_y_zcol_combination_rejects_tampered_combined() {
-    let d_pad = D;
-    let rhos = vec![deterministic_rq(711), deterministic_rq(712)];
-    let ys = vec![deterministic_padded_y(811, d_pad), deterministic_padded_y(812, d_pad)];
-    let combined = native_padded_y_combine(&rhos, &ys, d_pad);
-    let rho_cols: Vec<[F; D]> = rhos.iter().copied().map(cf).collect();
-
-    let mut b = R1csBuilder::new();
-    let wires = alloc_rlc_y_zcol_inputs(&mut b, &rho_cols, &ys, &combined, d_pad).expect("alloc y_zcol");
-    enforce_rlc_y_zcol_combination(&mut b, &wires);
-    assert!(b.is_satisfied(), "baseline");
-
-    let target = wires.combined_c0[0].col();
-    b.tamper_witness(target, b.witness()[target] + F::ONE);
-
-    assert!(!b.is_satisfied(), "tampered y_zcol combined was accepted");
-}
-
-#[test]
-fn rlc_s_col_consistency_accepts_shared_s_col() {
-    // Π_RLC propagates s_col by assertion: every input must already share
-    // s_col, and the combined parent inherits that same value. The gadget
-    // emits lane-wise K equalities between each input.s_col and combined.s_col.
-    let mut bd = R1csBuilder::new();
-    let s_col: Vec<K> = (0..3).map(|i| K::from_u64((i + 1) as u64)).collect();
-    let s_col_vars: Vec<KVar> = s_col
-        .iter()
-        .copied()
-        .map(|v| {
-            let [c0, c1] = v.as_coeffs();
-            KVar::alloc(&mut bd, c0, c1)
-        })
-        .collect();
-    let input_vars = vec![s_col_vars.clone(), s_col_vars.clone()];
-
-    enforce_rlc_s_col_consistency(&mut bd, &input_vars, &s_col_vars).expect("emit");
-    assert!(bd.is_satisfied(), "honest s_col consistency rejected");
-}
-
-#[test]
-fn rlc_s_col_consistency_rejects_tampered_input_s_col() {
-    let mut bd = R1csBuilder::new();
-    let s_col: Vec<K> = (0..3).map(|i| K::from_u64((i + 7) as u64)).collect();
-    let combined_vars: Vec<KVar> = s_col
-        .iter()
-        .copied()
-        .map(|v| {
-            let [c0, c1] = v.as_coeffs();
-            KVar::alloc(&mut bd, c0, c1)
-        })
-        .collect();
-    let input_a: Vec<KVar> = s_col
-        .iter()
-        .copied()
-        .map(|v| {
-            let [c0, c1] = v.as_coeffs();
-            KVar::alloc(&mut bd, c0, c1)
-        })
-        .collect();
-    let input_b: Vec<KVar> = s_col
-        .iter()
-        .copied()
-        .map(|v| {
-            let [c0, c1] = v.as_coeffs();
-            KVar::alloc(&mut bd, c0, c1)
-        })
-        .collect();
-    let inputs = vec![input_a, input_b.clone()];
-    enforce_rlc_s_col_consistency(&mut bd, &inputs, &combined_vars).expect("emit");
-    assert!(bd.is_satisfied(), "baseline");
-
-    // Tamper input_b[0].c0 — the equality `inputs[1][0].c0 == combined[0].c0`
-    // must break.
-    let target = input_b[0].c0.col();
-    bd.tamper_witness(target, bd.witness()[target] + F::ONE);
-    assert!(!bd.is_satisfied(), "tampered input.s_col was accepted");
-}
-
-#[test]
-fn rlc_s_col_consistency_rejects_tampered_combined_s_col() {
-    let mut bd = R1csBuilder::new();
-    let s_col: Vec<K> = (0..3).map(|i| K::from_u64((i + 13) as u64)).collect();
-    let combined_vars: Vec<KVar> = s_col
-        .iter()
-        .copied()
-        .map(|v| {
-            let [c0, c1] = v.as_coeffs();
-            KVar::alloc(&mut bd, c0, c1)
-        })
-        .collect();
-    let input_a: Vec<KVar> = s_col
-        .iter()
-        .copied()
-        .map(|v| {
-            let [c0, c1] = v.as_coeffs();
-            KVar::alloc(&mut bd, c0, c1)
-        })
-        .collect();
-    let input_b: Vec<KVar> = s_col
-        .iter()
-        .copied()
-        .map(|v| {
-            let [c0, c1] = v.as_coeffs();
-            KVar::alloc(&mut bd, c0, c1)
-        })
-        .collect();
-    let inputs = vec![input_a, input_b];
-    enforce_rlc_s_col_consistency(&mut bd, &inputs, &combined_vars).expect("emit");
-    assert!(bd.is_satisfied(), "baseline");
-
-    // Tamper the combined parent side. This catches the opposite
-    // authority-boundary failure from the input-side test: Π_RLC must not
-    // let the parent carry an arbitrary NC column point after folding.
-    let target = combined_vars[0].c1.col();
-    bd.tamper_witness(target, bd.witness()[target] + F::ONE);
-    assert!(!bd.is_satisfied(), "tampered combined.s_col was accepted");
-}
-
-#[allow(dead_code)]
-fn _silence_unused_lc(_x: Lc) {}
 
 fn assert_no_unconstrained_columns(builder: &R1csBuilder, label: &str) {
     let unconstrained = builder.unconstrained_columns();

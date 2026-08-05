@@ -35,7 +35,6 @@ fn claim(audit: &PiDecClaimAudit, old_to_new: &[usize]) -> PiDecClaimAudit {
             .collect(),
         ct_cols: audit.ct_cols.iter().copied().map(remap_pair).collect(),
         r_cols: audit.r_cols.iter().copied().map(remap_pair).collect(),
-        s_col_cols: audit.s_col_cols.iter().copied().map(remap_pair).collect(),
         fold_digest_cols: audit.fold_digest_cols.map(|col| old_to_new[col]),
     }
 }

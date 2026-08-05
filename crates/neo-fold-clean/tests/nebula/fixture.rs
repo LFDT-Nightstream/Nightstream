@@ -1,8 +1,8 @@
 //! Shared real-pipeline fixture: a tiny but complete Nebula plan
 //! (`r = 2, μ = 2, B_ops = B_scan = 4 → N = 2`), its preprocessing over
 //! the real `S_mem` structure, and a two-segment program with
-//! cross-segment memory continuity. Used by the M3 gate tests
-//! (`segment.rs`) and the §12 red-team suite (`redteam.rs`).
+//! cross-segment memory continuity. Used by the segment-prover tests
+//! (`segment.rs`) and the red-team suite (`redteam.rs`).
 
 use neo_fold_clean::config;
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;

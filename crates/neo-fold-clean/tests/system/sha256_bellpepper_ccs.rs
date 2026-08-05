@@ -23,17 +23,13 @@
 //! claims into one accumulator without per-step state advance or
 //! cross-step verification — a different protocol contract.
 
-use std::fs;
-use std::path::PathBuf;
 use std::time::Instant;
 
 use ::bellpepper::gadgets::boolean::{AllocatedBit, Boolean};
 use bellpepper_core::{Circuit, ConstraintSystem, SynthesisError};
 use ff::Field;
-use neo_ccs::Mat;
 use neo_fold_clean::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use neo_fold_clean::frontends::bellpepper::{synthesize_to_ccs, BellpepperGoldilocks};
-use neo_fold_clean::frontends::direct_ccs::ajtai as direct_ajtai;
 use neo_fold_clean::frontends::f_prime::image::{FPrimeImageLayout, NifsCeClaimShape, NifsPayloadShape};
 use neo_fold_clean::frontends::f_prime::recursive_plan::{
     build_recursive_step_image_config, build_semantic_state_preimage_fields, state_x_out_preimage_sources,
@@ -42,18 +38,11 @@ use neo_fold_clean::frontends::f_prime::recursive_plan::{
 use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvc, R1csIvcPreprocessing};
 use neo_fold_clean::frontends::r1cs_f_prime::{self, R1csChainBuilder, R1csCompilerError};
 use neo_fold_clean::lifecycle;
-use neo_fold_clean::paper::construction2::{ProofState, FINAL_FOLD_TRANSCRIPT_LABEL};
-use neo_fold_clean::paper::digest::{pi_ccs_instance_digest_parent_authority, structure_digest, AccumulatorHandle};
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
-use neo_fold_clean::paper::relations::{CcsClaim, CcsWitness, CeClaim, Structure};
 use neo_math::F;
 use neo_params::{goldilocks_paper_b2, NeoParams};
-use neo_reductions::optimized_engine::legacy_split_nc::optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf;
-use neo_reductions::optimized_engine::OptimizedStructureCache;
-use neo_transcript::{Poseidon2Transcript, Transcript as _};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// One phase of the IVC test, timed and logged via `--nocapture`.
@@ -72,42 +61,6 @@ fn expect_f_prime_non_replay_unsupported(err: lifecycle::Error, chunk_count: u64
 }
 
 const SHA256_AJTAI_SEED: u64 = 0x5348_4132_3556_5345;
-const TERMINAL_REPLAY_FIXTURE_VERSION: u32 = 1;
-
-/// Local perf fixture for replaying the terminal Π_CCS prover input.
-///
-/// This is a developer cache, not protocol authority. The file is written
-/// under `target/perf-fixtures`, validated on load by recomputing the
-/// structure digest and shape, and regenerated if stale.
-#[derive(Serialize, Deserialize)]
-struct TerminalOptimizedProveFixture {
-    header: TerminalOptimizedProveFixtureHeader,
-    params: NeoParams,
-    structure: Structure,
-    mcs_list: Vec<CcsClaim>,
-    mcs_witnesses: Vec<CcsWitness>,
-    me_inputs: Vec<CeClaim>,
-    me_witnesses: Vec<Mat<F>>,
-    public_instance_digest: [F; 4],
-    me_input_accumulator_handle: [F; 4],
-}
-
-#[derive(Serialize, Deserialize)]
-struct TerminalOptimizedProveFixtureHeader {
-    version: u32,
-    ajtai_seed: u64,
-    structure_n: usize,
-    structure_m: usize,
-    structure_t: usize,
-    structure_digest: [F; 4],
-    params_kappa: u32,
-    params_d: u32,
-    params_m: u64,
-    params_lambda: u32,
-    mcs_count: usize,
-    me_count: usize,
-}
-
 #[derive(Clone, Debug)]
 struct Sha256Circuit {
     preimage: Vec<u8>,
@@ -193,15 +146,14 @@ fn sha256_tiny_params() -> Params {
 ///
 /// `c_data_entries = KAPPA * D = 108` and `child_count = K_RHO = 14`
 /// are params-derived. The typed app-private helper below derives its
-/// row/column challenge lengths from the generated F' structure, since
-/// those lengths move when app variables occupy fewer than 64 bits.
+/// joint-row challenge length from the generated F' structure, since
+/// that length moves when app variables occupy fewer than 64 bits.
 fn sha256_lifecycle_plan_with_ce_shape(
     m: usize,
     m_in: usize,
     c_data_entries: usize,
     child_count: u64,
     r_len: usize,
-    s_col_len: usize,
 ) -> RecursiveStepImagePlan {
     let limbs = m * POSEIDON2_GOLDILOCKS_BITS + 1;
     let ce_shape = NifsCeClaimShape {
@@ -210,8 +162,6 @@ fn sha256_lifecycle_plan_with_ce_shape(
         x_active_cols: 5,
         r_len,
         y_ring_inner_lens: vec![64; 8],
-        y_zcol_len: 64,
-        s_col_len,
     };
     let probe_plan = RecursiveStepImagePlan {
         limbs,
@@ -256,16 +206,8 @@ fn sha256_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
     const TINY_C_DATA_ENTRIES: usize = 108;
     const TINY_CHILD_COUNT: u64 = 14;
     const TINY_R_LEN: usize = 16;
-    const TINY_S_COL_LEN: usize = 22;
 
-    sha256_lifecycle_plan_with_ce_shape(
-        m,
-        m_in,
-        TINY_C_DATA_ENTRIES,
-        TINY_CHILD_COUNT,
-        TINY_R_LEN,
-        TINY_S_COL_LEN,
-    )
+    sha256_lifecycle_plan_with_ce_shape(m, m_in, TINY_C_DATA_ENTRIES, TINY_CHILD_COUNT, TINY_R_LEN)
 }
 
 fn challenge_len_for_domain(size: usize) -> usize {
@@ -291,8 +233,12 @@ fn sha256_tiny_lifecycle_plan_for_r1cs(r1cs: &r1cs_f_prime::SparseR1cs) -> Recur
     let NifsPayloadShape::CeClaim(ce_shape) = &mut plan.nifs_payload_shapes[acc.ce_claim_payload_index] else {
         panic!("tiny SHA accumulator payload must be a CE claim");
     };
-    ce_shape.r_len = challenge_len_for_domain(structure.ccs.n);
-    ce_shape.s_col_len = challenge_len_for_domain(structure.ccs.m);
+    ce_shape.r_len = challenge_len_for_domain(
+        structure
+            .ccs
+            .n
+            .max(neo_reductions::common::superneo_carrier_width(structure.ccs.m)),
+    );
     plan
 }
 
@@ -321,22 +267,23 @@ fn sha256_lifecycle_plan_for_r1cs_with_params(
     let c_data_entries = params.kappa() as usize * params.d() as usize;
     let child_count = params.k_rho() as u64;
     let mut r_len = 1;
-    let mut s_col_len = 1;
 
     for _ in 0..8 {
-        let mut plan =
-            sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), c_data_entries, child_count, r_len, s_col_len);
+        let mut plan = sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), c_data_entries, child_count, r_len);
         plan.limbs = typed_bits + 1;
         plan.app_private_var_widths = widths.clone();
         let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
         let (structure, _) = r1cs_f_prime::build_r1cs_f_prime_structure(layout, &shape);
-        let next_r_len = challenge_len_for_domain(structure.ccs.n);
-        let next_s_col_len = challenge_len_for_domain(structure.ccs.m);
-        if next_r_len == r_len && next_s_col_len == s_col_len {
+        let next_r_len = challenge_len_for_domain(
+            structure
+                .ccs
+                .n
+                .max(neo_reductions::common::superneo_carrier_width(structure.ccs.m)),
+        );
+        if next_r_len == r_len {
             return (plan, structure);
         }
         r_len = next_r_len;
-        s_col_len = next_s_col_len;
     }
 
     panic!("SHA-256 production-core R1CS-F' CE shape did not converge")
@@ -521,17 +468,23 @@ fn sha256_typed_app_private_layout_static_width_cut() {
     let NifsPayloadShape::CeClaim(ce_shape) = &typed_plan.nifs_payload_shapes[acc.ce_claim_payload_index] else {
         panic!("tiny SHA accumulator payload must be a CE claim");
     };
-    assert_eq!(ce_shape.r_len, challenge_len_for_domain(typed_structure.ccs.n));
-    assert_eq!(ce_shape.s_col_len, challenge_len_for_domain(typed_structure.ccs.m));
+    assert_eq!(
+        ce_shape.r_len,
+        challenge_len_for_domain(
+            typed_structure
+                .ccs
+                .n
+                .max(neo_reductions::common::superneo_carrier_width(typed_structure.ccs.m)),
+        )
+    );
     eprintln!(
-        "[sha-layout] typed app_private bits: current={} typed={} (vars={}); F' n={} m={} r_len={} s_col_len={}",
+        "[sha-layout] typed app_private bits: current={} typed={} (vars={}); F' n={} m={} r_len={}",
         legacy_plan.limbs - 1,
         typed_bits,
         m,
         typed_structure.ccs.n,
         typed_structure.ccs.m,
         ce_shape.r_len,
-        ce_shape.s_col_len
     );
 }
 
@@ -546,6 +499,7 @@ fn sha256_production_core_r1cs_f_prime_static_shape_budget() {
     let (prod_plan, prod_structure) = sha256_production_core_lifecycle_plan_for_r1cs(&artifact.sparse_r1cs);
     let prod_params = Params::for_ccs_shape(
         prod_structure.ccs.n,
+        prod_structure.ccs.m,
         prod_structure.ccs.t(),
         prod_structure.ccs.max_degree(),
     )
@@ -580,8 +534,15 @@ fn sha256_production_core_r1cs_f_prime_static_shape_budget() {
         prod_plan.limbs, tiny_plan.limbs,
         "typed app witness width is app-shape-owned; production κ should grow CE/NIFS authority, not app bits",
     );
-    assert_eq!(ce_shape.r_len, challenge_len_for_domain(prod_structure.ccs.n));
-    assert_eq!(ce_shape.s_col_len, challenge_len_for_domain(prod_structure.ccs.m));
+    assert_eq!(
+        ce_shape.r_len,
+        challenge_len_for_domain(
+            prod_structure
+                .ccs
+                .n
+                .max(neo_reductions::common::superneo_carrier_width(prod_structure.ccs.m)),
+        )
+    );
 
     let state_bits = prod_layout.state_in.bits + prod_layout.state_out.bits + prod_layout.chunk_digest.bits;
     let control_bits = prod_layout.boundary.bits + prod_layout.app_private.bits + prod_layout.is_base.bits;
@@ -631,11 +592,10 @@ fn sha256_production_core_r1cs_f_prime_static_shape_budget() {
     );
     eprintln!("[sha-prod-shape]   non-Poseidon subtotal    {}", non_poseidon_bits);
     eprintln!(
-        "[sha-prod-shape] CE shape: c_data={}, child_count={}, r_len={}, s_col_len={}, y_ring={}x{}",
+        "[sha-prod-shape] CE shape: c_data={}, child_count={}, r_len={}, y_ring={}x{}",
         acc.c_data_entries,
         acc.child_count,
         ce_shape.r_len,
-        ce_shape.s_col_len,
         ce_shape.y_ring_inner_lens.len(),
         ce_shape
             .y_ring_inner_lens
@@ -643,195 +603,6 @@ fn sha256_production_core_r1cs_f_prime_static_shape_budget() {
             .copied()
             .unwrap_or_default(),
     );
-}
-
-impl TerminalOptimizedProveFixture {
-    fn validate(&self) -> Result<(), String> {
-        if self.header.version != TERMINAL_REPLAY_FIXTURE_VERSION {
-            return Err(format!(
-                "fixture version {} != {}",
-                self.header.version, TERMINAL_REPLAY_FIXTURE_VERSION
-            ));
-        }
-        let digest = structure_digest(&self.structure);
-        if digest != self.header.structure_digest {
-            return Err("structure digest mismatch".into());
-        }
-        let shape = (self.structure.n, self.structure.m, self.structure.t());
-        let expected_shape = (
-            self.header.structure_n,
-            self.header.structure_m,
-            self.header.structure_t,
-        );
-        if shape != expected_shape {
-            return Err(format!(
-                "structure shape {shape:?} != fixture header {expected_shape:?}"
-            ));
-        }
-        if self.params.kappa != self.header.params_kappa
-            || self.params.d != self.header.params_d
-            || self.params.m != self.header.params_m
-            || self.params.lambda != self.header.params_lambda
-        {
-            return Err("params fingerprint mismatch".into());
-        }
-        if self.mcs_list.len() != self.header.mcs_count || self.mcs_witnesses.len() != self.header.mcs_count {
-            return Err("MCS count mismatch".into());
-        }
-        if self.me_inputs.len() != self.header.me_count || self.me_witnesses.len() != self.header.me_count {
-            return Err("ME count mismatch".into());
-        }
-        Ok(())
-    }
-}
-
-fn terminal_replay_fixture_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/perf-fixtures/neo-fold-clean/sha256-r1cs-fprime-terminal-optimized-prove-v1.bincode")
-}
-
-fn load_or_build_terminal_replay_fixture() -> TerminalOptimizedProveFixture {
-    let path = terminal_replay_fixture_path();
-    if let Ok(bytes) = fs::read(&path) {
-        match bincode::deserialize::<TerminalOptimizedProveFixture>(&bytes) {
-            Ok(fixture) => match fixture.validate() {
-                Ok(()) => {
-                    eprintln!("[sha-ivc] loaded replay fixture: {}", path.display());
-                    return fixture;
-                }
-                Err(err) => eprintln!("[sha-ivc] stale replay fixture ({}): {err}", path.display()),
-            },
-            Err(err) => eprintln!("[sha-ivc] unreadable replay fixture ({}): {err}", path.display()),
-        }
-    }
-
-    let fixture = build_terminal_replay_fixture();
-    fixture.validate().expect("fresh replay fixture validates");
-    let bytes = bincode::serialize(&fixture).expect("serialize terminal replay fixture");
-    fs::create_dir_all(path.parent().expect("fixture path has parent")).expect("create fixture directory");
-    fs::write(&path, bytes).expect("write terminal replay fixture");
-    eprintln!("[sha-ivc] wrote replay fixture: {}", path.display());
-    fixture
-}
-
-fn build_terminal_replay_fixture() -> TerminalOptimizedProveFixture {
-    let artifact_a = phase("fixture synth A", || {
-        synthesize_to_ccs(Sha256Circuit {
-            preimage: b"abc".to_vec(),
-        })
-        .expect("synthesize SHA-256(abc)")
-    });
-    let plan = sha256_tiny_lifecycle_plan_for_r1cs(&artifact_a.sparse_r1cs);
-    let params = sha256_tiny_neo_params();
-    let prep = phase("fixture preprocess", || {
-        r1cs_f_prime::preprocess_sparse_seeded_with_params(
-            &artifact_a.sparse_r1cs,
-            &plan,
-            Params::test_only_from_neo_params(params.clone()),
-            SHA256_AJTAI_SEED,
-        )
-        .expect("SHA-256 R1CS-F' tiny-params preprocess")
-    });
-
-    let mut chain = R1csChainBuilder::new(&prep).expect("start chain");
-    let compiled_a = phase("fixture step 0 append", || {
-        chain
-            .append_assignment(artifact_a.assignment.clone())
-            .expect("base step appends")
-    });
-    let artifact_b = phase("fixture synth B", || {
-        synthesize_to_ccs(Sha256Circuit {
-            preimage: b"xyz".to_vec(),
-        })
-        .expect("synthesize SHA-256(xyz)")
-    });
-    let compiled_b = phase("fixture step 1 append", || {
-        chain
-            .append_assignment(artifact_b.assignment.clone())
-            .expect("recursive step appends")
-    });
-    drop(compiled_a);
-    drop(compiled_b);
-
-    let audit = chain.audit().expect("audit after recursive append");
-    let ProofState::Active { running, latest } = &audit.proof.state.proof else {
-        panic!("two-step SHA chain must be active before finalization");
-    };
-    let running = running
-        .materialize()
-        .expect("SHA terminal fixture running materialization");
-    let parent = running
-        .parent_authority
-        .as_ref()
-        .expect("non-empty running accumulator carries parent authority");
-    let mcs_list: Vec<CcsClaim> = latest
-        .instances
-        .iter()
-        .map(|inst| inst.claim.clone())
-        .collect();
-    let mcs_witnesses: Vec<CcsWitness> = latest
-        .instances
-        .iter()
-        .map(|inst| inst.witness.clone())
-        .collect();
-    let public_instance_digest = pi_ccs_instance_digest_parent_authority(&mcs_list, running.claims.len(), Some(parent));
-    let me_input_accumulator_handle =
-        AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest_fields();
-    let structure = prep.prep.structure().clone();
-    let structure_digest = structure_digest(&structure);
-    TerminalOptimizedProveFixture {
-        header: TerminalOptimizedProveFixtureHeader {
-            version: TERMINAL_REPLAY_FIXTURE_VERSION,
-            ajtai_seed: SHA256_AJTAI_SEED,
-            structure_n: structure.n,
-            structure_m: structure.m,
-            structure_t: structure.t(),
-            structure_digest,
-            params_kappa: params.kappa,
-            params_d: params.d,
-            params_m: params.m,
-            params_lambda: params.lambda,
-            mcs_count: mcs_list.len(),
-            me_count: running.claims.len(),
-        },
-        params,
-        structure,
-        mcs_list,
-        mcs_witnesses,
-        me_inputs: running.claims.clone(),
-        me_witnesses: running.witnesses.clone(),
-        public_instance_digest,
-        me_input_accumulator_handle,
-    }
-}
-
-#[test]
-#[ignore = "perf-only replay fixture; run manually to profile terminal optimized_prove without rebuilding the full SHA chain"]
-fn sha256_terminal_optimized_prove_replay_perf() {
-    let fixture = load_or_build_terminal_replay_fixture();
-
-    let params = Params::test_only_from_neo_params(fixture.params.clone());
-    let log = direct_ajtai::setup_seeded(&params, &fixture.structure, fixture.header.ajtai_seed);
-    let cache = phase("replay optimized cache build", || {
-        OptimizedStructureCache::build(&fixture.structure).expect("build optimized replay cache")
-    });
-    let mut tr = Poseidon2Transcript::new(FINAL_FOLD_TRANSCRIPT_LABEL);
-    let (_terminal, _proof) = phase("replay terminal optimized_prove", || {
-        optimized_replay_trace_with_cache_instance_digest_and_me_input_handle_and_perf(
-            &mut tr,
-            &fixture.params,
-            &fixture.structure,
-            &fixture.mcs_list,
-            &fixture.mcs_witnesses,
-            &fixture.me_inputs,
-            &fixture.me_witnesses,
-            fixture.public_instance_digest,
-            fixture.me_input_accumulator_handle,
-            &log,
-            &cache,
-        )
-        .expect("terminal optimized replay accepts fixture")
-    });
 }
 
 #[test]
@@ -1051,6 +822,7 @@ fn sha256_production_core_bellpepper_ivc_chain_two_steps_perf_snapshot() {
     let (plan, structure_probe) = sha256_production_core_lifecycle_plan_for_r1cs(&artifact_a.sparse_r1cs);
     let params = Params::for_ccs_shape(
         structure_probe.ccs.n,
+        structure_probe.ccs.m,
         structure_probe.ccs.t(),
         structure_probe.ccs.max_degree(),
     )
@@ -1135,6 +907,7 @@ fn sha256_production_core_authoritative_ivc_chain_five_steps_perf_snapshot() {
     let (plan, structure_probe) = sha256_production_core_lifecycle_plan_for_r1cs(&reference.sparse_r1cs);
     let params = Params::for_ccs_shape(
         structure_probe.ccs.n,
+        structure_probe.ccs.m,
         structure_probe.ccs.t(),
         structure_probe.ccs.max_degree(),
     )
@@ -1194,6 +967,7 @@ fn sha256_production_core_bellpepper_ivc_chain_five_steps_perf_snapshot() {
     let (plan, structure_probe) = sha256_production_core_lifecycle_plan_for_r1cs(&reference.sparse_r1cs);
     let params = Params::for_ccs_shape(
         structure_probe.ccs.n,
+        structure_probe.ccs.m,
         structure_probe.ccs.t(),
         structure_probe.ccs.max_degree(),
     )

@@ -25,26 +25,22 @@ use crate::frontends::r1cs_f_prime::compiler::{
     state_x_out_app_preimage_lanes_for_assignment,
 };
 use crate::frontends::r1cs_f_prime::{lower_field_r1cs, R1csShape, SparseR1cs};
-use crate::paper::construction2::{PendingProjectionState, SemanticStateMode};
-use crate::paper::digest::{
-    digest32_as_fields, pending_accumulator_family_digest, AccumulatorHandle, PendingAccumulatorFamilyState,
-    StateXOutDigestMode,
-};
+use crate::paper::construction2::SemanticStateMode;
+use crate::paper::digest::{digest32_as_fields, AccumulatorHandle, StateXOutDigestMode};
 use crate::paper::f_prime::digest_circuit::alloc_constant;
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
 use crate::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs,
     FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, FPrimeStepOutput,
-    F_PRIME_ENC_INST_BITS, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
+    F_PRIME_ENC_INST_BITS,
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::f_prime::stage as fprime_stage;
 use crate::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{SplitNcPiCcsVConfig, SplitNcVerifierRelation};
+use crate::paper::reductions::pi_ccs_circuit::{PiCcsVerifierConfig, PiCcsVerifierRelation};
 use crate::paper::relations::{CcsClaim, CeClaim};
-use neo_reductions::optimized_engine::legacy_split_nc::oracle::BLOCK_LANE_NC_ROUND_COEFFICIENTS;
 
 pub(super) struct ArmShapes {
     pub base: SparseR1cs,
@@ -62,50 +58,28 @@ struct ShapeContext<'a> {
     params: &'a Params,
     app: &'a R1csShape,
     plan: &'a RecursiveStepImagePlan,
-    folded: &'a SplitNcVerifierRelation,
+    folded: &'a PiCcsVerifierRelation,
     folded_public_input_len: usize,
-    header_bundle: [F; 4],
-    ell_d: usize,
-    ell_n: usize,
-    ell_m: usize,
-    d_sc: usize,
+    matrix_digest: [F; 4],
+    joint_variables: usize,
+    joint_degree: usize,
 }
 
-/// Exact source-field column occupied by one packed incoming running-claim
-/// assignment coordinate after public-output normalization.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct RawRunningSourceColumn {
-    pub child: usize,
-    pub logical_column: usize,
-    pub source_column: usize,
-}
-
-/// Exact normalized source-field column occupied by one coordinate of the
-/// single fresh public-X input consumed by the steady recursive arm.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct FreshSourceColumn {
-    pub logical_column: usize,
-    pub source_column: usize,
-}
-
-/// One synthesis round plus the audit-only source decoders for its steady
-/// recursive arm.
+/// One complete synthesis round.
 pub(super) struct SynthesizedArmShapes {
     pub arms: [SparseR1cs; 3],
-    pub raw_running_source_columns: Vec<RawRunningSourceColumn>,
-    pub fresh_source_columns: Vec<FreshSourceColumn>,
 }
 
 pub(super) fn synthesize_arm_shapes(
     params: &Params,
-    folded: &SplitNcVerifierRelation,
+    folded: &PiCcsVerifierRelation,
     folded_public_input_len: usize,
     app: &R1csShape,
     plan: &RecursiveStepImagePlan,
 ) -> Result<SynthesizedArmShapes, R1csIvcError> {
     let context = shape_context(params, folded, folded_public_input_len, app, plan)?;
-    let (bootstrap_recursive, _, _) = synthesize_recursive(&context, false)?;
-    let (recursive, raw_running_source_columns, fresh_source_columns) = synthesize_recursive(&context, true)?;
+    let bootstrap_recursive = synthesize_recursive(&context)?;
+    let recursive = synthesize_recursive(&context)?;
     let arms = ArmShapes {
         base: synthesize_base(&context)?,
         bootstrap_recursive,
@@ -113,14 +87,12 @@ pub(super) fn synthesize_arm_shapes(
     };
     Ok(SynthesizedArmShapes {
         arms: [arms.base, arms.bootstrap_recursive, arms.recursive],
-        raw_running_source_columns,
-        fresh_source_columns,
     })
 }
 
 fn shape_context<'a>(
     params: &'a Params,
-    folded: &'a SplitNcVerifierRelation,
+    folded: &'a PiCcsVerifierRelation,
     folded_public_input_len: usize,
     app: &'a R1csShape,
     plan: &'a RecursiveStepImagePlan,
@@ -133,41 +105,29 @@ fn shape_context<'a>(
             ),
         )));
     }
-    let dims = neo_reductions::engines::utils::build_dims_and_policy_for_shape(
+    let dims = neo_reductions::engines::pi_ccs_joint::build_joint_dims_for_shape(
         params.inner(),
         folded.n(),
         folded.m(),
         folded.t(),
         folded.max_degree(),
+        1,
+        params.k_rho() as usize,
     )
     .map_err(|error| {
         R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
             "verifier dimensions: {error}"
         )))
     })?;
-    if folded.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1
-        && dims.ell_n != crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_ROW_POINT
-    {
-        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-            format!(
-                "delayed production relation needs {} row challenges, but {rows} rows produce {}",
-                crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_ROW_POINT,
-                dims.ell_n,
-                rows = folded.n(),
-            ),
-        )));
-    }
     Ok(ShapeContext {
         params,
         app,
         plan,
         folded,
         folded_public_input_len,
-        header_bundle: [F::ZERO; 4],
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: [F::ZERO; 4],
+        joint_variables: dims.variables,
+        joint_degree: dims.degree,
     })
 }
 
@@ -199,12 +159,7 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SparseR1cs, R1csIvcErro
         .0)
 }
 
-fn synthesize_recursive(
-    context: &ShapeContext<'_>,
-    with_pending_projection: bool,
-) -> Result<(SparseR1cs, Vec<RawRunningSourceColumn>, Vec<FreshSourceColumn>), R1csIvcError> {
-    let block_mode =
-        context.folded.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
+fn synthesize_recursive(context: &ShapeContext<'_>) -> Result<SparseR1cs, R1csIvcError> {
     let assignment = shape_app_assignment(context.app);
     let semantic = semantic_values(context.plan, &assignment)?;
     let ce = zero_ce_claim(context);
@@ -212,30 +167,7 @@ fn synthesize_recursive(
     let running_parent = Some(ce.clone());
     let fresh = [zero_fresh_claim(context.params, context.folded_public_input_len)];
     let outputs = vec![ce.clone(); fresh.len() + running.len()];
-    let mut sumcheck = pi_ccs::SumcheckProof::new(
-        vec![vec![K::ZERO; context.d_sc + 1]; context.ell_n + context.ell_d],
-        None,
-    );
-    let nc_column_coefficients = match context.params.b() {
-        2 => 5,
-        3 => 7,
-        _ => context.d_sc + 1,
-    };
-    sumcheck.sumcheck_rounds_nc = if block_mode {
-        vec![
-            vec![K::ZERO; BLOCK_LANE_NC_ROUND_COEFFICIENTS];
-            crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT + context.ell_d
-        ]
-    } else {
-        (0..context.ell_m)
-            .map(|_| vec![K::ZERO; nc_column_coefficients])
-            .chain((0..context.ell_d).map(|_| vec![K::ZERO; context.d_sc + 1]))
-            .collect()
-    };
-    if block_mode {
-        sumcheck.variant = neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1;
-    }
-    sumcheck.header_digest = vec![0u8; 32];
+    let sumcheck = pi_ccs::SumcheckProof::new(vec![vec![K::ZERO; context.joint_degree + 1]; context.joint_variables]);
     let outputs_digest = crate::paper::digest::pi_ccs_outputs_digest(&outputs);
     let proof = pi_ccs::Proof {
         sumcheck,
@@ -244,57 +176,17 @@ fn synthesize_recursive(
     };
     let combined = ce.clone();
     let children = vec![ce; context.params.k_rho() as usize];
-    let running_pending_projection =
-        (with_pending_projection && block_mode).then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
     let nifs_msg = NifsVCircuitMessages {
         fresh: &fresh,
         running: &running,
         running_parent_authority: running_parent.as_ref(),
-        running_pending_projection: running_pending_projection.as_ref(),
         pi_ccs: &proof,
         combined: &combined,
         children: &children,
     };
 
-    let running_digest = if block_mode {
-        pending_accumulator_family_digest(
-            &running,
-            context.params.kappa() as usize,
-            running_pending_projection
-                .as_ref()
-                .map(|pending| PendingAccumulatorFamilyState {
-                    old_block: pending.old_block(),
-                    parent_y_zcol: pending.parent_y_zcol(),
-                }),
-        )
-        .map_err(|error| {
-            R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
-                "shape running pending-family digest: {error}"
-            )))
-        })?
-    } else {
-        AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields()
-    };
-    let outgoing_pending = block_mode.then(|| PendingProjectionState::new([K::ZERO; 19], [K::ZERO; D]));
-    let output_digest = if block_mode {
-        pending_accumulator_family_digest(
-            &children,
-            context.params.kappa() as usize,
-            outgoing_pending
-                .as_ref()
-                .map(|pending| PendingAccumulatorFamilyState {
-                    old_block: pending.old_block(),
-                    parent_y_zcol: pending.parent_y_zcol(),
-                }),
-        )
-        .map_err(|error| {
-            R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
-                "shape outgoing pending-family digest: {error}"
-            )))
-        })?
-    } else {
-        AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields()
-    };
+    let running_digest = AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields();
+    let output_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
     let mut source = FPrimeSourceImage::new();
     let chunk_count_in_word = source.push_u64_le(1);
     let step_count_in_word = source.push_u64_le(1);
@@ -327,193 +219,19 @@ fn synthesize_recursive(
         &cfg,
         &inputs,
     )?;
-    let raw_running_source_columns = raw_running_source_columns(
-        builder.cols(),
-        &output.x_out_bits,
-        output.nifs_running.as_deref().unwrap_or_default(),
-    )?;
-    let fresh_source_columns = fresh_source_columns(builder.cols(), &output.x_out_bits, output.prior_link.as_ref())?;
     let arm = lower_field_r1cs(builder, &output.x_out_bits)?
         .into_parts()
         .0;
-    if raw_running_source_columns
-        .iter()
-        .any(|entry| entry.source_column >= arm.m)
-    {
-        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-            "normalized raw running-assignment column exceeds the recursive source arm".into(),
-        )));
-    }
-    if fresh_source_columns
-        .iter()
-        .any(|entry| entry.source_column >= arm.m)
-    {
-        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-            "normalized fresh public-X column exceeds the recursive source arm".into(),
-        )));
-    }
-    Ok((arm, raw_running_source_columns, fresh_source_columns))
-}
-
-fn fresh_source_columns(
-    source_column_count: usize,
-    public_outputs: &[Var],
-    prior_link: Option<&crate::paper::f_prime::r1cs::FPrimePriorLinkWires>,
-) -> Result<Vec<FreshSourceColumn>, R1csIvcError> {
-    let prior_link = prior_link.ok_or_else(|| {
-        R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-            "recursive fresh public-X audit is missing prior-link wires".into(),
-        ))
-    })?;
-    let [fresh] = prior_link.fresh_public_inputs.as_slice() else {
-        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-            format!(
-                "recursive fresh public-X audit expected one source, found {}",
-                prior_link.fresh_public_inputs.len()
-            ),
-        )));
-    };
-    if fresh.len() != F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN {
-        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-            format!(
-                "recursive fresh public-X audit has {} coordinates, expected {F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN}",
-                fresh.len()
-            ),
-        )));
-    }
-
-    let mut source_columns = std::collections::BTreeSet::new();
-    let mut records = Vec::with_capacity(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
-    for (logical_column, wire) in fresh.iter().copied().enumerate() {
-        let source = wire.col();
-        let source_column = normalized_target_column(source_column_count, public_outputs, source).ok_or_else(|| {
-            R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
-                "fresh[0].x coordinate {logical_column} references invalid builder column {source}"
-            )))
-        })?;
-        if crate::frontends::r1cs_f_prime::lowering::normalized_source_column(
-            source_column_count,
-            public_outputs,
-            source_column,
-        ) != Some(source)
-        {
-            return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-                format!("fresh[0].x coordinate {logical_column} failed source-column normalization round trip"),
-            )));
-        }
-        if !source_columns.insert(source_column) {
-            return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-                format!("fresh[0].x coordinate {logical_column} repeats normalized source column {source_column}"),
-            )));
-        }
-        records.push(FreshSourceColumn {
-            logical_column,
-            source_column,
-        });
-    }
-    Ok(records)
-}
-
-fn raw_running_source_columns(
-    source_column_count: usize,
-    public_outputs: &[Var],
-    running: &[crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires],
-) -> Result<Vec<RawRunningSourceColumn>, R1csIvcError> {
-    let public_output_columns = public_outputs
-        .iter()
-        .map(|output| output.col())
-        .collect::<std::collections::BTreeSet<_>>();
-    if public_output_columns.len() != public_outputs.len()
-        || public_output_columns.contains(&Var::ONE.col())
-        || public_output_columns
-            .iter()
-            .any(|&column| column >= source_column_count)
-    {
-        return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-            "raw running-assignment audit received invalid public-output normalization columns".into(),
-        )));
-    }
-    let mut records = Vec::new();
-    for (child, claim) in running.iter().enumerate() {
-        if claim.x_rows != D
-            || claim.x_cols == 0
-            || claim.m_in > claim.x_rows * claim.x_cols
-            || claim.x.len() != claim.x_rows * claim.x_cols
-        {
-            return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-                format!(
-                    "running[{child}] raw assignment has invalid geometry: rows={}, cols={}, m_in={}, x.len={}",
-                    claim.x_rows,
-                    claim.x_cols,
-                    claim.m_in,
-                    claim.x.len()
-                ),
-            )));
-        }
-        for logical_column in 0..claim.m_in {
-            let source = claim.x[(logical_column % D) * claim.x_cols + (logical_column / D)].col();
-            let source_column =
-                normalized_target_column(source_column_count, public_outputs, source).ok_or_else(|| {
-                    R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(format!(
-                    "running[{child}].x packed coordinate {logical_column} references invalid builder column {source}"
-                )))
-                })?;
-            if crate::frontends::r1cs_f_prime::lowering::normalized_source_column(
-                source_column_count,
-                public_outputs,
-                source_column,
-            ) != Some(source)
-            {
-                return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-                    format!(
-                        "running[{child}].x packed coordinate {logical_column} failed source-column normalization round trip"
-                    ),
-                )));
-            }
-            records.push(RawRunningSourceColumn {
-                child,
-                logical_column,
-                source_column,
-            });
-        }
-    }
-    Ok(records)
-}
-
-/// Forward spelling of the exact normalization permutation used by
-/// `lower_field_r1cs`. The inverse is checked above for every exported wire,
-/// so this audit cannot silently drift from the actual source-arm ordering.
-fn normalized_target_column(source_columns: usize, public_outputs: &[Var], source: usize) -> Option<usize> {
-    if source >= source_columns {
-        return None;
-    }
-    if source == Var::ONE.col() {
-        return Some(0);
-    }
-    if let Some(public_index) = public_outputs
-        .iter()
-        .position(|output| output.col() == source)
-    {
-        return Some(public_index + 1);
-    }
-    let public_before = public_outputs
-        .iter()
-        .filter(|output| output.col() < source)
-        .count();
-    Some(1 + public_outputs.len() + (source - 1 - public_before))
+    Ok(arm)
 }
 
 fn step_config<'a>(context: &'a ShapeContext<'a>) -> FPrimeStepConfig<'a> {
     FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: SplitNcPiCcsVConfig {
+            pi_ccs: PiCcsVerifierConfig {
                 params: context.params,
                 structure: context.folded.clone(),
-                header_bundle: context.header_bundle,
-                ell_d: context.ell_d,
-                ell_n: context.ell_n,
-                ell_m: context.ell_m,
-                d_sc: context.d_sc,
+                matrix_digest: context.matrix_digest,
             },
         },
         b: context.params.b(),
@@ -532,7 +250,7 @@ fn shape_state(
 ) -> FPrimeStateIn {
     FPrimeStateIn {
         vk_fs_digest: [F::ZERO; 4],
-        pi_ccs_header_bundle: context.header_bundle,
+        pi_ccs_header_bundle: context.matrix_digest,
         chunk_count_in: u64::from(recursive),
         step_count_in: u64::from(recursive),
         z_0: [F::ZERO; 4],
@@ -557,28 +275,15 @@ fn zero_fresh_claim(params: &Params, public_input_len: usize) -> CcsClaim {
 }
 
 fn zero_ce_claim(context: &ShapeContext<'_>) -> CeClaim {
-    let d_pad = 1usize << context.ell_d;
+    let d_pad = D.next_power_of_two();
     CeClaim {
         c: Commitment::zeros(D, context.params.kappa() as usize),
         X: Mat::zero(D, context.folded_public_input_len, F::ZERO),
-        r: vec![K::ZERO; context.ell_n],
-        s_col: vec![
-            K::ZERO;
-            if context.folded.variant() == neo_reductions::optimized_engine::PiCcsProofVariant::BlockLaneNcDelayedV1 {
-                crate::paper::digest::PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT
-            } else {
-                context.ell_m
-            }
-        ],
-        y_ring: vec![vec![K::ZERO; d_pad]; context.folded.t()],
-        ct: vec![K::ZERO; context.folded.t()],
-        aux_openings: Vec::new(),
-        y_zcol: vec![K::ZERO; d_pad],
+        r: vec![K::ZERO; context.joint_variables],
+        y_ring: vec![vec![K::ZERO; d_pad]; context.folded.t() + 1],
+        ct: vec![K::ZERO; context.folded.t() + 1],
         m_in: context.folded_public_input_len,
         fold_digest: [0u8; 32],
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
         adv: None,
     }
 }

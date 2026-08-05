@@ -13,7 +13,10 @@ use super::{
     CompiledTerminalR1cs, CompiledTerminalR1csStatement, LeanNativeCcsManifest, TerminalR1csError, TerminalR1csInput,
     TerminalR1csStatement, TerminalSpartanEngine,
 };
-use crate::frontends::r1cs_f_prime::lean_manifest::{ColumnId, ManifestTerm};
+use crate::frontends::r1cs_f_prime::lean_manifest::{ColumnId, ManifestCost, ManifestTerm};
+use crate::frontends::r1cs_f_prime::lean_nebula_combined_manifest::{
+    map_native_index, map_nebula_index, CombinedLayout, LeanNebulaCombinedManifest, NebulaFamily, NebulaTerm,
+};
 
 pub(super) const MAX_DIRECT_TERMINAL_ROWS: usize = 1_000_000;
 
@@ -55,6 +58,56 @@ pub(super) fn compile_statement(
     statement: TerminalR1csStatement<'_>,
 ) -> Result<CompiledTerminalR1csStatement, TerminalR1csError> {
     let compiled = compile_relation(
+        manifest,
+        log,
+        statement.running_claims,
+        None,
+        statement.fresh_claim,
+        None,
+    )?;
+    Ok(CompiledTerminalR1csStatement {
+        shape: compiled.shape,
+        public_values: compiled.public_values,
+        lean_public_columns: compiled.lean_public_columns,
+    })
+}
+
+pub(super) fn compile_combined(
+    manifest: &LeanNebulaCombinedManifest,
+    log: &AjtaiSModule,
+    input: TerminalR1csInput<'_>,
+) -> Result<CompiledTerminalR1cs, TerminalR1csError> {
+    let compiled = compile_combined_relation(
+        manifest,
+        log,
+        input.running_claims,
+        Some(input.running_witnesses),
+        &input.fresh.claim,
+        Some(&input.fresh.witness),
+    )?;
+    if let Some(row) = compiled.builder.first_unsatisfied_row() {
+        return Err(TerminalR1csError::Unsatisfied(row));
+    }
+    let witness = compiled.builder.witness();
+    let private_values = compiled
+        .private_vars
+        .iter()
+        .map(|variable| to_spartan(witness[variable.col()]))
+        .collect();
+    Ok(CompiledTerminalR1cs {
+        shape: compiled.shape,
+        private_values,
+        public_values: compiled.public_values,
+        lean_public_columns: compiled.lean_public_columns,
+    })
+}
+
+pub(super) fn compile_combined_statement(
+    manifest: &LeanNebulaCombinedManifest,
+    log: &AjtaiSModule,
+    statement: TerminalR1csStatement<'_>,
+) -> Result<CompiledTerminalR1csStatement, TerminalR1csError> {
+    let compiled = compile_combined_relation(
         manifest,
         log,
         statement.running_claims,
@@ -156,6 +209,95 @@ fn compile_relation(
         fresh_witness,
     )?;
 
+    finish_relation(builder, private_vars, public_vars, expected_cost)
+}
+
+fn compile_combined_relation(
+    manifest: &LeanNebulaCombinedManifest,
+    log: &AjtaiSModule,
+    running_claims: &[CeClaim],
+    running_witnesses: Option<&[WitnessMat]>,
+    fresh_claim: &CcsClaim,
+    fresh_witness: Option<&CcsWitness>,
+) -> Result<CompiledRelation, TerminalR1csError> {
+    let descriptor = manifest.terminal_r1cs();
+    validate_combined_ajtai_setup(manifest, log)?;
+    let expected_cost = descriptor.cost();
+    if expected_cost.recurring_rows() > MAX_DIRECT_TERMINAL_ROWS {
+        return Err(TerminalR1csError::ResourceLimit {
+            rows: expected_cost.recurring_rows(),
+            cap: MAX_DIRECT_TERMINAL_ROWS,
+        });
+    }
+    require_len("running claims", manifest.running_claim_count(), running_claims.len())?;
+    if let Some(witnesses) = running_witnesses {
+        require_len("running witnesses", manifest.running_claim_count(), witnesses.len())?;
+    }
+    require_len("fresh claims", manifest.fresh_claim_count(), 1)?;
+
+    let structure = manifest
+        .terminal_structure()
+        .map_err(|error| TerminalR1csError::Manifest(error.to_string()))?;
+    validate_combined_structure(manifest, &structure)?;
+    let rotations = verifier_rotations(log, structure.m, descriptor.verifier_rows())?;
+
+    let zero_running;
+    let running_witnesses = match running_witnesses {
+        Some(witnesses) => witnesses,
+        None => {
+            zero_running =
+                vec![neo_ccs::Mat::virtual_constant(D, structure.m.div_ceil(D), F::ZERO); running_claims.len()];
+            &zero_running
+        }
+    };
+    let zero_fresh;
+    let fresh_witness = match fresh_witness {
+        Some(witness) => witness,
+        None => {
+            zero_fresh = CcsWitness {
+                w: Vec::new(),
+                Z: neo_ccs::Mat::virtual_constant(D, structure.m.div_ceil(D), F::ZERO),
+            };
+            &zero_fresh
+        }
+    };
+
+    let mut builder = R1csBuilder::new();
+    let mut private_vars = Vec::with_capacity(expected_cost.committed_columns() + expected_cost.auxiliary_columns());
+    let mut public_vars = Vec::with_capacity(expected_cost.public_columns().saturating_sub(1));
+
+    for (claim, witness) in running_claims.iter().zip(running_witnesses) {
+        compile_running(
+            &mut builder,
+            &mut private_vars,
+            &mut public_vars,
+            &structure,
+            &rotations,
+            manifest.public_carrier_width(),
+            claim,
+            witness,
+        )?;
+    }
+    compile_combined_fresh(
+        &mut builder,
+        &mut private_vars,
+        &mut public_vars,
+        manifest,
+        &structure,
+        &rotations,
+        fresh_claim,
+        fresh_witness,
+    )?;
+
+    finish_relation(builder, private_vars, public_vars, expected_cost)
+}
+
+fn finish_relation(
+    builder: R1csBuilder,
+    private_vars: Vec<Var>,
+    public_vars: Vec<Var>,
+    expected_cost: ManifestCost,
+) -> Result<CompiledRelation, TerminalR1csError> {
     check_count("terminal rows", expected_cost.recurring_rows(), builder.rows())?;
     check_count(
         "terminal private columns",
@@ -213,7 +355,37 @@ fn validate_ajtai_setup(manifest: &LeanNativeCcsManifest, log: &AjtaiSModule) ->
     }
 }
 
+fn validate_combined_ajtai_setup(
+    manifest: &LeanNebulaCombinedManifest,
+    log: &AjtaiSModule,
+) -> Result<(), TerminalR1csError> {
+    let expected_rows = manifest.terminal_r1cs().verifier_rows();
+    match log.seeded_params() {
+        Some((rows, seed)) if rows == expected_rows && seed == manifest.ajtai_setup_seed() => Ok(()),
+        _ => Err(TerminalR1csError::SetupMismatch),
+    }
+}
+
 fn validate_structure(manifest: &LeanNativeCcsManifest, structure: &Structure) -> Result<(), TerminalR1csError> {
+    let descriptor = manifest.terminal_r1cs();
+    require_len(
+        "terminal carrier width",
+        descriptor.logical_width().div_ceil(D) * D,
+        structure.m,
+    )?;
+    require_len("terminal row domain", 1usize << descriptor.row_variables(), structure.n)?;
+    require_len("terminal matrix count", descriptor.matrix_count(), structure.t())?;
+    require_len(
+        "terminal public carrier",
+        descriptor.public_ring_columns() * D,
+        manifest.public_carrier_width(),
+    )
+}
+
+fn validate_combined_structure(
+    manifest: &LeanNebulaCombinedManifest,
+    structure: &Structure,
+) -> Result<(), TerminalR1csError> {
     let descriptor = manifest.terminal_r1cs();
     require_len(
         "terminal carrier width",
@@ -323,6 +495,36 @@ fn compile_fresh(
     enforce_fresh_ccs(builder, private_vars, manifest, step, &witness_wires)
 }
 
+#[allow(clippy::too_many_arguments)]
+fn compile_combined_fresh(
+    builder: &mut R1csBuilder,
+    private_vars: &mut Vec<Var>,
+    public_vars: &mut Vec<Var>,
+    manifest: &LeanNebulaCombinedManifest,
+    structure: &Structure,
+    rotations: &[Vec<Rotations>],
+    claim: &CcsClaim,
+    witness: &CcsWitness,
+) -> Result<(), TerminalR1csError> {
+    validate_fresh(
+        structure,
+        rotations.len(),
+        manifest.public_carrier_width(),
+        claim,
+        witness,
+    )?;
+    let witness_values = packed_witness(&witness.Z, structure.m);
+    let witness_wires = alloc_private_vec(builder, private_vars, &witness_values);
+    let commitment_wires = alloc_public_vec(builder, public_vars, &claim.c.data);
+    let projection_wires = alloc_public_vec(builder, public_vars, &claim.x);
+    let square_wires = alloc_squares(builder, private_vars, &witness_wires);
+
+    enforce_ajtai(builder, rotations, &witness_wires, &commitment_wires);
+    enforce_projection(builder, &witness_wires, &projection_wires);
+    enforce_norm(builder, &witness_wires, &square_wires);
+    enforce_combined_fresh_relation(builder, private_vars, manifest, &witness_wires)
+}
+
 fn validate_running_claim(
     structure: &Structure,
     verifier_rows: usize,
@@ -371,7 +573,11 @@ fn validate_fresh(
     validate_witness(&witness.Z, structure.m)?;
     validate_commitment(&claim.c, verifier_rows)?;
     require_len("fresh public width", public_width, claim.m_in)?;
-    require_len("fresh public values", public_width, claim.x.len())
+    require_len("fresh public values", public_width, claim.x.len())?;
+    if claim.x.first() != Some(&F::ONE) {
+        return Err(TerminalR1csError::Unsupported("fresh constant-one coordinate"));
+    }
+    Ok(())
 }
 
 fn validate_witness(witness: &WitnessMat, carrier_width: usize) -> Result<(), TerminalR1csError> {
@@ -522,6 +728,207 @@ fn enforce_fresh_ccs(
             );
         }
     }
+    Ok(())
+}
+
+fn enforce_combined_fresh_relation(
+    builder: &mut R1csBuilder,
+    private_vars: &mut Vec<Var>,
+    manifest: &LeanNebulaCombinedManifest,
+    witness: &[Var],
+) -> Result<(), TerminalR1csError> {
+    let layout = manifest.combined_layout();
+    let mut native_indices = HashMap::with_capacity(layout.native_logical_width);
+    for allocation in manifest
+        .core()
+        .step_program()
+        .receipts
+        .iter()
+        .flat_map(|receipt| &receipt.allocations)
+    {
+        let native_index = native_indices.len();
+        if native_indices
+            .insert(allocation.id.clone(), native_index)
+            .is_some()
+        {
+            return Err(TerminalR1csError::Manifest(
+                "native Step allocates one logical column twice".into(),
+            ));
+        }
+    }
+    check_count(
+        "native terminal logical columns",
+        layout.native_logical_width,
+        native_indices.len(),
+    )?;
+
+    for receipt in &manifest.core().step_program().receipts {
+        let selector_native = *native_indices
+            .get(&receipt.selector)
+            .ok_or_else(|| TerminalR1csError::Manifest("missing validated selector column".into()))?;
+        let selector = witness_var(witness, map_native_index(layout, selector_native))?;
+        for row in &receipt.rows {
+            let a = mapped_native_combination(&row.a, &native_indices, layout, witness)?;
+            let b = mapped_native_combination(&row.b, &native_indices, layout, witness)?;
+            let c = mapped_native_combination(&row.c, &native_indices, layout, witness)?;
+            let residual_value = builder.eval(&a) * builder.eval(&b) - builder.eval(&c);
+            let residual = alloc_private_value(builder, private_vars, residual_value);
+            let lifted_c = c.add_scaled(&Lc::from_var(residual), F::ONE);
+            builder.enforce(&a, &b, &lifted_c);
+            builder.enforce(&Lc::from_var(selector), &Lc::from_var(residual), &Lc::zero());
+        }
+    }
+
+    for row in manifest.application_rows() {
+        enforce_nebula_row(builder, private_vars, row.family(), &row.images, layout, witness)?;
+    }
+    Ok(())
+}
+
+fn mapped_native_combination(
+    terms: &[ManifestTerm],
+    native_indices: &HashMap<ColumnId, usize>,
+    layout: CombinedLayout,
+    witness: &[Var],
+) -> Result<Lc, TerminalR1csError> {
+    let mut combination = Lc::zero();
+    for term in terms {
+        let native_index = *native_indices
+            .get(&term.column)
+            .ok_or_else(|| TerminalR1csError::Manifest("row refers to an undeclared native column".into()))?;
+        let variable = witness_var(witness, map_native_index(layout, native_index))?;
+        combination.add_term(variable, F::from_u64(term.coefficient));
+    }
+    Ok(combination)
+}
+
+fn mapped_nebula_combination(
+    terms: &[NebulaTerm],
+    layout: CombinedLayout,
+    witness: &[Var],
+) -> Result<Lc, TerminalR1csError> {
+    let mut combination = Lc::zero();
+    for term in terms {
+        let variable = witness_var(witness, map_nebula_index(layout, term.column))?;
+        combination.add_term(variable, F::from_u64(term.coefficient));
+    }
+    Ok(combination)
+}
+
+fn witness_var(witness: &[Var], index: usize) -> Result<Var, TerminalR1csError> {
+    witness
+        .get(index)
+        .copied()
+        .ok_or_else(|| TerminalR1csError::Manifest("terminal row column exceeds the combined carrier".into()))
+}
+
+fn alloc_private_value(builder: &mut R1csBuilder, private_vars: &mut Vec<Var>, value: F) -> Var {
+    let variable = builder.alloc(value);
+    private_vars.push(variable);
+    variable
+}
+
+fn enforce_nebula_row(
+    builder: &mut R1csBuilder,
+    private_vars: &mut Vec<Var>,
+    family: NebulaFamily,
+    images: &super::super::lean_nebula_combined_manifest::NebulaImages,
+    layout: CombinedLayout,
+    witness: &[Var],
+) -> Result<(), TerminalR1csError> {
+    match family {
+        NebulaFamily::OperationBit | NebulaFamily::InitialScanBit | NebulaFamily::FinalScanBit => {
+            let bit = mapped_nebula_combination(&images.bit, layout, witness)?;
+            let one = Lc::from_var(witness_var(witness, 0)?);
+            let bit_minus_one = bit.clone().add_scaled(&one, -F::ONE);
+            builder.enforce(&bit, &bit_minus_one, &Lc::zero());
+        }
+        NebulaFamily::ReadWrite
+        | NebulaFamily::TimestampOrder
+        | NebulaFamily::RomWrite
+        | NebulaFamily::RomRange
+        | NebulaFamily::Padding => {
+            let left = mapped_nebula_combination(&images.product_left, layout, witness)?;
+            let right = mapped_nebula_combination(&images.product_right, layout, witness)?;
+            builder.enforce(&left, &right, &Lc::zero());
+        }
+        NebulaFamily::Filler
+        | NebulaFamily::OperationCount
+        | NebulaFamily::BoundaryTimestamp
+        | NebulaFamily::BoundaryProduct => {
+            let one = Lc::from_var(witness_var(witness, 0)?);
+            let left = mapped_nebula_combination(&images.linear_left, layout, witness)?;
+            let right = mapped_nebula_combination(&images.linear_right, layout, witness)?;
+            builder.enforce(&one, &left, &right);
+        }
+        NebulaFamily::ReadProduct
+        | NebulaFamily::WriteProduct
+        | NebulaFamily::InitialScanProduct
+        | NebulaFamily::FinalScanProduct => {
+            enforce_nebula_extension(builder, private_vars, images, layout, witness)?;
+        }
+    }
+    Ok(())
+}
+
+fn enforce_nebula_extension(
+    builder: &mut R1csBuilder,
+    private_vars: &mut Vec<Var>,
+    images: &super::super::lean_nebula_combined_manifest::NebulaImages,
+    layout: CombinedLayout,
+    witness: &[Var],
+) -> Result<(), TerminalR1csError> {
+    let value_a = mapped_nebula_combination(&images.value_a, layout, witness)?;
+    let value_b = mapped_nebula_combination(&images.value_b, layout, witness)?;
+    let value = mapped_nebula_combination(&images.value, layout, witness)?;
+    let extension_a = mapped_nebula_combination(&images.extension_a, layout, witness)?;
+    let extension_b = mapped_nebula_combination(&images.extension_b, layout, witness)?;
+    let fingerprint_a = mapped_nebula_combination(&images.fingerprint_a, layout, witness)?;
+    let fingerprint_b = mapped_nebula_combination(&images.fingerprint_b, layout, witness)?;
+    let active = mapped_nebula_combination(&images.active, layout, witness)?;
+    let pad = mapped_nebula_combination(&images.pad, layout, witness)?;
+    let output = mapped_nebula_combination(&images.output, layout, witness)?;
+
+    let value_a_product = alloc_private_value(builder, private_vars, builder.eval(&value_a) * builder.eval(&value));
+    builder.enforce(&value_a, &value, &Lc::from_var(value_a_product));
+    let value_b_product = alloc_private_value(builder, private_vars, builder.eval(&value_b) * builder.eval(&value));
+    builder.enforce(&value_b, &value, &Lc::from_var(value_b_product));
+
+    let fingerprint_a_minus_product = fingerprint_a.add_scaled(&Lc::from_var(value_a_product), -F::ONE);
+    let extension_a_contribution = alloc_private_value(
+        builder,
+        private_vars,
+        builder.eval(&extension_a) * builder.eval(&fingerprint_a_minus_product),
+    );
+    builder.enforce(
+        &extension_a,
+        &fingerprint_a_minus_product,
+        &Lc::from_var(extension_a_contribution),
+    );
+
+    let fingerprint_b_minus_product = fingerprint_b.add_scaled(&Lc::from_var(value_b_product), -F::ONE);
+    let extension_b_contribution = alloc_private_value(
+        builder,
+        private_vars,
+        builder.eval(&extension_b) * builder.eval(&fingerprint_b_minus_product),
+    );
+    builder.enforce(
+        &extension_b,
+        &fingerprint_b_minus_product,
+        &Lc::from_var(extension_b_contribution),
+    );
+
+    let contributions =
+        Lc::from_var(extension_a_contribution).add_scaled(&Lc::from_var(extension_b_contribution), F::ONE);
+    let active_contribution = alloc_private_value(
+        builder,
+        private_vars,
+        builder.eval(&active) * builder.eval(&contributions),
+    );
+    builder.enforce(&active, &contributions, &Lc::from_var(active_contribution));
+
+    let output_minus_active = output.add_scaled(&Lc::from_var(active_contribution), -F::ONE);
+    builder.enforce(&extension_a, &pad, &output_minus_active);
     Ok(())
 }
 

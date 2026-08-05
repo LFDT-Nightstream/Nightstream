@@ -8,7 +8,8 @@
 //! - `claim.r ∈ K^{log n}` is unfolded to `chi_r ∈ K^n` in-circuit via
 //!   `2^log_n - 1` K-mults (cheap when n is small, as it is for the
 //!   F'-image structure).
-//! - For each CCS matrix `M_j` and real ring lane rho ∈ 0..D:
+//! - For the padded identity and each CCS matrix `M_j`, and for each real
+//!   ring lane rho ∈ 0..D:
 //!     row_component(row) = Σ_(logical_col, coeff) coeff · Z[logical_col]
 //!                          where (logical_col, coeff) come from
 //!                          `row_ring_projection_terms(M_j, row, m, rho)`
@@ -101,10 +102,11 @@ pub(crate) fn enforce_y_ring_from_z_at_r(
     let expected_m = structure.m;
     let n = structure.n;
 
-    if claim.y_ring.len() != structure.matrices.len() {
+    let matrix_count = structure.matrices.len() + 1;
+    if claim.y_ring.len() != matrix_count {
         return Err(YRingError {
-            what: "y_ring outer length (# of CCS matrices)",
-            expected: structure.matrices.len(),
+            what: "identity-first y_ring outer length",
+            expected: matrix_count,
             got: claim.y_ring.len(),
         });
     }
@@ -116,7 +118,12 @@ pub(crate) fn enforce_y_ring_from_z_at_r(
     // / `engines::utils`. A short or long `r` would build a wrong-size
     // tensor and evaluate M·Z at the wrong point, so reject it before
     // unfolding. Mirrors the native `check_ce_relation` guard.
-    let expected_r_len = n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let carrier_width = expected_m.div_ceil(D) * D;
+    let expected_r_len = n
+        .max(carrier_width)
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
     if claim.r.len() != expected_r_len {
         return Err(YRingError {
             what: "claim.r length",
@@ -134,8 +141,6 @@ pub(crate) fn enforce_y_ring_from_z_at_r(
     //    positions `1` and `2` for `log_n ≥ 2` and break the y_ring
     //    consistency check.
     let chi_r_wires = build_chi_tensor(builder, &claim.r);
-    let row_cap = n.min(chi_r_wires.len());
-
     // ── 2. y_ring[j][rho] = Σ_row chi_r[row] · row_component(row) ──────
     //
     // Native `compute_y_from_Z_and_r` returns each y_ring[j] as the `D`
@@ -149,127 +154,81 @@ pub(crate) fn enforce_y_ring_from_z_at_r(
     // padding lanes — and any overlong tail — allocated but
     // unconstrained on the authoritative in-circuit boundary.)
     let d_pad = D.next_power_of_two();
-    let expected_y_ring_limbs = d_pad * K_LIMBS;
-    for (matrix_idx, matrix) in structure.matrices.iter().enumerate() {
-        if claim.y_ring[matrix_idx].len() != expected_y_ring_limbs {
-            return Err(YRingError {
-                what: "y_ring[j] inner length (d_pad * K_LIMBS)",
-                expected: expected_y_ring_limbs,
-                got: claim.y_ring[matrix_idx].len(),
-            });
-        }
-        for rho in 0..d_pad {
-            let y_c0 = claim.y_ring[matrix_idx][rho * K_LIMBS];
-            let y_c1 = claim.y_ring[matrix_idx][rho * K_LIMBS + 1];
-            if rho >= D {
-                // Padding lane: native fills `D..d_pad` with `K::ZERO`.
-                builder.enforce_eq(&Lc::from_var(y_c0), &Lc::zero());
-                builder.enforce_eq(&Lc::from_var(y_c1), &Lc::zero());
-                continue;
-            }
-            let mut acc = klc_from_base_const(F::ZERO);
-            for row in 0..row_cap {
-                let row_terms = row_ring_projection_terms(matrix, row, expected_m, rho)?;
-                if row_terms.is_empty() {
-                    continue;
-                }
-                let mut row_component = Lc::zero();
-                for (packed_col, coeff) in row_terms {
-                    let z_var = witness.packed_entry(packed_col).ok_or(YRingError {
-                        what: "witness packed entry",
-                        expected: expected_m.div_ceil(D) * D,
-                        got: packed_col,
-                    })?;
-                    row_component.add_term(z_var, coeff);
-                }
-                let chi_row = &chi_r_wires[row];
-                // K-base-mul: (chi_row.c0 + chi_row.c1 X) * row_component
-                //   = (chi_row.c0 * row_component) + (chi_row.c1 * row_component) X
-                let term_c0 = builder.alloc_mul(&chi_row.c0, &row_component);
-                let term_c1 = builder.alloc_mul(&chi_row.c1, &row_component);
-                acc = klc_add(&acc, &KLc::from_var(KVar::new(term_c0, term_c1)));
-            }
-            builder.enforce_eq(&acc.c0, &Lc::from_var(y_c0));
-            builder.enforce_eq(&acc.c1, &Lc::from_var(y_c1));
-        }
+    let identity = CcsMatrix::Identity { n: carrier_width };
+    enforce_matrix_y_ring_from_z_at_r(
+        builder,
+        witness,
+        claim,
+        &identity,
+        0,
+        carrier_width,
+        expected_m,
+        &chi_r_wires,
+        d_pad,
+    )?;
+    for (application, matrix) in structure.matrices.iter().enumerate() {
+        enforce_matrix_y_ring_from_z_at_r(
+            builder,
+            witness,
+            claim,
+            matrix,
+            application + 1,
+            n,
+            expected_m,
+            &chi_r_wires,
+            d_pad,
+        )?;
     }
     Ok(())
 }
 
-/// Bind the optional NC-channel sidecar `y_zcol` to the opened witness:
-/// `claim.y_zcol[rho] == Σ_{col % D = rho} Z[col] · chi_s[col]`, where
-/// `chi_s = tensor_point(claim.s_col)`.
-///
-/// `s_col/y_zcol` are not part of SuperNeo Definition 13's CE tuple, but
-/// this implementation carries them inside the accumulator digest and the
-/// recursive continuity checks. If present, they must therefore be
-/// recomputed from authoritative terminal data instead of trusted as
-/// digest-only sidecar fields.
-pub(crate) fn enforce_y_zcol_from_z_at_s_col(
+#[allow(clippy::too_many_arguments)]
+fn enforce_matrix_y_ring_from_z_at_r(
     builder: &mut R1csBuilder,
-    prep: &Preprocessing,
     witness: &FinalWitnessWires,
     claim: &CeClaimWires,
+    matrix: &CcsMatrix<F>,
+    matrix_idx: usize,
+    row_count: usize,
+    expected_m: usize,
+    chi_r_wires: &[KLc],
+    d_pad: usize,
 ) -> Result<(), YRingError> {
-    let has_nc_channel = !(claim.s_col.is_empty() && claim.y_zcol.is_empty());
-    if !has_nc_channel {
-        return Ok(());
-    }
-    if claim.s_col.is_empty() || claim.y_zcol.is_empty() {
+    let expected_y_ring_limbs = d_pad * K_LIMBS;
+    if claim.y_ring[matrix_idx].len() != expected_y_ring_limbs {
         return Err(YRingError {
-            what: "incomplete NC channel (s_col/y_zcol)",
-            expected: 2,
-            got: 1,
+            what: "y_ring[j] inner length (d_pad * K_LIMBS)",
+            expected: expected_y_ring_limbs,
+            got: claim.y_ring[matrix_idx].len(),
         });
     }
-
-    let expected_m = prep.structure().m;
-    let expected_s_col_len = expected_m.next_power_of_two().max(2).trailing_zeros() as usize;
-    if claim.s_col.len() != expected_s_col_len {
-        return Err(YRingError {
-            what: "claim.s_col length",
-            expected: expected_s_col_len,
-            got: claim.s_col.len(),
-        });
-    }
-
-    let d_pad = D.next_power_of_two();
-    let expected_y_zcol_limbs = d_pad * K_LIMBS;
-    if claim.y_zcol_lanes != d_pad || claim.y_zcol.len() != expected_y_zcol_limbs {
-        return Err(YRingError {
-            what: "claim.y_zcol length (d_pad * K_LIMBS)",
-            expected: expected_y_zcol_limbs,
-            got: claim.y_zcol.len(),
-        });
-    }
-
-    let chi_s_wires = build_chi_tensor(builder, &claim.s_col);
-    let col_cap = expected_m.min(chi_s_wires.len());
+    let row_cap = row_count.min(chi_r_wires.len());
     for rho in 0..d_pad {
-        let y_c0 = claim.y_zcol[rho * K_LIMBS];
-        let y_c1 = claim.y_zcol[rho * K_LIMBS + 1];
+        let y_c0 = claim.y_ring[matrix_idx][rho * K_LIMBS];
+        let y_c1 = claim.y_ring[matrix_idx][rho * K_LIMBS + 1];
         if rho >= D {
             builder.enforce_eq(&Lc::from_var(y_c0), &Lc::zero());
             builder.enforce_eq(&Lc::from_var(y_c1), &Lc::zero());
             continue;
         }
-
         let mut acc = klc_from_base_const(F::ZERO);
-        let mut logical_col = rho;
-        while logical_col < col_cap {
-            let z_var = witness
-                .logical_entry(expected_m, logical_col)
-                .ok_or(YRingError {
-                    what: "witness logical entry",
-                    expected: expected_m,
-                    got: logical_col,
+        for (row, chi_row) in chi_r_wires.iter().take(row_cap).enumerate() {
+            let row_terms = row_ring_projection_terms(matrix, row, expected_m, rho)?;
+            if row_terms.is_empty() {
+                continue;
+            }
+            let mut row_component = Lc::zero();
+            for (packed_col, coeff) in row_terms {
+                let z_var = witness.packed_entry(packed_col).ok_or(YRingError {
+                    what: "witness packed entry",
+                    expected: expected_m.div_ceil(D) * D,
+                    got: packed_col,
                 })?;
-            let z_lc = Lc::from_var(z_var);
-            let chi_col = &chi_s_wires[logical_col];
-            let term_c0 = builder.alloc_mul(&chi_col.c0, &z_lc);
-            let term_c1 = builder.alloc_mul(&chi_col.c1, &z_lc);
+                row_component.add_term(z_var, coeff);
+            }
+            let term_c0 = builder.alloc_mul(&chi_row.c0, &row_component);
+            let term_c1 = builder.alloc_mul(&chi_row.c1, &row_component);
             acc = klc_add(&acc, &KLc::from_var(KVar::new(term_c0, term_c1)));
-            logical_col += D;
         }
         builder.enforce_eq(&acc.c0, &Lc::from_var(y_c0));
         builder.enforce_eq(&acc.c1, &Lc::from_var(y_c1));

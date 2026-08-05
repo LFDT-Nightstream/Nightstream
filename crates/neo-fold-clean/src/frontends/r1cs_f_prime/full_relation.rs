@@ -160,7 +160,7 @@ impl<'a> FullFPrimeRelation<'a> {
         let configured_vk = VerifierKey::derive_from_structure_digest(
             cfg.nifs.pi_ccs.params,
             &context.structure_digest,
-            cfg.nifs.pi_ccs.header_bundle,
+            cfg.nifs.pi_ccs.matrix_digest,
             context.ajtai_pp_digest,
             Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
             digest_fields_as_digest32(context.initial_semantic_state_digest),
@@ -896,27 +896,22 @@ fn validate_fixed_nifs_shape(pp: &Params, inputs: &FPrimeRecursiveInputs<'_>) ->
 }
 
 fn validate_nifs_config(
-    cfg: &crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig<'_>,
+    cfg: &crate::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig<'_>,
     expected_header_bundle: [F; DIGEST_LEN],
 ) -> Result<(), FullFPrimeError> {
     let relation = &cfg.structure;
-    let dims = neo_reductions::engines::utils::build_dims_and_policy_for_shape(
+    neo_reductions::engines::pi_ccs_joint::build_joint_dims_for_shape(
         cfg.params.inner(),
         relation.n(),
         relation.m(),
         relation.t(),
         relation.max_degree(),
+        1,
+        cfg.params.k_rho() as usize,
     )
     .map_err(|_| FullFPrimeError::NifsConfigMismatch { field: "dimensions" })?;
-    let expected_dimensions = (dims.ell_d, dims.ell_n, dims.ell_m, dims.d_sc);
-    let configured_dimensions = (cfg.ell_d, cfg.ell_n, cfg.ell_m, cfg.d_sc);
-    if configured_dimensions != expected_dimensions {
-        return Err(FullFPrimeError::NifsConfigMismatch { field: "dimensions" });
-    }
-    // The SplitNc verifier relation intentionally owns no matrices. Its
-    // header must therefore match the full-relation header pinned by context.
-    if cfg.header_bundle != expected_header_bundle {
-        return Err(FullFPrimeError::NifsConfigMismatch { field: "header bundle" });
+    if cfg.matrix_digest != expected_header_bundle {
+        return Err(FullFPrimeError::NifsConfigMismatch { field: "matrix digest" });
     }
     Ok(())
 }

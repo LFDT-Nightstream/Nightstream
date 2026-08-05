@@ -78,16 +78,10 @@ fn recursive_pi_dec_rejects_wrapped_empty_commitment_shape() {
         },
         X: Mat::zero(D, 0, F::ZERO),
         r: Vec::new(),
-        s_col: Vec::new(),
         y_ring: Vec::new(),
         ct: Vec::new(),
-        aux_openings: Vec::new(),
-        y_zcol: Vec::new(),
         m_in: 0,
         fold_digest: [0u8; 32],
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
         adv: None,
     };
     let children = vec![malformed.clone(); prep.params.k_rho() as usize];

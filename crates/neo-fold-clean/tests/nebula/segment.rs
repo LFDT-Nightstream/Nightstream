@@ -1,4 +1,4 @@
-//! M3 gate tests (spec §13 steps 5–6): the segment prover drives real
+//! Segment-prover tests: the segment prover drives real
 //! `S_mem` traces through the full pipeline, memory chains across
 //! segments, and the plan artifact binds the ROM image. This is the test
 //! the external review named: segment 0 writes RAM and reads ROM,
@@ -23,7 +23,7 @@ use p3_field::PrimeCharacteristicRing;
 /// The whole protocol, real circuit, two segments, verified end to end:
 /// fingerprint products from real memory ops balance at each close, the
 /// FS→IS boundary chains match, and the audit verifier replays every
-/// §6.3 transition plus the terminal slice-openings.
+/// lane transition plus the terminal slice openings.
 #[test]
 fn two_segment_chain_with_memory_continuity_verifies() {
     let (_, prep, audit) = honest_two_segment_chain();
@@ -43,7 +43,7 @@ fn two_segment_chain_with_memory_continuity_verifies() {
     );
 }
 
-/// The plan digest and `D_init` bind the ROM image (spec §7/§11): a
+/// The plan digest and `D_init` bind the ROM image (the initial-memory and plan rules): a
 /// different program is a different plan.
 #[test]
 fn plan_binds_rom_image() {
@@ -87,13 +87,13 @@ fn plan_binds_and_memory_uses_nonzero_initial_ram() {
 }
 
 /// `D_init` is verifier-recomputable and deterministic — the γ-independent
-/// ROM handle (spec §7): same public inputs, same handle.
+/// ROM handle: same public inputs, same handle.
 #[test]
 fn d_init_is_deterministic() {
     assert_eq!(plan().d_init(), plan().d_init());
 }
 
-// ── §6.4 prover resume ───────────────────────────────────────────────────
+// ── Prover resume ────────────────────────────────────────────────────────
 
 /// Open segment 0 and deposit only its first step (chunk sizes are
 /// caller-chosen; the lane records the mid-segment position). Returns
@@ -146,7 +146,7 @@ fn mid_segment_chain(prep: &Preprocessing, plan: &NebulaPlan, trace: &SegmentTra
     audit
 }
 
-/// The §6.4 resume completes a mid-segment chain — the lane supplies γ,
+/// The resume path completes a mid-segment chain — the lane supplies γ,
 /// `D_pre`, the step index, and the `ts`/`h`/`sp` carry — and the chain
 /// continues into the next segment and verifies end to end.
 #[test]

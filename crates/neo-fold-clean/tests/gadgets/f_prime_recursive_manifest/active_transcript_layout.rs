@@ -23,15 +23,15 @@ use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::pi_rlc_challenge_st
 use neo_fold_clean::engine::r1cs_circuit::{
     CanonicalU64TraceEntry, PoseidonPermutationTraceEntry, R1csEncodingTrace, R1csSnapshot,
 };
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::stage as pi_ccs_stage;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::stage as pi_ccs_stage;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{build_recursive_program, repo_root};
 
 const LEAN_DATA_PATH: &str = "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeRecursive/PiRlcChallenge/Generated/TranscriptLayoutData.lean";
-const PIN_COUNT: usize = 291;
-const CALL_COUNT: usize = 78;
+const PIN_COUNT: usize = 412;
+const CALL_COUNT: usize = 137;
 const CALL_ROWS: usize = 600;
 const CALL_COLUMNS: usize = 600;
 const CALL_OUTPUT_OFFSET: usize = 592;
@@ -41,6 +41,7 @@ const LANES_PER_BLOCK: usize = 4;
 const FIELD_OUTPUT_ALIAS_COUNT: usize = GROUP_COUNT * BLOCKS_PER_GROUP * LANES_PER_BLOCK;
 const CANONICAL_U64_ROWS: usize = 69;
 const BIND_INPUT_COUNT: usize = 4;
+const BIND_FRAMING_COLUMN_COUNT: usize = 2;
 const OWNED_RANGE_COUNT: usize = 1 + GROUP_COUNT + GROUP_COUNT * BLOCKS_PER_GROUP;
 const OWNED_ROW_COUNT: usize = PIN_COUNT + CALL_COUNT * CALL_ROWS;
 
@@ -373,7 +374,12 @@ fn call_indices_in_range(calls: &[CompactCall], range: &SelectedRange) -> Vec<us
         .collect()
 }
 
-fn bind_input_columns(pins: &[ConstantPin], calls: &[CompactCall], entry_state: &[usize; 8]) -> Vec<usize> {
+fn bind_input_columns(
+    pins: &[ConstantPin],
+    calls: &[CompactCall],
+    entry_state: &[usize; 8],
+    expected_bind_inputs: &[usize],
+) -> Vec<usize> {
     let pin_columns = pins.iter().map(|pin| pin.column).collect::<HashSet<_>>();
     let allocated_columns = calls
         .iter()
@@ -392,8 +398,19 @@ fn bind_input_columns(pins: &[ConstantPin], calls: &[CompactCall], entry_state: 
             found.push(column);
         }
     }
-    assert_eq!(found.len(), BIND_INPUT_COUNT, "four external bind-input columns");
-    found
+    assert_eq!(expected_bind_inputs.len(), BIND_INPUT_COUNT);
+    assert_eq!(
+        found.len(),
+        BIND_INPUT_COUNT + BIND_FRAMING_COLUMN_COUNT,
+        "four digest inputs plus two typed-framing columns"
+    );
+    assert!(
+        expected_bind_inputs
+            .iter()
+            .all(|column| found.contains(column)),
+        "every PiCCS output-digest column enters the typed bind stage"
+    );
+    expected_bind_inputs.to_vec()
 }
 
 fn matching_lanes(left: &[usize; 8], right: &[usize; 8]) -> Vec<usize> {
@@ -430,7 +447,11 @@ fn canonical_for_stage<'a>(canonical: &'a [CanonicalU64TraceEntry], row: usize) 
     entry
 }
 
-fn field_output_aliases(trace: &R1csEncodingTrace, calls: &[CompactCall]) -> Vec<FieldOutputAlias> {
+fn field_output_aliases(
+    trace: &R1csEncodingTrace,
+    calls: &[CompactCall],
+    pins: &[ConstantPin],
+) -> Vec<FieldOutputAlias> {
     let output_owners = calls
         .iter()
         .enumerate()
@@ -494,9 +515,15 @@ fn field_output_aliases(trace: &R1csEncodingTrace, calls: &[CompactCall]) -> Vec
                 .all(|alias| alias.call_index == block[0].call_index),
             "one digest call owns each four-lane block"
         );
+        let call_end = calls[block[0].call_index].row_end;
         assert_eq!(
-            calls[block[0].call_index].row_end, block[0].canonical_row_start,
-            "digest-output call immediately precedes the block's first lane"
+            block[0].canonical_row_start - call_end,
+            2,
+            "two typed challenge post-binding rows precede the block's first lane"
+        );
+        assert!(
+            (call_end..block[0].canonical_row_start).all(|row| pins.iter().any(|pin| pin.row == row)),
+            "typed challenge post-binding rows are constant pins"
         );
         assert!(
             block
@@ -552,21 +579,21 @@ fn extract() -> Artifact {
     let bind_call_indices = call_indices_in_range(&calls, &selected[0]);
     assert_eq!(
         bind_call_indices,
-        [0, 1],
-        "two bind-output calls at local indices zero and one"
+        [0, 1, 2],
+        "three typed bind-output calls at local indices zero through two"
     );
     let first_rho_range = selected
         .iter()
-        .find(|range| range.label == pi_rlc_challenge_stage::RHO_DOMAIN_SEPARATOR)
-        .expect("first rho separator range");
+        .find(|range| range.label == pi_rlc_challenge_stage::TRANSCRIPT_DIGEST)
+        .expect("first rho digest range");
     let first_rho_calls = call_indices_in_range(&calls, first_rho_range);
-    let first_rho_call_index = *first_rho_calls.first().expect("rho-zero separator call");
-    assert_eq!(first_rho_call_index, 2, "first rho call follows two bind calls");
+    let first_rho_call_index = *first_rho_calls.first().expect("rho-zero digest call");
+    assert_eq!(first_rho_call_index, 3, "first rho call follows three typed bind calls");
 
-    let bind_input_columns = bind_input_columns(&constant_pins, &calls, &entry_state);
+    let expected_bind_inputs = pi_ccs_output_digest_columns(trace);
+    let bind_input_columns = bind_input_columns(&constant_pins, &calls, &entry_state, &expected_bind_inputs);
     assert_eq!(
-        bind_input_columns,
-        pi_ccs_output_digest_columns(trace),
+        bind_input_columns, expected_bind_inputs,
         "PiRLC bind inputs are the PiCCS output-message digest columns"
     );
     let bind_seen = bind_call_indices
@@ -579,7 +606,7 @@ fn extract() -> Artifact {
         .copied()
         .filter(|column| !bind_seen.contains(column))
         .collect::<Vec<_>>();
-    assert_eq!(trailing_bind_inputs.len(), 2, "two post-bind buffered inputs");
+    assert_eq!(trailing_bind_inputs.len(), 1, "one post-bind buffered digest input");
 
     let last_bind_call = &calls[*bind_call_indices.last().expect("bind calls")];
     let mut post_bind_state = last_bind_call.output_columns();
@@ -605,19 +632,25 @@ fn extract() -> Artifact {
     assert_eq!(entry_to_first_call_lanes, [4, 5, 6, 7], "entry capacity continuity");
     assert_eq!(
         post_bind_to_first_rho_call_lanes,
-        [0, 1, 4, 5, 6, 7],
+        [0, 4, 5, 6, 7],
         "mixed post-bind state continuity"
     );
-    assert_eq!(post_bind_boundary.cursor, 2, "post-bind cursor metadata");
+    assert_eq!(post_bind_boundary.cursor, 1, "post-bind cursor metadata");
+    let final_call_end = calls.last().expect("selected calls").row_end;
+    let final_range_end = selected.last().expect("owned ranges").rows.end;
     assert_eq!(
-        calls.last().expect("selected calls").row_end,
-        selected.last().expect("owned ranges").rows.end,
-        "final digest call closes the final owned range"
+        final_range_end - final_call_end,
+        2,
+        "two typed challenge post-binding pins close the final owned range"
+    );
+    assert!(
+        (final_call_end..final_range_end).all(|row| constant_pins.iter().any(|pin| pin.row == row)),
+        "the final typed challenge rows are constant pins"
     );
 
     let state_continuity = state_continuity(&calls);
     assert_eq!(state_continuity.len(), CALL_COUNT - 1, "adjacent-call continuity count");
-    let field_output_aliases = field_output_aliases(trace, &calls);
+    let field_output_aliases = field_output_aliases(trace, &calls, &constant_pins);
 
     Artifact {
         source_rows: source.rows(),
@@ -718,14 +751,18 @@ open Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallengeTranscriptLayo
     out.push_str("def emissionOrder : List EmissionRef :=\n  [ ");
     for (index, emission) in artifact.emission_order.iter().enumerate() {
         if index != 0 {
-            out.push_str("  , ");
+            if index % 8 == 0 {
+                out.push_str(",\n    ");
+            } else {
+                out.push_str(", ");
+            }
         }
         match emission {
-            EmissionRef::Pin(pin) => writeln!(out, ".pin {pin}").unwrap(),
-            EmissionRef::Call(call) => writeln!(out, ".call {call}").unwrap(),
+            EmissionRef::Pin(pin) => write!(out, ".pin {pin}").unwrap(),
+            EmissionRef::Call(call) => write!(out, ".call {call}").unwrap(),
         }
     }
-    out.push_str("  ]\n\n");
+    out.push_str(" ]\n\n");
 
     out.push_str("def stateContinuity : List StateContinuity :=\n  [ ");
     for (index, continuity) in artifact.state_continuity.iter().enumerate() {

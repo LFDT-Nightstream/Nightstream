@@ -51,7 +51,7 @@ struct Renderer<'a> {
     digests: DigestIds,
     inputs: Vec<Vec<u32>>,
     case_inputs: Vec<u32>,
-    empty_running: u32,
+    default_running: u32,
 }
 
 impl<'a> Renderer<'a> {
@@ -69,23 +69,24 @@ impl<'a> Renderer<'a> {
                 }
             })
             .collect();
-        let empty_running = corpus
-            .atoms
-            .running
+        let honest_base = corpus
+            .cases
             .iter()
-            .position(|running| {
-                running.ordered_children.is_empty()
-                    && running.parent_authority.is_none()
-                    && running.pending_projection.is_none()
-            })
-            .map(|index| u32::try_from(index + 1).expect("Lean running id"))
-            .expect("native-step corpus contains one empty running atom");
+            .find(|case| case.name == "honest_base")
+            .expect("native-step corpus contains the honest base receipt");
+        let next = honest_base
+            .recorded_next
+            .expect("the honest base receipt has a next state");
+        let StateBranch::Active { running, .. } = corpus.atoms.states[next as usize].branch else {
+            panic!("the honest base receipt produces an active state")
+        };
+        let default_running = running + 1;
         Self {
             corpus,
             digests: DigestIds::default(),
             inputs,
             case_inputs,
-            empty_running,
+            default_running,
         }
     }
 
@@ -111,7 +112,7 @@ impl<'a> Renderer<'a> {
         .unwrap();
 
         self.render_context(&mut out);
-        writeln!(out, "def emptyRunning : Running := {}\n", atom(self.empty_running)).unwrap();
+        writeln!(out, "def emptyRunning : Running := {}\n", atom(self.default_running)).unwrap();
         self.render_states(&mut out);
         self.render_inputs(&mut out);
         self.render_proofs(&mut out);
@@ -605,7 +606,7 @@ fn lean_error(value: StableError) -> &'static str {
         StableError::FoldProofVariantMismatch => "foldProofVariantMismatch",
         StableError::StatelessSemanticInvariantViolated => "statelessSemanticInvariantViolated",
         StableError::XOutMismatch => "xOutMismatch",
-        StableError::NifsPiDecVerifyRejected | StableError::NifsPiCcsProtocolMeOutputRowPointMismatch => "nifsRejected",
+        StableError::NifsPiDecVerifyRejected | StableError::NifsPiCcsOutputShapeMismatch => "nifsRejected",
     }
 }
 

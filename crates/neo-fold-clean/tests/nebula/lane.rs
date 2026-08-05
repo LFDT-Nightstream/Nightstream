@@ -1,7 +1,7 @@
-//! `NebulaLane` transition — spec §6.3, one rejection test per check
-//! (M2 acceptance, spec §13 step 4) plus the honest segment walk and γ
+//! `NebulaLane` transition, with one rejection test per check
+//! plus the honest segment walk and γ
 //! determinism. Pure state-machine tests: folding is exercised by
-//! `nebula_adv_fold`, lifecycle wiring by M2b's tests.
+//! `nebula_adv_fold`; lifecycle tests own the lifecycle wiring.
 
 use neo_ajtai::Commitment;
 use neo_ccs::LaneCommitments;
@@ -276,7 +276,7 @@ fn per_step_equalities_reject_tampered_x() {
 }
 
 /// A segment whose last step leaves a stack pointer nonzero violates the
-/// segment-local discipline (spec §3.1) — the deterministic close check
+/// segment-local discipline. The deterministic close check
 /// fires before the product equation gets its say.
 #[test]
 fn close_rejects_live_stack_cells() {
@@ -302,7 +302,7 @@ fn close_rejects_live_stack_cells() {
 }
 
 /// Fold a different tuple than the pre-committed one: the segment closes
-/// on `D_seen != D_pre` — the retroactive authority of the L0b claim.
+/// on `D_seen != D_pre`, which gives `D_pre` retroactive authority.
 #[test]
 fn close_rejects_swapped_lane_commitments() {
     let advs: Vec<_> = (0..N).map(adv).collect();
@@ -370,7 +370,7 @@ fn close_rejects_broken_memory_continuity() {
     }
 }
 
-/// Mid-segment lanes violate the finalization rule (spec §6.3): a proof
+/// Mid-segment lanes violate the finalization rule: a proof
 /// may not end here.
 #[test]
 fn finalization_rule_rejects_open_segments() {

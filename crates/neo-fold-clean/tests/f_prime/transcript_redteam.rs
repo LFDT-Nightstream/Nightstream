@@ -21,7 +21,7 @@ use neo_fold_clean::paper::f_prime::r1cs::{
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use neo_fold_clean::paper::nifs::NifsProof;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig;
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -255,7 +255,7 @@ fn recursive_step_x_out(
 fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing, mode: StateXOutDigestMode) -> FPrimeStepConfig<'a> {
     FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(prep),
+            pi_ccs: pi_ccs_config(prep),
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
@@ -265,32 +265,11 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing, mode: StateXOut
     }
 }
 
-fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
-        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params reconstruction");
-    let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &mat_digest,
-    )
-    .expect("header bundle digest");
-
-    SplitNcPiCcsVConfig {
+fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'a> {
+    PiCcsVerifierConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle,
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: prep.pi_ccs_header_bundle(),
     }
 }
 
@@ -299,7 +278,6 @@ fn msg_from_fixture<'a>(fixture: &'a RedteamFixture) -> NifsVCircuitMessages<'a>
         fresh: &fixture.fresh_claims,
         running: &fixture.running.claims,
         running_parent_authority: fixture.running.parent_authority.as_ref(),
-        running_pending_projection: fixture.running.pending_projection(),
         pi_ccs: &fixture.proof.pi_ccs,
         combined: &fixture.combined,
         children: &fixture.children,

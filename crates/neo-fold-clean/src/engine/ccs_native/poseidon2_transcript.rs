@@ -19,6 +19,10 @@ use crate::engine::ccs_native::poseidon2::{
 };
 
 const BYTES_PER_LIMB: usize = 7;
+const OP_APPEND_MESSAGE: u64 = 1;
+const OP_APPEND_FIELDS: u64 = 2;
+const QUERY_FIELDS: u64 = 0x101;
+const QUERY_DIGEST32: u64 = 0x104;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SpongeTraceLayout {
@@ -67,6 +71,7 @@ impl SpongeTraceBuilder {
     }
 
     pub fn append_message(&mut self, label: &[u8], msg: &[u8]) {
+        self.absorb_elem(F::from_u64(OP_APPEND_MESSAGE));
         self.absorb_packed_bytes_with_len(label);
         self.absorb_packed_bytes_with_len(msg);
     }
@@ -77,6 +82,7 @@ impl SpongeTraceBuilder {
     }
 
     pub fn append_fields(&mut self, label: &[u8], fs: &[F]) {
+        self.absorb_elem(F::from_u64(OP_APPEND_FIELDS));
         self.absorb_packed_bytes_with_len(label);
         self.absorb_elem(F::from_u64(fs.len() as u64));
         self.absorb_slice(fs);
@@ -84,12 +90,16 @@ impl SpongeTraceBuilder {
 
     pub fn challenge_field(&mut self, label: &[u8]) -> F {
         self.append_message(b"chal/label", label);
-        self.squeeze_n_raw(1)[0]
+        let out = self.squeeze_n_raw(1)[0];
+        self.bind_query(QUERY_FIELDS, 1);
+        out
     }
 
     pub fn challenge_fields(&mut self, label: &[u8], n: usize) -> Vec<F> {
         self.append_message(b"chal/label", label);
-        self.squeeze_n_raw(n)
+        let out = self.squeeze_n_raw(n);
+        self.bind_query(QUERY_FIELDS, n);
+        out
     }
 
     pub fn challenge_fields_raw(&mut self, n: usize) -> Vec<F> {
@@ -98,7 +108,9 @@ impl SpongeTraceBuilder {
 
     pub fn digest_fields(&mut self) -> [F; POSEIDON2_DIGEST_LEN] {
         let lanes = self.squeeze_once(POSEIDON2_DIGEST_LEN);
-        std::array::from_fn(|i| lanes[i])
+        let out = std::array::from_fn(|i| lanes[i]);
+        self.bind_query(QUERY_DIGEST32, POSEIDON2_DIGEST_LEN * 8);
+        out
     }
 
     pub fn finish(self) -> SpongeTraceImage {
@@ -140,6 +152,11 @@ impl SpongeTraceBuilder {
         }
         self.state[self.absorbed] = x;
         self.absorbed += 1;
+    }
+
+    fn bind_query(&mut self, query: u64, output_len: usize) {
+        self.absorb_elem(F::from_u64(query));
+        self.absorb_elem(F::from_u64(output_len as u64));
     }
 
     fn absorb_slice(&mut self, xs: &[F]) {

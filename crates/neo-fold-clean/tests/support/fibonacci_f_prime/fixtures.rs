@@ -47,8 +47,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 ///    `finish_uncompressed_with_audit`.
 /// 4. Inspect `running.parent_authority`. It comes out with exactly
 ///    these dimensions — i.e. `f(plan) = plan_shape`. (Verified by a
-///    one-off probe). `r_len` tracks the F' row domain and is smaller
-///    than `s_col_len`, which tracks the still-large column domain. The
+///    one-off probe). `r_len` tracks the padded joint row domain. The
 ///    values below are re-derived after the stateless `state_x_out`
 ///    digest omits the duplicate semantic accumulator lanes.
 ///
@@ -62,8 +61,6 @@ const X_ACTIVE_COLS: usize = 5;
 const R_LEN: usize = 12;
 const Y_RING_OUTER: usize = 8;
 const Y_RING_INNER: usize = 64;
-const Y_ZCOL_LEN: usize = 64;
-const S_COL_LEN: usize = 18;
 const CHILD_COUNT: u64 = 14;
 const PC: u64 = 1;
 const NEW_CHUNK_COUNT: u64 = 7;
@@ -81,8 +78,6 @@ fn canonical_ce_shape() -> NifsCeClaimShape {
         x_active_cols: X_ACTIVE_COLS,
         r_len: R_LEN,
         y_ring_inner_lens: vec![Y_RING_INNER; Y_RING_OUTER],
-        y_zcol_len: Y_ZCOL_LEN,
-        s_col_len: S_COL_LEN,
     }
 }
 
@@ -138,8 +133,6 @@ fn perp_canonical_ce_view() -> NifsCeClaimView {
             .iter()
             .map(|&len| vec![[F::ZERO; 2]; len])
             .collect(),
-        y_zcol: vec![[F::ZERO; 2]; shape.y_zcol_len],
-        s_col: vec![[F::ZERO; 2]; shape.s_col_len],
         m_in: 0,
         fold_digest_fields: [F::ZERO; 4],
     }

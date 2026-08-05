@@ -16,7 +16,7 @@
 //! | Inactive SIS binding | Every inactive SIS centered word is fixed | no |
 //! | Inactive canonical binding | Every inactive canonical binary word is fixed | no |
 //! | Column-layout ABI | Every estimated fixed column has one ordered, abutting owner; no materializer or authority claim | no |
-//! | Legacy direct-selector formula | Every term in the 258M estimate is explicit; no emitted relation or selector-soundness claim | no |
+//! | Direct-selector formula | Every estimator term is explicit; no emitted relation or selector-soundness claim | no |
 
 use neo_fold_clean::engine::r1cs_circuit::builder::BALANCED_TERNARY_DIGITS;
 use neo_fold_clean::frontends::f_prime::gadget_native::{
@@ -85,13 +85,13 @@ pub(crate) fn assert_direct_selector_cost_formula(
         (
             257,
             1,
-            38_111,
-            2_001_172,
-            190_111_340,
-            190_149_708,
-            64_037_504,
-            2_039_283,
-            2_217_565,
+            38_110,
+            8_551_728,
+            812_414_160,
+            812_452_527,
+            273_655_296,
+            8_589_838,
+            8_887_467,
         ),
         "un-audited direct selector estimator component snapshot"
     );
@@ -468,17 +468,17 @@ fn selector_gated_layout_partitions_every_fixed_column(fixed: &SelectorGatedGadg
             .map(|(name, range)| (name, range.clone())),
         [
             ("constant_one", 0..1),
-            ("one_bit", 1..999_272),
-            ("acceptance_tree_outputs", 999_272..1_012_712),
-            ("ordinary_private", 1_012_712..7_482_389),
-            ("balanced_ternary", 7_482_389..7_968_772),
-            ("packed_mod5_residues", 7_968_772..7_970_692),
-            ("canonical_source_raw", 7_970_692..7_970_820),
-            ("canonical_source_prefix", 7_970_820..7_970_882),
-            ("canonical_ring_raw", 7_970_882..7_970_882),
-            ("canonical_ring_prefix", 7_970_882..7_970_882),
-            ("canonical_product_sum_raw", 7_970_882..8_167_554),
-            ("canonical_product_sum_prefix", 8_167_554..8_262_817),
+            ("one_bit", 1..5_496_310),
+            ("acceptance_tree_outputs", 5_496_310..5_509_750),
+            ("ordinary_private", 5_509_750..9_491_752),
+            ("balanced_ternary", 9_491_752..12_254_414),
+            ("packed_mod5_residues", 12_254_414..12_256_334),
+            ("canonical_source_raw", 12_256_334..12_256_462),
+            ("canonical_source_prefix", 12_256_462..12_256_524),
+            ("canonical_ring_raw", 12_256_524..12_256_524),
+            ("canonical_ring_prefix", 12_256_524..12_256_524),
+            ("canonical_product_sum_raw", 12_256_524..12_395_404),
+            ("canonical_product_sum_prefix", 12_395_404..12_462_674),
         ],
         "production fixed selector column ABI"
     );

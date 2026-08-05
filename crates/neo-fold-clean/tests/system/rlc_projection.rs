@@ -1,5 +1,4 @@
 //! Π_RLC commitment combination, projection-checked.
-//! Security argument: `specs/nebula-superneo-security-note.md`, Lemma 5 §4b.
 //!
 //! The projection variant must accept exactly the combined commitment
 //! the trusted Toom-3 D²-materialization variant accepts, reject any

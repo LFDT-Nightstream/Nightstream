@@ -18,7 +18,9 @@ use toy_spartan::{
 
 use crate::paper::relations::{CcsClaim, CcsInstance, CeClaim, WitnessMat};
 
-use super::lean_native_ccs_manifest::LeanNativeCcsManifest;
+use super::{
+    lean_native_ccs_manifest::LeanNativeCcsManifest, lean_nebula_combined_manifest::LeanNebulaCombinedManifest,
+};
 
 /// Direct Spartan engine used by the terminal reference relation.
 pub type TerminalSpartanEngine = GoldilocksWhirEngine;
@@ -150,6 +152,25 @@ pub fn compile_terminal_r1cs_statement(
     statement: TerminalR1csStatement<'_>,
 ) -> Result<CompiledTerminalR1csStatement, TerminalR1csError> {
     compiler::compile_statement(manifest, log, statement)
+}
+
+/// Compile the exact Lean-owned native F-prime plus Nebula terminal relation.
+pub fn compile_combined_terminal_r1cs(
+    manifest: &LeanNebulaCombinedManifest,
+    log: &AjtaiSModule,
+    input: TerminalR1csInput<'_>,
+) -> Result<CompiledTerminalR1cs, TerminalR1csError> {
+    compiler::compile_combined(manifest, log, input)
+}
+
+/// Rebuild the combined terminal shape and public vector without private
+/// witnesses.
+pub fn compile_combined_terminal_r1cs_statement(
+    manifest: &LeanNebulaCombinedManifest,
+    log: &AjtaiSModule,
+    statement: TerminalR1csStatement<'_>,
+) -> Result<CompiledTerminalR1csStatement, TerminalR1csError> {
+    compiler::compile_combined_statement(manifest, log, statement)
 }
 
 pub use lifecycle::{

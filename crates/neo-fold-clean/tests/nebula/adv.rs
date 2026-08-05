@@ -1,6 +1,6 @@
-//! `adv` lane-commitment tuple on the claims — spec §5.1/§5.2 R1, M1a
+//! `adv` lane-commitment tuple on the claims: construction, validation, and transcript
 //! (inert) slice: the type, its serde compatibility, and the leaf-digest
-//! absorb rule. Folding mirrors and decider openings are M1b.
+//! absorption. Separate tests own folding and decider openings.
 
 use neo_ajtai::Commitment;
 use neo_ccs::LaneCommitments;
@@ -40,9 +40,9 @@ fn claim(adv: Option<LaneCommitments<Commitment>>) -> CcsClaim {
     }
 }
 
-/// Spec §6.1 tag discipline: `is` and `fs` share the lane-neutral mem
+/// the lane tag discipline: `is` and `fs` share the lane-neutral mem
 /// tag, so equal commitments give equal leaves — the formula identity the
-/// cross-segment boundary equality consumes (security-note Cor. 1.1).
+/// cross-segment boundary equality consumes.
 /// `ops` has its own domain: the same commitment leafs differently there.
 #[test]
 fn mem_leaves_are_lane_neutral_and_ops_is_domain_separated() {
@@ -64,7 +64,7 @@ fn leaves_bind_each_lane() {
     assert_ne!(base[2], fs_changed[2]);
 }
 
-/// Absorb rule R1: a present tuple changes the claim digest, and each
+/// A present tuple changes the claim digest, and each
 /// lane's content reaches it (through its leaf). A `None` claim keeps the
 /// pre-Nebula preimage — pinned here by asserting Some ≠ None so the
 /// present-only extension is observable.
@@ -79,7 +79,7 @@ fn claim_digest_binds_adv_presence_and_content() {
 
 /// Serde compatibility: pre-Nebula serialized claims (no `adv` field)
 /// deserialize to `None`; a present tuple round-trips exactly. This is
-/// the "existing artifacts untouched" acceptance of §13 step 3.
+/// the existing-artifacts-untouched acceptance case.
 #[test]
 fn serde_default_and_round_trip() {
     let legacy = serde_json::to_value(claim(None)).map(|mut v| {

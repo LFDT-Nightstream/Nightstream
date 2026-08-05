@@ -15,10 +15,8 @@
 //! |---|---|---|---|---|
 //! | `identities.{commitment,x,y_ring}` | Paper-public one-point projection equations over the packed carrier | yes | `pi_rlc_circuit::{commitment,x,padded_k}` | `NifsPaper.PiRlc` (conditional) |
 //! | `identities.adv` | Nebula product-commitment extension projection | yes | `pi_rlc_circuit::commitment` | separate Nebula refinement open |
-//! | `identities.y_zcol` | Delayed-NC sidecar projection | yes | `pi_rlc_circuit::padded_k` | `DelayedNcSidecarArtifact` (open) |
 //! | `padding.x` | Inactive X columns equal zero | yes | `pi_rlc_circuit/x.rs` | `Claims/X.lean` |
 //! | `padding.y_ring` | Every padded y_ring tail equals zero | yes | `pi_rlc_circuit/padded_k.rs` | `Claims/Padding.lean` |
-//! | `padding.y_zcol` | Every padded y_zcol tail equals zero | yes | `pi_rlc_circuit/padded_k.rs` | `Claims/Padding.lean` |
 
 use crate::engine::r1cs_circuit::builder::{ProjectionIdentityRole, ProjectionNebulaCoordinate};
 use crate::engine::r1cs_circuit::R1csBuilder;
@@ -105,18 +103,6 @@ pub(super) fn enforce(
         padding::enforce_y_ring(builder, wires, row)?;
     }
 
-    builder.begin_encoding_stage(stage::IDENTITIES_Y_ZCOL);
-    enforce_rlc_padded_k_projection_identities_with_quotient_wires_and_stages(
-        builder,
-        &shared.powers,
-        &shared.rho_evaluations,
-        &folds.y_zcol,
-        &binding.y_zcol_q[0],
-        &binding.y_zcol_q[1],
-        Some([stage::Y_ZCOL_LIMB0_IDENTITY_STAGES, stage::Y_ZCOL_LIMB1_IDENTITY_STAGES]),
-    )?;
-    padding::enforce_y_zcol(builder, &folds.y_zcol)?;
-
     let mut roles = Vec::with_capacity(builder.projection_identity_audits().len());
     roles.extend((0..kappa).map(|lane| ProjectionIdentityRole::CommitmentLane { lane }));
     if binding.adv_q.is_some() {
@@ -132,7 +118,6 @@ pub(super) fn enforce(
     for row in 0..folds.y_ring.len() {
         roles.extend((0..2).map(|limb| ProjectionIdentityRole::YRingLimb { row, limb }));
     }
-    roles.extend((0..2).map(|limb| ProjectionIdentityRole::YZColLimb { limb }));
     builder.assign_projection_identity_roles(audit_start, &roles);
     builder.record_row_family("nifs.pi_rlc.projection_identities", identities_start);
     Ok(())

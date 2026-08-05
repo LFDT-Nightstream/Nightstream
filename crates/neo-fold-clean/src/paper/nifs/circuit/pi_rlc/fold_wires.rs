@@ -10,14 +10,13 @@
 //! | --- | --- | --- |
 //! | `fold_wires.{commitment,x,y_ring}` | Build typed views without allocating wires | paper-public packed carrier |
 //! | `fold_wires.adv` | Build Nebula commitment-extension view | protocol extension |
-//! | `fold_wires.y_zcol` | Build delayed-NC view | sidecar, not paper CE |
 
 use neo_ccs::LaneCommitments;
 use neo_math::ring::D;
 
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{R1csBuilder, Var};
-use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires;
+use crate::paper::reductions::pi_ccs_circuit::PiCcsOutputWires;
 use crate::paper::reductions::pi_dec_circuit::DecInputWires;
 use crate::paper::reductions::pi_rlc_circuit::{
     stage, RlcCommitmentWires, RlcPaddedKVectorPairWires, RlcPaddedKVectorWires, RlcPairWires, RlcXPairWires, RlcXWires,
@@ -31,13 +30,12 @@ pub(super) struct FoldWires {
     pub(super) adv: Option<LaneCommitments<RlcCommitmentWires>>,
     pub(super) x: RlcXWires,
     pub(super) y_ring: Vec<RlcPaddedKVectorWires>,
-    pub(super) y_zcol: RlcPaddedKVectorWires,
 }
 
 pub(super) fn prepare(
     builder: &mut R1csBuilder,
     rho_wires: &[[Var; D]],
-    outputs: &[SplitNcPiCcsOutputWires],
+    outputs: &[PiCcsOutputWires],
     dec_wires: &DecInputWires,
     kappa: usize,
     m_in: usize,
@@ -60,21 +58,17 @@ pub(super) fn prepare(
         y_ring.push(y_ring_row_wires(rho_wires, outputs, dec_wires, row, d_pad)?);
     }
 
-    builder.begin_encoding_stage(stage::FOLD_WIRES_Y_ZCOL);
-    let y_zcol = y_zcol_wires(rho_wires, outputs, dec_wires, d_pad)?;
-
     Ok(FoldWires {
         commitment,
         adv,
         x,
         y_ring,
-        y_zcol,
     })
 }
 
 fn commitment_wires(
     rho_wires: &[[Var; D]],
-    outputs: &[SplitNcPiCcsOutputWires],
+    outputs: &[PiCcsOutputWires],
     dec_wires: &DecInputWires,
     kappa: usize,
 ) -> Result<RlcCommitmentWires, Error> {
@@ -105,7 +99,7 @@ fn commitment_wires(
 
 fn adv_commitment_wires(
     rho_wires: &[[Var; D]],
-    outputs: &[SplitNcPiCcsOutputWires],
+    outputs: &[PiCcsOutputWires],
     dec_wires: &DecInputWires,
 ) -> Result<Option<LaneCommitments<RlcCommitmentWires>>, Error> {
     let present = outputs.iter().filter(|output| output.adv.is_some()).count();
@@ -163,12 +157,7 @@ fn adv_commitment_wires(
     }
 }
 
-fn x_wires(
-    rho_wires: &[[Var; D]],
-    outputs: &[SplitNcPiCcsOutputWires],
-    dec_wires: &DecInputWires,
-    m_in: usize,
-) -> RlcXWires {
+fn x_wires(rho_wires: &[[Var; D]], outputs: &[PiCcsOutputWires], dec_wires: &DecInputWires, m_in: usize) -> RlcXWires {
     let inputs = rho_wires
         .iter()
         .zip(outputs)
@@ -189,7 +178,7 @@ fn x_wires(
 
 fn y_ring_row_wires(
     rho_wires: &[[Var; D]],
-    outputs: &[SplitNcPiCcsOutputWires],
+    outputs: &[PiCcsOutputWires],
     dec_wires: &DecInputWires,
     row: usize,
     d_pad: usize,
@@ -199,20 +188,6 @@ fn y_ring_row_wires(
         .map(|output| output.y_ring[row].clone())
         .collect::<Vec<_>>();
     let combined = kvars_from_flat_dec(&dec_wires.parent.y_ring[row])?;
-    padded_k_vector_wires(rho_wires, &inputs, &combined, d_pad)
-}
-
-fn y_zcol_wires(
-    rho_wires: &[[Var; D]],
-    outputs: &[SplitNcPiCcsOutputWires],
-    dec_wires: &DecInputWires,
-    d_pad: usize,
-) -> Result<RlcPaddedKVectorWires, Error> {
-    let inputs = outputs
-        .iter()
-        .map(|output| output.y_zcol.clone())
-        .collect::<Vec<_>>();
-    let combined = kvars_from_flat_dec(&dec_wires.parent.y_zcol)?;
     padded_k_vector_wires(rho_wires, &inputs, &combined, d_pad)
 }
 

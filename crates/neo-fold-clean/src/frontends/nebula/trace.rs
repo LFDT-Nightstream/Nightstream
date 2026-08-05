@@ -1,5 +1,5 @@
-//! Nebula native memory machine — the first pass of the two-pass prover
-//! (spec §1) and the test oracle. Never verifier authority (spec scope).
+//! Nebula native memory machine — the first pass of the two-pass prover and
+//! the test oracle. Never verifier authority.
 //!
 //! Owns: sequential-consistency semantics — cell state, the global
 //! never-resetting timestamp, RS/WS tuple emission per op, IS/FS snapshots
@@ -9,7 +9,7 @@
 //! ([`super::fingerprint`]), circuits, commitments, or any accept/reject
 //! decision of the protocol.
 //!
-//! ## Semantics (spec §3.1/§3.2, Nebula §4.2, Coral Fig. 7)
+//! ## Semantics
 //!
 //! Every RAM/ROM op — read or write — touches exactly one cell and emits
 //! one RS tuple (the cell's previous `(t, v)`) and one WS tuple (the new
@@ -23,7 +23,7 @@
 //! ```
 //!
 //! with `ts` incremented per op, globally across all segments. Writes to
-//! the ROM namespace are rejected; stacks are segment-local (spec §3.1) —
+//! the ROM namespace are rejected; stacks are segment-local —
 //! [`SegmentRun::finish`] rejects a segment that leaves a stack
 //! non-empty. For an honest run, `IS ∪ WS = RS ∪ FS` holds exactly (Blum
 //! et al. invariant, Nebula Lemma 7; pushes cancel their pops) — tests
@@ -51,7 +51,7 @@ pub enum TraceError {
     StackOverflow(u8),
     #[error("pop from empty stack {0}")]
     StackUnderflow(u8),
-    #[error("segment close with {live} live cells on stack {stack} (stacks are segment-local, spec §3.1)")]
+    #[error("segment close with {live} live cells on stack {stack} (stacks are segment-local)")]
     StackNotEmpty { stack: u8, live: usize },
     #[error("segment is full ({0} ops)")]
     SegmentFull(usize),
@@ -67,7 +67,7 @@ pub enum TraceError {
 pub struct Memory {
     params: NebulaParams,
     /// Indexed by global cell index `g`; ROM occupies `[0, R)`. Scanned
-    /// cells only — stacks live in `stacks`, never here (spec §3.1).
+    /// cells only — stacks live in `stacks`, never here.
     cells: Vec<CellRecord>,
     /// Live stack cells, bottom to top: `(value, push time)`. Stacks are
     /// segment-local, so these are empty at every segment boundary.
@@ -85,7 +85,7 @@ impl Memory {
         Self::new_with_initial_ram(params, rom_image, &ram_image)
     }
 
-    /// Fresh chain-start memory (spec §3.1): ROM and RAM cells hold the
+    /// Fresh chain-start memory: ROM and RAM cells hold the
     /// verifier-owned initial images, stacks are empty, and every timestamp is 0.
     pub fn new_with_initial_ram(
         params: NebulaParams,
@@ -116,7 +116,7 @@ impl Memory {
         })
     }
 
-    /// Global timestamp (ops applied so far). Never resets (spec §6.3).
+    /// Global timestamp (ops applied so far). Never resets.
     pub fn ts(&self) -> u64 {
         self.ts
     }
@@ -293,7 +293,7 @@ impl SegmentRun<'_> {
 
     /// Close the segment: snapshot FS, advance the segment counter, and
     /// return the full trace. Rejects a segment that leaves a stack
-    /// non-empty — stacks are segment-local (spec §3.1), and an unpopped
+    /// non-empty — stacks are segment-local, and an unpopped
     /// push could only fail later, at the product equation.
     pub fn finish(self) -> Result<SegmentTrace, TraceError> {
         for (s, stack) in self.mem.stacks.iter().enumerate() {
@@ -327,7 +327,7 @@ impl SegmentRun<'_> {
 
 /// Everything one segment contributes to the proof, as plain data: the op
 /// records (in application order), and the IS/FS snapshots (in global cell
-/// order — canonical by construction, spec §3.3). Tests mutate copies of
+/// order, canonical by construction). Tests mutate copies of
 /// these to model attacks; the tuple views below are derived, never stored
 /// twice.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -363,8 +363,8 @@ impl SegmentTrace {
         &self.ops[lo..hi]
     }
 
-    /// RS multiset: one tuple per RS-emitting op (everything but pushes,
-    /// spec §3.2), carrying the cell's previous timestamp and the value
+    /// RS multiset: one tuple per RS-emitting op (everything but pushes),
+    /// carrying the cell's previous timestamp and the value
     /// read.
     pub fn rs_tuples(&self) -> Vec<MemTuple> {
         self.ops
@@ -378,8 +378,8 @@ impl SegmentTrace {
             .collect()
     }
 
-    /// WS multiset: one tuple per WS-emitting op (everything but pops,
-    /// spec §3.2), carrying the write timestamp (`ts_in + j + 1` for op
+    /// WS multiset: one tuple per WS-emitting op (everything but pops),
+    /// carrying the write timestamp (`ts_in + j + 1` for op
     /// `j` — pops still tick the clock) and the value written back.
     pub fn ws_tuples(&self) -> Vec<MemTuple> {
         self.ops
@@ -440,12 +440,12 @@ impl SegmentTrace {
     }
 }
 
-/// A stack push: emits WS only (spec §3.2).
+/// A stack push emits WS only.
 fn is_push(op: &MemOpRecord) -> bool {
     matches!(op.space, MemSpace::Stack(_)) && op.is_write
 }
 
-/// A stack pop: emits RS only (spec §3.2).
+/// A stack pop emits RS only.
 fn is_pop(op: &MemOpRecord) -> bool {
     matches!(op.space, MemSpace::Stack(_)) && !op.is_write
 }

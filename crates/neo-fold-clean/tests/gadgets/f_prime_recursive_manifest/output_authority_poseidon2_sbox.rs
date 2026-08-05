@@ -9,7 +9,7 @@
 //!
 //! | Test branch | Mathematical obligation | Corruption class | Expected result |
 //! |---|---|---|---|
-//! | `census` | 422 permutations contain exactly 36,292 `x^7` outputs | count drift | reject |
+//! | `census` | 17 permutations contain exactly 1,462 `x^7` outputs | count drift | reject |
 //! | `replay` | every call is one exact affine renaming of production Poseidon2 | row/column/range drift | reject |
 //! | `prehash_boundary` | prehash rows and fresh columns have the expected ownership shape | boundary geometry drift | reject |
 //! | `whole_matrix` | each candidate has one definition and eight consumers, all inside its call | extra/missing/coefficient drift | reject |
@@ -59,30 +59,30 @@ fn output_authority_sbox_manifest_replays_exact_program_and_rejects_all_drift() 
     let manifest = audit_output_authority_poseidon2_sboxes(&source, trace, &[])
         .expect("exact output-authority Poseidon2 S-box manifest");
 
-    assert_eq!(manifest.stage_rows.len(), 254_915);
-    assert_eq!(manifest.stage_columns.len(), 254_918);
-    assert_eq!(manifest.prehash_rows.len(), 27);
-    assert_eq!(manifest.prehash_columns.len(), 26);
-    assert_eq!(manifest.census.prehash_binding_rows, 27);
-    assert_eq!(manifest.census.prehash_fresh_columns, 26);
-    assert_eq!(manifest.hash_input_columns.len(), 1_682);
-    assert_eq!(manifest.permutation_trace_range.len(), 422);
-    assert_eq!(manifest.sbox_trace_range.len(), 36_292);
-    assert_eq!(manifest.calls.len(), 422);
+    assert_eq!(manifest.stage_rows.len(), 10_278);
+    assert_eq!(manifest.stage_columns.len(), 10_278);
+    assert_eq!(manifest.prehash_rows.len(), 8);
+    assert_eq!(manifest.prehash_columns.len(), 8);
+    assert_eq!(manifest.census.prehash_binding_rows, 8);
+    assert_eq!(manifest.census.prehash_fresh_columns, 8);
+    assert_eq!(manifest.hash_input_columns.len(), 64);
+    assert_eq!(manifest.permutation_trace_range.len(), 17);
+    assert_eq!(manifest.sbox_trace_range.len(), 1_462);
+    assert_eq!(manifest.calls.len(), 17);
     assert!(manifest
         .calls
         .iter()
         .all(|call| call.source_rows.len() == 600 && call.allocated_column_count == 600));
-    assert_eq!(manifest.census.full_absorb_rounds, 420);
-    assert_eq!(manifest.census.partial_absorb_fields, 2);
+    assert_eq!(manifest.census.full_absorb_rounds, 16);
+    assert_eq!(manifest.census.partial_absorb_fields, 0);
     assert_eq!(manifest.census.pad_rounds, 1);
-    assert_eq!(manifest.census.initial_external_sboxes, 13_504);
-    assert_eq!(manifest.census.partial_sboxes, 9_284);
-    assert_eq!(manifest.census.terminal_external_sboxes, 13_504);
-    assert_eq!(manifest.census.candidate_sbox_outputs, 36_292);
-    assert_eq!(manifest.census.definition_uses, 36_292);
-    assert_eq!(manifest.census.linear_consumer_uses, 290_336);
-    assert_eq!(manifest.census.total_matrix_uses, 326_628);
+    assert_eq!(manifest.census.initial_external_sboxes, 544);
+    assert_eq!(manifest.census.partial_sboxes, 374);
+    assert_eq!(manifest.census.terminal_external_sboxes, 544);
+    assert_eq!(manifest.census.candidate_sbox_outputs, 1_462);
+    assert_eq!(manifest.census.definition_uses, 1_462);
+    assert_eq!(manifest.census.linear_consumer_uses, 11_696);
+    assert_eq!(manifest.census.total_matrix_uses, 13_158);
     assert_eq!(manifest.isolated_sbox_output_offsets().len(), 86);
     assert_eq!(manifest.family_layout.initial_external, 0..32);
     assert_eq!(manifest.family_layout.partial, 32..54);
@@ -96,10 +96,8 @@ fn output_authority_sbox_manifest_replays_exact_program_and_rejects_all_drift() 
 
     // Hash input/output/range/escape drift.
     expect_trace_rejected(&source, trace, |corrupted| {
-        corrupted.apply_poseidon_hash_trace_test_mutation(
-            hash,
-            PoseidonHashTraceTestMutation::InputLen { input_len: 1_681 },
-        );
+        corrupted
+            .apply_poseidon_hash_trace_test_mutation(hash, PoseidonHashTraceTestMutation::InputLen { input_len: 63 });
     });
     expect_trace_rejected(&source, trace, |corrupted| {
         corrupted.apply_poseidon_hash_trace_test_mutation(
@@ -181,7 +179,7 @@ fn output_authority_sbox_manifest_replays_exact_program_and_rejects_all_drift() 
         corrupted.swap_poseidon_permutation_traces_for_test(permutation, permutation + 1);
     });
 
-    // S-box provenance and the exact 36,292-entry census.
+    // S-box provenance and the exact 1,462-entry census.
     expect_trace_rejected(&source, trace, |corrupted| {
         corrupted.apply_sbox7_trace_test_mutation(
             sbox,
@@ -248,7 +246,7 @@ fn output_authority_sbox_manifest_replays_exact_program_and_rejects_all_drift() 
     definition_drift.apply_c_row_test_mutation(definition_row, candidate, F::ONE);
     assert!(audit_output_authority_poseidon2_sboxes(&definition_drift, trace, &[]).is_err());
 
-    // Extra A/B/C uses outside all 422 calls pass local row replay but must
+    // Extra A/B/C uses outside all 17 calls pass local row replay but must
     // fail the whole-matrix escape scan.
     let escape_row = manifest.stage_rows.end;
     let mut escaped_a = source.clone();

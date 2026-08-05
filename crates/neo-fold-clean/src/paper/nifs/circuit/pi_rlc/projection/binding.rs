@@ -6,14 +6,14 @@
 //! bindings, SIS digest rows, and transcript rows. **Authority boundary:** beta
 //! is sampled only after every combined value and the exact advice wires later
 //! consumed by the identities have entered the transcript. The preimage mixes
-//! paper-public fields with separately classified Nebula/delayed-NC extensions.
+//! paper-public fields with the separately classified Nebula extension.
 //! The SIS digest is transcript compression, never replacement authority for
 //! the bound wires.
 //!
 //! | Stage child | Bound data |
 //! | --- | --- |
 //! | `domain` | Projection-binding domain separator |
-//! | `combined.*` | Paper commitment/X/y_ring outputs plus adv/y_zcol extensions |
+//! | `combined.*` | Paper commitment, X, identity-first y_ring, and optional Nebula outputs |
 //! | `quotient.*` | Matching division-quotient advice |
 //! | `sis_digest` | Compressed binding preimage |
 //! | `transcript_beta` | SIS digest absorption and beta squeeze |
@@ -47,7 +47,6 @@ pub(super) struct BindingOutputs {
     pub(super) adv_q: Option<LaneCommitments<Vec<[Var; PROJECTION_QUOTIENT_LEN]>>>,
     pub(super) x_q: Vec<[Var; PROJECTION_QUOTIENT_LEN]>,
     pub(super) y_ring_q: Vec<[[Var; PROJECTION_QUOTIENT_LEN]; 2]>,
-    pub(super) y_zcol_q: [[Var; PROJECTION_QUOTIENT_LEN]; 2],
 }
 
 pub(super) fn enforce(
@@ -136,10 +135,6 @@ pub(super) fn enforce(
         y_ring_q.push(alloc_y_ring_advice(builder, &mut preimage, wires)?);
     }
 
-    builder.begin_encoding_stage(stage::PROJECTION_BINDING_COMBINED_Y_ZCOL);
-    builder.begin_encoding_stage(stage::PROJECTION_BINDING_QUOTIENT_Y_ZCOL);
-    let y_zcol_q = alloc_y_zcol_advice(builder, &mut preimage, &folds.y_zcol)?;
-
     builder.begin_encoding_stage(stage::PROJECTION_BINDING_SIS_DIGEST);
     let digest = enforce_sis_accumulator_digest(builder, PI_RLC_PROJECTION_SIS_CONFIG, &preimage)
         .map_err(|error| Error::Inner(format!("Pi_RLC projection SIS binding: {error}")))?
@@ -156,7 +151,6 @@ pub(super) fn enforce(
         adv_q,
         x_q,
         y_ring_q,
-        y_zcol_q,
     })
 }
 
@@ -274,63 +268,6 @@ fn alloc_y_ring_advice(
         builder,
         preimage,
         pi_rlc::PI_RLC_PROJECTION_Y_RING_QUOTIENTS_LABEL,
-        &quotient_c1,
-    );
-    Ok([quotient_c0, quotient_c1])
-}
-
-fn alloc_y_zcol_advice(
-    builder: &mut R1csBuilder,
-    preimage: &mut Vec<Var>,
-    wires: &RlcPaddedKVectorWires,
-) -> Result<[[Var; PROJECTION_QUOTIENT_LEN]; 2], Error> {
-    let rhos = wires
-        .inputs
-        .iter()
-        .map(|pair| pair.rho_coeffs)
-        .collect::<Vec<_>>();
-    let inputs_c0 = wires
-        .inputs
-        .iter()
-        .map(|pair| core::array::from_fn(|lane| pair.y_c0[lane]))
-        .collect::<Vec<_>>();
-    let inputs_c1 = wires
-        .inputs
-        .iter()
-        .map(|pair| core::array::from_fn(|lane| pair.y_c1[lane]))
-        .collect::<Vec<_>>();
-    let output_c0: [Var; D] = core::array::from_fn(|lane| wires.combined_c0[lane]);
-    let output_c1: [Var; D] = core::array::from_fn(|lane| wires.combined_c1[lane]);
-
-    builder.begin_encoding_stage(stage::PROJECTION_BINDING_COMBINED_Y_ZCOL);
-    append_fields(
-        builder,
-        preimage,
-        pi_rlc::PI_RLC_PROJECTION_COMBINED_Y_ZCOL_LABEL,
-        &output_c0,
-    );
-    builder.begin_encoding_stage(stage::PROJECTION_BINDING_QUOTIENT_Y_ZCOL);
-    let quotient_c0 = alloc_rlc_projection_quotient_advice(builder, &rhos, &inputs_c0)?;
-    append_fields(
-        builder,
-        preimage,
-        pi_rlc::PI_RLC_PROJECTION_Y_ZCOL_QUOTIENTS_LABEL,
-        &quotient_c0,
-    );
-
-    builder.begin_encoding_stage(stage::PROJECTION_BINDING_COMBINED_Y_ZCOL);
-    append_fields(
-        builder,
-        preimage,
-        pi_rlc::PI_RLC_PROJECTION_COMBINED_Y_ZCOL_LABEL,
-        &output_c1,
-    );
-    builder.begin_encoding_stage(stage::PROJECTION_BINDING_QUOTIENT_Y_ZCOL);
-    let quotient_c1 = alloc_rlc_projection_quotient_advice(builder, &rhos, &inputs_c1)?;
-    append_fields(
-        builder,
-        preimage,
-        pi_rlc::PI_RLC_PROJECTION_Y_ZCOL_QUOTIENTS_LABEL,
         &quotient_c1,
     );
     Ok([quotient_c0, quotient_c1])

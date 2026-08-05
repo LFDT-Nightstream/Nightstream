@@ -13,9 +13,7 @@ use serde::{Deserialize, Serialize};
 use toy_spartan::spartan::{RepeatedR1CSSNARK, R1CSSNARK};
 
 use crate::lifecycle::{Preprocessing, PublicImage, Uncompressed};
-use crate::paper::construction2::{
-    self, PendingProjectionState, ProofState, RunningInstance, SemanticStateMode, State,
-};
+use crate::paper::construction2::{self, ProofState, RunningInstance, SemanticStateMode, State};
 use crate::paper::digest::{digest_fields_as_digest32, initial_boundary_digest};
 use crate::paper::f_prime::r1cs::{f_prime_public_input_link_matches, FPrimePublicInputLayout};
 use crate::paper::relations::{CcsClaim, CeClaim, Structure};
@@ -62,20 +60,12 @@ impl TerminalSpartanStatement {
 
 /// Verifier-visible part of one running accumulator.
 ///
-/// Witness matrices are deliberately absent. The parent cache and delayed
-/// projection state remain because the selected accumulator digest can bind
-/// them and the verifier must reproduce that digest from public data.
+/// Witness matrices are deliberately absent. The checked parent cache remains
+/// so the verifier can reproduce the selected accumulator digest.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TerminalRunningStatement {
     claims: Vec<CeClaim>,
     parent_authority: Option<CeClaim>,
-    pending_projection: Option<TerminalPendingProjectionStatement>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct TerminalPendingProjectionStatement {
-    old_block: Vec<neo_math::K>,
-    parent_y_zcol: Vec<neo_math::K>,
 }
 
 impl TerminalRunningStatement {
@@ -83,12 +73,6 @@ impl TerminalRunningStatement {
         Self {
             claims: running.claims.clone(),
             parent_authority: running.parent_authority.clone(),
-            pending_projection: running
-                .pending_projection()
-                .map(|pending| TerminalPendingProjectionStatement {
-                    old_block: pending.old_block().to_vec(),
-                    parent_y_zcol: pending.parent_y_zcol().to_vec(),
-                }),
         }
     }
 
@@ -97,37 +81,10 @@ impl TerminalRunningStatement {
     }
 
     fn as_running(&self) -> Result<RunningInstance, TerminalR1csError> {
-        let pending_projection = self
-            .pending_projection
-            .as_ref()
-            .map(|pending| {
-                let old_block: [neo_math::K; construction2::PENDING_PROJECTION_OLD_BLOCK_LEN] = pending
-                    .old_block
-                    .clone()
-                    .try_into()
-                    .map_err(|values: Vec<neo_math::K>| TerminalR1csError::Shape {
-                        what: "terminal delayed-projection old block",
-                        expected: construction2::PENDING_PROJECTION_OLD_BLOCK_LEN,
-                        got: values.len(),
-                    })?;
-                let parent_y_zcol: [neo_math::K; neo_math::D] =
-                    pending
-                        .parent_y_zcol
-                        .clone()
-                        .try_into()
-                        .map_err(|values: Vec<neo_math::K>| TerminalR1csError::Shape {
-                            what: "terminal delayed-projection parent",
-                            expected: neo_math::D,
-                            got: values.len(),
-                        })?;
-                Ok(PendingProjectionState::new(old_block, parent_y_zcol))
-            })
-            .transpose()?;
         Ok(RunningInstance::new(
             self.claims.clone(),
             Vec::new(),
             self.parent_authority.clone(),
-            pending_projection,
         ))
     }
 }

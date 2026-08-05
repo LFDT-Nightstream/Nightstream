@@ -439,8 +439,6 @@ pub fn perp_nifs_ce_view(shape: &NifsCeClaimShape) -> NifsCeClaimView {
         x_active_flat: vec![F::ZERO; shape.x_rows * shape.x_active_cols],
         r: vec![[F::ZERO; 2]; shape.r_len],
         y_ring,
-        y_zcol: vec![[F::ZERO; 2]; shape.y_zcol_len],
-        s_col: vec![[F::ZERO; 2]; shape.s_col_len],
         m_in: 0,
         fold_digest_fields: [F::ZERO; 4],
     }
@@ -458,9 +456,6 @@ pub fn nifs_ce_view_from_claim(post_parent: &CeClaim, _public_input_len: usize) 
         .iter()
         .map(|row| row.iter().map(k_to_pair).collect())
         .collect();
-    let y_zcol_pairs: Vec<[F; 2]> = post_parent.y_zcol.iter().map(k_to_pair).collect();
-    let s_col_pairs: Vec<[F; 2]> = post_parent.s_col.iter().map(k_to_pair).collect();
-
     NifsCeClaimView {
         d: post_parent.c.d as u64,
         kappa: post_parent.c.kappa as u64,
@@ -471,8 +466,6 @@ pub fn nifs_ce_view_from_claim(post_parent: &CeClaim, _public_input_len: usize) 
         x_active_flat,
         r: r_pairs,
         y_ring: y_ring_pairs,
-        y_zcol: y_zcol_pairs,
-        s_col: s_col_pairs,
         m_in: post_parent.m_in as u64,
         fold_digest_fields: digest32_as_fields(post_parent.fold_digest),
     }
@@ -485,8 +478,6 @@ pub fn nifs_ce_shape_from_claim(post_parent: &CeClaim, _public_input_len: usize)
         x_active_cols: crate::paper::relations::superneo_public_x_cols(post_parent.m_in),
         r_len: post_parent.r.len(),
         y_ring_inner_lens: post_parent.y_ring.iter().map(|row| row.len()).collect(),
-        y_zcol_len: post_parent.y_zcol.len(),
-        s_col_len: post_parent.s_col.len(),
     }
 }
 

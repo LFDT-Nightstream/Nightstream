@@ -47,7 +47,7 @@ impl FoldProof {
 #[derive(Clone, Debug)]
 pub struct StepProof {
     pub fold: FoldProof,
-    /// Nebula segment-open payload (spec §6.2, L0b): the prover-claimed
+    /// Nebula segment-open payload (the segment-challenge rule): the prover-claimed
     /// per-lane `D_pre` chain digests, present exactly on the step that
     /// opens a segment. The verifier replays `open_segment` from it; its
     /// authority is retroactive via the close equality `D_seen == D_pre`.

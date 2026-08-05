@@ -11,7 +11,7 @@
 //! - [`enforce_eq_k`] — `eq(a, b) = Π_i (2 a_i b_i + 1 - a_i - b_i)` over 𝕂.
 //!
 //! Mechanical. No paper-level claims live here; the paper math is in
-//! `paper/reductions/pi_ccs_split_nc_circuit/` (the SplitNc Π_CCS.V
+//! `paper/reductions/pi_ccs_circuit/` (the one-joint Π_CCS.V
 //! verifier), which composes these primitives.
 
 use neo_math::F;

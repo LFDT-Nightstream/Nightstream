@@ -225,9 +225,7 @@ fn collect_nifs_payload_slots(layout: &FPrimeImageLayout) -> Vec<Vec<LaneSlot>> 
                 //   x_rows, x_cols, x_active_cols, x_active_flat[..],
                 //   r_len, r-K-pairs[..],
                 //   y_ring_outer_len, per-row(inner_len, K-pairs[..]),
-                //   m_in, fold_digest_fields(4 lanes),
-                //   y_zcol_len, y_zcol-K-pairs[..],
-                //   s_col_len, s_col-K-pairs[..].
+                //   m_in, fold_digest_fields(4 lanes).
                 push_u64_lane(&mut slots, &mut cursor); // d
                 push_u64_lane(&mut slots, &mut cursor); // kappa
                 push_u64_lane(&mut slots, &mut cursor); // c_data_len
@@ -256,16 +254,6 @@ fn collect_nifs_payload_slots(layout: &FPrimeImageLayout) -> Vec<Vec<LaneSlot>> 
                 push_u64_lane(&mut slots, &mut cursor); // m_in
                 for _ in 0..4 {
                     push_u64_lane(&mut slots, &mut cursor); // fold_digest lane
-                }
-                push_u64_lane(&mut slots, &mut cursor); // y_zcol_len
-                for _ in 0..s.y_zcol_len {
-                    push_u64_lane(&mut slots, &mut cursor);
-                    push_u64_lane(&mut slots, &mut cursor);
-                }
-                push_u64_lane(&mut slots, &mut cursor); // s_col_len
-                for _ in 0..s.s_col_len {
-                    push_u64_lane(&mut slots, &mut cursor);
-                    push_u64_lane(&mut slots, &mut cursor);
                 }
             }
         }

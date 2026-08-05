@@ -97,8 +97,6 @@ fn ce_claim_to_view(claim: &CeClaim) -> NifsCeClaimView {
         .iter()
         .map(|row| row.iter().map(k_to_pair).collect())
         .collect();
-    let y_zcol: Vec<[F; 2]> = claim.y_zcol.iter().map(k_to_pair).collect();
-    let s_col: Vec<[F; 2]> = claim.s_col.iter().map(k_to_pair).collect();
     NifsCeClaimView {
         d: claim.c.d as u64,
         kappa: claim.c.kappa as u64,
@@ -109,8 +107,6 @@ fn ce_claim_to_view(claim: &CeClaim) -> NifsCeClaimView {
         x_active_flat,
         r,
         y_ring,
-        y_zcol,
-        s_col,
         m_in: claim.m_in as u64,
         fold_digest_fields: digest32_as_fields(claim.fold_digest),
     }
@@ -130,8 +126,6 @@ fn ce_view_shape(view: &NifsCeClaimView) -> NifsCeClaimShape {
         x_active_cols: view.x_active_cols as usize,
         r_len: view.r.len(),
         y_ring_inner_lens: view.y_ring.iter().map(|row| row.len()).collect(),
-        y_zcol_len: view.y_zcol.len(),
-        s_col_len: view.s_col.len(),
     }
 }
 
@@ -186,8 +180,6 @@ fn phase_1_3b_fresh_ccs_claim_round_trips() {
         x_active_cols: 0,
         r_len: 0,
         y_ring_inner_lens: vec![],
-        y_zcol_len: 0,
-        s_col_len: 0,
     };
     let mut image = fresh_image(&shape, &ce_placeholder);
 
@@ -228,7 +220,7 @@ fn phase_1_3b_parent_authority_ce_claim_round_trips() {
     assert_committed_coords_are_bits(&image.values);
 
     eprintln!(
-        "phase_1_3b CeClaim: {} bits ({} c_data, x {}×{}/{}, r {}, y_ring {} rows, y_zcol {}, s_col {})",
+        "phase_1_3b CeClaim: {} bits ({} c_data, x {}×{}/{}, r {}, y_ring {} rows)",
         shape.bits(),
         shape.c_data_entries,
         shape.x_rows,
@@ -236,8 +228,6 @@ fn phase_1_3b_parent_authority_ce_claim_round_trips() {
         shape.x_active_cols,
         shape.r_len,
         shape.y_ring_inner_lens.len(),
-        shape.y_zcol_len,
-        shape.s_col_len
     );
 }
 
@@ -323,8 +313,6 @@ fn phase_1_3b_nifs_overflow_panics() {
             x_active_cols: 0,
             r_len: 0,
             y_ring_inner_lens: vec![],
-            y_zcol_len: 0,
-            s_col_len: 0,
         },
     );
 
@@ -361,8 +349,6 @@ fn phase_1_3b_nifs_ce_x_flat_length_mismatch_panics() {
         x_active_cols: view.x_active_cols.max(1) as usize,
         r_len: shape.r_len,
         y_ring_inner_lens: shape.y_ring_inner_lens.clone(),
-        y_zcol_len: shape.y_zcol_len,
-        s_col_len: shape.s_col_len,
     };
     let mut image = fresh_image(&fresh_placeholder, &fake_shape);
     image.fill_nifs_ce_claim_at(0, &view);
@@ -444,14 +430,13 @@ fn phase_1_3b_nifs_ce_claim_fs_bound_prefix_matches_ce_claim_digest() {
         );
     }
 
-    // Sanity: the prefix occupies the FIRST prefix_bits of nifs_payloads, and the
-    // remaining bits hold y_zcol/s_col (the current-v1 unbound tail).
+    // The selected CE image has no unbound tail.
     let remaining_bits = image.layout.nifs_payloads.bits - prefix_bits;
+    assert_eq!(remaining_bits, 0, "the selected CE image must match its bound preimage");
     eprintln!(
-        "phase_1_3b prefix-vs-ce_claim_digest: {} F → {} prefix bits, {} current-v1 unbound tail bits",
+        "phase_1_3b prefix-vs-ce_claim_digest: {} F → {} bound bits",
         prefix_fields.len(),
         prefix_bits,
-        remaining_bits,
     );
 }
 

@@ -13,21 +13,25 @@ use neo_fold_clean::{config, finish_uncompressed, preprocess, prove, verify_unco
 use neo_math::{Rq, D, F};
 use p3_field::PrimeCharacteristicRing;
 
-const ACTUAL_MATRIX_COUNT: usize = 4_096;
+const ACTUAL_MATRIX_COUNT: usize = 131_072;
 
 /// SuperNeo D.5 loses `(K + k + 1) / |C|` in the Π_RLC coordinate
-/// extractor.  The production profile must charge that loss at the largest
-/// fold width it advertises, not equate `lambda` with `log2(|C|)`.
+/// extractor. Shape-selected executable parameters must charge that loss at
+/// the largest fold width they advertise.
 #[test]
-fn production_params_charge_pi_rlc_coordinate_extraction_loss() {
-    let params = config::production_params();
+fn shape_selected_params_charge_pi_rlc_coordinate_extraction_loss() {
+    let params = config::r1cs_params(1 << 26, 1 << 30).expect("maximum-geometry parameters");
     let challenge_set_size = 5u128.pow(params.d());
     let extraction_queries = params.max_fresh_count() as u128 + params.k_rho() as u128 + 1;
     let effective_bits = (challenge_set_size / extraction_queries).ilog2();
+    let summary = params
+        .validate_ccs_shape(1 << 26, 1 << 30, 3, 2)
+        .expect("maximum-geometry combined census");
 
     assert!(
-        effective_bits >= params.lambda(),
-        "soundness-policy failure: Π_RLC's (K+k+1)/|C| extractor loss leaves only {effective_bits} whole bits at {extraction_queries} queries, below advertised lambda={}",
+        effective_bits >= params.lambda()
+            && summary.slack_bits >= config::EXTENSION_SAFETY_MARGIN_BITS as i32,
+        "soundness-policy failure: Π_RLC's (K+k+1)/|C| extractor loss leaves {effective_bits} whole bits at {extraction_queries} queries, while the combined census is {summary:?} for lambda={}",
         params.lambda(),
     );
 }
@@ -96,17 +100,15 @@ fn verifier_key_distinguishes_unbounded_from_maximum_public_input_arity() {
 /// vacuously succeed.
 #[test]
 fn ccs_parameter_selection_rejects_unrepresentable_safety_margin() {
-    let result = neo_fold_clean::Params::for_ccs_shape_with(1, 1, 0, 100, u32::MAX);
+    let result = neo_fold_clean::Params::for_ccs_shape_with(1, 1, 1, 0, 100, u32::MAX);
     assert!(
         result.is_err(),
         "soundness-policy failure: u32 safety margin wrapped negative during signed comparison and was accepted as {result:?}"
     );
 }
 
-/// SuperNeo's polynomial parameter is the strict degree bound `u`, so a
-/// relation of actual degree `d` must be budgeted with `u=d+1`. Parameter
-/// selection must match the runtime sumcheck degree rather than underpricing
-/// every nonconstant relation by one at a security boundary.
+/// The rectangular FE verifier accepts degree `D_f + 1`. Parameter selection
+/// must charge that accepted degree in both physical SumCheck budgets.
 #[test]
 fn ccs_parameter_selection_charges_strict_polynomial_degree_bound() {
     const DEGREE: u32 = 4_036;
@@ -125,20 +127,13 @@ fn ccs_parameter_selection_charges_strict_polynomial_degree_bound() {
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("current selector accepts fixture");
 
-    let ell = 7u128;
-    let u = DEGREE as u128 + 1;
-    let fresh = 61u128;
-    let k = 14u128;
-    let d = 54u128;
-    let t = 1u128;
-    let true_factor = ell * u + (2 * fresh + k) * ell.max(k * t * d);
-    let true_policy = params.inner().extension_check_factor(true_factor);
+    let true_policy = params.validate_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree());
 
     assert!(
         true_policy
             .as_ref()
-            .is_ok_and(|summary| summary.slack_bits >= 2),
-        "soundness-policy failure: actual degree {DEGREE} requires strict bound u={}, but selected lambda={} has {true_policy:?}",
+            .is_ok_and(|summary| summary.verifier_degree == DEGREE + 1 && summary.slack_bits >= 2),
+        "soundness-policy failure: actual degree {DEGREE} requires verifier degree {}, but selected lambda={} has {true_policy:?}",
         DEGREE + 1,
         params.inner().lambda,
     );
@@ -257,9 +252,8 @@ fn ajtai_registry_rejects_conflicting_well_formed_public_parameters() {
 
 /// Shape-derived parameters are a soundness contract, not a caller hint. A
 /// parameter set derived for `t = 1` must not be accepted with a structure
-/// whose actual `t` makes SuperNeo D.4 unsupported even at the configured
-/// minimum lambda. Otherwise the runtime's smaller `ell * d_sc` check silently
-/// approves a verifier context below the advertised security floor.
+/// whose actual `t` makes the rectangular field census unsupported even at
+/// the configured minimum lambda.
 #[test]
 fn preprocessing_rejects_params_derived_for_a_different_ccs_shape() {
     let structure = CcsStructure::new_sparse(
@@ -280,14 +274,16 @@ fn preprocessing_rejects_params_derived_for_a_different_ccs_shape() {
         config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree(),).is_err(),
         "the actual shape should exceed the configured s=2/min-lambda D.4 budget"
     );
-    neo_reductions::engines::utils::build_dims_and_policy(understated.inner(), &structure)
-        .expect("the runtime's incomplete shape check currently accepts the understated params");
+    assert!(
+        neo_reductions::engines::pi_ccs_joint::build_joint_dims(understated.inner(), &structure, 1, 0).is_err(),
+        "the selected PiCCS dimension check accepted parameters for the wrong matrix count"
+    );
 
     support::install_ajtai_module(&understated, &structure);
     let result = preprocess(understated, structure, Some(0));
     assert!(
         result.is_err(),
-        "soundness-parameter failure: preprocessing accepted params derived for t=1 with an actual t=4096 structure whose full SuperNeo D.4 budget is unsupported"
+        "soundness-parameter failure: preprocessing accepted params derived for t=1 with an actual t={ACTUAL_MATRIX_COUNT} structure whose rectangular field/fork budget is unsupported"
     );
 }
 

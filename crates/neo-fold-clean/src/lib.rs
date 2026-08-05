@@ -115,6 +115,7 @@ pub use lifecycle::{
 
 pub use frontends::r1cs_f_prime::{
     finish_with_spartan, verify_spartan, LeanNativeCcsError, LeanNativeCcsManifest, LeanNativeCcsPreprocessing,
+    LeanNebulaCombinedError, LeanNebulaCombinedManifest, LeanNebulaCombinedPreprocessing, NebulaCombinedEmission,
     TerminalR1csError, TerminalSpartanProof, TerminalSpartanStatement,
 };
 pub use lifecycle::{FoldSchedule, ScheduleError};

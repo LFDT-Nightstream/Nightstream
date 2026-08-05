@@ -103,13 +103,7 @@ pub enum TerminalCePublicError {
         expected: usize,
         got: usize,
     },
-    #[error("terminal CE child {index} s_col length ({got}) must equal column-domain length ({expected})")]
-    SColLen {
-        index: usize,
-        expected: usize,
-        got: usize,
-    },
-    #[error("terminal CE child {index} y_ring length ({got}) must equal structure.t ({expected})")]
+    #[error("terminal CE child {index} y_ring length ({got}) must equal the identity-first matrix count ({expected})")]
     YRingCount {
         index: usize,
         expected: usize,
@@ -142,16 +136,6 @@ pub enum TerminalCePublicError {
         matrix_index: usize,
         lane: usize,
     },
-    #[error("terminal CE child {index} y_zcol length ({got}) must equal padded D ({expected})")]
-    YZcolLen {
-        index: usize,
-        expected: usize,
-        got: usize,
-    },
-    #[error("terminal CE child {index} y_zcol padding lane {lane} must be zero")]
-    YZcolPaddingNonZero { index: usize, lane: usize },
-    #[error("terminal CE child {index} carries unsupported {field} (expected empty/zero)")]
-    UnsupportedSidecar { index: usize, field: &'static str },
     #[error("terminal CE child {index} fold digest lane {lane} is not a canonical Goldilocks element")]
     NoncanonicalFoldDigest { index: usize, lane: usize },
 }
@@ -162,9 +146,14 @@ fn validate_terminal_children(
     claims: &[CeClaim<Commitment, F, K>],
 ) -> Result<(), TerminalCePublicError> {
     let d_pad = D.next_power_of_two();
-    let expected_r_len = structure.n.next_power_of_two().max(2).trailing_zeros() as usize;
-    let expected_s_col_len = structure.m.next_power_of_two().max(2).trailing_zeros() as usize;
-    let expected_t = structure.t();
+    let assignment_width = neo_reductions::common::superneo_carrier_width(structure.m);
+    let expected_r_len = structure
+        .n
+        .max(assignment_width)
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
+    let expected_t = structure.t() + 1;
     for (index, claim) in claims.iter().enumerate() {
         if claim.c.d != D {
             return Err(TerminalCePublicError::CommitmentD {
@@ -225,13 +214,6 @@ fn validate_terminal_children(
                 got: claim.r.len(),
             });
         }
-        if claim.s_col.len() != expected_s_col_len {
-            return Err(TerminalCePublicError::SColLen {
-                index,
-                expected: expected_s_col_len,
-                got: claim.s_col.len(),
-            });
-        }
         for row in 0..claim.X.rows() {
             for col in active_cols..claim.X.cols() {
                 if claim.X[(row, col)] != F::ZERO {
@@ -276,39 +258,6 @@ fn validate_terminal_children(
                     });
                 }
             }
-        }
-        if claim.y_zcol.len() != d_pad {
-            return Err(TerminalCePublicError::YZcolLen {
-                index,
-                expected: d_pad,
-                got: claim.y_zcol.len(),
-            });
-        }
-        for (lane, value) in claim.y_zcol.iter().enumerate().skip(D) {
-            if *value != K::ZERO {
-                return Err(TerminalCePublicError::YZcolPaddingNonZero { index, lane });
-            }
-        }
-        if !claim.aux_openings.is_empty() {
-            return Err(TerminalCePublicError::UnsupportedSidecar {
-                index,
-                field: "aux_openings",
-            });
-        }
-        if !claim.c_step_coords.is_empty() {
-            return Err(TerminalCePublicError::UnsupportedSidecar {
-                index,
-                field: "c_step_coords",
-            });
-        }
-        if claim.u_offset != 0 {
-            return Err(TerminalCePublicError::UnsupportedSidecar {
-                index,
-                field: "u_offset",
-            });
-        }
-        if claim.u_len != 0 {
-            return Err(TerminalCePublicError::UnsupportedSidecar { index, field: "u_len" });
         }
         if let Some(lane) = noncanonical_digest32_lane(claim.fold_digest) {
             return Err(TerminalCePublicError::NoncanonicalFoldDigest { index, lane });

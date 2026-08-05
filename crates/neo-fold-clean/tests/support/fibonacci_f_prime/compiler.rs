@@ -301,8 +301,6 @@ fn compile_recursive_step(
         x_active_cols: neo_fold_clean::paper::relations::superneo_public_x_cols(post_parent.m_in),
         r_len: post_parent.r.len(),
         y_ring_inner_lens: post_parent.y_ring.iter().map(|row| row.len()).collect(),
-        y_zcol_len: post_parent.y_zcol.len(),
-        s_col_len: post_parent.s_col.len(),
     };
     if actual_shape != canonical_ce_shape {
         return Err(FPrimeShellCompilerError::PostParentShapeMismatch {

@@ -1,9 +1,8 @@
-//! Exact S-box ownership census for the outgoing-accumulator Poseidon2 hash.
+//! Exact S-box ownership census for the outgoing-accumulator aggregate hash.
 //!
 //! Owns: the compact call manifest, isolated-permutation replay, sponge
 //! schedule replay, prehash boundary ownership checks, and whole-matrix use
-//! census for every candidate `x^7` output in
-//! `fprime.recursive.step.accumulator.output_authority`.
+//! census for every candidate `x^7` output in the selected aggregate stage.
 //!
 //! Does not own: a compact S-box encoding, centered substitution, semantic
 //! accumulator validity, or authority for any carried digest.
@@ -18,11 +17,11 @@
 //!
 //! | Stage path | Function | Equation | Multiplicity | Source rows/formula | Lowered gate | Lean theorem |
 //! |---|---|---|---:|---|---|---|
-//! | `output_authority.prehash` | boundary ownership | 26 fresh affine bindings plus one nonallocating zero-shaped row | 27 | 27 affine rows / 26 fresh columns | none | open |
-//! | `output_authority.poseidon2.sponge` | absorb | `next_i = state_i + input_i` | 1,682 | one affine row per input | none | open |
+//! | `output_authority.prehash` | domain and child-count constants | eight fresh affine bindings | 8 | eight affine rows / columns | none | open |
+//! | `output_authority.poseidon2.sponge` | absorb | `next_i = state_i + input_i` | 64 | one affine row per input | none | open |
 //! | `output_authority.poseidon2.sponge` | pad | `next_0 = state_0 + 1` | 1 | one affine row | none | open |
-//! | `output_authority.poseidon2_sbox.definition` | S-box | `x2=x*x; x4=x2*x2; x6=x2*x4; x7=x*x6` | 36,292 | four product rows | none | `Sbox7Compact` |
-//! | `output_authority.poseidon2_sbox.consumers` | linear layers | exact uses of each `x7` output | 36,292 | eight A-uses plus one C-definition | none | `Sbox7OutputLayout` |
+//! | `output_authority.poseidon2_sbox.definition` | S-box | `x2=x*x; x4=x2*x2; x6=x2*x4; x7=x*x6` | 1,462 | four product rows | none | `Sbox7Compact` |
+//! | `output_authority.poseidon2_sbox.consumers` | linear layers | exact uses of each `x7` output | 1,462 | eight A-uses plus one C-definition | none | `Sbox7OutputLayout` |
 //! | `output_authority.digest_binding` | outgoing authority | `claimed_digest = computed_digest` | 4 | four affine rows | none | open |
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -40,16 +39,16 @@ use crate::paper::f_prime::stage;
 const WIDTH: usize = 8;
 const RATE: usize = 4;
 const DIGEST_LEN: usize = 4;
-const EXPECTED_HASH_INPUTS: usize = 1_682;
-const EXPECTED_PREHASH_ROWS: usize = 27;
-const EXPECTED_PREHASH_COLUMNS: usize = 26;
-const EXPECTED_FULL_ABSORBS: usize = 420;
-const EXPECTED_PARTIAL_ABSORB_FIELDS: usize = 2;
-const EXPECTED_PERMUTATIONS: usize = 422;
+const EXPECTED_HASH_INPUTS: usize = 64;
+const EXPECTED_PREHASH_ROWS: usize = 8;
+const EXPECTED_PREHASH_COLUMNS: usize = 8;
+const EXPECTED_FULL_ABSORBS: usize = 16;
+const EXPECTED_PARTIAL_ABSORB_FIELDS: usize = 0;
+const EXPECTED_PERMUTATIONS: usize = 17;
 const SBOXES_PER_PERMUTATION: usize = 86;
-const EXPECTED_SBOXES: usize = 36_292;
-const EXPECTED_STAGE_ROWS: usize = 254_915;
-const EXPECTED_STAGE_COLUMNS: usize = 254_918;
+const EXPECTED_SBOXES: usize = 1_462;
+const EXPECTED_STAGE_ROWS: usize = 10_278;
+const EXPECTED_STAGE_COLUMNS: usize = 10_278;
 const EXPECTED_PERMUTATION_ROWS: usize = 600;
 const EXPECTED_PERMUTATION_COLUMNS: usize = 600;
 const EXPECTED_INITIAL_SBOXES_PER_PERMUTATION: usize = 32;
@@ -107,8 +106,8 @@ pub struct OutputAuthorityPoseidon2SboxFamilyLayout {
 
 /// Compact, exact call geometry for all output-authority S-box candidates.
 ///
-/// The manifest stores 422 call records plus 86 isolated output offsets, not
-/// a handwritten list of 36,292 columns.
+/// The manifest stores 17 call records plus 86 isolated output offsets, not
+/// a handwritten list of 1,462 columns.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OutputAuthorityPoseidon2SboxManifest {
     pub stage_rows: Range<usize>,
@@ -254,25 +253,35 @@ fn ranges_overlap(left: &Range<usize>, right: &Range<usize>) -> bool {
 
 fn find_stage(
     trace: &R1csEncodingTrace,
-) -> Result<(Range<usize>, Range<usize>), OutputAuthorityPoseidon2SboxManifestError> {
-    let indices = trace
-        .stages()
-        .iter()
-        .enumerate()
-        .filter_map(|(index, checkpoint)| (checkpoint.label == stage::RECURSIVE_ACCUMULATOR_OUTPUT).then_some(index))
-        .collect::<Vec<_>>();
-    if indices.len() != 1 {
-        return Err(invalid(
-            "stage",
-            format!("expected one checkpoint, found {}", indices.len()),
-        ));
+) -> Result<(Range<usize>, Range<usize>, [usize; DIGEST_LEN]), OutputAuthorityPoseidon2SboxManifestError> {
+    let one = |label: &'static str| {
+        let matches = trace
+            .stages()
+            .iter()
+            .enumerate()
+            .filter(|(_, checkpoint)| checkpoint.label == label)
+            .collect::<Vec<_>>();
+        let [(index, checkpoint)] = matches.as_slice() else {
+            return Err(invalid(
+                "stage",
+                format!("expected one {label} checkpoint, found {}", matches.len()),
+            ));
+        };
+        Ok((*index, (*checkpoint).clone()))
+    };
+    let (_, root) = one(stage::RECURSIVE_ACCUMULATOR_OUTPUT)?;
+    let (_, children) = one(stage::RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS)?;
+    let (aggregate_index, start) = one(stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE)?;
+    let (_, end) = one(stage::RECURSIVE_COUNTERS)?;
+    if children.row != root.row
+        || children.col != root.col + DIGEST_LEN
+        || start.row < children.row
+        || start.col < children.col
+        || aggregate_index + 1 >= trace.stages().len()
+        || trace.stages()[aggregate_index + 1].label != stage::RECURSIVE_COUNTERS
+    {
+        return Err(invalid("stage", "selected output-authority stage order drifted"));
     }
-    let index = indices[0];
-    let start = &trace.stages()[index];
-    let end = trace
-        .stages()
-        .get(index + 1)
-        .ok_or_else(|| invalid("stage", "output-authority checkpoint has no closing checkpoint"))?;
     let rows = start.row..end.row;
     let columns = start.col..end.col;
     if rows.len() != EXPECTED_STAGE_ROWS || columns.len() != EXPECTED_STAGE_COLUMNS {
@@ -285,7 +294,7 @@ fn find_stage(
             ),
         ));
     }
-    Ok((rows, columns))
+    Ok((rows, columns, std::array::from_fn(|lane| root.col + lane)))
 }
 
 fn normalized_terms(terms: impl IntoIterator<Item = (usize, F)>) -> Vec<(usize, F)> {
@@ -338,9 +347,7 @@ fn validate_prehash_bindings(
     if rows.len() != EXPECTED_PREHASH_ROWS || columns.len() != EXPECTED_PREHASH_COLUMNS {
         return Err(invalid("prehash", "prehash row/column census drifted"));
     }
-    let first_row = rows.start;
     let mut next_fresh = columns.start;
-    let mut nonallocating_rows = 0usize;
     for row in rows {
         if source.b_row(row) != [(Var::ONE.col(), F::ONE)] || !source.c_row(row).is_empty() {
             return Err(invalid("prehash", format!("row {row} is not an affine binding")));
@@ -356,21 +363,6 @@ fn validate_prehash_bindings(
             .iter()
             .filter(|&&(column, _)| columns.contains(&column))
             .collect::<Vec<_>>();
-        if fresh_terms.is_empty() {
-            if row != first_row
-                || a.len() != 1
-                || a[0].0 == Var::ONE.col()
-                || a[0].1 != F::ONE
-                || source.witness()[a[0].0] != F::ZERO
-            {
-                return Err(invalid(
-                    "prehash",
-                    format!("row {row} is not the expected nonallocating zero-shaped boundary row"),
-                ));
-            }
-            nonallocating_rows += 1;
-            continue;
-        }
         if fresh_terms.len() != 1
             || *fresh_terms[0] != (next_fresh, F::ONE)
             || a.iter()
@@ -383,7 +375,7 @@ fn validate_prehash_bindings(
         }
         next_fresh += 1;
     }
-    if next_fresh != columns.end || nonallocating_rows != EXPECTED_PREHASH_ROWS - EXPECTED_PREHASH_COLUMNS {
+    if next_fresh != columns.end {
         return Err(invalid(
             "prehash",
             "prehash fresh-column ownership has a gap or duplicate",
@@ -586,7 +578,7 @@ pub fn audit_output_authority_poseidon2_sboxes(
     public_columns: &[usize],
 ) -> Result<OutputAuthorityPoseidon2SboxManifest, OutputAuthorityPoseidon2SboxManifestError> {
     let reference = isolated_permutation()?;
-    let (stage_rows, stage_columns) = find_stage(trace)?;
+    let (stage_rows, stage_columns, claimed_digest_columns) = find_stage(trace)?;
     if stage_rows.end > source.rows() || stage_columns.end > source.cols() {
         return Err(invalid("stage", "stage range escapes the source relation"));
     }
@@ -629,12 +621,11 @@ pub fn audit_output_authority_poseidon2_sboxes(
         return Err(invalid("hash", "hash input column escapes the source relation"));
     }
 
-    let claimed_digest_columns = std::array::from_fn(|lane| stage_columns.start + lane);
     let semantic_state_output_columns = std::array::from_fn(|lane| stage_columns.end - DIGEST_LEN + lane);
     let prehash_rows = stage_rows.start..hash.source_rows.start;
-    let prehash_columns = stage_columns.start + DIGEST_LEN..hash.zero_column;
+    let prehash_columns = stage_columns.start..hash.zero_column;
     validate_prehash_bindings(source, prehash_rows.clone(), prehash_columns.clone())?;
-    if hash.zero_column != stage_columns.start + DIGEST_LEN + EXPECTED_PREHASH_COLUMNS
+    if hash.zero_column != stage_columns.start + EXPECTED_PREHASH_COLUMNS
         || hash
             .output_columns
             .iter()

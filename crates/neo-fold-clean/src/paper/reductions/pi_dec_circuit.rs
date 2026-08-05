@@ -23,7 +23,6 @@
 //! | Allocation/shape | Parent and children have the fixed CE carrier shape | yes | this file | concrete refinement open |
 //! | Commitment/X/y recomposition | `parent = sum_i b^i child_i` lane-wise | yes | this file | PiDEC semantics |
 //! | Shared fields | Parent/children agree on non-decomposed fields | yes | this file | PiDEC semantics |
-//! | `y_zcol` source binding | Relate the delayed-NC projection to authoritative witness data | not a Π_DEC child row | `decider_ce_relation` pending raw-witness projection | delayed-NC terminal refinement |
 //! | Advice recomposition | Product-commitment advice follows the same radix map | yes | `product_commitment_circuit` | concrete refinement open |
 //!
 //! ## What this gadget owns
@@ -79,16 +78,11 @@ use crate::paper::relations::CeClaim;
 /// [`alloc_dec_inputs`] so callers can compose further constraints without
 /// re-walking the witness layout.
 ///
-/// The shape fields (`c_d`, `c_kappa`, `x_rows`, `x_cols`, `m_in`,
-/// `y_ring_lanes`, `y_zcol_lanes`) are non-wire `usize` parameters that
+/// The shape fields (`c_d`, `c_kappa`, `x_rows`, `x_cols`, `m_in`, and
+/// `y_ring_lanes`) are non-wire `usize` parameters that
 /// the verifier already pinned implicitly via `check_shapes`; they are
 /// re-exposed so downstream gadgets (e.g. the decider's CE-continuity
 /// gate) can branch on them without re-walking the underlying CE claim.
-///
-/// `aux_openings` / Pattern-A metadata are deliberately represented only
-/// by shape counters. The clean SplitNc/NIFS circuit does not implement
-/// those sidecar fields; strict DEC rejects them before relying on this
-/// wire bundle.
 #[derive(Clone, Debug)]
 pub struct CeClaimWires {
     /// `d * kappa` columns, column-major (matches `Commitment::data`).
@@ -110,12 +104,6 @@ pub struct CeClaimWires {
     /// Public input length the claim was constructed under.
     pub m_in: usize,
     pub m_in_var: Var,
-    /// Unsupported in the clean SplitNc/NIFS circuit. Must be zero.
-    pub aux_openings_len: usize,
-    /// Unsupported Pattern-A metadata. Must be zero.
-    pub c_step_coords_len: usize,
-    pub u_offset: usize,
-    pub u_len: usize,
     /// `t` outer × `d` lanes × `s` base-field columns per K-element.
     /// Index as `y_ring[j][lane * s + limb]`.
     pub y_ring: Vec<Vec<Var>>,
@@ -131,16 +119,6 @@ pub struct CeClaimWires {
     /// CE evaluation point `r ∈ K^{log n}`. Shared between parent and all
     /// children in a Π_DEC.V step; enforced via [`enforce_r_consistency`].
     pub r: Vec<KVar>,
-    /// NC column-domain point `s_col ∈ K^{log m}`. Shared between parent
-    /// and all children (NC channel doesn't decompose `s_col`); enforced
-    /// via [`enforce_s_col_consistency`].
-    pub s_col: Vec<KVar>,
-    /// Flattened `y_zcol` sidecar, indexed as
-    /// `y_zcol[lane * s + limb]`. The authoritative Π_RLC parent retains its
-    /// full fixed-width sidecar. Ordinary Π_DEC children leave this vector
-    /// empty because the current Π_DEC relation has no proved equation for it.
-    pub y_zcol: Vec<Var>,
-    pub y_zcol_lanes: usize,
     /// `fold_digest` field of the CE claim, projected to four base-field
     /// lanes. Allocated from `claim.fold_digest` so the decider's
     /// CE-continuity gate can pin it equal to the next step's running's
@@ -166,7 +144,7 @@ pub fn alloc_dec_inputs(builder: &mut R1csBuilder, parent: &CeClaim, children: &
     let parent_wires = alloc_ce_claim(builder, parent);
     let child_wires = children
         .iter()
-        .map(|c| alloc_dec_child_claim(builder, c))
+        .map(|claim| alloc_ce_claim(builder, claim))
         .collect();
     DecInputWires {
         parent: parent_wires,
@@ -353,20 +331,15 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
 ///   1. Commitment/X recomposition and semantic-prefix `y_ring`
 ///      recomposition.
 ///   2. [`enforce_r_consistency`] — `parent.r == child_i.r` for all `i`.
-///   3. [`enforce_s_col_consistency`] — `parent.s_col == child_i.s_col`.
-///   4. [`enforce_child_x_canonical_split`] — exact uniform-sign binary
+///   3. [`enforce_child_x_canonical_split`] — exact uniform-sign binary
 ///      digits for `b = 2`; the prior centered alphabet for `b > 2`.
-///   5. [`enforce_ct_consistency`] — every claim's cached `ct[j]` is the
+///   4. [`enforce_ct_consistency`] — every claim's cached `ct[j]` is the
 ///      lane-0 K-element of `y_ring[j]`.
-///   6. `y_ring[D..] == 0` — SplitNc's padded CE representation is canonical.
-///   7. [`enforce_fold_digest_consistency`] — children carry the same
+///   5. `y_ring[D..] == 0` — the padded CE representation is canonical.
+///   6. [`enforce_fold_digest_consistency`] — children carry the same
 ///      transcript digest as their Π_DEC parent.
 ///
 /// Notably absent (and absent on the native side):
-///   - **No `y_zcol` b-ary check.** The tempting scalar-radix equation is not a
-///     law of the current producer and rejects honest optimized folds. A
-///     theorem-backed source relation must be defined before constraints are
-///     added here.
 ///   - **No unsigned x bitness check.** `decompose_balanced_fixed_d_digits_k`
 ///     produces signed digits (e.g. -1 ↦ p-1 in F), so an unsigned
 ///     `{0..b-1}` check would reject honest provers. [`enforce_x_bitness`]
@@ -398,10 +371,6 @@ pub fn enforce_dec_v_strict(
     let phase_start = builder.rows();
     enforce_r_consistency(builder, wires)?;
     builder.record_row_family(stage::R, phase_start);
-
-    let phase_start = builder.rows();
-    enforce_s_col_consistency(builder, wires)?;
-    builder.record_row_family(stage::S_COL, phase_start);
 
     let phase_start = builder.rows();
     enforce_inactive_x_zero(builder, wires)?;
@@ -509,11 +478,6 @@ fn pi_dec_claim_audit(wires: &CeClaimWires) -> PiDecClaimAudit {
             .iter()
             .map(|wire| [wire.c0.col(), wire.c1.col()])
             .collect(),
-        s_col_cols: wires
-            .s_col
-            .iter()
-            .map(|wire| [wire.c0.col(), wire.c1.col()])
-            .collect(),
         fold_digest_cols: wires.fold_digest_fields.map(Var::col),
     }
 }
@@ -601,7 +565,7 @@ pub fn enforce_inactive_x_zero(builder: &mut R1csBuilder, wires: &DecInputWires)
 
 fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWires, idx: usize) -> Result<(), Error> {
     // CeClaimWires::x_cols equals the underlying CE claim's `m_in` (set in
-    // `alloc_ce_claim` from `claim.X.cols()`, which the SplitNc shape check
+    // `alloc_ce_claim` from `claim.X.cols()`, which the selected shape check
     // forces to `m_in`).
     let active_cols = crate::paper::relations::superneo_public_x_cols(claim.x_cols);
     if active_cols > claim.x_cols {
@@ -619,58 +583,35 @@ fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWires, 
     Ok(())
 }
 
-/// Validate that parent + every child have exactly `t` SplitNc-shaped
-/// `y_ring` rows and that the Π_RLC parent has `y_zcol` of exactly
-/// `d_pad = 2^ell_d` K-element lanes.
-///
-/// `enforce_dec_v`'s generic [`check_shapes`] only enforces parent ↔ child
-/// length parity — that's enough for the b-ary recomposition algebra but
-/// doesn't catch the case where both sides carry extra rows or silently
-/// un-padded rows. The SplitNc verifier path requires the structure-owned
-/// matrix count plus Ajtai-padded lane shape; NIFS.V layers this check on
-/// top of [`enforce_dec_v_strict`] before consuming the wires.
-pub fn enforce_split_nc_d_pad_shape(wires: &DecInputWires, t: usize, d_pad: usize) -> Result<(), Error> {
-    let label = |what: &'static str, got: usize, idx: usize| Error::ShapeMismatch {
-        what,
-        expected: d_pad,
-        got,
-        idx,
-    };
-    if wires.parent.y_ring.len() != t {
-        return Err(Error::ShapeMismatch {
-            what: "parent.y_ring outer length",
-            expected: t,
-            got: wires.parent.y_ring.len(),
-            idx: 0,
-        });
-    }
-    for (j, row) in wires.parent.y_ring.iter().enumerate() {
-        if wires.parent.y_ring_lanes != d_pad || row.len() != d_pad * K_LIMBS {
-            return Err(label("parent.y_ring[j] lane count", wires.parent.y_ring_lanes, j));
-        }
-    }
-    if wires.parent.y_zcol_lanes != d_pad || wires.parent.y_zcol.len() != d_pad * K_LIMBS {
-        return Err(label("parent.y_zcol lane count", wires.parent.y_zcol_lanes, 0));
-    }
-    for (idx, child) in wires.children.iter().enumerate() {
-        if child.y_ring.len() != t {
+/// Enforce the selected identity-first CE carrier with `t` padded ring rows.
+pub fn enforce_padded_row_identity_d_pad_shape(wires: &DecInputWires, t: usize, d_pad: usize) -> Result<(), Error> {
+    let check = |claim: &CeClaimWires, owner: &'static str, index: usize| -> Result<(), Error> {
+        if claim.y_ring.len() != t {
             return Err(Error::ShapeMismatch {
-                what: "child.y_ring outer length",
+                what: owner,
                 expected: t,
-                got: child.y_ring.len(),
-                idx,
+                got: claim.y_ring.len(),
+                idx: index,
             });
         }
-        for row in child.y_ring.iter() {
-            if child.y_ring_lanes != d_pad || row.len() != d_pad * K_LIMBS {
-                return Err(label("child.y_ring[j] lane count", child.y_ring_lanes, idx));
-            }
+        if claim.y_ring_lanes != d_pad || claim.y_ring.iter().any(|row| row.len() != d_pad * K_LIMBS) {
+            return Err(Error::ShapeMismatch {
+                what: "PaddedRowIdentity y_ring width",
+                expected: d_pad,
+                got: claim.y_ring_lanes,
+                idx: index,
+            });
         }
+        Ok(())
+    };
+    check(&wires.parent, "PaddedRowIdentity parent y_ring count", 0)?;
+    for (index, child) in wires.children.iter().enumerate() {
+        check(child, "PaddedRowIdentity child y_ring count", index)?;
     }
     Ok(())
 }
 
-/// Enforce canonical SplitNc `y_ring` padding: lanes `D..` must be zero.
+/// Enforce canonical `y_ring` padding: lanes `D..` must be zero.
 ///
 /// Native Π_CCS / terminal CE construction computes `y_ring` as the real
 /// `D` ring coefficients padded up to `d_pad = 2^ell_d` with zeros. Π_DEC's
@@ -690,27 +631,6 @@ fn enforce_y_ring_padding_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWir
             builder.enforce_eq(&Lc::from_var(*limb), &Lc::zero());
         }
     }
-}
-
-/// Enforce `parent.s_col == child_i.s_col` for every child `i`. The NC
-/// column-domain point is shared by every claim in a Π_DEC.V step (parent
-/// and all children), mirroring `r` for the FE channel.
-pub fn enforce_s_col_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -> Result<(), Error> {
-    for (idx, child) in wires.children.iter().enumerate() {
-        if child.s_col.len() != wires.parent.s_col.len() {
-            return Err(Error::ShapeMismatch {
-                what: "s_col length",
-                expected: wires.parent.s_col.len(),
-                got: child.s_col.len(),
-                idx,
-            });
-        }
-        for (p, c) in wires.parent.s_col.iter().zip(child.s_col.iter()) {
-            builder.enforce_eq(&Lc::from_var(p.c0), &Lc::from_var(c.c0));
-            builder.enforce_eq(&Lc::from_var(p.c1), &Lc::from_var(c.c1));
-        }
-    }
-    Ok(())
 }
 
 // ── private helpers ───────────────────────────────────────────────────────
@@ -896,16 +816,6 @@ fn enforce_lane_combination_y(
 }
 
 pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
-    alloc_ce_claim_from_y_zcol(builder, claim, &claim.y_zcol)
-}
-
-/// Allocate the strict-Π_DEC child carrier. `y_zcol` is deliberately not
-/// materialized because no sound child-source equation is currently proved.
-pub(crate) fn alloc_dec_child_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeClaimWires {
-    alloc_ce_claim_from_y_zcol(builder, claim, &[])
-}
-
-fn alloc_ce_claim_from_y_zcol(builder: &mut R1csBuilder, claim: &CeClaim, y_zcol_values: &[K]) -> CeClaimWires {
     let c_data = builder.alloc_vec(&claim.c.data);
     let adv = alloc_adv(builder, claim.adv.as_ref());
     let x_rows = claim.X.rows();
@@ -961,21 +871,6 @@ fn alloc_ce_claim_from_y_zcol(builder: &mut R1csBuilder, claim: &CeClaim, y_zcol
             KVar::alloc(builder, c0, c1)
         })
         .collect();
-    let s_col = claim
-        .s_col
-        .iter()
-        .map(|k| {
-            let [c0, c1] = k.as_coeffs();
-            KVar::alloc(builder, c0, c1)
-        })
-        .collect();
-    let y_zcol_lanes = y_zcol_values.len();
-    let mut y_zcol = Vec::with_capacity(y_zcol_lanes * K_LIMBS);
-    for elem in y_zcol_values {
-        for limb in elem.as_basis_coefficients_slice() {
-            y_zcol.push(builder.alloc(*limb));
-        }
-    }
     // Allocate the CE claim's fold_digest as four canonical base-field wires
     // so downstream gadgets (decider CE-continuity gate) can pin it equal to
     // the next step's running's `fold_digest_fields`. Reject noncanonical
@@ -1015,17 +910,10 @@ fn alloc_ce_claim_from_y_zcol(builder: &mut R1csBuilder, claim: &CeClaim, y_zcol
         x_cols_var,
         m_in: claim.m_in,
         m_in_var,
-        aux_openings_len: claim.aux_openings.len(),
-        c_step_coords_len: claim.c_step_coords.len(),
-        u_offset: claim.u_offset,
-        u_len: claim.u_len,
         y_ring,
         y_ring_lanes,
         ct,
         r,
-        s_col,
-        y_zcol,
-        y_zcol_lanes,
         fold_digest_fields,
     }
 }
@@ -1110,7 +998,6 @@ fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) -> Vec<V
 }
 
 fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), Error> {
-    reject_unsupported_sidecar_fields(parent, 0)?;
     validate_adv_shape(parent.adv.as_ref(), parent.c_d, parent.c_kappa, "parent").map_err(Error::ProductCommitment)?;
     if parent.c_d != D {
         return Err(Error::ShapeMismatch {
@@ -1146,7 +1033,6 @@ fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), 
         });
     }
     for (idx, child) in children.iter().enumerate() {
-        reject_unsupported_sidecar_fields(child, idx)?;
         validate_adv_shape(child.adv.as_ref(), child.c_d, child.c_kappa, &format!("child[{idx}]"))
             .map_err(Error::ProductCommitment)?;
         if child.c_d != parent.c_d {
@@ -1232,50 +1118,6 @@ fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), 
                 });
             }
         }
-        if child.s_col.len() != parent.s_col.len() {
-            return Err(Error::ShapeMismatch {
-                what: "s_col length",
-                expected: parent.s_col.len(),
-                got: child.s_col.len(),
-                idx,
-            });
-        }
-    }
-    Ok(())
-}
-
-fn reject_unsupported_sidecar_fields(claim: &CeClaimWires, idx: usize) -> Result<(), Error> {
-    if claim.aux_openings_len != 0 {
-        return Err(Error::ShapeMismatch {
-            what: "aux_openings",
-            expected: 0,
-            got: claim.aux_openings_len,
-            idx,
-        });
-    }
-    if claim.c_step_coords_len != 0 {
-        return Err(Error::ShapeMismatch {
-            what: "c_step_coords",
-            expected: 0,
-            got: claim.c_step_coords_len,
-            idx,
-        });
-    }
-    if claim.u_offset != 0 {
-        return Err(Error::ShapeMismatch {
-            what: "u_offset",
-            expected: 0,
-            got: claim.u_offset,
-            idx,
-        });
-    }
-    if claim.u_len != 0 {
-        return Err(Error::ShapeMismatch {
-            what: "u_len",
-            expected: 0,
-            got: claim.u_len,
-            idx,
-        });
     }
     Ok(())
 }

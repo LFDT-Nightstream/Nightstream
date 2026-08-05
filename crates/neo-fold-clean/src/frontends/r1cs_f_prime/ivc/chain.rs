@@ -1,23 +1,7 @@
 //! Prover lifecycle for the generic implementation R1CS IVC relation.
 
-#[path = "execution_audit.rs"]
-mod execution_audit;
-
-pub use execution_audit::{
-    validate_raw_old_block_execution, R1csIvcCombinedNcExecutionAudit, R1csIvcCombinedNcRoundAudit,
-    R1csIvcCombinedNcTerminalAudit, R1csIvcFullZChildAudit, R1csIvcGeneratedKBindingAudit, R1csIvcGeneratedKSlot,
-    R1csIvcPiDecCanonicalXCoordinateAudit, R1csIvcPiDecPaperShapeExecutionAudit, R1csIvcPiDecPaperShapeProfile,
-    R1csIvcPiDecPaperTraceColumnAudit, R1csIvcPiDecPaperXOwner, R1csIvcPiDecPaperXPinAudit,
-    R1csIvcPostPiDecExecutionAudit, R1csIvcPublicWriteAudit, R1csIvcPublicWriteSource, R1csIvcRawAssignmentAuthority,
-    R1csIvcRawChildAssignmentAudit, R1csIvcRawOldBlockChildAudit, R1csIvcRawOldBlockExecutionAudit,
-    R1csIvcRawOldBlockFieldDecoding, R1csIvcRawOldBlockProfile, R1csIvcSelectorWriteAudit,
-    PI_DEC_PAPER_ACTIVE_X_COLUMNS, PI_DEC_PAPER_CANONICALITY_ROWS_PER_COORDINATE, PI_DEC_PAPER_CHILD_COUNT,
-    PI_DEC_PAPER_EVALUATION_ARITY, PI_DEC_PAPER_PUBLIC_COORDINATES, RAW_OLD_BLOCK_ACTIVE_LANES,
-    RAW_OLD_BLOCK_CHILD_COUNT, RAW_OLD_BLOCK_PADDED_LANES, RAW_OLD_BLOCK_ZERO_PADDING_LANES,
-};
-
 use neo_ccs::Mat;
-use neo_math::{D, F, K};
+use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
 use super::relation::{R1csIvcBranch, R1csIvcRelation};
@@ -30,8 +14,7 @@ use crate::frontends::r1cs_f_prime::lowering::normalized_field_assignment;
 use crate::frontends::r1cs_f_prime::R1csShape;
 use crate::lifecycle::{self, Preprocessing, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{
-    running::uses_pending_accumulator_family, FoldProof, LaneCommitmentMode, LatestInstance, ProofState,
-    SemanticStateMode, State,
+    FoldProof, LaneCommitmentMode, LatestInstance, ProofState, SemanticStateMode, State,
 };
 use crate::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest_for_uniform_shape,
@@ -46,7 +29,6 @@ use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::NifsVCircuitMessages;
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim};
-use execution_audit::{capture_post_pi_dec_execution, capture_running_witnesses, RawRunningWitnessCapture};
 
 /// Verifier-owned application, fixed recursive relation, and lifecycle keys.
 pub struct R1csIvcPreprocessing {
@@ -114,37 +96,24 @@ impl R1csIvcPreprocessing {
 pub struct R1csIvc<'a> {
     prep: &'a R1csIvcPreprocessing,
     audit: Option<UncompressedAudit>,
-    post_pi_dec_execution_audit: Option<R1csIvcPostPiDecExecutionAudit>,
 }
 
 impl<'a> R1csIvc<'a> {
     pub fn new(prep: &'a R1csIvcPreprocessing) -> Self {
-        Self {
-            prep,
-            audit: None,
-            post_pi_dec_execution_audit: None,
-        }
+        Self { prep, audit: None }
     }
 
     pub fn extend(&mut self, assignment: Vec<F>) -> Result<(), R1csIvcError> {
         self.prep.app.is_satisfied_by(&assignment)?;
         let semantic = semantic_values(&self.prep.plan, &assignment)?;
         let prepared = self.prepare_step(semantic.input, semantic.output)?;
-        let (instance, execution_audit) = self.synthesize_instance(&prepared, &assignment)?;
+        let instance = self.synthesize_instance(&prepared, &assignment)?;
         self.deposit(prepared, instance)?;
-        self.post_pi_dec_execution_audit = execution_audit;
         Ok(())
     }
 
     pub fn audit(&self) -> Option<&UncompressedAudit> {
         self.audit.as_ref()
-    }
-
-    /// Proof-free evidence from the most recent active recursive arm.
-    ///
-    /// Base and bootstrap-recursive steps leave this as `None`.
-    pub fn post_pi_dec_execution_audit(&self) -> Option<&R1csIvcPostPiDecExecutionAudit> {
-        self.post_pi_dec_execution_audit.as_ref()
     }
 
     pub fn into_audit(self) -> Result<UncompressedAudit, R1csIvcError> {
@@ -178,50 +147,33 @@ impl<'a> R1csIvc<'a> {
             self.audit = Some(audit);
             return Err(R1csIvcError::SemanticInputMismatch);
         }
-        let (running, running_parent_authority, running_pending_projection, raw_running_witnesses, fresh, placeholder) =
-            match &audit.proof.state.proof {
-                ProofState::Active { running, latest } => {
-                    let running = running
-                        .materialize()
-                        .map_err(crate::paper::construction2::Error::from)
-                        .map_err(lifecycle::Error::from)?;
-                    let running_pending_projection = running.pending_projection().cloned();
-                    let raw_running_witnesses = capture_running_witnesses(
-                        &running.witnesses,
-                        self.prep.prep.structure().m,
-                        running_pending_projection.as_ref(),
-                        K::from(F::from_u64(self.prep.prep.params.b() as u64)),
-                    )
-                    .map_err(execution_audit_error)?;
-                    let prior = latest
-                        .instances
-                        .first()
-                        .ok_or(R1csIvcError::ExpectedActiveState)?;
-                    let placeholder = CcsInstance {
-                        claim: prior.claim.clone(),
-                        witness: CcsWitness {
-                            w: Vec::new(),
-                            Z: Mat::zero(0, 0, F::ZERO),
-                        },
-                    };
-                    (
-                        running.claims.clone(),
-                        running.parent_authority.clone(),
-                        running_pending_projection,
-                        raw_running_witnesses,
-                        latest.claims(),
-                        placeholder,
-                    )
-                }
-                ProofState::Initial => return Err(R1csIvcError::ExpectedActiveState),
-            };
-        let branch = if uses_pending_accumulator_family(self.prep.prep.structure()) {
-            if running_pending_projection.is_none() {
-                R1csIvcBranch::BootstrapRecursive
-            } else {
-                R1csIvcBranch::Recursive
+        let (running, running_parent_authority, fresh, placeholder) = match &audit.proof.state.proof {
+            ProofState::Active { running, latest } => {
+                let running = running
+                    .materialize()
+                    .map_err(crate::paper::construction2::Error::from)
+                    .map_err(lifecycle::Error::from)?;
+                let prior = latest
+                    .instances
+                    .first()
+                    .ok_or(R1csIvcError::ExpectedActiveState)?;
+                let placeholder = CcsInstance {
+                    claim: prior.claim.clone(),
+                    witness: CcsWitness {
+                        w: Vec::new(),
+                        Z: Mat::zero(0, 0, F::ZERO),
+                    },
+                };
+                (
+                    running.claims.clone(),
+                    running.parent_authority.clone(),
+                    latest.claims(),
+                    placeholder,
+                )
             }
-        } else if running.is_empty() {
+            ProofState::Initial => return Err(R1csIvcError::ExpectedActiveState),
+        };
+        let branch = if pre.step_count <= 1 {
             R1csIvcBranch::BootstrapRecursive
         } else {
             R1csIvcBranch::Recursive
@@ -256,18 +208,12 @@ impl<'a> R1csIvc<'a> {
             fresh,
             running,
             running_parent_authority,
-            running_pending_projection,
-            raw_running_witnesses,
             nifs,
             pending,
         })
     }
 
-    fn synthesize_instance(
-        &self,
-        prepared: &PreparedStep,
-        assignment: &[F],
-    ) -> Result<(CcsInstance, Option<R1csIvcPostPiDecExecutionAudit>), R1csIvcError> {
+    fn synthesize_instance(&self, prepared: &PreparedStep, assignment: &[F]) -> Result<CcsInstance, R1csIvcError> {
         #[cfg(feature = "perf-timers")]
         let synth_start = std::time::Instant::now();
         let cfg = FPrimeStepConfig {
@@ -309,7 +255,6 @@ impl<'a> R1csIvc<'a> {
                 fresh,
                 running,
                 running_parent_authority,
-                running_pending_projection,
                 nifs,
                 ..
             } => {
@@ -320,7 +265,6 @@ impl<'a> R1csIvc<'a> {
                     fresh,
                     running,
                     running_parent_authority: running_parent_authority.as_ref(),
-                    running_pending_projection: running_pending_projection.as_ref(),
                     pi_ccs: &nifs.pi_ccs,
                     combined: &nifs.pi_rlc.combined,
                     children: &nifs.pi_dec.children,
@@ -379,39 +323,6 @@ impl<'a> R1csIvc<'a> {
             .prep
             .relation
             .build_instance(&self.prep.prep, branch, &field_assignment)?;
-        let execution_audit = match prepared {
-            PreparedStep::Recursive {
-                branch: R1csIvcBranch::Recursive,
-                post,
-                fresh,
-                running,
-                running_parent_authority,
-                running_pending_projection,
-                raw_running_witnesses,
-                nifs,
-                ..
-            } => Some(
-                capture_post_pi_dec_execution(
-                    self.prep,
-                    branch,
-                    prepared.pre(),
-                    post.z_i,
-                    &builder,
-                    &output,
-                    &public_outputs,
-                    &field_assignment,
-                    &instance,
-                    raw_running_witnesses,
-                    fresh,
-                    running,
-                    running_parent_authority.as_ref(),
-                    running_pending_projection.as_ref(),
-                    nifs,
-                )
-                .map_err(execution_audit_error)?,
-            ),
-            _ => None,
-        };
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "[r1cs-ivc-synth] witness {:>7.2}s normalize {:>7.2}s encode+instance {:>7.2}s total {:>7.2}s",
@@ -420,7 +331,7 @@ impl<'a> R1csIvc<'a> {
             instance_start.elapsed().as_secs_f64(),
             synth_start.elapsed().as_secs_f64(),
         );
-        Ok((instance, execution_audit))
+        Ok(instance)
     }
 
     fn deposit(&mut self, prepared: PreparedStep, instance: CcsInstance) -> Result<(), R1csIvcError> {
@@ -468,15 +379,9 @@ enum PreparedStep {
         fresh: Vec<CcsClaim>,
         running: Vec<CeClaim>,
         running_parent_authority: Option<CeClaim>,
-        running_pending_projection: Option<crate::paper::construction2::PendingProjectionState>,
-        raw_running_witnesses: RawRunningWitnessCapture,
         nifs: crate::paper::nifs::NifsProof,
         pending: UncompressedAudit,
     },
-}
-
-fn execution_audit_error(message: String) -> R1csIvcError {
-    R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(message))
 }
 
 impl PreparedStep {

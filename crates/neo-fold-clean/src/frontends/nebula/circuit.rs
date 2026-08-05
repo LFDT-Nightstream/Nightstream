@@ -1,4 +1,4 @@
-//! `S_mem` — the uniform Nebula step circuit (spec §4), in the mixed-gate
+//! `S_mem` — the uniform Nebula step circuit in the mixed-gate
 //! CCS idiom of `engine/ccs_native/poseidon2.rs`.
 //!
 //! Owns: the CCS structure of one step (rows E1–E9, S1–S3, boundary), the
@@ -19,7 +19,7 @@
 //! ```
 //!
 //! Lane regions sit at multiples of `d = 54` and carry constrained-zero
-//! tails (L-ALIGN, spec §5.1). The aux region holds, per op slot: `diff`
+//! tails (L-ALIGN). The aux region holds, per op slot: `diff`
 //! (44 bits), `cnt` (running non-pad count), per stack an E11-pinned `sw`
 //! bit and a σ-bit running `sp` word (v3.1), and the running `h_rs`/`h_ws`
 //! words (128 bits each); per scan slot: the running `h_is`/`h_fs` words.
@@ -37,7 +37,7 @@
 //! ```
 //!
 //! The K family evaluates one component of `h_next = h_prev · g` with
-//! `g = pad + (1 − pad) · f_γ` inline (degree 4, spec §4.3): component 0
+//! `g = pad + (1 − pad) · f_γ` inline (degree 4): component 0
 //! assigns `A = h_prev,0`, `B = W · h_prev,1` (`W` = the extension's
 //! binomial constant, read off `neo_math::K` at build time); component 1
 //! swaps `A = h_prev,1`, `B = h_prev,0`. Scan rows reuse the family with
@@ -175,7 +175,7 @@ impl SMemCircuit {
     }
 
     /// The three lane regions as whole ring-column ranges of the packed
-    /// witness — the geometry a `LaneScheme` is built from (spec §5.1).
+    /// witness — the geometry from which a `LaneScheme` is built.
     /// Single source of truth: the same `ZMap` that laid out the rows.
     pub fn lane_ranges(&self) -> crate::paper::relations::LaneRanges {
         use neo_math::D;
@@ -656,7 +656,7 @@ impl ZMap {
         let is_lane = ops_lane + p.ops_lane_bits();
         let fs_lane = is_lane + p.scan_lane_bits();
         let aux = fs_lane + p.scan_lane_bits();
-        // L-ALIGN (spec §5.1): lane regions must start at whole ring
+        // L-ALIGN: lane regions must start at whole ring
         // columns; a violation breaks the Lemma-1 commutation argument.
         assert!(
             ops_lane % D == 0 && is_lane % D == 0 && fs_lane % D == 0,
@@ -910,7 +910,7 @@ fn emit_rows(p: &NebulaParams, zm: &ZMap, rb: &mut RowBuilder) {
         rb.linear_row(&Lin::bit(col), &Lin::default());
     }
 
-    // Op slots: E1–E14 (spec §4.1). With S = 0 every stack form below is
+    // Op slots: E1–E14. With S = 0 every stack form below is
     // empty and the emitted rows are exactly v3's.
     let sigma = p.sigma as usize;
     let addr_off = 3 + p.num_stacks;
@@ -967,7 +967,7 @@ fn emit_rows(p: &NebulaParams, zm: &ZMap, rb: &mut RowBuilder) {
         rb.product_row(&one.clone().minus(is_write.clone()), &v_w.clone().minus(v_r.clone()));
 
         // E4: rt < wt on every RS-emitting op (RAM/ROM ops and pops —
-        // Coral's `push_time < ts`; pushes are exempt, spec §4.1):
+        // Coral's `push_time < ts`; pushes are exempt:
         // (1−skip_rs)·(wt − rt − 1 − diff) = 0, wt = ts_in + cnt_j.
         let wt = ts_in.clone().plus(cnt.clone());
         rb.product_row(
@@ -1038,7 +1038,7 @@ fn emit_rows(p: &NebulaParams, zm: &ZMap, rb: &mut RowBuilder) {
         // E8/E9: RS and WS product updates. The fingerprint's packed prefix
         // is affine in lane bits: packed = t + 2^TS_BITS · g with
         // g = addr + ram·R + Σ stk_s·(R + M + s·2^σ) (one-hot selectors
-        // keep it linear, spec §4.3).
+        // keep it linear).
         let mut g_lin = addr
             .clone()
             .plus(Lin(vec![(off + 2, F::from_u64(p.rom_cells()))]));
@@ -1089,7 +1089,7 @@ fn emit_rows(p: &NebulaParams, zm: &ZMap, rb: &mut RowBuilder) {
         );
     }
 
-    // Scan slots: S1–S3 (spec §4.2). No pads (exact cover); the packed
+    // Scan slots: S1–S3. No pads (exact cover); the packed
     // prefix uses the structural position g_p = idx·B_scan + j.
     let idx_word = Lin::word(zm.x(x_offsets::IDX), STEP_IDX_BITS);
     for j in 0..p.b_scan {
@@ -1132,7 +1132,7 @@ fn emit_rows(p: &NebulaParams, zm: &ZMap, rb: &mut RowBuilder) {
         }
     }
 
-    // Boundary rows (spec §4.4): the x outputs equal the last slot values.
+    // Boundary rows: the x outputs equal the last slot values.
     let last_op = &zm.op_aux[p.b_ops - 1];
     let last_scan = &zm.scan_aux[p.b_scan - 1];
     rb.linear_row(
@@ -1157,8 +1157,8 @@ fn emit_rows(p: &NebulaParams, zm: &ZMap, rb: &mut RowBuilder) {
     }
 }
 
-/// Static lane-residency audit (spec §3.2 rule; §15 completion criterion
-/// 7): every column read by the fingerprint-input matrices — the slots
+/// Static lane-residency audit: every column read by the fingerprint-input
+/// matrices — the slots
 /// that determine an op's or cell's multiset contribution — must lie in
 /// the public `x` region (verifier-checked), the committed lanes (bound by
 /// `c_ops`/`c_is`/`c_fs` before γ), or the deterministically-pinned aux:

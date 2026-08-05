@@ -11,8 +11,8 @@ use neo_fold_clean::frontends::r1cs_f_prime::lean_native_ccs_manifest::{
     LEAN_NATIVE_CCS_MANIFEST_FORMAT, LEAN_NATIVE_CCS_MANIFEST_SCHEMA_VERSION,
 };
 use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
-    compile_terminal_r1cs, compile_terminal_r1cs_statement, TerminalR1csInput, TerminalR1csStatement,
-    TerminalSpartanEngine,
+    compile_combined_terminal_r1cs, compile_combined_terminal_r1cs_statement, compile_terminal_r1cs,
+    compile_terminal_r1cs_statement, TerminalR1csInput, TerminalR1csStatement, TerminalSpartanEngine,
 };
 use neo_fold_clean::paper::construction2::{self, LatestInstance, ProofState, RunningInstance, State};
 use neo_fold_clean::paper::digest::{
@@ -24,7 +24,8 @@ use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::{CcsClaim, CcsInstance, CeClaim, WitnessMat};
 use neo_fold_clean::{
     finish_uncompressed, finish_with_spartan, prove, verify_spartan, verify_uncompressed, LeanNativeCcsManifest,
-    LeanNativeCcsPreprocessing, TerminalR1csError, Uncompressed,
+    LeanNativeCcsPreprocessing, LeanNebulaCombinedManifest, LeanNebulaCombinedPreprocessing, TerminalR1csError,
+    Uncompressed,
 };
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -367,6 +368,8 @@ fn valid_manifest() -> Value {
             "row_variables": 0,
             "logical_width": 270,
             "recursive_rows": 1,
+            "fresh_relation_rows": 2,
+            "fresh_relation_auxiliary_columns": 1,
             "matrix_count": 4,
             "public_ring_columns": 5,
             "verifier_rows": 18,
@@ -416,6 +419,8 @@ fn lifecycle_manifest() -> Value {
     manifest["step_cost"]["recurring_rows"] = json!(2);
     manifest["terminal_r1cs"]["row_variables"] = json!(1);
     manifest["terminal_r1cs"]["recursive_rows"] = json!(2);
+    manifest["terminal_r1cs"]["fresh_relation_rows"] = json!(4);
+    manifest["terminal_r1cs"]["fresh_relation_auxiliary_columns"] = json!(2);
     manifest["terminal_r1cs"]["cost"]["recurring_rows"] = json!(32_782);
     manifest["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(4_052);
     manifest
@@ -423,6 +428,145 @@ fn lifecycle_manifest() -> Value {
 
 fn parse(value: &Value) -> Result<LeanNativeCcsManifest, String> {
     LeanNativeCcsManifest::from_json_slice(&serde_json::to_vec(value).unwrap()).map_err(|error| error.to_string())
+}
+
+fn combined_polynomial() -> Vec<Value> {
+    let minus_one = GOLDILOCKS_MODULUS - 1;
+    let term = |coefficient: u64, powers: &[(usize, u32)]| {
+        let mut exponents = vec![0u32; 19];
+        for &(matrix, exponent) in powers {
+            exponents[matrix] = exponent;
+        }
+        json!({ "coefficient": coefficient, "exponents": exponents })
+    };
+    vec![
+        term(1, &[(0, 1), (1, 1), (3, 1)]),
+        term(minus_one, &[(2, 1), (3, 1)]),
+        term(1, &[(4, 2)]),
+        term(minus_one, &[(4, 1)]),
+        term(1, &[(5, 1), (6, 1)]),
+        term(1, &[(7, 1)]),
+        term(minus_one, &[(8, 1)]),
+        term(minus_one, &[(9, 1)]),
+        term(1, &[(10, 1), (12, 1)]),
+        term(1, &[(10, 1), (13, 1), (14, 1)]),
+        term(minus_one, &[(10, 1), (13, 1), (16, 1), (18, 1)]),
+        term(1, &[(11, 1), (13, 1), (15, 1)]),
+        term(minus_one, &[(11, 1), (13, 1), (17, 1), (18, 1)]),
+    ]
+}
+
+fn combined_manifest() -> Value {
+    let native = valid_manifest();
+    let core = json!({
+        "widths": native["widths"].clone(),
+        "step_input": native["step_input"].clone(),
+        "step_result": native["step_result"].clone(),
+        "terminal_input": native["terminal_input"].clone(),
+        "step_program": native["step_program"].clone(),
+        "terminal_program": native["terminal_program"].clone(),
+        "step_result_columns": native["step_result_columns"].clone(),
+        "step_selector": native["step_selector"].clone(),
+        "terminal_selector": native["terminal_selector"].clone(),
+        "step_activations": native["step_activations"].clone(),
+        "terminal_activations": native["terminal_activations"].clone(),
+        "step_cost": native["step_cost"].clone(),
+        "terminal_cost": native["terminal_cost"].clone(),
+    });
+    let empty = json!([]);
+    let images = json!({
+        "bit": [{ "column": 1, "coefficient": 1 }],
+        "product_left": empty,
+        "product_right": [],
+        "linear_left": [],
+        "linear_right": [],
+        "output": [],
+        "extension_a": [],
+        "extension_b": [],
+        "pad": [],
+        "active": [],
+        "fingerprint_a": [],
+        "fingerprint_b": [],
+        "value_a": [],
+        "value_b": [],
+        "value": [],
+    });
+    json!({
+        "schema": 4,
+        "format": "nightstream/fprime-nebula-combined-manifest",
+        "goldilocks_modulus": GOLDILOCKS_MODULUS,
+        "ajtai_setup": native["ajtai_setup"].clone(),
+        "core": core,
+        "relation": {
+            "matrix_count": 19,
+            "strict_degree_bound": 5,
+            "fresh_source_count": 1,
+            "running_source_count": 14,
+            "polynomial": combined_polynomial(),
+            "layout": {
+                "row_variables": 1,
+                "native_logical_width": 270,
+                "native_rows": 1,
+                "native_public_width": 257,
+                "combined_logical_width": 284,
+                "combined_public_width": 270,
+                "nebula_column_count": 2,
+                "nebula_public_end": 1,
+                "nebula_private_width": 1,
+            },
+            "application": {
+                "matrix_count": 15,
+                "strict_degree_bound": 5,
+                "column_count": 2,
+                "public_end": 1,
+                "rows": [{
+                    "id": {
+                        "family": "operation_bit",
+                        "slot": 0,
+                        "component": 0,
+                        "ordinal": 0,
+                        "position": 0,
+                    },
+                    "images": images,
+                }],
+            },
+        },
+        "terminal_r1cs": {
+            "row_variables": 1,
+            "logical_width": 284,
+            "recursive_rows": 2,
+            "fresh_relation_rows": 3,
+            "fresh_relation_auxiliary_columns": 1,
+            "matrix_count": 19,
+            "public_ring_columns": 5,
+            "verifier_rows": 18,
+            "cost": {
+                "recurring_rows": 57_081,
+                "committed_columns": 4_860,
+                "public_columns": 47_359,
+                "auxiliary_columns": 4_861,
+            },
+        },
+    })
+}
+
+fn extension_combined_manifest() -> Value {
+    let mut manifest = combined_manifest();
+    let row = &mut manifest["relation"]["application"]["rows"][0];
+    row["id"]["family"] = json!("read_product");
+    row["images"]["bit"] = json!([]);
+    row["images"]["output"] = json!([{ "column": 1, "coefficient": 1 }]);
+    row["images"]["extension_a"] = json!([{ "column": 0, "coefficient": 1 }]);
+    row["images"]["pad"] = json!([{ "column": 0, "coefficient": 1 }]);
+    manifest["terminal_r1cs"]["fresh_relation_rows"] = json!(8);
+    manifest["terminal_r1cs"]["fresh_relation_auxiliary_columns"] = json!(6);
+    manifest["terminal_r1cs"]["cost"]["recurring_rows"] = json!(57_086);
+    manifest["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(4_866);
+    manifest
+}
+
+fn parse_combined(value: &Value) -> Result<LeanNebulaCombinedManifest, String> {
+    LeanNebulaCombinedManifest::from_json_slice(&serde_json::to_vec(value).unwrap()).map_err(|error| error.to_string())
 }
 
 fn field_value(column: &ColumnId, active: bool, valid: bool) -> F {
@@ -475,16 +619,10 @@ fn direct_terminal_fixture(
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
         X: Mat::zero(D, manifest.public_carrier_width(), F::ZERO),
         r: Vec::new(),
-        s_col: Vec::new(),
         y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; step.structure().t()],
         ct: vec![K::ZERO; step.structure().t()],
-        aux_openings: Vec::new(),
-        y_zcol: Vec::new(),
         m_in: manifest.public_carrier_width(),
         fold_digest: [0; 32],
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
         adv: None,
     };
     (
@@ -493,6 +631,40 @@ fn direct_terminal_fixture(
         vec![zero_witness; manifest.running_claim_count()],
         fresh,
     )
+}
+
+fn direct_combined_terminal_fixture(
+    manifest: &LeanNebulaCombinedManifest,
+    nebula_private: &[F],
+) -> (neo_ajtai::AjtaiSModule, Vec<CeClaim>, Vec<WitnessMat>, CcsInstance) {
+    let mut public = vec![F::ZERO; manifest.public_carrier_width()];
+    public[0] = F::ONE;
+    let emission = manifest
+        .emit(&public, |_| Some(F::ZERO), nebula_private)
+        .expect("honest combined emission");
+    assert!(emission.is_satisfied());
+    let params = Params::goldilocks_paper_b2();
+    let log = ajtai::setup_seeded(&params, emission.structure(), TEST_AJTAI_SEED);
+    let fresh = CcsInstance::from_low_norm_assignment(
+        &params,
+        &log,
+        emission.structure(),
+        emission.assignment(),
+        manifest.public_carrier_width(),
+    )
+    .expect("honest combined fresh instance");
+    let zero_witness = Mat::zero(D, emission.structure().m / D, F::ZERO);
+    let zero_claim = CeClaim {
+        c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
+        X: Mat::zero(D, manifest.public_carrier_width(), F::ZERO),
+        r: vec![K::ZERO; manifest.terminal_r1cs().row_variables()],
+        y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; emission.structure().t()],
+        ct: vec![K::ZERO; emission.structure().t()],
+        m_in: manifest.public_carrier_width(),
+        fold_digest: [0; 32],
+        adv: None,
+    };
+    (log, vec![zero_claim; 14], vec![zero_witness; 14], fresh)
 }
 
 fn terminal_lifecycle_fixture(manifest: &LeanNativeCcsManifest) -> (neo_fold_clean::Preprocessing, Uncompressed) {
@@ -520,16 +692,10 @@ fn terminal_lifecycle_fixture(manifest: &LeanNativeCcsManifest) -> (neo_fold_cle
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
         X: Mat::zero(D, manifest.public_carrier_width(), F::ZERO),
         r: Vec::new(),
-        s_col: Vec::new(),
         y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; probe.structure().t()],
         ct: vec![K::ZERO; probe.structure().t()],
-        aux_openings: Vec::new(),
-        y_zcol: Vec::new(),
         m_in: manifest.public_carrier_width(),
         fold_digest: [0; 32],
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
         adv: None,
     };
     let running_claims = vec![zero_claim.clone(); manifest.running_claim_count()];
@@ -629,7 +795,7 @@ fn terminal_lifecycle_fixture(manifest: &LeanNativeCcsManifest) -> (neo_fold_cle
         ))
     );
 
-    let running = RunningInstance::new(running_claims, running_witnesses, Some(zero_claim), None);
+    let running = RunningInstance::new(running_claims, running_witnesses, Some(zero_claim));
     let state = State {
         chunk_count: step_count,
         step_count,
@@ -986,4 +1152,145 @@ fn terminal_lifecycle_rejects_preprocessing_without_recursive_induction() {
         finish_with_spartan(&prep, &manifest, uncompressed),
         Err(TerminalR1csError::UncertifiedInduction)
     ));
+}
+
+#[test]
+fn combined_manifest_emits_the_exact_nineteen_matrix_relation() {
+    let manifest = parse_combined(&combined_manifest()).expect("valid combined manifest");
+    let mut public = vec![F::ZERO; manifest.public_carrier_width()];
+    public[0] = F::ONE;
+    let private = vec![F::ZERO; manifest.nebula_private_width()];
+    let emission = manifest
+        .emit(&public, |_| Some(F::ZERO), &private)
+        .expect("exact combined emission");
+
+    assert_eq!(manifest.core().matrix_count(), 4);
+    assert_eq!(manifest.matrix_count(), 19);
+    assert_eq!(manifest.strict_degree_bound(), 5);
+    assert_eq!(emission.structure().t(), 19);
+    assert_eq!(emission.structure().max_degree(), 4);
+    assert_eq!(emission.structure().n, 2);
+    assert_eq!(emission.structure().m, 324);
+    assert_eq!(emission.logical_width(), 284);
+    assert_eq!(emission.public_width(), 270);
+    assert!(emission.is_satisfied());
+}
+
+#[test]
+fn combined_preprocessing_and_instance_are_manifest_owned() {
+    let manifest = parse_combined(&combined_manifest()).expect("valid combined manifest");
+    let setup = LeanNebulaCombinedPreprocessing::new(manifest).expect("combined preprocessing");
+    let mut public = vec![F::ZERO; setup.manifest().public_carrier_width()];
+    public[0] = F::ONE;
+    let private = vec![F::ZERO; setup.manifest().nebula_private_width()];
+    let instance = setup
+        .build_instance(&public, |_| Some(F::ZERO), &private)
+        .expect("combined instance");
+
+    assert!(setup.preprocessing().enforces_terminal_induction());
+    assert_eq!(setup.preprocessing().structure().t(), 19);
+    assert_eq!(instance.claim.m_in, 270);
+    assert_eq!(instance.claim.x, public);
+}
+
+#[test]
+fn combined_terminal_r1cs_compiles_the_exact_lean_bit_lowering() {
+    let manifest = parse_combined(&combined_manifest()).expect("valid combined manifest");
+    let (log, running_claims, running_witnesses, fresh) = direct_combined_terminal_fixture(&manifest, &[F::ZERO]);
+    let relation = compile_combined_terminal_r1cs(
+        &manifest,
+        &log,
+        TerminalR1csInput {
+            running_claims: &running_claims,
+            running_witnesses: &running_witnesses,
+            fresh: &fresh,
+        },
+    )
+    .expect("honest combined terminal R1CS");
+    let statement = compile_combined_terminal_r1cs_statement(
+        &manifest,
+        &log,
+        TerminalR1csStatement {
+            running_claims: &running_claims,
+            fresh_claim: &fresh.claim,
+        },
+    )
+    .expect("combined terminal statement");
+
+    assert_eq!(relation.shape().num_constraints_unpadded(), 57_081);
+    assert_eq!(relation.shape().num_rest_unpadded(), 9_721);
+    assert_eq!(relation.shape().num_public(), 47_358);
+    assert_eq!(relation.lean_public_columns(), 47_359);
+    assert_eq!(statement.shape(), relation.shape());
+    assert_eq!(statement.public_values(), relation.public_values());
+}
+
+#[test]
+fn combined_terminal_r1cs_compiles_the_exact_lean_extension_lowering() {
+    let manifest = parse_combined(&extension_combined_manifest()).expect("valid extension manifest");
+    let (log, running_claims, running_witnesses, fresh) = direct_combined_terminal_fixture(&manifest, &[F::ONE]);
+    let relation = compile_combined_terminal_r1cs(
+        &manifest,
+        &log,
+        TerminalR1csInput {
+            running_claims: &running_claims,
+            running_witnesses: &running_witnesses,
+            fresh: &fresh,
+        },
+    )
+    .expect("honest extension terminal R1CS");
+
+    assert_eq!(relation.shape().num_constraints_unpadded(), 57_086);
+    assert_eq!(relation.shape().num_rest_unpadded(), 9_726);
+    assert_eq!(relation.shape().num_public(), 47_358);
+    assert_eq!(relation.lean_public_columns(), 47_359);
+}
+
+#[test]
+fn combined_manifest_rejects_relation_and_layout_drift() {
+    let mut arity = combined_manifest();
+    arity["relation"]["matrix_count"] = json!(4);
+    assert!(parse_combined(&arity).unwrap_err().contains("matrix_count"));
+
+    let mut polynomial = combined_manifest();
+    polynomial["relation"]["polynomial"][0]["coefficient"] = json!(2);
+    assert!(parse_combined(&polynomial)
+        .unwrap_err()
+        .contains("polynomial"));
+
+    let mut position = combined_manifest();
+    position["relation"]["application"]["rows"][0]["id"]["position"] = json!(1);
+    assert!(parse_combined(&position).unwrap_err().contains("position"));
+
+    let mut coefficient = combined_manifest();
+    coefficient["relation"]["application"]["rows"][0]["images"]["bit"][0]["coefficient"] = json!(0);
+    assert!(parse_combined(&coefficient)
+        .unwrap_err()
+        .contains("coefficient"));
+
+    let mut layout = combined_manifest();
+    layout["relation"]["layout"]["combined_logical_width"] = json!(285);
+    assert!(parse_combined(&layout)
+        .unwrap_err()
+        .contains("combined_logical_width"));
+
+    let mut terminal = combined_manifest();
+    terminal["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(4_863);
+    assert!(parse_combined(&terminal)
+        .unwrap_err()
+        .contains("terminal_r1cs.cost"));
+}
+
+#[test]
+fn combined_emission_rejects_shared_and_witness_drift() {
+    let manifest = parse_combined(&combined_manifest()).expect("valid combined manifest");
+    let private = vec![F::ZERO; manifest.nebula_private_width()];
+
+    let public = vec![F::ZERO; manifest.public_carrier_width()];
+    assert!(manifest.emit(&public, |_| Some(F::ZERO), &private).is_err());
+
+    let mut public = vec![F::ZERO; manifest.public_carrier_width()];
+    public[0] = F::ONE;
+    assert!(manifest.emit(&public, |_| Some(F::ZERO), &[]).is_err());
+    assert!(manifest.emit(&public, |_| Some(F::ONE), &private).is_err());
 }

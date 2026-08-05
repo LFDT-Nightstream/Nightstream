@@ -143,7 +143,7 @@ pub struct StateXOutDigestInputs {
     pub mode: StateXOutDigestMode,
     /// `vk_fs_digest` — 4 limbs (from 32 LE bytes natively).
     pub vk_fs_digest: [Var; DIGEST_LEN],
-    /// SplitNc verifier header carried as part of `vk_fs`. These are
+    /// One-joint PiCCS verifier header carried as part of `vk_fs`. These are
     /// witness wires so folded F' does not embed a hash of its own matrices.
     pub pi_ccs_header_bundle: [Var; DIGEST_LEN],
     /// CCS structure digest — 4 native F limbs.

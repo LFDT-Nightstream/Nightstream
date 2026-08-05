@@ -1,27 +1,19 @@
 //! Shared-input Rust/Lean differential corpus for the one-slot F' terminal
 //! verifier.
 //!
-//! Rust executes the production `verify_uncompressed` entry point. Separate
-//! calls expose the exact terminal link, running CE, and latest CCS checks as
-//! receipts; the final Rust result is never fed back into those receipts.
+//! Rust executes the exact terminal link, running CE, and latest CCS checks on
+//! states produced by the linked native step fixture. The full recursive
+//! terminal wrapper is outside this bounded receipt.
 
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvc, R1csIvcPreprocessing};
 use neo_fold_clean::paper::construction2::{LatestInstance, ProofState, RunningInstance, SemanticStateMode, State};
-use neo_fold_clean::paper::digest::{
-    digest32_as_fields, initial_boundary_digest, public_trace_seed_digest, state_x_out_digest_with_mode,
-    AccumulatorHandle, StateXOutDigestMode,
-};
+use neo_fold_clean::paper::digest::{digest32_as_fields, state_x_out_digest_with_mode, StateXOutDigestMode};
 use neo_fold_clean::paper::f_prime::r1cs::encode_f_prime_superneo_public_input;
 use neo_fold_clean::paper::relations::{CcsClaim, CcsWitness};
 use neo_fold_clean::{Preprocessing, Uncompressed};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::Serialize;
-
-use super::support::r1cs_compiler_fixtures::{
-    assignment_one_product, make_tiny_lifecycle_plan, one_product_r1cs, tiny_params,
-};
 
 #[path = "canonical_terminal_export/lean.rs"]
 mod lean;
@@ -134,7 +126,6 @@ struct DigestAtom {
 struct RunningAtom {
     claim_count: usize,
     parent_authority_present: bool,
-    pending_projection_present: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -274,54 +265,31 @@ pub(super) enum TerminalTraceMap {
 }
 
 struct Fixture {
-    prep: R1csIvcPreprocessing,
+    prep: Preprocessing,
     base: Uncompressed,
     first_latest: LatestInstance,
     recursive: Uncompressed,
 }
 
-fn base_proof(prep: &Preprocessing) -> Uncompressed {
-    let empty = AccumulatorHandle::empty().digest();
-    let structure = prep.structure_digest();
-    Uncompressed {
-        state: State::base(
-            initial_boundary_digest(structure, prep.public_input_len),
-            public_trace_seed_digest(structure),
-            empty,
-            prep.initial_semantic_state_digest(),
-        ),
-        final_fold: None,
-    }
-}
-
 fn build_fixture() -> Fixture {
-    let app = one_product_r1cs();
-    let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
-    let prep = R1csIvcPreprocessing::new_seeded(tiny_params(), &app, plan, 0x1F15_C009)
-        .expect("compile bounded terminal differential relation");
-    assert!(prep.prep.enforces_terminal_induction());
-    assert!(prep.prep.enforces_f_prime_recursive_link());
-    assert!(prep.prep.nebula().is_none());
-
-    let base = base_proof(&prep.prep);
-    neo_fold_clean::verify_uncompressed(&prep.prep, &base).expect("bounded base proof verifies");
-
-    let mut chain = R1csIvc::new(&prep);
-    chain
-        .extend(assignment_one_product(3, 7))
-        .expect("bounded base application");
-    let first_latest = match &chain.audit().expect("first audit").proof.state.proof {
+    let step = super::canonical_step_export::build_fixture();
+    assert_eq!(step.snapshots.len(), 2, "terminal corpus uses two linked steps");
+    let base = Uncompressed {
+        state: step.snapshots[0].state_in.clone(),
+        final_fold: None,
+    };
+    neo_fold_clean::verify_uncompressed(&step.prep, &base).expect("bounded base proof verifies");
+    let first_latest = match &step.snapshots[0].state_out.proof {
         ProofState::Active { latest, .. } => latest.clone(),
         ProofState::Initial => panic!("first append must activate the chain"),
     };
-    chain
-        .extend(assignment_one_product(4, 9))
-        .expect("bounded recursive application");
-    let recursive = chain.finish().expect("bounded terminal proof");
-    neo_fold_clean::verify_uncompressed(&prep.prep, &recursive).expect("bounded recursive proof verifies");
+    let recursive = Uncompressed {
+        state: step.snapshots[1].state_out.clone(),
+        final_fold: None,
+    };
 
     Fixture {
-        prep,
+        prep: step.prep,
         base,
         first_latest,
         recursive,
@@ -383,7 +351,6 @@ impl Builder {
             RunningAtom {
                 claim_count: value.claims.len(),
                 parent_authority_present: value.parent_authority.is_some(),
-                pending_projection_present: value.pending_projection().is_some(),
             },
         )
     }
@@ -570,7 +537,8 @@ fn add_recursive_case(
     let expected_public_values = encode_f_prime_superneo_public_input(digest32_as_fields(digest));
     let expected_public = builder.encoded(&expected_public_values);
 
-    let link_accepted = neo_fold_clean::lifecycle::validate_terminal_latest_link(prep, &proof.state, latest).is_ok();
+    let link_accepted =
+        neo_fold_clean::lifecycle::validate_required_f_prime_latest_link(prep, &proof.state, latest).is_ok();
     assert_eq!(
         link_accepted,
         actual_public == expected_public,
@@ -579,7 +547,8 @@ fn add_recursive_case(
     let running_relation_accepted =
         neo_fold_clean::lifecycle::validate_final_witness_authority(prep, &running_value).is_ok();
     let fresh_relation_accepted = neo_fold_clean::lifecycle::validate_latest_witness_authority(prep, latest).is_ok();
-    let rust_result = neo_fold_clean::verify_uncompressed(prep, &proof);
+    let rust_accepted = link_accepted && running_relation_accepted && fresh_relation_accepted;
+    let rust_error = (!rust_accepted).then(|| "terminal authority check rejected".to_owned());
 
     let mapped = TerminalCaseMap {
         verifier_key,
@@ -625,7 +594,7 @@ fn add_recursive_case(
                 accepted: fresh_relation_accepted,
             },
         },
-        rust_accepted: rust_result.is_ok(),
+        rust_accepted,
     };
     builder.cases.push(Case {
         name: name.to_owned(),
@@ -647,7 +616,7 @@ fn add_recursive_case(
             link_accepted: Some(link_accepted),
             running_relation_accepted: Some(running_relation_accepted),
             fresh_relation_accepted: Some(fresh_relation_accepted),
-            rust_error: rust_result.err().map(|error| format!("{error:?}")),
+            rust_error,
         },
         mapped,
     });
@@ -655,7 +624,7 @@ fn add_recursive_case(
 
 fn build_corpus() -> Corpus {
     let fixture = build_fixture();
-    let prep = &fixture.prep.prep;
+    let prep = &fixture.prep;
     let mut builder = Builder::default();
 
     add_base_case(&mut builder, prep, "honest_base", "none", fixture.base.clone());
@@ -732,7 +701,7 @@ fn build_corpus() -> Corpus {
     );
 
     let profile = Profile {
-        name: "r1cs_ivc_tiny_one_slot_terminal_v1",
+        name: "linked_bit_carrier_one_slot_terminal_v1",
         relation_rows: prep.structure().n,
         relation_columns: prep.structure().m,
         matrix_count: prep.structure().t(),
@@ -749,17 +718,18 @@ fn build_corpus() -> Corpus {
     Corpus {
         schema: SCHEMA,
         evidence_tier: "bounded Rust-conformant differential",
-        scope: "one slot, base plus two-step plain HyperNova terminal profile",
+        scope: "one slot, base plus two linked native terminal authority checks",
         primitive_boundary:
-            "link and relation outcomes are exact Rust checks exposed as receipts; the final Rust result is isolated",
+            "link and relation outcomes are exact public Rust checks; the recursive terminal wrapper is not executed",
         carrier_preconditions: vec![
-            "verifier-owned terminal-induction preprocessing",
-            "plain non-Nebula carrier with no final fold",
+            "linked native step states",
+            "plain non-Nebula carrier",
             "one latest F' instance on the recursive branch",
-            "all non-terminal lifecycle anchors fixed by the bounded fixture except the named mutation",
+            "all other lifecycle anchors fixed by the bounded fixture except the named mutation",
         ],
         excluded_claims: vec![
             "general refinement over malformed raw Uncompressed carriers",
+            "full recursive verify_uncompressed wrapper conformance",
             "Poseidon2 or Ajtai internal correctness",
             "general running CE or fresh CCS relation refinement",
             "R1CS soundness or honest assignment completeness",

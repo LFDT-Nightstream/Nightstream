@@ -1,10 +1,4 @@
-//! Spec-derived tests for Polynomial.spec.md invariant obligations.
-//!
-//! Covers: eval at known points, arity mismatch panic, insert_var_at_front,
-//! append_zero_vars, max_degree.
-
-#[path = "common/mod.rs"]
-mod common;
+//! Direct behavior checks for sparse-polynomial evaluation and shape changes.
 
 use neo_ccs::{SparsePoly, Term};
 use p3_field::PrimeCharacteristicRing;

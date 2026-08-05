@@ -38,17 +38,6 @@ the online path (today's full-history audit R1CS is linear in steps).
 circuit entry; an accepting verifier replacing the direct
 `decider_ce_relation` checks is future work.
 
-### Nebula memory checking
-
-`specs/nebula-superneo-implementation.md` (v3, 2026-06-10) is the architecture spec
-for porting Nebula-style offline read/write memory checking (ePrint 2024/1605) onto
-the SuperNeo/F′ lifecycle: commitment-carrying IVC with per-step advice commitments
-(`c_adv`), multiset fingerprint grand products over `K = F_{q²}` (D1), one universal
-four-branch relation `S_nebula` (D3), a dedicated challenge-derivation step (D4),
-address-ordered commitment lists as segment boundaries (D5), canonical-u64 timestamp
-lanes with a global per-pair counter (D7). Until O(1)-terminal accumulation of the
-per-pair commitment equalities is designed (D8), Nebula chains are audit-path-only.
-
 ### Other
 
 - Chain-facing deployment wiring (on-chain verifier target) — unfinished; proofs and

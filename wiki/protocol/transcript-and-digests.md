@@ -24,12 +24,13 @@ A Merlin-inspired, byte-first API:
   feature `debug-log` — transcript event logging.
 - `TranscriptRng` — transcript-derived randomness for prover-side sampling.
 
-Spec: `crates/neo-transcript/specs/Transcript.spec.md`.
+The selected protocol contract and active Lean transcript model are the
+authority. Rust framing tests live in `crates/neo-transcript/tests`.
 
 ## What must be bound, where
 
-`specs/direct-ccs-superneo-transcript-binding.md` is the normative answer for the
-direct-CCS path. The invariant:
+[NS-TRANSCRIPT-ORDER](../../protocol-contract/src/normative/80-nightstream-verifier.md#ns-transcript-order--fold-transcript-schedule)
+defines the selected fold schedule. Its binding invariant is:
 
 > A verifier challenge must be unpredictable until all public inputs and prover
 > messages that precede that challenge have been fixed.

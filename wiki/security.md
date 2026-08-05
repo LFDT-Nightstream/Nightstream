@@ -11,8 +11,9 @@
   to stay inside this binding regime.
 - **Random-oracle Fiat-Shamir** over Poseidon2: SuperNeo's strong/weak interactive
   reductions (§6) compose, and HyperNova Appendix B's transform applies, when every
-  challenge binds all preceding public data. The binding discipline is specified in
-  `specs/direct-ccs-superneo-transcript-binding.md`.
+  challenge binds all preceding public data. The selected binding discipline is
+  specified by
+  [NS-TRANSCRIPT-ORDER](../protocol-contract/src/normative/80-nightstream-verifier.md#ns-transcript-order--fold-transcript-schedule).
 - **Sum-check soundness over `K = F_{q²}`** with per-shape effective λ (floor 96,
   target 125) validated at preprocessing — see
   [Parameters](protocol/parameters.md).
@@ -55,6 +56,13 @@
 
 The repo-level rules in [CLAUDE.md](../CLAUDE.md) bind all contributions: digest
 authority rules, Poseidon2-only protocol paths, and the expectation that soundness
-fixes come with red-team tests that fail while the gap exists. Design-freeze notes:
-the `y_zcol` / Π_DEC indirect-binding semantics are accepted design — challenges to
-them need a concrete accepting-forgery demonstration, not re-litigation.
+fixes come with red-team tests that fail while the gap exists.
+
+### Selected PiCCS authority
+
+The selected protocol is the one-joint padded-row construction in
+[`decisions/padded-row-identity-piccs.md`](../decisions/padded-row-identity-piccs.md).
+It uses one row point, one SumCheck, and full ring-valued matrix evaluations.
+There is no column sidecar or delayed projection authority. Earlier freeze
+notes for the removed split protocol are historical and do not bind the
+selected implementation.

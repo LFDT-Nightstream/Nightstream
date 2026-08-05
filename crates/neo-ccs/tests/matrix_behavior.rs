@@ -1,10 +1,4 @@
-//! Spec-derived tests for Matrix.spec.md invariant obligations.
-//!
-//! Covers: Mat layout, identity construction/detection, CSC round-trip,
-//! CcsMatrix identity mul, column selector detection.
-
-#[path = "common/mod.rs"]
-mod common;
+//! Direct behavior checks for dense, sparse, and seeded matrix operations.
 
 use neo_ccs::{CcsMatrix, CscMat, Mat, SeededPhi81LinearBlock};
 use neo_math::D;

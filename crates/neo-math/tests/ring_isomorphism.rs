@@ -1,5 +1,5 @@
 use neo_math::ring::inf_norm;
-use neo_math::{cf, cf_inv, Fq, Rq, D};
+use neo_math::{cf, cf_inv, ct, Fq, Rq, D};
 use p3_field::PrimeCharacteristicRing;
 
 fn rand_rq(seed: u64) -> Rq {
@@ -16,6 +16,15 @@ fn rand_rq(seed: u64) -> Rq {
 fn cf_roundtrip() {
     let a = rand_rq(1);
     assert_eq!(a, cf_inv(cf(a)));
+}
+
+#[test]
+fn coefficient_map_and_constant_term_are_canonical() {
+    let coefficients = cf(rand_rq(7));
+    let ring = cf_inv(coefficients);
+
+    assert_eq!(cf(ring), coefficients);
+    assert_eq!(ct(&ring), coefficients[0]);
 }
 
 #[test]

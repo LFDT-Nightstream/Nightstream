@@ -41,20 +41,3 @@ proptest = "1.6.0"
 serde_json = { workspace = true }
 p3-symmetric = { workspace = true }
 rand_chacha = "0.9"
-
-# Spec-derived tests (lean oracles + invariant obligations)
-[[test]]
-name = "spec_ajtai_commit"
-path = "spec-tests/ajtai_commit.rs"
-
-[[test]]
-name = "spec_decomposition"
-path = "spec-tests/decomposition.rs"
-
-[[test]]
-name = "spec_s_module"
-path = "spec-tests/s_module.rs"
-
-[[test]]
-name = "spec_public_parameters"
-path = "spec-tests/public_parameters.rs"

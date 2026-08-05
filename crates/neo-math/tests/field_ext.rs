@@ -1,6 +1,6 @@
 mod test_helpers;
 use neo_math::{Fq, KExtensions, K};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use test_helpers::{two_adic_generator, GOLDILOCKS_MODULUS, TWO_ADICITY};
 
 #[test]
@@ -13,6 +13,11 @@ fn goldilocks_two_adicity_is_32() {
         x = x.square();
     }
     assert_eq!(x, Fq::ONE);
+}
+
+#[test]
+fn goldilocks_modulus_is_canonical() {
+    assert_eq!(Fq::ORDER_U64, 18_446_744_069_414_584_321);
 }
 
 #[test]
@@ -44,4 +49,8 @@ fn k_conjugation_and_inverse() {
     let inv = a.inv();
     assert_eq!(a * inv, K::ONE);
     assert_eq!(a.conj().conj(), a);
+    assert_eq!(K::from_coeffs(a.as_coeffs()), a);
+
+    let scalar = Fq::from_u64(11);
+    assert_eq!(a.scale_base(scalar), a * K::new_complex(scalar, Fq::ZERO));
 }

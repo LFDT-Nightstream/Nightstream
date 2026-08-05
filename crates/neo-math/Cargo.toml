@@ -36,30 +36,9 @@ serde_json = { workspace = true }
 default = []
 serde = ["dep:serde"]
 
-# Spec-derived tests (lean oracles + invariant obligations)
-[[test]]
-name = "spec_ring"
-path = "spec-tests/ring.rs"
-
-[[test]]
-name = "spec_goldilocks"
-path = "spec-tests/goldilocks.rs"
-
-[[test]]
-name = "spec_norms"
-path = "spec-tests/norms.rs"
-
-[[test]]
-name = "spec_bar_transform"
-path = "spec-tests/bar_transform.rs"
-
 [[test]]
 name = "phi81_bar_lean_artifact"
 path = "tests/phi81_bar_lean_artifact.rs"
-
-[[test]]
-name = "spec_s_action"
-path = "spec-tests/s_action.rs"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

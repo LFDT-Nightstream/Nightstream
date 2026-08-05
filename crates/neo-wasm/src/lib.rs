@@ -2,7 +2,6 @@
 
 pub mod adapters;
 mod application;
-mod application_proof;
 pub mod batch;
 pub mod ccs;
 pub mod comm_chain;
@@ -38,9 +37,6 @@ pub use adapters::wasmtime::{
     WasmtimeTraceHandler, WasmtimeTraceMemoryAccess, WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
 };
 pub use application::{WasmApplicationManifestError, WasmApplicationModule};
-pub use application_proof::{
-    WasmApplicationProof, WasmApplicationProofError, WasmApplicationProofStats, WasmApplicationProofSystem,
-};
 pub use ccs::WasmVmSpec;
 pub use comm_chain::CommChainState;
 pub use ir::{

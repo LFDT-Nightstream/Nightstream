@@ -3,7 +3,7 @@
 //! The protocol and proof format remain backend-independent. This module owns
 //! only the prover-side choice between CPU, Metal, and CUDA.
 
-use neo_fold_clean::paper::nifs::{CpuNifsProver, NifsProverAdapter};
+use neo_fold_clean::paper::nifs::{NifsProverAdapter, OptimizedCpuNifsProver};
 
 use crate::nebula::{prove_with_nifs_adapter, WasmNebulaError, WasmNebulaPreprocessing, WasmNebulaProof};
 use crate::WasmVmStep;
@@ -95,7 +95,7 @@ impl WasmProver {
 
     /// Create a reusable canonical CPU prover.
     pub fn cpu() -> Self {
-        Self::new(WasmProverBackend::Cpu, CpuNifsProver, false)
+        Self::new(WasmProverBackend::Cpu, OptimizedCpuNifsProver, false)
     }
 
     /// Create a reusable Metal prover or return an explicit availability error.
@@ -181,17 +181,13 @@ impl WasmProver {
     }
 
     fn supports(&self, prep: &WasmNebulaPreprocessing) -> bool {
-        if self.backend != WasmProverBackend::Cuda {
-            return true;
-        }
-        !neo_fold_clean::paper::construction2::running::uses_pending_accumulator_family(
-            prep.inner().relation().structure(),
-        )
+        let _ = prep;
+        true
     }
 
     fn fallback_to_cpu(&mut self, reason: String) {
         self.backend = WasmProverBackend::Cpu;
-        self.adapter = Box::new(CpuNifsProver);
+        self.adapter = Box::new(OptimizedCpuNifsProver);
         self.fallback_reason = Some(reason);
     }
 }

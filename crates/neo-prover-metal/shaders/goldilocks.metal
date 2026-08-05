@@ -1050,9 +1050,7 @@ kernel void rlc_witness_mix_dense_fresh_resident_masks(
         gl_reduce_sum(negative.lo, negative.hi));
 }
 
-#include "dec_forms.metal"
 #include "lane_commitments.metal"
-#include "dec_public.metal"
 
 // Pi_DEC writes fourteen child masks per parent scan. The first group also checks
 // that every centered coefficient fits in the fixed base-2 child count.
@@ -1445,7 +1443,3 @@ kernel void fe_round_partials(
         }
     }
 }
-
-// Phase-specific kernels share the arithmetic and ABI helpers above.
-#include "nc.metal"
-#include "oracle.metal"

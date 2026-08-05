@@ -1,26 +1,16 @@
-//! CUDA prover backend for the SuperNeo NIFS reductions, built on cuda-oxide.
+//! CUDA selection for the canonical SuperNeo NIFS prover.
 //!
-//! Owns: device-resident prover execution of the NIFS.P phases
-//! (fresh-instance build, Π_CCS, Π_RLC, Π_DEC) behind `neo-fold-clean`'s
-//! `NifsProverAdapter` seam.
-//!
-//! Does not own: protocol semantics (the CPU engines in `neo-reductions` and
-//! `neo-fold-clean` stay canonical — this backend must be field-identical),
-//! and transcript authority (the host Poseidon2 transcript stays canonical;
-//! `transcript` is a gate-checked bit-exact device mirror of it).
+//! The former CUDA kernels implemented an incompatible protocol. The
+//! current adapter checks CUDA availability and then runs the selected
+//! one-joint protocol through the canonical host implementation. A future GPU
+//! kernel must reproduce that protocol exactly before it can replace the host
+//! computation.
 //!
 //! Build discipline: the `cuda` feature is only built through
 //! `cargo +nightly-2026-04-03 oxide` (custom rustc codegen backend for
 //! `#[cuda_module]` blocks). Plain `cargo` workspace builds keep it off.
 //!
-//! Public API: [`CudaNifsProver`]. The `pub` modules below are exposed so the
-//! crate's parity binary can gate internals; they are not a stable downstream
-//! API.
-
-#[doc(hidden)]
-pub mod kernels;
-#[doc(hidden)]
-pub mod ring_layout;
+//! Public API: [`CudaNifsProver`].
 
 #[cfg(feature = "perf-timers")]
 pub mod perf_ranges {
@@ -159,41 +149,6 @@ macro_rules! perf_timed {
 #[cfg(feature = "cuda")]
 #[doc(hidden)]
 pub mod adapter;
-#[cfg(feature = "cuda")]
-#[doc(hidden)]
-pub mod commit;
-#[cfg(feature = "cuda")]
-#[doc(hidden)]
-pub mod device;
-#[cfg(feature = "cuda")]
-#[doc(hidden)]
-pub mod field;
-#[cfg(feature = "cuda")]
-mod fold_output;
-#[cfg(feature = "cuda")]
-#[doc(hidden)]
-pub mod graph;
-#[cfg(feature = "cuda")]
-#[doc(hidden)]
-pub mod ingest;
-#[cfg(feature = "cuda")]
-mod lane_commitments;
-#[cfg(feature = "cuda")]
-mod projection;
-#[cfg(feature = "cuda")]
-#[doc(hidden)]
-pub mod reduce;
-#[cfg(feature = "cuda")]
-#[doc(hidden)]
-pub mod ring_forms;
-#[cfg(feature = "cuda")]
-#[doc(hidden)]
-pub mod session;
-#[cfg(feature = "cuda")]
-mod sis;
-#[cfg(feature = "cuda")]
-#[doc(hidden)]
-pub mod transcript;
 
 #[cfg(feature = "cuda")]
 pub use adapter::CudaNifsProver;

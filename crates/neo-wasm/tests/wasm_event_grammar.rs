@@ -8,7 +8,8 @@
 
 use neo_wasm::comm_chain::{commit_event, COMM_CHAIN_EVENT_ARGS};
 use neo_wasm::event_grammar::{
-    expand_export_entry, expand_import_events, ExportTemplate, GrammarEvent, ImportTemplate, Limb, SlotSource,
+    expand_export_entry, expand_import_events, ExportTemplate, GrammarEvent, ImportTemplate, Limb, MemoryBase,
+    SlotSource,
 };
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
@@ -77,7 +78,7 @@ fn method_template_expands_to_pinned_blocks_and_chain() {
     let result = Some((42, 0));
     let oracles = [100u64, 101, 102, 103]; // payload ref, ret ref, caller, target
 
-    let blocks = expand_import_events(&template, &args, result, &oracles).expect("expansion");
+    let blocks = expand_import_events(&template, &args, result, &oracles, &[]).expect("expansion");
 
     assert_eq!(
         blocks,
@@ -114,7 +115,7 @@ fn zero_arg_import_expands_to_single_const_event() {
         claim_count: 0,
     };
     template.validate(0, 0).expect("burn validates");
-    let blocks = expand_import_events(&template, &[], None, &[]).expect("expansion");
+    let blocks = expand_import_events(&template, &[], None, &[], &[]).expect("expansion");
     assert_eq!(blocks, vec![[7, 0, 0, 0, 0, 0, 0, 0]]);
 }
 
@@ -338,12 +339,107 @@ fn export_entry_validation_and_expansion_rules() {
 fn expansion_rejects_wrong_claim_count() {
     let template = method_template();
     let args = [(0, 0), (0, 0), (0, 0)];
-    assert!(expand_import_events(&template, &args, Some((0, 0)), &[1, 2, 3]).is_err());
+    assert!(expand_import_events(&template, &args, Some((0, 0)), &[1, 2, 3], &[]).is_err());
 }
 
 #[test]
 fn expansion_rejects_non_canonical_claim() {
     let template = method_template();
     let args = [(0, 0), (0, 0), (0, 0)];
-    assert!(expand_import_events(&template, &args, Some((0, 0)), &[1, 2, 3, u64::MAX]).is_err());
+    assert!(expand_import_events(&template, &args, Some((0, 0)), &[1, 2, 3, u64::MAX], &[]).is_err());
+}
+
+#[test]
+fn memory_slots_validate_phase_base_and_claim_source() {
+    let event = |source| GrammarEvent::op(1, slots(&[(0, source)]));
+    let import = ImportTemplate {
+        events: vec![event(SlotSource::MemoryRead32 {
+            base: MemoryBase::Local(0),
+            byte_offset: 0,
+        })],
+        claim_count: 0,
+    };
+    assert!(import.validate(1, 0).is_err());
+
+    let import = ImportTemplate {
+        events: vec![event(SlotSource::MemoryWrite32 {
+            claim: 0,
+            base: MemoryBase::Arg(0),
+            byte_offset: 0,
+        })],
+        claim_count: 0,
+    };
+    assert!(import.validate(1, 0).is_err());
+
+    let import = ImportTemplate {
+        events: vec![GrammarEvent::op(
+            1,
+            slots(&[
+                (0, SlotSource::ResultElem { limb: Limb::Lo }),
+                (1, SlotSource::ResultElem { limb: Limb::Hi }),
+                (
+                    2,
+                    SlotSource::MemoryRead32 {
+                        base: MemoryBase::Arg(0),
+                        byte_offset: 0,
+                    },
+                ),
+            ]),
+        )],
+        claim_count: 0,
+    };
+    assert!(import.validate(1, 1).is_err());
+
+    let export = ExportTemplate {
+        entry: vec![event(SlotSource::MemoryRead32 {
+            base: MemoryBase::Local(0),
+            byte_offset: 0,
+        })],
+        ..Default::default()
+    };
+    assert!(export.validate(1).is_err());
+
+    let export = ExportTemplate {
+        exit: vec![event(SlotSource::MemoryWrite32 {
+            claim: 0,
+            base: MemoryBase::Local(0),
+            byte_offset: 0,
+        })],
+        exit_claim_count: 1,
+        ..Default::default()
+    };
+    assert!(export.validate(1).is_err());
+
+    let pointer = SlotSource::ClaimLocal {
+        idx: 0,
+        local: 0,
+        limb: Limb::Lo,
+    };
+    let write = SlotSource::MemoryWrite32 {
+        claim: 1,
+        base: MemoryBase::Local(0),
+        byte_offset: 0,
+    };
+    let missing_pointer = ExportTemplate {
+        entry: vec![event(write)],
+        entry_claim_count: 2,
+        ..Default::default()
+    };
+    assert!(missing_pointer.validate(1).is_err());
+
+    let late_pointer = ExportTemplate {
+        entry: vec![event(write), event(pointer)],
+        entry_claim_count: 2,
+        ..Default::default()
+    };
+    assert!(late_pointer.validate(1).is_err());
+
+    let ordered = ExportTemplate {
+        entry: vec![event(pointer), event(write)],
+        entry_claim_count: 2,
+        ..Default::default()
+    };
+    ordered
+        .validate(1)
+        .expect("pointer bootstrap precedes memory write");
 }

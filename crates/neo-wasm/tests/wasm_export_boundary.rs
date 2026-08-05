@@ -11,9 +11,9 @@
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
-use neo_wasm::event_grammar::{ExportTemplate, GrammarEvent, HostEventGrammar, Limb, SlotSource};
+use neo_wasm::event_grammar::{ExportTemplate, GrammarEvent, HostEventGrammar, Limb, MemoryBase, SlotSource};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::WasmVmStep;
+use neo_wasm::{WasmGrammarSlotKind, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 use wasmtime::component::Val as ComponentVal;
 
@@ -102,6 +102,7 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
     let turns = [neo_wasm::event_grammar::TurnClaims {
         entry: vec![500, 501, 7, 35],
         exit: vec![],
+        ..Default::default()
     }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
         .expect("grammar trace");
@@ -154,7 +155,7 @@ fn export_boundary_folds_entry_and_exit_events() {
     // different input claim must not.
     let template = grammar.exports.values().next().expect("template");
     let mut expected = neo_wasm::event_grammar::expand_export_entry(template, &[500, 501, 7, 35]).expect("entry");
-    expected.extend(neo_wasm::event_grammar::expand_export_exit(template, Some((42, 0)), &[]).expect("exit"));
+    expected.extend(neo_wasm::event_grammar::expand_export_exit(template, Some((42, 0)), &[], &[]).expect("exit"));
     assert_eq!(expected, staged, "claimed transcript must match the staged blocks");
     let lift = |blocks: &[[u64; 8]]| -> Vec<[p3_goldilocks::Goldilocks; 8]> {
         blocks
@@ -187,7 +188,12 @@ fn ccs_rejects_forged_exit_output() {
     let (trace, _) = boundary_trace();
     let output_slot_row = trace
         .iter()
-        .find(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 5))
+        .find(|row| {
+            row.row_kind.is_host_event_gather()
+                && row
+                    .grammar_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Output)
+        })
         .expect("output slot row");
     let mut witness = build_witness_vector(output_slot_row);
     common::assert_satisfied(&witness, "untampered output slot row");
@@ -208,7 +214,12 @@ fn ccs_rejects_forged_input_word() {
     let (trace, _) = boundary_trace();
     let input_slot_row = trace
         .iter()
-        .find(|row| row.row_kind.is_host_event_gather() && row.grammar_rom_slot.is_some_and(|rom| rom.kind == 4))
+        .find(|row| {
+            row.row_kind.is_host_event_gather()
+                && row
+                    .grammar_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::ClaimLocal)
+        })
         .expect("input-local slot row");
     let mut witness = build_witness_vector(input_slot_row);
     common::assert_satisfied(&witness, "untampered input-local slot row");
@@ -298,6 +309,7 @@ fn i64_param_bootstraps_both_lanes() {
     let turns = [neo_wasm::event_grammar::TurnClaims {
         entry: vec![7, 3],
         exit: vec![],
+        ..Default::default()
     }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
         .expect("grammar trace");
@@ -335,4 +347,98 @@ fn i64_param_bootstraps_both_lanes() {
     // The captured output is the full i64 round-tripped through the locals.
     let last = trace.last().expect("rows").state_after;
     assert_eq!((last.output.value_lo, last.output.value_hi), (7, 3));
+}
+
+#[test]
+fn export_memory32_uses_a_local_pointer_base() {
+    let component_bytes = wat::parse_str(
+        r#"
+        (component
+          (type $run-type (func (param "ptr" s32)))
+          (core module $m
+            (memory 1)
+            (func (export "run") (param i32)))
+          (core instance $i (instantiate $m))
+          (alias core export $i "run" (core func $run))
+          (func (export "run") (type $run-type)
+            (canon lift (core func $run))))
+        "#,
+    )
+    .expect("component wat");
+    let args = [ComponentVal::S32(16)];
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, "run", &args, |_| Ok(()))
+        .expect("component run");
+    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
+    let fref = export_fref(&raw);
+
+    let mut grammar = HostEventGrammar::default();
+    grammar.exports.insert(
+        fref,
+        ExportTemplate {
+            entry: vec![GrammarEvent::op(
+                30,
+                slots(&[
+                    (
+                        0,
+                        SlotSource::ClaimLocal {
+                            idx: 0,
+                            local: 0,
+                            limb: Limb::Lo,
+                        },
+                    ),
+                    (
+                        1,
+                        SlotSource::MemoryWrite32 {
+                            claim: 1,
+                            base: MemoryBase::Local(0),
+                            byte_offset: 0,
+                        },
+                    ),
+                ]),
+            )],
+            exit: vec![GrammarEvent::op(
+                31,
+                slots(&[(
+                    0,
+                    SlotSource::MemoryRead32 {
+                        base: MemoryBase::Local(0),
+                        byte_offset: 0,
+                    },
+                )]),
+            )],
+            entry_claim_count: 2,
+            exit_claim_count: 0,
+        },
+    );
+    let turns = [neo_wasm::event_grammar::TurnClaims {
+        entry: vec![16, 77],
+        exit: vec![],
+        exit_memory_reads: vec![77],
+        ..Default::default()
+    }];
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
+        .expect("grammar trace");
+    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
+    common::ccs_check_trace(&trace);
+
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
+    let mut preload =
+        neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &vec![0; run.initial_locals.len()]);
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+    neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
+        .expect("grammar local base and linear-memory accesses match");
+
+    let read = trace
+        .iter()
+        .find(|row| {
+            row.grammar_rom_slot
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+        })
+        .expect("memory read gather");
+    let mut forged = build_witness_vector(read);
+    common::assert_satisfied(&forged, "untampered local-base memory read");
+    forged[neo_wasm::layout::COL_LOCAL_INDEX] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "memory read redirected to another pointer local");
 }

@@ -19,7 +19,6 @@ use crate::frontends::r1cs_f_prime::ivc::{R1csIvcError, R1csIvcFixedPointShapeAu
 use crate::frontends::r1cs_f_prime::{
     R1csShape, SelectiveProjectedRowsAudit, SelectiveSourceRowDisposition, SparseR1cs,
 };
-use crate::paper::digest::{PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT, PENDING_ACCUMULATOR_FAMILY_ROW_POINT};
 use crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_dec_circuit::stage;
@@ -27,7 +26,8 @@ use crate::paper::relations::superneo_public_x_cols;
 
 const ACTIVE_CHILDREN: usize = 14;
 const ACTIVE_CLAIMS: usize = ACTIVE_CHILDREN + 1;
-const ACTIVE_MATRICES: usize = 13;
+const ACTIVE_MATRICES: usize = 14;
+const ACTIVE_ROW_POINT: usize = 24;
 const ACTIVE_LOGICAL_X: usize = 270;
 const ACTIVE_RING_DIMENSION: usize = 54;
 const ACTIVE_NONCOMMITMENT_SOURCE_ROWS: usize = 11_629;
@@ -680,11 +680,10 @@ fn validate_active_claim(claim: &PiDecClaimAudit, index: usize, kappa: usize) ->
             .y_ring_cols
             .iter()
             .any(|row| row.len() != padded_ring_lanes * extension_limbs)
-        || claim.r_cols.len() != PENDING_ACCUMULATOR_FAMILY_ROW_POINT
-        || claim.s_col_cols.len() != PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT
+        || claim.r_cols.len() != ACTIVE_ROW_POINT
     {
         return Err(invalid_pi_dec_audit(format!(
-            "strict PiDEC claim {index} is not the active 54x270, 13-matrix delayed profile"
+            "strict PiDEC claim {index} is not the active 54x270, 14-matrix identity-first profile"
         )));
     }
     if claim.adv.is_some() {
@@ -748,7 +747,6 @@ fn insert_claim_columns(claim: &PiDecClaimAudit, columns: &mut BTreeSet<usize>) 
     columns.extend(claim.y_ring_cols.iter().flatten().copied());
     columns.extend(claim.ct_cols.iter().flatten().copied());
     columns.extend(claim.r_cols.iter().flatten().copied());
-    columns.extend(claim.s_col_cols.iter().flatten().copied());
     columns.extend(claim.fold_digest_cols);
     columns.extend([claim.x_rows_col, claim.x_width_col, claim.m_in_col]);
 }

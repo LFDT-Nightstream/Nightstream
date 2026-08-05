@@ -77,9 +77,9 @@ pub enum Error {
     NebulaNotConfigured,
     #[error("nebula: preprocessing/plan and chain-state lane presence disagree (config without lane, or lane without config)")]
     NebulaLanePresenceMismatch,
-    #[error("nebula: externally accepted proofs must end at a closed segment (§6.3 finalization rule: idx == 0, γ == ⊥, header chains)")]
+    #[error("nebula: externally accepted proofs must end at a closed segment (idx == 0, γ == ⊥, header chains)")]
     NebulaSegmentOpenAtTerminal,
-    #[error("nebula: terminal claim's adv tuple failed the lane slice-opening (spec §5.2 R3)")]
+    #[error("nebula: terminal claim's adv tuple failed the lane slice opening")]
     NebulaSliceOpeningFailed,
     #[error("nebula: terminal claim carries no adv tuple on a Nebula chain (or a tuple on a plain chain)")]
     NebulaAdvPresenceMismatch,
@@ -115,20 +115,6 @@ pub enum Error {
     )]
     FinalAccumulatorCtMismatch { index: usize, matrix_index: usize },
     #[error(
-        "verify_uncompressed: recorded final accumulator claim {index} optional NC channel \
-         `y_zcol` does not equal the projection `Z · chi(s_col)` from the opened witness. \
-         the current recursive accumulator handle does not bind `y_zcol`; this is a known \
-         old-point authority gap. At the terminal claim it must be recomputed from witness \
-         authority rather than trusted."
-    )]
-    FinalAccumulatorNcChannelMismatch { index: usize },
-    #[error("verify_uncompressed: delayed projection state is present outside the production pending-family profile")]
-    UnexpectedPendingProjection,
-    #[error("verify_uncompressed: a non-base production accumulator is missing its delayed projection state")]
-    MissingPendingProjection,
-    #[error("verify_uncompressed: delayed parent projection does not equal the radix recomposition of the authoritative raw child witnesses")]
-    FinalPendingProjectionMismatch,
-    #[error(
         "verify_uncompressed: recorded final accumulator claim {index} evaluation point `r` has the \
          wrong length (expected {expected} = log2(next_pow2(structure.n).max(2)), got {got}). A \
          truncated `r` would silently shrink the multilinear evaluation domain and a padded `r` \
@@ -137,16 +123,6 @@ pub enum Error {
     FinalAccumulatorEvaluationPointShapeMismatch {
         index: usize,
         expected: usize,
-        got: usize,
-    },
-    #[error(
-        "verify_uncompressed: recorded final accumulator claim {index} carries unsupported sidecar field `{field}` \
-         with length/value {got}. This clean SuperNeo path does not implement that metadata, so terminal witness \
-         authority must reject it rather than let accumulator-digested data remain unconstrained."
-    )]
-    FinalAccumulatorUnsupportedSidecar {
-        index: usize,
-        field: &'static str,
         got: usize,
     },
     #[error(
@@ -249,11 +225,11 @@ pub struct Preprocessing {
     pub vk: VerifierKey,
     pub(crate) mix_rhos_commits: RlcMixer,
     pub(crate) combine_b_pows: DecMixer,
-    /// Nebula memory-checking plan context (spec §6): the lane-commitment
+    /// Nebula memory-checking plan context: the lane-commitment
     /// scheme, segment length, plan digest, and the verifier's ROM handle
     /// `D_init`. `None` for plain chains. Set by
     /// [`Preprocessing::with_nebula`]; every extend on a Nebula
-    /// preprocessing runs the §6.3 lane transition.
+    /// preprocessing runs the Nebula lane transition.
     pub(crate) nebula: Option<std::sync::Arc<crate::paper::construction2::NebulaConfig>>,
     /// Program-fixed public-input length; absorbed into `vk_fs_digest` so
     /// the chain binds to a specific m_in. `None` means "unfixed at the
@@ -318,7 +294,7 @@ pub struct Preprocessing {
     /// computed once at preprocess time; protocol code reads this field
     /// instead of recomputing the digest on every step.
     structure_digest: [F; 4],
-    /// Canonical SplitNc Π_CCS transcript header for this exact
+    /// Canonical one-joint Π_CCS transcript header for this exact
     /// `(params, structure)`. It is part of `vk_fs` and enters folded F' as
     /// verifier-key data, never as a self-referential matrix constant.
     /// It is part of `vk_fs` because the in-circuit NIFS verifier consumes it
@@ -366,12 +342,12 @@ impl Preprocessing {
         self.nebula.as_deref()
     }
 
-    /// Attach the Nebula memory-checking plan (spec §11 constants +
-    /// `D_init`) to this preprocessing. Every subsequent chain started
+    /// Attach the Nebula memory-checking plan and `D_init` to this
+    /// preprocessing. Every subsequent chain started
     /// from it carries a `NebulaLane` from the base state, every extend
-    /// runs the §6.3 transition over the deposited claims, and the
+    /// runs the lane transition over the deposited claims, and the
     /// verifiers enforce the finalization rule and the terminal
-    /// slice-openings (spec §5.2 R3).
+    /// slice openings.
     pub fn with_nebula(mut self, cfg: crate::paper::construction2::NebulaConfig) -> Self {
         self.nebula = Some(std::sync::Arc::new(cfg));
         self
@@ -460,20 +436,15 @@ impl Preprocessing {
     }
 
     /// Verifier-circuit view of this preprocessing context. The dimensions
-    /// and Split-NC header are derived from the same params, structure, and
+    /// and PiCCS header are derived from the same params, structure, and
     /// matrix cache used by native proving, so recursive frontends do not
     /// reconstruct protocol metadata through a parallel path.
     pub fn nifs_v_circuit_config(&self) -> Result<crate::paper::nifs::circuit::NifsVCircuitConfig<'_>, Error> {
-        let dims = neo_reductions::engines::utils::build_dims_and_policy(self.params.inner(), &self.structure)?;
         Ok(crate::paper::nifs::circuit::NifsVCircuitConfig {
-            pi_ccs: crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig {
+            pi_ccs: crate::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig {
                 params: &self.params,
                 structure: self.structure.as_ref().into(),
-                header_bundle: self.pi_ccs_header_bundle,
-                ell_d: dims.ell_d,
-                ell_n: dims.ell_n,
-                ell_m: dims.ell_m,
-                d_sc: dims.d_sc,
+                matrix_digest: self.pi_ccs_header_bundle,
             },
         })
     }
@@ -600,8 +571,8 @@ pub use prove::{
     prove_with_nifs_adapter,
 };
 pub use verify::{
-    validate_final_witness_authority, validate_latest_witness_authority, validate_terminal_latest_link,
-    verify_uncompressed,
+    validate_final_witness_authority, validate_latest_witness_authority, validate_required_f_prime_latest_link,
+    validate_terminal_latest_link, verify_uncompressed,
 };
 
 // Audit / decider path — chain replay, Spartan, diagnostic tests.
@@ -694,20 +665,12 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     // same matrix digest instead of walking the matrices twice here.
     let structure_digest =
         crate::paper::digest::structure_digest_from_mat_digest(structure.as_ref(), optimized_cache.mat_digest());
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), structure.as_ref())?;
-    let transcript_variant =
-        if crate::paper::construction2::running::uses_pending_accumulator_family(structure.as_ref()) {
-            neo_reductions::engines::utils::PiCcsTranscriptVariant::BlockLaneNcDelayedV1
-        } else {
-            neo_reductions::engines::utils::PiCcsTranscriptVariant::SplitNcV1
-        };
-    let pi_ccs_header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields_for_variant(
-        params.inner(),
-        structure.as_ref(),
-        dims,
-        optimized_cache.mat_digest(),
-        transcript_variant,
-    )?;
+    params
+        .validate_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree())
+        .map_err(|error| neo_reductions::error::PiCcsError::ExtensionPolicyFailed(error.to_string()))?;
+    let pi_ccs_header_bundle = neo_reductions::engines::utils::digest_ccs_matrices(structure.as_ref())
+        .try_into()
+        .expect("the PiCCS matrix digest has four fields");
     let ajtai_pp_digest = crate::paper::digest::ajtai_public_parameters_digest(&log)?;
     // Default seed: `empty_semantic_state_digest()`. Stateful frontends
     // call [`Preprocessing::with_initial_semantic_state_digest`] after

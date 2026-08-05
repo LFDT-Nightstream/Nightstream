@@ -10,19 +10,16 @@
 //! binding. Any change here must move in lockstep with the in-circuit
 //! gadget that recomputes the same digest in PR5's `engine::decider`.
 
+use crate::paper::reductions::accumulator_sis_circuit::{
+    accumulator_digest as sis_accumulator_digest, ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG,
+    CE_CLAIM_SIS_CONFIG, NEBULA_LEAF_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG,
+};
+use crate::paper::reductions::pi_ccs_output_message::{OUTPUTS_DOMAIN, OUTPUT_MESSAGE_DOMAIN};
 use neo_ajtai::{AjtaiError, AjtaiSModule, Commitment};
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim, LaneCommitments};
 use neo_math::{F, K};
 use neo_params::NeoParams;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
-use thiserror::Error;
-
-use crate::paper::reductions::accumulator_sis_circuit::{
-    accumulator_digest as sis_accumulator_digest, SisAccumulatorError, ACCUMULATOR_CE_CLAIM_SIS_CONFIG,
-    CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG, NEBULA_LEAF_SIS_CONFIG, PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG,
-    PI_CCS_OUTPUTS_SIS_CONFIG,
-};
-use crate::paper::reductions::pi_ccs_output_message::{OUTPUTS_DOMAIN, OUTPUT_MESSAGE_DOMAIN};
 
 pub(crate) const F_PRIME_CHUNK_CLAIM_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_claim_digest/v2";
 pub(crate) const F_PRIME_CHUNK_PUBLIC_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_public_digest/v1";
@@ -210,14 +207,12 @@ pub fn ajtai_public_parameters_digest(log: &AjtaiSModule) -> Result<[F; 4], Ajta
 /// same terminal children. The direct reference rows enforce the same
 /// obligation set in `paper::decider_ce_relation`.
 pub fn terminal_ce_relation_digest() -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_relation/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_relation/v2");
     preimage.push(F::from_u64(1)); // Ajtai opening: commit(Z) == c.
     preimage.push(F::from_u64(1)); // Public projection: X == L_in(Z).
     preimage.push(F::from_u64(1)); // Low norm: ||Z||_infinity < b.
     preimage.push(F::from_u64(1)); // Evaluation: y_ring[j] == M_j · Z(r).
     preimage.push(F::from_u64(1)); // ct is lane zero of y_ring.
-    preimage.push(F::from_u64(1)); // NC sidecar, when present: y_zcol == Z · chi(s_col).
-    preimage.push(F::from_u64(1)); // Unsupported sidecars must be absent.
     poseidon_digest_fields(&preimage)
 }
 
@@ -251,8 +246,8 @@ pub(crate) fn structure_digest_from_mat_digest(structure: &CcsStructure<F>, matr
 /// Digest of one `CcsClaim`: domain tag + commitment header + commitment
 /// data + public input + m_in.
 ///
-/// `pub` (not `pub(crate)`) so the SplitNcV1 in-circuit verifier and its
-/// parity tests can recompute this from the same authoritative inputs.
+/// The in-circuit verifier and parity tests recompute this value from the
+/// same authoritative inputs.
 pub fn ccs_claim_digest(claim: &CcsClaim<Commitment, F>) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/ccs_claim_digest/v1");
     preimage.push(F::from_u64(claim.c.d as u64));
@@ -266,15 +261,15 @@ pub fn ccs_claim_digest(claim: &CcsClaim<Commitment, F>) -> [F; 4] {
     sis_accumulator_digest(CCS_CLAIM_SIS_CONFIG, &preimage).expect("nonempty CCS-claim SIS preimage")
 }
 
-// ── Nebula lane-commitment leaves (spec §6.1, absorb rule §5.2 R1) ─────────
+// ── Nebula lane-commitment leaves ─────────────────────────────────────────
 
 /// Leaf-digest tag for the ops lane.
 pub const NEBULA_LEAF_OPS_TAG: &[u8] = b"neo.fold.clean/nebula/leaf/ops/v4";
 /// Leaf-digest tag shared by the `is` and `fs` lanes. Lane-NEUTRAL by
 /// design: the memory-boundary chains of consecutive segments compare
 /// `fs`-side digests against `is`-side digests, which is only meaningful
-/// if both sides hash with the identical formula (spec §6.1 tag
-/// discipline; lane identity is positional, never tag-borne).
+/// if both sides hash with an identical formula. Lane identity is positional,
+/// never tag-borne.
 pub const NEBULA_LEAF_MEM_TAG: &[u8] = b"neo.fold.clean/nebula/leaf/mem/v4";
 
 /// Nonzero marker prefixing the `adv` extension of a claim-digest
@@ -295,7 +290,7 @@ fn nebula_leaf_digest(tag: &'static [u8], c: &Commitment) -> [F; 4] {
 
 /// Per-lane leaf digests of a claim's `adv` tuple, ordered (ops, is, fs).
 ///
-/// `pub` so the F′ `NebulaLane` chains (spec §6.3) and their tests
+/// `pub` so the F′ `NebulaLane` chains and their tests
 /// recompute leaves from the same authority-bearing definition.
 pub fn nebula_lane_leaf_digests(adv: &LaneCommitments<Commitment>) -> [[F; 4]; 3] {
     [
@@ -305,11 +300,10 @@ pub fn nebula_lane_leaf_digests(adv: &LaneCommitments<Commitment>) -> [[F; 4]; 3
     ]
 }
 
-/// Link tag of the ops `D` chain (spec §6.1 tag discipline).
+/// Link tag of the ops `D` chain.
 pub const NEBULA_CHAIN_OPS_TAG: &[u8] = b"neo.fold.clean/nebula/chain/ops/v3";
 /// Link tag shared by the `is` and `fs` chains — lane-NEUTRAL so segment
-/// k's FS chain and segment k+1's IS chain are formula-identical (the
-/// §6.4 boundary equality compares identically-computed digests).
+/// k's FS chain and segment k+1's IS chain are formula-identical.
 pub const NEBULA_CHAIN_MEM_TAG: &[u8] = b"neo.fold.clean/nebula/chain/mem/v3";
 
 /// Header (initial value) of the ops chain.
@@ -324,7 +318,7 @@ pub fn nebula_chain_mem_header() -> [F; 4] {
     poseidon_digest_fields(&pack_bytes_as_fields(b"neo.fold.clean/nebula/chain/mem/header/v3"))
 }
 
-/// One `D ← Poseidon2(D_prev, tag, leaf)` chain link (spec §6.1/§6.3) —
+/// One `D ← Poseidon2(D_prev, tag, leaf)` chain link (the carried-lane lifecycle) —
 /// the paper's `C_i ← hash(C_{i−1}, C_ω)` with the leaf hop.
 pub fn nebula_chain_link(prev: &[F; 4], link_tag: &'static [u8], leaf: &[F; 4]) -> [F; 4] {
     let mut preimage = pack_bytes_as_fields(link_tag);
@@ -333,7 +327,7 @@ pub fn nebula_chain_link(prev: &[F; 4], link_tag: &'static [u8], leaf: &[F; 4]) 
     poseidon_digest_fields(&preimage)
 }
 
-/// Compact digest of the carried `NebulaLane` (spec §6.1) — the value the
+/// Compact digest of the carried `NebulaLane` — the value the
 /// F′ state hash and step transcript absorb (present-only, like the
 /// claim-digest `adv` extension). Field order is part of the protocol
 /// binding; `gamma: None` (`⊥` before the segment's squeeze) absorbs as a
@@ -374,16 +368,16 @@ pub fn nebula_lane_digest(
 }
 
 /// Mem-domain leaf of a single commitment — the plan generator's `D_init`
-/// path (spec §7) uses this for initial-memory lane commitments; identical
+/// path uses this for initial-memory lane commitments; identical
 /// to the `is`/`fs` leaves of [`nebula_lane_leaf_digests`] by shared tag.
 pub fn nebula_mem_leaf(c: &Commitment) -> [F; 4] {
     nebula_leaf_digest(NEBULA_LEAF_MEM_TAG, c)
 }
 
 /// The three per-lane chains over a segment's tuple sequence — the
-/// prover's `D_pre` computation (spec §6.2) and the reference for every
+/// prover's `D_pre` computation and the reference for every
 /// `D_seen` comparison: headers, then one link per tuple per lane, with
-/// the §6.1 tag discipline (ops-domain; shared mem-domain for is/fs).
+/// the carried-lane tag discipline (ops-domain; shared mem-domain for is/fs).
 pub fn nebula_lane_chains<'a>(advs: impl IntoIterator<Item = &'a LaneCommitments<Commitment>>) -> [[F; 4]; 3] {
     let mem = nebula_chain_mem_header();
     let mut chains = [nebula_chain_ops_header(), mem, mem];
@@ -397,11 +391,11 @@ pub fn nebula_lane_chains<'a>(advs: impl IntoIterator<Item = &'a LaneCommitments
     chains
 }
 
-/// Absorb rule R1 (spec §5.2): wherever a claim digest binds `c.data`, a
+/// Wherever a claim digest binds `c.data`, a
 /// present `adv` tuple is bound too, as its three leaves.
 ///
 /// Present-only on purpose: a `None` claim's preimage stays byte-identical
-/// to the pre-Nebula format. The SplitNcV1 in-circuit digest mirrors append
+/// to the pre-Nebula format. The one-joint in-circuit digest mirrors append
 /// the same conditional extension.
 /// Unambiguous despite the sponge's zero-fill final chunk: the extension
 /// is a nonzero marker plus 12 leaf elements, always > RATE.
@@ -525,10 +519,10 @@ pub fn chunk_public_digest(start_index: u64, fresh: &[CcsClaim<Commitment, F>]) 
 /// matrix shape + values), evaluation point r, y_ring evaluations, m_in,
 /// fold_digest. Mirrors `ccs_claim_digest` for the running-side claims.
 ///
-/// `pub` (not `pub(crate)`) so the SplitNcV1 in-circuit verifier and its
+/// `pub` (not `pub(crate)`) so the one-joint in-circuit verifier and its
 /// parity tests can recompute this from authoritative inputs.
 pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/ce_claim_digest/v2");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/ce_claim_digest/v3");
     // Commitment
     preimage.push(F::from_u64(claim.c.d as u64));
     preimage.push(F::from_u64(claim.c.kappa as u64));
@@ -584,16 +578,13 @@ pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
 /// paper-layer Π_CCS transcript digest and historically omits fields whose
 /// consistency is enforced elsewhere. The accumulator handle is different: it
 /// stands in for one child statement in HyperNova's `U_i`, so it binds the CE
-/// relation fields rather than only commitment coordinates. The optimized
-/// `y_zcol` sidecar is deliberately outside this paper-level digest: its
-/// verifier-owned source relation is still an open delayed-NC obligation and
-/// must not be disguised as solved by merely hashing a prover value.
+/// relation fields rather than only commitment coordinates.
 ///
 /// This is the current conservative Rust CE-core encoding, not yet the
 /// Lean-minimal Phi81 family payload. Replacing repeated shared/derived fields
 /// requires the concrete 270-coordinate serializer refinement first.
 pub fn accumulator_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator_ce_claim_digest/v2");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator_ce_claim_digest/v3");
     append_ce_claim_public_fields(&mut preimage, claim);
     sis_accumulator_digest(ACCUMULATOR_CE_CLAIM_SIS_CONFIG, &preimage)
         .expect("nonempty accumulator CE-claim SIS preimage")
@@ -605,7 +596,7 @@ pub fn accumulator_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] 
 /// recomposition does not uniquely determine its child vector, so a
 /// parent-only handle would alias distinct paper accumulators before hashing.
 pub fn accumulator_claims_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/children/v3");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/accumulator/children/v4");
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
         preimage.extend_from_slice(&accumulator_ce_claim_digest(claim));
@@ -613,209 +604,14 @@ pub fn accumulator_claims_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4]
     poseidon_digest_fields(&preimage)
 }
 
-/// Exact fixed-profile domain used by the Lean pending-family codec.
-pub const PENDING_ACCUMULATOR_FAMILY_DOMAIN: &[u8] = b"neo.fold.clean/f_prime/accumulator/pending_family_digest/v1";
-pub const PENDING_ACCUMULATOR_FAMILY_CHILDREN: usize = 14;
-pub const PENDING_ACCUMULATOR_FAMILY_ROW_POINT: usize = 23;
-pub const PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT: usize = 19;
-pub const PENDING_ACCUMULATOR_FAMILY_M_IN: usize = 270;
-pub const PENDING_ACCUMULATOR_FAMILY_MATRICES: usize = 13;
-pub const PENDING_ACCUMULATOR_OLD_BLOCK: usize = 19;
-
-/// Verifier-owned one-fold delayed state. These values must be extracted from
-/// the raw combined-NC state, never copied from `CeClaim.y_zcol` sidecars.
-#[derive(Clone, Copy, Debug)]
-pub struct PendingAccumulatorFamilyState<'a> {
-    pub old_block: &'a [K],
-    pub parent_y_zcol: &'a [K],
-}
-
-#[derive(Debug, Error)]
-pub enum PendingAccumulatorFamilyError {
-    #[error("pending accumulator family needs {expected} children, got {got}")]
-    ChildCount { expected: usize, got: usize },
-    #[error("pending accumulator family verifier kappa must be nonzero")]
-    ZeroVerifierRows,
-    #[error("pending accumulator family child {child}: {reason}")]
-    Child { child: usize, reason: &'static str },
-    #[error("pending accumulator family delayed state: {reason}")]
-    Pending { reason: &'static str },
-    #[error(transparent)]
-    Sis(#[from] SisAccumulatorError),
-}
-
-fn pending_family_child_error(child: usize, reason: &'static str) -> PendingAccumulatorFamilyError {
-    PendingAccumulatorFamilyError::Child { child, reason }
-}
-
-fn append_k_values_without_length(preimage: &mut Vec<F>, values: &[K]) {
-    for value in values {
-        preimage.extend_from_slice(value.as_basis_coefficients_slice());
-    }
-}
-
-/// Serialize one complete fixed-profile accumulator family.
-///
-/// The verifier fixes `verifier_rows`; it is validated but not serialized,
-/// matching Lean's `Commitment.Value verifierRows` index. Public coordinates
-/// are emitted column-major (`column * D + lane`), which is the logical
-/// 270-coordinate carrier order even though `Mat` stores row-major entries.
-/// `y_zcol` is intentionally absent: the optional delayed state is supplied
-/// separately from authoritative raw combined-NC data.
-pub fn pending_accumulator_family_preimage(
-    claims: &[CeClaim<Commitment, F, K>],
-    verifier_rows: usize,
-    pending: Option<PendingAccumulatorFamilyState<'_>>,
-) -> Result<Vec<F>, PendingAccumulatorFamilyError> {
-    if claims.len() != PENDING_ACCUMULATOR_FAMILY_CHILDREN {
-        return Err(PendingAccumulatorFamilyError::ChildCount {
-            expected: PENDING_ACCUMULATOR_FAMILY_CHILDREN,
-            got: claims.len(),
-        });
-    }
-    if verifier_rows == 0 {
-        return Err(PendingAccumulatorFamilyError::ZeroVerifierRows);
-    }
-
-    let first = &claims[0];
-    let active_x_cols = PENDING_ACCUMULATOR_FAMILY_M_IN.div_ceil(neo_math::D);
-    for (child, claim) in claims.iter().enumerate() {
-        let invalid = |reason| pending_family_child_error(child, reason);
-        if claim.c.d != neo_math::D
-            || claim.c.kappa != verifier_rows
-            || claim.c.data.len() != neo_math::D * verifier_rows
-        {
-            return Err(invalid("commitment shape does not match verifier-fixed D and kappa"));
-        }
-        if claim.m_in != PENDING_ACCUMULATOR_FAMILY_M_IN {
-            return Err(invalid("m_in must be the fixed 270-coordinate public width"));
-        }
-        if claim.X.rows() != neo_math::D || claim.X.cols() != PENDING_ACCUMULATOR_FAMILY_M_IN {
-            return Err(invalid("X must have the fixed D-by-270 production shape"));
-        }
-        if !crate::paper::relations::superneo_inactive_x_zero(&claim.X, claim.m_in) {
-            return Err(invalid("inactive X columns must be zero"));
-        }
-        if claim.r.len() != PENDING_ACCUMULATOR_FAMILY_ROW_POINT {
-            return Err(invalid("row point has the wrong fixed length"));
-        }
-        if claim.s_col.len() != PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT {
-            return Err(invalid("column point must contain exactly 19 extension elements"));
-        }
-        if claim.r != first.r {
-            return Err(invalid("row point differs from child zero"));
-        }
-        if claim.s_col != first.s_col {
-            return Err(invalid("column point differs from child zero"));
-        }
-        if claim.y_ring.len() != PENDING_ACCUMULATOR_FAMILY_MATRICES {
-            return Err(invalid("y_ring must contain exactly 13 matrix rows"));
-        }
-        if claim.ct.len() != PENDING_ACCUMULATOR_FAMILY_MATRICES {
-            return Err(invalid("ct must contain exactly 13 scalar views"));
-        }
-        for (matrix, row) in claim.y_ring.iter().enumerate() {
-            if row.len() != neo_math::D.next_power_of_two() {
-                return Err(invalid("y_ring rows must use the padded 64-lane shape"));
-            }
-            if row[neo_math::D..].iter().any(|value| *value != K::ZERO) {
-                return Err(invalid("y_ring padding lanes must be zero"));
-            }
-            if claim.ct[matrix] != row[0] {
-                return Err(invalid("ct must equal the corresponding y_ring constant term"));
-            }
-        }
-        if !claim.aux_openings.is_empty() || !claim.c_step_coords.is_empty() || claim.u_offset != 0 || claim.u_len != 0
-        {
-            return Err(invalid("unsupported CE sidecar is present"));
-        }
-        if claim.adv.is_some() {
-            return Err(invalid("Nebula claims require a separate typed family codec"));
-        }
-        if claim.fold_digest != first.fold_digest {
-            return Err(invalid("fold digest differs from child zero"));
-        }
-        for chunk in claim.fold_digest.chunks_exact(8) {
-            let lane = u64::from_le_bytes(chunk.try_into().expect("fold digest lane"));
-            if lane >= F::ORDER_U64 {
-                return Err(invalid("fold digest contains a noncanonical field lane"));
-            }
-        }
-    }
-
-    let mut preimage = pack_bytes_as_fields(PENDING_ACCUMULATOR_FAMILY_DOMAIN);
-    debug_assert_eq!(preimage.len(), 10);
-    preimage.extend([
-        F::from_u64(PENDING_ACCUMULATOR_FAMILY_CHILDREN as u64),
-        F::from_u64(PENDING_ACCUMULATOR_FAMILY_ROW_POINT as u64),
-        F::from_u64(PENDING_ACCUMULATOR_FAMILY_COLUMN_POINT as u64),
-    ]);
-    append_k_values_without_length(&mut preimage, &first.r);
-    append_k_values_without_length(&mut preimage, &first.s_col);
-    preimage.push(F::from_u64(PENDING_ACCUMULATOR_FAMILY_M_IN as u64));
-    preimage.extend(digest32_as_fields(first.fold_digest));
-
-    for claim in claims {
-        preimage.extend_from_slice(&claim.c.data);
-        for column in 0..active_x_cols {
-            for lane in 0..neo_math::D {
-                preimage.push(claim.X[(lane, column)]);
-            }
-        }
-        for row in &claim.y_ring {
-            append_k_values_without_length(&mut preimage, &row[..neo_math::D]);
-        }
-    }
-
-    match pending {
-        None => {
-            preimage.push(F::ZERO);
-            preimage.resize(
-                preimage.len() + 2 * (PENDING_ACCUMULATOR_OLD_BLOCK + neo_math::D),
-                F::ZERO,
-            );
-        }
-        Some(pending) => {
-            if pending.old_block.len() != PENDING_ACCUMULATOR_OLD_BLOCK {
-                return Err(PendingAccumulatorFamilyError::Pending {
-                    reason: "old block must contain exactly 19 extension elements",
-                });
-            }
-            if pending.parent_y_zcol.len() != neo_math::D {
-                return Err(PendingAccumulatorFamilyError::Pending {
-                    reason: "parent y_zcol must contain exactly 54 active lanes",
-                });
-            }
-            preimage.push(F::ONE);
-            append_k_values_without_length(&mut preimage, pending.old_block);
-            append_k_values_without_length(&mut preimage, pending.parent_y_zcol);
-        }
-    }
-
-    Ok(preimage)
-}
-
-pub fn pending_accumulator_family_digest(
-    claims: &[CeClaim<Commitment, F, K>],
-    verifier_rows: usize,
-    pending: Option<PendingAccumulatorFamilyState<'_>>,
-) -> Result<[F; 4], PendingAccumulatorFamilyError> {
-    let preimage = pending_accumulator_family_preimage(claims, verifier_rows, pending)?;
-    Ok(sis_accumulator_digest(
-        PENDING_ACCUMULATOR_FAMILY_SIS_CONFIG,
-        &preimage,
-    )?)
-}
-
 /// Digest the terminal NIFS children for a compact terminal-CE proof statement.
 ///
 /// Unlike [`ce_claim_digest`] and [`accumulator_ce_claim_digest`], this absorbs
-/// every public CE field carried at the terminal boundary, including `y_zcol`
-/// and fields that the current clean pipeline rejects before treating them as
-/// authority. The digest is never authority by itself; the compact proof must
-/// still prove the terminal CE relation against the children it binds.
+/// every public CE field carried at the terminal boundary. The digest is never
+/// authority by itself; the compact proof must still prove the terminal CE
+/// relation against the children it binds.
 pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_children_digest/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_children_digest/v2");
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
         preimage.extend_from_slice(&terminal_ce_claim_digest(claim));
@@ -829,8 +625,8 @@ pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] 
 /// samples random linear-combination coefficients." In the Fiat-Shamir
 /// transcript, the output message therefore needs an explicit, verifier-
 /// recomputable absorb before `ρ` is derived. Only active `y_ring` and
-/// `y_zcol` lanes are committed here: commitment/X are inherited from the
-/// inputs, `r`/`s_col` are verifier challenges, `ct` is the `y_ring` constant
+/// identity-first `y_ring` lanes are committed here: commitment/X are inherited from the
+/// inputs, `r` is a verifier challenge, `ct` is the `y_ring` constant
 /// term, `fold_digest` is the checked header, and padded lanes/unsupported
 /// sidecars are canonical. Native and recursive verifiers enforce those
 /// reconstruction equations before relying on this projection.
@@ -840,7 +636,6 @@ pub fn pi_ccs_outputs_preimage(claims: &[CeClaim<Commitment, F, K>]) -> Vec<F> {
     for claim in claims {
         preimage.extend(pack_bytes_as_fields(OUTPUT_MESSAGE_DOMAIN));
         append_active_k_rows(&mut preimage, &claim.y_ring);
-        append_active_k_slice(&mut preimage, &claim.y_zcol);
     }
     preimage
 }
@@ -873,7 +668,7 @@ pub fn terminal_ce_public_digest(
 }
 
 fn terminal_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_claim_digest/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_claim_digest/v2");
     append_terminal_ce_claim_public_fields(&mut preimage, claim);
     poseidon_digest_fields(&preimage)
 }
@@ -906,16 +701,10 @@ fn append_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim<Commitme
     }
 
     append_k_slice(preimage, &claim.r);
-    append_k_slice(preimage, &claim.s_col);
     append_k_rows(preimage, &claim.y_ring);
     append_k_slice(preimage, &claim.ct);
-    append_k_slice(preimage, &claim.aux_openings);
     preimage.push(F::from_u64(claim.m_in as u64));
     preimage.extend(digest32_as_fields(claim.fold_digest));
-    preimage.push(F::from_u64(claim.c_step_coords.len() as u64));
-    preimage.extend_from_slice(&claim.c_step_coords);
-    preimage.push(F::from_u64(claim.u_offset as u64));
-    preimage.push(F::from_u64(claim.u_len as u64));
     append_adv_leaves(preimage, &claim.adv);
 }
 
@@ -936,34 +725,7 @@ fn append_k_rows(preimage: &mut Vec<F>, rows: &[Vec<K>]) {
 }
 
 fn append_terminal_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim<Commitment, F, K>) {
-    preimage.push(F::from_u64(claim.c.d as u64));
-    preimage.push(F::from_u64(claim.c.kappa as u64));
-    preimage.push(F::from_u64(claim.c.data.len() as u64));
-    preimage.extend_from_slice(&claim.c.data);
-
-    let active_x_cols = crate::paper::relations::superneo_public_x_cols(claim.m_in);
-    preimage.push(F::from_u64(claim.X.rows() as u64));
-    preimage.push(F::from_u64(claim.X.cols() as u64));
-    preimage.push(F::from_u64(active_x_cols as u64));
-    for r in 0..claim.X.rows() {
-        for c in 0..active_x_cols {
-            preimage.push(claim.X[(r, c)]);
-        }
-    }
-
-    append_k_slice(preimage, &claim.r);
-    append_k_slice(preimage, &claim.s_col);
-    append_k_rows(preimage, &claim.y_ring);
-    append_k_slice(preimage, &claim.ct);
-    append_k_slice(preimage, &claim.y_zcol);
-    append_k_slice(preimage, &claim.aux_openings);
-    preimage.push(F::from_u64(claim.m_in as u64));
-    preimage.extend(digest32_as_fields(claim.fold_digest));
-    preimage.push(F::from_u64(claim.c_step_coords.len() as u64));
-    preimage.extend_from_slice(&claim.c_step_coords);
-    preimage.push(F::from_u64(claim.u_offset as u64));
-    preimage.push(F::from_u64(claim.u_len as u64));
-    append_adv_leaves(preimage, &claim.adv);
+    append_ce_claim_public_fields(preimage, claim);
 }
 
 /// Public-instance digest absorbed by Π_CCS prove and verify so the two
@@ -1169,7 +931,7 @@ pub fn public_trace_update_digest(prev: [u8; 32], chunk_digest: [F; 4]) -> [u8; 
 /// header bundle + Ajtai public-parameter identity + program-fixed
 /// `public_input_len` + **chain initial semantic-state digest**.
 ///
-/// The header bundle binds the matrix-dependent SplitNc transcript identity;
+/// The header bundle binds the matrix-dependent one-joint transcript identity;
 /// the circuit recomputes this same digest from witness key fields and feeds
 /// the same header wires to Pi_CCS.V. The Ajtai digest binds the exact
 /// commitment map used by that relation. The remaining preimage absorbs the

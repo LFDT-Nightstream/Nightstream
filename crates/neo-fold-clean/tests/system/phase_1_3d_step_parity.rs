@@ -25,7 +25,7 @@
 //!   wire exposure.
 //!
 //! Mini-2 cross-validates the nifs_payloads `running_parent_authority` payload against
-//! the actual `SplitNcPiCcsOutputWires` exposed by the embedded NIFS verifier.
+//! the actual `PiCcsOutputWires` exposed by the embedded NIFS verifier.
 
 #![allow(non_snake_case)]
 
@@ -59,7 +59,7 @@ use neo_fold_clean::paper::f_prime::ring_action_trace::{
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use neo_fold_clean::paper::nifs::NifsProof;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig;
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim, LaneRanges, LaneScheme};
 use neo_math::ring::D;
 use neo_math::{F, K};
@@ -249,31 +249,11 @@ fn build_fixture_with_public_suffix(public_suffix: &[F]) -> Fixture {
     }
 }
 
-fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
-        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params reconstruction");
-    let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &mat_digest,
-    )
-    .expect("header bundle digest");
-    SplitNcPiCcsVConfig {
+fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'a> {
+    PiCcsVerifierConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle,
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: prep.pi_ccs_header_bundle(),
     }
 }
 
@@ -287,7 +267,7 @@ fn make_step_config_with_suffix<'a>(
 ) -> FPrimeStepConfig<'a> {
     FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(prep),
+            pi_ccs: pi_ccs_config(prep),
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
@@ -309,7 +289,6 @@ fn msg_from_fixture<'a>(f: &'a Fixture) -> NifsVCircuitMessages<'a> {
         fresh: &f.fresh_claims,
         running: &f.running.claims,
         running_parent_authority: f.running.parent_authority.as_ref(),
-        running_pending_projection: f.running.pending_projection(),
         pi_ccs: &f.proof.pi_ccs,
         combined: &f.combined,
         children: &f.children,
@@ -842,7 +821,7 @@ fn authoritative_recursive_f_prime_enforces_delayed_nebula_transition() {
     let public_x_out_bits = image.push_enc_inst(expected_x_out);
     let cfg = FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(&prep),
+            pi_ccs: pi_ccs_config(&prep),
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
@@ -855,7 +834,6 @@ fn authoritative_recursive_f_prime_enforces_delayed_nebula_transition() {
         fresh: &doubled_fresh,
         running: &running.claims,
         running_parent_authority: running.parent_authority.as_ref(),
-        running_pending_projection: running.pending_projection(),
         pi_ccs: &proof.pi_ccs,
         combined: &combined,
         children: &children,
@@ -887,7 +865,6 @@ fn authoritative_recursive_f_prime_enforces_delayed_nebula_transition() {
         fresh: &fresh_claims,
         running: &running.claims,
         running_parent_authority: running.parent_authority.as_ref(),
-        running_pending_projection: running.pending_projection(),
         pi_ccs: &proof.pi_ccs,
         combined: &combined,
         children: &children,
@@ -981,7 +958,7 @@ fn _suppress_unused() {
 
 use neo_fold_clean::engine::r1cs_circuit::Var;
 use neo_fold_clean::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView, NifsPayloadShape};
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsOutputWires;
 use neo_fold_clean::paper::relations::superneo_public_x_cols;
 use p3_field::BasedVectorSpace;
 
@@ -1012,8 +989,6 @@ fn ce_claim_to_nifs_view(claim: &CeClaim) -> NifsCeClaimView {
             .iter()
             .map(|row| row.iter().map(k_pair).collect())
             .collect(),
-        y_zcol: claim.y_zcol.iter().map(k_pair).collect(),
-        s_col: claim.s_col.iter().map(k_pair).collect(),
         m_in: claim.m_in as u64,
         fold_digest_fields: digest32_as_fields(claim.fold_digest),
     }
@@ -1026,15 +1001,13 @@ fn ce_view_shape(view: &NifsCeClaimView) -> NifsCeClaimShape {
         x_active_cols: view.x_active_cols as usize,
         r_len: view.r.len(),
         y_ring_inner_lens: view.y_ring.iter().map(|row| row.len()).collect(),
-        y_zcol_len: view.y_zcol.len(),
-        s_col_len: view.s_col.len(),
     }
 }
 
-/// Read a `SplitNcPiCcsOutputWires` bundle's witness values into a
+/// Read a `PiCcsOutputWires` bundle's witness values into a
 /// `NifsCeClaimView`. Slices the X row-major wire layout down to the
 /// active-cols-only F sequence that `ce_claim_digest` would hash.
-fn wires_to_nifs_view(wires: &SplitNcPiCcsOutputWires, witness: &[F]) -> NifsCeClaimView {
+fn wires_to_nifs_view(wires: &PiCcsOutputWires, witness: &[F]) -> NifsCeClaimView {
     let lane = |v: Var| witness[v.col()];
     let kvar_pair = |k: &neo_fold_clean::engine::r1cs_circuit::field_ext::KVar| [lane(k.c0), lane(k.c1)];
 
@@ -1062,8 +1035,6 @@ fn wires_to_nifs_view(wires: &SplitNcPiCcsOutputWires, witness: &[F]) -> NifsCeC
             .iter()
             .map(|row| row.iter().map(kvar_pair).collect())
             .collect(),
-        y_zcol: wires.y_zcol.iter().map(kvar_pair).collect(),
-        s_col: wires.s_col.iter().map(kvar_pair).collect(),
         m_in: wires.m_in as u64,
         fold_digest_fields: std::array::from_fn(|i| lane(wires.fold_digest_fields[i])),
     }
@@ -1150,8 +1121,6 @@ fn phase_1_3d_nifs_parent_authority_wire_parity_three_way() {
     assert_eq!(wire_view.x_active_flat, native_view.x_active_flat, "x_active_flat");
     assert_eq!(wire_view.r, native_view.r, "r");
     assert_eq!(wire_view.y_ring, native_view.y_ring, "y_ring");
-    assert_eq!(wire_view.y_zcol, native_view.y_zcol, "y_zcol");
-    assert_eq!(wire_view.s_col, native_view.s_col, "s_col");
     assert_eq!(wire_view.m_in, native_view.m_in, "m_in");
     assert_eq!(
         wire_view.fold_digest_fields, native_view.fold_digest_fields,
@@ -1174,14 +1143,12 @@ fn phase_1_3d_nifs_parent_authority_wire_parity_three_way() {
     assert_eq!(decoded, wire_view, "image decode ↔ F' emitter wires");
 
     eprintln!(
-        "phase_1_3d-mini-2 nifs_payloads parent_authority parity: c_data {} entries, x active {}×{}, r {}, y_ring {} rows, y_zcol {}, s_col {} — all three sources agree",
+        "phase_1_3d-mini-2 nifs_payloads parent_authority parity: c_data {} entries, x active {}×{}, r {}, y_ring {} rows — all three sources agree",
         native_view.c_data.len(),
         native_view.x_rows,
         native_view.x_active_cols,
         native_view.r.len(),
         native_view.y_ring.len(),
-        native_view.y_zcol.len(),
-        native_view.s_col.len(),
     );
 }
 

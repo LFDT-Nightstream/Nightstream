@@ -437,9 +437,9 @@ fn absorb_f_prime_step_context<R: VerifyStepRecorder>(
         b"f_prime/public_trace_in",
         &digest32_as_fields(state.public_trace),
     );
-    // Present-only (spec §6.1): plain chains keep the pre-Nebula absorb
+    // Present-only (the carried-lane rules): plain chains keep the pre-Nebula absorb
     // sequence, so the in-circuit transcript prefix stays in parity until
-    // the F′ R1CS carries the lane (spec §13 step 9).
+    // the F′ R1CS carries the lane (the F′ lane-transition contract).
     if let Some(lane) = &state.nebula {
         append_transcript_fields(tr, recorder, b"f_prime/nebula_lane_in", &lane.digest());
     }

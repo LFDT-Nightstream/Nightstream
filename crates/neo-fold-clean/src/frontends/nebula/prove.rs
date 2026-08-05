@@ -1,16 +1,16 @@
-//! The segment prover — spec §1's two-pass flow, per segment window.
+//! The segment prover for one segment window.
 //!
 //! Owns: turning one [`SegmentTrace`] (the native pass) into `N` folded
 //! `S_mem` instances: lane encodings → lane commitments → `D_pre` → γ →
 //! step witnesses with running products → `extend` loop. Also the γ
 //! pre-derivation ([`derive_segment_gamma`]) the instances need before
-//! the lifecycle's own `open_segment` runs, and the §6.4 prover resume
+//! the lifecycle's own `open_segment` runs, and the prover resume
 //! ([`resume_segment`]): the carried lane is the checkpoint, the trace
 //! is the "remaining witness plan", and recompute-vs-`D_pre` is what
 //! authenticates the pair.
 //!
 //! Does not own: memory semantics ([`super::trace`] produced the trace),
-//! the plan ([`super::plan`]), the lane transition (the lifecycle runs
+//! the plan ([`super::plan`]), or the lane transition (the lifecycle runs
 //! `NebulaLane::advance_for_batch` inside every extend — this module
 //! only *prepares* consistent inputs; nothing here is verifier
 //! authority).
@@ -62,7 +62,7 @@ pub enum SegmentError {
 }
 
 /// γ exactly as the lifecycle's `open_segment` will squeeze it at this
-/// chain position (spec §6.2) — the prover needs it *before* building
+/// chain position. The prover needs it *before* building
 /// instances, because the step witnesses embed γ and the running
 /// products in `x`. Runs the identical transcript on a scratch lane.
 pub fn derive_segment_gamma(
@@ -110,11 +110,11 @@ pub fn prove_segment(
         });
     }
 
-    // Pass 1 (spec §1): lane encodings and MSIS-binding commitments for
+    // Pass 1: lane encodings and MSIS-binding commitments for
     // every step, before γ exists anywhere.
     let (advs, d_pre) = commit_segment_lanes(plan, trace)?;
 
-    // Commit-then-challenge (spec §6.2): γ from the chain transcript over
+    // Commit-then-challenge: γ from the chain transcript over
     // the claimed D_pre — the same squeeze the lifecycle will replay.
     let gamma = derive_segment_gamma(prep, &audit, d_pre)?;
 
@@ -128,8 +128,8 @@ pub fn prove_segment(
     fold_steps(prep, plan, trace, gamma, &advs, carry, audit, Some(d_pre))
 }
 
-/// Resume a segment whose chain paused mid-segment (spec §6.4's prover
-/// resume): some chunks already folded, γ squeezed, segment not yet
+/// Resume a segment whose chain paused mid-segment: some chunks already
+/// folded, γ squeezed, segment not yet
 /// closed. The carried lane **is** the checkpoint — γ, `D_pre`, the step
 /// index, and the `ts`/`h`/`sp` carry all live in `state.nebula` — so
 /// the only thing the caller must re-supply is the segment's trace, and
@@ -181,7 +181,7 @@ pub fn resume_segment(
     fold_steps(prep, plan, trace, gamma, &advs, carry, audit, None)
 }
 
-/// Pass 1 (spec §1): per-step lane encodings and their MSIS-binding
+/// Pass 1: per-step lane encodings and their MSIS-binding
 /// commitments for the whole segment, plus the `D_pre` chains — all
 /// γ-independent.
 fn commit_segment_lanes(
@@ -201,8 +201,8 @@ fn commit_segment_lanes(
     Ok((advs, d_pre))
 }
 
-/// The carry entering the next step to build — `x`-threading state
-/// (spec §4.4). At segment open everything is at its reset value; on
+/// The carry entering the next step to build. At segment open, all
+/// `x`-threading state is at its reset value. On
 /// resume it is read straight off the carried lane.
 struct StepCarry {
     next_step: usize,
@@ -211,10 +211,10 @@ struct StepCarry {
     sp_in: [u64; 2],
 }
 
-/// Pass 2 + deposit (spec §1): build the step witnesses from
+/// Pass 2 and deposit: build the step witnesses from
 /// `carry.next_step` to the segment's end and fold them in chunks of
-/// the fold arity — SuperNeo multi-folding (Theorem 1's `CCS(b)^K`
-/// arity, spec §6.3 chunking note): one recursion step covers
+/// the fold arity. SuperNeo multi-folding uses Theorem 1's `CCS(b)^K`
+/// arity, so one recursion step covers
 /// up to `max_fresh_count` S_mem steps (61 at the Goldilocks preset).
 /// The lane transition is chunk-agnostic (`advance_for_batch` walks the
 /// deposited claims in order); `open_d_pre` rides the first chunk when

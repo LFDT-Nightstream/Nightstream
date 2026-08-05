@@ -14,9 +14,9 @@
 //! | `challenge` | Bind the output digest and derive all rho values | yes | `alphabet_sampling` | `ChallengeWiringArtifact` proves static sharing only; terminal source binding is conditional and recursive source binding is open |
 //! | `shape` | Allocate and pin parent/child dimensions | yes | this file | concrete refinement open |
 //! | [`fold_wires`] | Build typed branch views | no | `fold_wires.rs` | claim parameters |
-//! | [`consistency`] | Bind non-CE `s_col` and `fold_digest` sidecars across the fold | yes | `consistency.rs` | transcript/NC authority proof open |
-//! | [`projection`] | Bind advice, share beta evaluation, and enforce paper-public plus extension identities | yes | `projection/` | `NifsPaper.PiRlc` and separate sidecars |
-//! | [`padding`] | Canonically zero inactive X and padded y tails | yes | `padding.rs` | encoding/sidecar refinement open |
+//! | [`consistency`] | Bind the fold digest across the fold | yes | `consistency.rs` | transcript authority |
+//! | [`projection`] | Bind advice, share beta evaluation, and enforce paper-public plus Nebula identities | yes | `projection/` | `NifsPaper.PiRlc` and the Nebula extension |
+//! | [`padding`] | Canonically zero inactive X and padded y tails | yes | `padding.rs` | encoding refinement |
 
 use neo_ccs::LaneCommitments;
 use neo_math::ring::D;
@@ -26,10 +26,10 @@ use crate::engine::r1cs_circuit::ring_action::PROJECTION_QUOTIENT_LEN;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::params::Params;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig, SplitNcPiCcsVDerived,
+use crate::paper::reductions::pi_ccs_circuit::{PiCcsOutputWires, PiCcsVerifierConfig, PiCcsVerifierResult};
+use crate::paper::reductions::pi_dec_circuit::{
+    alloc_dec_inputs, enforce_padded_row_identity_d_pad_shape, DecInputWires,
 };
-use crate::paper::reductions::pi_dec_circuit::{alloc_dec_inputs, enforce_split_nc_d_pad_shape, DecInputWires};
 use crate::paper::reductions::pi_rlc;
 use crate::paper::reductions::pi_rlc_circuit::stage;
 use crate::paper::relations::CeClaim;
@@ -48,22 +48,21 @@ pub(super) struct Outputs {
     pub(super) projection_adv_q_lanes: Option<LaneCommitments<Vec<[Var; PROJECTION_QUOTIENT_LEN]>>>,
     pub(super) projection_x_q_lanes: Vec<[Var; PROJECTION_QUOTIENT_LEN]>,
     pub(super) projection_y_ring_q_lanes: Vec<[[Var; PROJECTION_QUOTIENT_LEN]; 2]>,
-    pub(super) projection_y_zcol_q_lanes: [[Var; PROJECTION_QUOTIENT_LEN]; 2],
 }
 
 pub(super) fn enforce(
     builder: &mut R1csBuilder,
     pp: &Params,
-    cfg: &SplitNcPiCcsVConfig<'_>,
+    cfg: &PiCcsVerifierConfig<'_>,
     transcript: &mut TranscriptGadget,
-    ccs: &SplitNcPiCcsVDerived,
+    ccs: &PiCcsVerifierResult,
     combined: &CeClaim,
     children: &[CeClaim],
 ) -> Result<Outputs, Error> {
     let pi_rlc_start = builder.rows();
     let pi_rlc_first_column = builder.cols();
     builder.begin_encoding_stage(stage::ROOT);
-    let d_pad = 1usize << cfg.ell_d;
+    let d_pad = neo_math::D.next_power_of_two();
     let k_total = ccs.outputs.len();
     if k_total == 0 {
         return Err(Error::Inner("Π_CCS.V emitted zero outputs".into()));
@@ -96,7 +95,7 @@ pub(super) fn enforce(
     builder.begin_encoding_stage(stage::SHAPE_PARENT);
     enforce_parent_shape(builder, &dec_wires, &ccs.outputs, kappa, m_in)?;
     builder.begin_encoding_stage(stage::SHAPE_D_PAD);
-    enforce_split_nc_d_pad_shape(&dec_wires, cfg.structure.t(), d_pad)?;
+    enforce_padded_row_identity_d_pad_shape(&dec_wires, cfg.structure.t() + 1, d_pad)?;
     builder.record_row_family("nifs.pi_rlc.shape", shape_start);
 
     let folds_start = builder.rows();
@@ -108,7 +107,7 @@ pub(super) fn enforce(
         &dec_wires,
         kappa,
         m_in,
-        cfg.structure.t(),
+        cfg.structure.t() + 1,
         d_pad,
     )?;
     consistency::enforce(builder, &ccs.outputs, &dec_wires)?;
@@ -125,14 +124,13 @@ pub(super) fn enforce(
         projection_adv_q_lanes: projection.adv_q,
         projection_x_q_lanes: projection.x_q,
         projection_y_ring_q_lanes: projection.y_ring_q,
-        projection_y_zcol_q_lanes: projection.y_zcol_q,
     })
 }
 
 fn enforce_parent_shape(
     builder: &mut R1csBuilder,
     dec_wires: &DecInputWires,
-    outputs: &[SplitNcPiCcsOutputWires],
+    outputs: &[PiCcsOutputWires],
     kappa: usize,
     m_in: usize,
 ) -> Result<(), Error> {
@@ -162,7 +160,7 @@ fn enforce_parent_shape(
     Ok(())
 }
 
-fn enforce_output_shape_parity(builder: &mut R1csBuilder, outputs: &[SplitNcPiCcsOutputWires]) -> Result<(), Error> {
+fn enforce_output_shape_parity(builder: &mut R1csBuilder, outputs: &[PiCcsOutputWires]) -> Result<(), Error> {
     let first = outputs
         .first()
         .ok_or_else(|| Error::Inner("Π_RLC output shape parity requires at least one Π_CCS output".into()))?;

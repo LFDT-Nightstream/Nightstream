@@ -21,9 +21,10 @@
 //! NIFS; Π_DEC closes the loop by restoring norm bounds for the next round.
 
 pub mod accumulator_sis_circuit;
+pub(crate) mod paper_exact_protocol;
 pub mod pi_ccs;
+pub mod pi_ccs_circuit;
 pub mod pi_ccs_output_message;
-pub mod pi_ccs_split_nc_circuit;
 pub mod pi_dec;
 pub mod pi_dec_circuit;
 pub mod pi_rlc;

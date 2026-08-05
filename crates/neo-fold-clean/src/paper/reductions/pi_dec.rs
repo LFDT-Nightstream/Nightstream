@@ -21,6 +21,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 use crate::engine::optimized as engine;
+use crate::engine::paper_exact as reference_engine;
 use crate::paper::params::Params;
 use crate::paper::relations::{
     recompose_adv, superneo_inactive_x_zero, superneo_public_x_cols, CeClaim, DecMixer, LaneScheme, Structure,
@@ -42,13 +43,13 @@ pub enum Error {
     FoldDigest,
     #[error("\u{03A0}_DEC: noncanonical fold_digest byte limb in {owner} at lane {lane}")]
     FoldDigestCanonicality { owner: &'static str, lane: usize },
-    #[error("\u{03A0}_DEC: r length must match the SplitNc row point in {0}")]
+    #[error("\u{03A0}_DEC: r length must match the joint row point in {0}")]
     RShape(&'static str),
     #[error("\u{03A0}_DEC: cached ct must equal the constant term of y_ring in {0}")]
     CtConsistency(&'static str),
-    #[error("\u{03A0}_DEC: y_ring row count must match structure.t in {0}")]
+    #[error("\u{03A0}_DEC: y_ring must contain identity first, then all application matrices in {0}")]
     YRingShape(&'static str),
-    #[error("\u{03A0}_DEC: child s_col must equal parent s_col")]
+    #[error("\u{03A0}_DEC: child column sidecar must equal parent column sidecar")]
     SColConsistency,
     #[error(
         "\u{03A0}_DEC: adv presence must be all-or-nothing across parent and children ({present}/{total} present)"
@@ -60,7 +61,7 @@ pub enum Error {
     AdvLaneSchemeMissing,
     #[error("\u{03A0}_DEC: lane scheme rejected a child witness: {0}")]
     AdvLaneCommit(#[from] crate::paper::relations::LaneSchemeError),
-    #[error("\u{03A0}_DEC: s_col length must match the SplitNc column point in {0}")]
+    #[error("\u{03A0}_DEC: PaddedRowIdentity forbids a column sidecar in {0}")]
     SColShape(&'static str),
     #[error("\u{03A0}_DEC: y_ring padding lanes must be zero in {0}")]
     YRingPadding(&'static str),
@@ -71,6 +72,8 @@ pub enum Error {
     },
     #[error(transparent)]
     Engine(#[from] engine::Error),
+    #[error(transparent)]
+    PaperExactEngine(#[from] reference_engine::Error),
 }
 
 /// Output of one Π_DEC step — k CE claims of norm b plus their k witness
@@ -84,7 +87,7 @@ pub struct Children {
 
 /// Wire-format proof: just the children CE claims. The verifier reconstructs
 /// `parent.c = Σ b^{i-1} c_i` and the y's from these and checks equality.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Proof {
     pub children: Vec<CeClaim>,
 }
@@ -128,6 +131,35 @@ pub(crate) fn prove_with_precompute(
         parent_witness,
         Some(precompute),
     )
+}
+
+/// PaperExact PiDEC prover used by the end-to-end NIFS reference.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_paper_exact(
+    pp: &Params,
+    s: &Structure,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+) -> Result<(Children, Proof), Error> {
+    let (mut children, witnesses) =
+        reference_engine::prove_pi_dec(pp, s, log, parent, parent_witness, |commitments, base| {
+            combine(commitments, base)
+        })?;
+    attach_child_adv(lanes, parent, &mut children, &witnesses)?;
+    validate_child_count(pp, children.len())?;
+    validate_inactive_x_zero(parent, &children)?;
+    validate_child_x_low_norm(pp, &children)?;
+    validate_adv_recomposition(pp, combine, parent, &children)?;
+    Ok((
+        Children {
+            claims: children.clone(),
+            witnesses,
+        },
+        Proof { children },
+    ))
 }
 
 /// Π_DEC prover from accelerator-produced split witnesses and commitments.
@@ -252,7 +284,7 @@ fn prove_inner(
     ))
 }
 
-/// Spec §5.2 R2 (Π_DEC prover side): an adv-bearing parent's children each
+/// the auxiliary-commitment flow (Π_DEC prover side): an adv-bearing parent's children each
 /// carry the lane commitments of their own digit witness — `adv_{i,L} =
 /// A_L · Z_i[L]` — so the tuples recompose to the parent by the same
 /// `b`-power linearity as `c`, and each child opens its slices at the
@@ -275,7 +307,7 @@ fn attach_child_adv(
     Ok(())
 }
 
-/// Spec §5.2 R2 (Π_DEC verifier side): the children's tuples must
+/// the auxiliary-commitment flow (Π_DEC verifier side): the children's tuples must
 /// recompose to the parent's, component-wise, under the same `Σ b^{i−1}`
 /// combiner that reconstructs `parent.c` — pure public arithmetic, no
 /// lane scheme needed. Presence is all-or-nothing; a plain parent with
@@ -308,6 +340,38 @@ pub fn verify(
     parent: &CeClaim,
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
+    validate_verifier_inputs(pp, s, combine, parent, proof)?;
+    let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
+    if !ok {
+        return Err(Error::VerifyRejected);
+    }
+    Ok(proof.children.clone())
+}
+
+/// Verify PiDEC with direct PaperExact recomposition loops.
+pub(crate) fn verify_paper_exact(
+    pp: &Params,
+    s: &Structure,
+    combine: DecMixer,
+    parent: &CeClaim,
+    proof: &Proof,
+) -> Result<Vec<CeClaim>, Error> {
+    validate_verifier_inputs(pp, s, combine, parent, proof)?;
+    if !reference_engine::verify_pi_dec(pp, parent, &proof.children, |commitments, base| {
+        combine(commitments, base)
+    }) {
+        return Err(Error::VerifyRejected);
+    }
+    Ok(proof.children.clone())
+}
+
+fn validate_verifier_inputs(
+    pp: &Params,
+    s: &Structure,
+    combine: DecMixer,
+    parent: &CeClaim,
+    proof: &Proof,
+) -> Result<(), Error> {
     validate_child_count(pp, proof.children.len())?;
     validate_fold_digest_canonical("parent", parent)?;
     for child in &proof.children {
@@ -317,18 +381,11 @@ pub fn verify(
     validate_y_ring_shape(s, parent, &proof.children)?;
     validate_inactive_x_zero(parent, &proof.children)?;
     validate_child_x_low_norm(pp, &proof.children)?;
-    validate_supported_sidecars(parent, &proof.children)?;
-    validate_s_col_shape(s, parent, &proof.children)?;
-    validate_s_col_consistency(parent, &proof.children)?;
     validate_ct_consistency(parent, &proof.children)?;
     validate_y_ring_padding_zero(parent, &proof.children)?;
     validate_fold_digest_consistency(parent, &proof.children)?;
     validate_adv_recomposition(pp, combine, parent, &proof.children)?;
-    let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
-    if !ok {
-        return Err(Error::VerifyRejected);
-    }
-    Ok(proof.children.clone())
+    Ok(())
 }
 
 fn validate_r_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
@@ -340,7 +397,11 @@ fn validate_r_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Re
 }
 
 fn validate_r_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let expected = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let expected =
+        s.n.max(neo_reductions::common::superneo_carrier_width(s.m))
+            .next_power_of_two()
+            .max(2)
+            .trailing_zeros() as usize;
     if claim.r.len() != expected {
         return Err(Error::RShape(owner));
     }
@@ -417,64 +478,6 @@ fn validate_fold_digest_canonical(owner: &'static str, claim: &CeClaim) -> Resul
     Ok(())
 }
 
-fn validate_supported_sidecars(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_supported_sidecars_one("parent", parent)?;
-    for child in children {
-        validate_supported_sidecars_one("child", child)?;
-    }
-    Ok(())
-}
-
-fn validate_supported_sidecars_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if !claim.aux_openings.is_empty() {
-        return Err(Error::UnsupportedSidecar {
-            owner,
-            field: "aux_openings",
-        });
-    }
-    if !claim.c_step_coords.is_empty() {
-        return Err(Error::UnsupportedSidecar {
-            owner,
-            field: "c_step_coords",
-        });
-    }
-    if claim.u_offset != 0 {
-        return Err(Error::UnsupportedSidecar {
-            owner,
-            field: "u_offset",
-        });
-    }
-    if claim.u_len != 0 {
-        return Err(Error::UnsupportedSidecar { owner, field: "u_len" });
-    }
-    Ok(())
-}
-
-fn validate_s_col_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    validate_s_col_shape_one("parent", s, parent)?;
-    for child in children {
-        validate_s_col_shape_one("child", s, child)?;
-    }
-    Ok(())
-}
-
-fn validate_s_col_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let expected = crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t());
-    if claim.s_col.len() != expected {
-        return Err(Error::SColShape(owner));
-    }
-    Ok(())
-}
-
-fn validate_s_col_consistency(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    for child in children {
-        if child.s_col != parent.s_col {
-            return Err(Error::SColConsistency);
-        }
-    }
-    Ok(())
-}
-
 fn validate_ct_consistency(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
     validate_ct_consistency_one("parent", parent)?;
     for child in children {
@@ -492,7 +495,7 @@ fn validate_y_ring_shape(s: &Structure, parent: &CeClaim, children: &[CeClaim]) 
 }
 
 fn validate_y_ring_shape_one(owner: &'static str, s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    if claim.y_ring.len() != s.t() {
+    if claim.y_ring.len() != s.t() + 1 {
         return Err(Error::YRingShape(owner));
     }
     Ok(())

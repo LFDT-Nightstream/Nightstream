@@ -49,9 +49,9 @@ use neo_fold_clean::paper::f_prime::r1cs::{
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use neo_fold_clean::paper::nifs::NifsProof;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig;
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
-use neo_math::{D, F};
+use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const TRANSCRIPT_LABEL: &[u8] = b"neo.test.f_prime/step/v1";
@@ -373,39 +373,18 @@ fn rebuild_recursive_fixture_for_state(mut fixture: Fixture, state: FPrimeStateI
     fixture
 }
 
-fn split_nc_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
-        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params reconstruction");
-    let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &mat_digest,
-    )
-    .expect("header bundle digest");
-
-    SplitNcPiCcsVConfig {
+fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'a> {
+    PiCcsVerifierConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle,
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: prep.pi_ccs_header_bundle(),
     }
 }
 
 fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepConfig<'a> {
     FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(prep),
+            pi_ccs: pi_ccs_config(prep),
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
@@ -458,7 +437,6 @@ fn msg_from_fixture<'a>(f: &'a Fixture) -> NifsVCircuitMessages<'a> {
         fresh: &f.fresh_claims,
         running: &f.running.claims,
         running_parent_authority: f.running.parent_authority.as_ref(),
-        running_pending_projection: f.running.pending_projection(),
         pi_ccs: &f.proof.pi_ccs,
         combined: &f.combined,
         children: &f.children,
@@ -1007,31 +985,9 @@ fn f_prime_recursive_step_accepts_real_native_nifs_proof() {
         b.first_unsatisfied_row()
     );
     let unconstrained = b.unconstrained_columns();
-    let mut allowed = Vec::new();
-    if let Some(running) = &out.nifs_running {
-        allowed.extend(running.iter().flat_map(|claim| {
-            claim
-                .y_zcol
-                .iter()
-                .take(D)
-                .flat_map(|v| [v.c0.col(), v.c1.col()])
-        }));
-    }
-    if let Some(parent) = &out.nifs_running_parent_authority {
-        allowed.extend(parent.y_zcol.iter().flat_map(|v| [v.c0.col(), v.c1.col()]));
-    }
-    if let Some(children) = &out.nifs_children {
-        allowed.extend(
-            children
-                .iter()
-                .flat_map(|child| child.y_zcol.iter().map(|v| v.col())),
-        );
-    }
-    allowed.sort_unstable();
     assert!(
-        unconstrained == allowed,
-        "recursive F' step left unexpected unconstrained columns: got {unconstrained:?}, \
-         expected only currently unbound y_zcol sidecar limbs {allowed:?}"
+        unconstrained.is_empty(),
+        "recursive F' step left unconstrained columns: {unconstrained:?}"
     );
 }
 
@@ -1161,7 +1117,6 @@ fn f_prime_recursive_rejects_empty_fresh_batch() {
             fresh: &empty,
             running: &fixture.running.claims,
             running_parent_authority: fixture.running.parent_authority.as_ref(),
-            running_pending_projection: fixture.running.pending_projection(),
             pi_ccs: &fixture.proof.pi_ccs,
             combined: &fixture.combined,
             children: &fixture.children,
@@ -1276,7 +1231,6 @@ fn f_prime_recursive_rejects_fresh_m_in_mismatch() {
             fresh: &bad_fresh,
             running: &fixture.running.claims,
             running_parent_authority: fixture.running.parent_authority.as_ref(),
-            running_pending_projection: fixture.running.pending_projection(),
             pi_ccs: &fixture.proof.pi_ccs,
             combined: &fixture.combined,
             children: &fixture.children,
@@ -1302,7 +1256,7 @@ fn f_prime_recursive_rejects_fresh_m_in_mismatch() {
 //
 // Each tamper test flips ONE F'-side input field and asserts the circuit
 // stops satisfying. NIFS.V-internal tampers (sumcheck round, header
-// digest, combined.y_ring, child.s_col) are already covered by the
+// digest, and combined.y_ring) are already covered by the
 // L-gate in `tests/reductions/nifs_v.rs`.
 
 #[test]
@@ -1419,7 +1373,6 @@ fn f_prime_recursive_rejects_tampered_fresh_x_bit() {
             fresh: &bad_fresh,
             running: &fixture.running.claims,
             running_parent_authority: fixture.running.parent_authority.as_ref(),
-            running_pending_projection: fixture.running.pending_projection(),
             pi_ccs: &fixture.proof.pi_ccs,
             combined: &fixture.combined,
             children: &fixture.children,
@@ -1600,7 +1553,6 @@ fn f_prime_recursive_rejects_fresh_x_not_matching_prior_source_image() {
             fresh: &bad_fresh,
             running: &fixture.running.claims,
             running_parent_authority: fixture.running.parent_authority.as_ref(),
-            running_pending_projection: fixture.running.pending_projection(),
             pi_ccs: &fixture.proof.pi_ccs,
             combined: &fixture.combined,
             children: &fixture.children,

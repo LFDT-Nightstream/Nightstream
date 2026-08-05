@@ -63,12 +63,10 @@
 //!    - `commit(Z) == claim.c` (Ajtai opening),
 //!    - `project_x(Z) == claim.X` (public-input projection),
 //!    - `||Z||_∞ < b` (low-norm),
-//!    - `claim.y_ring[j] == multilinear_eval(M_j · Z, claim.r)` for
-//!      every CCS matrix (CE-relation closure),
+//!    - identity-first `claim.y_ring` matches the padded identity and every
+//!      CCS matrix evaluation (CE-relation closure),
 //!    - `claim.ct[j] == constant_term(claim.y_ring[j])` (the SuperNeo
-//!      scalar view of the same `M_j · Z(r)`),
-//!    - if the optional NC channel is carried, `claim.y_zcol == Z ·
-//!      chi(claim.s_col)`.
+//!      scalar view of the same ring evaluations).
 //!
 //! ## What this is and isn't
 //!
@@ -103,13 +101,9 @@
 use neo_ccs::utils::tensor_point_parallel;
 use neo_ccs::{check_ccs_rowwise_zero, traits::SModuleHomomorphism};
 use neo_math::balanced::within_nc_bound;
-use neo_math::{F, K};
-use neo_reductions::block_projection::{
-    project_raw_witness_at_block_point, radix_recompose_raw_witnesses_at_block_point, BLOCK_PROJECTION_POINT_LEN,
-};
+use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_reductions::common::{
-    compute_y_zcol_from_witness, decode_superneo_coeffs_from_witness_mat, project_x_from_witness_mat,
-    validate_superneo_witness_mat,
+    decode_superneo_coeffs_from_witness_mat, project_x_from_witness_mat, validate_superneo_witness_mat,
 };
 use neo_reductions::superneo_eval::{
     eval_ring_linear_forms_real_z_blocks, SuperneoEvalCache, SuperneoRingLinearForm, SuperneoZBlocks,
@@ -281,11 +275,11 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
     // image relations remain fail-closed for multi-chunk proofs.
     check_f_prime_non_replay_scope(prep, proof)?;
 
-    // (0e) Nebula finalization rule (spec §6.3): an externally accepted
-    // proof must end at a closed segment — a trailing open segment has
+    // (0e) An externally accepted Nebula proof must end at a closed segment.
+    // A trailing open segment has
     // folded op rows whose product equation and D_seen == D_pre binding
     // were never checked. Mid-segment State is prover resume material
-    // only (spec §6.4).
+    // only.
     check_nebula_terminal_state(prep, &proof.state)?;
 
     // HyperNova verifies the running accumulator and newest F' instance as
@@ -558,7 +552,6 @@ fn verify_terminal_fold_case(
         .map_err(|_| Error::PostStateMismatch)?;
     if derived_running.claims != recorded_running.claims
         || derived_running.parent_authority != recorded_running.parent_authority
-        || derived_running.pending_projection() != recorded_running.pending_projection()
     {
         return Err(Error::PostStateMismatch);
     }
@@ -609,7 +602,6 @@ fn check_terminal_boundary_from_latest(
         .claims_only();
         if pre_running.claims != default_running.claims
             || pre_running.parent_authority != default_running.parent_authority
-            || pre_running.pending_projection() != default_running.pending_projection()
         {
             return Err(Error::TerminalOnlyMultiChunkUnsupported {
                 chunk_count: post.chunk_count,
@@ -646,6 +638,14 @@ fn check_terminal_latest_link(prep: &Preprocessing, pre_state: &State, latest: &
         return Ok(());
     }
 
+    check_required_f_prime_latest_link(prep, pre_state, latest)
+}
+
+fn check_required_f_prime_latest_link(
+    prep: &Preprocessing,
+    pre_state: &State,
+    latest: &LatestInstance,
+) -> Result<(), Error> {
     let expected = construction2::compute_x_out(
         &prep.vk,
         &prep.params,
@@ -744,8 +744,9 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
 /// 2. `claim.m_in` matches the verifier-owned `public_input_len`, then
 ///    `project_x(Z) == claim.X`
 /// 3. every entry of `Z` is low-norm: `|z| < b`
-/// 4. `claim.y_ring[j] == multilinear_eval(M_j · Z, claim.r)` for every
-///    CCS matrix `M_j`
+/// 4. `claim.y_ring[0]` is the padded identity evaluation, and
+///    `claim.y_ring[j + 1] == multilinear_eval(M_j · Z, claim.r)` for
+///    every CCS matrix `M_j`
 ///
 /// Implementation-consistency obligation (the SuperNeo paper's
 /// `ct(y_j) = M̄_j z(r)` identity, made checkable from cached state):
@@ -754,20 +755,8 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
 ///    K-element of `y_ring[j]`. `ct` is the scalar/constant-term view
 ///    of `y_ring`; if `y_ring` matches `M_j · Z(r)` and `ct` is the
 ///    constant term of `y_ring`, then `ct == M_j z(r)` transitively.
-/// 6. If `s_col/y_zcol` are present, `claim.y_zcol == Z · chi(s_col)`.
-///    These are implementation-side NC-channel fields, not part of
-///    Definition 13's CE tuple. The pending-family accumulator deliberately
-///    omits child `y_zcol`: `check_pending_projection_authority` instead
-///    recomputes the verifier-carried parent projection from the same ordered
-///    opened witnesses. When a full claim also carries `y_zcol`, this native
-///    path still recomputes it rather than treating the sidecar as authority.
-/// 7. Unsupported sidecar metadata (`aux_openings`, Pattern-A coordinates,
-///    `u_offset/u_len`) must be absent. This clean SplitNc path does not
-///    implement those fields, and accumulator-digested data cannot remain
-///    unconstrained.
 ///
-/// (4), (5), (6), and (7) close the CE relation plus implementation-side
-/// accumulator fields against the opened witness.
+/// (4) and (5) close the selected CE relation against the opened witness.
 /// Without them, the F'-chain `acc_digest` compact handle would bind
 /// only the recorded CE claims, not prove that the opened terminal `Z`
 /// realizes their `y_ring`/`ct` values. The Rust code below faithfully
@@ -812,24 +801,6 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
         {
             let t_forms = std::time::Instant::now();
             let forms = build_ring_linear_forms_for_r(prep, superneo_cache, first_r);
-            // Hoist the NC-channel χ(s_col) tensor: every Π_DEC child of one
-            // fold carries the same `s_col`, so the tensor is shared. Each
-            // claim still uses it only after a bit-identical `s_col` match
-            // (see `check_nc_channel_relation`), so a heterogeneous claim
-            // falls back to its own tensor and the checked relation is
-            // unchanged.
-            let shared_nc = (!crate::paper::construction2::running::uses_pending_accumulator_family(prep.structure()))
-                .then(|| {
-                    running
-                        .claims
-                        .iter()
-                        .find(|claim| !claim.s_col.is_empty())
-                        .map(|claim| SharedNcChi {
-                            s_col: claim.s_col.clone(),
-                            chi_s: tensor_point_parallel::<K>(&claim.s_col),
-                        })
-                })
-                .flatten();
             perf.add_forms(t_forms.elapsed());
             let results: Vec<Result<(), Error>> = running
                 .claims
@@ -849,7 +820,6 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
                         expected_r_len,
                         ell_d,
                         &forms,
-                        shared_nc.as_ref(),
                         &perf,
                     )
                 })
@@ -858,7 +828,7 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
                 result?;
             }
             perf.print("shared-r parallel", running.claims.len());
-            return check_pending_projection_authority(prep, running);
+            return Ok(());
         }
     }
 
@@ -884,61 +854,10 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
             expected_r_len,
             ell_d,
             forms,
-            None,
             &perf,
         )?;
     }
     perf.print("sequential", running.claims.len());
-    check_pending_projection_authority(prep, running)
-}
-
-fn check_pending_projection_authority(prep: &Preprocessing, running: &RunningInstance) -> Result<(), Error> {
-    if !crate::paper::construction2::running::uses_pending_accumulator_family(prep.structure()) {
-        return if running.pending_projection().is_none() {
-            Ok(())
-        } else {
-            Err(Error::UnexpectedPendingProjection)
-        };
-    }
-    let Some(pending) = running.pending_projection() else {
-        // The codec's `None` branch belongs only to the canonical
-        // Construction-2 base accumulator. A non-base state cannot erase a
-        // pending projection merely by selecting the absence discriminator.
-        let m_in = prep
-            .public_input_len
-            .or_else(|| running.claims.first().map(|claim| claim.m_in))
-            .ok_or(Error::MissingPendingProjection)?;
-        let canonical = RunningInstance::canonical_zero(
-            &prep.params,
-            prep.structure(),
-            m_in,
-            LaneCommitmentMode::from_nebula(prep.nebula().is_some()),
-        )
-        .map_err(|_| Error::MissingPendingProjection)?;
-        if running.claims == canonical.claims
-            && running
-                .witnesses
-                .iter()
-                .zip(&canonical.witnesses)
-                .all(|(actual, expected)| {
-                    actual.rows() == expected.rows() && actual.cols() == expected.cols() && actual.nnz() == 0
-                })
-            && running.parent_authority == canonical.parent_authority
-        {
-            return Ok(());
-        }
-        return Err(Error::MissingPendingProjection);
-    };
-    let expected = radix_recompose_raw_witnesses_at_block_point(
-        &running.witnesses,
-        prep.structure().m,
-        pending.old_block(),
-        K::from(F::from_u64(prep.params.b() as u64)),
-    )
-    .map_err(|_| Error::FinalPendingProjectionMismatch)?;
-    if &expected != pending.parent_y_zcol() {
-        return Err(Error::FinalPendingProjectionMismatch);
-    }
     Ok(())
 }
 
@@ -1022,14 +941,6 @@ fn commit_running_witnesses(
     opened
 }
 
-/// NC-channel evaluation point and its tensor, hoisted once per shared
-/// `s_col`. Consumers must use `chi_s` only for claims whose `s_col`
-/// equals `s_col` bit-for-bit.
-struct SharedNcChi {
-    s_col: Vec<K>,
-    chi_s: Vec<K>,
-}
-
 #[allow(clippy::too_many_arguments)]
 fn check_running_claim_authority(
     prep: &Preprocessing,
@@ -1041,19 +952,17 @@ fn check_running_claim_authority(
     expected_r_len: usize,
     ell_d: usize,
     ring_linear_forms: &[SuperneoRingLinearForm],
-    shared_nc: Option<&SharedNcChi>,
     perf: &WitnessAuthorityPerf,
 ) -> Result<(), Error> {
     check_claim_commitment_shape(prep, index, claim)?;
     check_claim_public_input_len(prep, claim)?;
-    check_claim_supported_sidecars(index, claim)?;
     if opened != &claim.c {
         return Err(Error::FinalAccumulatorWitnessCommitmentMismatch { index });
     }
-    // Nebula terminal slice-openings (spec §5.2 R3): each published lane
+    // Each published Nebula lane
     // commitment must open against its lane slice of the *same* witness
     // the full-`z` commitment just opened — the check that pins the
-    // mirrored fold algebra to lane content (security-note Lemma 1).
+    // mirrored fold algebra to lane content.
     match (prep.nebula(), &claim.adv) {
         (Some(cfg), Some(adv)) => {
             let opens = cfg
@@ -1080,8 +989,7 @@ fn check_running_claim_authority(
             });
         }
         let t_ce = std::time::Instant::now();
-        let result = check_zero_ce_relation(index, claim, ring_linear_forms.len(), 1usize << ell_d)
-            .and_then(|()| check_nc_channel_relation(prep, index, claim, witness, ell_d, shared_nc));
+        let result = check_zero_ce_relation(index, claim, ring_linear_forms.len() + 1, 1usize << ell_d);
         perf.add_ce(t_ce.elapsed());
         return result;
     }
@@ -1100,7 +1008,7 @@ fn check_running_claim_authority(
         });
     }
     let t_ce = std::time::Instant::now();
-    let result = check_ce_relation(prep, index, claim, witness, ell_d, ring_linear_forms, shared_nc);
+    let result = check_ce_relation(prep, index, claim, witness, ell_d, ring_linear_forms);
     perf.add_ce(t_ce.elapsed());
     result
 }
@@ -1126,38 +1034,6 @@ fn check_claim_public_input_len(prep: &Preprocessing, claim: &CeClaim) -> Result
     Ok(())
 }
 
-fn check_claim_supported_sidecars(index: usize, claim: &CeClaim) -> Result<(), Error> {
-    if !claim.aux_openings.is_empty() {
-        return Err(Error::FinalAccumulatorUnsupportedSidecar {
-            index,
-            field: "aux_openings",
-            got: claim.aux_openings.len(),
-        });
-    }
-    if !claim.c_step_coords.is_empty() {
-        return Err(Error::FinalAccumulatorUnsupportedSidecar {
-            index,
-            field: "c_step_coords",
-            got: claim.c_step_coords.len(),
-        });
-    }
-    if claim.u_offset != 0 {
-        return Err(Error::FinalAccumulatorUnsupportedSidecar {
-            index,
-            field: "u_offset",
-            got: claim.u_offset,
-        });
-    }
-    if claim.u_len != 0 {
-        return Err(Error::FinalAccumulatorUnsupportedSidecar {
-            index,
-            field: "u_len",
-            got: claim.u_len,
-        });
-    }
-    Ok(())
-}
-
 /// Public entry that runs the witness-authority block
 /// from [`check_running_witnesses_authority`] against a caller-provided
 /// `RunningInstance`. Used by tests that want to isolate the CE-relation
@@ -1175,6 +1051,17 @@ pub fn validate_terminal_latest_link(
     latest: &LatestInstance,
 ) -> Result<(), Error> {
     check_terminal_latest_link(prep, state, latest)
+}
+
+/// Check the F' latest-link equation without consulting the preprocessing
+/// capability flag. Conformance tests use this entry to isolate the equation
+/// from the full terminal wrapper.
+pub fn validate_required_f_prime_latest_link(
+    prep: &Preprocessing,
+    state: &State,
+    latest: &LatestInstance,
+) -> Result<(), Error> {
+    check_required_f_prime_latest_link(prep, state, latest)
 }
 
 /// Isolate the exact latest-CCS relation check used by
@@ -1195,6 +1082,7 @@ fn ell_d_for_ce_check() -> usize {
 fn expected_row_point_len(prep: &Preprocessing) -> usize {
     prep.structure()
         .n
+        .max(neo_reductions::common::superneo_carrier_width(prep.structure().m))
         .next_power_of_two()
         .max(2)
         .trailing_zeros() as usize
@@ -1229,15 +1117,7 @@ fn build_ring_linear_forms_for_r(
     superneo_cache.build_ring_linear_forms(&rb, n_eff)
 }
 
-/// Verify the CE-relation obligations (4th and 5th) plus the optional
-/// NC-channel sidecar (6th) against the opened witness:
-/// `claim.y_ring[j] == multilinear_eval(M_j · Z, claim.r)` for every
-/// CCS matrix `M_j`, then `claim.ct[j] == constant_term(claim.y_ring[j])`
-/// (recomputed as the lane-0 view of the same `M_j · Z(r)`), then
-/// `claim.y_zcol == Z · chi(s_col)` if the NC channel is present. These
-/// make the standalone Rust verifier
-/// sound. See [`check_running_witnesses_authority`] for the full step
-/// (5) checklist.
+/// Verify the identity-first selected CE relation against the opened witness.
 fn check_ce_relation(
     prep: &Preprocessing,
     index: usize,
@@ -1245,119 +1125,89 @@ fn check_ce_relation(
     witness: &WitnessMat,
     ell_d: usize,
     ring_linear_forms: &[SuperneoRingLinearForm],
-    shared_nc: Option<&SharedNcChi>,
 ) -> Result<(), Error> {
-    // ── y_ring closure ────────────────────────────────────────────────
-    if ring_linear_forms.len() != claim.y_ring.len() {
+    let expected_count = ring_linear_forms.len() + 1;
+    if claim.y_ring.len() != expected_count {
         return Err(Error::FinalAccumulatorCeRelationViolation {
             index,
-            matrix_index: ring_linear_forms.len().min(claim.y_ring.len()),
+            matrix_index: expected_count.min(claim.y_ring.len()),
         });
     }
+
     let d_pad = 1usize << ell_d;
+    let identity = identity_ring_mle(witness, prep.structure().m, &claim.r);
+    if !padded_ring_row_matches(&claim.y_ring[0], &identity, d_pad) {
+        return Err(Error::FinalAccumulatorCeRelationViolation { index, matrix_index: 0 });
+    }
+
     let z_blocks = SuperneoZBlocks::from_witness_mat(witness, prep.structure().m)
         .expect("check_ce_relation: witness shape was validated before CE closure");
     let evaluated = eval_ring_linear_forms_real_z_blocks(ring_linear_forms, &z_blocks);
-    let mut expected_ct = Vec::with_capacity(ring_linear_forms.len());
-    for (matrix_index, (coeffs, recorded)) in evaluated.iter().zip(claim.y_ring.iter()).enumerate() {
-        let matches_coeffs = recorded.len() == d_pad
-            && recorded
-                .iter()
-                .take(neo_math::D)
-                .zip(coeffs.iter())
-                .all(|(recorded, expected)| recorded == expected)
-            && recorded
-                .iter()
-                .skip(neo_math::D)
-                .all(|&value| value == K::ZERO);
-        if !matches_coeffs {
-            return Err(Error::FinalAccumulatorCeRelationViolation { index, matrix_index });
+    let mut expected_ct = Vec::with_capacity(expected_count);
+    expected_ct.push(identity[0]);
+    for (application, (coeffs, recorded)) in evaluated.iter().zip(&claim.y_ring[1..]).enumerate() {
+        if !padded_ring_row_matches(recorded, coeffs, d_pad) {
+            return Err(Error::FinalAccumulatorCeRelationViolation {
+                index,
+                matrix_index: application + 1,
+            });
         }
         expected_ct.push(coeffs[0]);
     }
 
-    // ── ct closure ────────────────────────────────────────────────────
-    // `ct` is the SuperNeo scalar view of `y_ring` (the constant term
-    // of each `y_ring[j]`). It enters downstream consistency checks
-    // (`Σ c_S · Π ct[j]`), so leaving it unauthenticated would let a
-    // prover diverge `ct` from `y_ring` without this verifier noticing.
     if expected_ct.len() != claim.ct.len() {
         return Err(Error::FinalAccumulatorCtMismatch {
             index,
             matrix_index: expected_ct.len().min(claim.ct.len()),
         });
     }
-    for (matrix_index, (expected, recorded)) in expected_ct.iter().zip(claim.ct.iter()).enumerate() {
+    for (matrix_index, (expected, recorded)) in expected_ct.iter().zip(&claim.ct).enumerate() {
         if expected != recorded {
             return Err(Error::FinalAccumulatorCtMismatch { index, matrix_index });
         }
     }
-    check_nc_channel_relation(prep, index, claim, witness, ell_d, shared_nc)?;
     Ok(())
 }
 
-fn check_nc_channel_relation(
-    prep: &Preprocessing,
-    index: usize,
-    claim: &CeClaim,
-    witness: &WitnessMat,
-    ell_d: usize,
-    shared_nc: Option<&SharedNcChi>,
-) -> Result<(), Error> {
-    let has_nc_channel = !(claim.s_col.is_empty() && claim.y_zcol.is_empty());
-    if !has_nc_channel {
-        return Ok(());
-    }
-    let d_pad = 1usize << ell_d;
-    if crate::paper::construction2::running::uses_pending_accumulator_family(prep.structure()) {
-        let block_point: &[K; BLOCK_PROJECTION_POINT_LEN] = claim
-            .s_col
-            .as_slice()
-            .try_into()
-            .map_err(|_| Error::FinalAccumulatorNcChannelMismatch { index })?;
-        if claim.y_zcol.len() != d_pad
-            || claim.y_zcol[neo_math::D..]
-                .iter()
-                .any(|value| *value != K::ZERO)
-        {
-            return Err(Error::FinalAccumulatorNcChannelMismatch { index });
-        }
-        let expected = project_raw_witness_at_block_point(witness, prep.structure().m, block_point)
-            .map_err(|_| Error::FinalAccumulatorNcChannelMismatch { index })?;
-        if claim.y_zcol[..neo_math::D] != expected {
-            return Err(Error::FinalAccumulatorNcChannelMismatch { index });
-        }
-        return Ok(());
-    }
-    let expected_s_len = prep
-        .structure()
-        .m
-        .next_power_of_two()
-        .max(2)
-        .trailing_zeros() as usize;
-    if claim.s_col.len() != expected_s_len || claim.y_zcol.len() != d_pad {
-        return Err(Error::FinalAccumulatorNcChannelMismatch { index });
-    }
-    // The hoisted tensor is only a cache: it is used iff this claim's
-    // `s_col` is bit-identical to the point it was built from, so the
-    // relation checked below is exactly `y_zcol == Z · χ(claim.s_col)`
-    // either way.
-    let chi_owned;
-    let chi_s: &[K] = match shared_nc {
-        Some(shared) if shared.s_col == claim.s_col => &shared.chi_s,
-        _ => {
-            chi_owned = tensor_point_parallel::<K>(&claim.s_col);
-            &chi_owned
-        }
-    };
-    let expected = compute_y_zcol_from_witness(prep.params.inner(), witness, prep.structure().m, chi_s, d_pad)
-        .map_err(|_| Error::FinalAccumulatorNcChannelMismatch { index })?;
-    if expected != claim.y_zcol {
-        return Err(Error::FinalAccumulatorNcChannelMismatch { index });
-    }
-    Ok(())
+fn padded_ring_row_matches(recorded: &[K], expected: &[K; D], d_pad: usize) -> bool {
+    recorded.len() == d_pad
+        && recorded
+            .iter()
+            .take(D)
+            .zip(expected)
+            .all(|(left, right)| left == right)
+        && recorded.iter().skip(D).all(|&value| value == K::ZERO)
 }
 
+fn identity_ring_mle(witness: &WitnessMat, expected_m: usize, point: &[K]) -> [K; D] {
+    let assignment = decode_superneo_coeffs_from_witness_mat(witness, expected_m)
+        .expect("identity_ring_mle: witness shape was validated before CE closure");
+    let weights = tensor_point_parallel::<K>(point);
+    let mut output = [K::ZERO; D];
+
+    for (row, &weight) in weights.iter().take(assignment.len()).enumerate() {
+        let block = row / D;
+        let mut basis = [Fq::ZERO; D];
+        basis[row % D] = Fq::ONE;
+        let transformed = Rq(superneo_bar_block(basis));
+
+        let mut real = [Fq::ZERO; D];
+        let mut imaginary = [Fq::ZERO; D];
+        for lane in 0..D {
+            let [low, high] = assignment[block * D + lane].as_coeffs();
+            real[lane] = low;
+            imaginary[lane] = high;
+        }
+
+        let real_product = transformed.mul(&Rq(real));
+        let imaginary_product = transformed.mul(&Rq(imaginary));
+        for coefficient in 0..D {
+            output[coefficient] +=
+                weight * K::from_coeffs([real_product.0[coefficient], imaginary_product.0[coefficient]]);
+        }
+    }
+    output
+}
 fn check_zero_public_projection(prep: &Preprocessing, index: usize, claim: &CeClaim) -> Result<(), Error> {
     if claim.m_in > prep.structure().m || claim.X.rows() != neo_math::D || claim.X.cols() != claim.m_in {
         return Err(Error::FinalAccumulatorPublicInputMismatch { index });
@@ -1488,7 +1338,7 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
     check_running_witnesses_authority(prep, &running)
 }
 
-/// Spec §6.3 finalization rule + lane/config presence coherence.
+/// Enforce Nebula finalization and lane/config presence coherence.
 fn check_nebula_terminal_state(prep: &Preprocessing, state: &State) -> Result<(), Error> {
     match (prep.nebula(), &state.nebula) {
         (Some(_), Some(lane)) => {

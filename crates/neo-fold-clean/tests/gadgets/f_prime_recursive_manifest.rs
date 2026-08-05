@@ -18,7 +18,7 @@
 //! | Artifact branch | Guarantee | Evidence tier | Permits row removal? |
 //! |---|---|---|---|
 //! | Top-level families | Recursive rows form one gap-free partition | artifact-checked | no |
-//! | NIFS families | PiCCS, PiRLC, PiDEC, and point binding partition NIFS | artifact-checked | no |
+//! | NIFS families | PiCCS, incoming-parent PiDEC, PiRLC, outgoing PiDEC, and point binding partition NIFS | artifact-checked | no |
 //! | Projection census | Every identity shares one rho-evaluation phase | artifact-checked | no |
 //! | Source hashes | Reviewed implementation surface is explicit | drift sentinel | no |
 
@@ -49,8 +49,8 @@ use neo_fold_clean::paper::f_prime::r1cs::{
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use neo_fold_clean::paper::nifs::NifsProof;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::{stage as pi_ccs_stage, PiCcsVerifierConfig};
 use neo_fold_clean::paper::reductions::pi_ccs_output_message::Profile as PiCcsOutputMessageProfile;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::{stage as pi_ccs_stage, SplitNcPiCcsVConfig};
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_math::ring::D;
 use neo_math::F;
@@ -71,7 +71,13 @@ const TOP_LEVEL_FAMILIES: &[&str] = &[
     "fprime.recursive.counter",
     "fprime.recursive.output",
 ];
-const NIFS_FAMILIES: &[&str] = &["nifs.pi_ccs", "nifs.pi_rlc", "nifs.pi_dec", "nifs.point_binding"];
+const NIFS_FAMILIES: &[&str] = &[
+    "nifs.pi_ccs",
+    "nifs.running_parent_pi_dec",
+    "nifs.pi_rlc",
+    "nifs.pi_dec",
+    "nifs.point_binding",
+];
 const PROJECTION_SHARED_FAMILY: &str = "nifs.pi_rlc.projection_shared";
 const PROJECTION_IDENTITY_FAMILY: &str = "nifs.pi_rlc.projection_identity";
 const K_MUL_ROWS: usize = 5;
@@ -108,14 +114,14 @@ const SOURCE_PATHS: &[&str] = &[
     "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/identities.rs",
     "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/shared.rs",
     // PiCCS constraint families.
-    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/mod.rs",
-    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/stage.rs",
-    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/digests.rs",
-    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/fe.rs",
-    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/nc.rs",
-    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/output_message.rs",
-    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/transcript.rs",
-    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_split_nc_circuit/verifier.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/mod.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/stage.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/digests.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/output_message.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/output_message/sis_ownership.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/verifier.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/verifier/padded_row.rs",
+    "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/verifier_claims.rs",
     "crates/neo-fold-clean/src/paper/reductions/pi_ccs_output_message.rs",
     // Shared SIS, PiRLC algebra, and PiDEC constraint families.
     "crates/neo-fold-clean/src/paper/reductions/accumulator_sis_circuit.rs",
@@ -132,25 +138,10 @@ const SOURCE_PATHS: &[&str] = &[
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifestSchema.lean",
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifest.lean",
     "formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean",
-    "formal/nightstream-lean/Nightstream/Assurance/FPrimeRecursiveCircuit.lean",
 ];
 
-#[path = "f_prime_recursive_manifest/active_beta_ladder.rs"]
-mod active_beta_ladder;
-#[path = "f_prime_recursive_manifest/active_projection_artifacts.rs"]
-mod active_projection_artifacts;
-#[path = "f_prime_recursive_manifest/active_rho_challenge_wiring.rs"]
-mod active_rho_challenge_wiring;
-#[path = "f_prime_recursive_manifest/active_rho_evaluations.rs"]
-mod active_rho_evaluations;
-#[path = "f_prime_recursive_manifest/active_sampler_layout.rs"]
-mod active_sampler_layout;
 #[path = "f_prime_recursive_manifest/active_transcript_layout.rs"]
 mod active_transcript_layout;
-#[path = "f_prime_recursive_manifest/active_y_zcol_identities.rs"]
-mod active_y_zcol_identities;
-#[path = "f_prime_recursive_manifest/active_y_zcol_output_owners.rs"]
-mod active_y_zcol_output_owners;
 #[path = "f_prime_recursive_manifest/aggregate_acceptance_outer_image.rs"]
 mod aggregate_acceptance_outer_image;
 #[path = "f_prime_recursive_manifest/output_authority_poseidon2_sbox.rs"]
@@ -233,38 +224,18 @@ fn prior_x_out(state: &FPrimeStateIn) -> [F; 4] {
     ))
 }
 
-fn split_nc_config(prep: &neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'_> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
-        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params");
-    let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
-    let matrix_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &matrix_digest,
-    )
-    .expect("header bundle");
-    SplitNcPiCcsVConfig {
+fn pi_ccs_config(prep: &neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'_> {
+    PiCcsVerifierConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle,
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: prep.pi_ccs_header_bundle(),
     }
 }
 
 fn step_config(prep: &neo_fold_clean::Preprocessing) -> FPrimeStepConfig<'_> {
     FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(prep),
+            pi_ccs: pi_ccs_config(prep),
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
@@ -397,7 +368,6 @@ fn build_recursive_program_with_output() -> (R1csBuilder, FPrimeStepOutput) {
             fresh: &fixture.fresh_claims,
             running: &fixture.running.claims,
             running_parent_authority: fixture.running.parent_authority.as_ref(),
-            running_pending_projection: fixture.running.pending_projection(),
             pi_ccs: &fixture.proof.pi_ccs,
             combined: &fixture.combined,
             children: &fixture.children,
@@ -998,15 +968,7 @@ fn projection_identity_trace_exactly_replays_production_rows_and_rejects_corrupt
             .iter()
             .filter(|role| matches!(role, ProjectionIdentityRole::YRingLimb { .. }))
             .count(),
-        6
-    );
-    assert_eq!(
-        validated
-            .roles
-            .iter()
-            .filter(|role| matches!(role, ProjectionIdentityRole::YZColLimb { .. }))
-            .count(),
-        2
+        8
     );
     assert!(!validated.roles.iter().any(|role| matches!(
         role,

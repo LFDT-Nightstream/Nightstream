@@ -19,7 +19,7 @@
 //! Authority boundary: recursive state is accepted only through the public
 //! prior-state link, exact paper-level child accumulator, and checked NIFS
 //! parent cache; digests compress but never replace those constrained inputs.
-//! The optimized `y_zcol` source-binding gap is not claimed closed here.
+//! Terminal witness authority is closed by the selected CE relation.
 //!
 //! | Branch/phase | Mathematical obligation | Emits constraints? | Rust owner | Lean owner |
 //! |---|---|---|---|---|
@@ -358,7 +358,7 @@ pub struct FPrimeStepConfig<'a> {
 #[derive(Clone)]
 pub struct FPrimeStateIn {
     pub vk_fs_digest: [F; DIGEST_LEN],
-    /// SplitNc header of the relation being folded. Carried as verifier-key
+    /// One-joint PiCCS header of the relation being folded. Carried as verifier-key
     /// advice so folded F' never embeds a digest of its own matrices.
     pub pi_ccs_header_bundle: [F; DIGEST_LEN],
     pub chunk_count_in: u64,
@@ -466,8 +466,7 @@ pub struct FPrimeRecursiveInputs<'a> {
 ///   decider uses these to enforce CE-claim continuity: every recursive
 ///   step k+1's `nifs_running` must equal step k's `nifs_children`
 ///   across all currently bound fields (not just by accumulator-digest
-///   equality). Π_DEC's child y_zcol sidecar is excluded by the current
-///   encoding; the delayed-projection authority bridge must close that gap.
+///   equality).
 pub struct FPrimeStepOutput {
     pub x_out: [Var; DIGEST_LEN],
     pub x_out_bits: Vec<Var>,
@@ -478,9 +477,8 @@ pub struct FPrimeStepOutput {
     pub prior_link: Option<FPrimePriorLinkWires>,
     pub state_in: FPrimeStateWires,
     pub state_out: FPrimeStateWires,
-    pub nifs_running: Option<Vec<crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires>>,
-    pub nifs_running_parent_authority:
-        Option<crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsOutputWires>,
+    pub nifs_running: Option<Vec<crate::paper::reductions::pi_ccs_circuit::PiCcsOutputWires>>,
+    pub nifs_running_parent_authority: Option<crate::paper::reductions::pi_ccs_circuit::PiCcsOutputWires>,
     pub nifs_parent: Option<crate::paper::reductions::pi_dec_circuit::CeClaimWires>,
     pub nifs_children: Option<Vec<crate::paper::reductions::pi_dec_circuit::CeClaimWires>>,
     /// Exact outer-PiDEC canonical-X receipt. Present exactly on recursive
@@ -1076,6 +1074,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     let prior_link_start = builder.rows();
     let prior_link_first_column = builder.cols();
 
+    builder.begin_encoding_stage(stage::RECURSIVE_PRIOR_LINK);
     builder.begin_encoding_stage(stage::RECURSIVE_PRIOR_LINK_DIGEST);
     // ── HyperNova recursive link: u_i.public == bits(prior_x_out) ───────
     //
@@ -1206,7 +1205,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // claim `acc_digest_in` matches the digest of one accumulator while
     // NIFS.V folds a different `running`.
     //
-    // The digest is computed once inside the SplitNc Π_CCS verifier as
+    // The digest is computed once inside the one-joint Π_CCS verifier as
     // the ME-input accumulator handle (`nifs_outputs.running_acc_digest`)
     // and reused here. Both consumers — the transcript absorb and this
     // binding — see the *same* digest wires, so a tampered `running` is
@@ -1228,11 +1227,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // absorbing it into `state_x_out`.
     builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT);
     let claimed_acc_digest = alloc_4(builder, inputs.acc_digest_out);
-    let new_acc_digest = accumulator::enforce_nifs_output_acc_digest(
-        builder,
-        &nifs_outputs.children,
-        nifs_outputs.outgoing_pending_projection.as_ref(),
-    )?;
+    let new_acc_digest = accumulator::enforce_nifs_output_acc_digest(builder, &nifs_outputs.children)?;
     enforce_digest_eq(builder, &claimed_acc_digest, &new_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
     builder.record_row_family("fprime.recursive.accumulator", accumulator_start);

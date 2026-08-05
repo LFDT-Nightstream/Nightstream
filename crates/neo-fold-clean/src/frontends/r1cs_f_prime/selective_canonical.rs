@@ -12,7 +12,7 @@
 //!
 //! | Obligation | Local owner | Emits constraints? | Authority source |
 //! |---|---|---|---|
-//! | Centered digits | outer Split-NC channel | no | Complete low-norm assignment |
+//! | Centered digits | outer PiCCS norm term | no | Complete low-norm assignment |
 //! | Canonical bound | [`emit_shifted_ternary_trace_rows`] | yes | Goldilocks modulus digits |
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

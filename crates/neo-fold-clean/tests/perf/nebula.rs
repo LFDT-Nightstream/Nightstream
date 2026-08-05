@@ -33,7 +33,7 @@ fn nebula_v3_targets_structure_snapshot() {
     // slots (the scan cost is inside the step, so the ratio is per-step).
     let ops_amortized = c.rows() as f64 / params.b_ops as f64;
     println!("== Nebula §10 actuals, v3 targets ==");
-    println!("S_mem rows                {:>10}   (§10 budget ≈ 58k)", c.rows());
+    println!("S_mem rows                {:>10}   (planning budget ≈ 58k)", c.rows());
     println!(
         "S_mem witness columns     {:>10}   (committed coordinates per step)",
         c.cols()
@@ -41,7 +41,7 @@ fn nebula_v3_targets_structure_snapshot() {
     println!("S_mem nnz                 {:>10}", c.nnz());
     println!("steps per segment N       {:>10}", params.steps_per_segment());
     println!(
-        "rows per op (amortized)   {:>10.1}   (§10 budget ≈ 875 at N_ops = R+M)",
+        "rows per op (amortized)   {:>10.1}   (planning budget ≈ 875 at N_ops = R+M)",
         ops_amortized
     );
     println!(
@@ -53,7 +53,7 @@ fn nebula_v3_targets_structure_snapshot() {
     // §10 discipline: off-by-2× on the headline row count reopens the spec.
     assert!(
         c.rows() < 2 * 58_000,
-        "S_mem rows {} exceed 2× the §10 budget",
+        "S_mem rows {} exceed 2× the planning budget",
         c.rows()
     );
 }
@@ -95,14 +95,11 @@ fn nebula_v3_targets_stacks_delta_snapshot() {
         stacked.x_bits() - base.x_bits()
     );
 
-    assert!(
-        d_rows < 2 * 2_500,
-        "stack rows delta {d_rows} exceeds 2× the §10 budget"
-    );
+    assert!(d_rows < 2 * 2_500, "stack rows delta {d_rows} exceeds the 2× budget");
     assert_eq!(stacked.x_bits() - base.x_bits(), 48);
 }
 
-/// End-to-end timing at the spec §2 test profile (`r = 4, μ = 8,
+/// End-to-end timing at the Nebula test profile (`r = 4, μ = 8,
 /// B_ops = B_scan = 8, N = 34`): one full segment — native pass, lane
 /// commits, γ, 34 witnesses, 34 folds — plus finalization and audit
 /// verification.
@@ -145,7 +142,7 @@ fn nebula_test_profile_segment_snapshot() {
     let t_verify = t.elapsed();
 
     let n = params.steps_per_segment();
-    println!("== Nebula segment timing, §2 test profile (N = {n}) ==");
+    println!("== Nebula segment timing, test profile (N = {n}) ==");
     println!(
         "F' steps (chunks)        {:>8}   (batched folding: ⌈N / max_fresh⌉ — SuperNeo multi-folding, Theorem 1's K ≤ 61 arity)",
         audit.steps.len()

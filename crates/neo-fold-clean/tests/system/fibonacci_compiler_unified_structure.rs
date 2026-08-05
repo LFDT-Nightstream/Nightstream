@@ -580,7 +580,7 @@ fn fibonacci_chain_builder_appends_base_step() {
 //
 // `c_data_entries = 216` and `child_count = 14` are the params-derived
 // fixed-point CE shape (KAPPA * D and K_RHO respectively); `r_len = 12`
-// and `s_col_len = 18` are the empirically converged values after source
+// is the empirically converged value after source
 // NIFS payload elision. The tiny fixture uses a wider dummy app-private
 // region to avoid colliding with the canonical test SRS dimensions while
 // keeping the same public input shape. If `Params`
@@ -610,7 +610,6 @@ fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
     const TINY_C_DATA_ENTRIES: usize = 216;
     const TINY_CHILD_COUNT: u64 = 14;
     const TINY_R_LEN: usize = 12;
-    const TINY_S_COL_LEN: usize = 18;
     const TINY_LIMBS: usize = 57;
 
     let ce_shape = NifsCeClaimShape {
@@ -619,8 +618,6 @@ fn tiny_fibonacci_lifecycle_plan() -> RecursiveStepImagePlan {
         x_active_cols: 5,
         r_len: TINY_R_LEN,
         y_ring_inner_lens: vec![64; 8],
-        y_zcol_len: 64,
-        s_col_len: TINY_S_COL_LEN,
     };
 
     let probe_plan = RecursiveStepImagePlan {

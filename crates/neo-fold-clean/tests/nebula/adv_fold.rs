@@ -1,4 +1,4 @@
-//! `adv` tuple through a real fold — spec §5.2 R2/R3, M1b (live) slice:
+//! `adv` tuple through a real fold:
 //! Π_CCS forwards, Π_RLC ρ-mixes, Π_DEC recomposes and re-commits child
 //! lane slices, and the terminal slice-opening pins tuples to witnesses.
 //! Every tamper lands on the specific check the spec names, never on a
@@ -106,10 +106,10 @@ fn verify_fold(
     )
 }
 
-/// The full R2 + R3 loop: fresh tuples ride Π_CCS unchanged, ρ-mix through
+/// The full loop: fresh tuples ride Π_CCS unchanged, ρ-mix through
 /// Π_RLC, split into child tuples by Π_DEC — and every terminal child's
 /// tuple opens against its own witness's lane slices (the decider check).
-/// This is the algebra security-note Lemma 1 composes, exercised end to end.
+/// This exercises the lane-commitment algebra end to end.
 #[test]
 fn adv_mirrors_through_a_real_fold_and_children_open() {
     let prep = wide_preprocessing();
@@ -127,7 +127,7 @@ fn adv_mirrors_through_a_real_fold_and_children_open() {
         let adv = claim.adv.as_ref().expect("every child carries a tuple");
         assert!(
             scheme.open_matches(adv, witness).expect("openable shapes"),
-            "terminal slice-opening (R3): child tuple must open to its lane slices"
+            "terminal slice opening: child tuple must open to its lane slices"
         );
     }
 }
@@ -207,7 +207,7 @@ fn prove_without_lane_scheme_fails_closed() {
     assert!(result.is_err(), "adv-bearing parent without a LaneScheme must fail");
 }
 
-/// All-or-nothing presence across a fold's inputs (§5.1 lifted to the
+/// All-or-nothing presence across a fold's inputs, lifted to the
 /// fold): one tuple-bearing and one plain claim cannot mix.
 #[test]
 fn mixed_adv_presence_is_rejected() {

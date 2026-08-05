@@ -1,4 +1,4 @@
-//! Layout round-trips and plan validation — spec §2, §3, §4.4.
+//! Layout round trips and plan validation.
 //!
 //! Covers: parameter validation (exact cover, packing bound, timestamp
 //! capacity), lane encode/decode round-trips, L-ALIGN alignment, pad
@@ -46,18 +46,18 @@ fn random_op(rng: &mut Rng, p: &NebulaParams) -> MemOpRecord {
 fn spec_profiles_match_their_derived_sizes() {
     let t = NebulaParams::test_profile();
     assert_eq!(t.scanned_cells(), 16 + 256);
-    assert_eq!(t.steps_per_segment(), 34); // spec §2 test profile
+    assert_eq!(t.steps_per_segment(), 34); // the plan test profile
     assert_eq!(t.op_bits(), 3 + 8 + 32 + 32 + 44);
 
     let v3 = NebulaParams::v3_targets();
-    assert_eq!(v3.steps_per_segment(), 1_088); // spec §2: N = (R+M)/B_scan
+    assert_eq!(v3.steps_per_segment(), 1_088); // the plan: N = (R+M)/B_scan
     assert_eq!(v3.addr_bits(), 16);
-    assert_eq!(v3.op_bits(), 127); // spec §3.2: OP_BITS at S = 0
-    assert_eq!(X_BASE_BITS, 1_400); // spec §4.4
+    assert_eq!(v3.op_bits(), 127); // OP_BITS at S = 0
+    assert_eq!(X_BASE_BITS, 1_400);
     assert_eq!(StackShape::NONE.x_bits(), 1_400); // v3 degeneracy
 
     // v3.1 stacks: OP_BITS grows by S, x by 2·S·σ; the scan domain and
-    // N are untouched (stacks are never scanned, spec §3.1).
+    // N are untouched because stacks are never scanned.
     let ts = t.with_stacks(2, 4).expect("test profile + stacks");
     assert_eq!(ts.op_bits(), t.op_bits() + 2);
     assert_eq!(ts.x_bits(), 1_400 + 2 * 2 * 4);
@@ -86,7 +86,7 @@ fn params_reject_spec_violations() {
     assert!(NebulaParams::new(0, 16, 1, 1, 1).is_err());
     // Zero-sized blocks are meaningless.
     assert!(NebulaParams::new(4, 8, 0, 8, 1).is_err());
-    // r > mu: RAM addresses would escape their bitness bound (spec §2,
+    // r > mu: RAM addresses would escape their bitness bound (the plan,
     // external-review fix). R + M = 256 + 16 = 272 is a multiple of
     // B_scan = 8, so only the r ≤ mu rule rejects this.
     assert!(NebulaParams::new(8, 4, 8, 8, 1).is_err());
@@ -109,7 +109,7 @@ fn params_reject_spec_violations() {
 
 #[test]
 fn lanes_are_ring_column_aligned() {
-    // L-ALIGN (spec §5.1): committed lanes must span whole ring columns.
+    // L-ALIGN (the lane layout): committed lanes must span whole ring columns.
     for p in [NebulaParams::test_profile(), NebulaParams::v3_targets()] {
         assert_eq!(p.ops_lane_bits() % D, 0);
         assert_eq!(p.scan_lane_bits() % D, 0);

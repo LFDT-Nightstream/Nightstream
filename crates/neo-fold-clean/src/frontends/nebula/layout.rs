@@ -1,4 +1,4 @@
-//! Nebula plan parameters and bit-level lane/`x` layouts — spec §2, §3, §4.4.
+//! Nebula plan parameters and bit-level lane and public-input layouts.
 //!
 //! Owns: [`NebulaParams`] (validated plan constants and derived sizes) and
 //! the record ↔ bit encodings shared by the native prover, the future
@@ -7,19 +7,19 @@
 //! bit (`{0, 1}` in `F`), as the engine's norm bound requires.
 //!
 //! Does not own: memory semantics ([`super::trace`]), fingerprint math
-//! ([`super::fingerprint`]), or CCS rows (circuit builder, spec §13 step 2).
+//! ([`super::fingerprint`]), or CCS rows (circuit builder).
 //!
-//! ## Encoding contract (normative, spec §3)
+//! ## Encoding invariants
 //!
 //! - Multi-bit fields are little-endian: bit `k` of a field holds
 //!   `(value >> k) & 1`.
-//! - Fields pack in their table order (spec §3.2/§3.3); slots pack
-//!   consecutively; lane tails pad with zero bits to a multiple of
-//!   `neo_math::D` (**L-ALIGN**, spec §5.1 — lanes must occupy whole ring
+//! - Fields pack in their table order. Slots pack consecutively. Lane tails
+//!   pad with zero bits to a multiple of `neo_math::D` (**L-ALIGN**). Lanes
+//!   must occupy whole ring
 //!   columns of the embedding or the fold action stops commuting with lane
 //!   slicing).
 //! - Op pad slots are all-zero except the `pad` bit (E7 canonicality).
-//! - Scan lanes have no pads: exact cover (`N · B_scan = R + M`, spec §2)
+//! - Scan lanes have no pads: exact cover (`N · B_scan = R + M`)
 //!   makes every scan slot a real cell.
 
 use neo_math::field::KExtensions;
@@ -27,22 +27,22 @@ use neo_math::{D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
-/// Cell value width in bits (one memory cell = one 32-bit word). Spec §2.
+/// Cell value width in bits (one memory cell = one 32-bit word).
 pub const VAL_BITS: usize = 32;
-/// Timestamp width in bits. Spec §2.
+/// Timestamp width in bits.
 pub const TS_BITS: usize = 44;
-/// Segment-counter width in the step public input. Spec §4.4.
+/// Segment-counter width in the step public input.
 pub const SEG_IDX_BITS: usize = 16;
-/// Step-counter width in the step public input. Spec §4.4.
+/// Step-counter width in the step public input.
 pub const STEP_IDX_BITS: usize = 16;
 /// Bits per `K` coefficient (canonical Goldilocks limb).
 pub const K_LIMB_BITS: usize = 64;
 /// Bits per `K` element (two limbs: real, then imaginary).
 pub const K_BITS: usize = 2 * K_LIMB_BITS;
-/// Bits per scan-lane slot: value then timestamp. Spec §3.3.
+/// Bits per scan-lane slot: value then timestamp.
 pub const CELL_BITS: usize = VAL_BITS + TS_BITS;
-/// Bits of the stack-less step public input (spec §4.4, `= 1,400`); a
-/// plan's full width is [`NebulaParams::x_bits`].
+/// Bits of the stack-less step public input (`1,400`). A plan's full width is
+/// [`NebulaParams::x_bits`].
 pub use crate::paper::construction2::nebula_lane::{StackShape, MAX_STACKS, X_BASE_BITS};
 
 /// Bit offsets of each field inside the encoded step public input.
@@ -104,7 +104,7 @@ pub enum LayoutError {
     PadNotCanonical(usize),
 }
 
-/// Validated plan constants and derived sizes. Spec §2.
+/// Validated plan constants and derived sizes.
 ///
 /// Immutable once constructed; every size the circuit, prover, and tests
 /// agree on is derived from here (single source of truth). The constructor
@@ -122,7 +122,7 @@ pub struct NebulaParams {
     pub b_scan: usize,
     /// Maximum segments per chain (bounds the global timestamp).
     pub seg_max: u64,
-    /// `S`: segment-local stacks (spec §2, v3.1; `≤ MAX_STACKS`).
+    /// `S`: segment-local stacks (`≤ MAX_STACKS`).
     pub num_stacks: usize,
     /// `σ`: stack-pointer width in bits (0 iff `num_stacks == 0`);
     /// capacity per stack is `2^σ − 1` cells.
@@ -131,7 +131,7 @@ pub struct NebulaParams {
 
 impl NebulaParams {
     /// Validate and construct a stack-less plan (v3 shape; add stacks
-    /// with [`Self::with_stacks`]). Rules (spec §2):
+    /// with [`Self::with_stacks`]). Rules:
     ///
     /// 1. exact cover: `B_scan` divides `R + M` (steps per segment
     ///    `N = (R + M) / B_scan`);
@@ -155,7 +155,7 @@ impl NebulaParams {
         })
     }
 
-    /// Add segment-local stacks (spec §2, v3.1): `num_stacks ≤ MAX_STACKS`
+    /// Add segment-local stacks: `num_stacks ≤ MAX_STACKS`
     /// namespaces of `2^σ − 1` cells each, `1 ≤ σ ≤ μ` — σ at most μ keeps
     /// the stack address inside the `addr` field's bitness.
     pub fn with_stacks(self, num_stacks: usize, sigma: u32) -> Result<Self, LayoutError> {
@@ -163,7 +163,7 @@ impl NebulaParams {
             return Err(LayoutError::Params("num_stacks must be in 1..=MAX_STACKS"));
         }
         if sigma == 0 || sigma > self.mu {
-            return Err(LayoutError::Params("sigma must satisfy 1 ≤ σ ≤ μ (spec §2)"));
+            return Err(LayoutError::Params("sigma must satisfy 1 ≤ σ ≤ μ"));
         }
         Self::validated(Self {
             num_stacks,
@@ -186,7 +186,7 @@ impl NebulaParams {
         }
         if p.r > p.mu {
             return Err(LayoutError::Params(
-                "r must be ≤ mu: RAM addresses are bounded by bitness alone (spec §2)",
+                "r must be ≤ mu: RAM addresses are bounded by bitness alone",
             ));
         }
         if p.scanned_cells() % (p.b_scan as u64) != 0 {
@@ -209,14 +209,14 @@ impl NebulaParams {
         Ok(p)
     }
 
-    /// Spec §2 test profile (`r = 4, μ = 8, B_ops = B_scan = 8` → `N = 34`).
+    /// Test profile (`r = 4, μ = 8, B_ops = B_scan = 8` → `N = 34`).
     pub fn test_profile() -> Self {
         Self::new(4, 8, 8, 8, 1 << 10).expect("spec test profile is valid")
     }
 
-    /// Spec §2 v3 targets (`r = 12, μ = 16, B = 64` → `N = 1,088`).
+    /// Nebula v3 targets (`r = 12, μ = 16, B = 64` → `N = 1,088`).
     pub fn v3_targets() -> Self {
-        Self::new(12, 16, 64, 64, 1 << 16).expect("spec v3 targets are valid")
+        Self::new(12, 16, 64, 64, 1 << 16).expect("Nebula v3 targets are valid")
     }
 
     /// `R`: cells in the public-ROM namespace.
@@ -230,7 +230,7 @@ impl NebulaParams {
     }
 
     /// `R + M`: the scanned cells — ROM then RAM, the scan/global-index
-    /// prefix. Stacks live above and are never scanned (spec §3.1).
+    /// prefix. Stacks live above and are never scanned.
     pub fn scanned_cells(&self) -> u64 {
         self.rom_cells() + self.ram_cells()
     }
@@ -248,12 +248,12 @@ impl NebulaParams {
         }
     }
 
-    /// Bits of the step public input under this plan (spec §4.4).
+    /// Bits of the step public input under this plan.
     pub fn x_bits(&self) -> usize {
         self.stack_shape().x_bits()
     }
 
-    /// `N = (R + M) / B_scan`: steps per segment (exact cover, spec §2).
+    /// `N = (R + M) / B_scan`: steps per segment under exact cover.
     pub fn steps_per_segment(&self) -> usize {
         (self.scanned_cells() / self.b_scan as u64) as usize
     }
@@ -263,20 +263,20 @@ impl NebulaParams {
         self.steps_per_segment() * self.b_ops
     }
 
-    /// Address field width: `max(r, μ)` bits (spec §3.2).
+    /// Address field width: `max(r, μ)` bits.
     pub fn addr_bits(&self) -> usize {
         self.r.max(self.mu) as usize
     }
 
     /// Bits needed for a global cell index over the full address space
-    /// `R + M + S·2^σ` (the §2 packing bound's operand).
+    /// `R + M + S·2^σ`, the operand of the packing bound.
     pub fn address_space_bits(&self) -> usize {
         let top = self.scanned_cells() + self.num_stacks as u64 * self.stack_cells() - 1;
         (64 - top.leading_zeros()) as usize
     }
 
     /// `OP_BITS`: one ops-lane slot — `pad, is_write, ram, stk_0..,
-    /// addr, v_r, v_w, rt` in that order (spec §3.2).
+    /// addr, v_r, v_w, rt` in that order.
     pub fn op_bits(&self) -> usize {
         3 + self.num_stacks + self.addr_bits() + 2 * VAL_BITS + TS_BITS
     }
@@ -291,7 +291,7 @@ impl NebulaParams {
         align_to_ring_columns(self.b_scan * CELL_BITS)
     }
 
-    /// Global cell index (spec §3.1/§4.3): ROM at `[0, R)`, RAM at
+    /// Global cell index: ROM at `[0, R)`, RAM at
     /// `[R, R + M)`, stack `s` at `[R + M + s·2^σ, ·)`. Injective onto
     /// `(namespace, addr)` because every namespace's addresses are
     /// range-bound below its span.
@@ -316,12 +316,12 @@ impl NebulaParams {
     }
 }
 
-/// Round a bit width up to a multiple of `d = 54` (L-ALIGN, spec §5.1).
+/// Round a bit width up to a multiple of `d = 54` (L-ALIGN).
 pub fn align_to_ring_columns(bits: usize) -> usize {
     bits.div_ceil(D) * D
 }
 
-/// A memory namespace (spec §3.1): the two random-access spaces, plus
+/// A memory namespace: the two random-access spaces, plus
 /// the segment-local stacks (v3.1). Encoded in the ops lane as one-hot
 /// selector bits (`ram`, then `stk_s`; ROM = none set).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -334,12 +334,12 @@ pub enum MemSpace {
     Stack(u8),
 }
 
-/// One real memory operation, as the ops lane stores it (spec §3.2). Pad
+/// One real memory operation, as the ops lane stores it. Pad
 /// slots are not represented — encoders append them, decoders drop them.
 ///
 /// `rt` is the prover-supplied timestamp of the previous access to this
 /// cell (for pops: the push time; for pushes: 0); the write timestamp is
-/// *not* stored (it is `ts_in + cnt_j` by construction, spec §3.2).
+/// *not* stored (it is `ts_in + cnt_j` by construction).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MemOpRecord {
     /// `false` = read/pop, `true` = write/push.
@@ -356,7 +356,7 @@ pub struct MemOpRecord {
     pub rt: u64,
 }
 
-/// One memory cell as the scan lanes store it (spec §3.3). The address is
+/// One memory cell as the scan lanes store it. The address is
 /// not stored: it is the slot's scan position (structural).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CellRecord {
@@ -366,7 +366,7 @@ pub struct CellRecord {
     pub t: u64,
 }
 
-/// Step public input — the carried slots of `x` (spec §4.4). The
+/// Step public input — the carried slots of `x`. The
 /// canonical struct lives with its F′ consumer
 /// (`paper::construction2::nebula_lane`); this module owns its bit
 /// encoding: field order `seg_idx`, `idx`, `ts_in`, `ts_out`,
@@ -476,7 +476,7 @@ impl NebulaParams {
     }
 
     /// Encode exactly `B_scan` cells into one scan lane (IS or FS — same
-    /// layout, spec §3.3). Output length is [`Self::scan_lane_bits`].
+    /// layout). Output length is [`Self::scan_lane_bits`].
     pub fn encode_scan_lane(&self, cells: &[CellRecord]) -> Result<Vec<F>, LayoutError> {
         if cells.len() != self.b_scan {
             return Err(LayoutError::ScanLen {
@@ -514,8 +514,8 @@ impl NebulaParams {
 }
 
 impl StepPublicInput {
-    /// Encode to the `stacks.x_bits()` public-input bits (spec §4.4
-    /// order; the trailing `sp` slots are the plan's, v3.1).
+    /// Encode to the `stacks.x_bits()` public-input bits. The trailing `sp`
+    /// slots come from the plan.
     pub fn encode(&self, stacks: StackShape) -> Result<Vec<F>, LayoutError> {
         check_width("seg_idx", self.seg_idx, SEG_IDX_BITS)?;
         check_width("idx", self.idx, STEP_IDX_BITS)?;

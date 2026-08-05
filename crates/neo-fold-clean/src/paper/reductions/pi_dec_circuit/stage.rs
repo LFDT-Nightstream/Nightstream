@@ -21,7 +21,6 @@
 //! | `recomposition.y_ring` | `y_parent = sum_i b^i y_i` on the semantic ring prefix | matrices x D x extension limbs | `enforce_lane_combination_y` | typed Pi_DEC evaluation homomorphism; row refinement open |
 //! | `shape` | Pin verifier-visible carrier dimensions | parent plus children | `enforce_shape_metadata_consistency` | concrete shape refinement open |
 //! | `r` | Parent and children share the CE evaluation point | children x point coordinates x extension limbs | `enforce_r_consistency` | paper Pi_DEC shared-point obligation |
-//! | `s_col` | Parent and children share the delayed-NC point | children x point coordinates x extension limbs | `enforce_s_col_consistency` | delayed-NC authority bridge open |
 //! | `inactive_x` | Canonical inactive X coordinates are zero | inactive child coordinates | `enforce_inactive_x_zero` | encoding refinement open |
 //! | `alphabet` | Binary child X coordinates are the uniform-sign canonical split; wider radices retain centered CE(b) membership | active logical coordinates x (`k+2`) for b=2 | `enforce_child_x_canonical_split` | uniform-signed-digit refinement |
 //! | `ct` | Cached constant terms equal lane zero of `y_ring` | claims x matrices x extension limbs | `enforce_ct_consistency` | evaluation bridge partial |
@@ -39,7 +38,6 @@ pub const RECOMPOSITION_Y_RING: &str = "nifs.pi_dec.verify.recomposition.y_ring"
 
 pub const SHAPE: &str = "nifs.pi_dec.verify.shape";
 pub const R: &str = "nifs.pi_dec.verify.r";
-pub const S_COL: &str = "nifs.pi_dec.verify.s_col";
 pub const INACTIVE_X: &str = "nifs.pi_dec.verify.inactive_x";
 pub const ALPHABET: &str = "nifs.pi_dec.verify.alphabet";
 pub const CT: &str = "nifs.pi_dec.verify.ct";
@@ -54,7 +52,6 @@ pub const LEAVES: &[&str] = &[
     RECOMPOSITION_Y_RING,
     SHAPE,
     R,
-    S_COL,
     INACTIVE_X,
     ALPHABET,
     CT,
@@ -73,7 +70,6 @@ pub const ROW_ALL: &[&str] = &[
     RECOMPOSITION_Y_RING,
     SHAPE,
     R,
-    S_COL,
     INACTIVE_X,
     ALPHABET,
     CT,
@@ -89,7 +85,6 @@ pub const ROW_HIERARCHY: &[(&str, &[&str])] = &[
             RECOMPOSITION,
             SHAPE,
             R,
-            S_COL,
             INACTIVE_X,
             ALPHABET,
             CT,

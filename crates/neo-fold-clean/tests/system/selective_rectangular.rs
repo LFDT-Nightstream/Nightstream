@@ -1,4 +1,4 @@
-//! Rectangular SplitNc regression for the selective low-norm compiler.
+//! Rectangular one-joint regression for the selective low-norm compiler.
 
 #[path = "../support/mod.rs"]
 mod support;
@@ -21,7 +21,7 @@ use neo_fold_clean::paper::nifs::circuit::stage as nifs_stage;
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{
     enforce_commit_fields, SIS_DIGEST_COMPRESSION_CONFIG,
 };
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::stage as pi_ccs_stage;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::stage as pi_ccs_stage;
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -54,7 +54,7 @@ fn selective_poseidon_lowering_is_rectangular_and_binds_alignment_tail() {
     let structure = relation.structure();
     assert!(
         structure.n < structure.m,
-        "SplitNc must preserve the semantic-row domain"
+        "PaddedRowIdentityV1 must preserve the semantic-row domain"
     );
     assert_eq!(structure.t(), 13, "only semantic matrices belong in the relation");
     assert!(
@@ -263,12 +263,13 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (4_194_305, 270, 7_734_522, 9_744_408),
-            (7_734_522, 9_744_408, 7_734_522, 9_744_408),
+            (2, 270, 9_210_044, 14_653_170),
+            (9_210_044, 14_653_170, 9_306_140, 15_123_186),
+            (9_306_140, 15_123_186, 9_306_140, 15_123_186),
         ],
-        "the SIS-compressed production shape must stabilize at the measured fixed point",
+        "the selected one-joint production shape must stabilize at the measured fixed point",
     );
-    assert_eq!(width.total_coordinates, 9_744_386);
+    assert_eq!(width.total_coordinates, 15_123_162);
     assert_eq!(width.branch_start, 311);
     assert_eq!(width.shared_private_coordinates, 0);
     assert_eq!(
@@ -294,12 +295,12 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
         vec![
             (13_655, 11_111, 78_585, 448, 0, 78_137, 0, 0, 78_137, 21, 74_302),
             (
-                10_992_757, 5_644_768, 12_162_088, 3_470_114, 1_472, 8_631_622, 26_746, 1_096_586, 9_728_208, 535,
-                1_903_840,
+                13_475_152, 6_981_262, 18_864_549, 4_146_942, 2_996, 14_594_771, 12_880, 528_080, 15_122_851, 1_250,
+                4_423_372,
             ),
             (
-                10_993_613, 5_645_243, 12_177_709, 3_470_114, 1_472, 8_647_243, 26_752, 1_096_832, 9_744_075, 535,
-                1_903_840,
+                13_475_152, 6_981_262, 18_864_549, 4_146_942, 2_996, 14_594_771, 12_880, 528_080, 15_122_851, 1_250,
+                4_423_372,
             ),
         ],
         "each selector-disjoint arm must retain the measured compressed-width profile",
@@ -319,7 +320,7 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
     let output_digest = audit.pi_ccs_output_digest();
     let output_profile = output_digest.profile();
     assert_eq!(output_profile.source_count(), 15);
-    assert_eq!(output_profile.matrix_count(), 13);
+    assert_eq!(output_profile.matrix_count(), 14);
     assert_eq!(output_profile.output_field_count(), 23_033);
     let output_sis = output_digest.sis();
     assert_eq!(output_sis.primary().block().word_starts().len(), 23_033);
@@ -331,55 +332,6 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
         output_sis.primary().output_columns()
     );
     assert_eq!(output_sis.compression().output_columns().len(), D);
-    let y_zcol_projection = output_digest.y_zcol_projection();
-    assert_eq!(y_zcol_projection.input_count(), 2 * 15);
-    assert_eq!(y_zcol_projection.coefficient_count(), 2 * 15 * D);
-    for limb in 0..2 {
-        assert_eq!(y_zcol_projection.boundary().parent_columns(limb).len(), D);
-        assert_eq!(y_zcol_projection.boundary().quotient_columns(limb).len(), D - 1);
-    }
-    let identity = y_zcol_projection.identity();
-    assert_eq!(identity.row_count(), 5_724);
-    assert_eq!(identity.allocated_column_count(), 5_720);
-    assert_eq!(identity.shared().beta_ladder_rows().len(), 272);
-    assert_eq!(identity.shared().rho_evaluation_rows().len(), 1_620);
-    assert_eq!(identity.shared().allocated_column_count(), 1_892);
-    assert_eq!(identity.shared().power_columns().len(), D + 1);
-    assert_eq!(identity.shared().rho_columns().len(), 15);
-    assert_eq!(identity.shared().rho_evaluation_outputs().len(), 15);
-    assert_eq!(
-        identity.shared().beta_columns(),
-        y_zcol_projection.boundary().beta_columns()
-    );
-    for limb in 0..2 {
-        let limb_identity = identity.limb(limb);
-        assert_eq!(limb_identity.row_count(), 1_916);
-        assert_eq!(limb_identity.allocated_column_count(), 1_914);
-        assert_eq!(limb_identity.input_evaluation_rows().len(), 15);
-        assert_eq!(limb_identity.rho_product_rows().len(), 15);
-        assert_eq!(limb_identity.output_evaluation_rows().len(), 108);
-        assert_eq!(limb_identity.quotient_evaluation_rows().len(), 106);
-        assert_eq!(limb_identity.quotient_phi_rows().len(), 5);
-        assert_eq!(limb_identity.final_rows().len(), 2);
-        assert_eq!(
-            limb_identity.parent_columns(),
-            y_zcol_projection.boundary().parent_columns(limb)
-        );
-        assert_eq!(
-            limb_identity.quotient_columns(),
-            y_zcol_projection.boundary().quotient_columns(limb)
-        );
-    }
-    for limb in 0..2 {
-        assert_eq!(y_zcol_projection.limb(limb).len(), 15);
-        for (source, input) in y_zcol_projection.limb(limb).iter().enumerate() {
-            assert_eq!(input.source(), source);
-            assert_eq!(input.limb(), limb);
-            assert_eq!(input.producer_columns(), input.coefficient_columns());
-            assert_eq!(input.coefficient_columns().len(), D);
-            assert_eq!(input.rows().len(), 2 * D);
-        }
-    }
     let output_prefix = output_digest.envelope_prefix();
     assert_eq!(output_prefix.columns().len(), 10);
     assert_eq!(output_prefix.values().len(), 10);
@@ -464,18 +416,17 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
                 arm,
                 stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS),
                 stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE),
-                stage_census(arm, fprime_stage::RECURSIVE_ACCUMULATOR_OUTPUT_PENDING_FAMILY),
             )
         })
         .collect::<Vec<_>>();
     assert_eq!(
         accumulator_stage_census,
         vec![
-            (0, None, None, None),
-            (1, None, None, Some((10_862, 3_322_377, 562_532))),
-            (2, None, None, Some((10_862, 3_322_377, 562_532))),
+            (0, None, None),
+            (1, Some((10_760, 4_483_178, 757_610)), Some((10_761, 10_278, 1_466)),),
+            (2, Some((10_760, 4_483_178, 757_610)), Some((10_761, 10_278, 1_466)),),
         ],
-        "every conservative outgoing-accumulator row must retain one exact source-stage owner",
+        "the selected protocol must bind exact outgoing children without a delayed pending-family stage",
     );
     let layout = audit.layout();
     assert_eq!(layout.logical_public_input_len(), F_PRIME_PUBLIC_INPUT_LEN);

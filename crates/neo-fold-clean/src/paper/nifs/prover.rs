@@ -21,8 +21,11 @@ use neo_reductions::optimized_engine::OptimizedStructureCache;
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
-use crate::paper::nifs::work::{chain_witness_refs, outgoing_pending_projection, split_fresh_instances};
-use crate::paper::nifs::{CpuNifsProver, Error, NifsProof, NifsProverAdapter, NifsProverOutput, NifsProverRequest};
+use crate::paper::nifs::work::{chain_witness_refs, split_fresh_instances};
+use crate::paper::nifs::{
+    Error, NifsProof, NifsProverAdapter, NifsProverOutput, NifsProverRequest, OptimizedCpuNifsProver,
+    OptimizedNifsProverAdapter,
+};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsInstance, DecMixer, LaneScheme, RlcMixer, Structure};
 use crate::paper::{pi_ccs, pi_dec, pi_rlc};
@@ -31,7 +34,7 @@ use crate::paper::{pi_ccs, pi_dec, pi_rlc};
 /// `RunningInstance` (with prover-side witness matrices) plus the
 /// `NifsProof` the verifier will replay.
 ///
-/// `lanes` is the Nebula lane-commitment context (spec §5.2 R2); `None`
+/// `lanes` is the Nebula lane-commitment context (the auxiliary-commitment flow); `None`
 /// for plain chains. It is prover-only plumbing — Π_DEC needs it to
 /// commit child lane slices; NIFS.V's adv checks are public arithmetic.
 pub fn prove(
@@ -108,8 +111,6 @@ pub(crate) fn prove_owned(
     let t_rlc = std::time::Instant::now();
     let (rlc_out, pi_rlc_proof) =
         pi_rlc::prove_refs(tr, pp, s, mix_rhos_commits, &pi_ccs_proof.outputs, &all_witnesses)?;
-    let pending_projection =
-        outgoing_pending_projection(pi_ccs_proof.sumcheck.variant, &pi_ccs_proof.outputs, &rlc_out.claim)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[nifs-prove] pi_rlc                         {:>7.2}s",
@@ -140,12 +141,7 @@ pub(crate) fn prove_owned(
         t_dec.elapsed().as_secs_f64()
     );
 
-    let next_running = RunningInstance::new(
-        dec_out.claims,
-        dec_out.witnesses,
-        Some(rlc_out.claim),
-        pending_projection,
-    );
+    let next_running = RunningInstance::new(dec_out.claims, dec_out.witnesses, Some(rlc_out.claim));
     let out = (
         next_running,
         NifsProof {
@@ -311,7 +307,7 @@ fn prove_with_adapter_output_inner(
     })
 }
 
-impl NifsProverAdapter for CpuNifsProver {
+impl NifsProverAdapter for OptimizedCpuNifsProver {
     fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
         let (running, proof) = prove(
             request.tr,
@@ -328,3 +324,5 @@ impl NifsProverAdapter for CpuNifsProver {
         Ok(NifsProverOutput::materialized(running, proof))
     }
 }
+
+impl OptimizedNifsProverAdapter for OptimizedCpuNifsProver {}

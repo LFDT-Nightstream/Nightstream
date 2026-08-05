@@ -142,10 +142,6 @@ name = "gadgets_pi_rlc_projection_boundary"
 path = "tests/gadgets/pi_rlc_projection_boundary.rs"
 
 [[test]]
-name = "gadgets_pi_rlc_projection_compaction"
-path = "tests/gadgets/pi_rlc_projection_compaction.rs"
-
-[[test]]
 name = "gadgets_packed_mod5_lean_artifact"
 path = "tests/gadgets/packed_mod5_lean_artifact.rs"
 
@@ -160,10 +156,6 @@ path = "tests/gadgets/poseidon2.rs"
 [[test]]
 name = "gadgets_sumcheck"
 path = "tests/gadgets/sumcheck.rs"
-
-[[test]]
-name = "gadgets_redteam_sumcheck_encoding"
-path = "tests/gadgets/redteam_sumcheck_encoding.rs"
 
 [[test]]
 name = "gadgets_redteam_sparse_poly_encoding"
@@ -184,26 +176,6 @@ path = "tests/gadgets/alphabet_sampling.rs"
 [[test]]
 name = "gadgets_canonical_u64_trace"
 path = "tests/gadgets/canonical_u64_trace.rs"
-
-[[test]]
-name = "reductions_pi_ccs_split_nc"
-path = "tests/reductions/pi_ccs_split_nc.rs"
-
-[[test]]
-name = "reductions_pi_ccs_output_message"
-path = "tests/reductions/pi_ccs_output_message.rs"
-
-[[test]]
-name = "reductions_pi_ccs_split_nc_fe"
-path = "tests/reductions/pi_ccs_split_nc_fe.rs"
-
-[[test]]
-name = "reductions_pi_ccs_split_nc_nc"
-path = "tests/reductions/pi_ccs_split_nc_nc.rs"
-
-[[test]]
-name = "reductions_pi_ccs_split_nc_verifier"
-path = "tests/reductions/pi_ccs_split_nc_verifier.rs"
 
 [[test]]
 name = "reductions_ccs_native_poseidon"
@@ -250,6 +222,10 @@ name = "nifs_round_trip"
 path = "tests/nifs/round_trip.rs"
 
 [[test]]
+name = "nifs_engine_crosscheck"
+path = "tests/nifs/engine_crosscheck.rs"
+
+[[test]]
 name = "nifs_fixed"
 path = "tests/nifs/fixed.rs"
 
@@ -294,28 +270,12 @@ name = "f_prime_full_relation"
 path = "tests/f_prime/full_relation.rs"
 
 [[test]]
-name = "f_prime_fixed_carrier_nifs_lean_artifact"
-path = "tests/f_prime/fixed_carrier_nifs_lean_artifact.rs"
-
-[[test]]
 name = "f_prime_selective_snapshot"
 path = "tests/f_prime/selective_snapshot.rs"
 
 [[test]]
 name = "f_prime_selective_structure_census"
 path = "tests/f_prime/selective_structure_census.rs"
-
-[[test]]
-name = "f_prime_selective_fixed_point_projection_lean_artifact"
-path = "tests/f_prime/selective_fixed_point_projection_lean_artifact.rs"
-
-[[test]]
-name = "f_prime_private_decoder_lean_artifact"
-path = "tests/f_prime/private_decoder_lean_artifact.rs"
-
-[[test]]
-name = "f_prime_block_lane_nc_lean_artifact"
-path = "tests/f_prime/block_lane_nc_lean_artifact.rs"
 
 [[test]]
 name = "f_prime_pi_dec_selective_rows"

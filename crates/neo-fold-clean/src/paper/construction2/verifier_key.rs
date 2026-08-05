@@ -46,12 +46,9 @@ impl VerifierKey {
         public_input_len: Option<usize>,
         initial_semantic_state_digest: [u8; 32],
     ) -> Result<Self, VerifierKeyError> {
-        let dims = neo_reductions::engines::utils::build_dims_and_policy(pp.inner(), s)
-            .map_err(|error| VerifierKeyError::Header(error.to_string()))?;
-        let matrix_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(s, None);
-        let pi_ccs_header_bundle =
-            neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(pp.inner(), s, dims, &matrix_digest)
-                .map_err(|error| VerifierKeyError::Header(error.to_string()))?;
+        let pi_ccs_header_bundle = neo_reductions::engines::utils::digest_ccs_matrices(s)
+            .try_into()
+            .expect("the PiCCS matrix digest has four fields");
         Ok(Self::derive_from_structure_digest(
             pp,
             &digest::structure_digest(s),

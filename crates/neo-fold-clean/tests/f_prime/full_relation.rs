@@ -39,7 +39,7 @@ use neo_fold_clean::paper::f_prime::r1cs::{
 use neo_fold_clean::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
 use neo_fold_clean::paper::nifs::circuit::{NifsVCircuitConfig, NifsVCircuitMessages};
 use neo_fold_clean::paper::nifs::{prove_fixed, FixedNifsAccumulator};
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
@@ -51,9 +51,8 @@ mod cost_tree;
 mod source_role_manifest;
 use cost_tree::{
     assert_direct_selector_cost_formula, assert_dominant_sis_snapshots, assert_f_prime_base_stage_hierarchy,
-    assert_f_prime_recursive_stage_hierarchy, assert_fixed_selector_cost_formula,
-    assert_pi_ccs_nc_terminal_row_families, assert_pi_ccs_stage_hierarchy, assert_pi_rlc_stage_hierarchy,
-    assert_protocol_row_family_snapshots, print_stage_cost_families,
+    assert_f_prime_recursive_stage_hierarchy, assert_fixed_selector_cost_formula, assert_pi_ccs_stage_hierarchy,
+    assert_pi_rlc_stage_hierarchy, assert_protocol_row_family_snapshots, print_stage_cost_families,
 };
 
 const TRANSCRIPT_LABEL: &[u8] = b"neo.test.full_f_prime/step/v1";
@@ -118,38 +117,18 @@ fn fibonacci_step_r1cs() -> R1csShape {
     R1cs { a, b, c, m_in: 1 }.into()
 }
 
-fn split_nc_config(prep: &neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'_> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
-        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params reconstruction");
-    let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &mat_digest,
-    )
-    .expect("header bundle digest");
-    SplitNcPiCcsVConfig {
+fn pi_ccs_config(prep: &neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'_> {
+    PiCcsVerifierConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle,
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: prep.pi_ccs_header_bundle(),
     }
 }
 
 fn step_config(prep: &neo_fold_clean::Preprocessing) -> FPrimeStepConfig<'_> {
     FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(prep),
+            pi_ccs: pi_ccs_config(prep),
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
@@ -600,7 +579,6 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         fresh: &fresh_claims,
         running: zero.claims(),
         running_parent_authority: zero.running().parent_authority.as_ref(),
-        running_pending_projection: zero.running().pending_projection(),
         pi_ccs: &proof.pi_ccs,
         combined: &proof.pi_rlc.combined,
         children: next.claims(),
@@ -637,7 +615,6 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
             fresh: &tampered_fresh,
             running: zero.claims(),
             running_parent_authority: zero.running().parent_authority.as_ref(),
-            running_pending_projection: zero.running().pending_projection(),
             pi_ccs: &proof.pi_ccs,
             combined: &proof.pi_rlc.combined,
             children: next.claims(),
@@ -676,7 +653,6 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
             fresh: &fresh_claims,
             running: zero.claims(),
             running_parent_authority: zero.running().parent_authority.as_ref(),
-            running_pending_projection: zero.running().pending_projection(),
             pi_ccs: &tampered_proof.pi_ccs,
             combined: &tampered_proof.pi_rlc.combined,
             children: next.claims(),
@@ -708,7 +684,6 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
             fresh: &fresh_claims,
             running: &tampered_running,
             running_parent_authority: zero.running().parent_authority.as_ref(),
-            running_pending_projection: zero.running().pending_projection(),
             pi_ccs: &proof.pi_ccs,
             combined: &proof.pi_rlc.combined,
             children: next.claims(),
@@ -745,7 +720,6 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
                 fresh: &fresh_claims,
                 running: zero.claims(),
                 running_parent_authority: zero.running().parent_authority.as_ref(),
-                running_pending_projection: zero.running().pending_projection(),
                 pi_ccs: &proof.pi_ccs,
                 combined: &proof.pi_rlc.combined,
                 children: next.claims(),
@@ -776,7 +750,6 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
                 fresh: &fresh_claims,
                 running: zero.claims(),
                 running_parent_authority: zero.running().parent_authority.as_ref(),
-                running_pending_projection: zero.running().pending_projection(),
                 pi_ccs: &proof.pi_ccs,
                 combined: &proof.pi_rlc.combined,
                 children: next.claims(),
@@ -812,7 +785,6 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
                 fresh: &fresh_claims,
                 running: zero.claims(),
                 running_parent_authority: zero.running().parent_authority.as_ref(),
-                running_pending_projection: zero.running().pending_projection(),
                 pi_ccs: &proof.pi_ccs,
                 combined: &proof.pi_rlc.combined,
                 children: next.claims(),
@@ -918,14 +890,14 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     // Branch source dimensions are materialized above. The direct selector
     // number is only a regression snapshot of an un-audited cost formula: no
     // selector-gated relation is materialized or proved sound by this test.
-    assert_eq!((base_estimate.source_rows, base_estimate.source_cols), (22_812, 22_353));
+    assert_eq!((base_estimate.source_rows, base_estimate.source_cols), (24_022, 23_567));
     assert_eq!(
         (recursive_estimate.source_rows, recursive_estimate.source_cols),
-        (2_576_416, 2_399_107)
+        (9_272_472, 8_975_812)
     );
     assert_eq!(
         (direct_estimate.encoded_rows, direct_estimate.encoded_cols),
-        (258_444_060, 190_149_709)
+        (1_103_585_128, 812_452_528)
     );
     eprintln!(
         "full F' branches: base={}x{} ({} field), recursive={}x{} ({} field, {} linear definitions), un-audited direct CCS estimate={}x{}",
@@ -986,14 +958,14 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     for stage in &recursive_u64.stages {
         eprintln!("CANONICAL_U64_STAGE|{}|{:?}", stage.stage, stage.census);
     }
-    assert_eq!((base_gadget.encoded_rows, base_gadget.encoded_cols), (66_358, 125_695));
+    assert_eq!((base_gadget.encoded_rows, base_gadget.encoded_cols), (70_138, 132_911));
     assert_eq!(
         (recursive_gadget.encoded_rows, recursive_gadget.encoded_cols),
-        (4_933_049, 8_137_378)
+        (9_321_036, 12_330_019)
     );
     assert_eq!(
         (fixed_gadget.encoded_rows, fixed_gadget.encoded_cols),
-        (6_184_892, 8_262_817)
+        (15_067_639, 12_462_674)
     );
     assert_eq!(base_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
     assert_eq!(recursive_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
@@ -1035,7 +1007,6 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     assert_pi_rlc_stage_hierarchy(&stage_profile);
     assert_dominant_sis_snapshots(&stage_profile);
     assert_protocol_row_family_snapshots(&stage_profile);
-    assert_pi_ccs_nc_terminal_row_families(&stage_profile, execution.row_family_ranges());
     print_stage_cost_families(&stage_profile);
     let challenge = stage_profile
         .aggregate_prefix("nifs.pi_rlc.challenge")
@@ -1465,7 +1436,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     assert!(full_recursive.snapshot().unconstrained_columns().is_empty());
     assert_eq!(
         (full_recursive.snapshot().rows(), full_recursive.snapshot().cols()),
-        (7_575_344, 4_998_209),
+        (27_545_495, 18_272_308),
         "materialized selector-composed source-R1CS dimensions"
     );
     let estimate = estimate_r1cs_encoding(
@@ -1477,7 +1448,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     assert_eq!(estimate.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
     assert_eq!(
         (estimate.encoded_rows, estimate.encoded_cols),
-        (568_647_410, 420_130_158),
+        (2_268_956_902, 1_677_108_883),
         "generic low-norm estimate of the materialized source selector relation"
     );
     assert_eq!(direct_estimate.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);

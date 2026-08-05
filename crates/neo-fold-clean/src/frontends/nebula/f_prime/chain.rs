@@ -29,8 +29,7 @@ use crate::frontends::r1cs_f_prime::lowering::{
 };
 use crate::lifecycle::{self, Preprocessing, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{
-    FoldProof, LaneCommitmentMode, NebulaError, NebulaLane, PendingProjectionState, ProofState, SemanticStateMode,
-    State,
+    FoldProof, LaneCommitmentMode, NebulaError, NebulaLane, ProofState, SemanticStateMode, State,
 };
 use crate::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest_for_uniform_shape,
@@ -639,35 +638,33 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             self.audit = Some(audit);
             return Err(NebulaFPrimeChainError::SemanticInputMismatch);
         }
-        let (running, running_parent_authority, running_pending_projection, fresh, placeholder) =
-            match &audit.proof.state.proof {
-                ProofState::Active { running, latest } => {
-                    let running = running
-                        .materialize_prover_input()
-                        .map_err(crate::paper::construction2::Error::from)
-                        .map_err(lifecycle::Error::from)?;
-                    let prior = latest
-                        .instances
-                        .first()
-                        .ok_or(NebulaFPrimeChainError::ExpectedActiveState)?;
-                    let placeholder = CcsInstance {
-                        claim: prior.claim.clone(),
-                        witness: CcsWitness {
-                            w: Vec::new(),
-                            Z: Mat::zero(0, 0, F::ZERO),
-                        },
-                    };
-                    (
-                        running.claims.clone(),
-                        running.parent_authority.clone(),
-                        running.pending_projection().cloned(),
-                        latest.claims(),
-                        placeholder,
-                    )
-                }
-                ProofState::Initial => return Err(NebulaFPrimeChainError::ExpectedActiveState),
-            };
-        let branch = if running_pending_projection.is_none() {
+        let (running, running_parent_authority, fresh, placeholder) = match &audit.proof.state.proof {
+            ProofState::Active { running, latest } => {
+                let running = running
+                    .materialize_prover_input()
+                    .map_err(crate::paper::construction2::Error::from)
+                    .map_err(lifecycle::Error::from)?;
+                let prior = latest
+                    .instances
+                    .first()
+                    .ok_or(NebulaFPrimeChainError::ExpectedActiveState)?;
+                let placeholder = CcsInstance {
+                    claim: prior.claim.clone(),
+                    witness: CcsWitness {
+                        w: Vec::new(),
+                        Z: Mat::zero(0, 0, F::ZERO),
+                    },
+                };
+                (
+                    running.claims.clone(),
+                    running.parent_authority.clone(),
+                    latest.claims(),
+                    placeholder,
+                )
+            }
+            ProofState::Initial => return Err(NebulaFPrimeChainError::ExpectedActiveState),
+        };
+        let branch = if pre.step_count <= 1 {
             NebulaFPrimeBranch::BootstrapRecursive
         } else {
             NebulaFPrimeBranch::Recursive
@@ -709,32 +706,26 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             let combined = &nifs.pi_rlc.combined;
             let child = nifs.pi_dec.children.first();
             eprintln!(
-                "[folded-f-prime] fresh={} running={} outputs={} children={} fe_rounds={}x{} nc_rounds={}x{} combined=(adv={}, c={}, X={}x{}, r={}, s={}, y_rows={}, yz={}) child={:?}",
+                "[folded-f-prime] fresh={} running={} outputs={} children={} sumcheck={}x{} combined=(adv={}, c={}, X={}x{}, r={}, y_rows={}) child={:?}",
                 fresh.len(),
                 running.len(),
                 nifs.pi_ccs.outputs.len(),
                 nifs.pi_dec.children.len(),
                 nifs.pi_ccs.sumcheck.sumcheck_rounds.len(),
                 nifs.pi_ccs.sumcheck.sumcheck_rounds.first().map_or(0, Vec::len),
-                nifs.pi_ccs.sumcheck.sumcheck_rounds_nc.len(),
-                nifs.pi_ccs.sumcheck.sumcheck_rounds_nc.first().map_or(0, Vec::len),
                 combined.adv.is_some(),
                 combined.c.data.len(),
                 combined.X.rows(),
                 combined.X.cols(),
                 combined.r.len(),
-                combined.s_col.len(),
                 combined.y_ring.len(),
-                combined.y_zcol.len(),
                 child.map(|claim| (
                     claim.adv.is_some(),
                     claim.c.data.len(),
                     claim.X.rows(),
                     claim.X.cols(),
                     claim.r.len(),
-                    claim.s_col.len(),
                     claim.y_ring.len(),
-                    claim.y_zcol.len(),
                 )),
             );
         }
@@ -746,7 +737,6 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             fresh,
             running,
             running_parent_authority,
-            running_pending_projection,
             nifs,
             pending,
         })
@@ -840,7 +830,6 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 fresh,
                 running,
                 running_parent_authority,
-                running_pending_projection,
                 nifs,
                 ..
             } => {
@@ -851,7 +840,6 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                     fresh,
                     running,
                     running_parent_authority: running_parent_authority.as_ref(),
-                    running_pending_projection: running_pending_projection.as_ref(),
                     pi_ccs: &nifs.pi_ccs,
                     combined: &nifs.pi_rlc.combined,
                     children: &nifs.pi_dec.children,
@@ -1097,7 +1085,6 @@ enum PreparedStep {
         fresh: Vec<CcsClaim>,
         running: Vec<CeClaim>,
         running_parent_authority: Option<CeClaim>,
-        running_pending_projection: Option<PendingProjectionState>,
         nifs: NifsProof,
         pending: UncompressedAudit,
     },

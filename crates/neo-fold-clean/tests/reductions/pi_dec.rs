@@ -22,7 +22,7 @@ use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::pi_dec;
 use neo_fold_clean::paper::reductions::pi_dec_circuit::{
     alloc_dec_inputs, enforce_child_x_canonical_split, enforce_dec_v, enforce_dec_v_strict, enforce_r_consistency,
-    enforce_x_bitness, stage as pi_dec_stage, DecInputWires,
+    enforce_x_bitness, stage as pi_dec_stage,
 };
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
 use neo_math::ring::D;
@@ -548,40 +548,6 @@ fn pi_dec_circuit_strict_rejects_noncanonical_fold_digest_limb_alias() {
         "strict Π_DEC.V accepted a noncanonical fold_digest limb aliasing to zero"
     );
 }
-
-#[test]
-fn pi_dec_circuit_strict_leaves_only_parent_y_zcol_unconstrained() {
-    // Child `y_zcol` is not part of the current Π_DEC relation. The parent
-    // sidecar remains allocated but semantically unbound; this test makes that
-    // open authority surface explicit.
-    let (proof, _claims) = drive_nifs(24);
-
-    let parent = &proof.pi_rlc.combined;
-    let children = &proof.pi_dec.children;
-
-    let prep = support::toy_preprocessing();
-    let mut builder = R1csBuilder::new();
-    let wires = alloc_dec_inputs(&mut builder, parent, children);
-    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict dec_v emit");
-
-    assert!(
-        builder.is_satisfied(),
-        "strict Π_DEC.V must accept native (parent, children) before unconstrained-column audit"
-    );
-
-    let unconstrained: BTreeSet<_> = builder.unconstrained_columns().into_iter().collect();
-    assert!(
-        wires.children.iter().all(|child| child.y_zcol.is_empty()),
-        "strict Π_DEC children must not allocate y_zcol"
-    );
-    let allowed = parent_y_zcol_columns(&wires);
-    assert!(
-        unconstrained == allowed,
-        "strict Π_DEC.V left unexpected unconstrained columns: got {unconstrained:?}, \
-         expected exactly y_zcol sidecars {allowed:?}"
-    );
-}
-
 #[test]
 fn pi_dec_circuit_strict_rejects_child_ct_not_derived_from_y_ring() {
     let (proof, _claims) = drive_nifs(24);
@@ -629,31 +595,6 @@ fn pi_dec_native_rejects_child_ct_not_derived_from_y_ring() {
         "expected child ct-consistency rejection, got {err:?}"
     );
 }
-
-#[test]
-fn pi_dec_native_rejects_child_s_col_relabel() {
-    let (proof, _claims) = drive_nifs(47);
-
-    let parent = proof.pi_rlc.combined;
-    let mut children = proof.pi_dec.children;
-    assert!(!children[0].s_col.is_empty(), "fixture must expose child s_col");
-    children[0].s_col[0] += K::ONE;
-
-    let prep = support::toy_preprocessing();
-    let err = pi_dec::verify(
-        &prep.params,
-        prep.structure(),
-        prep.combine_b_pows(),
-        &parent,
-        &pi_dec::Proof { children },
-    )
-    .expect_err("native Π_DEC.V accepted a child s_col that diverges from parent.s_col");
-    assert!(
-        matches!(err, pi_dec::Error::SColConsistency),
-        "expected s_col-consistency rejection, got {err:?}"
-    );
-}
-
 #[test]
 fn pi_dec_native_rejects_noncanonical_fold_digest_limb_alias() {
     let (proof, _claims) = drive_nifs(52);
@@ -687,36 +628,6 @@ fn pi_dec_native_rejects_noncanonical_fold_digest_limb_alias() {
         "expected parent fold-digest canonicality rejection, got {err:?}"
     );
 }
-
-#[test]
-fn pi_dec_native_rejects_extra_self_consistent_s_col_limb() {
-    let (proof, _claims) = drive_nifs(48);
-
-    let mut parent = proof.pi_rlc.combined;
-    let mut children = proof.pi_dec.children;
-    parent.s_col.push(K::ZERO);
-    for child in &mut children {
-        child.s_col.push(K::ZERO);
-    }
-
-    let prep = support::toy_preprocessing();
-    let err = pi_dec::verify(
-        &prep.params,
-        prep.structure(),
-        prep.combine_b_pows(),
-        &parent,
-        &pi_dec::Proof { children },
-    )
-    .expect_err("native Π_DEC.V accepted an extra self-consistent s_col limb");
-    assert!(
-        matches!(
-            err,
-            pi_dec::Error::SColShape("parent") | pi_dec::Error::SColShape("child")
-        ),
-        "expected s_col shape rejection, got {err:?}"
-    );
-}
-
 #[test]
 fn pi_dec_native_rejects_extra_self_consistent_r_limb() {
     let (proof, _claims) = drive_nifs(49);
@@ -893,67 +804,6 @@ fn pi_dec_circuit_strict_rejects_self_consistent_parent_child_y_ring_padding_lan
         "strict Π_DEC.V accepted self-consistent nonzero parent/child y_ring padding lanes"
     );
 }
-
-#[test]
-fn pi_dec_circuit_strict_rejects_parent_aux_openings_sidecar() {
-    let (proof, _claims) = drive_nifs(25);
-
-    let mut parent = proof.pi_rlc.combined.clone();
-    parent.aux_openings.push(K::ONE);
-    let children = &proof.pi_dec.children;
-
-    let prep = support::toy_preprocessing();
-    let mut builder = R1csBuilder::new();
-    let wires = alloc_dec_inputs(&mut builder, &parent, children);
-    let err = enforce_dec_v_strict(&mut builder, &prep.params, &wires)
-        .err()
-        .expect("strict DEC must reject unsupported parent aux_openings");
-    assert!(
-        err.to_string().contains("aux_openings"),
-        "expected aux_openings shape error, got {err}"
-    );
-}
-
-#[test]
-fn pi_dec_circuit_strict_rejects_child_aux_openings_sidecar() {
-    let (proof, _claims) = drive_nifs(26);
-
-    let parent = &proof.pi_rlc.combined;
-    let mut children = proof.pi_dec.children.clone();
-    children[0].aux_openings.push(K::ONE);
-
-    let prep = support::toy_preprocessing();
-    let mut builder = R1csBuilder::new();
-    let wires = alloc_dec_inputs(&mut builder, parent, &children);
-    let err = enforce_dec_v_strict(&mut builder, &prep.params, &wires)
-        .err()
-        .expect("strict DEC must reject unsupported child aux_openings");
-    assert!(
-        err.to_string().contains("aux_openings"),
-        "expected aux_openings shape error, got {err}"
-    );
-}
-
-#[test]
-fn pi_dec_circuit_strict_rejects_pattern_a_metadata_sidecar() {
-    let (proof, _claims) = drive_nifs(27);
-
-    let mut parent = proof.pi_rlc.combined.clone();
-    parent.c_step_coords.push(F::ONE);
-    let children = &proof.pi_dec.children;
-
-    let prep = support::toy_preprocessing();
-    let mut builder = R1csBuilder::new();
-    let wires = alloc_dec_inputs(&mut builder, &parent, children);
-    let err = enforce_dec_v_strict(&mut builder, &prep.params, &wires)
-        .err()
-        .expect("strict DEC must reject unsupported Pattern-A metadata");
-    assert!(
-        err.to_string().contains("c_step_coords"),
-        "expected c_step_coords shape error, got {err}"
-    );
-}
-
 #[test]
 fn pi_dec_circuit_strict_rejects_parent_commitment_shape_metadata_drift() {
     let (proof, _claims) = drive_nifs(28);
@@ -1147,40 +997,6 @@ fn pi_dec_circuit_strict_rejects_child_x_recomposition_mismatch() {
         "strict Π_DEC.V must reject a child X value that no longer recomposes to the parent"
     );
 }
-
-// ── SplitNc NC-channel tamper tests ──────────────────────────────────────
-
-#[test]
-fn pi_dec_circuit_strict_rejects_tampered_child_s_col() {
-    // s_col is shared between parent and all children (NC column-domain
-    // point). Strict mode adds `enforce_s_col_consistency`; tampering one
-    // lane of one child must break it.
-    let (proof, _claims) = drive_nifs(47);
-
-    let parent = &proof.pi_rlc.combined;
-    let children = &proof.pi_dec.children;
-
-    let prep = support::toy_preprocessing();
-    let mut builder = R1csBuilder::new();
-    let wires = alloc_dec_inputs(&mut builder, parent, children);
-    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict emit");
-    assert!(
-        builder.is_satisfied(),
-        "baseline (first bad row: {:?})",
-        builder.first_unsatisfied_row()
-    );
-
-    assert!(
-        !wires.children[0].s_col.is_empty(),
-        "test fixture must expose child s_col lanes"
-    );
-    let target_col = wires.children[0].s_col[0].c0.col();
-    let tampered = builder.witness()[target_col] + neo_math::F::ONE;
-    builder.tamper_witness(target_col, tampered);
-
-    assert!(!builder.is_satisfied(), "strict Π_DEC.V accepted tampered child s_col");
-}
-
 #[test]
 fn pi_dec_circuit_rejects_nonzero_inactive_child_x() {
     // `enforce_dec_v_strict` includes `enforce_inactive_x_zero`, which pins
@@ -1229,53 +1045,6 @@ fn pi_dec_circuit_rejects_nonzero_inactive_child_x() {
         "strict Π_DEC.V must reject recomposition-canceling non-zero inactive child X"
     );
 }
-
-#[test]
-fn pi_dec_circuit_does_not_constrain_child_y_zcol() {
-    // Native Π_DEC has no proved parent/child y_zcol relation. This test pins
-    // the emitted shape so an unproved equation cannot silently enter R1CS.
-    let (proof, _claims) = drive_nifs(53);
-
-    let parent = &proof.pi_rlc.combined;
-    let children = &proof.pi_dec.children;
-    let mut mutated_children = children.clone();
-    mutated_children[0].y_zcol[0] += K::ONE;
-
-    let prep = support::toy_preprocessing();
-    let mut baseline_builder = R1csBuilder::new();
-    let baseline_wires = alloc_dec_inputs(&mut baseline_builder, parent, children);
-    enforce_dec_v_strict(&mut baseline_builder, &prep.params, &baseline_wires).expect("baseline strict dec_v emit");
-    assert!(
-        baseline_builder.is_satisfied(),
-        "baseline (first bad row: {:?})",
-        baseline_builder.first_unsatisfied_row()
-    );
-    assert!(
-        baseline_wires
-            .children
-            .iter()
-            .all(|child| child.y_zcol.is_empty()),
-        "strict Π_DEC must not allocate child y_zcol"
-    );
-
-    let mut mutated_builder = R1csBuilder::new();
-    let mutated_wires = alloc_dec_inputs(&mut mutated_builder, parent, &mutated_children);
-    enforce_dec_v_strict(&mut mutated_builder, &prep.params, &mutated_wires).expect("mutated strict dec_v emit");
-    let baseline = baseline_builder.snapshot();
-    let mutated = mutated_builder.snapshot();
-    assert!(
-        baseline.has_same_relation(&mutated),
-        "native child y_zcol mutation changed the Π_DEC relation"
-    );
-    assert_eq!(
-        baseline.witness(),
-        mutated.witness(),
-        "native child y_zcol mutation leaked into the Π_DEC witness"
-    );
-}
-
-// ── helpers ───────────────────────────────────────────────────────────────
-
 fn drive_nifs(seed: u64) -> (nifs::NifsProof, Vec<neo_fold_clean::CcsInstance>) {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, seed)];
@@ -1297,10 +1066,6 @@ fn drive_nifs(seed: u64) -> (nifs::NifsProof, Vec<neo_fold_clean::CcsInstance>) 
     )
     .expect("NIFS.P");
     (proof, claims)
-}
-
-fn parent_y_zcol_columns(wires: &DecInputWires) -> BTreeSet<usize> {
-    wires.parent.y_zcol.iter().map(|var| var.col()).collect()
 }
 
 fn remap_pi_dec_commitment_for_test(audit: &mut PiDecCommitmentAudit, old_to_new: &[usize]) {
@@ -1333,12 +1098,7 @@ fn remap_pi_dec_claim_for_test(audit: &mut PiDecClaimAudit, old_to_new: &[usize]
             *col = old_to_new[*col];
         }
     }
-    for pair in audit
-        .ct_cols
-        .iter_mut()
-        .chain(&mut audit.r_cols)
-        .chain(&mut audit.s_col_cols)
-    {
+    for pair in audit.ct_cols.iter_mut().chain(&mut audit.r_cols) {
         *pair = pair.map(|col| old_to_new[col]);
     }
     audit.fold_digest_cols = audit.fold_digest_cols.map(|col| old_to_new[col]);

@@ -747,7 +747,7 @@ fn render_selective() -> String {
         "/-! Generated exact selective shifted-ternary row artifact. Do not hand-edit.\n\n\
 Owns: one final 61-coordinate opening, its 21 physical rows, and the exact\n\
 13-port/66-term polynomial read from the compiled selective structure.\n\n\
-Does not own: row semantics, Split-NC truth, or production-profile multiplicity.\n\n\
+Does not own: row semantics, PiCCS truth, or production-profile multiplicity.\n\n\
 Emits constraints: no. Rust validates the checked compiler snapshot before rendering.\n-/\n\n",
     );
     rendered.push_str("namespace Nightstream.Implementation.R1CS.ShiftedTernarySelectiveArtifact\n\n");

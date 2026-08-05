@@ -98,7 +98,7 @@ pub use finalization::FINAL_FOLD_TRANSCRIPT_LABEL;
 pub use latest::LatestInstance;
 pub use nebula_lane::{NebulaAdvance, NebulaConfig, NebulaError, NebulaLane, NebulaStepX, NebulaXError, StackShape};
 pub use proof_state::ProofState;
-pub use running::{LaneCommitmentMode, PendingProjectionState, RunningInstance, PENDING_PROJECTION_OLD_BLOCK_LEN};
+pub use running::{LaneCommitmentMode, RunningInstance};
 pub use state::State;
 pub use step_proof::{FinalFoldProof, FoldProof, StepProof, TerminalFoldInputs};
 pub use verifier_key::VerifierKey;

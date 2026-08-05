@@ -30,7 +30,7 @@ use neo_fold_clean::paper::f_prime::r1cs::{
 };
 use neo_fold_clean::paper::f_prime::source_image::FPrimeSourceImage;
 use neo_fold_clean::paper::nifs::circuit::NifsVCircuitConfig;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
@@ -64,31 +64,11 @@ fn preprocessing(circuit: &neo_fold_clean::frontends::nebula::circuit::SMemCircu
     preprocess(params, structure, Some(circuit.m_in())).expect("S_mem preprocessing")
 }
 
-fn split_nc_config(prep: &Preprocessing) -> SplitNcPiCcsVConfig<'_> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        config::MIN_EFFECTIVE_LAMBDA,
-        config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params");
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure())
-        .expect("engine dimensions");
-    let matrix_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &matrix_digest,
-    )
-    .expect("header bundle");
-    SplitNcPiCcsVConfig {
+fn pi_ccs_config(prep: &Preprocessing) -> PiCcsVerifierConfig<'_> {
+    PiCcsVerifierConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle,
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: prep.pi_ccs_header_bundle(),
     }
 }
 
@@ -181,7 +161,7 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
     let public_x_out_bits = source.push_enc_inst(expected_x_out);
     let cfg = FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(&prep),
+            pi_ccs: pi_ccs_config(&prep),
         },
         b: prep.params.b(),
         transcript_label: TRANSCRIPT_LABEL,
@@ -343,7 +323,7 @@ fn road_a_reduced_profile_fixed_point_stabilizes() {
     let plan = NebulaPlan::new(nebula_params, vec![7], [0xD8; 32], params.kappa() as usize).expect("tiny Road A plan");
 
     let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)
-        .expect("R2 requires one stabilized, selectively lowered authoritative relation");
+        .expect("the verifier requires one stabilized, selectively lowered authoritative relation");
     eprintln!(
         "Road A fixed point: {} coordinates, {} rows, {} matrices, degree {}",
         relation.structure().m,
@@ -354,16 +334,16 @@ fn road_a_reduced_profile_fixed_point_stabilizes() {
     assert_ne!(
         relation.structure().n,
         relation.structure().m,
-        "SplitNc fixed point must remain rectangular"
+        "the padded one-joint fixed point must remain rectangular"
     );
     assert_eq!(
         relation.structure().t(),
         13,
-        "the dummy NC identity matrix must be absent"
+        "the application relation must not duplicate the virtual PiCCS identity matrix"
     );
     assert!(
         !relation.structure().matrices[0].is_identity(),
-        "SplitNc checks witness norms directly and must not carry a dummy identity matrix"
+        "the first application matrix must not duplicate the virtual PiCCS identity matrix"
     );
     assert_eq!(
         (relation.structure().n, relation.structure().m),
@@ -385,7 +365,7 @@ fn r4_encoder_params() -> neo_fold_clean::Params {
         2,
         8,
     )
-    .expect("small R4 params satisfy the reduction guard");
+    .expect("small parameters satisfy the reduction guard");
     neo_fold_clean::Params::test_only_from_neo_params(inner)
 }
 

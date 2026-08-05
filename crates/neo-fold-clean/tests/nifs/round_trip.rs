@@ -56,7 +56,7 @@ fn nifs_cpu_adapter_matches_prover_contract() {
     let fresh_claims = fresh.iter().map(|i| i.claim.clone()).collect::<Vec<_>>();
     let running = RunningInstance::default();
 
-    let mut adapter = nifs::CpuNifsProver;
+    let mut adapter = nifs::OptimizedCpuNifsProver;
     let mut prover_tr = Transcript::session();
     let (next_running, proof) = nifs::prove_with_adapter(
         &mut adapter,
@@ -352,7 +352,7 @@ fn pi_ccs_verify_rejects_output_y_not_bound_to_sumcheck_terminal_value() {
     b[(0, 0)] = F::ONE;
     let mut c = Mat::zero(1, m, F::ZERO);
     c[(0, 1)] = F::ONE;
-    let r1cs = R1cs { a, b, c, m_in: 1 };
+    let r1cs = R1cs { a, b, c, m_in: D };
     let prep = direct_ccs::preprocess_seeded(&r1cs, 41).expect("preprocess nontrivial R1CS");
     let mut z = vec![F::ZERO; prep.structure().m];
     z[0] = F::ONE;

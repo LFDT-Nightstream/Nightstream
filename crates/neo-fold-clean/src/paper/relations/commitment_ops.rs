@@ -54,13 +54,13 @@ fn rot_matrix_to_rq(mat: &Mat<F>) -> Rq {
     cf_inv(coeffs)
 }
 
-// ── Nebula `adv` tuple mirrors (spec §5.2 R2) ──────────────────────────────
+// ── Nebula `adv` tuple mirrors ──────────────────────────────────────────
 //
 // The tuple is folded by the *same* public arithmetic as `c` — these
 // helpers apply the caller's mixer component-wise and own the presence
 // rule: a fold is either entirely adv-bearing or entirely not. A mixed
 // batch has no well-defined combined tuple and is rejected before any
-// arithmetic (the §5.1 all-or-nothing shape, lifted from one claim to a
+// arithmetic (the all-or-nothing shape, lifted from one claim to a
 // fold's input set).
 
 use neo_ccs::LaneCommitments;

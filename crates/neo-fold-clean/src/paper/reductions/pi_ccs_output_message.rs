@@ -15,18 +15,17 @@
 //! |---|---|---|
 //! | `nifs.pi_ccs.output_message_hashes.digest.preimage.outer_header` | outer domain and exact source count | verifier-owned constant |
 //! | `nifs.pi_ccs.output_message_hashes.digest.preimage.source_headers` | per-source domain and matrix count | verifier-owned constant |
-//! | `nifs.pi_ccs.output_message_hashes.digest.preimage.y_ring` | matrix-major active `K` vectors | accepted FE output wire |
-//! | `nifs.pi_ccs.output_message_hashes.digest.preimage.y_zcol` | active `K` vector | accepted NC output wire; source authority remains open |
+//! | `nifs.pi_ccs.output_message_hashes.digest.preimage.y_ring` | identity-first, matrix-major active `K` vectors | accepted one-joint output wire |
 
 use neo_math::ring::D;
 
-pub const OUTPUTS_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_outputs_digest/v2";
-pub const OUTPUT_MESSAGE_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_message_digest/v2";
+pub const OUTPUTS_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_outputs_digest/v3";
+pub const OUTPUT_MESSAGE_DOMAIN: &[u8] = b"neo.fold.clean/pi_ccs_output_message_digest/v3";
 
 pub const ACTIVE_F_PRIME_SOURCE_COUNT: usize = 15;
-pub const ACTIVE_F_PRIME_MATRIX_COUNT: usize = 13;
+pub const ACTIVE_F_PRIME_MATRIX_COUNT: usize = 14;
 pub const ACTIVE_F_PRIME_FIELD_COUNT: usize = 23_033;
-pub const LEGACY_THREE_MATRIX_FIELD_COUNT: usize = 6_683;
+pub const LEGACY_THREE_MATRIX_FIELD_COUNT: usize = 5_048;
 
 const K_LIMBS: usize = 2;
 const PACKED_BYTES_PER_FIELD: usize = 7;
@@ -54,16 +53,11 @@ impl KLimb {
     }
 }
 
-/// The pre-existing R1CS surface that owns one serializer input.
-///
-/// This is column provenance, not a claim that the owner has a closed
-/// semantic refinement. In particular, `YZcolOutput` retains the delayed-NC
-/// authority gap documented by the verifier.
+/// The R1CS surface that owns one serializer input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum R1csInputOwner {
     VerifierShape,
     YRingOutput,
-    YZcolOutput,
 }
 
 /// One leaf in the exact pre-SIS field order.
@@ -90,14 +84,6 @@ pub enum FieldPath {
         lane: usize,
         limb: KLimb,
     },
-    YZcolWidth {
-        source: usize,
-    },
-    YZcolLimb {
-        source: usize,
-        lane: usize,
-        limb: KLimb,
-    },
 }
 
 impl FieldPath {
@@ -107,10 +93,8 @@ impl FieldPath {
             | Self::SourceCount
             | Self::SourceDomain { .. }
             | Self::MatrixCount { .. }
-            | Self::YRingWidth { .. }
-            | Self::YZcolWidth { .. } => R1csInputOwner::VerifierShape,
+            | Self::YRingWidth { .. } => R1csInputOwner::VerifierShape,
             Self::YRingLimb { .. } => R1csInputOwner::YRingOutput,
-            Self::YZcolLimb { .. } => R1csInputOwner::YZcolOutput,
         }
     }
 }
@@ -152,7 +136,7 @@ impl Profile {
     }
 
     pub const fn source_field_count(self) -> usize {
-        OUTPUT_MESSAGE_DOMAIN_FIELD_COUNT + 1 + (self.matrix_count + 1) * self.k_vector_field_count()
+        OUTPUT_MESSAGE_DOMAIN_FIELD_COUNT + 1 + self.matrix_count * self.k_vector_field_count()
     }
 
     pub const fn field_count(self) -> usize {
@@ -193,29 +177,17 @@ impl Profile {
         let vector_width = self.k_vector_field_count();
         let vector = offset / vector_width;
         let vector_offset = offset % vector_width;
-        if vector > self.matrix_count {
+        if vector >= self.matrix_count {
             return None;
         }
 
-        if vector < self.matrix_count {
-            if vector_offset == 0 {
-                return Some(FieldPath::YRingWidth { source, matrix: vector });
-            }
-            let limb_offset = vector_offset - 1;
-            return Some(FieldPath::YRingLimb {
-                source,
-                matrix: vector,
-                lane: limb_offset / K_LIMBS,
-                limb: KLimb::from_index(limb_offset % K_LIMBS),
-            });
-        }
-
         if vector_offset == 0 {
-            Some(FieldPath::YZcolWidth { source })
+            Some(FieldPath::YRingWidth { source, matrix: vector })
         } else {
             let limb_offset = vector_offset - 1;
-            Some(FieldPath::YZcolLimb {
+            Some(FieldPath::YRingLimb {
                 source,
+                matrix: vector,
                 lane: limb_offset / K_LIMBS,
                 limb: KLimb::from_index(limb_offset % K_LIMBS),
             })

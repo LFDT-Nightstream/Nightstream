@@ -16,11 +16,11 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
 use crate::engine::r1cs_circuit::builder::{
-    BalancedTernaryDecomposition, BlockLaneNcBoundaryAudit, CanonicalU64Decomposition, CenteredUnitTrace,
-    ColumnFamilyRange, Lc, PiDecStrictAudit, PolynomialEvaluationTrace, Poseidon2HashAudit, Poseidon2PermutationTrace,
-    ProductSumBatchTrace, R1csBuilder, RowFamilyRange, ShiftedTernaryCanonicalTrace, SumcheckRoundAudit, Var,
+    BalancedTernaryDecomposition, CanonicalU64Decomposition, CenteredUnitTrace, ColumnFamilyRange, Lc,
+    PiDecStrictAudit, PolynomialEvaluationTrace, Poseidon2HashAudit, Poseidon2PermutationTrace, ProductSumBatchTrace,
+    R1csBuilder, RowFamilyRange, ShiftedTernaryCanonicalTrace, SumcheckRoundAudit, Var,
 };
-use crate::engine::r1cs_circuit::{PhysicalStageRange, PiRlcYZcolBoundaryAudit};
+use crate::engine::r1cs_circuit::PhysicalStageRange;
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::direct_ccs::R1cs;
 use crate::frontends::f_prime::image::{FPrimeImageLayout, PoseidonPreimageLaneSource};
@@ -52,11 +52,9 @@ pub struct SparseR1cs {
     product_sum_batch_traces: Vec<ProductSumBatchTrace>,
     row_family_ranges: Vec<RowFamilyRange>,
     sumcheck_round_audits: Vec<SumcheckRoundAudit>,
-    block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
     pi_dec_strict_audits: Vec<PiDecStrictAudit>,
     column_family_ranges: Vec<ColumnFamilyRange>,
     physical_stage_ranges: Vec<PhysicalStageRange>,
-    pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
 }
 
 impl SparseR1cs {
@@ -75,8 +73,6 @@ impl SparseR1cs {
             n,
             m,
             m_in,
-            Vec::new(),
-            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -118,11 +114,9 @@ impl SparseR1cs {
         product_sum_batch_traces: Vec<ProductSumBatchTrace>,
         row_family_ranges: Vec<RowFamilyRange>,
         sumcheck_round_audits: Vec<SumcheckRoundAudit>,
-        block_lane_nc_boundary_audits: Vec<BlockLaneNcBoundaryAudit>,
         pi_dec_strict_audits: Vec<PiDecStrictAudit>,
         column_family_ranges: Vec<ColumnFamilyRange>,
         physical_stage_ranges: Vec<PhysicalStageRange>,
-        pi_rlc_y_zcol_boundary_audits: Vec<PiRlcYZcolBoundaryAudit>,
     ) -> Result<Self, FrontendError> {
         let out = Self {
             a,
@@ -145,11 +139,9 @@ impl SparseR1cs {
             product_sum_batch_traces,
             row_family_ranges,
             sumcheck_round_audits,
-            block_lane_nc_boundary_audits,
             pi_dec_strict_audits,
             column_family_ranges,
             physical_stage_ranges,
-            pi_rlc_y_zcol_boundary_audits,
         };
         out.validate_shape()?;
         Ok(out)
@@ -221,12 +213,6 @@ impl SparseR1cs {
         &self.sumcheck_round_audits
     }
 
-    /// Exact generated production block-by-lane delayed-NC boundary records.
-    #[doc(hidden)]
-    pub fn block_lane_nc_boundary_audits(&self) -> &[BlockLaneNcBoundaryAudit] {
-        &self.block_lane_nc_boundary_audits
-    }
-
     /// Exact strict-PiDEC input schedules after public-column normalization.
     #[doc(hidden)]
     pub fn pi_dec_strict_audits(&self) -> &[PiDecStrictAudit] {
@@ -248,10 +234,6 @@ impl SparseR1cs {
     /// authority; consumers must validate the expected family vocabulary.
     pub fn column_family_ranges(&self) -> &[ColumnFamilyRange] {
         &self.column_family_ranges
-    }
-
-    pub(crate) fn pi_rlc_y_zcol_boundary_audits(&self) -> &[PiRlcYZcolBoundaryAudit] {
-        &self.pi_rlc_y_zcol_boundary_audits
     }
 
     pub fn validate_shape(&self) -> Result<(), FrontendError> {

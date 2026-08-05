@@ -26,10 +26,13 @@ pub struct Params {
 }
 
 impl Params {
-    /// Production SuperNeo Goldilocks preset — Appendix B.2 (`b = 2` row).
+    /// Unmodified SuperNeo Goldilocks reference preset — Appendix B.2
+    /// (`b = 2` row).
     ///
-    /// This is the audited reference preset: λ = 125, b = 2, k_rho = 14,
-    /// B = 2^14, T = 216, s = 2, kappa = 18.
+    /// This is the audited table value: λ = 125, b = 2, k_rho = 14,
+    /// B = 2^14, T = 216, s = 2, kappa = 18. Its λ is not a combined
+    /// executable security claim. Use a shape-specific constructor before
+    /// proving or verification.
     pub fn production() -> Self {
         Self {
             inner: NeoParams::goldilocks_paper_b2(),
@@ -43,25 +46,26 @@ impl Params {
     }
 
     /// Appendix B.2 Goldilocks core with shape-specific effective λ for
-    /// an R1CS-derived CCS of `n_rows` constraints.
+    /// an R1CS-derived CCS with the supplied row and column dimensions.
     ///
     /// Production policy: q, eta, d, kappa,
     /// m, b, k_rho, B, T, and s remain the Appendix B.2 values; λ is
     /// lowered only when the concrete sumcheck shape cannot satisfy the
     /// current `s = 2` extension policy at λ = 125.
-    pub fn for_r1cs_shape(n_rows: usize) -> Result<Self, neo_params::ParamsError> {
-        Self::for_r1cs_shape_with(n_rows, 96, 2)
+    pub fn for_r1cs_shape(rows: usize, columns: usize) -> Result<Self, neo_params::ParamsError> {
+        Self::for_r1cs_shape_with(rows, columns, 96, 2)
     }
 
     /// Same as [`Params::for_r1cs_shape`], with an explicit minimum
     /// effective λ and extension-policy safety margin.
     pub fn for_r1cs_shape_with(
-        n_rows: usize,
+        rows: usize,
+        columns: usize,
         min_lambda: u32,
         safety_margin: u32,
     ) -> Result<Self, neo_params::ParamsError> {
         Ok(Self {
-            inner: NeoParams::goldilocks_auto_r1cs_ccs_with(n_rows, min_lambda, safety_margin)?,
+            inner: NeoParams::goldilocks_auto_rectangular_r1cs_ccs_with(rows, columns, min_lambda, safety_margin)?,
         })
     }
 
@@ -69,25 +73,34 @@ impl Params {
     /// concrete CCS shape. `matrix_count` is SuperNeo's `t`; `poly_degree` is
     /// SuperNeo's `u`.
     pub fn for_ccs_shape_with(
-        n_rows: usize,
+        rows: usize,
+        columns: usize,
         matrix_count: usize,
         poly_degree: u32,
         min_lambda: u32,
         safety_margin: u32,
     ) -> Result<Self, neo_params::ParamsError> {
         Ok(Self {
-            inner: NeoParams::goldilocks_auto_ccs_with(n_rows, matrix_count, poly_degree, min_lambda, safety_margin)?,
+            inner: NeoParams::goldilocks_auto_rectangular_ccs_with(
+                rows,
+                columns,
+                matrix_count,
+                poly_degree,
+                min_lambda,
+                safety_margin,
+            )?,
         })
     }
 
     /// Same as [`Params::for_ccs_shape_with`], with the default effective-λ
     /// floor and safety margin used by [`Params::for_r1cs_shape`].
     pub fn for_ccs_shape(
-        n_rows: usize,
+        rows: usize,
+        columns: usize,
         matrix_count: usize,
         poly_degree: u32,
     ) -> Result<Self, neo_params::ParamsError> {
-        Self::for_ccs_shape_with(n_rows, matrix_count, poly_degree, 96, 2)
+        Self::for_ccs_shape_with(rows, columns, matrix_count, poly_degree, 96, 2)
     }
 
     /// Test/probe escape hatch for wrapping a caller-built [`NeoParams`].
@@ -173,28 +186,34 @@ impl Params {
         self.inner.lambda
     }
 
-    /// Validate these selected parameters against an actual CCS shape using
-    /// SuperNeo D.4's full matrix-count and degree-aware soundness factor.
+    /// Validate these selected parameters against the actual rectangular CCS
+    /// shape and the combined field/fork statistical census.
     pub fn validate_ccs_shape(
         &self,
-        shape_size: usize,
+        rows: usize,
+        columns: usize,
         matrix_count: usize,
         poly_degree: u32,
-    ) -> Result<neo_params::ExtensionSummary, neo_params::ParamsError> {
-        self.inner
-            .extension_check_ccs_shape(shape_size, matrix_count, poly_degree)
+    ) -> Result<neo_params::PaddedRowSecuritySummary, neo_params::ParamsError> {
+        self.inner.padded_row_security_check_for_shape(
+            rows,
+            columns,
+            matrix_count,
+            poly_degree,
+            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )
     }
 
-    /// Exact SuperNeo D.4 Π_CCS soundness numerator for this shape. The
-    /// corresponding interactive error is `factor / |K|`.
-    pub fn ccs_soundness_factor(
+    /// Exact field-space numerator for the one-joint padded-row shape.
+    pub fn ccs_padded_row_field_factor(
         &self,
-        shape_size: usize,
+        rows: usize,
+        columns: usize,
         matrix_count: usize,
         poly_degree: u32,
     ) -> Result<u128, neo_params::ParamsError> {
         self.inner
-            .pi_ccs_soundness_factor_for_shape(shape_size, matrix_count, poly_degree)
+            .pi_ccs_padded_row_field_factor_for_shape(rows, columns, matrix_count, poly_degree)
     }
 
     /// True exactly for the SuperNeo Appendix B.2 Goldilocks production preset.

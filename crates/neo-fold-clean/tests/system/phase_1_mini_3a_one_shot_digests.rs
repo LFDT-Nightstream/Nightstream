@@ -30,7 +30,7 @@ use neo_fold_clean::paper::f_prime::poseidon_trace::{
 use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::relations::CcsClaim;
 use neo_fold_clean::CeClaim;
-use neo_math::{F, K};
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 // ── Test-local helpers ───────────────────────────────────────────────────
@@ -342,13 +342,6 @@ fn phase_1_mini_3a_live_accumulator_handle_binds_exact_ordered_children() {
     assert_child_mutation_changes!("fold_digest", |claim: &mut CeClaim| {
         claim.fold_digest[0] ^= 0xA5;
     });
-    let mut sidecar_only = fixture.running_claims.clone();
-    sidecar_only[0].y_zcol[0] += K::ONE;
-    assert_eq!(
-        AccumulatorHandle::from_running_parts(&sidecar_only, Some(&fixture.parent_authority)).digest(),
-        baseline,
-        "paper-level exact-child handle must not disguise the open y_zcol source relation as solved"
-    );
     assert_ne!(
         AccumulatorHandle::from_running_parts(&fixture.running_claims[1..], Some(&fixture.parent_authority)).digest(),
         baseline,
@@ -357,8 +350,5 @@ fn phase_1_mini_3a_live_accumulator_handle_binds_exact_ordered_children() {
 
     assert_parent_mutation_does_not_rehash!("c.data", |claim: &mut CeClaim| {
         claim.c.data[0] += F::ONE;
-    });
-    assert_parent_mutation_does_not_rehash!("y_zcol", |claim: &mut CeClaim| {
-        claim.y_zcol[0] += K::ONE;
     });
 }

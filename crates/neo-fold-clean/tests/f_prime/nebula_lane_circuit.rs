@@ -1,5 +1,5 @@
-//! Nebula lane-transition gadgets — parity against the native §6.3
-//! transition and its `paper::digest` material (spec §13 step 9).
+//! Nebula lane-transition gadgets — parity against the native transition and
+//! its `paper::digest` material.
 //!
 //! The native side (`NebulaLane` + `digest::nebula_*`) is called
 //! directly, never inlined: the in-circuit mirrors must produce
@@ -404,7 +404,7 @@ fn base_lane_wires_are_pinned_to_the_verifier_owned_constant() {
     assert!(!builder.is_satisfied(), "base lane D_mem must be verifier-pinned");
 }
 
-// ── The §6.3 transition, mirrored end to end ─────────────────────────────
+// ── The lane transition, mirrored end to end ─────────────────────────────
 
 /// Walk one honest N = 2 segment natively and in-circuit side by side:
 /// advance (mid-segment), then advance + close. Every carried coordinate

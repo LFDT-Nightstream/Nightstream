@@ -64,8 +64,6 @@ pub fn make_small_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
         x_active_cols: 0,
         r_len: 0,
         y_ring_inner_lens: vec![],
-        y_zcol_len: 0,
-        s_col_len: 0,
     };
 
     let probe_plan = RecursiveStepImagePlan {
@@ -234,7 +232,6 @@ pub fn make_tiny_stateful_lifecycle_plan_with_anchor(
     // blocks. Under the tiny test params this converges to a slightly
     // larger fixed point than the stateless tiny lifecycle shape.
     shape.r_len = 13;
-    shape.s_col_len = 19;
     let state_x_out = plan
         .state_x_out
         .as_mut()
@@ -284,21 +281,27 @@ pub fn make_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan
     const TINY_C_DATA_ENTRIES: usize = 216;
     // child_count = K_RHO = 14 (matches production; not params-dependent).
     const TINY_CHILD_COUNT: u64 = 14;
-    // r_len tracks the row domain, while s_col_len tracks the column
-    // domain under the larger (216-entry) NIFS payload region. These
-    // are the converged values after one iteration of the probe.
+    // r_len tracks the padded joint row domain under the larger
+    // (216-entry) NIFS payload region.
     const TINY_R_LEN: usize = 13;
-    const TINY_S_COL_LEN: usize = 18;
 
+    make_lifecycle_plan(m, m_in, TINY_C_DATA_ENTRIES, TINY_CHILD_COUNT, TINY_R_LEN)
+}
+
+fn make_lifecycle_plan(
+    m: usize,
+    m_in: usize,
+    c_data_entries: usize,
+    child_count: u64,
+    r_len: usize,
+) -> RecursiveStepImagePlan {
     let limbs = app_private_bits_for(m) + 1;
     let ce_shape = NifsCeClaimShape {
-        c_data_entries: TINY_C_DATA_ENTRIES,
+        c_data_entries,
         x_rows: 54,
         x_active_cols: 5,
-        r_len: TINY_R_LEN,
+        r_len,
         y_ring_inner_lens: vec![64; 8],
-        y_zcol_len: 64,
-        s_col_len: TINY_S_COL_LEN,
     };
     let probe_plan = RecursiveStepImagePlan {
         limbs,
@@ -317,8 +320,8 @@ pub fn make_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan
         nifs_payload_shapes: vec![NifsPayloadShape::CeClaim(ce_shape)],
         accumulator: Some(AccumulatorPlanOptions {
             ce_claim_payload_index: 0,
-            c_data_entries: TINY_C_DATA_ENTRIES,
-            child_count: TINY_CHILD_COUNT,
+            c_data_entries,
+            child_count,
             unified: true,
         }),
         state_x_out: None,

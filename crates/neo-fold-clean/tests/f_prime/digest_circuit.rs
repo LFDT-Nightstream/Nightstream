@@ -585,7 +585,7 @@ fn state_x_out_circuit_rejects_tampered_pi_ccs_header() {
     builder.tamper_witness(header_wires[0].col(), tampered);
     assert!(
         !builder.is_satisfied(),
-        "the carried Split-NC header must be state-hash authority"
+        "the carried PiCCS header must be state-hash authority"
     );
 }
 

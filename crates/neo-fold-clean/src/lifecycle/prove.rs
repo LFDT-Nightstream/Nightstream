@@ -60,7 +60,7 @@ pub fn extend(
 
 /// Extend a Nebula chain with the step that **opens a segment**: `d_pre`
 /// is the prover's claimed per-lane chain digests over the segment's
-/// forthcoming lane-commitment leaves (spec §6.2, L0b — computed by the
+/// forthcoming lane-commitment leaves, computed by the
 /// segment prover's precommit pass). γ is squeezed inside the lane
 /// transition; the payload rides `StepProof.nebula_open` so the verifier
 /// replays the identical open. Mid-segment continuation steps use plain
@@ -279,9 +279,9 @@ fn extend_in_place_inner_with_nifs_prover(
     let public_batch: Vec<CcsClaim> = batch.iter().map(|i| i.claim.clone()).collect();
     super::validate_public_input_len(prep, &public_batch)?;
     let current_state = audit.proof.state.clone();
-    // Nebula lane transition (spec §6.3): the prover runs the same shared
+    // The prover runs the same shared Nebula lane transition
     // decode-and-advance the verifiers replay, so a malformed segment
-    // fails here — at the named §6.3 check — instead of at verification.
+    // fails here at the named transition check instead of at verification.
     let nebula_advance = if prep.enforces_terminal_induction() {
         delayed_nebula_advance(prep, &current_state, nebula_open)?
     } else {

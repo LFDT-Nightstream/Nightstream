@@ -14,28 +14,15 @@ use neo_math::{F, K};
 use neo_reductions::api as nr;
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRho};
-use neo_reductions::optimized_engine::legacy_split_nc::{
-    optimized_defer_prove_with_device_backends_and_transcript_mode,
-    optimized_defer_prove_with_phase_backend_and_transcript_mode,
-    optimized_prove_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
-    optimized_prove_with_phase_backend_and_transcript_mode,
-    optimized_verify_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf,
-    BackendTranscriptMode, BlockLaneNcPending, FeSumcheckBackend, NcSumcheckBackend, PiCcsDeferredProof,
-    PiCcsPhaseBackend,
-};
 use neo_reductions::optimized_engine::{
     optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
     optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
-    PiCcsProofVariant, PiDecProverPrecompute,
+    PiDecProverPrecompute,
 };
-use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
-use crate::paper::construction2::running::{uses_pending_accumulator_family, RunningInstanceError};
+use crate::paper::construction2::running::RunningInstanceError;
 use crate::paper::construction2::RunningInstance;
-use crate::paper::digest::{
-    pi_ccs_instance_digest_from_parent_digest, pi_ccs_instance_digest_parent_authority, AccumulatorHandle,
-};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
 
@@ -54,34 +41,11 @@ pub enum Error {
     PiDecFailed,
     #[error("engine.optimized: \u{03A0}_DEC public checks failed at prove time (y={ok_y}, X={ok_x}, c={ok_c})")]
     PiDecPublicCheckFailed { ok_y: bool, ok_x: bool, ok_c: bool },
-    #[error("engine.optimized: running accumulator is missing its \u{03A0}_RLC parent authority")]
-    MissingParentAuthority,
-    #[error("engine.optimized: empty running accumulator unexpectedly carries a parent authority")]
-    UnexpectedParentAuthority,
-    #[error("engine.optimized: delayed projection state is only valid for the production fixed-point profile")]
-    UnexpectedPendingProjection,
     #[error(transparent)]
     Running(#[from] RunningInstanceError),
 }
 
-fn uses_production_block_lane(structure: &Structure) -> bool {
-    uses_pending_accumulator_family(structure)
-}
-
-/// Π_CCS (§7.3) prove — wrapper over the optimized engine's
-/// instance-digest-bound entry.
-///
-/// **Why instance-digest binding**: without it, `nr::prove` and `nr::verify`
-/// can produce different transcript states for non-trivial polynomial CCS
-/// shapes (anything beyond the empty-`f` toy fixture) and Π_RLC's verifier
-/// rejects. Binding a public-instance digest into both prover and verifier
-/// transcripts keeps them in lockstep.
-///
-/// **Soundness boundary**: the digest is *recomputed by both sides* from
-/// `(fresh_claims, running_claims)` via [`pi_ccs_instance_digest`]. It is
-/// never carried prover→verifier on the wire — that would let the prover
-/// pick a digest that hides their input. Both sides hash the same
-/// authoritative public data and compare transcript states implicitly.
+/// Π_CCS (§7.3) prove through the selected one-joint transcript.
 pub fn prove_pi_ccs<L>(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
@@ -111,27 +75,17 @@ pub fn prove_pi_ccs_parts<L>(
 where
     L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
 {
-    let parent_authority = running_parent_authority(running)?;
-    let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
-    let (outputs, proof, perf, pi_dec_precompute) = if uses_production_block_lane(s) {
-        optimized_prove_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf(
-            tr,
-            pp.inner(),
-            s,
-            fresh_claims,
-            fresh_witnesses,
-            &running.claims,
-            &running.witnesses,
-            instance_digest,
-            compute_running_block_lane_accumulator_handle(running, s)?,
-            engine_pending_projection(running),
-            log,
-            cache,
-        )?
+    let instance_digest = crate::paper::digest::pi_ccs_instance_digest_parent_authority(
+        fresh_claims,
+        running.claims.len(),
+        running.parent_authority.as_ref(),
+    );
+    let accumulator_handle = if running.claims.is_empty() {
+        crate::paper::digest::AccumulatorHandle::empty().digest_fields()
     } else {
-        if running.pending_projection().is_some() {
-            return Err(Error::UnexpectedPendingProjection);
-        }
+        crate::paper::digest::accumulator_claims_digest(&running.claims)
+    };
+    let (outputs, proof, perf, pi_dec_precompute) =
         optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
             tr,
             pp.inner(),
@@ -141,18 +95,16 @@ where
             &running.claims,
             &running.witnesses,
             instance_digest,
-            compute_running_accumulator_handle(running)?,
+            accumulator_handle,
             log,
             cache,
-        )?
-    };
+        )?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[pi-ccs/prove] bind={:.2}ms sample={:.2}ms fe={:.2}ms nc={:.2}ms outputs={:.2}ms total={:.2}ms inputs=fresh:{}+running:{} outputs:{}",
+        "[pi-ccs/prove] bind={:.2}ms sample={:.2}ms sumcheck={:.2}ms outputs={:.2}ms total={:.2}ms inputs=fresh:{}+running:{} outputs:{}",
         perf.bind_ms,
         perf.sample_challenges_ms,
-        perf.fe_sumcheck_ms,
-        perf.nc_sumcheck_ms,
+        perf.sumcheck_ms,
         perf.output_materialize_ms,
         perf.total_ms,
         fresh_claims.len(),
@@ -164,251 +116,13 @@ where
     Ok((outputs, proof, pi_dec_precompute))
 }
 
-/// [`prove_pi_ccs_parts`] with optional device sumcheck backends threaded
-/// through to the engine. `(None, None)` is exactly the CPU path.
-#[allow(clippy::too_many_arguments)]
-pub fn prove_pi_ccs_parts_with_backends<L>(
-    tr: &mut neo_transcript::Poseidon2Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    fresh_claims: &[CcsClaim],
-    fresh_witnesses: &[CcsWitness],
-    running: &RunningInstance,
-    log: &L,
-    fe_backend: Option<&mut dyn FeSumcheckBackend>,
-    nc_backend: Option<&mut dyn NcSumcheckBackend>,
-) -> Result<(Vec<CeClaim>, nr::PiCcsProof), Error>
-where
-    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
-{
-    prove_pi_ccs_parts_with_backends_and_transcript_mode(
-        tr,
-        pp,
-        s,
-        cache,
-        fresh_claims,
-        fresh_witnesses,
-        running,
-        log,
-        fe_backend,
-        nc_backend,
-        BackendTranscriptMode::Replay,
-        None,
-        None,
-    )
-}
-
-/// [`prove_pi_ccs_parts_with_backends`] with explicit control over whether
-/// device transcript segments are replayed into the host transcript online.
-#[allow(clippy::too_many_arguments)]
-pub fn prove_pi_ccs_parts_with_backends_and_transcript_mode<L>(
-    tr: &mut neo_transcript::Poseidon2Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    fresh_claims: &[CcsClaim],
-    fresh_witnesses: &[CcsWitness],
-    running: &RunningInstance,
-    log: &L,
-    fe_backend: Option<&mut dyn FeSumcheckBackend>,
-    nc_backend: Option<&mut dyn NcSumcheckBackend>,
-    transcript_mode: BackendTranscriptMode,
-    running_parent_digest: Option<[F; 4]>,
-    running_accumulator_handle: Option<[F; 4]>,
-) -> Result<(Vec<CeClaim>, nr::PiCcsProof), Error>
-where
-    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
-{
-    prove_pi_ccs_parts_with_phase_backend_and_transcript_mode(
-        tr,
-        pp,
-        s,
-        cache,
-        fresh_claims,
-        fresh_witnesses,
-        running,
-        log,
-        None,
-        fe_backend,
-        nc_backend,
-        transcript_mode,
-        running_parent_digest,
-        running_accumulator_handle,
-    )
-}
-
-/// Whole-phase-capable Π_CCS wrapper. The paper layer still owns shape and
-/// digest binding; `phase_backend`, when provided, owns only device scheduling
-/// for the FE+NC transcript chain.
-#[allow(clippy::too_many_arguments)]
-pub fn prove_pi_ccs_parts_with_phase_backend_and_transcript_mode<L>(
-    tr: &mut neo_transcript::Poseidon2Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    fresh_claims: &[CcsClaim],
-    fresh_witnesses: &[CcsWitness],
-    running: &RunningInstance,
-    log: &L,
-    phase_backend: Option<&mut dyn PiCcsPhaseBackend>,
-    fe_backend: Option<&mut dyn FeSumcheckBackend>,
-    nc_backend: Option<&mut dyn NcSumcheckBackend>,
-    transcript_mode: BackendTranscriptMode,
-    running_parent_digest: Option<[F; 4]>,
-    running_accumulator_handle: Option<[F; 4]>,
-) -> Result<(Vec<CeClaim>, nr::PiCcsProof), Error>
-where
-    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
-{
-    // Validate inputs and compute the instance digest BEFORE moving `fresh`
-    // into engine arrays — both sides hash the same public claims.
-    let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
-    // Accumulator-handle ME-input binding: bind the exact ordered Π_DEC child
-    // vector. The separately checked Π_RLC parent remains in the instance
-    // digest as a recomposition cache.
-    let me_handle = match running_accumulator_handle {
-        Some(handle) => handle,
-        None => compute_running_accumulator_handle(running)?,
-    };
-
-    let (outputs, proof, _perf) = optimized_prove_with_phase_backend_and_transcript_mode(
-        tr,
-        pp.inner(),
-        s,
-        fresh_claims,
-        fresh_witnesses,
-        &running.claims,
-        &running.witnesses,
-        instance_digest,
-        me_handle,
-        log,
-        cache,
-        phase_backend,
-        fe_backend,
-        nc_backend,
-        transcript_mode,
-    )?;
-    Ok((outputs, proof))
-}
-
-/// Pi_CCS terminal-state first path.
-///
-/// This keeps `neo-reductions` as the protocol owner while allowing a CUDA
-/// phase backend to hold proof-round logs until the caller actually exports
-/// proof bytes.
-#[allow(clippy::too_many_arguments)]
-pub fn defer_pi_ccs_parts_with_phase_backend_and_transcript_mode<L>(
-    tr: &mut neo_transcript::Poseidon2Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    fresh_claims: &[CcsClaim],
-    fresh_witnesses: &[CcsWitness],
-    running: &RunningInstance,
-    log: &L,
-    phase_backend: &mut dyn PiCcsPhaseBackend,
-    transcript_mode: BackendTranscriptMode,
-    running_parent_digest: Option<[F; 4]>,
-    running_accumulator_handle: Option<[F; 4]>,
-) -> Result<PiCcsDeferredProof, Error>
-where
-    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
-{
-    let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
-    let me_handle = match running_accumulator_handle {
-        Some(handle) => handle,
-        None => compute_running_accumulator_handle(running)?,
-    };
-
-    Ok(optimized_defer_prove_with_phase_backend_and_transcript_mode(
-        tr,
-        pp.inner(),
-        s,
-        fresh_claims,
-        fresh_witnesses,
-        &running.claims,
-        &running.witnesses,
-        instance_digest,
-        me_handle,
-        log,
-        cache,
-        phase_backend,
-        transcript_mode,
-    )?)
-}
-
-/// Pi_CCS terminal-state first path for the default device row/NC backends.
-///
-/// This is the row-trace execution-grain companion to
-/// [`defer_pi_ccs_parts_with_phase_backend_and_transcript_mode`]: FE row
-/// proof logs remain backend-owned, while the protocol terminal state is
-/// available for Π_RLC immediately.
-#[allow(clippy::too_many_arguments)]
-pub fn defer_pi_ccs_parts_with_device_backends_and_transcript_mode<L>(
-    tr: &mut neo_transcript::Poseidon2Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    fresh_claims: &[CcsClaim],
-    fresh_witnesses: &[CcsWitness],
-    running: &RunningInstance,
-    log: &L,
-    fe_backend: &mut dyn FeSumcheckBackend,
-    nc_backend: Option<&mut dyn NcSumcheckBackend>,
-    transcript_mode: BackendTranscriptMode,
-    running_parent_digest: Option<[F; 4]>,
-    running_accumulator_handle: Option<[F; 4]>,
-) -> Result<PiCcsDeferredProof, Error>
-where
-    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
-{
-    let instance_digest = prover_instance_digest(fresh_claims, running, running_parent_digest)?;
-    let me_handle = match running_accumulator_handle {
-        Some(handle) => handle,
-        None => compute_running_accumulator_handle(running)?,
-    };
-
-    Ok(optimized_defer_prove_with_device_backends_and_transcript_mode(
-        tr,
-        pp.inner(),
-        s,
-        fresh_claims,
-        fresh_witnesses,
-        &running.claims,
-        &running.witnesses,
-        instance_digest,
-        me_handle,
-        log,
-        cache,
-        fe_backend,
-        nc_backend,
-        transcript_mode,
-    )?)
-}
-
-fn prover_instance_digest(
-    fresh_claims: &[CcsClaim],
-    running: &RunningInstance,
-    running_parent_digest: Option<[F; 4]>,
-) -> Result<[F; 4], Error> {
-    let parent_authority = running_parent_authority(running)?;
-    Ok(match running_parent_digest {
-        Some(digest) => pi_ccs_instance_digest_from_parent_digest(fresh_claims, running.claims.len(), Some(digest)),
-        None => pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority),
-    })
-}
-
 /// Π_CCS (§7.3) verify — mirror of [`prove_pi_ccs`] using the optimized
 /// engine's instance-digest-bound verify entry.
 ///
 /// Recomputes `instance_digest` from `(fresh_claims, running_claims)` —
 /// the verifier never trusts a prover-supplied digest.
 ///
-/// **Transcript symmetry**: `PaperRectangularV1` verification performs the
-/// final transcript squeeze and checks its digest inside `neo-reductions`.
-/// The explicit legacy block/lane verifier does not, so this wrapper performs
-/// that squeeze only for the legacy proof variant.
+/// The selected verifier replays the complete PaddedRowIdentity transcript.
 pub fn verify_pi_ccs(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
@@ -419,72 +133,43 @@ pub fn verify_pi_ccs(
     fold_outputs: &[CeClaim],
     proof: &nr::PiCcsProof,
 ) -> Result<bool, Error> {
-    use neo_transcript::Transcript as _;
-    let parent_authority = running_parent_authority(running)?;
-    let instance_digest = pi_ccs_instance_digest_parent_authority(fresh_claims, running.claims.len(), parent_authority);
-    let (ok, perf) = if uses_production_block_lane(s) {
-        optimized_verify_block_lane_delayed_with_cache_and_instance_digest_and_me_input_handle_and_perf(
-            tr,
-            pp.inner(),
-            s,
-            fresh_claims,
-            &running.claims,
-            fold_outputs,
-            proof,
-            cache,
-            instance_digest,
-            compute_running_block_lane_accumulator_handle(running, s)?,
-            engine_pending_projection(running),
-        )?
+    let instance_digest = crate::paper::digest::pi_ccs_instance_digest_parent_authority(
+        fresh_claims,
+        running.claims.len(),
+        running.parent_authority.as_ref(),
+    );
+    let accumulator_handle = if running.claims.is_empty() {
+        crate::paper::digest::AccumulatorHandle::empty().digest_fields()
     } else {
-        if running.pending_projection().is_some() {
-            return Err(Error::UnexpectedPendingProjection);
-        }
-        optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
-            tr,
-            pp.inner(),
-            s,
-            fresh_claims,
-            &running.claims,
-            fold_outputs,
-            proof,
-            cache,
-            instance_digest,
-            compute_running_accumulator_handle(running)?,
-        )?
+        crate::paper::digest::accumulator_claims_digest(&running.claims)
     };
+    let (ok, perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+        tr,
+        pp.inner(),
+        s,
+        fresh_claims,
+        &running.claims,
+        fold_outputs,
+        proof,
+        cache,
+        instance_digest,
+        accumulator_handle,
+    )?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[pi-ccs/verify] bind={:.2}ms header={:.2}ms me={:.2}ms sample={:.2}ms fe={:.2}ms nc={:.2}ms outputs={:.2}ms terminal={:.2}ms total={:.2}ms",
+        "[pi-ccs/verify] bind={:.2}ms header={:.2}ms me={:.2}ms sample={:.2}ms sumcheck={:.2}ms outputs={:.2}ms terminal={:.2}ms total={:.2}ms",
         perf.bind_ms,
         perf.bind_header_instances_ms,
         perf.bind_me_inputs_ms,
         perf.bind_sample_challenges_ms,
-        perf.fe_sumcheck_ms,
-        perf.nc_sumcheck_ms,
+        perf.sumcheck_ms,
         perf.output_checks_ms,
         perf.terminal_ms,
         perf.total_ms,
     );
     #[cfg(not(feature = "perf-timers"))]
     let _ = perf;
-    if !ok {
-        return Ok(false);
-    }
-    if proof.variant != PiCcsProofVariant::PaperRectangularV1 {
-        // Catch up the explicit legacy verifier to its prover transcript.
-        let observed = tr.digest32();
-        if proof.header_digest.as_slice() != observed {
-            return Ok(false);
-        }
-        for output in fold_outputs {
-            if output.fold_digest != observed {
-                return Ok(false);
-            }
-        }
-    }
-    let _ = FoldingMode::Optimized; // keep the explicit folding-mode dependency visible
-    Ok(true)
+    Ok(ok)
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -501,50 +186,6 @@ fn split_fresh_for_engine(fresh: Vec<CcsInstance>) -> (Vec<CcsClaim>, Vec<CcsWit
         witnesses.push(instance.witness);
     }
     (claims, witnesses)
-}
-
-// `carry.witnesses` is a `Vec<WitnessMat>` already; there is no separate
-// `carry_witnesses(...)` helper because the field accessor is the helper.
-
-fn running_parent_authority(running: &RunningInstance) -> Result<Option<&CeClaim>, Error> {
-    if running.claims.is_empty() {
-        if running.parent_authority.is_some() {
-            return Err(Error::UnexpectedParentAuthority);
-        }
-        Ok(None)
-    } else {
-        running
-            .parent_authority
-            .as_ref()
-            .map(Some)
-            .ok_or(Error::MissingParentAuthority)
-    }
-}
-
-fn compute_running_accumulator_handle(running: &RunningInstance) -> Result<[F; 4], Error> {
-    let handle = match running_parent_authority(running)? {
-        Some(parent) => AccumulatorHandle::from_running_parts(&running.claims, Some(parent)),
-        None => AccumulatorHandle::empty(),
-    };
-    Ok(handle.digest_fields())
-}
-
-fn engine_pending_projection(running: &RunningInstance) -> Option<BlockLaneNcPending> {
-    running
-        .pending_projection()
-        .map(|pending| BlockLaneNcPending {
-            old_block: *pending.old_block(),
-            parent_y: *pending.parent_y_zcol(),
-        })
-}
-
-fn compute_running_block_lane_accumulator_handle(
-    running: &RunningInstance,
-    structure: &Structure,
-) -> Result<[F; 4], Error> {
-    Ok(crate::paper::digest::digest32_as_fields(
-        running.accumulator_digest(structure)?,
-    ))
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -579,7 +220,6 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
-        crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t()),
         rhos,
         me_inputs,
         witnesses,
@@ -604,7 +244,6 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
-        crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t()),
         rhos,
         me_inputs,
         witnesses,
@@ -631,7 +270,6 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
-        crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t()),
         rhos,
         me_inputs,
         witnesses,
@@ -659,7 +297,6 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
-        crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t()),
         rhos,
         me_inputs,
         witnesses,
@@ -689,7 +326,6 @@ where
     let (ok, perf) = nr::rlc_public_matches_verified_inputs_with_perf(
         s,
         pp.inner(),
-        crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t()),
         rhos,
         me_inputs,
         expected,
@@ -698,12 +334,10 @@ where
     )?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[pi-rlc/verify] rho={:.2}ms X={:.2}ms y={:.2}ms y_zcol={:.2}ms aux={:.2}ms commit={:.2}ms total={:.2}ms inputs={}",
+        "[pi-rlc/verify] rho={:.2}ms X={:.2}ms y={:.2}ms commit={:.2}ms total={:.2}ms inputs={}",
         perf.rho_mats_ms + perf.rho_k_lift_ms,
         perf.x_ms,
         perf.y_ms,
-        perf.y_zcol_ms,
-        perf.aux_ms,
         perf.commitment_ms,
         perf.total_ms,
         me_inputs.len(),
@@ -746,7 +380,6 @@ where
     #[cfg(feature = "perf-timers")]
     let t_split = std::time::Instant::now();
     let (z_split, digit_nonzero) = split_b_matrix_k_with_nonzero_flags(parent_witness, k, pp.b())?;
-    let precomputed_y_zcol = precompute_pi_dec_y_zcol(s, parent, &z_split, &digit_nonzero)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-dec] split_b                         {:>7.2}s",
@@ -791,7 +424,6 @@ where
         FoldingMode::Optimized,
         s,
         pp.inner(),
-        crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t()),
         parent,
         &z_split,
         &digit_nonzero,
@@ -801,7 +433,6 @@ where
         cache.superneo(),
         None,
         None,
-        precomputed_y_zcol.as_deref(),
     );
     #[cfg(feature = "perf-timers")]
     eprintln!(
@@ -843,12 +474,10 @@ where
             "Pi_DEC prover precompute must belong to the parent claim's row point"
         );
     }
-    let precomputed_y_zcol = precompute_pi_dec_y_zcol(s, parent, &z_split, &digit_nonzero)?;
     let (children, ok_y, ok_x, ok_c) = nr::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
         FoldingMode::Optimized,
         s,
         pp.inner(),
-        crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t()),
         parent,
         &z_split,
         &digit_nonzero,
@@ -858,7 +487,6 @@ where
         cache.superneo(),
         None,
         Some(precomputed_y_ring),
-        precomputed_y_zcol.as_deref(),
     );
     if children.is_empty() {
         return Err(Error::PiDecFailed);
@@ -869,60 +497,11 @@ where
     Ok((children, z_split))
 }
 
-fn precompute_pi_dec_y_zcol(
-    s: &Structure,
-    parent: &CeClaim,
-    z_split: &[Mat<F>],
-    digit_nonzero: &[bool],
-) -> Result<Option<Vec<[K; neo_math::D]>>, Error> {
-    if parent.s_col.is_empty() || !uses_production_block_lane(s) {
-        return Ok(None);
-    }
-    let active_witnesses = z_split
-        .iter()
-        .zip(digit_nonzero)
-        .filter_map(|(witness, &nonzero)| nonzero.then_some(witness))
-        .collect::<Vec<_>>();
-    let block_point: &[K; neo_reductions::block_projection::BLOCK_PROJECTION_POINT_LEN] =
-        parent.s_col.as_slice().try_into().map_err(|_| {
-            neo_reductions::error::PiCcsError::InvalidInput(format!(
-                "Π_DEC production block point has {} coordinates, expected {}",
-                parent.s_col.len(),
-                neo_reductions::block_projection::BLOCK_PROJECTION_POINT_LEN,
-            ))
-        })?;
-    let active_rows =
-        neo_reductions::block_projection::project_raw_witness_refs_at_block_point(&active_witnesses, s.m, block_point)?;
-    let mut active_rows = active_rows.into_iter();
-    let rows: Vec<[K; neo_math::D]> = digit_nonzero
-        .iter()
-        .map(|&nonzero| {
-            if nonzero {
-                active_rows
-                    .next()
-                    .expect("Π_DEC active block-projection rows must match nonzero digit planes")
-            } else {
-                [K::ZERO; neo_math::D]
-            }
-        })
-        .collect();
-    debug_assert!(active_rows.next().is_none());
-    Ok(Some(rows))
-}
-
 /// Π_DEC verify. Computes the canonical public-X split from the parent, then
 /// re-derives parent commitments and y-evaluations from the children.
 pub fn verify_pi_dec<MB>(pp: &Params, s: &Structure, parent: &CeClaim, children: &[CeClaim], combine_b_pows: MB) -> bool
 where
     MB: Fn(&[Commitment], u32) -> Commitment,
 {
-    nr::verify_dec_public(
-        s,
-        pp.inner(),
-        crate::paper::construction2::running::split_nc_column_point_len(s.n, s.m, s.t()),
-        parent,
-        children,
-        combine_b_pows,
-        ell_d(),
-    )
+    nr::verify_dec_public(s, pp.inner(), parent, children, combine_b_pows, ell_d())
 }

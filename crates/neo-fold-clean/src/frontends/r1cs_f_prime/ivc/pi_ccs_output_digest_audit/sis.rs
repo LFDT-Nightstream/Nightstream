@@ -10,7 +10,7 @@
 //! Emits constraints: no.
 //!
 //! Authority boundary: typed field paths classify existing columns. They do
-//! not make `y_ring` or `y_zcol` authoritative. Seeded outputs are recovered
+//! not make `y_ring` authoritative. Seeded outputs are recovered
 //! from B/C rows rather than trusted from a side trace.
 //!
 //! | Leaf | Mathematical/physical obligation |

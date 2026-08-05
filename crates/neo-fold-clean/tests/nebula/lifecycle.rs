@@ -1,9 +1,9 @@
-//! Nebula through the lifecycle — spec §6 end to end (M2b): a chain with
-//! a `NebulaConfig` runs the §6.3 transition on every extend, carries the
+//! Nebula through the lifecycle: a chain with a `NebulaConfig` runs the
+//! lane transition on every extend, carries the
 //! lane through `x_out`, closes its segment, survives finalization, and
 //! is accepted by the audit verifier — which replays the identical
-//! transition and discharges the terminal slice-openings (R3) and the
-//! finalization rule. This is the M3 segment prover's flow in miniature.
+//! transition, checks the terminal slice openings, and applies the
+//! finalization rule.
 
 use neo_ajtai::Commitment;
 use neo_ccs::LaneCommitments;
@@ -23,9 +23,9 @@ use p3_field::PrimeCharacteristicRing;
 #[path = "../support/mod.rs"]
 mod support;
 
-/// Steps per segment (spec `N`) for this fixture.
+/// Steps per segment for this fixture.
 const N: u64 = 2;
-/// `x = [1 ‖ 1,400 bits]` (spec §4.4).
+/// `x = [1 ‖ 1,400 bits]`.
 const M_IN: usize = 1401;
 /// x occupies ring columns `[0, 26)` (`26·54 = 1404 ≥ 1401`); the three
 /// lanes follow on whole columns (L-ALIGN).
@@ -64,7 +64,7 @@ fn lane_bits(step: u64) -> Vec<F> {
         .collect()
 }
 
-/// Phase 1 of the two-pass discipline (spec §1): the lane commitments and
+/// Phase 1 of the two-pass discipline: the lane commitments and
 /// their `D_pre` chains, before any x (hence any γ) exists. Only the lane
 /// columns matter to `LaneScheme::commit`, so a zero-x assignment yields
 /// the same tuples the real instances will carry.
@@ -136,7 +136,7 @@ fn step_instance(prep: &Preprocessing, gamma: [K; 2], step: u64, adv: &LaneCommi
 }
 
 /// γ exactly as `open_segment` will squeeze it at the chain's first
-/// extend — the segment prover's pre-derivation (spec §6.2).
+/// extend. This is the segment prover's pre-derivation.
 fn derive_gamma(prep: &Preprocessing, audit: &UncompressedAudit, d_pre: [[F; 4]; 3]) -> [K; 2] {
     let state = &audit.proof.state;
     let mut lane = state.nebula.clone().expect("nebula chain carries a lane");
@@ -171,15 +171,15 @@ fn honest_chain() -> (Preprocessing, UncompressedAudit) {
 }
 
 /// The full loop: honest segment proves, finalizes, and verifies —
-/// including the audit replay of every §6.3 transition, the finalization
-/// rule, and the terminal lane slice-openings (R3).
+/// including the audit replay of every lane transition, the finalization
+/// rule, and the terminal lane slice openings.
 #[test]
 fn nebula_chain_proves_and_verifies_end_to_end() {
     let (prep, audit) = honest_chain();
     verify_uncompressed_audit(&prep, &audit).expect("audit verification");
 }
 
-/// Finalization rule (spec §6.3): a chain that stops mid-segment is
+/// A chain that stops mid-segment is
 /// prover resume material, never an externally accepted proof.
 #[test]
 fn mid_segment_terminal_state_is_rejected() {
@@ -195,7 +195,7 @@ fn mid_segment_terminal_state_is_rejected() {
     ));
 }
 
-/// The prover-side transition fails at the named §6.3 check: folding a
+/// The prover-side transition fails at the named lane-transition check: folding a
 /// step before any segment opened.
 #[test]
 fn extend_before_open_is_rejected() {
@@ -215,10 +215,10 @@ fn extend_rejects_wrong_gamma_in_x() {
     let mut gamma = derive_gamma(&prep, &audit, d_pre);
     gamma[0] += K::ONE;
     let result = extend_nebula_open(&prep, audit, vec![step_instance(&prep, gamma, 0, &advs[0])], d_pre);
-    assert!(result.is_err(), "γ mismatch must fail the §6.3 equality");
+    assert!(result.is_err(), "γ mismatch must fail the lane equality");
 }
 
-/// Terminal R3: a lane-bit flip in a final folded witness fails the
+/// A lane-bit flip in a final folded witness fails the terminal
 /// slice-opening even though every digest was recomputed consistently.
 #[test]
 fn tampered_terminal_witness_fails_slice_opening() {

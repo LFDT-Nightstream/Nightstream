@@ -17,30 +17,20 @@
 //! | repeated `output_message_hashes.digest.preimage.source_headers` stages | source count | at least one marker |
 //! | primary seeded Phi81 block between SIS and claim stages | serialized field count | exactly two ordered blocks in the interval |
 //! | canonical output-message layout | matrix count | exactly one profile produces that field count |
-//! | typed `y_zcol` source columns and PiRLC input evaluators | cross-phase consumer binding | all 1,620 columns equal coordinate-for-coordinate |
 //! | retained Poseidon2 trace | final envelope schedule | 64 inputs, 16 absorbs, one pad, 17 matched permutations |
 
 mod envelope;
 mod hash;
-mod projection;
 mod sis;
 
 pub use envelope::PiCcsOutputEnvelopePrefixAudit;
-pub use projection::{
-    PiCcsOutputYZcolProducerEntryAudit, PiCcsOutputYZcolProjectionAudit, PiCcsOutputYZcolProjectionInputAudit,
-    PiRlcYZcolKMulAudit, PiRlcYZcolLinearCombinationAudit, PiRlcYZcolPolynomialEvaluationAudit,
-    PiRlcYZcolProductFactorAudit, PiRlcYZcolProductIdentityAudit, PiRlcYZcolProjectionIdentityAudit,
-    PiRlcYZcolProjectionLeafRowMappingAudit, PiRlcYZcolProjectionLimbAudit, PiRlcYZcolProjectionLoweredFragmentAudit,
-    PiRlcYZcolProjectionLoweringDisposition, PiRlcYZcolProjectionProfileAudit, PiRlcYZcolProjectionRowAudit,
-    PiRlcYZcolProjectionRowMappingAudit, PiRlcYZcolProjectionSharedAudit,
-};
 pub use sis::{CanonicalOpeningAudit, CanonicalOpeningPlacement, PiCcsOutputSisPhysicalAudit, SeededPhi81BlockAudit};
 
 use crate::engine::r1cs_circuit::builder::{Poseidon2HashAudit, BALANCED_TERNARY_DIGITS};
 use crate::engine::r1cs_circuit::PhysicalStageRange;
 use crate::frontends::r1cs_f_prime::{SelectiveRowMappingAudit, SparseR1cs};
+use crate::paper::reductions::pi_ccs_circuit::stage;
 use crate::paper::reductions::pi_ccs_output_message::Profile;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::stage;
 
 use super::R1csIvcError;
 
@@ -71,7 +61,6 @@ impl PiCcsOutputDigestProfileAudit {
 pub struct PiCcsOutputDigestAudit {
     profile: PiCcsOutputDigestProfileAudit,
     sis: PiCcsOutputSisPhysicalAudit,
-    y_zcol_projection: PiCcsOutputYZcolProjectionAudit,
     envelope_prefix: PiCcsOutputEnvelopePrefixAudit,
     hash: Poseidon2HashAudit,
 }
@@ -83,10 +72,6 @@ impl PiCcsOutputDigestAudit {
 
     pub fn sis(&self) -> &PiCcsOutputSisPhysicalAudit {
         &self.sis
-    }
-
-    pub fn y_zcol_projection(&self) -> &PiCcsOutputYZcolProjectionAudit {
-        &self.y_zcol_projection
     }
 
     pub fn envelope_prefix(&self) -> &PiCcsOutputEnvelopePrefixAudit {
@@ -188,7 +173,7 @@ pub(super) fn recover(
         primary,
         compression,
     )?;
-    let y_zcol_projection = projection::recover(arm, Profile::new(source_count, matrix_count), &sis, rows, arm_index)?;
+    let _ = (rows, arm_index);
     let hash = hash::recover(arm, sis_start, claim_start)?;
     let envelope_prefix = envelope::recover(
         arm,
@@ -200,7 +185,6 @@ pub(super) fn recover(
     Ok(PiCcsOutputDigestAudit {
         profile,
         sis,
-        y_zcol_projection,
         envelope_prefix,
         hash,
     })

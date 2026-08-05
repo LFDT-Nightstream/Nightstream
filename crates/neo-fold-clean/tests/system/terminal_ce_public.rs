@@ -27,14 +27,14 @@ fn k(c0: u64, c1: u64) -> K {
 }
 
 fn changed_terminal_ce_structure_fixture() -> neo_fold_clean::Structure {
-    let mut m0 = Mat::zero(1, 1, F::ZERO);
+    let mut m0 = Mat::identity(D);
     m0[(0, 0)] = f(2);
     CcsStructure::new(vec![m0], SparsePoly::new(1, vec![])).expect("changed terminal CE structure fixture")
 }
 
 fn changed_terminal_ce_polynomial_fixture() -> neo_fold_clean::Structure {
     CcsStructure::new(
-        vec![Mat::identity(1)],
+        vec![Mat::identity(D)],
         SparsePoly::new(
             1,
             vec![Term {
@@ -58,25 +58,22 @@ fn two_col_terminal_ce_preprocessing() -> Preprocessing {
 }
 
 fn terminal_child_fixture() -> CeClaim {
-    let mut X = Mat::zero(D, 1, F::ZERO);
+    let mut X = Mat::zero(D, D, F::ZERO);
     for row in 0..D {
         X[(row, 0)] = f(100 + row as u64);
     }
     let kappa = Params::production().kappa() as usize;
     let d_pad = D.next_power_of_two();
-    let mut y0 = (0..d_pad)
-        .map(|idx| k(11 + idx as u64 * 2, 12 + idx as u64 * 2))
-        .collect::<Vec<_>>();
-    for lane in D..d_pad {
-        y0[lane] = K::ZERO;
-    }
-    let mut y_zcol = (0..d_pad)
-        .map(|idx| k(211 + idx as u64 * 2, 212 + idx as u64 * 2))
-        .collect::<Vec<_>>();
-    for lane in D..d_pad {
-        y_zcol[lane] = K::ZERO;
-    }
-
+    let padded_row = |start: u64| {
+        let mut row = (0..d_pad)
+            .map(|idx| k(start + idx as u64 * 2, start + 1 + idx as u64 * 2))
+            .collect::<Vec<_>>();
+        row[D..].fill(K::ZERO);
+        row
+    };
+    let y0 = padded_row(11);
+    let y1 = padded_row(151);
+    let point_len = D.next_power_of_two().trailing_zeros() as usize;
     CeClaim {
         adv: None,
         c: Commitment {
@@ -85,27 +82,18 @@ fn terminal_child_fixture() -> CeClaim {
             data: (0..(D * kappa)).map(|idx| f(10 + idx as u64)).collect(),
         },
         X,
-        r: vec![k(1, 2)],
-        s_col: vec![k(5, 6)],
-        y_ring: vec![y0.clone()],
-        ct: vec![y0[0]],
-        aux_openings: vec![k(19, 20)],
-        y_zcol,
-        m_in: 1,
+        r: (0..point_len)
+            .map(|index| k(1 + 2 * index as u64, 2 + 2 * index as u64))
+            .collect(),
+        y_ring: vec![y0.clone(), y1.clone()],
+        ct: vec![y0[0], y1[0]],
+        m_in: D,
         fold_digest: [42u8; 32],
-        c_step_coords: vec![f(25)],
-        u_offset: 3,
-        u_len: 4,
     }
 }
 
 fn supported_terminal_child_fixture() -> CeClaim {
-    let mut claim = terminal_child_fixture();
-    claim.aux_openings.clear();
-    claim.c_step_coords.clear();
-    claim.u_offset = 0;
-    claim.u_len = 0;
-    claim
+    terminal_child_fixture()
 }
 
 fn second_supported_terminal_child_fixture() -> CeClaim {
@@ -113,10 +101,8 @@ fn second_supported_terminal_child_fixture() -> CeClaim {
     claim.c.data[0] += F::from_u64(7);
     claim.X[(0, 0)] += F::from_u64(11);
     claim.r[0] += k(13, 14);
-    claim.s_col[0] += k(15, 16);
     claim.y_ring[0][0] += k(17, 18);
     claim.ct[0] = claim.y_ring[0][0];
-    claim.y_zcol[0] += k(21, 22);
     claim.fold_digest[0] ^= 0x55;
     claim
 }
@@ -160,14 +146,6 @@ fn terminal_children_digest_binds_every_terminal_child_public_field() {
     cases.push(("r c1 limb", claim));
 
     let mut claim = base_claim.clone();
-    claim.s_col[0] += K::ONE;
-    cases.push(("s_col", claim));
-
-    let mut claim = base_claim.clone();
-    claim.s_col[0] += k(0, 1);
-    cases.push(("s_col c1 limb", claim));
-
-    let mut claim = base_claim.clone();
     claim.y_ring[0][0] += K::ONE;
     cases.push(("y_ring", claim));
 
@@ -184,36 +162,12 @@ fn terminal_children_digest_binds_every_terminal_child_public_field() {
     cases.push(("ct c1 limb", claim));
 
     let mut claim = base_claim.clone();
-    claim.y_zcol[0] += K::ONE;
-    cases.push(("y_zcol", claim));
-
-    let mut claim = base_claim.clone();
-    claim.y_zcol[0] += k(0, 1);
-    cases.push(("y_zcol c1 limb", claim));
-
-    let mut claim = base_claim.clone();
-    claim.aux_openings[0] += K::ONE;
-    cases.push(("aux_openings", claim));
-
-    let mut claim = base_claim.clone();
     claim.m_in += 1;
     cases.push(("m_in", claim));
 
     let mut claim = base_claim.clone();
     claim.fold_digest[0] ^= 1;
     cases.push(("fold_digest", claim));
-
-    let mut claim = base_claim.clone();
-    claim.c_step_coords[0] += F::ONE;
-    cases.push(("c_step_coords", claim));
-
-    let mut claim = base_claim.clone();
-    claim.u_offset += 1;
-    cases.push(("u_offset", claim));
-
-    let mut claim = base_claim.clone();
-    claim.u_len += 1;
-    cases.push(("u_len", claim));
 
     for (label, claim) in cases {
         let digest = terminal_children_digest(&[claim]);
@@ -332,42 +286,6 @@ fn terminal_ce_public_digest_binds_every_public_statement_field() {
 }
 
 #[test]
-fn terminal_ce_public_rejects_unsupported_sidecars_before_digesting() {
-    let prep = support::toy_preprocessing();
-    let params = &prep.params;
-    let structure = prep.structure();
-
-    let cases = [
-        ("aux_openings", {
-            let mut claim = supported_terminal_child_fixture();
-            claim.aux_openings.push(k(1, 2));
-            claim
-        }),
-        ("c_step_coords", {
-            let mut claim = supported_terminal_child_fixture();
-            claim.c_step_coords.push(F::ONE);
-            claim
-        }),
-        ("u_offset", {
-            let mut claim = supported_terminal_child_fixture();
-            claim.u_offset = 1;
-            claim
-        }),
-        ("u_len", {
-            let mut claim = supported_terminal_child_fixture();
-            claim.u_len = 1;
-            claim
-        }),
-    ];
-
-    for (field, claim) in cases {
-        let err = TerminalCePublic::from_terminal_children(params, structure, &[claim])
-            .expect_err("unsupported terminal sidecar must not become compact-proof public authority");
-        assert_eq!(err, TerminalCePublicError::UnsupportedSidecar { index: 0, field });
-    }
-}
-
-#[test]
 fn terminal_ce_public_rejects_locally_malformed_ce_shapes() {
     let prep = support::toy_preprocessing();
     let params = &prep.params;
@@ -424,8 +342,8 @@ fn terminal_ce_public_rejects_locally_malformed_ce_shapes() {
         TerminalCePublic::from_terminal_children(params, structure, &[bad_ct]).unwrap_err(),
         TerminalCePublicError::CtLen {
             index: 0,
-            expected: 1,
-            got: 0
+            expected: 2,
+            got: 1
         }
     );
 
@@ -448,19 +366,8 @@ fn terminal_ce_public_rejects_locally_malformed_ce_shapes() {
         TerminalCePublic::from_terminal_children(params, structure, &[bad_r]).unwrap_err(),
         TerminalCePublicError::RLen {
             index: 0,
-            expected: 1,
-            got: 0,
-        }
-    );
-
-    let mut bad_s_col = supported_terminal_child_fixture();
-    bad_s_col.s_col.pop();
-    assert_eq!(
-        TerminalCePublic::from_terminal_children(params, structure, &[bad_s_col]).unwrap_err(),
-        TerminalCePublicError::SColLen {
-            index: 0,
-            expected: 1,
-            got: 0,
+            expected: 6,
+            got: 5,
         }
     );
 
@@ -473,19 +380,8 @@ fn terminal_ce_public_rejects_locally_malformed_ce_shapes() {
         TerminalCePublic::from_terminal_children(params, structure, &[bad_y_ring_count]).unwrap_err(),
         TerminalCePublicError::YRingCount {
             index: 0,
-            expected: 1,
-            got: 2,
-        }
-    );
-
-    let mut bad_y_zcol = supported_terminal_child_fixture();
-    bad_y_zcol.y_zcol.pop();
-    assert_eq!(
-        TerminalCePublic::from_terminal_children(params, structure, &[bad_y_zcol]).unwrap_err(),
-        TerminalCePublicError::YZcolLen {
-            index: 0,
-            expected: D.next_power_of_two(),
-            got: D.next_power_of_two() - 1
+            expected: 2,
+            got: 3,
         }
     );
 }
@@ -519,20 +415,6 @@ fn terminal_ce_public_rejects_denormalized_ct_and_y_ring_padding() {
 }
 
 #[test]
-fn terminal_ce_public_rejects_nonzero_y_zcol_padding() {
-    let prep = support::toy_preprocessing();
-    let params = &prep.params;
-    let structure = prep.structure();
-
-    let mut bad_padding = supported_terminal_child_fixture();
-    bad_padding.y_zcol[D] = K::ONE;
-    assert_eq!(
-        TerminalCePublic::from_terminal_children(params, structure, &[bad_padding]).unwrap_err(),
-        TerminalCePublicError::YZcolPaddingNonZero { index: 0, lane: D }
-    );
-}
-
-#[test]
 fn terminal_ce_public_rejects_malformed_active_x_shape() {
     let prep = support::toy_preprocessing();
     let params = &prep.params;
@@ -560,7 +442,7 @@ fn terminal_ce_public_rejects_malformed_active_x_shape() {
         TerminalCePublicError::XCols {
             index: 0,
             expected: D + 1,
-            got: 1
+            got: D
         }
     );
 }
@@ -607,20 +489,10 @@ fn terminal_ce_public_circuit_rejects_locally_malformed_ce_shapes() {
             claim.r.pop();
             claim
         }),
-        ("s_col length", {
-            let mut claim = supported_terminal_child_fixture();
-            claim.s_col.pop();
-            claim
-        }),
         ("y_ring length", {
             let mut claim = supported_terminal_child_fixture();
             claim.y_ring.push(claim.y_ring[0].clone());
             claim.ct.push(claim.y_ring[1][0]);
-            claim
-        }),
-        ("y_zcol lanes", {
-            let mut claim = supported_terminal_child_fixture();
-            claim.y_zcol.pop();
             claim
         }),
     ];
@@ -656,20 +528,6 @@ fn terminal_ce_public_circuit_rejects_denormalized_ct_and_y_ring_padding() {
     assert!(
         !padding_output.builder.is_satisfied(),
         "terminal CE public circuit accepted nonzero y_ring padding"
-    );
-}
-
-#[test]
-fn terminal_ce_public_circuit_rejects_nonzero_y_zcol_padding() {
-    let prep = support::toy_preprocessing();
-
-    let mut bad_padding = supported_terminal_child_fixture();
-    bad_padding.y_zcol[D] = K::ONE;
-    let output = enforce_terminal_ce_public_from_children_against(&prep, &[bad_padding])
-        .expect("same-shape y_zcol padding mismatch should synthesize zero rows");
-    assert!(
-        !output.builder.is_satisfied(),
-        "terminal CE public circuit accepted nonzero y_zcol padding"
     );
 }
 
@@ -763,10 +621,8 @@ fn terminal_ce_public_circuit_constructor_matches_native_after_same_shape_c1_rel
 
     let mut relabeled_child = honest_child;
     relabeled_child.r[0] += k(0, 1);
-    relabeled_child.s_col[0] += k(0, 2);
     relabeled_child.y_ring[0][0] += k(0, 3);
     relabeled_child.ct[0] = relabeled_child.y_ring[0][0];
-    relabeled_child.y_zcol[0] += k(0, 4);
 
     let native = TerminalCePublic::from_terminal_children(params, structure, &[relabeled_child.clone()])
         .expect("same-shape c1 relabel remains a supported terminal public statement");
@@ -830,14 +686,10 @@ fn terminal_ce_public_pinned_constructor_rejects_terminal_child_wire_tamper() {
         ("active X", output.probes.x),
         ("r", output.probes.r_c0),
         ("r c1", output.probes.r_c1),
-        ("s_col", output.probes.s_col_c0),
-        ("s_col c1", output.probes.s_col_c1),
         ("y_ring", output.probes.y_ring_limb),
         ("y_ring c1", output.probes.y_ring_c1),
         ("ct", output.probes.ct_c0),
         ("ct c1", output.probes.ct_c1),
-        ("y_zcol", output.probes.y_zcol_limb),
-        ("y_zcol c1", output.probes.y_zcol_c1),
         ("fold_digest", output.probes.fold_digest_field),
     ];
     for (label, col) in cases {
@@ -1007,10 +859,8 @@ fn terminal_ce_circuit_verifier_rejects_proof_for_same_shape_c1_limb_relabel() {
 
     let mut relabeled_child = child;
     relabeled_child.r[0] += k(0, 1);
-    relabeled_child.s_col[0] += k(0, 2);
     relabeled_child.y_ring[0][0] += k(0, 3);
     relabeled_child.ct[0] = relabeled_child.y_ring[0][0];
-    relabeled_child.y_zcol[0] += k(0, 4);
 
     let (builder, result) = enforce_terminal_ce_verify_from_children_against(&prep, &[relabeled_child], &proof);
     let err = result.expect_err("unsupported verifier still fails closed");

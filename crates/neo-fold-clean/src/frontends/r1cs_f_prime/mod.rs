@@ -19,9 +19,11 @@ pub mod instance;
 pub mod ivc;
 pub mod lean_manifest;
 pub mod lean_native_ccs_manifest;
+pub mod lean_nebula_combined_manifest;
 pub mod lifecycle;
 pub mod lowering;
 pub mod native_ccs;
+pub mod nebula_combined_ccs;
 mod selective;
 mod selective_audit;
 mod selective_census;
@@ -42,6 +44,7 @@ pub use full_relation::{
 };
 pub use instance::build_instance;
 pub use lean_native_ccs_manifest::LeanNativeCcsManifest;
+pub use lean_nebula_combined_manifest::{LeanNebulaCombinedManifest, NebulaCombinedEmission};
 pub use lifecycle::{prove_encoded_steps, R1csChainBuilder};
 pub use lowering::{
     build_fixed_shape_low_norm_r1cs, build_fixed_shape_low_norm_r1cs_with_shared_private_prefix,
@@ -50,6 +53,7 @@ pub use lowering::{
     LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs,
 };
 pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
+pub use nebula_combined_ccs::{LeanNebulaCombinedError, LeanNebulaCombinedPreprocessing};
 pub(crate) use selective::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
     audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix,
@@ -89,7 +93,8 @@ pub use selective_selector_coverage::{
 };
 pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
 pub use terminal_r1cs::{
-    finish_with_spartan, verify_spartan, TerminalR1csError, TerminalSpartanProof, TerminalSpartanStatement,
+    compile_combined_terminal_r1cs, compile_combined_terminal_r1cs_statement, finish_with_spartan, verify_spartan,
+    TerminalR1csError, TerminalSpartanProof, TerminalSpartanStatement,
 };
 
 use std::sync::Arc;

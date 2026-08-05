@@ -1,10 +1,10 @@
-//! `NebulaLane` — the commitment-carrying memory state inside F′
-//! (spec §6, the CC-IVC realization of Nebula Construction 2).
+//! `NebulaLane` — the commitment-carrying memory state inside F′ and the
+//! CC-IVC realization of Nebula Construction 2.
 //!
-//! Owns: the carried lane struct, its §6.3 per-step transition
+//! Owns: the carried lane struct, its per-step transition
 //! (`open_segment` / `advance` / `advance_for_batch` with every guard,
-//! close check, and reset), the §6.2 γ transcript, the §4.4 x contract
-//! (`NebulaStepX` and its verifier-side decode), and the §6.3
+//! close check, and reset), the segment γ transcript, the public-input contract
+//! (`NebulaStepX` and its verifier-side decode), and the
 //! finalization predicate. One typed error per check so every rejection
 //! test lands on the specific assert it targets.
 //!
@@ -13,9 +13,8 @@
 //! owner mirrors this module's field order), lane commitments
 //! (`relations/lanes.rs`), or the absorb formulas (`paper/digest.rs`).
 //!
-//! Enforcement status (spec §6.3): these transitions run natively in the
-//! lifecycle today — the same trust path as NIFS transcript checks — and
-//! transfer verbatim to the F′ R1CS when it lands (spec §13 step 9).
+//! These transitions run natively in the lifecycle and have a matching F′ R1CS
+//! implementation.
 
 use neo_ajtai::Commitment;
 use neo_ccs::LaneCommitments;
@@ -30,7 +29,7 @@ use crate::paper::relations::LaneScheme;
 
 /// Order of the four running products wherever `[K; 4]` appears in the
 /// Nebula protocol: `h[0] = h_rs`, `h[1] = h_ws`, `h[2] = h_is`,
-/// `h[3] = h_fs` (spec §4.4 x layout order).
+/// `h[3] = h_fs` in public-input layout order.
 pub const H_RS: usize = 0;
 /// See [`H_RS`].
 pub const H_WS: usize = 1;
@@ -39,27 +38,27 @@ pub const H_IS: usize = 2;
 /// See [`H_RS`].
 pub const H_FS: usize = 3;
 
-/// Label of the per-segment γ transcript (spec §6.2).
+/// Label of the per-segment γ transcript.
 pub const NEBULA_GAMMA_TRANSCRIPT_LABEL: &[u8] = b"neo.fold.clean/nebula/gamma/v3";
 
-/// Width of the segment-counter slot in `x` (spec §4.4).
+/// Width of the segment-counter slot in `x`.
 pub const SEG_IDX_BITS: usize = 16;
-/// Width of the step-counter slot in `x` (spec §4.4).
+/// Width of the step-counter slot in `x`.
 pub const STEP_IDX_BITS: usize = 16;
-/// Timestamp width (spec §2).
+/// Timestamp width.
 pub const TS_BITS: usize = 44;
 /// Bits per `K` coefficient (canonical Goldilocks limb).
 pub const K_LIMB_BITS: usize = 64;
 /// Bits per `K` element (two limbs: real, then imaginary).
 pub const K_BITS: usize = 2 * K_LIMB_BITS;
-/// Bits of the stack-less step public input (spec §4.4, `= 1,400`); the
-/// full width is [`StackShape::x_bits`].
+/// Bits of the stack-less step public input (`1,400`). The full width is
+/// [`StackShape::x_bits`].
 pub const X_BASE_BITS: usize = SEG_IDX_BITS + STEP_IDX_BITS + 2 * TS_BITS + 2 * K_BITS + 8 * K_BITS;
-/// Maximum stacks per plan (spec §2, v3.1). Fixed-size `sp` arrays are
+/// Maximum stacks per plan. Fixed-size `sp` arrays are
 /// sized by this; unused entries stay 0 everywhere.
 pub const MAX_STACKS: usize = 2;
 
-/// Stack geometry of a plan (spec §2, v3.1): how many segment-local
+/// Stack geometry of a plan: how many segment-local
 /// stacks and the σ-bit stack-pointer width. [`Self::NONE`] is the v3
 /// shape. The step-x width derives from this, so it rides
 /// [`NebulaConfig`] to every verifier-side decode.
@@ -75,14 +74,14 @@ impl StackShape {
     /// The v3 shape: no stacks, 1,400-bit x.
     pub const NONE: Self = Self { count: 0, sigma: 0 };
 
-    /// Bits of the step public input (spec §4.4): the 1,400 v3 slots
+    /// Bits of the step public input: the 1,400 base slots
     /// plus `sp_in`/`sp_out` per stack, appended.
     pub const fn x_bits(&self) -> usize {
         X_BASE_BITS + 2 * self.count * self.sigma
     }
 }
 
-/// The decoded `S_mem` step public input (spec §4.4). The canonical
+/// The decoded `S_mem` step public input. The canonical
 /// struct and the **verifier-side decode** live here because the F′
 /// transition consumes them; the prover-side bit *encode* lives with the
 /// layout owner (`frontends/nebula/layout.rs`), which re-exports this
@@ -142,8 +141,8 @@ impl NebulaStepX {
     /// Decode a claim's full public input `x = [1 ‖ bits]` (length
     /// `1 + stacks.x_bits()`, the `S_mem` `m_in` prefix), validating the
     /// leading constant and every slot's bitness. Little-endian multi-bit
-    /// fields, spec §3's encoding contract; the plan's [`StackShape`]
-    /// fixes the trailing `sp` slots (spec §4.4, v3.1).
+    /// fields under the canonical encoding; the plan's [`StackShape`]
+    /// fixes the trailing `sp` slots.
     pub fn decode_claim_x(x: &[F], stacks: StackShape) -> Result<Self, NebulaXError> {
         if x.len() != 1 + stacks.x_bits() {
             return Err(NebulaXError::Length {
@@ -289,36 +288,36 @@ impl BitReader<'_> {
 /// verify}` — the same shape-parameter pattern as `SemanticStateAdvance`.
 #[derive(Clone, Debug)]
 pub struct NebulaAdvance {
-    /// The lane after advancing over the deposited batch (spec §6.3);
+    /// The lane after advancing over the deposited batch;
     /// installed on the next `State` and bound by `x_out`.
     pub lane_out: NebulaLane,
     /// The segment-open `D_pre` claim, present exactly when this step
-    /// opened a segment (L0b); recorded on `StepProof.nebula_open` so the
+    /// opened a segment; recorded on `StepProof.nebula_open` so the
     /// verifier replays the same open.
     pub open: Option<[[F; 4]; 3]>,
 }
 
 /// Plan-derived constants the transition needs — set once on
-/// `Preprocessing` (spec §11 binds them through `plan_digest`).
+/// `Preprocessing`; `plan_digest` binds them.
 #[derive(Clone, Debug)]
 pub struct NebulaConfig {
-    /// The lane-commitment context (spec §5.1); also threaded to Π_DEC.
+    /// The lane-commitment context, also threaded to Π_DEC.
     pub scheme: LaneScheme,
-    /// `N` — steps per segment under exact cover (spec §2).
+    /// `N` — steps per segment under exact cover.
     pub steps_per_segment: u64,
     /// Maximum number of closed segments accepted under this plan.
     pub seg_max: u64,
-    /// Stack geometry (spec §2, v3.1); fixes the x decode width and the
+    /// Stack geometry; fixes the public-input decode width and the
     /// `sp` carry. [`StackShape::NONE`] for stack-less plans.
     pub stacks: StackShape,
-    /// Poseidon2 digest of the canonical plan serialization (spec §11).
+    /// Poseidon2 digest of the canonical plan serialization.
     pub plan_digest: [F; 4],
     /// The verifier's ROM handle: mem-domain chain over the initial
-    /// memory's lane commitments (spec §7), γ-independent.
+    /// memory's lane commitments, independent of γ.
     pub d_init: [F; 4],
 }
 
-/// One §6.3 check, one variant — rejection tests target these by name.
+/// One lane-transition check per variant; rejection tests target these by name.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum NebulaError {
     #[error("nebula: open_segment requires idx == 0 and no open γ (segment already open or mid-segment)")]
@@ -354,7 +353,7 @@ pub enum NebulaError {
     BoundaryMismatch,
 }
 
-/// The constant-size carried memory state (spec §6.1). Rides
+/// The constant-size carried memory state. Rides
 /// `State.nebula`; its [`Self::digest`] is absorbed into `state_x_out`
 /// and the F′ step transcript every step.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -370,10 +369,10 @@ pub struct NebulaLane {
     /// Running `(h_rs, h_ws, h_is, h_fs)` (order: [`H_RS`]).
     pub h: [K; 4],
     /// Running stack pointers (v3.1); `0` at every segment boundary —
-    /// stacks are segment-local (spec §3.1). Unused stacks stay 0.
+    /// stacks are segment-local. Unused stacks stay 0.
     pub sp: [u64; MAX_STACKS],
     /// Per-lane pre-committed chain digests (ops, is, fs), claimed at
-    /// open (L0b) and given authority retroactively by the close check.
+    /// open and given authority retroactively by the close check.
     pub d_pre: [[F; 4]; 3],
     /// Per-lane running chains over the folded claims' leaves.
     pub d_seen: [[F; 4]; 3],
@@ -397,7 +396,7 @@ const LINK_TAGS: [&[u8]; 3] = [
 ];
 
 impl NebulaLane {
-    /// Chain start (spec §6.3 `base`): counters and timestamp at zero,
+    /// Chain start: counters and timestamp at zero,
     /// products at `1_K`, chains at headers, memory bound to the plan's
     /// `D_init`.
     pub fn base(cfg: &NebulaConfig) -> Self {
@@ -414,10 +413,10 @@ impl NebulaLane {
         }
     }
 
-    /// Segment open (spec §6.3 `open_segment` + §6.2 γ transcript).
+    /// Segment open and its γ transcript.
     ///
     /// `d_pre` is the prover's **claim** about the segment's forthcoming
-    /// lane-leaf chains (L0b) — its authority is retroactive via the
+    /// lane-leaf chains; its authority is retroactive via the
     /// close equality. γ is squeezed from a fresh Poseidon2 transcript
     /// seeded by the F′ carried state at open (`vk_fs`, `z_i`,
     /// `acc_digest`, this lane) and absorbing the plan digest, the
@@ -463,7 +462,7 @@ impl NebulaLane {
         Ok(())
     }
 
-    /// Per-step transition (spec §6.3 `advance_nebula`), run for each
+    /// Per-step transition, run for each
     /// deposited claim in order — both sides compute it identically.
     /// Closes the segment (three equalities, `D_mem` handoff, reset
     /// without `ts`) when the step is the segment's `N`-th.
@@ -522,11 +521,11 @@ impl NebulaLane {
         Ok(())
     }
 
-    /// Segment close (spec §6.3): the three equalities, the boundary
+    /// Segment close: the three equalities, the boundary
     /// handoff, and the reset that never touches `ts`. The `sp == 0`
     /// check is the deterministic companion to the product equation,
     /// which already rejects an unpopped push w.h.p. (segment-local
-    /// stack discipline, spec §3.1).
+    /// stack discipline).
     fn close(&mut self, _cfg: &NebulaConfig) -> Result<(), NebulaError> {
         if self.sp != [0; MAX_STACKS] {
             return Err(NebulaError::StackNotEmptyAtClose);
@@ -550,21 +549,21 @@ impl NebulaLane {
         Ok(())
     }
 
-    /// Finalization rule (spec §6.3): an externally accepted proof must
-    /// end at a closed segment — `idx == 0`, `γ == ⊥`, chains at
+    /// An externally accepted proof must end at a closed segment: `idx == 0`,
+    /// `γ == ⊥`, and chains at
     /// headers. A trailing open segment has folded op rows whose product
     /// equation and `D_seen == D_pre` binding were never checked.
     pub fn is_closed(&self) -> bool {
         self.idx == 0 && self.gamma.is_none() && self.d_pre == chain_headers() && self.d_seen == chain_headers()
     }
 
-    /// Advance over one deposited batch — the shared prove/verify
-    /// transition (spec §6.3): an optional segment open (L0b payload)
-    /// followed by one advance per deposited claim, in order. Both sides
+    /// Advance over one deposited batch through the shared prove/verify
+    /// transition: an optional segment open followed by one advance per
+    /// deposited claim, in order. Both sides
     /// call exactly this, so a divergence is impossible by construction.
     ///
     /// `vk_digest`, `z_i`, and `acc_digest` are the F′ carried state at
-    /// this step's input — the §6.2 γ-transcript seed when the batch
+    /// this step's input — the γ-transcript seed when the batch
     /// opens a segment.
     pub fn advance_for_batch(
         &mut self,
@@ -618,7 +617,7 @@ impl NebulaLane {
     }
 
     /// The compact handle absorbed into `state_x_out` and the F′ step
-    /// transcript (spec §6.1 "constant size").
+    /// transcript in constant space.
     pub fn digest(&self) -> [F; 4] {
         digest::nebula_lane_digest(
             self.seg_idx,

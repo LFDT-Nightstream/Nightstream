@@ -182,17 +182,6 @@ fn terminal_ce_native_success_and_each_authority_rejection_are_live() {
         Err(Error::FinalAccumulatorCtMismatch { index: 0, .. })
     ));
 
-    let mut bad_sidecar = running.clone();
-    bad_sidecar.claims[0].u_offset = 1;
-    assert!(matches!(
-        neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &bad_sidecar),
-        Err(Error::FinalAccumulatorUnsupportedSidecar {
-            index: 0,
-            field: "u_offset",
-            ..
-        })
-    ));
-
     let mut disconnected_child = finished.clone();
     let ProofState::Active { running, .. } = &mut disconnected_child.state.proof else {
         unreachable!("finished fixture is active")

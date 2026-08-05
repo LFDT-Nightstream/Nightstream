@@ -24,16 +24,10 @@ fn zero_eval_claim(z: &Mat<F>, X: Mat<F>, m_in: usize, r: Vec<K>) -> CeClaim<Vec
         c: TransparentLog.commit(z),
         X,
         r,
-        s_col: vec![],
         y_ring: vec![vec![K::ZERO; D]],
         ct: vec![K::ZERO],
-        aux_openings: vec![],
-        y_zcol: vec![],
         m_in,
         fold_digest: [0; 32],
-        c_step_coords: vec![],
-        u_offset: 0,
-        u_len: 0,
         adv: None,
     }
 }
@@ -150,13 +144,16 @@ fn exported_ce_checker_matches_production_single_row_domain() {
     let structure = zero_structure(1, D);
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("shape-specific params");
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(params.inner(), &structure)
+    let dims = neo_reductions::engines::pi_ccs_joint::build_joint_dims(params.inner(), &structure, 1, 0)
         .expect("production dimension policy");
-    assert_eq!(dims.ell_n, 1, "production fixes the row domain at >=2");
+    assert_eq!(
+        dims.variables, 6,
+        "the joint domain must cover the complete degree-54 carrier"
+    );
 
     let Z = Mat::zero(D, 1, F::ZERO);
     let X = neo_reductions::common::project_x_from_witness_mat(&Z, structure.m, 1).expect("production projection");
-    let production_shaped = zero_eval_claim(&Z, X.clone(), 1, vec![K::ZERO]);
+    let production_shaped = zero_eval_claim(&Z, X.clone(), 1, vec![K::ZERO; dims.variables]);
     let zero_round = zero_eval_claim(&Z, X, 1, vec![]);
     let witness = CeWitness { Z };
     let production_result = check_ce_consistency(

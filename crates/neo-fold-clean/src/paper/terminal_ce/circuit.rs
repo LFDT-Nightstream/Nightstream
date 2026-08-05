@@ -17,8 +17,8 @@ use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
-const TERMINAL_CHILDREN_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/terminal_children_digest/v1";
-const TERMINAL_CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/terminal_ce_claim_digest/v1";
+const TERMINAL_CHILDREN_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/terminal_children_digest/v2";
+const TERMINAL_CE_CLAIM_DIGEST_DOMAIN: &[u8] = b"neo.fold.clean/terminal_ce_claim_digest/v2";
 
 #[derive(Clone, Debug)]
 pub struct TerminalCePublicWires {
@@ -110,14 +110,8 @@ pub enum TerminalCeCircuitError {
         got: usize,
     },
     #[error(
-        "terminal CE public circuit: child {index} s_col length ({got}) must equal column-domain length ({expected})"
+        "terminal CE public circuit: child {index} y_ring length ({got}) must equal the identity-first matrix count ({expected})"
     )]
-    SColLen {
-        index: usize,
-        expected: usize,
-        got: usize,
-    },
-    #[error("terminal CE public circuit: child {index} y_ring length ({got}) must equal structure.t ({expected})")]
     YRingCount {
         index: usize,
         expected: usize,
@@ -135,20 +129,6 @@ pub enum TerminalCeCircuitError {
         expected: usize,
         got: usize,
     },
-    #[error("terminal CE public circuit: child {index} y_zcol lanes ({got}) must equal padded D ({expected})")]
-    YZcolLanes {
-        index: usize,
-        expected: usize,
-        got: usize,
-    },
-    #[error("terminal CE public circuit: child {index} y_zcol has {got} limbs, expected {expected}")]
-    YZcolFlatLen {
-        index: usize,
-        expected: usize,
-        got: usize,
-    },
-    #[error("terminal CE public circuit: child {index} carries unsupported {field} (expected empty/zero)")]
-    UnsupportedSidecar { index: usize, field: &'static str },
     #[error("terminal CE public circuit: child {index} invalid product commitment: {detail}")]
     ProductCommitment { index: usize, detail: String },
 }
@@ -277,22 +257,14 @@ fn enforce_terminal_ce_claim_digest(
     }
 
     extend_kvar_slice(builder, &mut preimage, &claim.r);
-    extend_kvar_slice(builder, &mut preimage, &claim.s_col);
     preimage.push(alloc_const(builder, F::from_u64(claim.y_ring.len() as u64)));
     for row in &claim.y_ring {
         preimage.push(alloc_const(builder, F::from_u64(claim.y_ring_lanes as u64)));
         preimage.extend_from_slice(row);
     }
     extend_kvar_slice(builder, &mut preimage, &claim.ct);
-    extend_flat_k_limb_slice(builder, &mut preimage, claim.y_zcol_lanes, &claim.y_zcol);
-    // aux_openings are unsupported in the current compact/public circuit path.
-    preimage.push(alloc_const(builder, F::ZERO));
     preimage.push(alloc_const(builder, F::from_u64(claim.m_in as u64)));
     preimage.extend_from_slice(&claim.fold_digest_fields);
-    // c_step_coords.len, u_offset, u_len are unsupported and validated zero.
-    preimage.push(alloc_const(builder, F::ZERO));
-    preimage.push(alloc_const(builder, F::ZERO));
-    preimage.push(alloc_const(builder, F::ZERO));
     if let Some(adv) = &claim.adv {
         preimage.push(alloc_const(builder, F::from_u64(NEBULA_ADV_PRESENT_MARKER)));
         for digest in [
@@ -375,9 +347,11 @@ fn validate_terminal_child_wires(
             cols: claim.x_cols,
         });
     }
+    let assignment_width = neo_reductions::common::superneo_carrier_width(context.structure.m);
     let expected_r_len = context
         .structure
         .n
+        .max(assignment_width)
         .next_power_of_two()
         .max(2)
         .trailing_zeros() as usize;
@@ -388,25 +362,12 @@ fn validate_terminal_child_wires(
             got: claim.r.len(),
         });
     }
-    let expected_s_col_len = context
-        .structure
-        .m
-        .next_power_of_two()
-        .max(2)
-        .trailing_zeros() as usize;
-    if claim.s_col.len() != expected_s_col_len {
-        return Err(TerminalCeCircuitError::SColLen {
-            index,
-            expected: expected_s_col_len,
-            got: claim.s_col.len(),
-        });
-    }
     for r in 0..claim.x_rows {
         for c in active_x_cols..claim.x_cols {
             builder.enforce_eq(&Lc::from_var(claim.x[r * claim.x_cols + c]), &Lc::zero());
         }
     }
-    let expected_t = context.structure.t();
+    let expected_t = context.structure.t() + 1;
     if claim.y_ring.len() != expected_t {
         return Err(TerminalCeCircuitError::YRingCount {
             index,
@@ -448,45 +409,6 @@ fn validate_terminal_child_wires(
             builder.enforce_eq(&Lc::from_var(*limb), &Lc::zero());
         }
     }
-    if claim.y_zcol_lanes != D.next_power_of_two() {
-        return Err(TerminalCeCircuitError::YZcolLanes {
-            index,
-            expected: D.next_power_of_two(),
-            got: claim.y_zcol_lanes,
-        });
-    }
-    let expected_y_zcol_len = claim.y_zcol_lanes * 2;
-    if claim.y_zcol.len() != expected_y_zcol_len {
-        return Err(TerminalCeCircuitError::YZcolFlatLen {
-            index,
-            expected: expected_y_zcol_len,
-            got: claim.y_zcol.len(),
-        });
-    }
-    for limb in claim.y_zcol.iter().skip(D * 2) {
-        builder.enforce_eq(&Lc::from_var(*limb), &Lc::zero());
-    }
-    if claim.aux_openings_len != 0 {
-        return Err(TerminalCeCircuitError::UnsupportedSidecar {
-            index,
-            field: "aux_openings",
-        });
-    }
-    if claim.c_step_coords_len != 0 {
-        return Err(TerminalCeCircuitError::UnsupportedSidecar {
-            index,
-            field: "c_step_coords",
-        });
-    }
-    if claim.u_offset != 0 {
-        return Err(TerminalCeCircuitError::UnsupportedSidecar {
-            index,
-            field: "u_offset",
-        });
-    }
-    if claim.u_len != 0 {
-        return Err(TerminalCeCircuitError::UnsupportedSidecar { index, field: "u_len" });
-    }
     Ok(())
 }
 
@@ -507,11 +429,6 @@ fn extend_kvar_slice(builder: &mut R1csBuilder, out: &mut Vec<Var>, values: &[KV
         out.push(value.c0);
         out.push(value.c1);
     }
-}
-
-fn extend_flat_k_limb_slice(builder: &mut R1csBuilder, out: &mut Vec<Var>, lanes: usize, limbs: &[Var]) {
-    out.push(alloc_const(builder, F::from_u64(lanes as u64)));
-    out.extend_from_slice(limbs);
 }
 
 fn alloc_const_array(builder: &mut R1csBuilder, values: [F; 4]) -> [Var; 4] {

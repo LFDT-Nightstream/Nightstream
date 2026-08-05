@@ -5,7 +5,7 @@ use neo_ccs::matrix::Mat;
 use neo_fold_clean::frontends::direct_ccs::R1cs;
 use neo_fold_clean::frontends::r1cs_f_prime::{self, R1csChainBuilder};
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
-use neo_fold_clean::paper::nifs::CpuNifsProver;
+use neo_fold_clean::paper::nifs::OptimizedCpuNifsProver;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -77,7 +77,7 @@ fn adapter_backed_builder_recovers_after_rejected_recursive_append() {
     let prep = r1cs_f_prime::preprocess_seeded_with_params(&r1cs, &plan, tiny_params(), 0xF5_17_0095)
         .expect("preprocess lifecycle fixture");
     let mut chain = R1csChainBuilder::new(&prep).expect("start chain");
-    let mut adapter = CpuNifsProver;
+    let mut adapter = OptimizedCpuNifsProver;
 
     chain
         .append_assignment_with_nifs_adapter(fibonacci_assignment(1, 1), &mut adapter)

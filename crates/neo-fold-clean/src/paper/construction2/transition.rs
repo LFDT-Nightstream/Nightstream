@@ -237,9 +237,6 @@ fn canonical_accumulator_digest_optional(
         ))),
         ProofState::Active { running, .. } => match running.as_materialized() {
             Some(running) => Ok(Some(CanonicalAccumulatorDigest(running.accumulator_digest(structure)?))),
-            None if crate::paper::construction2::running::uses_pending_accumulator_family(structure) => {
-                Err(Error::DeferredPendingAccumulatorUnsupported)
-            }
             None => Ok(None),
         },
     }
@@ -276,7 +273,7 @@ fn finish_state_advance(
         acc_digest: new_acc_digest,
         public_trace: new_public_trace,
         proof: new_proof,
-        // A Nebula step installs the advanced lane (spec §6.3); plain
+        // A Nebula step installs the advanced lane (the lane transition); plain
         // steps carry the previous lane coordinate unchanged.
         nebula: nebula_next.or(prev.nebula),
     }

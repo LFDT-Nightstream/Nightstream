@@ -949,11 +949,8 @@ impl NifsCcsClaimShape {
 }
 
 /// nifs_payloads view of one CE claim payload. Covers commitment, active `X`,
-/// evaluation point `r`, `y_ring`, `y_zcol`, `s_col`, `m_in`, and
-/// `fold_digest`. Encoding order mirrors `ce_claim_digest`'s preimage
-/// for the FS-bound subset (`... y_ring, m_in, fold_digest`), then
-/// appends `y_zcol` and `s_col` (which are part of the CeClaim but not
-/// in the FS-bound digest).
+/// evaluation point `r`, identity-first `y_ring`, `m_in`, and `fold_digest`.
+/// Encoding order mirrors `ce_claim_digest`'s preimage.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NifsCeClaimView {
     pub d: u64,
@@ -969,8 +966,6 @@ pub struct NifsCeClaimView {
     /// `y_ring[row][col]` as K-element pairs. Each inner Vec may have a
     /// different length (per `y_ring_inner_lens` in the shape).
     pub y_ring: Vec<Vec<[F; 2]>>,
-    pub y_zcol: Vec<[F; 2]>,
-    pub s_col: Vec<[F; 2]>,
     pub m_in: u64,
     /// `digest32_as_fields(fold_digest)` — four F values, each 64 bits.
     pub fold_digest_fields: [F; 4],
@@ -984,8 +979,6 @@ pub struct NifsCeClaimShape {
     pub x_active_cols: usize,
     pub r_len: usize,
     pub y_ring_inner_lens: Vec<usize>,
-    pub y_zcol_len: usize,
-    pub s_col_len: usize,
 }
 
 impl NifsCeClaimShape {
@@ -1002,8 +995,6 @@ impl NifsCeClaimShape {
         }
         total += NIFS_LEN_HEADER_BITS; // m_in
         total += NIFS_FOLD_DIGEST_BITS; // fold_digest
-        total += NIFS_LEN_HEADER_BITS + self.y_zcol_len * NIFS_K_LIMB_BITS; // y_zcol
-        total += NIFS_LEN_HEADER_BITS + self.s_col_len * NIFS_K_LIMB_BITS; // s_col
         total
     }
 }
@@ -1091,8 +1082,6 @@ impl FPrimeImage {
             x_active_cols: view.x_active_cols as usize,
             r_len: view.r.len(),
             y_ring_inner_lens: view.y_ring.iter().map(|row| row.len()).collect(),
-            y_zcol_len: view.y_zcol.len(),
-            s_col_len: view.s_col.len(),
         };
         let total = shape.bits();
         assert!(
@@ -1155,26 +1144,6 @@ impl FPrimeImage {
         cursor += NIFS_LEN_HEADER_BITS;
         write_digest_bits(&mut self.values, cursor, view.fold_digest_fields);
         cursor += NIFS_FOLD_DIGEST_BITS;
-        // Current v1 does not include y_zcol and s_col in this FS-bound
-        // digest. Append them as the unbound tail; the delayed-projection
-        // authority work must close the y_zcol part of this known gap.
-        write_u64_bits(&mut self.values, cursor, view.y_zcol.len() as u64);
-        cursor += NIFS_LEN_HEADER_BITS;
-        for k in &view.y_zcol {
-            write_lane_bits(&mut self.values, cursor, k[0]);
-            cursor += POSEIDON2_GOLDILOCKS_BITS;
-            write_lane_bits(&mut self.values, cursor, k[1]);
-            cursor += POSEIDON2_GOLDILOCKS_BITS;
-        }
-        write_u64_bits(&mut self.values, cursor, view.s_col.len() as u64);
-        cursor += NIFS_LEN_HEADER_BITS;
-        for k in &view.s_col {
-            write_lane_bits(&mut self.values, cursor, k[0]);
-            cursor += POSEIDON2_GOLDILOCKS_BITS;
-            write_lane_bits(&mut self.values, cursor, k[1]);
-            cursor += POSEIDON2_GOLDILOCKS_BITS;
-        }
-
         debug_assert_eq!(cursor, self.layout.nifs_payloads.offset + nifs_offset + total);
         nifs_offset + total
     }
@@ -1252,33 +1221,7 @@ impl FPrimeImage {
         cursor += NIFS_LEN_HEADER_BITS;
         let fold_digest_fields = read_digest_bits(&self.values, cursor);
         cursor += NIFS_FOLD_DIGEST_BITS;
-        // y_zcol and s_col are the current-v1 unbound tail; see the matching
-        // encoder comment for the open delayed-projection authority gap.
-        let y_zcol_len = decode_u64_lane(&self.values, cursor).as_canonical_u64() as usize;
-        cursor += NIFS_LEN_HEADER_BITS;
-        assert_eq!(y_zcol_len, shape.y_zcol_len, "nifs_payloads CeClaim y_zcol_len");
-        let y_zcol: Vec<[F; 2]> = (0..y_zcol_len)
-            .map(|i| {
-                let base = cursor + i * NIFS_K_LIMB_BITS;
-                [
-                    decode_u64_lane(&self.values, base),
-                    decode_u64_lane(&self.values, base + POSEIDON2_GOLDILOCKS_BITS),
-                ]
-            })
-            .collect();
-        cursor += y_zcol_len * NIFS_K_LIMB_BITS;
-        let s_col_len = decode_u64_lane(&self.values, cursor).as_canonical_u64() as usize;
-        cursor += NIFS_LEN_HEADER_BITS;
-        assert_eq!(s_col_len, shape.s_col_len, "nifs_payloads CeClaim s_col_len");
-        let s_col: Vec<[F; 2]> = (0..s_col_len)
-            .map(|i| {
-                let base = cursor + i * NIFS_K_LIMB_BITS;
-                [
-                    decode_u64_lane(&self.values, base),
-                    decode_u64_lane(&self.values, base + POSEIDON2_GOLDILOCKS_BITS),
-                ]
-            })
-            .collect();
+        debug_assert_eq!(cursor, self.layout.nifs_payloads.offset + nifs_offset + shape.bits());
         NifsCeClaimView {
             d,
             kappa,
@@ -1289,8 +1232,6 @@ impl FPrimeImage {
             x_active_flat,
             r,
             y_ring,
-            y_zcol,
-            s_col,
             m_in,
             fold_digest_fields,
         }

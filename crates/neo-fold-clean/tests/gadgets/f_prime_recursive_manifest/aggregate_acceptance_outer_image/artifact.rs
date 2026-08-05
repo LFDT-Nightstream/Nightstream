@@ -94,10 +94,10 @@ fn validate_row_sets(audit: &AggregateAcceptanceOuterImageAudit) {
 }
 
 fn validate_profile(audit: &AggregateAcceptanceOuterImageAudit) -> Vec<Vec<(usize, u64)>> {
-    assert_eq!(audit.source_row_count, 2_584_075);
-    assert_eq!(audit.source_columns, 2_396_858);
-    assert_eq!(audit.encoded_rows, 4_934_494);
-    assert_eq!(audit.encoded_columns, 8_120_309);
+    assert_eq!(audit.source_row_count, 9_297_088);
+    assert_eq!(audit.source_columns, 9_000_422);
+    assert_eq!(audit.encoded_rows, 9_396_464);
+    assert_eq!(audit.encoded_columns, 12_473_847);
     assert_eq!(audit.matrix_arity, 56);
     assert_eq!(audit.chunks.len(), CHALLENGES * CHUNKS_PER_CHALLENGE);
     assert_eq!(audit.linear_definitions.len(), LINEAR_DEFINITIONS);
@@ -234,7 +234,7 @@ fn render_shape(audit: &AggregateAcceptanceOuterImageAudit, patterns: &[Vec<(usi
     );
     rendered.push_str(&header(
         "Owns: exact fixed-profile dimensions, row/decoder census, and four\nshared 391-term sparse decoder patterns.",
-        "| Data branch | Exact value |\n|---|---:|\n| challenges/chunks | 15 / 960 |\n| source rows/columns | 2,584,075 / 2,396,858 |\n| encoded rows/columns | 4,934,494 / 8,120,309 |\n| sparse decoders | 4 patterns; 240 images × 391 terms |",
+        "| Data branch | Exact value |\n|---|---:|\n| challenges/chunks | 15 / 960 |\n| source rows/columns | 9,297,088 / 9,000,422 |\n| encoded rows/columns | 9,396,464 / 12,473,847 |\n| sparse decoders | 4 patterns; 240 images × 391 terms |",
     ));
     writeln!(
         rendered,

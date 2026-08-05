@@ -37,9 +37,8 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
 use crate::engine::r1cs_circuit::builder::{
-    BalancedTernaryDecomposition, BlockLaneNcBoundaryAudit, CenteredUnitTrace, PolynomialEvaluationTrace,
-    Poseidon2PermutationTrace, Poseidon2SboxTrace, ProductFactorTrace, ProductSumBatchTrace, ProductSumIdentityTrace,
-    SumcheckRoundAudit,
+    BalancedTernaryDecomposition, CenteredUnitTrace, PolynomialEvaluationTrace, Poseidon2PermutationTrace,
+    Poseidon2SboxTrace, ProductFactorTrace, ProductSumBatchTrace, ProductSumIdentityTrace, SumcheckRoundAudit,
 };
 use crate::engine::r1cs_circuit::{finalize_physical_stages, Lc, PhysicalStageError, R1csBuilder, Var};
 use crate::frontends::direct_ccs::FrontendError;
@@ -673,11 +672,6 @@ pub fn lower_field_r1cs(
         })
         .collect();
     let poseidon2_hash_audits = poseidon_hash_audit::remap(&synthesis.poseidon2_hash_audits, &old_to_new);
-    let pi_rlc_y_zcol_boundary_audits = synthesis
-        .pi_rlc_y_zcol_boundary_audits
-        .iter()
-        .map(|audit| audit.remap(&old_to_new))
-        .collect();
     let sumcheck_round_audits = synthesis
         .sumcheck_round_audits
         .iter()
@@ -698,60 +692,6 @@ pub fn lower_field_r1cs(
             challenge_cols: audit.challenge_cols.map(|old_col| old_to_new[old_col]),
             claim_in_cols: audit.claim_in_cols.map(|old_col| old_to_new[old_col]),
             claim_out_cols: audit.claim_out_cols.map(|old_col| old_to_new[old_col]),
-        })
-        .collect();
-    let remap_k_columns = |columns: [usize; 2]| columns.map(|old_col| old_to_new[old_col]);
-    let block_lane_nc_boundary_audits = synthesis
-        .block_lane_nc_boundary_audits
-        .iter()
-        .map(|audit| BlockLaneNcBoundaryAudit {
-            claimed_initial_rows: audit.claimed_initial_rows.clone(),
-            round_audit_indices: audit.round_audit_indices.clone(),
-            terminal_identity_rows: audit.terminal_identity_rows.clone(),
-            terminal_final_equality_rows: audit.terminal_final_equality_rows.clone(),
-            gamma_cols: remap_k_columns(audit.gamma_cols),
-            beta_lane_cols: audit
-                .beta_lane_cols
-                .iter()
-                .copied()
-                .map(remap_k_columns)
-                .collect(),
-            beta_block_cols: audit
-                .beta_block_cols
-                .iter()
-                .copied()
-                .map(remap_k_columns)
-                .collect(),
-            producer_beta_cols: remap_k_columns(audit.producer_beta_cols),
-            batch_weight_cols: remap_k_columns(audit.batch_weight_cols),
-            pending_old_block_cols: audit
-                .pending_old_block_cols
-                .as_ref()
-                .map(|columns| columns.iter().copied().map(remap_k_columns).collect()),
-            pending_parent_y_zcol_cols: audit
-                .pending_parent_y_zcol_cols
-                .as_ref()
-                .map(|columns| columns.iter().copied().map(remap_k_columns).collect()),
-            output_y_zcol_cols: audit
-                .output_y_zcol_cols
-                .iter()
-                .map(|output| output.iter().copied().map(remap_k_columns).collect())
-                .collect(),
-            block_point_cols: audit
-                .block_point_cols
-                .iter()
-                .copied()
-                .map(remap_k_columns)
-                .collect(),
-            lane_point_cols: audit
-                .lane_point_cols
-                .iter()
-                .copied()
-                .map(remap_k_columns)
-                .collect(),
-            claimed_initial_cols: remap_k_columns(audit.claimed_initial_cols),
-            final_sum_cols: remap_k_columns(audit.final_sum_cols),
-            terminal_rhs_cols: remap_k_columns(audit.terminal_rhs_cols),
         })
         .collect();
     let pi_dec_strict_audits = pi_dec_audit::remap(&synthesis.pi_dec_strict_audits, &old_to_new);
@@ -854,11 +794,9 @@ pub fn lower_field_r1cs(
         product_sum_batch_traces,
         synthesis.row_family_ranges,
         sumcheck_round_audits,
-        block_lane_nc_boundary_audits,
         pi_dec_strict_audits,
         column_family_ranges,
         physical_stage_ranges,
-        pi_rlc_y_zcol_boundary_audits,
     )?;
 
     Ok(LoweredFieldR1cs { shape, assignment })

@@ -1,12 +1,12 @@
-//! Nebula public-coin fingerprint over `K` — spec §4.3.
+//! Nebula public-coin fingerprint over `K`.
 //!
 //! Owns: the packed tuple map `packed(t, g) = t + 2^TS_BITS · g`, the
 //! fingerprint `f_γ(t, g, v) = γ2 − (packed + γ1 · v)`, and running
 //! products. Used by the native prover (product columns), the trace oracle,
 //! and tests; the `S_mem` circuit re-expresses the same equations as rows.
 //!
-//! Does not own: γ derivation (F′ transcript, spec §6.2) or the soundness
-//! bound (security-note Lemma 3, which this construction instantiates).
+//! Does not own: γ derivation (the F′ transcript) or the soundness
+//! bound for this construction.
 //!
 //! Packing is overflow-free by plan validation ([`super::layout::NebulaParams::new`]
 //! enforces `TS_BITS + bits(R + M) ≤ 62`), and injective on `(t, g)` by the
@@ -19,7 +19,7 @@ use p3_field::PrimeCharacteristicRing;
 use crate::frontends::nebula::layout::{H_FS, H_IS, H_RS, H_WS, TS_BITS};
 
 /// The per-segment challenges `(γ1, γ2)`, sampled after every lane
-/// commitment of the segment is absorbed (spec §6.2).
+/// commitment of the segment is absorbed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Gammas {
     /// Value-mixing challenge.
@@ -29,7 +29,7 @@ pub struct Gammas {
 }
 
 /// One multiset element: `(timestamp, global cell index, value)`.
-/// `g = addr + seg · R` per spec §3.1.
+/// `g = addr + seg · R`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct MemTuple {
     /// Timestamp (`rt` for RS entries, write timestamp for WS, cell
@@ -63,7 +63,7 @@ pub fn product<'a>(gammas: &Gammas, tuples: impl IntoIterator<Item = &'a MemTupl
         .fold(K::ONE, |acc, e| acc * fingerprint(gammas, e))
 }
 
-/// The Nebula balance check `h_is · h_ws == h_rs · h_fs` (spec §1) on
+/// The Nebula balance check `h_is · h_ws == h_rs · h_fs` on
 /// products ordered per [`H_RS`](crate::frontends::nebula::layout::H_RS).
 pub fn balanced(h: &[K; 4]) -> bool {
     h[H_IS] * h[H_WS] == h[H_RS] * h[H_FS]

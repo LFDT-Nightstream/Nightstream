@@ -6,9 +6,7 @@ mod lean_artifact_support;
 use lean_artifact_support::{lean_nat_list, lean_rows, lean_witness, sha256_hex, SCHEMA_VERSION};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_fold_clean::engine::decider::__test_isolation::{
-    enforce_ce_continuity_against_self, enforce_ce_continuity_between, CeContinuityProbeWires,
-};
+use neo_fold_clean::engine::decider::__test_isolation::{enforce_ce_continuity_against_self, CeContinuityProbeWires};
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::CeClaim;
@@ -36,12 +34,8 @@ fn claim_fixture() -> CeClaim {
     let mut y_ring = (0..d_pad)
         .map(|idx| k(11 + idx as u64 * 2, 12 + idx as u64 * 2))
         .collect::<Vec<_>>();
-    let mut y_zcol = (0..d_pad)
-        .map(|idx| k(211 + idx as u64 * 2, 212 + idx as u64 * 2))
-        .collect::<Vec<_>>();
     for lane in D..d_pad {
         y_ring[lane] = K::ZERO;
-        y_zcol[lane] = K::ZERO;
     }
     CeClaim {
         adv: None,
@@ -52,16 +46,10 @@ fn claim_fixture() -> CeClaim {
         },
         X: x,
         r: vec![k(1, 2)],
-        s_col: vec![k(5, 6)],
         y_ring: vec![y_ring.clone()],
         ct: vec![y_ring[0]],
-        aux_openings: Vec::new(),
-        y_zcol,
         m_in: 1,
         fold_digest: [42u8; 32],
-        c_step_coords: Vec::new(),
-        u_offset: 0,
-        u_len: 0,
     }
 }
 
@@ -173,7 +161,7 @@ fn ce_continuity_accepts_honest_and_has_only_direct_equalities() {
 
 #[test]
 fn ce_continuity_rejects_each_authority_family() {
-    let selectors: [fn(&CeContinuityProbeWires) -> usize; 14] = [
+    let selectors: [fn(&CeContinuityProbeWires) -> usize; 12] = [
         |w| w.c_data0.col(),
         |w| w.x0.col(),
         |w| w.c_d.col(),
@@ -183,8 +171,6 @@ fn ce_continuity_rejects_each_authority_family() {
         |w| w.m_in.col(),
         |w| w.r_c0.col(),
         |w| w.r_c1.col(),
-        |w| w.s_col_c0.col(),
-        |w| w.s_col_c1.col(),
         |w| w.ct_c1.col(),
         |w| w.y_ring_c1.col(),
         |w| w.fold_digest0.col(),
@@ -195,27 +181,6 @@ fn ce_continuity_rejects_each_authority_family() {
         builder.tamper_witness(column, builder.witness()[column] + F::ONE);
         assert!(!builder.is_satisfied(), "CE continuity disconnected column {column}");
     }
-}
-
-#[test]
-fn ce_continuity_does_not_read_child_or_running_y_zcol() {
-    let claim = claim_fixture();
-    let (baseline, _) = enforce_ce_continuity_between(&claim, &claim).expect("emit baseline");
-    let baseline = baseline.snapshot();
-
-    let mut child_mutation = claim.clone();
-    child_mutation.y_zcol[0] += K::ONE;
-    let (child, _) = enforce_ce_continuity_between(&child_mutation, &claim).expect("emit child mutation");
-    let child = child.snapshot();
-    assert!(baseline.has_same_relation(&child));
-    assert_eq!(baseline.witness(), child.witness());
-
-    let mut running_mutation = claim.clone();
-    running_mutation.y_zcol[0] += K::ONE;
-    let (running, _) = enforce_ce_continuity_between(&claim, &running_mutation).expect("emit running mutation");
-    let running = running.snapshot();
-    assert!(baseline.has_same_relation(&running));
-    assert_eq!(baseline.witness(), running.witness());
 }
 
 #[test]

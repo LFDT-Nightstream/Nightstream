@@ -30,7 +30,7 @@ use neo_fold_clean::paper::nifs::circuit::{
     enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages, NifsVOutputs,
 };
 use neo_fold_clean::paper::nifs::NifsProof;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig;
 use neo_fold_clean::paper::relations::CcsClaim;
 use neo_fold_clean::{CeClaim, Preprocessing};
 use neo_math::ring::D;
@@ -116,32 +116,11 @@ fn build_honest_fixture() -> Fixture {
     }
 }
 
-fn pi_ccs_config(prep: &Preprocessing) -> SplitNcPiCcsVConfig<'_> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
-        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params reconstruction");
-    let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &mat_digest,
-    )
-    .expect("header bundle digest");
-
-    SplitNcPiCcsVConfig {
+fn pi_ccs_config(prep: &Preprocessing) -> PiCcsVerifierConfig<'_> {
+    PiCcsVerifierConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle,
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: prep.pi_ccs_header_bundle(),
     }
 }
 
@@ -160,7 +139,6 @@ fn emit_verifier(f: &Fixture) -> (R1csBuilder, NifsVOutputs) {
             fresh: &f.fresh_claims,
             running: &f.running.claims,
             running_parent_authority: f.running.parent_authority.as_ref(),
-            running_pending_projection: f.running.pending_projection(),
             pi_ccs: &f.proof.pi_ccs,
             combined: &f.combined,
             children: &f.children,

@@ -1,11 +1,9 @@
-//! `NebulaPlan` — the spec §11 plan artifact: everything a chain is bound
-//! to before any proving starts.
+//! `NebulaPlan` — everything a chain is bound to before proving starts.
 //!
 //! Owns: the validated plan constants, the `S_mem` structure built from
 //! them, the lane-commitment scheme (seeded from the plan), the public
-//! ROM/RAM image, the γ-independent `D_init` (the verifier's initial-memory handle,
-//! spec §7), and the plan digest that every segment's γ transcript
-//! absorbs (spec §6.2).
+//! ROM/RAM image, the γ-independent `D_init` initial-memory handle, and the
+//! plan digest that every segment's γ transcript absorbs.
 //!
 //! Does not own: chain state (`NebulaLane`), proving flow
 //! ([`super::prove`]), or memory semantics ([`super::trace`]).
@@ -71,8 +69,8 @@ impl NebulaPlan {
     /// Compile a plan: build the `S_mem` structure, derive the lane
     /// matrices from the plan seed, lay the verifier-owned initial ROM and
     /// RAM images into per-step scan lanes, and chain their `A_mem`
-    /// commitments into `D_init` — recomputable by anyone from this
-    /// public data, with no γ anywhere (spec §7).
+    /// commitments into `D_init`. Anyone can recompute it from this
+    /// public data, and it does not contain γ.
     pub fn new_with_initial_ram(
         params: NebulaParams,
         rom_image: Vec<u32>,
@@ -112,7 +110,7 @@ impl NebulaPlan {
         })
     }
 
-    /// The lifecycle-facing view (spec §6.1's plan constants).
+    /// The lifecycle-facing plan constants.
     pub fn config(&self) -> NebulaConfig {
         NebulaConfig {
             scheme: self.scheme.clone(),
@@ -144,7 +142,7 @@ impl NebulaPlan {
         &self.ram_image
     }
 
-    /// The verifier's initial-memory handle (spec §7): gamma-independent and
+    /// The verifier's gamma-independent initial-memory handle. It is
     /// recomputable from the public ROM/RAM images and plan parameters.
     pub fn d_init(&self) -> [F; 4] {
         self.d_init
@@ -154,7 +152,7 @@ impl NebulaPlan {
         self.plan_digest
     }
 
-    /// The evaluated §9 fingerprint error budget (security-note Cor. 4.1):
+    /// The evaluated fingerprint error budget:
     /// per Fiat–Shamir attempt, a false-but-balancing segment survives
     /// with probability `m_seg / |K|`, `m_seg = |IS|+|WS|+|RS|+|FS|`.
     /// The geometry is derived from plan-bound constants; the global target
@@ -172,7 +170,7 @@ impl NebulaPlan {
     }
 }
 
-/// The §9 budget line the plan records (spec §11 `error_budget`).
+/// The fingerprint budget recorded by the plan.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ErrorBudget {
     /// Total multiset size per segment: `2·(N·B_ops + R + M)`.
@@ -186,8 +184,8 @@ pub struct ErrorBudget {
 }
 
 /// Chain the initial memory's per-step IS-lane commitments with the
-/// identical mem-domain leaf/link formula and header as the live IS/FS
-/// chains (spec §6.1/§7): `D_init = fold_{j ∈ [0,N)} link("mem", leaf_mem(c_j))`.
+/// same mem-domain leaf/link formula and header as the live IS/FS chains:
+/// `D_init = fold_{j ∈ [0,N)} link("mem", leaf_mem(c_j))`.
 fn compute_d_init(
     params: &NebulaParams,
     scheme: &LaneScheme,
@@ -214,18 +212,17 @@ fn compute_d_init(
     Ok(chain)
 }
 
-/// Independent per-matrix seeds from one plan seed (domain-separated;
-/// security-note A2 assumes matrix independence).
+/// Independent, domain-separated per-matrix seeds from one plan seed.
 fn derive_seed(plan_seed: [u8; 32], label: &[u8]) -> [u8; 32] {
     let mut preimage = digest::digest32_as_fields(plan_seed).to_vec();
     preimage.extend(label.iter().map(|&b| F::from_u64(b as u64)));
     digest::digest_fields_as_digest32(neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&preimage))
 }
 
-/// `plan_digest = Poseidon2(canonical serialization)` (spec §11): version,
-/// every §2 constant, the ROM/RAM image, the scheme seed, and `D_init`.
+/// `plan_digest = Poseidon2(canonical serialization)` over the version,
+/// every plan constant, the ROM/RAM image, the scheme seed, and `D_init`.
 /// Changing anything changes the digest — and the digest is absorbed at
-/// every segment open (spec §6.2), so it changes every γ.
+/// every segment open, so it changes every γ.
 fn plan_digest(
     params: &NebulaParams,
     rom_image: &[u32],

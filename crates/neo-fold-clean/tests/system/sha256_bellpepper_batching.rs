@@ -853,8 +853,13 @@ fn sha256_production_core_serial_quad_prepared_key_amortization_snapshot() {
     let structure_n = derived.structure().ccs.n;
     let structure_m = derived.structure().ccs.m;
     let structure_t = derived.structure().ccs.t();
-    let params = Params::for_ccs_shape(structure_n, structure_t, derived.structure().ccs.max_degree())
-        .expect("packed serial-quad production params");
+    let params = Params::for_ccs_shape(
+        structure_n,
+        structure_m,
+        structure_t,
+        derived.structure().ccs.max_degree(),
+    )
+    .expect("packed serial-quad production params");
 
     let start = Instant::now();
     let prepared = r1cs_f_prime::prepare_derived_structure(derived).expect("packed serial-quad prepare");
@@ -1086,6 +1091,7 @@ fn time_ordered_batch_sha_statements(artifacts: &[BellpepperCcs], batch_size: us
     let (plan, structure_probe) = sha256_production_core_lifecycle_plan_for_r1cs(&batches[0].r1cs);
     let params = Params::for_ccs_shape(
         structure_probe.ccs.n,
+        structure_probe.ccs.m,
         structure_probe.ccs.t(),
         structure_probe.ccs.max_degree(),
     )
@@ -1153,8 +1159,13 @@ fn time_serial_sha_packed_state_transitions(chunks: &[BellpepperCcs], initial_st
     let structure_n = derived.structure().ccs.n;
     let structure_m = derived.structure().ccs.m;
     let structure_t = derived.structure().ccs.t();
-    let params = Params::for_ccs_shape(structure_n, structure_t, derived.structure().ccs.max_degree())
-        .expect("packed serial-pair production params");
+    let params = Params::for_ccs_shape(
+        structure_n,
+        structure_m,
+        structure_t,
+        derived.structure().ccs.max_degree(),
+    )
+    .expect("packed serial-pair production params");
 
     let start = Instant::now();
     let prepared = r1cs_f_prime::prepare_derived_structure(derived).expect("packed serial-pair prepare");
@@ -1415,23 +1426,24 @@ fn sha256_lifecycle_plan_for_r1cs_with_params(
     let typed_bits: usize = widths.iter().sum();
     let c_data_entries = params.kappa() as usize * params.d() as usize;
     let child_count = params.k_rho() as u64;
-    let mut r_len = challenge_len_for_domain(shape.n());
-    let mut s_col_len = challenge_len_for_domain(typed_bits + 1);
+    let mut r_len = challenge_len_for_domain(shape.n().max(typed_bits + 1));
 
     for _ in 0..8 {
-        let mut plan =
-            sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), c_data_entries, child_count, r_len, s_col_len);
+        let mut plan = sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), c_data_entries, child_count, r_len);
         plan.limbs = typed_bits + 1;
         plan.app_private_var_widths = widths.clone();
         let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
         let (structure, _) = r1cs_f_prime::build_r1cs_f_prime_structure(layout, &shape);
-        let next_r_len = challenge_len_for_domain(structure.ccs.n);
-        let next_s_col_len = challenge_len_for_domain(structure.ccs.m);
-        if next_r_len == r_len && next_s_col_len == s_col_len {
+        let next_r_len = challenge_len_for_domain(
+            structure
+                .ccs
+                .n
+                .max(neo_reductions::common::superneo_carrier_width(structure.ccs.m)),
+        );
+        if next_r_len == r_len {
             return (plan, structure);
         }
         r_len = next_r_len;
-        s_col_len = next_s_col_len;
     }
 
     panic!("SHA ordered-pair R1CS-F' CE shape did not converge")
@@ -1448,12 +1460,10 @@ fn sha256_packed_state_derived_structure_for_r1cs_with_params(
     let c_data_entries = params.kappa() as usize * params.d() as usize;
     let child_count = params.k_rho() as u64;
     let initial_anchor = serial_state_lanes56_semantic_digest(initial_state);
-    let mut r_len = challenge_len_for_domain(shape.n());
-    let mut s_col_len = challenge_len_for_domain(typed_bits + 1);
+    let mut r_len = challenge_len_for_domain(shape.n().max(typed_bits + 1));
 
     for iteration in 1..=8 {
-        let mut plan =
-            sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), c_data_entries, child_count, r_len, s_col_len);
+        let mut plan = sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), c_data_entries, child_count, r_len);
         let state_x_out = plan
             .state_x_out
             .as_mut()
@@ -1467,13 +1477,13 @@ fn sha256_packed_state_derived_structure_for_r1cs_with_params(
         plan.app_private_var_widths = widths.clone();
         let derived = r1cs_f_prime::derive_sparse_preprocessing_structure(r1cs, &plan)
             .expect("derive packed-state SHA R1CS-F' structure");
-        let next_r_len = challenge_len_for_domain(derived.structure().ccs.n);
-        let next_s_col_len = challenge_len_for_domain(derived.structure().ccs.m);
-        if next_r_len == r_len && next_s_col_len == s_col_len {
+        let next_r_len = challenge_len_for_domain(derived.structure().ccs.n.max(
+            neo_reductions::common::superneo_carrier_width(derived.structure().ccs.m),
+        ));
+        if next_r_len == r_len {
             return (derived, iteration);
         }
         r_len = next_r_len;
-        s_col_len = next_s_col_len;
     }
 
     panic!("SHA packed-state serial R1CS-F' CE shape did not converge")
@@ -1485,7 +1495,6 @@ fn sha256_lifecycle_plan_with_ce_shape(
     c_data_entries: usize,
     child_count: u64,
     r_len: usize,
-    s_col_len: usize,
 ) -> RecursiveStepImagePlan {
     let limbs = m * POSEIDON2_GOLDILOCKS_BITS + 1;
     let ce_shape = NifsCeClaimShape {
@@ -1494,8 +1503,6 @@ fn sha256_lifecycle_plan_with_ce_shape(
         x_active_cols: 5,
         r_len,
         y_ring_inner_lens: vec![64; 8],
-        y_zcol_len: 64,
-        s_col_len,
     };
     let probe_plan = RecursiveStepImagePlan {
         limbs,

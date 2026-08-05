@@ -38,7 +38,7 @@ use crate::paper::f_prime::r1cs::{
 };
 use crate::paper::nifs::NifsFreshSignedUnitAssignment;
 use crate::paper::params::Params;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::SplitNcVerifierRelation;
+use crate::paper::reductions::pi_ccs_circuit::PiCcsVerifierRelation;
 use crate::paper::relations::{CcsInstance, LaneRanges, LaneSchemeError, RelationError, Structure};
 
 #[derive(Debug, Error)]
@@ -163,7 +163,7 @@ impl NebulaFPrimeRelation {
     /// Recursive-arm matrices are synthesized from shape-correct placeholder
     /// messages. Their witness values need not satisfy the rows: R1CS shape and
     /// coefficients must be deterministic functions of `(params, folded
-    /// relation shape)`. The active R4 encoder test supplies honest assignments
+    /// relation shape)`. The active encoder test supplies honest assignments
     /// to all three compiled arms, including an interior segment step, and
     /// therefore fails if live synthesis drifts from this fixed relation.
     pub fn compile_fixed_point(params: &Params, plan: &NebulaPlan) -> Result<Self, NebulaFPrimeRelationError> {
@@ -210,7 +210,7 @@ impl NebulaFPrimeRelation {
     ) -> Result<Self, NebulaFPrimeRelationError> {
         const MAX_ROUNDS: usize = 8;
 
-        let mut verifier_relation = SplitNcVerifierRelation::from_structure(plan.circuit().structure());
+        let mut verifier_relation = PiCcsVerifierRelation::from_structure(plan.circuit().structure());
         let mut last_output = (verifier_relation.n(), verifier_relation.m());
         for round in 0..MAX_ROUNDS {
             #[cfg(feature = "perf-timers")]
@@ -276,7 +276,7 @@ impl NebulaFPrimeRelation {
                 );
             }
             verifier_relation =
-                SplitNcVerifierRelation::from_parts(next_shape.rows, next_shape.columns, next_shape.polynomial);
+                PiCcsVerifierRelation::from_parts(next_shape.rows, next_shape.columns, next_shape.polynomial);
         }
         Err(NebulaFPrimeRelationError::NoFixedPoint {
             rounds: MAX_ROUNDS,
@@ -304,7 +304,7 @@ impl NebulaFPrimeRelation {
         verifier_structure: &Structure,
         plan: &NebulaPlan,
     ) -> Result<SelectiveLowNormWidthAudit, NebulaFPrimeRelationError> {
-        let verifier_relation = SplitNcVerifierRelation::from_structure(verifier_structure);
+        let verifier_relation = PiCcsVerifierRelation::from_structure(verifier_structure);
         let arms = shape::synthesize_arm_shapes(params, &verifier_relation, plan, None)?;
         let circuit = plan.circuit();
         let shared_private_fields = circuit.cols() - circuit.m_in();
@@ -581,7 +581,7 @@ fn relation_signature(structure: &Structure) -> (usize, usize, usize, u32) {
     (structure.n, structure.m, structure.t(), structure.max_degree())
 }
 
-fn verifier_relation_signature(relation: &SplitNcVerifierRelation) -> (usize, usize, usize, u32) {
+fn verifier_relation_signature(relation: &PiCcsVerifierRelation) -> (usize, usize, usize, u32) {
     (relation.n(), relation.m(), relation.t(), relation.max_degree())
 }
 

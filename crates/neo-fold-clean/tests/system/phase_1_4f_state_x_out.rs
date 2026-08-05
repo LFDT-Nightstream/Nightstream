@@ -49,8 +49,6 @@ fn make_plan() -> RecursiveStepImagePlan {
         x_active_cols: 0,
         r_len: 0,
         y_ring_inner_lens: vec![],
-        y_zcol_len: 0,
-        s_col_len: 0,
     };
     RecursiveStepImagePlan {
         limbs: 3,
@@ -164,8 +162,6 @@ fn build_honest_fixture() -> Fixture {
         x_active_flat: vec![],
         r: vec![],
         y_ring: vec![],
-        y_zcol: vec![],
-        s_col: vec![],
         m_in: 0,
         fold_digest_fields: [F::ZERO; 4],
     };

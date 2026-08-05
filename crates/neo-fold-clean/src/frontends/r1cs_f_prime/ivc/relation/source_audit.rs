@@ -3,64 +3,6 @@
 //! Owns compact audit data and read-only accessors. Relation discovery and
 //! construction remain in the parent module.
 
-use neo_math::F;
-
-/// One exact normalized source-R1CS equation in the combined-NC projection.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct R1csIvcBlockLaneNcSourceRowAudit {
-    pub(super) index: usize,
-    pub(super) ports: [Vec<(usize, F)>; 3],
-}
-
-impl R1csIvcBlockLaneNcSourceRowAudit {
-    pub fn index(&self) -> usize {
-        self.index
-    }
-
-    pub fn a(&self) -> &[(usize, F)] {
-        &self.ports[0]
-    }
-
-    pub fn b(&self) -> &[(usize, F)] {
-        &self.ports[1]
-    }
-
-    pub fn c(&self) -> &[(usize, F)] {
-        &self.ports[2]
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct FreshSourceAssignmentAudit {
-    pub(super) logical_column: usize,
-    pub(super) source_column: usize,
-    pub(super) resolution: FreshSourceResolutionAudit,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum FreshSourceResolutionAudit {
-    ConstantOne,
-    Direct {
-        start: usize,
-        width: usize,
-        centered: bool,
-    },
-    DecompositionAlias {
-        source: usize,
-        digit: usize,
-        start: usize,
-        centered: bool,
-    },
-    EqualityAlias {
-        source: usize,
-        start: usize,
-        width: usize,
-        centered: bool,
-    },
-    LinearDefinition,
-    TraceEliminated,
-}
-
 /// Exact final-slot encoding used by one authoritative incoming running-X
 /// coordinate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -77,21 +77,21 @@ pub(super) fn check_source_role_manifest(base: &FullFPrimeBranchExecution, recur
         "base",
         &base_manifest,
         &base_placement,
-        3_050,
-        125_695,
-        125_695,
+        3_226,
+        132_911,
+        132_911,
         (1, 257),
-        (22_336, 125_654),
+        (23_550, 132_870),
     );
     assert_placement_branch(
         "recursive",
         &recursive_manifest,
         &recursive_placement,
-        154_747,
-        7_830_083,
-        8_137_378,
+        93_896,
+        12_108_509,
+        12_330_019,
         (1, 257),
-        (2_399_090, 7_830_042),
+        (8_975_795, 12_108_468),
     );
     assert_placement_mutations_rejected(&base_placement);
     assert_placement_mutations_rejected(&recursive_placement);
@@ -235,8 +235,10 @@ fn assert_canonical_source_loop_width(
     source: &GadgetNativeSourceManifest,
     placement: &GadgetNativeOrdinaryPlacementManifest,
 ) {
-    let canonical = (0..source.source_columns())
-        .filter(|&column| source.role_for_column(column) == Some(GadgetNativeSourceRole::CanonicalU64))
+    let canonical = (0..source.run_count())
+        .filter_map(|run| source.run(run))
+        .filter(|(_, role, _)| *role == GadgetNativeSourceRole::CanonicalU64)
+        .flat_map(|(_, _, columns)| columns)
         .collect::<Vec<_>>();
     assert_eq!(canonical.len(), 2, "fixed recursive branch direct canonical-u64 census");
     for column in canonical {

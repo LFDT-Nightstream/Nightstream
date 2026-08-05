@@ -79,15 +79,6 @@ impl FinalWitnessWires {
         self.values.get(row * self.cols + col).copied()
     }
 
-    /// Logical column view: column `c` of the unpacked m-length witness
-    /// lives at packed position `(off = c % D, block = c / D)`.
-    pub(crate) fn logical_entry(&self, expected_m: usize, logical_col: usize) -> Option<Var> {
-        if self.rows != D || expected_m == 0 || logical_col >= expected_m {
-            return None;
-        }
-        self.packed_entry(logical_col)
-    }
-
     /// Coefficient `c` of the complete packed witness ring blocks, including
     /// the final block's lanes beyond the logical CCS width.
     pub(crate) fn packed_entry(&self, packed_col: usize) -> Option<Var> {

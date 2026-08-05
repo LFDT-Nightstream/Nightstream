@@ -1,15 +1,14 @@
-//! `LaneScheme` — the Nebula lane-commitment context (spec §5.1/§5.2).
+//! `LaneScheme` — the Nebula lane-commitment context (the lane-commitment lifecycle).
 //!
 //! Owns: the two dedicated Ajtai matrices (`A_ops`; `A_mem` shared by the
 //! `is` and `fs` lanes — load-bearing for cross-segment boundary equality)
 //! and the whole-ring-column lane ranges of the witness matrix (L-ALIGN).
-//! Consumers: the Π_DEC prover (child tuples, spec R2), the terminal
-//! decider (slice openings, spec R3), and the segment prover (fresh-claim
-//! tuples, §13 step 5).
+//! Consumers: the Π_DEC prover (child tuples), the terminal decider (slice
+//! openings), and the segment prover (fresh-claim tuples).
 //!
 //! Does not own: lane *content* semantics (the `S_mem` rows do), the
 //! fold-time mixing (`commitment_ops::mix_adv`/`recompose_adv`), or the
-//! F′ carried chains (spec §6).
+//! F′ carried chains (the carried-lane design).
 //!
 //! Ranges are in ring-column units of the packed witness `Z ∈ F^{D×(m/D)}`,
 //! so L-ALIGN (lanes on whole ring columns) is inherent to the type — a
@@ -58,7 +57,7 @@ pub struct LaneScheme {
 impl LaneScheme {
     /// Build from plan-provided seeds. `A_ops` and `A_mem` are fresh
     /// matrices, independent of each other and of the engine's full-`z`
-    /// matrix `A` (distinct seeds — security-note A2 assumes independence).
+    /// matrix `A`, with one distinct seed for each matrix.
     /// `A_mem`'s width is the shared `is`/`fs` lane width: one matrix, two
     /// lanes, which is what makes `c_fs(k) = c_is(k+1)` meaningful.
     pub fn from_seeds(
@@ -104,9 +103,8 @@ impl LaneScheme {
         })
     }
 
-    /// Commit the three lane slices of a witness matrix — the prover side
-    /// of R2 (Π_DEC child tuples) and of fresh-claim construction (§13
-    /// step 5).
+    /// Commit the three lane slices of a witness matrix for Π_DEC child
+    /// tuples and fresh-claim construction.
     pub fn commit(&self, z: &Mat<F>) -> Result<LaneCommitments<Commitment>, LaneSchemeError> {
         self.check_width(z)?;
         Ok(LaneCommitments {
@@ -116,8 +114,7 @@ impl LaneScheme {
         })
     }
 
-    /// Commit the three lanes from their bit vectors directly — the
-    /// pre-γ path of the two-pass prover (spec §1): lane contents exist
+    /// Commit the three lanes from their bit vectors directly. Lane contents exist
     /// before any `x` (hence any full witness) does. Packs each lane
     /// column-major exactly as `CcsInstance::from_low_norm_assignment`
     /// packs `z`, so the tuple equals [`Self::commit`] of the eventual
@@ -136,8 +133,7 @@ impl LaneScheme {
         })
     }
 
-    /// Commit one mem-domain lane (IS or FS layout) from its bits — the
-    /// plan generator's path for `D_init` (spec §7): the initial-memory
+    /// Commit one mem-domain lane (IS or FS layout) from its bits. The initial-memory
     /// scan lanes are committed under `A_mem` with no witness in sight.
     pub fn commit_mem_lane_bits(&self, bits: &[F]) -> Result<Commitment, LaneSchemeError> {
         Ok(self
@@ -145,7 +141,7 @@ impl LaneScheme {
             .commit(&pack_lane_bits(bits, self.ranges.is.len())?))
     }
 
-    /// Terminal decider slice-opening (R3): does each published component
+    /// Terminal decider slice opening: does each published component
     /// open to its lane slice of this witness? Recomputes; never trusts.
     pub fn open_matches(&self, adv: &LaneCommitments<Commitment>, z: &Mat<F>) -> Result<bool, LaneSchemeError> {
         Ok(self.commit(z)? == *adv)
@@ -211,12 +207,12 @@ fn validate_ranges(ranges: &LaneRanges) -> Result<(), LaneSchemeError> {
     }
     if ranges.is.len() != ranges.fs.len() {
         return Err(LaneSchemeError::Invalid(
-            "is/fs lanes must have identical width (byte-identical layout, spec §3.3)",
+            "is/fs lanes must have identical width (byte-identical layout)",
         ));
     }
     if ranges.ops.end > ranges.is.start || ranges.is.end > ranges.fs.start {
         return Err(LaneSchemeError::Invalid(
-            "lane ranges must be disjoint and ordered ops < is < fs (spec §5.1 layout)",
+            "lane ranges must be disjoint and ordered ops < is < fs",
         ));
     }
     Ok(())

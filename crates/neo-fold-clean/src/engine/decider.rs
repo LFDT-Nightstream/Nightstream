@@ -25,9 +25,9 @@
 //!
 //! | CE boundary | Constraint ownership | Lean authority result |
 //! |---|---|---|
-//! | child -> next running | Exact paper-level CE core; `y_zcol` omitted | exact child-vector continuity; the pending projection carries the delayed obligation to its successor or terminal closure |
+//! | child -> next running | Exact selected CE claim | direct child-vector continuity |
 //! | Pi_RLC parent -> running parent | Checked recomposition cache continuity | not accumulator authority |
-//! | terminal delayed projection | The verifier-derived pending old block projects the exact ordered raw witnesses opened by terminal Ajtai rows; their radix recomposition is constrained to the pending parent | closes the final one-fold delayed projection without child sidecars |
+//! | terminal CE opening | Direct relation checks against authoritative raw witnesses | closes the final witness obligation |
 
 mod terminal;
 
@@ -57,9 +57,7 @@ use crate::paper::f_prime::r1cs::{
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::{enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages};
 use crate::paper::nifs::NifsProof;
-use crate::paper::reductions::pi_ccs_split_nc_circuit::{
-    PendingProjectionWires, SplitNcPiCcsOutputWires, SplitNcPiCcsVConfig,
-};
+use crate::paper::reductions::pi_ccs_circuit::{PiCcsOutputWires, PiCcsVerifierConfig};
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 use crate::paper::relations::product_commitment_circuit::enforce_adv_equality;
 use crate::paper::relations::CcsClaim;
@@ -328,10 +326,8 @@ fn synthesize_statement_r1cs_inner(
             cross_step_links += 1;
         }
 
-        // Exact paper-level CE continuity: previous NIFS children equal the
-        // next running accumulator core wire-for-wire. The separately carried
-        // pending projection closes the omitted child `y_zcol` obligation at
-        // its successor or the terminal raw-witness check.
+        // Previous NIFS children equal the next selected running claims
+        // wire-for-wire.
         if let (Some(prev_children), Some(curr_running)) = (previous_children.as_ref(), output.nifs_running.as_ref()) {
             let continuity_start = builder.rows();
             enforce_child_core_equal_running(&mut builder, prev_children, curr_running)
@@ -388,7 +384,6 @@ fn synthesize_statement_r1cs_inner(
         final_acc_digest,
         terminal_running,
         terminal_children,
-        terminal_pending_projection,
     ) = emit_terminal_fold(
         &mut builder,
         prep,
@@ -445,21 +440,12 @@ fn synthesize_statement_r1cs_inner(
     let final_running = final_running
         .materialize()
         .map_err(|e| decider::Error::WalkFailed(format!("materialize final running: {e}")))?;
-    match terminal_pending_projection.as_ref() {
-        Some(pending) => crate::paper::decider_ce_relation::enforce_final_ce_relations_with_pending_projection(
-            &mut builder,
-            prep,
-            &terminal_children,
-            &final_running.witnesses,
-            pending,
-        ),
-        None => crate::paper::decider_ce_relation::enforce_final_dec_children_relations(
-            &mut builder,
-            prep,
-            &terminal_children,
-            &final_running.witnesses,
-        ),
-    }
+    crate::paper::decider_ce_relation::enforce_final_dec_children_relations(
+        &mut builder,
+        prep,
+        &terminal_children,
+        &final_running.witnesses,
+    )
     .map_err(|e| decider::Error::WalkFailed(format!("terminal CE relation: {e}")))?;
     builder.record_row_family("decider.terminal_ce", terminal_ce_start);
     builder.record_row_family("decider.full_history", full_history_start);
@@ -569,7 +555,7 @@ fn emit_base_step_r1cs(
 
     let cfg = FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(prep)?,
+            pi_ccs: pi_ccs_config(prep)?,
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
@@ -643,7 +629,7 @@ fn emit_recursive_step_r1cs(
 
     let cfg = FPrimeStepConfig {
         nifs: NifsVCircuitConfig {
-            pi_ccs: split_nc_config(prep)?,
+            pi_ccs: pi_ccs_config(prep)?,
         },
         b: prep.params.b(),
         transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
@@ -660,7 +646,6 @@ fn emit_recursive_step_r1cs(
             fresh: &fresh,
             running: running_claims,
             running_parent_authority,
-            running_pending_projection: running.pending_projection(),
             pi_ccs: &nifs.pi_ccs,
             combined: &nifs.pi_rlc.combined,
             children: &nifs.pi_dec.children,
@@ -765,17 +750,14 @@ fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; 4], b: &[Var; 4]) {
 /// Π_CCS verifier's input-running view. They carry the same data in two
 /// representations:
 ///   - both share Vec<Var> for c_data / x.
-///   - both share Vec<KVar> for r / s_col / ct.
+///   - both share Vec<KVar> for r / ct.
 ///   - children's y_ring is flattened into K_LIMBS=2 base-field limbs
 ///     (`Vec<Var>`); running's is `Vec<KVar>`. The helper expands each KVar
 ///     back into `(c0, c1)` and pins limb-by-limb.
-///
-/// The optimized `y_zcol` sidecar is absent on both sides. Hashing it would
-/// bind a value, but would not prove its missing source relation.
 fn enforce_child_core_equal_running(
     builder: &mut R1csBuilder,
     children: &[CeClaimWires],
-    running: &[SplitNcPiCcsOutputWires],
+    running: &[PiCcsOutputWires],
 ) -> Result<(), String> {
     if children.len() != running.len() {
         return Err(format!(
@@ -784,22 +766,13 @@ fn enforce_child_core_equal_running(
             running.len()
         ));
     }
-    for (idx, (child, run)) in children.iter().zip(running).enumerate() {
-        if !child.y_zcol.is_empty() || !run.y_zcol.is_empty() {
-            return Err(format!(
-                "CE core continuity unexpectedly received y_zcol wires at {idx}: child={} run={}",
-                child.y_zcol.len(),
-                run.y_zcol.len()
-            ));
-        }
-    }
     enforce_common_ce_fields_equal(builder, children, running)
 }
 
 fn enforce_common_ce_fields_equal(
     builder: &mut R1csBuilder,
     children: &[CeClaimWires],
-    running: &[SplitNcPiCcsOutputWires],
+    running: &[PiCcsOutputWires],
 ) -> Result<(), String> {
     if children.len() != running.len() {
         return Err(format!(
@@ -847,9 +820,8 @@ fn enforce_common_ce_fields_equal(
         builder.enforce_eq(&Lc::from_var(child.x_rows_var), &Lc::from_var(run.x_rows_var));
         builder.enforce_eq(&Lc::from_var(child.x_cols_var), &Lc::from_var(run.x_cols_var));
         builder.enforce_eq(&Lc::from_var(child.m_in_var), &Lc::from_var(run.m_in_var));
-        // r, s_col, ct are Vec<KVar> in both — KVar exposes c0/c1 directly.
+        // r and ct are Vec<KVar> in both — KVar exposes c0/c1 directly.
         enforce_vec_kvar_eq(builder, &child.r, &run.r, "r", idx)?;
-        enforce_vec_kvar_eq(builder, &child.s_col, &run.s_col, "s_col", idx)?;
         enforce_vec_kvar_eq(builder, &child.ct, &run.ct, "ct", idx)?;
         // y_ring representation differs: child has [j][lane*2 + limb]
         // base-field wires; run has [j][lane] KVars.
@@ -874,18 +846,13 @@ fn enforce_common_ce_fields_equal(
     Ok(())
 }
 
-/// Full Π_RLC-parent continuity. Parent `y_zcol` remains authoritative and
-/// therefore extends the common CE-core equality with a sidecar equality.
+/// Full Π_RLC-parent continuity.
 fn enforce_parent_authority_equal(
     builder: &mut R1csBuilder,
     previous: &[CeClaimWires],
-    current: &[SplitNcPiCcsOutputWires],
+    current: &[PiCcsOutputWires],
 ) -> Result<(), String> {
-    enforce_common_ce_fields_equal(builder, previous, current)?;
-    for (idx, (parent, running_parent)) in previous.iter().zip(current.iter()).enumerate() {
-        enforce_flat_limbs_vs_kvar_row(builder, &parent.y_zcol, &running_parent.y_zcol, "y_zcol", idx, None)?;
-    }
-    Ok(())
+    enforce_common_ce_fields_equal(builder, previous, current)
 }
 
 fn enforce_vec_var_eq(
@@ -962,13 +929,13 @@ fn enforce_flat_limbs_vs_kvar_row(
 /// terminal latest recursive link. Returns
 /// `(terminal_fold_emitted, terminal_latest_link,
 /// terminal_parent_authority_link, post_fold_acc_digest,
-/// terminal_running_wires, terminal_children, outgoing_pending_projection)`.
+/// terminal_running_wires, terminal_children)`.
 /// The decider uses the
 /// running wires for the final CE-claim continuity link (terminal fold's
 /// running == last recursive F' step's children), and the children wires
 /// as the terminal CE-relation closure's claim inputs — the NIFS-output
-/// CE claims that `enforce_final_dec_children_relations` or its
-/// pending-projection counterpart binds to the opened witnesses.
+/// CE claims that `enforce_final_dec_children_relations` binds to the opened
+/// witnesses.
 fn emit_terminal_fold(
     builder: &mut R1csBuilder,
     prep: &Preprocessing,
@@ -982,15 +949,14 @@ fn emit_terminal_fold(
         bool,
         bool,
         [Var; 4],
-        Vec<SplitNcPiCcsOutputWires>,
+        Vec<PiCcsOutputWires>,
         Vec<crate::paper::reductions::pi_dec_circuit::CeClaimWires>,
-        Option<PendingProjectionWires>,
     ),
     decider::Error,
 > {
     let terminal_start = builder.rows();
     let nifs_config = NifsVCircuitConfig {
-        pi_ccs: split_nc_config(prep).map_err(|e| decider::Error::WalkFailed(format!("split_nc_config: {e}")))?,
+        pi_ccs: pi_ccs_config(prep).map_err(|e| decider::Error::WalkFailed(format!("pi_ccs_config: {e}")))?,
     };
 
     let mut transcript = TranscriptGadget::new(builder, FINAL_FOLD_TRANSCRIPT_LABEL);
@@ -999,7 +965,6 @@ fn emit_terminal_fold(
         fresh: trailing_latest,
         running: &running_pre_final_fold.claims,
         running_parent_authority: running_pre_final_fold.parent_authority.as_ref(),
-        running_pending_projection: running_pre_final_fold.pending_projection(),
         pi_ccs: &final_fold_nifs.pi_ccs,
         combined: &final_fold_nifs.pi_rlc.combined,
         children: &final_fold_nifs.pi_dec.children,
@@ -1040,20 +1005,12 @@ fn emit_terminal_fold(
     )?;
     builder.record_row_family("terminal.latest_link", latest_link_start);
 
-    // Bind the exact ordered output accumulator. In the production profile,
-    // use the same pending-family codec as recursive F': it includes the
-    // verifier-derived delayed projection state. Legacy profiles retain the
-    // ordered-child codec. Strict Pi_DEC validates the parent cache but does
-    // not make it injective in its child vector.
+    // Bind the exact ordered output accumulator. Strict Pi_DEC validates the
+    // parent cache but does not make it injective in its child vector.
     let accumulator_start = builder.rows();
-    let post_fold_acc_digest = enforce_terminal_output_acc_digest(
-        builder,
-        &nifs_outputs.children,
-        nifs_outputs.outgoing_pending_projection.as_ref(),
-    )
-    .map_err(|error| decider::Error::WalkFailed(format!("terminal output accumulator digest: {error}")))?;
+    let post_fold_acc_digest = enforce_terminal_output_acc_digest(builder, &nifs_outputs.children)
+        .map_err(|error| decider::Error::WalkFailed(format!("terminal output accumulator digest: {error}")))?;
     let terminal_children = nifs_outputs.children;
-    let outgoing_pending_projection = nifs_outputs.outgoing_pending_projection;
     builder.record_row_family("terminal.accumulator", accumulator_start);
     builder.record_row_family("terminal.total", terminal_start);
 
@@ -1064,7 +1021,6 @@ fn emit_terminal_fold(
         post_fold_acc_digest,
         nifs_outputs.running,
         terminal_children,
-        outgoing_pending_projection,
     ))
 }
 
@@ -1135,22 +1091,10 @@ fn enforce_terminal_latest_link(
     Ok(())
 }
 
-fn split_nc_config(prep: &Preprocessing) -> Result<SplitNcPiCcsVConfig<'_>, String> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        crate::config::MIN_EFFECTIVE_LAMBDA,
-        crate::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .map_err(|e| format!("raw params: {e}"))?;
-    let dims = neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure())
-        .map_err(|e| format!("dims: {e}"))?;
-    Ok(SplitNcPiCcsVConfig {
+fn pi_ccs_config(prep: &Preprocessing) -> Result<PiCcsVerifierConfig<'_>, String> {
+    Ok(PiCcsVerifierConfig {
         params: &prep.params,
         structure: prep.structure().into(),
-        header_bundle: prep.pi_ccs_header_bundle(),
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
+        matrix_digest: prep.pi_ccs_header_bundle(),
     })
 }

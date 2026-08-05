@@ -29,6 +29,19 @@
 //! running accumulator stays low-norm. Hypernova's Pedersen commitments
 //! don't need this and so don't have a Π_DEC step.
 //!
+//! ## Backend selection
+//!
+//! The caller selects one complete NIFS prover at this boundary:
+//!
+//! - [`PaperExactNifsProver`] uses PaperExact PiCCS, PiRLC, and PiDEC.
+//! - [`OptimizedCpuNifsProver`] uses optimized PiCCS, PiRLC, and PiDEC.
+//! - CUDA and Metal prover types implement the optimized NIFS adapter in
+//!   their backend crates.
+//! - [`CrosscheckNifsProver`] runs optimized CPU and PaperExact together.
+//!
+//! Reduction mode is not a second caller choice. An accelerator selection
+//! therefore cannot be combined with PaperExact reductions.
+//!
 //! ## What this module owns
 //!
 //! - `proof.rs` — `NifsProof` wire-format type (the three sub-proofs F'
@@ -42,13 +55,14 @@
 //! No IVC vocabulary here (no `z_i`, no `pc`, no `x_out`). Those belong to
 //! `paper::f_prime` and `paper::construction2`.
 //!
-//! The math itself lives in `paper::reductions::{pi_ccs, pi_rlc, pi_dec}`
-//! and ultimately in `engine::optimized` (which wraps `neo-reductions`).
-//! This module is only the composition layer.
+//! The math itself lives in `paper::reductions::{pi_ccs, pi_rlc, pi_dec}`.
+//! This module selects one complete implementation and composes it.
 
 mod backend;
 pub mod circuit;
+mod crosscheck;
 mod fixed;
+mod paper_exact;
 mod proof;
 mod prover;
 mod verifier;
@@ -83,19 +97,25 @@ pub enum Error {
         phase: &'static str,
         reason: String,
     },
+    #[error("NIFS.P crosscheck executions differ at {boundary}")]
+    CrosscheckMismatch { boundary: &'static str },
+    #[error("NIFS.P crosscheck reference worker panicked")]
+    CrosscheckWorkerPanic,
 }
 
 pub use backend::{
-    CpuNifsProver, DeferredNifsProofMaterializer, DeferredNifsRunningMaterializer, NifsFPrimeStepContext,
-    NifsFreshImageOverlayRequest, NifsFreshImageRegion, NifsFreshImageRegionKind, NifsFreshInstancesRequest,
-    NifsFreshSemanticStateInOverlay, NifsFreshSemanticStateOutOverlay, NifsFreshSignedUnitAssignment,
-    NifsFreshSignedUnitInstancesRequest, NifsFreshStateXOutOverlay, NifsPostFoldSummary, NifsProofCarrier,
-    NifsProverAdapter, NifsProverOutput, NifsProverRequest, NifsRunningCarrier,
+    AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, DeferredNifsProofMaterializer,
+    DeferredNifsRunningMaterializer, NifsFPrimeStepContext, NifsFreshImageOverlayRequest, NifsFreshImageRegion,
+    NifsFreshImageRegionKind, NifsFreshInstancesRequest, NifsFreshSemanticStateInOverlay,
+    NifsFreshSemanticStateOutOverlay, NifsFreshSignedUnitAssignment, NifsFreshSignedUnitInstancesRequest,
+    NifsFreshStateXOutOverlay, NifsPostFoldSummary, NifsProofCarrier, NifsProverAdapter, NifsProverOutput,
+    NifsProverRequest, NifsRunningCarrier, OptimizedCpuNifsProver, OptimizedNifsProverAdapter, PaperExactNifsProver,
 };
+#[doc(hidden)]
+pub use crosscheck::require_nifs_execution_match;
 pub use fixed::{prove_fixed, verify_fixed, FixedNifsAccumulator};
+pub use paper_exact::prove_paper_exact;
 pub use proof::NifsProof;
 pub use prover::{prove, prove_with_adapter};
 pub(crate) use prover::{prove_terminal_with_adapter_output_from_carrier, prove_with_adapter_output_from_carrier};
-pub use verifier::verify;
-#[doc(hidden)]
-pub use work::outgoing_pending_projection;
+pub use verifier::{verify, verify_paper_exact};

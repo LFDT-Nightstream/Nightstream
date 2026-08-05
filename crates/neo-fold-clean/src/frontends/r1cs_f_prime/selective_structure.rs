@@ -562,7 +562,7 @@ pub(super) fn emit_structure_terms(
         }
     }
 
-    // SplitNc keeps rows and assignment separate. Add only D-alignment
+    // The one-joint relation keeps rows and assignment separate. Add only D-alignment
     // coordinates, and constrain them to zero rather than witness slack.
     let columns = cols.next_multiple_of(D);
     let family_start = row_cursor;
@@ -596,7 +596,7 @@ fn emit_domain_digit(
     column: usize,
     centered: bool,
 ) {
-    // SplitNc proves every committed coordinate lies in {-1, 0, 1}.
+    // The selected joint norm term proves every committed coordinate lies in {-1, 0, 1}.
     // Only binary coordinates need an additional CCS row to exclude -1.
     if centered {
         return;

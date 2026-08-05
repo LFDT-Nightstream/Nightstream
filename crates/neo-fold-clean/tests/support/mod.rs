@@ -18,7 +18,7 @@ pub fn toy_preprocessing() -> Preprocessing {
     let structure = toy_structure();
     let params = config::r1cs_params(structure.n, structure.m).expect("production-core toy params");
     install_ajtai_module(&params, &structure);
-    preprocess(params, structure, Some(1)).expect("toy preprocessing")
+    preprocess(params, structure, Some(D)).expect("toy preprocessing")
 }
 
 pub fn toy_preprocessing_unfixed_public_input_len() -> Preprocessing {
@@ -30,7 +30,7 @@ pub fn toy_preprocessing_unfixed_public_input_len() -> Preprocessing {
 
 pub fn toy_instance(prep: &Preprocessing, _seed: u64) -> CcsInstance {
     let z = vec![F::ZERO; prep.structure().m];
-    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 1)
+    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, D)
         .expect("toy low-norm CCS instance")
 }
 
@@ -40,7 +40,7 @@ pub fn mutate_ce_claim(claim: &mut neo_fold_clean::CeClaim) {
 }
 
 fn toy_structure() -> Structure {
-    CcsStructure::new(vec![Mat::identity(1)], SparsePoly::new(1, vec![])).expect("toy CCS structure")
+    CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, vec![])).expect("toy CCS structure")
 }
 
 pub(crate) fn install_ajtai_module(params: &Params, structure: &Structure) {

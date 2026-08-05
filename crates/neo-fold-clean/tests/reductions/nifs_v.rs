@@ -12,8 +12,6 @@
 //! - `nifs_v_rejects_parent_authority_when_running_is_empty`
 //! - `nifs_v_rejects_nonempty_running_without_parent_authority`
 //! - `nifs_v_rejects_tampered_running_parent_authority`
-//! - `nifs_v_rejects_tampered_running_parent_authority_s_col`
-//! - `nifs_v_accepts_tampered_running_parent_authority_y_zcol_non_authority`
 //! - `nifs_v_rejects_tampered_running_parent_authority_r_c1_limb`
 //! - `nifs_v_rejects_tampered_running_parent_authority_y_ring_c1_limb`
 //! - `nifs_v_rejects_tampered_running_parent_authority_ct_c1_limb`
@@ -24,13 +22,9 @@
 //! - `nifs_v_rejects_tampered_running_child_fold_digest`
 //! - `nifs_v_rejects_tampered_pi_ccs_fresh_output_y_ring_non_ct_lane`
 //! - `nifs_v_rejects_tampered_pi_ccs_fresh_output_y_ring_padding_lane`
-//! - `nifs_v_rejects_tampered_pi_ccs_output_y_zcol_padding_lane`
-//! - `nifs_v_rejects_tampered_combined_y_zcol_lane`
-//! - `nifs_v_rejects_tampered_combined_y_zcol_c1_limb`
 //! - `nifs_v_rejects_tampered_combined_y_ring_non_ct_c1_limb`
 //! - `nifs_v_rejects_tampered_combined_r_point`
 //! - `nifs_v_rejects_tampered_combined_r_c1_limb`
-//! - `nifs_v_rejects_tampered_combined_s_col_c1_limb`
 //! - `nifs_v_rejects_tampered_child_commitment_lane`
 //! - `nifs_v_rejects_tampered_child_x_active_lane`
 //! - `nifs_v_rejects_nonzero_inactive_x_in_dec_child`
@@ -45,12 +39,6 @@
 //! - `nifs_v_rejects_extra_self_consistent_running_y_ring_row`
 //! - `nifs_v_rejects_child_m_in_drift`
 //! - `nifs_v_rejects_parent_m_in_drift`
-//! - `nifs_v_rejects_incoming_running_sidecars`
-//! - `nifs_v_rejects_combined_aux_openings_sidecar`
-//! - `nifs_v_rejects_child_aux_openings_sidecar`
-//! - `nifs_v_rejects_combined_pattern_a_sidecar`
-//! - `nifs_v_rejects_child_pattern_a_sidecar`
-//! - `nifs_v_rejects_tampered_child_s_col`
 //! - `nifs_v_rejects_tampered_pi_ccs_output_fold_digest`
 //! - `nifs_v_rejects_tampered_combined_fold_digest`
 //! - `nifs_v_rejects_tampered_child_fold_digest`
@@ -69,7 +57,7 @@ use neo_fold_clean::paper::nifs::circuit::{
     enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages, NifsVOutputs,
 };
 use neo_fold_clean::paper::nifs::NifsProof;
-use neo_fold_clean::paper::reductions::pi_ccs_split_nc_circuit::SplitNcPiCcsVConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig;
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_math::ring::D;
 use neo_math::{KExtensions, F, K};
@@ -91,7 +79,9 @@ fn three_term_addition() -> R1cs {
     b.set(0, 0, F::ONE);
     let mut c = Mat::zero(1, m, F::ZERO);
     c.set(0, 3, F::ONE);
-    R1cs { a, b, c, m_in: 3 }
+    // The selected SuperNeo profile exposes complete degree-D ring slots.
+    // Coordinates 3..D are explicit public zeros in this fixture.
+    R1cs { a, b, c, m_in: D }
 }
 
 fn assignment(a: u64, b: u64) -> Vec<F> {
@@ -193,16 +183,10 @@ fn trivial_public_dec_children(
             c: Commitment::zeros(parent.c.d, parent.c.kappa),
             X: Mat::zero(parent.X.rows(), parent.X.cols(), F::ZERO),
             r: parent.r.clone(),
-            s_col: parent.s_col.clone(),
             y_ring: vec![vec![K::ZERO; d_pad]; parent.y_ring.len()],
             ct: vec![K::ZERO; parent.ct.len()],
-            aux_openings: Vec::new(),
-            y_zcol: vec![K::ZERO; parent.y_zcol.len()],
             m_in: parent.m_in,
             fold_digest: parent.fold_digest,
-            c_step_coords: Vec::new(),
-            u_offset: 0,
-            u_len: 0,
         });
     }
     children
@@ -223,33 +207,10 @@ fn widen_claim_x_with_zero_col(claim: &mut neo_fold_clean::CeClaim) {
     claim.m_in += 1;
 }
 
-fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> SplitNcPiCcsVConfig<'a> {
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        prep.structure().n.max(prep.structure().m),
-        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
-        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params reconstruction");
-    let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, prep.structure()).expect("engine dims");
-    let mat_digest = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(prep.structure(), None);
-    let header_bundle = neo_reductions::engines::utils::pi_ccs_header_bundle_digest_fields(
-        &raw_params,
-        prep.structure(),
-        dims,
-        &mat_digest,
-    )
-    .expect("header bundle digest");
-
-    SplitNcPiCcsVConfig {
-        params: &prep.params,
-        structure: prep.structure().into(),
-        header_bundle,
-        ell_d: dims.ell_d,
-        ell_n: dims.ell_n,
-        ell_m: dims.ell_m,
-        d_sc: dims.d_sc,
-    }
+fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'a> {
+    prep.nifs_v_circuit_config()
+        .expect("NIFS.V circuit configuration")
+        .pi_ccs
 }
 
 fn emit_verifier(f: &Fixture) -> Result<R1csBuilder, neo_fold_clean::paper::nifs::circuit::Error> {
@@ -291,25 +252,12 @@ fn emit_verifier_with_running_outputs(
             fresh: &f.fresh_claims,
             running,
             running_parent_authority,
-            running_pending_projection: f.running.pending_projection(),
             pi_ccs: &f.proof.pi_ccs,
             combined: &f.combined,
             children,
         },
     )?;
     Ok((builder, outputs))
-}
-
-fn expect_incoming_sidecar_rejected(name: &'static str, mutate: fn(&mut Fixture), needle: &str) {
-    let mut fixture = build_fixture();
-    mutate(&mut fixture);
-    let err = emit_verifier(&fixture)
-        .err()
-        .unwrap_or_else(|| panic!("{name} sidecar must fail NIFS.V synthesis"));
-    assert!(
-        err.to_string().contains(needle),
-        "expected `{needle}` shape error for {name}, got {err}"
-    );
 }
 
 #[test]
@@ -333,67 +281,18 @@ fn nifs_v_accepts_native_proof() {
         .expect("native NIFS.V must accept its own proof");
     }
     let builder = emit_verifier(&fixture).expect("emit verifier");
-    assert!(
-        builder.is_satisfied(),
-        "native nifs::prove proof must satisfy NIFS.V circuit; first bad row {:?}",
-        builder.first_unsatisfied_row()
-    );
-}
-
-#[test]
-fn nifs_v_omits_child_and_running_y_zcol_without_changing_the_relation() {
-    let baseline_fixture = build_fixture();
-    let (baseline_builder, baseline_outputs) =
-        emit_verifier_outputs(&baseline_fixture).expect("emit baseline verifier");
-    assert!(baseline_builder.is_satisfied(), "baseline NIFS.V must satisfy");
-    assert!(
-        baseline_outputs
-            .running
+    let first_bad_row = builder.first_unsatisfied_row();
+    let containing_families = first_bad_row.map(|row| {
+        builder
+            .row_family_ranges()
             .iter()
-            .all(|claim| claim.y_zcol.is_empty()),
-        "Π_CCS running claims must not allocate y_zcol"
-    );
+            .filter(|range| range.row_start <= row && row < range.row_end)
+            .copied()
+            .collect::<Vec<_>>()
+    });
     assert!(
-        baseline_outputs
-            .children
-            .iter()
-            .all(|claim| claim.y_zcol.is_empty()),
-        "Π_DEC children must not allocate y_zcol"
-    );
-    assert!(
-        !baseline_outputs.parent.y_zcol.is_empty(),
-        "authoritative Π_RLC parent must retain y_zcol"
-    );
-    assert!(
-        baseline_outputs
-            .running_parent_authority
-            .as_ref()
-            .is_some_and(|parent| !parent.y_zcol.is_empty()),
-        "incoming Π_RLC parent authority must retain y_zcol"
-    );
-
-    let baseline = baseline_builder.snapshot();
-
-    let mut running_mutation = build_fixture();
-    running_mutation.running.claims[0].y_zcol[0] += K::ONE;
-    let (running_builder, _) = emit_verifier_outputs(&running_mutation).expect("emit running-y_zcol mutation");
-    let running = running_builder.snapshot();
-    assert!(baseline.has_same_relation(&running));
-    assert_eq!(
-        baseline.witness(),
-        running.witness(),
-        "native running y_zcol leaked into the NIFS.V witness"
-    );
-
-    let mut child_mutation = build_fixture();
-    child_mutation.children[0].y_zcol[0] += K::ONE;
-    let (child_builder, _) = emit_verifier_outputs(&child_mutation).expect("emit child-y_zcol mutation");
-    let child = child_builder.snapshot();
-    assert!(baseline.has_same_relation(&child));
-    assert_eq!(
-        baseline.witness(),
-        child.witness(),
-        "native Π_DEC child y_zcol leaked into the NIFS.V witness"
+        first_bad_row.is_none(),
+        "native nifs::prove proof must satisfy NIFS.V circuit; first bad row {first_bad_row:?}; families {containing_families:?}"
     );
 }
 
@@ -445,7 +344,7 @@ fn nifs_v_circuit_rejects_fresh_count_above_rlc_guard() {
         .err()
         .expect("NIFS.V circuit synthesis must reject K above the SuperNeo RLC guard");
     assert!(
-        err.to_string().contains("max_fresh_count"),
+        err.to_string().contains("fresh source count"),
         "expected max_fresh_count shape rejection, got {err}"
     );
 }
@@ -462,7 +361,7 @@ fn nifs_v_rejects_tampered_fe_round() {
 #[test]
 fn nifs_v_rejects_parent_authority_when_running_is_empty() {
     let mut fixture = build_fixture();
-    // The SplitNc verifier's first shape guard checks Π_CCS output count
+    // The selected verifier checks Π_CCS output count
     // against `fresh.len() + running.len()`. Truncate the proof outputs to
     // the empty-running width so this test reaches the intended
     // parent-authority guard rather than failing early on output count.
@@ -488,7 +387,7 @@ fn nifs_v_rejects_parent_authority_when_running_is_empty() {
     .expect("parent authority with empty running must fail closed");
     assert!(
         err.to_string()
-            .contains("parent authority present while running is empty"),
+            .contains("empty running accumulator carries a parent authority"),
         "expected empty-running parent-authority shape error, got {err}"
     );
 }
@@ -502,7 +401,7 @@ fn nifs_v_rejects_nonempty_running_without_parent_authority() {
         .expect("non-empty running without parent authority must fail closed");
     assert!(
         err.to_string()
-            .contains("non-empty running accumulator missing Pi_RLC parent authority"),
+            .contains("nonempty running accumulator is missing its parent authority"),
         "expected missing-parent-authority shape error, got {err}"
     );
 }
@@ -582,49 +481,6 @@ fn nifs_v_rejects_proof_generated_with_inconsistent_running_parent_authority() {
     assert!(
         !builder.is_satisfied(),
         "in-circuit NIFS.V accepted a proof generated from inconsistent running parent authority"
-    );
-}
-
-#[test]
-fn nifs_v_rejects_tampered_running_parent_authority_s_col() {
-    // `s_col` is not part of the legacy Π_CCS parent-authority digest, but
-    // it is part of HyperNova's carried running accumulator `U_i`. The
-    // running-accumulator authority handle absorbed by SplitNc Π_CCS.V must
-    // bind it before Fiat-Shamir challenges are sampled.
-    let mut fixture = build_fixture();
-    let parent = fixture
-        .running
-        .parent_authority
-        .as_mut()
-        .expect("running parent authority");
-    assert!(!parent.s_col.is_empty(), "fixture must expose parent s_col");
-    parent.s_col[0] += K::ONE;
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
-    assert!(
-        !builder.is_satisfied(),
-        "tampered running parent authority s_col must be rejected"
-    );
-}
-
-#[test]
-fn nifs_v_records_current_unbound_running_parent_y_zcol() {
-    // This acceptance pins a known authority gap, not a desired boundary.
-    // Hashing the sidecar would bind a prover value without proving its source;
-    // a delayed-NC refinement must make this mutation fail semantically.
-    let mut fixture = build_fixture();
-    let parent = fixture
-        .running
-        .parent_authority
-        .as_mut()
-        .expect("running parent authority");
-    assert!(!parent.y_zcol.is_empty(), "fixture must expose parent y_zcol");
-    parent.y_zcol[0] += K::ONE;
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
-    assert!(
-        builder.is_satisfied(),
-        "current-gap regression: NIFS.V unexpectedly started binding parent y_zcol; update the delayed-authority audit"
     );
 }
 
@@ -871,29 +727,13 @@ fn nifs_v_rejects_coherent_fresh_output_non_ct_y_ring_relabel() {
         fixture.proof.pi_ccs.outputs.len(),
     )
     .expect("sample rho");
-    let raw_params = neo_params::NeoParams::goldilocks_auto_r1cs_ccs_with(
-        fixture.prep.structure().n.max(fixture.prep.structure().m),
-        neo_fold_clean::config::MIN_EFFECTIVE_LAMBDA,
-        neo_fold_clean::config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("raw params reconstruction");
-    let dims =
-        neo_reductions::engines::utils::build_dims_and_policy(&raw_params, fixture.prep.structure()).expect("dims");
     let combined = neo_reductions::api::rlc_public(
         fixture.prep.structure(),
-        &raw_params,
-        fixture
-            .proof
-            .pi_ccs
-            .outputs
-            .first()
-            .expect("Π_CCS output batch must be nonempty")
-            .s_col
-            .len(),
+        fixture.prep.params.inner(),
         &rhos,
         &fixture.proof.pi_ccs.outputs,
         |rho_mats, commitments| (fixture.prep.mix_rhos_commits())(rho_mats, commitments),
-        dims.ell_d,
+        D.next_power_of_two().trailing_zeros() as usize,
     )
     .expect("public RLC recompute");
 
@@ -946,66 +786,6 @@ fn nifs_v_rejects_tampered_pi_ccs_fresh_output_y_ring_padding_lane() {
     assert!(
         !builder.is_satisfied(),
         "tampered Π_CCS fresh-output y_ring padding lane must be rejected by NIFS.V"
-    );
-}
-
-#[test]
-fn nifs_v_rejects_tampered_pi_ccs_output_y_zcol_padding_lane() {
-    // Same padding-canonicality check for the NC output column. The NC
-    // terminal identity consumes the full d_pad prefix, so this should fail
-    // even before considering the downstream RLC fold.
-    let mut fixture = build_fixture();
-    let d_pad = D.next_power_of_two();
-    assert!(d_pad > D, "fixture must have padded y_zcol lanes");
-    assert_eq!(
-        fixture.proof.pi_ccs.outputs[0].y_zcol.len(),
-        d_pad,
-        "fixture must expose full padded y_zcol"
-    );
-    fixture.proof.pi_ccs.outputs[0].y_zcol[D] += K::ONE;
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
-    assert!(
-        !builder.is_satisfied(),
-        "tampered Π_CCS output y_zcol padding lane must be rejected by NIFS.V"
-    );
-}
-
-#[test]
-fn nifs_v_rejects_tampered_combined_y_zcol_lane() {
-    // Tamper a lane of the Π_RLC combined parent's y_zcol. The padded RLC
-    // fold `parent.y_zcol = Σ ρ_i · output_i.y_zcol` (rotation on [0, D),
-    // zero on tail) must break.
-    let mut fixture = build_fixture();
-    fixture.combined.y_zcol[0] += K::ONE;
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
-    assert!(!builder.is_satisfied(), "tampered combined.y_zcol[0] must be rejected");
-}
-
-#[test]
-fn nifs_v_rejects_tampered_combined_y_zcol_c1_limb() {
-    // Full NIFS.V must consume both K limbs of the Π_RLC combined
-    // y_zcol. A c0-only NC fold or digest binding would miss this.
-    let mut fixture = build_fixture();
-    assert!(!fixture.combined.y_zcol.is_empty(), "fixture must have combined y_zcol");
-    let original = fixture.combined.y_zcol[0];
-    fixture.combined.y_zcol[0] = original + k_c1_one();
-    assert_eq!(
-        fixture.combined.y_zcol[0].as_coeffs()[0],
-        original.as_coeffs()[0],
-        "mutation must leave c0 unchanged"
-    );
-    assert_ne!(
-        fixture.combined.y_zcol[0].as_coeffs()[1],
-        original.as_coeffs()[1],
-        "mutation must change c1"
-    );
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
-    assert!(
-        !builder.is_satisfied(),
-        "NIFS.V accepted a c1-only combined.y_zcol tamper"
     );
 }
 
@@ -1074,36 +854,6 @@ fn nifs_v_rejects_tampered_combined_r_c1_limb() {
 
     let builder = emit_verifier(&fixture).expect("emit verifier");
     assert!(!builder.is_satisfied(), "NIFS.V accepted a c1-only combined.r tamper");
-}
-
-#[test]
-fn nifs_v_rejects_tampered_combined_s_col_c1_limb() {
-    // Π_RLC does not mix `s_col`; it propagates the SplitNc output column
-    // point into the combined parent by equality. Mutate only c1 so a
-    // c0-only consistency row would miss it.
-    let mut fixture = build_fixture();
-    assert!(
-        !fixture.combined.s_col.is_empty(),
-        "fixture must have a DEC parent s_col"
-    );
-    let original = fixture.combined.s_col[0];
-    fixture.combined.s_col[0] = original + k_c1_one();
-    assert_eq!(
-        fixture.combined.s_col[0].as_coeffs()[0],
-        original.as_coeffs()[0],
-        "mutation must leave c0 unchanged"
-    );
-    assert_ne!(
-        fixture.combined.s_col[0].as_coeffs()[1],
-        original.as_coeffs()[1],
-        "mutation must change c1"
-    );
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
-    assert!(
-        !builder.is_satisfied(),
-        "NIFS.V accepted a c1-only combined.s_col tamper"
-    );
 }
 
 #[test]
@@ -1337,8 +1087,8 @@ fn nifs_v_rejects_tampered_child_r_point() {
 
 #[test]
 fn nifs_v_rejects_extra_self_consistent_y_ring_row() {
-    // The clean SplitNc/NIFS circuit owns exactly `structure.t()` matrix
-    // evaluation rows. A proof must not smuggle an extra y_ring/ct row
+    // The selected circuit owns the identity row plus exactly `structure.t()`
+    // application-matrix evaluation rows. A proof must not smuggle an extra y_ring/ct row
     // through Π_DEC, even if the extra row is self-consistent and zero, since
     // no Π_CCS/Π_RLC matrix owns it. This is a structural error, not an
     // unsatisfied-row case.
@@ -1356,7 +1106,7 @@ fn nifs_v_rejects_extra_self_consistent_y_ring_row() {
         .err()
         .expect("extra y_ring row must fail NIFS.V synthesis");
     assert!(
-        err.to_string().contains("y_ring outer length"),
+        err.to_string().contains("y_ring count"),
         "expected y_ring outer length shape error, got {err}"
     );
 }
@@ -1421,7 +1171,8 @@ fn nifs_v_rejects_extra_self_consistent_running_y_ring_row() {
         .err()
         .expect("extra running y_ring row must fail NIFS.V synthesis");
     assert!(
-        err.to_string().contains("running[0].y_ring.len"),
+        err.to_string()
+            .contains("running[0] does not have the selected CE shape"),
         "expected running y_ring outer length shape error, got {err}"
     );
 }
@@ -1458,47 +1209,6 @@ fn native_nifs_verify_rejects_extra_self_consistent_running_y_ring_row() {
     assert!(
         result.is_err(),
         "native NIFS.V accepted an extra self-consistent running y_ring/ct row"
-    );
-}
-
-#[test]
-fn nifs_v_rejects_incoming_running_sidecars() {
-    // Incoming `running` is HyperNova's carried U_i; its Π_RLC parent is a
-    // separately checked cache. The clean circuit does not allocate
-    // aux_openings or Pattern-A metadata for either, so those sidecars fail
-    // closed before any digest can consume them.
-    expect_incoming_sidecar_rejected(
-        "running aux_openings",
-        |f| f.running.claims[0].aux_openings.push(K::ONE),
-        "running[0].aux_openings",
-    );
-    expect_incoming_sidecar_rejected(
-        "running parent aux_openings",
-        |f| {
-            f.running
-                .parent_authority
-                .as_mut()
-                .expect("running parent authority")
-                .aux_openings
-                .push(K::ONE);
-        },
-        "running_parent_authority.aux_openings",
-    );
-    expect_incoming_sidecar_rejected(
-        "running Pattern-A",
-        |f| f.running.claims[0].u_len = 1,
-        "running[0] carries unsupported Pattern-A",
-    );
-    expect_incoming_sidecar_rejected(
-        "running parent Pattern-A",
-        |f| {
-            f.running
-                .parent_authority
-                .as_mut()
-                .expect("running parent authority")
-                .u_offset = 1;
-        },
-        "running_parent_authority carries unsupported Pattern-A",
     );
 }
 
@@ -1577,83 +1287,6 @@ fn nifs_v_rejects_combined_parent_commitment_kappa_wider_than_rlc_outputs() {
 }
 
 #[test]
-fn nifs_v_rejects_combined_aux_openings_sidecar() {
-    // Native Π_DEC supports aux_openings decomposition, but the clean
-    // SplitNc/NIFS circuit does not allocate or constrain that sidecar.
-    // It must fail closed rather than silently drop it.
-    let mut fixture = build_fixture();
-    fixture.combined.aux_openings.push(K::ONE);
-
-    let err = emit_verifier(&fixture)
-        .err()
-        .expect("combined aux_openings sidecar must fail synthesis");
-    assert!(
-        err.to_string().contains("aux_openings"),
-        "expected aux_openings shape error, got {err}"
-    );
-}
-
-#[test]
-fn nifs_v_rejects_child_aux_openings_sidecar() {
-    let mut fixture = build_fixture();
-    fixture.children[0].aux_openings.push(K::ONE);
-
-    let err = emit_verifier(&fixture)
-        .err()
-        .expect("child aux_openings sidecar must fail synthesis");
-    assert!(
-        err.to_string().contains("aux_openings"),
-        "expected aux_openings shape error, got {err}"
-    );
-}
-
-#[test]
-fn nifs_v_rejects_combined_pattern_a_sidecar() {
-    // Pattern-A fields are part of the CE struct but unsupported in the
-    // clean circuit path. A non-zero value must not disappear during
-    // allocation.
-    let mut fixture = build_fixture();
-    fixture.combined.c_step_coords.push(F::ONE);
-
-    let err = emit_verifier(&fixture)
-        .err()
-        .expect("combined Pattern-A sidecar must fail synthesis");
-    assert!(
-        err.to_string().contains("c_step_coords"),
-        "expected c_step_coords shape error, got {err}"
-    );
-}
-
-#[test]
-fn nifs_v_rejects_child_pattern_a_sidecar() {
-    let mut fixture = build_fixture();
-    fixture.children[0].u_len = 1;
-
-    let err = emit_verifier(&fixture)
-        .err()
-        .expect("child Pattern-A sidecar must fail synthesis");
-    assert!(
-        err.to_string().contains("u_len"),
-        "expected u_len shape error, got {err}"
-    );
-}
-
-#[test]
-fn nifs_v_rejects_tampered_child_s_col() {
-    // Tamper one child's s_col. Π_DEC strict `enforce_s_col_consistency`
-    // requires every child s_col equal parent.s_col lane-wise.
-    let mut fixture = build_fixture();
-    assert!(
-        !fixture.children.is_empty() && !fixture.children[0].s_col.is_empty(),
-        "test fixture must expose child s_col lanes"
-    );
-    fixture.children[0].s_col[0] += K::ONE;
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
-    assert!(!builder.is_satisfied(), "tampered child.s_col must be rejected");
-}
-
-#[test]
 fn nifs_v_rejects_tampered_pi_ccs_output_fold_digest() {
     // Π_CCS outputs carry the catch-up transcript digest. If this field is
     // not pinned to `proof.header_digest`, a later compact accumulator handle
@@ -1699,31 +1332,15 @@ fn nifs_v_rejects_tampered_child_fold_digest() {
 }
 
 #[test]
-fn nifs_v_rejects_tampered_header_digest() {
-    let mut fixture = build_fixture();
-    fixture.proof.pi_ccs.sumcheck.header_digest[0] ^= 1;
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
-    assert!(!builder.is_satisfied(), "tampered header_digest must be rejected");
-}
-
-#[test]
 fn nifs_v_rejects_coherent_forged_fold_digest_chain() {
-    // Sneakier than the single-field fold_digest tests: rewrite the
-    // recorded Π_CCS header digest and every carried fold_digest to the
-    // same forged value. That keeps the Π_CCS output -> Π_RLC parent ->
+    // Rewrite every carried fold_digest to the same forged value. That keeps
+    // the Π_CCS output -> Π_RLC parent ->
     // Π_DEC child equality chain self-consistent. The only row that should
-    // reject is the transcript catch-up squeeze that recomputes the real
-    // header digest from the verifier-driven transcript.
+    // reject is the verifier-driven transcript digest bound to the outputs.
     let mut fixture = build_fixture();
-    let mut forged = fixture.proof.pi_ccs.sumcheck.header_digest.clone();
-    forged[0] ^= 1;
-    let forged_fold_digest: [u8; 32] = forged
-        .as_slice()
-        .try_into()
-        .expect("Pi_CCS header_digest is always 32 bytes");
+    let mut forged_fold_digest = fixture.proof.pi_ccs.outputs[0].fold_digest;
+    forged_fold_digest[0] ^= 1;
 
-    fixture.proof.pi_ccs.sumcheck.header_digest = forged.clone();
     for output in &mut fixture.proof.pi_ccs.outputs {
         output.fold_digest = forged_fold_digest;
     }

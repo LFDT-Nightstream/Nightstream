@@ -108,7 +108,7 @@ def paperRelationSemantics
         assignment vertex)).evaluate extensionOps point]
 
 /-- The public input to one paper `Pi_CCS` execution. Source assignments are
-deliberately absent. `M_1 = I` is entrywise structure data, not an assumed
+deliberately absent. `M_1 = [I; 0]` is entrywise structure data, not an assumed
 matrix-image equality. -/
 structure Statement
     (Extension : Type uExtension)
@@ -128,7 +128,7 @@ structure Statement
       (vertex : BooleanVertex shape.cubeVariables)
       (column : Fin columns),
     matrixSource.matrices ⟨0, matrixCountPositive⟩ vertex column =
-      if column = cubeLayout.toColumn vertex then baseOps.one else baseOps.zero
+      cubeLayout.paddedIdentityEntry baseOps.zero baseOps.one vertex column
 
 /-- An extracted output witness is exactly one assignment for every source in
 the statement's canonical `K+k` order. -/
@@ -395,7 +395,7 @@ def publicOutput
     evaluations := #[fun matrix coefficient =>
       probe.response.fullOutput.coordinate source matrix coefficient]
     /- The protocol output is an instance of the honest target `CE(b)`.  The
-    strong reduction's relaxed target `CE(q/2)` is a second relation over this
+    strong reduction's relaxed target `CE(⌊q/2⌋+1)` is a second relation over this
     same public instance and is stated by `CorrectedAmbientHolds`, which
     deliberately ignores this tag.  Marking the instance itself `.ambient`
     would make it unusable as the literal input of `Pi_RLC` and would conflate
@@ -632,6 +632,7 @@ theorem projectedOutput_eq_messageAt_of_ambientOutputHolds
     {columns blockCount : Nat}
     {baseOps : InterpolationOps F}
     (baseLaws : InterpolationEvaluationLaws baseOps)
+    (baseZero : NormResidualTable.BaseZeroAgreement baseOps)
     (extensionOps : InterpolationOps Extension)
     (lift : F -> Extension)
     (openingMaps : OpeningMaps Commitment PublicInput columns)
@@ -660,7 +661,7 @@ theorem projectedOutput_eq_messageAt_of_ambientOutputHolds
     _ = ProtocolPolynomial.messageAt extensionOps
         (statement.sourceProtocolData lift witness) probe.coins.roundPoint :=
       FullOutput.honestAt_toOutputMessage_eq_messageAt
-        baseOps baseLaws extensionOps lift
+        baseOps baseLaws baseZero extensionOps lift
         (statement.sourceConnectedInputs witness) constantLaw
         (statement.identityFirstMatrix witness) probe.coins.roundPoint
 
@@ -769,7 +770,7 @@ theorem acceptedProbe_extracts_source_or_badEvent
     apply outputMismatch
     unfold ProtocolPolynomial.qAtPoint
     rw [projectedOutput_eq_messageAt_of_ambientOutputHolds
-      baseLaws extensionOps lift openingMaps params statement constantLaw
+      baseLaws baseZero extensionOps lift openingMaps params statement constantLaw
       probe witness ambient]
 
 /-- Fixed-width counterpart of `acceptedProbe_extracts_source_or_badEvent`.
@@ -880,7 +881,7 @@ theorem fixedWidthAcceptedProbe_extracts_source_or_badEvent
     apply outputMismatch
     unfold ProtocolPolynomial.qAtPoint
     rw [projectedOutput_eq_messageAt_of_ambientOutputHolds
-      baseLaws extensionOps lift openingMaps params statement constantLaw
+      baseLaws baseZero extensionOps lift openingMaps params statement constantLaw
       probe witness ambient]
 
 end Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongReduction

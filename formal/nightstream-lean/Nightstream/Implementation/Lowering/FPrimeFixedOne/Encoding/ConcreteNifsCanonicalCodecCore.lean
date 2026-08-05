@@ -1,5 +1,5 @@
-import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsParameters
 import Nightstream.Implementation.Lowering.Goldilocks.Codec
+import Nightstream.SuperNeo.Concrete.Phi81Relation.Types
 
 /-!
 Contract: canonical field-coordinate codecs for the finite algebraic carriers

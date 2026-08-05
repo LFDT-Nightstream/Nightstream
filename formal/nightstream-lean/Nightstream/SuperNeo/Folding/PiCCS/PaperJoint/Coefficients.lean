@@ -10,7 +10,7 @@ obligation families.
 
 Does not own: construction of residuals from CCS matrices or witnesses,
 SumCheck rounds, sampled challenges, root counting, Fiat--Shamir, the
-production FE/NC split, Rust, R1CS, or constraint counts.
+production data-layout refinement, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
 

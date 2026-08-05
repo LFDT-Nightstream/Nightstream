@@ -57,14 +57,15 @@ def counterexampleShape : Shape where
 /-- The unique Boolean vertex is in exact correspondence with the unique
 assignment column. -/
 def singletonLayout : ColumnLayout 0 1 where
-  toColumn := fun _ => 0
+  columns_le := by decide
   toVertex := fun _ => .nil
+  toColumn? := fun _ => some 0
   toColumn_toVertex := by
     intro column
-    apply Fin.eq_of_val_eq
-    omega
+    congr
+    exact Fin.eq_of_val_eq (by omega)
   toVertex_toColumn := by
-    intro vertex
+    intro vertex column _
     cases vertex
     rfl
 

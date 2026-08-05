@@ -105,7 +105,7 @@ private theorem piCcsSourceValid_or_badEvent
           execution.coins.roundPoint := by
     simpa [statement, data, execution, Key.piCcsProbe] using
       (projectedOutput_eq_messageAt_of_ambientOutputHolds
-        key.baseLaws key.extensionOps key.lift key.openingMaps key.params
+        key.baseLaws key.baseZero key.extensionOps key.lift key.openingMaps key.params
         statement key.constantLaw (key.piCcsProbe running fresh proof)
         witness ambient)
   have terminalExact :

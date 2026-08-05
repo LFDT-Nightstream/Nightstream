@@ -220,6 +220,11 @@ run_non_lean_capped() (
   run_capped "$NON_LEAN_TIMEOUT_SECONDS" "$@"
 )
 
+is_lean_command() {
+  local command_name="${1##*/}"
+  [[ "$command_name" == "lake" || "$command_name" == "lean" ]]
+}
+
 static_checks() {
   "$ROOT/scripts/check-layer-imports.sh"
   "$ROOT/scripts/check-generated-layout.sh"
@@ -372,7 +377,11 @@ case "${1:-}" in
     if (( $# == 0 )); then
       usage
     fi
-    run_non_lean_capped "$@"
+    if is_lean_command "$1"; then
+      run_lean_capped "$LEAN_TIMEOUT_SECONDS" "$@"
+    else
+      run_non_lean_capped "$@"
+    fi
     ;;
   *)
     usage

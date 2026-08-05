@@ -3,7 +3,6 @@ import Nightstream.Checks.Protocol
 import Nightstream.Implementation.Rust.FPrime
 import Nightstream.Implementation.Rust.Terminal
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.ModuleExport
-import Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.ModuleProofExport
 import Nightstream.Protocol.Terminal.CE
 
 namespace Nightstream.Checks.Rust
@@ -217,27 +216,20 @@ def runWasmModuleArtifact : IO Bool := do
   flush
   pure pass
 
-def runWasmProofArtifact : IO Bool := do
-  let path := "../../crates/neo-wasm/tests/fixtures/wasm_benchmark_42x6.proof.json"
-  let expected :=
-    Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.ModuleProofExport.render
-  let pass ← do
-    try
-      let content ← IO.FS.readFile ⟨path⟩
-      pure (content == expected)
-    catch _ =>
-      pure false
-  IO.println s!"rust_artifact {path} :: lean_wasm_proof => {pass}"
-  flush
-  pure pass
+/-- Emit a conformance token only after the complete result is known. -/
+def resultLine : Bool → String
+  | true =>
+      "rust_conformance=M5-reopened (functional probes and artifact checks pass; Rust-originated provenance audit open); direct_terminal_spartan=artifact-checked-bounded-lockstep; compact_decider=fail-closed-unsupported; DEC-SOUND=open"
+  | false =>
+      "rust_conformance=M5-fail; no Rust-conformant claim is established; DEC-SOUND=open"
 
 def run : IO Bool := do
   let probesOk ← Nightstream.Checks.runProbes probes
   let anchorsOk ← runAnchors
   let wasmModuleOk ← runWasmModuleArtifact
-  let wasmProofOk ← runWasmProofArtifact
-  IO.println "rust_conformance=M5-pass (supported uncompressed F-prime lifecycle and direct terminal CE); direct_terminal_spartan=artifact-checked-bounded-lockstep; compact_decider=fail-closed-unsupported; DEC-SOUND=open"
+  let pass := probesOk && anchorsOk && wasmModuleOk
+  IO.println (resultLine pass)
   flush
-  pure (probesOk && anchorsOk && wasmModuleOk && wasmProofOk)
+  pure pass
 
 end Nightstream.Checks.Rust

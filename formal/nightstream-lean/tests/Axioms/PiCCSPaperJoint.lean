@@ -12,7 +12,7 @@ the exponent-mismatch audit, finite target-shift identity, deterministic
 mixing-root reduction, and output point binding.
 
 Does not own: the explicitly open concrete arithmetization, SumCheck,
-transcript, SplitNc, implementation, or security-reduction boundaries.
+transcript, implementation, or security-reduction boundaries.
 
 | Audited theorem | Model-level guarantee |
 |---|---|
@@ -64,8 +64,8 @@ transcript, SplitNc, implementation, or security-reduction boundaries.
 | `PaperLinearAlgebra.matrixVectorAt_zero` | every matrix sends the canonical zero assignment to zero |
 | `PaperLinearAlgebra.matrixVectorAt_oneHot` | one selected carrier coordinate reduces to its exact matrix contribution |
 | `omitting_completed_carrier_changes_coefficient_image` | original-width projection cannot determine a folded CE coefficient image |
-| `ColumnLayout.columns_eq_twoPow` | the paper's square row/column bijection forces a power-of-two assignment width |
-| `no_columnLayout_for_completeCarrier` | no complete 54-lane Phi81 carrier can use that square row/column bijection |
+| `ColumnLayout.columns_le_twoPow` | the paper's padded layout proves that the assignment width fits in its Boolean row cube |
+| `no_columnLayout_for_completeCarrier` | a complete 54-lane Phi81 carrier cannot use the paper layout when it is wider than the row cube |
 | `omitting_coefficient_connectivity_changes_semantic_truth` | identical non-coefficient sources have opposite semantic truth when coefficient matrices are disconnected |
 | `residualizationBoundary` | the table constructor closes the arbitrary per-leaf iff at table level |
 | `evaluateShifted_eq_shift_mul_evaluateLocal` | the shifted target is exactly `gamma^(2K+k)` times the literal target |
@@ -82,10 +82,9 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 #guard_msgs in
 #audit_axioms canonicalFinIndices_nodup
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.UnifiedSources.ColumnLayout.columns_eq_twoPow' depends on axioms: [propext,
- Quot.sound] -/
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.UnifiedSources.ColumnLayout.columns_le_twoPow' does not depend on any axioms -/
 #guard_msgs in
-#audit_axioms UnifiedSources.ColumnLayout.columns_eq_twoPow
+#audit_axioms UnifiedSources.ColumnLayout.columns_le_twoPow
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.DomainSeparation.no_columnLayout_for_completeCarrier' depends on axioms: [propext,
  Quot.sound] -/
@@ -621,7 +620,7 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 #guard_msgs in
 #audit_axioms UnifiedSources.UnifiedInputs.normBatch_at_toVertex_eq_assignment
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.UnifiedSources.UnifiedInputs.normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded' does not depend on any axioms -/
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.UnifiedSources.UnifiedInputs.normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms UnifiedSources.UnifiedInputs.normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded
 

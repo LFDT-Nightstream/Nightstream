@@ -74,6 +74,8 @@ def nifsPiRlcContext
   params := key.params
   arity := key.arity
   algebra := key.piRlcAlgebra
+  evaluationCount := fun _ => 1
+  evaluationsSize := key.piRlcEvaluationsSize
 
 /-- The authoritative `Pi_RLC` batch is exactly the coefficient-complete
 public output of the preceding `Pi_CCS` replay. -/
@@ -103,6 +105,8 @@ def nifsPiRlcBatch
   inputs := key.piCcsOutputs running fresh proof
   sameSystem := fun _ => rfl
   samePoint := fun _ => rfl
+  evaluationCount := 1
+  evaluationsSize := fun _ => rfl
 
 @[simp] theorem nifsPiRlcBatch_input
     {Extension : Type uExtension}
@@ -236,14 +240,13 @@ def nifsEventPredicates
         (piCcsReplayInput key outcome.running outcome.fresh outcome.proof)
         other
   outputAbsorptionCollision := fun outcome =>
-    exists otherState otherMessage,
-      ProtocolVerifier.OutputAbsorptionCollision key.oracle
+    exists otherState otherOutput,
+      FullOutputAbsorptionCollision key
         ((piCcsReplayInput key outcome.running outcome.fresh outcome.proof).derive
           key.oracle).finalState
         otherState
-        (key.piCcsCertificate outcome.running outcome.fresh
-          outcome.proof).output
-        otherMessage
+        outcome.proof.piCcsOutput
+        otherOutput
   challengeSamplingFailure := fun outcome =>
     PiRlcSamplingSetFailure key outcome.running outcome.fresh outcome.proof
   multiForkProgrammingFailure := MultiForkProgrammingFailure
@@ -316,8 +319,14 @@ theorem acceptedFork_implies_ambientTargetOpenings
     Fin.cast key.total_eq_sourceCount.symm source
   have atIndex := corrected index
   rw [outcome.batchAligned] at atIndex
+  have atIndexPaper :=
+    (key.ambientAgreement
+      (key.piCcsOutputs outcome.running outcome.fresh outcome.proof index)
+      (PiRLC.PaperWeakReduction.extractedFamily key.nifsPiRlcContext laws
+        strongSet outcome.adversary outcome.sample accepted index)
+      (by rfl)).mpr atIndex
   simpa [AmbientTargetOpenings, StrongReduction.AmbientOutputHolds,
-    Key.nifsPiRlcBatch, Key.piCcsOutputs, witness, index] using atIndex
+    Key.nifsPiRlcBatch, Key.piCcsOutputs, witness, index] using atIndexPaper
 
 /-- Absence of the NIFS ambient witness forces either failure of the oracle
 programming receipt or the separately owned interactive fork-sampling event.

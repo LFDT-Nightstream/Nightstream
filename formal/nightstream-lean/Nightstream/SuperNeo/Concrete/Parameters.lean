@@ -41,7 +41,9 @@ structure ProductionProfile where
   ringDegree : Nat
   commitmentWidth : Nat
   extensionDegree : Nat
-  securityBits : Nat
+  /-- Floor of `log2(5^54)`. This is challenge-set size, not end-to-end or
+  statistical security. -/
+  challengeSetBitsFloor : Nat
 
 def productionProfile : ProductionProfile where
   global := productionGlobalParams
@@ -49,7 +51,7 @@ def productionProfile : ProductionProfile where
   ringDegree := Concrete.ringDegree
   commitmentWidth := 18
   extensionDegree := 2
-  securityBits := 125
+  challengeSetBitsFloor := 125
 
 theorem production_parameter_values :
     productionProfile.global.q = 18446744069414584321 ∧
@@ -62,13 +64,13 @@ theorem production_parameter_values :
     productionProfile.ringDegree = 54 ∧
     productionProfile.commitmentWidth = 18 ∧
     productionProfile.extensionDegree = 2 ∧
-    productionProfile.securityBits = 125 := by
+    productionProfile.challengeSetBitsFloor = 125 := by
   decide
 
 theorem production_norm_stages :
     NormStage.bound productionGlobalParams .fresh = 2 ∧
     NormStage.bound productionGlobalParams .combined = 16384 ∧
-    NormStage.bound productionGlobalParams .ambient = 9223372034707292160 := by
+    NormStage.bound productionGlobalParams .ambient = 9223372034707292161 := by
   decide
 
 theorem production_msis_norm_bound :

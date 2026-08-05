@@ -15,6 +15,8 @@ Does not own: an infinite rejection sampler, expected-polynomial-time
 semantics, Schwartz--Zippel or SumCheck probability bounds, Fiat--Shamir,
 Rust, R1CS, artifacts, or costs.
 
+Emits constraints: no.
+
 The target receives only a completed PrefixExecution. The run support is the
 explicit product prover × (target × verifier coins), so a fresh second run
 re-samples all three components independently.

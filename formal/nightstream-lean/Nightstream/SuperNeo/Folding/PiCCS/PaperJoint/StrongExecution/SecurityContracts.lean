@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.OperationalExperiment
+import Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessExtraction
 
 /-!
 Named probability contracts for the causal paper `Pi_CCS` experiment.
@@ -19,7 +20,7 @@ Emits constraints: no.
 | mixing event | fixed-witness alpha/gamma root event |
 | SumCheck event | `sumCheckBadChallengeEvent = true <-> SumCheckFailure` |
 | event composition | `FixedFirstBadBound` by the finite union bound |
-| first-success loss | `(mixing + sumcheck) + rawMismatch / successFloor` |
+| success-gated loss | `(mixing + sumcheck) + rootMismatch` |
 
 The contracts quantify over every fixed output witness. They therefore do
 not allow either bad event to choose its witness after seeing the fresh
@@ -277,7 +278,58 @@ theorem extraction_after_first_success_of_securityContracts
   exact extraction_after_first_success context alphabet adversary
     successFloor rawMismatchBudget (mixingBudget + sumCheckBudget)
     floorPos floorBound rawMismatchBound
+      (fixedFirstBadBound_of_securityContracts context alphabet adversary
+      mixingBudget sumCheckBudget mixingBound sumCheckBound)
+
+/-- Operational Appendix-D.4 extraction for the corrected success-gated
+algorithm. The raw two-run disagreement is charged through a nonnegative root
+envelope. No success floor is required. -/
+theorem extraction_after_success_gate_of_securityContracts
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    [DecidableEq Extension]
+    {shape : Shape}
+    {columns blockCount : Nat}
+    {ProverSeed : Type uProverSeed}
+    {TargetSeed : Type uTargetSeed}
+    {ProverTape : Type uProverTape}
+    (context : Context Extension Commitment PublicInput shape
+      columns blockCount)
+    (alphabet : Support Extension)
+    (adversary : Adversary context ProverSeed TargetSeed ProverTape)
+    (rawMismatchBudget rootMismatchBudget mixingBudget sumCheckBudget : Rat)
+    (rootNonnegative : 0 <= rootMismatchBudget)
+    (rawBudget_le_rootSquare :
+      rawMismatchBudget <= rootMismatchBudget * rootMismatchBudget)
+    (rawMismatchBound :
+      (experiment context alphabet adversary).iidPair.probabilityBool
+          (witnessDisagreement context) <= rawMismatchBudget)
+    (mixingBound : MixingRootProbabilityContract context alphabet adversary
+      mixingBudget)
+    (sumCheckBound : SumCheckSoundnessContract context alphabet adversary
+      sumCheckBudget)
+    (nonempty :
+      (experiment context alphabet adversary).support.values.filter
+        (fun seed => success context
+          ((experiment context alphabet adversary).outcome seed)) ≠ []) :
+    let base := experiment context alphabet adversary
+    base.probabilityBool (success context) -
+          ((mixingBudget + sumCheckBudget) + rootMismatchBudget) <=
+      (base.firstConditionedFreshSecond
+        (success context) nonempty).probabilityBool
+          (successGatedSourceExtracted context) := by
+  exact extract_after_success_gate
+    (experiment context alphabet adversary) (success context) nonempty
+    (witnessDisagreement context) (fixedFirstBad context)
+    (successGatedSourceExtracted context) rawMismatchBudget
+    rootMismatchBudget (mixingBudget + sumCheckBudget) rootNonnegative
+    rawBudget_le_rootSquare
+    (witnessDisagreement_implies_first_success context)
+    (witnessDisagreement_implies_second_success context)
+    rawMismatchBound
     (fixedFirstBadBound_of_securityContracts context alphabet adversary
       mixingBudget sumCheckBudget mixingBound sumCheckBound)
+    (successGatedExtraction_or_fixedFirstBad context)
 
 end Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.SecurityContracts

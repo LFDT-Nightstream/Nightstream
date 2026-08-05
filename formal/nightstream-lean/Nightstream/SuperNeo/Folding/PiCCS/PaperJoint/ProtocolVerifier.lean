@@ -19,7 +19,7 @@ the minimal `ProtocolPolynomial.VerifierInput`; and an explicit abstract
 output-absorption call after the final SumCheck challenge.
 
 Does not own: hidden semantic assignments or image tables, construction of
-production Split-NC inputs, projection of output values from a concrete CE
+production PiCCS inputs, projection of output values from a concrete CE
 proof object, semantic degree bounds, a concrete Poseidon2 encoding,
 random-oracle security, Pi_RLC handoff refinement, Rust, R1CS, or counts.
 

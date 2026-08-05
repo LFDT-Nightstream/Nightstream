@@ -393,6 +393,13 @@ def stepPrefixReceipts
   InstructionReceipt.prelude ::
     InputReceipts.receipts (stepInputSchema parameters)
 
+/-- The canonical invocation owned by the application-selected Step call. -/
+def applicationStepInvokePlan
+    {parameters : Parameters}
+    (certificate : CompleteApplicationCertification parameters) :=
+  CanonicalStepPlan.applyInvokePlan parameters certificate.baseProfile
+    certificate.allRecipes
+
 /-- The one physical receipt owned by the application-selected Step call. -/
 def applicationStepReceipt
     {parameters : Parameters}
@@ -400,6 +407,25 @@ def applicationStepReceipt
     InstructionReceipt :=
   (CanonicalStepPlan.applyPlan.{0} parameters certificate.baseProfile
     certificate.allRecipes).receipt
+
+/-- The application receipt contains exactly the selected recipe rows at the
+canonical physical call frame. -/
+@[simp] theorem applicationStepReceipt_rows
+    {parameters : Parameters}
+    (certificate : CompleteApplicationCertification parameters) :
+    (applicationStepReceipt certificate).rows =
+      certificate.phase5.step.rows
+        (applicationStepInvokePlan certificate).frame := by
+  unfold applicationStepReceipt CanonicalStepPlan.applyPlan
+    PrimitivePlan.receipt InvokePlan.receipt
+  change
+    (applicationStepInvokePlan certificate).recipe.rows
+        (applicationStepInvokePlan certificate).frame =
+      certificate.phase5.step.rows
+        (applicationStepInvokePlan certificate).frame
+  rw [show (applicationStepInvokePlan certificate).recipe =
+      certificate.phase5.step by
+    exact CompleteApplicationCertification.allRecipes_step certificate]
 
 /-- Receipts after the application call, in exact typed-program order. -/
 def stepSuffixReceipts

@@ -18,8 +18,9 @@ Owns: curated access to the typed one-message verifier, independent semantic
 transition, five named failure classes, deterministic soundness, graph
 completeness, honest-source construction, and the exact typed random-oracle
 input/handoff and coordinate-fork boundary, including the complete finite
-correlated prefix/post-prefix experiment, its exact programming loss, and the
-finite D.4 first-success/fresh-second carrier.
+correlated prefix/post-prefix experiment and its exact programming loss. The
+old conditioned-first carrier remains imported only as a legacy regression
+artifact; it is not current paper authority.
 
 Does not own: HyperNova/F-prime integration, concrete transcript or
 commitment primitives, the preceding-prefix distribution, interactive or
@@ -38,8 +39,8 @@ Emits constraints: no.
 | `CoordinateForkBridge` | exact NIFS `Pi_RLC` batch, concrete six-event predicates, and accepted-fork ambient extraction | no oracle-programming probability theorem |
 | `RewindableContinuation` | one owned PiCCS prefix/PiDEC continuation and definitional PiRLC oracle linkage | no continuation or fork distribution |
 | `InteractiveCompositionBridge` | exact NIFS-to-interactive contexts, fixed-width PiCCS gate/residual-event identity, and causal-prefix batch/parent alignment | no ideal-oracle causal coupling, concrete transcript encoding, or PiDEC target witness |
-| `CausalPrefixCoupling` | explicit prover-seed × verifier-coin support, exact causal replay/continuation, and pointwise fixed-witness PiCCS reduction | no ideal-oracle construction, collision bound, or D.4 first-success conditioning |
-| `CausalFirstSuccessBridge` | exact D.4 causal/target seed reindexing, first-success × fresh-second support, fixed-first-witness event identity, and transported extraction inequality | no ideal-oracle construction, D.6 target-witness availability, collision bound, or asymptotic rejection sampler |
+| `CausalPrefixCoupling` | explicit prover-seed × verifier-coin support, exact causal replay/continuation, and pointwise fixed-witness PiCCS reduction | no ideal-oracle construction, collision bound, or corrected success-gated extraction bridge |
+| `CausalFirstSuccessBridge` | legacy conditioned-first causal/target seed reindexing and fixed-first-witness regression | not the corrected success-gated extractor; no current extraction or runtime authority |
 | `CausalPostPrefixBridge` | exact interactive/NIFS PiDEC execution and D.6 target-success identity in programmed worlds | no target-witness existence |
 | `OracleSoundness` | exact eleven-event cover and conditional `nonInteractiveTotal` probability theorem | no event-bound or outcome-distribution instantiation |
 | `RewindableOracleSoundness` | eleven-event theorem pulled back to owned continuations | no malicious-prover or random-oracle experiment construction |

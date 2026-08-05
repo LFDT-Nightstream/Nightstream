@@ -203,7 +203,7 @@ caveat.
 Proceed without asking on everything except these:
 
 - A **protocol decision** that changes a mapped paper definition, a frozen
-  relation, or a verifier branch (spec §16 change control).
+  relation, or a verifier branch (the `protocol-contract` change rule).
 - A **production defect**: evidence that shipping Rust does not enforce a
   frozen relation.
 - A **blocked route** where every alternative you identified is also blocked.
@@ -217,14 +217,17 @@ provable lemmas to prove first, or for permission to record an obstruction.
 
 ## 8. Recording discipline
 
-- One per-property spec per obligation, in `specs/`, using the §10 contract
-  format.
+- Do not create a second protocol specification under this Lean project. Map
+  each obligation to a stable `protocol-contract` rule, state the local proof
+  boundary in the owning Lean module, and record mutable results in the
+  evidence ledger.
 - One evidence-ledger entry per cycle. Include `remaining_dependency` and
   `non_goals` honestly; a promotion with an empty remaining list is a claim
   that nothing is left.
 - `remaining_dependency` is the resume anchor for the next iteration (§0).
   Write it as an ordered queue of concrete next items, not a mood.
-- Evidence states are those defined in spec §8. Do not invent tiers.
+- Evidence states are those defined by the protocol contract assurance
+  architecture. Do not invent tiers.
 - When you correct a previous entry, supersede it explicitly and say what was
   wrong.
 

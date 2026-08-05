@@ -168,6 +168,32 @@ theorem continuationInput_excludes
         parameters))
     (common_excludes parameters target selectorDifferent applyDifferent)
 
+/-- Canonical invocation data for the application-selected Step call. This
+named object exposes the physical call frame without opening the complete
+Step plan or its certification proofs. -/
+def applyInvokePlan
+    (parameters : Parameters)
+    (profile : Profile parameters)
+    (recipes :
+      CallRecipes (signature parameters) (profile.family parameters)) :=
+  CanonicalPrimitivePlan.invoke profile recipes
+    .step
+    (.cons
+      (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.InputRefs.zi
+        parameters)
+      (.cons
+        (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.InputRefs.witness
+          parameters)
+        .nil))
+    SourceOwners.stepApplyPath
+    (CanonicalContexts.Step.input parameters)
+    oneColumn oneColumn
+    (CanonicalContexts.Step.inputWidths parameters profile)
+    (one_excludes_instruction SourceOwners.stepApplyPath)
+    (one_excludes_instruction SourceOwners.stepApplyPath)
+    (CanonicalPrimitivePlan.ContextExcludesOwner.input
+      (stepInputSchema parameters) SourceOwners.stepApplyPath)
+
 def applyPlan
     (parameters : Parameters)
     (profile : Profile parameters)
@@ -179,24 +205,7 @@ def applyPlan
       SourceOwners.stepApplyPath
       (CanonicalContexts.Step.input parameters)
       oneColumn oneColumn :=
-  .invoke
-    (CanonicalPrimitivePlan.invoke profile recipes
-      .step
-      (.cons
-        (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.InputRefs.zi
-          parameters)
-        (.cons
-          (Nightstream.Implementation.Lowering.FPrimeFixedOne.Step.InputRefs.witness
-            parameters)
-          .nil))
-      SourceOwners.stepApplyPath
-      (CanonicalContexts.Step.input parameters)
-      oneColumn oneColumn
-      (CanonicalContexts.Step.inputWidths parameters profile)
-      (one_excludes_instruction SourceOwners.stepApplyPath)
-      (one_excludes_instruction SourceOwners.stepApplyPath)
-      (CanonicalPrimitivePlan.ContextExcludesOwner.input
-        (stepInputSchema parameters) SourceOwners.stepApplyPath))
+  .invoke (applyInvokePlan parameters profile recipes)
 
 def selectorPlan
     (parameters : Parameters)

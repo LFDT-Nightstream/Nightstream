@@ -11,8 +11,8 @@ evidence consumed by handwritten refinement proofs.
 | Data branch | Exact value |
 |---|---:|
 | challenges/chunks | 15 / 960 |
-| source rows/columns | 2,584,075 / 2,396,858 |
-| encoded rows/columns | 4,934,494 / 8,120,309 |
+| source rows/columns | 9,297,088 / 9,000,422 |
+| encoded rows/columns | 9,396,464 / 12,473,847 |
 | sparse decoders | 4 patterns; 240 images × 391 terms |
 -/
 
@@ -27,10 +27,10 @@ def chunkCount : Nat := 960
 def inputsPerChunk : Nat := 16
 def outputsPerChunk : Nat := 14
 def activeRowsPerChunk : Nat := 9
-def sourceRowCount : Nat := 2584075
-def sourceColumnCount : Nat := 2396858
-def encodedRowCount : Nat := 4934494
-def encodedColumnCount : Nat := 8120309
+def sourceRowCount : Nat := 9297088
+def sourceColumnCount : Nat := 9000422
+def encodedRowCount : Nat := 9396464
+def encodedColumnCount : Nat := 12473847
 def matrixArity : Nat := 56
 def linearDefinitionCount : Nat := 720
 def selectedSourceRowCount : Nat := 19920

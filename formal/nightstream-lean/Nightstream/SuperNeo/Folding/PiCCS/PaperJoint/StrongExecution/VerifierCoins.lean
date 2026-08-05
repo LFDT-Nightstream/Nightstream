@@ -12,6 +12,8 @@ membership; and the three uniform product marginals.
 Does not own: a prover, acceptance, target witnesses, rejection conditioning,
 root bounds, Fiat--Shamir, Rust, R1CS, or costs.
 
+Emits constraints: no.
+
 The seed support is derived from one verifier-owned scalar alphabet. No prover
 message, witness, or protocol predicate can affect the enumerated coins.
 -/

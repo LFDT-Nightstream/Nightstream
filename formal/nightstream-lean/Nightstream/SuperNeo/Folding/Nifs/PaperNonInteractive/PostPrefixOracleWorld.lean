@@ -162,10 +162,11 @@ def outgoingState
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
     (message : PrefixMessage Extension shape degreeBound) : State :=
-  (ProtocolVerifier.derive key.oracle
+  let execution := ProtocolVerifier.derive key.oracle
     (key.publicInputState running fresh)
     ((key.statement running fresh).verifierInput key.lift)
-    (message.piCcsCertificate key running fresh)).outgoingState
+    (message.piCcsCertificate key running fresh)
+  key.absorbPiCcsOutput execution.coins.finalState message.piCcsOutput
 
 end PrefixMessage
 

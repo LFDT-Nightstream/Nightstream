@@ -12,6 +12,8 @@ source membership and an explicit verifier-bound inclusion.
 Does not own: probability, rejection sampling, conditioning, root bounds,
 Fiat--Shamir, commitment hardness, Rust, R1CS, artifacts, or costs.
 
+Emits constraints: no.
+
 The headline quantifier order is `exists strategy, forall coins`. Therefore
 the strategy cannot close over the verifier's future round challenges.
 -/
@@ -458,7 +460,7 @@ private theorem honestStrategy_accepted
       _ = ProtocolPolynomial.messageAt context.extensionOps data
           coins.roundPoint :=
         FullOutput.honestAt_toOutputMessage_eq_messageAt context.baseOps
-          context.baseLaws context.extensionOps context.lift
+          context.baseLaws context.baseZero context.extensionOps context.lift
           (context.statement.sourceConnectedInputs witness)
           context.constantLaw (context.statement.identityFirstMatrix witness)
           coins.roundPoint

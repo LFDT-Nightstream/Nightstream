@@ -9,6 +9,8 @@ weak paired-extractor events.
 
 Does not own: either component reduction theorem, one-run extraction,
 `Pi_DEC`, Fiat--Shamir, Rust, R1CS, artifacts, or costs.
+
+Emits constraints: no.
 -/
 
 set_option autoImplicit false

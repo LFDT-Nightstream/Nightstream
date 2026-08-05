@@ -18,17 +18,17 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperSt
 #guard_msgs in
 #audit_axioms publicCoin
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrong.uniformTruncatedWorkBound_of_eligible' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrong.successGatedWorkBound' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms uniformTruncatedWorkBound_of_eligible
+#audit_axioms successGatedWorkBound
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrong.sourceExtractionProbability_eq_of_eligible' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrong.successGatedSourceExtractionProbability_eq_of_nonempty' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms sourceExtractionProbability_eq_of_eligible
+#audit_axioms successGatedSourceExtractionProbability_eq_of_nonempty
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrong.outputPhiMismatchProbability_eq_zero' depends on axioms: [propext,
  Classical.choice,

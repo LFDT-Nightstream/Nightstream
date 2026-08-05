@@ -1,0 +1,22 @@
+import Nightstream.HyperNova.NIVCCompatibility
+import Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec
+
+/-! Focused interface gate for corrected HyperNova Definition 12. -/
+
+#check Nightstream.HyperNova.NIVCCompatibility.Codec.Canonical
+#check Nightstream.HyperNova.NIVCCompatibility.Codec.encode_injective
+#check Nightstream.HyperNova.NIVCCompatibility.Codec.fixedWidthInjective_canonical
+#check Nightstream.HyperNova.NIVCCompatibility.NPComplete
+#check Nightstream.HyperNova.NIVCCompatibility.PartialFunctions
+#check Nightstream.HyperNova.NIVCCompatibility.CompilerLayout.capacities_of_fits
+#check Nightstream.HyperNova.NIVCCompatibility.CompilerLayout.columns_fit_row_domain
+#check Nightstream.HyperNova.NIVCCompatibility.DefaultAlgorithm.Holds
+#check Nightstream.HyperNova.NIVCCompatibility.StatementIdentifierScheme.Collision
+#check Nightstream.HyperNova.NIVCCompatibility.StatementIdentifierScheme.eq_or_collision
+#check Nightstream.HyperNova.NIVCCompatibility.CompactVerifierInterface.recursiveKey
+#check Nightstream.HyperNova.NIVCCompatibility.CompactVerifierInterface.Holds
+#check Nightstream.HyperNova.NIVCCompatibility.Holds
+#check Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec.toNivcCodec
+#check Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec.toNivcCodec_canonical
+#check Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec.toTotalNivcCodec
+#check Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec.toTotalNivcCodec_canonical

@@ -119,6 +119,9 @@ noncomputable def compatibleContext
   arity := key.arity
   freshCount_eq := key.freshCount_eq
   runningCount_eq := key.runningCount_eq
+  piRlcSemantics := key.piRlcSemantics
+  ambientAgreement := key.ambientAgreement
+  piRlcEvaluationsSize := key.piRlcEvaluationsSize
   piRlcAlgebra := key.piRlcAlgebra
 
 /-- The final interactive `Pi_DEC` context shares the same semantics and
@@ -378,15 +381,19 @@ private theorem inputBatch_ext
         params arity)
     (system_eq : left.system = right.system)
     (point_eq : left.point = right.point)
-    (inputs_eq : left.inputs = right.inputs) :
+    (inputs_eq : left.inputs = right.inputs)
+    (evaluationCount_eq : left.evaluationCount = right.evaluationCount) :
     left = right := by
   cases left with
-  | mk leftSystem leftPoint leftInputs leftSameSystem leftSamePoint =>
+  | mk leftSystem leftPoint leftInputs leftSameSystem leftSamePoint
+      leftEvaluationCount leftEvaluationsSize =>
       cases right with
-      | mk rightSystem rightPoint rightInputs rightSameSystem rightSamePoint =>
+      | mk rightSystem rightPoint rightInputs rightSameSystem rightSamePoint
+          rightEvaluationCount rightEvaluationsSize =>
           cases system_eq
           cases point_eq
           cases inputs_eq
+          cases evaluationCount_eq
           rfl
 
 /-- A causally generated and exactly replay-aligned prefix induces the same
@@ -417,6 +424,7 @@ theorem batchOfPrefix_eq_nifsPiRlcBatch
         (key.statement running fresh).publicOutput probe
           (Fin.cast key.total_eq_sourceCount source))
       alignment.probe_eq
+  · rfl
 
 /-- Under the same receipt, the interactive `Pi_RLC` parent computation is
 the NIFS parent for the verifier-derived challenge vector. -/

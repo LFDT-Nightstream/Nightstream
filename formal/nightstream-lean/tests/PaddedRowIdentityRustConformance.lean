@@ -1,0 +1,16 @@
+import Nightstream.Implementation.Rust.CanonicalConformance.PiCcsPaddedRowIdentity.Conformance
+
+open Nightstream.Implementation.Rust.CanonicalConformance.PiCcsPaddedRowIdentity
+
+#check Artifact.carried_input_length
+#check Artifact.carried_count_eq_shape
+#check Artifact.fresh_gamma_slots_match
+#check Artifact.norm_gamma_slots_match
+#check Artifact.carried_gamma_slots_match
+#check Artifact.joint_domain_is_max_in_both_directions
+#check Artifact.transcript_tags_match
+#check Artifact.sample_proof_codec_matches
+#check Artifact.sample_output_field_count_matches
+#check Artifact.sample_output_order_matches
+#check Artifact.production_output_field_count_matches
+#check Artifact.piCcs_tag_is_distinct_from_full_nifs_proof_tag

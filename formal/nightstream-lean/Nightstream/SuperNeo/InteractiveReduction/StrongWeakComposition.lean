@@ -144,10 +144,10 @@ def knowledgeGame
     strongGame.sourceWitnessExtracted
       (coupling.toStrong adversary extractor.weak) extractor.strong
 
-/-- SuperNeo Theorem 6 with Appendix D.4's rejection-conditioning loss made
-explicit. The weak reduction supplies the raw witness-disagreement bound
-`delta`; the strong reduction charges `adjust delta mu` exactly once, where
-`mu` is its concrete relaxed-success floor. -/
+/-- SuperNeo Theorem 6 with Appendix D.4's success-gated disagreement loss
+made explicit. The weak reduction supplies the raw witness-disagreement bound
+`delta`; the strong reduction charges its declared root envelope exactly once.
+No pointwise success floor is present. -/
 theorem reductionOfKnowledge
     {Weight : Type uWeight}
     (scale : ProbabilityScale Weight)
@@ -161,18 +161,17 @@ theorem reductionOfKnowledge
     (strongGame : StrongGame Weight StrongAdversary StrongExtractor)
     (weakGame : WeakGame Weight WeakAdversary PairedAdversary WeakExtractor)
     (coupling : Coupling scale strongGame weakGame ComposedAdversary)
-    (adjust : Weight -> Weight -> Weight)
-    (strongSuccessFloor : Weight)
-    (strongIntrinsicError weakExtractionError witnessUniquenessError : Weight)
-    (strong : RejectionAdjustedStrong scale adjust strongGame
-      strongSuccessFloor strongIntrinsicError witnessUniquenessError)
+    (strongIntrinsicError weakExtractionError
+      witnessUniquenessRaw witnessUniquenessRoot : Weight)
+    (strong : SuccessGatedStrong scale strongGame
+      strongIntrinsicError witnessUniquenessRaw witnessUniquenessRoot)
     (weak : Weak scale weakGame weakExtractionError
-      witnessUniquenessError) :
+      witnessUniquenessRaw) :
     ReductionOfKnowledge scale
       (knowledgeGame scale strongGame weakGame coupling)
       (scale.add weakExtractionError
         (scale.add strongIntrinsicError
-          (adjust witnessUniquenessError strongSuccessFloor))) := by
+          witnessUniquenessRoot)) := by
   rcases strong with
     ⟨strongComplete, strongPublicCoin, _strongPhiRestricted,
       strongExtraction⟩
@@ -211,7 +210,7 @@ theorem reductionOfKnowledge
       scale.le
         (strongGame.repeatedOutputWitnessDisagreement
           (coupling.toStrong adversary weakExtractor))
-        witnessUniquenessError := by
+        witnessUniquenessRaw := by
     rw [coupling.repeatedWitnessProbability adversary weakExtractor]
     exact pairedUnique
   have strongAdversaryExpected :
@@ -222,10 +221,8 @@ theorem reductionOfKnowledge
       strongGame.extractionEligible
         (coupling.toStrong adversary weakExtractor) :=
     eligible.2 weakExtractor weakExtractorExpected
-  have strongEligibleResult :=
-    strongExtraction (coupling.toStrong adversary weakExtractor)
-      strongAdversaryExpected strongEligible
-  rcases strongEligibleResult.2 strongWitnessUnique with
+  rcases strongExtraction (coupling.toStrong adversary weakExtractor)
+      strongAdversaryExpected strongEligible strongWitnessUnique with
     ⟨strongExtractor, strongExtractorExpected, strongResult⟩
   refine ⟨⟨weakExtractor, strongExtractor⟩,
     ⟨weakExtractorExpected, strongExtractorExpected⟩, ?_⟩
@@ -239,7 +236,7 @@ theorem reductionOfKnowledge
     exact weakResult.2
   have nested := scaleLaws.subtract_mono_left weakResult'
       (error := scale.add strongIntrinsicError
-        (adjust witnessUniquenessError strongSuccessFloor))
+        witnessUniquenessRoot)
   have composedNested := scale.le_trans nested strongResult
   rw [scaleLaws.subtract_subtract] at composedNested
   exact composedNested

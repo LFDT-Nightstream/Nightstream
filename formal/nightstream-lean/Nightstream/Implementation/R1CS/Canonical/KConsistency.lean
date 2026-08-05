@@ -7,17 +7,12 @@ Contract: the emitted row program for Π_DEC's pairwise consistency checks.
 Owns: the concatenated equality program over a list of value pairs, its folded
 row count, soundness, honest completeness, and cost.
 
-## Two checks, one program
+## One generic program
 
-Π_DEC has two consistency obligations and they are the same shape:
-
-- `validate_s_col_consistency` — every child's `s_col` equals the parent's;
-- `validate_ct_consistency` — each `ct` entry equals the first lane of the
-  corresponding `y_ring` row.
-
-Both reduce to "these two carried values agree", so one folded equality program
-serves both. Which pairs to check is decoder work and belongs to whatever reads
-a claim's shape; this module owns only the rows.
+Each PiDEC consistency obligation reduces to "these two carried values agree".
+One folded equality program serves all such pairs. Which pairs to check is
+decoder work and belongs to the claim-shape owner; this module owns only the
+rows.
 
 ## Two rows per pair
 

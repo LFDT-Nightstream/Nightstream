@@ -1,3 +1,4 @@
+import Mathlib.Data.Multiset.AddSub
 import Nightstream.Protocol.Nebula.Fingerprint
 
 /-!
@@ -61,6 +62,92 @@ def readTuples (accesses : List Access) : List MemTuple :=
 
 def writeTuples (accesses : List Access) : List MemTuple :=
   accesses.map Access.write
+
+/-- One exact access preserves the paper multiset invariant before any
+fingerprint is selected. -/
+theorem applies_multiset
+    {before after : List MemTuple}
+    {timestampIn timestampOut : Nat}
+    {access : Access}
+    (applies : Applies before timestampIn access after timestampOut) :
+    (before : Multiset MemTuple) + ({access.write} : Multiset MemTuple) =
+      ({access.read} : Multiset MemTuple) + (after : Multiset MemTuple) := by
+  obtain ⟨left, right, beforeExact, afterExact, _, _, _, _⟩ := applies
+  subst before
+  subst after
+  change
+    ((left : Multiset MemTuple) +
+          (({access.read} : Multiset MemTuple) +
+            (right : Multiset MemTuple))) +
+        ({access.write} : Multiset MemTuple) =
+      ({access.read} : Multiset MemTuple) +
+        ((left : Multiset MemTuple) +
+          (({access.write} : Multiset MemTuple) +
+            (right : Multiset MemTuple)))
+  calc
+    ((left : Multiset MemTuple) +
+          (({access.read} : Multiset MemTuple) +
+            (right : Multiset MemTuple))) +
+        ({access.write} : Multiset MemTuple) =
+      (left : Multiset MemTuple) +
+        (({access.read} : Multiset MemTuple) +
+          ((right : Multiset MemTuple) +
+            ({access.write} : Multiset MemTuple))) := by
+              rw [Multiset.add_assoc, Multiset.add_assoc]
+    _ = (left : Multiset MemTuple) +
+        (({access.read} : Multiset MemTuple) +
+          (({access.write} : Multiset MemTuple) +
+            (right : Multiset MemTuple))) := by
+              rw [Multiset.add_comm (right : Multiset MemTuple)]
+    _ = ({access.read} : Multiset MemTuple) +
+        ((left : Multiset MemTuple) +
+          (({access.write} : Multiset MemTuple) +
+            (right : Multiset MemTuple))) := by
+              rw [← Multiset.add_assoc]
+              rw [Multiset.add_comm (left : Multiset MemTuple)]
+              rw [Multiset.add_assoc]
+
+/-- Honest sequential execution gives Nebula Lemma 7's exact multiset
+identity `IS ∪ WS = RS ∪ FS`. This theorem is independent of the
+fingerprint representation. -/
+theorem executes_multiset
+    {initial final : List MemTuple}
+    {timestampIn timestampOut : Nat}
+    {accesses : List Access}
+    (execution : Executes initial timestampIn accesses final timestampOut) :
+    (initial : Multiset MemTuple) +
+        (writeTuples accesses : Multiset MemTuple) =
+      (readTuples accesses : Multiset MemTuple) +
+        (final : Multiset MemTuple) := by
+  induction execution with
+  | nil snapshot timestamp =>
+      simp [writeTuples, readTuples]
+  | @cons before middle after timestampIn timestampMiddle timestampOut
+      access rest applies tail inductionHypothesis =>
+      change
+        (before : Multiset MemTuple) +
+            (({access.write} : Multiset MemTuple) +
+              (writeTuples rest : Multiset MemTuple)) =
+          (({access.read} : Multiset MemTuple) +
+              (readTuples rest : Multiset MemTuple)) +
+            (after : Multiset MemTuple)
+      rw [← Multiset.add_assoc]
+      rw [applies_multiset applies]
+      rw [Multiset.add_assoc]
+      rw [inductionHypothesis]
+      rw [← Multiset.add_assoc]
+
+/-- List-permutation form of `executes_multiset`, used by any selected
+commutative fingerprint product. -/
+theorem executes_perm
+    {initial final : List MemTuple}
+    {timestampIn timestampOut : Nat}
+    {accesses : List Access}
+    (execution : Executes initial timestampIn accesses final timestampOut) :
+    (initial ++ writeTuples accesses).Perm
+      (readTuples accesses ++ final) := by
+  rw [← Multiset.coe_eq_coe]
+  exact executes_multiset execution
 
 private theorem k_mul_assoc (left middle right : K) :
     K.mul (K.mul left middle) right = K.mul left (K.mul middle right) :=

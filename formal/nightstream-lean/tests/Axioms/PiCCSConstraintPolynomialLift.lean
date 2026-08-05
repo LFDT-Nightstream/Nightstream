@@ -7,7 +7,7 @@ Fail-closed trusted-dependency gate for sparse CCS carrier lifting.
 Owns: dependency expectations for syntax-degree preservation and evaluation
 commutation under the minimal zero/one/add/mul lift contract.
 
-Does not own: a concrete carrier embedding, norm semantics, SplitNC,
+Does not own: a concrete carrier embedding, norm semantics,
 SumCheck, Rust, R1CS, or constraint counts.
 
 | Audited theorem | Model-level guarantee |

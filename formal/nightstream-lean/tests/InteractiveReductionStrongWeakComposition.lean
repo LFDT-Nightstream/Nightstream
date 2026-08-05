@@ -6,4 +6,4 @@ import Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition
 #check Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.Coupling
 #check Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.knowledgeGame
 #check Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.reductionOfKnowledge
-#check Nightstream.SuperNeo.InteractiveReduction.Paper.RejectionAdjustedStrong
+#check Nightstream.SuperNeo.InteractiveReduction.Paper.SuccessGatedStrong

@@ -132,9 +132,59 @@ structure Key
       (vertex : BooleanVertex shape.cubeVariables)
       (column : Fin columns),
     matrixSource.matrices ⟨0, matrixCountPositive⟩ vertex column =
-      if column = cubeLayout.toColumn vertex then baseOps.one else baseOps.zero
+      cubeLayout.paddedIdentityEntry baseOps.zero baseOps.one vertex column
   constantLaw : ConstantTermLaw baseOps matrixSource.kernel
   challengeSetSize : Nat
+  /-- Canonical semantic view used by `Pi_RLC`, `Pi_DEC`, and the public NIFS
+  relation. It may normalize malformed layout fields, but it must agree with
+  the paper relation at `matrixSource`. -/
+  piRlcSemantics : RelationSemantics
+    (MatrixSource F shape columns blockCount)
+    (Assignment F columns)
+    PublicInput
+    (CubePoint Extension shape.cubeVariables)
+    (EvaluationFamily Extension shape)
+    Commitment
+  /-- The authority-bearing opening fields of the semantic adapter must agree
+  with the paper relation at every norm bound. A concrete adapter may change
+  evaluation representation, but it cannot change commitment, public input,
+  or norm membership. -/
+  openingAgreement : forall
+      (normBound : Nat)
+      (commitment : Commitment)
+      (publicInput : PublicInput)
+      (assignment : Assignment F columns),
+    (Opening.Holds
+        (paperRelationSemantics (shape := shape) (blockCount := blockCount)
+          baseOps extensionOps lift openingMaps)
+        normBound commitment publicInput assignment <->
+      Opening.Holds piRlcSemantics normBound commitment publicInput assignment)
+  ambientAgreement : forall
+      (statement : CE.Instance
+        (MatrixSource F shape columns blockCount)
+        PublicInput
+        (CubePoint Extension shape.cubeVariables)
+        (EvaluationFamily Extension shape)
+        Commitment)
+      (assignment : Assignment F columns),
+    statement.constraintSystem = matrixSource ->
+      (PiRLC.PaperCorrections.CorrectedAmbientHolds
+          (paperRelationSemantics baseOps extensionOps lift openingMaps)
+          params statement assignment <->
+        PiRLC.PaperCorrections.CorrectedAmbientHolds
+          piRlcSemantics params statement assignment)
+  /-- The concrete evaluator must agree with the paper evaluator at the
+  verifier-owned matrix source. This field also prevents an adapter from
+  changing which evaluation points are valid. -/
+  evaluationAgreement : forall
+      (assignment : Assignment F columns)
+      (point : CubePoint Extension shape.cubeVariables),
+    piRlcSemantics.evaluationPointValid matrixSource point /\
+      piRlcSemantics.evaluations matrixSource assignment point =
+        (paperRelationSemantics baseOps extensionOps lift openingMaps).evaluations
+          matrixSource assignment point
+  piRlcEvaluationsSize : forall system assignment point,
+    (piRlcSemantics.evaluations system assignment point).size = 1
   piRlcAlgebra : PiRLC.Algebra
     (MatrixSource F shape columns blockCount)
     (Assignment F columns)
@@ -142,7 +192,7 @@ structure Key
     (CubePoint Extension shape.cubeVariables)
     (EvaluationFamily Extension shape)
     Commitment Scalar
-    (paperRelationSemantics baseOps extensionOps lift openingMaps)
+    piRlcSemantics
     params
   piDecAlgebra : PiDEC.Algebra
     (MatrixSource F shape columns blockCount)
@@ -151,11 +201,11 @@ structure Key
     (CubePoint Extension shape.cubeVariables)
     (EvaluationFamily Extension shape)
     Commitment
-    (paperRelationSemantics baseOps extensionOps lift openingMaps)
+    piRlcSemantics
     params
   piDecPublicInputSplit : PiDEC.PaperVerifier.PublicInputSplit piDecAlgebra
   piDecEvaluationArity : PiDEC.PaperVerifier.EvaluationArity
-    (paperRelationSemantics baseOps extensionOps lift openingMaps)
+    piRlcSemantics
   piDecEvaluationCount :
     piDecEvaluationArity.count matrixSource = 1
   piDecDecision : forall attempt,
@@ -167,6 +217,10 @@ structure Key
     Running Extension Commitment PublicInput shape ->
     Fresh Commitment PublicInput shape ->
     State
+  /-- Authority-bearing post-SumCheck absorption. It receives the complete
+  paper `y'` family, not the scalar projection used by the terminal check. -/
+  absorbPiCcsOutput : State ->
+    FullOutputCoordinates.FullOutput Extension shape -> State
   piRlcResponse : State -> Fin arity.total -> Scalar
   piRlcResponseValid : forall state index,
     piRlcAlgebra.challengeValid (piRlcResponse state index)
@@ -203,7 +257,7 @@ theorem runningCount_eq_outputCount
     shape.runningCount = key.params.k :=
   key.outputCount_eq.symm
 
-/-- Sole paper relation semantics selected by the key. -/
+/-- Canonical relation semantics selected by the key. -/
 def semantics
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -214,8 +268,7 @@ def semantics
     {columns blockCount degreeBound : Nat}
     (key : Key Extension Commitment PublicInput Scalar State shape
       columns blockCount degreeBound) :=
-  paperRelationSemantics (shape := shape) (blockCount := blockCount)
-    key.baseOps key.extensionOps key.lift key.openingMaps
+  key.piRlcSemantics
 
 /-- Public paper statement reconstructed without a witness. -/
 def statement
@@ -344,10 +397,14 @@ def piCcsExecution
     (running : Running Extension Commitment PublicInput shape)
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :=
-  ProtocolVerifier.derive key.oracle (key.publicInputState running fresh)
-    (StrongReduction.Statement.verifierInput key.lift
-      (key.statement running fresh))
-    (key.piCcsCertificate running fresh proof)
+  let execution :=
+    ProtocolVerifier.derive key.oracle (key.publicInputState running fresh)
+      (StrongReduction.Statement.verifierInput key.lift
+        (key.statement running fresh))
+      (key.piCcsCertificate running fresh proof)
+  { execution with
+    outgoingState :=
+      key.absorbPiCcsOutput execution.coins.finalState proof.piCcsOutput }
 
 /-- The coefficient-complete public-coin probe represented by the one NIFS
 message.  Its coins and finite certificate are verifier-derived projections;

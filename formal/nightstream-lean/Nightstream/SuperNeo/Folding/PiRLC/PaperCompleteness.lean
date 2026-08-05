@@ -48,6 +48,10 @@ structure Context
   arity : BatchArity params
   algebra : Algebra Structure Assignment PublicInput Point Evaluation
     Commitment Scalar semantics params
+  evaluationCount : Structure -> Nat
+  evaluationsSize : forall system assignment point,
+    (semantics.evaluations system assignment point).size =
+      evaluationCount system
 
 /-- Canonical source statement made from one honest assignment at the shared
 constraint system and evaluation point. -/
@@ -114,6 +118,9 @@ def honestBatch
   inputs := fun index => honestInput context system point (assignments index)
   sameSystem := fun _ => rfl
   samePoint := fun _ => rfl
+  evaluationCount := context.evaluationCount system
+  evaluationsSize := fun index =>
+    context.evaluationsSize system (assignments index) point
 
 /-- All verifier randomness for paper `Pi_RLC`.  Membership in the strong
 sampling set is attached to the verifier-generated coins, not supplied as a

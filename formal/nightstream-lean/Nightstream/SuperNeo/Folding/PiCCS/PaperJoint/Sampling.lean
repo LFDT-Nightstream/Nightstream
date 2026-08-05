@@ -10,7 +10,7 @@ soundness dichotomy after sampling.
 
 Does not own: how alpha or gamma are sampled, probability or
 Schwartz--Zippel bounds, SumCheck soundness, transcript derivation,
-Fiat--Shamir, concrete CCS arithmetization, SplitNc refinement, Rust, or R1CS.
+Fiat--Shamir, concrete CCS arithmetization, Rust, or R1CS.
 
 Emits constraints: no.
 

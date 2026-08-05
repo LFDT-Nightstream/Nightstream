@@ -16,21 +16,21 @@ abstract transcript and output interface; and the Phi81 layouts, coefficient
 kernel, and necessity countermodels listed below.
 
 Does not own: production data and layout refinement, the concrete modulus
-Euclid proof, approval of the candidate target correction, equivalence with
-the production two-SumCheck FE/NC protocol, executable Poseidon2 transcript
-security, concrete output projection, Rust/R1CS refinement, or constraint
-counts.
+Euclid proof, approval of the candidate target correction, executable
+Poseidon2 transcript security, concrete output projection, Rust/R1CS
+refinement, or constraint counts.
 
 Emits constraints: no.
 
 Authority boundary: this module is derived from the paper, not from the
 existing circuit. It cannot authorize a production constraint removal until
-the production data/layout refinement, SplitNc refinement, and exact
-Rust/R1CS refinement boundaries are separately closed.
+the selected padded-row data/layout and exact Rust/R1CS refinement boundaries
+are separately closed.
 
-Open obligations are recorded in the child contract headers and
-`specs/fpr-nifs-bridge.md`. This facade intentionally exports no editable
-status datatype: changing a diagnostic list is not a proof.
+The selected implementation target and its open assurance obligations are
+owned by `protocol-contract/`. Child contract headers record the local theorem
+boundaries. This facade intentionally exports no editable status datatype:
+changing a diagnostic list is not a proof.
 
 | Child group | Stable mathematical ownership | Excluded boundary |
 |---|---|---|

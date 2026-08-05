@@ -16,8 +16,8 @@ branch summaries are non-authoritative Rust drift evidence.
 
 | Branch | Source phase end | Final encoded columns |
 |---|---:|---:|
-| base | 125695 | 125695 |
-| recursive | 7830083 | 8137378 |
+| base | 132911 | 132911 |
+| recursive | 12108509 | 12330019 |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeBranchOrdinaryPlacementData
@@ -26,12 +26,12 @@ open Nightstream.Implementation.R1CS.FPrimeFieldLayout.OrdinaryPlacement
 
 def baseData : Metadata where
   formatVersion := 1
-  sourcePhaseEnd := 125695
-  encodedColumnCount := 125695
+  sourcePhaseEnd := 132911
+  encodedColumnCount := 132911
 
 def recursiveData : Metadata where
   formatVersion := 1
-  sourcePhaseEnd := 7830083
-  encodedColumnCount := 8137378
+  sourcePhaseEnd := 12108509
+  encodedColumnCount := 12330019
 
 end Nightstream.Implementation.R1CS.FPrimeBranchOrdinaryPlacementData

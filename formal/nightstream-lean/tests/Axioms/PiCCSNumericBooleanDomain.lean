@@ -8,7 +8,7 @@ domain.
 Owns: the dependency expectation for the exact bridge between recursive
 least-significant-bit tensor weights and the preserved `Nat.testBit` fold.
 
-Does not own: output-claim semantics, production arithmetic, SplitNC, Rust,
+Does not own: output-claim semantics, production arithmetic, Rust,
 R1CS, or constraint counts.
 
 | Audited theorem | Model-level guarantee |

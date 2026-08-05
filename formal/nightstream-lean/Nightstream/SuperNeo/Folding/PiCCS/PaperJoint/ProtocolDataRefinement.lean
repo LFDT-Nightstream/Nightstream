@@ -173,7 +173,7 @@ def toProtocolData
       (data.assignments (UnifiedSources.freshSourceIndex source))
       vertex matrix)
   sourceAssignments := fun source => BooleanTable.tabulate fun vertex =>
-    lift (data.assignments source (data.layout.toColumn vertex))
+    lift (data.layout.paddedValue 0 (data.assignments source) vertex)
   priorPoint := data.priorPoint
   carriedImages := fun coordinate =>
     CarriedEvaluationResidual.imageTable baseOps lift data.carriedData coordinate
@@ -237,11 +237,12 @@ theorem normTable_eq
     BooleanTable.tabulate (fun vertex =>
       ProtocolPolynomial.strictNormResidual extensionOps
         ((BooleanTable.tabulate (fun row =>
-          lift (data.assignments source
-            (data.layout.toColumn row)))).valueAt vertex)) =
+          lift (data.layout.paddedValue 0
+            (data.assignments source) row))).valueAt vertex)) =
       ConcreteJointData.liftTable lift (BooleanTable.tabulate (fun vertex =>
         NormRange.cubicResidual
-          (data.assignments source (data.layout.toColumn vertex))))
+          (data.layout.paddedValue 0
+            (data.assignments source) vertex)))
   rw [liftTable_tabulate]
   apply congrArg BooleanTable.tabulate
   funext vertex

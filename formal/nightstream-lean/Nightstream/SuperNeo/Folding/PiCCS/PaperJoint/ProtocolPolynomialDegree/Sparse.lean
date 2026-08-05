@@ -9,6 +9,8 @@ monomial substitution, and the syntax-derived equality-gated CCS ceiling.
 Does not own: a concrete matrix source, protocol aggregation, SumCheck,
 probability, Fiat--Shamir, Rust, R1CS, artifacts, or costs. Declared CCS degree
 metadata is never used; the ceiling comes only from explicit monomial syntax.
+
+Emits constraints: no.
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Sparse

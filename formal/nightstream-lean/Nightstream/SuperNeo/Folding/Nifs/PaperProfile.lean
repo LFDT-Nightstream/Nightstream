@@ -1,5 +1,5 @@
 import Nightstream.SuperNeo.Concrete.Parameters
-import Nightstream.SuperNeo.Folding.PiCCS
+import Nightstream.SuperNeo.Folding.PiCCS.PaperProduct
 import Nightstream.SuperNeo.Folding.PiDEC.PaperVerifier
 import Nightstream.SuperNeo.Folding.PiRLC
 
@@ -19,7 +19,7 @@ obligations; one new row point; fifteen strong-set challenges; the operational
 Section-7.5 `Pi_DEC` verifier, including exact evaluation arity; and the
 canonical honest-completeness constructor.
 
-Does not own: Phi81, Split-NC, either SumCheck message flow, Fiat--Shamir,
+Does not own: Phi81, the PiCCS SumCheck message flow, Fiat--Shamir,
 commitment security, child-opening extraction, parent caches, HyperNova
 lifecycle state, Rust, R1CS, costs, necessity, or row removal.
 
@@ -68,14 +68,14 @@ def arity : BatchArity productionGlobalParams :=
 @[simp] theorem baseNormBound : productionGlobalParams.b = 2 := rfl
 
 /-- Exact public paper input. The canonical source order is the one owned by
-`PiCCS.InputProduct.source`. -/
+`PiCCS.PaperProduct.InputProduct.source`. -/
 abbrev Input
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)
     (Point : Type uPoint)
     (Evaluation : Type uEvaluation)
     (Commitment : Type uCommitment) :=
-  PiCCS.InputProduct Structure PublicInput Point Evaluation Commitment
+  PiCCS.PaperProduct.InputProduct Structure PublicInput Point Evaluation Commitment
     productionGlobalParams arity
 
 /-- Exact public paper target: the fourteen post-decomposition CE children. -/
@@ -147,7 +147,8 @@ def outputs
     (witness : Witness Assignment Point Scalar) :
     Fin arity.total ->
       CE.Instance Structure PublicInput Point Evaluation Commitment :=
-  PiCCS.honestOutputs profile.semantics input witness.assignments witness.point
+  PiCCS.PaperProduct.honestOutputs profile.semantics input
+    witness.assignments witness.point
 
 /-- Strong-set membership for every `Pi_RLC` challenge. -/
 def ChallengesValid
@@ -290,7 +291,8 @@ theorem complete
   have outputsValid : forall index,
       CE.Holds profile.semantics productionGlobalParams
         (outputs profile input witness index) (witness.assignments index) := by
-    apply PiCCS.product_complete profile.semantics productionGlobalParams arity
+    apply PiCCS.PaperProduct.product_complete profile.semantics
+      productionGlobalParams arity
       input witness.assignments witness.point sourceFresh sourceHolds
     intro index
     rw [commonStructure index]
@@ -304,7 +306,8 @@ theorem complete
     · intro index
       rfl
     · intro index
-      simpa [outputs, PiCCS.honestOutputs, PiCCS.honestOutput] using
+      simpa [outputs, PiCCS.PaperProduct.honestOutputs,
+        PiCCS.PaperProduct.honestOutput] using
         commonStructure index
     · intro index
       rfl
@@ -348,7 +351,8 @@ theorem outputsHold
     forall index,
       CE.Holds profile.semantics productionGlobalParams
         (outputs profile input witness index) (witness.assignments index) := by
-  apply PiCCS.product_complete profile.semantics productionGlobalParams arity
+  apply PiCCS.PaperProduct.product_complete profile.semantics
+    productionGlobalParams arity
     input witness.assignments witness.point holds.sourceFresh holds.sourceHolds
   intro index
   rw [holds.commonStructure index]
@@ -377,7 +381,8 @@ theorem parentOpening
   · intro index
     rfl
   · intro index
-    simpa [outputs, PiCCS.honestOutputs, PiCCS.honestOutput] using
+    simpa [outputs, PiCCS.PaperProduct.honestOutputs,
+      PiCCS.PaperProduct.honestOutput] using
       holds.commonStructure index
   · intro index
     rfl

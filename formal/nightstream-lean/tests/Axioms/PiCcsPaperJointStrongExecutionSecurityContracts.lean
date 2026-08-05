@@ -25,3 +25,9 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.SecurityContr
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms extraction_after_first_success_of_securityContracts
+
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.SecurityContracts.extraction_after_success_gate_of_securityContracts' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms extraction_after_success_gate_of_securityContracts

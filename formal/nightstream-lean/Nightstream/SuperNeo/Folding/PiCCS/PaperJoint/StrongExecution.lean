@@ -92,7 +92,7 @@ def PaperDegreeWidthExact
   (context.statement.verifierInput context.lift).sumcheckDegreeBound =
     context.sumcheckWidth
 
-/-- Exact width selection fits Appendix D.4's conservative degree expression
+/-- Exact width selection fits Appendix D.4's corrected degree expression
 for the context's frozen strict-`b = 2` semantics. -/
 theorem paperDegreeWidthExact_implies_width_le_paperRoundDegreeCeiling
     {Extension : Type uExtension}

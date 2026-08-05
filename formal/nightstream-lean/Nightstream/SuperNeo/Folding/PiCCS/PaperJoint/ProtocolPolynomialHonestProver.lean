@@ -15,6 +15,8 @@ point, and perfect logical acceptance of the raw finite SumCheck verifier.
 Does not own: Fiat--Shamir, a random oracle, Poseidon2, commitment security,
 the strong extractor game, generated artifacts, Rust, R1CS, or costs.
 
+Emits constraints: no.
+
 The verifier fixes `alpha` and `gamma` before this construction. Each call to
 `challengeStep` receives only the current verifier state and the current raw
 canonical message. No future challenge or terminal is an input to the honest

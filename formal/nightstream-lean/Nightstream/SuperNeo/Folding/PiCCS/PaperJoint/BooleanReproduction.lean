@@ -169,8 +169,8 @@ theorem equalityWeighted_tabulate_eq_evaluate
       (BooleanTable.tabulate values) point).symm
 
 /-- Equality weighting commutes with a separately indexed finite weighted
-family. This is the shared linearity step used by both paper-joint and
-Split-NC residual decompositions. -/
+family. This is the shared linearity step used by the joint residual
+decomposition. -/
 theorem equalityWeighted_sumMap
     {Field : Type uField}
     {Index : Type uIndex}

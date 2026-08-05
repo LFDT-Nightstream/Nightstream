@@ -221,7 +221,7 @@ private theorem witness_codec_width
   simpa [family, DataCodecs.family, Family.codecFor] using
     (profile.witness_width_eq_codec parameters).symm
 
-private theorem running_codec_width
+theorem running_codec_width
     (parameters : Parameters)
     (profile : Profile parameters) :
     ((profile.family parameters).codecFor (.data .running)).width =
@@ -229,7 +229,7 @@ private theorem running_codec_width
   simpa [family, DataCodecs.family, Family.codecFor] using
     (profile.running_width_eq_codec parameters).symm
 
-private theorem fresh_codec_width
+theorem fresh_codec_width
     (parameters : Parameters)
     (profile : Profile parameters) :
     ((profile.family parameters).codecFor (.data .fresh)).width =
@@ -237,7 +237,7 @@ private theorem fresh_codec_width
   simpa [family, DataCodecs.family, Family.codecFor] using
     (profile.fresh_width_eq_codec parameters).symm
 
-private theorem nifsProof_codec_width
+theorem nifsProof_codec_width
     (parameters : Parameters)
     (profile : Profile parameters) :
     ((profile.family parameters).codecFor (.data .nifsProof)).width =

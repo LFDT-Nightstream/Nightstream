@@ -571,6 +571,18 @@ structure KColumnIds where
   c1 : ColumnId
 deriving DecidableEq, Repr
 
+private theorem kColumnIds_eq
+    (left right : KColumnIds)
+    (c0Equal : left.c0 = right.c0)
+    (c1Equal : left.c1 = right.c1) :
+    left = right := by
+  cases left
+  cases right
+  simp only at c0Equal c1Equal
+  cases c0Equal
+  cases c1Equal
+  rfl
+
 /-- Stable physical identity of one projected base-field value. -/
 structure FColumnId where
   column : ColumnId
@@ -681,6 +693,32 @@ theorem FView.column_mem
     (view.column bundle widthsAgree).column ∈ bundle.ids :=
   coordinateId_mem codec bundle widthsAgree view.index
 
+/-- Two base-field views select the same physical column when their bundles
+have the same ordered identities and their numeric codec indices agree. -/
+theorem FView.column_eq_of_ids
+    {α : Type u}
+    {β : Type v}
+    {leftLayout rightLayout : Layout}
+    {leftCodec : Codec α}
+    {rightCodec : Codec β}
+    {leftValue : α → Field}
+    {rightValue : β → Field}
+    (leftView : FView leftCodec leftValue)
+    (rightView : FView rightCodec rightValue)
+    (leftBundle : ColumnBundle leftLayout)
+    (rightBundle : ColumnBundle rightLayout)
+    (leftWidthsAgree :
+      leftCodec.width = leftLayout.owners.length)
+    (rightWidthsAgree :
+      rightCodec.width = rightLayout.owners.length)
+    (idsEqual : leftBundle.ids = rightBundle.ids)
+    (indexEqual : leftView.index.val = rightView.index.val) :
+    (leftView.column leftBundle leftWidthsAgree).column =
+      (rightView.column rightBundle rightWidthsAgree).column := by
+  exact coordinateId_eq_of_ids
+    leftBundle rightBundle leftWidthsAgree rightWidthsAgree
+    leftView.index rightView.index idsEqual indexEqual
+
 def KView.columns
     {α : Type u}
     {layout : Layout}
@@ -691,6 +729,42 @@ def KView.columns
     (widthsAgree : codec.width = layout.owners.length) : KColumnIds where
   c0 := coordinateId codec bundle widthsAgree view.c0Index
   c1 := coordinateId codec bundle widthsAgree view.c1Index
+
+/-- Two quadratic-extension views select the same physical pair when their
+bundles have the same ordered identities and both codec indices agree. -/
+theorem KView.columns_eq_of_ids
+    {α : Type u}
+    {β : Type v}
+    {leftLayout rightLayout : Layout}
+    {leftCodec : Codec α}
+    {rightCodec : Codec β}
+    {leftValue : α → K}
+    {rightValue : β → K}
+    (leftView : KView leftCodec leftValue)
+    (rightView : KView rightCodec rightValue)
+    (leftBundle : ColumnBundle leftLayout)
+    (rightBundle : ColumnBundle rightLayout)
+    (leftWidthsAgree :
+      leftCodec.width = leftLayout.owners.length)
+    (rightWidthsAgree :
+      rightCodec.width = rightLayout.owners.length)
+    (idsEqual : leftBundle.ids = rightBundle.ids)
+    (c0IndexEqual : leftView.c0Index.val = rightView.c0Index.val)
+    (c1IndexEqual : leftView.c1Index.val = rightView.c1Index.val) :
+    leftView.columns leftBundle leftWidthsAgree =
+      rightView.columns rightBundle rightWidthsAgree := by
+  let leftColumns := leftView.columns leftBundle leftWidthsAgree
+  let rightColumns := rightView.columns rightBundle rightWidthsAgree
+  change leftColumns = rightColumns
+  have c0Equal : leftColumns.c0 = rightColumns.c0 :=
+    coordinateId_eq_of_ids
+      leftBundle rightBundle leftWidthsAgree rightWidthsAgree
+      leftView.c0Index rightView.c0Index idsEqual c0IndexEqual
+  have c1Equal : leftColumns.c1 = rightColumns.c1 :=
+    coordinateId_eq_of_ids
+      leftBundle rightBundle leftWidthsAgree rightWidthsAgree
+      leftView.c1Index rightView.c1Index idsEqual c1IndexEqual
+  exact kColumnIds_eq leftColumns rightColumns c0Equal c1Equal
 
 theorem KView.c0_mem
     {α : Type u}

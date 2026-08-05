@@ -4,7 +4,7 @@ import Nightstream.Protocol.FPrime.Frozen
 
 #check Nightstream.SuperNeo.InteractiveReduction.Paper.ReductionOfKnowledge
 #check Nightstream.SuperNeo.InteractiveReduction.Paper.Strong
-#check Nightstream.SuperNeo.InteractiveReduction.Paper.RejectionAdjustedStrong
+#check Nightstream.SuperNeo.InteractiveReduction.Paper.SuccessGatedStrong
 #check Nightstream.SuperNeo.InteractiveReduction.Paper.Weak
 #check Nightstream.Protocol.FPrime.Frozen.PiCcsStrong
 #check Nightstream.Protocol.FPrime.Frozen.PiRlcWeak
@@ -19,7 +19,7 @@ import Nightstream.Protocol.FPrime.Frozen
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.fullOracleMixtureNifsNonInteractiveSound
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.finitePaperStrong
 #check @Nightstream.Protocol.FPrime.Frozen.SuperNeo.finitePaperStrong
-#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.piCcsStrong_of_unboundedFirstSuccess
+#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.piCcsStrong_of_successGatedRetry
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.accepted_implies_tableTruth_or_badEvent
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.fixedWidthAcceptedProbe_extracts_source_or_badEvent
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.paperWeak
@@ -111,14 +111,6 @@ import Nightstream.Protocol.FPrime.Frozen
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.toPrefixExperiment_piCcsCheck_extracts_sourceValid_or_badEvent
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.toPrefixExperiment_batch_eq
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.interactivePiDecExecution_eq_continuation
-#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4Success_iff_nifsD4AmbientSuccess
-#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.fixedFirstBad_iff_nifsD4FixedFirstBad
-#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4Seed_supportPermutation
-#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4AmbientSuccess_probability_eq_nifs
-#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.mem_d4FirstSuccessFreshSecondSeeds_iff
-#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4FixedFirstBad_probability_eq_nifs
-#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4SourceExtracted_probability_eq_nifs
-#check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4Extraction_after_first_success_nifs
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.causalPostPrefixOutcomeOfSeed
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.interactivePiDecExecution_eq_postPrefix
 #check Nightstream.Protocol.FPrime.Frozen.SuperNeo.RewindablePiRlcWorldOutcome.piDecExecutionAt_world_attempt_eq_nifs
@@ -169,6 +161,18 @@ import Nightstream.Protocol.FPrime.Frozen
 #check Nightstream.SuperNeo.Folding.PiCCS.PaperCorrections.literalSection73NormIndices_ne_strictCentered_at_two
 
 #check Nightstream.HyperNova.NIVCCompatibility.Holds
+#check Nightstream.HyperNova.NIVCCompatibility.Codec.Canonical
+#check Nightstream.HyperNova.NIVCCompatibility.Codec.encode_injective
+#check Nightstream.HyperNova.NIVCCompatibility.NPComplete
+#check Nightstream.HyperNova.NIVCCompatibility.PartialFunctions
+#check Nightstream.HyperNova.NIVCCompatibility.CompilerLayout.Holds
+#check Nightstream.HyperNova.NIVCCompatibility.CompilerLayout.capacities_of_fits
+#check Nightstream.HyperNova.NIVCCompatibility.CompilerLayout.columns_fit_row_domain
+#check Nightstream.HyperNova.NIVCCompatibility.DefaultAlgorithm.Holds
+#check Nightstream.HyperNova.NIVCCompatibility.StatementIdentifierScheme.Collision
+#check Nightstream.HyperNova.NIVCCompatibility.StatementIdentifierScheme.eq_or_collision
+#check Nightstream.HyperNova.NIVCCompatibility.CompactVerifierInterface.Holds
+#check Nightstream.HyperNova.NIVCCompatibility.CompactVerifierInterface.recursiveKey
 #check Nightstream.HyperNova.NonInteractiveMultiFold.accepts_iff_verify
 #check Nightstream.HyperNova.Construction2.Paper.Transition
 #check Nightstream.HyperNova.Construction2.Paper.holds_iff_transition

@@ -14,6 +14,8 @@ slices, the strict-`b = 2` cubic, finite sums, and Boolean suffix sums.
 Does not own: a protocol polynomial, a degree ceiling, SumCheck acceptance,
 probability, Fiat--Shamir, Rust, R1CS, artifacts, or costs.
 
+Emits constraints: no.
+
 Every representation contains explicit constant-first coefficients evaluated
 by the verifier-visible Horner machine. No generated artifact or executable
 emitter is consulted.

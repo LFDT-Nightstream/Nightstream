@@ -123,7 +123,19 @@ theorem piCcsOutputs_hold
     Fin.cast key.total_eq_sourceCount index
   have opening := source.1 sourceIndex
   have ambientAt := ambient sourceIndex
-  refine ⟨?_, ambientAt.2.1, ambientAt.2.2⟩
+  have outputSource :
+      (key.piCcsOutputs running fresh proof index).constraintSystem =
+        key.matrixSource := by
+    rfl
+  have ambientConcrete :=
+    (key.ambientAgreement
+      (key.piCcsOutputs running fresh proof index)
+      (sourceAssignments key witness index) outputSource).mp ambientAt
+  refine ⟨?_, ambientConcrete.2.1, ambientConcrete.2.2⟩
+  apply (key.openingAgreement key.params.b
+    (key.piCcsOutputs running fresh proof index).commitment
+    (key.piCcsOutputs running fresh proof index).publicInput
+    (sourceAssignments key witness index)).mp
   simpa [Key.piCcsOutputs, Key.piCcsProbe, Key.statement,
     sourceAssignments, sourceIndex, Key.semantics, NormStage.bound] using opening
 

@@ -12,16 +12,18 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperSt
 #check perfectComplete
 #check PublicCoin
 #check publicCoin
-#check ExtractionEligible
-#check UniformTruncatedWorkBound
-#check uniformTruncatedWorkBound_of_eligible
-#check Extractor.firstSuccessFreshSecond
-#check sourceExtractionProbability
-#check sourceExtractionProbability_eq_of_eligible
+#check SuccessGatedWorkBound
+#check successGatedWorkBound
+#check Extractor.successGated
+#check successGatedSourceExtractionProbability
+#check successGatedSourceExtractionProbability_eq_of_nonempty
 #check outputPhiMismatchProbability_eq_zero
-#check finiteStrongGame
+#check successGatedFiniteStrongGame
 #check NamedSecurityContracts
 #check finitePaperStrong
 #check @finitePaperStrong
+
+-- Legacy floor-based comparison theorem. It is not the paper-facing result.
+#check legacyRejectionAdjustedFinitePaperStrong
 
 end tests.PiCcsPaperJointStrongExecutionFinitePaperStrong

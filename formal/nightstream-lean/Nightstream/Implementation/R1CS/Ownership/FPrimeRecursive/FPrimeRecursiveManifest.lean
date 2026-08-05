@@ -34,7 +34,7 @@ theorem nifs_row_count :
 
 theorem nifs_matches_top_level :
     (topLevelFamilies[2]!).rowStart = (nifsFamilies[0]!).rowStart ∧
-    (topLevelFamilies[2]!).rowEnd = (nifsFamilies[3]!).rowEnd := by
+    (topLevelFamilies[2]!).rowEnd = (nifsFamilies[4]!).rowEnd := by
   decide
 
 /-- The exact steady-state profile has one shared beta/rho block and 31
@@ -62,11 +62,11 @@ theorem projection_pair_census :
   decide
 
 theorem projection_ranges_owned_by_piRlc :
-    (nifsFamilies[1]!).rowStart ≤ projectionShared.rowStart ∧
-    projectionShared.rowEnd ≤ (nifsFamilies[1]!).rowEnd ∧
+    (nifsFamilies[2]!).rowStart ≤ projectionShared.rowStart ∧
+    projectionShared.rowEnd ≤ (nifsFamilies[2]!).rowEnd ∧
     (∀ range ∈ projectionIdentityRanges,
-      (nifsFamilies[1]!).rowStart ≤ range.rowStart ∧
-      range.rowEnd ≤ (nifsFamilies[1]!).rowEnd) := by
+      (nifsFamilies[2]!).rowStart ≤ range.rowStart ∧
+      range.rowEnd ≤ (nifsFamilies[2]!).rowEnd) := by
   decide
 
 end Nightstream.Implementation.R1CS.FPrimeRecursiveManifest

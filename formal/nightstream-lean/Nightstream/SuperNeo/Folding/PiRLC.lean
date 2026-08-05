@@ -326,7 +326,7 @@ theorem complete
       inputs challenges assignments inputFresh sameStructure samePoint
       challengesValid inputValid pointValid
 
-/-- Interpret an extracted Π_RLC input witness in `CE(q/2)`. -/
+/-- Interpret an extracted Π_RLC input witness in `CE(⌊q/2⌋+1)`. -/
 def ambientInput
     {Structure : Type uStructure}
     {PublicInput : Type uPublicInput}

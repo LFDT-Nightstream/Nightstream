@@ -10,7 +10,9 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.UnifiedSources
 #check UnifiedInputs.normBatch_at_toVertex_eq_assignment
 #check UnifiedInputs.normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded
 #check UnifiedInputs.toIndependentInputs_semanticTruth_iff
-#check ColumnLayout.enumeratedColumns
-#check ColumnLayout.enumeratedColumns_nodup
-#check ColumnLayout.mem_enumeratedColumns
-#check ColumnLayout.columns_eq_twoPow
+#check ColumnLayout.enumeratedVertices
+#check ColumnLayout.enumeratedVertices_nodup
+#check ColumnLayout.enumeratedVertices_subset_all
+#check ColumnLayout.columns_le_twoPow
+#check ColumnLayout.paddedValue
+#check ColumnLayout.paddedIdentityEntry

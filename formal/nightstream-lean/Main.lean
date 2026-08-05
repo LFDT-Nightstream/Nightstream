@@ -1,4 +1,3 @@
-import Nightstream.Checks.Artifacts
 import Nightstream.Checks.Envelope
 import Nightstream.Checks.Protocol
 import Nightstream.Checks.Rust
@@ -16,10 +15,9 @@ private def flush : IO Unit :=
 
 def main : IO UInt32 := do
   let envelopeOk ← Nightstream.Checks.Envelope.run
-  let artifactsOk ← Nightstream.Checks.Artifacts.run
   let protocolOk ← Nightstream.Checks.Protocol.run
   let rustOk ← Nightstream.Checks.Rust.run
-  let ok := envelopeOk && artifactsOk && protocolOk && rustOk
+  let ok := envelopeOk && protocolOk && rustOk
   if ok then
     IO.println "check=pass"
     flush

@@ -13,5 +13,6 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.SecurityContr
 #check fixedFirstBad_eq_mixing_or_sumCheck
 #check fixedFirstBadBound_of_securityContracts
 #check extraction_after_first_success_of_securityContracts
+#check extraction_after_success_gate_of_securityContracts
 
 end tests.PiCcsPaperJointStrongExecutionSecurityContracts

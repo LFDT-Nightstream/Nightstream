@@ -9,7 +9,7 @@ Owns: exact evaluation of the generated `rowPorts` and `polynomialTerms`, the
 single-row finite transition certificate, and sequential propagation of the
 Boolean borrow invariant from the fixed zero endpoint.
 
-Does not own: Split-NC truth, placement of an opening in a production
+Does not own: PiCCS truth, placement of an opening in a production
 assignment, selector activation outside these 21 rows, or the final
 canonical-opening theorem.
 

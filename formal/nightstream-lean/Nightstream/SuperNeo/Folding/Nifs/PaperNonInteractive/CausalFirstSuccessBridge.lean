@@ -2,16 +2,21 @@ import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCouplin
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.PiRlcComposition
 
 /-!
-Causal Appendix-D.4 first-success bridge for the paper non-interactive NIFS.
+Legacy causal conditioned-first bridge for the paper non-interactive NIFS.
 
 Source: SuperNeo Definition 10, Section 7.3, and Appendices D.3--D.5.
 
-Owns: the exact strong-game adversary obtained from the paper `Pi_RLC`
+Owns: the superseded conditioned-first strong-game adversary obtained from the `Pi_RLC`
 coordinate extractor; its independent prover/target/verifier seed support;
 the replay-aligned NIFS interpretation of ambient success; and the exact
 fixed-first-witness mixing-root/SumCheck event on a fresh second prefix.
 
-Does not own: construction of an ideal random oracle, `Pi_DEC` target-witness
+The corrected paper extractor is success-gated: it makes an unconditioned run
+first and enters the retry loop only after that run succeeds. This module does
+not implement that order and is retained only as a regression and finite seed
+reindexing artifact. It is not paper authority for extraction or runtime.
+
+Does not own: the corrected success-gated extractor, construction of an ideal random oracle, `Pi_DEC` target-witness
 availability from public acceptance, collision bounds, the asymptotic
 rejection sampler, Poseidon2, Ajtai, Rust, R1CS, artifacts, minimality, or
 costs.

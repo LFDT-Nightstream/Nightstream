@@ -15,7 +15,7 @@ evaluation equals the independently derived signed joint identity.
 
 Does not own: construction of concrete CCS/norm/ring tables, approval of the
 target erratum, SumCheck initial or terminal acceptance, root-counting
-probability, Fiat--Shamir, production FE/NC splitting, Rust, R1CS, or counts.
+probability, Fiat--Shamir, Rust, R1CS, or counts.
 
 Emits constraints: no.
 

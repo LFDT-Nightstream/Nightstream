@@ -51,6 +51,8 @@ structure PiCcsPrefixOracleWorld
     Running Extension Commitment PublicInput shape ->
     Fresh Commitment PublicInput shape ->
     State
+  absorbPiCcsOutput : State ->
+    FullOutputCoordinates.FullOutput Extension shape -> State
   oracle : ProtocolVerifier.Oracle Extension State shape
 
 namespace Key
@@ -73,7 +75,8 @@ def inPiCcsPrefixWorld
   { key with
     oracle := world.oracle
     initialTranscriptState := world.initialTranscriptState
-    absorbPublicInput := world.absorbPublicInput }
+    absorbPublicInput := world.absorbPublicInput
+    absorbPiCcsOutput := world.absorbPiCcsOutput }
 
 @[simp] theorem inPiCcsPrefixWorld_oracle
     {Extension : Type uExtension}
@@ -117,6 +120,21 @@ def inPiCcsPrefixWorld
     (world : PiCcsPrefixOracleWorld key) :
     (key.inPiCcsPrefixWorld world).absorbPublicInput =
       world.absorbPublicInput := by
+  rfl
+
+@[simp] theorem inPiCcsPrefixWorld_absorbPiCcsOutput
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (world : PiCcsPrefixOracleWorld key) :
+    (key.inPiCcsPrefixWorld world).absorbPiCcsOutput =
+      world.absorbPiCcsOutput := by
   rfl
 
 end Key

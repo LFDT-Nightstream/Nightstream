@@ -1,8 +1,7 @@
 import Nightstream.Protocol.FPrime.Frozen.Obligations
 
 /-!
-Exact frozen-target obstruction for the missing PiCCS unbounded first-success
-bridge.
+Exact frozen-target obstruction for an unlinked PiCCS runtime field.
 
 Owns: a minimal `SuperNeoGames` model in which every probability quantity,
 composition coupling, and error-budget entry is fixed, while the truth of the
@@ -56,23 +55,21 @@ def runtimeOnlyGame (runtime : Prop) : StrongGame Unit Unit Unit where
   repeatedOutputWitnessDisagreement := fun _ => ()
   sourceWitnessExtracted := fun _ _ => ()
 
-/-- The rejection-adjusted target for `runtimeOnlyGame` contains exactly its
+/-- The success-gated target for `runtimeOnlyGame` contains exactly its
 opaque runtime proposition. -/
-theorem rejectionAdjustedStrong_runtimeOnly_iff (runtime : Prop) :
-    RejectionAdjustedStrong unitScale (fun _ _ => ())
+theorem successGatedStrong_runtimeOnly_iff (runtime : Prop) :
+    SuccessGatedStrong unitScale
       (runtimeOnlyGame runtime) () () () ↔ runtime := by
   constructor
   · rintro ⟨_complete, _publicCoin, _samePhi, extraction⟩
-    rcases (extraction () True.intro True.intro).2 True.intro with
+    rcases extraction () True.intro True.intro True.intro with
       ⟨_extractor, runtimeProof, _bound⟩
     exact runtimeProof
   · intro runtimeProof
     refine ⟨True.intro, True.intro, ?_, ?_⟩
     · intro _adversary _expected
       rfl
-    · intro _adversary _expected _eligible
-      refine ⟨True.intro, ?_⟩
-      intro _uniqueness
+    · intro _adversary _expected _eligible _uniqueness
       exact ⟨(), runtimeProof, True.intro⟩
 
 /-- Trivial weak game used only to fill fields unrelated to PiCCS. -/
@@ -156,9 +153,8 @@ def errorBudget : InteractiveErrorBudget Unit where
   piCcsSumCheck := ()
   piCcsSchwartzZippel := ()
   piRlcForkSampling := ()
-  piCcsSuccessFloor := ()
   relaxedBindingRaw := ()
-  adjustUniqueness := fun _ _ => ()
+  relaxedBindingRoot := ()
 
 /-- Complete frozen game package whose sole varying datum is the opaque
 PiCCS extractor-runtime proposition. -/
@@ -198,9 +194,9 @@ all probability and composition data fixed, it is equivalent to the runtime
 proposition inserted by the game owner. -/
 theorem piCcsStrong_iff_runtime (runtime : Prop) :
     PiCcsStrong (games runtime) ↔ runtime := by
-  change RejectionAdjustedStrong unitScale (fun _ _ => ())
+  change SuccessGatedStrong unitScale
     (runtimeOnlyGame runtime) () () () ↔ runtime
-  exact rejectionAdjustedStrong_runtimeOnly_iff runtime
+  exact successGatedStrong_runtimeOnly_iff runtime
 
 /-- Pointwise eventual success for a concrete retry sequence. Almost-sure
 termination would be strictly stronger once a probability law is supplied. -/

@@ -9,20 +9,20 @@ Assurance tier: model-level.
 
 Owns: coefficient-level selection of one false CCS, norm, or carried
 obligation; multilinear alpha root counting; constant-first gamma root
-counting; the exact alpha-then-gamma Cartesian union bound; transport through
+counting; the paper's block-sensitive Cartesian root bound; transport through
 the verifier's factorized coin support; and construction of the existing
 `MixingRootProbabilityContract`.
 
 Does not own: SumCheck soundness, first-success conditioning, Fiat--Shamir,
-Poseidon2, the production Split-NC challenge carrier, Rust, R1CS, artifacts,
+Poseidon2, the production challenge carrier, Rust, R1CS, artifacts,
 or costs.
 
 Emits constraints: no.
 
 | Random coordinate | Exact source | Root charge |
 |---|---|---|
-| `alpha : S^ell` | verifier word before prover rounds | `ell / |S|` |
-| `gamma : S` | shared joint-polynomial scalar | `(jointCoefficientCount-1) / |S|` |
+| table branch | alpha plus the pre-carried gamma prefix | `(ell + 2K+k-1) / |S|` |
+| carried branch | full alpha-free gamma polynomial | `(2K+k+ktd-1) / |S|` |
 | SumCheck word | independent later verifier word | absent from this event |
 -/
 
@@ -153,6 +153,93 @@ private theorem signedCoefficients_nonzero_of_scalar
     exact specializedMember
   exact valueNonzero (allZero value signedMember)
 
+/-- The corrected paper's joint Schwartz--Zippel numerator. The first branch
+is the total degree of an alpha-dependent CCS or norm monomial. The second is
+the degree of the alpha-free carried block. -/
+def paperMixingNumerator (shape : Shape) : Nat :=
+  max
+    (shape.cubeVariables + (shape.carriedEvaluationOffset - 1))
+    (shape.jointCoefficientCount - 1)
+
+private def tableCoefficients
+    {Extension : Type uExtension}
+    {shape : Shape}
+    (ops : InterpolationOps Extension)
+    (data : SignedJointIdentity.JointData Extension shape)
+    (alpha : CubePoint Extension shape.cubeVariables) : List Extension :=
+  SignedCoefficientPolynomial.ccsCoefficients ops data alpha ++
+    SignedCoefficientPolynomial.normCoefficients ops data alpha
+
+private theorem tableCoefficients_length
+    {Extension : Type uExtension}
+    {shape : Shape}
+    (ops : InterpolationOps Extension)
+    (data : SignedJointIdentity.JointData Extension shape)
+    (alpha : CubePoint Extension shape.cubeVariables) :
+    (tableCoefficients ops data alpha).length =
+      shape.carriedEvaluationOffset := by
+  simp [tableCoefficients, Shape.carriedEvaluationOffset,
+    SignedCoefficientPolynomial.ccsCoefficients_length,
+    SignedCoefficientPolynomial.normCoefficients_length]
+
+private theorem coefficients_eq_table_append_carried
+    {Extension : Type uExtension}
+    {shape : Shape}
+    (ops : InterpolationOps Extension)
+    (data : SignedJointIdentity.JointData Extension shape)
+    (alpha : CubePoint Extension shape.cubeVariables) :
+    SignedCoefficientPolynomial.coefficients ops data alpha =
+      tableCoefficients ops data alpha ++
+        SignedCoefficientPolynomial.carriedCoefficients ops data := by
+  rfl
+
+private theorem allZero_append
+    {Extension : Type uExtension}
+    (ops : InterpolationOps Extension)
+    {left right : List Extension}
+    (leftZero : CoefficientRootCounting.AllZero ops left)
+    (rightZero : CoefficientRootCounting.AllZero ops right) :
+    CoefficientRootCounting.AllZero ops (left ++ right) := by
+  intro coefficient member
+  rcases List.mem_append.mp member with member | member
+  · exact leftZero coefficient member
+  · exact rightZero coefficient member
+
+private theorem evaluateCoefficients_eq_zero_of_allZero
+    {Extension : Type uExtension}
+    (ops : InterpolationOps Extension)
+    (laws : InterpolationEvaluationLaws ops)
+    (point : Extension) : forall coefficients : List Extension,
+    CoefficientRootCounting.AllZero ops coefficients ->
+      Message.evaluateCoefficients ops.toOps point coefficients = ops.zero
+  | [], _ => rfl
+  | coefficient :: coefficients, allZero => by
+      have coefficientZero := allZero coefficient (by simp)
+      have tailZero :
+          CoefficientRootCounting.AllZero ops coefficients := by
+        intro prior member
+        exact allZero prior (by simp [member])
+      simp only [Message.evaluateCoefficients, coefficientZero,
+        evaluateCoefficients_eq_zero_of_allZero ops laws point coefficients
+          tailZero,
+        laws.mul_zero, laws.zero_add]
+
+private theorem evaluateCoefficients_append_allZero
+    {Extension : Type uExtension}
+    (ops : InterpolationOps Extension)
+    (laws : InterpolationEvaluationLaws ops)
+    (point : Extension) : forall left right : List Extension,
+    CoefficientRootCounting.AllZero ops right ->
+      Message.evaluateCoefficients ops.toOps point (left ++ right) =
+        Message.evaluateCoefficients ops.toOps point left
+  | [], right, rightZero => by
+      simpa using
+        evaluateCoefficients_eq_zero_of_allZero ops laws point right rightZero
+  | coefficient :: coefficients, right, rightZero => by
+      simp only [List.cons_append, Message.evaluateCoefficients]
+      rw [evaluateCoefficients_append_allZero ops laws point coefficients
+        right rightZero]
+
 /-- A single verifier-independent residual controls all bad alpha points.
 The controller is extracted from coefficient nontruth; it is not prover data
 and it adds no premise to the final protocol theorem. -/
@@ -164,6 +251,9 @@ private inductive Controller
   | table
       (residual : BooleanTable Extension shape.cubeVariables)
       (nonzero : Not (residual.AllEntriesZero ops))
+      (prefixPositive : 0 < shape.carriedEvaluationOffset)
+      (carriedZero : CoefficientRootCounting.AllZero ops
+        (SignedCoefficientPolynomial.carriedCoefficients ops data))
       (controls : forall alpha,
         residual.evaluate ops alpha ≠ ops.zero ->
         Not (CoefficientRootCounting.AllZero ops
@@ -184,47 +274,68 @@ private theorem controller_of_coefficientNonzero
       Not (SignedCoefficientObject.CoefficientTruth ops data)) :
     Controller ops data := by
   classical
-  obtain ⟨coefficient, coefficientFailure⟩ :=
-    Classical.not_forall.mp nonzero
-  have coefficientParts :=
-    Classical.not_imp.mp coefficientFailure
-  rcases coefficientParts with ⟨member, coefficientNonzero⟩
-  cases coefficient with
-  | scalar value =>
-      exact .scalar fun alpha =>
-        signedCoefficients_nonzero_of_scalar ops laws data value member
-          coefficientNonzero alpha
-  | negativeAlpha polynomial =>
-      rcases negativeAlpha_origin ops data polynomial member with
-        ⟨source, polynomialEq⟩ | ⟨source, polynomialEq⟩
-      · subst polynomial
-        have tableNonzero :
-            Not ((data.ccs source).AllEntriesZero ops) := by
-          intro tableZero
-          exact coefficientNonzero
-            ((BooleanTable.toAlphaPolynomial_coefficientZero_iff_allEntriesZero
-              ops zeroLaws (data.ccs source)).2 tableZero)
-        exact .table (data.ccs source) tableNonzero (by
-          intro alpha evaluationNonzero
-          apply signedCoefficients_nonzero_of_negativeAlpha ops laws data
-            ((data.ccs source).toAlphaPolynomial ops) member alpha
-          rw [BooleanTable.toAlphaPolynomial_evaluate_eq_evaluate
-            ops laws]
-          exact evaluationNonzero)
-      · subst polynomial
-        have tableNonzero :
-            Not ((data.norm source).AllEntriesZero ops) := by
-          intro tableZero
-          exact coefficientNonzero
-            ((BooleanTable.toAlphaPolynomial_coefficientZero_iff_allEntriesZero
-              ops zeroLaws (data.norm source)).2 tableZero)
-        exact .table (data.norm source) tableNonzero (by
-          intro alpha evaluationNonzero
-          apply signedCoefficients_nonzero_of_negativeAlpha ops laws data
-            ((data.norm source).toAlphaPolynomial ops) member alpha
-          rw [BooleanTable.toAlphaPolynomial_evaluate_eq_evaluate
-            ops laws]
-          exact evaluationNonzero)
+  by_cases carriedZero : CoefficientRootCounting.AllZero ops
+      (SignedCoefficientPolynomial.carriedCoefficients ops data)
+  · obtain ⟨coefficient, coefficientFailure⟩ :=
+      Classical.not_forall.mp nonzero
+    have coefficientParts :=
+      Classical.not_imp.mp coefficientFailure
+    rcases coefficientParts with ⟨member, coefficientNonzero⟩
+    cases coefficient with
+    | scalar value =>
+        exfalso
+        apply coefficientNonzero
+        apply carriedZero value
+        simpa [SignedCoefficientObject.coefficients,
+          SignedCoefficientObject.residuals,
+          SignedCoefficientObject.toTableResidualData,
+          TableResidualData.toResiduals,
+          TableResidualData.orderedCarriedEvaluation,
+          SignedCoefficientPolynomial.carriedCoefficients,
+          SignedCoefficientPolynomial.carriedValues] using member
+    | negativeAlpha polynomial =>
+        rcases negativeAlpha_origin ops data polynomial member with
+          ⟨source, polynomialEq⟩ | ⟨source, polynomialEq⟩
+        · subst polynomial
+          have tableNonzero :
+              Not ((data.ccs source).AllEntriesZero ops) := by
+            intro tableZero
+            exact coefficientNonzero
+              ((BooleanTable.toAlphaPolynomial_coefficientZero_iff_allEntriesZero
+                ops zeroLaws (data.ccs source)).2 tableZero)
+          exact .table (data.ccs source) tableNonzero (by
+            simp only [Shape.carriedEvaluationOffset, Shape.sourceCount]
+            have freshPositive : 0 < shape.freshCount := Fin.pos source
+            omega) carriedZero (by
+            intro alpha evaluationNonzero
+            apply signedCoefficients_nonzero_of_negativeAlpha ops laws data
+              ((data.ccs source).toAlphaPolynomial ops) member alpha
+            rw [BooleanTable.toAlphaPolynomial_evaluate_eq_evaluate
+              ops laws]
+            exact evaluationNonzero)
+        · subst polynomial
+          have tableNonzero :
+              Not ((data.norm source).AllEntriesZero ops) := by
+            intro tableZero
+            exact coefficientNonzero
+              ((BooleanTable.toAlphaPolynomial_coefficientZero_iff_allEntriesZero
+                ops zeroLaws (data.norm source)).2 tableZero)
+          exact .table (data.norm source) tableNonzero (by
+            simp only [Shape.carriedEvaluationOffset]
+            have sourcePositive : 0 < shape.sourceCount := Fin.pos source
+            omega) carriedZero (by
+            intro alpha evaluationNonzero
+            apply signedCoefficients_nonzero_of_negativeAlpha ops laws data
+              ((data.norm source).toAlphaPolynomial ops) member alpha
+            rw [BooleanTable.toAlphaPolynomial_evaluate_eq_evaluate
+              ops laws]
+            exact evaluationNonzero)
+  · exact .scalar fun alpha allZero =>
+      carriedZero (by
+        intro value member
+        exact allZero value (by
+          rw [coefficients_eq_table_append_carried]
+          exact List.mem_append_right _ member))
 
 private theorem sum_fibers_le_bad_mul_length_add_degree
     {Alpha : Type uAlpha}
@@ -303,7 +414,7 @@ private theorem alphaGamma_count_le
             ((SignedCoefficientPolynomial.polynomial ops data
               (wordPoint sample.1)).evaluate ops.toOps sample.2 =
                 ops.zero)) <=
-      (shape.cubeVariables + (shape.jointCoefficientCount - 1)) *
+      paperMixingNumerator shape *
         alphabet.cardinality ^ shape.cubeVariables := by
   let alphas := vectors alphabet.values shape.cubeVariables
   let gammaDegree := shape.jointCoefficientCount - 1
@@ -342,7 +453,7 @@ private theorem alphaGamma_count_le
     (alphas.flatMap fun alpha =>
       alphabet.values.map fun gamma => (alpha, gamma)).countP
         (fun sample => event sample.1 sample.2) <=
-      (shape.cubeVariables + gammaDegree) *
+      paperMixingNumerator shape *
         alphabet.cardinality ^ shape.cubeVariables
   rw [List.countP_flatMap]
   have normalized :
@@ -360,7 +471,7 @@ private theorem alphaGamma_count_le
     (alphas.map fun alpha =>
       (alphabet.values.map fun gamma => (alpha, gamma)).countP
         (fun sample => event sample.1 sample.2)).sum <=
-      (shape.cubeVariables + gammaDegree) *
+      paperMixingNumerator shape *
         alphabet.cardinality ^ shape.cubeVariables
   rw [normalized]
   cases controller_of_coefficientNonzero ops laws zeroLaws data
@@ -380,12 +491,43 @@ private theorem alphaGamma_count_le
           gammaDegree eachBound
       refine Nat.le_trans sumBound ?_
       rw [vectors_length]
-      unfold gammaDegree Support.cardinality
-      rw [Nat.add_mul, Nat.mul_comm
+      unfold gammaDegree Support.cardinality paperMixingNumerator
+      rw [Nat.mul_comm
         (alphabet.values.length ^ shape.cubeVariables)
         (shape.jointCoefficientCount - 1)]
-      exact Nat.le_add_left _ _
-  | table residual residualNonzero controls =>
+      exact Nat.mul_le_mul_right _ (Nat.le_max_right _ _)
+  | table residual residualNonzero prefixPositive carriedZero controls =>
+      let tableDegree := shape.carriedEvaluationOffset - 1
+      have tableGammaBound
+          (alpha : Fin shape.cubeVariables -> Extension)
+          (nonzero :
+            Not (CoefficientRootCounting.AllZero ops
+              (tableCoefficients ops data (wordPoint alpha)))) :
+          alphabet.values.countP (event alpha) <= tableDegree := by
+        let coefficients := tableCoefficients ops data (wordPoint alpha)
+        have coefficientCount :
+            coefficients.length = tableDegree + 1 := by
+          rw [tableCoefficients_length]
+          simpa [tableDegree] using
+            (Nat.succ_pred_eq_of_pos prefixPositive).symm
+        have rootBound :=
+          CoefficientRootCounting.roots_count_le_degree ops laws
+            noZeroDivisors tableDegree coefficients coefficientCount
+            alphabet.values alphabet.nodup nonzero
+        have evaluationEq (gamma : Extension) :
+            (SignedCoefficientPolynomial.polynomial ops data
+                (wordPoint alpha)).evaluate ops.toOps gamma =
+              Message.evaluateCoefficients ops.toOps gamma coefficients := by
+          change Message.evaluateCoefficients ops.toOps gamma
+              (SignedCoefficientPolynomial.coefficients ops data
+                (wordPoint alpha)) =
+            Message.evaluateCoefficients ops.toOps gamma coefficients
+          rw [coefficients_eq_table_append_carried]
+          exact evaluateCoefficients_append_allZero ops laws gamma
+            (tableCoefficients ops data (wordPoint alpha))
+            (SignedCoefficientPolynomial.carriedCoefficients ops data)
+            carriedZero
+        simpa only [event, evaluationEq] using rootBound
       let alphaBad : (Fin shape.cubeVariables -> Extension) -> Bool :=
         fun alpha =>
           decide
@@ -399,28 +541,39 @@ private theorem alphaGamma_count_le
             residual alphabet.values alphabet.nodup residualNonzero
       have goodBound :
           forall alpha, alpha ∈ alphas -> alphaBad alpha = false ->
-            alphabet.values.countP (event alpha) <= gammaDegree := by
+            alphabet.values.countP (event alpha) <= tableDegree := by
         intro alpha _member alphaGood
         have evaluationNonzero :
             residual.evaluate ops (wordPoint alpha) ≠ ops.zero := by
           simpa [alphaBad, BooleanTable.evaluate, wordPoint] using alphaGood
-        exact gammaBound alpha
-          (controls (wordPoint alpha) evaluationNonzero)
+        apply tableGammaBound alpha
+        intro tableZero
+        exact (controls (wordPoint alpha) evaluationNonzero) (by
+          rw [coefficients_eq_table_append_carried]
+          exact allZero_append ops tableZero carriedZero)
       have fiberBound :=
         sum_fibers_le_bad_mul_length_add_degree alphas alphabet.values
-          alphaBad event gammaDegree goodBound
+          alphaBad event tableDegree goodBound
       have combined := Nat.add_le_add
         (Nat.mul_le_mul_right alphabet.values.length badBound)
-        (Nat.le_refl (alphas.length * gammaDegree))
-      refine Nat.le_trans fiberBound (Nat.le_trans combined ?_)
-      rw [vectors_length]
-      unfold gammaDegree Support.cardinality
-      cases shape.cubeVariables with
-      | zero => simp
-      | succ variables =>
-          apply Nat.le_of_eq
-          simp only [Nat.pred_succ, Nat.pow_succ, Nat.add_mul]
-          ac_rfl
+        (Nat.le_refl (alphas.length * tableDegree))
+      have branchBound :
+          (alphas.map fun alpha =>
+            alphabet.values.countP (event alpha)).sum <=
+            (shape.cubeVariables + tableDegree) *
+              alphabet.cardinality ^ shape.cubeVariables := by
+        refine Nat.le_trans fiberBound (Nat.le_trans combined ?_)
+        rw [vectors_length]
+        unfold tableDegree Support.cardinality
+        cases shape.cubeVariables with
+        | zero => simp
+        | succ variables =>
+            apply Nat.le_of_eq
+            simp only [Nat.pred_succ, Nat.pow_succ, Nat.add_mul]
+            ac_rfl
+      refine Nat.le_trans branchBound ?_
+      unfold paperMixingNumerator
+      exact Nat.mul_le_mul_right _ (Nat.le_max_left _ _)
 
 /-- Exact Boolean event on the verifier's alpha/gamma product. -/
 noncomputable def alphaGammaZeroEvent
@@ -435,8 +588,8 @@ noncomputable def alphaGammaZeroEvent
       ((SignedCoefficientPolynomial.polynomial ops data
         (wordPoint sample.1)).evaluate ops.toOps sample.2 = ops.zero)
 
-/-- The finite alpha/gamma product obeys the additive multivariate-plus-
-univariate root bound. The denominator is exactly the sampled scalar support
+/-- The finite alpha/gamma product obeys the corrected paper's block-sensitive
+root bound. The denominator is exactly the sampled scalar support
 cardinality. -/
 theorem alphaGammaZero_probability_le
     {Extension : Type uExtension}
@@ -455,12 +608,12 @@ theorem alphaGammaZero_probability_le
     (alphaSupport.product alphabet).uniform.probabilityBool
         (alphaGammaZeroEvent ops data) <=
       ratio
-        (shape.cubeVariables + (shape.jointCoefficientCount - 1))
+        (paperMixingNumerator shape)
         alphabet.cardinality := by
   let alphaSupport :=
     FiniteWords.Support.challengeVectors alphabet shape.cubeVariables
   let numerator :=
-    shape.cubeVariables + (shape.jointCoefficientCount - 1)
+    paperMixingNumerator shape
   have countBound :=
     alphaGamma_count_le ops laws zeroLaws noZeroDivisors data alphabet
       coefficientNonzero
@@ -732,7 +885,7 @@ theorem mixingRoot_probability_le
     (experiment context alphabet adversary).probabilityBool
         (mixingRootEvent context witness) <=
       ratio
-        (shape.cubeVariables + (shape.jointCoefficientCount - 1))
+        (paperMixingNumerator shape)
         alphabet.cardinality := by
   let data :=
     (context.statement.sourceProtocolData context.lift witness).toJointData
@@ -767,7 +920,7 @@ theorem mixingRoot_probability_le
         (fun _seed => false) : Nat) : Rat) /
           ((experiment context alphabet adversary).support.cardinality : Rat) <=
         ratio
-          (shape.cubeVariables + (shape.jointCoefficientCount - 1))
+          (paperMixingNumerator shape)
           alphabet.cardinality
     have countIsZero :
         (experiment context alphabet adversary).support.values.countP
@@ -779,7 +932,7 @@ theorem mixingRoot_probability_le
           (((experiment context alphabet adversary).support.cardinality :
             Nat) : Rat)⁻¹ <=
         ratio
-          (shape.cubeVariables + (shape.jointCoefficientCount - 1))
+          (paperMixingNumerator shape)
           alphabet.cardinality
     rw [Rat.zero_mul]
     unfold ratio
@@ -806,7 +959,7 @@ theorem mixingRoot_probability_le
             mixingRootEvent context witness
               (run context adversary seed)) <=
         ratio
-          (shape.cubeVariables + (shape.jointCoefficientCount - 1))
+          (paperMixingNumerator shape)
           alphabet.cardinality
     rw [eventEquality]
     calc
@@ -839,7 +992,7 @@ theorem mixingRoot_probability_le
               alphaGammaZeroEvent context.extensionOps data (alpha, gamma))
       _ <=
           ratio
-            (shape.cubeVariables + (shape.jointCoefficientCount - 1))
+            (paperMixingNumerator shape)
             alphabet.cardinality := by
         exact alphaGammaZero_probability_le context.extensionOps
           context.extensionLaws context.extensionZeroLaws noZeroDivisors
@@ -866,7 +1019,7 @@ theorem mixingRootProbabilityContract_of_rootCounting
     (adversary : Adversary context ProverSeed TargetSeed ProverTape) :
     MixingRootProbabilityContract context alphabet adversary
       (ratio
-        (shape.cubeVariables + (shape.jointCoefficientCount - 1))
+        (paperMixingNumerator shape)
         alphabet.cardinality) := by
   intro witness
   exact mixingRoot_probability_le context noZeroDivisors alphabet adversary

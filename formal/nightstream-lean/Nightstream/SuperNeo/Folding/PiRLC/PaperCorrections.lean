@@ -29,7 +29,14 @@ universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
 
 /-- Corrected strict ambient bound for arbitrary paper parameters. -/
 def correctedAmbientBoundFor (params : Nightstream.SuperNeo.GlobalParams) : Nat :=
-  params.q / 2 + 1
+  params.ambientBound
+
+/-- The shared ambient stage uses the corrected strict bound. -/
+theorem ambientStageBound_eq_correctedAmbientBoundFor
+    (params : Nightstream.SuperNeo.GlobalParams) :
+    Nightstream.SuperNeo.NormStage.bound params .ambient =
+      correctedAmbientBoundFor params := by
+  rfl
 
 /-- The corrected ambient CE relation shared literally by Pi_CCS's relaxed
 target and Pi_RLC's relaxed source. The statement's stage is intentionally
@@ -53,6 +60,28 @@ def CorrectedAmbientHolds
     semantics.evaluationPointValid statement.constraintSystem statement.point ∧
     semantics.evaluations statement.constraintSystem assignment statement.point =
       statement.evaluations
+
+/-- On an ambient-stage statement, the explicit relaxed relation and the
+shared `CE.Holds` relation are the same relation. -/
+theorem correctedAmbientHolds_iff_ceHolds_of_ambient
+    {Structure : Type uStructure}
+    {Assignment : Type uAssignment}
+    {PublicInput : Type uPublicInput}
+    {Point : Type uPoint}
+    {Evaluation : Type uEvaluation}
+    {Commitment : Type uCommitment}
+    (semantics : Nightstream.SuperNeo.RelationSemantics
+      Structure Assignment PublicInput Point Evaluation Commitment)
+    (params : Nightstream.SuperNeo.GlobalParams)
+    (statement : Nightstream.SuperNeo.CE.Instance
+      Structure PublicInput Point Evaluation Commitment)
+    (assignment : Assignment)
+    (ambient : statement.stage = .ambient) :
+    CorrectedAmbientHolds semantics params statement assignment ↔
+      Nightstream.SuperNeo.CE.Holds semantics params statement assignment := by
+  simp [CorrectedAmbientHolds, Nightstream.SuperNeo.CE.Holds,
+    correctedAmbientBoundFor, ambient, Nightstream.SuperNeo.NormStage.bound,
+    Nightstream.SuperNeo.GlobalParams.ambientBound]
 
 /-- Appendix D.5's literal strict ambient bound. -/
 def literalAmbientBound : Nat := goldilocksModulus / 2

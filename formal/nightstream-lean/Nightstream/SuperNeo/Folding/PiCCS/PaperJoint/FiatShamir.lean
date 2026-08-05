@@ -17,7 +17,7 @@ nonlinear off-cube paper polynomial, the prover's output evaluation message,
 absorption of that message into the outgoing transcript, a concrete transcript
 encoding, Poseidon2, domain-tag field values, random-oracle or collision
 security, challenge-distribution bounds, root-counting probability, the exact
-semantic degree theorem, SplitNc, Rust, R1CS, or constraint counts.
+semantic degree theorem, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
 

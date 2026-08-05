@@ -15,7 +15,7 @@ message is fixed before the current challenge, the actual verifier product
 support with six uniformly sampled round challenges, exact decoding into the
 fixed-width certificate, transport to the repository Boolean
 `sumCheckBadChallengeEvent`, probability one for that event, and negation of
-`SumCheckSoundnessContract` at the finite-model instantiation `5 / 6` of
+`SumCheckSoundnessContract` at the finite-model instantiation `4 / 6` of
 Appendix D.4's degree/cardinality formula.
 
 Does not own: a positive SumCheck theorem, an alternative failure event,
@@ -28,20 +28,20 @@ Emits constraints: no.
 | Property | Kernel-checked owner |
 |---|---|
 | syntax degree four is below selected width six | `context_syntaxDegree_lt_width` |
-| Appendix D.4 round-degree expression is five | `paperRoundDegreeCeiling_eq_five` |
+| Appendix D.4 round-degree expression is four | `paperRoundDegreeCeiling_eq_four` |
 | causal message before challenge | `strategy_roundMessage_eq` |
 | exact source datum alignment | `sourceProtocolData_eq_zero` |
 | actual support and context cardinality agree | `context_challengeSetSize_eq_alphabet_cardinality` |
-| finite-model paper formula is `5 / 6` | `paperSumCheckBudget_eq_five_six` |
+| finite-model paper formula is `4 / 6` | `paperSumCheckBudget_eq_four_six` |
 | raw decode into exact failure | `sumCheckFailure_execute` |
 | actual Boolean event has probability one | `sumCheckFailure_probability_eq_one` |
 | every nontrivial budget is false | `not_sumCheckSoundnessContract_of_lt_one` |
-| formula-instantiated contract at `5 / 6` is false | `not_sumCheckSoundnessContract_at_paper_budget` |
+| formula-instantiated contract at `4 / 6` is false | `not_sumCheckSoundnessContract_at_paper_budget` |
 
 Authority boundary: Definition 6 charges the actual univariate degree, and
-Appendix D.4 permits ceiling `max(u, 2b + 1, 2)`. Here `u = 0`, `b = 2`, and
-one SumCheck variable give numerator five; the explicit six-element verifier
-support gives the finite-model quotient `5 / 6`. The current context
+Appendix D.4 permits ceiling `max(D_f + 1, 2b, 2)`. Here the CCS polynomial
+is zero, `b = 2`, and one SumCheck variable gives numerator four; the explicit
+six-element verifier support gives the finite-model quotient `4 / 6`. The current context
 permits selected width six and accepts a nonzero coefficient in position six.
 The counterexample is therefore a necessity result for verifier-checked
 zero-padding above the paper ceiling (or an equivalent exact-width invariant),
@@ -65,26 +65,37 @@ open Nightstream.SuperNeo.InteractiveReduction.FiniteUniform
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckFixedWidthPadding
 
 private def cubeLayout : UnifiedSources.ColumnLayout 1 2 where
-  toColumn := fun vertex =>
+  columns_le := by decide
+  toColumn? := fun vertex =>
     match vertex with
-    | .cons false .nil => 0
-    | .cons true .nil => 1
+    | .cons false .nil => some 0
+    | .cons true .nil => some 1
   toVertex := fun column =>
     if column.val = 0 then .cons false .nil else .cons true .nil
   toColumn_toVertex := by
     intro column
     by_cases zero : column.val = 0
-    · apply Fin.eq_of_val_eq
-      simp [zero]
+    · have equal : column = (0 : Fin 2) := Fin.eq_of_val_eq zero
+      subst column
+      rfl
     · have one : column.val = 1 := by omega
-      apply Fin.eq_of_val_eq
-      simp [one]
+      have equal : column = (1 : Fin 2) := Fin.eq_of_val_eq one
+      subst column
+      rfl
   toVertex_toColumn := by
-    intro vertex
+    intro vertex column decoded
     cases vertex with
     | cons coordinate tail =>
         cases tail
-        cases coordinate <;> rfl
+        cases coordinate
+        · have equal : column = 0 := by
+            exact Option.some.inj decoded.symm
+          subst column
+          rfl
+        · have equal : column = 1 := by
+            exact Option.some.inj decoded.symm
+          subst column
+          rfl
 
 private def ringLayout :
     MatrixCoefficientSource.RingColumnLayout 1 2 2 where
@@ -122,7 +133,7 @@ private def matrixSource :
     MatrixCoefficientSource.MatrixSource F shape 2 2 where
   columnLayout := ringLayout
   matrices := fun _ vertex column =>
-    if column = cubeLayout.toColumn vertex then baseOps.one else baseOps.zero
+    cubeLayout.paddedIdentityEntry baseOps.zero baseOps.one vertex column
   constraintPolynomial := baseConstraint
   kernel := coefficientKernel
 
@@ -209,22 +220,23 @@ theorem context_not_paperDegreeWidthExact
   change (4 : Nat) = 6 at exact
   omega
 
-/-- Appendix D.4's permitted per-variable SumCheck degree for this exact
-context: `max(u, 2b + 1, 2)`, computed from the same verifier-owned sparse
+/-- Corrected Appendix D.4 per-variable SumCheck degree for this exact
+context: `max(D_f + 1, 2b, 2)`, computed from the same verifier-owned sparse
 constraint and global-parameter records assembled into `context`. -/
 def paperRoundDegreeCeiling : Nat :=
-  Nat.max baseConstraint.degreeBound (Nat.max (2 * params.b + 1) 2)
+  Nat.max baseConstraint.canonicalEqualityGatedDegreeBound
+    (Nat.max (2 * params.b) 2)
 
 /-- The Appendix D.4 degree expression evaluates to
-`max(0, 2 * 2 + 1, 2) = 5`. -/
-theorem paperRoundDegreeCeiling_eq_five :
-    paperRoundDegreeCeiling = 5 := by
+`max(0, 2 * 2, 2) = 4`. -/
+theorem paperRoundDegreeCeiling_eq_four :
+    paperRoundDegreeCeiling = 4 := by
   rfl
 
 /-- There is one SumCheck variable, so Definition 6's `ell * d` numerator is
-also five. -/
-theorem paperSumCheckNumerator_eq_five :
-    shape.cubeVariables * paperRoundDegreeCeiling = 5 := by
+also four. -/
+theorem paperSumCheckNumerator_eq_four :
+    shape.cubeVariables * paperRoundDegreeCeiling = 4 := by
   rfl
 
 /-- A causal strategy whose message is constant in every input it is allowed
@@ -322,6 +334,19 @@ theorem sourceProtocolData_eq_zero :
     change BooleanTable.tabulate _ = BooleanTable.tabulate _
     apply congrArg BooleanTable.tabulate
     funext vertex
+    have paddedZero :
+        statement.cubeLayout.paddedValue 0
+            (witness.assignments source) vertex = baseOps.zero := by
+      cases decoded : statement.cubeLayout.toColumn? vertex with
+      | none =>
+          unfold UnifiedSources.ColumnLayout.paddedValue
+          rw [decoded]
+          exact baseZeroAgreement.zero_eq.symm
+      | some column =>
+          unfold UnifiedSources.ColumnLayout.paddedValue
+          rw [decoded]
+          rfl
+    rw [paddedZero]
     exact ProtocolDataRefinement.ProtocolLift.map_zero protocolLift
   · rfl
   · funext coordinate
@@ -385,16 +410,16 @@ theorem context_challengeSetSize_eq_alphabet_cardinality
   rfl
 
 /-- Finite-model instantiation of the Appendix D.4/Definition 6 SumCheck budget:
-one variable, degree ceiling five, and six uniformly sampled challenges. -/
+one variable, degree ceiling four, and six uniformly sampled challenges. -/
 def paperSumCheckBudget : Rat :=
   ratio (shape.cubeVariables * paperRoundDegreeCeiling)
     alphabet.cardinality
 
-/-- The formula-derived paper budget is exactly `5 / 6`. -/
-theorem paperSumCheckBudget_eq_five_six :
-    paperSumCheckBudget = ratio 5 6 := by
+/-- The formula-derived paper budget is exactly `4 / 6`. -/
+theorem paperSumCheckBudget_eq_four_six :
+    paperSumCheckBudget = ratio 4 6 := by
   unfold paperSumCheckBudget
-  rw [paperSumCheckNumerator_eq_five, alphabet_cardinality_eq_six]
+  rw [paperSumCheckNumerator_eq_four, alphabet_cardinality_eq_six]
 
 private theorem rootPolynomial_zero_of_mem
     {challenge : Extension}
@@ -526,10 +551,10 @@ theorem sumCheckFailure_probability_eq_one
 
 private theorem paperBudget_lt_one :
     paperSumCheckBudget < (1 : Rat) := by
-  rw [paperSumCheckBudget_eq_five_six]
+  rw [paperSumCheckBudget_eq_four_six]
   unfold ratio
   apply (Rat.div_lt_iff
-    (a := (5 : Rat)) (b := (6 : Rat)) (c := (1 : Rat)) (by decide)).mpr
+    (a := (4 : Rat)) (b := (6 : Rat)) (c := (1 : Rat)) (by decide)).mpr
   rw [Rat.one_mul]
   decide
 
@@ -548,8 +573,8 @@ theorem not_sumCheckSoundnessContract_of_lt_one
   exact (Rat.not_le.mpr budget_lt_one) bound
 
 /-- Exact repository-contract obstruction at the finite-model Appendix D.4
-formula. Its degree expression gives ceiling five and
-one round over six challenges, hence budget `5 / 6`; the accepted degree-six
+formula. Its degree expression gives ceiling four and
+one round over six challenges, hence budget `4 / 6`; the accepted degree-six
 message makes the exact repository bad-challenge event occur with probability
 one. -/
 theorem not_sumCheckSoundnessContract_at_paper_budget

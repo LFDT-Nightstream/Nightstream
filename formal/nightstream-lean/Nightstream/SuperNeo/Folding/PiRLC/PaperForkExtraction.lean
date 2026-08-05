@@ -49,6 +49,9 @@ structure InputBatch
   sameSystem : forall index,
     (inputs index).constraintSystem = system
   samePoint : forall index, (inputs index).point = point
+  evaluationCount : Nat
+  evaluationsSize : forall index,
+    (inputs index).evaluations.size = evaluationCount
 
 /-- One prover response to one verifier challenge vector.  The public output
 is intentionally absent and is computed below. -/
@@ -160,7 +163,7 @@ structure ExtractionAlgebra
   commitmentLaws : PaperForkAlgebra.ModuleLaws ring commitmentModule
   publicInputModule : PaperForkAlgebra.ModuleOps Scalar PublicInput
   publicInputLaws : PaperForkAlgebra.ModuleLaws ring publicInputModule
-  evaluationModule : PaperForkAlgebra.ModuleOps Scalar (Array Evaluation)
+  evaluationModule : PaperForkAlgebra.ModuleOps Scalar Evaluation
   evaluationLaws : PaperForkAlgebra.ModuleLaws ring evaluationModule
   combineCommitment_eq : forall {count}
       (coefficients : Fin count -> Scalar)
@@ -172,17 +175,35 @@ structure ExtractionAlgebra
       (values : Fin count -> PublicInput),
     algebra.combinePublicInput coefficients values =
       PaperForkAlgebra.linearCombination ring publicInputModule coefficients values
-  combineEvaluations_eq : forall {count}
+  semanticEvaluations_size_eq : forall system point left right,
+    (semantics.evaluations system left point).size =
+      (semantics.evaluations system right point).size
+  combineEvaluations_size : forall {count}
       (coefficients : Fin count -> Scalar)
-      (values : Fin count -> Array Evaluation),
-    algebra.combineEvaluations coefficients values =
-      PaperForkAlgebra.linearCombination ring evaluationModule coefficients values
+      (values : Fin count -> Array Evaluation)
+      (expectedSize : Nat),
+    0 < count ->
+    (forall index, (values index).size = expectedSize) ->
+      (algebra.combineEvaluations coefficients values).size =
+        expectedSize
+  combineEvaluations_getD : forall {count}
+      (coefficients : Fin count -> Scalar)
+      (values : Fin count -> Array Evaluation)
+      (expectedSize index : Nat),
+    0 < count ->
+    (forall source, (values source).size = expectedSize) ->
+    (algebra.combineEvaluations coefficients values).getD index
+        evaluationModule.zero =
+      PaperForkAlgebra.linearCombination ring evaluationModule coefficients
+        (fun source => (values source).getD index evaluationModule.zero)
   commitMap : LinearMapLaws assignmentModule commitmentModule semantics.commit
   publicInputMap : LinearMapLaws assignmentModule publicInputModule
     semantics.projectPublicInput
-  evaluationsMap : forall system point,
+  evaluationsMap : forall system point index,
     LinearMapLaws assignmentModule evaluationModule
-      (fun assignment => semantics.evaluations system assignment point)
+      (fun assignment =>
+        (semantics.evaluations system assignment point).getD index
+          evaluationModule.zero)
   correctedNormCoverage : forall assignment,
     semantics.normBounded (PaperCorrections.correctedAmbientBoundFor params)
       assignment
@@ -425,34 +446,6 @@ theorem completeFork_implies_correctedAmbientHolds
           (fork.forks coordinate).challenges
           (fun index => (batch.inputs index).publicInput) :=
         laws.combinePublicInput_eq _ _
-  have baseEvaluations :
-      semantics.evaluations batch.system fork.base.assignment batch.point =
-        PaperForkAlgebra.linearCombination laws.ring laws.evaluationModule
-          fork.base.challenges (fun index => (batch.inputs index).evaluations) := by
-    calc
-      semantics.evaluations batch.system fork.base.assignment batch.point =
-          algebra.combineEvaluations fork.base.challenges
-            (fun index => (batch.inputs index).evaluations) := by
-              exact fork.baseSuccess.2.2
-      _ = PaperForkAlgebra.linearCombination laws.ring laws.evaluationModule
-          fork.base.challenges (fun index => (batch.inputs index).evaluations) :=
-        laws.combineEvaluations_eq _ _
-  have forkEvaluations :
-      semantics.evaluations batch.system
-          (fork.forks coordinate).assignment batch.point =
-        PaperForkAlgebra.linearCombination laws.ring laws.evaluationModule
-          (fork.forks coordinate).challenges
-          (fun index => (batch.inputs index).evaluations) := by
-    calc
-      semantics.evaluations batch.system
-          (fork.forks coordinate).assignment batch.point =
-        algebra.combineEvaluations (fork.forks coordinate).challenges
-            (fun index => (batch.inputs index).evaluations) := by
-              exact (fork.forkSuccess coordinate).2.2
-      _ = PaperForkAlgebra.linearCombination laws.ring laws.evaluationModule
-          (fork.forks coordinate).challenges
-          (fun index => (batch.inputs index).evaluations) :=
-        laws.combineEvaluations_eq _ _
   have extractedCommitment :
       semantics.commit extracted = (batch.inputs coordinate).commitment := by
     exact extracted_map_eq laws.ring laws.ringLaws laws.assignmentModule
@@ -472,17 +465,96 @@ theorem completeFork_implies_correctedAmbientHolds
       (fun index => (batch.inputs index).publicInput) coordinate
       (fork.agreeExcept coordinate) unit fork.base.assignment
       (fork.forks coordinate).assignment basePublicInput forkPublicInput
+  have baseEvaluationEquation :
+      semantics.evaluations batch.system fork.base.assignment batch.point =
+        algebra.combineEvaluations fork.base.challenges
+          (fun source => (batch.inputs source).evaluations) := by
+    exact fork.baseSuccess.2.2
+  have forkEvaluationEquation :
+      semantics.evaluations batch.system
+          (fork.forks coordinate).assignment batch.point =
+        algebra.combineEvaluations (fork.forks coordinate).challenges
+          (fun source => (batch.inputs source).evaluations) := by
+    exact (fork.forkSuccess coordinate).2.2
   have extractedEvaluations :
       semantics.evaluations batch.system extracted batch.point =
         (batch.inputs coordinate).evaluations := by
-    exact extracted_map_eq laws.ring laws.ringLaws laws.assignmentModule
-      laws.evaluationModule laws.evaluationLaws
-      (fun assignment => semantics.evaluations batch.system assignment batch.point)
-      (laws.evaluationsMap batch.system batch.point) fork.base.challenges
-      (fork.forks coordinate).challenges
-      (fun index => (batch.inputs index).evaluations) coordinate
-      (fork.agreeExcept coordinate) unit fork.base.assignment
-      (fork.forks coordinate).assignment baseEvaluations forkEvaluations
+    apply Array.ext
+    · calc
+        (semantics.evaluations batch.system extracted batch.point).size =
+            (semantics.evaluations batch.system fork.base.assignment
+              batch.point).size :=
+          laws.semanticEvaluations_size_eq _ _ _ _
+        _ = (algebra.combineEvaluations fork.base.challenges
+              (fun index => (batch.inputs index).evaluations)).size :=
+          congrArg Array.size fork.baseSuccess.2.2
+        _ = batch.evaluationCount :=
+          laws.combineEvaluations_size fork.base.challenges
+            (fun index => (batch.inputs index).evaluations)
+            batch.evaluationCount arity.totalPositive batch.evaluationsSize
+        _ = (batch.inputs coordinate).evaluations.size :=
+          (batch.evaluationsSize coordinate).symm
+    · intro index extractedLt sourceLt
+      have baseEvaluationsAt :
+          (semantics.evaluations batch.system fork.base.assignment
+              batch.point).getD index laws.evaluationModule.zero =
+            PaperForkAlgebra.linearCombination laws.ring
+              laws.evaluationModule fork.base.challenges
+              (fun source =>
+                (batch.inputs source).evaluations.getD index
+                  laws.evaluationModule.zero) := by
+        calc
+          (semantics.evaluations batch.system fork.base.assignment
+              batch.point).getD index laws.evaluationModule.zero =
+              (algebra.combineEvaluations fork.base.challenges
+                (fun source => (batch.inputs source).evaluations)).getD
+                  index laws.evaluationModule.zero := by
+            rw [baseEvaluationEquation]
+          _ = _ := laws.combineEvaluations_getD _ _ batch.evaluationCount _
+            arity.totalPositive batch.evaluationsSize
+      have forkEvaluationsAt :
+          (semantics.evaluations batch.system
+              (fork.forks coordinate).assignment batch.point).getD index
+                laws.evaluationModule.zero =
+            PaperForkAlgebra.linearCombination laws.ring
+              laws.evaluationModule (fork.forks coordinate).challenges
+              (fun source =>
+                (batch.inputs source).evaluations.getD index
+                  laws.evaluationModule.zero) := by
+        calc
+          (semantics.evaluations batch.system
+              (fork.forks coordinate).assignment batch.point).getD index
+                laws.evaluationModule.zero =
+              (algebra.combineEvaluations
+                (fork.forks coordinate).challenges
+                (fun source => (batch.inputs source).evaluations)).getD
+                  index laws.evaluationModule.zero := by
+            rw [forkEvaluationEquation]
+          _ = _ := laws.combineEvaluations_getD _ _ batch.evaluationCount _
+            arity.totalPositive batch.evaluationsSize
+      have extractedAt :=
+        extracted_map_eq laws.ring laws.ringLaws laws.assignmentModule
+          laws.evaluationModule laws.evaluationLaws
+          (fun assignment =>
+            (semantics.evaluations batch.system assignment batch.point).getD
+              index laws.evaluationModule.zero)
+          (laws.evaluationsMap batch.system batch.point index)
+          fork.base.challenges (fork.forks coordinate).challenges
+          (fun source =>
+            (batch.inputs source).evaluations.getD index
+              laws.evaluationModule.zero)
+          coordinate (fork.agreeExcept coordinate) unit
+          fork.base.assignment (fork.forks coordinate).assignment
+          baseEvaluationsAt forkEvaluationsAt
+      have extractedAt' :
+          (semantics.evaluations batch.system extracted batch.point).getD
+              index laws.evaluationModule.zero =
+            (batch.inputs coordinate).evaluations.getD index
+              laws.evaluationModule.zero := by
+        simpa [extracted, extractedAssignment] using extractedAt
+      simpa [Array.getD_eq_getD_getElem?,
+        Array.getElem?_eq_getElem extractedLt,
+        Array.getElem?_eq_getElem sourceLt] using extractedAt'
   have pointValid :
       semantics.evaluationPointValid batch.system batch.point :=
     fork.baseSuccess.2.1

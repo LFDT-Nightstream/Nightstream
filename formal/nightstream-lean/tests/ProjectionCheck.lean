@@ -1,5 +1,4 @@
 import Nightstream.SuperNeo.ProjectionCheck
-import Nightstream.Assurance.FPrimeConcreteNifs
 
 namespace NightstreamTests.ProjectionCheck
 
@@ -43,7 +42,5 @@ example :
   intro identity member
   simp only [List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl <;> decide
-
-#check Nightstream.Assurance.FPrimeConcreteNifs.recursive_verify_sound_or_badRoot
 
 end NightstreamTests.ProjectionCheck

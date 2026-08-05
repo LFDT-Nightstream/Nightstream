@@ -35,7 +35,7 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FullOutputCoordinates
 open MatrixCoefficientSource
 open PaperLinearAlgebra
 
-universe uExtension uCommitment uPublicInput uScalar uState
+universe uExtension uCommitment uPublicInput uScalar uState uValue
 
 /-- Source relation truth implies the unsampled joint residual-table truth
 consumed by the causal honest `Pi_CCS` prover. -/
@@ -271,7 +271,7 @@ theorem exists_honestPiCcsCertificate
         statement.projectOutput_eq_toOutputMessage witness fullOutput
       _ = ProtocolPolynomial.messageAt key.extensionOps data roundPoint := by
         exact FullOutput.honestAt_toOutputMessage_eq_messageAt key.baseOps
-          key.baseLaws key.extensionOps key.lift
+          key.baseLaws key.baseZero key.extensionOps key.lift
           (statement.sourceConnectedInputs witness) key.constantLaw
           (statement.identityFirstMatrix witness) roundPoint
   have coefficientTruth :
@@ -391,8 +391,10 @@ def honestChildAssignment
     (honestParentAssignment key running fresh witness rounds fullOutput)
     child
 
-/-- Exact paper evaluation family for one honest private child. -/
-def honestChildEvaluation
+/-- Literal paper evaluation family used as the total-array fallback below.
+The fallback is never selected because the key fixes the semantic evaluation
+array length to one. -/
+def paperChildEvaluation
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
     {PublicInput : Type uPublicInput}
@@ -418,6 +420,33 @@ def honestChildEvaluation
         vertex)).evaluate key.extensionOps
           (key.piCcsExecution running fresh
             (prefixProof running rounds fullOutput)).coins.roundPoint
+
+/-- Exact selected semantic evaluation for one honest private child. The
+public proof carries the sole element of the verifier-owned one-entry array. -/
+def honestChildEvaluation
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (witness : OutputWitness shape columns)
+    (rounds : Fin shape.cubeVariables ->
+      SumCheck.Finite.FixedPolynomial Extension degreeBound)
+    (fullOutput : FullOutput Extension shape)
+    (runningIndex : Fin shape.runningCount) : EvaluationFamily Extension shape :=
+  (key.semantics.evaluations key.matrixSource
+    (honestChildAssignment key running fresh witness rounds fullOutput
+      (Fin.cast key.runningCount_eq_outputCount runningIndex))
+    (key.piCcsExecution running fresh
+      (prefixProof running rounds fullOutput)).coins.roundPoint).getD 0
+        (paperChildEvaluation key running fresh witness rounds fullOutput
+          runningIndex)
 
 /-- The sole honest NIFS message: causal `Pi_CCS` prefix plus private-split
 `Pi_DEC` commitment/evaluation messages. -/
@@ -509,20 +538,30 @@ theorem honestPiCcsOutputs_hold
           (honestProof key running fresh witness rounds fullOutput) =
         key.piCcsExecution running fresh
           (prefixProof running rounds fullOutput) := by
-    unfold Key.piCcsExecution
-    rw [honestProof_piCcsCertificate key running fresh witness rounds fullOutput]
+    rfl
   refine ⟨?_, ?_, ?_⟩
-  · simpa [Key.piCcsOutputs, Key.piCcsProbe, Key.statement,
+  · apply (key.openingAgreement key.params.b
+      (key.piCcsOutputs running fresh
+        (honestProof key running fresh witness rounds fullOutput) index).commitment
+      (key.piCcsOutputs running fresh
+        (honestProof key running fresh witness rounds fullOutput) index).publicInput
+      (sourceAssignments key witness index)).mp
+    simpa [Key.piCcsOutputs, Key.piCcsProbe, Key.statement,
       sourceAssignments, sourceIndex, Key.semantics, NormStage.bound] using
         opening
-  · trivial
+  · exact (key.evaluationAgreement (sourceAssignments key witness index)
+      (key.piCcsExecution running fresh
+        (honestProof key running fresh witness rounds fullOutput)).coins.roundPoint).1
   · change
-      key.semantics.evaluations key.matrixSource
+      key.piRlcSemantics.evaluations key.matrixSource
           (sourceAssignments key witness index)
           (key.piCcsExecution running fresh
             (honestProof key running fresh witness rounds fullOutput)).coins.roundPoint =
         #[fun matrix coefficient =>
           fullOutput.coordinate sourceIndex matrix coefficient]
+    rw [(key.evaluationAgreement (sourceAssignments key witness index)
+      (key.piCcsExecution running fresh
+        (honestProof key running fresh witness rounds fullOutput)).coins.roundPoint).2]
     rw [executionEq, fullOutputHonest]
     rfl
 
@@ -560,7 +599,9 @@ theorem honestParent_holds
   have pointValid :
       key.semantics.evaluationPointValid key.matrixSource
         (key.piCcsExecution running fresh proof).coins.roundPoint := by
-    trivial
+    exact (key.evaluationAgreement
+      (honestParentAssignment key running fresh witness rounds fullOutput)
+      (key.piCcsExecution running fresh proof).coins.roundPoint).1
   simpa [Key.parent, honestParentAssignment, proof, honestProof, prefixProof] using
     (PiRLC.combinedOutput_holds key.semantics key.params key.piRlcAlgebra
       key.arity key.matrixSource
@@ -572,6 +613,22 @@ theorem honestParent_holds
       (key.piRlcResponseValid
         (key.piCcsExecution running fresh proof).outgoingState)
       inputsValid pointValid)
+
+private theorem singleton_getD_eq_of_size_one
+    {Value : Type uValue}
+    (values : Array Value)
+    (fallback : Value)
+    (sizeExact : values.size = 1) :
+    #[values.getD 0 fallback] = values := by
+  apply Array.ext
+  · simp [sizeExact]
+  · intro index leftLt rightLt
+    have indexZero : index = 0 := by
+      simp only [Array.size_singleton] at leftLt
+      omega
+    subst index
+    rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem rightLt]
+    rfl
 
 /-- The child fields materialized by `honestProof` are exactly the paper
 verifier's private-split honest attempt. -/
@@ -600,6 +657,21 @@ theorem honestProof_piDecAttempt
           fullOutput) := by
   unfold Key.piDecAttempt PiDEC.PaperVerifier.honestAttempt
   congr 1
+  funext child
+  congr 1
+  have sizeExact := key.piRlcEvaluationsSize key.matrixSource
+      (honestChildAssignment key running fresh witness rounds fullOutput child)
+      (key.piCcsExecution running fresh
+        (prefixProof running rounds fullOutput)).coins.roundPoint
+  simpa [honestProof, honestChildEvaluation] using
+    singleton_getD_eq_of_size_one
+      (key.semantics.evaluations key.matrixSource
+        (honestChildAssignment key running fresh witness rounds fullOutput child)
+        (key.piCcsExecution running fresh
+          (prefixProof running rounds fullOutput)).coins.roundPoint)
+      (paperChildEvaluation key running fresh witness rounds fullOutput
+        (Fin.cast key.outputCount_eq child))
+      sizeExact
 
 /-- Every independently valid paper source product constructs a concrete
 accepted one-message NIFS proof and an independently witnessed transition. -/

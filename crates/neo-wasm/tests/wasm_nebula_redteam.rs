@@ -154,7 +154,7 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
             "block {block} must route every logical port exactly once"
         );
     }
-    assert_eq!(declared_ports, 73, "Current layout declares 73 ports per step");
+    assert_eq!(declared_ports, 76, "Current layout declares 76 ports per step");
 }
 
 fn port_matches(routed: &MemoryPort, region: usize, declared: &WasmMemoryColumnSpec, offset: usize) -> bool {

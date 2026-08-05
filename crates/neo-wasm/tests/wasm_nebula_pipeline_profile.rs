@@ -228,7 +228,7 @@ fn collect_relation_structure_census(
         );
     }
 
-    assert_eq!(stats.logical_ports, 73 * profile.batch_size());
+    assert_eq!(stats.logical_ports, 76 * profile.batch_size());
     assert!(stats.routed_slots <= stats.b_ops);
     assert_eq!(width.total_coordinates.div_ceil(D) * D, structure.m);
     assert_eq!(

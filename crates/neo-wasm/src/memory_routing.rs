@@ -262,6 +262,18 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     for (name, gate) in [
         ("gather local writes", COL_GATHER_LOCAL_WRITE),
         ("gather local low-limb writes", COL_GATHER_LOCAL_WRITE_LO),
+        (
+            "gather memory reads",
+            crate::ccs::host_event_chain::gather_memory_read_kind_col(),
+        ),
+        (
+            "gather memory writes",
+            crate::ccs::host_event_chain::gather_memory_write_kind_col(),
+        ),
+        (
+            "gather memory local bases",
+            crate::ccs::host_event_chain::gather_memory_local_base_col(),
+        ),
     ] {
         insert_derived_activation_support(&mut supports, name, gate, [COL_GATHER_ACTIVE]);
     }

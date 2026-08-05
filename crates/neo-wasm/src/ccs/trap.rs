@@ -65,10 +65,14 @@ fn memory_ops_of_kind(kind: WasmMemoryAccessKind) -> Vec<WasmOpcode> {
 ///
 /// OOB rows de-gate memory tuples; the trap transition consumes `COL_MEM_OOB`.
 fn push_linear_memory_oob_trap_constraints(b: &mut R1csBuilder, linear_memory: &LinearMemoryColumns) {
-    let mem_selectors: Vec<usize> = linear_memory_ops()
+    let mut mem_selectors: Vec<usize> = linear_memory_ops()
         .into_iter()
         .map(|op| selector_col(op).expect("linear memory selector"))
         .collect();
+    mem_selectors.extend([
+        super::host_event_chain::gather_memory_read_kind_col(),
+        super::host_event_chain::gather_memory_write_kind_col(),
+    ]);
     // ge = highest touched lane >= memory size in lanes.
     push_unsigned_ge_gadget(
         b,

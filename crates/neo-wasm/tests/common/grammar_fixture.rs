@@ -180,6 +180,7 @@ pub fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
     let turns = [neo_wasm::event_grammar::TurnClaims {
         entry: ENTRY_CLAIMS.to_vec(),
         exit: vec![],
+        ..Default::default()
     }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
         .expect("grammar trace");
@@ -209,14 +210,21 @@ pub fn expected_transcript(
             &[(7, 0), (6, 0)],
             Some((42, 0)),
             &[100],
+            &[],
         )
         .expect("mul events"),
     );
     blocks.extend(
-        neo_wasm::event_grammar::expand_import_events(&grammar.imports[&sink_fref(grammar)], &[(42, 0)], None, &[])
-            .expect("sink events"),
+        neo_wasm::event_grammar::expand_import_events(
+            &grammar.imports[&sink_fref(grammar)],
+            &[(42, 0)],
+            None,
+            &[],
+            &[],
+        )
+        .expect("sink events"),
     );
-    blocks.extend(neo_wasm::event_grammar::expand_export_exit(template, Some((42, 0)), &[]).expect("exit"));
+    blocks.extend(neo_wasm::event_grammar::expand_export_exit(template, Some((42, 0)), &[], &[]).expect("exit"));
     blocks
         .into_iter()
         .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))

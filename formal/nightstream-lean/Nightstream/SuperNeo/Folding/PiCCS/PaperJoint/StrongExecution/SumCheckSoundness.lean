@@ -22,7 +22,7 @@ Emits constraints: no.
 | event transport | `sumCheckBadChallengeEvent = true -> detects = true` |
 | concrete probability | `Pr[sumCheckBadChallengeEvent] <= sumCheckBudget` |
 | contract construction | `SumCheckSoundnessContract` from root counting |
-| extraction loss | `(mixing + sumcheck) + rawMismatch / successFloor` |
+| corrected extraction loss | `(mixing + sumcheck) + rootMismatch` |
 
 The only extra algebraic input is the paper field law that multiplication has
 no zero divisors.  `SumCheckSoundnessContract` is a conclusion of the concrete
@@ -959,9 +959,9 @@ theorem sumCheckSoundnessContract_of_rootCounting
   exact sumCheckBadChallenge_probability_le context exact noZeroDivisors
     alphabet challengeSetSize_eq adversary witness
 
-/-- Appendix D.4 extraction with the concrete SumCheck loss inserted in the
-unchanged frozen ordering. The only remaining probabilistic premise is the
-separate alpha/gamma mixing contract; Fiat--Shamir is not involved. -/
+/-- Legacy floor-based extraction with the concrete SumCheck loss inserted.
+The only remaining probabilistic premise is the separate alpha/gamma mixing
+contract. This is not the corrected paper-facing extractor. -/
 theorem extraction_after_first_success_of_rootCounting
     {Extension : Type uExtension}
     [DecidableEq Extension]
@@ -1021,5 +1021,69 @@ theorem extraction_after_first_success_of_rootCounting
       floorPos floorBound rawMismatchBound mixingBound
       (sumCheckSoundnessContract_of_rootCounting context exact
         noZeroDivisors alphabet challengeSetSize_eq adversary)
+
+/-- Corrected Appendix D.4 success-gated extraction with the concrete
+SumCheck loss inserted. The raw two-run disagreement budget is charged through
+a nonnegative root envelope, and no pointwise success floor is required. The
+only remaining probabilistic premise is the separate alpha/gamma mixing
+contract; Fiat--Shamir is not involved. -/
+theorem extraction_after_success_gate_of_rootCounting
+    {Extension : Type uExtension}
+    [DecidableEq Extension]
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {shape : Shape}
+    {columns blockCount : Nat}
+    {ProverSeed : Type uProverSeed}
+    {TargetSeed : Type uTargetSeed}
+    {ProverTape : Type uProverTape}
+    (context : Context Extension Commitment PublicInput shape
+      columns blockCount)
+    (exact : PaperDegreeWidthExact context)
+    (noZeroDivisors :
+      FiniteRootCounting.NoZeroDivisors context.extensionOps)
+    (alphabet : Support Extension)
+    (challengeSetSize_eq :
+      context.challengeSetSize = alphabet.cardinality)
+    (adversary :
+      OperationalExperiment.Adversary context ProverSeed TargetSeed ProverTape)
+    (rawMismatchBudget rootMismatchBudget mixingBudget : Rat)
+    (rootNonnegative : 0 <= rootMismatchBudget)
+    (rawBudget_le_rootSquare :
+      rawMismatchBudget <= rootMismatchBudget * rootMismatchBudget)
+    (rawMismatchBound :
+      (OperationalExperiment.experiment context alphabet adversary
+        ).iidPair.probabilityBool
+          (OperationalEvents.witnessDisagreement context) <=
+        rawMismatchBudget)
+    (mixingBound :
+      SecurityContracts.MixingRootProbabilityContract context alphabet
+        adversary mixingBudget)
+    (nonempty :
+      (OperationalExperiment.experiment context alphabet adversary
+        ).support.values.filter
+          (fun seed => OperationalExperiment.success context
+            ((OperationalExperiment.experiment context alphabet adversary
+              ).outcome seed)) ≠ []) :
+    let sumCheckBudget :=
+      ratio (shape.cubeVariables * context.sumcheckWidth)
+        alphabet.cardinality
+    let base :=
+      OperationalExperiment.experiment context alphabet adversary
+    base.probabilityBool (OperationalExperiment.success context) -
+          ((mixingBudget + sumCheckBudget) + rootMismatchBudget) <=
+      (base.firstConditionedFreshSecond
+        (OperationalExperiment.success context) nonempty).probabilityBool
+          (OperationalEvents.successGatedSourceExtracted context) := by
+  exact
+    SecurityContracts.extraction_after_success_gate_of_securityContracts
+      context alphabet adversary rawMismatchBudget rootMismatchBudget
+      mixingBudget
+      (ratio (shape.cubeVariables * context.sumcheckWidth)
+        alphabet.cardinality)
+      rootNonnegative rawBudget_le_rootSquare rawMismatchBound mixingBound
+      (sumCheckSoundnessContract_of_rootCounting context exact
+        noZeroDivisors alphabet challengeSetSize_eq adversary)
+      nonempty
 
 end Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.SumCheckSoundness

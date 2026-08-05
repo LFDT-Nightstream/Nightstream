@@ -23,11 +23,11 @@ presented as established security theorems here.
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.finitePaperStrong
 
-/-- info: 'Nightstream.Protocol.FPrime.Frozen.PiCcsFirstSuccessBridge.piCcsStrong_of_unboundedFirstSuccess' depends on axioms: [propext,
+/-- info: 'Nightstream.Protocol.FPrime.Frozen.PiCcsFirstSuccessBridge.piCcsStrong_of_successGatedRetry' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.piCcsStrong_of_unboundedFirstSuccess
+#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.piCcsStrong_of_successGatedRetry
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteUniform.paperWeak' depends on axioms: [propext,
  Classical.choice,
@@ -486,56 +486,6 @@ presented as established security theorems here.
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.toPrefixExperiment_batch_eq
-
-/-! Exact finite Appendix-D.4 first-success/fresh-second coupling. -/
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCouplingContract.d4Success_iff_nifsD4AmbientSuccess' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4Success_iff_nifsD4AmbientSuccess
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCouplingContract.fixedFirstBad_iff_nifsD4FixedFirstBad' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.fixedFirstBad_iff_nifsD4FixedFirstBad
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCouplingContract.d4Seed_supportPermutation' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4Seed_supportPermutation
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCouplingContract.d4AmbientSuccess_probability_eq_nifs' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4AmbientSuccess_probability_eq_nifs
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCouplingContract.mem_d4FirstSuccessFreshSecondSeeds_iff' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.mem_d4FirstSuccessFreshSecondSeeds_iff
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCouplingContract.d4FixedFirstBad_probability_eq_nifs' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4FixedFirstBad_probability_eq_nifs
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCouplingContract.d4SourceExtracted_probability_eq_nifs' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4SourceExtracted_probability_eq_nifs
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCouplingContract.d4Extraction_after_first_success_nifs' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.Protocol.FPrime.Frozen.SuperNeo.CausalPrefixCouplingContract.d4Extraction_after_first_success_nifs
 
 /-! Exact causal composition and D.6 target-success bridges. -/
 

@@ -8,6 +8,8 @@ generic SuperNeo Appendix-D.3 coupling interface.
 
 Does not own: either component reduction theorem, `Pi_DEC`, asymptotic
 sampling, Fiat--Shamir, Rust, R1CS, artifacts, or costs.
+
+Emits constraints: no.
 -/
 
 set_option autoImplicit false
@@ -58,12 +60,11 @@ noncomputable def operationalCoupling
         context.piRlc)
     (strongAdversaryExpectedPolynomialTime :
       OperationalExperiment.Adversary context.piCcs ProverSeed
-        (ForkSeed verifier.alphabet context.arity.total) ProverTape -> Prop)
-    (successFloor : Rat) :
+        (ForkSeed verifier.alphabet context.arity.total) ProverTape -> Prop) :
     Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.Coupling
       Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.scale
-      (FinitePaperStrong.finiteStrongGame context.piCcs extensionAlphabet
-        strongAdversaryExpectedPolynomialTime successFloor)
+      (FinitePaperStrong.successGatedFiniteStrongGame context.piCcs
+        extensionAlphabet strongAdversaryExpectedPolynomialTime)
       (Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteMixture.weakGame
         (Prefix := PrefixSeed Extension shape ProverSeed)
         laws strongSet verifier)
@@ -92,13 +93,13 @@ noncomputable def operationalCoupling
         (prefixExecution context adversary rightPrefix)
   intermediateProbability := by
     intro adversary _extractor
-    simpa [FinitePaperStrong.finiteStrongGame,
+    simpa [FinitePaperStrong.successGatedFiniteStrongGame,
       Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteMixture.weakGame] using
       intermediateProbability context laws strongSet extensionAlphabet verifier
         adversary
   repeatedWitnessProbability := by
     intro adversary _extractor
-    simpa [FinitePaperStrong.finiteStrongGame,
+    simpa [FinitePaperStrong.successGatedFiniteStrongGame,
       Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteMixture.weakGame] using
       repeatedWitnessProbability context laws strongSet extensionAlphabet
         verifier adversary
@@ -121,7 +122,7 @@ def rationalScaleLaws :
 /-- Finite operational SuperNeo Theorem 6 for the concrete `Pi_CCS` to
 `Pi_RLC` composition.  The exact loss is the coordinate-fork term, the two
 named `Pi_CCS` intrinsic budgets, and the relaxed-binding disagreement budget
-conditioned once by the strong-game success floor. -/
+charged once through its declared root envelope. -/
 theorem finiteReductionOfKnowledge
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -145,7 +146,12 @@ theorem finiteReductionOfKnowledge
     (strongAdversaryExpectedPolynomialTime :
       OperationalExperiment.Adversary context.piCcs ProverSeed
         (ForkSeed verifier.alphabet context.arity.total) ProverTape -> Prop)
-    (successFloor relaxedBindingError mixingBudget sumCheckBudget : Rat)
+    (relaxedBindingRaw relaxedBindingRoot mixingBudget sumCheckBudget : Rat)
+    (rootNonnegative : 0 <= relaxedBindingRoot)
+    (rawBinding_le_rootSquare :
+      relaxedBindingRaw <= relaxedBindingRoot * relaxedBindingRoot)
+    (mixingNonnegative : 0 <= mixingBudget)
+    (sumCheckNonnegative : 0 <= sumCheckBudget)
     (ops : PiRLC.RelaxedBindingOps (Assignment F columns) Commitment Scalar)
     (bindingLaws :
       Nightstream.SuperNeo.Folding.PiRLC.PaperForkCollision.RelaxedBindingLaws
@@ -153,7 +159,7 @@ theorem finiteReductionOfKnowledge
         ops)
     (binding :
       Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteUniform.RelaxedBindingSecurity
-        laws strongSet ops verifier relaxedBindingError)
+        laws strongSet ops verifier relaxedBindingRaw)
     (ambientAdmissible : context.piCcs.params.b <=
       Nightstream.SuperNeo.Folding.PiRLC.PaperCorrections.correctedAmbientBoundFor
         context.piCcs.params)
@@ -164,36 +170,37 @@ theorem finiteReductionOfKnowledge
       Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.scale
       (Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.knowledgeGame
         Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.scale
-        (FinitePaperStrong.finiteStrongGame context.piCcs extensionAlphabet
-          strongAdversaryExpectedPolynomialTime successFloor)
+        (FinitePaperStrong.successGatedFiniteStrongGame context.piCcs
+          extensionAlphabet strongAdversaryExpectedPolynomialTime)
         (Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteMixture.weakGame
           (Prefix := PrefixSeed Extension shape ProverSeed)
           laws strongSet verifier)
         (operationalCoupling context laws strongSet extensionAlphabet verifier
-          strongAdversaryExpectedPolynomialTime successFloor))
+          strongAdversaryExpectedPolynomialTime))
       (ratio (context.arity.total + 1) verifier.alphabet.cardinality +
         ((mixingBudget + sumCheckBudget) +
-          relaxedBindingError / successFloor)) := by
+          relaxedBindingRoot)) := by
   exact
     Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.reductionOfKnowledge
       Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.scale
       rationalScaleLaws
-      (FinitePaperStrong.finiteStrongGame context.piCcs extensionAlphabet
-        strongAdversaryExpectedPolynomialTime successFloor)
+      (FinitePaperStrong.successGatedFiniteStrongGame context.piCcs
+        extensionAlphabet strongAdversaryExpectedPolynomialTime)
       (Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteMixture.weakGame
         (Prefix := PrefixSeed Extension shape ProverSeed)
         laws strongSet verifier)
       (operationalCoupling context laws strongSet extensionAlphabet verifier
-        strongAdversaryExpectedPolynomialTime successFloor)
-      (fun raw floor => raw / floor)
-      successFloor
+        strongAdversaryExpectedPolynomialTime)
       (mixingBudget + sumCheckBudget)
       (ratio (context.arity.total + 1) verifier.alphabet.cardinality)
-      relaxedBindingError
+      relaxedBindingRaw
+      relaxedBindingRoot
       (FinitePaperStrong.finitePaperStrong context.piCcs extensionAlphabet
-        strongAdversaryExpectedPolynomialTime successFloor relaxedBindingError
-        mixingBudget sumCheckBudget ambientAdmissible contracts)
+        strongAdversaryExpectedPolynomialTime relaxedBindingRaw
+        relaxedBindingRoot mixingBudget sumCheckBudget rootNonnegative
+        rawBinding_le_rootSquare mixingNonnegative sumCheckNonnegative
+        ambientAdmissible contracts)
       (Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteMixture.paperWeak
-        laws strongSet ops bindingLaws verifier relaxedBindingError binding)
+        laws strongSet ops bindingLaws verifier relaxedBindingRaw binding)
 
 end Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.PiRlcComposition.Coupling

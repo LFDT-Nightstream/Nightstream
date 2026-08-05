@@ -28,3 +28,25 @@ import tests.Axioms.Support
 /-- info: 'Nightstream.Protocol.Nebula.Memory.executes_balanced' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.Nebula.Memory.executes_balanced
+
+/-- info: 'Nightstream.Protocol.Nebula.Memory.executes_multiset' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.Nebula.Memory.executes_multiset
+
+/-- info: 'Nightstream.Protocol.Nebula.Memory.executes_perm' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.Nebula.Memory.executes_perm
+
+/-- info: 'Nightstream.Protocol.Nebula.PaperFingerprint.product_perm' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.Nebula.PaperFingerprint.product_perm
+
+/-- info: 'Nightstream.Protocol.Nebula.PaperFingerprint.executes_balanced' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.Nebula.PaperFingerprint.executes_balanced
+
+/-- info: 'Nightstream.Protocol.Nebula.PaperFingerprint.exact_or_collision_of_equal_product' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Protocol.Nebula.PaperFingerprint.exact_or_collision_of_equal_product

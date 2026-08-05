@@ -258,7 +258,7 @@ theorem sound
     terminal_sound canonical one satisfies⟩
 
 /-- Any exact affine renaming of the isolated round has the same semantics.
-This is the call-site compiler rule used by generated FE/NC maps. -/
+This is the call-site compiler rule used by generated SumCheck maps. -/
 theorem mapped_sound
     (columnMap : List Nat)
     (mapsOne : Relabel.column columnMap 0 = 0)

@@ -9,8 +9,8 @@ Phase: source ownership before CCS, norm, and carried-evaluation residuals.
 Constraint family: semantic witness connectivity only; this file emits no
 rows.
 
-Owns: the paper's square-domain bijection between its Boolean cube and
-assignment columns, including the exact consequence `columns = 2^variables`;
+Owns: the paper's zero-padding injection from assignment columns into its
+Boolean row cube, including the exact consequence `columns <= 2^variables`;
 one typed family of the exact `K+k` source assignments; canonical
 fresh/running source injections; and derived CCS, norm, and carried-evaluation
 views that provably read the same `z_i` values.
@@ -24,14 +24,15 @@ Emits constraints: no.
 
 Authority boundary: callers provide assignments once. They cannot separately
 choose the norm values or the carried-evaluation assignments. `ColumnLayout`
-is required to be bijective, so a norm check over Boolean vertices covers
-every authoritative assignment column exactly once. The older
+is injective from columns to rows and identifies padding rows explicitly, so
+a norm check over Boolean vertices covers every authoritative assignment
+column and checks zero on every padding row. The older
 `ConcreteJointData.IndependentInputs` remains only as an internal derived view
 for reusing already-proved family lemmas.
 
 | Protocol | Phase | Family | Mathematical obligation |
 |---|---|---|---|
-| `Pi_CCS` | source domain | Boolean vertex / assignment column | `ColumnLayout` is a two-sided inverse and forces `columns = 2^variables` |
+| `Pi_CCS` | source domain | Boolean row / assignment column | `ColumnLayout` is an injection with explicit padding and forces `columns <= 2^variables` |
 | `Pi_CCS` | source ownership | all `K+k` vectors | `UnifiedInputs.assignments` is authoritative |
 | `Pi_CCS` | CCS | first `K` sources | `freshBatch` reads `freshSourceIndex i` |
 | `Pi_CCS` | norm | all `K+k` sources | `normBatch` reads the same assignment through `ColumnLayout` |
@@ -48,118 +49,115 @@ open PaperLinearAlgebra
 
 universe uExtension
 
-/-- Explicit two-sided correspondence for the paper assumption
-`m = n_F = 2^ell`. Keeping both directions typed makes omission, duplication,
-and independent row/column permutations visible refinement obligations. -/
-structure ColumnLayout (variables columns : Nat) where
-  toColumn : BooleanVertex variables -> Fin columns
-  toVertex : Fin columns -> BooleanVertex variables
-  toColumn_toVertex : forall column, toColumn (toVertex column) = column
-  toVertex_toColumn : forall vertex, toVertex (toColumn vertex) = vertex
+/-- Exact layout for the paper requirement `n_F <= m = 2^ell`.
 
-private theorem perm_of_nodup_and_same_members
-    {Value : Type}
-    [DecidableEq Value]
-    {left right : List Value}
-    (leftNodup : left.Nodup)
-    (rightNodup : right.Nodup)
-    (sameMembers : forall value, value ∈ left ↔ value ∈ right) :
-    left.Perm right := by
-  induction left generalizing right with
-  | nil =>
-      have rightNil : right = [] := by
-        cases right with
-        | nil => rfl
-        | cons value tail =>
-            have impossible : value ∈ ([] : List Value) :=
-              (sameMembers value).mpr (by simp)
-            simp at impossible
-      subst right
-      exact .refl []
-  | cons head tail inductionHypothesis =>
-      have leftParts := List.nodup_cons.mp leftNodup
-      have headMemRight : head ∈ right :=
-        (sameMembers head).mp (by simp)
-      rcases List.mem_iff_append.mp headMemRight with
-        ⟨before, after, rightEq⟩
-      subst right
-      have rightParts := List.nodup_append.mp rightNodup
-      have headTailParts := List.nodup_cons.mp rightParts.2.1
-      have headNotBefore : head ∉ before := by
-        intro member
-        exact rightParts.2.2 head member head (by simp) rfl
-      have headNotRest : head ∉ before ++ after := by
-        simp [headNotBefore, headTailParts.1]
-      have restNodup : (before ++ after).Nodup := by
-        apply List.nodup_append.mpr
-        exact ⟨rightParts.1, headTailParts.2, fun left leftMem right rightMem =>
-          rightParts.2.2 left leftMem right (by simp [rightMem])⟩
-      have tailMembers : forall value,
-          value ∈ tail ↔ value ∈ before ++ after := by
-        intro value
-        by_cases equal : value = head
-        · subst value
-          simp [leftParts.1, headNotRest]
-        · simpa [equal] using sameMembers value
-      have tailPerm : tail.Perm (before ++ after) :=
-        inductionHypothesis leftParts.2 restNodup tailMembers
-      exact (tailPerm.cons head).trans List.perm_middle.symm
+Every assignment column owns one Boolean row. A row either decodes to that
+unique column or is a padding row. This is the typed form of
+`M_1 = [I; 0]`; it prevents omission and duplication without requiring the
+assignment width to equal the row count. -/
+structure ColumnLayout (variables columns : Nat) where
+  columns_le : columns <= 2 ^ variables
+  toVertex : Fin columns -> BooleanVertex variables
+  toColumn? : BooleanVertex variables -> Option (Fin columns)
+  toColumn_toVertex : forall column,
+    toColumn? (toVertex column) = some column
+  toVertex_toColumn : forall vertex column,
+    toColumn? vertex = some column -> toVertex column = vertex
 
 namespace ColumnLayout
 
-/-- Enumerate assignment columns by mapping the canonical Boolean-cube order
-through the paper's square-domain layout. -/
-def enumeratedColumns
-    {variables columns : Nat}
-    (layout : ColumnLayout variables columns) : List (Fin columns) :=
-  (BooleanVertex.all variables).map layout.toColumn
-
-/-- The layout-derived column enumeration contains no duplicate column. -/
-theorem enumeratedColumns_nodup
+/-- Embed the canonical assignment-column order into the Boolean row cube. -/
+def enumeratedVertices
     {variables columns : Nat}
     (layout : ColumnLayout variables columns) :
-    layout.enumeratedColumns.Nodup := by
-  exact (BooleanVertex.all_nodup variables).map layout.toColumn (by
-    intro left right different equal
-    apply different
-    calc
-      left = layout.toVertex (layout.toColumn left) :=
-        (layout.toVertex_toColumn left).symm
-      _ = layout.toVertex (layout.toColumn right) := congrArg layout.toVertex equal
-      _ = right := layout.toVertex_toColumn right)
+    List (BooleanVertex variables) :=
+  (canonicalFinIndices columns).map layout.toVertex
 
-/-- Every declared assignment column occurs in the layout-derived
-enumeration. -/
-theorem mem_enumeratedColumns
+/-- Two assignment columns cannot own the same Boolean row. -/
+theorem toVertex_injective
+    {variables columns : Nat}
+    (layout : ColumnLayout variables columns) :
+    Function.Injective layout.toVertex := by
+  intro left right equal
+  have decoded := congrArg layout.toColumn? equal
+  rw [layout.toColumn_toVertex left,
+    layout.toColumn_toVertex right] at decoded
+  exact Option.some.inj decoded
+
+/-- The embedded column rows contain no duplicate Boolean vertex. -/
+theorem enumeratedVertices_nodup
+    {variables columns : Nat}
+    (layout : ColumnLayout variables columns) :
+    layout.enumeratedVertices.Nodup := by
+  exact (canonicalFinIndices_nodup columns).map layout.toVertex (by
+    intro left right different equal
+    exact different (layout.toVertex_injective equal))
+
+/-- Every embedded assignment row occurs in the canonical Boolean cube. -/
+theorem enumeratedVertices_subset_all
+    {variables columns : Nat}
+    (layout : ColumnLayout variables columns) :
+    layout.enumeratedVertices ⊆ BooleanVertex.all variables := by
+  intro vertex _
+  exact BooleanVertex.mem_all vertex
+
+/-- The paper layout proves the required dimension inequality
+`n_F <= m = 2^ell`. -/
+theorem columns_le_twoPow
+    {variables columns : Nat}
+    (layout : ColumnLayout variables columns) :
+    columns <= 2 ^ variables :=
+  layout.columns_le
+
+/-- Read an assignment through `M_1 = [I; 0]`: live rows return their unique
+assignment coordinate and padding rows return the additive zero. -/
+def paddedValue
+    {Value : Type}
     {variables columns : Nat}
     (layout : ColumnLayout variables columns)
-    (column : Fin columns) :
-    column ∈ layout.enumeratedColumns := by
-  apply List.mem_map.mpr
-  exact ⟨layout.toVertex column, BooleanVertex.mem_all _,
-    layout.toColumn_toVertex column⟩
+    (zero : Value)
+    (assignment : Fin columns -> Value)
+    (vertex : BooleanVertex variables) : Value :=
+  match layout.toColumn? vertex with
+  | some column => assignment column
+  | none => zero
 
-/-- A `ColumnLayout` is not merely an ordering choice: its two-sided inverse
-forces the assignment width to equal the cardinality of the Boolean row cube. -/
-theorem columns_eq_twoPow
+/-- One entry of the paper's padded first matrix `M_1 = [I; 0]`.
+Live rows contain one canonical unit entry. Padding rows are zero rows. -/
+def paddedIdentityEntry
+    {Value : Type}
     {variables columns : Nat}
-    (layout : ColumnLayout variables columns) :
-    columns = 2 ^ variables := by
-  have permutation :
-      layout.enumeratedColumns.Perm (canonicalFinIndices columns) := by
-    apply perm_of_nodup_and_same_members
-    · exact layout.enumeratedColumns_nodup
-    · exact canonicalFinIndices_nodup columns
-    · intro column
-      constructor
-      · intro _
-        simp [canonicalFinIndices]
-      · intro _
-        exact layout.mem_enumeratedColumns column
-  have lengths := permutation.length_eq
-  simp only [enumeratedColumns, List.length_map, BooleanVertex.all_length,
-    canonicalFinIndices_length] at lengths
-  exact lengths.symm
+    (layout : ColumnLayout variables columns)
+    (zero one : Value)
+    (vertex : BooleanVertex variables)
+    (column : Fin columns) : Value :=
+  match layout.toColumn? vertex with
+  | some selected => if column = selected then one else zero
+  | none => zero
+
+/-- Every authoritative assignment coordinate survives the padding
+injection exactly. -/
+@[simp] theorem paddedValue_toVertex
+    {Value : Type}
+    {variables columns : Nat}
+    (layout : ColumnLayout variables columns)
+    (zero : Value)
+    (assignment : Fin columns -> Value)
+    (column : Fin columns) :
+    layout.paddedValue zero assignment (layout.toVertex column) =
+      assignment column := by
+  simp [paddedValue, layout.toColumn_toVertex]
+
+/-- The row owned by `column` has the expected unit entry. -/
+@[simp] theorem paddedIdentityEntry_toVertex
+    {Value : Type}
+    {variables columns : Nat}
+    (layout : ColumnLayout variables columns)
+    (zero one : Value)
+    (vertexColumn column : Fin columns) :
+    layout.paddedIdentityEntry zero one (layout.toVertex vertexColumn) column =
+      if column = vertexColumn then one else zero := by
+  simp [paddedIdentityEntry, layout.toColumn_toVertex]
 
 end ColumnLayout
 
@@ -238,8 +236,8 @@ def freshBatch
   system := data.system
   assignments := fun source => data.assignments (freshSourceIndex source)
 
-/-- Norm view of all `K+k` authoritative assignments through the sole
-Boolean-vertex/column layout. -/
+/-- Norm view of all `K+k` authoritative assignments through `M_1 = [I; 0]`.
+Padding rows contain the canonical field zero. -/
 def normBatch
     {Extension : Type uExtension}
     {shape : Shape}
@@ -247,7 +245,7 @@ def normBatch
     (data : UnifiedInputs Extension shape columns) :
     NormResidualTable.SourceBatch shape where
   assignments := fun source vertex =>
-    data.assignments source (data.layout.toColumn vertex)
+    data.layout.paddedValue 0 (data.assignments source) vertex
 
 /-- Carried-evaluation view of the final `k` authoritative assignments. -/
 def carriedData
@@ -287,8 +285,8 @@ theorem freshBatch_assignment_eq
       data.assignments (freshSourceIndex source) column := by
   rfl
 
-/-- The norm view reads the authoritative source at the layout-selected
-column. -/
+/-- The norm view is exactly the assignment after the paper's zero-padding
+injection. -/
 theorem normBatch_assignment_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -297,7 +295,7 @@ theorem normBatch_assignment_eq
     (source : Fin shape.sourceCount)
     (vertex : BooleanVertex shape.cubeVariables) :
     data.normBatch.assignments source vertex =
-      data.assignments source (data.layout.toColumn vertex) := by
+      data.layout.paddedValue 0 (data.assignments source) vertex := by
   rfl
 
 /-- The carried view reads the authoritative running assignment verbatim. -/
@@ -324,7 +322,7 @@ theorem normBatch_at_toVertex_eq_assignment
     (column : Fin columns) :
     data.normBatch.assignments source (data.layout.toVertex column) =
       data.assignments source column := by
-  simp [normBatch, data.layout.toColumn_toVertex]
+  simp [normBatch]
 
 /-- Authoritative strict norm over every actual source column. -/
 def AllAssignmentsStrictNormBounded
@@ -334,8 +332,8 @@ def AllAssignmentsStrictNormBounded
     (data : UnifiedInputs Extension shape columns) : Prop :=
   ∀ source column, centeredMagnitude (data.assignments source column) < 2
 
-/-- The derived Boolean norm family is exact for the authoritative assignment
-family because the layout is bijective. -/
+/-- The Boolean norm family is exact for the authoritative assignment family.
+Every live column has one row, and every padding row contains zero. -/
 theorem normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded
     {Extension : Type uExtension}
     {shape : Shape}
@@ -345,10 +343,17 @@ theorem normBatch_allStrictNormBounded_iff_allAssignmentsStrictNormBounded
       data.AllAssignmentsStrictNormBounded := by
   constructor
   · intro bounded source column
-    simpa [normBatch, data.layout.toColumn_toVertex] using
+    simpa [normBatch] using
       bounded source (data.layout.toVertex column)
   · intro bounded source vertex
-    exact bounded source (data.layout.toColumn vertex)
+    cases decoded : data.layout.toColumn? vertex with
+    | none =>
+        change centeredMagnitude
+          (data.layout.paddedValue 0 (data.assignments source) vertex) < 2
+        simp [ColumnLayout.paddedValue, decoded, centeredMagnitude]
+    | some column =>
+        simpa [normBatch, ColumnLayout.paddedValue, decoded] using
+          bounded source column
 
 /-- Independent semantic truth over the one authoritative source family. -/
 def SemanticTruth

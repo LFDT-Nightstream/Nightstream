@@ -17,9 +17,9 @@ provenance only; digests remain non-authoritative until replayed by a verifier.
 
 | Surface | Fixed profile | Structural boundary |
 |---|---:|---|
-| source partition | 76 ranges / 47,091 rows | 291 pins plus 78 compact 600-row calls |
-| ordered emissions | 369 | every pin and call occurs exactly once |
-| state continuity | 77 adjacent call edges | exact same-lane column aliases only |
+| source partition | 76 ranges / 82,612 rows | 412 pins plus 137 compact 600-row calls |
+| ordered emissions | 549 | every pin and call occurs exactly once |
+| state continuity | 136 adjacent call edges | exact same-lane column aliases only |
 | field outputs | 15 x 4 x 4 = 240 | compact-call output to canonical-u64 input aliases |
 | external bind inputs | 4 columns | physical locations only |
 -/
@@ -137,7 +137,7 @@ private def pinValid (pin : ConstantPin) : Bool :=
 
 private def callValidAt (index : Nat) : Bool :=
   let call := calls.getD index default
-  decide (call.traceIndex = 6537 + index) &&
+  decide (call.traceIndex = 407 + index) &&
     decide (call.rowStart < call.rowEnd) &&
     decide (call.rowEnd - call.rowStart = 600) &&
     decide (call.rowEnd ≤ artifact.sourceRows) &&
@@ -167,11 +167,11 @@ private def boundaryValid : Bool :=
   let firstCall := calls.getD 0 default
   let firstRhoCall := calls.getD artifact.firstRhoCallIndex default
   let lastCall := calls.getD (calls.length - 1) default
-  decide (artifact.entryProducerTraceIndex = 6519) &&
+  decide (artifact.entryProducerTraceIndex = 389) &&
     decide (initialStateColumns.length = 8) &&
     decide (initialCursor = 0) &&
     decide (postBindStateColumns.length = 8) &&
-    decide (postBindCursor = 2) &&
+    decide (postBindCursor = 1) &&
     decide (finalStateColumns.length = 8) &&
     decide (finalCursor = 0) &&
     decide (artifact.entryToFirstCallLanes =
@@ -179,7 +179,7 @@ private def boundaryValid : Bool :=
     decide (artifact.entryToFirstCallLanes = [4, 5, 6, 7]) &&
     decide (artifact.postBindToFirstRhoCallLanes =
       matchingBoundaryLanes artifact.postBindBoundary firstRhoCall) &&
-    decide (artifact.postBindToFirstRhoCallLanes = [0, 1, 4, 5, 6, 7]) &&
+    decide (artifact.postBindToFirstRhoCallLanes = [0, 4, 5, 6, 7]) &&
     decide (finalStateColumns = lastCall.outputColumns)
 
 private def fieldOutputAliasValidAt (index : Nat) : Bool :=
@@ -192,7 +192,7 @@ private def fieldOutputAliasValidAt (index : Nat) : Bool :=
     decide (alias.groupIndex < groupCount) &&
     decide (alias.blockIndex < digestBlockCount) &&
     decide (alias.laneIndex < lanesPerBlock) &&
-    decide (alias.callIndex = 4 + 5 * alias.groupIndex + alias.blockIndex) &&
+    decide (alias.callIndex = 4 + 9 * alias.groupIndex + 2 * alias.blockIndex) &&
     decide (alias.outputLane = alias.laneIndex) &&
     decide (alias.fieldColumn = call.outputColumn alias.outputLane) &&
     decide (alias.canonicalRowEnd - alias.canonicalRowStart = 69) &&
@@ -200,17 +200,17 @@ private def fieldOutputAliasValidAt (index : Nat) : Bool :=
     decide (alias.canonicalRowEnd ≤ artifact.sourceRows)
 
 def StructureValid : Prop :=
-  artifact.sourceRows = 9503595 ∧
-    artifact.sourceColumns = 9316338 ∧
-    artifact.ownedRowCount = 47091 ∧
+  artifact.sourceRows = 9297088 ∧
+    artifact.sourceColumns = 9000422 ∧
+    artifact.ownedRowCount = 82612 ∧
     ownedRanges.length = 76 ∧
-    constantPins.length = 291 ∧
-    calls.length = 78 ∧
-    emissionOrder.length = 369 ∧
-    stateContinuity.length = 77 ∧
+    constantPins.length = 412 ∧
+    calls.length = 137 ∧
+    emissionOrder.length = 549 ∧
+    stateContinuity.length = 136 ∧
     fieldOutputAliases.length = 240 ∧
-    artifact.bindCallIndices = [0, 1] ∧
-    artifact.firstRhoCallIndex = 2 ∧
+    artifact.bindCallIndices = [0, 1, 2] ∧
+    artifact.firstRhoCallIndex = 3 ∧
     piCcsOutputDigestInputColumns.length = 4 ∧
     ownedRowTotal = artifact.ownedRowCount ∧
     rangesCoverEmissionsFrom 0 ownedRanges = true ∧
@@ -230,13 +230,15 @@ theorem structure_check : StructureValid := by
   set_option maxRecDepth 100000 in
     decide
 
-theorem exact_pin_count : constantPins.length = 291 :=
-  structure_check.2.2.2.2.1
+theorem exact_pin_count : constantPins.length = 412 := by
+  set_option maxRecDepth 100000 in
+    decide
 
-theorem exact_call_count : calls.length = 78 :=
-  structure_check.2.2.2.2.2.1
+theorem exact_call_count : calls.length = 137 := by
+  set_option maxRecDepth 100000 in
+    decide
 
-theorem exact_emission_count : emissionOrder.length = 369 := by
+theorem exact_emission_count : emissionOrder.length = 549 := by
   set_option maxRecDepth 100000 in
     decide
 
@@ -283,8 +285,8 @@ theorem field_output_aliases_match_calls :
 
 theorem initial_state_columns_eq :
     initialStateColumns =
-      [4198711, 4198712, 4198713, 4198714,
-        4198715, 4198716, 4198717, 4198718] := by
+      [4009282, 4009283, 4009284, 4009285,
+        4009286, 4009287, 4009288, 4009289] := by
   rfl
 
 theorem initial_cursor_eq : initialCursor = 0 := by
@@ -292,24 +294,24 @@ theorem initial_cursor_eq : initialCursor = 0 := by
 
 theorem post_bind_state_columns_eq :
     postBindStateColumns =
-      [5037860, 5037861, 5039070, 5039071,
-        5039072, 5039073, 5039074, 5039075] := by
+      [4848434, 4850783, 4850784, 4850785,
+        4850786, 4850787, 4850788, 4850789] := by
   rfl
 
-theorem post_bind_cursor_eq : postBindCursor = 2 := by
+theorem post_bind_cursor_eq : postBindCursor = 1 := by
   rfl
 
 theorem final_state_columns_eq :
     finalStateColumns =
-      [5156360, 5156361, 5156362, 5156363,
-        5156364, 5156365, 5156366, 5156367] := by
+      [5002992, 5002993, 5002994, 5002995,
+        5002996, 5002997, 5002998, 5002999] := by
   rfl
 
 theorem final_cursor_eq : finalCursor = 0 := by
   rfl
 
 theorem pi_ccs_output_digest_input_columns_eq :
-    piCcsOutputDigestInputColumns = [5037858, 5037859, 5037860, 5037861] := by
+    piCcsOutputDigestInputColumns = [4848431, 4848432, 4848433, 4848434] := by
   rfl
 
 theorem constant_pin_profile :
@@ -324,7 +326,7 @@ theorem constant_pin_profile :
 theorem compact_call_profile :
     ∀ index : Fin calls.length,
       let call := compactCallAt index
-      call.traceIndex = 6537 + index.val ∧
+      call.traceIndex = 407 + index.val ∧
         call.rowStart < call.rowEnd ∧
         call.rowEnd - call.rowStart = 600 ∧
         call.inputColumns.length = 8 ∧
@@ -344,7 +346,7 @@ theorem field_output_alias_at_formula :
             alias.groupIndex = group.val ∧
             alias.blockIndex = block.val ∧
             alias.laneIndex = lane.val ∧
-            alias.callIndex = 4 + 5 * group.val + block.val ∧
+            alias.callIndex = 4 + 9 * group.val + 2 * block.val ∧
             alias.outputLane = lane.val ∧
             alias.fieldColumn = call.outputColumn lane.val ∧
             alias.canonicalRowEnd - alias.canonicalRowStart = 69 := by

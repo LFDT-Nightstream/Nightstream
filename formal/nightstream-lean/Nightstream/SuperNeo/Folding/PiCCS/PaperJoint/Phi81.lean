@@ -13,7 +13,7 @@ Phi81 coefficient kernel, matrix-source placement, evaluation, and concrete
 carrier algebra.
 
 Does not own: production Rust cache construction, concrete CCS relation
-closure, Split-NC verifier acceptance, transcript execution, or R1CS rows.
+closure, concrete PiCCS verifier acceptance, transcript execution, or R1CS rows.
 
 Emits constraints: no.
 

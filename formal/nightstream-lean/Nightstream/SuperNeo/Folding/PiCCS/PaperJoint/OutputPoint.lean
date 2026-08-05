@@ -9,7 +9,7 @@ one of the `K+k` outputs.
 
 Does not own: the SumCheck transcript, challenge generation, the terminal
 identity `v = Q(r')`, output evaluation correctness, commitments, concrete CE
-serialization, Fiat--Shamir, SplitNc refinement, Rust, or R1CS.
+serialization, Fiat--Shamir, Rust, or R1CS.
 
 Emits constraints: no.
 

@@ -149,9 +149,9 @@ The project distinguishes four increasingly strong claims:
 4. **Security-reduced:** verifier acceptance is reduced to stated assumptions
    with named bad events and bounds.
 
-Property scope, threat model, and completion criteria are normative in
-[`../specs/formal-verification.md`](../specs/formal-verification.md). Mutable
-evidence belongs in `../assurance/`, not in theorem comments or README status
+Property scope, threat model, and completion criteria are normative in the
+[`protocol-contract`](../../../protocol-contract/README.md). Mutable evidence
+belongs in `../assurance/`, not in theorem comments or README status
 inventories.
 
 ## Change rule

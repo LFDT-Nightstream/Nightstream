@@ -24,5 +24,6 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.SumCheckSound
 #check sumCheckBadChallenge_probability_le
 #check sumCheckSoundnessContract_of_rootCounting
 #check extraction_after_first_success_of_rootCounting
+#check extraction_after_success_gate_of_rootCounting
 
 end tests.PiCcsPaperJointSumCheckSoundness

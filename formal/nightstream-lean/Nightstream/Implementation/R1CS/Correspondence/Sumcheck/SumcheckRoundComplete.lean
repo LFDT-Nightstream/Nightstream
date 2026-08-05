@@ -152,7 +152,7 @@ structure ExecutionWitness
     SumcheckRoundSound.ExecutionWitness
       (mappedAssignment columnMap assignment)
 
-/-- Per-round interpreter witnesses reconstruct the entire exact FE/NC row
+/-- Per-round interpreter witnesses reconstruct the entire exact SumCheck row
 family. -/
 theorem complete
     {maps : List ColumnMap} {assignment : Nat → Nat}

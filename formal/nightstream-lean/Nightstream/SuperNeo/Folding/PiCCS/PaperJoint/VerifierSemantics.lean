@@ -14,7 +14,7 @@ Owns: only typed finite SumCheck messages, verifier-derived abstract
 challenges, terminal evaluation checks, output-point binding, and the
 semantic acceptance decomposition.
 
-Does not own: concrete Poseidon2 encoding or security, Split-NC equivalence,
+Does not own: concrete Poseidon2 encoding or security, implementation refinement,
 production output projection, Rust/R1CS refinement, or constraint removal.
 
 Emits constraints: no.

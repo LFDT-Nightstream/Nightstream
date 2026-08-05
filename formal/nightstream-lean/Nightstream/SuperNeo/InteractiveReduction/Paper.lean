@@ -106,7 +106,7 @@ budget. `intrinsicExtractionError` is the reduction's own extraction loss.
 `outputUniquenessError` must bound the disagreement distribution actually
 seen by the extractor; a raw two-run bound cannot be reused here after
 rejection sampling without a conditioning adjustment. Concrete `Pi_CCS`
-uses `RejectionAdjustedStrong` below instead. -/
+uses `SuccessGatedStrong` below instead. -/
 def Strong
     {Weight : Type uWeight}
     {Adversary : Type uAdversary}
@@ -131,8 +131,9 @@ def Strong
           (scale.add intrinsicExtractionError outputUniquenessError))
         (game.sourceWitnessExtracted adversary extractor)
 
-/-- Quantitative strong reduction with the rejection-sampling adjustment from
-Appendix D.4 exposed explicitly.
+/-- Legacy quantitative strong reduction for the old conditioned-first
+rejection-sampling order. This is retained as a comparison interface and is
+not the corrected Appendix D.4 paper contract.
 
 `rawOutputUniquenessError` bounds the literal Definition-10 two-run witness
 disagreement event. `successFloor` is a concrete lower bound on relaxed
@@ -167,6 +168,39 @@ def RejectionAdjustedStrong
             (scale.add intrinsicExtractionError
               (adjust rawOutputUniquenessError successFloor)))
           (game.sourceWitnessExtracted adversary extractor))
+
+/-- Quantitative strong reduction for Appendix D.4's success-gated extractor.
+
+`rawOutputUniquenessError` bounds the literal Definition-10 two-run witness
+disagreement event. `gatedOutputUniquenessLoss` is the loss after the gated
+retry analysis. For concrete probabilities, PiCCS proves the latter from a
+nonnegative rational root envelope whose square bounds the raw error. No
+pointwise success floor is present. -/
+def SuccessGatedStrong
+    {Weight : Type uWeight}
+    {Adversary : Type uAdversary}
+    {Extractor : Type uExtractor}
+    (scale : ProbabilityScale Weight)
+    (game : StrongGame Weight Adversary Extractor)
+    (intrinsicExtractionError rawOutputUniquenessError
+      gatedOutputUniquenessLoss : Weight) : Prop :=
+  game.perfectComplete /\
+  game.publicCoin /\
+  (forall adversary,
+    game.adversaryExpectedPolynomialTime adversary ->
+      game.repeatedOutputPhiMismatch adversary = scale.zero) /\
+  forall adversary,
+    game.adversaryExpectedPolynomialTime adversary ->
+    game.extractionEligible adversary ->
+    scale.le (game.repeatedOutputWitnessDisagreement adversary)
+        rawOutputUniquenessError ->
+      exists extractor,
+        game.extractorExpectedPolynomialTime adversary extractor /\
+        scale.le
+          (scale.subtract (game.ambientOutputSuccess adversary)
+            (scale.add intrinsicExtractionError
+              gatedOutputUniquenessLoss))
+          (game.sourceWitnessExtracted adversary extractor)
 
 /-- Complete experiment summary for Definition 9.  A paired adversary is the
 paper's `(B,B')` experiment producing two same-`phi` inputs. -/
@@ -269,24 +303,22 @@ structure InteractiveErrorBudget (Weight : Type uWeight) where
   piCcsSumCheck : Weight
   piCcsSchwartzZippel : Weight
   piRlcForkSampling : Weight
-  /-- Non-negligible lower bound `mu` required by the `Pi_CCS` rejection
-  sampler. This is not itself an error term. -/
-  piCcsSuccessFloor : Weight
   /-- Raw Definition-10 / relaxed-binding disagreement bound `delta`. -/
   relaxedBindingRaw : Weight
-  /-- Conditioning adjustment; for concrete probabilities this is
-  `delta / mu`. -/
-  adjustUniqueness : Weight -> Weight -> Weight
+  /-- Success-gated disagreement loss. For concrete rational probabilities,
+  this is a nonnegative root envelope whose square bounds
+  `relaxedBindingRaw`. -/
+  relaxedBindingRoot : Weight
 
 /-- The one binding loss actually charged after rejection conditioning. -/
 def InteractiveErrorBudget.adjustedRelaxedBinding
     {Weight : Type uWeight}
     (budget : InteractiveErrorBudget Weight) : Weight :=
-  budget.adjustUniqueness budget.relaxedBindingRaw budget.piCcsSuccessFloor
+  budget.relaxedBindingRoot
 
 /-- The exact loss of the strong--weak composition in the syntactic order
 produced by Theorem 6: weak fork sampling, then the two intrinsic `Pi_CCS`
-losses, then the once-adjusted relaxed-binding loss. -/
+losses, then the success-gated relaxed-binding root loss. -/
 def InteractiveErrorBudget.strongWeakTotal
     {Weight : Type uWeight}
     (scale : ProbabilityScale Weight)

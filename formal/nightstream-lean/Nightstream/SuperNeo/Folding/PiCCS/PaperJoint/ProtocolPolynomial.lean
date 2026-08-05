@@ -18,7 +18,7 @@ assuming it away.
 
 Does not own: construction of these image tables from concrete CCS matrices
 and witnesses, ring coefficient recomposition, output CE serialization,
-Fiat--Shamir, semantic degree bounds, root probabilities, SplitNc, Rust,
+Fiat--Shamir, semantic degree bounds, root probabilities, Rust,
 R1CS, or constraint counts.
 
 Emits constraints: no.

@@ -57,7 +57,7 @@ abbrev CompleteAssignment (logicalWidth : Nat) :=
     (Phi81CarrierLayout.carrierWidth logicalWidth)
 
 /-- The complete carrier column owned by one block/lane pair. This is the
-canonical layout owner shared with the independent Split-NC semantics. -/
+canonical layout owner shared with the independent PiCCS semantics. -/
 abbrev carrierColumn {logicalWidth : Nat} :=
   @Phi81CarrierLayout.carrierColumn logicalWidth
 

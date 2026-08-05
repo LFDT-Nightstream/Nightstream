@@ -21,7 +21,8 @@ every smaller fold inherits it. Rust owns the same discipline at runtime
 through `Params::q`, `Params::max_fresh_count`, and the Π_RLC bound check.
 -/
 structure GlobalParams where
-  /-- Base-field modulus `q`; the ambient extraction bound is `q / 2`. -/
+  /-- Base-field modulus `q`; the strict ambient extraction bound is
+  `q / 2 + 1`. -/
   q : Nat
   /-- Fresh-relation witness ∞-norm bound `b`. -/
   b : Nat
@@ -38,6 +39,14 @@ namespace GlobalParams
 
 /-- `B = b^k`, the Π_RLC output bound. -/
 def bigB (p : GlobalParams) : Nat := p.b ^ p.k
+
+/--
+The least strict natural bound that contains every centered residue.
+
+For odd `q`, a midpoint residue has centered magnitude `q / 2`. Since the
+relation uses a strict inequality, `q / 2` itself is one unit too small.
+-/
+def ambientBound (p : GlobalParams) : Nat := p.q / 2 + 1
 
 /--
 The Module-SIS ∞-norm at which the binding assumption must be taken.
@@ -57,7 +66,7 @@ bounds and conflating them mis-states every fold theorem:
 
 - `fresh`     — `CE(b)^(K+k)`: honest Π_CCS outputs and Π_DEC children;
 - `combined`  — `CE(B)`: the Π_RLC output;
-- `ambient`   — `CE(q/2)`: where Π_RLC's rewinding extraction lands (D.5);
+- `ambient`   — `CE(⌊q/2⌋+1)`: where Π_RLC's rewinding extraction lands (D.5);
   the post-decomposition relation does NOT stay at this weaker bound.
 
 Bounds are derived from verifier-owned `GlobalParams`, never carried as free
@@ -73,7 +82,7 @@ deriving Repr, DecidableEq
 def NormStage.bound (p : GlobalParams) : NormStage → Nat
   | .fresh => p.b
   | .combined => p.bigB
-  | .ambient => p.q / 2
+  | .ambient => p.ambientBound
 
 /-- Operations needed to state CCS and CE membership without hiding obligations. -/
 structure RelationSemantics

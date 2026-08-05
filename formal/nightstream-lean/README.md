@@ -6,9 +6,10 @@ and no theorem is inherited from them.
 
 ## Project map
 
-- [`specs/formal-verification.md`](specs/formal-verification.md) is normative for
-  the threat model, property matrix, evidence tiers, supported profiles, and
-  completion gates.
+- [`../../protocol-contract/README.md`](../../protocol-contract/README.md) owns
+  the normative protocol, threat model, supported profile, requirement rules,
+  and completion gates. Lean source is evidence against that contract; it is
+  not a second protocol specification.
 - [`docs/architecture.md`](docs/architecture.md) defines layer ownership and
   import direction.
 - [`docs/generated-files.md`](docs/generated-files.md) records generated-artifact
@@ -34,7 +35,7 @@ verified. M4 does not yet cover stateful mode, Nebula, other schedules, multiple
 recursive invocations, alternate carriers, or a parameterized circuit family.
 The public compact decider remains fail-closed with `Unsupported`.
 
-Consult the property matrix and evidence ledger for theorem names, hashes,
+Consult the protocol contract and evidence ledger for theorem names, hashes,
 assumptions, and current gates; do not treat this summary as normative status.
 
 ## Validation

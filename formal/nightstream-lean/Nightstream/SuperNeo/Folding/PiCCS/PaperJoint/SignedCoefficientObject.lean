@@ -16,7 +16,7 @@ mixing-root event.
 
 Does not own: construction of concrete CCS/norm/ring tables, target-convention
 approval, root-counting probability, SumCheck round or terminal truth,
-Fiat--Shamir, production FE/NC splitting, Rust, R1CS, or counts.
+Fiat--Shamir, Rust, R1CS, or counts.
 
 Emits constraints: no.
 

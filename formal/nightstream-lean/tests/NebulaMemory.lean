@@ -37,6 +37,18 @@ theorem honest_balance :
     Balanced (products challenges [initialCell] [access] [finalCell]) :=
   executes_balanced challenges honestExecution
 
+theorem honest_multiset_identity :
+    ([initialCell] ++ writeTuples [access]).Perm
+      (readTuples [access] ++ [finalCell]) :=
+  executes_perm honestExecution
+
+theorem honest_paper_balance :
+    Balanced
+      (Nightstream.Protocol.Nebula.PaperFingerprint.products
+        challenges [initialCell] [access] [finalCell]) :=
+  Nightstream.Protocol.Nebula.PaperFingerprint.executes_balanced
+    challenges honestExecution
+
 /-- A final cell with a changed value is not accepted by this concrete
 challenge when the read/write access still carries value 42. -/
 example :

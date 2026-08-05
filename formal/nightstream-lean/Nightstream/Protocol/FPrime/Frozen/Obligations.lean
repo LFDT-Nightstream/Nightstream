@@ -88,16 +88,15 @@ def superNeoCompositionGame (games : SuperNeoGames) :=
     games.scale (strongWeakKnowledgeGame games) games.piDec
     games.piDecCoupling
 
-/-- Obligation 1: Pi_CCS is rejection-adjusted strong with intrinsic SumCheck
-and Schwartz--Zippel losses. Pi_RLC supplies the raw repeated-output witness
-disagreement bound; Pi_CCS charges its success-conditioned adjustment. -/
+/-- Obligation 1: Pi_CCS is success-gated strong with intrinsic SumCheck and
+Schwartz--Zippel losses. Pi_RLC supplies the raw repeated-output witness
+disagreement bound; Pi_CCS charges its root envelope once. -/
 def PiCcsStrong (games : SuperNeoGames) : Prop :=
-  RejectionAdjustedStrong games.scale
-    games.errorBudget.adjustUniqueness games.piCcs
-    games.errorBudget.piCcsSuccessFloor
+  SuccessGatedStrong games.scale games.piCcs
     (games.scale.add games.errorBudget.piCcsSumCheck
       games.errorBudget.piCcsSchwartzZippel)
     games.errorBudget.relaxedBindingRaw
+    games.errorBudget.relaxedBindingRoot
 
 /-- Obligation 2: Pi_RLC is weak with the fork-sampling loss and relaxed
 binding as its exact witness-uniqueness boundary. -/
@@ -140,12 +139,12 @@ theorem superNeoCompositionReductionOfKnowledge
   · exact
       Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.reductionOfKnowledge
         games.scale games.scaleLaws games.piCcs games.piRlc
-        games.strongWeakCoupling games.errorBudget.adjustUniqueness
-        games.errorBudget.piCcsSuccessFloor
+        games.strongWeakCoupling
         (games.scale.add games.errorBudget.piCcsSumCheck
           games.errorBudget.piCcsSchwartzZippel)
         games.errorBudget.piRlcForkSampling
-        games.errorBudget.relaxedBindingRaw piCcs piRlc
+        games.errorBudget.relaxedBindingRaw
+        games.errorBudget.relaxedBindingRoot piCcs piRlc
   · exact piDec
 
 /-- Complete frozen SuperNeo target; no generic bad event or final `negl` term

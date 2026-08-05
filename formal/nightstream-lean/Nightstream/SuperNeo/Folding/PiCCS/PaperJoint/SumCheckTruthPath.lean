@@ -15,7 +15,7 @@ specialization to the existing Boolean `Q`, and the canonical finite SumCheck
 expected-round path from that one polynomial.
 
 Does not own: a degree proof for the derived round polynomials, root counting,
-challenge sampling, Fiat--Shamir, production FE/NC splitting, concrete table
+challenge sampling, Fiat--Shamir, concrete table
 construction, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.

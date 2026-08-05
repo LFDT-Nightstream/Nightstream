@@ -1,4 +1,3 @@
-import Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay
 import Nightstream.SuperNeo.Sampling.FirstAccepted
 
 /-!

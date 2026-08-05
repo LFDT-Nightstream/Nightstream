@@ -50,84 +50,11 @@ module is built; the aggregate entrypoint imports all ownership groups.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.SumCheck.check_eq_true_iff_accepted
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.strong_extract_or_bad_event' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.strong_extract_or_bad_event
-
 /-- info: 'Nightstream.SuperNeo.Folding.BatchArity.total_le' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.BatchArity.total_le
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.product_complete' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.product_complete
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.complete' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.complete
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputEvaluationAuthority.accepted_does_not_determine_output_evaluations' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputEvaluationAuthority.accepted_does_not_determine_output_evaluations
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputEvaluationAuthority.accepted_replaceEvaluations_iff' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputEvaluationAuthority.accepted_replaceEvaluations_iff
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputEvaluationAuthority.accepted_does_not_determine_common_output_point' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputEvaluationAuthority.accepted_does_not_determine_common_output_point
-
-/-! Independent Phi81 output-claim semantics. -/
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.freshYZcolTerm_tail_zero' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.freshYZcolTerm_tail_zero
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.boundToSources_iff_eq_canonicalClaims' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.boundToSources_iff_eq_canonicalClaims
-
-/-! Source-derived `yZcol` base-field and production-PiDEC transport. -/
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.BaseLinear.yZcolEvaluation_combine' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.BaseLinear.yZcolEvaluation_combine
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.BaseLinear.canonicalYZcol_product_piDec_transport' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.BaseLinear.canonicalYZcol_product_piDec_transport
-
-/-! Necessity of an expanded-witness `Pi_RLC` sidecar model. -/
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Necessity.FlatColumnAction.flatColumnProjection_not_actionHom' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Necessity.FlatColumnAction.flatColumnProjection_not_actionHom
-
-/-! Combined-parent `PiDEC` opening authority for `yZcol`. -/
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.PiDECParentOpening.parentAssignment_eq_recompose_or_bindingCollision' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.PiDECParentOpening.parentAssignment_eq_recompose_or_bindingCollision
-
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.PiDECParentOpening.parentYZcol_transport_or_bindingCollision' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.OutputClaims.EvaluationHomomorphism.Authority.PiDECParentOpening.parentYZcol_transport_or_bindingCollision
-
-/-! Batch-invariant typed Phi81 relation and output adapter. -/
+/-! Batch-invariant typed Phi81 relation. -/
 
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Shape.publicWidth_ne_257' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
@@ -136,17 +63,6 @@ module is built; the aggregate entrypoint imports all ownership groups.
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Structure.matrixSource_kernel_eq' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Structure.matrixSource_kernel_eq
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.matrixEvaluation_apply_ofSourceData' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.matrixEvaluation_apply_ofSourceData
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.evaluations_get_ofSourceData' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.evaluations_get_ofSourceData
 
 /-! Base-field evaluation homomorphism used by `Pi_DEC` recomposition. -/
 
@@ -198,68 +114,6 @@ module is built; the aggregate entrypoint imports all ownership groups.
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.ce_evaluations_size_of_holds
-
-/-! Inclusion-necessity of typed Phi81 relation families. -/
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.commitment_check_is_necessary' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.commitment_check_is_necessary
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.public_input_check_is_necessary' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.public_input_check_is_necessary
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.norm_check_is_necessary' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.norm_check_is_necessary
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.ccs_relation_check_is_necessary' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.ccs_relation_check_is_necessary
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.evaluation_size_check_is_necessary' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.evaluation_size_check_is_necessary
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.evaluation_lane_check_is_necessary' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.evaluation_lane_check_is_necessary
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.no_invalid_typed_point' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Necessity.no_invalid_typed_point
-
-/-! Exactness and inclusion-minimality of the concrete typed Phi81 CE plan. -/
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Minimality.cePlan_exact' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Minimality.cePlan_exact
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.Minimality.cePlan_inclusionMinimalSound' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.Minimality.cePlan_inclusionMinimalSound
-
-/-! Current concrete CE versus independent Phi81 output semantics. -/
-
-/-- info: 'Nightstream.SuperNeo.Concrete.Necessity.Phi81OutputMismatch.currentConcrete_ne_canonicalPhi81' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Necessity.Phi81OutputMismatch.currentConcrete_ne_canonicalPhi81
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiRLC.combinedOutput_holds' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
@@ -321,90 +175,6 @@ module is built; the aggregate entrypoint imports all ownership groups.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.PiDEC.Necessity.AggregateAuthorization.aggregate_only_validation_can_feed_different_next_inputs
 
-/-- info: 'Nightstream.SuperNeo.Folding.Composition.fold_extraction_or_bad_event' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Composition.fold_extraction_or_bad_event
-
-/-- info: 'Nightstream.SuperNeo.Folding.Composition.fold_knowledge_or_bad_event' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Composition.fold_knowledge_or_bad_event
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.accepted_inputsValid_or_badEvent' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.accepted_inputsValid_or_badEvent
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.complete' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.complete
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.paperNifsTransition_complete' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.paperNifsTransition_complete
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.paperNifsTransition_of_accepted' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.paperNifsTransition_of_accepted
-
-/-! Shared-carrier normalization of the two internal NIFS boundaries. -/
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.SharedAttempt.wiring' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.SharedAttempt.wiring
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.SharedAccepted.toAccepted' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.SharedAccepted.toAccepted
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.normalize_toAttempt_eq' depends on axioms: [Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.normalize_toAttempt_eq
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.accepted_normalize' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.accepted_normalize
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.sharedPaperNifsTransition_iff_paperNifsTransition' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.sharedPaperNifsTransition_iff_paperNifsTransition
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.accepts_materializeFrom' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.accepts_materializeFrom
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.accepts_materializedSchedule' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.accepts_materializedSchedule
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.accepts_of_carrierAgreement' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.accepts_of_carrierAgreement
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.sumCheck_after_message_eq' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.sumCheck_after_message_eq
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.piRlc_head_eq' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.piRlc_head_eq
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.materializeFrom_append' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.materializeFrom_append
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.acceptsFrom_suffix' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.acceptsFrom_suffix
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.piRlc_list_eq' depends on axioms: [propext, Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.piRlc_list_eq
 
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.coefficient_has_accepted_preimage' depends on axioms: [propext,
  Quot.sound] -/
@@ -491,66 +261,6 @@ module is built; the aggregate entrypoint imports all ownership groups.
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionStrongSet.expansionFactor_value' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionStrongSet.expansionFactor_value
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ReplayBridge.acceptsCanonical_challenges_eq_sampled' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ReplayBridge.acceptsCanonical_challenges_eq_sampled
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ReplayBridge.acceptsCanonical_challenges_valid' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ReplayBridge.acceptsCanonical_challenges_valid
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ReplayBridge.shortfall_excludes_replayResponseRefines' depends on axioms: [propext,
- Classical.choice,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ReplayBridge.shortfall_excludes_replayResponseRefines
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundExecution_implies_candidateNifsTransition' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundExecution_implies_candidateNifsTransition
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundExecution_of_core_and_carrierAgreement' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundExecution_of_core_and_carrierAgreement
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.eraseResponses_canonicalEvents' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.eraseResponses_canonicalEvents
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.materializeFrom_eraseResponses_eq_of_acceptsFrom' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.materializeFrom_eraseResponses_eq_of_acceptsFrom
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.acceptsCanonical_iff_carrierAgreement' depends on axioms: [propext] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.Replay.acceptsCanonical_iff_carrierAgreement
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundAttempt_implies_candidateNifsTransition' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundAttempt_implies_candidateNifsTransition
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundAttempt_of_core_and_carrierAgreement' depends on axioms: [propext,
- Quot.sound] -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.replayBoundAttempt_of_core_and_carrierAgreement
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.canonicalEvents_replaceFeEnvelope' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.canonicalEvents_replaceFeEnvelope
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.canonicalEvents_replaceNcEnvelope' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.canonicalEvents_replaceNcEnvelope
-
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.canonicalEvents_replacePiCcsOutputPoints' does not depend on any axioms -/
-#guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.canonicalEvents_replacePiCcsOutputPoints
 
 /-- info: 'Nightstream.SuperNeo.ProjectionCheck.batchAccepted_implies_exact_or_badRoot' depends on axioms: [propext] -/
 #guard_msgs in

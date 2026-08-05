@@ -30,11 +30,11 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessCo
 #check rootPolynomial_messageDegree_eq_six
 #check rootPolynomial_highCoefficient_eq_one
 #check rootPolynomial_not_zeroAboveSyntaxDegree_four
-#check rootPolynomial_not_zeroAbovePaperDegree_five
+#check rootPolynomial_not_zeroAbovePaperDegree_four
 #check rootPolynomial_nonzero_function
 #check collision_at
-#check paperRoundDegreeCeiling_eq_five
-#check paperSumCheckBudget_eq_five_six
+#check paperRoundDegreeCeiling_eq_four
+#check paperSumCheckBudget_eq_four_six
 #check context_challengeSetSize_eq_alphabet_cardinality
 #check context_not_paperDegreeWidthExact
 #check strategy_roundMessage_eq
@@ -99,15 +99,15 @@ example {left right : SumCheck.Finite.FixedPolynomial Extension 6}
   rfl
 
 /-- Edge case 7: a coefficient position above both syntax degree four and
-Appendix D.4 degree five is nonzero. -/
+Appendix D.4 degree four is nonzero. -/
 example : rootPolynomial.coefficients[6]? = some extensionOps.one :=
   rootPolynomial_highCoefficient_eq_one
 
 example : ¬ ZeroAboveDegree 4 rootPolynomial :=
   rootPolynomial_not_zeroAboveSyntaxDegree_four
 
-example : ¬ ZeroAboveDegree 5 rootPolynomial :=
-  rootPolynomial_not_zeroAbovePaperDegree_five
+example : ¬ ZeroAboveDegree 4 rootPolynomial :=
+  rootPolynomial_not_zeroAbovePaperDegree_four
 
 /-- Edge case 8: malformed raw messages fail closed at exact-width decoding. -/
 def malformedCertificate : SumCheck.Finite.Certificate Extension where
@@ -127,11 +127,11 @@ example :
   decide
 
 example : paperRoundDegreeCeiling < rootPolynomial.toMessage.degreeUpperBound := by
-  rw [paperRoundDegreeCeiling_eq_five, rootPolynomial_messageDegree_eq_six]
+  rw [paperRoundDegreeCeiling_eq_four, rootPolynomial_messageDegree_eq_six]
   decide
 
-example : paperSumCheckBudget = ratio 5 6 :=
-  paperSumCheckBudget_eq_five_six
+example : paperSumCheckBudget = ratio 4 6 :=
+  paperSumCheckBudget_eq_four_six
 
 /-- Edge case 10: a generic finite support can correlate two coordinates even
 when it is nonempty and duplicate-free. A positive multi-round proof must use
@@ -160,9 +160,9 @@ their own predicates and are not used to manufacture a root collision. -/
 #check ProtocolPolynomial.OutputMismatch
 #check SignedCoefficientObject.MixingRoot
 
-/- Edge case 15 is guarded at the existing security-composition theorem; the
-SumCheck budget is added before the separately adjusted mismatch term. -/
-#check extraction_after_first_success_of_securityContracts
+/- Edge case 15 is guarded at the paper security-composition theorem; the
+SumCheck budget is added before the success-gated root mismatch term. -/
+#check extraction_after_success_gate_of_securityContracts
 
 /-- Edge case 16: no trimming premise is assumed. The nonzero high coefficient
 survives raw conversion and determines degree six. -/

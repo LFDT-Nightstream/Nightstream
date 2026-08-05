@@ -29,6 +29,7 @@ on column order or dot-product arithmetic.
 | `BooleanMatrix` | one `M_j` over the Boolean row domain | `BooleanVertex -> Fin columns -> Field` |
 | `matrixVectorAt` | `(M_j z)(x)` | canonical-column fold of `M[x,c] * z[c]` |
 | `matrixVectorAt_zero` | canonical zero assignment | every finite matrix-vector row is zero |
+| `matrixVectorAt_zeroRow` | one zero matrix row | every assignment maps to zero on that row |
 | `matrixVectorAt_oneHot` | one selected assignment coordinate | exact selected matrix entry times its value |
 | `matrixVectorAt_identityRow` | one identity-matrix row | exact selected assignment value |
 -/
@@ -80,6 +81,27 @@ theorem matrixVectorAt_zero
   | nil => rfl
   | cons _ indices inductionHypothesis =>
       rw [List.foldl_cons, laws.mul_zero, laws.add_zero]
+      exact inductionHypothesis
+
+/-- A canonical zero matrix row sends every assignment to zero. -/
+theorem matrixVectorAt_zeroRow
+    {Field : Type uField}
+    (ops : InterpolationOps Field)
+    (laws : InterpolationEvaluationLaws ops)
+    {variables columns : Nat}
+    (matrix : BooleanMatrix Field variables columns)
+    (assignment : Assignment Field columns)
+    (vertex : BooleanVertex variables)
+    (zeroRow : forall column, matrix vertex column = ops.zero) :
+    matrixVectorAt ops matrix assignment vertex = ops.zero := by
+  unfold matrixVectorAt
+  generalize canonicalFinIndices columns = indices
+  induction indices with
+  | nil => rfl
+  | cons column indices inductionHypothesis =>
+      rw [List.foldl_cons, zeroRow column,
+        laws.mul_comm ops.zero (assignment column), laws.mul_zero,
+        laws.add_zero]
       exact inductionHypothesis
 
 /-- Assignment supported at exactly one selected coordinate. -/

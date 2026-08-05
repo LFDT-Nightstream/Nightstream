@@ -1,137 +1,90 @@
-# Generated files
+# Generated Lean files
 
-Generated Lean modules are committed evidence mirrors of production Rust output.
-They are reviewed artifacts, not handwritten proof code and not authority by
-themselves.
+Generated Lean modules are committed mirrors of Rust output. They are review
+evidence. They are not protocol authority and they do not prove the meaning of
+the rows that they contain.
 
-## Location and ownership
+## Ownership
 
-Generated modules live below:
+Generated modules live below these roots:
 
 ```text
 Nightstream/Implementation/R1CS/Artifacts/<owner>/Generated/
 Nightstream/Implementation/Rust/CanonicalConformance/<owner>/Generated/
 ```
 
-Small generated entrypoints have stable facades under `R1CS/Artifacts`.
-Handwritten assemblies in `R1CS/Ownership` expose complete ordered multi-shard
-artifacts. Handwritten theorems in `R1CS/Correspondence` assign semantics to
-those rows. Consumers outside the R1CS implementation import those stable
-modules instead of individual generated shards. Proof-free Rust conformance
-programs and bounded execution records use the second path and are consumed
-only through handwritten conformance/refinement modules.
+Handwritten facade and correspondence modules can import generated data.
+Protocol and security modules must not import generated shards directly. The
+static quarantine gate checks this rule.
 
-The generator families are:
+The Rust test that contains the artifact path is the path owner. A generated
+file without a live Rust path owner is stale and must be removed.
 
-| Generated owner | Rust drift/regeneration target |
+## Current drift owners
+
+| Evidence family | Rust drift target |
 |---|---|
-| Width-eight Goldilocks Poseidon2 round constants | `cargo test -p neo-ccs --release --test poseidon2_round_constants` |
-| Native F' step proof-free receipts | `cargo test -p neo-fold-clean --release --test system_formal_conformance native_verify_step_receipts_are_exact_and_deterministic -- --nocapture` |
-| Native F' public-link source program | `cargo test -p neo-fold-clean --release --test system_formal_conformance native_public_link_program_is_exact_and_deterministic -- --nocapture` |
-| Native `state_x_out` preimage source programs (all four optional-lane variants) | `cargo test -p neo-fold-clean --release --test system_formal_conformance native_state_x_out_programs_are_exact_and_deterministic -- --nocapture` |
-| Terminal-link source program and bounded two-claim physical rows | `cargo test -p neo-fold-clean --release --test system_formal_conformance terminal_link_ -- --nocapture` |
-| Current two-step terminal diagnostic fixture: exact owner ranges and source hashes, fourteen three-evaluation terminal-CE column schedules, coefficient-complete affine shell `[9657286,9673659)`, and the 270-row `terminal.latest_link` placement | `cargo test -p neo-fold-clean --release --test system_decider_r1cs m4_manifest::current_terminal_link_full_history_placement_matches_exact_rows -- --exact --nocapture` |
-| Phi81 runtime bar matrix | `cargo test -p neo-math --release --test phi81_bar_lean_artifact` |
-| Canonical rectangular-paper PiCCS gamma layout (324 carried slots and both rectangular directions) | `cargo test -p neo-reductions --release --test paper_rectangular_lean_artifact` |
-| SplitNc packed-carrier counterexample | `cargo test -p neo-reductions --release --test pi_ccs_nc_carrier_lean_artifact` |
-| Fixed F' carrier-fixture NIFS/F' counterexample | `cargo test -p neo-fold-clean --release --test f_prime_fixed_carrier_nifs_lean_artifact` |
-| Canonical-u64 | `gadgets_lean_artifact` |
-| Seeded Phi81 | `gadgets_seeded_phi81_lean_artifact` |
-| Shifted ternary source, exact 61-coordinate/21-row selective image, and schema-3 isolated shared-slot lowering | `gadgets_shifted_ternary_lean_artifact` |
-| Packed PiRLC Mod-5 leaf (20 source rows, six projected definitions, eight active rows, exact sparse polynomial) | `gadgets_packed_mod5_lean_artifact` |
-| PiRLC aggregate-acceptance leaf (arity 56, 40 role bindings, nine active rows, exact 25-term polynomial) | `gadgets_aggregate_acceptance_lean_artifact` |
-| Three-matrix diagnostic fixed-profile PiRLC aggregate outer image (15 challenge shards, 960 chunks, 720 source definitions, 16,560 selected physical rows) | `cargo test -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest -- aggregate_acceptance_outer_image::recursive_aggregate_acceptance_lean_outer_image_matches_sparse_production --exact --nocapture` |
-| Selective compiler 270-coordinate public-carrier slice (exact layout and 13 final public-padding rows) | `cargo test -p neo-fold-clean --release --test f_prime_selective_snapshot -- selective_carrier_270_lean_artifact_matches_compiler --exact --nocapture` |
-| Three-arm selective-compiler selector-coverage fixture (compact owner/gate intervals and exact 27-term polynomial) | `cargo test -p neo-fold-clean --release --test f_prime_selective_snapshot -- selective_snapshot_selector_gate_coverage_matches_final_matrices --exact --nocapture` |
-| U64 increment/addition | `gadgets_u64_increment_lean_artifact`, `gadgets_u64_add_lean_artifact` |
-| F' counter, encoding, links, base pins | `gadgets_f_prime_counter_lean_artifact`, `gadgets_f_prime_encoding_lean_artifact`, `gadgets_f_prime_terminal_link_lean_artifact`, `gadgets_f_prime_state_link_lean_artifact`, `gadgets_f_prime_base_state_lean_artifact` |
-| Poseidon2, F' digest, base program, CE continuity | `gadgets_poseidon2_lean_artifact`, `gadgets_f_prime_chunk_digest_lean_artifact`, `gadgets_f_prime_base_program_lean_artifact`, `gadgets_f_prime_ce_continuity_lean_artifact` |
-| Diagnostic direct-CCS bit-carrier steady-recursive manifest | `gadgets_f_prime_recursive_manifest` |
-| Fixed F' base/recursive source-role census and compact ordinary source-loop placement metadata | `cargo test -p neo-fold-clean --release --test f_prime_full_relation -- --nocapture` |
-| Output-authority Poseidon2 S-box call manifest | `gadgets_f_prime_recursive_manifest output_authority_sbox_lean::output_authority_sbox_lean_manifest_matches_audited_production -- --exact` |
-| Three-matrix diagnostic fixed-profile parent `y_zcol` output-evaluation owners (two 54-coefficient leaves, 216 exact rows) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest active_projection_artifacts::active_pi_rlc_projection_artifacts_match_production_trace -- --exact --nocapture` |
-| Three-matrix diagnostic fixed-profile shared PiRLC beta ladder (55 powers, 272 exact rows, tied to both parent `y_zcol` leaves) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest active_projection_artifacts::active_pi_rlc_projection_artifacts_match_production_trace -- --exact --nocapture` |
-| Three-matrix diagnostic fixed-profile shared PiRLC rho evaluations (15 exact 54-coefficient evaluators, three 540-row generated shards) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest active_projection_artifacts::active_pi_rlc_projection_artifacts_match_production_trace -- --exact --nocapture` |
-| Three-matrix diagnostic fixed-profile PiRLC challenge wiring (one unique 15 x 54 selection-output window physically aliased to the projection rho consumers) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest active_projection_artifacts::active_pi_rlc_projection_artifacts_match_production_trace -- --exact --nocapture` |
-| Three-matrix diagnostic fixed-profile PiRLC transcript layout (291 exact pins, 78 compact Poseidon2 calls, ordered emissions/state continuity, 240 field-output aliases, and four external bind-input columns) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest active_transcript_layout::active_pi_rlc_transcript_layout_matches_production_trace -- --exact --nocapture` |
-| Three-matrix diagnostic fixed-profile complete PiRLC `y_zcol` identities (two degree-106 identities; three 540-row input shards and one tail shard per limb; shared beta/rho/output rows are referenced, not regenerated) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test gadgets_f_prime_recursive_manifest active_projection_artifacts::active_pi_rlc_projection_artifacts_match_production_trace -- --exact --nocapture` |
-| Tiny-application stabilized selective fixed-point candidate (270 public-coordinate owners, 13 public-padding rows, 38 private-alignment rows, three selector-domain rows, one selector-total row, exact PiRLC `y_zcol` source/compact rows, rewrite and retained-check provenance, witness-encoder recurrence agreement, unique emitted-row ownership, independent producer indices, and a three-arm proof-free committed-width census; candidate exceeds the guarded materializer) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test f_prime_selective_fixed_point_projection_lean_artifact active_selective_fixed_point_projection_artifact_matches_retained_certificate -- --exact --nocapture` |
-| Tiny-application active outer strict-PiDEC source program (`kappa = 4`, 11,845 exact sparse rows, concrete layout, 48 bounded row shards) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test f_prime_pi_dec_source_lean_artifact active_strict_pi_dec_source_artifact_matches_rust_rows -- --exact --nocapture` |
-| Fixed post-PiDEC terminal raw-old-block projection (14 ordered raw `WitnessMat` children, 54 active plus ten computed-zero lanes, 24,185,169 physical rows, and 24,185,061 allocated/committed columns; indexed factored-final-round program, concrete placement, profile/selector identity, and Ajtai witness-base join; the retained pre-factorization baseline was 25,243,884 rows and 25,243,776 columns) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test f_prime_block_lane_nc_lean_artifact production_raw_old_block_projection_contract_matches_generated_certificate -- --exact --nocapture` |
-| Selected fixed-point terminal-prefix diagnostic (`matrixCount = 13`, fourteen CE claims, thirteen evaluations per claim, exact row/column frontier, 286 nested row-family boundaries, and raw-old-block projection placement; no matrix coefficients) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test f_prime_block_lane_nc_lean_artifact production_raw_old_block_projection_contract_matches_generated_certificate -- --exact --nocapture` |
-| Bounded terminal raw-old-block sparse-row fixture (three proof-free A/B/C shards of 200, 200, and 109 records) | `./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 -p neo-fold-clean --release --test f_prime_block_lane_nc_lean_artifact production_terminal_projection_rows_match_generated_certificate -- --exact --nocapture` |
-| NIFS/SumCheck compiler artifact | `gadgets_nifs_compiler_conformance` |
+| Goldilocks Poseidon2 constants | `cargo test -p neo-ccs --release --test poseidon2_round_constants` |
+| Phi81 bar matrix | `cargo test -p neo-math --release --test phi81_bar_lean_artifact` |
+| Padded-row one-joint PiCCS layout, gamma slots, transcript tags, and codec | `cargo test -p neo-reductions --release --test padded_row_identity_lean_artifact` |
+| Canonical u64, increment, and addition | `gadgets_lean_artifact`, `gadgets_u64_increment_lean_artifact`, `gadgets_u64_add_lean_artifact` |
+| Seeded Phi81 and shifted ternary | `gadgets_seeded_phi81_lean_artifact`, `gadgets_shifted_ternary_lean_artifact` |
+| Poseidon2 permutation | `gadgets_poseidon2_lean_artifact` |
+| F-prime counter, encoding, state links, terminal link, base state, chunk digest, and base program | The matching `gadgets_f_prime_*_lean_artifact` targets |
+| PiRLC packed-Mod-5 and aggregate-acceptance leaves | `gadgets_packed_mod5_lean_artifact`, `gadgets_aggregate_acceptance_lean_artifact` |
 | PiRLC projection boundary | `gadgets_pi_rlc_projection_boundary` |
-| Full-history M4 manifest and owner shards | `system_decider_r1cs` targeted tests listed below |
+| Recursive verifier manifest, transcript layout, source roles, and output-authority S-box census | `gadgets_f_prime_recursive_manifest` |
+| Isolated SumCheck compiler row and both one-joint production call sites | `gadgets_nifs_compiler_conformance` |
+| Selective 270-coordinate carrier and selector coverage | `f_prime_selective_snapshot` |
+| Strict PiDEC source rows | `f_prime_pi_dec_source_lean_artifact` |
+| Canonical PiDEC X rows | `f_prime_pi_dec_canonical_x_lean_artifact` |
+| Native step, terminal link, and one-slot conformance records | `system_formal_conformance` |
 
-The Rust test source is the authoritative path registry. When a generated Lean
-file moves, update the matching Rust path constant in the same change; otherwise
-the drift gate is disconnected.
+The selected full recursive circuit is checked by live Rust synthesis tests.
+There is no committed full-matrix Lean dump. Exact runtime synthesis is the
+Rust-conformant gate; the absence of a complete Lean matrix artifact remains a
+declared assurance boundary.
 
-## Regeneration workflow
+## Required focused commands
 
-Each generator renders the expected bytes, compares them with the committed
-file, and fails on drift. Most generators write a sibling `*.expected` file on
-failure.
-
-1. Run the relevant target from the repository root, in release mode, under the
-   hard five-minute non-Lean cap.
-2. Inspect the generated `*.expected` diff and the associated row/profile
-   metadata. A changed digest alone is not approval.
-3. Replace the committed artifact deliberately, remove the `*.expected` file,
-   and rerun the same Rust target.
-4. From `formal/nightstream-lean`, run `./scripts/validate.sh all`.
-5. Update the property specification and assurance ledger if the artifact
-   identity, supported profile, or theorem scope changed.
-
-For a single gadget:
+Run these commands from the repository root. Every Rust command is subject to
+the five-minute non-Lean limit.
 
 ```bash
-timeout 300s cargo test -p neo-fold-clean --release \
-  --test gadgets_lean_artifact
+cargo test -p neo-reductions --release \
+  --test padded_row_identity_lean_artifact
+
+cargo test -p neo-fold-clean --release \
+  --test gadgets_nifs_compiler_conformance \
+  isolated_sumcheck_round_artifact_matches -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test gadgets_nifs_compiler_conformance \
+  full_history_sumcheck_call_sites_match_isolated_compiler -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test f_prime_selective_snapshot \
+  selective_carrier_270_lean_artifact_matches_compiler -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test f_prime_selective_snapshot \
+  selective_snapshot_selector_gate_coverage_matches_final_matrices -- --exact
 ```
 
-Replace the final target with the target from the table. Full-history outputs
-are regenerated and drift-checked with these bounded targeted invocations:
+## Review workflow
 
-```bash
-timeout 300s cargo test -p neo-fold-clean --release \
-  --test system_decider_r1cs \
-  m4_manifest::full_history_m4_manifest_matches_exact_composed_rows -- --exact
-
-timeout 300s cargo test -p neo-fold-clean --release \
-  --test system_decider_r1cs \
-  m4_manifest::terminal_parent_and_accumulator_artifacts_match_exact_rows -- --exact
-
-timeout 300s cargo test -p neo-fold-clean --release \
-  --test system_decider_r1cs \
-  m4_manifest::current_terminal_link_full_history_placement_matches_exact_rows \
-  -- --exact --nocapture
-```
-
-The active strict-PiDEC generator owns
-`Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Nifs/PiDec/Generated`.
-Its ordinary target writes review-only `.lean.expected` candidates. After
-inspecting every candidate, promote the exact reviewed output with:
-
-```bash
-./formal/nightstream-lean/scripts/validate.sh bounded cargo test --jobs 1 \
-  -p neo-fold-clean --release \
-  --test f_prime_pi_dec_source_lean_artifact \
-  regenerate_active_strict_pi_dec_source_artifact -- \
-  --exact --ignored --nocapture
-```
-
-`timeout 300s` documents the process limit for a normal shell. Agent tool calls
-must additionally set their tool timeout to 300,000 ms as required by the root
-instructions.
-
-## Review gate
+1. Run the owning Rust target.
+2. If it writes a sibling `*.expected` file, inspect the complete diff and its
+   source metadata. A changed digest is not approval.
+3. Promote the reviewed bytes deliberately.
+4. Remove the `*.expected` file.
+5. Run the same Rust target again.
+6. Run `./scripts/validate.sh static` from `formal/nightstream-lean`.
+7. Run the focused Lean build and axiom target that consumes the artifact.
 
 Do not commit:
 
 - `*.expected` review output;
 - `.lake/`, `target/`, or profiling output;
-- a generated shard without its stable facade and drift target;
-- a manifest whose Rust generator or source anchors are absent from the same
-  branch.
+- a generated shard without a live Rust drift owner;
+- a generated artifact that names a removed protocol variant.

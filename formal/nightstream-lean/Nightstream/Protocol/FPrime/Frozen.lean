@@ -9,7 +9,6 @@ import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.OracleSoundness
 import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.RewindableContinuation
 import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.InteractiveCompositionBridge
 import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPrefixCoupling
-import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalFirstSuccessBridge
 import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.CausalPostPrefixBridge
 import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.RewindableOracleSoundness
 import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.PostPrefixWorldSoundness
@@ -19,19 +18,10 @@ import Nightstream.HyperNova.NIVCCompatibility
 import Nightstream.HyperNova.Construction2.Paper
 import Nightstream.Protocol.FPrime.CanonicalVerifier
 import Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne
-import Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Minimality
 import Nightstream.Protocol.FPrime.CanonicalVerifier.NifsRefinement
 import Nightstream.Protocol.FPrime.CanonicalVerifier.PaperNonInteractiveNifs
 import Nightstream.Protocol.FPrime.CanonicalTerminalVerifier
 import Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne
-import Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne.Minimality
-import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc
-import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.Production
-import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol
-import Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol.Lifecycle
-import Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.PaperBoundary
-import Nightstream.Protocol.FPrime.ConcretePhi81.ProductionRelation
-import Nightstream.Protocol.FPrime.Frozen.FixedActiveCarrierObstruction
 import Nightstream.Protocol.FPrime.Frozen.NonInteractiveContinuationObstruction
 import Nightstream.Protocol.FPrime.Frozen.NonInteractiveAdaptiveWitnessObstruction
 import Nightstream.Protocol.FPrime.Frozen.NonInteractiveFixedKeyObstruction
@@ -54,9 +44,6 @@ Authority:
 Owns: curated access to the frozen target propositions, the proved Pi_CCS
 formula obstructions/corrections, exact deterministic `NIFS.V` graph, exact
 Construction-2 `F'_j` transition, and exact terminal verifier transition.
-The separate `ProductionDeviations` namespace exposes the model-proved
-one-fold delayed packed-`yZcol` production deviation without changing those
-paper-authoritative statements.
 
 Does not own: old candidate NIFS semantics, legacy implementation semantics,
 Rust, R1CS, artifacts, concrete implementation cost claims, or proofs of the
@@ -71,20 +58,15 @@ paper's deterministic verifier notation: `none` means rejection and
 | Child path | Mathematical obligation | Excluded boundary |
 |---|---|---|
 | `Frozen.Obligations` | fixed signatures for the SuperNeo reduction and NIFS targets | no proof or implementation premise discharges a target |
-| `Frozen.FixedActiveCarrierObstruction` | exact 257-plus-13 carrier codec and lossless-decoder obstruction at paper NIFS / fixed-one / Construction-2 inputs | no concrete phase verifier or Rust/R1CS refinement |
 | `Frozen.NonInteractiveFixedKeyObstruction` | distinct D.5 base samples cannot share one fixed realized PiRLC oracle | no oracle-world distribution |
 | `Frozen.PiCcsAsymptoticObstruction` | exact opacity of an arbitrary frozen PiCCS runtime field | does not obstruct an operationally linked game |
-| `Frozen.PiCcsFirstSuccessBridge` | exact unbounded finite-alphabet trace law, almost-sure termination, EPT, and frozen `PiCcsStrong` bridge | no Fiat--Shamir or downstream composition premise |
+| `Frozen.PiCcsFirstSuccessBridge` | exact unbounded finite-alphabet success-gated law, almost-sure termination, EPT, and frozen `PiCcsStrong` bridge | no Fiat--Shamir or downstream composition premise |
 | `Frozen.NifsNonInteractiveBridge` | exact `NifsNonInteractiveSound` theorem for the full correlated oracle experiment | named interactive, extraction, and collision contracts remain primitive premises |
-| `ProductionRelation` | exact `270 = 54 * 5` production `L_in`, one-fresh/fourteen-running ownership, and PiDEC public round trip | no Rust decoder, Ajtai-byte, R1CS, or row claim |
-| `ConcreteNifsBridge` | fail-closed fixed-one paper checker refines Construction 2 or named source/output/algebraic failure, with honest completeness or bounded-sampler shortfall | no concrete Fiat--Shamir, probability, Rust, R1CS, or row claim |
 | SuperNeo paper corrections/reductions | corrected quantitative boundaries and the finite `Pi_DEC o Pi_RLC o Pi_CCS` knowledge theorem | no Fiat--Shamir or concrete primitive bound |
-| `PaperNonInteractive.CausalFirstSuccessBridge` | exact finite D.4 first-success/fresh-second carrier and typed NIFS event/probability transport | no ideal-RO construction or D.6 target-witness premise |
 | `CanonicalVerifier.PaperNonInteractiveNifs` | exact paper NIFS and selected Construction-2 recursive fold | no Rust/R1CS refinement |
 | `CanonicalVerifier` | executable base/recursive `F'_j` graph equals Construction 2 | no concrete NIFS semantics by itself |
 | `CanonicalTerminalVerifier` | explicit base/recursive terminal relation with no final fold | no concrete relation checker by itself |
-| `FixedOne` | payload-minimal one-slot step/terminal exactness and model-level inclusion-minimality | no Rust/R1CS or global arithmetization lower bound |
-| `ProductionDeviations` | model-proved block/lane combined-NC and one-fold delayed packed-`yZcol` trace | no claim of paper message identity or Rust/R1CS conformance |
+| `FixedOne` | payload-minimal one-slot step/terminal exactness | no Rust/R1CS or global arithmetization lower bound |
 -/
 
 namespace Nightstream.Protocol.FPrime.Frozen
@@ -98,128 +80,6 @@ export Obligations
     NifsSoundModulo NifsComplete
     NifsSoundAndCompleteModulo NifsNonInteractiveSound)
 
-
-namespace FixedActiveCarrier
-
-export Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.LogicalCarrier
-  (ExternalInput LIn Coordinate CoordinateEquivalence
-    externalOfLegacy encodeFresh_externalOfLegacy_eq_expectedPublicInput
-    carrierColumn coordinateOfCarrier coordinateEquiv
-    coordinateEquiv_injective coordinateEquiv_surjective
-    coordinateEquiv_bijective projectExternal paddingValue
-    freshCanonicalCheck FreshCanonical freshCanonical_iff
-    encodeFresh decodeFresh decodeFresh_sound decodeFresh_complete
-    encodeFresh_injective decodeFresh_rejects_nonzero_padding
-    zeroLIn firstPadding firstPaddingOne
-    projectExternal_firstPaddingOne_eq_zero firstPaddingOne_ne_zero
-    projectExternal_not_injective piRlcCombine piDecSplit piDecRecompose
-    piDecSplit_recompose shiftChallenge shiftChallenge_valid
-    shift_enters_first_padding freshImage_not_piRlcClosed)
-
-export FixedActiveCarrierObstruction
-  (fixedShape ExactRunning ErasedRunning ExactFresh ExactProof ExactKey
-    exactPaperVerifier exactPaperVerifier_soundAndCompleteModulo eraseRunning
-    zeroPublicRunning tailMutatedRunning eraseRunning_zero_eq_tail
-    zeroPublicRunning_ne_tailMutatedRunning eraseRunning_not_injective
-    no_exact_paperNifs_running_decoder
-    ExactFixedOneInput ErasedFixedOneInput eraseFixedOneInput
-    no_exact_fixedOne_fprime_decoder
-    ExactConstruction2Input ErasedConstruction2Input eraseConstruction2Input
-    no_exact_construction2_fprime_decoder)
-
-end FixedActiveCarrier
-
-namespace ProductionRelation
-
-export Nightstream.Protocol.FPrime.ConcretePhi81.ProductionRelation
-  (Shape publicFits relationShape_eq publicWidth_eq ProductionPublicInput
-    publicInput_eq_lIn sourceArity_exact freshPublicInput_exact
-    runningAssignment_exact liftedCcsSatisfied_iff
-    piDecPublicInput_roundTrip exactProfile)
-
-end ProductionRelation
-
-namespace ConcreteNifsBridge
-
-export Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.PaperBoundary
-  (SelectedContext SourceAuthority Accepted check check_eq_true_iff_accepted run
-    run_eq_some_iff NamedFailure run_refinesConstruction2_or_namedFailure
-    exists_run_and_construction2_or_samplerShortfall)
-
-export Nightstream.Protocol.FPrime.ConcretePhi81.ActiveEvaluator.FixedOneCanonical.PaperBoundary.SourceAuthority
-  (ofCanonicalOpening)
-
-export Nightstream.SuperNeo.Folding.Nifs.ConcretePhi81.FixedActive.PaperProfile.CertificateRefinement
-  (paperOutputEquations)
-
-end ConcreteNifsBridge
-
-namespace ProductionDeviations
-
-namespace BlockLaneCombinedNc
-
-export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc
-  (RunningWeights authoritativeRunningValueAt authoritativeRunningProjection
-    sumcheckPolynomial delayedHypercubeSum_eq_weightedProjection
-    combinedHypercubeSum_eq_ordinary_add_weightedProjection
-    combinedAtPoint_eq_terminalFromMessage_of_bound
-    expectedRound_quartic expectedRound_has_five_coefficients
-    productionWeights
-    authoritativeRunningProjection_eq_projectedRawRecomposition
-    ResidualWeightRoot
-    accepted_implies_truth_and_parentProjection_or_badEvent
-    NcAccepted Accepted BadEvent YRingUnbound YRingBound
-    ncAccepted_implies_truth_or_badEvent
-    accepted_implies_paper_or_yRingUnbound_or_badEvent
-    accepted_implies_paper_and_yRingBound_or_yRingUnbound_or_badEvent)
-
-export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.BlockLaneCombinedNc.Production
-  (AuthoritativeInput ProductionVerifierAccepts AcceptedOutput
-    FeFailure NcFailure TranscriptFailure BindingFailure
-    RegisteredDeviationObligation
-    accepted_implies_paper_or_named_failure
-    accepted_implies_paper_or_algebraic_failure
-    not_transcriptFailure not_bindingFailure
-    blockLaneCombinedNc_refines_paperNc everyCoordinate_has_exact_owner
-    delayedProjection_refines_rawRecomposition honest_complete
-    honest_complete_with_output
-    accepted_output_suitable_for_piRlc
-    accepted_implies_paper_and_authority_or_named_failure
-    LiteralResidualSlotAlignment
-    not_literalResidualSlotAlignment
-    semanticResidualsZero_iff_paperHolds
-    accepted_implies_paper_or_residual_failure
-    fold_extraction_or_named_failure
-    ncRoundCount rawRoundRepresentable Strategy ncCertificate
-    ncCertificate_toSumCheck FeRoundCollision NcRoundCollision SplitCollision
-    splitCollision_implies_detects splitCollision_probability_le)
-
-end BlockLaneCombinedNc
-
-export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol
-  (Holds holds
-    stateBindingCheck stateBindingCheck_eq_true_iff
-    piCcsMessageCheck piCcsMessageCheck_eq_true_iff_accepted
-    paperOutputCheck paperOutputCheck_eq_true_iff
-    canonicalParentOpeningCheck canonicalParentOpeningCheck_eq_true_iff
-    check check_eq_true_iff_accepted
-    BaseAccepted baseCheck baseCheck_eq_true_iff_accepted
-    PaperStepAccepted PaperRefinement
-    accepted_and_packed_implies_transition_or_yRingUnbound_or_badEvent
-    of_piDec_and_stateBindings
-    ProjectionOpeningAccepted
-    projectionOpeningAccepted_implies_packedYZcolBound_or_badEvent
-    acceptedPair_of_nextPacked_implies_previousClosed_or_failure
-    SharedContext CheckedStep BaseStep OutputClosed TerminalClosure Tail
-    TerminalFailure EdgeFailure AllOutputsClosed Failure ClosedTrace
-    closedTrace_implies_baseAndAllClosed_or_failure)
-
-export Nightstream.Protocol.FPrime.ConcretePhi81.Deviations.DelayedPackedYZcol.Lifecycle.Trace
-  (base_owns_no_predecessor edge_owns_production_and_consumption
-    terminal_owns_discharge terminalCount terminalCount_eq_one
-    closedTrace_reduces_to_paper_transitions_or_named_failure)
-
-end ProductionDeviations
 
 namespace SuperNeo
 
@@ -255,12 +115,12 @@ export PiCcsAsymptoticObstruction
     not_attemptedBridgeWithoutSamplerLink)
 
 /- Headline obligation-1 theorem. The game is definitionally linked to the
-countable terminating-trace law and explicit security-parameter cost family;
-almost-sure termination, conditioned-first/fresh-second law, and extractor
+success-gated trace law and explicit security-parameter cost family;
+almost-sure termination, fresh-initial/conditioned-retry law, and extractor
 EPT are conclusions rather than caller premises. -/
 export PiCcsFirstSuccessBridge
-  (Completion PiCcsSecurityFamily adjustUniqueness
-    piCcsStrong_of_unboundedFirstSuccess)
+  (Completion PiCcsSecurityFamily
+    piCcsStrong_of_successGatedRetry)
 
 /- Headline obligation-5 theorems. The combined theorem constructs the
 deterministic soundness/completeness core and the quantitative explicit-RO
@@ -374,14 +234,6 @@ export Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive
     CausalPrefixCouplingContract.toPrefixExperiment_piCcsCheck_extracts_sourceValid_or_badEvent
     CausalPrefixCouplingContract.toPrefixExperiment_batch_eq
     CausalPrefixCouplingContract.interactivePiDecExecution_eq_continuation
-    CausalPrefixCouplingContract.d4Success_iff_nifsD4AmbientSuccess
-    CausalPrefixCouplingContract.fixedFirstBad_iff_nifsD4FixedFirstBad
-    CausalPrefixCouplingContract.d4Seed_supportPermutation
-    CausalPrefixCouplingContract.d4AmbientSuccess_probability_eq_nifs
-    CausalPrefixCouplingContract.mem_d4FirstSuccessFreshSecondSeeds_iff
-    CausalPrefixCouplingContract.d4FixedFirstBad_probability_eq_nifs
-    CausalPrefixCouplingContract.d4SourceExtracted_probability_eq_nifs
-    CausalPrefixCouplingContract.d4Extraction_after_first_success_nifs
     causalPostPrefixOutcomeOfSeed
     CausalPrefixCouplingContract.interactivePiDecExecution_eq_postPrefix
     RewindablePiRlcWorldOutcome.piDecExecutionAt_world_attempt_eq_nifs
@@ -513,21 +365,6 @@ export Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne
   (eval_eq_generic accepts_iff_transition)
 
 end Terminal
-
-namespace StepMinimality
-
-export Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Minimality
-  (inclusionMinimalSound obligation8_classification)
-
-end StepMinimality
-
-namespace TerminalMinimality
-
-export Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne.Minimality
-  (accepts_iff_transition accepts_iff_fixedOne_eval inclusionMinimalSound
-    obligation8_classification)
-
-end TerminalMinimality
 
 end FixedOne
 

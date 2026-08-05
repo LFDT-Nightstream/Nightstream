@@ -1,22 +1,23 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrong
-import Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime
+import Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.SuccessGatedRuntime
 
 /-!
-Unbounded first-success strong reduction for the operational paper PiCCS
+Unbounded success-gated strong reduction for the operational paper PiCCS
 experiment.
 
 Owns: security-parameter-indexed PiCCS contexts and adversaries, their exact
-finite one-run experiments, the linked unbounded first-success/fresh-second
-extractor game, and the rejection-adjusted strong theorem with exact
-SumCheck-then-Schwartz--Zippel loss order.
+finite one-run experiments, the linked unbounded success-gated extractor game,
+and the strong theorem with exact SumCheck-then-Schwartz--Zippel loss order.
 
 Does not own: PiRLC, PiDEC, their composition couplings, Fiat--Shamir, Rust,
 R1CS, or constraints.
 
-Almost-sure termination, expected polynomial time, conditioned-law equality,
-and fresh-second independence are not premises of the headline theorem. They
+Emits constraints: no.
+
+Almost-sure termination, expected polynomial time, the conditioned retry law,
+and fresh-initial independence are not premises of the headline theorem. They
 are inherited from the operational trace/runtime theorems constructed from
-the one-run experiment and explicit costs.
+the one-run experiment and explicit costs. No pointwise success floor is used.
 -/
 
 set_option autoImplicit false
@@ -100,11 +101,12 @@ noncomputable def Point.witnessDisagreement
   letI := point.extensionDecidableEq
   OperationalEvents.witnessDisagreement point.context
 
-/-- Literal source-extraction event at a point. -/
-noncomputable def Point.sourceExtracted
+/-- Literal success-gated source-extraction event at a point. -/
+noncomputable def Point.successGatedSourceExtracted
     (point : Point) :
     point.Outcome × point.Outcome -> Bool :=
-  OperationalEvents.sourceExtracted point.context
+  letI := point.extensionDecidableEq
+  OperationalEvents.successGatedSourceExtracted point.context
 
 /-- Literal output-projection disagreement event at a point. -/
 noncomputable def Point.outputPhiMismatch
@@ -139,15 +141,9 @@ abbrev AdversaryFamily (points : Nat -> Point) :=
   (securityParameter : Nat) -> (points securityParameter).Adversary
 
 /-- Primitive PiCCS family data. The only runtime assumptions are explicit
-one-run costs and a positive inverse-polynomial success floor. -/
+one-run costs and their polynomial bound. -/
 structure Family where
   point : Nat -> Point
-  successFloor : Weight
-  successFloor_pos :
-    forall securityParameter, 0 < successFloor securityParameter
-  inverseFloorPolynomial :
-    PolynomiallyBounded
-      (fun securityParameter => 1 / successFloor securityParameter)
   runCost :
     (adversary : AdversaryFamily point) ->
     (securityParameter : Nat) ->
@@ -169,7 +165,7 @@ abbrev Family.Adversary (family : Family) :=
 /-- The generic runtime family is definitionally the exact PiCCS one-run
 experiment and cost owner at each security parameter. -/
 def Family.runtime (family : Family) :
-    Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime.Family
+    Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.SuccessGatedRuntime.Family
       family.Adversary where
   Outcome := fun securityParameter =>
     (family.point securityParameter).Outcome
@@ -181,39 +177,29 @@ def Family.runtime (family : Family) :
   runCost := family.runCost
   runCostBound := family.runCostBound
   runCost_le_bound := family.runCost_le_bound
-  successFloor := family.successFloor
-  successFloor_pos := family.successFloor_pos
-  inverseFloorPolynomial := family.inverseFloorPolynomial
 
 /-- Exact adversary EPT predicate used by the asymptotic strong game. -/
 def Family.AdversaryExpectedPolynomialTime
     (family : Family)
     (adversary : family.Adversary) : Prop :=
-  Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime.AdversaryExpectedPolynomialTime
-    family.runtime adversary
-
-/-- Exact positive-success eligibility predicate used by the strong game. -/
-def Family.ExtractionEligible
-    (family : Family)
-    (adversary : family.Adversary) : Prop :=
-  Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime.ExtractionEligible
+  Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.SuccessGatedRuntime.AdversaryExpectedPolynomialTime
     family.runtime adversary
 
 /-- The unbounded paper extractor. -/
 inductive Extractor where
-  | firstSuccessFreshSecond
+  | successGated
 deriving Repr, DecidableEq
 
-/-- The unbounded first-success/fresh-second extraction probability. This is
-the trace law itself, not a separately supplied conditioned distribution. -/
+/-- The unbounded success-gated extraction probability. The definition is
+total: it is zero when the successful retry support is empty. -/
 noncomputable def sourceExtractionProbability
     (family : Family)
     (adversary : family.Adversary) : Weight :=
   fun securityParameter =>
     let point := family.point securityParameter
-    jointProbability
-      (point.experiment (adversary securityParameter))
-      point.success point.sourceExtracted
+    letI := point.extensionDecidableEq
+    successGatedSourceExtractionProbability
+      point.context point.alphabet (adversary securityParameter)
 
 /-- Operational security-parameter-indexed PiCCS strong game. -/
 noncomputable def strongGame
@@ -231,10 +217,10 @@ noncomputable def strongGame
   adversaryExpectedPolynomialTime :=
     family.AdversaryExpectedPolynomialTime
   extractorExpectedPolynomialTime := fun adversary extractor =>
-    extractor = .firstSuccessFreshSecond /\
-      Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime.ExtractorExpectedPolynomialTime
+    extractor = .successGated /\
+      Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.SuccessGatedRuntime.ExtractorExpectedPolynomialTime
         family.runtime adversary
-  extractionEligible := family.ExtractionEligible
+  extractionEligible := fun _ => True
   repeatedOutputPhiMismatch := fun adversary securityParameter =>
     let point := family.point securityParameter
     (point.experiment (adversary securityParameter)).iidPair.probabilityBool
@@ -290,28 +276,40 @@ structure NamedSecurityContracts
           (adversary securityParameter)
           (schwartzZippelBudget securityParameter)
 
-/-- The exact asymptotic PiCCS strong reduction.
+/-- The exact asymptotic PiCCS success-gated strong reduction.
 
-The extractor's termination, EPT, conditioned-first law, and fresh-second
+The extractor's termination, EPT, conditioned-retry law, and fresh-initial
 independence are all derived. The raw disagreement premise is the literal
-Definition-10 two-run event and is divided by the positive floor exactly
-once. The intrinsic loss is stated in frozen order:
+Definition-10 two-run event. It is charged through the declared nonnegative
+root envelope. The intrinsic loss is stated in frozen order:
 `SumCheck + Schwartz--Zippel`. -/
 theorem paperStrong
     (family : Family)
-    (sumCheckBudget schwartzZippelBudget rawMismatchBudget : Weight)
+    (sumCheckBudget schwartzZippelBudget rawMismatchBudget
+      rootMismatchBudget : Weight)
+    (rootNonnegative :
+      forall securityParameter,
+        0 <= rootMismatchBudget securityParameter)
+    (rawBudget_le_rootSquare :
+      forall securityParameter,
+        rawMismatchBudget securityParameter <=
+          rootMismatchBudget securityParameter *
+            rootMismatchBudget securityParameter)
+    (sumCheckNonnegative :
+      forall securityParameter,
+        0 <= sumCheckBudget securityParameter)
+    (schwartzZippelNonnegative :
+      forall securityParameter,
+        0 <= schwartzZippelBudget securityParameter)
     (contracts :
       NamedSecurityContracts family
         sumCheckBudget schwartzZippelBudget) :
-    RejectionAdjustedStrong
+    SuccessGatedStrong
       Nightstream.SuperNeo.InteractiveReduction.Asymptotic.scale
-      (fun raw floor securityParameter =>
-        raw securityParameter / floor securityParameter)
       (strongGame family)
-      family.successFloor
       (Nightstream.SuperNeo.InteractiveReduction.Asymptotic.scale.add
         sumCheckBudget schwartzZippelBudget)
-      rawMismatchBudget := by
+      rawMismatchBudget rootMismatchBudget := by
   refine ⟨perfectComplete family, publicCoin family, ?_, ?_⟩
   · intro adversary _adversaryEpt
     funext securityParameter
@@ -319,56 +317,85 @@ theorem paperStrong
     letI := point.extensionDecidableEq
     exact FinitePaperStrong.outputPhiMismatchProbability_eq_zero
       point.context point.alphabet (adversary securityParameter)
-  · intro adversary adversaryEpt eligible
-    refine ⟨?_, ?_⟩
-    · intro securityParameter
-      exact eligible securityParameter
-    intro rawMismatchBound
-    refine ⟨.firstSuccessFreshSecond, ?_, ?_⟩
+  · intro adversary adversaryEpt _eligible rawMismatchBound
+    refine ⟨.successGated, ?_, ?_⟩
     · exact ⟨rfl,
-        Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime.extractorExpectedPolynomialTime
-          family.runtime adversary adversaryEpt eligible⟩
+        Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.SuccessGatedRuntime.extractorExpectedPolynomialTime
+          family.runtime adversary adversaryEpt⟩
     · intro securityParameter
       let point := family.point securityParameter
       letI := point.extensionDecidableEq
       let base := point.experiment (adversary securityParameter)
-      have floorPos :
-          0 < family.successFloor securityParameter :=
-        family.successFloor_pos securityParameter
-      have floorBound :
-          family.successFloor securityParameter <=
-            base.probabilityBool point.success :=
-        eligible securityParameter
-      have nonempty :
+      by_cases nonempty :
           base.support.values.filter
-            (fun seed => point.success (base.outcome seed)) ≠ [] :=
-        OperationalExperiment.successfulSupport_nonempty_of_floor
-          point.context point.alphabet (adversary securityParameter)
-          (family.successFloor securityParameter)
-          floorPos floorBound
-      have finiteExtraction :=
-        extraction_after_first_success_of_securityContracts
-          point.context point.alphabet (adversary securityParameter)
-          (family.successFloor securityParameter)
-          (rawMismatchBudget securityParameter)
+            (fun seed => point.success (base.outcome seed)) ≠ []
+      · have finiteExtraction :=
+          extraction_after_success_gate_of_securityContracts
+            point.context point.alphabet (adversary securityParameter)
+            (rawMismatchBudget securityParameter)
+            (rootMismatchBudget securityParameter)
+            (schwartzZippelBudget securityParameter)
+            (sumCheckBudget securityParameter)
+            (rootNonnegative securityParameter)
+            (rawBudget_le_rootSquare securityParameter)
+            (rawMismatchBound securityParameter)
+            (contracts.schwartzZippel adversary adversaryEpt
+              securityParameter)
+            (contracts.sumCheck adversary adversaryEpt securityParameter)
+            nonempty
+        change
+          base.probabilityBool point.success -
+                ((sumCheckBudget securityParameter +
+                    schwartzZippelBudget securityParameter) +
+                  rootMismatchBudget securityParameter) <=
+            successGatedSourceExtractionProbability
+              point.context point.alphabet (adversary securityParameter)
+        rw [successGatedSourceExtractionProbability_eq_of_nonempty
+          point.context point.alphabet (adversary securityParameter) nonempty]
+        simpa [Rat.add_comm
           (schwartzZippelBudget securityParameter)
-          (sumCheckBudget securityParameter)
-          floorPos floorBound
-          (rawMismatchBound securityParameter)
-          (contracts.schwartzZippel adversary adversaryEpt securityParameter)
-          (contracts.sumCheck adversary adversaryEpt securityParameter)
-      change
-        base.probabilityBool point.success -
-            ((sumCheckBudget securityParameter +
+          (sumCheckBudget securityParameter)] using finiteExtraction
+      · have filteredEmpty :
+            base.support.values.filter
+              (fun seed => point.success (base.outcome seed)) = [] :=
+          Classical.not_not.mp nonempty
+        have countZero : base.countBool point.success = 0 := by
+          unfold Experiment.countBool
+          rw [List.countP_eq_length_filter, filteredEmpty]
+          rfl
+        have probabilityZero : base.probabilityBool point.success = 0 := by
+          unfold Experiment.probabilityBool
+          rw [countZero]
+          simp [Rat.div_def]
+        have extractionZero :
+            successGatedSourceExtractionProbability
+                point.context point.alphabet
+                  (adversary securityParameter) = 0 := by
+          unfold successGatedSourceExtractionProbability
+          rw [dif_neg]
+          intro concreteNonempty
+          exact nonempty (by
+            simpa [base, Point.experiment, Point.success] using
+              concreteNonempty)
+        have totalNonnegative :
+            0 <=
+              (sumCheckBudget securityParameter +
                 schwartzZippelBudget securityParameter) +
-              rawMismatchBudget securityParameter /
-                family.successFloor securityParameter) <=
-          jointProbability
-            base point.success point.sourceExtracted
-      rw [jointProbability_eq_firstConditionedFreshSecond
-        base point.success nonempty point.sourceExtracted]
-      simpa [Rat.add_comm
-        (schwartzZippelBudget securityParameter)
-        (sumCheckBudget securityParameter)] using finiteExtraction
+                  rootMismatchBudget securityParameter :=
+          Rat.add_nonneg
+            (Rat.add_nonneg
+              (sumCheckNonnegative securityParameter)
+              (schwartzZippelNonnegative securityParameter))
+            (rootNonnegative securityParameter)
+        change
+          base.probabilityBool point.success -
+                ((sumCheckBudget securityParameter +
+                    schwartzZippelBudget securityParameter) +
+                  rootMismatchBudget securityParameter) <=
+            successGatedSourceExtractionProbability
+              point.context point.alphabet (adversary securityParameter)
+        rw [probabilityZero, extractionZero, Rat.sub_eq_add_neg,
+          Rat.zero_add]
+        simpa using Rat.neg_le_neg totalNonnegative
 
 end Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.AsymptoticPaperStrong

@@ -6,7 +6,7 @@ import Nightstream.Implementation.R1CS.Canonical.KStrictNorm
 
 /-!
 Contract: exact allocation coverage for the composite `K` arithmetic gadgets
-used by the selected Split-NC endpoint programs.
+used by the selected PiCCS endpoint programs.
 
 Every theorem follows the emitted row recursion and the canonical frame
 allocator.  Row-count equalities are not used as substitutes for occurrence.

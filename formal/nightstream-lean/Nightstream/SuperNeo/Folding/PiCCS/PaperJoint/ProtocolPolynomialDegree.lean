@@ -16,7 +16,9 @@ representability of every canonical expected SumCheck round at the exact
 verifier-owned bound.
 
 Does not own: SumCheck completeness, an honest execution, probability,
-Fiat--Shamir, Split-NC, Rust, R1CS, artifacts, row removal, or costs.
+Fiat--Shamir, Rust, R1CS, artifacts, row removal, or costs.
+
+Emits constraints: no.
 
 Authority boundary: the CCS ceiling is computed from explicit sparse monomial
 syntax. Every Boolean-table MLE and equality selector is independently proved

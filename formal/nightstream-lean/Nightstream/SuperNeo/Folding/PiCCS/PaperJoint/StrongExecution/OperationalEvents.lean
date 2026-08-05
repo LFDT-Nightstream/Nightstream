@@ -3,13 +3,15 @@ import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution
 /-!
 Literal finite-experiment events for the causal paper `Pi_CCS` execution.
 
-Owns: Boolean events for two-run witness disagreement, first-run source
-extraction, the fixed-first-witness bad event on a fresh second run, and the
-pointwise Appendix-D.4 extraction cover.
+Owns: Boolean events for two-run witness disagreement, exact success-gated
+source extraction, the fixed-first-witness bad event on a fresh second run,
+and the pointwise Appendix-D.4 extraction cover.
 
 Does not own: a probability distribution, rejection sampling, runtime,
 Schwartz--Zippel or SumCheck probability bounds, Fiat--Shamir, Rust, R1CS,
 artifacts, or costs.
+
+Emits constraints: no.
 
 The witness used in the bad event is read from the first execution.  The
 second execution contributes only its independently generated causal prefix.
@@ -75,6 +77,29 @@ noncomputable def sourceExtracted
   | some witness => propositionCheck
       (SourceHolds context.extensionOps context.lift context.openingMaps
         context.params context.statement witness)
+
+/-- Exact output event of the paper's success-gated extractor. The first
+component is the successful retry witness fixed before the fresh initial-run
+coins are analyzed. The fresh run must also succeed with the same witness,
+and that retained witness must satisfy the source relation. -/
+noncomputable def successGatedSourceExtracted
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    [DecidableEq Extension]
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (context : Context Extension Commitment PublicInput shape
+      columns blockCount)
+    (executions : Execution Extension shape columns ×
+      Execution Extension shape columns) : Bool :=
+  ambientCheck context executions.1 && ambientCheck context executions.2 &&
+    match executions.1.target, executions.2.target with
+    | some retained, some fresh => propositionCheck
+        (retained = fresh /\
+          SourceHolds context.extensionOps context.lift context.openingMaps
+            context.params context.statement retained)
+    | _, _ => false
 
 /-- The exact fixed-first bad event on the fresh second execution. -/
 noncomputable def fixedFirstBad
@@ -148,6 +173,22 @@ theorem witnessDisagreement_implies_first_success
   exact (ambientCheck_eq_true_iff context first).2
     ((witnessDisagreement_eq_true_iff context (first, second)).1
       disagreement).1.1
+
+theorem witnessDisagreement_implies_second_success
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    [DecidableEq Extension]
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (context : Context Extension Commitment PublicInput shape
+      columns blockCount)
+    (first second : Execution Extension shape columns)
+    (disagreement : witnessDisagreement context (first, second) = true) :
+    ambientCheck context second = true := by
+  exact (ambientCheck_eq_true_iff context second).2
+    ((witnessDisagreement_eq_true_iff context (first, second)).1
+      disagreement).1.2
 
 theorem outputPhiMismatch_eq_false
     {Extension : Type uExtension}
@@ -240,5 +281,36 @@ theorem extraction_or_fixedFirstBad
       simp [fixedFirstBad, firstTarget, mixing])
   · exact Or.inr (by
       simp [fixedFirstBad, firstTarget, sumCheck])
+
+/-- The same pointwise cover with the exact success-gated output event. -/
+theorem successGatedExtraction_or_fixedFirstBad
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    [DecidableEq Extension]
+    {shape : Shape}
+    {columns blockCount : Nat}
+    (context : Context Extension Commitment PublicInput shape
+      columns blockCount)
+    (first second : Execution Extension shape columns)
+    (firstSuccess : ambientCheck context first = true)
+    (secondSuccess : ambientCheck context second = true)
+    (noDisagreement : witnessDisagreement context (first, second) = false) :
+    successGatedSourceExtracted context (first, second) = true \/
+      fixedFirstBad context (first, second) = true := by
+  rcases extraction_or_fixedFirstBad context first second firstSuccess
+      secondSuccess noDisagreement with extracted | bad
+  · rcases targets_eq_of_success_of_no_disagreement context first second
+      firstSuccess secondSuccess noDisagreement with
+      ⟨retained, fresh, retainedTarget, freshTarget, equal⟩
+    subst fresh
+    have source :
+        SourceHolds context.extensionOps context.lift context.openingMaps
+          context.params context.statement retained := by
+      simpa [sourceExtracted, retainedTarget] using extracted
+    exact Or.inl (by
+      simp [successGatedSourceExtracted, firstSuccess, secondSuccess,
+        retainedTarget, freshTarget, source])
+  · exact Or.inr bad
 
 end Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.OperationalEvents

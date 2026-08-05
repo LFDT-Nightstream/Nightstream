@@ -1,15 +1,16 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.FinitePaperStrong
 
 /-!
-Exact boundary of the finite PiCCS strong game.
+Exact boundary of the legacy floor-based finite PiCCS strong game.
 
 Owns: definitional exposure of the extractor-runtime field used by
-`finitePaperStrong`. It records that the field is exactly a uniform family of
-finite truncation bounds, not an unbounded sampler termination or expected
-runtime statement.
+`finiteStrongGame` and `legacyRejectionAdjustedFinitePaperStrong`. It records
+that this field is exactly a uniform family of finite truncation bounds, not an
+unbounded sampler termination or expected runtime statement.
 
 Does not own: a probability law on infinite tapes, a stopping time,
-almost-sure termination, asymptotic complexity, or a replacement strong game.
+almost-sure termination, asymptotic complexity, or the corrected
+`successGatedFiniteStrongGame`.
 
 Emits constraints: no.
 

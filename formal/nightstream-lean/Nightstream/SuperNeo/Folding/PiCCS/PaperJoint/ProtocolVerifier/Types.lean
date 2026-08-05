@@ -11,7 +11,7 @@ Owns: the minimal data available to executable acceptance and the complete
 typed output-evaluation payload supplied by the prover.
 
 Does not own: hidden assignments, matrix-image tables, carried-image tables,
-semantic truth, transcript derivation, degree bounds, Split-NC refinement,
+semantic truth, transcript derivation, degree bounds, concrete refinement,
 Poseidon2, Rust/R1CS, row removal, or constraint counts.
 
 Emits constraints: no.
@@ -53,20 +53,20 @@ def sumcheckDegreeBound
   Nat.max
     input.constraintPolynomial.canonicalEqualityGatedDegreeBound 4
 
-/-- Appendix D.4's conservative per-round degree ceiling
-`max(u, 2b + 1, 2)`, computed from the paper constraint structure and norm
-parameter rather than a transport width. -/
+/-- Corrected Appendix D.4 per-round degree ceiling
+`max(D_f + 1, 2b, 2)`. The first entry is computed from the explicit sparse
+syntax. For an empty zero polynomial it is zero; the final `2` still gives the
+same paper bound. Declared degree metadata is not verifier authority. -/
 def paperRoundDegreeCeiling
     {Field : Type uField}
     {shape : Shape}
     (input : VerifierInput Field shape)
     (b : Nat) : Nat :=
-  Nat.max input.constraintPolynomial.degreeBound
-    (Nat.max (2 * b + 1) 2)
+  Nat.max input.constraintPolynomial.canonicalEqualityGatedDegreeBound
+    (Nat.max (2 * b) 2)
 
-/-- For the frozen strict-`b = 2` specialization, the syntax-derived exact
-ceiling used by the verifier is no larger than Appendix D.4's displayed
-conservative ceiling. -/
+/-- For the frozen strict-`b = 2` specialization, the verifier ceiling is no
+larger than the corrected Appendix D.4 ceiling. -/
 theorem sumcheckDegreeBound_le_paperRoundDegreeCeiling_of_b_eq_two
     {Field : Type uField}
     {shape : Shape}
@@ -77,10 +77,8 @@ theorem sumcheckDegreeBound_le_paperRoundDegreeCeiling_of_b_eq_two
   subst b
   unfold sumcheckDegreeBound paperRoundDegreeCeiling
   exact (Nat.max_le).2 ⟨
-    Nat.le_trans
-      input.constraintPolynomial.canonicalEqualityGatedDegreeBound_le_degreeBound
-      (Nat.le_max_left _ _),
-    Nat.le_trans (by decide : 4 <= Nat.max (2 * 2 + 1) 2)
+    Nat.le_max_left _ _,
+    Nat.le_trans (by decide : 4 <= Nat.max (2 * 2) 2)
       (Nat.le_max_right _ _)⟩
 
 /-- Two verifier inputs whose sparse monomial syntax agrees have the same

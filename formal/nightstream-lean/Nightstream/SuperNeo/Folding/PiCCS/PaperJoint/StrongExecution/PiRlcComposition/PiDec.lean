@@ -15,6 +15,8 @@ knowledge theorem with `Pi_DEC`'s zero loss.
 Does not own: HyperNova/NIFS, Fiat--Shamir, commitment internals, Rust, R1CS,
 artifacts, minimality, or costs.
 
+Emits constraints: no.
+
 Authority boundary: the adversary cannot supply the `Pi_RLC` parent or its
 opening.  It supplies only the `Pi_DEC` child messages and child assignments.
 The verifier constructs the parent from the exact `K+k` batch and challenge
@@ -455,20 +457,18 @@ noncomputable def operationalCoupling
         context.piRlc)
     (strongAdversaryExpectedPolynomialTime :
       OperationalExperiment.Adversary context.piCcs ProverSeed
-        (ForkSeed verifier.alphabet context.arity.total) ProverTape -> Prop)
-    (successFloor : Rat) :
+        (ForkSeed verifier.alphabet context.arity.total) ProverTape -> Prop) :
     Nightstream.SuperNeo.InteractiveReduction.KnowledgeComposition.Coupling
       scale
       (Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.knowledgeGame
         scale
-        (FinitePaperStrong.finiteStrongGame context.piCcs extensionAlphabet
-          strongAdversaryExpectedPolynomialTime successFloor)
+        (FinitePaperStrong.successGatedFiniteStrongGame context.piCcs
+          extensionAlphabet strongAdversaryExpectedPolynomialTime)
         (Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteMixture.weakGame
           (Prefix := PrefixSeed Extension shape ProverSeed)
           laws strongSet verifier)
         (PiRlcComposition.Coupling.operationalCoupling context laws strongSet
-          extensionAlphabet verifier strongAdversaryExpectedPolynomialTime
-          successFloor))
+          extensionAlphabet verifier strongAdversaryExpectedPolynomialTime))
       (abortingKnowledgeGame piDec.paper scale)
       (Adversary context ProverSeed ProverTape) where
   toSecond := fun adversary =>
@@ -507,7 +507,12 @@ theorem finiteReductionOfKnowledge
     (strongAdversaryExpectedPolynomialTime :
       OperationalExperiment.Adversary context.piCcs ProverSeed
         (ForkSeed verifier.alphabet context.arity.total) ProverTape -> Prop)
-    (successFloor relaxedBindingError mixingBudget sumCheckBudget : Rat)
+    (relaxedBindingRaw relaxedBindingRoot mixingBudget sumCheckBudget : Rat)
+    (rootNonnegative : 0 <= relaxedBindingRoot)
+    (rawBinding_le_rootSquare :
+      relaxedBindingRaw <= relaxedBindingRoot * relaxedBindingRoot)
+    (mixingNonnegative : 0 <= mixingBudget)
+    (sumCheckNonnegative : 0 <= sumCheckBudget)
     (ops : PiRLC.RelaxedBindingOps (Assignment F columns) Commitment Scalar)
     (bindingLaws :
       Nightstream.SuperNeo.Folding.PiRLC.PaperForkCollision.RelaxedBindingLaws
@@ -515,7 +520,7 @@ theorem finiteReductionOfKnowledge
         ops)
     (binding :
       Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteUniform.RelaxedBindingSecurity
-        laws strongSet ops verifier relaxedBindingError)
+        laws strongSet ops verifier relaxedBindingRaw)
     (ambientAdmissible : context.piCcs.params.b <=
       Nightstream.SuperNeo.Folding.PiRLC.PaperCorrections.correctedAmbientBoundFor
         context.piCcs.params)
@@ -527,45 +532,44 @@ theorem finiteReductionOfKnowledge
         scale
         (Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.knowledgeGame
           scale
-          (FinitePaperStrong.finiteStrongGame context.piCcs extensionAlphabet
-            strongAdversaryExpectedPolynomialTime successFloor)
+          (FinitePaperStrong.successGatedFiniteStrongGame context.piCcs
+            extensionAlphabet strongAdversaryExpectedPolynomialTime)
           (Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteMixture.weakGame
             (Prefix := PrefixSeed Extension shape ProverSeed)
             laws strongSet verifier)
           (PiRlcComposition.Coupling.operationalCoupling context laws strongSet
-            extensionAlphabet verifier strongAdversaryExpectedPolynomialTime
-            successFloor))
+            extensionAlphabet verifier strongAdversaryExpectedPolynomialTime))
         (abortingKnowledgeGame piDec.paper scale)
         (operationalCoupling context piDec laws strongSet extensionAlphabet
-          verifier strongAdversaryExpectedPolynomialTime successFloor))
+          verifier strongAdversaryExpectedPolynomialTime))
       (ratio (context.arity.total + 1) verifier.alphabet.cardinality +
         ((mixingBudget + sumCheckBudget) +
-          relaxedBindingError / successFloor)) := by
+          relaxedBindingRoot)) := by
   have composed :=
     Nightstream.SuperNeo.InteractiveReduction.KnowledgeComposition.reductionOfKnowledge
       scale PiRlcComposition.Coupling.rationalScaleLaws
       (Nightstream.SuperNeo.InteractiveReduction.StrongWeakComposition.knowledgeGame
         scale
-        (FinitePaperStrong.finiteStrongGame context.piCcs extensionAlphabet
-          strongAdversaryExpectedPolynomialTime successFloor)
+        (FinitePaperStrong.successGatedFiniteStrongGame context.piCcs
+          extensionAlphabet strongAdversaryExpectedPolynomialTime)
         (Nightstream.SuperNeo.Folding.PiRLC.PaperWeakFiniteMixture.weakGame
           (Prefix := PrefixSeed Extension shape ProverSeed)
           laws strongSet verifier)
         (PiRlcComposition.Coupling.operationalCoupling context laws strongSet
-          extensionAlphabet verifier strongAdversaryExpectedPolynomialTime
-          successFloor))
+          extensionAlphabet verifier strongAdversaryExpectedPolynomialTime))
       (abortingKnowledgeGame piDec.paper scale)
       (operationalCoupling context piDec laws strongSet extensionAlphabet
-        verifier strongAdversaryExpectedPolynomialTime successFloor)
+        verifier strongAdversaryExpectedPolynomialTime)
       (ratio (context.arity.total + 1) verifier.alphabet.cardinality +
         ((mixingBudget + sumCheckBudget) +
-          relaxedBindingError / successFloor))
+          relaxedBindingRoot))
       scale.zero
       (PiRlcComposition.Coupling.finiteReductionOfKnowledge context laws
         strongSet extensionAlphabet verifier
-        strongAdversaryExpectedPolynomialTime successFloor
-        relaxedBindingError mixingBudget sumCheckBudget ops bindingLaws binding
-        ambientAdmissible contracts)
+        strongAdversaryExpectedPolynomialTime relaxedBindingRaw
+        relaxedBindingRoot mixingBudget sumCheckBudget rootNonnegative
+        rawBinding_le_rootSquare mixingNonnegative sumCheckNonnegative ops
+        bindingLaws binding ambientAdmissible contracts)
       (abortingReductionOfKnowledge piDec.paper scale)
   simpa only [scale, Rat.zero_add] using composed
 

@@ -714,7 +714,8 @@ private theorem ringFScale_zero (value : RingF) :
   funext output
   exact Fin.zero_mul (value output)
 
-private theorem ringFMul_zero_left (right : RingF) :
+/-- Multiplication by the additive identity on the left is zero. -/
+theorem ringFMul_zero_left (right : RingF) :
     ringFMul ringFZero right = ringFZero := by
   calc
     ringFMul ringFZero right =
@@ -925,6 +926,54 @@ theorem ringFMul_leftActionComm (left middle right : RingF) :
     · intro leftBasis middleBasis
       exact ringFMul_leftActionComm_basis
         leftBasis middleBasis rightBasis
+
+/-- The executable Phi81 quotient multiplication is commutative. The proof
+uses the same finite coefficient-basis normal form as the product-order law. -/
+theorem ringFMul_comm (left right : RingF) :
+    ringFMul left right = ringFMul right left := by
+  apply ringF_bilinear_eq_of_basis
+    (fun leftValue rightValue => ringFMul leftValue rightValue)
+    (fun leftValue rightValue => ringFMul rightValue leftValue)
+  · exact ringFMul_zero_left
+  · intro rightValue
+    exact CarrierAction.ringFMul_zero_right rightValue
+  · exact CarrierAction.ringFMul_zero_right
+  · exact ringFMul_zero_left
+  · exact CarrierAction.ringFMul_add_left
+  · intro left₁ left₂ rightValue
+    exact CarrierAction.ringFMul_add_right rightValue left₁ left₂
+  · exact CarrierAction.ringFMul_add_right
+  · intro leftValue right₁ right₂
+    exact CarrierAction.ringFMul_add_left right₁ right₂ leftValue
+  · exact CarrierAction.ringFMul_scale_left
+  · intro scalar leftValue rightValue
+    exact CarrierAction.ringFMul_scale_right rightValue scalar leftValue
+  · intro scalar leftValue rightValue
+    exact CarrierAction.ringFMul_scale_right leftValue scalar rightValue
+  · intro scalar leftValue rightValue
+    exact CarrierAction.ringFMul_scale_left scalar rightValue leftValue
+  · intro leftBasis rightBasis
+    rw [ringFMul_basis_basis, ringFMul_basis_basis, Nat.add_comm]
+
+/-- The executable Phi81 quotient multiplication has the expected right
+unit. -/
+theorem ringFMul_one_right (value : RingF) :
+    ringFMul value ringFOne = value := by
+  rw [ringFMul_comm, ringFMul_one_left]
+
+/-- The executable Phi81 quotient multiplication is associative. This
+follows from commutativity and the already proved commutation of left actions. -/
+theorem ringFMul_assoc (left middle right : RingF) :
+    ringFMul (ringFMul left middle) right =
+      ringFMul left (ringFMul middle right) := by
+  calc
+    ringFMul (ringFMul left middle) right =
+        ringFMul right (ringFMul left middle) :=
+      ringFMul_comm _ _
+    _ = ringFMul left (ringFMul right middle) :=
+      (ringFMul_leftActionComm left right middle).symm
+    _ = ringFMul left (ringFMul middle right) := by
+      rw [ringFMul_comm right middle]
 
 /-- The exact product-order bridge required by the concrete `Pi_RLC`
 evaluation-homomorphism field. The fixed bar image and the sampled challenge

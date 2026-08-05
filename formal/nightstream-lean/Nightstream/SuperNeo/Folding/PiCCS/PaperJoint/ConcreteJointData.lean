@@ -19,7 +19,7 @@ table truth and the three independent semantic obligation families.
 Does not own: proof that coefficient-expanded carried matrices implement the
 same production ring matrices as the CCS structure, external row/bit order,
 the concrete base-to-extension homomorphism, target-convention approval,
-expected-round degree bounds, SplitNc, Fiat--Shamir, Rust, R1CS, or counts.
+expected-round degree bounds, Fiat--Shamir, Rust, R1CS, or counts.
 
 Emits constraints: no.
 
@@ -306,7 +306,7 @@ theorem coefficientTruth_iff_semanticTruth
     extensionOps extensionLaws lift liftLaw data
 
 /-- The strongest current one-joint executable consequence over independently
-constructed semantic data. Degree/root probability and production SplitNc
+constructed semantic data. Degree/root probability and production layout
 refinement remain named later boundaries. -/
 theorem checkJoint_implies_semanticTruth_or_badEvent
     {Extension : Type uExtension}

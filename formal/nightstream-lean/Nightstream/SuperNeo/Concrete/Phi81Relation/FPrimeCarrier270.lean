@@ -2,8 +2,6 @@ import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.Assignment
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.CcsRefinement
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.ColumnMap
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.Necessity
-import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.PiCcsDomain
-import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.PiCcsSources
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowMap
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding
 
@@ -25,7 +23,5 @@ active relation; exposing it here would blur carrier ownership with authority.
 | F' / CCS | matrix source | numeric / Boolean row mapping | `RowMap` |
 | F' / CCS | matrix source | finite-row zero padding | `RowPadding` |
 | F' / CCS | relation semantics | matrix image / residual preservation | `CcsRefinement` |
-| `Pi_CCS` | plain NC domain | five-ring column / lane coverage | `PiCcsDomain` |
-| `Pi_CCS` | split source adapter | fresh / running ownership and fresh truth | `PiCcsSources` |
 | assurance | necessity | norm-valid nonzero padding witness | `Necessity` |
 -/

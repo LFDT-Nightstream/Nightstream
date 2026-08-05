@@ -20,7 +20,7 @@ def honestBase : StepCase where
   iteration := 0
   z0 := ⟨1⟩
   zi := ⟨1⟩
-  running := ⟨1⟩
+  running := ⟨2⟩
   fresh := ⟨1⟩
   priorPc := 1
   witness := ⟨1⟩
@@ -42,8 +42,8 @@ def honestRecursive : StepCase where
   witness := ⟨2⟩
   nifsProof := ⟨2⟩
   stepReceipt := { state := ⟨2⟩, witness := ⟨2⟩, output := ⟨3⟩ }
-  trace := .recursive (some { input := { verifierKey := ⟨1⟩, iteration := 1, z0 := ⟨1⟩, current := ⟨2⟩, running := ⟨1⟩, pc := 1 }, output := ⟨1⟩ }) (some { input := ⟨2⟩, output := ⟨1⟩ }) (some { input := ⟨1⟩, output := ⟨1⟩ }) (some { key := ⟨1⟩, running := ⟨1⟩, fresh := ⟨2⟩, proof := ⟨2⟩, output := (some ⟨2⟩) }) (some { input := { verifierKey := ⟨1⟩, iteration := 2, z0 := ⟨1⟩, current := ⟨3⟩, running := ⟨2⟩, pc := 1 }, output := ⟨2⟩ })
-  claim := { zNext := ⟨3⟩, runningNext := ⟨2⟩, pcNext := 0, x := ⟨2⟩ }
+  trace := .recursive (some { input := { verifierKey := ⟨1⟩, iteration := 1, z0 := ⟨1⟩, current := ⟨2⟩, running := ⟨1⟩, pc := 1 }, output := ⟨1⟩ }) (some { input := ⟨2⟩, output := ⟨1⟩ }) (some { input := ⟨1⟩, output := ⟨1⟩ }) (some { key := ⟨1⟩, running := ⟨1⟩, fresh := ⟨2⟩, proof := ⟨2⟩, output := (some ⟨3⟩) }) (some { input := { verifierKey := ⟨1⟩, iteration := 2, z0 := ⟨1⟩, current := ⟨3⟩, running := ⟨3⟩, pc := 1 }, output := ⟨2⟩ })
+  claim := { zNext := ⟨3⟩, runningNext := ⟨3⟩, pcNext := 0, x := ⟨2⟩ }
   rustAccepted := true
 
 def baseInitialStateMutation : StepCase where
@@ -52,7 +52,7 @@ def baseInitialStateMutation : StepCase where
   iteration := 0
   z0 := ⟨1⟩
   zi := ⟨4⟩
-  running := ⟨1⟩
+  running := ⟨2⟩
   fresh := ⟨1⟩
   priorPc := 1
   witness := ⟨1⟩
@@ -68,7 +68,7 @@ def initialWithRecursiveFold : StepCase where
   iteration := 0
   z0 := ⟨1⟩
   zi := ⟨1⟩
-  running := ⟨1⟩
+  running := ⟨2⟩
   fresh := ⟨1⟩
   priorPc := 1
   witness := ⟨1⟩
@@ -91,7 +91,7 @@ def activeWithNoFold : StepCase where
   nifsProof := ⟨1⟩
   stepReceipt := { state := ⟨2⟩, witness := ⟨2⟩, output := ⟨3⟩ }
   trace := .base none
-  claim := { zNext := ⟨3⟩, runningNext := ⟨2⟩, pcNext := 0, x := ⟨2⟩ }
+  claim := { zNext := ⟨3⟩, runningNext := ⟨3⟩, pcNext := 0, x := ⟨2⟩ }
   rustAccepted := false
 
 def recursivePriorPcMutation : StepCase where
@@ -107,7 +107,7 @@ def recursivePriorPcMutation : StepCase where
   nifsProof := ⟨2⟩
   stepReceipt := { state := ⟨2⟩, witness := ⟨2⟩, output := ⟨3⟩ }
   trace := .recursive none none none none none
-  claim := { zNext := ⟨3⟩, runningNext := ⟨2⟩, pcNext := 0, x := ⟨2⟩ }
+  claim := { zNext := ⟨3⟩, runningNext := ⟨3⟩, pcNext := 0, x := ⟨2⟩ }
   rustAccepted := false
 
 def recursivePriorPublicLinkMutation : StepCase where
@@ -123,7 +123,7 @@ def recursivePriorPublicLinkMutation : StepCase where
   nifsProof := ⟨2⟩
   stepReceipt := { state := ⟨2⟩, witness := ⟨2⟩, output := ⟨3⟩ }
   trace := .recursive (some { input := { verifierKey := ⟨1⟩, iteration := 1, z0 := ⟨1⟩, current := ⟨2⟩, running := ⟨1⟩, pc := 1 }, output := ⟨1⟩ }) (some { input := ⟨3⟩, output := ⟨2⟩ }) (some { input := ⟨1⟩, output := ⟨1⟩ }) none none
-  claim := { zNext := ⟨3⟩, runningNext := ⟨2⟩, pcNext := 0, x := ⟨2⟩ }
+  claim := { zNext := ⟨3⟩, runningNext := ⟨3⟩, pcNext := 0, x := ⟨2⟩ }
   rustAccepted := false
 
 def recursiveNifsProofMutation : StepCase where
@@ -139,7 +139,7 @@ def recursiveNifsProofMutation : StepCase where
   nifsProof := ⟨3⟩
   stepReceipt := { state := ⟨2⟩, witness := ⟨2⟩, output := ⟨3⟩ }
   trace := .recursive (some { input := { verifierKey := ⟨1⟩, iteration := 1, z0 := ⟨1⟩, current := ⟨2⟩, running := ⟨1⟩, pc := 1 }, output := ⟨1⟩ }) (some { input := ⟨2⟩, output := ⟨1⟩ }) (some { input := ⟨1⟩, output := ⟨1⟩ }) (some { key := ⟨1⟩, running := ⟨1⟩, fresh := ⟨2⟩, proof := ⟨3⟩, output := none }) none
-  claim := { zNext := ⟨3⟩, runningNext := ⟨2⟩, pcNext := 0, x := ⟨2⟩ }
+  claim := { zNext := ⟨3⟩, runningNext := ⟨3⟩, pcNext := 0, x := ⟨2⟩ }
   rustAccepted := false
 
 def recursiveXOutMutation : StepCase where
@@ -154,8 +154,8 @@ def recursiveXOutMutation : StepCase where
   witness := ⟨2⟩
   nifsProof := ⟨2⟩
   stepReceipt := { state := ⟨2⟩, witness := ⟨2⟩, output := ⟨3⟩ }
-  trace := .recursive (some { input := { verifierKey := ⟨1⟩, iteration := 1, z0 := ⟨1⟩, current := ⟨2⟩, running := ⟨1⟩, pc := 1 }, output := ⟨1⟩ }) (some { input := ⟨2⟩, output := ⟨1⟩ }) (some { input := ⟨1⟩, output := ⟨1⟩ }) (some { key := ⟨1⟩, running := ⟨1⟩, fresh := ⟨2⟩, proof := ⟨2⟩, output := (some ⟨2⟩) }) (some { input := { verifierKey := ⟨1⟩, iteration := 2, z0 := ⟨1⟩, current := ⟨3⟩, running := ⟨2⟩, pc := 1 }, output := ⟨2⟩ })
-  claim := { zNext := ⟨3⟩, runningNext := ⟨2⟩, pcNext := 0, x := ⟨3⟩ }
+  trace := .recursive (some { input := { verifierKey := ⟨1⟩, iteration := 1, z0 := ⟨1⟩, current := ⟨2⟩, running := ⟨1⟩, pc := 1 }, output := ⟨1⟩ }) (some { input := ⟨2⟩, output := ⟨1⟩ }) (some { input := ⟨1⟩, output := ⟨1⟩ }) (some { key := ⟨1⟩, running := ⟨1⟩, fresh := ⟨2⟩, proof := ⟨2⟩, output := (some ⟨3⟩) }) (some { input := { verifierKey := ⟨1⟩, iteration := 2, z0 := ⟨1⟩, current := ⟨3⟩, running := ⟨3⟩, pc := 1 }, output := ⟨2⟩ })
+  claim := { zNext := ⟨3⟩, runningNext := ⟨3⟩, pcNext := 0, x := ⟨3⟩ }
   rustAccepted := false
 
 def all : List StepCase := [honestBase, honestRecursive, baseInitialStateMutation, initialWithRecursiveFold, activeWithNoFold, recursivePriorPcMutation, recursivePriorPublicLinkMutation, recursiveNifsProofMutation, recursiveXOutMutation]

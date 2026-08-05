@@ -97,14 +97,12 @@ def games : UnlinkedGames where
   piRlcProjection := fun _ => ()
 
 theorem piCcsStrong :
-    RejectionAdjustedStrong unitScale (fun _ _ => ()) games.piCcs
+    SuccessGatedStrong unitScale games.piCcs
       () () () := by
   refine ⟨True.intro, True.intro, ?_, ?_⟩
   · intro _ _
     rfl
-  · intro _ _ _
-    refine ⟨True.intro, ?_⟩
-    intro _
+  · intro _ _ _ _
     exact ⟨(), True.intro, True.intro⟩
 
 theorem piRlcWeak : Weak unitScale games.piRlc () () := by
@@ -132,7 +130,7 @@ theorem not_superNeoCompositionReductionOfKnowledge :
 /-- The component propositions and projection equality did not entail the
 composition proposition when the final game was a free field. -/
 theorem unlinked_fields_countermodel :
-    RejectionAdjustedStrong unitScale (fun _ _ => ()) games.piCcs
+    SuccessGatedStrong unitScale games.piCcs
         () () () /\
     Weak unitScale games.piRlc () () /\
     games.piCcsProjection = games.piRlcProjection /\

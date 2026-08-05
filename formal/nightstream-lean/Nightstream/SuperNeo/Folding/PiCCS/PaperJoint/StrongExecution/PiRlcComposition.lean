@@ -16,6 +16,8 @@ seed reindexings used by the strong--weak composition theorem.
 
 Does not own: either component reduction theorem, `Pi_DEC`, asymptotic
 rejection sampling, Fiat--Shamir, Rust, R1CS, artifacts, or costs.
+
+Emits constraints: no.
 -/
 
 set_option autoImplicit false
@@ -242,13 +244,28 @@ theorem extractedWitness_ambient_iff
   constructor
   · intro ambient coordinate
     have atSource := ambient (context.sourceIndex coordinate)
+    have converted :=
+      (context.ambientAgreement
+        (context.piCcs.statement.publicOutput causalRun.probe
+          (context.sourceIndex coordinate))
+        ((extractedWitness context laws strongSet adversary causalRun sample
+          accepted).assignments (context.sourceIndex coordinate))
+        rfl).mp atSource
     simpa [extractedWitness, CompatibleContext.sourceIndex,
-      CompatibleContext.batchOfPrefix, component] using atSource
+      CompatibleContext.batchOfPrefix, component] using converted
   · intro allCoordinates source
-    have atCoordinate := allCoordinates
-      (Fin.cast context.total_eq_sourceCount.symm source)
+    let coordinate := Fin.cast context.total_eq_sourceCount.symm source
+    have atCoordinate := allCoordinates coordinate
+    have converted :=
+      (context.ambientAgreement
+        ((context.batchOfPrefix causalRun).inputs coordinate)
+        (Nightstream.SuperNeo.Folding.PiRLC.PaperWeakReduction.extractedFamily
+          context.piRlc laws strongSet
+          (component context adversary causalRun) sample accepted coordinate)
+        ((context.batchOfPrefix causalRun).sameSystem coordinate)).mpr
+        atCoordinate
     simpa [extractedWitness, CompatibleContext.sourceIndex,
-      CompatibleContext.batchOfPrefix, component] using atCoordinate
+      CompatibleContext.batchOfPrefix, component, coordinate] using converted
 
 /-- The post-prefix target returns an extracted family exactly when the
 coordinate fork accepts. -/

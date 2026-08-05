@@ -1,17 +1,6 @@
 import Nightstream.Assurance.ValidExecution
 import Nightstream.Assurance.FPrimeTrace
 import Nightstream.Assurance.FPrimeCircuit
-import Nightstream.Assurance.FPrimeRecursiveCircuit
-import Nightstream.Assurance.FPrimeConcreteNifs
-import Nightstream.Assurance.FPrimeFullHistoryNifsReassembly
-import Nightstream.Assurance.FPrimeFullHistorySemantics
-import Nightstream.Assurance.FPrimeFullHistoryCircuit
-import Nightstream.Assurance.FPrimeFullHistoryCanonicalSteps
-import Nightstream.Assurance.FPrimeFullHistoryProductionDigest
-import Nightstream.Assurance.FPrimeFullHistoryCircuitComplete
-import Nightstream.Assurance.FPrimeFullHistoryObligationTree
 import Nightstream.Assurance.FPrimeCircuitTrace
-import Nightstream.Assurance.FPrimeFullHistory.RecursiveShell
-import Nightstream.Assurance.FPrimeFullHistory.TerminalShell
 
 /-! Curated public surface for composed assurance theorems. -/

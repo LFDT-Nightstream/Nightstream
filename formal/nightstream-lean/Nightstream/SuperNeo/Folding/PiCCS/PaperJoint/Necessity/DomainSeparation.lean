@@ -8,29 +8,27 @@ Protocol: SuperNeo `Pi_CCS` and the Phi81 coefficient embedding.
 Phase: row-domain indexing versus completed assignment-carrier indexing.
 Constraint family: semantic shape ownership only; this file emits no rows.
 
-Owns: a kernel-checked incompatibility proof between the existing paper-model
-`ColumnLayout` and every complete 54-lane Phi81 carrier. A two-sided
-`ColumnLayout` forces its column count to be a power of two, while every
-complete Phi81 carrier width is divisible by three. No caller can construct
-both shapes at once.
+Owns: a kernel-checked width obstruction for the paper-model `ColumnLayout`.
+The paper permits a complete 54-lane Phi81 carrier when it fits in the Boolean
+row cube and pads the remaining rows with zero. It rejects only a carrier that
+is wider than that cube.
 
-Does not own: the replacement two-domain semantics, FE/NC SplitNc soundness,
-production `ell_n`/`ell_m` derivation, Rust refinement, R1CS lowering, row
-removal, or constraint counts.
+Does not own: production cube-width derivation, Rust refinement, R1CS lowering,
+row removal, or constraint counts.
 
 Emits constraints: no.
 
-Authority boundary: this theorem invalidates reuse of the square paper
-row/column bijection as the production carrier contract. It does not claim a
-production bug. The next semantic model must give rows and columns distinct
-typed domains and separately prove their production encodings.
+Authority boundary: this theorem checks the exact paper inequality
+`n_F <= 2^ell`. It does not claim that a non-power-of-two carrier is invalid.
+The production model still gives rows and columns distinct typed domains and
+separately proves their encodings.
 
 | Protocol | Phase | Family | Mathematical obligation |
 |---|---|---|---|
-| paper `Pi_CCS` | square source domain | `ColumnLayout` | two-sided inversion forces `columns = 2^variables` |
+| paper `Pi_CCS` | padded source domain | `ColumnLayout` | assignment columns fit in `2^variables` rows |
 | Phi81 embedding | complete carrier shape | 54-lane blocks | every carrier width is divisible by three |
 | shape assurance | arithmetic separation | powers of two | no power of two is divisible by three |
-| model necessity | row versus column ownership | complete carrier | no `ColumnLayout variables (carrierWidth logicalWidth)` exists |
+| model necessity | row versus column ownership | complete carrier | no layout exists when `2^variables < carrierWidth logicalWidth` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.DomainSeparation
@@ -70,14 +68,15 @@ theorem carrierWidth_ne_twoPow (logicalWidth variables : Nat) :
   rw [carrierWidth_mod_three_eq_zero] at remainders
   exact twoPow_mod_three_ne_zero variables remainders.symm
 
-/-- Inclusion-necessity result: the existing square-domain `ColumnLayout`
-cannot serve as a layout for the complete Phi81 carrier, for any logical width
-or row-cube dimension. Rows and carrier columns must be modeled separately. -/
+/-- Inclusion-necessity result: the paper's padded `ColumnLayout` cannot serve
+as a layout when the complete Phi81 carrier is wider than its Boolean row
+cube. Non-power-of-two widths are valid when this inequality is reversed. -/
 theorem no_columnLayout_for_completeCarrier
-    (logicalWidth variables : Nat) :
+    (logicalWidth variables : Nat)
+    (tooWide : 2 ^ variables < carrierWidth logicalWidth) :
     ¬ Nonempty (ColumnLayout variables (carrierWidth logicalWidth)) := by
   rintro ⟨layout⟩
-  exact carrierWidth_ne_twoPow logicalWidth variables
-    layout.columns_eq_twoPow
+  have fits := layout.columns_le_twoPow
+  omega
 
 end Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.DomainSeparation

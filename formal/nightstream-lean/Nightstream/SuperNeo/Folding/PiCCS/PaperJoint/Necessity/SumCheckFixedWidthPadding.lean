@@ -31,7 +31,7 @@ Emits constraints: no.
 | exact paper polynomial is zero | `protocolPolynomial_eq_zero` |
 | degree-six stored message | `rootPolynomial_messageDegree_eq_six` |
 | nonzero position above both relevant ceilings | `rootPolynomial_highCoefficient_eq_one` |
-| violated paper-ceiling padding discipline | `rootPolynomial_not_zeroAbovePaperDegree_five` |
+| violated paper-ceiling padding discipline | `rootPolynomial_not_zeroAbovePaperDegree_four` |
 | exact repository collision | `collision_at` |
 
 Authority boundary: the paper's SumCheck error uses the degree of the
@@ -168,8 +168,8 @@ theorem rootPolynomial_messageDegree_eq_six :
     rootPolynomial.toMessage.degreeUpperBound = 6 := by
   exact SumCheck.Finite.FixedPolynomial.toMessage_degreeUpperBound rootPolynomial
 
-/-- The highest position is above both the syntax degree four and Appendix
-D.4's degree ceiling five, and is genuinely nonzero. -/
+/-- The highest position is above both the syntax degree four and corrected
+Appendix D.4 degree ceiling four, and is genuinely nonzero. -/
 theorem rootPolynomial_highCoefficient_eq_one :
     rootPolynomial.coefficients[6]? = some extensionOps.one := by
   decide
@@ -196,16 +196,11 @@ theorem rootPolynomial_not_zeroAboveSyntaxDegree_four :
     Option.some.inj highZero
   exact (by decide : extensionOps.one ≠ extensionOps.zero) one_eq_zero
 
-/-- The same high coefficient also violates Appendix D.4's permitted
-per-variable degree ceiling five for the concrete `u = 0`, `b = 2` instance. -/
-theorem rootPolynomial_not_zeroAbovePaperDegree_five :
-    ¬ ZeroAboveDegree 5 rootPolynomial := by
-  intro padded
-  have highZero := padded (show Fin (6 + 1) from ⟨6, by decide⟩) (by decide)
-  rw [rootPolynomial_highCoefficient_eq_one] at highZero
-  have one_eq_zero : extensionOps.one = extensionOps.zero :=
-    Option.some.inj highZero
-  exact (by decide : extensionOps.one ≠ extensionOps.zero) one_eq_zero
+/-- The same high coefficient violates Appendix D.4's corrected permitted
+per-variable degree ceiling four for this zero-CCS, `b = 2` instance. -/
+theorem rootPolynomial_not_zeroAbovePaperDegree_four :
+    ¬ ZeroAboveDegree 4 rootPolynomial :=
+  rootPolynomial_not_zeroAboveSyntaxDegree_four
 
 private theorem linearRoot_evaluate_self (value : Extension) :
     (linearRoot value).evaluate extensionOps.toOps value = extensionOps.zero := by

@@ -13,7 +13,7 @@ constraint polynomial rather than supplied by a caller.
 
 Does not own: round representability at that ceiling
 (`tests/Axioms/PiCcsPaperJointDegreeWidth.lean`), root counting, or any
-production/Split-NC degree claim.
+production degree claim.
 -/
 
 namespace NightstreamTests.Axioms.PiCcsPaperJointDegreeDerivation

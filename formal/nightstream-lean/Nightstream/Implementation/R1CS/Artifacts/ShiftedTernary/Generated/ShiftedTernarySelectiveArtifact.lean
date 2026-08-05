@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Core.Semantics
 Owns: one final 61-coordinate opening, its 21 physical rows, and the exact
 13-port/66-term polynomial read from the compiled selective structure.
 
-Does not own: row semantics, Split-NC truth, or production-profile multiplicity.
+Does not own: row semantics, PiCCS truth, or production-profile multiplicity.
 
 Emits constraints: no. Rust validates the checked compiler snapshot before rendering.
 -/

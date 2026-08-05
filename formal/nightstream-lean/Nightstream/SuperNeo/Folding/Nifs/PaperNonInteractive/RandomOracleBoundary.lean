@@ -97,9 +97,9 @@ theorem piCcsExecution_outgoingState_eq_postOutput
     (fresh : Fresh Commitment PublicInput shape)
     (proof : Proof Extension Commitment shape degreeBound) :
     (key.piCcsExecution running fresh proof).outgoingState =
-      key.oracle.absorbOutput
+      key.absorbPiCcsOutput
         ((piCcsReplayInput key running fresh proof).derive key.oracle).finalState
-        (key.piCcsCertificate running fresh proof).output := by
+        proof.piCcsOutput := by
   rfl
 
 /-- Every `Pi_RLC` coordinate uses its literal finite index and the common
@@ -120,9 +120,9 @@ theorem piRlcChallenge_eq_response_after_piCcsOutput
     (coordinate : Fin key.arity.total) :
     key.piRlcChallenges running fresh proof coordinate =
       key.piRlcResponse
-        (key.oracle.absorbOutput
+        (key.absorbPiCcsOutput
           ((piCcsReplayInput key running fresh proof).derive key.oracle).finalState
-          (key.piCcsCertificate running fresh proof).output)
+          proof.piCcsOutput)
         coordinate := by
   rfl
 
@@ -186,6 +186,26 @@ def PublicInputBindingCollision
     key.publicInputState leftRunning leftFresh =
       key.publicInputState rightRunning rightFresh
 
+/-- Two different complete `(round state, full paper output)` pairs reach the
+same state before `Pi_RLC`. This is the exact output-binding failure for the
+selected NIFS. -/
+def FullOutputAbsorptionCollision
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (leftState rightState : State)
+    (leftOutput rightOutput :
+      FullOutputCoordinates.FullOutput Extension shape) : Prop :=
+  (leftState, leftOutput) ≠ (rightState, rightOutput) /\
+    key.absorbPiCcsOutput leftState leftOutput =
+      key.absorbPiCcsOutput rightState rightOutput
+
 /-- Closed transcript/security-refinement event family.  Each constructor is
 an exact collision or sampler failure, never a generic refinement escape. -/
 inductive TranscriptSecurityEvent
@@ -216,12 +236,11 @@ inductive TranscriptSecurityEvent
         (piCcsReplayInput key running fresh proof) other)
   | outputAbsorption
       (otherState : State)
-      (otherMessage : ProtocolPolynomial.OutputMessage Extension shape)
-      (collision : ProtocolVerifier.OutputAbsorptionCollision key.oracle
+      (otherOutput : FullOutputCoordinates.FullOutput Extension shape)
+      (collision : FullOutputAbsorptionCollision key
         ((piCcsReplayInput key running fresh proof).derive key.oracle).finalState
         otherState
-        (key.piCcsCertificate running fresh proof).output
-        otherMessage)
+        proof.piCcsOutput otherOutput)
   | piRlcSamplingSet
       (failure : PiRlcSamplingSetFailure key running fresh proof)
 

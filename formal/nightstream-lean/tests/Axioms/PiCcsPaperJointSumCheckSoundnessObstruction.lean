@@ -36,10 +36,10 @@ obstruction at the paper-joint causal security-contract boundary.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckFixedWidthPadding.rootPolynomial_not_zeroAboveSyntaxDegree_four
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckFixedWidthPadding.rootPolynomial_not_zeroAbovePaperDegree_five' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckFixedWidthPadding.rootPolynomial_not_zeroAbovePaperDegree_four' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckFixedWidthPadding.rootPolynomial_not_zeroAbovePaperDegree_five
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckFixedWidthPadding.rootPolynomial_not_zeroAbovePaperDegree_four
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckFixedWidthPadding.collision_at' depends on axioms: [propext,
  Classical.choice,
@@ -59,16 +59,16 @@ obstruction at the paper-joint causal security-contract boundary.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.context_not_paperDegreeWidthExact
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.paperRoundDegreeCeiling_eq_five' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.paperRoundDegreeCeiling_eq_four' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.paperRoundDegreeCeiling_eq_five
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.paperRoundDegreeCeiling_eq_four
 
-/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.paperSumCheckBudget_eq_five_six' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.paperSumCheckBudget_eq_four_six' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.paperSumCheckBudget_eq_five_six
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.paperSumCheckBudget_eq_four_six
 
 /-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Necessity.SumCheckSoundnessContract.context_challengeSetSize_eq_alphabet_cardinality' depends on axioms: [propext,
  Classical.choice,

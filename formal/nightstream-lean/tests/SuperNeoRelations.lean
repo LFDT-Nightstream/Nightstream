@@ -20,6 +20,6 @@ example : NormStage.bound testParams .combined = 16 := rfl
 
 /-- The ambient bound comes from verifier-owned `GlobalParams.q`; a statement
 cannot provide a different modulus through its `NormStage`. -/
-example : NormStage.bound testParams .ambient = 48 := rfl
+example : NormStage.bound testParams .ambient = 49 := rfl
 
 end NightstreamTests.SuperNeoRelations

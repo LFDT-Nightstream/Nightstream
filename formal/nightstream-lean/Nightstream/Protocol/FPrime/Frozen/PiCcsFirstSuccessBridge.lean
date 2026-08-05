@@ -2,7 +2,7 @@ import Nightstream.Protocol.FPrime.Frozen.Obligations
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.AsymptoticPaperStrong
 
 /-!
-Exact frozen-facade bridge for the unbounded PiCCS first-success reduction.
+Exact frozen-facade bridge for the unbounded PiCCS success-gated reduction.
 
 Owns: completion of the operational asymptotic PiCCS game into the frozen
 `SuperNeoGames` carrier and the literal `PiCcsStrong family.games` theorem.
@@ -12,9 +12,9 @@ composition coupling, Fiat--Shamir, Rust, R1CS, or constraints. Those objects
 are carried only so `family.games` has the exact frozen type; they are not
 used as premises of the PiCCS proof.
 
-The game, sampler law, runtime predicate, success floor, raw mismatch event,
-and conditioning adjustment are definitionally linked. In particular, no
-free retry sequence or opaque runtime proposition is accepted.
+The game, sampler law, runtime predicate, raw mismatch event, and root envelope
+are definitionally linked. In particular, no free retry sequence or opaque
+runtime proposition is accepted.
 -/
 
 set_option autoImplicit false
@@ -65,20 +65,29 @@ structure Completion (core : Family) where
   piRlcProjection : IntermediateInstance -> Projection
 
 /-- Complete security family whose PiCCS component and exact error terms are
-owned by the operational first-success construction. -/
+owned by the operational success-gated construction. -/
 structure PiCcsSecurityFamily where
   core : Family
   sumCheckBudget : Weight
   schwartzZippelBudget : Weight
   piRlcForkSamplingBudget : Weight
   relaxedBindingRaw : Weight
+  relaxedBindingRoot : Weight
+  rootNonnegative :
+    forall securityParameter,
+      0 <= relaxedBindingRoot securityParameter
+  rawBinding_le_rootSquare :
+    forall securityParameter,
+      relaxedBindingRaw securityParameter <=
+        relaxedBindingRoot securityParameter *
+          relaxedBindingRoot securityParameter
+  sumCheckNonnegative :
+    forall securityParameter,
+      0 <= sumCheckBudget securityParameter
+  schwartzZippelNonnegative :
+    forall securityParameter,
+      0 <= schwartzZippelBudget securityParameter
   completion : Completion core
-
-/-- Exact pointwise `delta / mu` conditioning adjustment. -/
-def adjustUniqueness
-    (raw floor : Weight) : Weight :=
-  fun securityParameter =>
-    raw securityParameter / floor securityParameter
 
 /-- Frozen error owner with exact paper names and ordering. -/
 def PiCcsSecurityFamily.errorBudget
@@ -87,12 +96,11 @@ def PiCcsSecurityFamily.errorBudget
   piCcsSumCheck := family.sumCheckBudget
   piCcsSchwartzZippel := family.schwartzZippelBudget
   piRlcForkSampling := family.piRlcForkSamplingBudget
-  piCcsSuccessFloor := family.core.successFloor
   relaxedBindingRaw := family.relaxedBindingRaw
-  adjustUniqueness := adjustUniqueness
+  relaxedBindingRoot := family.relaxedBindingRoot
 
 /-- The exact frozen game carrier. PiCCS is definitionally the operational
-unbounded first-success game. -/
+unbounded success-gated game. -/
 noncomputable def PiCcsSecurityFamily.games
     (family : PiCcsSecurityFamily) :
     SuperNeoGames where
@@ -128,13 +136,13 @@ noncomputable def PiCcsSecurityFamily.games
     Nightstream.SuperNeo.InteractiveReduction.Asymptotic.scaleLaws
 
 /-- The exact frozen obligation follows from the operational unbounded
-first-success construction and the two permitted fixed-witness algebraic
+success-gated construction and the two permitted fixed-witness algebraic
 contracts.
 
-Almost-sure termination, EPT, conditioned-law equality, fresh-second
+Almost-sure termination, EPT, conditioned-law equality, fresh-initial
 independence, and the extraction inequality are derived facts about
 `family.core`; none is a premise here. -/
-theorem piCcsStrong_of_unboundedFirstSuccess
+theorem piCcsStrong_of_successGatedRetry
     (family : PiCcsSecurityFamily)
     (contracts :
       NamedSecurityContracts family.core
@@ -142,6 +150,8 @@ theorem piCcsStrong_of_unboundedFirstSuccess
     PiCcsStrong family.games := by
   exact paperStrong family.core
     family.sumCheckBudget family.schwartzZippelBudget
-    family.relaxedBindingRaw contracts
+    family.relaxedBindingRaw family.relaxedBindingRoot
+    family.rootNonnegative family.rawBinding_le_rootSquare
+    family.sumCheckNonnegative family.schwartzZippelNonnegative contracts
 
 end Nightstream.Protocol.FPrime.Frozen.PiCcsFirstSuccessBridge

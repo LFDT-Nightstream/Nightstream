@@ -24,7 +24,7 @@ Assurance tier: model-level.
 |---|---|---|---|
 | `CallGeometry` | One renamed 600-row Poseidon2 call | `Poseidon2Call.Call` plus exact ABI metadata | no |
 | `Boundaries` | Stage, prehash, hash, and digest ownership intervals | half-open ranges and boundary columns | no |
-| `Census` | `422 * 86 = 36,292`, exact use-role counts | compact natural-number census | no |
+| `Census` | `17 * 86 = 1,462`, exact use-role counts | compact natural-number census | no |
 | `WholeMatrixNoEscape` | Candidate outputs have exactly one C definition and eight A consumers globally | predicate over a complete matrix-use extractor | no |
 | `RustEvidence` | Rust validators accepted exact rows and no-escape | non-authoritative evidence flags | no |
 -/
@@ -121,21 +121,22 @@ def Boundaries.protectedColumns (boundaries : Boundaries) : List Nat :=
     boundaries.semanticStateOutputColumns
 
 def Boundaries.Valid (boundaries : Boundaries) : Prop :=
-  boundaries.stageRows.width = 254915 ∧
-    boundaries.stageColumns.width = 254918 ∧
+  boundaries.stageRows.width = 10278 ∧
+    boundaries.stageColumns.width = 10278 ∧
     boundaries.prehashRows.start = boundaries.stageRows.start ∧
-    boundaries.prehashRows.width = 27 ∧
+    boundaries.prehashRows.width = 8 ∧
     boundaries.prehashRows.finish = boundaries.hashRows.start ∧
     boundaries.hashRows.finish + 4 = boundaries.stageRows.finish ∧
-    boundaries.prehashColumns.start = boundaries.stageColumns.start + 4 ∧
-    boundaries.prehashColumns.width = 26 ∧
+    boundaries.prehashColumns.start = boundaries.stageColumns.start ∧
+    boundaries.prehashColumns.width = 8 ∧
     boundaries.prehashColumns.finish = boundaries.hashZeroColumn ∧
     boundaries.claimedDigestColumns =
-      (List.range 4).map (boundaries.stageColumns.start + ·) ∧
+      (List.range 4).map (boundaries.claimedDigestColumns.headD 0 + ·) ∧
+    boundaries.claimedDigestColumns.all (· < boundaries.stageColumns.start) = true ∧
     boundaries.semanticStateOutputColumns =
       (List.range 4).map (boundaries.stageColumns.finish - 4 + ·) ∧
     boundaries.hashOutputColumns.length = 4 ∧
-    boundaries.permutationTraceRange.width = 422
+    boundaries.permutationTraceRange.width = 17
 
 instance (boundaries : Boundaries) : Decidable boundaries.Valid := by
   unfold Boundaries.Valid
@@ -162,17 +163,17 @@ structure Census where
 deriving DecidableEq, Repr, Inhabited
 
 def Census.Valid (census : Census) : Prop :=
-  census.prehashBindingRows = 27 ∧
-    census.prehashFreshColumns = 26 ∧
-    census.hashInputFields = 1682 ∧
-    census.fullAbsorbRounds = 420 ∧
-    census.partialAbsorbFields = 2 ∧
+  census.prehashBindingRows = 8 ∧
+    census.prehashFreshColumns = 8 ∧
+    census.hashInputFields = 64 ∧
+    census.fullAbsorbRounds = 16 ∧
+    census.partialAbsorbFields = 0 ∧
     census.padRounds = 1 ∧
-    census.permutations = 422 ∧
+    census.permutations = 17 ∧
     census.sboxesPerPermutation = 86 ∧
-    census.initialExternalSboxes = 422 * 32 ∧
-    census.partialSboxes = 422 * 22 ∧
-    census.terminalExternalSboxes = 422 * 32 ∧
+    census.initialExternalSboxes = census.permutations * 32 ∧
+    census.partialSboxes = census.permutations * 22 ∧
+    census.terminalExternalSboxes = census.permutations * 32 ∧
     census.candidateSboxOutputs =
       census.permutations * census.sboxesPerPermutation ∧
     census.definitionCUses = census.candidateSboxOutputs ∧
@@ -219,7 +220,7 @@ instance (manifest : Manifest) :
   unfold Manifest.CandidatesDisjointFromBoundaries
   infer_instance
 
-/-- Ordered adjacency is enough for the generated 422-call schedule; it avoids
+/-- Ordered adjacency is enough for the generated 17-call schedule; it avoids
 quadratic all-pairs generated facts. -/
 def callsAdjacent : List CallGeometry → Bool
   | [] => true

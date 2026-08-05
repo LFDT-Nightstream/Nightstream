@@ -5,38 +5,29 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$ROOT/../.." && pwd)"
 
 roots=(
-  formal/nightstream-lean/Nightstream/Protocol/FPrime/ConcretePhi81.lean
-  formal/nightstream-lean/Nightstream/Protocol/FPrime/ConcretePhi81
-  formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/ConcretePhi81.lean
-  formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/ConcretePhi81
   formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism.lean
   formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism
-  formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/OutputClaims/EvaluationHomomorphism.lean
-  formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/OutputClaims/EvaluationHomomorphism
   formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint.lean
   formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint
-  formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/SplitNc.lean
-  formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/SplitNc
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/NifsPaper/PiDec.lean
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/NifsPaper/PiDec
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/NifsPaper/RelabeledCarrier.lean
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/NifsPaper/PiRlc.lean
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/NifsPaper/PiRlc
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/PiCcsNc/Authority
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/PiRlcChallenge
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/SelectiveCcs/PaddedRowIdentity.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/SelectiveCcs/PaddedRowIdentityConcreteNifs.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/SelectiveCcs/PaddedRowIdentityHyperNova.lean
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/SelectiveCcs/PaddedRowIdentityNIVCCompatibility.lean
+  formal/nightstream-lean/Nightstream/Implementation/Rust/CanonicalConformance/PiCcsPaddedRowIdentity/Conformance.lean
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/Projection/IndexedRows.lean
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/Projection/ArtifactProgram.lean
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint.lean
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/IndexedRows.lean
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ArtifactProgram.lean
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeSelectiveFixedPoint.lean
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeSelectiveFixedPoint
   crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling
   crates/neo-fold-clean/src/frontends/f_prime/gadget_native.rs
   crates/neo-fold-clean/src/frontends/f_prime/gadget_native
+  crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit
   crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc
   crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit
+  crates/neo-fold-clean/src/paper/reductions/pi_dec_circuit.rs
+  crates/neo-fold-clean/src/paper/reductions/pi_dec_circuit
 )
 
 status=0
@@ -49,11 +40,12 @@ while IFS= read -r relative; do
       status=1
     fi
   done
-  if ! rg -q '\|[[:space:]]*---' <<< "$header"; then
+  if ! rg -qi 'Emits constraints:[[:space:]]*(no|none)' <<< "$header" &&
+      ! rg -q '\|[[:space:]]*---' <<< "$header"; then
     echo "[ownership] $relative is missing a header ownership/equation table" >&2
     status=1
   fi
-done < <(cd "$REPO_ROOT" && rg --files -g '*.lean' -g '*.rs' "${roots[@]}" | sort)
+done < <(cd "$REPO_ROOT" && rg --files -g '*.lean' -g '*.rs' -g '!**/Generated/**' "${roots[@]}" | sort)
 
 # Completion state belongs in the normative property specifications and
 # assurance records. A source header may name the guarantee and excluded
@@ -67,19 +59,18 @@ while IFS= read -r relative; do
 done < <(cd "$REPO_ROOT" && rg --files \
   formal/nightstream-lean/Nightstream -g '*.lean' | sort)
 
-# The active ConcretePhi81 NIFS/F-prime model has one canonical 9/3/6
-# BlockLane transcript profile. Keep the superseded flat-domain protocol out
-# of this trust path; legacy artifact correspondence remains under
-# Implementation/R1CS and must refine into this model explicitly.
+# The selected trust path uses the one-joint paper polynomial and the
+# zero-padded rectangular specialization. It must not import a superseded
+# split or block/lane protocol.
 canonical_roots=(
-  formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/ConcretePhi81
-  formal/nightstream-lean/Nightstream/Protocol/FPrime/ConcretePhi81
+  formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint
+  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/SelectiveCcs
 )
-legacy_pattern='\bFlatNcDomain\b|Protocol\.TranscriptAuthority\.Schedule|Protocol\.Certificate|Protocol\.Accepted|Protocol\.derive|\bpiCcsOutputHandoff\b|\boutputPoints\b|\bbetaM\b'
+legacy_pattern='^import .*\.(SplitNc|PiCcsNc|NifsPaper|BlockLane)'
 if legacy_hits="$(cd "$REPO_ROOT" && rg -n -e "$legacy_pattern" \
     "${canonical_roots[@]}" -g '*.lean' || true)" &&
     [[ -n "$legacy_hits" ]]; then
-  echo "[ownership] legacy flat-domain protocol leaked into canonical ConcretePhi81:" >&2
+  echo "[ownership] superseded protocol import leaked into the selected one-joint path:" >&2
   echo "$legacy_hits" >&2
   status=1
 fi

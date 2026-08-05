@@ -13,6 +13,8 @@ equality of the two commitment projections.
 Does not own: either reduction's probability experiment, an extractor,
 commitment security, Fiat--Shamir, Rust, R1CS, or costs.
 
+Emits constraints: no.
+
 The adapter contains no assignments or validity evidence.  In particular,
 it cannot smuggle a target witness from the strong reduction into the weak
 reduction.  It transports only the public instance produced by the verifier.
@@ -49,6 +51,35 @@ structure CompatibleContext
   arity : BatchArity piCcs.params
   freshCount_eq : arity.freshCount = shape.freshCount
   runningCount_eq : arity.mode.count piCcs.params = shape.runningCount
+  /-- The weak reduction may use a canonicalized semantic view of the fixed
+  paper matrix source.  It is kept separate from the strong relation so its
+  algebra does not have to claim laws for malformed layouts or kernels. -/
+  piRlcSemantics : RelationSemantics
+    (MatrixSource F shape columns blockCount)
+    (Assignment F columns)
+    PublicInput
+    (CubePoint Extension shape.cubeVariables)
+    (EvaluationFamily Extension shape)
+    Commitment
+  /-- At the verifier-owned matrix source, the canonical weak relation is
+  exactly the corrected ambient relation emitted by `Pi_CCS`. -/
+  ambientAgreement : forall
+      (statement : CE.Instance
+        (MatrixSource F shape columns blockCount)
+        PublicInput
+        (CubePoint Extension shape.cubeVariables)
+        (EvaluationFamily Extension shape)
+        Commitment)
+      (assignment : Assignment F columns),
+    statement.constraintSystem = piCcs.statement.matrixSource ->
+      (PiRLC.PaperCorrections.CorrectedAmbientHolds
+          (paperRelationSemantics piCcs.baseOps piCcs.extensionOps piCcs.lift
+            piCcs.openingMaps)
+          piCcs.params statement assignment <->
+        PiRLC.PaperCorrections.CorrectedAmbientHolds
+          piRlcSemantics piCcs.params statement assignment)
+  piRlcEvaluationsSize : forall system assignment point,
+    (piRlcSemantics.evaluations system assignment point).size = 1
   piRlcAlgebra : PiRLC.Algebra
     (MatrixSource F shape columns blockCount)
     (Assignment F columns)
@@ -57,8 +88,7 @@ structure CompatibleContext
     (EvaluationFamily Extension shape)
     Commitment
     Scalar
-    (paperRelationSemantics piCcs.baseOps piCcs.extensionOps piCcs.lift
-      piCcs.openingMaps)
+    piRlcSemantics
     piCcs.params
 
 namespace CompatibleContext
@@ -110,11 +140,12 @@ def piRlc
       (EvaluationFamily Extension shape)
       Commitment
       Scalar where
-  semantics := paperRelationSemantics context.piCcs.baseOps
-    context.piCcs.extensionOps context.piCcs.lift context.piCcs.openingMaps
+  semantics := context.piRlcSemantics
   params := context.piCcs.params
   arity := context.arity
   algebra := context.piRlcAlgebra
+  evaluationCount := fun _ => 1
+  evaluationsSize := context.piRlcEvaluationsSize
 
 /-- The authoritative intermediate batch is the verifier's complete
 `Pi_CCS` public output at its sampled round point. -/
@@ -143,6 +174,8 @@ def batchOfPrefix
       (context.sourceIndex source)
   sameSystem := fun _ => rfl
   samePoint := fun _ => rfl
+  evaluationCount := 1
+  evaluationsSize := fun _ => rfl
 
 @[simp] theorem batchOfPrefix_input
     {Extension : Type uExtension}

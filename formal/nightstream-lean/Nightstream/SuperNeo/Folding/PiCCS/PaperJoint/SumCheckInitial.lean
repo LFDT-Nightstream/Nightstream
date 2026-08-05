@@ -20,7 +20,7 @@ specific SumCheck round collision for logical and executable verification.
 
 Does not own: the proof that the verifier enforces the exact round count, the
 degree bound for canonical expected round polynomials, challenge sampling,
-root-counting probability, Fiat--Shamir, production FE/NC splitting, Rust,
+root-counting probability, Fiat--Shamir, Rust,
 R1CS, or counts.
 
 Emits constraints: no.

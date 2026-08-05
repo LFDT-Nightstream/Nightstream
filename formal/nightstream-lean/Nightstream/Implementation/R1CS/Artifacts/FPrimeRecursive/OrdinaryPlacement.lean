@@ -24,7 +24,7 @@ byte-for-byte generator drift test.
 | Branch/result | Mathematical obligation | Guarantee | Assurance boundary |
 |---|---|---|---|
 | metadata checks | recomputed source phase equals Rust summary and fits final width | `base_data_check`, `recursive_data_check` | artifact-checked |
-| ordinary totals | 3,050/154,747 fields occupy 125,050/6,344,627 ABI coordinates | `base_ordinaryCoordinateCount`, `recursive_ordinaryCoordinateCount` | artifact-checked arithmetic |
+| ordinary totals | 3,226/93,896 fields occupy 132,266/3,849,736 ABI coordinates | `base_ordinaryCoordinateCount`, `recursive_ordinaryCoordinateCount` | artifact-checked arithmetic |
 | placement endpoints | first and last starts follow the complete checked run scan | `base_firstPlacement`, `base_lastPlacement`, `recursive_firstPlacement`, `recursive_lastPlacement` | artifact-checked; Rust-conformant after drift gate |
 | open bridge | accepted words need not equal deterministic re-encodings | explicit non-goal | no NIVC-invertibility or row-removal claim |
 -/
@@ -57,31 +57,31 @@ theorem recursive_publicInputLength :
     publicInputLength recursiveSourceCensus = 257 := by
   native_decide
 
-theorem base_sourcePhaseEnd : sourcePhaseEnd baseSourceCensus = 125695 := by
+theorem base_sourcePhaseEnd : sourcePhaseEnd baseSourceCensus = 132911 := by
   have exactPhase := base_data_valid.2.1
   simpa [baseData] using exactPhase.symm
 
 theorem recursive_sourcePhaseEnd :
-    sourcePhaseEnd recursiveSourceCensus = 7830083 := by
+    sourcePhaseEnd recursiveSourceCensus = 12108509 := by
   have exactPhase := recursive_data_valid.2.1
   simpa [recursiveData] using exactPhase.symm
 
 theorem base_sourcePhase_fits_encoded :
-    sourcePhaseEnd baseSourceCensus ≤ 125695 := by
+    sourcePhaseEnd baseSourceCensus ≤ 132911 := by
   simpa [baseData] using
     base_data_valid.sourcePhaseEnd_le_encodedColumnCount
 
 theorem recursive_sourcePhase_fits_encoded :
-    sourcePhaseEnd recursiveSourceCensus ≤ 8137378 := by
+    sourcePhaseEnd recursiveSourceCensus ≤ 12330019 := by
   simpa [recursiveData] using
     recursive_data_valid.sourcePhaseEnd_le_encodedColumnCount
 
 theorem base_ordinaryCoordinateCount :
-    ordinaryCoordinateCount baseSourceCensus = 125050 := by
+    ordinaryCoordinateCount baseSourceCensus = 132266 := by
   simp [ordinaryCoordinateCount, ordinaryWordWidth, base_eligible_count]
 
 theorem recursive_ordinaryCoordinateCount :
-    ordinaryCoordinateCount recursiveSourceCensus = 6344627 := by
+    ordinaryCoordinateCount recursiveSourceCensus = 3849736 := by
   simp [ordinaryCoordinateCount, ordinaryWordWidth,
     recursive_eligible_count]
 
@@ -90,7 +90,7 @@ theorem base_firstPlacement :
   native_decide
 
 theorem base_lastPlacement :
-    placementStart? baseSourceCensus 22336 = some 125654 := by
+    placementStart? baseSourceCensus 23550 = some 132870 := by
   native_decide
 
 theorem recursive_firstPlacement :
@@ -98,7 +98,7 @@ theorem recursive_firstPlacement :
   native_decide
 
 theorem recursive_lastPlacement :
-    placementStart? recursiveSourceCensus 2399090 = some 7830042 := by
+    placementStart? recursiveSourceCensus 8975795 = some 12108468 := by
   native_decide
 
 end Nightstream.Implementation.R1CS.FPrimeRecursiveOrdinaryPlacement

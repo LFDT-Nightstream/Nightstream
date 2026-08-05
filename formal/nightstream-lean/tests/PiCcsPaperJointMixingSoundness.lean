@@ -5,7 +5,7 @@ Focused theorem-surface and boundary checks for finite paper-joint mixing
 soundness.
 
 The positive theorem uses the verifier-owned alpha/gamma product support.
-Production Split-NC sampling and Fiat--Shamir remain separate.
+Production Fiat--Shamir sampling remains separate.
 -/
 
 set_option autoImplicit false
@@ -26,6 +26,7 @@ open Nightstream.SuperNeo.InteractiveReduction.FiniteUniform
 #check mixingRootProbabilityContract_of_rootCounting
 #check fixedFirstBadBound_of_rootCounting
 #check extraction_after_first_success_of_rootCounting
+#check extraction_after_success_gate_of_rootCounting
 
 /-- The strict coefficient-level nonzero premise rejects the zero polynomial;
 root counting cannot silently instantiate it. -/
@@ -51,7 +52,7 @@ example {Challenge : Type} (value : Challenge) :
   simpa using nodup
 
 /- The verifier marginal theorem is deliberately joint in alpha and gamma:
-it assumes neither independent FE/NC strategies nor a second gamma. -/
+it uses only the paper's joint alpha/gamma strategy. -/
 #check VerifierCoins.gamma
 #check VerifierCoins.support
 

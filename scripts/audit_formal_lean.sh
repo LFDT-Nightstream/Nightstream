@@ -14,8 +14,7 @@ cd "$ROOT"
 
 echo "[audit] scanning active Nightstream Lean sources for forbidden trusted holes"
 
-if rg -n --glob '*.lean' --glob '!.lake/**' \
-  '\b(sorry|axiom|admit|postulate|unsafe)\b' "${SOURCE_PATHS[@]}"; then
+if ! python3 "$ROOT/scripts/check_lean_trusted_holes.py" "${SOURCE_PATHS[@]}"; then
   echo "[audit] forbidden token found in formal Lean sources" >&2
   exit 1
 fi

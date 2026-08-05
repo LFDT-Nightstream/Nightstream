@@ -11,7 +11,7 @@ Constraint family: semantic output coordinates only; this file emits no rows.
 
 Owns: one coefficient-complete value family for every source/matrix pair;
 the explicit paper property that the first matrix of the sole
-`MatrixSource` is the identity; projection of the full family onto all three
+`MatrixSource` is the padded identity `[I; 0]`; projection of the full family onto all three
 fields of `ProtocolPolynomial.OutputMessage`; and proof that honest evaluation
 of the full family projects to `ProtocolPolynomial.messageAt` at the same
 point.
@@ -26,12 +26,12 @@ Authority boundary: matrices and assignments are read only from
 `MatrixCoefficientSource.ConnectedInputs`. The full output is computed from
 that source through `coefficientMatrix`; it is never accepted as an
 independent semantic oracle. The source-assignment component is obtained from
-the entrywise `M_1 = I` property, not from an assumed matrix-vector equation.
+the entrywise `M_1 = [I; 0]` property, not from an assumed matrix-vector equation.
 
 | Protocol path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
 | `pi_ccs.output.full` | all `y'_(i,j,l)(r')` share one source/matrix/coefficient family | computed | `FullOutput` / `honestAt` |
-| `pi_ccs.structure.matrix.first` | the first sole-source matrix is entrywise identity | checked | `IdentityFirstMatrix` |
+| `pi_ccs.structure.matrix.first` | the first sole-source matrix is entrywise `[I; 0]` | checked | `IdentityFirstMatrix` |
 | `pi_ccs.output.fresh` | fresh `y_(i,j)` is the constant coordinate of `y'_(i,j)` | derived | `toOutputMessage` |
 | `pi_ccs.output.assignment` | `z_i(r')` is the first-matrix constant coordinate | derived | `toOutputMessage` |
 | `pi_ccs.output.carried` | carried coefficient images are the running-source coordinates | direct dataflow | `toOutputMessage` |
@@ -54,9 +54,9 @@ structure FullOutput (Extension : Type uExtension) (shape : Shape) where
   coordinate : Fin shape.sourceCount -> Fin shape.matrixCount ->
     Fin shape.coefficientCount -> Extension
 
-/-- The paper's `M_1 = I` requirement attached to the sole matrix owner.
-The selected column for row `vertex` comes from the same square-domain layout
-used by the authoritative assignment family. -/
+/-- The paper's `M_1 = [I; 0]` requirement attached to the sole matrix owner.
+The live column for row `vertex`, or its padding status, comes from the same
+layout used by the authoritative assignment family. -/
 structure IdentityFirstMatrix
     {Extension : Type uExtension}
     {shape : Shape}
@@ -69,10 +69,8 @@ structure IdentityFirstMatrix
       (column : Fin columns),
     data.matrixSource.matrices
           ⟨0, matrixCountPositive⟩ vertex column =
-      if column = data.cubeLayout.toColumn vertex then
-        baseOps.one
-      else
-        baseOps.zero
+      data.cubeLayout.paddedIdentityEntry baseOps.zero baseOps.one
+        vertex column
 
 namespace IdentityFirstMatrix
 
@@ -101,12 +99,23 @@ theorem matrixVectorAt_first_eq_assignment
     matrixVectorAt baseOps
         (data.matrixSource.matrices identity.index)
         (data.assignments source) vertex =
-      data.assignments source (data.cubeLayout.toColumn vertex) := by
-  exact matrixVectorAt_identityRow baseOps baseLaws
-    (data.matrixSource.matrices identity.index)
-    (data.assignments source) vertex
-    (data.cubeLayout.toColumn vertex)
-    (identity.entry vertex)
+      data.cubeLayout.paddedValue baseOps.zero
+        (data.assignments source) vertex := by
+  cases decoded : data.cubeLayout.toColumn? vertex with
+  | none =>
+      simp only [ColumnLayout.paddedValue, decoded]
+      apply matrixVectorAt_zeroRow baseOps baseLaws
+      intro column
+      simpa [ColumnLayout.paddedIdentityEntry, decoded] using
+        identity.entry vertex column
+  | some selected =>
+      simp only [ColumnLayout.paddedValue, decoded]
+      apply matrixVectorAt_identityRow baseOps baseLaws
+        (data.matrixSource.matrices identity.index)
+        (data.assignments source) vertex selected
+      intro column
+      simpa [ColumnLayout.paddedIdentityEntry, decoded] using
+        identity.entry vertex column
 
 end IdentityFirstMatrix
 
@@ -200,6 +209,7 @@ theorem honestAt_sourceAssignment_eq
     {columns blockCount : Nat}
     (baseOps : InterpolationOps F)
     (baseLaws : InterpolationEvaluationLaws baseOps)
+    (baseZero : NormResidualTable.BaseZeroAgreement baseOps)
     (extensionOps : InterpolationOps Extension)
     (lift : F -> Extension)
     (data : ConnectedInputs Extension shape columns blockCount)
@@ -221,8 +231,8 @@ theorem honestAt_sourceAssignment_eq
           data.matrixSource.kernel.constant)
         (data.assignments source) vertex)).evaluate extensionOps point =
       (BooleanTable.tabulate fun vertex =>
-        lift (data.assignments source
-          (data.cubeLayout.toColumn vertex))).evaluate extensionOps point
+        lift (data.cubeLayout.paddedValue 0
+          (data.assignments source) vertex)).evaluate extensionOps point
   rw [data.matrixSource.coefficientMatrix_constant_eq baseOps baseLaws
     constantLaw identity.index]
   apply congrArg (fun table : BooleanTable Extension shape.cubeVariables =>
@@ -230,9 +240,12 @@ theorem honestAt_sourceAssignment_eq
   apply congrArg (fun values : BooleanVertex shape.cubeVariables -> Extension =>
     BooleanTable.tabulate values)
   funext vertex
-  exact congrArg lift
-    (identity.matrixVectorAt_first_eq_assignment baseOps baseLaws data
-      source vertex)
+  rw [identity.matrixVectorAt_first_eq_assignment baseOps baseLaws data
+    source vertex]
+  apply congrArg lift
+  cases decoded : data.cubeLayout.toColumn? vertex with
+  | none => simp [ColumnLayout.paddedValue, decoded, baseZero.zero_eq]
+  | some column => simp [ColumnLayout.paddedValue, decoded]
 
 /-- Running-source coefficient projection is definitionally the canonical
 carried-image component of `messageAt`. -/
@@ -256,7 +269,8 @@ theorem honestAt_carriedImage_eq
 
 /-- Honest evaluation of the complete paper `y'` family projects exactly to
 the canonical executable output message at the same point. The only bridge
-premises are the paper constant-term kernel law and the entrywise `M_1 = I`
+premises are the paper constant-term kernel law and the entrywise
+`M_1 = [I; 0]`
 property of the sole matrix source. -/
 theorem honestAt_toOutputMessage_eq_messageAt
     {Extension : Type uExtension}
@@ -264,6 +278,7 @@ theorem honestAt_toOutputMessage_eq_messageAt
     {columns blockCount : Nat}
     (baseOps : InterpolationOps F)
     (baseLaws : InterpolationEvaluationLaws baseOps)
+    (baseZero : NormResidualTable.BaseZeroAgreement baseOps)
     (extensionOps : InterpolationOps Extension)
     (lift : F -> Extension)
     (data : ConnectedInputs Extension shape columns blockCount)
@@ -279,8 +294,8 @@ theorem honestAt_toOutputMessage_eq_messageAt
     exact honestAt_freshMatrixImage_eq baseOps baseLaws extensionOps lift data
       constantLaw identity point source matrix
   · funext source
-    exact honestAt_sourceAssignment_eq baseOps baseLaws extensionOps lift data
-      constantLaw identity point source
+    exact honestAt_sourceAssignment_eq baseOps baseLaws baseZero extensionOps
+      lift data constantLaw identity point source
   · funext coordinate
     exact honestAt_carriedImage_eq baseOps extensionOps lift data identity point
       coordinate

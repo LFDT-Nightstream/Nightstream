@@ -1,9 +1,9 @@
 import Nightstream.Protocol.FPrime.Frozen.PiCcsFirstSuccessBridge
 
 /-!
-Focused operational regression for the unbounded PiCCS first-success bridge.
+Focused operational regression for the unbounded PiCCS success-gated bridge.
 
-The two-seed fixture exercises the geometric trace interface without
+The two-seed fixture exercises the geometric retry interface without
 constructing any protocol-specific witness. The remaining checks pin the
 asymptotic PiCCS and exact frozen-facade theorem signatures.
 -/
@@ -15,12 +15,12 @@ namespace tests.PiCcsUnboundedFirstSuccessBridge
 open Nightstream.SuperNeo.InteractiveReduction.FiniteUniform
 open Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessTrace
 
-#check Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime.extractorExpectedPolynomialTime
-#check Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime.oneRunExpectedWork_le_bound
-#check Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime.expectedRetryWork_firstStep
-#check Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.FirstSuccessRuntime.expectedWork_eq_oneRun_mul_totalExecutions
+#check Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.SuccessGatedRuntime.extractorExpectedPolynomialTime
+#check Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.SuccessGatedRuntime.oneRunExpectedWork_le_bound
+#check Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.SuccessGatedRuntime.gatedRetryExpectedWork_le_oneRun
+#check Nightstream.SuperNeo.InteractiveReduction.FiniteUniform.SuccessGatedRuntime.expectedWork_le_twoRunWorkBound
 #check Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.AsymptoticPaperStrong.paperStrong
-#check Nightstream.Protocol.FPrime.Frozen.PiCcsFirstSuccessBridge.piCcsStrong_of_unboundedFirstSuccess
+#check Nightstream.Protocol.FPrime.Frozen.PiCcsFirstSuccessBridge.piCcsStrong_of_successGatedRetry
 
 def twoSeeds : Support Nat where
   values := [0, 1]

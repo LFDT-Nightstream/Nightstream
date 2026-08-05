@@ -22,9 +22,8 @@ Everything. `neo-ajtai` builds commitments from `Rq`/`SAction`; `neo-ccs` builds
 relations over `F`/`K`; `neo-reductions` runs sum-check over `K`; `neo-fold-clean`
 maps these to paper symbols 1:1 (`paper/mod.rs` §4–5 tables).
 
-## Specs and formal backing
+## Formal backing
 
-`specs/{Goldilocks, Ring, BarTransform, Norms, SAction}.spec.md` state the MUST/SHOULD
-contracts. The active formal authority is `formal/nightstream-lean`, whose
-`Nightstream.SuperNeo` modules own the corresponding algebra and relation
-definitions.
+The active formal authority is `formal/nightstream-lean`. Its
+`Nightstream.SuperNeo` modules own the algebra and relation definitions. Rust
+behavior checks live in `crates/neo-math/tests`.

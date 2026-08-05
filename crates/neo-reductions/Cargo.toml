@@ -79,32 +79,3 @@ serde_json = { workspace = true }
 name = "paper_exact"
 path = "tests-paper-exact/mod.rs"
 harness = true
-
-# Spec-derived tests (invariant obligations from specs/)
-[[test]]
-name = "spec_sumcheck"
-path = "spec-tests/sumcheck.rs"
-
-[[test]]
-name = "spec_pi_ccs"
-path = "spec-tests/pi_ccs.rs"
-
-[[test]]
-name = "spec_pi_rlc"
-path = "spec-tests/pi_rlc.rs"
-
-[[test]]
-name = "spec_pi_dec"
-path = "spec-tests/pi_dec.rs"
-
-[[test]]
-name = "spec_engines"
-path = "spec-tests/engines.rs"
-
-[[test]]
-name = "spec_superneo_eval"
-path = "spec-tests/superneo_eval.rs"
-
-[[test]]
-name = "pi_ccs_nc_carrier_lean_artifact"
-path = "tests/pi_ccs_nc_carrier_lean_artifact.rs"

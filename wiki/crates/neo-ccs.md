@@ -22,8 +22,6 @@ machinery they need. `#![forbid(unsafe_code)]`, `#![deny(missing_docs)]`.
 - **`crypto` / `gadgets`** — Poseidon2-based primitives and circuit gadgets used by
   CCS-native circuits.
 
-## Specs
-
-`specs/{Relations, Matrix, Polynomial, Gadgets, Crypto}.spec.md` — `Relations.spec.md`
-is the normative statement of the CCS/CE relations and consistency equalities the
-reductions rely on.
+Executable behavior checks live under `crates/neo-ccs/tests/`. Protocol-critical
+relation rules must cite the pinned paper, the active protocol contract, or the
+active Lean model instead of a copied per-crate specification.

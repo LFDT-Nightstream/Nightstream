@@ -29,8 +29,7 @@ Tests always use `FoldingMode::Optimized`; `PaperExact` requires explicit approv
 [CLAUDE.md](../../CLAUDE.md) — it is a correctness oracle, not a usable engine
 (exponential in the number of sum-check rounds).
 
-## Specs
+## Tests
 
-`specs/{PiCCS, PiRLC, PiDEC, SumCheck, Engines, SuperNeoEval}.spec.md`. Engine parity
-and digest discipline are tested in this crate's `tests/` (e.g. `matrix_digest.rs`,
-`nc_digit_table_parity.rs`).
+Engine parity and digest discipline are checked by the crate's normal `tests/`
+targets. The crate has no separate prose specification layer.

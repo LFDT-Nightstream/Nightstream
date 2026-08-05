@@ -17,13 +17,8 @@ Dependency graph: see [Architecture](../architecture/index.md). The rule of thum
 authority flows downward (the paper layer of `neo-fold-clean` trusts the engine
 crates), data flows upward.
 
-## Spec files
+## Protocol authority
 
-The lower crates carry RFC-style spec files under `specs/` documenting MUST/SHOULD
-behavior; they are the per-crate normative reference:
-
-- `neo-math/specs/` — Goldilocks, Ring, BarTransform, Norms, SAction
-- `neo-ajtai/specs/` — AjtaiCommit, Decomposition, PublicParameters, SModule
-- `neo-ccs/specs/` — Relations, Matrix, Polynomial, Gadgets, Crypto
-- `neo-reductions/specs/` — PiCCS, PiRLC, PiDEC, SumCheck, Engines, SuperNeoEval
-- `neo-transcript/specs/` — Transcript
+Crates do not own copied protocol specifications. Protocol-critical rules cite
+the pinned paper, the selected decision record, or the active Lean model.
+Executable behavior checks live in each crate's normal `tests/` directory.

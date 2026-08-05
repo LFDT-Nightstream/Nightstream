@@ -36,6 +36,6 @@ The crate does **not** export `verify_linear` (compile-fail doctest enforces it)
 linear-relation verification belongs to the folding layer (Π_RLC), not the commitment
 crate — keeping a single owner for that soundness obligation.
 
-## Specs
-
-`specs/{AjtaiCommit, Decomposition, PublicParameters, SModule}.spec.md`.
+Executable behavior checks live under `crates/neo-ajtai/tests/`. Protocol-critical
+rules must cite the pinned paper or the active Lean model instead of a copied
+per-crate specification.

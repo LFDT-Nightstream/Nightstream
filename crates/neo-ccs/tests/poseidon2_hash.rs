@@ -1,10 +1,4 @@
-//! Spec-derived tests for Crypto.spec.md invariant obligations.
-//!
-//! Covers: Poseidon2 determinism, domain separation, hash_single consistency,
-//! packed_bytes length encoding.
-
-#[path = "common/mod.rs"]
-mod common;
+//! Direct behavior checks for the Poseidon2 hash helpers.
 
 use neo_ccs::crypto::poseidon2_goldilocks::{poseidon2_hash, poseidon2_hash_packed_bytes, poseidon2_hash_single};
 use p3_field::PrimeCharacteristicRing;

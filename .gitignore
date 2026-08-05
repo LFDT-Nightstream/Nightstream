@@ -34,7 +34,6 @@ docs/hypernova-paper
 personal_notes
 .claude
 profile-output.txt
-/specs
 /neo_prover_cuda.ll
 /neo_prover_cuda.opt.ll
 /neo_prover_cuda.ptx
@@ -42,7 +41,6 @@ profile-output.txt
 crates/neo-prover-cuda/*.ll
 crates/neo-prover-cuda/*.ptx
 crates/neo-prover-cuda/.oxide-artifacts/
-/specs
 METAL_IMPLEMENTATION_BEST_PRACTICES.md
 profile-xctrace.txt
 

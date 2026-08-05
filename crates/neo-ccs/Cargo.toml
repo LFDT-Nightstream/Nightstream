@@ -47,24 +47,3 @@ p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
 neo-ajtai = { path = "../neo-ajtai" }
 serde_json = { workspace = true }
-
-# Spec-derived tests (lean oracles + invariant obligations)
-[[test]]
-name = "spec_relations"
-path = "spec-tests/relations.rs"
-
-[[test]]
-name = "spec_matrix"
-path = "spec-tests/matrix.rs"
-
-[[test]]
-name = "spec_polynomial"
-path = "spec-tests/polynomial.rs"
-
-[[test]]
-name = "spec_crypto"
-path = "spec-tests/crypto.rs"
-
-[[test]]
-name = "spec_gadgets"
-path = "spec-tests/gadgets.rs"

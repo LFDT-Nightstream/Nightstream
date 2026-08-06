@@ -1,4 +1,7 @@
-use super::super::grammar_emit::{plan_export_blocks, GrammarBlockPlan};
+use super::super::grammar_emit::{
+    apply_export_entry_memory, plan_export_blocks, read_export_exit_memory, GrammarBlockPlan,
+};
+use super::super::memory::LinearMemoryImage;
 use super::super::NormalizedStep;
 use crate::event_grammar::{HostEventGrammar, TurnClaims};
 use crate::ir::WasmBuildError;
@@ -14,6 +17,7 @@ pub(super) fn setup_turn<'g>(
     first: &NormalizedStep,
     claims: &TurnClaims,
     re_entered: bool,
+    memory: &mut LinearMemoryImage,
 ) -> Result<TurnSetup<'g>, WasmBuildError> {
     let fref = first.current_function_ref.unwrap_or(0);
     let template = grammar.exports.get(&fref).ok_or_else(|| {
@@ -25,6 +29,7 @@ pub(super) fn setup_turn<'g>(
     template.validate(local_bound)?;
     let entry_blocks = crate::event_grammar::expand_export_entry(template, &claims.entry)
         .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
+    apply_export_entry_memory(&template.entry, &entry_blocks, &first.locals_snapshot, memory)?;
     let entry_plans = plan_export_blocks(&template.entry, &entry_blocks, &first.locals_snapshot, &[])?;
 
     let mut expected_locals = vec![(false, 0u32, 0u32); first.locals_snapshot.len()];
@@ -61,4 +66,17 @@ pub(super) fn setup_turn<'g>(
         template,
         entry_plans,
     })
+}
+
+pub(super) fn plan_turn_exit(
+    template: &crate::event_grammar::ExportTemplate,
+    last: &NormalizedStep,
+    claims: &TurnClaims,
+    output: Option<(u32, u32)>,
+    memory: &LinearMemoryImage,
+) -> Result<Vec<GrammarBlockPlan>, WasmBuildError> {
+    let memory_reads = read_export_exit_memory(&template.exit, &last.locals_snapshot, memory)?;
+    let blocks = crate::event_grammar::expand_export_exit(template, output, &claims.exit, &memory_reads)
+        .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
+    plan_export_blocks(&template.exit, &blocks, &last.locals_snapshot, &memory_reads)
 }

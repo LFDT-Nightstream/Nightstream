@@ -10,7 +10,7 @@ use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::event_grammar::{GrammarEvent, HostEventGrammar, ImportTemplate, Limb, MemoryBase, SlotSource};
 use neo_wasm::layout::{COL_GATHER_ACTIVE, COL_GRAMMAR_MODE_AFTER, COL_RAW_HOST_CALL};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{WasmGrammarSlotKind, WasmRowKind, WasmVmStep};
+use neo_wasm::{WasmGrammarSlotKind, WasmOpcode, WasmRowKind, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 const ZERO: SlotSource = SlotSource::Const(0);
@@ -160,6 +160,7 @@ fn grammar_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<WasmV
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
     let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
         &run.steps,
+        &run.program_tables,
         &grammar,
         &[Default::default()],
         initial_comm_chain,
@@ -258,6 +259,7 @@ fn i64_result_lane_writes() {
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
     let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
         &run.steps,
+        &run.program_tables,
         &grammar,
         &[Default::default()],
         Default::default(),
@@ -372,8 +374,14 @@ fn advice_import_pushes_without_absorbing() {
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
     let turns = [neo_wasm::event_grammar::TurnClaims::default()];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
-        .expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &turns,
+        Default::default(),
+    )
+    .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -503,9 +511,10 @@ fn missing_template_is_rejected() {
     let grammar = HostEventGrammar::default();
     assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(
         &run.steps,
+        &run.program_tables,
         &grammar,
         &[Default::default()],
-        Default::default()
+        Default::default(),
     )
     .is_err());
 }
@@ -528,9 +537,10 @@ fn surplus_claim_words_are_rejected() {
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
     assert!(neo_wasm::traces_from_wasmtime_steps_with_grammar(
         &run.steps,
+        &run.program_tables,
         &grammar,
         &[Default::default()],
-        Default::default()
+        Default::default(),
     )
     .is_err());
 }
@@ -647,6 +657,7 @@ fn memory_rows_reject_forged_rom_claim() {
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
     let mut trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
         &run.steps,
+        &run.program_tables,
         &grammar,
         &[Default::default()],
         Default::default(),
@@ -827,10 +838,14 @@ fn import_memory32_reads_and_writes_at_argument_based_addresses() {
           (core module $m
             (import "" "0" (func $touch (param i32)))
             (memory 1)
+            (data (i32.const 24) "\7b\00\00\00")
             (func (export "run")
               i32.const 16
               i32.const 99
               i32.store
+              i32.const 19
+              i32.const 0x1234
+              i32.store16
               i32.const 16
               call $touch))
           (core func $lowered (canon lower (func $host-touch)))
@@ -847,7 +862,6 @@ fn import_memory32_reads_and_writes_at_argument_based_addresses() {
             .root()
             .func_wrap("host-touch", |mut store, (_ptr,): (i32,)| {
                 store.data_mut().record_call_claims(&[77])?;
-                store.data_mut().record_call_memory_reads(&[99])?;
                 Ok(())
             })
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-touch: {err}")))
@@ -876,10 +890,31 @@ fn import_memory32_reads_and_writes_at_argument_based_addresses() {
                     ),
                     (
                         1,
+                        SlotSource::MemoryRead32 {
+                            base: MemoryBase::Arg(0),
+                            byte_offset: 4,
+                        },
+                    ),
+                    (
+                        2,
                         SlotSource::MemoryWrite32 {
                             claim: 0,
                             base: MemoryBase::Arg(0),
                             byte_offset: 4,
+                        },
+                    ),
+                    (
+                        3,
+                        SlotSource::MemoryRead32 {
+                            base: MemoryBase::Arg(0),
+                            byte_offset: 4,
+                        },
+                    ),
+                    (
+                        4,
+                        SlotSource::MemoryRead32 {
+                            base: MemoryBase::Arg(0),
+                            byte_offset: 8,
                         },
                     ),
                 ]),
@@ -893,6 +928,7 @@ fn import_memory32_reads_and_writes_at_argument_based_addresses() {
 
     let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
         &run.steps,
+        &run.program_tables,
         &grammar,
         &[Default::default()],
         Default::default(),
@@ -909,6 +945,37 @@ fn import_memory32_reads_and_writes_at_argument_based_addresses() {
     neo_wasm::memory_semantics::sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect("grammar argument base and linear-memory accesses match");
 
+    let observed_reads: Vec<u32> = trace
+        .iter()
+        .filter_map(|row| {
+            (row.grammar_rom_slot?.kind == WasmGrammarSlotKind::MemoryRead)
+                .then_some(row.linear_memory?.lane0.value_before)
+        })
+        .collect();
+    assert_eq!(observed_reads, [0x3400_0063, 0x12, 77, 123]);
+
+    let mut high_pointer_steps = run.steps.clone();
+    let host_call = high_pointer_steps
+        .iter_mut()
+        .find(|step| step.opcode_decoded == Some(WasmOpcode::Call) && !step.target_function_is_guest)
+        .expect("host call step");
+    host_call
+        .operand_stack_words_hi
+        .resize(host_call.operand_stack_words.len(), 0);
+    *host_call
+        .operand_stack_words_hi
+        .last_mut()
+        .expect("pointer argument high limb") = 1;
+    let err = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &high_pointer_steps,
+        &run.program_tables,
+        &grammar,
+        &[Default::default()],
+        Default::default(),
+    )
+    .expect_err("wasm32 grammar pointer with a high limb must be rejected");
+    assert!(err.to_string().contains("not a wasm32 pointer"));
+
     let read = trace
         .iter()
         .find(|row| {
@@ -920,6 +987,16 @@ fn import_memory32_reads_and_writes_at_argument_based_addresses() {
     common::assert_satisfied(&forged, "untampered argument-base memory read");
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_ADDR] += neo_math::F::ONE;
     common::assert_rejected(&forged, "grammar memory read redirected to another word");
+
+    let mut high_pointer = read.clone();
+    high_pointer.wide_values_enabled = true;
+    high_pointer
+        .stack_read0
+        .as_mut()
+        .expect("pointer argument read")
+        .value_hi = Some(1);
+    let forged = build_witness_vector(&high_pointer);
+    common::assert_rejected(&forged, "grammar memory read with a nonzero pointer high limb");
 
     // Move both the authenticated pointer value and its derived word address
     // to the first lane beyond memory. The witness builder recomputes the

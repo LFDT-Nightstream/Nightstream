@@ -12,14 +12,15 @@ mod tail_call;
 mod turn;
 mod values;
 
-use self::turn::setup_turn;
+use self::turn::{plan_turn_exit, setup_turn};
 use self::values::{call_indirect_oob, call_indirect_traps, collect_callee_initial_params, write_lane, write_lane_hi};
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
 use super::grammar_emit::{
-    absorb_premix, emit_block_plan, emit_perm_group, perm_group_plan, plan_export_blocks, plan_import_call,
-    GrammarAuxCtx, GrammarBlockPlan, GrammarCallPlan,
+    absorb_premix, emit_block_plan, emit_perm_group, perm_group_plan, plan_import_call, GrammarAuxCtx,
+    GrammarBlockPlan, GrammarCallPlan,
 };
+use super::memory::LinearMemoryImage;
 use super::normalize_step;
 use crate::comm_chain::{host_call_event_stream, CommChainState, COMM_CHAIN_BLOCK_WORDS};
 use crate::event_grammar::HostEventGrammar;
@@ -34,6 +35,7 @@ pub(super) fn build_trace(
     rows: &[WasmtimeTraceStep],
     grammar: Option<(&HostEventGrammar, &[crate::event_grammar::TurnClaims])>,
     initial_comm_chain: CommChainState,
+    linear_memory: Option<LinearMemoryImage>,
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
     let grammar_mode = grammar.is_some();
     let mut supported = Vec::new();
@@ -42,6 +44,8 @@ pub(super) fn build_trace(
             supported.push(normalized);
         }
     }
+    let tracks_linear_memory = linear_memory.is_some();
+    let mut linear_memory = linear_memory.unwrap_or_default();
     let mut out = Vec::with_capacity(supported.len());
     // Runtime call stack: (return_pc, caller_fbp, caller_stack_base) per live
     // guest frame. Grows on Call, shrinks on non-final Return.
@@ -74,7 +78,7 @@ pub(super) fn build_trace(
         let claims = turns.first().ok_or_else(|| {
             WasmBuildError::Trace("grammar mode requires claim words for at least the first turn".to_string())
         })?;
-        let setup = setup_turn(grammar_tables, first, claims, false)?;
+        let setup = setup_turn(grammar_tables, first, claims, false, &mut linear_memory)?;
         grammar_state = crate::ir::WasmGrammarState {
             turn_export_fref: setup.fref,
             events_remaining: setup.entry_plans.len() as u32,
@@ -425,6 +429,10 @@ pub(super) fn build_trace(
             }
         }
 
+        if tracks_linear_memory && !mem_oob {
+            linear_memory.apply_program_access(current)?;
+        }
+
         let is_host_call = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
             && !current.target_function_is_guest
             && !ci_trap;
@@ -537,7 +545,7 @@ pub(super) fn build_trace(
                         &arg_limbs,
                         result_limbs,
                         &current.host_call_claims,
-                        &current.host_call_memory_reads,
+                        &mut linear_memory,
                     )
                     .map_err(|err| {
                         WasmBuildError::Trace(format!(
@@ -601,19 +609,12 @@ pub(super) fn build_trace(
         let mut exit_counts: Option<(u32, u32)> = None;
         if halted && !trapped {
             if let (Some(setup), Some((_, turns))) = (&export_boundary, grammar) {
-                let exit_claims = turns[turn_index].exit.as_slice();
-                let exit_blocks = crate::event_grammar::expand_export_exit(
+                let plans = plan_turn_exit(
                     setup.template,
+                    current,
+                    &turns[turn_index],
                     output_captured.then_some((output_value_lo_after, output_value_hi_after)),
-                    exit_claims,
-                    &turns[turn_index].exit_memory_reads,
-                )
-                .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
-                let plans = plan_export_blocks(
-                    &setup.template.exit,
-                    &exit_blocks,
-                    &current.locals_snapshot,
-                    &turns[turn_index].exit_memory_reads,
+                    &linear_memory,
                 )?;
                 host_callee_fref = setup.fref;
                 grammar_state = crate::ir::WasmGrammarState {
@@ -1385,7 +1386,7 @@ pub(super) fn build_trace(
                     turns.len()
                 ))
             })?;
-            let setup = setup_turn(grammar_tables, next_row, claims, true)?;
+            let setup = setup_turn(grammar_tables, next_row, claims, true, &mut linear_memory)?;
             let entry_count = setup.entry_plans.len() as u32;
             let boundary_state = |pc: u64,
                                   sp: u64,

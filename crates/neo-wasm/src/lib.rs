@@ -28,12 +28,12 @@ mod witness_layout;
 
 pub use adapters::wasmtime::{
     build_debug_function_id_map, build_pc_rom_from_binary, collect_wasmtime_component_run,
-    collect_wasmtime_component_run_calls, collect_wasmtime_component_run_with_linker,
-    collect_wasmtime_component_run_with_linker_and_args, collect_wasmtime_steps,
-    extract_first_component_core_program_artifacts, extract_wasm_program_artifacts, traces_from_wasmtime_component,
-    traces_from_wasmtime_component_with_linker, traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_grammar,
-    traces_from_wasmtime_wasm_bytes, WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables, WasmTraceSink,
-    WasmtimeTraceHandler, WasmtimeTraceMemoryAccess, WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
+    collect_wasmtime_component_run_with_linker, collect_wasmtime_component_run_with_linker_and_args,
+    collect_wasmtime_steps, extract_first_component_core_program_artifacts, extract_wasm_program_artifacts,
+    traces_from_wasmtime_component, traces_from_wasmtime_component_with_linker, traces_from_wasmtime_steps,
+    traces_from_wasmtime_steps_with_grammar, traces_from_wasmtime_wasm_bytes, WasmProgramArtifacts,
+    WasmProgramDecodeEntry, WasmProgramTables, WasmTraceSink, WasmtimeTraceHandler, WasmtimeTraceMemoryAccess,
+    WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
 };
 pub use ccs::WasmVmSpec;
 pub use comm_chain::CommChainState;

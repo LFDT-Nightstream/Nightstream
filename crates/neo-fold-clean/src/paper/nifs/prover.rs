@@ -17,7 +17,7 @@
 //! | Adapter dispatch | Adapter entrypoints | no | Materialized proof verified by NIFS.V |
 
 use neo_ajtai::AjtaiSModule;
-use neo_reductions::optimized_engine::OptimizedStructureCache;
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend};
 
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
@@ -76,6 +76,35 @@ pub(crate) fn prove_owned(
     fresh: Vec<CcsInstance>,
     running: RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), Error> {
+    prove_owned_inner(
+        tr,
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        mix_rhos_commits,
+        combine_b_pows,
+        fresh,
+        running,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_owned_inner(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    fresh: Vec<CcsInstance>,
+    running: RunningInstance,
+    mut backend: Option<&mut dyn PaperJointOracleBackend>,
+) -> Result<(RunningInstance, NifsProof), Error> {
     crate::heap::release_unused_pages();
     #[cfg(feature = "perf-timers")]
     let t_witnesses = std::time::Instant::now();
@@ -89,8 +118,20 @@ pub(crate) fn prove_owned(
     // 1. Π_CCS — fold K fresh CCS into K+k CE claims at r'.
     #[cfg(feature = "perf-timers")]
     let t_ccs = std::time::Instant::now();
-    let (pi_ccs_proof, pi_dec_precompute) =
-        pi_ccs::prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, &running)?;
+    let (pi_ccs_proof, pi_dec_precompute) = match backend.as_mut() {
+        Some(backend) => pi_ccs::prove_from_parts_with_backend(
+            tr,
+            pp,
+            s,
+            cache,
+            log,
+            &fresh_claims,
+            &fresh_witnesses,
+            &running,
+            *backend,
+        )?,
+        None => pi_ccs::prove_from_parts(tr, pp, s, cache, log, &fresh_claims, &fresh_witnesses, &running)?,
+    };
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[nifs-prove] pi_ccs                         {:>7.2}s",
@@ -124,17 +165,31 @@ pub(crate) fn prove_owned(
     // 3. Π_DEC — split_b back to k CE claims of norm b.
     #[cfg(feature = "perf-timers")]
     let t_dec = std::time::Instant::now();
-    let (dec_out, pi_dec_proof) = pi_dec::prove_with_precompute(
-        pp,
-        s,
-        cache,
-        log,
-        lanes,
-        combine_b_pows,
-        &rlc_out.claim,
-        &rlc_out.witness,
-        &pi_dec_precompute,
-    )?;
+    let (dec_out, pi_dec_proof) = match backend.as_mut() {
+        Some(backend) => pi_dec::prove_with_precompute_and_backend(
+            pp,
+            s,
+            cache,
+            log,
+            lanes,
+            combine_b_pows,
+            &rlc_out.claim,
+            &rlc_out.witness,
+            &pi_dec_precompute,
+            *backend,
+        )?,
+        None => pi_dec::prove_with_precompute(
+            pp,
+            s,
+            cache,
+            log,
+            lanes,
+            combine_b_pows,
+            &rlc_out.claim,
+            &rlc_out.witness,
+            &pi_dec_precompute,
+        )?,
+    };
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[nifs-prove] pi_dec                         {:>7.2}s",
@@ -323,6 +378,31 @@ impl NifsProverAdapter for OptimizedCpuNifsProver {
         )?;
         Ok(NifsProverOutput::materialized(running, proof))
     }
+}
+
+/// Run the normal NIFS composition with an accelerated one-joint oracle.
+///
+/// PiRLC, PiDEC, transcript ownership, and the ordinary proof boundary stay
+/// in this canonical implementation.
+#[doc(hidden)]
+pub fn prove_with_joint_oracle_backend(
+    request: NifsProverRequest<'_>,
+    backend: &mut dyn PaperJointOracleBackend,
+) -> Result<NifsProverOutput, Error> {
+    let (running, proof) = prove_owned_inner(
+        request.tr,
+        request.pp,
+        request.s,
+        request.cache,
+        request.log,
+        request.lanes,
+        request.mix_rhos_commits,
+        request.combine_b_pows,
+        request.fresh,
+        request.running.clone(),
+        Some(backend),
+    )?;
+    Ok(NifsProverOutput::materialized(running, proof))
 }
 
 impl OptimizedNifsProverAdapter for OptimizedCpuNifsProver {}

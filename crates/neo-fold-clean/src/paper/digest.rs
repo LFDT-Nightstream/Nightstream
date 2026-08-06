@@ -12,7 +12,7 @@
 
 use crate::paper::reductions::accumulator_sis_circuit::{
     accumulator_digest as sis_accumulator_digest, ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG,
-    CE_CLAIM_SIS_CONFIG, NEBULA_LEAF_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG,
+    CE_CLAIM_SIS_CONFIG, NEBULA_LEAF_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG, PROTOCOL_BINDING_MAX_FIELDS,
 };
 use crate::paper::reductions::pi_ccs_output_message::{OUTPUTS_DOMAIN, OUTPUT_MESSAGE_DOMAIN};
 use neo_ajtai::{AjtaiError, AjtaiSModule, Commitment};
@@ -23,6 +23,9 @@ use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 pub(crate) const F_PRIME_CHUNK_CLAIM_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_claim_digest/v2";
 pub(crate) const F_PRIME_CHUNK_PUBLIC_DIGEST_TAG: &[u8] = b"neo.fold.clean/f_prime_chunk_public_digest/v1";
+pub(crate) const ACCUMULATOR_FAMILY_DIGEST_TAG: &[u8] = b"neo.fold.clean/accumulator/strict_binary_family/v5";
+pub(crate) const ACCUMULATOR_FAMILY_AGGREGATE_TAG: &[u8] =
+    b"neo.fold.clean/accumulator/strict_binary_family/aggregate/v1";
 
 // ── Field/byte plumbing ───────────────────────────────────────────────────
 
@@ -604,6 +607,153 @@ pub fn accumulator_claims_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4]
     poseidon_digest_fields(&preimage)
 }
 
+/// Canonical compact binding for a nonempty strict-binary PiDEC family.
+///
+/// Strict PiDEC makes the child `X` matrices the unique binary split of the
+/// parent `X`, makes `r` and `fold_digest` common, derives `ct` from
+/// `y_ring`, and forces padded `y_ring` lanes to zero. This serializer binds
+/// those fields once. It still binds every ordered child commitment, every
+/// active child `y_ring` coordinate, and every Nebula commitment coordinate.
+/// The result therefore binds the exact child vector under the strict PiDEC
+/// checks without repeating derived data for every child.
+///
+/// Returns `None` when the supplied family is not in that canonical profile.
+/// Callers then use the conservative exact-child codec.
+pub fn strict_binary_accumulator_family_digest(
+    claims: &[CeClaim<Commitment, F, K>],
+    parent: &CeClaim<Commitment, F, K>,
+) -> Option<[F; 4]> {
+    let preimage = strict_binary_accumulator_family_preimage(claims, parent)?;
+    let chunk_digests = preimage
+        .chunks(PROTOCOL_BINDING_MAX_FIELDS)
+        .map(|chunk| {
+            sis_accumulator_digest(ACCUMULATOR_CE_CLAIM_SIS_CONFIG, chunk)
+                .expect("bounded nonempty accumulator-family SIS chunk")
+        })
+        .collect::<Vec<_>>();
+
+    let mut aggregate = pack_bytes_as_fields(ACCUMULATOR_FAMILY_AGGREGATE_TAG);
+    aggregate.push(F::from_u64(preimage.len() as u64));
+    aggregate.push(F::from_u64(chunk_digests.len() as u64));
+    for digest in chunk_digests {
+        aggregate.extend_from_slice(&digest);
+    }
+    Some(poseidon_digest_fields(&aggregate))
+}
+
+fn strict_binary_accumulator_family_preimage(
+    claims: &[CeClaim<Commitment, F, K>],
+    parent: &CeClaim<Commitment, F, K>,
+) -> Option<Vec<F>> {
+    let first = claims.first()?;
+    let active_x_cols = crate::paper::relations::superneo_public_x_cols(first.m_in);
+    if first.c.d != neo_math::D
+        || first.c.kappa == 0
+        || first.c.data.len() != first.c.d * first.c.kappa
+        || first.X.rows() != neo_math::D
+        || first.X.cols() != active_x_cols
+        || first.y_ring.is_empty()
+        || first.ct.len() != first.y_ring.len()
+        || first.y_ring.iter().any(|row| row.len() < neo_math::D)
+        || !claim_has_canonical_derived_fields(first)
+        || !adv_has_shape(&first.adv, first.c.d, first.c.kappa)
+    {
+        return None;
+    }
+
+    let expected_child_x = neo_reductions::common::split_b_matrix_k(&parent.X, claims.len(), 2).ok()?;
+    if parent.m_in != first.m_in
+        || parent.X.rows() != first.X.rows()
+        || parent.X.cols() != first.X.cols()
+        || expected_child_x.len() != claims.len()
+    {
+        return None;
+    }
+
+    let has_adv = first.adv.is_some();
+    for (claim, expected_x) in claims.iter().zip(expected_child_x.iter()) {
+        if claim.c.d != first.c.d
+            || claim.c.kappa != first.c.kappa
+            || claim.c.data.len() != first.c.data.len()
+            || claim.X.rows() != first.X.rows()
+            || claim.X.cols() != first.X.cols()
+            || claim.X != *expected_x
+            || claim.r != first.r
+            || claim.y_ring.len() != first.y_ring.len()
+            || claim
+                .y_ring
+                .iter()
+                .zip(first.y_ring.iter())
+                .any(|(row, first_row)| row.len() != first_row.len())
+            || claim.ct.len() != claim.y_ring.len()
+            || claim.m_in != first.m_in
+            || claim.fold_digest != first.fold_digest
+            || claim.adv.is_some() != has_adv
+            || !claim_has_canonical_derived_fields(claim)
+            || !adv_has_shape(&claim.adv, first.c.d, first.c.kappa)
+        {
+            return None;
+        }
+    }
+
+    let mut preimage = pack_bytes_as_fields(ACCUMULATOR_FAMILY_DIGEST_TAG);
+    preimage.push(F::from_u64(claims.len() as u64));
+    preimage.push(F::from_u64(first.c.d as u64));
+    preimage.push(F::from_u64(first.c.kappa as u64));
+    preimage.push(F::from_u64(first.c.data.len() as u64));
+    preimage.push(F::from_u64(first.X.rows() as u64));
+    preimage.push(F::from_u64(first.X.cols() as u64));
+    preimage.push(F::from_u64(active_x_cols as u64));
+    for row in 0..parent.X.rows() {
+        for column in 0..active_x_cols {
+            preimage.push(parent.X[(row, column)]);
+        }
+    }
+    append_k_slice(&mut preimage, &first.r);
+    preimage.push(F::from_u64(first.y_ring.len() as u64));
+    preimage.push(F::from_u64(neo_math::D as u64));
+    preimage.push(F::from_u64(first.m_in as u64));
+    preimage.extend(digest32_as_fields(first.fold_digest));
+    preimage.push(if has_adv { F::ONE } else { F::ZERO });
+
+    for (index, claim) in claims.iter().enumerate() {
+        preimage.push(F::from_u64(index as u64));
+        preimage.extend_from_slice(&claim.c.data);
+        for row in &claim.y_ring {
+            for value in row.iter().take(neo_math::D) {
+                preimage.extend_from_slice(value.as_basis_coefficients_slice());
+            }
+        }
+        if let Some(adv) = &claim.adv {
+            preimage.extend_from_slice(&adv.ops.data);
+            preimage.extend_from_slice(&adv.is.data);
+            preimage.extend_from_slice(&adv.fs.data);
+        }
+    }
+    Some(preimage)
+}
+
+fn claim_has_canonical_derived_fields(claim: &CeClaim<Commitment, F, K>) -> bool {
+    claim
+        .ct
+        .iter()
+        .zip(&claim.y_ring)
+        .all(|(ct, row)| row.first() == Some(ct))
+        && claim
+            .y_ring
+            .iter()
+            .all(|row| row.iter().skip(neo_math::D).all(|value| *value == K::ZERO))
+}
+
+fn adv_has_shape(adv: &Option<LaneCommitments<Commitment>>, d: usize, kappa: usize) -> bool {
+    let Some(adv) = adv else {
+        return true;
+    };
+    [&adv.ops, &adv.is, &adv.fs]
+        .into_iter()
+        .all(|commitment| commitment.d == d && commitment.kappa == kappa && commitment.data.len() == d * kappa)
+}
+
 /// Digest the terminal NIFS children for a compact terminal-CE proof statement.
 ///
 /// Unlike [`ce_claim_digest`] and [`accumulator_ce_claim_digest`], this absorbs
@@ -824,15 +974,29 @@ impl AccumulatorHandle {
 
     /// Shape-checking adapter for the running transport envelope.
     ///
-    /// Valid states hash only the exact ordered child accumulator. The parent
-    /// is checked separately by Pi_DEC. Malformed empty/parent combinations
-    /// receive a distinct fail-closed digest.
+    /// Canonical strict-binary families use the compact family codec. The
+    /// parent supplies only the `X` value whose unique PiDEC split is checked
+    /// against every child; it is not a second accumulator authority. Other
+    /// shapes retain the conservative exact-child codec. Malformed
+    /// empty/parent combinations receive a distinct fail-closed digest.
     pub fn from_running_parts(
         claims: &[CeClaim<Commitment, F, K>],
         parent_authority: Option<&CeClaim<Commitment, F, K>>,
     ) -> Self {
         let shape_is_valid =
             (claims.is_empty() && parent_authority.is_none()) || (!claims.is_empty() && parent_authority.is_some());
+        if claims.is_empty() && parent_authority.is_none() {
+            return Self::empty();
+        }
+        if !claims.is_empty() {
+            if let Some(parent) = parent_authority {
+                if let Some(digest) = strict_binary_accumulator_family_digest(claims, parent) {
+                    return Self {
+                        digest: digest_fields_as_digest32(digest),
+                    };
+                }
+            }
+        }
         if shape_is_valid {
             return Self::from_claims(claims);
         }

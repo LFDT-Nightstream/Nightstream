@@ -16,7 +16,26 @@ use crate::engines::pi_ccs_joint::{
 };
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
-use crate::sumcheck::RoundOracle;
+
+/// Fallible evaluator boundary for the selected one-joint SumCheck.
+///
+/// The canonical driver below owns every transcript action and checks each
+/// returned round message. A device backend can only evaluate and fold its
+/// private multilinear tables.
+pub trait PaperJointRoundOracle {
+    fn evals_at(&mut self, points: &[K]) -> Result<Vec<K>, PiCcsError>;
+    fn num_rounds(&self) -> usize;
+    fn degree_bound(&self) -> usize;
+    fn fold(&mut self, challenge: K) -> Result<(), PiCcsError>;
+
+    /// Return canonical ring openings at the completed SumCheck point when
+    /// the evaluator can produce them without rebuilding its private state.
+    /// The outer prover still validates the terminal claim and owns every
+    /// transcript action. `None` selects the canonical host computation.
+    fn output_openings(&mut self, _point: &[K]) -> Result<Option<Vec<Vec<Vec<K>>>>, PiCcsError> {
+        Ok(None)
+    }
+}
 
 /// Fiat--Shamir binding profile for the interactive public statement.
 ///
@@ -125,7 +144,7 @@ fn validate_selected_inputs(
         if claim.m_in > structure.m
             || claim.m_in % D != 0
             || claim.X.rows() != D
-            || claim.X.cols() != claim.m_in
+            || claim.X.cols() != neo_ccs::superneo_public_x_cols(claim.m_in)
             || claim.y_ring.len() != dims.matrix_count
             || claim.ct.len() != dims.matrix_count
         {
@@ -141,15 +160,6 @@ fn validate_selected_inputs(
                 return Err(PiCcsError::InvalidInput(format!(
                     "optimized running claim {index} matrix image {matrix} is not canonical"
                 )));
-            }
-        }
-        for column in claim.m_in / D..claim.X.cols() {
-            for row in 0..D {
-                if claim.X[(row, column)] != F::ZERO {
-                    return Err(PiCcsError::InvalidInput(format!(
-                        "optimized running claim {index} has a nonzero inactive public-input slot"
-                    )));
-                }
             }
         }
     }
@@ -278,7 +288,7 @@ pub(crate) fn bind_and_sample_with_trace(
     Ok((dims, Challenges::new(alpha, gamma)))
 }
 
-pub fn prove_phase<O: RoundOracle>(
+pub fn prove_phase<O: PaperJointRoundOracle + ?Sized>(
     transcript: &mut Poseidon2Transcript,
     trace: &mut ProtocolTrace,
     initial_claim: K,
@@ -292,10 +302,12 @@ pub fn prove_phase<O: RoundOracle>(
         let points: Vec<K> = (0..=oracle.degree_bound())
             .map(|value| K::from(F::from_u64(value as u64)))
             .collect();
-        let evaluations = oracle.evals_at(&points);
+        let evaluations = oracle.evals_at(&points)?;
         if evaluations.len() != points.len() || evaluations[0] + evaluations[1] != claim {
+            let actual =
+                evaluations.first().copied().unwrap_or(K::ZERO) + evaluations.get(1).copied().unwrap_or(K::ZERO);
             return Err(PiCcsError::SumcheckError(format!(
-                "optimized joint SumCheck invariant failed at round {round}"
+                "optimized joint SumCheck invariant failed at round {round}: expected {claim:?}, got {actual:?}"
             )));
         }
         let coefficients = crate::sumcheck::interpolate_from_evals(&points, &evaluations);
@@ -310,7 +322,7 @@ pub fn prove_phase<O: RoundOracle>(
         append(transcript, trace, fields);
         let challenge = squeeze(transcript, trace, ROUND_CHALLENGE_TAG, Some(round));
         claim = crate::sumcheck::poly_eval_k(&coefficients, challenge);
-        oracle.fold(challenge);
+        oracle.fold(challenge)?;
         rounds.push(coefficients);
         challenges.push(challenge);
     }
@@ -425,7 +437,7 @@ fn validate_outputs(
     for output in outputs {
         if output.r != point
             || output.X.rows() != D
-            || output.X.cols() != output.m_in
+            || output.X.cols() != neo_ccs::superneo_public_x_cols(output.m_in)
             || output.y_ring.len() != dims.matrix_count
             || output.ct.len() != dims.matrix_count
         {
@@ -458,15 +470,6 @@ fn validate_outputs(
                 return Err(PiCcsError::ProtocolError(
                     "fresh output changed a public input coordinate".into(),
                 ));
-            }
-        }
-        for column in claim.m_in / D..output.X.cols() {
-            for row in 0..D {
-                if output.X[(row, column)] != F::ZERO {
-                    return Err(PiCcsError::ProtocolError(
-                        "fresh output has a nonzero inactive public-input slot".into(),
-                    ));
-                }
             }
         }
     }

@@ -8,6 +8,26 @@ use super::{
     SuperneoRingLinearBlock, SuperneoRingLinearForm, SuperneoZBlocks,
 };
 
+/// Packed row-offset storage borrowed by an accelerator backend.
+#[doc(hidden)]
+#[derive(Clone, Copy)]
+pub enum SuperneoCompactRowOffsets<'a> {
+    Empty,
+    U24(&'a [u8]),
+    U32(&'a [u32]),
+}
+
+/// Borrowed, structure-static parts of one compact SuperNeo matrix cache.
+#[doc(hidden)]
+pub struct SuperneoCompactDeviceParts<'a> {
+    pub row_offsets: SuperneoCompactRowOffsets<'a>,
+    pub row_blocks: &'a [[u32; 2]],
+    pub dense_offsets: &'a [u32],
+    pub dense_locals: &'a [u8],
+    pub dense_coefficients: &'a [F],
+    pub identity: bool,
+}
+
 impl SuperneoZBlocks {
     /// Packed positive/negative masks when the real plane is signed-unit.
     pub fn signed_unit_masks(&self) -> Option<(&[u64], &[u64])> {
@@ -19,6 +39,34 @@ impl SuperneoZBlocks {
 }
 
 impl SuperneoMatrixCache {
+    /// Borrow the finished compact storage without expanding scalar entries.
+    #[doc(hidden)]
+    pub fn compact_device_parts(&self) -> Option<SuperneoCompactDeviceParts<'_>> {
+        let row_offsets = match &self.row_offsets {
+            super::RowOffsetStore::Empty => SuperneoCompactRowOffsets::Empty,
+            super::RowOffsetStore::U24(bytes) => SuperneoCompactRowOffsets::U24(bytes),
+            super::RowOffsetStore::U32(offsets) => SuperneoCompactRowOffsets::U32(offsets),
+        };
+        let row_blocks =
+            unsafe { core::slice::from_raw_parts(self.row_blocks.as_ptr().cast::<[u32; 2]>(), self.row_blocks.len()) };
+        let DenseBlockStore::Compact {
+            offsets,
+            locals,
+            coefficients,
+        } = &self.dense_orig
+        else {
+            return None;
+        };
+        Some(SuperneoCompactDeviceParts {
+            row_offsets,
+            row_blocks,
+            dense_offsets: offsets,
+            dense_locals: locals,
+            dense_coefficients: coefficients,
+            identity: self.identity,
+        })
+    }
+
     /// Whether this matrix has a compact seeded Phi81 component.
     pub fn has_compact_seeded_phi81_blocks(&self) -> bool {
         !self.seeded_phi81_blocks.is_empty()

@@ -73,6 +73,8 @@ pub use projected_rows::{
     SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_rows, PreparedSelectiveRows};
+#[doc(hidden)]
+pub use shape::is_canonical_selective_low_norm_polynomial;
 pub(crate) use shape::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
     prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, selective_polynomial,

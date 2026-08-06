@@ -29,7 +29,7 @@ fn validate_outputs(
     for (index, output) in outputs.iter().enumerate() {
         if output.r != point
             || output.X.rows() != D
-            || output.X.cols() != output.m_in
+            || output.X.cols() != neo_ccs::superneo_public_x_cols(output.m_in)
             || output.y_ring.len() != dims.matrix_count
             || output.ct.len() != dims.matrix_count
         {
@@ -64,15 +64,6 @@ fn validate_outputs(
                 return Err(PiCcsError::ProtocolError(
                     "PaperExact fresh output changed a public input coordinate".into(),
                 ));
-            }
-        }
-        for column in claim.m_in / D..output.X.cols() {
-            for row in 0..D {
-                if output.X[(row, column)] != F::ZERO {
-                    return Err(PiCcsError::ProtocolError(
-                        "PaperExact fresh output has a nonzero inactive public-input slot".into(),
-                    ));
-                }
             }
         }
     }

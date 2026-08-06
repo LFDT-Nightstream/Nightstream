@@ -91,11 +91,12 @@ where
                 inst.m_in
             )));
         }
-        if out.X.cols() != inst.m_in {
+        let expected_x_cols = neo_ccs::superneo_public_x_cols(inst.m_in);
+        if out.X.cols() != expected_x_cols {
             return Err(PiCcsError::ProtocolError(format!(
                 "me_outputs[{idx}].X cols mismatch (got {}, expected {})",
                 out.X.cols(),
-                inst.m_in
+                expected_x_cols
             )));
         }
 

@@ -12,10 +12,9 @@ use p3_field::{Field, PrimeCharacteristicRing};
 use crate::engines::pi_ccs_joint::{
     carried_gamma_exponent, equality, gamma_power, range_product, JointDims, ProtocolTrace,
 };
-use crate::engines::pi_ccs_joint_protocol::{self, TranscriptBinding};
+use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, TranscriptBinding};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
-use crate::sumcheck::RoundOracle;
 use crate::superneo_eval::SuperneoZBlocks;
 
 use super::OptimizedStructureCache;
@@ -179,6 +178,42 @@ pub struct OptimizedPaperJointOracle<'a> {
     carried_table: Vec<K>,
 }
 
+/// Canonical inputs available to an implementation of the one-joint oracle.
+///
+/// These values are prover inputs. The canonical driver remains responsible
+/// for the transcript and for all verifier-visible proof messages.
+pub struct PaperJointOracleInput<'a> {
+    pub structure: &'a CcsStructure<F>,
+    pub params: &'a neo_params::NeoParams,
+    pub fresh_witnesses: &'a [CcsWitness<F>],
+    pub running_witnesses: &'a [Mat<F>],
+    pub challenges: Challenges,
+    pub prior_point: Option<&'a [K]>,
+    pub dims: JointDims,
+    pub cache: &'a OptimizedStructureCache,
+}
+
+/// Factory for a protocol-neutral one-joint evaluator.
+pub trait PaperJointOracleBackend {
+    fn create<'a>(
+        &'a mut self,
+        input: PaperJointOracleInput<'a>,
+    ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>;
+
+    /// Evaluate identity-first PiDEC child openings with the same static
+    /// matrix plan. The canonical PiDEC prover checks their radix
+    /// recomposition before it returns a proof.
+    fn dec_openings(
+        &mut self,
+        _cache: &OptimizedStructureCache,
+        _witnesses: &[Mat<F>],
+        _point: &[K],
+        _assignment_width: usize,
+    ) -> Result<Option<Vec<Vec<[K; D]>>>, PiCcsError> {
+        Ok(None)
+    }
+}
+
 impl<'a> OptimizedPaperJointOracle<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -316,9 +351,9 @@ impl<'a> OptimizedPaperJointOracle<'a> {
     }
 }
 
-impl RoundOracle for OptimizedPaperJointOracle<'_> {
-    fn evals_at(&mut self, points: &[K]) -> Vec<K> {
-        self.evaluations(points)
+impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
+    fn evals_at(&mut self, points: &[K]) -> Result<Vec<K>, PiCcsError> {
+        Ok(self.evaluations(points))
     }
 
     fn num_rounds(&self) -> usize {
@@ -329,7 +364,7 @@ impl RoundOracle for OptimizedPaperJointOracle<'_> {
         self.dims.degree
     }
 
-    fn fold(&mut self, challenge: K) {
+    fn fold(&mut self, challenge: K) -> Result<(), PiCcsError> {
         fold_table(&mut self.equality_alpha, challenge);
         if let Some(table) = &mut self.equality_prior {
             fold_table(table, challenge);
@@ -344,6 +379,7 @@ impl RoundOracle for OptimizedPaperJointOracle<'_> {
         }
         fold_table(&mut self.carried_table, challenge);
         self.round += 1;
+        Ok(())
     }
 }
 
@@ -358,13 +394,45 @@ fn build_outputs<L>(
     dims: JointDims,
     _commitment: &L,
     cache: &OptimizedStructureCache,
+    precomputed_openings: Option<&[Vec<Vec<K>>]>,
 ) -> Result<Vec<CeClaim<Cmt, F, K>>, PiCcsError>
 where
     L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>,
 {
-    let weights = neo_ccs::utils::tensor_point::<K>(point);
+    let weights = precomputed_openings
+        .is_none()
+        .then(|| neo_ccs::utils::tensor_point::<K>(point));
     let d_pad = D.next_power_of_two();
-    let openings = |witness: &Mat<F>| -> Result<(Vec<Vec<K>>, Vec<K>), PiCcsError> {
+    let source_count = fresh_claims.len() + running_claims.len();
+    if precomputed_openings.is_some_and(|openings| openings.len() != source_count) {
+        return Err(PiCcsError::ProtocolError(
+            "optimized opening backend returned the wrong source count".into(),
+        ));
+    }
+    let openings = |source: usize, witness: &Mat<F>| -> Result<(Vec<Vec<K>>, Vec<K>), PiCcsError> {
+        if let Some(precomputed) = precomputed_openings {
+            let rows = precomputed
+                .get(source)
+                .ok_or_else(|| PiCcsError::ProtocolError("optimized opening source is missing".into()))?;
+            if rows.len() != dims.matrix_count || rows.iter().any(|row| row.len() != D) {
+                return Err(PiCcsError::ProtocolError(
+                    "optimized opening backend returned a non-canonical matrix image".into(),
+                ));
+            }
+            let y_ring = rows
+                .iter()
+                .map(|row| {
+                    let mut padded = row.clone();
+                    padded.resize(d_pad, K::ZERO);
+                    padded
+                })
+                .collect::<Vec<_>>();
+            let ct = y_ring.iter().map(|row| row[0]).collect();
+            return Ok((y_ring, ct));
+        }
+        let weights = weights
+            .as_deref()
+            .expect("host openings require the equality tensor");
         let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m)?;
         let mut y_ring = Vec::with_capacity(dims.matrix_count);
         let mut identity = identity_ring_mle(&assignment, &weights).to_vec();
@@ -384,8 +452,8 @@ where
     };
 
     let mut outputs = Vec::with_capacity(fresh_claims.len() + running_claims.len());
-    for (claim, witness) in fresh_claims.iter().zip(fresh_witnesses) {
-        let (y_ring, ct) = openings(&witness.Z)?;
+    for (source, (claim, witness)) in fresh_claims.iter().zip(fresh_witnesses).enumerate() {
+        let (y_ring, ct) = openings(source, &witness.Z)?;
         outputs.push(CeClaim {
             c: claim.c.clone(),
             X: crate::common::project_x_from_witness_mat(&witness.Z, structure.m, claim.m_in)?,
@@ -397,8 +465,8 @@ where
             adv: claim.adv.clone(),
         });
     }
-    for (claim, witness) in running_claims.iter().zip(running_witnesses) {
-        let (y_ring, ct) = openings(witness)?;
+    for (running, (claim, witness)) in running_claims.iter().zip(running_witnesses).enumerate() {
+        let (y_ring, ct) = openings(fresh_claims.len() + running, witness)?;
         outputs.push(CeClaim {
             c: claim.c.clone(),
             X: claim.X.clone(),
@@ -414,7 +482,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+fn prove_with_trace_inner<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -425,6 +493,7 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     commitment: &L,
     cache: &OptimizedStructureCache,
     binding: TranscriptBinding,
+    backend: Option<&mut dyn PaperJointOracleBackend>,
 ) -> Result<
     (
         Vec<CeClaim<Cmt, F, K>>,
@@ -467,20 +536,46 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.variables)?;
     let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
     let sumcheck_started = std::time::Instant::now();
-    let mut oracle = OptimizedPaperJointOracle::new(
+    let input = PaperJointOracleInput {
         structure,
         params,
         fresh_witnesses,
         running_witnesses,
-        challenges.clone(),
+        challenges: challenges.clone(),
         prior_point,
         dims,
         cache,
-    )?;
+    };
+    #[cfg(feature = "perf-timers")]
+    let oracle_started = std::time::Instant::now();
+    let mut oracle: Box<dyn PaperJointRoundOracle + '_> = match backend {
+        Some(backend) => backend.create(input)?,
+        None => Box::new(OptimizedPaperJointOracle::new(
+            input.structure,
+            input.params,
+            input.fresh_witnesses,
+            input.running_witnesses,
+            input.challenges,
+            input.prior_point,
+            input.dims,
+            input.cache,
+        )?),
+    };
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[pi-ccs/phase] oracle-build={:.3}s",
+        oracle_started.elapsed().as_secs_f64()
+    );
+    #[cfg(feature = "perf-timers")]
+    let rounds_started = std::time::Instant::now();
     let (rounds, round_challenges, final_claim) =
-        pi_ccs_joint_protocol::prove_phase(transcript, &mut trace, initial, &mut oracle)?;
+        pi_ccs_joint_protocol::prove_phase(transcript, &mut trace, initial, oracle.as_mut())?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!("[pi-ccs/phase] rounds={:.3}s", rounds_started.elapsed().as_secs_f64());
     let sumcheck_ms = sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
     let output_started = std::time::Instant::now();
+    let precomputed_openings = oracle.output_openings(&round_challenges)?;
+    drop(oracle);
     let mut outputs = build_outputs(
         structure,
         fresh_claims,
@@ -491,6 +586,7 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         dims,
         commitment,
         cache,
+        precomputed_openings.as_deref(),
     )?;
     let expected = terminal::<F>(
         structure,
@@ -510,6 +606,8 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     for output in &mut outputs {
         output.fold_digest = digest;
     }
+    #[cfg(feature = "perf-timers")]
+    eprintln!("[pi-ccs/phase] outputs={:.3}s", output_started.elapsed().as_secs_f64());
     let proof = pi_ccs_joint_protocol::assemble_proof(rounds);
     let output_materialize_ms = output_started.elapsed().as_secs_f64() * 1_000.0;
     let perf = super::PiCcsProvePerf {
@@ -520,6 +618,41 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         total_ms: started.elapsed().as_secs_f64() * 1_000.0,
     };
     Ok((outputs, proof, perf, trace))
+}
+
+pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    transcript: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    commitment: &L,
+    cache: &OptimizedStructureCache,
+    binding: TranscriptBinding,
+) -> Result<
+    (
+        Vec<CeClaim<Cmt, F, K>>,
+        PiCcsProof,
+        super::PiCcsProvePerf,
+        ProtocolTrace,
+    ),
+    PiCcsError,
+> {
+    prove_with_trace_inner(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        commitment,
+        cache,
+        binding,
+        None,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -573,6 +706,36 @@ pub fn prove_with_binding<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         commitment,
         cache,
         binding,
+    )?;
+    Ok((outputs, proof, perf))
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn prove_with_binding_and_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+    transcript: &mut Poseidon2Transcript,
+    params: &neo_params::NeoParams,
+    structure: &CcsStructure<F>,
+    fresh_claims: &[CcsClaim<Cmt, F>],
+    fresh_witnesses: &[CcsWitness<F>],
+    running_claims: &[CeClaim<Cmt, F, K>],
+    running_witnesses: &[Mat<F>],
+    commitment: &L,
+    cache: &OptimizedStructureCache,
+    binding: TranscriptBinding,
+    backend: &mut dyn PaperJointOracleBackend,
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
+    let (outputs, proof, perf, _) = prove_with_trace_inner(
+        transcript,
+        params,
+        structure,
+        fresh_claims,
+        fresh_witnesses,
+        running_claims,
+        running_witnesses,
+        commitment,
+        cache,
+        binding,
+        Some(backend),
     )?;
     Ok((outputs, proof, perf))
 }

@@ -108,22 +108,13 @@ where
         if claim.m_in > structure.m
             || claim.m_in % D != 0
             || claim.X.rows() != D
-            || claim.X.cols() != claim.m_in
+            || claim.X.cols() != neo_ccs::superneo_public_x_cols(claim.m_in)
             || claim.y_ring.len() != matrix_count
             || claim.ct.len() != matrix_count
         {
             return Err(PiCcsError::InvalidInput(format!(
                 "PaperExact running claim {index} does not have the paper CE shape"
             )));
-        }
-        for column in claim.m_in / D..claim.X.cols() {
-            for row in 0..D {
-                if claim.X[(row, column)] != Ff::ZERO {
-                    return Err(PiCcsError::InvalidInput(format!(
-                        "PaperExact running claim {index} has a nonzero inactive public-input slot"
-                    )));
-                }
-            }
         }
         for (matrix, coefficients) in claim.y_ring.iter().enumerate() {
             if coefficients.len() != D.next_power_of_two()
@@ -265,8 +256,8 @@ where
             "PaperExact public-input projection shape mismatch".into(),
         ));
     }
-    let active_columns = public_width / D;
-    let mut output = Mat::zero(D, public_width, Ff::ZERO);
+    let active_columns = public_width.div_ceil(D);
+    let mut output = Mat::zero(D, active_columns, Ff::ZERO);
     for column in 0..active_columns {
         for row in 0..D {
             output[(row, column)] = witness[(row, column)];

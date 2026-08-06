@@ -185,6 +185,53 @@ impl OptimizedRlcDec {
         let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
         (children, split_valid && ok_y, split_valid && ok_X, ok_c)
     }
+
+    /// Build PiDEC children from the exact digit planes and flags returned by
+    /// `split_b_matrix_k_with_nonzero_flags`.
+    ///
+    /// The caller owns the canonical split boundary. This path keeps the
+    /// public y, X, and commitment recomposition checks, but it does not
+    /// reconstruct and split the full witness a second time.
+    #[allow(clippy::too_many_arguments)]
+    pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
+        s: &CcsStructure<F>,
+        params: &NeoParams,
+        parent: &CeClaim<Cmt, F, K>,
+        z_split: &[Mat<F>],
+        digit_nonzero: &[bool],
+        ell_d: usize,
+        child_commitments: &[Cmt],
+        combine_b_pows: Comb,
+        superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
+        ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
+        precomputed_y_ring: Option<&[Vec<[K; neo_math::D]>]>,
+    ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
+    where
+        Comb: Fn(&[Cmt], u32) -> Cmt,
+    {
+        if z_split.len() != params.k_rho as usize
+            || digit_nonzero.len() != z_split.len()
+            || child_commitments.len() != z_split.len()
+        {
+            return (Vec::new(), false, false, false);
+        }
+        let (mut children, ok_y, ok_x) = super::optimized_engine::dec_reduction_optimized_with_digit_flags::<F>(
+            s,
+            params,
+            parent,
+            z_split,
+            digit_nonzero,
+            ell_d,
+            superneo_cache,
+            ring_linear_forms,
+            precomputed_y_ring,
+        );
+        for (child, commitment) in children.iter_mut().zip(child_commitments) {
+            child.c = commitment.clone();
+        }
+        let ok_c = combine_b_pows(child_commitments, params.b) == parent.c;
+        (children, ok_y, ok_x, ok_c)
+    }
 }
 
 impl RlcDecOps for OptimizedRlcDec {

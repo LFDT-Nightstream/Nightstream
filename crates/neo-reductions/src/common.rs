@@ -975,16 +975,13 @@ where
     K::from(witness_mat_get_f(Z, expected_m, rho, col))
 }
 
-/// Project the active SuperNeo public-input ring slots of packed witness
-/// matrix `Z` into `X ∈ F^{D×m_in}`.
+/// Project the SuperNeo public-input ring slots of packed witness matrix `Z`
+/// into the compact coefficient embedding `X ∈ F^{D×ceil(m_in/D)}`.
 ///
 /// `m_in` counts public field elements, but SuperNeo carries public inputs
-/// in packed ring columns. The active prefix therefore has
-/// `ceil(m_in / D)` full ring columns. Rows in the final active column that
-/// do not correspond to a scalar public input are still part of the active
-/// ring slot: after RLC they may be non-zero, and DEC must be able to split
-/// and recombine them. Columns `ceil(m_in / D)..m_in` remain structural
-/// zeros and are checked by `superneo_inactive_x_zero`.
+/// in packed ring columns. Rows in the final column that do not correspond
+/// to a scalar public input are part of the ring slot: after RLC they can be
+/// nonzero, and DEC must split and recombine them.
 pub fn project_x_from_witness_mat<Ff>(Z: &Mat<Ff>, expected_m: usize, m_in: usize) -> Result<Mat<Ff>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
@@ -1003,7 +1000,7 @@ where
         )));
     }
 
-    let mut X = Mat::zero(D, m_in, Ff::ZERO);
+    let mut X = Mat::zero(D, required_cols, Ff::ZERO);
     for col in 0..required_cols {
         for row in 0..D {
             X[(row, col)] = Z[(row, col)];

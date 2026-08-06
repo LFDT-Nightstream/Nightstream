@@ -364,7 +364,7 @@ fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
         CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid CCS structure");
     let input = CeClaim::<Commitment, F, K> {
         c: Commitment::zeros(D, 1),
-        X: Mat::zero(D, D, F::ZERO),
+        X: Mat::zero(D, neo_ccs::superneo_public_x_cols(D), F::ZERO),
         r: vec![K::ZERO; D.next_power_of_two().trailing_zeros() as usize],
         y_ring: vec![vec![K::ZERO; d_pad]; 2],
         ct: vec![K::ZERO; 2],

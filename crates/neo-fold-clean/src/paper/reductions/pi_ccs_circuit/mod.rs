@@ -32,8 +32,8 @@ pub mod verifier;
 // internal module split.
 pub use digests::{
     enforce_accumulator_ce_claim_digest, enforce_accumulator_claims_digest, enforce_ccs_claim_digest,
-    enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest, AccumulatorCeClaimDigestInputs,
-    PiCcsOutputsDigestWires,
+    enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest,
+    enforce_strict_binary_accumulator_family_digest, AccumulatorCeClaimDigestInputs, PiCcsOutputsDigestWires,
 };
 pub use output_message::{
     audit_pi_ccs_output_sis, encode_pi_ccs_outputs_preimage, PiCcsOutputFieldBinding, PiCcsOutputMessageDigestInputs,

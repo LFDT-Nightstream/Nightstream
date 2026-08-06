@@ -132,6 +132,24 @@ pub(crate) struct SelectiveLowNormShapeSummary {
     pub total_coordinates: usize,
 }
 
+#[cfg(test)]
+impl SelectiveLowNormShapeSummary {
+    fn matches(&self, shape: &SelectiveLowNormShape) -> bool {
+        self.rows == shape.rows
+            && self.columns == shape.columns
+            && self.public_input_len == shape.public_input_len
+            && self.total_coordinates == shape.compiler_audit.width().total_coordinates
+            && self.polynomial.arity() == shape.polynomial.arity()
+            && self.polynomial.terms().len() == shape.polynomial.terms().len()
+            && self
+                .polynomial
+                .terms()
+                .iter()
+                .zip(shape.polynomial.terms())
+                .all(|(left, right)| left.coeff == right.coeff && left.exps == right.exps)
+    }
+}
+
 pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_alignment(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
@@ -227,6 +245,20 @@ pub(crate) fn selective_polynomial() -> SparsePoly<F> {
         }
     }
     SparsePoly::new(SELECTIVE_ARITY, terms)
+}
+
+/// Report whether a polynomial is the exact selective low-norm gate
+/// polynomial used by this frontend.
+#[doc(hidden)]
+pub fn is_canonical_selective_low_norm_polynomial(polynomial: &SparsePoly<F>) -> bool {
+    let expected = selective_polynomial();
+    polynomial.arity() == expected.arity()
+        && polynomial.terms().len() == expected.terms().len()
+        && polynomial
+            .terms()
+            .iter()
+            .zip(expected.terms())
+            .all(|(actual, expected)| actual.coeff == expected.coeff && actual.exps == expected.exps)
 }
 
 #[cfg(test)]

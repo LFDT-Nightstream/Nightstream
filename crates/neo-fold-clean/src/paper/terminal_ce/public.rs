@@ -185,10 +185,11 @@ fn validate_terminal_children(
                 got: claim.X.rows(),
             });
         }
-        if claim.X.cols() != claim.m_in {
+        let active_cols = superneo_public_x_cols(claim.m_in);
+        if claim.X.cols() != active_cols {
             return Err(TerminalCePublicError::XCols {
                 index,
-                expected: claim.m_in,
+                expected: active_cols,
                 got: claim.X.cols(),
             });
         }
@@ -199,27 +200,12 @@ fn validate_terminal_children(
                 got: claim.m_in,
             });
         }
-        let active_cols = superneo_public_x_cols(claim.m_in);
-        if active_cols > claim.X.cols() {
-            return Err(TerminalCePublicError::ActiveXCols {
-                index,
-                active_cols,
-                cols: claim.X.cols(),
-            });
-        }
         if claim.r.len() != expected_r_len {
             return Err(TerminalCePublicError::RLen {
                 index,
                 expected: expected_r_len,
                 got: claim.r.len(),
             });
-        }
-        for row in 0..claim.X.rows() {
-            for col in active_cols..claim.X.cols() {
-                if claim.X[(row, col)] != F::ZERO {
-                    return Err(TerminalCePublicError::InactiveXNonZero { index, row, col });
-                }
-            }
         }
         if claim.y_ring.len() != expected_t {
             return Err(TerminalCePublicError::YRingCount {

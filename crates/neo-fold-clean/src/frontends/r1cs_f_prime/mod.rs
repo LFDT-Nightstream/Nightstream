@@ -54,6 +54,8 @@ pub use lowering::{
 };
 pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
 pub use nebula_combined_ccs::{LeanNebulaCombinedError, LeanNebulaCombinedPreprocessing};
+#[doc(hidden)]
+pub use selective::is_canonical_selective_low_norm_polynomial;
 pub(crate) use selective::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
     prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, SelectiveLowNormShape,

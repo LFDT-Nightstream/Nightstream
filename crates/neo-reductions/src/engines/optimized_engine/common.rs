@@ -106,8 +106,9 @@ where
     if let Some(rows) = precomputed_y_ring {
         assert_eq!(rows.len(), Z_split.len(), "PiDEC precomputed child count mismatch");
         assert!(
-            rows.iter().all(|child| child.len() == s.t()),
-            "PiDEC precomputed application matrix count mismatch"
+            rows.iter()
+                .all(|child| child.len() == s.t() || child.len() == matrix_count),
+            "PiDEC precomputed matrix count mismatch"
         );
     }
     assert!(
@@ -115,7 +116,13 @@ where
         "PiDEC accepts precomputed rows or ring forms, not both"
     );
 
-    let row_weights = neo_ccs::utils::tensor_point_parallel::<K>(&parent.r);
+    let full_precomputed_rows =
+        precomputed_y_ring.is_some_and(|rows| rows.iter().all(|child| child.len() == matrix_count));
+    let row_weights = if full_precomputed_rows {
+        Vec::new()
+    } else {
+        neo_ccs::utils::tensor_point_parallel::<K>(&parent.r)
+    };
     let streamed = streamed_application_rows(
         s,
         Z_split,
@@ -131,7 +138,7 @@ where
             return CeClaim {
                 adv: None,
                 c: parent.c.clone(),
-                X: Mat::zero(D, m_in, Ff::ZERO),
+                X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in), Ff::ZERO),
                 r: parent.r.clone(),
                 y_ring: vec![vec![K::ZERO; d_pad]; matrix_count],
                 ct: vec![K::ZERO; matrix_count],
@@ -143,9 +150,14 @@ where
         let witness = &Z_split[index];
         let X = crate::common::project_x_from_witness_mat(witness, s.m, m_in)
             .unwrap_or_else(|error| panic!("PiDEC X projection failed: {error}"));
-        let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, s.m)
-            .unwrap_or_else(|error| panic!("PiDEC identity assignment decode failed: {error}"));
-        let mut identity = super::paper_joint::identity_ring_mle(&assignment, &row_weights).to_vec();
+        let identity = precomputed_y_ring
+            .and_then(|rows| (rows[index].len() == matrix_count).then_some(rows[index][0]))
+            .unwrap_or_else(|| {
+                let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, s.m)
+                    .unwrap_or_else(|error| panic!("PiDEC identity assignment decode failed: {error}"));
+                super::paper_joint::identity_ring_mle(&assignment, &row_weights)
+            });
+        let mut identity = identity.to_vec();
         identity.resize(d_pad, K::ZERO);
         let mut y_ring = Vec::with_capacity(matrix_count);
         y_ring.push(identity);
@@ -189,7 +201,7 @@ where
         sum == parent.y_ring[matrix]
     });
     let x_ok = (0..D).all(|row| {
-        (0..m_in).all(|column| {
+        (0..parent.X.cols()).all(|column| {
             let mut sum = Ff::ZERO;
             let mut power = Ff::ONE;
             for child in &children {
@@ -217,7 +229,16 @@ where
     K: From<Ff>,
 {
     if let Some(rows) = precomputed_y_ring {
-        return rows.to_vec();
+        return rows
+            .iter()
+            .map(|child| {
+                if child.len() == s.t() + 1 {
+                    child[1..].to_vec()
+                } else {
+                    child.clone()
+                }
+            })
+            .collect();
     }
     if let Some(forms) = ring_linear_forms {
         return Z_split

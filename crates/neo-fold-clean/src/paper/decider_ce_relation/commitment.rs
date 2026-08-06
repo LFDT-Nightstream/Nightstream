@@ -210,12 +210,7 @@ impl XProjectionError {
     }
 }
 
-/// Enforce `claim.X = L_x(Z)` for the active public-input prefix.
-///
-/// `project_x_from_witness_mat` copies the first `required_cols = ceil(m_in / D)`
-/// packed columns of `Z` into `X`; this gadget also pins all remaining
-/// structural `X` columns to zero. That keeps the terminal CE relation
-/// self-contained instead of relying on an upstream inactive-column check.
+/// Enforce `claim.X = L_x(Z)` for the compact public-input embedding.
 pub(crate) fn enforce_x_projection(
     builder: &mut R1csBuilder,
     witness: &FinalWitnessWires,
@@ -236,10 +231,10 @@ pub(crate) fn enforce_x_projection(
         });
     }
     let required_cols = claim.m_in.div_ceil(D);
-    if claim.x_cols != claim.m_in {
+    if claim.x_cols != required_cols {
         return Err(XProjectionError {
-            what: "claim.x_cols == m_in",
-            expected: claim.m_in,
+            what: "claim.x_cols == ceil(m_in / D)",
+            expected: required_cols,
             got: claim.x_cols,
         });
     }
@@ -248,13 +243,6 @@ pub(crate) fn enforce_x_projection(
             what: "witness cols ≥ required_cols",
             expected: required_cols,
             got: witness.cols,
-        });
-    }
-    if claim.x_cols < required_cols {
-        return Err(XProjectionError {
-            what: "claim.x_cols ≥ required_cols",
-            expected: required_cols,
-            got: claim.x_cols,
         });
     }
     for col in 0..required_cols {
@@ -271,17 +259,6 @@ pub(crate) fn enforce_x_projection(
                 got: claim.x.len(),
             })?;
             builder.enforce_eq(&Lc::from_var(z_var), &Lc::from_var(x_var));
-        }
-    }
-    for col in required_cols..claim.x_cols {
-        for row in 0..D {
-            let x_idx = row * claim.x_cols + col;
-            let x_var = *claim.x.get(x_idx).ok_or(XProjectionError {
-                what: "claim.x slot",
-                expected: D * claim.x_cols,
-                got: claim.x.len(),
-            })?;
-            builder.enforce_eq(&Lc::from_var(x_var), &Lc::zero());
         }
     }
     Ok(())

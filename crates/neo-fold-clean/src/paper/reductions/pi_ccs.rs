@@ -23,7 +23,7 @@ use thiserror::Error;
 
 use neo_ajtai::AjtaiSModule;
 use neo_math::{D, F, K};
-use neo_reductions::optimized_engine::{OptimizedStructureCache, PiDecProverPrecompute};
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute};
 
 use crate::engine::optimized as engine;
 use crate::engine::paper_exact as reference_engine;
@@ -89,17 +89,75 @@ pub(crate) fn prove_from_parts(
     fresh_witnesses: &[CcsWitness],
     running: &RunningInstance,
 ) -> Result<(Proof, PiDecProverPrecompute), Error> {
-    validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
-    let (mut outputs, sumcheck, pi_dec_precompute) = engine::prove_pi_ccs_parts(
-        tr.inner_mut(),
+    prove_from_parts_inner(tr, pp, s, cache, log, fresh_claims, fresh_witnesses, running, None)
+}
+
+/// Run the canonical PiCCS prover with a protocol-neutral round evaluator.
+///
+/// This is an accelerator seam. The normal verifier and proof format do not
+/// depend on the selected evaluator.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub fn prove_from_parts_with_backend(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    backend: &mut dyn PaperJointOracleBackend,
+) -> Result<(Proof, PiDecProverPrecompute), Error> {
+    prove_from_parts_inner(
+        tr,
         pp,
         s,
         cache,
+        log,
         fresh_claims,
         fresh_witnesses,
         running,
-        log,
-    )?;
+        Some(backend),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_from_parts_inner(
+    tr: &mut Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    backend: Option<&mut dyn PaperJointOracleBackend>,
+) -> Result<(Proof, PiDecProverPrecompute), Error> {
+    validate_input_shape(pp, s, fresh_claims, fresh_witnesses, running)?;
+    let (mut outputs, sumcheck, pi_dec_precompute) = match backend {
+        Some(backend) => engine::prove_pi_ccs_parts_with_backend(
+            tr.inner_mut(),
+            pp,
+            s,
+            cache,
+            fresh_claims,
+            fresh_witnesses,
+            running,
+            log,
+            backend,
+        )?,
+        None => engine::prove_pi_ccs_parts(
+            tr.inner_mut(),
+            pp,
+            s,
+            cache,
+            fresh_claims,
+            fresh_witnesses,
+            running,
+            log,
+        )?,
+    };
     forward_adv(fresh_claims, &running.claims, &mut outputs)?;
     validate_clean_padded_row_claims(s, &outputs)?;
     let outputs_digest = digest::pi_ccs_outputs_digest(&outputs);

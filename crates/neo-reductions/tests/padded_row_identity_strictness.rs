@@ -213,7 +213,7 @@ fn padded_row_identity_raw_verify_rejects_unbound_output_ct() {
 }
 
 #[test]
-fn padded_row_identity_raw_verify_rejects_unbound_inactive_output_x() {
+fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
     let label = b"test/padded_row_identity/redteam/inactive_output_x";
     let (params, s, l, mut mcs, mut wit, mut tr_p) = build_fixture(label, 4, D);
     mcs.m_in = D;
@@ -234,7 +234,8 @@ fn padded_row_identity_raw_verify_rejects_unbound_inactive_output_x() {
     .expect("prove");
 
     assert_eq!(outputs[0].X.rows(), D);
-    assert_eq!(outputs[0].X.cols(), D);
+    assert_eq!(outputs[0].X.cols(), 1);
+    outputs[0].X = Mat::zero(D, 2, F::ZERO);
     outputs[0].X[(0, 1)] = F::ONE;
 
     let mut tr_v = Poseidon2Transcript::new(label);
@@ -251,7 +252,7 @@ fn padded_row_identity_raw_verify_rejects_unbound_inactive_output_x() {
 
     assert!(
         !matches!(result, Ok(true)),
-        "raw Pi_CCS accepted an output CE claim with unbound inactive X data"
+        "raw Pi_CCS accepted a CE claim with a noncanonical extra X column"
     );
 }
 

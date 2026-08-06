@@ -17,7 +17,7 @@ use neo_reductions::engines::pi_ccs_joint::{build_joint_dims, carried_gamma_expo
 use neo_reductions::engines::pi_ccs_joint_protocol::TranscriptBinding;
 use neo_reductions::engines::pi_ccs_protocol::Challenges;
 use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle;
-use neo_reductions::optimized_engine::OptimizedStructureCache;
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointRoundOracle};
 use neo_reductions::sumcheck::RoundOracle;
 use neo_reductions::{split_b_matrix_k, PiCcsError, PiCcsProof};
 use neo_transcript::{Poseidon2Transcript, Transcript};
@@ -286,10 +286,16 @@ fn every_joint_round_polynomial_and_fold_matches() {
             .map(|value| K::from(F::from_u64(value as u64)))
             .collect();
         for round in 0..dims.variables {
-            assert_eq!(paper.evals_at(&points), optimized.evals_at(&points), "round {round}");
+            assert_eq!(
+                paper.evals_at(&points),
+                optimized
+                    .evals_at(&points)
+                    .expect("optimized round evaluations"),
+                "round {round}"
+            );
             let challenge = K::from(F::from_u64((19 + 3 * round) as u64));
             paper.fold(challenge);
-            optimized.fold(challenge);
+            optimized.fold(challenge).expect("optimized oracle fold");
         }
     }
 }

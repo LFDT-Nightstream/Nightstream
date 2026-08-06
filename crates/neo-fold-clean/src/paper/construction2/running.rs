@@ -12,7 +12,7 @@ use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::paper::params::Params;
-use crate::paper::relations::{CeClaim, Structure, WitnessMat};
+use crate::paper::relations::{superneo_public_x_cols, CeClaim, Structure, WitnessMat};
 
 /// Product-commitment shape of the verifier-selected accumulator relation.
 ///
@@ -152,7 +152,7 @@ impl RunningInstance {
         let d_pad = D.next_power_of_two();
         let zero_claim = CeClaim {
             c: Commitment::zeros(D, pp.kappa() as usize),
-            X: Mat::virtual_constant(D, m_in, F::ZERO),
+            X: Mat::virtual_constant(D, superneo_public_x_cols(m_in), F::ZERO),
             r: vec![K::ZERO; ell_n],
             y_ring: vec![vec![K::ZERO; d_pad]; relation_t + 1],
             ct: vec![K::ZERO; relation_t + 1],

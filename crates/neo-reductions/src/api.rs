@@ -785,7 +785,7 @@ where
     }
 
     match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
             s,
             params,
             parent,
@@ -810,7 +810,7 @@ where
         ),
         #[cfg(feature = "paper-exact")]
         FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
                 s,
                 params,
                 parent,
@@ -879,7 +879,7 @@ where
     let t = inputs[0].y_ring.len();
 
     // X_out := Σ ρ_i · X_i
-    let mut X = Mat::zero(d, m_in, F::ZERO);
+    let mut X = Mat::zero(d, neo_ccs::superneo_public_x_cols(m_in), F::ZERO);
     for (rho, inst) in rho_mats.iter().zip(inputs.iter()) {
         left_mul_acc(&mut X, rho, &inst.X);
     }

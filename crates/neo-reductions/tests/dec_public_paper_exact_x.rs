@@ -36,7 +36,7 @@ fn structure() -> CcsStructure<F> {
 
 fn claim(params: &NeoParams, x: F) -> CeClaim<Commitment, F, K> {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
-    let mut public_x = Mat::zero(D, D, F::ZERO);
+    let mut public_x = Mat::zero(D, 1, F::ZERO);
     public_x[(0, 0)] = x;
     CeClaim {
         adv: None,

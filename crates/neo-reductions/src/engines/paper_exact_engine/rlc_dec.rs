@@ -61,7 +61,7 @@ where
     assert_eq!(ell_d, D.next_power_of_two().trailing_zeros() as usize);
     assert_eq!(claim.m_in % D, 0, "PaperExact requires whole-ring public inputs");
     assert_eq!(claim.X.rows(), D);
-    assert_eq!(claim.X.cols(), claim.m_in);
+    assert_eq!(claim.X.cols(), neo_ccs::superneo_public_x_cols(claim.m_in));
     assert_eq!(claim.y_ring.len(), structure.t() + 1);
     assert_eq!(claim.ct.len(), structure.t() + 1);
     for (matrix, image) in claim.y_ring.iter().enumerate() {
@@ -97,9 +97,10 @@ where
         assert_eq!(claim.r, point);
     }
 
-    let mut X = Mat::zero(D, m_in, Ff::ZERO);
+    let x_cols = neo_ccs::superneo_public_x_cols(m_in);
+    let mut X = Mat::zero(D, x_cols, Ff::ZERO);
     for (rho, input) in coefficients.iter().zip(inputs) {
-        for column in 0..m_in {
+        for column in 0..x_cols {
             let product = ring.multiply_base(*rho, base_block(&input.X, column));
             for row in 0..D {
                 X[(row, column)] += Ff::from_u64(product[row].as_canonical_u64());
@@ -314,8 +315,9 @@ where
     }
 
     let mut x_valid = split_valid;
+    let x_cols = neo_ccs::superneo_public_x_cols(parent.m_in);
     for row in 0..D {
-        for column in 0..parent.m_in {
+        for column in 0..x_cols {
             let mut reconstructed = Ff::ZERO;
             let mut power = Ff::ONE;
             for child in &children {

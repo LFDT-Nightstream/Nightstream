@@ -16,7 +16,7 @@ use neo_ajtai::AjtaiSModule;
 use neo_ccs::Mat;
 use neo_math::balanced::within_nc_bound;
 use neo_math::{D, F, K};
-use neo_reductions::optimized_engine::{OptimizedStructureCache, PiDecProverPrecompute};
+use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointOracleBackend, PiDecProverPrecompute};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
@@ -102,7 +102,7 @@ pub fn prove(
     parent: &CeClaim,
     parent_witness: &Mat<F>,
 ) -> Result<(Children, Proof), Error> {
-    prove_inner(pp, s, cache, log, lanes, combine, parent, parent_witness, None)
+    prove_inner(pp, s, cache, log, lanes, combine, parent, parent_witness, None, None)
 }
 
 pub(crate) fn prove_with_precompute(
@@ -126,6 +126,34 @@ pub(crate) fn prove_with_precompute(
         parent,
         parent_witness,
         Some(precompute),
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prove_with_precompute_and_backend(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &AjtaiSModule,
+    lanes: Option<&LaneScheme>,
+    combine: DecMixer,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+    precompute: &PiDecProverPrecompute,
+    backend: &mut dyn PaperJointOracleBackend,
+) -> Result<(Children, Proof), Error> {
+    prove_inner(
+        pp,
+        s,
+        cache,
+        log,
+        lanes,
+        combine,
+        parent,
+        parent_witness,
+        Some(precompute),
+        Some(backend),
     )
 }
 
@@ -177,7 +205,11 @@ pub fn prove_from_split_material(
     child_commitments: Vec<neo_ajtai::Commitment>,
     precomputed_y_ring: Vec<Vec<[K; D]>>,
 ) -> Result<(Children, Proof), Error> {
-    if precomputed_y_ring.len() != z_split.len() || precomputed_y_ring.iter().any(|rows| rows.len() != s.t()) {
+    if precomputed_y_ring.len() != z_split.len()
+        || precomputed_y_ring
+            .iter()
+            .any(|rows| rows.len() != s.t() && rows.len() != s.t() + 1)
+    {
         return Err(Error::YRingShape("accelerator output"));
     }
     if digit_nonzero.len() != z_split.len()
@@ -261,11 +293,24 @@ fn prove_inner(
     parent: &CeClaim,
     parent_witness: &Mat<F>,
     precompute: Option<&PiDecProverPrecompute>,
+    backend: Option<&mut dyn PaperJointOracleBackend>,
 ) -> Result<(Children, Proof), Error> {
-    let (mut children, witnesses) =
-        engine::prove_pi_dec(pp, s, cache, log, parent, parent_witness, precompute, |cs, b| {
+    let (mut children, witnesses) = match backend {
+        Some(backend) => engine::prove_pi_dec_with_backend(
+            pp,
+            s,
+            cache,
+            log,
+            parent,
+            parent_witness,
+            precompute,
+            |cs, b| combine(cs, b),
+            backend,
+        )?,
+        None => engine::prove_pi_dec(pp, s, cache, log, parent, parent_witness, precompute, |cs, b| {
             combine(cs, b)
-        })?;
+        })?,
+    };
     attach_child_adv(lanes, parent, &mut children, &witnesses)?;
     validate_child_count(pp, children.len())?;
     validate_inactive_x_zero(parent, &children)?;

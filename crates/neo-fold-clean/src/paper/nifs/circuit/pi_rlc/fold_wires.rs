@@ -158,21 +158,22 @@ fn adv_commitment_wires(
 }
 
 fn x_wires(rho_wires: &[[Var; D]], outputs: &[PiCcsOutputWires], dec_wires: &DecInputWires, m_in: usize) -> RlcXWires {
+    let x_cols = crate::paper::relations::superneo_public_x_cols(m_in);
     let inputs = rho_wires
         .iter()
         .zip(outputs)
         .map(|(rho, output)| RlcXPairWires {
             rho_coeffs: *rho,
             x_flat: output.x.clone(),
-            m_in: output.x_cols,
+            x_cols: output.x_cols,
         })
         .collect();
     RlcXWires {
         inputs,
         // Π_CCS fixes m_in. Shape rows reject a wider parent before this
         // authoritative prefix reaches projection enforcement.
-        combined_x_flat: dec_wires.parent.x[..D * m_in].to_vec(),
-        m_in,
+        combined_x_flat: dec_wires.parent.x[..D * x_cols].to_vec(),
+        x_cols,
     }
 }
 

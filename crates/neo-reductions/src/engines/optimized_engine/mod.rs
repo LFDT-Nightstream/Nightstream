@@ -22,7 +22,9 @@ mod sparse;
 mod verify;
 
 // Re-export commonly used items
+pub use crate::engines::pi_ccs_joint_protocol::PaperJointRoundOracle;
 pub use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
+pub use paper_joint::{PaperJointOracleBackend, PaperJointOracleInput};
 pub use sparse::{CscMat, SparseCache};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -65,6 +67,7 @@ pub use rlc::{
 // The normal optimized interface implements PaddedRowIdentity.
 pub use prove::optimized_prove as pi_ccs_prove;
 pub use prove::optimized_prove_with_cache;
+pub use prove::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_backend_and_perf;
 pub use prove::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf;
 pub use prove::optimized_prove_with_cache_and_instance_digest_and_perf;
 pub use prove::optimized_prove_with_cache_and_perf;

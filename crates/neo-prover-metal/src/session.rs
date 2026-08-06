@@ -21,7 +21,9 @@ use crate::{
 };
 
 mod ajtai_batch;
+mod joint;
 mod masks;
+pub(crate) use joint::{MetalJointMatrixPlan, MetalPaperJointOracle};
 pub(crate) use masks::MetalWitnessMasks;
 
 static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/nightstream-metal.metallib"));
@@ -65,6 +67,34 @@ pub struct MetalSession {
     ajtai_reduce_columns: Pipeline,
     seeded_ajtai_matrix: Pipeline,
     fold_k_table: Pipeline,
+    tensor_point_expand_k: Pipeline,
+    sumcheck_reduce_partials: Pipeline,
+    joint_expand_mask_assignments_f: Pipeline,
+    joint_build_application_tables: Pipeline,
+    joint_copy_seeded_satisfied_rows: Pipeline,
+    joint_zero_words: Pipeline,
+    joint_fold_base_tables: Pipeline,
+    joint_fold_k_tables: Pipeline,
+    joint_fold_mask_assignments: Pipeline,
+    joint_round_partials: Pipeline,
+    joint_selective_round_partials: Pipeline,
+    joint_add_identity_carried: Pipeline,
+    joint_seeded_base_partials: Pipeline,
+    joint_seeded_base_reduce: Pipeline,
+    joint_seeded_k_partials: Pipeline,
+    joint_seeded_k_reduce: Pipeline,
+    dec_build_ring_forms: Pipeline,
+    dec_build_parallel_original_forms: Pipeline,
+    dec_build_parallel_original_form_tiles: Pipeline,
+    dec_reduce_parallel_original_form_tiles: Pipeline,
+    dec_bar_ring_forms_in_place: Pipeline,
+    dec_build_seeded_ring_forms: Pipeline,
+    dec_add_bar_seeded_ring_forms: Pipeline,
+    dec_sparse_ring_partials: Pipeline,
+    dec_sparse_ring_sum_chunks: Pipeline,
+    fe_carried_mask_lin_comb: Pipeline,
+    fe_weighted_basis_dots: Pipeline,
+    fe_weighted_row_table: Pipeline,
     // Shared convolution kernels for batched full and lane commitments.
     dec_ring_partials: Pipeline,
     dec_ring_sum_chunks: Pipeline,
@@ -127,6 +157,36 @@ impl MetalSession {
         let ajtai_reduce_columns = pipeline(&device, &library, "ajtai_reduce_columns")?;
         let seeded_ajtai_matrix = pipeline(&device, &library, "seeded_ajtai_matrix")?;
         let fold_k_table = pipeline(&device, &library, "fold_k_table")?;
+        let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
+        let sumcheck_reduce_partials = pipeline(&device, &library, "sumcheck_reduce_partials")?;
+        let joint_expand_mask_assignments_f = pipeline(&device, &library, "joint_expand_mask_assignments_f")?;
+        let joint_build_application_tables = pipeline(&device, &library, "joint_build_application_tables")?;
+        let joint_copy_seeded_satisfied_rows = pipeline(&device, &library, "joint_copy_seeded_satisfied_rows")?;
+        let joint_zero_words = pipeline(&device, &library, "joint_zero_words")?;
+        let joint_fold_base_tables = pipeline(&device, &library, "joint_fold_base_tables")?;
+        let joint_fold_k_tables = pipeline(&device, &library, "joint_fold_k_tables")?;
+        let joint_fold_mask_assignments = pipeline(&device, &library, "joint_fold_mask_assignments")?;
+        let joint_round_partials = pipeline(&device, &library, "joint_round_partials")?;
+        let joint_selective_round_partials = pipeline(&device, &library, "joint_selective_round_partials")?;
+        let joint_add_identity_carried = pipeline(&device, &library, "joint_add_identity_carried")?;
+        let joint_seeded_base_partials = pipeline(&device, &library, "joint_seeded_base_partials")?;
+        let joint_seeded_base_reduce = pipeline(&device, &library, "joint_seeded_base_reduce")?;
+        let joint_seeded_k_partials = pipeline(&device, &library, "joint_seeded_k_partials")?;
+        let joint_seeded_k_reduce = pipeline(&device, &library, "joint_seeded_k_reduce")?;
+        let dec_build_ring_forms = pipeline(&device, &library, "dec_build_ring_forms")?;
+        let dec_build_parallel_original_forms = pipeline(&device, &library, "dec_build_parallel_original_forms")?;
+        let dec_build_parallel_original_form_tiles =
+            pipeline(&device, &library, "dec_build_parallel_original_form_tiles")?;
+        let dec_reduce_parallel_original_form_tiles =
+            pipeline(&device, &library, "dec_reduce_parallel_original_form_tiles")?;
+        let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
+        let dec_build_seeded_ring_forms = pipeline(&device, &library, "dec_build_seeded_ring_forms")?;
+        let dec_add_bar_seeded_ring_forms = pipeline(&device, &library, "dec_add_bar_seeded_ring_forms")?;
+        let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
+        let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
+        let fe_carried_mask_lin_comb = pipeline(&device, &library, "fe_carried_mask_lin_comb")?;
+        let fe_weighted_basis_dots = pipeline(&device, &library, "fe_weighted_basis_dots")?;
+        let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
         let dec_ring_partials = pipeline(&device, &library, "dec_ring_partials")?;
         let dec_ring_sum_chunks = pipeline(&device, &library, "dec_ring_sum_chunks")?;
         let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
@@ -151,6 +211,34 @@ impl MetalSession {
             ajtai_reduce_columns,
             seeded_ajtai_matrix,
             fold_k_table,
+            tensor_point_expand_k,
+            sumcheck_reduce_partials,
+            joint_expand_mask_assignments_f,
+            joint_build_application_tables,
+            joint_copy_seeded_satisfied_rows,
+            joint_zero_words,
+            joint_fold_base_tables,
+            joint_fold_k_tables,
+            joint_fold_mask_assignments,
+            joint_round_partials,
+            joint_selective_round_partials,
+            joint_add_identity_carried,
+            joint_seeded_base_partials,
+            joint_seeded_base_reduce,
+            joint_seeded_k_partials,
+            joint_seeded_k_reduce,
+            dec_build_ring_forms,
+            dec_build_parallel_original_forms,
+            dec_build_parallel_original_form_tiles,
+            dec_reduce_parallel_original_form_tiles,
+            dec_bar_ring_forms_in_place,
+            dec_build_seeded_ring_forms,
+            dec_add_bar_seeded_ring_forms,
+            dec_sparse_ring_partials,
+            dec_sparse_ring_sum_chunks,
+            fe_carried_mask_lin_comb,
+            fe_weighted_basis_dots,
+            fe_weighted_row_table,
             dec_ring_partials,
             dec_ring_sum_chunks,
             dec_ring_reduce_phi81,
@@ -906,6 +994,52 @@ impl MetalSession {
     ) {
         self.activity.dispatches.fetch_add(1, Ordering::Relaxed);
         dispatch(encoder, pipeline, elements);
+    }
+
+    fn dispatch_threadgroups(
+        &self,
+        encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>,
+        _pipeline: &ProtocolObject<dyn MTLComputePipelineState>,
+        groups: usize,
+        threads: usize,
+    ) {
+        self.activity.dispatches.fetch_add(1, Ordering::Relaxed);
+        encoder.dispatchThreadgroups_threadsPerThreadgroup(
+            MTLSize {
+                width: groups,
+                height: 1,
+                depth: 1,
+            },
+            MTLSize {
+                width: threads,
+                height: 1,
+                depth: 1,
+            },
+        );
+    }
+
+    fn write_shared<T: Copy>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, values: &[T]) -> Result<(), MetalError> {
+        let bytes = size_of_val(values);
+        if bytes > buffer.length() as usize {
+            return Err(MetalError::Shape("Metal shared-buffer write exceeds capacity"));
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                values.as_ptr().cast::<u8>(),
+                buffer.contents().as_ptr().cast::<u8>(),
+                bytes,
+            );
+        }
+        self.activity
+            .uploaded_bytes
+            .fetch_add(bytes as u64, Ordering::Relaxed);
+        Ok(())
+    }
+
+    fn record_host_write(&self, bytes: usize) {
+        self.activity
+            .uploaded_bytes
+            .fetch_add(bytes as u64, Ordering::Relaxed);
     }
 
     fn finish(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {

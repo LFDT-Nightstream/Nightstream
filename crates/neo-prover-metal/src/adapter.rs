@@ -7,18 +7,28 @@ use std::sync::{Arc, Weak};
 
 use neo_ajtai::{Commitment, PP};
 use neo_ccs::{LaneCommitments, Mat};
+#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+use neo_fold_clean::paper::nifs::OptimizedCpuNifsProver;
 use neo_fold_clean::paper::nifs::{
     AcceleratorCrosscheckNifsProver, Error, NifsFreshInstancesRequest, NifsFreshSignedUnitAssignment,
     NifsFreshSignedUnitInstancesRequest, NifsProverAdapter, NifsProverOutput, NifsProverRequest,
-    OptimizedCpuNifsProver, OptimizedNifsProverAdapter,
+    OptimizedNifsProverAdapter,
 };
 use neo_fold_clean::paper::relations::{CcsClaim, LaneRanges, LaneScheme, Structure};
+#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+use neo_fold_clean::FinalWitnessOpeningBackend;
 use neo_fold_clean::{CcsInstance, CcsWitness};
 use neo_math::ring::Rq;
+#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+use neo_math::K;
 use neo_math::{D, F};
 use neo_reductions::optimized_engine::OptimizedStructureCache;
+#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+use neo_reductions::optimized_engine::{PaperJointOracleBackend, PaperJointOracleInput, PaperJointRoundOracle};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
+#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+use crate::session::{MetalJointMatrixPlan, MetalPaperJointOracle};
 use crate::{MetalAjtaiLowNormPlan, MetalError, MetalSession};
 
 /// Stateful Metal implementation of the canonical NIFS prover adapter.
@@ -29,6 +39,8 @@ pub struct MetalNifsProver {
     session: MetalSession,
     fresh_commitment_plan: Option<FreshCommitmentPlan>,
     fresh_lane_commitment_plan: Option<FreshLaneCommitmentPlan>,
+    #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+    joint_matrix_plan: Option<MetalJointMatrixPlan>,
 }
 
 struct FreshCommitmentPlan {
@@ -69,6 +81,8 @@ impl MetalNifsProver {
             session: MetalSession::new()?,
             fresh_commitment_plan: None,
             fresh_lane_commitment_plan: None,
+            #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+            joint_matrix_plan: None,
         })
     }
 
@@ -91,13 +105,33 @@ impl MetalNifsProver {
         &mut self,
         log: &neo_ajtai::AjtaiSModule,
         s: &Structure,
-        _cache: &OptimizedStructureCache,
+        cache: &OptimizedStructureCache,
         lanes: Option<&LaneScheme>,
     ) -> Result<(), Error> {
         let cols = s.m.div_ceil(D);
         self.ensure_ajtai_plan(log, cols)?;
         if let Some(lanes) = lanes {
             self.ensure_lane_ajtai_plan(lanes, cols)?;
+        }
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        self.ensure_joint_matrix_plan(cache)?;
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
+        let _ = cache;
+        Ok(())
+    }
+
+    #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+    fn ensure_joint_matrix_plan(&mut self, cache: &OptimizedStructureCache) -> Result<(), Error> {
+        if self
+            .joint_matrix_plan
+            .as_ref()
+            .is_none_or(|plan| !plan.matches(cache.superneo()))
+        {
+            self.joint_matrix_plan = Some(
+                self.session
+                    .prepare_joint_matrix_plan(cache.superneo())
+                    .map_err(|error| backend_failure("prepare one-joint matrix plan", error))?,
+            );
         }
         Ok(())
     }
@@ -329,6 +363,11 @@ impl MetalNifsProver {
 
 impl NifsProverAdapter for MetalNifsProver {
     fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
+        #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+        {
+            return neo_fold_clean::paper::nifs::prove_with_joint_oracle_backend(request, self);
+        }
+        #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
         OptimizedCpuNifsProver.prove(request)
     }
 
@@ -374,6 +413,65 @@ impl NifsProverAdapter for MetalNifsProver {
 }
 
 impl OptimizedNifsProverAdapter for MetalNifsProver {}
+
+#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+impl PaperJointOracleBackend for MetalNifsProver {
+    fn create<'a>(
+        &'a mut self,
+        input: PaperJointOracleInput<'a>,
+    ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, neo_reductions::PiCcsError> {
+        self.ensure_joint_matrix_plan(input.cache)
+            .map_err(|error| neo_reductions::PiCcsError::ProtocolError(error.to_string()))?;
+        let plan = self
+            .joint_matrix_plan
+            .as_ref()
+            .expect("one-joint matrix plan installed above");
+        Ok(Box::new(MetalPaperJointOracle::new(&self.session, plan, input)?))
+    }
+
+    fn dec_openings(
+        &mut self,
+        cache: &OptimizedStructureCache,
+        witnesses: &[Mat<F>],
+        point: &[K],
+        assignment_width: usize,
+    ) -> Result<Option<Vec<Vec<[K; D]>>>, neo_reductions::PiCcsError> {
+        self.ensure_joint_matrix_plan(cache)
+            .map_err(|error| neo_reductions::PiCcsError::ProtocolError(error.to_string()))?;
+        let plan = self
+            .joint_matrix_plan
+            .as_ref()
+            .expect("one-joint matrix plan installed above");
+        self.session
+            .eval_joint_dec_openings(plan, witnesses, point, assignment_width)
+            .map(Some)
+            .map_err(|error| {
+                neo_reductions::PiCcsError::ProtocolError(format!("Metal one-joint PiDEC openings: {error}"))
+            })
+    }
+}
+
+#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+impl FinalWitnessOpeningBackend for MetalNifsProver {
+    fn final_witness_openings(
+        &mut self,
+        cache: &OptimizedStructureCache,
+        witnesses: &[Mat<F>],
+        point: &[K],
+        assignment_width: usize,
+    ) -> Result<Option<Vec<Vec<[K; D]>>>, String> {
+        self.ensure_joint_matrix_plan(cache)
+            .map_err(|error| error.to_string())?;
+        let plan = self
+            .joint_matrix_plan
+            .as_ref()
+            .expect("one-joint matrix plan installed above");
+        self.session
+            .eval_joint_dec_openings(plan, witnesses, point, assignment_width)
+            .map(Some)
+            .map_err(|error| format!("Metal final witness openings: {error}"))
+    }
+}
 
 fn commitment_from_words(words: &[u64], kappa: usize) -> Commitment {
     Commitment {

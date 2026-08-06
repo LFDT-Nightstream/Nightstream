@@ -36,7 +36,6 @@ use crate::paper::reductions::pi_rlc_circuit::{
     alloc_rlc_projection_quotient_advice, rlc_projection_quotients, stage, RlcCommitmentWires, RlcPaddedKVectorWires,
     RlcXWires,
 };
-use crate::paper::relations::superneo_public_x_cols;
 
 use super::super::super::Error;
 use super::super::fold_wires::FoldWires;
@@ -187,7 +186,7 @@ fn alloc_x_advice(
     preimage: &mut Vec<Var>,
     wires: &RlcXWires,
 ) -> Result<Vec<[Var; PROJECTION_QUOTIENT_LEN]>, Error> {
-    let active_cols = superneo_public_x_cols(wires.m_in);
+    let active_cols = wires.x_cols;
     let rhos = wires
         .inputs
         .iter()
@@ -198,9 +197,9 @@ fn alloc_x_advice(
         let inputs = wires
             .inputs
             .iter()
-            .map(|pair| core::array::from_fn(|row| pair.x_flat[row * wires.m_in + column]))
+            .map(|pair| core::array::from_fn(|row| pair.x_flat[row * wires.x_cols + column]))
             .collect::<Vec<_>>();
-        let output: [Var; D] = core::array::from_fn(|row| wires.combined_x_flat[row * wires.m_in + column]);
+        let output: [Var; D] = core::array::from_fn(|row| wires.combined_x_flat[row * wires.x_cols + column]);
         builder.begin_encoding_stage(stage::PROJECTION_BINDING_COMBINED_X);
         append_fields(builder, preimage, pi_rlc::PI_RLC_PROJECTION_COMBINED_X_LABEL, &output);
         builder.begin_encoding_stage(stage::PROJECTION_BINDING_QUOTIENT_X);

@@ -32,39 +32,39 @@
   "source_hashes": [
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/ring_action.rs",
-      "sha256": "f20aa32aa19ed545ff7f3b22a2a400283ea12da952b1a23ec7b3f200afc12f75"
+      "sha256": "4cd744189df0dcf9c3232dafb967162b8ed170f9aab4853b31875b0f8a9937f0"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/mod.rs",
-      "sha256": "a0e29265cce279463a7bdbccd072602f5ee3ac83370125cb1d76f604b4602196"
+      "sha256": "ae427d37356c1f051928f2cf5230ed040207370c3e46eb88d6e88d2cdfb9448e"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/consistency.rs",
-      "sha256": "4758ab0243170fde7aa08c8c6167795bfdb2077f93c7d4f2703aa76c48dc82bc"
+      "sha256": "47e7af6d9101860b0ef0971a59ab9e20bb0cee08055f0b6d2ec73243e41226fd"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/fold_wires.rs",
-      "sha256": "b4896fa2e13cc4b45bad329846a063e2cee418c1db0e3929df043306bc940ecf"
+      "sha256": "b41f293ead13b7edeba66c10566d40689206ccc3185137b9b0b790d9f654eb73"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/mod.rs",
-      "sha256": "99513e6786dcc4922f006425dbbd414623a958a98763bfcb4e3e88b1b31171f9"
+      "sha256": "cfd17b06d4e10166cecf9c8ba81996b523fcb950ddfd6c5d3afd9b8fcfd2653d"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/padding.rs",
-      "sha256": "8c6466441c912b4633f3a36f3a84784eb0707632bd05e8a3414fe10352a4c9a9"
+      "sha256": "a49a6c0cb9304f902fa90cab71a98b1c1b51e666aa14afe3402e2da153d02647"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/binding.rs",
-      "sha256": "7c6c9e5d41d03048f85eb94e8482ee17f2ca4f38b3c3c1387cd64399f5bac001"
+      "sha256": "18c1eb5be4c883be1b2eefdc95f9ffc5637735ab3b7b443d5900b22bf4a25eb9"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/identities.rs",
-      "sha256": "042e5af294d83e38d73e36e51cc276c97d6e034b6e7e22427a2f91923a06e738"
+      "sha256": "e52d99cc7d1072fda78ea940e641d1077eea90c85f3b37b6796f3de0b71e81ae"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/mod.rs",
-      "sha256": "28f3d3b1a0784e5b289bbfb5e85ca2c311c9cd786b57f937f29fdc9ae569b943"
+      "sha256": "c2e2dce6f13aeafba47d4f700a639568673760f0fdd66f509186a9656165487a"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/pi_rlc/projection/shared.rs",
@@ -72,7 +72,7 @@
     },
     {
       "path": "crates/neo-fold-clean/tests/gadgets/pi_rlc_projection_boundary.rs",
-      "sha256": "003491d6c03d62a2cd658f20c3d5aab52eb7177c9b6e630f5a46568fd0d0822a"
+      "sha256": "64c19bb7b43c6969fcfde8701548e615b75c386771be9baacb521380a08d0305"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Core/ProjectionProgram.lean",
@@ -97,10 +97,6 @@
     {
       "path": "formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean",
       "sha256": "00360fe1043ca8928f090d9b8f0f3800392911d51d2bc01470adb5cc2524cbe5"
-    },
-    {
-      "path": "formal/nightstream-lean/Nightstream/Assurance/FPrimeRecursiveCircuit.lean",
-      "sha256": "a60792b5896bf115396e698cb5d8773c02456671ba41ec0ba91626743bd6be9c"
     }
   ]
 }

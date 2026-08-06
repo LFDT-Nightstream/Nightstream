@@ -458,7 +458,7 @@
   "source_hashes": [
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/builder.rs",
-      "sha256": "17bb7608d83967020cb0e5d62f6f03a07864b75cf0c1142eba4ebbf62171a793"
+      "sha256": "e2e6cdf1a49c03e5449a7bff56a0e8b16522955241c2584d21f1ce3015239b32"
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/field_ext.rs",
@@ -474,7 +474,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/ring_action.rs",
-      "sha256": "2e3069ab985466465b4ee129cb72d95a28e45df4e2884eb6c6fe6dca250b15ff"
+      "sha256": "4cd744189df0dcf9c3232dafb967162b8ed170f9aab4853b31875b0f8a9937f0"
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/sumcheck.rs",
@@ -510,7 +510,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/f_prime/r1cs.rs",
-      "sha256": "337592cd4546641894d1103469c030a01052ad38ae7544d672b7f42fbb29feac"
+      "sha256": "b0810df9fc49459180301b0642817a4b49fd307d0938929d0bb9a40fd8d6a108"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/mod.rs",
@@ -554,7 +554,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/mod.rs",
-      "sha256": "9393d2490e655de5f9d64431bf80ba8b654a96840d7a81d8d6e8ec1ca7309ce2"
+      "sha256": "f521d5fde0f5efb19bb2ce7a2d3327f76860d424609864b196affd13b769a756"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/stage.rs",
@@ -574,7 +574,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/verifier.rs",
-      "sha256": "162e732f957c04b5ea036d765f6dfa4e66aa01ee8d4b9c525f986232ac07068c"
+      "sha256": "fbb1c4699fd701d97ff7e20880038684afea8ec9fee83f519f7bddecaddb9d46"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/verifier/padded_row.rs",
@@ -602,7 +602,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/commitment.rs",
-      "sha256": "0e320db93cf37e541bcce01cb9cc5f2ee16d8defe05e6d5bc2a174adb46de6ed"
+      "sha256": "e4307af0d8acb9ba3aa73337e78dc62439c24abd61cdda63eeeab37573db3342"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_rlc_circuit/consistency.rs",
@@ -626,7 +626,7 @@
     },
     {
       "path": "crates/neo-fold-clean/tests/gadgets/f_prime_recursive_manifest.rs",
-      "sha256": "4074767b128887c26feafc59527a5d1c008129365e511d8c3befee4db09e17ee"
+      "sha256": "7c425a0f95b29c99beba9f85057153113bce66dd154e215f31bb644bd2f847f4"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifestSchema.lean",

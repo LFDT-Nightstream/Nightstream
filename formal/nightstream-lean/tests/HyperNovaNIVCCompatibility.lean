@@ -10,6 +10,8 @@ import Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec
 #check Nightstream.HyperNova.NIVCCompatibility.PartialFunctions
 #check Nightstream.HyperNova.NIVCCompatibility.CompilerLayout.capacities_of_fits
 #check Nightstream.HyperNova.NIVCCompatibility.CompilerLayout.columns_fit_row_domain
+#check Nightstream.HyperNova.NIVCCompatibility.RecursiveSizeClosure.Holds
+#check Nightstream.HyperNova.NIVCCompatibility.RecursiveSizeClosure.requiredWords_le_columnCapacity
 #check Nightstream.HyperNova.NIVCCompatibility.DefaultAlgorithm.Holds
 #check Nightstream.HyperNova.NIVCCompatibility.StatementIdentifierScheme.Collision
 #check Nightstream.HyperNova.NIVCCompatibility.StatementIdentifierScheme.eq_or_collision

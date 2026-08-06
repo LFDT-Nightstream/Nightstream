@@ -57,7 +57,7 @@ Emits constraints: no.
 
 | Payload | Meaning | Authority |
 |---|---|---|
-| `sourceRows` | all 11,845 rows in source order | untrusted until checked |
+| `sourceRows` | all 11,751 rows in source order | untrusted until checked |
 -/
 
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated

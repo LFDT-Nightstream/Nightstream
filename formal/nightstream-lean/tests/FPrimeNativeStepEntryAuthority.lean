@@ -11,10 +11,10 @@ digest. -/
 def recursiveEntryBoundary : BoundaryReceipt where
   initialNebula := none
   calls := [
-    .runningDigest ⟨1⟩ ⟨1⟩,
+    .runningDigest ⟨1⟩ ⟨5⟩,
     .hash (.initialBoundary {
       structureDigest := ⟨1⟩
-      publicInputLength := some 1
+      publicInputLength := some 54
     }) ⟨2⟩
   ]
 
@@ -26,7 +26,7 @@ theorem honestRecursive_entryAuthority :
       (boundaryStepSemantics Generated.honestRecursive recursiveEntryBoundary)
       .stateless Generated.context Generated.state2 := by
   unfold EntryAuthority
-  refine ⟨rfl, by decide, by decide, rfl, rfl, ?_⟩
+  refine ⟨rfl, by decide, by decide, rfl, by decide, ?_⟩
   constructor
   · rfl
   · rfl

@@ -3,7 +3,7 @@ import Nightstream.SuperNeo.SumCheck.Polynomial
 /-!
 Finite coefficient ownership for the paper's single joint `Pi_CCS` polynomial.
 
-Owns: a candidate Section 7.3 / Appendix D.4 gamma-block index layout, finite
+Owns: the selected Section 7.3 / Appendix D.4 gamma-block index layout, finite
 alpha coefficient vectors, the three formula-agnostic residual families, and
 the theorem reducing joint coefficient truth to three independently stated
 obligation families.
@@ -22,16 +22,16 @@ evaluation formula and do not prove the signed joint identity.
 caller-stated semantic obligations to these residual coefficients; it is not
 itself a proof of Appendix D.4, Lemma 7.
 
-| Gamma coefficient block | Candidate positions | Stored data | Zero obligation |
+| Gamma coefficient block | Selected positions | Stored data | Zero obligation |
 |---|---|---:|---|
 | CCS | `0 .. K - 1` | alpha-polynomial residuals | every entry is zero |
 | norm | `K .. 2K + k - 1` | alpha-polynomial residuals | every entry is zero |
 | carried evaluation | `2K+k .. 2K+k+ktd-1` | scalar residuals | every entry is zero |
 
-The paper's displayed `T` uses local exponents `I`, while the displayed `Q`
-shifts `Eval` by `2K+k`. `TargetConvention` records the resulting exponent
-mismatch and a candidate repair. This file does not enforce that repair or
-formalize either displayed polynomial. No theorem here is literal Lemma 7.
+The corrected paper defines the local helper `T_local` and selects
+`T_abs = C^(2K+k) * T_local` for the joint identity. `TargetConvention`
+records this distinction. This file does not formalize either target or the
+joint polynomial. No theorem here is literal Lemma 7.
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
@@ -496,10 +496,10 @@ end JointCoefficient
 namespace Residuals
 
 /-- Constant-first serialization of the three zero-residual families.
-Concatenation implements the candidate disjoint gamma shifts. This unsigned
-zero-equivalence representation intentionally does not claim the future
-signed expansion of `T_abs(C) - sum_x Q(x, A, C)`; that identity must use the
-fixed carried orientation `T_local - sum Eval_local` and remains open. -/
+Concatenation implements the selected disjoint gamma shifts. This unsigned
+zero-equivalence representation does not itself claim the signed expansion of
+`T_abs(C) - sum_x Q(x, A, C)`. `SignedJointIdentity` proves that identity with
+the fixed carried orientation `T_local - sum Eval_local`. -/
 def jointCoefficients
     {Field : Type uField}
     {shape : Shape}

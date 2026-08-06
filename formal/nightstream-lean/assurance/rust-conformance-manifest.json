@@ -3,19 +3,19 @@
   "sources": [
     {
       "path": "crates/neo-fold-clean/src/paper/f_prime/native.rs",
-      "sha256": "2c8aaaa9747e1005282941d84b06b62ecdcd1c856488a73afac972e8437ca1ad"
+      "sha256": "cab39fa7323476afa969d9a29692f7fcb7ca3e1286c8f9b6569e90a7f77e46da"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/construction2/transition.rs",
-      "sha256": "d8d21514899991b939635ea80a21defdc052ad81832abd82263fc4267f2f7e10"
+      "sha256": "6e06a8fdb0c2a79f24c8469b78357fa65bca2a9e5966a9fae09026b7d38c43d5"
     },
     {
       "path": "crates/neo-fold-clean/src/lifecycle/verify.rs",
-      "sha256": "e8caa86d2f67160d1a5870d657af373475feed5a50af266af65cb527581e387e"
+      "sha256": "db906d4b1fec2ca6f0745f476bbf6e4b05bf87be79c96e4f8b1d5771897571b3"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/decider.rs",
-      "sha256": "45c9ec4e5c5467c7990045ebe67c4c136abc0f60a8ccb061ec931ec1da84124d"
+      "sha256": "8b19acd8dab3b8f8b8237d57d25d6cc86efbdd0d04c28e1a68c50a445539c773"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/decider_ce_relation/mod.rs",
@@ -40,6 +40,10 @@
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/FPrime.lean",
       "sha256": "9808a16918233d44fc3ba2ab918d2106880455abe3d952d8fcf194098bb6a1c5"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/CanonicalConformance/NativeStep/Core.lean",
+      "sha256": "482104ce673f3e35b94b58ea5be7fd10359835527ac8af2dd0943b8bc0ee2642"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/Terminal.lean",

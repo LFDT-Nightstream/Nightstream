@@ -19,8 +19,8 @@ CCS, norm, and carried-evaluation sources; its target convention; coefficient
 serialization; the exact signed identity used by SumCheck; and projection of
 one complete paper output family to the canonical output-message surface.
 
-Does not own: acceptance of a transcript, approval of the candidate paper
-target correction, concrete Poseidon2, Phi81 packing, or implementation
+Does not own: acceptance of a transcript, the paper-source audit behind the
+selected target, concrete Poseidon2, Phi81 packing, or implementation
 refinement.
 
 Emits constraints: no.

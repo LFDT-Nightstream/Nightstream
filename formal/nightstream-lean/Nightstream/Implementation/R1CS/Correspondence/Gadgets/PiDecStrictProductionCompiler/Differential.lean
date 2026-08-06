@@ -40,7 +40,7 @@ def Accepted (case : Case) : Prop :=
   case.recursiveSelector = 1 /\
   case.publicColumn < 270 /\
   case.children.length = productionGlobalParams.k /\
-  case.childEvaluationArities = List.replicate productionGlobalParams.k 13 /\
+  case.childEvaluationArities = List.replicate productionGlobalParams.k 14 /\
   case.children.map fieldOfNat =
     List.ofFn (splitScalar (fieldOfNat case.parent))
 

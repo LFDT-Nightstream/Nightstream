@@ -7,6 +7,7 @@ Owns:
 - compact typed atoms used by native-step differential cases;
 - exact source-order base/recursive control flow for
   `paper::construction2::verify_step`;
+- entry-state authority over verifier-owned seeds and the carried accumulator;
 - a logical success predicate and its executable iff theorem.
 
 Does not own:
@@ -20,7 +21,7 @@ Emits constraints: no.
 
 | Stage path | Obligation | Authority class | Owner |
 |---|---|---|---|
-| `fprime.native.entry` | pc and base/active counter shape | checked | `nativeVerifyStep` |
+| `fprime.native.entry` | pc, branch shape, verifier seeds, and carried accumulator authority | checked | `nativeVerifyStep` |
 | `fprime.native.fold` | exact Initial/NoFold or Active/Recursive dispatch | checked | `NativeFoldedTo` |
 | `fprime.native.advance` | verifier-computed next carrier | computed | `nativeAdvancedState` |
 | `fprime.native.semantic` | stateless accumulator/semantic equality | checked | `NativeSemanticBound` |
@@ -78,6 +79,7 @@ def live {sort : AtomSort} (value : Atom sort) : Bool :=
 inductive Error where
   | pcOutOfRange
   | baseCaseMismatch
+  | stateAuthorityMismatch
   | emptyStep
   | foldProofVariantMismatch
   | nifsRejected
@@ -93,6 +95,67 @@ def branchShape (prior : NativeState) : Bool :=
         prior.z0 = prior.zi)
   | .active _ _ =>
       decide (prior.chunkCount ≠ 0 ∧ prior.stepCount ≠ 0)
+
+/-- Entry authority checked by Rust before it consumes the new batch.
+All compact `Running` atoms are materialized, so an active accumulator digest
+must be recomputed from the carried running value. -/
+def NativeStateAuthority
+    (hash :
+      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
+    (semantics :
+      Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (mode : XOut.Mode)
+    (context : NativeContext)
+    (prior : NativeState) : Prop :=
+  prior.z0 = XOut.initialBoundary hash context ∧
+  prior.initialSemanticState = context.initialSemanticState ∧
+  match prior.proof with
+  | .initial =>
+      prior.accumulatorDigest = semantics.runningDigest semantics.emptyRunning ∧
+      prior.semanticState = prior.initialSemanticState ∧
+      prior.publicTrace = XOut.publicTraceSeed hash context
+  | .active running _ =>
+      prior.accumulatorDigest = semantics.runningDigest running ∧
+      match mode with
+      | .stateless => prior.semanticState = prior.accumulatorDigest
+      | .stateful => True
+
+def nativeStateAuthorityCheck
+    (hash :
+      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
+    (semantics :
+      Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (mode : XOut.Mode)
+    (context : NativeContext)
+    (prior : NativeState) : Bool :=
+  decide
+      (prior.z0 = XOut.initialBoundary hash context ∧
+       prior.initialSemanticState = context.initialSemanticState) &&
+  match prior.proof with
+  | .initial =>
+      decide
+        (prior.accumulatorDigest =
+            semantics.runningDigest semantics.emptyRunning ∧
+         prior.semanticState = prior.initialSemanticState ∧
+         prior.publicTrace = XOut.publicTraceSeed hash context)
+  | .active running _ =>
+      decide (prior.accumulatorDigest = semantics.runningDigest running) &&
+      match mode with
+      | .stateless => decide (prior.semanticState = prior.accumulatorDigest)
+      | .stateful => true
+
+theorem nativeStateAuthorityCheck_eq_true_iff
+    (hash :
+      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
+    (semantics :
+      Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (mode : XOut.Mode)
+    (context : NativeContext)
+    (prior : NativeState) :
+    nativeStateAuthorityCheck hash semantics mode context prior = true ↔
+      NativeStateAuthority hash semantics mode context prior := by
+  cases proofCase : prior.proof <;> cases mode <;>
+    simp [nativeStateAuthorityCheck, NativeStateAuthority, proofCase, and_assoc]
 
 /-- State advance performed by the public native verifier.  In stateless mode
 the semantic lane is verifier-derived, not copied from the proof. -/
@@ -184,6 +247,7 @@ def NativeHolds
     (input : NativeInput)
     (proof : NativeProof) : Prop :=
   NativeEntryShape prior ∧
+  NativeStateAuthority hash semantics mode context prior ∧
   input.nextLatest ≠ [] ∧
   ∃ nextRunning,
     NativeFoldedTo semantics prior input proof nextRunning ∧
@@ -265,6 +329,8 @@ def nativeVerifyStep
     .error .pcOutOfRange
   else if branchShape prior = false then
     .error .baseCaseMismatch
+  else if nativeStateAuthorityCheck hash semantics mode context prior = false then
+    .error .stateAuthorityMismatch
   else if input.nextLatest = [] then
     .error .emptyStep
   else
@@ -301,36 +367,54 @@ theorem nativeVerifyStep_eq_ok_iff
     | false => simp
     | true =>
         simp only [true_and]
-        by_cases empty : input.nextLatest = []
-        · simp [empty]
-        · simp only [empty, ↓reduceIte]
-          cases priorProof : prior.proof with
-          | initial =>
-              cases foldProof : proof.fold with
-              | noFold =>
-                  simpa [NativeFoldedTo, priorProof, foldProof, empty] using
-                    finishNative_eq_ok_iff hash semantics mode context prior
-                      next input proof semantics.emptyRunning
-              | recursive nifsProof =>
-                  simp [NativeFoldedTo, priorProof, foldProof, empty]
-          | active running latest =>
-              cases foldProof : proof.fold with
-              | noFold =>
-                  simp [NativeFoldedTo, priorProof, foldProof, empty]
-              | recursive nifsProof =>
-                  cases nifsResult :
-                      semantics.nifsVerify
-                        (Step.nifsContext semantics prior input)
-                        running latest nifsProof with
-                  | none =>
-                      simp [NativeFoldedTo, priorProof, foldProof, nifsResult,
-                        empty]
-                  | some nextRunning =>
-                      simpa [NativeFoldedTo, priorProof, foldProof, nifsResult,
-                        empty]
-                        using
-                          finishNative_eq_ok_iff hash semantics mode context
-                            prior next input proof nextRunning
+        cases authority :
+            nativeStateAuthorityCheck hash semantics mode context prior with
+        | false =>
+            have notAuthority :
+                ¬ NativeStateAuthority hash semantics mode context prior := by
+              intro holds
+              have checkTrue :=
+                (nativeStateAuthorityCheck_eq_true_iff
+                  hash semantics mode context prior).2 holds
+              simp [authority] at checkTrue
+            simp [notAuthority]
+        | true =>
+            have authorityHolds :
+                NativeStateAuthority hash semantics mode context prior := by
+              exact
+                (nativeStateAuthorityCheck_eq_true_iff
+                  hash semantics mode context prior).1 authority
+            simp only [authorityHolds, true_and]
+            by_cases empty : input.nextLatest = []
+            · simp [empty]
+            · simp only [empty, ↓reduceIte]
+              cases priorProof : prior.proof with
+              | initial =>
+                  cases foldProof : proof.fold with
+                  | noFold =>
+                      simpa [NativeFoldedTo, priorProof, foldProof, empty] using
+                        finishNative_eq_ok_iff hash semantics mode context prior
+                          next input proof semantics.emptyRunning
+                  | recursive nifsProof =>
+                      simp [NativeFoldedTo, priorProof, foldProof, empty]
+              | active running latest =>
+                  cases foldProof : proof.fold with
+                  | noFold =>
+                      simp [NativeFoldedTo, priorProof, foldProof, empty]
+                  | recursive nifsProof =>
+                      cases nifsResult :
+                          semantics.nifsVerify
+                            (Step.nifsContext semantics prior input)
+                            running latest nifsProof with
+                      | none =>
+                          simp [NativeFoldedTo, priorProof, foldProof,
+                            nifsResult, empty]
+                      | some nextRunning =>
+                          simpa [NativeFoldedTo, priorProof, foldProof,
+                            nifsResult, empty]
+                            using
+                              finishNative_eq_ok_iff hash semantics mode context
+                                prior next input proof nextRunning
   · have pcNe : prior.pc ≠ 1 := pc
     simp [pc]
 

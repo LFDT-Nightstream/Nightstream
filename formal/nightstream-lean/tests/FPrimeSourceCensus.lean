@@ -19,8 +19,8 @@ non-authoritative without the Rust generator drift gate.
 | Test family | Obligation | Expected result |
 |---|---|---|
 | packed mutations | malformed metadata, tokens, runs, counts, and initial ownership fail closed | `Data.check = false` |
-| concrete census | base/recursive ordinary counts remain 3,050/154,747 | exact equality |
-| conditional capacity | separate candidates retain the 6,469,677 floor; the recursive per-field-41 candidate alone retains the 1M no-go | theorem-shape regression |
+| concrete census | base/recursive ordinary counts remain 3,226/99,314 | exact equality |
+| conditional capacity | separate candidates retain the 4,204,140 floor; the recursive per-field-41 candidate alone retains the 1M no-go | theorem-shape regression |
 -/
 
 namespace NightstreamTests.FPrimeSourceCensus
@@ -145,18 +145,18 @@ namespace Concrete
 
 open Nightstream.Implementation.R1CS.FPrimeRecursiveSourceRoleCensus
 
-example : baseSourceCensus.eligibleCount = 3050 := base_eligible_count
+example : baseSourceCensus.eligibleCount = 3226 := base_eligible_count
 
-example : recursiveSourceCensus.eligibleCount = 154747 :=
+example : recursiveSourceCensus.eligibleCount = 99314 :=
   recursive_eligible_count
 
 example :
-    SourceSegment.eligibleCountOf baseSourceCensus.sourceSegments = 3050 :=
+    SourceSegment.eligibleCountOf baseSourceCensus.sourceSegments = 3226 :=
   base_ordinaryRunSubtotal_count
 
 example :
     SourceSegment.eligibleCountOf recursiveSourceCensus.sourceSegments =
-      154747 :=
+      99314 :=
   recursive_ordinaryRunSubtotal_count
 
 example {baseWidth recursiveWidth : Nat}
@@ -164,7 +164,7 @@ example {baseWidth recursiveWidth : Nat}
       baseSourceCensus.PerField41CapacityRequirement baseWidth)
     (recursiveCapacity :
       recursiveSourceCensus.PerField41CapacityRequirement recursiveWidth) :
-    6469677 ≤ baseWidth + recursiveWidth :=
+    4204140 ≤ baseWidth + recursiveWidth :=
   combined_perField41_width_floor baseCapacity recursiveCapacity
 
 example {recursiveWidth : Nat}

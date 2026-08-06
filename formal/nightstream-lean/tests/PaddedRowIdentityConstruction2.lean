@@ -1,0 +1,33 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.PaddedRowIdentityConstruction2
+
+/-!
+Focused interface gate for the selected fixed-one HyperNova Construction 2
+shell.
+-/
+
+set_option autoImplicit false
+
+namespace tests.PaddedRowIdentityConstruction2
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityConstruction2
+
+#check setup_verifierKey
+#check setup_nifs_verify
+#check machine_control
+#check machine_step
+#check machine_freshPublic
+#check machine_encodeInstance
+#check preimage_eq_or_stateHashCollision
+#check linked_preimage_eq_or_stateHashCollision
+#check constantStep_preimages_eq_or_stateHashCollision
+#check eval_eq_some_iff_transition
+#check accepts_implies_paperTransition_or_nifsBadEvent
+#check constantStep_accepts_implies_paperTransitions_or_nifsBadEvent
+#check constantStep_semanticSoundness_and_stateRecovery
+#check base_complete_without_fold
+#check recursive_complete_with_one_fold
+#check terminalAccepts_iff_transition
+#check terminal_base_accepts_without_fold
+#check terminal_recursive_accepts_without_fold
+
+end tests.PaddedRowIdentityConstruction2

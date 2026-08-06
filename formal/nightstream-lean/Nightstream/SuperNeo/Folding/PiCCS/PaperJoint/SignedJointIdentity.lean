@@ -16,7 +16,7 @@ target; the Boolean-hypercube sum of `Q`; three signed residual blocks; and
 the exact identity between the paper difference and those blocks.
 
 Does not own: construction of the input tables from concrete CCS/norm/ring
-data, base-to-extension embeddings, approval of the target erratum,
+data, base-to-extension embeddings, the paper-source target audit,
 SumCheck messages or soundness, Fiat--Shamir, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.

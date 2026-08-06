@@ -5,7 +5,7 @@
 
 #![allow(non_snake_case)]
 
-use crate::engines::utils::{digest_ccs_matrices, digest_ccs_matrices_with_sparse_cache};
+use crate::engines::utils::digest_ccs_matrices_with_sparse_cache;
 use crate::error::PiCcsError;
 use crate::superneo_eval::{build_superneo_eval_cache, SuperneoEvalCache};
 use neo_ccs::CcsStructure;
@@ -88,13 +88,9 @@ pub mod canonical_audit {
 pub struct OptimizedStructureCache {
     sparse: Arc<SparseCache<F>>,
     superneo: Arc<SuperneoEvalCache>,
-    matrix_tree_digest: [Goldilocks; 4],
-    pi_ccs_matrix_digest: [Goldilocks; 4],
-    /// Shape fingerprint of the source structure: `(n, m, t)` where
-    /// `t = matrices.len()`. Used by downstream code to assert this
-    /// cache is still describing the structure it was built from
-    /// (e.g. after a caller mutated a public `Preprocessing.structure`
-    /// field).
+    matrix_digest: [Goldilocks; 4],
+    /// Shape fingerprint of the source structure: `(n, m, t)`.
+    /// Full cache validation also uses shared ownership or the matrix digest.
     shape: (usize, usize, usize),
 }
 
@@ -112,9 +108,9 @@ impl OptimizedStructureCache {
         #[cfg(feature = "perf-timers")]
         let t_total = std::time::Instant::now();
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        let (superneo, matrix_tree_digest) = {
+        let (superneo, matrix_digest) = {
             let sparse_for_digest = Arc::clone(&sparse);
-            let (superneo, matrix_tree_digest) = rayon::join(
+            let (superneo, matrix_digest) = rayon::join(
                 || {
                     #[cfg(feature = "perf-timers")]
                     let t_superneo = std::time::Instant::now();
@@ -151,10 +147,10 @@ impl OptimizedStructureCache {
                     out
                 },
             );
-            (superneo?, matrix_tree_digest?)
+            (superneo?, matrix_digest?)
         };
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let (superneo, matrix_tree_digest) = {
+        let (superneo, matrix_digest) = {
             #[cfg(feature = "perf-timers")]
             let t_superneo = std::time::Instant::now();
             let superneo = build_superneo_eval_cache(s).ok_or_else(|| {
@@ -171,7 +167,7 @@ impl OptimizedStructureCache {
             );
             #[cfg(feature = "perf-timers")]
             let t_digest = std::time::Instant::now();
-            let matrix_tree_digest: [Goldilocks; 4] = digest_ccs_matrices_with_sparse_cache(s, Some(sparse.as_ref()))
+            let matrix_digest: [Goldilocks; 4] = digest_ccs_matrices_with_sparse_cache(s, Some(sparse.as_ref()))
                 .try_into()
                 .map_err(|digest: Vec<Goldilocks>| {
                     PiCcsError::ProtocolError(format!(
@@ -184,17 +180,8 @@ impl OptimizedStructureCache {
                 "OptimizedStructureCache::build: matrix digest      {:.2?}",
                 t_digest.elapsed()
             );
-            (superneo, matrix_tree_digest)
+            (superneo, matrix_digest)
         };
-        let pi_ccs_matrix_digest: [Goldilocks; 4] =
-            digest_ccs_matrices(s)
-                .try_into()
-                .map_err(|digest: Vec<Goldilocks>| {
-                    PiCcsError::ProtocolError(format!(
-                        "optimized cache expected 4 PiCCS matrix-digest limbs, got {}",
-                        digest.len()
-                    ))
-                })?;
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "OptimizedStructureCache::build: TOTAL              {:.2?}",
@@ -203,8 +190,7 @@ impl OptimizedStructureCache {
         Ok(Self {
             sparse,
             superneo: Arc::new(superneo),
-            matrix_tree_digest,
-            pi_ccs_matrix_digest,
+            matrix_digest,
             shape: (s.n, s.m, s.matrices.len()),
         })
     }
@@ -227,18 +213,36 @@ impl OptimizedStructureCache {
         self.superneo.clone()
     }
 
-    pub fn matrix_tree_digest(&self) -> &[Goldilocks; 4] {
-        &self.matrix_tree_digest
+    pub fn matrix_digest(&self) -> &[Goldilocks; 4] {
+        &self.matrix_digest
     }
 
-    pub fn pi_ccs_matrix_digest(&self) -> &[Goldilocks; 4] {
-        &self.pi_ccs_matrix_digest
-    }
-
-    pub(crate) fn validate_shape(&self, structure: &CcsStructure<F>) -> Result<(), PiCcsError> {
+    /// Check that this cache belongs to the selected CCS structure.
+    ///
+    /// A shared cache owns the same immutable `Arc` as production
+    /// preprocessing, so pointer identity is sufficient and constant-time.
+    /// Standalone caches recompute the canonical digest to keep the public
+    /// low-level API safe against same-shape cache substitution.
+    pub fn validate_structure(&self, structure: &CcsStructure<F>) -> Result<(), PiCcsError> {
         if self.shape != (structure.n, structure.m, structure.t()) {
             return Err(PiCcsError::InvalidInput(
                 "optimized structure cache shape does not match the selected CCS structure".into(),
+            ));
+        }
+        if self.sparse.shares_structure(structure) {
+            return Ok(());
+        }
+        let digest: [Goldilocks; 4] = digest_ccs_matrices_with_sparse_cache(structure, None)
+            .try_into()
+            .map_err(|digest: Vec<Goldilocks>| {
+                PiCcsError::ProtocolError(format!(
+                    "optimized cache expected 4 CCS digest limbs, got {}",
+                    digest.len()
+                ))
+            })?;
+        if digest != self.matrix_digest {
+            return Err(PiCcsError::InvalidInput(
+                "optimized structure cache matrix digest does not match the selected CCS structure".into(),
             ));
         }
         Ok(())

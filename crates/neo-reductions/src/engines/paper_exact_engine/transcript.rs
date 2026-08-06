@@ -2,14 +2,14 @@
 //!
 //! This is a direct Rust transcription of the Lean-owned tags 40--47. It
 //! does not call the optimized transcript or proof-assembly implementation.
+//! The canonical statement serializer is shared because it is protocol input,
+//! not an alternative prover computation.
 
 use neo_ajtai::Commitment as Cmt;
-use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CeClaim};
+use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, F, K};
 use neo_transcript::{Poseidon2Transcript, Transcript};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
-use p3_symmetric::Permutation;
+use p3_field::PrimeCharacteristicRing;
 
 use crate::engines::pi_ccs_joint::{JointDims, ProtocolTrace, TraceEvent};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
@@ -110,122 +110,7 @@ fn append_running_claim(fields: &mut Vec<F>, claim: &CeClaim<Cmt, F, K>, matrix_
 }
 
 fn paper_matrix_digest(structure: &CcsStructure<F>) -> Vec<F> {
-    use rand_chacha_p3::{rand_core::SeedableRng, ChaCha8Rng};
-
-    const SEED: u64 = 0x434353445F4D4154;
-    let mut rng = ChaCha8Rng::seed_from_u64(SEED);
-    let poseidon2 = Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng);
-    let mut state = [Goldilocks::ZERO; 16];
-    let mut absorbed = 0;
-
-    for &byte in b"neo/ccs/matrices/v1" {
-        if absorbed >= 15 {
-            poseidon2.permute_mut(&mut state);
-            absorbed = 0;
-        }
-        state[absorbed] = Goldilocks::from_u32(byte as u32);
-        absorbed += 1;
-    }
-    if absorbed + 3 >= 16 {
-        poseidon2.permute_mut(&mut state);
-        absorbed = 0;
-    }
-    state[absorbed] = Goldilocks::from_u64(structure.n as u64);
-    state[absorbed + 1] = Goldilocks::from_u64(structure.m as u64);
-    state[absorbed + 2] = Goldilocks::from_u64(structure.t() as u64);
-    poseidon2.permute_mut(&mut state);
-
-    for (matrix_index, matrix) in structure.matrices.iter().enumerate() {
-        absorbed = 0;
-        state[absorbed] = Goldilocks::from_u64(matrix_index as u64);
-        absorbed += 1;
-
-        let mut emit = |row: usize, column: usize, value: u64| {
-            if absorbed + 3 > 15 {
-                poseidon2.permute_mut(&mut state);
-                absorbed = 0;
-            }
-            state[absorbed] = Goldilocks::from_u64(row as u64);
-            state[absorbed + 1] = Goldilocks::from_u64(column as u64);
-            state[absorbed + 2] = Goldilocks::from_u64(value);
-            absorbed += 3;
-        };
-
-        match matrix {
-            CcsMatrix::Identity { n } => {
-                debug_assert_eq!(*n, structure.n);
-                debug_assert_eq!(*n, structure.m);
-                for row in 0..structure.n {
-                    emit(row, row, F::ONE.as_canonical_u64());
-                }
-            }
-            CcsMatrix::Csc(csc) => {
-                let mut entries = Vec::with_capacity(csc.vals.len());
-                for column in 0..csc.ncols {
-                    for index in csc.column_range(column) {
-                        entries.push((csc.row_index(index), column, csc.vals[index].as_canonical_u64()));
-                    }
-                }
-                entries.sort_unstable_by_key(|&(row, column, _)| (row, column));
-                for (row, column, value) in entries {
-                    emit(row, column, value);
-                }
-            }
-            CcsMatrix::CscWithSeededPhi81 {
-                csc,
-                blocks,
-                geometric_runs,
-            } => {
-                let mut entries = Vec::with_capacity(csc.vals.len());
-                for column in 0..csc.ncols {
-                    for index in csc.column_range(column) {
-                        entries.push((csc.row_index(index), column, csc.vals[index].as_canonical_u64()));
-                    }
-                }
-                entries.sort_unstable_by_key(|&(row, column, _)| (row, column));
-                for (row, column, value) in entries {
-                    emit(row, column, value);
-                }
-
-                for (block_index, block) in blocks.iter().enumerate() {
-                    emit(usize::MAX, block_index, 0x5048_4938_3153_4545);
-                    emit(usize::MAX - 1, block.row_start(), block.kappa() as u64);
-                    emit(usize::MAX - 2, block.message_cols(), block.chunk_size() as u64);
-                    emit(
-                        usize::MAX - 3,
-                        block.word_starts().len(),
-                        u64::from(block.has_superneo_transformed_columns()),
-                    );
-                    emit(usize::MAX - 4, usize::MAX, block.word_width() as u64);
-                    for (word, &start) in block.word_starts().iter().enumerate() {
-                        emit(usize::MAX - 4, word, start as u64);
-                    }
-                    for (seed_row, seeds) in block.chunk_seeds_by_row().iter().enumerate() {
-                        for (chunk, seed) in seeds.iter().enumerate() {
-                            for limb in 0..4 {
-                                let value = u64::from_le_bytes(
-                                    seed[limb * 8..(limb + 1) * 8]
-                                        .try_into()
-                                        .expect("PaperExact matrix seed limb"),
-                                );
-                                emit(usize::MAX - 5 - seed_row, chunk * 4 + limb, value);
-                            }
-                        }
-                    }
-                }
-                for (run_index, run) in geometric_runs.iter().enumerate() {
-                    let sentinel = usize::MAX / 2;
-                    emit(sentinel, run_index, 0x4745_4f4d_5255_4e31);
-                    emit(sentinel - 1, run.row(), run.column_start() as u64);
-                    emit(sentinel - 2, run.len(), run.initial().as_canonical_u64());
-                    emit(sentinel - 3, run_index, run.ratio().as_canonical_u64());
-                }
-            }
-        }
-        poseidon2.permute_mut(&mut state);
-    }
-
-    state[0..4].to_vec()
+    crate::engines::utils::digest_ccs_matrices(structure)
 }
 
 fn paper_poly_eval(coefficients: &[K], point: K) -> K {

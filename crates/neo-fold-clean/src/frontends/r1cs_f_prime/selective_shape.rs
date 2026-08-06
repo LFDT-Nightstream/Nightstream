@@ -132,26 +132,6 @@ pub(crate) struct SelectiveLowNormShapeSummary {
     pub total_coordinates: usize,
 }
 
-impl SelectiveLowNormShapeSummary {
-    pub fn matches(&self, shape: &SelectiveLowNormShape) -> bool {
-        self.rows == shape.rows
-            && self.columns == shape.columns
-            && self.public_input_len == shape.public_input_len
-            && self.total_coordinates == shape.compiler_audit.width().total_coordinates
-            && polynomials_match(&self.polynomial, &shape.polynomial)
-    }
-}
-
-fn polynomials_match(left: &SparsePoly<F>, right: &SparsePoly<F>) -> bool {
-    left.arity() == right.arity()
-        && left.terms().len() == right.terms().len()
-        && left
-            .terms()
-            .iter()
-            .zip(right.terms())
-            .all(|(left, right)| left.coeff == right.coeff && left.exps == right.exps)
-}
-
 pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_alignment(
     arms: &[SparseR1cs],
     shared_private_fields: usize,

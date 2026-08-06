@@ -77,27 +77,15 @@ pub(super) fn synthesize_arm_shapes(
     );
     #[cfg(feature = "perf-timers")]
     let arm_started = std::time::Instant::now();
-    let bootstrap_recursive = synthesize_recursive(&context, false)?;
+    let recursive = synthesize_recursive(&context)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
-        "[fprime-arm-shape] branch=bootstrap_recursive rows={} columns={} total={:.3}s",
-        bootstrap_recursive.shape.n,
-        bootstrap_recursive.shape.m,
-        arm_started.elapsed().as_secs_f64(),
-    );
-    #[cfg(feature = "perf-timers")]
-    let arm_started = std::time::Instant::now();
-    let recursive = synthesize_recursive(&context, true)?;
-    #[cfg(feature = "perf-timers")]
-    eprintln!(
-        "[fprime-arm-shape] branch=recursive rows={} columns={} total={:.3}s",
+        "[fprime-arm-shape] branch=recursive_shared rows={} columns={} total={:.3}s",
         recursive.shape.n,
         recursive.shape.m,
         arm_started.elapsed().as_secs_f64(),
     );
-    if base.shared_private_fields != bootstrap_recursive.shared_private_fields
-        || base.shared_private_fields != recursive.shared_private_fields
-        || base.shared_private_candidates != bootstrap_recursive.shared_private_candidates
+    if base.shared_private_fields != recursive.shared_private_fields
         || base.shared_private_candidates != recursive.shared_private_candidates
     {
         return Err(NebulaFPrimeRelationError::Geometry(
@@ -106,7 +94,7 @@ pub(super) fn synthesize_arm_shapes(
     }
     Ok(ArmShapes {
         base: base.shape,
-        bootstrap_recursive: bootstrap_recursive.shape,
+        bootstrap_recursive: recursive.shape.clone(),
         recursive: recursive.shape,
         shared_private_fields: base.shared_private_fields,
         shared_private_candidates: base.shared_private_candidates,
@@ -121,8 +109,8 @@ pub(super) fn audit_arm_shapes(
     let folded_relation = PiCcsVerifierRelation::from_structure(folded);
     let context = shape_context(params, &folded_relation, plan, None)?;
     let base = arm_shape(synthesize_base(&context)?.shape);
-    let bootstrap_recursive = arm_shape(synthesize_recursive(&context, false)?.shape);
-    let recursive = arm_shape(synthesize_recursive(&context, true)?.shape);
+    let recursive = arm_shape(synthesize_recursive(&context)?.shape);
+    let bootstrap_recursive = recursive;
     Ok(NebulaFPrimeFieldShapeAudit {
         verifier_rows: folded.n,
         verifier_columns: folded.m,
@@ -221,10 +209,7 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SynthesizedArm, NebulaF
     })
 }
 
-fn synthesize_recursive(
-    context: &ShapeContext<'_>,
-    _steady: bool,
-) -> Result<SynthesizedArm, NebulaFPrimeRelationError> {
+fn synthesize_recursive(context: &ShapeContext<'_>) -> Result<SynthesizedArm, NebulaFPrimeRelationError> {
     let application_assignment = shape_application_assignment(context.application);
     let semantic = application_semantic_values(context.application, &application_assignment)?;
     let public_input_len =

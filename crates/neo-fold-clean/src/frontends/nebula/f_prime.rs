@@ -21,12 +21,10 @@ use crate::frontends::nebula::application::{enforce_memory_ports, ApplicationErr
 use crate::frontends::nebula::circuit::{SMemCircuit, SMemR1csError};
 use crate::frontends::nebula::plan::NebulaPlan;
 use crate::frontends::r1cs_f_prime::{
-    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix,
     audit_multi_branch_selective_low_norm_width_with_alignment,
     build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
     prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, FieldR1csLoweringError,
-    LowNormR1csError, MultiBranchLowNormR1cs, SelectiveLowNormShape, SelectiveLowNormShapeSummary,
-    SelectiveLowNormWidthAudit, SparseR1cs,
+    LowNormR1csError, MultiBranchLowNormR1cs, SelectiveLowNormShapeSummary, SelectiveLowNormWidthAudit, SparseR1cs,
 };
 use crate::lifecycle::Preprocessing;
 use crate::paper::construction2::NebulaConfig;
@@ -264,13 +262,12 @@ impl NebulaFPrimeRelation {
             );
             last_output = (next_shape.rows, next_shape.columns);
             if round > 0 && input_signature == output_signature {
-                let shape = audit_selected_low_norm_shape(&arm_relations, plan, shared_private_fields, &next_shape)?;
                 return Self::compile_owned_selected(
                     arm_relations,
                     plan,
                     application.clone(),
                     shared_private_fields,
-                    shape,
+                    next_shape,
                     candidate_widths,
                     max_coordinates,
                 );
@@ -353,7 +350,7 @@ impl NebulaFPrimeRelation {
         max_coordinates: Option<usize>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
         let (shared_private_fields, shape, candidate_widths) =
-            select_low_norm_shape(&arms, plan, shared_private_candidates)?;
+            select_low_norm_shape_summary(&arms, plan, shared_private_candidates)?;
         Self::compile_owned_selected(
             arms,
             plan,
@@ -370,7 +367,7 @@ impl NebulaFPrimeRelation {
         plan: &NebulaPlan,
         application: Option<NebulaApplication>,
         shared_private_fields: usize,
-        shape: SelectiveLowNormShape,
+        shape: SelectiveLowNormShapeSummary,
         candidate_widths: Vec<(usize, usize)>,
         max_coordinates: Option<usize>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
@@ -384,7 +381,6 @@ impl NebulaFPrimeRelation {
             public_columns: arms[index].m_in,
             poseidon2_permutations: arms[index].poseidon2_permutations(),
         });
-        let width_audit = shape.compiler_audit.width().clone();
         let relation = build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
             &arms,
             shared_private_fields,
@@ -392,11 +388,16 @@ impl NebulaFPrimeRelation {
             D,
             logical_public_fields % D,
         )?;
-        if relation_signature(relation.structure()) != shape_signature(&shape)
-            || relation.selective_compiler_audit() != Some(&shape.compiler_audit)
+        let compiler_audit = relation.selective_compiler_audit().ok_or_else(|| {
+            NebulaFPrimeRelationError::Geometry("exact selective relation has no compiler audit".into())
+        })?;
+        let width_audit = compiler_audit.width().clone();
+        if relation_signature(relation.structure()) != shape_summary_signature(&shape)
+            || relation.public_input_len() != shape.public_input_len
+            || compiler_audit.width().total_coordinates != shape.total_coordinates
         {
             return Err(NebulaFPrimeRelationError::Geometry(
-                "shape-only or exact selective audit differs from emitted relation".into(),
+                "lightweight shape differs from the emitted selective relation".into(),
             ));
         }
         let remapped_ranges = remap_lane_ranges(&relation, &arms, circuit)?;
@@ -587,15 +588,6 @@ fn verifier_relation_signature(relation: &PiCcsVerifierRelation) -> (usize, usiz
     (relation.n(), relation.m(), relation.t(), relation.max_degree())
 }
 
-fn shape_signature(shape: &SelectiveLowNormShape) -> (usize, usize, usize, u32) {
-    (
-        shape.rows,
-        shape.columns,
-        shape.polynomial.arity(),
-        shape.polynomial.max_degree(),
-    )
-}
-
 fn shape_summary_signature(shape: &SelectiveLowNormShapeSummary) -> (usize, usize, usize, u32) {
     (
         shape.rows,
@@ -603,17 +595,6 @@ fn shape_summary_signature(shape: &SelectiveLowNormShapeSummary) -> (usize, usiz
         shape.polynomial.arity(),
         shape.polynomial.max_degree(),
     )
-}
-
-fn select_low_norm_shape(
-    arms: &[SparseR1cs; 3],
-    plan: &NebulaPlan,
-    shared_private_candidates: Vec<usize>,
-) -> Result<(usize, SelectiveLowNormShape, Vec<(usize, usize)>), NebulaFPrimeRelationError> {
-    let (shared_private_fields, summary, candidate_widths) =
-        select_low_norm_shape_summary(arms, plan, shared_private_candidates)?;
-    let shape = audit_selected_low_norm_shape(arms, plan, shared_private_fields, &summary)?;
-    Ok((shared_private_fields, shape, candidate_widths))
 }
 
 fn select_low_norm_shape_summary(
@@ -672,43 +653,15 @@ fn select_low_norm_shape_summary(
     Ok((shared_private_fields, shape, candidate_widths))
 }
 
-fn audit_selected_low_norm_shape(
-    arms: &[SparseR1cs; 3],
-    plan: &NebulaPlan,
-    shared_private_fields: usize,
-    summary: &SelectiveLowNormShapeSummary,
-) -> Result<SelectiveLowNormShape, NebulaFPrimeRelationError> {
-    let circuit = plan.circuit();
-    let logical_public_fields = circuit.logical_public_input_len();
-    let shared_private_bit_fields = circuit.cols() - logical_public_fields;
-    let shape = audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix(
-        arms,
-        shared_private_fields,
-        shared_private_bit_fields,
-        D,
-        logical_public_fields % D,
-    )?;
-    if !summary.matches(&shape) {
-        return Err(NebulaFPrimeRelationError::Geometry(
-            "lightweight shape differs from the complete selective audit".into(),
-        ));
-    }
-    Ok(shape)
-}
-
 fn enforce_coordinate_limit(
-    shape: &SelectiveLowNormShape,
+    shape: &SelectiveLowNormShapeSummary,
     candidate_widths: &[(usize, usize)],
     max_coordinates: Option<usize>,
 ) -> Result<(), NebulaFPrimeRelationError> {
     let Some(max_coordinates) = max_coordinates else {
         return Ok(());
     };
-    let required_coordinates = shape
-        .compiler_audit
-        .width()
-        .total_coordinates
-        .max(shape.columns);
+    let required_coordinates = shape.total_coordinates.max(shape.columns);
     if required_coordinates > max_coordinates {
         return Err(NebulaFPrimeRelationError::CommittedCoordinateLimitExceeded {
             required_coordinates,

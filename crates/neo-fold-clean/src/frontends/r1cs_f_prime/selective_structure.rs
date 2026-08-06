@@ -52,7 +52,11 @@ pub(super) struct EmittedStructureTerms {
 impl EmittedStructureTerms {
     fn into_structure(self) -> Result<Structure, LowNormR1csError> {
         let mut matrices = Vec::with_capacity(SELECTIVE_ARITY);
-        for mut terms in self.matrix_terms {
+        for (_matrix_index, mut terms) in self.matrix_terms.into_iter().enumerate() {
+            #[cfg(feature = "perf-timers")]
+            let matrix_started = std::time::Instant::now();
+            #[cfg(feature = "perf-timers")]
+            let explicit_terms = terms.explicit.len();
             let csc = if terms.retain_geometric {
                 CscMat::from_counted_triplets(core::mem::take(&mut terms.explicit), self.rows, self.columns)
             } else {
@@ -69,6 +73,11 @@ impl EmittedStructureTerms {
             matrices.push(
                 CcsMatrix::csc_with_compact_rows(csc, terms.seeded, terms.geometric_runs)
                     .map_err(|error| trace_error(&error))?,
+            );
+            #[cfg(feature = "perf-timers")]
+            eprintln!(
+                "[selective-matrix] index={_matrix_index} explicit_terms={explicit_terms} total={:.3}s",
+                matrix_started.elapsed().as_secs_f64(),
             );
         }
         CcsStructure::new_sparse(matrices, selective_polynomial()).map_err(|error| trace_error(&error.to_string()))
@@ -90,7 +99,11 @@ pub(super) fn build_structure(
     cols: usize,
     prepared_rows: &PreparedSelectiveRows,
 ) -> Result<Structure, LowNormR1csError> {
-    emit_structure_terms(
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    #[cfg(feature = "perf-timers")]
+    let emission_started = std::time::Instant::now();
+    let emitted = emit_structure_terms(
         arms,
         plans,
         slots,
@@ -103,8 +116,19 @@ pub(super) fn build_structure(
         private_padding_cols,
         cols,
         prepared_rows,
-    )?
-    .into_structure()
+    )?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[selective-structure] phase=emit total={:.3}s",
+        emission_started.elapsed().as_secs_f64(),
+    );
+    let structure = emitted.into_structure()?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[selective-structure] phase=complete total={:.3}s",
+        total_started.elapsed().as_secs_f64(),
+    );
+    Ok(structure)
 }
 
 #[allow(clippy::too_many_arguments)]

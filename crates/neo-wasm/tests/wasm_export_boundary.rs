@@ -104,8 +104,14 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
         exit: vec![],
         ..Default::default()
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
-        .expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &turns,
+        Default::default(),
+    )
+    .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -311,8 +317,14 @@ fn i64_param_bootstraps_both_lanes() {
         exit: vec![],
         ..Default::default()
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
-        .expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &turns,
+        Default::default(),
+    )
+    .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -413,11 +425,16 @@ fn export_memory32_uses_a_local_pointer_base() {
     let turns = [neo_wasm::event_grammar::TurnClaims {
         entry: vec![16, 77],
         exit: vec![],
-        exit_memory_reads: vec![77],
         ..Default::default()
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
-        .expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &turns,
+        Default::default(),
+    )
+    .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 

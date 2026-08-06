@@ -89,10 +89,6 @@ pub struct WasmtimeTraceStep {
     /// [`WasmtimeTraceState::record_call_claims`]). Consumed by grammar-mode
     /// normalization; raw-mode normalization ignores it.
     pub host_call_claims: Vec<u64>,
-    /// Current words for grammar memory-read slots on this call, in template
-    /// order. Addresses remain template/argument derived; writes need no
-    /// prior-value metadata.
-    pub host_call_memory_reads: Vec<u32>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -118,8 +114,11 @@ pub struct WasmtimeTraceMemoryAccess {
     pub value_after_i32: Option<i32>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct WasmtimeTraceRun {
+    /// Verifier-owned static program tables used by grammar-aware
+    /// normalization and memory preloading.
+    pub program_tables: WasmProgramTables,
     /// Normalized string form of the export results, as produced by the
     /// reference wasmtime interpreter (`func.call_async`).
     ///
@@ -270,27 +269,6 @@ impl WasmtimeTraceState {
         row.host_call_claims.extend_from_slice(words);
         Ok(())
     }
-
-    /// Record current words for the in-flight host call's grammar
-    /// `MemoryRead32` slots, in template order. Full-word grammar writes do
-    /// not need prior-value metadata.
-    pub fn record_call_memory_reads(&mut self, words: &[u32]) -> Result<(), WasmBuildError> {
-        let row = self.steps.last_mut().ok_or_else(|| {
-            WasmBuildError::Trace(
-                "record_call_memory_reads: no captured step; not inside a traced host call".to_string(),
-            )
-        })?;
-        let is_host_call = matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
-            && !row.target_function_is_guest;
-        if !is_host_call {
-            return Err(WasmBuildError::Trace(format!(
-                "record_call_memory_reads: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
-                row.step, row.opcode
-            )));
-        }
-        row.host_call_memory_reads.extend_from_slice(words);
-        Ok(())
-    }
 }
 
 /// Whether a wasmtime trap has a modeled terminal state, so the collected
@@ -388,6 +366,7 @@ pub fn collect_wasmtime_steps(
         .unwrap_or_default();
 
     Ok(WasmtimeTraceRun {
+        program_tables: parsed.tables,
         results,
         steps,
         initial_locals,
@@ -500,6 +479,7 @@ where
         .unwrap_or_default();
 
     Ok(WasmtimeTraceRun {
+        program_tables: parsed.tables,
         results: all_results
             .iter()
             .map(component_val_to_string)

@@ -31,6 +31,7 @@ pub enum Limb {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MemoryBase {
     /// An import argument, read from the call's operand-stack argument area.
+    /// Its high limb must be zero so the value is a wasm32 pointer.
     Arg(u8),
     /// An export-frame local, read from the locals memory.
     Local(u8),
@@ -67,7 +68,9 @@ pub enum SlotSource {
     /// this event word.
     MemoryRead32 { base: MemoryBase, byte_offset: u32 },
     /// Write one naturally aligned 32-bit claim word to linear memory and
-    /// stage the same word in this event slot.
+    /// stage the same word in this event slot. Host memory mutations later
+    /// observed by proof-visible execution must be represented by a grammar
+    /// write, or temporal memory replay rejects the inconsistent access.
     MemoryWrite32 {
         claim: u8,
         base: MemoryBase,
@@ -261,7 +264,6 @@ impl ExportTemplate {
 pub struct TurnClaims {
     pub entry: Vec<u64>,
     pub exit: Vec<u64>,
-    pub exit_memory_reads: Vec<u32>,
 }
 
 /// Per-program grammar: import templates keyed by callee function ref, and

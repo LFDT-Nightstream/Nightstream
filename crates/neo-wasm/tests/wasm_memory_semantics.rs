@@ -1,8 +1,9 @@
 use neo_math::F;
 use neo_wasm::layout::{
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
-    COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX, COL_OPCODE_CODE, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, PC_ROM_CALL_RETURN_CHOICE,
+    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CURRENT_FUNCTION_NUM_LOCALS,
+    COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX,
+    COL_OPCODE_CODE, COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE,
+    COL_TABLE_VALUE, PC_ROM_CALL_RETURN_CHOICE,
 };
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
@@ -36,6 +37,33 @@ fn memory_semantics_accept_real_direct_call_trace() {
     );
     let layout = build_wasm_relation_layout();
     sanity_check_memory_rows(layout, &witnesses, &preload).expect("memory sanity");
+}
+
+#[test]
+fn memory_semantics_rejects_tampered_function_call_metadata() {
+    let (trace, mut witnesses, preload) = witness_run(
+        r#"(module
+            (func $add_one (param i32) (result i32)
+                local.get 0
+                i32.const 1
+                i32.add)
+            (func (export "run") (result i32)
+                i32.const 5
+                call $add_one))
+        "#,
+    );
+    let call_idx = trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::Call)
+        .expect("call row");
+    witnesses[call_idx][COL_CALL_TARGET_METADATA] += F::ONE;
+
+    let layout = build_wasm_relation_layout();
+    let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("tampered metadata must fail");
+    assert!(
+        err.contains("memory `function_call_metadata` ROM mismatch"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]

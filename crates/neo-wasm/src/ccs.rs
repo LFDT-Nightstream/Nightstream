@@ -29,13 +29,15 @@ use crate::layout::{
     COL_CMP_HI_IS_ZERO, COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_DIV_TRAP, COL_GLOBAL_VALUE_HI,
     COL_HALTED, COL_HALTED_BEFORE, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE,
     COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV,
-    COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SP_AFTER,
-    COL_SP_BEFORE, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI,
-    COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO,
-    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI,
-    COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS,
-    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
-    COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
+    COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
+    COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE,
+    COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
+    COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI,
+    COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO,
+    COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
 };
 use neo_ccs::CcsStructure;
 use neo_math::F;
@@ -287,6 +289,47 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
+    b.with_tag(always("program immediate gates"), |b| {
+        let gates: [(usize, fn(WasmOpcode) -> bool); 4] = [
+            (COL_PROGRAM_LOCAL_INDEX_ACTIVE, WasmOpcode::uses_local_index_immediate),
+            (COL_PROGRAM_GLOBAL_INDEX_ACTIVE, WasmOpcode::uses_global_index_immediate),
+            (COL_PROGRAM_TABLE_ID_ACTIVE, WasmOpcode::uses_table_id_immediate),
+            (
+                COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+                WasmOpcode::uses_call_indirect_immediates,
+            ),
+        ];
+        for (gate, uses_immediate) in gates {
+            b.push_linear_zero(
+                std::iter::once((gate, F::ONE)).chain(
+                    WasmOpcode::supported()
+                        .into_iter()
+                        .filter(|opcode| uses_immediate(*opcode))
+                        .map(|opcode| (selector_col(opcode).expect("immediate consumer selector"), -F::ONE)),
+                ),
+            );
+        }
+    });
+
+    b.with_tag(always("memory activation support"), |b| {
+        // These implications are deliberately redundant with the WASM
+        // semantics. They are not needed for soundness: the physical-slot
+        // binding independently rejects multiple active candidates. Keeping
+        // them here makes every routing support claim a local circuit
+        // contract, so a bad claim rejects honest rows in the fast CCS tests
+        // instead of surfacing only during memory execution.
+        //
+        // TODO: prove in Lean that the semantic CCS implies these support
+        // rows, then remove the redundant rows from the production relation.
+        for support in crate::memory_routing::derived_activation_supports() {
+            b.push_row(
+                [(support.gate, F::ONE)],
+                std::iter::once((COL_ONE, F::ONE)).chain(support.atoms.into_iter().map(|atom| (atom, -F::ONE))),
+                [],
+            );
+        }
+    });
+
     b.with_tag(always("opcode decode"), |b| {
         // opcode_code = Σ_op selector(op) · opcode_code(op). Selectors are
         // one-hot per program row, so this pins opcode_code to the active
@@ -311,6 +354,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         (COL_STACK_WRITES, -F::ONE),
         (super::layout::COL_TAIL_DISCARD_COUNT, F::ONE),
         (host_event_chain::gather_arg_read_kind_col(), -F::ONE),
+        (host_event_chain::gather_memory_read_kind_col(), -F::ONE),
+        (host_event_chain::gather_memory_write_kind_col(), -F::ONE),
+        (host_event_chain::gather_memory_local_base_col(), F::ONE),
         (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
         // Grammar host calls pop their args on the call row itself.
         (host_event_chain::grammar_host_call_params_col(), F::ONE),

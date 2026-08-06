@@ -15,6 +15,7 @@ mod ivc_state;
 pub mod layout;
 mod lookup_circuit;
 pub mod lookup_semantics;
+mod memory_routing;
 pub mod memory_semantics;
 pub mod nebula;
 #[doc(hidden)]
@@ -41,8 +42,8 @@ pub use ccs::WasmVmSpec;
 pub use comm_chain::CommChainState;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
-    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmGrammarRomEntry, WasmGrammarState, WasmOutputState,
-    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmGrammarRomEntry, WasmGrammarSlotKind,
+    WasmGrammarState, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 pub use isa::{
     opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,

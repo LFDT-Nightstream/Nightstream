@@ -109,11 +109,15 @@ pub(super) fn enforce(
             .digest_fields()
             .map(|value| alloc_constant_var(builder, value))
     } else {
-        let child_digests = running_wires
+        let parent = running_parent_authority_wires
+            .as_ref()
+            .expect("nonempty running family was validated to have a parent");
+        let parent_inputs = accumulator_digest_inputs(parent);
+        let child_inputs = running_wires
             .iter()
-            .map(|child| enforce_accumulator_ce_claim_digest(builder, &accumulator_digest_inputs(child)))
-            .collect::<Result<Vec<_>, _>>()?;
-        enforce_accumulator_claims_digest(builder, &child_digests)
+            .map(accumulator_digest_inputs)
+            .collect::<Vec<_>>();
+        enforce_strict_binary_accumulator_family_digest(builder, &parent_inputs, &child_inputs)?
     };
     builder.record_row_family(stage::BINDING, binding_start);
 
@@ -293,7 +297,7 @@ fn validate_selected_ce(cfg: &PiCcsVerifierConfig<'_>, label: &str, claim: &CeCl
         || claim.m_in > cfg.structure.m()
         || claim.m_in % D != 0
         || claim.X.rows() != D
-        || claim.X.cols() != claim.m_in
+        || claim.X.cols() != crate::paper::relations::superneo_public_x_cols(claim.m_in)
         || claim.r.len() != dims.variables
         || claim.y_ring.len() != dims.matrix_count
         || claim.ct.len() != dims.matrix_count
@@ -590,7 +594,10 @@ fn bind_outputs(
         if index < fresh.len() {
             let input = &fresh[index];
             bind_metadata_and_commitment(builder, output, input.c_d_var, input.c_kappa_var, &input.c_data)?;
-            if output.m_in != input.m_in || output.x_rows != D || output.x_cols != input.m_in {
+            if output.m_in != input.m_in
+                || output.x_rows != D
+                || output.x_cols != crate::paper::relations::superneo_public_x_cols(input.m_in)
+            {
                 return Err(Error::Shape(format!("fresh output[{index}] public shape mismatch")));
             }
             enforce_var_eq(builder, output.m_in_var, input.m_in_var);

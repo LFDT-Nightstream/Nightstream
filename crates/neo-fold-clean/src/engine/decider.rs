@@ -1008,8 +1008,9 @@ fn emit_terminal_fold(
     // Bind the exact ordered output accumulator. Strict Pi_DEC validates the
     // parent cache but does not make it injective in its child vector.
     let accumulator_start = builder.rows();
-    let post_fold_acc_digest = enforce_terminal_output_acc_digest(builder, &nifs_outputs.children)
-        .map_err(|error| decider::Error::WalkFailed(format!("terminal output accumulator digest: {error}")))?;
+    let post_fold_acc_digest =
+        enforce_terminal_output_acc_digest(builder, &nifs_outputs.parent, &nifs_outputs.children)
+            .map_err(|error| decider::Error::WalkFailed(format!("terminal output accumulator digest: {error}")))?;
     let terminal_children = nifs_outputs.children;
     builder.record_row_family("terminal.accumulator", accumulator_start);
     builder.record_row_family("terminal.total", terminal_start);

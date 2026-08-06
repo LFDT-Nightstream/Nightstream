@@ -68,7 +68,7 @@ pub(super) fn enforce(
         return Err(Error::Inner("Π_CCS.V emitted zero outputs".into()));
     }
     let kappa = ccs.outputs[0].c_kappa;
-    let m_in = ccs.outputs[0].x_cols;
+    let m_in = ccs.outputs[0].m_in;
 
     // Definition 14 fixes this bound structurally at circuit-emission time.
     crate::paper::sampling::check_rlc_bound(pp, k_total, pp.T() as u128)
@@ -145,10 +145,10 @@ fn enforce_parent_shape(
             parent.c_data.len()
         )));
     }
-    let expected_x_len = D * m_in;
+    let expected_x_len = D * crate::paper::relations::superneo_public_x_cols(m_in);
     if parent.x.len() < expected_x_len {
         return Err(Error::Inner(format!(
-            "Π_RLC parent X lane count {} < D*m_in {expected_x_len}",
+            "Π_RLC parent X lane count {} is below the compact coefficient-embedding width {expected_x_len}",
             parent.x.len()
         )));
     }

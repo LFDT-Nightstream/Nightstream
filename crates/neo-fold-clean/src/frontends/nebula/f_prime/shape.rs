@@ -382,7 +382,7 @@ fn zero_ce_claim(context: &ShapeContext<'_>, m_in: usize) -> CeClaim {
     let d_pad = D.next_power_of_two();
     CeClaim {
         c: Commitment::zeros(D, context.params.kappa() as usize),
-        X: Mat::zero(D, m_in, F::ZERO),
+        X: Mat::zero(D, crate::paper::relations::superneo_public_x_cols(m_in), F::ZERO),
         r: vec![K::ZERO; context.joint_variables],
         y_ring: vec![vec![K::ZERO; d_pad]; context.folded.t() + 1],
         ct: vec![K::ZERO; context.folded.t() + 1],

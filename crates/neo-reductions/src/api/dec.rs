@@ -82,13 +82,14 @@ where
     if parent.m_in > s.m {
         return fail(format!("parent m_in={} exceeds CCS width m={}", parent.m_in, s.m));
     }
-    if parent.X.rows() != D || parent.X.cols() != parent.m_in {
+    let x_cols = neo_ccs::superneo_public_x_cols(parent.m_in);
+    if parent.X.rows() != D || parent.X.cols() != x_cols {
         eprintln!(
             "verify_dec_public failed: parent X has shape {}x{}, expected {}x{}",
             parent.X.rows(),
             parent.X.cols(),
             D,
-            parent.m_in
+            x_cols
         );
         return false;
     }
@@ -106,14 +107,14 @@ where
             );
             return false;
         }
-        if ch.X.rows() != D || ch.X.cols() != parent.m_in {
+        if ch.X.rows() != D || ch.X.cols() != x_cols {
             eprintln!(
                 "verify_dec_public failed: child X shape mismatch (child {} has {}x{}, expected {}x{})",
                 idx,
                 ch.X.rows(),
                 ch.X.cols(),
                 D,
-                parent.m_in
+                x_cols
             );
             return false;
         }

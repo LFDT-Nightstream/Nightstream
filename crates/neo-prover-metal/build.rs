@@ -10,6 +10,8 @@ fn main() {
     println!("cargo:rerun-if-changed=shaders/goldilocks.metal");
     println!("cargo:rerun-if-changed=shaders/seeded_ajtai.metal");
     println!("cargo:rerun-if-changed=shaders/lane_commitments.metal");
+    println!("cargo:rerun-if-changed=shaders/joint.metal");
+    println!("cargo:rerun-if-changed=shaders/dec_forms.metal");
 
     if env::var_os("CARGO_FEATURE_METAL").is_none() {
         return;

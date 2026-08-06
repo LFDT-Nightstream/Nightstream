@@ -101,8 +101,8 @@ pub mod paper;
 
 // Terminal-only lifecycle path.
 pub use lifecycle::{
-    extend, finish_uncompressed, preprocess, prove, verify_uncompressed, Compressed, Error, Preprocessing, PublicImage,
-    Uncompressed,
+    extend, finish_uncompressed, preprocess, prove, verify_uncompressed, verify_uncompressed_with_opening_backend,
+    Compressed, Error, FinalWitnessOpeningBackend, Preprocessing, PublicImage, Uncompressed,
 };
 
 // Audit / decider path — chain-replay verifier, Spartan statement, diagnostic

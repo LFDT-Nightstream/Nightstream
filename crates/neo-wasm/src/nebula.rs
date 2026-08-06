@@ -13,7 +13,9 @@ use neo_fold_clean::frontends::nebula::f_prime::{
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::nebula::plan::{NebulaPlan, PlanError};
 use neo_fold_clean::frontends::nebula::trace::Memory;
-use neo_fold_clean::lifecycle::{verify_uncompressed, Uncompressed};
+use neo_fold_clean::lifecycle::{
+    verify_uncompressed, verify_uncompressed_with_opening_backend, FinalWitnessOpeningBackend, Uncompressed,
+};
 use neo_fold_clean::paper::nifs::NifsProverAdapter;
 use neo_fold_clean::paper::params::Params;
 use thiserror::Error;
@@ -150,6 +152,19 @@ impl WasmNebulaProfile {
             memory: batched_memory_geometry(memory, WASM_NEBULA_BATCH_SIZE),
             limits: WasmNebulaLimits::test_profile(),
             batch_size: WASM_NEBULA_BATCH_SIZE,
+        }
+    }
+
+    /// Build a reduced timing profile with an explicit instruction batch.
+    /// The supplied memory geometry still owns the complete Nebula scan.
+    #[cfg(feature = "perf-timers")]
+    #[doc(hidden)]
+    pub fn test_profile_with_schedule(memory: NebulaParams, batch_size: usize) -> Self {
+        assert!(batch_size > 0, "WASM Nebula test batch size must be nonzero");
+        Self {
+            memory: batched_memory_geometry(memory, batch_size),
+            limits: WasmNebulaLimits::test_profile(),
+            batch_size,
         }
     }
 
@@ -543,6 +558,25 @@ pub fn verify(
     proof: &WasmNebulaProof,
     claimed_final_state: WasmStepState,
 ) -> Result<(), WasmNebulaError> {
+    verify_inner(prep, proof, claimed_final_state, None)
+}
+
+#[doc(hidden)]
+pub fn verify_with_witness_opening_backend(
+    prep: &WasmNebulaPreprocessing,
+    proof: &WasmNebulaProof,
+    claimed_final_state: WasmStepState,
+    backend: &mut dyn FinalWitnessOpeningBackend,
+) -> Result<(), WasmNebulaError> {
+    verify_inner(prep, proof, claimed_final_state, Some(backend))
+}
+
+fn verify_inner(
+    prep: &WasmNebulaPreprocessing,
+    proof: &WasmNebulaProof,
+    claimed_final_state: WasmStepState,
+    opening_backend: Option<&mut dyn FinalWitnessOpeningBackend>,
+) -> Result<(), WasmNebulaError> {
     if !claimed_final_state.halted {
         return Err(WasmNebulaError::FalseTerminalClaim);
     }
@@ -555,7 +589,10 @@ pub fn verify(
             max_present,
         });
     }
-    verify_uncompressed(&prep.inner.prep, &proof.proof)?;
+    match opening_backend {
+        Some(backend) => verify_uncompressed_with_opening_backend(&prep.inner.prep, &proof.proof, backend)?,
+        None => verify_uncompressed(&prep.inner.prep, &proof.proof)?,
+    }
     if proof.proof.state.semantic_state_digest != semantic_state_digest(claimed_final_state) {
         return Err(WasmNebulaError::FinalStateMismatch);
     }

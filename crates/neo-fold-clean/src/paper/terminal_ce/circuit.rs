@@ -325,10 +325,11 @@ fn validate_terminal_child_wires(
             got: claim.x.len(),
         });
     }
-    if claim.x_cols != claim.m_in {
+    let active_x_cols = superneo_public_x_cols(claim.m_in);
+    if claim.x_cols != active_x_cols {
         return Err(TerminalCeCircuitError::XCols {
             index,
-            expected: claim.m_in,
+            expected: active_x_cols,
             got: claim.x_cols,
         });
     }
@@ -337,14 +338,6 @@ fn validate_terminal_child_wires(
             index,
             expected: context.structure.m,
             got: claim.m_in,
-        });
-    }
-    let active_x_cols = superneo_public_x_cols(claim.m_in);
-    if active_x_cols > claim.x_cols {
-        return Err(TerminalCeCircuitError::ActiveXCols {
-            index,
-            active_cols: active_x_cols,
-            cols: claim.x_cols,
         });
     }
     let assignment_width = neo_reductions::common::superneo_carrier_width(context.structure.m);
@@ -361,11 +354,6 @@ fn validate_terminal_child_wires(
             expected: expected_r_len,
             got: claim.r.len(),
         });
-    }
-    for r in 0..claim.x_rows {
-        for c in active_x_cols..claim.x_cols {
-            builder.enforce_eq(&Lc::from_var(claim.x[r * claim.x_cols + c]), &Lc::zero());
-        }
     }
     let expected_t = context.structure.t() + 1;
     if claim.y_ring.len() != expected_t {

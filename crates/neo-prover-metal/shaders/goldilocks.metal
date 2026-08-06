@@ -888,47 +888,66 @@ kernel void fe_weighted_basis_dots(
     qk[2 * index + 1] = gl_add(ir, ri);
 }
 
+inline ulong compact_row_offset(device const uchar *offsets, ulong row, ulong width) {
+    if (width == 3) {
+        ulong base = 3 * row;
+        return (ulong)offsets[base] | ((ulong)offsets[base + 1] << 8) | ((ulong)offsets[base + 2] << 16);
+    }
+    return (ulong)((device const uint *)offsets)[row];
+}
+
+constant uint COMPACT_DENSE_BLOCK_TAG = 1u << 31;
+constant uint COMPACT_NEGATIVE_BLOCK_TAG = 1u << 30;
+constant uint COMPACT_BLOCK_PAYLOAD_MASK = COMPACT_NEGATIVE_BLOCK_TAG - 1;
+
 kernel void fe_weighted_row_table(
-    device const uint *matrix_row_offsets [[buffer(0)]],
-    device const ulong *matrix_entry_bases [[buffer(1)]],
-    device const uint *matrix_identity [[buffer(2)]],
-    device const uint *entry_columns [[buffer(3)]],
-    device const ulong *entry_coefficients [[buffer(4)]],
+    device const uchar *row_offsets [[buffer(0)]],
+    device const uint2 *row_blocks [[buffer(1)]],
+    device const uint *dense_offsets [[buffer(2)]],
+    device const uchar *dense_locals [[buffer(3)]],
+    device const ulong *dense_coefficients [[buffer(4)]],
     device const ulong *qk [[buffer(5)]],
-    device const ulong *mat_coeffs [[buffer(6)]],
+    device const ulong *matrix_coefficient [[buffer(6)]],
     device const ulong *shape [[buffer(7)]],
     device ulong *output [[buffer(8)]],
     uint row [[thread_position_in_grid]]) {
-    ulong matrix_count = shape[2];
-    ulong rows = shape[3];
-    ulong n_eff = shape[4];
-    ulong n_pad = shape[5];
+    ulong rows = shape[0];
+    ulong n_eff = shape[1];
+    ulong n_pad = shape[2];
+    ulong offset_width = shape[3];
+    bool identity = shape[4] != 0;
     if (row >= n_pad) {
         return;
     }
-    Kx total = Kx{0, 0};
+    Kx value = Kx{0, 0};
     if (row < n_eff) {
-        for (ulong matrix = 0; matrix < matrix_count; ++matrix) {
-            ulong offset = matrix * (rows + 1) + row;
-            ulong entry_base = matrix_entry_bases[matrix];
-            ulong start = entry_base + matrix_row_offsets[offset];
-            ulong end = entry_base + matrix_row_offsets[offset + 1];
-            Kx value = Kx{0, 0};
-            if (matrix_identity[matrix] != 0) {
-                value = load_k(qk, row);
-            } else {
-                for (ulong entry = start; entry < end; ++entry) {
-                    ulong column = entry_columns[entry];
-                    ulong coefficient = gl_from_word(entry_coefficients[entry]);
-                    value.c0 = gl_add(value.c0, gl_mul(coefficient, gl_from_word(qk[2 * column])));
-                    value.c1 = gl_add(value.c1, gl_mul(coefficient, gl_from_word(qk[2 * column + 1])));
+        if (identity) {
+            value = load_k(qk, row);
+        } else {
+            ulong start = compact_row_offset(row_offsets, row, offset_width);
+            ulong end = compact_row_offset(row_offsets, row + 1, offset_width);
+            for (ulong entry = start; entry < end; ++entry) {
+                uint2 block = row_blocks[entry];
+                uint payload = block.y;
+                if ((payload & COMPACT_DENSE_BLOCK_TAG) == 0) {
+                    ulong column = (ulong)block.x * RING_DEGREE + (ulong)(payload & COMPACT_BLOCK_PAYLOAD_MASK);
+                    Kx input = load_k(qk, column);
+                    value = (payload & COMPACT_NEGATIVE_BLOCK_TAG) == 0
+                        ? kx_add(value, input)
+                        : kx_sub(value, input);
+                } else {
+                    uint dense = payload & COMPACT_BLOCK_PAYLOAD_MASK;
+                    for (uint coefficient = dense_offsets[dense]; coefficient < dense_offsets[dense + 1]; ++coefficient) {
+                        ulong column = (ulong)block.x * RING_DEGREE + (ulong)dense_locals[coefficient];
+                        ulong scalar = gl_from_word(dense_coefficients[coefficient]);
+                        value.c0 = gl_add(value.c0, gl_mul(scalar, gl_from_word(qk[2 * column])));
+                        value.c1 = gl_add(value.c1, gl_mul(scalar, gl_from_word(qk[2 * column + 1])));
+                    }
                 }
             }
-            total = kx_add(
-                total,
-                kx_mul(Kx{mat_coeffs[2 * matrix], mat_coeffs[2 * matrix + 1]}, value));
         }
     }
+    Kx total = kx_add(load_k(output, row), kx_mul(load_k(matrix_coefficient, 0), value));
     output[2 * row] = total.c0;
     output[2 * row + 1] = total.c1;
 }
@@ -1443,3 +1462,6 @@ kernel void fe_round_partials(
         }
     }
 }
+
+#include "dec_forms.metal"
+#include "joint.metal"

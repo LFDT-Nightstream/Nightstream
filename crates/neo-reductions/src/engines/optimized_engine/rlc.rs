@@ -661,7 +661,7 @@ where
 
     #[cfg(feature = "perf-timers")]
     let t_x = std::time::Instant::now();
-    let mut X = Mat::zero(D, m_in, Ff::ZERO);
+    let mut X = Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in), Ff::ZERO);
     for (rho, inst) in rhos.iter().zip(me_inputs.iter()) {
         left_mul_acc_optimized(&mut X, rho, &inst.X);
     }

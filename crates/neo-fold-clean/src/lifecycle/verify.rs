@@ -129,6 +129,8 @@ use crate::paper::f_prime::r1cs::{
 use crate::paper::relations::{CeClaim, WitnessMat};
 use neo_ajtai::Commitment;
 
+use super::final_openings::{check_claim_openings, validate_opening_shape, FinalWitnessOpeningBackend};
+
 #[cfg(feature = "perf-timers")]
 struct WitnessAuthorityPerf {
     forms_ns: AtomicU64,
@@ -228,6 +230,25 @@ impl WitnessAuthorityPerf {
 /// accumulator and latest CCS instance separately. Nebula additionally
 /// re-runs its terminal NIFS fold to close the delayed memory lane.
 pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
+    verify_uncompressed_inner(prep, proof, None)
+}
+
+/// Verify an uncompressed proof and use a caller-owned arithmetic backend for
+/// the final identity-first witness openings when it supports this structure.
+#[doc(hidden)]
+pub fn verify_uncompressed_with_opening_backend(
+    prep: &Preprocessing,
+    proof: &Uncompressed,
+    backend: &mut dyn FinalWitnessOpeningBackend,
+) -> Result<(), Error> {
+    verify_uncompressed_inner(prep, proof, Some(backend))
+}
+
+fn verify_uncompressed_inner(
+    prep: &Preprocessing,
+    proof: &Uncompressed,
+    opening_backend: Option<&mut dyn FinalWitnessOpeningBackend>,
+) -> Result<(), Error> {
     prep.validate_verifier_key_binding()?;
     if matches!(&proof.state.proof, ProofState::Initial) {
         return verify_base_case(prep, proof);
@@ -305,7 +326,7 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
     // equations on the folded CE relation; this Rust function
     // executes them directly. See module docs for the layering
     // boundary with the decider R1CS path.
-    check_running_witnesses_authority(prep, &recorded_running)?;
+    check_running_witnesses_authority(prep, &recorded_running, opening_backend)?;
 
     // (4) acc_digest is recomputed from the just-authenticated claims.
     check_recorded_acc_digest(prep, &recorded_running, &proof.state.acc_digest)?;
@@ -430,7 +451,7 @@ fn check_terminal_fold_claim_shapes(
         if claim.m_in > prep.structure().m
             || claim.m_in % neo_math::D != 0
             || claim.X.rows() != neo_math::D
-            || claim.X.cols() != claim.m_in
+            || claim.X.cols() != crate::paper::relations::superneo_public_x_cols(claim.m_in)
         {
             return Err(Error::FinalAccumulatorPublicInputMismatch { index });
         }
@@ -824,7 +845,11 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
 /// tests can exercise the authority obligations against a hand-crafted
 /// `(claim, witness)` pair without driving the full
 /// `verify_uncompressed` binding pipeline.
-fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInstance) -> Result<(), Error> {
+fn check_running_witnesses_authority(
+    prep: &Preprocessing,
+    running: &RunningInstance,
+    mut opening_backend: Option<&mut dyn FinalWitnessOpeningBackend>,
+) -> Result<(), Error> {
     check_running_shape(running)?;
 
     // Commitment dimensions are proof-controlled. Validate them before the
@@ -857,6 +882,48 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
             .iter()
             .all(|claim| claim.r.as_slice() == first_r)
         {
+            if let Some(backend) = opening_backend.as_deref_mut() {
+                let t_forms = std::time::Instant::now();
+                if let Some(openings) = backend
+                    .final_witness_openings(prep.optimized_cache(), &running.witnesses, first_r, prep.structure().m)
+                    .map_err(|reason| Error::FinalAccumulatorOpeningBackend { reason })?
+                {
+                    let expected_matrix_count = prep.structure().t() + 1;
+                    validate_opening_shape(&openings, running.claims.len(), expected_matrix_count)?;
+                    perf.add_forms(t_forms.elapsed());
+                    let results: Vec<Result<(), Error>> = running
+                        .claims
+                        .par_iter()
+                        .zip(running.witnesses.par_iter())
+                        .zip(opened_commitments.par_iter())
+                        .zip(witness_nonzero.par_iter())
+                        .zip(openings.par_iter())
+                        .enumerate()
+                        .map(|(index, ((((claim, witness), opened), &nonzero), rows))| {
+                            check_running_claim_authority(
+                                prep,
+                                index,
+                                claim,
+                                witness,
+                                opened,
+                                nonzero,
+                                expected_r_len,
+                                ell_d,
+                                None,
+                                Some(rows),
+                                expected_matrix_count,
+                                &perf,
+                            )
+                        })
+                        .collect();
+                    for result in results {
+                        result?;
+                    }
+                    perf.print("shared-r backend", running.claims.len());
+                    return Ok(());
+                }
+                perf.add_forms(t_forms.elapsed());
+            }
             let t_forms = std::time::Instant::now();
             let forms = build_ring_linear_forms_for_r(prep, superneo_cache, first_r);
             perf.add_forms(t_forms.elapsed());
@@ -877,7 +944,9 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
                         nonzero,
                         expected_r_len,
                         ell_d,
-                        &forms,
+                        Some(&forms),
+                        None,
+                        forms.len() + 1,
                         &perf,
                     )
                 })
@@ -911,7 +980,9 @@ fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInst
             nonzero,
             expected_r_len,
             ell_d,
-            forms,
+            Some(forms),
+            None,
+            forms.len() + 1,
             &perf,
         )?;
     }
@@ -932,6 +1003,11 @@ fn scan_terminal_witnesses(prep: &Preprocessing, running: &RunningInstance, b: u
                 .is_some_and(|value| *value == F::ZERO)
             {
                 return Ok(false);
+            }
+            if b > 1 {
+                if let Some(nonzero) = witness.packed_signed_unit_nonzero_count() {
+                    return Ok(nonzero != 0);
+                }
             }
             let mut nonzero = false;
             for row in 0..witness.rows() {
@@ -1009,7 +1085,9 @@ fn check_running_claim_authority(
     witness_nonzero: bool,
     expected_r_len: usize,
     ell_d: usize,
-    ring_linear_forms: &[SuperneoRingLinearForm],
+    ring_linear_forms: Option<&[SuperneoRingLinearForm]>,
+    precomputed_openings: Option<&[[K; D]]>,
+    expected_matrix_count: usize,
     perf: &WitnessAuthorityPerf,
 ) -> Result<(), Error> {
     if opened != &claim.c {
@@ -1045,7 +1123,7 @@ fn check_running_claim_authority(
             });
         }
         let t_ce = std::time::Instant::now();
-        let result = check_zero_ce_relation(index, claim, ring_linear_forms.len() + 1, 1usize << ell_d);
+        let result = check_zero_ce_relation(index, claim, expected_matrix_count, 1usize << ell_d);
         perf.add_ce(t_ce.elapsed());
         return result;
     }
@@ -1064,7 +1142,13 @@ fn check_running_claim_authority(
         });
     }
     let t_ce = std::time::Instant::now();
-    let result = check_ce_relation(prep, index, claim, witness, ell_d, ring_linear_forms);
+    let result = match (ring_linear_forms, precomputed_openings) {
+        (Some(forms), None) => check_ce_relation(prep, index, claim, witness, ell_d, forms),
+        (None, Some(openings)) => check_claim_openings(index, claim, ell_d, openings),
+        _ => Err(Error::FinalAccumulatorOpeningBackend {
+            reason: "verifier received an invalid opening source".to_string(),
+        }),
+    };
     perf.add_ce(t_ce.elapsed());
     result
 }
@@ -1096,7 +1180,7 @@ fn check_claim_public_input_len(prep: &Preprocessing, claim: &CeClaim) -> Result
 /// obligation without first passing the chain-replay + binding steps
 /// `verify_uncompressed` does up-front.
 pub fn validate_final_witness_authority(prep: &Preprocessing, running: &RunningInstance) -> Result<(), Error> {
-    check_running_witnesses_authority(prep, running)
+    check_running_witnesses_authority(prep, running, None)
 }
 
 /// Isolate the exact recursive terminal-link check used by
@@ -1265,7 +1349,10 @@ fn identity_ring_mle(witness: &WitnessMat, expected_m: usize, point: &[K]) -> [K
     output
 }
 fn check_zero_public_projection(prep: &Preprocessing, index: usize, claim: &CeClaim) -> Result<(), Error> {
-    if claim.m_in > prep.structure().m || claim.X.rows() != neo_math::D || claim.X.cols() != claim.m_in {
+    if claim.m_in > prep.structure().m
+        || claim.X.rows() != neo_math::D
+        || claim.X.cols() != crate::paper::relations::superneo_public_x_cols(claim.m_in)
+    {
         return Err(Error::FinalAccumulatorPublicInputMismatch { index });
     }
     if claim.X.nnz() != 0 {
@@ -1394,7 +1481,7 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
     }
     check_nebula_terminal_state(prep, &audit.proof.state)?;
     let running = running.materialize().map_err(construction2::Error::from)?;
-    check_running_witnesses_authority(prep, &running)
+    check_running_witnesses_authority(prep, &running, None)
 }
 
 /// Enforce Nebula finalization and lane/config presence coherence.

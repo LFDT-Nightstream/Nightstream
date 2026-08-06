@@ -1228,7 +1228,8 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT);
     builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT_CLAIM);
     let claimed_acc_digest = alloc_4(builder, inputs.acc_digest_out);
-    let new_acc_digest = accumulator::enforce_nifs_output_acc_digest(builder, &nifs_outputs.children)?;
+    let new_acc_digest =
+        accumulator::enforce_nifs_output_acc_digest(builder, &nifs_outputs.parent, &nifs_outputs.children)?;
     enforce_digest_eq(builder, &claimed_acc_digest, &new_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
     builder.record_row_family("fprime.recursive.accumulator", accumulator_start);

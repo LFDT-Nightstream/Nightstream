@@ -20,6 +20,8 @@ pub use baseline::{
     should_enable_superneo_cache_default, superneo_row_dot_from_original,
 };
 pub use cache::build_superneo_eval_cache;
+#[doc(hidden)]
+pub use compact::{SuperneoCompactDeviceParts, SuperneoCompactRowOffsets};
 use digit::{
     accumulate_by_digit_block, accumulate_by_signed_unit_masks, accumulate_pair_by_digit_block,
     accumulate_pair_by_signed_unit_masks, mul_by_digit_block, mul_by_signed_unit_masks,
@@ -130,6 +132,7 @@ const NEGATIVE_BLOCK_TAG: u32 = 1 << 30;
 const BLOCK_PAYLOAD_MASK: u32 = NEGATIVE_BLOCK_TAG - 1;
 
 #[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
 struct CompactRowBlock {
     blk: u32,
     payload: u32,

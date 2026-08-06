@@ -29,28 +29,19 @@ impl Challenges {
     }
 }
 
-/// Reject public input values outside the active packed prefix.
+/// Reject a noncanonical public-input coefficient embedding.
 pub fn validate_inactive_x_zero<Ff>(label: &str, claim: &CeClaim<Cmt, Ff, K>) -> Result<(), PiCcsError>
 where
     Ff: Field,
 {
-    let active_columns = claim.m_in.div_ceil(D);
-    if claim.X.rows() != D || claim.X.cols() != claim.m_in {
+    let active_columns = neo_ccs::superneo_public_x_cols(claim.m_in);
+    if claim.X.rows() != D || claim.X.cols() != active_columns {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: X has shape {}x{}, expected {D}x{}",
             claim.X.rows(),
             claim.X.cols(),
-            claim.m_in
+            active_columns
         )));
-    }
-    for column in active_columns..claim.X.cols() {
-        for row in 0..claim.X.rows() {
-            if claim.X[(row, column)] != Ff::ZERO {
-                return Err(PiCcsError::InvalidInput(format!(
-                    "{label}: inactive X entry ({row},{column}) must be zero"
-                )));
-            }
-        }
     }
     Ok(())
 }

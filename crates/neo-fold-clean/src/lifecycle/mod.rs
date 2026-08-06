@@ -55,6 +55,7 @@
 //! - `schedule.rs` — [`FoldSchedule`], `partition<T>`, [`ScheduleError`].
 
 pub mod compress;
+mod final_openings;
 pub mod prove;
 pub mod schedule;
 pub mod verify;
@@ -68,6 +69,8 @@ use crate::paper::construction2::{FinalFoldProof, SemanticStateMode, State, Step
 use crate::paper::decider;
 use crate::paper::params::Params;
 use crate::paper::relations::{ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, DecMixer, RlcMixer, Structure};
+
+pub use final_openings::FinalWitnessOpeningBackend;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -114,6 +117,8 @@ pub enum Error {
          `ct` independently of `y_ring` — `ct` enters the protocol's consistency checks downstream."
     )]
     FinalAccumulatorCtMismatch { index: usize, matrix_index: usize },
+    #[error("verify_uncompressed: final accumulator opening backend failed: {reason}")]
+    FinalAccumulatorOpeningBackend { reason: String },
     #[error(
         "verify_uncompressed: recorded final accumulator claim {index} evaluation point `r` has the \
          wrong length (expected {expected} = log2(next_pow2(structure.n).max(2)), got {got}). A \
@@ -608,7 +613,7 @@ pub use prove::{
 };
 pub use verify::{
     validate_final_witness_authority, validate_latest_witness_authority, validate_required_f_prime_latest_link,
-    validate_terminal_latest_link, verify_uncompressed,
+    validate_terminal_latest_link, verify_uncompressed, verify_uncompressed_with_opening_backend,
 };
 
 // Audit / decider path — chain replay, Spartan, diagnostic tests.

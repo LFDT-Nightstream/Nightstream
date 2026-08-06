@@ -20,6 +20,8 @@ use neo_fold_clean::frontends::r1cs_f_prime::R1csShape;
 use neo_fold_clean::paper::construction2::ProofState;
 use neo_fold_clean::paper::params::Params;
 use neo_math::{D, F};
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+use neo_prover_metal::MetalNifsProver;
 use p3_field::PrimeCharacteristicRing;
 
 const PROFILE_WAT: &str = r#"
@@ -135,7 +137,8 @@ fn test_params() -> Params {
         neo_params::goldilocks_paper_b2::ETA as u32,
         neo_params::goldilocks_paper_b2::D as u32,
         1,
-        1 << 14,
+        // The current reduced F' fixed point requires the 2^25 joint domain.
+        1 << 25,
         neo_params::goldilocks_paper_b2::B_BASE,
         neo_params::goldilocks_paper_b2::K_RHO,
         neo_params::goldilocks_paper_b2::T,
@@ -280,7 +283,8 @@ fn wasm_nebula_relation_structure_census() {
 }
 
 #[test]
-#[ignore = "end-to-end profiling census; run explicitly with --nocapture"]
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+#[ignore = "full cached Metal folded-proof profile; run explicitly"]
 fn wasm_nebula_pipeline_profile() {
     let wall_started = Instant::now();
 
@@ -306,7 +310,12 @@ fn wasm_nebula_pipeline_profile() {
     common::ccs_check_trace(&trace);
     let trace_check_elapsed = started.elapsed();
 
-    let profile = neo_wasm::WasmNebulaProfile::test_profile();
+    // One application step owns the complete ten-instruction trace and the
+    // complete reduced-memory scan. The proof still performs its required
+    // delayed terminal NIFS fold.
+    let memory = neo_fold_clean::frontends::nebula::layout::NebulaParams::new(10, 10, 64, 2048, 16)
+        .expect("one-step reduced Nebula scan");
+    let profile = neo_wasm::WasmNebulaProfile::test_profile_with_schedule(memory, trace.len());
     let batch_size = profile.batch_size();
     let steps_per_segment = profile.memory().steps_per_segment();
     let wasm_rows_per_segment = steps_per_segment * batch_size;
@@ -526,13 +535,46 @@ fn wasm_nebula_pipeline_profile() {
         final_storage.geometric_slots,
     );
 
+    let mut prover = MetalNifsProver::new().expect("Metal prover");
+    let metal_device = prover
+        .session()
+        .device_info()
+        .expect("Metal device information");
     let started = Instant::now();
-    let proof = neo_wasm::prove(&prep, &trace).expect("folded WASM proof");
-    let prove_elapsed = started.elapsed();
+    prover
+        .prepare_static(
+            &prep.inner().prep.log,
+            structure,
+            prep.inner().prep.optimized_cache(),
+            prep.inner().prep.nebula().map(|config| &config.scheme),
+        )
+        .expect("prepare static Metal proof state");
+    let metal_prepare_elapsed = started.elapsed();
+    prover.session().reset_activity();
 
     let started = Instant::now();
-    neo_wasm::verify(&prep, &proof, common::final_state(&trace)).expect("terminal-only verification");
+    let proof =
+        neo_wasm::nebula::prove_with_nifs_adapter(&prep, &mut prover, &trace).expect("folded WASM proof on Metal");
+    let prove_elapsed = started.elapsed();
+    let proof_metal_activity = prover.session().activity();
+    assert!(
+        proof_metal_activity.dispatches > 0,
+        "profile proof must dispatch Metal kernels"
+    );
+    assert!(
+        proof_metal_activity.host_waits > 0,
+        "profile proof must wait for Metal results"
+    );
+
+    let started = Instant::now();
+    neo_wasm::nebula::verify_with_witness_opening_backend(&prep, &proof, common::final_state(&trace), &mut prover)
+        .expect("terminal-only verification with Metal openings");
     let verify_elapsed = started.elapsed();
+    let metal_activity = prover.session().activity();
+    assert!(
+        metal_activity.dispatches > proof_metal_activity.dispatches,
+        "profile verification must dispatch Metal opening kernels"
+    );
 
     let terminal = proof.inner();
     let (running_claims, latest_instances) = match &terminal.state.proof {
@@ -563,9 +605,18 @@ fn wasm_nebula_pipeline_profile() {
     println!("trace normalization        {:>10.2}ms", ms(normalize_elapsed));
     println!("native + row checks        {:>10.2}ms", ms(trace_check_elapsed));
     println!("fixed-point preprocess     {:>10.2}ms", ms(preprocess_elapsed));
+    println!("Metal static preparation   {:>10.2}ms", ms(metal_prepare_elapsed));
     println!("folded prove               {:>10.2}ms", ms(prove_elapsed));
     println!("terminal verify            {:>10.2}ms", ms(verify_elapsed));
     println!("wall total                 {:>10.2}ms", ms(wall_started.elapsed()));
+    println!(
+        "Metal backend             device={:?} dispatches={} waits={} uploaded={} downloaded={}",
+        metal_device.name,
+        metal_activity.dispatches,
+        metal_activity.host_waits,
+        metal_activity.uploaded_bytes,
+        metal_activity.downloaded_bytes,
+    );
     println!(
         "proof state               chunks={} steps={} running={} latest={} final_fold={}",
         terminal.state.chunk_count,
@@ -575,7 +626,7 @@ fn wasm_nebula_pipeline_profile() {
         terminal.final_fold.is_some(),
     );
     println!(
-        "PROFILE_JSON={{\"trace_steps\":{},\"padded_wasm_steps\":{},\"batch_size\":{},\"folded_steps\":{},\"unbatched_folded_steps\":{},\"segments\":{},\"kappa\":{},\"parameter_m\":{},\"k_rho\":{},\"rows\":{},\"columns\":{},\"matrices\":{},\"ell\":{},\"explicit_nnz\":{},\"seeded_blocks\":{},\"geometric_runs\":{},\"geometric_slots\":{},\"preprocess_ms\":{:.3},\"prove_ms\":{:.3},\"verify_ms\":{:.3},\"total_ms\":{:.3}}}",
+        "PROFILE_JSON={{\"trace_steps\":{},\"padded_wasm_steps\":{},\"batch_size\":{},\"folded_steps\":{},\"unbatched_folded_steps\":{},\"segments\":{},\"kappa\":{},\"parameter_m\":{},\"k_rho\":{},\"rows\":{},\"columns\":{},\"matrices\":{},\"ell\":{},\"explicit_nnz\":{},\"seeded_blocks\":{},\"geometric_runs\":{},\"geometric_slots\":{},\"preprocess_ms\":{:.3},\"metal_prepare_ms\":{:.3},\"prove_ms\":{:.3},\"verify_ms\":{:.3},\"total_ms\":{:.3}}}",
         trace.len(),
         padded_wasm_rows,
         batch_size,
@@ -594,6 +645,7 @@ fn wasm_nebula_pipeline_profile() {
         final_storage.geometric_runs,
         final_storage.geometric_slots,
         ms(preprocess_elapsed),
+        ms(metal_prepare_elapsed),
         ms(prove_elapsed),
         ms(verify_elapsed),
         ms(wall_started.elapsed()),

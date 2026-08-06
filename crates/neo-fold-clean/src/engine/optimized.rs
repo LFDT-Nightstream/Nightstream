@@ -15,9 +15,10 @@ use neo_reductions::api as nr;
 use neo_reductions::api::FoldingMode;
 use neo_reductions::common::{sample_rot_rhos_n_typed, split_b_matrix_k_with_nonzero_flags, RotRho};
 use neo_reductions::optimized_engine::{
+    optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_backend_and_perf,
     optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf,
     optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf, OptimizedStructureCache,
-    PiDecProverPrecompute,
+    PaperJointOracleBackend, PiDecProverPrecompute,
 };
 use thiserror::Error;
 
@@ -75,6 +76,52 @@ pub fn prove_pi_ccs_parts<L>(
 where
     L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
 {
+    prove_pi_ccs_parts_inner(tr, pp, s, cache, fresh_claims, fresh_witnesses, running, log, None)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn prove_pi_ccs_parts_with_backend<L>(
+    tr: &mut neo_transcript::Poseidon2Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    log: &L,
+    backend: &mut dyn PaperJointOracleBackend,
+) -> Result<(Vec<CeClaim>, nr::PiCcsProof, PiDecProverPrecompute), Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
+{
+    prove_pi_ccs_parts_inner(
+        tr,
+        pp,
+        s,
+        cache,
+        fresh_claims,
+        fresh_witnesses,
+        running,
+        log,
+        Some(backend),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_pi_ccs_parts_inner<L>(
+    tr: &mut neo_transcript::Poseidon2Transcript,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    fresh_claims: &[CcsClaim],
+    fresh_witnesses: &[CcsWitness],
+    running: &RunningInstance,
+    log: &L,
+    backend: Option<&mut dyn PaperJointOracleBackend>,
+) -> Result<(Vec<CeClaim>, nr::PiCcsProof, PiDecProverPrecompute), Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<neo_math::F, neo_ajtai::Commitment> + Sync,
+{
     let instance_digest = crate::paper::digest::pi_ccs_instance_digest_parent_authority(
         fresh_claims,
         running.claims.len(),
@@ -83,10 +130,11 @@ where
     let accumulator_handle = if running.claims.is_empty() {
         crate::paper::digest::AccumulatorHandle::empty().digest_fields()
     } else {
-        crate::paper::digest::accumulator_claims_digest(&running.claims)
+        crate::paper::digest::AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref())
+            .digest_fields()
     };
-    let (outputs, proof, perf, pi_dec_precompute) =
-        optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+    let (outputs, proof, perf, pi_dec_precompute) = match backend {
+        Some(backend) => optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_backend_and_perf(
             tr,
             pp.inner(),
             s,
@@ -98,7 +146,22 @@ where
             accumulator_handle,
             log,
             cache,
-        )?;
+            backend,
+        )?,
+        None => optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+            tr,
+            pp.inner(),
+            s,
+            fresh_claims,
+            fresh_witnesses,
+            &running.claims,
+            &running.witnesses,
+            instance_digest,
+            accumulator_handle,
+            log,
+            cache,
+        )?,
+    };
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-ccs/prove] bind={:.2}ms sample={:.2}ms sumcheck={:.2}ms outputs={:.2}ms total={:.2}ms inputs=fresh:{}+running:{} outputs:{}",
@@ -141,7 +204,8 @@ pub fn verify_pi_ccs(
     let accumulator_handle = if running.claims.is_empty() {
         crate::paper::digest::AccumulatorHandle::empty().digest_fields()
     } else {
-        crate::paper::digest::accumulator_claims_digest(&running.claims)
+        crate::paper::digest::AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref())
+            .digest_fields()
     };
     let (ok, perf) = optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_perf(
         tr,
@@ -370,6 +434,64 @@ where
     L: neo_ccs::traits::SModuleHomomorphism<F, Commitment> + Sync,
     MB: Fn(&[Commitment], u32) -> Commitment,
 {
+    prove_pi_dec_inner(
+        pp,
+        s,
+        cache,
+        log,
+        parent,
+        parent_witness,
+        precompute,
+        combine_b_pows,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn prove_pi_dec_with_backend<L, MB>(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &L,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+    precompute: Option<&PiDecProverPrecompute>,
+    combine_b_pows: MB,
+    backend: &mut dyn PaperJointOracleBackend,
+) -> Result<(Vec<CeClaim>, Vec<Mat<F>>), Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<F, Commitment> + Sync,
+    MB: Fn(&[Commitment], u32) -> Commitment,
+{
+    prove_pi_dec_inner(
+        pp,
+        s,
+        cache,
+        log,
+        parent,
+        parent_witness,
+        precompute,
+        combine_b_pows,
+        Some(backend),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prove_pi_dec_inner<L, MB>(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    log: &L,
+    parent: &CeClaim,
+    parent_witness: &Mat<F>,
+    precompute: Option<&PiDecProverPrecompute>,
+    combine_b_pows: MB,
+    backend: Option<&mut dyn PaperJointOracleBackend>,
+) -> Result<(Vec<CeClaim>, Vec<Mat<F>>), Error>
+where
+    L: neo_ccs::traits::SModuleHomomorphism<F, Commitment> + Sync,
+    MB: Fn(&[Commitment], u32) -> Commitment,
+{
     if let Some(precompute) = precompute {
         assert_eq!(
             precompute.row_chals, parent.r,
@@ -419,6 +541,20 @@ where
     );
 
     #[cfg(feature = "perf-timers")]
+    let t_openings = std::time::Instant::now();
+    let precomputed_y_ring = match backend {
+        Some(backend) => backend.dec_openings(cache, &z_split, &parent.r, s.m)?,
+        None => None,
+    };
+    #[cfg(feature = "perf-timers")]
+    if precomputed_y_ring.is_some() {
+        eprintln!(
+            "[pi-dec] child openings                  {:>7.2}s",
+            t_openings.elapsed().as_secs_f64()
+        );
+    }
+
+    #[cfg(feature = "perf-timers")]
     let t_children = std::time::Instant::now();
     let (children, ok_y, ok_x, ok_c) = nr::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
         FoldingMode::Optimized,
@@ -432,7 +568,7 @@ where
         combine_b_pows,
         cache.superneo(),
         None,
-        None,
+        precomputed_y_ring.as_deref(),
     );
     #[cfg(feature = "perf-timers")]
     eprintln!(

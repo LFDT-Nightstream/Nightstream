@@ -365,7 +365,7 @@ impl<F: Copy> CcsWitness<F> {
 pub struct CeClaim<C, F, K> {
     /// Commitment to Z.
     pub c: C,
-    /// X = L_x(Z) ∈ F^{d×m_in}
+    /// Coefficient embedding `X = L_x(Z) ∈ F^{d×ceil(m_in/d)}`.
     pub X: Mat<F>,
     /// r ∈ K^{log n}
     pub r: Vec<K>,
@@ -402,6 +402,13 @@ pub struct CeClaim<C, F, K> {
 pub struct CeWitness<F> {
     /// Z ∈ F^{d×m}
     pub Z: Mat<F>,
+}
+
+/// Number of ring columns in the coefficient embedding of `m_in` field
+/// elements.
+#[inline]
+pub fn superneo_public_x_cols(m_in: usize) -> usize {
+    m_in.div_ceil(D)
 }
 
 fn validate_superneo_witness_mat_for_expected_m<F: Field>(z: &Mat<F>, expected_m: usize) -> Result<(), CcsError> {

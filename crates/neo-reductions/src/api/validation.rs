@@ -93,13 +93,14 @@ pub(crate) fn validate_ce_claim_shape(
             ce.m_in
         )));
     }
-    if ce.X.rows() != D || ce.X.cols() != ce.m_in {
+    let x_cols = neo_ccs::superneo_public_x_cols(ce.m_in);
+    if ce.X.rows() != D || ce.X.cols() != x_cols {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: X has shape {}x{}, expected {}x{}",
             ce.X.rows(),
             ce.X.cols(),
             D,
-            ce.m_in
+            x_cols
         )));
     }
     crate::engines::pi_ccs_protocol::validate_inactive_x_zero(label, ce)?;
@@ -168,13 +169,14 @@ pub(crate) fn validate_pi_ccs_outputs(
                 output.m_in, s.m
             )));
         }
-        if output.X.rows() != D || output.X.cols() != output.m_in {
+        let x_cols = neo_ccs::superneo_public_x_cols(output.m_in);
+        if output.X.rows() != D || output.X.cols() != x_cols {
             return Err(PiCcsError::InvalidInput(format!(
                 "{owner}: X has shape {}x{}, expected {}x{}",
                 output.X.rows(),
                 output.X.cols(),
                 D,
-                output.m_in
+                x_cols
             )));
         }
         crate::engines::pi_ccs_protocol::validate_inactive_x_zero(&owner, output)?;

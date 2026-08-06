@@ -40,11 +40,14 @@ use crate::engine::r1cs_circuit::builder::{Lc, Var};
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::poseidon2::enforce_poseidon2_hash;
 use crate::engine::r1cs_circuit::R1csBuilder;
-use crate::paper::digest::{NEBULA_ADV_PRESENT_MARKER, NEBULA_LEAF_MEM_TAG, NEBULA_LEAF_OPS_TAG};
+use crate::paper::digest::{
+    ACCUMULATOR_FAMILY_AGGREGATE_TAG, ACCUMULATOR_FAMILY_DIGEST_TAG, NEBULA_ADV_PRESENT_MARKER, NEBULA_LEAF_MEM_TAG,
+    NEBULA_LEAF_OPS_TAG,
+};
 use crate::paper::f_prime::nebula_lane_circuit::enforce_nebula_leaf_digest_circuit;
 use crate::paper::reductions::accumulator_sis_circuit::{
     enforce_accumulator_digest as enforce_sis_accumulator_digest, SisAccumulatorCircuitLayout,
-    ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG,
+    ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG, PROTOCOL_BINDING_MAX_FIELDS,
 };
 use crate::paper::reductions::pi_ccs_output_message::Profile;
 use crate::paper::relations::product_commitment_circuit::AdvCommitmentWires;
@@ -198,6 +201,125 @@ pub fn enforce_accumulator_claims_digest(builder: &mut R1csBuilder, child_digest
         preimage.extend_from_slice(digest);
     }
     enforce_poseidon2_hash(builder, &preimage)
+}
+
+/// Circuit mirror of `strict_binary_accumulator_family_digest`.
+///
+/// The caller must also enforce strict PiDEC for `parent` and `children`.
+/// That relation proves that omitted child `X`, `r`, `ct`, fold-digest, and
+/// padding fields are uniquely derived from the fields serialized here.
+pub fn enforce_strict_binary_accumulator_family_digest(
+    builder: &mut R1csBuilder,
+    parent: &AccumulatorCeClaimDigestInputs<'_>,
+    children: &[AccumulatorCeClaimDigestInputs<'_>],
+) -> Result<[Var; 4], Error> {
+    let first = children
+        .first()
+        .ok_or_else(|| Error::Shape("strict-binary accumulator family is empty".into()))?;
+    validate_family_member_shape("parent", parent, first)?;
+    for (index, child) in children.iter().enumerate() {
+        validate_family_member_shape(&format!("child[{index}]"), child, first)?;
+    }
+
+    let active_x_cols = crate::paper::relations::superneo_public_x_cols(first.m_in);
+    let mut preimage = Vec::new();
+    extend_packed_bytes_as_fields_wires(builder, &mut preimage, ACCUMULATOR_FAMILY_DIGEST_TAG);
+    preimage.push(alloc_constant_var(builder, F::from_u64(children.len() as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(first.c_d as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(first.c_kappa as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(first.c_data.len() as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(first.x_rows as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(first.x_cols as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(active_x_cols as u64)));
+    for row in 0..parent.x_rows {
+        for column in 0..active_x_cols {
+            preimage.push(parent.x_flat_row_major[row * parent.x_cols + column]);
+        }
+    }
+    extend_kvar_slice(builder, &mut preimage, first.r);
+    preimage.push(alloc_constant_var(builder, F::from_u64(first.y_ring.len() as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(neo_math::D as u64)));
+    preimage.push(alloc_constant_var(builder, F::from_u64(first.m_in as u64)));
+    preimage.extend_from_slice(&first.fold_digest_fields);
+    preimage.push(alloc_constant_var(
+        builder,
+        if first.adv.is_some() { F::ONE } else { F::ZERO },
+    ));
+
+    for (index, child) in children.iter().enumerate() {
+        preimage.push(alloc_constant_var(builder, F::from_u64(index as u64)));
+        preimage.extend_from_slice(child.c_data);
+        for row in child.y_ring {
+            for value in row.iter().take(neo_math::D) {
+                preimage.push(value.c0);
+                preimage.push(value.c1);
+            }
+        }
+        if let Some(adv) = child.adv {
+            preimage.extend_from_slice(&adv.ops.data);
+            preimage.extend_from_slice(&adv.is.data);
+            preimage.extend_from_slice(&adv.fs.data);
+        }
+    }
+
+    let chunk_digests = preimage
+        .chunks(PROTOCOL_BINDING_MAX_FIELDS)
+        .map(|chunk| {
+            enforce_sis_accumulator_digest(builder, ACCUMULATOR_CE_CLAIM_SIS_CONFIG, chunk)
+                .expect("bounded nonempty accumulator-family SIS chunk")
+                .digest
+        })
+        .collect::<Vec<_>>();
+    let mut aggregate = Vec::new();
+    extend_packed_bytes_as_fields_wires(builder, &mut aggregate, ACCUMULATOR_FAMILY_AGGREGATE_TAG);
+    aggregate.push(alloc_constant_var(builder, F::from_u64(preimage.len() as u64)));
+    aggregate.push(alloc_constant_var(builder, F::from_u64(chunk_digests.len() as u64)));
+    for digest in chunk_digests {
+        aggregate.extend_from_slice(&digest);
+    }
+    Ok(enforce_poseidon2_hash(builder, &aggregate))
+}
+
+fn validate_family_member_shape(
+    label: &str,
+    member: &AccumulatorCeClaimDigestInputs<'_>,
+    first: &AccumulatorCeClaimDigestInputs<'_>,
+) -> Result<(), Error> {
+    let active_x_cols = crate::paper::relations::superneo_public_x_cols(first.m_in);
+    let same_shape = member.c_d == first.c_d
+        && member.c_kappa == first.c_kappa
+        && member.c_data.len() == first.c_data.len()
+        && member.x_rows == first.x_rows
+        && member.x_cols == first.x_cols
+        && member.x_flat_row_major.len() == member.x_rows * member.x_cols
+        && member.x_rows == neo_math::D
+        && member.x_cols == active_x_cols
+        && member.r.len() == first.r.len()
+        && member.y_ring.len() == first.y_ring.len()
+        && member
+            .y_ring
+            .iter()
+            .zip(first.y_ring.iter())
+            .all(|(row, first_row)| row.len() == first_row.len() && row.len() >= neo_math::D)
+        && member.ct.len() == member.y_ring.len()
+        && member.m_in == first.m_in
+        && member.adv.is_some() == first.adv.is_some()
+        && adv_wires_have_shape(member.adv, first.c_d, first.c_kappa);
+    if !same_shape {
+        return Err(Error::Shape(format!(
+            "{label} does not have the strict-binary accumulator-family shape"
+        )));
+    }
+    Ok(())
+}
+
+fn adv_wires_have_shape(adv: Option<&AdvCommitmentWires>, d: usize, kappa: usize) -> bool {
+    let Some(adv) = adv else {
+        return true;
+    };
+    [&adv.ops, &adv.is, &adv.fs]
+        .into_iter()
+        .all(|commitment| commitment.d == d && commitment.kappa == kappa && commitment.data.len() == d * kappa)
 }
 
 /// Mirror of `crate::paper::digest::pi_ccs_outputs_digest`.

@@ -550,11 +550,8 @@ pub fn enforce_fold_digest_consistency(builder: &mut R1csBuilder, wires: &DecInp
     Ok(())
 }
 
-/// Reject parent + children whose `X` has non-zero entries in columns
-/// `[ceil(m_in / D), x.cols())`. Children become the next running
-/// accumulator; without this, a terminal state could carry a non-canonical
-/// accumulator that no downstream Π_CCS would re-validate. Mirrors the
-/// native-side `pi_dec::validate_inactive_x_zero`.
+/// Reject parent + children whose `X` has non-zero entries after the compact
+/// coefficient embedding. Canonical claims have no such stored columns.
 pub fn enforce_inactive_x_zero(builder: &mut R1csBuilder, wires: &DecInputWires) -> Result<(), Error> {
     enforce_inactive_x_zero_one(builder, &wires.parent, 0)?;
     for (idx, child) in wires.children.iter().enumerate() {
@@ -564,10 +561,7 @@ pub fn enforce_inactive_x_zero(builder: &mut R1csBuilder, wires: &DecInputWires)
 }
 
 fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWires, idx: usize) -> Result<(), Error> {
-    // CeClaimWires::x_cols equals the underlying CE claim's `m_in` (set in
-    // `alloc_ce_claim` from `claim.X.cols()`, which the selected shape check
-    // forces to `m_in`).
-    let active_cols = crate::paper::relations::superneo_public_x_cols(claim.x_cols);
+    let active_cols = crate::paper::relations::superneo_public_x_cols(claim.m_in);
     if active_cols > claim.x_cols {
         return Err(Error::ShapeMismatch {
             what: "active X columns",
@@ -773,6 +767,13 @@ fn enforce_binary_child_x_canonical_split(
                     value_col: sign.col(),
                 });
             }
+        }
+        // The canonicality rows above prove each child digit is either zero
+        // or the shared centered-unit sign. Preserve that proved width for
+        // the low-norm compiler instead of encoding each digit as an
+        // arbitrary Goldilocks field element.
+        for child in &wires.children {
+            builder.record_centered_unit(child.x[lane]);
         }
     }
     Ok(traces)
@@ -1024,10 +1025,11 @@ fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), 
             idx: 0,
         });
     }
-    if parent.x_cols != parent.m_in {
+    let expected_x_cols = crate::paper::relations::superneo_public_x_cols(parent.m_in);
+    if parent.x_cols != expected_x_cols {
         return Err(Error::ShapeMismatch {
             what: "parent X cols vs m_in",
-            expected: parent.m_in,
+            expected: expected_x_cols,
             got: parent.x_cols,
             idx: 0,
         });
@@ -1076,10 +1078,10 @@ fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), 
                 idx,
             });
         }
-        if child.x_cols != child.m_in {
+        if child.x_cols != expected_x_cols {
             return Err(Error::ShapeMismatch {
                 what: "child X cols vs m_in",
-                expected: child.m_in,
+                expected: expected_x_cols,
                 got: child.x_cols,
                 idx,
             });

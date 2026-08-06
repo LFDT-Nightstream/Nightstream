@@ -53,6 +53,9 @@ pub const PROTOCOL_BINDING_KAPPA: usize = 2;
 /// Largest rank-2 message accepted by `formal/ajtai-lean/Ajtai/EstimatorModel.lean`.
 pub const PROTOCOL_BINDING_MAX_MESSAGE_COLS: usize = 50_371;
 
+/// Largest base-field sequence accepted by one rank-2 protocol-binding map.
+pub const PROTOCOL_BINDING_MAX_FIELDS: usize = PROTOCOL_BINDING_MAX_MESSAGE_COLS * D / BALANCED_TERNARY_DIGITS;
+
 /// Largest rank-1 message covered by the pinned short-map estimate.
 pub const DIGEST_COMPRESSION_MAX_MESSAGE_COLS: usize = 82;
 

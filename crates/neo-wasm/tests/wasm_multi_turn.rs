@@ -73,10 +73,12 @@ fn turn_claims() -> [TurnClaims; 2] {
         TurnClaims {
             entry: vec![901, 7],
             exit: vec![],
+            ..Default::default()
         },
         TurnClaims {
             entry: vec![902, 35],
             exit: vec![],
+            ..Default::default()
         },
     ]
 }
@@ -151,7 +153,13 @@ fn expected_transcript(
     for (turn, &output) in turns.iter().zip(outputs) {
         blocks.extend(neo_wasm::event_grammar::expand_export_entry(template, &turn.entry).expect("entry"));
         blocks.extend(
-            neo_wasm::event_grammar::expand_export_exit(template, Some((output, 0)), &turn.exit).expect("exit"),
+            neo_wasm::event_grammar::expand_export_exit(
+                template,
+                Some((output, 0)),
+                &turn.exit,
+                &turn.exit_memory_reads,
+            )
+            .expect("exit"),
         );
     }
     blocks
@@ -473,6 +481,7 @@ fn resultless_turn_can_precede_another_turn() {
         TurnClaims {
             entry: vec![41],
             exit: vec![],
+            ..Default::default()
         },
         TurnClaims::default(),
     ];
@@ -509,12 +518,13 @@ fn resultless_turn_can_precede_another_turn() {
     let mut blocks =
         neo_wasm::event_grammar::expand_export_entry(&grammar.exports[&poke_fref], &[41]).expect("poke entry");
     blocks.extend(
-        neo_wasm::event_grammar::expand_export_exit(&grammar.exports[&poke_fref], None, &[])
+        neo_wasm::event_grammar::expand_export_exit(&grammar.exports[&poke_fref], None, &[], &[])
             .expect("resultless poke exit"),
     );
     blocks.extend(neo_wasm::event_grammar::expand_export_entry(&grammar.exports[&read_fref], &[]).expect("read entry"));
     blocks.extend(
-        neo_wasm::event_grammar::expand_export_exit(&grammar.exports[&read_fref], Some((41, 0)), &[]).expect("exit"),
+        neo_wasm::event_grammar::expand_export_exit(&grammar.exports[&read_fref], Some((41, 0)), &[], &[])
+            .expect("exit"),
     );
     let lifted: Vec<[p3_goldilocks::Goldilocks; 8]> = blocks
         .into_iter()

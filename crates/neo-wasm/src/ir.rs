@@ -1,5 +1,20 @@
 use super::isa::{WasmOpcode, WasmOpcodeInfo};
 
+// Proof-visible `function_call_metadata` ROM encoding: parameter count in
+// bits 0..7, result count in bits 8..15, and the guest flag in bit 16.
+pub(crate) const FUNCTION_CALL_METADATA_RESULT_FACTOR: u64 = 1 << 8;
+pub(crate) const FUNCTION_CALL_METADATA_GUEST_FACTOR: u64 = 1 << 16;
+
+pub(crate) const fn pack_function_call_metadata(param_count: u8, result_count: u8, is_guest: bool) -> u64 {
+    param_count as u64
+        + (result_count as u64) * FUNCTION_CALL_METADATA_RESULT_FACTOR
+        + (is_guest as u64) * FUNCTION_CALL_METADATA_GUEST_FACTOR
+}
+
+pub(crate) const fn function_call_metadata_is_guest(metadata: u64) -> bool {
+    metadata & FUNCTION_CALL_METADATA_GUEST_FACTOR != 0
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmPcEdgeKind {
     Static = 0,
@@ -349,16 +364,43 @@ impl WasmRowKind {
     }
 }
 
+/// The source binding selected by one grammar gather slot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum WasmGrammarSlotKind {
+    Const,
+    Arg,
+    Result,
+    Claim,
+    ClaimLocal,
+    Output,
+    MemoryRead,
+    MemoryWrite,
+}
+
+impl WasmGrammarSlotKind {
+    pub const COUNT: usize = 8;
+
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
+    pub const fn code(self) -> u8 {
+        self as u8
+    }
+}
+
 /// The grammar-ROM entry a gather row claims (bound by the `grammar_slot_*`
 /// families at key `(fref, event_index, slot_cursor)`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmGrammarRomEntry {
-    /// 0 const, 1 arg element, 2 result element, 3 oracle.
-    pub kind: u8,
-    /// Arg index (kind 1), 0 (kind 2), oracle index (kind 3).
+    pub kind: WasmGrammarSlotKind,
+    /// Argument/local/claim index, depending on `kind`.
     pub arg: u8,
-    /// Limb select for kinds 1-2: 0 lo, 1 hi.
-    pub limb: u8,
+    /// Kind-dependent slot variant. Value kinds use `0 = lo`, `1 = hi`;
+    /// memory kinds use `0 = argument base`, `1 = local base`; kinds without
+    /// a variant use zero.
+    pub variant: u8,
     pub const_lo: u32,
     pub const_hi: u32,
     /// Whether this slot belongs to an unabsorbed event.

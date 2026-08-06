@@ -5,8 +5,7 @@ use std::collections::BTreeMap;
 #[cfg(feature = "perf-timers")]
 use neo_fold_clean::frontends::nebula::application::ApplicationSegmentTrace;
 use neo_fold_clean::frontends::nebula::application::{
-    ApplicationError, MemoryPort, MemoryPortActivation, MemoryPortKind, MemoryPortLayout, MemoryRegion,
-    MemoryRegionKind, NebulaApplication,
+    ApplicationError, MemoryPortLayout, MemoryRegion, MemoryRegionKind, NebulaApplication,
 };
 use neo_fold_clean::frontends::nebula::f_prime::{
     NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreprocessing,
@@ -24,14 +23,14 @@ use crate::batch::padding_step_after;
 use crate::comm_chain::CommChainState;
 use crate::event_grammar::HostEventGrammar;
 use crate::ir::{WasmAuxOpcode, WasmRowKind, WasmStepState, WasmVmStep};
-use crate::layout::COL_PADDING_ACTIVE;
 use crate::lookup_circuit::{extend_witness, LookupCircuitError};
+use crate::memory_routing::{build_batched_memory_slots, build_single_step_memory_slots};
 use crate::memory_semantics::preload_grammar_tables;
 use crate::preprocess::{
     canonical_wasm_nebula_shape_batched_with_initial_state_digest, grammar_top_level_initial_state_digest,
     semantic_state_digest, top_level_initial_state_digest, WasmPreprocessError,
 };
-use crate::relation_layout::{build_wasm_relation_layout, WasmMemoryActivation, WasmMemoryColumnKind};
+use crate::relation_layout::build_wasm_relation_layout;
 use crate::witness_builder::build_witness_vector;
 use crate::{preload_from_program_artifacts, WasmOpcode};
 
@@ -168,18 +167,11 @@ impl WasmNebulaProfile {
 }
 
 fn batched_memory_geometry(memory: NebulaParams, batch_size: usize) -> NebulaParams {
-    // The slot budget is the relation's own per-step port count: every
-    // declared memory column occupies one ops-lane slot per batched step.
-    let step_ports: usize = build_wasm_relation_layout()
-        .auxiliary
-        .memories
-        .iter()
-        .map(|memory| memory.columns.len())
-        .sum();
+    let step_slots = build_single_step_memory_slots(build_wasm_relation_layout()).len();
     NebulaParams::new(
         memory.r,
         memory.mu,
-        step_ports * batch_size,
+        step_slots * batch_size,
         memory.b_scan,
         memory.seg_max,
     )
@@ -654,64 +646,9 @@ fn build_memory_backend(
         }
     }
 
-    let mut single_ports = Vec::new();
-    for memory in &relation.auxiliary.memories {
-        let region = *region_by_name
-            .get(memory.name)
-            .ok_or_else(|| WasmNebulaError::UnknownMemory(memory.name.to_string()))?;
-        for column in &memory.columns {
-            let kind = match column.kind {
-                WasmMemoryColumnKind::Read => MemoryPortKind::Read,
-                WasmMemoryColumnKind::Write { value_before_column } => MemoryPortKind::Write {
-                    value_before_column: value_before_column.map(|column| column.0),
-                },
-            };
-            let activation = match column.activation {
-                WasmMemoryActivation::Always => MemoryPortActivation::UnlessColumn(COL_PADDING_ACTIVE),
-                WasmMemoryActivation::BooleanGate(column) => MemoryPortActivation::Column(column.0),
-            };
-            single_ports.push(MemoryPort::new(
-                region,
-                column
-                    .address_columns
-                    .iter()
-                    .map(|column| column.0)
-                    .collect(),
-                column.value_column.0,
-                kind,
-                activation,
-            ));
-        }
-    }
-    let mut ports = Vec::with_capacity(single_ports.len() * profile.batch_size);
-    for block in 0..profile.batch_size {
-        let offset = block * single_step_columns;
-        for port in &single_ports {
-            let kind = match port.kind() {
-                MemoryPortKind::Read => MemoryPortKind::Read,
-                MemoryPortKind::Write { value_before_column } => MemoryPortKind::Write {
-                    value_before_column: value_before_column.map(|column| column + offset),
-                },
-            };
-            let activation = match port.activation() {
-                MemoryPortActivation::Always => MemoryPortActivation::Always,
-                MemoryPortActivation::Column(column) => MemoryPortActivation::Column(column + offset),
-                MemoryPortActivation::UnlessColumn(column) => MemoryPortActivation::UnlessColumn(column + offset),
-            };
-            ports.push(MemoryPort::new(
-                port.region(),
-                port.address_columns()
-                    .iter()
-                    .map(|column| column + offset)
-                    .collect(),
-                port.value_column() + offset,
-                kind,
-                activation,
-            ));
-        }
-    }
+    let slots = build_batched_memory_slots(relation, profile.batch_size, single_step_columns);
     Ok(MemoryBackend {
-        layout: MemoryPortLayout::new(regions, ports)?,
+        layout: MemoryPortLayout::new(regions, slots)?,
         rom_image,
         ram_image,
     })
@@ -770,9 +707,9 @@ fn reject_host_imports(artifacts: &WasmProgramArtifacts) -> Result<(), WasmNebul
     reject_imported_state(artifacts)?;
     if artifacts
         .tables
-        .function_guest_flags
+        .function_call_metadata
         .iter()
-        .any(|&(_, is_guest)| is_guest == 0)
+        .any(|&(_, metadata)| !crate::ir::function_call_metadata_is_guest(metadata))
     {
         return Err(WasmNebulaError::HostImportsUnsupported);
     }

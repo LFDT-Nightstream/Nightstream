@@ -385,9 +385,12 @@ define_columns!(
     (COL_GRAMMAR_ARGS_BASE_AFTER, "stack slot index of the current call's first argument, after this row"),
     (COL_GRAMMAR_SLOT_CURSOR_BEFORE, "next block word a gather row stages (0..=7), before this row"),
     (COL_GRAMMAR_SLOT_CURSOR_AFTER, "next block word a gather row stages (0..=7), after this row"),
-    (COL_GRAMMAR_SLOT_KIND, "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 oracle, 4 input-local, 5 output, 6 input)"),
+    (COL_GRAMMAR_SLOT_KIND, "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 claim, 4 input-local, 5 output, 6 memory-read, 7 memory-write)"),
     (COL_GRAMMAR_SLOT_ARG, "grammar-ROM slot arg/oracle index"),
-    (COL_GRAMMAR_SLOT_LIMB, "grammar-ROM slot limb select (0 lo, 1 hi)"),
+    (
+        COL_GRAMMAR_SLOT_VARIANT,
+        "grammar-ROM kind-dependent slot variant: value kinds use 0 lo / 1 hi; memory kinds use 0 argument base / 1 local base; unused kinds use 0"
+    ),
     (COL_GRAMMAR_SLOT_CONST_LO, "grammar-ROM slot constant, low 32 bits"),
     (COL_GRAMMAR_SLOT_CONST_HI, "grammar-ROM slot constant, high 32 bits"),
     (COL_GRAMMAR_PRE_COUNT, "grammar-ROM event count for the called import / entered export (biased +1)"),
@@ -403,7 +406,7 @@ define_columns!(
     ),
     (
         COL_GATHER_LOCAL_WRITE_LO,
-        "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_limb)",
+        "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_variant)",
         ColumnWidth::Boolean
     ),
     (
@@ -610,6 +613,26 @@ define_columns!(
         ColumnWidth::Boolean
     ),
     (
+        COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+        "PC-indexed local immediate ROM gate",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+        "PC-indexed global immediate ROM gate",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PROGRAM_TABLE_ID_ACTIVE,
+        "PC-indexed table-id immediate ROM gate",
+        ColumnWidth::Boolean
+    ),
+    (
+        COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+        "PC-indexed call-indirect immediate ROM gate",
+        ColumnWidth::Boolean
+    ),
+    (
         COL_TABLE_READ_ENABLED,
         "table memory read gate for table.get and indirect calls",
         ColumnWidth::Boolean
@@ -658,17 +681,21 @@ define_columns!(
     (
         COL_CALL_PARAM_COUNT,
         "parameter count for the selected call target",
-        ColumnWidth::U32
+        ColumnWidth::Byte
     ),
     (
         COL_CALL_RESULT_COUNT,
         "result count for the selected call target",
-        ColumnWidth::U32
+        ColumnWidth::Byte
     ),
     (
         COL_TARGET_FUNCTION_IS_GUEST,
         "true when the selected call target is a guest-defined function",
         ColumnWidth::Boolean
+    ),
+    (
+        COL_CALL_TARGET_METADATA,
+        "packed call-target arity and guest flag; range follows from unpacking"
     ),
     (
         COL_CALL_INDIRECT_TYPE_INDEX,

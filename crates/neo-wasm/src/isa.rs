@@ -704,6 +704,29 @@ impl WasmOpcode {
         self.memory_access_info().is_some()
     }
 
+    /// True when the instruction consumes the PC-indexed local immediate.
+    pub fn uses_local_index_immediate(self) -> bool {
+        matches!(self, Self::LocalGet | Self::LocalSet | Self::LocalTee)
+    }
+
+    /// True when the instruction consumes the PC-indexed global immediate.
+    pub fn uses_global_index_immediate(self) -> bool {
+        matches!(self, Self::GlobalGet | Self::GlobalSet)
+    }
+
+    /// True when the instruction consumes the PC-indexed table namespace.
+    pub fn uses_table_id_immediate(self) -> bool {
+        matches!(
+            self,
+            Self::TableSize | Self::TableGet | Self::TableSet | Self::CallIndirect | Self::ReturnCallIndirect
+        )
+    }
+
+    /// True when the instruction consumes the call-indirect type immediates.
+    pub fn uses_call_indirect_immediates(self) -> bool {
+        matches!(self, Self::CallIndirect | Self::ReturnCallIndirect)
+    }
+
     /// True for opcodes whose row carries a meaningful `wide_values_enabled`
     /// (= 1) flag: rows that consume or produce an i64 stack value, plus the
     /// polymorphic ops (`Drop`, `Select`, `Call`, `CallIndirect`,

@@ -37,13 +37,32 @@ const PROFILE_WAT: &str = r#"
     i32.add))
 "#;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct StorageStats {
     explicit_nnz: usize,
     seeded_blocks: usize,
     seeded_slots: u128,
     geometric_runs: usize,
     geometric_slots: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RelationStructureStats {
+    application_constraints: usize,
+    application_columns: usize,
+    application_nnz: usize,
+    s_mem_constraints: usize,
+    s_mem_assignment_bits: usize,
+    s_mem_public_bits: usize,
+    s_mem_private_bits: usize,
+    s_mem_nnz: usize,
+    logical_ports: usize,
+    routed_slots: usize,
+    b_ops: usize,
+    final_constraints: usize,
+    final_columns: usize,
+    final_committed_coordinates: usize,
+    final_explicit_nnz: usize,
 }
 
 fn ms(duration: Duration) -> f64 {
@@ -125,6 +144,139 @@ fn test_params() -> Params {
     )
     .expect("profile SuperNeo parameters");
     Params::test_only_from_neo_params(raw)
+}
+
+fn collect_relation_structure_census(
+    profile: neo_wasm::WasmNebulaProfile,
+    seed: u64,
+    label: &str,
+) -> RelationStructureStats {
+    let wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let entry_pc = common::single_function_entry_pc(&artifacts);
+    let prep = neo_wasm::nebula::preprocess_seeded_reduced_memory_test_only(
+        test_params(),
+        profile,
+        &artifacts,
+        &run.initial_locals,
+        entry_pc,
+        seed,
+    )
+    .expect("WASM Nebula structural preprocessing");
+
+    let relation = prep.inner().relation();
+    let structure = relation.structure();
+    let application = relation.application().expect("WASM application relation");
+    let app_shape = application.shape();
+    let s_mem = prep.inner().plan().circuit();
+    let width = relation.low_norm_width_audit();
+    let storage = structure_stats(structure);
+    let final_committed_coordinates = structure.m - width.constant_coordinate;
+    let s_mem_assignment_bits = s_mem.cols() - 1;
+    let stats = RelationStructureStats {
+        application_constraints: app_shape.n(),
+        application_columns: app_shape.m(),
+        application_nnz: r1cs_nnz(app_shape),
+        s_mem_constraints: s_mem.rows(),
+        s_mem_assignment_bits,
+        s_mem_public_bits: s_mem.m_in() - 1,
+        s_mem_private_bits: s_mem.cols() - s_mem.m_in(),
+        s_mem_nnz: s_mem.nnz(),
+        logical_ports: application.memory().logical_port_count(),
+        routed_slots: application.memory().slot_count(),
+        b_ops: profile.memory().b_ops,
+        final_constraints: structure.n,
+        final_columns: structure.m,
+        final_committed_coordinates,
+        final_explicit_nnz: storage.explicit_nnz,
+    };
+
+    println!("== WASM + Nebula structural census ({label}) ==");
+    println!(
+        "application R1CS         constraints={} columns={} nnz={}",
+        stats.application_constraints, stats.application_columns, stats.application_nnz,
+    );
+    println!(
+        "S_mem                   constraints={} assignment_bits={} public_bits={} private_bits={} nnz={}",
+        stats.s_mem_constraints,
+        stats.s_mem_assignment_bits,
+        stats.s_mem_public_bits,
+        stats.s_mem_private_bits,
+        stats.s_mem_nnz,
+    );
+    println!(
+        "memory routing           logical_ports={} routed_slots={} B_ops={}",
+        stats.logical_ports, stats.routed_slots, stats.b_ops,
+    );
+    println!(
+        "final selective CCS      constraints={} columns={} committed_coordinates={} explicit_nnz={}",
+        stats.final_constraints, stats.final_columns, stats.final_committed_coordinates, stats.final_explicit_nnz,
+    );
+    println!(
+        "compact matrix storage   seeded_blocks={} virtual_seeded_slots={} geometric_runs={} virtual_run_slots={}",
+        storage.seeded_blocks, storage.seeded_slots, storage.geometric_runs, storage.geometric_slots,
+    );
+    println!("memory-related recursive-arm families (inclusive; ranges may overlap):");
+    for family in width.arms[2].row_families.iter().filter(|family| {
+        family.name.starts_with("nebula.application.s_mem")
+            || family.name.starts_with("nebula.application.memory_ports")
+    }) {
+        println!(
+            "  {:<42} rows={} source_coordinates={} poseidon2_coordinates={}",
+            family.name, family.inclusive_rows, family.coordinates_before_aliases, family.poseidon2_coordinates,
+        );
+    }
+
+    assert_eq!(stats.logical_ports, 76 * profile.batch_size());
+    assert!(stats.routed_slots <= stats.b_ops);
+    assert_eq!(width.total_coordinates.div_ceil(D) * D, structure.m);
+    assert_eq!(
+        stats.s_mem_assignment_bits,
+        stats.s_mem_public_bits + stats.s_mem_private_bits
+    );
+
+    stats
+}
+
+#[test]
+#[ignore = "full F-prime structural census; builds preprocessing but does not prove"]
+fn wasm_nebula_relation_structure_census() {
+    let stats = collect_relation_structure_census(
+        neo_wasm::WasmNebulaProfile::test_profile(),
+        0x57a5_7019,
+        "reduced test profile, compact geometry",
+    );
+
+    assert_eq!(stats.routed_slots, stats.b_ops);
+    assert_eq!(
+        (
+            stats.application_constraints,
+            stats.application_columns,
+            stats.application_nnz,
+        ),
+        (51_290, 23_496, 211_668),
+        "application R1CS structure changed; review the structural census",
+    );
+    assert_eq!(
+        (
+            stats.s_mem_constraints,
+            stats.s_mem_assignment_bits,
+            stats.s_mem_public_bits,
+            stats.s_mem_private_bits,
+            stats.s_mem_nnz,
+        ),
+        (449_816, 446_229, 1_400, 444_829, 2_824_355),
+        "reduced-profile S_mem structure changed; review the memory-overhead census",
+    );
+    assert!(
+        stats.final_constraints < 36_874_004,
+        "21-slot routing should use fewer final constraints than the previous 58-slot route",
+    );
+    assert!(
+        stats.final_committed_coordinates < 29_662_631,
+        "21-slot routing should commit fewer coordinates than the previous 58-slot route",
+    );
 }
 
 #[test]
@@ -295,9 +447,10 @@ fn wasm_nebula_pipeline_profile() {
         prep.total_lookup_auxiliary_columns(),
     );
     println!(
-        "memory layout            regions={} ports={} R={} M={} B_ops={} B_scan={} N={}",
+        "memory layout            regions={} logical_ports={} physical_slots={} R={} M={} B_ops={} B_scan={} N={}",
         application.memory().regions().len(),
-        application.memory().port_count(),
+        application.memory().logical_port_count(),
+        application.memory().slot_count(),
         profile.memory().rom_cells(),
         profile.memory().ram_cells(),
         profile.memory().b_ops,

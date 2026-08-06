@@ -1,15 +1,15 @@
 use super::isa::{WasmOpTable, WasmOpcode};
 use super::ivc_state::{build_ivc_state_continuity_links, WasmCrossStepLinkSpec};
 use super::layout::{
-    selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_PARAM_COUNT,
-    COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
-    COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CI_HOST_CALL,
+    selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_STACK_ADDR,
+    COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_POP_PRESENT,
+    COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL,
     COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
     COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE,
     COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
     COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL, COL_GRAMMAR_POST_COUNT,
     COL_GRAMMAR_PRE_COUNT, COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO,
-    COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_LIMB, COL_GUEST_ENTRY_ACTIVE,
+    COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT, COL_GUEST_ENTRY_ACTIVE,
     COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
     COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4,
     COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
@@ -43,13 +43,14 @@ use super::layout::{
     COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_OPCODE_CODE,
     COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OUTPUT_CAPTURED, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_AFTER,
     COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE, COL_PC_ROM_CALL_RETURN_CHOICE,
-    COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO,
-    COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI,
-    COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE,
-    COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO,
-    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_HI_ACTIVE,
-    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED,
-    COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TURN_BOUNDARY,
+    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
+    COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_STACK_READ0_ACTIVE, COL_STACK_READ0_ADDR_HI,
+    COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_ACTIVE,
+    COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO,
+    COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO, COL_STACK_READ2_VALUE_HI,
+    COL_STACK_READ2_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
+    COL_STACK_WRITE0_HI_ACTIVE, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_ID, COL_TABLE_INDEX,
+    COL_TABLE_READ_ENABLED, COL_TABLE_SIZE, COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TURN_BOUNDARY,
     COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::lookup_semantics::{semantics_for_lookup_family, LookupSemantics};
@@ -110,6 +111,9 @@ pub enum WasmMemoryColumnKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WasmMemoryActivation {
+    // TODO: Review removing this variant together with its Nebula
+    // `MemoryPortActivation::UnlessColumn` lowering; the current WASM layout
+    // declares no always-active memory ports.
     Always,
     BooleanGate(Column),
 }
@@ -588,6 +592,24 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: WasmMemoryActivation::BooleanGate(linear_memory.lane2_store_active),
                 },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![linear_memory.lane0_addr],
+                    value_column: linear_memory.lane0_value,
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        crate::ccs::host_event_chain::gather_memory_read_kind_col(),
+                    )),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![linear_memory.lane0_addr],
+                    value_column: linear_memory.lane0_value,
+                    kind: WasmMemoryColumnKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        crate::ccs::host_event_chain::gather_memory_write_kind_col(),
+                    )),
+                },
             ],
             is_rom: false,
         },
@@ -600,6 +622,14 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::LocalGet).unwrap(),
+                    )),
+                },
+                WasmMemoryColumnSpec {
+                    address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
+                    value_column: Column(COL_LOCAL_VALUE),
+                    kind: WasmMemoryColumnKind::Read,
+                    activation: WasmMemoryActivation::BooleanGate(Column(
+                        crate::ccs::host_event_chain::gather_memory_local_base_col(),
                     )),
                 },
                 WasmMemoryColumnSpec {
@@ -767,37 +797,37 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             "program_local_indices",
             vec![Column(COL_PC_BEFORE)],
             Column(COL_LOCAL_INDEX),
-            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
+            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_LOCAL_INDEX_ACTIVE)),
         ),
         rom_read_spec(
             "program_global_indices",
             vec![Column(COL_PC_BEFORE)],
             Column(COL_GLOBAL_INDEX),
-            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
+            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_GLOBAL_INDEX_ACTIVE)),
         ),
         rom_read_spec(
             "program_table_ids",
             vec![Column(COL_PC_BEFORE)],
             Column(COL_TABLE_ID),
-            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
+            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_TABLE_ID_ACTIVE)),
         ),
         rom_read_spec(
             "program_memory_offsets",
             vec![Column(COL_PC_BEFORE)],
             linear_memory.imm_offset,
-            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
+            WasmMemoryActivation::BooleanGate(linear_memory.use_lane0),
         ),
         rom_read_spec(
             "program_call_indirect_type_indices",
             vec![Column(COL_PC_BEFORE)],
             Column(COL_CALL_INDIRECT_TYPE_INDEX),
-            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
+            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE)),
         ),
         rom_read_spec(
             "program_call_indirect_expected_type_ids",
             vec![Column(COL_PC_BEFORE)],
             Column(COL_EXPECTED_TYPE_ID),
-            WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
+            WasmMemoryActivation::BooleanGate(Column(COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE)),
         ),
         rom_read_spec(
             "program_i32_const_values",
@@ -841,17 +871,17 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             "pc_function_refs",
             vec![Column(COL_PC_BEFORE)],
             Column(COL_CURRENT_FUNCTION_REF),
-            // Every row except gather rows: post-halt exit gathers carry the
-            // one-past-the-end pc, which has no function-ref entry (their
-            // frame identity is never consumed).
+            // Program and frame-transition rows only. Gather rows carry the
+            // one-past-the-end pc, while permutation, turn-boundary, and
+            // padding rows do not consume frame identity either.
             WasmMemoryActivation::BooleanGate(Column(COL_PC_FREF_ACTIVE)),
         ),
         WasmMemorySpec {
-            name: "function_guest_flags",
+            name: "function_call_metadata",
             columns: vec![
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_TARGET_FUNCTION_IS_GUEST),
+                    value_column: Column(COL_CALL_TARGET_METADATA),
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::Call).unwrap(),
@@ -859,7 +889,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_TARGET_FUNCTION_IS_GUEST),
+                    value_column: Column(COL_CALL_TARGET_METADATA),
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         selector_col(super::isa::WasmOpcode::ReturnCall).unwrap(),
@@ -867,66 +897,10 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_TARGET_FUNCTION_IS_GUEST),
+                    value_column: Column(COL_CALL_TARGET_METADATA),
                     kind: WasmMemoryColumnKind::Read,
                     // De-gated on call_indirect trap rows: no call happens,
                     // so the callee metadata is unread and unconstrained.
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
-                },
-            ],
-            is_rom: true,
-        },
-        WasmMemorySpec {
-            name: "function_param_counts",
-            columns: vec![
-                WasmMemoryColumnSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_CALL_PARAM_COUNT),
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::Call).unwrap(),
-                    )),
-                },
-                WasmMemoryColumnSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_CALL_PARAM_COUNT),
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::ReturnCall).unwrap(),
-                    )),
-                },
-                WasmMemoryColumnSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_CALL_PARAM_COUNT),
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
-                },
-            ],
-            is_rom: true,
-        },
-        WasmMemorySpec {
-            name: "function_result_counts",
-            columns: vec![
-                WasmMemoryColumnSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_CALL_RESULT_COUNT),
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::Call).unwrap(),
-                    )),
-                },
-                WasmMemoryColumnSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_CALL_RESULT_COUNT),
-                    kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(
-                        selector_col(super::isa::WasmOpcode::ReturnCall).unwrap(),
-                    )),
-                },
-                WasmMemoryColumnSpec {
-                    address_columns: vec![Column(COL_FUNCTION_REF)],
-                    value_column: Column(COL_CALL_RESULT_COUNT),
-                    kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_CALL_INDIRECT_IS_NOT_TRAP)),
                 },
             ],
@@ -1015,13 +989,13 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
-            "grammar_slot_limb",
+            "grammar_slot_variant",
             vec![
                 Column(COL_HOST_CALLEE_FREF_BEFORE),
                 Column(COL_GRAMMAR_EVIDX_BEFORE),
                 Column(COL_GRAMMAR_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_GRAMMAR_SLOT_LIMB),
+            Column(COL_GRAMMAR_SLOT_VARIANT),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(

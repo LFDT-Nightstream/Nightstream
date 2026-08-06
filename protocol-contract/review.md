@@ -73,7 +73,7 @@ The contract now includes the source material that the earlier draft omitted:
 - PiCCS strong condition (i), which fixes the output commitment image across
   independent prover runs;
 - PiRLC extractor agreement for that same projection;
-- the exact ambient relation `CE(B_amb,L)^15`.
+- the exact shared-point ambient relation `BatchCE_15(B_amb,L)`.
 
 The fold proof uses strong-weak composition for `PiRLC o PiCCS`, then sequential
 composition with PiDEC. PiDEC is not inserted into the strong-weak theorem.
@@ -97,7 +97,7 @@ The normalized rules include all reviewed corrections:
 - identity-output binding of the norm terminal;
 - an unconditioned first extractor run;
 - success-gated retries and the global `sqrt(delta)` disagreement term;
-- ambient extraction into `CE(B_amb,L)^15`.
+- ambient extraction into `BatchCE_15(B_amb,L)`.
 
 ### PiRLC, PiDEC, and commitment
 

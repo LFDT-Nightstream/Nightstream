@@ -8,7 +8,7 @@ does not expose a separate PiCCS, PiRLC, or PiDEC mode. Its current host
 delegate is `OptimizedCpuNifsProver`, so CUDA selection cannot use PaperExact
 reductions.
 
-CUDA does not yet implement the selected one-joint `PaddedRowIdentityV1`
+CUDA does not yet implement the selected one-joint `PaddedRowIdentity`
 protocol. It therefore owns no protocol messages, transcript steps, proof
 fields, or verifier logic. Selecting CUDA cannot change proof bytes.
 

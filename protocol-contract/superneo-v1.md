@@ -94,14 +94,19 @@ For `z=x||w`, `CCS(a,L)` holds exactly when `c=L(z)`, `x=L_in(z)`,
 
 Source: PAPER-REL-002 and ERR-CCS-ZERO-SET.
 
-### SN-REL-CE — Norm-bounded evaluation membership
+### SN-REL-CE — Norm-bounded evaluation and shared-point batch
 
 `CE(a,L)` holds exactly when `c=L(z)`, `x=L_in(z)`, `Bound_a(z)`, the point
 `r` has the row-cube arity, and
 `y_j=MLE(bar(M_j)z)(r)` in `R_K` for every matrix.
 
-Source: PAPER-REL-003, ERR-LIN-DOMAIN, ERR-CE-TYPES, and
-ERR-EVALUATION-NOTATION.
+`BatchCE_N(a,L)` MUST be the subset of `CE(a,L)^N` in which all components
+use one shared Structure and one shared point `r`. Ordinary `CE(a,L)^N`
+retains its Cartesian-product meaning and MUST NOT be used as a shared-point
+batch relation.
+
+Source: PAPER-REL-003, PAPER-BATCH-001, ERR-LIN-DOMAIN, ERR-CE-TYPES,
+ERR-EVALUATION-NOTATION, and ERR-SHARED-POINT.
 
 ### SN-GLOBAL-STRONG-SET — Strong-set requirement
 
@@ -152,7 +157,12 @@ The concrete binding assumption MUST name `kappa`, the commitment width in
 ring elements, `q`, the matrix-generation rule, and the infinity-norm bound
 `8*T*B`. The commitment width is not the CCS row count `m`.
 
-Source: PAPER-MSIS-001, PAPER-COM-003, and PAPER-CONFLICT-002.
+The Appendix D.7 analytic diagnostic MUST use
+`2^(2*sqrt(kappa*d*log2(q)*log2(delta)))`. It MUST NOT move either logarithm
+outside the square root or present this diagnostic as end-to-end security.
+
+Source: PAPER-MSIS-001, PAPER-COM-003, PAPER-D7-001,
+PAPER-CONFLICT-002, and ERR-D7-SQRT-SCOPE.
 ## 2. Reviewed reduction framework
 
 ### SN-RED-STAGE — Interactive reduction interface
@@ -179,17 +189,19 @@ Source: PAPER-RED-002 and PAPER-RED-006.
 
 ### SN-RED-RELATIONS — Paper strong and weak relation pairs
 
-The paper composition uses these exact relation pairs:
+The corrected composition uses these shared-point relation pairs:
 
 ```text
-PiCCS: CCS(b,L)^K_fresh * CE(b,L)^k
-        -> CE(b,L)^(K_fresh+k), ambient CE(B_amb,L)^(K_fresh+k)
-PiRLC: CE(b,L)^(K_fresh+k), ambient CE(B_amb,L)^(K_fresh+k)
+PiCCS: CCS(b,L)^K_fresh * BatchCE_k(b,L)
+        -> BatchCE_(K_fresh+k)(b,L)
+        ambient BatchCE_(K_fresh+k)(B_amb,L)
+PiRLC: BatchCE_(K_fresh+k)(b,L)
+        ambient BatchCE_(K_fresh+k)(B_amb,L)
         -> CE(B,L).
 ```
 
 Source: PAPER-RED-003 through PAPER-RED-005, PAPER-PICCS-006,
-PAPER-PIRLC-002, and ERR-AMBIENT.
+PAPER-PIRLC-002, ERR-AMBIENT, and ERR-SHARED-POINT.
 
 ### SN-RED-PROJECTION — Shared commitment projection
 
@@ -286,9 +298,12 @@ Source: PAPER-PICCS-001 and PAPER-PICCS-002.
 
 At the SumCheck point `r_new`, the prover MUST supply `y_(i,j)` for every
 source and matrix. The verifier MUST derive `F`, `N`, and `E` from those
-values and check the exact terminal equation `v=Q(r_new)`.
+values and check the exact terminal equation `v=Q(r_new)`. Every output
+component MUST use this one `r_new`, so the output relation is
+`BatchCE_(K_fresh+k)(b,L)`.
 
-Source: PAPER-PICCS-001, PAPER-PICCS-002, and PAPER-PICCS-005.
+Source: PAPER-PICCS-001, PAPER-PICCS-002, PAPER-PICCS-005, and
+ERR-SHARED-POINT.
 
 ### SN-PICCS-CHARACTERIZATION — Joint identity meaning
 
@@ -336,18 +351,20 @@ ERR-EXTRACT-RUNTIME.
 
 ### SN-PICCS-EXTRACTOR-TARGET — Ambient extraction relation
 
-The PiCCS extractor target MUST be `CE(B_amb,L)^(K_fresh+k)`. It MUST NOT
-assume the tight output relation `CE(b,L)^(K_fresh+k)`.
+The PiCCS extractor target MUST be
+`BatchCE_(K_fresh+k)(B_amb,L)`. It MUST NOT assume the tight output relation
+`BatchCE_(K_fresh+k)(b,L)`.
 
-Source: PAPER-PICCS-003, PAPER-PICCS-006, and ERR-AMBIENT.
+Source: PAPER-PICCS-003, PAPER-PICCS-006, ERR-AMBIENT, and
+ERR-SHARED-POINT.
 ## 4. Reviewed PiRLC, PiDEC, and fold composition
 
 ### SN-PIRLC-DOMAIN — PiRLC input family
 
-PiRLC MUST take exactly the `K_fresh+k` PiCCS outputs. All inputs MUST use one
-Structure and one evaluation point.
+PiRLC MUST take exactly `BatchCE_(K_fresh+k)(b,L)`, the `K_fresh+k` PiCCS
+outputs with one shared Structure and one shared evaluation point.
 
-Source: PAPER-PIRLC-001.
+Source: PAPER-PIRLC-001 and ERR-SHARED-POINT.
 
 ### SN-PIRLC-EQUATIONS — Ring-linear combination
 
@@ -411,9 +428,9 @@ Source: PAPER-PIDEC-001, ERR-PIDEC-EQUATIONS, and ERR-EVALUATION-NOTATION.
 ### SN-PIDEC-OUTPUT — PiDEC output family
 
 PiDEC MUST enforce the child count, common Structure, common point, and
-canonical public split. Its output MUST be exactly `k` claims in `CE(b,L)`.
+canonical public split. Its output MUST be exactly `BatchCE_k(b,L)`.
 
-Source: PAPER-PIDEC-001.
+Source: PAPER-PIDEC-001 and ERR-SHARED-POINT.
 
 ### SN-COMP-ORDER — Fold stage order
 
@@ -435,12 +452,13 @@ The composed fold MUST have type
 
 ```text
 PiDEC o PiRLC o PiCCS :
-  CCS(b,L)^K_fresh * CE(b,L)^k -> CE(b,L)^k.
+  CCS(b,L)^K_fresh * BatchCE_k(b,L) -> BatchCE_k(b,L).
 ```
 
 The running width `k` MUST be unchanged.
 
-Source: PAPER-RED-006, PAPER-COMP-002, and PAPER-COMP-003.
+Source: PAPER-RED-006, PAPER-COMP-002, PAPER-COMP-003, and
+ERR-SHARED-POINT.
 
 ### SN-FOLD-PROOF — Composition proof structure
 
@@ -651,8 +669,8 @@ Decision: NSD-SPLIT-001 and NSD-AUTHORITY-001.
 
 The Nightstream PiCCS strong relation MUST be the paper relation under the
 zero-row embedding. Its output and ambient relations MUST remain
-`CE(b,L)^15` and `CE(B_amb,L)^15`. The commitment projection MUST remain
-unchanged and no padding or cache field may enter it.
+`BatchCE_15(b,L)` and `BatchCE_15(B_amb,L)`. The commitment projection MUST
+remain unchanged and no padding or cache field may enter it.
 
 Decision: NSD-REDUCTION-FRAMEWORK-001 and NSD-NORM-BINDING-001.
 

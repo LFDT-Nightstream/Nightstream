@@ -241,11 +241,26 @@ first `n_R,in` ring columns under coefficient embedding.
 
 Source: `SRC-PAPER-07`, lines 3-29.
 
+## PAPER-BATCH — relation powers and shared evaluation points
+
+`PAPER-BATCH-001` Appendix C defines `R^N` as the ordinary Cartesian product of
+`N` relation instances. Since `r` is part of each CE instance, the literal
+type `CE(a,L)^N` permits independent points `r_1,...,r_N`. The protocol text,
+however, uses one unindexed point in each batch: PiCCS has one `eq(X,r)`, its
+outputs share `r'`, PiRLC retains one `r`, and PiDEC copies one `r` to every
+child. This is a formal type mismatch in the printed paper.
+
+Source: `SRC-PAPER-02`, lines 13-27; `SRC-PAPER-07`, PiCCS, PiRLC, and PiDEC;
+and `SRC-PAPER-12`, line 3.
 ## PAPER-PICCS — reviewed joint PiCCS
 
 `PAPER-PICCS-001` The paper assumes `m=n_F`, `n_F` is a power of two, and the
 first matrix is the identity. PiCCS reduces
 `CCS(b,L)^K * CE(b,L)^k` to `CE(b,L)^(K+k)`.
+
+These are the literal printed relation powers. Under `PAPER-BATCH-001`, they are
+too broad because the displayed protocol has one carried point `r` and one
+output point `r'` shared by every component.
 
 The verifier samples `alpha in K^(log m)` and `gamma in K`. Let zero-based
 indices be `a in [0,K)`, `i in [0,K+k)`, `c in [0,k)`, `j in [0,t)`, and
@@ -348,6 +363,9 @@ R_2  = CE(B,L).
 
 The single input point `r` is shared by all `K+k` input claims.
 
+Thus the displayed PiRLC algorithm is defined on the shared-point subset of
+the printed Cartesian-product input relation.
+
 Source: `SRC-PAPER-07`, PiRLC section, and `SRC-PAPER-13`, lines 330-430.
 
 ## PAPER-PIDEC — PiDEC
@@ -365,6 +383,9 @@ The split definition gives `x=sum_h b^h*x_h`; the child public inputs are
 verifier-derived and are not prover messages.
 
 The output is exactly `k` claims in `CE(b,L)`.
+
+Every child uses the unchanged parent point. The displayed output is therefore
+in the shared-point subset of the printed Cartesian-product relation.
 
 Source: `SRC-PAPER-07`, PiDEC section, and `SRC-PAPER-13`, PiDEC proof.
 
@@ -385,6 +406,10 @@ reduction of knowledge. `Pi_DEC` is neither strong nor weak in the paper.
 `PAPER-COMP-003` With `R=CCS(b,L)^K` and `R_ACC=CE(b,L)^k`, Theorem 1 makes
 the composition a folding scheme under Definition 19.
 
+The printed composition types inherit the `PAPER-BATCH-001` shared-point
+mismatch. The protocol pipeline itself produces and consumes only batches in
+which all component points are equal.
+
 Source: `SRC-PAPER-02`, line 77; `SRC-PAPER-06`; `SRC-PAPER-07`; and
 `SRC-PAPER-12`, line 32.
 ## PAPER-PROFILE — Appendix B.2 Goldilocks profile
@@ -403,6 +428,16 @@ abs(C) about 2^125           MSIS estimate about 129 bits.
 ```
 
 Source: `SRC-PAPER-11`, lines 13-19.
+
+## PAPER-D7 — analytic MSIS diagnostic
+
+`PAPER-D7-001` Appendix D.7 contains an executable analytic MSIS
+diagnostic. The locked code places only `kappa*d` under the square root and
+multiplies by `log2(q)*log2(delta)` afterward. The cited analytic expression
+places `kappa*d*log2(q)*log2(delta)` under one square root. The diagnostic does
+not supply an end-to-end knowledge-soundness estimate.
+
+Source: `SRC-PAPER-13`, lines 617-632.
 
 ## PAPER-CONFLICT-DIM — incompatible printed dimensions
 

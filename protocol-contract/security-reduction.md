@@ -58,10 +58,10 @@ For one fold, the interactive proof must compose:
 The relation pair is:
 
 ```text
-CCS(b,L)^1 * CE(b,L)^14
-  --PiCCS--> CE(b,L)^15, ambient CE(B_amb,L)^15
+CCS(b,L)^1 * BatchCE_14(b,L)
+  --PiCCS--> BatchCE_15(b,L), ambient BatchCE_15(B_amb,L)
   --PiRLC--> CE(B,L)
-  --PiDEC--> CE(b,L)^14.
+  --PiDEC--> BatchCE_14(b,L).
 ```
 
 Here `b=2`, `B=2^14=16384`, and

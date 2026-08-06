@@ -24,17 +24,19 @@ Source: PAPER-RED-002 and PAPER-RED-006.
 
 ### SN-RED-RELATIONS — Paper strong and weak relation pairs
 
-The paper composition uses these exact relation pairs:
+The corrected composition uses these shared-point relation pairs:
 
 ```text
-PiCCS: CCS(b,L)^K_fresh * CE(b,L)^k
-        -> CE(b,L)^(K_fresh+k), ambient CE(B_amb,L)^(K_fresh+k)
-PiRLC: CE(b,L)^(K_fresh+k), ambient CE(B_amb,L)^(K_fresh+k)
+PiCCS: CCS(b,L)^K_fresh * BatchCE_k(b,L)
+        -> BatchCE_(K_fresh+k)(b,L)
+        ambient BatchCE_(K_fresh+k)(B_amb,L)
+PiRLC: BatchCE_(K_fresh+k)(b,L)
+        ambient BatchCE_(K_fresh+k)(B_amb,L)
         -> CE(B,L).
 ```
 
 Source: PAPER-RED-003 through PAPER-RED-005, PAPER-PICCS-006,
-PAPER-PIRLC-002, and ERR-AMBIENT.
+PAPER-PIRLC-002, ERR-AMBIENT, and ERR-SHARED-POINT.
 
 ### SN-RED-PROJECTION — Shared commitment projection
 

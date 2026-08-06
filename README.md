@@ -2,7 +2,7 @@
 
 [![GitHub License](https://img.shields.io/github/license/nicarq/nightstream)](LICENSE)
 
-Nightstream is a **post-quantum** proving system built around a lattice-based folding scheme for **CCS** (Neo and SuperNeo, ePrint 2026/242, which supersedes Neo ePrint 2025/294) with a HyperNova-style recursive IVC layer. The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, Ajtai (module-SIS) commitments, and a Poseidon2-only transcript.
+Nightstream is a lattice-based proving system built around a folding scheme for **CCS** (Neo and SuperNeo, ePrint 2026/242, which supersedes Neo ePrint 2025/294) with a HyperNova-style recursive IVC layer. The active proving path targets CCS over the **Goldilocks** field with a degree-2 extension for sum-check soundness, Ajtai (Module-SIS) commitments, and a Poseidon2-only transcript. Module-SIS supplies a quantum-resistant computational foundation, but the current knowledge-soundness and Fiat-Shamir analyses are classical. Nightstream does not claim quantum-prover extraction or security in the quantum random-oracle model.
 
 > **Status**: Research software under active development. `neo-fold-clean` is the main proving crate: it owns the lifecycle API, the F′ recursive-step circuit, and the decider. The earlier `neo-fold-prototype` sandbox (RV32IM/CHIP-8 end-to-end pipelines) has been removed from the tree. Chain-facing deployment wiring and independent audit are still unfinished. Not production-ready.
 
@@ -201,7 +201,7 @@ Per project policy in [`AGENTS.md`](AGENTS.md), tests use
 requested.
 
 In `neo-reductions`, PaperExact and the optimized engine implement
-`PaddedRowIdentityV1`. It zero-pads the rectangular relation, adds the padded
+`PaddedRowIdentity`. It zero-pads the rectangular relation, adds the padded
 identity matrix, and runs one joint 24-round PiCCS SumCheck. The production
 recursive circuit uses the same protocol and transcript profile.
 

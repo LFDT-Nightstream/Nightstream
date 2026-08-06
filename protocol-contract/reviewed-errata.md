@@ -1,6 +1,7 @@
-# Reviewed SuperNeo errata v4
+# Reviewed SuperNeo errata and semantic normalizations
 
-Status: **applied to the reviewed paper snapshot**.
+Status: **v4 applied to the reviewed paper snapshot; later normalizations
+applied only by the normative contract**.
 
 The v4 patch contains the reviewed v3 security corrections and later
 post-review source corrections. Each row below has one semantic meaning. A
@@ -24,6 +25,17 @@ general "source cleanup" row cannot close one of these obligations.
 | ERR-ERROR-BUDGET | SumCheck false-claim acceptance and gamma-batching Schwartz--Zippel failure are separate terms. | `protocol-contract/paper-sources/09-supplementary-material.md:11-17` |
 | ERR-PIDEC-EQUATIONS | PiDEC checks commitment and evaluation recomposition; completeness derives public-input recomposition from the verifier-computed split. | `protocol-contract/paper-sources/07-7-neo-s-folding-scheme-for-ccs.md:151-176` |
 | ERR-EVALUATION-NOTATION | CE and PiDEC use the transformed matrix-vector multilinear evaluation consistently. | `protocol-contract/paper-sources/07-7-neo-s-folding-scheme-for-ccs.md:26-34,151-176` |
+
+## Post-v4 semantic normalizations
+
+The immutable paper snapshot and its exact v4 patch remain unchanged. The
+following corrections were found after that source review. They are explicit
+normative corrections, not claims about the literal paper notation.
+
+| ID | Corrected rule | Locked source evidence |
+|---|---|---|
+| ERR-SHARED-POINT | A batched CE relation contains one evaluation point shared by every component. Use `BatchCE_N(a,L)`, not the full Cartesian product `CE(a,L)^N`, at PiCCS, PiRLC, PiDEC, ambient, and composed-fold boundaries. | `protocol-contract/paper-sources/12-c-additional-background.md:3`; `protocol-contract/paper-sources/02-2-technical-overview.md:13-21`; `protocol-contract/paper-sources/07-7-neo-s-folding-scheme-for-ccs.md:53-60,143-167,177-179` |
+| ERR-D7-SQRT-SCOPE | The Appendix D.7 analytic diagnostic is `2^(2*sqrt(kappa*d*log2(q)*log2(delta)))`; all four factors are under the square root. | `protocol-contract/paper-sources/13-d-deferred-theorems-and-proofs.md:617-632` |
 
 The machine-readable erratum-to-rule mapping is derived from normative rule
 citations and appears in `rule-index.json`. This table does not own that edge.

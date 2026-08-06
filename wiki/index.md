@@ -1,10 +1,14 @@
 # Nightstream Wiki
 
-Nightstream is a **post-quantum proving system**: a lattice-based folding scheme for
-**CCS** (SuperNeo, building on Neo, ePrint 2025/294) composed with a
-**HyperNova-style recursive IVC layer** (Construction 2). The active path proves CCS
-over the **Goldilocks** field with a degree-2 extension for sum-check soundness,
-**Ajtai (module-SIS) commitments**, and a **Poseidon2-only** Fiat-Shamir transcript.
+Nightstream is a lattice-based proving system: a folding scheme for **CCS**
+(Neo and SuperNeo, ePrint 2026/242, which supersedes Neo ePrint 2025/294)
+composed with a **HyperNova-style recursive IVC layer** (Construction 2). The
+active path proves CCS over the **Goldilocks** field with a degree-2 extension
+for sum-check soundness, **Ajtai (Module-SIS) commitments**, and a
+**Poseidon2-only** Fiat-Shamir transcript. Module-SIS supplies a
+quantum-resistant computational foundation. The current knowledge-soundness
+and Fiat-Shamir analyses are classical; quantum-prover extraction and quantum
+random-oracle security are not established.
 The in-tree **Toy Spartan** + WHIR backend is standalone and is not connected to
 terminal compression.
 

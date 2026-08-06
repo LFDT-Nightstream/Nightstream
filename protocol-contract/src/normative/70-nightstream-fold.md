@@ -25,8 +25,8 @@ Decision: NSD-SPLIT-001 and NSD-AUTHORITY-001.
 
 The Nightstream PiCCS strong relation MUST be the paper relation under the
 zero-row embedding. Its output and ambient relations MUST remain
-`CE(b,L)^15` and `CE(B_amb,L)^15`. The commitment projection MUST remain
-unchanged and no padding or cache field may enter it.
+`BatchCE_15(b,L)` and `BatchCE_15(B_amb,L)`. The commitment projection MUST
+remain unchanged and no padding or cache field may enter it.
 
 Decision: NSD-REDUCTION-FRAMEWORK-001 and NSD-NORM-BINDING-001.
 

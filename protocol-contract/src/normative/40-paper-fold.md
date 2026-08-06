@@ -2,10 +2,10 @@
 
 ### SN-PIRLC-DOMAIN — PiRLC input family
 
-PiRLC MUST take exactly the `K_fresh+k` PiCCS outputs. All inputs MUST use one
-Structure and one evaluation point.
+PiRLC MUST take exactly `BatchCE_(K_fresh+k)(b,L)`, the `K_fresh+k` PiCCS
+outputs with one shared Structure and one shared evaluation point.
 
-Source: PAPER-PIRLC-001.
+Source: PAPER-PIRLC-001 and ERR-SHARED-POINT.
 
 ### SN-PIRLC-EQUATIONS — Ring-linear combination
 
@@ -69,9 +69,9 @@ Source: PAPER-PIDEC-001, ERR-PIDEC-EQUATIONS, and ERR-EVALUATION-NOTATION.
 ### SN-PIDEC-OUTPUT — PiDEC output family
 
 PiDEC MUST enforce the child count, common Structure, common point, and
-canonical public split. Its output MUST be exactly `k` claims in `CE(b,L)`.
+canonical public split. Its output MUST be exactly `BatchCE_k(b,L)`.
 
-Source: PAPER-PIDEC-001.
+Source: PAPER-PIDEC-001 and ERR-SHARED-POINT.
 
 ### SN-COMP-ORDER — Fold stage order
 
@@ -93,12 +93,13 @@ The composed fold MUST have type
 
 ```text
 PiDEC o PiRLC o PiCCS :
-  CCS(b,L)^K_fresh * CE(b,L)^k -> CE(b,L)^k.
+  CCS(b,L)^K_fresh * BatchCE_k(b,L) -> BatchCE_k(b,L).
 ```
 
 The running width `k` MUST be unchanged.
 
-Source: PAPER-RED-006, PAPER-COMP-002, and PAPER-COMP-003.
+Source: PAPER-RED-006, PAPER-COMP-002, PAPER-COMP-003, and
+ERR-SHARED-POINT.
 
 ### SN-FOLD-PROOF — Composition proof structure
 

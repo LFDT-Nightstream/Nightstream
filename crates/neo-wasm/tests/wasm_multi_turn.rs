@@ -9,7 +9,8 @@ use neo_wasm::event_grammar::{ExportTemplate, GrammarEvent, HostEventGrammar, Li
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{grammar_top_level_initial_state_digest, preprocess_seeded_batched, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
-use wasmtime::component::Val as ComponentVal;
+use wasmtime::component::{Component, Instance, Linker, Val as ComponentVal};
+use wasmtime::{Config, Engine, Store};
 
 const ZERO: SlotSource = SlotSource::Const(0);
 
@@ -19,6 +20,98 @@ fn slots(entries: &[(usize, SlotSource)]) -> [SlotSource; COMM_CHAIN_EVENT_ARGS]
         out[idx] = source;
     }
     out
+}
+
+struct TracedTestComponent {
+    store: Store<neo_wasm::WasmtimeTraceState>,
+    instance: Instance,
+    program_tables: neo_wasm::WasmProgramTables,
+}
+
+struct CollectedTestTrace {
+    steps: Vec<neo_wasm::WasmtimeTraceStep>,
+    initial_locals: Vec<u32>,
+    program_tables: neo_wasm::WasmProgramTables,
+}
+
+impl TracedTestComponent {
+    fn new(component_bytes: &[u8]) -> Self {
+        let artifacts = neo_wasm::extract_first_component_core_program_artifacts(component_bytes).expect("artifacts");
+        let mut config = Config::new();
+        config.guest_debug(true);
+        config.wasm_reference_types(true);
+        config.wasm_function_references(true);
+        config.wasm_component_model(true);
+        let engine = Engine::new(&config).expect("engine");
+        let component = Component::new(&engine, component_bytes).expect("component");
+        let mut store = Store::new(
+            &engine,
+            neo_wasm::WasmtimeTraceState::from_program_artifacts(&artifacts),
+        );
+        store.set_debug_handler(neo_wasm::WasmtimeTraceHandler::new());
+        store
+            .edit_breakpoints()
+            .expect("guest debug enabled")
+            .single_step(true)
+            .expect("single-step debugging");
+        let linker = Linker::new(&engine);
+        let instance = futures::executor::block_on(linker.instantiate_async(&mut store, &component))
+            .expect("instantiate component");
+        let mut function_ids = std::collections::BTreeMap::new();
+        for core_instance in store.debug_all_instances() {
+            function_ids
+                .extend(neo_wasm::build_debug_function_id_map(&core_instance, &mut store).expect("function ids"));
+        }
+        store.data_mut().set_func_ref_ids(function_ids);
+        Self {
+            store,
+            instance,
+            program_tables: artifacts.tables,
+        }
+    }
+
+    fn call(&mut self, export: &str, args: &[ComponentVal], results: &mut [ComponentVal]) {
+        let func = self
+            .instance
+            .get_func(&mut self.store, export)
+            .unwrap_or_else(|| panic!("component export '{export}'"));
+        futures::executor::block_on(func.call_async(&mut self.store, args, results))
+            .unwrap_or_else(|error| panic!("call component export '{export}': {error}"));
+    }
+
+    fn finish(self) -> CollectedTestTrace {
+        let steps = self.store.data().steps().to_vec();
+        let initial_locals = steps
+            .iter()
+            .find(|step| step.frame_depth == 0 && step.pc.is_some())
+            .map(|step| {
+                step.locals
+                    .iter()
+                    .map(|value| {
+                        value
+                            .parse::<i128>()
+                            .map(|n| (n as i32) as u32)
+                            .unwrap_or(0)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        CollectedTestTrace {
+            steps,
+            initial_locals,
+            program_tables: self.program_tables,
+        }
+    }
+}
+
+fn run_counter_turns(component_bytes: &[u8]) -> CollectedTestTrace {
+    let mut runtime = TracedTestComponent::new(component_bytes);
+    let mut first = [ComponentVal::S32(0)];
+    runtime.call("add", &[ComponentVal::S32(7)], &mut first);
+    let mut second = [ComponentVal::S32(0)];
+    runtime.call("add", &[ComponentVal::S32(35)], &mut second);
+    assert_eq!((first, second), ([ComponentVal::S32(7)], [ComponentVal::S32(42)]));
+    runtime.finish()
 }
 
 /// Stateful export used to test cross-turn global persistence.
@@ -92,13 +185,7 @@ struct MultiTurnSetup {
 
 fn multi_turn_setup() -> MultiTurnSetup {
     let component_bytes = wat::parse_str(counter_component_wat()).expect("component wat");
-    let calls = [
-        ("add", vec![ComponentVal::S32(7)]),
-        ("add", vec![ComponentVal::S32(35)]),
-    ];
-    let run = neo_wasm::collect_wasmtime_component_run_calls(&component_bytes, &calls, |_| Ok(()))
-        .expect("two-turn component run");
-    assert_eq!(run.results, ["7", "42"], "the global must accumulate across turns");
+    let run = run_counter_turns(&component_bytes);
 
     let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps);
     assert!(raw.is_err(), "a multi-turn trace must not normalize in raw mode");
@@ -259,12 +346,7 @@ fn multi_turn_proof_binds_both_turns_inputs() {
 #[test]
 fn memory_model_carries_state_across_turns() {
     let setup = multi_turn_setup();
-    let calls = [
-        ("add", vec![ComponentVal::S32(7)]),
-        ("add", vec![ComponentVal::S32(35)]),
-    ];
-    let run = neo_wasm::collect_wasmtime_component_run_calls(&setup.component_bytes, &calls, |_| Ok(()))
-        .expect("two-turn component run");
+    let run = run_counter_turns(&setup.component_bytes);
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
     let mut preload =
@@ -345,12 +427,7 @@ fn ccs_rejects_forged_turn_boundary() {
 #[test]
 fn memory_model_rejects_boundary_into_undeclared_fref() {
     let setup = multi_turn_setup();
-    let calls = [
-        ("add", vec![ComponentVal::S32(7)]),
-        ("add", vec![ComponentVal::S32(35)]),
-    ];
-    let run = neo_wasm::collect_wasmtime_component_run_calls(&setup.component_bytes, &calls, |_| Ok(()))
-        .expect("two-turn component run");
+    let run = run_counter_turns(&setup.component_bytes);
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
     let mut preload =
@@ -426,10 +503,12 @@ fn resultless_turn_can_precede_another_turn() {
         "#,
     )
     .expect("component wat");
-    let calls = [("poke", vec![ComponentVal::S32(41)]), ("read", vec![])];
-    let run =
-        neo_wasm::collect_wasmtime_component_run_calls(&component_bytes, &calls, |_| Ok(())).expect("two-turn run");
-    assert_eq!(run.results, ["41"]);
+    let mut runtime = TracedTestComponent::new(&component_bytes);
+    runtime.call("poke", &[ComponentVal::S32(41)], &mut []);
+    let mut read_result = [ComponentVal::S32(0)];
+    runtime.call("read", &[], &mut read_result);
+    assert_eq!(read_result, [ComponentVal::S32(41)]);
+    let run = runtime.finish();
 
     // Resolve both frefs from single-call raw runs.
     let fref_of = |export: &str, args: &[ComponentVal]| {

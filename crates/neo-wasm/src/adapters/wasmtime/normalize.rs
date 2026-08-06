@@ -10,6 +10,7 @@
 //! does not run the engine or parse binaries.
 
 mod grammar_emit;
+mod memory;
 mod trace_build;
 
 use super::decode::{DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode};
@@ -24,16 +25,22 @@ use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeInfo}
 use wasmtime::{FrameHandle, StoreContextMut};
 
 pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
-    trace_build::build_trace(rows, None, Default::default())
+    trace_build::build_trace(rows, None, Default::default(), None)
 }
 
+/// Normalize captured steps with verifier-authored event grammar.
+///
+/// Program tables supply the initial memory image used by grammar memory
+/// slots; they must describe the same core module that produced `rows`.
 pub fn traces_from_wasmtime_steps_with_grammar(
     rows: &[WasmtimeTraceStep],
+    program: &super::WasmProgramTables,
     grammar: &crate::event_grammar::HostEventGrammar,
     turns: &[crate::event_grammar::TurnClaims],
     initial_comm_chain: crate::comm_chain::CommChainState,
 ) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
-    trace_build::build_trace(rows, Some((grammar, turns)), initial_comm_chain)
+    let linear_memory = memory::LinearMemoryImage::for_grammar(grammar, program)?;
+    trace_build::build_trace(rows, Some((grammar, turns)), initial_comm_chain, linear_memory)
 }
 
 #[derive(Clone, Debug)]
@@ -95,7 +102,6 @@ struct NormalizedStep {
     linear_memory_offset: u64,
     /// Oracle words recorded on this (host-call) row at collection time.
     host_call_claims: Vec<u64>,
-    host_call_memory_reads: Vec<u32>,
 }
 
 fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, WasmBuildError> {
@@ -270,7 +276,6 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
         host_call_claims: row.host_call_claims.clone(),
-        host_call_memory_reads: row.host_call_memory_reads.clone(),
     }))
 }
 
@@ -525,7 +530,6 @@ pub(crate) fn capture_frame<T>(
         call_return_pc: decoded_opcode.as_ref().and_then(|d| d.call_return_pc),
         pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
         host_call_claims: Vec::new(),
-        host_call_memory_reads: Vec::new(),
     })
 }
 

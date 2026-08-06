@@ -10,12 +10,14 @@
 use crate::comm_chain::{perm_row_checkpoints, COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_PERM_ROWS};
 use crate::event_grammar::{expand_import_events, GrammarEvent, ImportTemplate, Limb, MemoryBase, SlotSource};
 use crate::ir::{
-    LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState,
-    WasmEventAbsorbState, WasmGrammarSlotKind, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
+    LinearMemoryAccess, StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState,
+    WasmGrammarSlotKind, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
+
+use super::memory::{aligned_word_addr, memory_word_access, LinearMemoryImage};
 
 /// One gather row's plan: the staged word, its claimed grammar-ROM entry,
 /// and its stack/locals effect — an addressed read `(stack slot, (lo, hi))`
@@ -51,13 +53,106 @@ pub(super) fn plan_import_call(
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
     claims: &[u64],
-    memory_reads: &[u32],
+    memory: &mut LinearMemoryImage,
 ) -> Result<GrammarCallPlan, WasmBuildError> {
-    let blocks = expand_import_events(template, args, result, claims, memory_reads)?;
+    let memory_reads = resolve_import_memory(template, args, claims, memory)?;
+    let blocks = expand_import_events(template, args, result, claims, &memory_reads)?;
     Ok(GrammarCallPlan {
-        blocks: plan_grammar_blocks(&template.events, &blocks, args_base, args, result, memory_reads)?,
+        blocks: plan_grammar_blocks(&template.events, &blocks, args_base, args, result, &memory_reads)?,
         args_base,
     })
+}
+
+fn resolve_import_memory(
+    template: &ImportTemplate,
+    import_args: &[(u32, u32)],
+    claims: &[u64],
+    memory: &mut LinearMemoryImage,
+) -> Result<Vec<u32>, WasmBuildError> {
+    let mut reads = Vec::new();
+    for source in template.events.iter().flat_map(|event| &event.block) {
+        match *source {
+            SlotSource::MemoryRead32 { base, byte_offset } => {
+                let MemoryBase::Arg(arg) = base else {
+                    unreachable!("validated import memory base")
+                };
+                let pointer = import_memory_pointer(import_args, arg)?;
+                reads.push(memory.read_aligned_word(pointer, byte_offset)?);
+            }
+            SlotSource::MemoryWrite32 {
+                claim,
+                base,
+                byte_offset,
+            } => {
+                let value = claims.get(usize::from(claim)).copied().ok_or_else(|| {
+                    WasmBuildError::Trace(format!("grammar memory write references missing claim {claim}"))
+                })?;
+                let value = u32::try_from(value)
+                    .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u32".to_string()))?;
+                let MemoryBase::Arg(arg) = base else {
+                    unreachable!("validated import memory base")
+                };
+                let pointer = import_memory_pointer(import_args, arg)?;
+                memory.write_aligned_word(pointer, byte_offset, value)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(reads)
+}
+
+fn import_memory_pointer(import_args: &[(u32, u32)], arg: u8) -> Result<u32, WasmBuildError> {
+    let (lo, hi) = import_args[usize::from(arg)];
+    if hi != 0 {
+        return Err(WasmBuildError::Trace(format!(
+            "grammar memory base arg {arg} is not a wasm32 pointer: high limb is {hi}"
+        )));
+    }
+    Ok(lo)
+}
+
+pub(super) fn apply_export_entry_memory(
+    events: &[GrammarEvent],
+    blocks: &[[u64; 8]],
+    locals: &[u32],
+    memory: &mut LinearMemoryImage,
+) -> Result<(), WasmBuildError> {
+    for (source, value) in events
+        .iter()
+        .zip(blocks)
+        .flat_map(|(event, block)| event.block.iter().zip(block))
+    {
+        if let SlotSource::MemoryWrite32 { base, byte_offset, .. } = *source {
+            let value = u32::try_from(*value)
+                .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u32".to_string()))?;
+            let MemoryBase::Local(local) = base else {
+                unreachable!("validated export memory base")
+            };
+            memory.write_aligned_word(locals[usize::from(local)], byte_offset, value)?;
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn read_export_exit_memory(
+    events: &[GrammarEvent],
+    locals: &[u32],
+    memory: &LinearMemoryImage,
+) -> Result<Vec<u32>, WasmBuildError> {
+    events
+        .iter()
+        .flat_map(|event| &event.block)
+        .filter_map(|source| match *source {
+            SlotSource::MemoryRead32 { base, byte_offset } => Some((base, byte_offset)),
+            _ => None,
+        })
+        .map(|(base, byte_offset)| {
+            let MemoryBase::Local(local) = base else {
+                unreachable!("validated export memory base")
+            };
+            memory.read_aligned_word(locals[usize::from(local)], byte_offset)
+        })
+        .collect()
 }
 
 fn plan_grammar_blocks(
@@ -324,34 +419,6 @@ pub(super) fn plan_export_blocks(
             })
         })
         .collect()
-}
-
-fn aligned_word_addr(base: u32, byte_offset: u32) -> Result<u64, WasmBuildError> {
-    let effective = base.checked_add(byte_offset).ok_or_else(|| {
-        WasmBuildError::Trace(format!(
-            "grammar memory address overflows wasm32: {base} + {byte_offset}"
-        ))
-    })?;
-    if effective % 4 != 0 {
-        return Err(WasmBuildError::Trace(format!(
-            "grammar Memory32 address {effective} is not naturally aligned"
-        )));
-    }
-    Ok(u64::from(effective / 4))
-}
-
-fn memory_word_access(word_addr: u64, value_before: u32, value_after: u32) -> LinearMemoryAccess {
-    LinearMemoryAccess {
-        width_bytes: 4,
-        byte_offset: 0,
-        lane0: LinearMemoryWordLane {
-            word_addr,
-            value_before,
-            value_after,
-        },
-        lane1: None,
-        lane2: None,
-    }
 }
 
 /// Shared shape of the grammar/perm aux rows emitted outside the per-opcode

@@ -198,9 +198,14 @@ fn grammar_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call()
             ..Default::default()
         },
     );
-    let trace =
-        traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &[TurnClaims::default()], Default::default())
-            .expect("guest tail call in grammar mode");
+    let trace = traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &[TurnClaims::default()],
+        Default::default(),
+    )
+    .expect("guest tail call in grammar mode");
     common::ccs_check_trace(&trace);
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
 

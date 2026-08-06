@@ -40,3 +40,14 @@ first `n_R,in` ring columns under coefficient embedding.
 
 Source: `SRC-PAPER-07`, lines 3-29.
 
+## PAPER-BATCH — relation powers and shared evaluation points
+
+`PAPER-BATCH-001` Appendix C defines `R^N` as the ordinary Cartesian product of
+`N` relation instances. Since `r` is part of each CE instance, the literal
+type `CE(a,L)^N` permits independent points `r_1,...,r_N`. The protocol text,
+however, uses one unindexed point in each batch: PiCCS has one `eq(X,r)`, its
+outputs share `r'`, PiRLC retains one `r`, and PiDEC copies one `r` to every
+child. This is a formal type mismatch in the printed paper.
+
+Source: `SRC-PAPER-02`, lines 13-27; `SRC-PAPER-07`, PiCCS, PiRLC, and PiDEC;
+and `SRC-PAPER-12`, line 3.

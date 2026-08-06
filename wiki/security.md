@@ -6,17 +6,22 @@
 
 ## Assumptions
 
-- **Module-SIS** (post-quantum): Ajtai commitment binding for openings with
-  ℓ∞ norm < B. Norm discipline (Π_DEC every fold, low-norm F′ image) exists precisely
-  to stay inside this binding regime.
-- **Random-oracle Fiat-Shamir** over Poseidon2: SuperNeo's strong/weak interactive
-  reductions (§6) compose, and HyperNova Appendix B's transform applies, when every
-  challenge binds all preceding public data. The selected binding discipline is
-  specified by
+- **Module-SIS computational foundation**: Ajtai commitment binding for openings
+  with ℓ∞ norm < B. Module-SIS is intended to resist quantum attacks. This
+  assumption does not by itself prove knowledge soundness against quantum provers.
+  Norm discipline (Π_DEC every fold, low-norm F′ image) keeps openings inside the
+  stated binding regime.
+- **Classical random-oracle Fiat-Shamir** over Poseidon2: SuperNeo's
+  strong/weak interactive reductions (§6) compose, and HyperNova Appendix B's
+  transform applies, when every challenge binds all preceding public data. The
+  selected binding discipline is specified by
   [NS-TRANSCRIPT-ORDER](../protocol-contract/src/normative/80-nightstream-verifier.md#ns-transcript-order--fold-transcript-schedule).
-- **Sum-check soundness over `K = F_{q²}`** with per-shape effective λ (floor 96,
-  target 125) validated at preprocessing — see
-  [Parameters](protocol/parameters.md).
+  Security in the quantum random-oracle model is not established.
+- **Sum-check soundness over `K = F_{q²}`** with a per-invocation statistical
+  floor of 100 bits, validated at preprocessing. The protocol contract declares
+  a 96-bit end-to-end target, while the maximum-chain code uses a conservative
+  pre-review target of 64 bits. Neither target is a completed end-to-end security
+  proof. See [Parameters](protocol/parameters.md).
 
 ## Enforced safeguards
 

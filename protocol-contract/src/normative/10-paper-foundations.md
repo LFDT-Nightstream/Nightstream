@@ -78,14 +78,19 @@ For `z=x||w`, `CCS(a,L)` holds exactly when `c=L(z)`, `x=L_in(z)`,
 
 Source: PAPER-REL-002 and ERR-CCS-ZERO-SET.
 
-### SN-REL-CE — Norm-bounded evaluation membership
+### SN-REL-CE — Norm-bounded evaluation and shared-point batch
 
 `CE(a,L)` holds exactly when `c=L(z)`, `x=L_in(z)`, `Bound_a(z)`, the point
 `r` has the row-cube arity, and
 `y_j=MLE(bar(M_j)z)(r)` in `R_K` for every matrix.
 
-Source: PAPER-REL-003, ERR-LIN-DOMAIN, ERR-CE-TYPES, and
-ERR-EVALUATION-NOTATION.
+`BatchCE_N(a,L)` MUST be the subset of `CE(a,L)^N` in which all components
+use one shared Structure and one shared point `r`. Ordinary `CE(a,L)^N`
+retains its Cartesian-product meaning and MUST NOT be used as a shared-point
+batch relation.
+
+Source: PAPER-REL-003, PAPER-BATCH-001, ERR-LIN-DOMAIN, ERR-CE-TYPES,
+ERR-EVALUATION-NOTATION, and ERR-SHARED-POINT.
 
 ### SN-GLOBAL-STRONG-SET — Strong-set requirement
 
@@ -136,4 +141,9 @@ The concrete binding assumption MUST name `kappa`, the commitment width in
 ring elements, `q`, the matrix-generation rule, and the infinity-norm bound
 `8*T*B`. The commitment width is not the CCS row count `m`.
 
-Source: PAPER-MSIS-001, PAPER-COM-003, and PAPER-CONFLICT-002.
+The Appendix D.7 analytic diagnostic MUST use
+`2^(2*sqrt(kappa*d*log2(q)*log2(delta)))`. It MUST NOT move either logarithm
+outside the square root or present this diagnostic as end-to-end security.
+
+Source: PAPER-MSIS-001, PAPER-COM-003, PAPER-D7-001,
+PAPER-CONFLICT-002, and ERR-D7-SQRT-SCOPE.

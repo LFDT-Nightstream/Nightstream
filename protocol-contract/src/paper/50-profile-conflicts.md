@@ -15,6 +15,16 @@ abs(C) about 2^125           MSIS estimate about 129 bits.
 
 Source: `SRC-PAPER-11`, lines 13-19.
 
+## PAPER-D7 — analytic MSIS diagnostic
+
+`PAPER-D7-001` Appendix D.7 contains an executable analytic MSIS
+diagnostic. The locked code places only `kappa*d` under the square root and
+multiplies by `log2(q)*log2(delta)` afterward. The cited analytic expression
+places `kappa*d*log2(q)*log2(delta)` under one square root. The diagnostic does
+not supply an end-to-end knowledge-soundness estimate.
+
+Source: `SRC-PAPER-13`, lines 617-632.
+
 ## PAPER-CONFLICT-DIM — incompatible printed dimensions
 
 `PAPER-CONFLICT-001` The reviewed paper still requires `n_F=d*n_R`, but its

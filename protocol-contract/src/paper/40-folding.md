@@ -4,6 +4,10 @@
 first matrix is the identity. PiCCS reduces
 `CCS(b,L)^K * CE(b,L)^k` to `CE(b,L)^(K+k)`.
 
+These are the literal printed relation powers. Under `PAPER-BATCH-001`, they are
+too broad because the displayed protocol has one carried point `r` and one
+output point `r'` shared by every component.
+
 The verifier samples `alpha in K^(log m)` and `gamma in K`. Let zero-based
 indices be `a in [0,K)`, `i in [0,K+k)`, `c in [0,k)`, `j in [0,t)`, and
 `l in [0,d)`. Define:
@@ -105,6 +109,9 @@ R_2  = CE(B,L).
 
 The single input point `r` is shared by all `K+k` input claims.
 
+Thus the displayed PiRLC algorithm is defined on the shared-point subset of
+the printed Cartesian-product input relation.
+
 Source: `SRC-PAPER-07`, PiRLC section, and `SRC-PAPER-13`, lines 330-430.
 
 ## PAPER-PIDEC — PiDEC
@@ -122,6 +129,9 @@ The split definition gives `x=sum_h b^h*x_h`; the child public inputs are
 verifier-derived and are not prover messages.
 
 The output is exactly `k` claims in `CE(b,L)`.
+
+Every child uses the unchanged parent point. The displayed output is therefore
+in the shared-point subset of the printed Cartesian-product relation.
 
 Source: `SRC-PAPER-07`, PiDEC section, and `SRC-PAPER-13`, PiDEC proof.
 
@@ -141,6 +151,10 @@ reduction of knowledge. `Pi_DEC` is neither strong nor weak in the paper.
 
 `PAPER-COMP-003` With `R=CCS(b,L)^K` and `R_ACC=CE(b,L)^k`, Theorem 1 makes
 the composition a folding scheme under Definition 19.
+
+The printed composition types inherit the `PAPER-BATCH-001` shared-point
+mismatch. The protocol pipeline itself produces and consumes only batches in
+which all component points are equal.
 
 Source: `SRC-PAPER-02`, line 77; `SRC-PAPER-06`; `SRC-PAPER-07`; and
 `SRC-PAPER-12`, line 32.

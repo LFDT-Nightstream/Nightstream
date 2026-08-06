@@ -1,4 +1,4 @@
-{"id":"ISSUE-INDEPENDENT-SEMANTIC-REVIEW","description":"Complete an item-by-item review of paper extraction, errata normalization, and the atomic dependency graph.","state":"resolved","owner":"protocol-review","legacy_label":"independent-semantic-review"}
+{"id":"ISSUE-INDEPENDENT-SEMANTIC-REVIEW","description":"Repeat the item-by-item semantic review after the shared-point BatchCE and Appendix D.7 normalizations.","state":"open","owner":"protocol-review","legacy_label":"independent-semantic-review"}
 {"id":"ISSUE-EXACT-BUILD-AND-THEOREM-REVIEW","description":"Run the exact Lean build and review every cited proposition against its atomic rule.","state":"open","owner":"lean-review","legacy_label":"exact-build-and-theorem-review"}
 {"id":"ISSUE-PADDED-IDENTITY-THEOREM","description":"Prove that the padded M_0 output binds the norm terminal to the committed assignment.","state":"open","owner":"lean-review","legacy_label":"padded-identity-theorem"}
 {"id":"ISSUE-ZERO-PADDING-REFINEMENT","description":"Prove that zero-row padding preserves logical CCS and joint PiCCS acceptance.","state":"open","owner":"lean-review","legacy_label":"zero-padding-refinement"}

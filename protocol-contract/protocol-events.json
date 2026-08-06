@@ -1,7 +1,7 @@
 {
   "schema_version": 4,
   "contract_id": "nightstream-superneo-v1",
-  "contract_hash": "31817a413c81c7d3c338dd8030c7c93eb3f9abd530f6b4c50827ccebb8b78f7d",
+  "contract_hash": "895b4759c6340fa30a808e4677f6530bb6ba2da57e596c490ff94131e0464b84",
   "profile_id": "nightstream-superneo-fprime-v1",
   "profile_hash": "54c7769a62d12e12e9474b70f4f49ee48df9ef28c97fa1da69078bfec688cd64",
   "status": "specified",

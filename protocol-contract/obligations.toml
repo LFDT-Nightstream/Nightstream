@@ -39,14 +39,14 @@ kind = "source"
 applicability = "required"
 evidence_state = "complete"
 dependency_state = "waiting"
-blocker_state = "clear"
+blocker_state = "blocked"
 closure_state = "open"
 display_status = "partial"
 freshness = "stale"
 depends_on = ["SRC-BASE-DERIVATION"]
 evidence = ["protocol-contract/base-paper-model.md", "protocol-contract/src/paper/00-preamble.md", "protocol-contract/src/paper/10-foundations.md", "protocol-contract/src/paper/20-reductions.md", "protocol-contract/src/paper/30-relations.md", "protocol-contract/src/paper/40-folding.md", "protocol-contract/src/paper/50-profile-conflicts.md", "protocol-contract/src/requirements/paper.jsonl", "protocol-contract/reviewed-errata.md", "protocol-contract/review.md"]
 blocker_ids = ["ISSUE-INDEPENDENT-SEMANTIC-REVIEW"]
-unresolved_blocker_ids = []
+unresolved_blocker_ids = ["ISSUE-INDEPENDENT-SEMANTIC-REVIEW"]
 
 [[obligation]]
 id = "DEC-DOMAINS"

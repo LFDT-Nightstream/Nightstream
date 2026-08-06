@@ -68,9 +68,12 @@ Source: PAPER-PICCS-001 and PAPER-PICCS-002.
 
 At the SumCheck point `r_new`, the prover MUST supply `y_(i,j)` for every
 source and matrix. The verifier MUST derive `F`, `N`, and `E` from those
-values and check the exact terminal equation `v=Q(r_new)`.
+values and check the exact terminal equation `v=Q(r_new)`. Every output
+component MUST use this one `r_new`, so the output relation is
+`BatchCE_(K_fresh+k)(b,L)`.
 
-Source: PAPER-PICCS-001, PAPER-PICCS-002, and PAPER-PICCS-005.
+Source: PAPER-PICCS-001, PAPER-PICCS-002, PAPER-PICCS-005, and
+ERR-SHARED-POINT.
 
 ### SN-PICCS-CHARACTERIZATION — Joint identity meaning
 
@@ -118,7 +121,9 @@ ERR-EXTRACT-RUNTIME.
 
 ### SN-PICCS-EXTRACTOR-TARGET — Ambient extraction relation
 
-The PiCCS extractor target MUST be `CE(B_amb,L)^(K_fresh+k)`. It MUST NOT
-assume the tight output relation `CE(b,L)^(K_fresh+k)`.
+The PiCCS extractor target MUST be
+`BatchCE_(K_fresh+k)(B_amb,L)`. It MUST NOT assume the tight output relation
+`BatchCE_(K_fresh+k)(b,L)`.
 
-Source: PAPER-PICCS-003, PAPER-PICCS-006, and ERR-AMBIENT.
+Source: PAPER-PICCS-003, PAPER-PICCS-006, ERR-AMBIENT, and
+ERR-SHARED-POINT.

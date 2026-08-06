@@ -323,6 +323,23 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
     let base_instance = fixed
         .build_instance(&fixed_prep, NebulaFPrimeBranch::Base, &field_assignment)
         .expect("base fixed instance");
+    let expected_adv = plan
+        .scheme()
+        .commit_bits(
+            &params.encode_ops_lane(trace.step_ops(0)).expect("ops lane"),
+            &params
+                .encode_scan_lane(&trace.is_cells[..params.b_scan])
+                .expect("initial-state lane"),
+            &params
+                .encode_scan_lane(&trace.fs_cells[..params.b_scan])
+                .expect("final-state lane"),
+        )
+        .expect("precommitted lanes");
+    assert_eq!(
+        base_instance.claim.adv,
+        Some(expected_adv),
+        "the remapped fixed assignment must preserve the precommitted S_mem lanes"
+    );
     let recursive_instance = fixed
         .build_instance(&fixed_prep, NebulaFPrimeBranch::Recursive, &field_assignment)
         .expect("recursive fixed instance");

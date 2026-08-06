@@ -228,7 +228,7 @@ impl NebulaFPrimeRelation {
                 (arms.recursive.n, arms.recursive.m),
             ];
             let shared_private_candidates = application.as_ref().map_or_else(
-                || vec![plan.circuit().cols() - plan.circuit().m_in()],
+                || vec![plan.circuit().cols() - plan.circuit().logical_public_input_len()],
                 |_| {
                     let mut candidates = arms.shared_private_candidates.clone();
                     candidates.push(arms.shared_private_fields);
@@ -307,12 +307,13 @@ impl NebulaFPrimeRelation {
         let verifier_relation = PiCcsVerifierRelation::from_structure(verifier_structure);
         let arms = shape::synthesize_arm_shapes(params, &verifier_relation, plan, None)?;
         let circuit = plan.circuit();
-        let shared_private_fields = circuit.cols() - circuit.m_in();
+        let logical_public_fields = circuit.logical_public_input_len();
+        let shared_private_fields = circuit.cols() - logical_public_fields;
         Ok(audit_multi_branch_selective_low_norm_width_with_alignment(
             &[arms.base, arms.bootstrap_recursive, arms.recursive],
             shared_private_fields,
             D,
-            circuit.m_in() % D,
+            logical_public_fields % D,
         )?)
     }
 
@@ -326,7 +327,7 @@ impl NebulaFPrimeRelation {
         plan: &NebulaPlan,
     ) -> Result<Self, NebulaFPrimeRelationError> {
         let arms = [base.clone(), bootstrap_recursive.clone(), recursive.clone()];
-        let shared_private_fields = plan.circuit().cols() - plan.circuit().m_in();
+        let shared_private_fields = plan.circuit().cols() - plan.circuit().logical_public_input_len();
         Self::compile_owned(arms, plan, None, vec![shared_private_fields], None)
     }
 
@@ -340,7 +341,7 @@ impl NebulaFPrimeRelation {
         max_coordinates: usize,
     ) -> Result<Self, NebulaFPrimeRelationError> {
         let arms = [base.clone(), bootstrap_recursive.clone(), recursive.clone()];
-        let shared_private_fields = plan.circuit().cols() - plan.circuit().m_in();
+        let shared_private_fields = plan.circuit().cols() - plan.circuit().logical_public_input_len();
         Self::compile_owned(arms, plan, None, vec![shared_private_fields], Some(max_coordinates))
     }
 
@@ -375,7 +376,8 @@ impl NebulaFPrimeRelation {
     ) -> Result<Self, NebulaFPrimeRelationError> {
         enforce_coordinate_limit(&shape, &candidate_widths, max_coordinates)?;
         let circuit = plan.circuit();
-        let shared_private_bit_fields = circuit.cols() - circuit.m_in();
+        let logical_public_fields = circuit.logical_public_input_len();
+        let shared_private_bit_fields = circuit.cols() - logical_public_fields;
         let arm_shapes: [NebulaFPrimeFieldArmShape; 3] = std::array::from_fn(|index| NebulaFPrimeFieldArmShape {
             rows: arms[index].n,
             columns: arms[index].m,
@@ -388,7 +390,7 @@ impl NebulaFPrimeRelation {
             shared_private_fields,
             shared_private_bit_fields,
             D,
-            circuit.m_in() % D,
+            logical_public_fields % D,
         )?;
         if relation_signature(relation.structure()) != shape_signature(&shape)
             || relation.selective_compiler_audit() != Some(&shape.compiler_audit)
@@ -620,7 +622,8 @@ fn select_low_norm_shape_summary(
     mut shared_private_candidates: Vec<usize>,
 ) -> Result<(usize, SelectiveLowNormShapeSummary, Vec<(usize, usize)>), NebulaFPrimeRelationError> {
     let circuit = plan.circuit();
-    let shared_private_bit_fields = circuit.cols() - circuit.m_in();
+    let logical_public_fields = circuit.logical_public_input_len();
+    let shared_private_bit_fields = circuit.cols() - logical_public_fields;
     shared_private_candidates.push(shared_private_bit_fields);
     shared_private_candidates.sort_unstable();
     shared_private_candidates.dedup();
@@ -642,7 +645,7 @@ fn select_low_norm_shape_summary(
                         shared_private_fields,
                         shared_private_bit_fields,
                         D,
-                        circuit.m_in() % D,
+                        logical_public_fields % D,
                     )?;
                     #[cfg(feature = "perf-timers")]
                     eprintln!(
@@ -676,13 +679,14 @@ fn audit_selected_low_norm_shape(
     summary: &SelectiveLowNormShapeSummary,
 ) -> Result<SelectiveLowNormShape, NebulaFPrimeRelationError> {
     let circuit = plan.circuit();
-    let shared_private_bit_fields = circuit.cols() - circuit.m_in();
+    let logical_public_fields = circuit.logical_public_input_len();
+    let shared_private_bit_fields = circuit.cols() - logical_public_fields;
     let shape = audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix(
         arms,
         shared_private_fields,
         shared_private_bit_fields,
         D,
-        circuit.m_in() % D,
+        logical_public_fields % D,
     )?;
     if !summary.matches(&shape) {
         return Err(NebulaFPrimeRelationError::Geometry(
@@ -745,7 +749,10 @@ fn remap_lane_range(
     let mut fixed_start = None;
     let mut expected = 0usize;
     for source_col in source_start..source_end {
-        let private_offset = source_col - circuit.m_in();
+        // Normalization moves only the logical public fields to the public
+        // prefix. The zero fields that complete that prefix to one ring
+        // column stay at the start of private advice, before these lanes.
+        let private_offset = source_col - circuit.logical_public_input_len();
         let slots: Vec<(usize, usize)> = arms
             .iter()
             .enumerate()

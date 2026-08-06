@@ -4,7 +4,7 @@
 //! transcript execution, polynomial evaluation, SumCheck, or proof assembly.
 
 use neo_ccs::CcsStructure;
-use neo_math::{D, F, K};
+use neo_math::{F, K};
 use neo_params::NeoParams;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
@@ -133,35 +133,14 @@ pub fn build_joint_dims_for_shape(
         .ok_or_else(|| PiCcsError::InvalidInput("PaddedRowIdentity norm degree overflows usize".into()))?;
     let degree = ccs_degree.max(norm_degree).max(2);
 
-    let source_count = fresh_count
-        .checked_add(running_count)
-        .ok_or_else(|| PiCcsError::InvalidInput("source count overflow".into()))?;
-    let norm_degree = fresh_count
-        .checked_add(source_count.saturating_sub(1))
-        .ok_or_else(|| PiCcsError::InvalidInput("norm gamma degree overflow".into()))?;
-    let carried_count = running_count
-        .checked_mul(matrix_count)
-        .and_then(|value| value.checked_mul(D))
-        .ok_or_else(|| PiCcsError::InvalidInput("carried coordinate count overflow".into()))?;
-    let carried_degree = if carried_count == 0 {
-        0
-    } else {
-        2usize
-            .checked_mul(fresh_count)
-            .and_then(|value| value.checked_add(running_count))
-            .and_then(|value| value.checked_add(carried_count - 1))
-            .ok_or_else(|| PiCcsError::InvalidInput("carried gamma degree overflow".into()))?
-    };
-    let mixing_degree = norm_degree.max(carried_degree);
-    let soundness_factor = mixing_degree
-        .checked_add(
-            variables
-                .checked_mul(degree)
-                .ok_or_else(|| PiCcsError::InvalidInput("SumCheck factor overflow".into()))?,
-        )
-        .ok_or_else(|| PiCcsError::InvalidInput("soundness factor overflow".into()))?;
     params
-        .extension_check_factor(soundness_factor as u128)
+        .padded_row_security_check_for_shape(
+            rows,
+            columns,
+            matrix_count_without_identity,
+            max_degree,
+            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )
         .map_err(|error| PiCcsError::ExtensionPolicyFailed(error.to_string()))?;
 
     Ok(JointDims {

@@ -1678,21 +1678,12 @@ impl SuperneoWeightedMatrixCache {
 pub struct SuperneoEvalCache {
     mats: Vec<SuperneoMatrixCache>,
     explicit_matrix_masks: Option<Vec<u16>>,
-    mat_digest: [F; 4],
 }
 
 impl SuperneoEvalCache {
     #[inline]
     pub fn matrix(&self, j: usize) -> Option<&SuperneoMatrixCache> {
         self.mats.get(j)
-    }
-
-    pub fn mat_digest(&self) -> [F; 4] {
-        self.mat_digest
-    }
-
-    pub(crate) fn set_mat_digest(&mut self, digest: [F; 4]) {
-        self.mat_digest = digest;
     }
 
     /// Per-matrix explicit bar caches, in CCS matrix order.

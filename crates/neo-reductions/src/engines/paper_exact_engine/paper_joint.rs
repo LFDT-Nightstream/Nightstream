@@ -69,35 +69,14 @@ where
     let degree = (structure.max_degree() as usize + 1)
         .max(2 * params.b as usize)
         .max(2);
-    let source_count = fresh_count
-        .checked_add(running_count)
-        .ok_or_else(|| PiCcsError::InvalidInput("PaperExact source count overflow".into()))?;
-    let norm_degree = fresh_count
-        .checked_add(source_count.saturating_sub(1))
-        .ok_or_else(|| PiCcsError::InvalidInput("PaperExact norm degree overflow".into()))?;
-    let carried_count = running_count
-        .checked_mul(matrix_count)
-        .and_then(|value| value.checked_mul(D))
-        .ok_or_else(|| PiCcsError::InvalidInput("PaperExact carried count overflow".into()))?;
-    let carried_degree = if carried_count == 0 {
-        0
-    } else {
-        2usize
-            .checked_mul(fresh_count)
-            .and_then(|value| value.checked_add(running_count))
-            .and_then(|value| value.checked_add(carried_count - 1))
-            .ok_or_else(|| PiCcsError::InvalidInput("PaperExact carried degree overflow".into()))?
-    };
-    let soundness_factor = norm_degree
-        .max(carried_degree)
-        .checked_add(
-            variables
-                .checked_mul(degree)
-                .ok_or_else(|| PiCcsError::InvalidInput("PaperExact SumCheck factor overflow".into()))?,
-        )
-        .ok_or_else(|| PiCcsError::InvalidInput("PaperExact soundness factor overflow".into()))?;
     params
-        .extension_check_factor(soundness_factor as u128)
+        .padded_row_security_check_for_shape(
+            structure.n,
+            structure.m,
+            structure.t(),
+            structure.max_degree(),
+            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+        )
         .map_err(|error| PiCcsError::ExtensionPolicyFailed(error.to_string()))?;
 
     Ok(JointDims {

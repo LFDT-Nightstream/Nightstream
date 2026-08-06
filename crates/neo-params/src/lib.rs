@@ -3,8 +3,8 @@
 //! Exposes field/cyclotomic/commitment/folding parameters and enforces:
 //!  1) (k+1)·T·(b−1) < B where B=b^k  [Π_RLC bound]
 //!  2) extension policy v1 for field-space soundness factors; and
-//!  3) the production rectangular Π_CCS statistical census, which combines
-//!     both SumChecks, the rectangular mixing polynomial, and the corrected
+//!  3) the production padded-row Π_CCS statistical census, which combines
+//!     the joint SumCheck, the paper mixing polynomial, and the corrected
 //!     coordinate-fork loss.
 //!
 //! Symbols match the paper: q, η, d=φ(η), κ (kappa), m, b, k, B, T, s.
@@ -38,7 +38,8 @@ pub struct NeoParams {
     pub d: u32,
     /// MSIS module rank κ used in Ajtai Setup(M ∈ R_q^{κ×m}).
     pub kappa: u32,
-    /// Number of columns (message length) m committed with Ajtai.
+    /// Maximum padded row-domain length `m` from the paper profile.
+    /// The corresponding Ajtai ring-message length is `floor(m / d)`.
     pub m: u64,
     /// Decomposition base b (usually 2).
     pub b: u32,
@@ -54,7 +55,7 @@ pub struct NeoParams {
     /// Statistical target λ bound into the protocol header.
     ///
     /// The Appendix B.2 reference value is not, by itself, an end-to-end
-    /// security claim. Executable rectangular profiles select this value from
+    /// security claim. Executable padded-row profiles select this value from
     /// the combined field and coordinate-fork census for their concrete shape.
     pub lambda: u32,
 }
@@ -129,7 +130,7 @@ pub enum ParamsError {
     #[error("arithmetic overflow while computing {0}")]
     ArithmeticOverflow(&'static str),
     #[error(
-        "rectangular statistical security target is {required} bits, but the combined field and coordinate-fork census provides only {available} bits"
+        "padded-row statistical security target is {required} bits, but the combined field and coordinate-fork census provides only {available} bits"
     )]
     InsufficientStatisticalSecurity { required: u32, available: u32 },
 }
@@ -562,6 +563,17 @@ impl NeoParams {
         let ring_degree = self.d as usize;
         if ring_degree == 0 {
             return Err(ParamsError::Invalid("ring degree must be > 0"));
+        }
+        let row_bound =
+            usize::try_from(self.m).map_err(|_| ParamsError::ArithmeticOverflow("parameter row-domain bound"))?;
+        if row_count > row_bound {
+            return Err(ParamsError::Invalid("row_count exceeds parameter row-domain bound"));
+        }
+        let assignment_bound = row_bound / ring_degree * ring_degree;
+        if column_count > assignment_bound {
+            return Err(ParamsError::Invalid(
+                "column_count exceeds parameter packed-assignment bound",
+            ));
         }
         let carrier_width = column_count
             .checked_add(ring_degree - 1)

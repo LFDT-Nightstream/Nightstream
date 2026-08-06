@@ -30,6 +30,15 @@ fn balanced_digit_and_next(a: i64, b_i64: i64) -> (i64, i64) {
     (digit, next)
 }
 
+#[inline]
+fn field_from_signed(value: i64) -> Fq {
+    if value >= 0 {
+        Fq::from_u64(value as u64)
+    } else {
+        Fq::ZERO - Fq::from_u64(value.unsigned_abs())
+    }
+}
+
 /// decomp_b: vector z ∈ F_q^m → Z ∈ F_q^{d×m} with ||Z||_∞ < b (Def. 11).
 #[allow(non_snake_case)]
 pub fn decomp_b(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec<Fq> {
@@ -89,12 +98,7 @@ pub fn decomp_b(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec<Fq> {
                     // Constant-time: always compute digit even if a == 0 to prevent timing side-channel
                     let r = a.rem_euclid(b_i64);
                     let q = a.div_euclid(b_i64);
-                    let digit = r as i32;
-                    Z.push(if digit >= 0 {
-                        Fq::from_u64(digit as u64)
-                    } else {
-                        Fq::ZERO - Fq::from_u64((-digit) as u64)
-                    });
+                    Z.push(field_from_signed(r));
                     a = q; // if a was 0 this just propagates zeros
                 }
                 // remaining digits already zero
@@ -106,12 +110,7 @@ pub fn decomp_b(z: &[Fq], b: u32, d: usize, style: DecompStyle) -> Vec<Fq> {
                 for _ in 0..d {
                     // Constant-time: always compute digit even if a == 0 to prevent timing side-channel
                     let (digit_i64, next_a) = balanced_digit_and_next(a, b_i64);
-                    let digit = digit_i64 as i32;
-                    Z.push(if digit >= 0 {
-                        Fq::from_u64(digit as u64)
-                    } else {
-                        Fq::ZERO - Fq::from_u64((-digit) as u64)
-                    });
+                    Z.push(field_from_signed(digit_i64));
                     a = next_a; // if a was 0 this just propagates zeros
                 }
                 // remaining digits already zero
@@ -284,12 +283,7 @@ pub fn decomp_b_row_major_into(z: &[Fq], b: u32, d: usize, style: DecompStyle, o
                     }
                     let r = a.rem_euclid(b_i64);
                     let q = a.div_euclid(b_i64);
-                    let digit = r as i32;
-                    out.push(if digit >= 0 {
-                        Fq::from_u64(digit as u64)
-                    } else {
-                        Fq::ZERO - Fq::from_u64((-digit) as u64)
-                    });
+                    out.push(field_from_signed(r));
                     *a = q;
                     any_next_nonzero |= *a != 0;
                 }
@@ -311,12 +305,7 @@ pub fn decomp_b_row_major_into(z: &[Fq], b: u32, d: usize, style: DecompStyle, o
                         continue;
                     }
                     let (digit_i64, next_a) = balanced_digit_and_next(*a, b_i64);
-                    let digit = digit_i64 as i32;
-                    out.push(if digit >= 0 {
-                        Fq::from_u64(digit as u64)
-                    } else {
-                        Fq::ZERO - Fq::from_u64((-digit) as u64)
-                    });
+                    out.push(field_from_signed(digit_i64));
                     *a = next_a;
                     any_next_nonzero |= *a != 0;
                 }
@@ -348,12 +337,7 @@ pub fn split_b(Z: &[Fq], b: u32, d: usize, m: usize, k: usize, style: DecompStyl
                         // Constant-time: always compute digit even if a == 0 to prevent timing side-channel
                         let r = a.rem_euclid(b_i64);
                         let q = a.div_euclid(b_i64);
-                        let digit = r as i32;
-                        out[i][idx] = if digit >= 0 {
-                            Fq::from_u64(digit as u64)
-                        } else {
-                            Fq::ZERO - Fq::from_u64((-digit) as u64)
-                        };
+                        out[i][idx] = field_from_signed(r);
                         a = q; // if a was 0 this just propagates zeros
                     }
                 }
@@ -375,12 +359,7 @@ pub fn split_b(Z: &[Fq], b: u32, d: usize, m: usize, k: usize, style: DecompStyl
                         if r < -half {
                             r += b_i64;
                         }
-                        let digit = r as i32;
-                        out[i][idx] = if digit >= 0 {
-                            Fq::from_u64(digit as u64)
-                        } else {
-                            Fq::ZERO - Fq::from_u64((-digit) as u64)
-                        };
+                        out[i][idx] = field_from_signed(r);
                         a = (a - r) / b_i64; // if a was 0 this just propagates zeros
                     }
                 }

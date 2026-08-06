@@ -64,3 +64,15 @@ fn poseidon2_packed_bytes_length_encoding() {
         "packed_bytes should distinguish [1,2] from [1,2,0] via length encoding"
     );
 }
+
+#[test]
+fn poseidon2_packed_bytes_is_injective_before_hashing() {
+    let zero = [0u8; 8];
+    let modulus = 0xffff_ffff_0000_0001u64.to_le_bytes();
+
+    assert_ne!(
+        poseidon2_hash_packed_bytes(&zero),
+        poseidon2_hash_packed_bytes(&modulus),
+        "byte packing must not reduce a full u64 modulo the Goldilocks modulus"
+    );
+}

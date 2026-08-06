@@ -643,3 +643,16 @@ fn compact_seeded_initial_rotations_reconstruct_forward_product() {
     }
     assert_eq!(reconstructed, expected);
 }
+
+#[test]
+fn matrix_storage_forms_round_trip_through_serde() {
+    let dense = Mat::from_row_major(2, 2, vec![F::ZERO, F::ONE, F::from_u64(2), F::from_u64(3)]);
+    let constant = Mat::virtual_constant(2, 3, F::from_u64(7));
+    let packed = Mat::compact_signed_unit(2, 2, vec![F::ZERO, F::ONE, F::ZERO - F::ONE, F::ZERO]);
+
+    for matrix in [&dense, &constant, &packed] {
+        let encoded = serde_json::to_vec(matrix).expect("serialize matrix");
+        let decoded: Mat<F> = serde_json::from_slice(&encoded).expect("deserialize canonical matrix");
+        assert_eq!(&decoded, matrix);
+    }
+}

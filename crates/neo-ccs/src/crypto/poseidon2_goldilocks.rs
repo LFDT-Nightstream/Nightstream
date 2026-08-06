@@ -151,26 +151,27 @@ pub fn poseidon2_hash_bytes(input: &[u8]) -> [Goldilocks; DIGEST_LEN] {
     poseidon2_hash(&felts)
 }
 
-/// Hash bytes with efficient packing (8 bytes per field element).
+/// Hash bytes with injective packing (7 bytes per field element).
 ///
-/// Packs input bytes into u64 field elements (8 bytes per element).
+/// Packs input bytes into field elements below `2^56`, which is smaller than
+/// the Goldilocks modulus. This prevents different byte strings from becoming
+/// the same field sequence during reduction.
 /// Appends length as final element for unambiguous padding.
 ///
 /// # Performance
-/// - 8× more efficient than `poseidon2_hash_bytes`
+/// - Up to 7× more efficient than `poseidon2_hash_bytes`
 /// - Preferred for hashing arbitrary byte strings
 ///
 /// # Security
 /// - Length encoding prevents length-extension attacks
 /// - Little-endian packing is canonical and deterministic
 pub fn poseidon2_hash_packed_bytes(input: &[u8]) -> [Goldilocks; DIGEST_LEN] {
-    use core::mem::size_of;
-    const LIMB: usize = size_of::<u64>();
+    const LIMB: usize = 7;
     let mut felts = Vec::with_capacity(input.len().div_ceil(LIMB) + 1);
 
-    // Pack 8 bytes per field element (little-endian)
+    // A 7-byte limb is always smaller than the Goldilocks modulus.
     for chunk in input.chunks(LIMB) {
-        let mut buf = [0u8; LIMB];
+        let mut buf = [0u8; 8];
         buf[..chunk.len()].copy_from_slice(chunk);
         felts.push(Goldilocks::from_u64(u64::from_le_bytes(buf)));
     }

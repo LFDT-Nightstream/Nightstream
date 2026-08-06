@@ -141,8 +141,13 @@ fn add_commitments(a: &Commitment, b: &Commitment) -> Commitment {
 fn mix_commitments_from_rhos(rhos: &[Mat<F>], commits: &[Commitment]) -> Commitment {
     let mut acc = Commitment::zeros(commits[0].d, commits[0].kappa);
     for (rho, c) in rhos.iter().zip(commits.iter()) {
-        let term = scale_commitment(c, rho[(0, 0)]);
-        acc = add_commitments(&acc, &term);
+        for lane in 0..c.kappa {
+            for row in 0..D {
+                for coefficient in 0..D {
+                    acc.data[lane * D + row] += rho[(row, coefficient)] * c.data[lane * D + coefficient];
+                }
+            }
+        }
     }
     acc
 }
@@ -159,17 +164,21 @@ fn combine_commitments_b_pows(commits: &[Commitment], b: u32) -> Commitment {
     acc
 }
 
-fn diag_rho(scale: u64) -> Mat<F> {
-    let mut rho = Mat::zero(D, D, F::ZERO);
-    let s = F::from_u64(scale);
-    for i in 0..D {
-        rho[(i, i)] = s;
-    }
-    rho
-}
-
 fn typed_rhos(params: &NeoParams, rhos: &[Mat<F>]) -> Vec<neo_reductions::api::RotRho> {
     neo_reductions::api::rot_rhos_from_mats(params, rhos, "rlc_dec_k_gt1:test rhos").expect("typed rhos")
+}
+
+fn sampled_rhos(params: &NeoParams, count: usize, alternate: bool) -> (Vec<neo_reductions::api::RotRho>, Vec<Mat<F>>) {
+    let domain: &'static [u8] = if alternate {
+        b"rlc_dec_k_gt1/alternate"
+    } else {
+        b"rlc_dec_k_gt1/primary"
+    };
+    let mut transcript = Poseidon2Transcript::new(domain);
+    let typed = sample_rot_rhos_n_typed(&mut transcript, params, &RotRing::goldilocks(), count)
+        .expect("sample selected strong-set rhos");
+    let matrices = rot_rhos_to_mats(&typed);
+    (typed, matrices)
 }
 
 fn combine_z_with_rhos(rhos: &[Mat<F>], Zs: &[Mat<F>]) -> Mat<F> {
@@ -236,8 +245,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
         Zs.push(Z);
     }
 
-    let rhos = vec![diag_rho(1), diag_rho(2), diag_rho(3), diag_rho(4)];
-    let rhos_typed = typed_rhos(&params, &rhos);
+    let (rhos_typed, rhos) = sampled_rhos(&params, Zs.len(), false);
 
     let (parent, Z_mix) = rlc_with_commit(
         FoldingMode::Optimized,
@@ -289,9 +297,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     let want_Z_mix = combine_z_with_rhos(&rhos, &Zs);
     assert_eq!(Z_mix, want_Z_mix, "Z_mix must equal Σ ρ_i · Z_i");
 
-    let mut rhos_tampered = rhos.clone();
-    rhos_tampered[0] = diag_rho(9);
-    let rhos_tampered_typed = typed_rhos(&params, &rhos_tampered);
+    let (rhos_tampered_typed, _) = sampled_rhos(&params, Zs.len(), true);
     let parent_tampered = rlc_public(
         &s,
         &params,
@@ -492,8 +498,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         Zs.push(Z);
     }
 
-    let rhos = vec![diag_rho(1), diag_rho(3), diag_rho(4), diag_rho(7)];
-    let rhos_typed = typed_rhos(&params, &rhos);
+    let (rhos_typed, _) = sampled_rhos(&params, Zs.len(), false);
     let (parent, _) = rlc_with_commit(
         FoldingMode::Optimized,
         &s,
@@ -562,7 +567,7 @@ fn rlc_public_verified_inputs_fast_path_matches_full_public_check() {
         "same-shape stale combined.ct must fail the public RLC check"
     );
 
-    let rhos_tampered = typed_rhos(&params, &[diag_rho(9), diag_rho(3), diag_rho(4), diag_rho(7)]);
+    let (rhos_tampered, _) = sampled_rhos(&params, Zs.len(), true);
     let (full_bad, _) = rlc_public_matches_with_perf(
         &s,
         &params,
@@ -614,8 +619,7 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
         Zs.push(Z);
     }
 
-    let rhos = vec![diag_rho(1), diag_rho(2), diag_rho(3), diag_rho(5)];
-    let rhos_typed = typed_rhos(&params, &rhos);
+    let (rhos_typed, _) = sampled_rhos(&params, Zs.len(), false);
 
     let (opt_parent, opt_Z_mix) = rlc_with_commit(
         FoldingMode::Optimized,
@@ -845,7 +849,6 @@ fn rlc_with_commit_k61_boundary_smoke() {
     let k_inputs = 61usize;
     let mut Zs = Vec::with_capacity(k_inputs);
     let mut me_inputs = Vec::with_capacity(k_inputs);
-    let mut rhos = Vec::with_capacity(k_inputs);
 
     for i in 0..k_inputs {
         let Z = make_z(1000 + i as u64 * 19, s.m);
@@ -861,9 +864,8 @@ fn rlc_with_commit_k61_boundary_smoke() {
             40_000 + i as u64 * 2,
         ));
         Zs.push(Z);
-        rhos.push(diag_rho(1 + (i as u64 % 7)));
     }
-    let rhos_typed = typed_rhos(&params, &rhos);
+    let (rhos_typed, _) = sampled_rhos(&params, k_inputs, false);
 
     let (parent, _Z_mix) = rlc_with_commit(
         FoldingMode::Optimized,

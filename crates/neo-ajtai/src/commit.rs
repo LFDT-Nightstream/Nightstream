@@ -332,6 +332,11 @@ pub fn setup<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m: usi
             "d parameter must match ring dimension D".to_string(),
         ));
     }
+    if kappa == 0 || m == 0 {
+        return Err(AjtaiError::InvalidDimensions(
+            "kappa and m must both be nonzero".to_string(),
+        ));
+    }
     let mut rows = Vec::with_capacity(kappa);
     for _ in 0..kappa {
         let mut row = Vec::with_capacity(m);
@@ -363,14 +368,10 @@ pub fn setup_par<R: RngCore + CryptoRng>(rng: &mut R, d: usize, kappa: usize, m:
             "d parameter must match ring dimension D".to_string(),
         ));
     }
-
-    if m == 0 {
-        return Ok(PP {
-            kappa,
-            m,
-            d,
-            m_rows: vec![Vec::new(); kappa],
-        });
+    if kappa == 0 || m == 0 {
+        return Err(AjtaiError::InvalidDimensions(
+            "kappa and m must both be nonzero".to_string(),
+        ));
     }
 
     let mut row_seeds = vec![[0u8; 32]; kappa];
@@ -1406,7 +1407,7 @@ pub fn commit_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> Commitment {
 #[must_use = "Ajtai verification must be checked; ignoring this result is a security bug"]
 #[allow(non_snake_case)]
 pub fn verify_open(pp: &PP<RqEl>, c: &Commitment, Z: &[Fq]) -> bool {
-    &commit(pp, Z) == c
+    try_commit(pp, Z).is_ok_and(|opened| &opened == c)
 }
 
 /// MUST: Verify split opening: c == Σ b^{i-1} c_i and Z == Σ b^{i-1} Z_i, with ||Z_i||_∞<b (range assertions done by caller).
@@ -1414,12 +1415,15 @@ pub fn verify_open(pp: &PP<RqEl>, c: &Commitment, Z: &[Fq]) -> bool {
 #[allow(non_snake_case)]
 pub fn verify_split_open(pp: &PP<RqEl>, c: &Commitment, b: u32, c_is: &[Commitment], Z_is: &[Vec<Fq>]) -> bool {
     let k = c_is.len();
-    if k != Z_is.len() {
+    let Some(commitment_len) = pp.d.checked_mul(pp.kappa) else {
+        return false;
+    };
+    if k == 0 || k != Z_is.len() || b < 2 || c.d != pp.d || c.kappa != pp.kappa || c.data.len() != commitment_len {
         return false;
     }
     // Check shapes
-    for ci in c_is {
-        if ci.d != c.d || ci.kappa != c.kappa {
+    for (ci, zi) in c_is.iter().zip(Z_is) {
+        if ci.d != c.d || ci.kappa != c.kappa || !verify_open(pp, ci, zi) {
             return false;
         }
     }
@@ -1542,7 +1546,21 @@ pub fn s_lincomb(rhos: &[RqEl], cs: &[Commitment]) -> AjtaiResult<Commitment> {
         return Err(AjtaiError::EmptyInput);
     }
 
-    let mut acc = Commitment::zeros(cs[0].d, cs[0].kappa);
+    let expected_d = cs[0].d;
+    let expected_kappa = cs[0].kappa;
+    let expected_len = expected_d
+        .checked_mul(expected_kappa)
+        .ok_or_else(|| AjtaiError::InvalidDimensions("commitment shape overflows usize".to_string()))?;
+    if cs
+        .iter()
+        .any(|c| c.d != expected_d || c.kappa != expected_kappa || c.data.len() != expected_len)
+    {
+        return Err(AjtaiError::InvalidDimensions(
+            "all commitments must have the same canonical shape".to_string(),
+        ));
+    }
+
+    let mut acc = Commitment::zeros(expected_d, expected_kappa);
     for (rho, c) in rhos.iter().zip(cs) {
         s_mul_add(&mut acc, rho, c);
     }

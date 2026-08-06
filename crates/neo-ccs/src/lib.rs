@@ -40,12 +40,10 @@ pub use r1cs::{r1cs_to_ccs, sparse_r1cs_to_ccs, sparse_selected_r1cs_to_ccs};
 pub use seeded_phi81::{SeededPhi81Error, SeededPhi81LinearBlock};
 pub use sparse::{CcsMatrix, CscMat, SparseCache};
 
-// Cancellation-resistant direct sum (recommended for production)
-pub use utils::direct_sum_transcript_mixed;
 // Main CCS types and functions (audit-ready)
 pub use relations::{
-    build_superneo_ring_forms, check_ccs_claim_opening, check_ccs_rowwise_relaxed, check_ccs_rowwise_zero,
-    check_ce_consistency, CcsClaim, CcsStructure, CcsWitness, CeClaim, CeWitness, LaneCommitments,
+    build_superneo_ring_forms, check_ccs_claim_opening, check_ccs_rowwise_relaxed, check_ccs_rowwise_zero, CcsClaim,
+    CcsStructure, CcsWitness, CeClaim, CeWitness, LaneCommitments,
 };
 pub use traits::SModuleHomomorphism;
-pub use utils::{direct_sum, direct_sum_mixed, mat_vec_mul_ff, mat_vec_mul_fk, tensor_point, validate_power_of_two};
+pub use utils::{mat_vec_mul_ff, mat_vec_mul_fk, tensor_point, validate_power_of_two};

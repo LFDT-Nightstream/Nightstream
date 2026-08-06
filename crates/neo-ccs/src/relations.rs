@@ -1,8 +1,5 @@
 use p3_field::{Field, PrimeCharacteristicRing};
 
-use neo_math::{superneo_bar_block, KExtensions, Rq, D, F as GoldiF};
-use neo_params::NeoParams;
-
 use crate::{
     error::{CcsError, RelationError},
     matrix::Mat,
@@ -11,6 +8,7 @@ use crate::{
     traits::SModuleHomomorphism,
     utils::tensor_point,
 };
+use neo_math::{superneo_bar_block, KExtensions, Rq, D, F as GoldiF};
 
 /// CCS structure: matrices {M_j} and a sparse polynomial `f` in `t` variables.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -51,6 +49,7 @@ impl<F: Field> CcsStructure<F> {
                 t,
             });
         }
+        validate_polynomial(&f, t)?;
 
         let matrices = matrices
             .into_iter()
@@ -93,7 +92,27 @@ impl<F: Field> CcsStructure<F> {
                 t,
             });
         }
+        validate_polynomial(&f, t)?;
         Ok(Self { matrices, f, n, m })
+    }
+
+    /// Recheck all structure invariants at a public boundary.
+    pub fn validate(&self) -> Result<(), RelationError> {
+        if self.matrices.is_empty() || self.n == 0 || self.m == 0 {
+            return Err(RelationError::InvalidStructure);
+        }
+        for matrix in &self.matrices {
+            if matrix.rows() != self.n || matrix.cols() != self.m || !matrix.has_canonical_csc() {
+                return Err(RelationError::InvalidStructure);
+            }
+        }
+        if self.f.arity() != self.matrices.len() {
+            return Err(RelationError::PolyArity {
+                poly_arity: self.f.arity(),
+                t: self.matrices.len(),
+            });
+        }
+        validate_polynomial(&self.f, self.matrices.len())
     }
 
     /// Number of matrices (arity of `f`).
@@ -105,114 +124,27 @@ impl<F: Field> CcsStructure<F> {
     pub fn max_degree(&self) -> u32 {
         self.f.max_degree()
     }
+}
 
-    /// Ensure the first matrix is the identity I_n, as assumed by paper's NC semantics.
-    /// If not, insert I_n at index 0 and shift the polynomial arity/variables accordingly.
-    pub fn ensure_identity_first(&self) -> Result<Self, RelationError>
-    where
-        F: p3_field::PrimeCharacteristicRing + Copy + Eq + Clone,
-    {
-        // If not square, we cannot insert a true identity; leave structure unchanged.
-        if self.n != self.m {
-            return Ok(self.clone());
-        }
-        let is_id0 = self
-            .matrices
-            .first()
-            .map(|m0| m0.is_identity())
-            .unwrap_or(false);
-        if is_id0 {
-            return Ok(self.clone());
-        }
-        // Insert identity at position 0
-        let mut matrices = self.matrices.clone();
-        matrices.insert(0, CcsMatrix::Identity { n: self.n });
-        // Shift polynomial variables by inserting a dummy variable at the front
-        let f = self.f.insert_var_at_front();
-        Ok(CcsStructure {
-            matrices,
-            f,
-            n: self.n,
-            m: self.m,
-        })
-    }
-
-    /// Owned variant of `ensure_identity_first` that avoids cloning when `M₀` is already identity.
-    ///
-    /// This is useful in hot paths where callers already own a `CcsStructure` and only need to
-    /// normalize it (if necessary) for Ajtai/NC semantics.
-    pub fn ensure_identity_first_owned(mut self) -> Result<Self, RelationError>
-    where
-        F: p3_field::PrimeCharacteristicRing + Copy + Eq + Clone,
-    {
-        // If not square, we cannot insert a true identity; leave structure unchanged.
-        if self.n != self.m {
-            return Ok(self);
-        }
-        let is_id0 = self
-            .matrices
-            .first()
-            .map(|m0| m0.is_identity())
-            .unwrap_or(false);
-        if is_id0 {
-            return Ok(self);
-        }
-        self.matrices.insert(0, CcsMatrix::Identity { n: self.n });
-        self.f = self.f.insert_var_at_front();
-        Ok(self)
-    }
-
-    /// **STRICT** validation: Assert that M₀ = I_n for Ajtai/NC pipeline.
-    ///
-    /// The Ajtai norm constraint (NC) layer assumes the first matrix is the identity
-    /// for digit-range checks. If this invariant is violated, the sumcheck will fail
-    /// with a mysterious error later. This function fails fast with a clear error message.
-    ///
-    /// # Errors
-    /// - Returns error if n ≠ m (non-square CCS cannot have square identity)
-    /// - Returns error if matrices list is empty
-    /// - Returns error if M₀ is not the identity matrix I_n
-    ///
-    /// # Example
-    /// ```ignore
-    /// // Before using CCS in Ajtai/NC pipeline:
-    /// ccs.assert_m0_is_identity_for_nc()?;
-    /// ```
-    pub fn assert_m0_is_identity_for_nc(&self) -> Result<(), RelationError>
-    where
-        F: p3_field::PrimeCharacteristicRing + Copy + Eq,
-    {
-        // Check 1: Square CCS required for identity to even make sense
-        if self.n != self.m {
-            return Err(RelationError::Message(format!(
-                "Ajtai NC requires square CCS (n_constraints == n_vars), got {}×{}. \
-                 You may need to pad your R1CS to square dimensions.",
-                self.n, self.m
-            )));
-        }
-
-        // Check 2: Must have at least one matrix
-        if self.matrices.is_empty() {
+fn validate_polynomial<F>(polynomial: &SparsePoly<F>, arity: usize) -> Result<(), RelationError> {
+    for term in polynomial.terms() {
+        if term.exps.len() != arity {
             return Err(RelationError::Message(
-                "Ajtai NC expects at least one matrix (M₀) in CCS".into(),
+                "polynomial term exponent count does not match its arity".into(),
             ));
         }
-
-        // Check 3: M₀ must be the identity matrix
-        if !self.matrices[0].is_identity() {
+        if term
+            .exps
+            .iter()
+            .try_fold(0u32, |degree, exponent| degree.checked_add(*exponent))
+            .is_none()
+        {
             return Err(RelationError::Message(
-                "Ajtai NC requires M₀ = I_n (identity matrix). \
-                 Your CCS has a non-identity first matrix. \
-                 This usually happens with rectangular R1CS or when r1cs_to_ccs \
-                 doesn't produce identity-first form. \
-                 Try: (1) ensure n==m in R1CS, or (2) call ensure_identity_first() \
-                 before this check."
-                    .into(),
+                "polynomial term total degree exceeds u32".into(),
             ));
         }
-
-        Ok(())
     }
+    Ok(())
 }
 
 impl CcsStructure<neo_math::Fq> {
@@ -379,6 +311,10 @@ pub struct CcsClaim<C, F> {
 
 /// CCS witness: w and its decomposition Z = Decomp_b(z).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound(
+    serialize = "F: serde::Serialize",
+    deserialize = "F: serde::Deserialize<'de> + p3_field::PrimeCharacteristicRing + Clone + Eq"
+))]
 #[allow(non_snake_case)]
 pub struct CcsWitness<F> {
     /// Private witness w ∈ F^{m - m_in}.
@@ -421,6 +357,10 @@ impl<F: Copy> CcsWitness<F> {
 
 /// CE claim: (c, X, r, {y_ring_j}, ct, aux_openings).
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(bound(
+    serialize = "C: serde::Serialize, F: serde::Serialize, K: serde::Serialize",
+    deserialize = "C: serde::Deserialize<'de>, F: serde::Deserialize<'de> + p3_field::PrimeCharacteristicRing + Clone + Eq, K: serde::Deserialize<'de>"
+))]
 #[allow(non_snake_case)]
 pub struct CeClaim<C, F, K> {
     /// Commitment to Z.
@@ -454,6 +394,10 @@ pub struct CeClaim<C, F, K> {
 
 /// CE witness: Z.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound(
+    serialize = "F: serde::Serialize",
+    deserialize = "F: serde::Deserialize<'de> + p3_field::PrimeCharacteristicRing + Clone + Eq"
+))]
 #[allow(non_snake_case)]
 pub struct CeWitness<F> {
     /// Z ∈ F^{d×m}
@@ -492,34 +436,6 @@ fn validate_superneo_witness_mat_for_expected_m<F: Field>(z: &Mat<F>, expected_m
         expected: (D, want_cols),
         got: (z.rows(), z.cols()),
     })
-}
-
-#[inline]
-fn witness_get<F: Field + Copy>(z: &Mat<F>, rho: usize, col: usize) -> F {
-    let blk = col / D;
-    let off = col % D;
-    if off == rho {
-        z[(rho, blk)]
-    } else {
-        F::ZERO
-    }
-}
-
-fn project_x_from_superneo_witness<F: Field + Copy>(z: &Mat<F>, m_in: usize) -> Mat<F> {
-    let mut x = Mat::zero(D, m_in, F::ZERO);
-    let active_cols = core::cmp::min(m_in, z.cols());
-    for c in 0..active_cols {
-        for rho in 0..D {
-            x[(rho, c)] = z[(rho, c)];
-        }
-    }
-    x
-}
-
-#[inline]
-fn ct_from_y_digits_for_ccs_m<Kf: Field>(y_digits: &[Kf], expected_m: usize) -> Kf {
-    debug_assert!(expected_m > 0);
-    y_digits.first().copied().unwrap_or(Kf::ZERO)
 }
 
 fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: usize, col: usize) -> GoldiF {
@@ -654,146 +570,6 @@ where
     }
 
     Ok(z)
-}
-
-/// Check `X == L_x(Z)` and SuperNeo CE output consistency.
-pub fn check_ce_consistency<
-    F: Field + PrimeCharacteristicRing + Copy + Into<GoldiF>,
-    K: Field + From<F> + From<GoldiF> + KExtensions + Copy,
-    C,
-    L: SModuleHomomorphism<F, C>,
->(
-    _params: &NeoParams,
-    s: &CcsStructure<F>,
-    l: &L,
-    inst: &CeClaim<C, F, K>,
-    wit: &CeWitness<F>,
-) -> Result<(), CcsError>
-where
-    C: PartialEq,
-{
-    validate_superneo_witness_mat_for_expected_m(&wit.Z, s.m)?;
-
-    // X = L_x(Z)
-    let x_star = project_x_from_superneo_witness(&wit.Z, inst.m_in);
-    if x_star.as_slice() != inst.X.as_slice() {
-        return Err(CcsError::Relation("X != L_x(Z)".into()));
-    }
-    // c == L(Z) (always true in Π_CCS/Π_RLC composition; enforce here)
-    let c_star = l.commit(&wit.Z);
-    if c_star != inst.c {
-        return Err(CcsError::Relation("c != L(Z)".into()));
-    }
-
-    // y_j == \widehat{\bar{M}_j z}(r) in SuperNeo ring-coefficient form.
-    // Allow arbitrary n by deriving ℓ from the next power of two.
-    // χ_r is length 2^ℓ, and we consume only the first n entries.
-    let n_pad = s.n.max(wit.Z.cols() * D).next_power_of_two();
-    let ell = n_pad.trailing_zeros() as usize;
-    if inst.r.len() != ell {
-        return Err(CcsError::Len {
-            context: "r (extension point)",
-            expected: ell,
-            got: inst.r.len(),
-        });
-    }
-
-    let has_padded_identity = inst.y_ring.len() == s.t() + 1;
-    if !has_padded_identity && inst.y_ring.len() != s.t() {
-        return Err(CcsError::Len {
-            context: "|y_ring|",
-            expected: s.t() + 1,
-            got: inst.y_ring.len(),
-        });
-    }
-
-    // Ajtai padding length for digit rows (matches `1 << ell_d` used by Π_CCS dims).
-    let d_pad = D.next_power_of_two();
-
-    if has_padded_identity {
-        let row_weights = tensor_point::<K>(&inst.r);
-        let assignment_width = wit.Z.cols() * D;
-        let mut identity_value = vec![K::ZERO; D];
-        for (row, &weight) in row_weights.iter().take(assignment_width).enumerate() {
-            let block = row / D;
-            let mut basis = [GoldiF::ZERO; D];
-            basis[row % D] = GoldiF::ONE;
-            let transformed = Rq(superneo_bar_block(basis));
-            let assignment = Rq(std::array::from_fn(|lane| wit.Z[(lane, block)].into()));
-            let product = transformed.mul(&assignment);
-            for coefficient in 0..D {
-                identity_value[coefficient] += weight * K::from(product.0[coefficient]);
-            }
-        }
-        let supplied = &inst.y_ring[0];
-        if supplied.len() != D && supplied.len() != d_pad {
-            return Err(CcsError::Len {
-                context: "padded identity y_ring[0]",
-                expected: d_pad,
-                got: supplied.len(),
-            });
-        }
-        if identity_value.as_slice() != &supplied[..D] || supplied[D..].iter().any(|&value| value != K::ZERO) {
-            return Err(CcsError::Relation(
-                "y_ring[0] != transformed padded-identity evaluation".into(),
-            ));
-        }
-    }
-
-    let ring_forms = build_superneo_ring_forms(s, &inst.r)?;
-    for (j, forms) in ring_forms.iter().enumerate() {
-        let mut y_star = vec![K::ZERO; D];
-        for rho in 0..D {
-            let mut acc = K::ZERO;
-            for (c, coeffs) in forms.iter().enumerate() {
-                if c >= s.m {
-                    continue;
-                }
-                let z_c = K::from(witness_get(&wit.Z, c % D, c));
-                acc += coeffs[rho] * z_c;
-            }
-            y_star[rho] = acc;
-        }
-        let yj = &inst.y_ring[j + usize::from(has_padded_identity)];
-        let d = y_star.len();
-        if yj.len() < d {
-            return Err(CcsError::Len {
-                context: "y_ring[j] (digit row)",
-                expected: d,
-                got: yj.len(),
-            });
-        }
-        if yj.len() != d && yj.len() != d_pad {
-            return Err(CcsError::Len {
-                context: "y_ring[j] (digit row)",
-                expected: d_pad,
-                got: yj.len(),
-            });
-        }
-        if y_star.as_slice() != &yj[..d] {
-            return Err(CcsError::Relation("y_j != SuperNeo ring-form evaluation".into()));
-        }
-        if yj[d..].iter().any(|&x| x != K::ZERO) {
-            return Err(CcsError::Relation("y_j has non-zero SuperNeo padding tail".into()));
-        }
-    }
-
-    // Core CE invariant (SuperNeo-only): `ct[j] == y_ring[j][0]`.
-    if inst.ct.len() != inst.y_ring.len() {
-        return Err(CcsError::Len {
-            context: "ct (core entries)",
-            expected: inst.y_ring.len(),
-            got: inst.ct.len(),
-        });
-    }
-    for j in 0..inst.y_ring.len() {
-        let want = ct_from_y_digits_for_ccs_m(&inst.y_ring[j], s.m);
-        if inst.ct[j] != want {
-            return Err(CcsError::Relation("ct[j] != y_ring[j][0]".into()));
-        }
-    }
-
-    Ok(())
 }
 
 /// **MUST**: Verify CCS satisfiability `f(M z) = 0` **row-wise** with public inputs `x`.

@@ -245,6 +245,7 @@ pub fn crosscheck_verify_with_binding<I, R>(
                 outputs,
                 proof,
                 binding,
+                None,
             )
         },
         || {

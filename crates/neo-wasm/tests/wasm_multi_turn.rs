@@ -105,6 +105,7 @@ fn multi_turn_setup() -> MultiTurnSetup {
 
     let component_first = neo_wasm::traces_from_wasmtime_steps_with_grammar(
         &run.steps,
+        &run.program_tables,
         &HostEventGrammar::default(),
         &turn_claims(),
         Default::default(),
@@ -128,9 +129,14 @@ fn multi_turn_setup() -> MultiTurnSetup {
     let mut grammar = HostEventGrammar::default();
     grammar.exports.insert(add_fref, add_template());
 
-    let trace =
-        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turn_claims(), Default::default())
-            .expect("multi-turn grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &turn_claims(),
+        Default::default(),
+    )
+    .expect("multi-turn grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -153,13 +159,7 @@ fn expected_transcript(
     for (turn, &output) in turns.iter().zip(outputs) {
         blocks.extend(neo_wasm::event_grammar::expand_export_entry(template, &turn.entry).expect("entry"));
         blocks.extend(
-            neo_wasm::event_grammar::expand_export_exit(
-                template,
-                Some((output, 0)),
-                &turn.exit,
-                &turn.exit_memory_reads,
-            )
-            .expect("exit"),
+            neo_wasm::event_grammar::expand_export_exit(template, Some((output, 0)), &turn.exit, &[]).expect("exit"),
         );
     }
     blocks
@@ -485,8 +485,14 @@ fn resultless_turn_can_precede_another_turn() {
         },
         TurnClaims::default(),
     ];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
-        .expect("resultless-then-value trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &turns,
+        Default::default(),
+    )
+    .expect("resultless-then-value trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -544,8 +550,14 @@ fn resultless_turn_can_precede_another_turn() {
         slots(&[(0, SlotSource::OutputElem { limb: Limb::Lo })]),
     )];
     assert!(
-        neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &bad_grammar, &turns, Default::default())
-            .is_err(),
+        neo_wasm::traces_from_wasmtime_steps_with_grammar(
+            &run.steps,
+            &run.program_tables,
+            &bad_grammar,
+            &turns,
+            Default::default(),
+        )
+        .is_err(),
         "output-dependent exit events on a resultless turn must be rejected"
     );
 }

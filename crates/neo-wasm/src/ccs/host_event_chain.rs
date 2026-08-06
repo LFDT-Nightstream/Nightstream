@@ -646,6 +646,17 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             ],
             [],
         );
+        // Argument pointers are wasm32 values. Keep the authenticated high
+        // stack lane from being silently truncated by the address identity.
+        b.push_row(
+            [
+                (GK_MEMORY_READ, F::ONE),
+                (GK_MEMORY_WRITE, F::ONE),
+                (GMEM_LOCAL, -F::ONE),
+            ],
+            [(COL_STACK_READ0_VALUE_HI, F::ONE)],
+            [],
+        );
         // Local-base memory rows bind the pointer through the locals RAM.
         b.push_row(
             [(GMEM_LOCAL, F::ONE)],

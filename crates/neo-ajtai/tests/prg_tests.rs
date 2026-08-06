@@ -1,7 +1,7 @@
-use neo_ajtai::prg::expand_row_v2 as expand_row;
+use neo_ajtai::prg::expand_row;
 
 #[test]
-fn ajtai_prg_determinism_v2() {
+fn ajtai_prg_determinism() {
     let seed = [42u8; 32];
     let r0 = expand_row(&seed, 0, 10);
     let r0_b = expand_row(&seed, 0, 10);
@@ -17,7 +17,7 @@ fn ajtai_prg_determinism_v2() {
 }
 
 #[test]
-fn ajtai_prg_length_v2() {
+fn ajtai_prg_length() {
     let seed = [7u8; 32];
     for len in [1usize, 2, 3, 4, 5, 8, 9, 16, 17] {
         let row = expand_row(&seed, 123, len);

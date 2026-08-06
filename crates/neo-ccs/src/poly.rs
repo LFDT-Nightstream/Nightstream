@@ -29,7 +29,7 @@ impl<F> SparsePoly<F> {
     pub fn max_degree(&self) -> u32 {
         self.terms
             .iter()
-            .map(|term| term.exps.iter().sum::<u32>())
+            .map(|term| term.exps.iter().copied().fold(0u32, u32::saturating_add))
             .max()
             .unwrap_or(0)
     }

@@ -566,14 +566,15 @@ where
 }
 
 /// Typed Π_RLC challenge: a validated ring-scalar rotation matrix.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 pub struct RotRho(pub(crate) Mat<F>);
 
 impl RotRho {
-    /// Construct a typed rho after strict rotation-matrix validation.
+    /// Construct a typed rho after strict ring and strong-set validation.
     pub fn new_checked(params: &NeoParams, rho: Mat<F>) -> Result<Self, PiCcsError> {
         let phi = phi_coeffs_from_params(params)?;
         validate_rho_is_rotation_matrix(&rho, phi, "RotRho::new_checked")?;
+        validate_rho_is_in_selected_strong_set(params, &rho, "RotRho::new_checked")?;
         Ok(Self(rho))
     }
 
@@ -593,6 +594,16 @@ impl RotRho {
     }
 }
 
+impl<'de> serde::Deserialize<'de> for RotRho {
+    fn deserialize<DeserializerT>(deserializer: DeserializerT) -> Result<Self, DeserializerT::Error>
+    where
+        DeserializerT: serde::Deserializer<'de>,
+    {
+        let rho = <Mat<F> as serde::Deserialize>::deserialize(deserializer)?;
+        Self::new_checked(&NeoParams::goldilocks_paper_b2(), rho).map_err(serde::de::Error::custom)
+    }
+}
+
 impl AsRef<Mat<F>> for RotRho {
     #[inline]
     fn as_ref(&self) -> &Mat<F> {
@@ -602,8 +613,17 @@ impl AsRef<Mat<F>> for RotRho {
 
 /// Validate and convert raw rho matrices into typed rotation-matrix challenges.
 pub fn rot_rhos_from_mats(params: &NeoParams, rhos: &[Mat<F>], label: &str) -> Result<Vec<RotRho>, PiCcsError> {
-    validate_rhos_are_rotation_matrices(params, rhos, label)?;
-    Ok(rhos.iter().cloned().map(RotRho::new_unchecked).collect())
+    rhos.iter()
+        .cloned()
+        .enumerate()
+        .map(|(index, rho)| {
+            let phi = phi_coeffs_from_params(params)?;
+            let item_label = format!("{label}[{index}]");
+            validate_rho_is_rotation_matrix(&rho, phi, &item_label)?;
+            validate_rho_is_in_selected_strong_set(params, &rho, &item_label)?;
+            Ok(RotRho::new_unchecked(rho))
+        })
+        .collect()
 }
 
 /// Materialize typed rho challenges as raw matrices.
@@ -672,6 +692,45 @@ fn draw_alphabet_vector_pow2(tr: &mut Poseidon2Transcript, need: usize, alphabet
     out
 }
 
+fn validate_sampling_alphabet(alphabet: &[i8]) -> Result<(), PiCcsError> {
+    if alphabet.len() < 2 {
+        return Err(PiCcsError::InvalidInput(
+            "strong-set alphabet must contain at least two distinct values".into(),
+        ));
+    }
+    for (index, value) in alphabet.iter().enumerate() {
+        if alphabet[..index].contains(value) {
+            return Err(PiCcsError::InvalidInput(
+                "strong-set alphabet contains a duplicate value".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, label: &str) -> Result<(), PiCcsError> {
+    let alphabet = &goldilocks_paper_b2::CHALLENGE_ALPHABET;
+    let required_expansion = expansion_factor_T(alphabet);
+    if (params.T as u128) < required_expansion {
+        return Err(PiCcsError::InvalidInput(format!(
+            "{label}: params.T={} is smaller than the selected strong-set expansion bound {required_expansion}",
+            params.T
+        )));
+    }
+    for coefficient in 0..D {
+        let value = rho[(coefficient, 0)];
+        if !alphabet
+            .iter()
+            .any(|&candidate| value == f_from_i64(candidate as i64))
+        {
+            return Err(PiCcsError::InvalidInput(format!(
+                "{label}: first-column coefficient {coefficient} is outside the selected strong-set alphabet"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Sample `count` rotation matrices ρ_i = rot(a_i) for ΠRLC with a_i having small coefficients.
 ///
 /// This is the **paper-compliant** ΠRLC sampler (Section 4.5, Definition 14).
@@ -710,9 +769,7 @@ pub fn sample_rot_rhos_n(
             D
         )));
     }
-    if ring.alphabet.is_empty() {
-        return Err(PiCcsError::InvalidInput("alphabet is empty".into()));
-    }
+    validate_sampling_alphabet(ring.alphabet)?;
     if count == 0 {
         return Err(PiCcsError::InvalidInput("count must be > 0".into()));
     }
@@ -799,7 +856,9 @@ pub fn sample_rot_rhos_n_typed(
     count: usize,
 ) -> Result<Vec<RotRho>, PiCcsError> {
     let mats = sample_rot_rhos_n(tr, params, ring, count)?;
-    Ok(mats.into_iter().map(RotRho::new_unchecked).collect())
+    mats.into_iter()
+        .map(|rho| RotRho::new_checked(params, rho))
+        .collect()
 }
 
 /// Minimum `k_rho` satisfying the ΠRLC norm bound for a given batch count.

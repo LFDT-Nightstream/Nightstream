@@ -85,18 +85,18 @@ fn maximum_geometry_padded_row_census_matches_formula() {
     let summary = p
         .padded_row_security_check_for_shape(
             1 << 26,
-            1 << 30,
+            (goldilocks_paper_b2::M as usize / goldilocks_paper_b2::D) * goldilocks_paper_b2::D,
             3,
             2,
             goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
         )
         .expect("116-bit padded-row census");
 
-    assert_eq!(summary.cube_variables, 31);
+    assert_eq!(summary.cube_variables, 30);
     assert_eq!(summary.verifier_degree, 4);
-    assert_eq!(summary.sumcheck_factor, 124);
+    assert_eq!(summary.sumcheck_factor, 120);
     assert_eq!(summary.mixing_factor, 3159);
-    assert_eq!(summary.field_factor, 3283);
+    assert_eq!(summary.field_factor, 3279);
     assert_eq!(summary.fork_factor, 76);
     assert_eq!(
         summary.challenge_set_cardinality,

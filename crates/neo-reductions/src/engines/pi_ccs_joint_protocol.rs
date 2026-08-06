@@ -165,10 +165,23 @@ pub fn bind_and_sample_with_trace(
     fresh: &[CcsClaim<Cmt, F>],
     running: &[CeClaim<Cmt, F, K>],
     binding: TranscriptBinding,
+    expected_matrix_digest: Option<&[F; 4]>,
 ) -> Result<(JointDims, Challenges), PiCcsError> {
     let dims = build_joint_dims(params, structure, fresh.len(), running.len())?;
     validate_selected_inputs(structure, fresh, running, dims)?;
-    let matrix_digest = crate::engines::utils::digest_ccs_matrices(structure);
+    let matrix_digest: [F; 4] = crate::engines::utils::digest_ccs_matrices(structure)
+        .try_into()
+        .map_err(|digest: Vec<F>| {
+            PiCcsError::ProtocolError(format!(
+                "Pi_CCS expected four matrix-digest fields, got {}",
+                digest.len()
+            ))
+        })?;
+    if expected_matrix_digest.is_some_and(|expected| expected != &matrix_digest) {
+        return Err(PiCcsError::InvalidInput(
+            "optimized structure cache matrix digest does not match the selected CCS structure".into(),
+        ));
+    }
     let mut public = vec![
         F::from_u64(PUBLIC_INPUT_TAG),
         F::from_u64(PROTOCOL_VERSION),
@@ -480,10 +493,19 @@ pub fn verify_with_trace(
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
     binding: TranscriptBinding,
+    expected_matrix_digest: Option<&[F; 4]>,
 ) -> Result<(bool, ProtocolTrace), PiCcsError> {
     let mut trace = ProtocolTrace::default();
-    let (dims, challenges) =
-        bind_and_sample_with_trace(transcript, &mut trace, params, structure, fresh, running, binding)?;
+    let (dims, challenges) = bind_and_sample_with_trace(
+        transcript,
+        &mut trace,
+        params,
+        structure,
+        fresh,
+        running,
+        binding,
+        expected_matrix_digest,
+    )?;
     let prior_point = crate::engines::utils::shared_me_input_r(running, dims.variables)?;
     let initial =
         crate::engines::optimized_engine::paper_joint::initial_claim(structure, &challenges, fresh.len(), running)?;
@@ -518,7 +540,36 @@ pub fn verify_with_binding(
     proof: &PiCcsProof,
     binding: TranscriptBinding,
 ) -> Result<bool, PiCcsError> {
-    Ok(verify_with_trace(transcript, params, structure, fresh, running, outputs, proof, binding)?.0)
+    Ok(verify_with_trace(
+        transcript, params, structure, fresh, running, outputs, proof, binding, None,
+    )?
+    .0)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn verify_with_binding_and_matrix_digest(
+    transcript: &mut Poseidon2Transcript,
+    params: &NeoParams,
+    structure: &CcsStructure<F>,
+    fresh: &[CcsClaim<Cmt, F>],
+    running: &[CeClaim<Cmt, F, K>],
+    outputs: &[CeClaim<Cmt, F, K>],
+    proof: &PiCcsProof,
+    binding: TranscriptBinding,
+    expected_matrix_digest: &[F; 4],
+) -> Result<bool, PiCcsError> {
+    Ok(verify_with_trace(
+        transcript,
+        params,
+        structure,
+        fresh,
+        running,
+        outputs,
+        proof,
+        binding,
+        Some(expected_matrix_digest),
+    )?
+    .0)
 }
 
 pub fn verify(

@@ -66,8 +66,9 @@ pub fn optimized_verify_with_cache_and_perf(
     running_claims: &[CeClaim<Cmt, F, K>],
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
-    _cache: &OptimizedStructureCache,
+    cache: &OptimizedStructureCache,
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
+    cache.validate_shape(structure)?;
     verify_with_binding(
         transcript,
         params,
@@ -76,6 +77,7 @@ pub fn optimized_verify_with_cache_and_perf(
         running_claims,
         outputs,
         proof,
+        cache.pi_ccs_matrix_digest(),
         TranscriptBinding::claims(),
     )
 }
@@ -89,9 +91,10 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_perf(
     running_claims: &[CeClaim<Cmt, F, K>],
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
-    _cache: &OptimizedStructureCache,
+    cache: &OptimizedStructureCache,
     public_instance_digest: [F; 4],
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
+    cache.validate_shape(structure)?;
     verify_with_binding(
         transcript,
         params,
@@ -100,6 +103,7 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_perf(
         running_claims,
         outputs,
         proof,
+        cache.pi_ccs_matrix_digest(),
         TranscriptBinding::digest(public_instance_digest),
     )
 }
@@ -113,10 +117,11 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_p
     running_claims: &[CeClaim<Cmt, F, K>],
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
-    _cache: &OptimizedStructureCache,
+    cache: &OptimizedStructureCache,
     public_instance_digest: [F; 4],
     running_accumulator_handle: [F; 4],
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
+    cache.validate_shape(structure)?;
     verify_with_binding(
         transcript,
         params,
@@ -125,6 +130,7 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_p
         running_claims,
         outputs,
         proof,
+        cache.pi_ccs_matrix_digest(),
         TranscriptBinding::digest_and_handle(public_instance_digest, running_accumulator_handle),
     )
 }
@@ -138,10 +144,11 @@ fn verify_with_binding(
     running_claims: &[CeClaim<Cmt, F, K>],
     outputs: &[CeClaim<Cmt, F, K>],
     proof: &PiCcsProof,
+    expected_matrix_digest: &[F; 4],
     binding: TranscriptBinding,
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
     let started = std::time::Instant::now();
-    let valid = crate::engines::pi_ccs_joint_protocol::verify_with_binding(
+    let valid = crate::engines::pi_ccs_joint_protocol::verify_with_binding_and_matrix_digest(
         transcript,
         params,
         structure,
@@ -150,6 +157,7 @@ fn verify_with_binding(
         outputs,
         proof,
         binding,
+        expected_matrix_digest,
     )?;
     Ok((
         valid,

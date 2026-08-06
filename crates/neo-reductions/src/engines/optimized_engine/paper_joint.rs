@@ -435,6 +435,7 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     PiCcsError,
 > {
     let started = std::time::Instant::now();
+    cache.validate_shape(structure)?;
     if fresh_claims.len() != fresh_witnesses.len() || running_claims.len() != running_witnesses.len() {
         return Err(PiCcsError::InvalidInput(
             "optimized claim/witness count mismatch".into(),
@@ -460,6 +461,7 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         fresh_claims,
         running_claims,
         binding,
+        Some(cache.pi_ccs_matrix_digest()),
     )?;
     let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
     let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.variables)?;

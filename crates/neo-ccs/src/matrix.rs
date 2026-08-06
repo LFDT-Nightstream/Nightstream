@@ -68,7 +68,7 @@ impl<T> PackedSignedUnit<T> {
 }
 
 /// A dense row-major matrix over a field-like type `T`.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Mat<T> {
     rows: usize,
     cols: usize,
@@ -85,8 +85,140 @@ pub struct Mat<T> {
     ///
     /// This is intentionally skipped for serde and ignored for equality: it is an optimization only.
     /// Any mutable access clears the marker to preserve correctness.
-    #[serde(skip)]
     identity_hint: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct MatWire<T> {
+    rows: usize,
+    cols: usize,
+    data: Vec<T>,
+    constant_hint: Option<T>,
+    packed_signed_unit: Option<PackedSignedUnit<T>>,
+}
+
+impl<T: serde::Serialize> serde::Serialize for Mat<T> {
+    fn serialize<SerializerT>(&self, serializer: SerializerT) -> Result<SerializerT::Ok, SerializerT::Error>
+    where
+        SerializerT: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+
+        let mut wire = serializer.serialize_struct("Mat", 5)?;
+        wire.serialize_field("rows", &self.rows)?;
+        wire.serialize_field("cols", &self.cols)?;
+        wire.serialize_field("data", &self.data)?;
+        wire.serialize_field("constant_hint", &self.constant_hint)?;
+        wire.serialize_field("packed_signed_unit", &self.packed_signed_unit)?;
+        wire.end()
+    }
+}
+
+impl<'de, T> serde::Deserialize<'de> for Mat<T>
+where
+    T: serde::Deserialize<'de> + PrimeCharacteristicRing + Clone + Eq,
+{
+    fn deserialize<DeserializerT>(deserializer: DeserializerT) -> Result<Self, DeserializerT::Error>
+    where
+        DeserializerT: serde::Deserializer<'de>,
+    {
+        let wire = <MatWire<T> as serde::Deserialize>::deserialize(deserializer)?;
+        let element_count = wire
+            .rows
+            .checked_mul(wire.cols)
+            .ok_or_else(|| serde::de::Error::custom("matrix dimensions overflow usize"))?;
+
+        match (&wire.constant_hint, &wire.packed_signed_unit) {
+            (None, None) if wire.data.len() != element_count => {
+                return Err(serde::de::Error::custom(format!(
+                    "dense matrix has {} elements, expected {element_count}",
+                    wire.data.len()
+                )));
+            }
+            (Some(_), None) if !wire.data.is_empty() => {
+                return Err(serde::de::Error::custom(
+                    "constant matrix must not contain dense backing data",
+                ));
+            }
+            (None, Some(packed)) => {
+                if !wire.data.is_empty() {
+                    return Err(serde::de::Error::custom(
+                        "packed matrix must not contain dense backing data",
+                    ));
+                }
+                if packed.cols != wire.cols || packed.values != [T::ZERO, T::ONE, T::ZERO - T::ONE] {
+                    return Err(serde::de::Error::custom(
+                        "packed matrix metadata does not describe signed-unit values",
+                    ));
+                }
+                match &packed.bits {
+                    PackedSignedUnitBits::RowMajor { positive, negative } => {
+                        let words = element_count.div_ceil(u64::BITS as usize);
+                        if positive.len() != words || negative.len() != words {
+                            return Err(serde::de::Error::custom(
+                                "packed row-major mask length does not match the matrix",
+                            ));
+                        }
+                        if positive
+                            .iter()
+                            .zip(negative)
+                            .any(|(&pos, &neg)| pos & neg != 0)
+                        {
+                            return Err(serde::de::Error::custom("packed signed-unit masks overlap"));
+                        }
+                        if let Some((&positive_last, &negative_last)) = positive.last().zip(negative.last()) {
+                            let used = element_count % u64::BITS as usize;
+                            if used != 0 {
+                                let valid = (1u64 << used) - 1;
+                                if (positive_last | negative_last) & !valid != 0 {
+                                    return Err(serde::de::Error::custom(
+                                        "packed row-major mask sets an element outside the matrix",
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    PackedSignedUnitBits::ColumnMasks { positive, negative } => {
+                        if wire.rows > u64::BITS as usize || positive.len() != wire.cols || negative.len() != wire.cols
+                        {
+                            return Err(serde::de::Error::custom(
+                                "packed column-mask shape does not match the matrix",
+                            ));
+                        }
+                        let valid_rows = match wire.rows {
+                            0 => 0,
+                            64 => u64::MAX,
+                            rows => (1u64 << rows) - 1,
+                        };
+                        if positive
+                            .iter()
+                            .zip(negative)
+                            .any(|(&pos, &neg)| pos & neg != 0 || (pos | neg) & !valid_rows != 0)
+                        {
+                            return Err(serde::de::Error::custom(
+                                "packed column masks overlap or address a row outside the matrix",
+                            ));
+                        }
+                    }
+                }
+            }
+            (Some(_), Some(_)) => {
+                return Err(serde::de::Error::custom(
+                    "matrix cannot use constant and packed storage together",
+                ));
+            }
+            _ => {}
+        }
+
+        Ok(Self {
+            rows: wire.rows,
+            cols: wire.cols,
+            data: wire.data,
+            constant_hint: wire.constant_hint,
+            packed_signed_unit: wire.packed_signed_unit,
+            identity_hint: false,
+        })
+    }
 }
 
 impl<T: PartialEq> PartialEq for Mat<T> {
@@ -117,7 +249,10 @@ impl<T: Eq> Eq for Mat<T> {}
 impl<T: Clone> Mat<T> {
     /// Create a matrix from row-major data; panics if `data.len() != rows*cols`.
     pub fn from_row_major(rows: usize, cols: usize, data: Vec<T>) -> Self {
-        assert_eq!(rows * cols, data.len());
+        let element_count = rows
+            .checked_mul(cols)
+            .expect("matrix dimensions overflow usize");
+        assert_eq!(element_count, data.len());
         Self {
             rows,
             cols,
@@ -130,10 +265,13 @@ impl<T: Clone> Mat<T> {
 
     /// Zero-initialized matrix (caller provides zero element).
     pub fn zero(rows: usize, cols: usize, zero: T) -> Self {
+        let element_count = rows
+            .checked_mul(cols)
+            .expect("matrix dimensions overflow usize");
         Self {
             rows,
             cols,
-            data: vec![zero; rows * cols],
+            data: vec![zero; element_count],
             constant_hint: None,
             packed_signed_unit: None,
             identity_hint: false,
@@ -142,6 +280,8 @@ impl<T: Clone> Mat<T> {
 
     /// Constant-valued matrix with no dense allocation.
     pub fn virtual_constant(rows: usize, cols: usize, value: T) -> Self {
+        rows.checked_mul(cols)
+            .expect("matrix dimensions overflow usize");
         Self {
             rows,
             cols,
@@ -257,11 +397,17 @@ impl<T: Clone> Mat<T> {
         if k == 0 {
             return;
         }
+        let new_rows = self
+            .rows
+            .checked_add(k)
+            .expect("matrix row count overflow usize");
+        let new_len = new_rows
+            .checked_mul(self.cols)
+            .expect("matrix dimensions overflow usize");
         self.materialize_compact();
         self.identity_hint = false;
-        let extra = k * self.cols;
-        self.data.resize(self.data.len() + extra, zero);
-        self.rows += k;
+        self.data.resize(new_len, zero);
+        self.rows = new_rows;
     }
 
     /// Set a single entry at (row, col) to the provided value.
@@ -343,7 +489,10 @@ where
     /// Store an exact signed-unit matrix in two bits per entry. Values
     /// outside `{0, 1, -1}` keep the ordinary dense representation.
     pub fn compact_signed_unit(rows: usize, cols: usize, data: Vec<F>) -> Self {
-        assert_eq!(rows * cols, data.len());
+        let element_count = rows
+            .checked_mul(cols)
+            .expect("matrix dimensions overflow usize");
+        assert_eq!(element_count, data.len());
         let neg_one = F::ZERO - F::ONE;
         let words = data.len().div_ceil(u64::BITS as usize);
         let mut positive = vec![0u64; words];

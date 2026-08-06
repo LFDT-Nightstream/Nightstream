@@ -1,4 +1,4 @@
-//! Ajtai PP seeded row expansion (PRG) — v1
+//! Ajtai PP seeded row expansion.
 //!
 //! Deterministically expands a public seed into Ajtai rows using the unified
 //! Poseidon2(Goldilocks, w=16, r=8, cap=8) sponge. Host-only utility for now.
@@ -16,7 +16,7 @@ use p3_field::PrimeField64;
 ///
 /// It absorbs the row length, removing any ambiguity across circuits
 /// that might share the same seed and row indices but differ in row length.
-pub fn expand_row_v2(seed: &[u8; 32], row_idx: u64, len: usize) -> Vec<F> {
+pub fn expand_row(seed: &[u8; 32], row_idx: u64, len: usize) -> Vec<F> {
     let mut out = Vec::with_capacity(len);
     let mut ctr: u64 = 0;
     while out.len() < len {

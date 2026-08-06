@@ -63,8 +63,17 @@ pub fn set_global_pp(pp: PP<RqEl>) -> Result<(), AjtaiError> {
                 pp.d, pp.m
             )));
         }
-        // Idempotent: keep the existing PP to avoid accidentally changing commitments mid-process.
-        return Ok(());
+        let is_same = existing.kappa == pp.kappa
+            && existing.pp.as_ref().is_some_and(|current| {
+                current.d == pp.d && current.m == pp.m && current.kappa == pp.kappa && current.m_rows == pp.m_rows
+            });
+        if is_same {
+            return Ok(());
+        }
+        return Err(AjtaiError::InvalidInput(format!(
+            "a different Ajtai PP is already registered for (d,m)=({},{})",
+            pp.d, pp.m
+        )));
     }
     w.insert(
         key,

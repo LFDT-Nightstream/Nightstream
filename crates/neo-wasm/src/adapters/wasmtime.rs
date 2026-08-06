@@ -408,19 +408,6 @@ pub fn collect_wasmtime_component_run_with_linker_and_args<F>(
 where
     F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
 {
-    collect_wasmtime_component_run_calls(component_bytes, &[(export, args.to_vec())], configure_linker)
-}
-
-/// Invoke component exports in order on one store and collect their steps in
-/// one trace. Grammar-mode normalization inserts boundaries between calls.
-pub fn collect_wasmtime_component_run_calls<F>(
-    component_bytes: &[u8],
-    calls: &[(&str, Vec<ComponentVal>)],
-    configure_linker: F,
-) -> Result<WasmtimeTraceRun, WasmBuildError>
-where
-    F: FnOnce(&mut WasmtimeComponentLinker<WasmtimeTraceState>) -> Result<(), WasmBuildError>,
-{
     let parsed = parse_first_component_core_module_artifacts(component_bytes)?;
 
     let mut config = Config::new();
@@ -451,20 +438,16 @@ where
         .map_err(|err| WasmBuildError::Trace(format!("failed to instantiate Wasmtime component: {err}")))?;
     let func_ref_ids = build_single_trace_store_debug_function_id_map(&mut store)?;
     store.data_mut().set_func_ref_ids(func_ref_ids);
-    let mut all_results: Vec<ComponentVal> = Vec::new();
-    for (export, args) in calls {
-        let func = instance
-            .get_func(&mut store, export)
-            .ok_or_else(|| WasmBuildError::Trace(format!("component export '{export}' not found")))?;
-        let mut results: Vec<ComponentVal> = func
-            .ty(&store)
-            .results()
-            .map(default_component_result_value)
-            .collect::<Result<_, _>>()?;
-        block_on(func.call_async(&mut store, args, &mut results))
-            .map_err(|err| WasmBuildError::Trace(format!("failed to execute component export '{export}': {err}")))?;
-        all_results.extend(results);
-    }
+    let func = instance
+        .get_func(&mut store, export)
+        .ok_or_else(|| WasmBuildError::Trace(format!("component export '{export}' not found")))?;
+    let mut results: Vec<ComponentVal> = func
+        .ty(&store)
+        .results()
+        .map(default_component_result_value)
+        .collect::<Result<_, _>>()?;
+    block_on(func.call_async(&mut store, args, &mut results))
+        .map_err(|err| WasmBuildError::Trace(format!("failed to execute component export '{export}': {err}")))?;
 
     let steps = store.data().steps.clone();
     let initial_locals = steps
@@ -480,7 +463,7 @@ where
 
     Ok(WasmtimeTraceRun {
         program_tables: parsed.tables,
-        results: all_results
+        results: results
             .iter()
             .map(component_val_to_string)
             .collect::<Result<_, _>>()?,

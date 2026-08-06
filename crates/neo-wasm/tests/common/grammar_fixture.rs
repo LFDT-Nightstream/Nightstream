@@ -182,8 +182,14 @@ pub fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
         exit: vec![],
         ..Default::default()
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(&run.steps, &grammar, &turns, Default::default())
-        .expect("grammar trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &turns,
+        Default::default(),
+    )
+    .expect("grammar trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     GrammarLifecycleSetup {
         trace,

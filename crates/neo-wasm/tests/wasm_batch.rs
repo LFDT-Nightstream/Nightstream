@@ -9,7 +9,7 @@ use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csCompilerErro
 use neo_math::F;
 use neo_wasm::batch::{batch_count, build_batched_wasm_ccs, build_batched_witness};
 use neo_wasm::layout::{COL_LOCALS_FBP_AFTER, COL_PC_BEFORE, COL_SP_BEFORE};
-use neo_wasm::preprocess::preprocess_seeded_batched;
+use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched};
 use neo_wasm::{WasmVmSpec, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
@@ -98,6 +98,16 @@ fn initial_state_digest_covers_all_cross_step_inputs() {
         digest,
         neo_wasm::top_level_initial_state_digest(&checked.artifacts.tables, entry_pc)
     );
+}
+
+#[test]
+fn canonical_plan_semantically_binds_the_public_constant() {
+    let canonical = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(1, [0; 32]).expect("shape");
+    let state = canonical.plan.state_x_out.expect("state_x_out plan");
+
+    assert_eq!(state.app_public_input_var_indices, vec![0]);
+    assert!(state.semantic_state_in_var_indices.contains(&0));
+    assert!(state.semantic_state_out_var_indices.contains(&0));
 }
 
 #[test]

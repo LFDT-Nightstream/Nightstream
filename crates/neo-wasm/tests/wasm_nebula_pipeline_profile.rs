@@ -255,7 +255,7 @@ fn wasm_nebula_relation_structure_census() {
             stats.application_columns,
             stats.application_nnz,
         ),
-        (51_290, 23_496, 211_668),
+        (51_329, 23_505, 211_854),
         "application R1CS structure changed; review the structural census",
     );
     assert_eq!(
@@ -266,7 +266,7 @@ fn wasm_nebula_relation_structure_census() {
             stats.s_mem_private_bits,
             stats.s_mem_nnz,
         ),
-        (449_816, 446_229, 1_400, 444_829, 2_824_355),
+        (449_816, 446_229, 1_403, 444_826, 2_824_355),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
     assert!(

@@ -59,6 +59,12 @@ pub enum Error {
     EmptyStep,
     #[error("Construction 2: {counter} counter overflow")]
     CounterOverflow { counter: &'static str },
+    #[error("Construction 2: {counter} is not a canonical Goldilocks counter")]
+    NoncanonicalCounter { counter: &'static str },
+    #[error("Construction 2: {owner} digest lane {lane} is not a canonical Goldilocks encoding")]
+    NoncanonicalDigest { owner: &'static str, lane: usize },
+    #[error("Construction 2: input state disagrees with verifier-owned initial or accumulator state")]
+    StateAuthorityMismatch,
     #[error(
         "Construction 2: pc out of range (expected 1 \u{2264} pc \u{2264} \u{2113}; this build hardcodes \u{2113}=1)"
     )]
@@ -122,5 +128,6 @@ pub(crate) use finalization::{prove_final_fold, prove_final_fold_with_adapter, v
 pub(crate) use transition::{
     advance_state_recorded, advance_state_with_acc_digest, compute_x_out, compute_x_out_recorded, enforce_pc_in_range,
     f_prime_chunk_public_digest_for_step, f_prime_chunk_public_digest_from_claims, state_base_case_check,
+    validate_digest32, validate_state_authority,
 };
 pub use transition::{SemanticStateAdvance, SemanticStateMode};

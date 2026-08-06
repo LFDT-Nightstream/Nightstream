@@ -49,6 +49,21 @@ pub struct RlcCommitmentWires {
     pub kappa: usize,
 }
 
+fn commitment_data_len(kappa: usize) -> Result<usize, Error> {
+    if kappa == 0 {
+        return Err(Error::ShapeMismatch {
+            what: "commitment rank",
+            expected: "a positive kappa".into(),
+            got: "kappa=0".into(),
+        });
+    }
+    kappa.checked_mul(D).ok_or_else(|| Error::ShapeMismatch {
+        what: "commitment data length",
+        expected: "D*kappa to fit in usize".into(),
+        got: format!("D={D}, kappa={kappa}"),
+    })
+}
+
 /// Allocate commitment-combination witnesses without emitting constraints.
 pub fn alloc_rlc_commitment_inputs(
     builder: &mut R1csBuilder,
@@ -66,21 +81,27 @@ pub fn alloc_rlc_commitment_inputs(
         });
     }
     let kappa = inputs[0].kappa;
-    if combined.kappa != kappa || combined.d != D {
+    let expected_data_len = commitment_data_len(kappa)?;
+    if combined.kappa != kappa || combined.d != D || combined.data.len() != expected_data_len {
         return Err(Error::ShapeMismatch {
             what: "combined commitment shape",
-            expected: format!("(d={D}, kappa={kappa})"),
-            got: format!("(d={}, kappa={})", combined.d, combined.kappa),
+            expected: format!("(d={D}, kappa={kappa}, data={expected_data_len})"),
+            got: format!(
+                "(d={}, kappa={}, data={})",
+                combined.d,
+                combined.kappa,
+                combined.data.len()
+            ),
         });
     }
 
     let mut input_wires = Vec::with_capacity(inputs.len());
     for (idx, (rho_col, c)) in rhos_first_col.iter().zip(inputs.iter()).enumerate() {
-        if c.kappa != kappa || c.d != D {
+        if c.kappa != kappa || c.d != D || c.data.len() != expected_data_len {
             return Err(Error::ShapeMismatch {
                 what: "input commitment shape",
-                expected: format!("(d={D}, kappa={kappa})"),
-                got: format!("(d={}, kappa={}) at idx {idx}", c.d, c.kappa),
+                expected: format!("(d={D}, kappa={kappa}, data={expected_data_len})"),
+                got: format!("(d={}, kappa={}, data={}) at idx {idx}", c.d, c.kappa, c.data.len()),
             });
         }
         let mut rho_coeffs = [Var::ONE; D];
@@ -117,21 +138,27 @@ pub fn alloc_rlc_commitment_inputs_with_rhos(
         });
     }
     let kappa = inputs[0].kappa;
-    if combined.kappa != kappa || combined.d != D {
+    let expected_data_len = commitment_data_len(kappa)?;
+    if combined.kappa != kappa || combined.d != D || combined.data.len() != expected_data_len {
         return Err(Error::ShapeMismatch {
             what: "combined commitment shape",
-            expected: format!("(d={D}, kappa={kappa})"),
-            got: format!("(d={}, kappa={})", combined.d, combined.kappa),
+            expected: format!("(d={D}, kappa={kappa}, data={expected_data_len})"),
+            got: format!(
+                "(d={}, kappa={}, data={})",
+                combined.d,
+                combined.kappa,
+                combined.data.len()
+            ),
         });
     }
 
     let mut input_wires = Vec::with_capacity(inputs.len());
     for (idx, (rho, c)) in rho_wires.iter().zip(inputs.iter()).enumerate() {
-        if c.kappa != kappa || c.d != D {
+        if c.kappa != kappa || c.d != D || c.data.len() != expected_data_len {
             return Err(Error::ShapeMismatch {
                 what: "input commitment shape",
-                expected: format!("(d={D}, kappa={kappa})"),
-                got: format!("(d={}, kappa={}) at idx {idx}", c.d, c.kappa),
+                expected: format!("(d={D}, kappa={kappa}, data={expected_data_len})"),
+                got: format!("(d={}, kappa={}, data={}) at idx {idx}", c.d, c.kappa, c.data.len()),
             });
         }
         input_wires.push(RlcPairWires {
@@ -196,11 +223,12 @@ pub fn rlc_projection_quotients(
         });
     }
     let kappa = inputs[0].kappa;
+    let expected_data_len = commitment_data_len(kappa)?;
     for (idx, commitment) in inputs.iter().enumerate() {
-        if commitment.kappa != kappa || commitment.d != D || commitment.data.len() != kappa * D {
+        if commitment.kappa != kappa || commitment.d != D || commitment.data.len() != expected_data_len {
             return Err(Error::ShapeMismatch {
                 what: "projection input commitment shape",
-                expected: format!("(d={D}, kappa={kappa}, data={})", kappa * D),
+                expected: format!("(d={D}, kappa={kappa}, data={expected_data_len})"),
                 got: format!(
                     "(d={}, kappa={}, data={}) at idx {idx}",
                     commitment.d,
@@ -323,6 +351,7 @@ pub fn enforce_rlc_commitment_combination_projection_with_quotient_wires_and_sta
     stages: Option<ProjectionIdentityStageLabels>,
 ) -> Result<(), Error> {
     let kappa = wires.kappa;
+    let expected_data_len = commitment_data_len(kappa)?;
     if quotient_wires.len() != kappa {
         return Err(Error::ShapeMismatch {
             what: "projection quotient wire count",
@@ -333,7 +362,6 @@ pub fn enforce_rlc_commitment_combination_projection_with_quotient_wires_and_sta
     if wires.inputs.is_empty() {
         return Err(Error::Empty);
     }
-    let expected_data_len = kappa * D;
     if wires.combined_c_data.len() != expected_data_len {
         return Err(Error::ShapeMismatch {
             what: "projection combined commitment wires",

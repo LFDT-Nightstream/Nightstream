@@ -1,6 +1,6 @@
 //! Recursive verifier for the selected one-joint PiCCS protocol.
 //!
-//! Owns: the `PaddedRowIdentityV1` verifier, claim digests, and the PiCCS
+//! Owns: the `PaddedRowIdentity` verifier, claim digests, and the PiCCS
 //! output message. The verifier uses one zero-padded row cube and one
 //! SumCheck.
 //!
@@ -47,7 +47,7 @@ pub use verifier::{
 /// Shape errors from the selected PiCCS circuit.
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("PaddedRowIdentityV1 circuit shape mismatch: {0}")]
+    #[error("PaddedRowIdentity circuit shape mismatch: {0}")]
     Shape(String),
 }
 

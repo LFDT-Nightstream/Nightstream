@@ -22,6 +22,7 @@ pub fn prove<I>(prep: &Preprocessing, batches: I) -> Result<UncompressedAudit, E
 where
     I: IntoIterator<Item = Vec<CcsInstance>>,
 {
+    prep.validate_verifier_key_binding()?;
     let mut in_flight = start_proof(prep);
     for batch in batches {
         in_flight = extend(prep, in_flight, batch)?;
@@ -37,6 +38,7 @@ pub fn prove_with_nifs_adapter<I>(
 where
     I: IntoIterator<Item = Vec<CcsInstance>>,
 {
+    prep.validate_verifier_key_binding()?;
     let mut in_flight = start_proof(prep);
     for batch in batches {
         in_flight = extend_with_nifs_adapter(prep, adapter, in_flight, batch)?;
@@ -260,6 +262,7 @@ fn extend_in_place_inner_with_nifs_prover(
     semantic_advance: SemanticStateAdvance,
     nebula_open: Option<[[F; 4]; 3]>,
 ) -> Result<Option<NifsPostFoldSummary>, Error> {
+    prep.validate_verifier_key_binding()?;
     if audit.proof.final_fold.is_some() {
         return Err(Error::AlreadyFinalized);
     }

@@ -77,6 +77,8 @@ pub const RECURSIVE_NEBULA: &str = "fprime.recursive.step.nebula";
 pub const RECURSIVE_ACCUMULATOR: &str = "fprime.recursive.step.accumulator";
 pub const RECURSIVE_ACCUMULATOR_INPUT: &str = "fprime.recursive.step.accumulator.input_link";
 pub const RECURSIVE_ACCUMULATOR_OUTPUT: &str = "fprime.recursive.step.accumulator.output_authority";
+pub const RECURSIVE_ACCUMULATOR_OUTPUT_CLAIM: &str =
+    "fprime.recursive.step.accumulator.output_authority.claimed_digest";
 pub const RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS: &str =
     "fprime.recursive.step.accumulator.output_authority.child_digests";
 pub const RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE: &str = "fprime.recursive.step.accumulator.output_authority.aggregate";
@@ -104,6 +106,7 @@ pub const RECURSIVE_ALL: &[&str] = &[
     RECURSIVE_ACCUMULATOR,
     RECURSIVE_ACCUMULATOR_INPUT,
     RECURSIVE_ACCUMULATOR_OUTPUT,
+    RECURSIVE_ACCUMULATOR_OUTPUT_CLAIM,
     RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS,
     RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
     RECURSIVE_COUNTERS,
@@ -157,6 +160,7 @@ pub const RECURSIVE_HIERARCHY: &[(&str, &[&str])] = &[
     (
         RECURSIVE_ACCUMULATOR_OUTPUT,
         &[
+            RECURSIVE_ACCUMULATOR_OUTPUT_CLAIM,
             RECURSIVE_ACCUMULATOR_OUTPUT_CHILD_DIGESTS,
             RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
         ],

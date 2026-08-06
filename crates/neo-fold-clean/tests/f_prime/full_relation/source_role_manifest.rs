@@ -55,6 +55,10 @@ pub(super) fn check_source_role_manifest(base: &FullFPrimeBranchExecution, recur
         recursive.public_bit_columns(),
     )
     .expect("exact recursive ordinary-placement manifest");
+    print_census("base", &base_manifest);
+    print_census("recursive", &recursive_manifest);
+    print_placement("base", &base_placement);
+    print_placement("recursive", &recursive_placement);
 
     assert_event_roles(&base_manifest, base);
     assert_event_roles(&recursive_manifest, recursive);
@@ -87,11 +91,11 @@ pub(super) fn check_source_role_manifest(base: &FullFPrimeBranchExecution, recur
         "recursive",
         &recursive_manifest,
         &recursive_placement,
-        93_896,
-        12_108_509,
-        12_330_019,
+        99_314,
+        12_330_647,
+        12_552_157,
         (1, 257),
-        (8_975_795, 12_108_468),
+        (9_013_737, 12_330_606),
     );
     assert_placement_mutations_rejected(&base_placement);
     assert_placement_mutations_rejected(&recursive_placement);
@@ -110,9 +114,23 @@ pub(super) fn check_source_role_manifest(base: &FullFPrimeBranchExecution, recur
         &placement_rendered,
         "ordinary-placement",
     );
+}
 
-    print_census("base", &base_manifest);
-    print_census("recursive", &recursive_manifest);
+fn print_placement(branch: &str, manifest: &GadgetNativeOrdinaryPlacementManifest) {
+    let first = manifest.placement(0).expect("first ordinary placement");
+    let last = manifest
+        .placement(manifest.placement_count() - 1)
+        .expect("last ordinary placement");
+    eprintln!(
+        "ORDINARY_PLACEMENT|{branch}|fields={}|source_phase_end={}|encoded_columns={}|first=({}, {})|last=({}, {})",
+        manifest.placement_count(),
+        manifest.source_phase_end(),
+        manifest.encoded_columns(),
+        first.source_column(),
+        first.encoded_range().start,
+        last.source_column(),
+        last.encoded_range().start,
+    );
 }
 
 fn assert_ordinary_placement_pointwise(manifest: &GadgetNativeOrdinaryPlacementManifest, plan: &GadgetNativePlan) {

@@ -21,7 +21,8 @@ use neo_fold_clean::{
 
 /// Minimal R1CS: one constraint `(z[1] + z[2]) · z[0] = z[3]`.
 /// `z[0] = 1` (constant), `z[1] = a`, `z[2] = b`, `z[3] = c`.
-/// Public input is z[..3] = [1, a, b]; witness is z[3..] = [c].
+/// The complete first ring is public, including `c` and zero padding. This is
+/// the canonical packed public-input shape used by the selected protocol.
 ///
 /// The matrix width is padded to `neo_math::D` because the engine's
 /// SuperNeo packed-witness shape expects a Z matrix of D rows. Smaller
@@ -39,7 +40,7 @@ fn three_term_addition() -> R1cs {
     let mut c = NeoMat::zero(1, m, F::default());
     c[(0, 3)] = F::ONE;
 
-    R1cs { a, b, c, m_in: 3 }
+    R1cs { a, b, c, m_in: m }
 }
 
 #[test]

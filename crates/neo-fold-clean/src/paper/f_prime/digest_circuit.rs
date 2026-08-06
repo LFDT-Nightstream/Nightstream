@@ -30,7 +30,8 @@ use crate::paper::digest::{
 };
 use crate::paper::params::Params;
 
-const VK_FS_TAG: &[u8] = b"neo.fold.clean/vk_fs/v3";
+const VK_FS_TAG: &[u8] = b"neo.fold.clean/vk_fs/v4";
+const VK_FS_POLICY_TAG: &[u8] = b"neo.fold.clean/vk_fs_policy/v1";
 
 /// Recompute the F' step/shape digest from verifier-owned claim geometry and
 /// the in-circuit start index. The native digest deliberately excludes claim
@@ -128,12 +129,32 @@ pub fn enforce_vk_fs_digest_circuit(
     preimage.push(alloc_constant(builder, F::from_u64(params.T() as u64)));
     preimage.push(alloc_constant(builder, F::from_u64(params.extension_degree() as u64)));
     preimage.push(alloc_constant(builder, F::from_u64(params.lambda() as u64)));
-    push_u64_halves_const(
-        builder,
-        &mut preimage,
-        public_input_len.map_or(u64::MAX, |value| value as u64),
-    );
+    match public_input_len {
+        None => preimage.extend([alloc_constant(builder, F::ZERO); 2]),
+        Some(value) => {
+            let value = value as u64;
+            preimage.push(alloc_constant(builder, F::from_u64((value & 0xffff_ffff) + 1)));
+            preimage.push(alloc_constant(builder, F::from_u64(value >> 32)));
+        }
+    }
     preimage.extend_from_slice(&initial_semantic_state_digest);
+    enforce_poseidon2_hash(builder, &preimage)
+}
+
+/// Bind the verifier policy to a base `vk_fs` digest. This mirrors
+/// [`crate::paper::digest::vk_fs_policy_digest`].
+pub fn enforce_vk_fs_policy_digest_circuit(
+    builder: &mut R1csBuilder,
+    base_digest: [Var; DIGEST_LEN],
+    stateful: bool,
+    f_prime_recursive_link: bool,
+    terminal_induction: bool,
+) -> [Var; DIGEST_LEN] {
+    let mut preimage = alloc_const_tag(builder, VK_FS_POLICY_TAG);
+    preimage.extend_from_slice(&base_digest);
+    preimage.push(alloc_constant(builder, F::from_bool(stateful)));
+    preimage.push(alloc_constant(builder, F::from_bool(f_prime_recursive_link)));
+    preimage.push(alloc_constant(builder, F::from_bool(terminal_induction)));
     enforce_poseidon2_hash(builder, &preimage)
 }
 

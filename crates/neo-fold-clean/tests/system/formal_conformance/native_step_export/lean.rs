@@ -604,6 +604,7 @@ fn lean_error(value: StableError) -> &'static str {
     match value {
         StableError::EmptyStep => "emptyStep",
         StableError::FoldProofVariantMismatch => "foldProofVariantMismatch",
+        StableError::StateAuthorityMismatch => "stateAuthorityMismatch",
         StableError::StatelessSemanticInvariantViolated => "statelessSemanticInvariantViolated",
         StableError::XOutMismatch => "xOutMismatch",
         StableError::NifsPiDecVerifyRejected | StableError::NifsPiCcsOutputShapeMismatch => "nifsRejected",

@@ -33,6 +33,7 @@
 use neo_ajtai::AjtaiSModule;
 use neo_ccs::traits::SModuleHomomorphism;
 use neo_math::F;
+use neo_reductions::common::validate_superneo_witness_mat;
 use neo_reductions::optimized_engine::OptimizedStructureCache;
 use thiserror::Error;
 
@@ -413,6 +414,7 @@ pub fn validate_witness(
         .zip(&prover_running.witnesses)
         .enumerate()
     {
+        validate_superneo_witness_mat(witness, structure.m).map_err(|_| Error::WitnessShape)?;
         if log.commit(witness) != claim.c {
             return Err(Error::WitnessCommitmentMismatch { index });
         }

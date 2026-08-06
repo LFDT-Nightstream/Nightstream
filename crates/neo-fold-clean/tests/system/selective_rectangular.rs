@@ -54,7 +54,7 @@ fn selective_poseidon_lowering_is_rectangular_and_binds_alignment_tail() {
     let structure = relation.structure();
     assert!(
         structure.n < structure.m,
-        "PaddedRowIdentityV1 must preserve the semantic-row domain"
+        "PaddedRowIdentity must preserve the semantic-row domain"
     );
     assert_eq!(structure.t(), 13, "only semantic matrices belong in the relation");
     assert!(
@@ -263,13 +263,13 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (2, 270, 9_210_044, 14_653_170),
-            (9_210_044, 14_653_170, 9_306_140, 15_123_186),
-            (9_306_140, 15_123_186, 9_306_140, 15_123_186),
+            (2, 270, 9_210_286, 14_656_680),
+            (9_210_286, 14_656_680, 9_306_382, 15_126_696),
+            (9_306_382, 15_126_696, 9_306_382, 15_126_696),
         ],
         "the selected one-joint production shape must stabilize at the measured fixed point",
     );
-    assert_eq!(width.total_coordinates, 15_123_162);
+    assert_eq!(width.total_coordinates, 15_126_688);
     assert_eq!(width.branch_start, 311);
     assert_eq!(width.shared_private_coordinates, 0);
     assert_eq!(
@@ -293,14 +293,14 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (13_655, 11_111, 78_585, 448, 0, 78_137, 0, 0, 78_137, 21, 74_302),
+            (14_261, 11_631, 82_111, 448, 0, 81_663, 0, 0, 81_663, 22, 77_828),
             (
-                13_475_152, 6_981_262, 18_864_549, 4_146_942, 2_996, 14_594_771, 12_880, 528_080, 15_122_851, 1_250,
-                4_423_372,
+                13_475_758, 6_981_782, 18_868_075, 4_146_942, 2_996, 14_598_297, 12_880, 528_080, 15_126_377, 1_251,
+                4_426_898,
             ),
             (
-                13_475_152, 6_981_262, 18_864_549, 4_146_942, 2_996, 14_594_771, 12_880, 528_080, 15_122_851, 1_250,
-                4_423_372,
+                13_475_758, 6_981_782, 18_868_075, 4_146_942, 2_996, 14_598_297, 12_880, 528_080, 15_126_377, 1_251,
+                4_426_898,
             ),
         ],
         "each selector-disjoint arm must retain the measured compressed-width profile",
@@ -423,8 +423,8 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
         accumulator_stage_census,
         vec![
             (0, None, None),
-            (1, Some((10_760, 4_483_178, 757_610)), Some((10_761, 10_278, 1_466)),),
-            (2, Some((10_760, 4_483_178, 757_610)), Some((10_761, 10_278, 1_466)),),
+            (1, Some((10_761, 4_483_178, 757_610)), Some((10_762, 10_278, 1_466)),),
+            (2, Some((10_761, 4_483_178, 757_610)), Some((10_762, 10_278, 1_466)),),
         ],
         "the selected protocol must bind exact outgoing children without a delayed pending-family stage",
     );

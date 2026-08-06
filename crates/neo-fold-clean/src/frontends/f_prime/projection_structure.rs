@@ -14,90 +14,21 @@
 //!
 //! | Obligation | Local owner | Emits constraints? | Authority source |
 //! |---|---|---|---|
-//! | Cost-model shape | [`production_projection_batches`] and config builders | no | Pinned model constants |
 //! | Lane ownership | [`ProjectionLaneSlots`] | no | [`FPrimeImageLayout`] |
 //! | Projection equations | [`emit_projection_semantic_rows`] | yes | Local committed lanes only |
 
 use crate::engine::r1cs_circuit::ring_action::PROJECTION_QUOTIENT_LEN;
-use crate::frontends::f_prime::image::FPrimeImageConfig;
 use crate::frontends::f_prime::image::FPrimeImageLayout;
 use crate::frontends::f_prime::structure::{lane_terms, LaneSlot, MixedGateBuilder};
 use crate::paper::f_prime::projection_trace::{
     LANE_BITS, PROJECTION_IDENTITY_LANES, PROJECTION_PAIR_LANES, PROJECTION_SHARED_LANES,
 };
-use crate::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_math::field::KExtensions;
 use neo_math::ring::{D, PHI_MID_DEGREE};
 use neo_math::{F, K};
 use p3_field::PrimeCharacteristicRing;
 
 const K_MUL_ROWS: usize = 5;
-
-/// Historical pre-Nebula model: `P_total = 465` pairs over `J = 72`
-/// identities (33 batches of 7 + 39 of 6). **Placeholder partition** —
-/// region widths depend only on the totals; the real per-identity
-/// consumption comes from the Lemma 5 adoption census (audit item 4)
-/// when the encoder fills real folds.
-pub fn production_projection_batches() -> Vec<usize> {
-    let mut batches = vec![7usize; 33];
-    batches.extend(std::iter::repeat_n(6usize, 39));
-    debug_assert_eq!(batches.iter().sum::<usize>(), PRODUCTION_RING_ACTION_PAIR_COUNT);
-    debug_assert_eq!(batches.len(), PRODUCTION_PROJECTION_IDENTITY_COUNT);
-    batches
-}
-
-/// Historical pre-projection K-mul count used by this cost model. The
-/// production circuit count is tracked by the Phase 1.3d coverage test.
-pub const PRODUCTION_KMUL_COUNT: usize = 7100;
-
-/// Historical pre-projection ring-action count used by this cost model.
-pub const PRODUCTION_RING_ACTION_PAIR_COUNT: usize = 465;
-
-/// Historical commitment-plus-adv estimate. Lemma 5's corrected complete
-/// production census is `J=150`; this model predates that audit.
-pub const PRODUCTION_PROJECTION_IDENTITY_COUNT: usize = 72;
-
-/// The Road A cost-model shell: kmuls unchanged, and the ring
-/// action carried as **projection regions** (candidate E) instead of
-/// D²-materialized pairs — the committed-width flip the
-/// `folded_f_prime_shell_must_adopt_projection_budget` gate pins.
-/// The local projection rows are enforced, but the shell does not bind them
-/// to the production NIFS.V wires.
-pub fn production_kmul_ring_action_shell_image_config() -> FPrimeImageConfig {
-    FPrimeImageConfig {
-        projection_batches: production_projection_batches(),
-        ring_action_pair_count: 0,
-        ..production_kmul_d2_ring_action_shell_image_config()
-    }
-}
-
-/// The pre-Road-A D² reference shell (kept for wire-parity tests and
-/// as the measured baseline the projection numbers are compared to).
-pub fn production_kmul_d2_ring_action_shell_image_config() -> FPrimeImageConfig {
-    FPrimeImageConfig {
-        limbs: 3,
-        app_private_var_widths: Vec::new(),
-        boundary_bits: 0,
-        nifs_payload_shapes: vec![],
-        kmul_count: PRODUCTION_KMUL_COUNT,
-        ring_action_pair_count: PRODUCTION_RING_ACTION_PAIR_COUNT,
-        projection_batches: Vec::new(),
-        ring_action_pair_layout: RingActionTraceLayout::new(
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-            LowNormEncoding::U64,
-        ),
-        poseidon_one_shot_preimage_lens: vec![],
-        sponge_transcript_permutes: 0,
-        one_shot_digest_to_state_out_bindings: vec![],
-        one_shot_digest_to_state_in_bindings: vec![],
-        one_shot_digest_to_public_x_out_bindings: vec![],
-        poseidon_transition_enforcements: vec![],
-        unified_accumulator_selector: None,
-        initial_semantic_state_digest_anchor: None,
-    }
-}
 
 /// Projection region splices, from which individual canonical-u64
 /// slots are derived.

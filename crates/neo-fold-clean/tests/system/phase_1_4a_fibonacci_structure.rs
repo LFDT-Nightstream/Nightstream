@@ -4,8 +4,7 @@
 //! - **Shape gate**: the structure builder produces a CCS whose width
 //!   matches the image layout end, with one Boolean row per semantic bit
 //!   (public boundary, `is_base`, tiny app carry regions), and one
-//!   ring_action product row per `(ρ, c)` pair cell. Production-target counts (the Phase 1.3d coverage
-//!   gate's measurements) are pinned in [`production_kmul_ring_action_shell_image_config`].
+//!   ring_action product row per `(ρ, c)` pair cell.
 //! - **Satisfiability gate**: an honestly-filled Phase 1.3d-style image
 //!   satisfies the structure; tampering one semantic bit to a non-`{0,1}` value
 //!   trips it.
@@ -18,10 +17,7 @@
 //!   still measures the bit-carrier R1CS, not this structure.
 
 use neo_fold_clean::frontends::f_prime::image::{FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView};
-use neo_fold_clean::frontends::f_prime::structure::{
-    build_f_prime_structure, production_kmul_ring_action_shell_image_config, PRODUCTION_KMUL_COUNT,
-    PRODUCTION_RING_ACTION_PAIR_COUNT,
-};
+use neo_fold_clean::frontends::f_prime::structure::build_f_prime_structure;
 use neo_fold_clean::paper::f_prime::poseidon_trace::assert_committed_coords_are_bits;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{
     encode_ring_action_trace, LowNormEncoding, RingActionTraceLayout,
@@ -63,76 +59,6 @@ fn small_test_image_config() -> FPrimeImageConfig {
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────
-
-/// The production-target image config pins the gadget invocation
-/// counts the Phase 1.3d coverage gate measured, and pins U64 as the
-/// only encoding choice safe for in-circuit wires.
-#[test]
-fn phase_1_4a_production_config_pins_emitter_counts() {
-    // Road A: the production shell carries the ring action as
-    // projection regions (P_total pairs, J identities); the D²
-    // reference shell keeps the original materialized shape.
-    let config = production_kmul_ring_action_shell_image_config();
-    assert_eq!(
-        config.kmul_count, PRODUCTION_KMUL_COUNT,
-        "production kmul K-mul count must match the Phase 1.3d coverage measurement"
-    );
-    assert_eq!(
-        config.projection_batches.iter().sum::<usize>(),
-        PRODUCTION_RING_ACTION_PAIR_COUNT,
-        "production projection pair total must match the Phase 1.3d coverage census (P_total)"
-    );
-    assert_eq!(
-        config.projection_batches.len(),
-        neo_fold_clean::frontends::f_prime::structure::PRODUCTION_PROJECTION_IDENTITY_COUNT,
-        "production projection identity count must match the Lemma 5 known-clients census"
-    );
-    assert_eq!(config.ring_action_pair_count, 0, "no D² pairs in the Road A shell");
-
-    let config = neo_fold_clean::frontends::f_prime::structure::production_kmul_d2_ring_action_shell_image_config();
-    assert_eq!(
-        config.ring_action_pair_count, PRODUCTION_RING_ACTION_PAIR_COUNT,
-        "D² reference ring-action pair count must match the Phase 1.3d coverage measurement"
-    );
-
-    // Every ring_action subregion must use the canonical-u64 encoding. SignedDigit{n}
-    // would panic on out-of-range production wires.
-    let pair = config.ring_action_pair_layout;
-    assert_eq!(pair.rho_enc, LowNormEncoding::U64, "ring_action ρ encoding must be U64");
-    assert_eq!(pair.c_enc, LowNormEncoding::U64, "ring_action c encoding must be U64");
-    assert_eq!(
-        pair.prod_enc,
-        LowNormEncoding::U64,
-        "ring_action prod encoding must be U64"
-    );
-    assert_eq!(
-        pair.out_enc,
-        LowNormEncoding::U64,
-        "ring_action out encoding must be U64"
-    );
-
-    // The layout-end must dwarf the `per_step_ccs_structure_must_encode_f_prime`
-    // floor (50 000): this is the first sign the F' frontend is shaped
-    // like a real per-step CCS, not the trivial bit-carrier stand-in.
-    let layout = FPrimeImageLayout::new(config);
-    assert!(
-        layout.end >= 50_000,
-        "Phase 1.4a production layout.end = {} must exceed the ivc_invariants floor (50_000)",
-        layout.end,
-    );
-    eprintln!(
-        "phase_1_4a D² reference: layout.end = {} bits ({} K-muls, {} ring-mul pairs, all U64)",
-        layout.end, PRODUCTION_KMUL_COUNT, PRODUCTION_RING_ACTION_PAIR_COUNT,
-    );
-    let road_a = FPrimeImageLayout::new(production_kmul_ring_action_shell_image_config());
-    eprintln!(
-        "phase_1_4a Road A shell: layout.end = {} bits ({} K-muls, {} projection pairs, {} identities)",
-        road_a.end,
-        PRODUCTION_KMUL_COUNT,
-        PRODUCTION_RING_ACTION_PAIR_COUNT,
-        neo_fold_clean::frontends::f_prime::structure::PRODUCTION_PROJECTION_IDENTITY_COUNT,
-    );
-}
 
 /// The strict-low-norm structure shape contract (Phase 1.5b-0):
 /// `m == layout.end` (every committed coordinate is a single low-norm

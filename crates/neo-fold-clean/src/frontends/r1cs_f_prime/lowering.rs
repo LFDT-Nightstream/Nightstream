@@ -133,7 +133,7 @@ pub struct FixedShapeLowNormR1cs {
 /// One low-norm CCS structure containing an arbitrary fixed set of
 /// one-hot-selected field-R1CS arms.
 ///
-/// Road A uses three arms: base, bootstrap recursive with fixed `k_rho`
+/// The fixed relation uses three arms: base, bootstrap recursive with fixed `k_rho`
 /// zero claims, and steady recursive with `k_rho` running claims. Public columns and a
 /// caller-selected application-private prefix are shared by every arm.
 /// Branch-local advice reuses one low-norm arena. Exactly one selector is
@@ -989,7 +989,7 @@ pub fn build_fixed_shape_low_norm_r1cs_with_shared_private_prefix(
 }
 
 /// Compile several field-R1CS arms into one one-hot-selected low-norm CCS
-/// relation. This is the fixed-shape compiler used by folded Road A.
+/// relation. This is the fixed-shape compiler used by folded F'.
 pub fn build_multi_branch_low_norm_r1cs(
     arms: &[SparseR1cs],
     shared_private_fields: usize,

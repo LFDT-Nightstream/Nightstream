@@ -7,7 +7,7 @@
 //! - In our NIFS / engine wrappers (then this fails).
 
 use neo_ccs::matrix::Mat as NeoMat;
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
 use neo_fold_clean::engine::transcript::Transcript;
@@ -16,7 +16,7 @@ use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::nifs;
 
 fn three_term_addition() -> R1cs {
-    let m = neo_math::D;
+    let m = D;
     let mut a = NeoMat::zero(1, m, F::default());
     a[(0, 1)] = F::ONE;
     a[(0, 2)] = F::ONE;
@@ -24,7 +24,7 @@ fn three_term_addition() -> R1cs {
     b[(0, 0)] = F::ONE;
     let mut c = NeoMat::zero(1, m, F::default());
     c[(0, 3)] = F::ONE;
-    R1cs { a, b, c, m_in: 3 }
+    R1cs { a, b, c, m_in: D }
 }
 
 #[test]

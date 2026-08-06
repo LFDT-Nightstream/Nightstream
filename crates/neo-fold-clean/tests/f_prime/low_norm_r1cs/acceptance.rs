@@ -19,7 +19,7 @@ use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
 
 const APP: &[u8] = b"neo.test.alphabet_sampling/v1";
-const REJECTION_SEED: u64 = 0x2b1;
+const REJECTION_SEED: u64 = 0xb72;
 const CHUNKS: usize = 64;
 const SOURCE_ROWS_PER_CHUNK: usize = 4;
 const SOURCE_COLUMNS_PER_CHUNK: usize = 2;

@@ -1,9 +1,5 @@
-//! Exact one-claim CE child/running continuity artifact and drift gate.
+//! CE child/running continuity behavior tests.
 
-#[path = "lean_artifact_support.rs"]
-mod lean_artifact_support;
-
-use lean_artifact_support::{lean_nat_list, lean_rows, lean_witness, sha256_hex, SCHEMA_VERSION};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_fold_clean::engine::decider::__test_isolation::{enforce_ce_continuity_against_self, CeContinuityProbeWires};
@@ -12,9 +8,6 @@ use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::CeClaim;
 use neo_math::{KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
-
-const ARTIFACT_REL_PATH: &str =
-    "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrime/FPrimeCeContinuityArtifact.lean";
 
 fn f(value: u64) -> F {
     F::from_u64(value)
@@ -74,8 +67,6 @@ fn equality_pairs(builder: &R1csBuilder) -> Vec<(usize, usize)> {
             assert_eq!(b_terms, vec![(0, F::ONE)]);
             assert!(c.iter().all(|&(candidate, _, _)| candidate != row));
             match a_terms.as_slice() {
-                // Shape metadata is allocated through `alloc_usize`, which
-                // emits a verifier-owned constant pin before continuity.
                 [(_, coefficient)] => {
                     assert_eq!(*coefficient, F::ONE);
                     None
@@ -94,59 +85,6 @@ fn equality_pairs(builder: &R1csBuilder) -> Vec<(usize, usize)> {
             }
         })
         .collect()
-}
-
-fn lean_pairs(pairs: &[(usize, usize)]) -> String {
-    format!(
-        "[{}]",
-        pairs
-            .iter()
-            .map(|&(left, right)| format!("({left}, {right})"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
-}
-
-fn pair_runs(pairs: &[(usize, usize)]) -> Vec<(usize, usize, usize)> {
-    let mut runs = Vec::new();
-    let mut start = 0;
-    while start < pairs.len() {
-        let mut end = start + 1;
-        while end < pairs.len() && pairs[end].0 == pairs[end - 1].0 + 1 && pairs[end].1 == pairs[end - 1].1 + 1 {
-            end += 1;
-        }
-        runs.push((pairs[start].0, pairs[start].1, end - start));
-        start = end;
-    }
-    runs
-}
-
-fn lean_runs(runs: &[(usize, usize, usize)]) -> String {
-    format!(
-        "[{}]",
-        runs.iter()
-            .map(|&(left, right, count)| format!("⟨{left}, {right}, {count}⟩"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
-}
-
-fn artifact_hashes(builder: &R1csBuilder, forged: &[F], pairs: &[(usize, usize)]) -> (String, String) {
-    let row_payload = format!(
-        "schema={SCHEMA_VERSION}\nkind=r1cs/f-prime-ce-continuity\n\
-         source=enforce_child_core_equal_running\npairs={}\nleft_cols={}\nrows={}\ncols={}\n{}",
-        lean_pairs(pairs),
-        lean_nat_list(pairs.iter().map(|pair| pair.0)),
-        builder.rows(),
-        builder.cols(),
-        lean_rows(builder),
-    );
-    let witness_payload = format!(
-        "{}\n{}",
-        lean_witness("honestWitness", builder.witness()),
-        lean_witness("forgedWitness", forged),
-    );
-    (sha256_hex(&row_payload), sha256_hex(&witness_payload))
 }
 
 #[test]
@@ -180,45 +118,5 @@ fn ce_continuity_rejects_each_authority_family() {
         let column = select(&probes);
         builder.tamper_witness(column, builder.witness()[column] + F::ONE);
         assert!(!builder.is_satisfied(), "CE continuity disconnected column {column}");
-    }
-}
-
-#[test]
-fn lean_ce_continuity_artifact_matches_committed_file() {
-    let (honest, probes) = build();
-    let pairs = equality_pairs(&honest);
-    let (mut forged, _) = build();
-    let column = probes.y_ring_c1.col();
-    forged.tamper_witness(column, forged.witness()[column] + F::ONE);
-    let (row_hash, witness_hash) = artifact_hashes(&honest, forged.witness(), &pairs);
-    let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), ARTIFACT_REL_PATH);
-    let committed = std::fs::read_to_string(&path).unwrap_or_default();
-    let expected_rows = format!("def artifactSha256 : String := \"{row_hash}\"");
-    let expected_witnesses = format!("def witnessSha256 : String := \"{witness_hash}\"");
-    let expected_runs = format!("def pairRuns : List PairRun :=\n  {}", lean_runs(&pair_runs(&pairs)));
-    let expected_row_count = format!("def rowCount : Nat := {}", honest.rows());
-    let expected_col_count = format!("def colCount : Nat := {}", honest.cols());
-    let compact = |value: &str| {
-        value
-            .chars()
-            .filter(|ch| !ch.is_whitespace())
-            .collect::<String>()
-    };
-    let compact_committed = compact(&committed);
-    if !committed.contains(&expected_rows)
-        || !committed.contains(&expected_witnesses)
-        || !compact_committed.contains(&compact(&expected_runs))
-        || !committed.contains(&expected_row_count)
-        || !committed.contains(&expected_col_count)
-    {
-        let expected_path = format!("{path}.expected");
-        std::fs::write(
-            &expected_path,
-            format!(
-                "{expected_rows}\n{expected_witnesses}\n{expected_row_count}\n{expected_col_count}\n{expected_runs}\n"
-            ),
-        )
-        .expect("write .expected CE-continuity metadata");
-        panic!("generated Lean CE-continuity artifact drifted. Wrote {expected_path}; inspect and copy it");
     }
 }

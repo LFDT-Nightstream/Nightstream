@@ -32,10 +32,10 @@ pub(crate) fn assert_protocol_row_family_snapshots(profile: &GadgetNativeStagePr
         challenge.encoded_row_breakdown(),
         GadgetNativeEncodedRowBreakdown {
             common_boolean: pair_tail(23_505, 11_745, 15),
-            common_centered_unit: pair_tail(318_078, 158_514, 1_050),
-            ordinary_private_centered_unit: pair_tail(318_078, 158_514, 1_050),
+            common_centered_unit: pair_tail(526_112, 262_531, 1_050),
+            ordinary_private_centered_unit: pair_tail(526_112, 262_531, 1_050),
             fallback: 1_785,
-            sbox: 6_708,
+            sbox: 11_782,
             acceptance_tree_bit_pair: 6_720,
             acceptance_product_aggregate: 960,
             acceptance_root_binding: 960,

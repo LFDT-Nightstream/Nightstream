@@ -35,7 +35,7 @@ pub fn terminal_ce_merkle_root_from_leaf(
     ensure_index_fits(index, path.len())?;
     let mut acc = leaf;
     for (level, sibling) in path.iter().copied().enumerate() {
-        if ((index >> level) & 1) == 0 {
+        if index_bit(index, level) == 0 {
             acc = terminal_ce_merkle_node(acc, sibling);
         } else {
             acc = terminal_ce_merkle_node(sibling, acc);
@@ -53,7 +53,7 @@ pub fn enforce_terminal_ce_merkle_root_from_leaf(
     ensure_index_fits(index, path.len())?;
     let mut acc = leaf;
     for (level, sibling) in path.iter().copied().enumerate() {
-        let (left, right) = if ((index >> level) & 1) == 0 {
+        let (left, right) = if index_bit(index, level) == 0 {
             (acc, sibling)
         } else {
             (sibling, acc)
@@ -61,6 +61,15 @@ pub fn enforce_terminal_ce_merkle_root_from_leaf(
         acc = enforce_terminal_ce_merkle_node(builder, left, right);
     }
     Ok(acc)
+}
+
+#[inline]
+fn index_bit(index: usize, level: usize) -> usize {
+    if level < usize::BITS as usize {
+        (index >> level) & 1
+    } else {
+        0
+    }
 }
 
 fn enforce_terminal_ce_merkle_node(builder: &mut R1csBuilder, left: [Var; 4], right: [Var; 4]) -> [Var; 4] {

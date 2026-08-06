@@ -13,7 +13,7 @@ use p3_field::{Field, PrimeCharacteristicRing};
 fn toy_instance_with_x_value(prep: &neo_fold_clean::Preprocessing, x: neo_math::F) -> neo_fold_clean::CcsInstance {
     let mut z = vec![neo_math::F::ZERO; prep.structure().m];
     z[0] = x;
-    neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 1)
+    neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, D)
         .expect("toy low-norm CCS instance with chosen public input")
 }
 
@@ -23,7 +23,7 @@ fn wide_kernel_preprocessing() -> neo_fold_clean::Preprocessing {
     let structure = CcsStructure::new(vec![Mat::zero(1, vars, F::ZERO)], SparsePoly::new(1, vec![])).expect("wide CCS");
     let params = neo_fold_clean::config::ccs_params(structure.n, structure.m, 1, 1).expect("wide-kernel params");
     support::install_ajtai_module(&params, &structure);
-    neo_fold_clean::preprocess(params, structure, Some(1)).expect("wide-kernel preprocessing")
+    neo_fold_clean::preprocess(params, structure, Some(D)).expect("wide-kernel preprocessing")
 }
 
 fn ajtai_row_major_rows(pp: &PP<RqEl>) -> Vec<Vec<F>> {
@@ -222,7 +222,7 @@ fn verify_uncompressed_audit_rejects_commitment_kernel_terminal_witness_forge() 
         &prep.log,
         prep.structure(),
         &vec![F::ZERO; prep.structure().m],
-        1,
+        D,
     )
     .expect("zero wide instance");
     let audit = neo_fold_clean::prove(&prep, vec![vec![instance]]).expect("prove wide instance");
@@ -236,15 +236,19 @@ fn verify_uncompressed_audit_rejects_commitment_kernel_terminal_witness_forge() 
             .witnesses
             .get_mut(0)
             .expect("test fixture must carry a terminal witness");
+        let rows = witness.rows();
+        let columns = witness.cols();
+        let mut dense = witness.to_dense_vec();
         assert_eq!(
-            witness.as_slice().len(),
+            dense.len(),
             delta.len(),
             "kernel vector must match packed witness length"
         );
         let before = prep.log.commit(witness);
-        for (entry, delta) in witness.as_mut_slice().iter_mut().zip(delta) {
+        for (entry, delta) in dense.iter_mut().zip(delta) {
             *entry += delta;
         }
+        *witness = Mat::from_row_major(rows, columns, dense);
         assert_eq!(
             prep.log.commit(witness),
             before,
@@ -364,7 +368,7 @@ fn final_witness_authority_rejects_same_shape_r_c1_limb_relabel() {
 
     assert!(
         running.witnesses[0]
-            .as_slice()
+            .to_dense_vec()
             .iter()
             .any(|&entry| entry != neo_math::F::ZERO),
         "test setup must carry a non-zero witness so r relabelling changes M·Z(r)"

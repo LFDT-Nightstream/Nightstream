@@ -6,7 +6,7 @@
 //! halting row. Event values are bound by the final-chain transcript check: the
 //! verifier folds the claimed transcript natively (`fold_event_blocks`)
 //! and compares it with the proof-carried final `comm_chain`. Single-turn
-//! V1. Discriminants below are example embedder data.
+//! profile. Discriminants below are example embedder data.
 
 mod common;
 

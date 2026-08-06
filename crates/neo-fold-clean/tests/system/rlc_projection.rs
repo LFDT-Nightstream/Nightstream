@@ -231,7 +231,7 @@ fn projection_variant_cost_beats_toom3() {
     );
 }
 
-// ── Lemma 5 β schedule on the native fold path (Road A) ──────────────────
+// ── Lemma 5 β schedule on the native fold path ───────────────────────────
 
 use neo_ccs::Mat;
 use neo_fold_clean::engine::transcript::Transcript;
@@ -254,7 +254,7 @@ fn three_term_addition() -> R1cs {
     b.set(0, 0, F::ONE);
     let mut c = Mat::zero(1, m, F::ZERO);
     c.set(0, 3, F::ONE);
-    R1cs { a, b, c, m_in: 3 }
+    R1cs { a, b, c, m_in: D }
 }
 
 fn assignment(a: u64, b: u64) -> Vec<F> {

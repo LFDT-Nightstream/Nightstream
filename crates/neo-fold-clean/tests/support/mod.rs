@@ -34,6 +34,34 @@ pub fn toy_instance(prep: &Preprocessing, _seed: u64) -> CcsInstance {
         .expect("toy low-norm CCS instance")
 }
 
+pub fn empty_f_prime_image_config() -> neo_fold_clean::frontends::f_prime::image::FPrimeImageConfig {
+    use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
+
+    neo_fold_clean::frontends::f_prime::image::FPrimeImageConfig {
+        limbs: 3,
+        app_private_var_widths: Vec::new(),
+        boundary_bits: 0,
+        nifs_payload_shapes: Vec::new(),
+        kmul_count: 0,
+        ring_action_pair_count: 0,
+        projection_batches: Vec::new(),
+        ring_action_pair_layout: RingActionTraceLayout::new(
+            LowNormEncoding::U64,
+            LowNormEncoding::U64,
+            LowNormEncoding::U64,
+            LowNormEncoding::U64,
+        ),
+        poseidon_one_shot_preimage_lens: Vec::new(),
+        sponge_transcript_permutes: 0,
+        one_shot_digest_to_state_out_bindings: Vec::new(),
+        one_shot_digest_to_state_in_bindings: Vec::new(),
+        one_shot_digest_to_public_x_out_bindings: Vec::new(),
+        poseidon_transition_enforcements: Vec::new(),
+        unified_accumulator_selector: None,
+        initial_semantic_state_digest_anchor: None,
+    }
+}
+
 #[allow(dead_code)]
 pub fn mutate_ce_claim(claim: &mut neo_fold_clean::CeClaim) {
     claim.c.data[0] += F::ONE;

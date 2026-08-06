@@ -37,7 +37,8 @@ const RECOMPOSITION_ROWS: usize = LOGICAL_COORDINATES;
 const CANONICALITY_ROWS: usize = LOGICAL_COORDINATES * (CHILD_COUNT + 2);
 const TOTAL_ROWS: usize = RECOMPOSITION_ROWS + CANONICALITY_ROWS;
 const CANONICAL_COLUMNS: usize = 1 + LOGICAL_COORDINATES * (CHILD_COUNT + 3);
-const EVALUATION_ARITY: usize = 13;
+const APPLICATION_MATRIX_COUNT: usize = 13;
+const PAPER_MATRIX_COUNT: usize = APPLICATION_MATRIX_COUNT + 1;
 const ACTIVE_PROFILE_TAG: usize = 0;
 const RECURSIVE_SELECTOR: u64 = 1;
 
@@ -139,10 +140,10 @@ fn committed_lean_files(directory: &Path, root: &Path, files: &mut BTreeSet<Stri
 }
 
 fn compact_preprocessing() -> Preprocessing {
-    let matrices = (0..EVALUATION_ARITY)
+    let matrices = (0..APPLICATION_MATRIX_COUNT)
         .map(|_| Mat::identity(LOGICAL_COORDINATES))
         .collect::<Vec<_>>();
-    let structure = CcsStructure::new(matrices, SparsePoly::new(EVALUATION_ARITY, vec![]))
+    let structure = CcsStructure::new(matrices, SparsePoly::new(APPLICATION_MATRIX_COUNT, vec![]))
         .expect("compact 270-coordinate paper-shape structure");
     let params = config::r1cs_params(structure.n, structure.m).expect("compact paper-shape params");
     support::install_ajtai_module(&params, &structure);
@@ -206,7 +207,7 @@ fn production_fixture() -> ProductionFixture {
         .enumerate()
     {
         assert_eq!(claim.m_in, LOGICAL_COORDINATES);
-        assert_eq!(claim.y_ring.len(), EVALUATION_ARITY);
+        assert_eq!(claim.y_ring.len(), PAPER_MATRIX_COUNT);
         assert_eq!(witness.rows(), D);
         assert_eq!(witness.cols(), LOGICAL_COORDINATES.div_ceil(D));
         for (public_column, value) in values.iter_mut().enumerate() {
@@ -236,7 +237,7 @@ fn production_fixture() -> ProductionFixture {
             "parent coordinate {public_column} must be the raw-child radix recomposition"
         );
     }
-    assert_eq!(parent.y_ring.len(), EVALUATION_ARITY);
+    assert_eq!(parent.y_ring.len(), PAPER_MATRIX_COUNT);
     pi_dec::verify(
         &prep.params,
         prep.structure(),
@@ -389,7 +390,7 @@ fn native_case_accepts(case: &DifferentialCase) -> bool {
         || case.recursive_selector != RECURSIVE_SELECTOR
         || case.public_column >= LOGICAL_COORDINATES
         || case.children.len() != CHILD_COUNT
-        || case.child_evaluation_arities != vec![EVALUATION_ARITY; CHILD_COUNT]
+        || case.child_evaluation_arities != vec![PAPER_MATRIX_COUNT; CHILD_COUNT]
     {
         return false;
     }
@@ -444,7 +445,7 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
         .iter()
         .map(|values| values[public_column])
         .collect::<Vec<_>>();
-    let arities = vec![EVALUATION_ARITY; CHILD_COUNT];
+    let arities = vec![PAPER_MATRIX_COUNT; CHILD_COUNT];
     let honest = checked_case(
         0,
         ACTIVE_PROFILE_TAG,

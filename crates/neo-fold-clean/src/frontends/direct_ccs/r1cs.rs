@@ -40,6 +40,9 @@ impl R1cs {
                 c_cols: cc,
             });
         }
+        if ar == 0 || ac == 0 {
+            return Err(FrontendError::EmptyShape);
+        }
         if self.m_in > ac {
             return Err(FrontendError::PublicInputTooLarge { m_in: self.m_in, m: ac });
         }

@@ -659,8 +659,16 @@ fn prove_with_nifs_prover_and_semantic_state(
     lanes: Option<&LaneScheme>,
     nebula_advance: Option<NebulaAdvance>,
 ) -> Result<(State, StepProof, Option<nifs::NifsPostFoldSummary>), Error> {
+    let semantic_mode = match semantic_advance {
+        SemanticStateAdvance::Stateless => SemanticStateMode::Stateless,
+        SemanticStateAdvance::Stateful(digest) => {
+            construction2::validate_digest32("semantic_state_advance", digest)?;
+            SemanticStateMode::Stateful
+        }
+    };
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
+    construction2::validate_state_authority(vk, s, &state, semantic_mode)?;
     if next_latest.is_empty() {
         return Err(Error::EmptyStep);
     }
@@ -812,10 +820,6 @@ fn prove_with_nifs_prover_and_semantic_state(
         post_acc_digest_override,
         nebula_advance.map(|adv| adv.lane_out),
     )?;
-    let semantic_mode = match semantic_advance {
-        SemanticStateAdvance::Stateless => SemanticStateMode::Stateless,
-        SemanticStateAdvance::Stateful(_) => SemanticStateMode::Stateful,
-    };
     let x_out = construction2::compute_x_out(vk, pp, structure_digest, &next_state, semantic_mode);
     let semantic_state_digest = next_state.semantic_state_digest;
 
@@ -957,6 +961,8 @@ fn verify_core<R: VerifyStepRecorder>(
     recorder.stage(VerifyStepExecutionStage::Entry);
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
+    construction2::validate_state_authority(vk, s, &state, semantic_mode)?;
+    construction2::validate_digest32("proof.semantic_state_digest", proof.semantic_state_digest)?;
     if next_latest_claims.is_empty() {
         return Err(Error::EmptyStep);
     }

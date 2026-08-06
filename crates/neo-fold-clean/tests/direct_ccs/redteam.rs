@@ -42,7 +42,7 @@ fn wide_three_term_addition(cols: usize) -> R1cs {
     b[(0, 0)] = F::ONE;
     let mut c = NeoMat::zero(1, m, F::default());
     c[(0, 3)] = F::ONE;
-    R1cs { a, b, c, m_in: 3 }
+    R1cs { a, b, c, m_in: m }
 }
 
 fn one_term_copy() -> R1cs {
@@ -53,7 +53,7 @@ fn one_term_copy() -> R1cs {
     b[(0, 0)] = F::ONE;
     let mut c = NeoMat::zero(1, m, F::default());
     c[(0, 3)] = F::ONE;
-    R1cs { a, b, c, m_in: 3 }
+    R1cs { a, b, c, m_in: m }
 }
 
 fn zero_direct_ccs_with_f_prime_width() -> R1cs {
@@ -109,7 +109,7 @@ fn build_instance_rejects_preprocessing_public_input_mismatch() {
     match direct_ccs::build_instance(&prep, &r1cs_for_instance, &z) {
         Err(FrontendError::PreprocessingPublicInputMismatch {
             r1cs_m_in: 2,
-            prep_m_in: Some(3),
+            prep_m_in: Some(D),
         }) => {}
         other => panic!("expected PreprocessingPublicInputMismatch, got {:?}", other),
     }

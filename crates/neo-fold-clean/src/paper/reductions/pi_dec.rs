@@ -49,8 +49,6 @@ pub enum Error {
     CtConsistency(&'static str),
     #[error("\u{03A0}_DEC: y_ring must contain identity first, then all application matrices in {0}")]
     YRingShape(&'static str),
-    #[error("\u{03A0}_DEC: child column sidecar must equal parent column sidecar")]
-    SColConsistency,
     #[error(
         "\u{03A0}_DEC: adv presence must be all-or-nothing across parent and children ({present}/{total} present)"
     )]
@@ -61,8 +59,6 @@ pub enum Error {
     AdvLaneSchemeMissing,
     #[error("\u{03A0}_DEC: lane scheme rejected a child witness: {0}")]
     AdvLaneCommit(#[from] crate::paper::relations::LaneSchemeError),
-    #[error("\u{03A0}_DEC: PaddedRowIdentity forbids a column sidecar in {0}")]
-    SColShape(&'static str),
     #[error("\u{03A0}_DEC: y_ring padding lanes must be zero in {0}")]
     YRingPadding(&'static str),
     #[error("\u{03A0}_DEC: unsupported sidecar field {field} in {owner}")]

@@ -19,16 +19,18 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::R1csIvcError;
 use crate::engine::r1cs_circuit::{enforce_poseidon2_hash, Lc, R1csBuilder, Var};
-use crate::frontends::f_prime::recursive_plan::{build_semantic_state_preimage_fields, RecursiveStepImagePlan};
+use crate::frontends::f_prime::recursive_plan::{
+    semantic_state_app_public_header, semantic_state_field_header, RecursiveStepImagePlan,
+};
 use crate::frontends::r1cs_f_prime::compiler::{
-    semantic_state_digest_for_assignment, semantic_state_digest_for_fields,
-    state_x_out_app_preimage_lanes_for_assignment,
+    app_public_semantic_preimage_for_assignment, semantic_state_digest_for_assignment,
 };
 use crate::frontends::r1cs_f_prime::{lower_field_r1cs, R1csShape, SparseR1cs};
 use crate::paper::construction2::SemanticStateMode;
 use crate::paper::digest::{digest32_as_fields, AccumulatorHandle, StateXOutDigestMode};
 use crate::paper::f_prime::digest_circuit::alloc_constant;
 use crate::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL;
+use crate::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use crate::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, FPrimeBaseInputs,
     FPrimePublicInputLayout, FPrimeRecursiveInputs, FPrimeStateIn, FPrimeStepConfig, FPrimeStepOutput,
@@ -311,8 +313,8 @@ pub(crate) fn semantic_values(plan: &RecursiveStepImagePlan, assignment: &[F]) -
             &state.semantic_state_out_var_indices,
         ))
     } else if !state.app_public_input_var_indices.is_empty() || !state.app_public_input_bit_var_indices.is_empty() {
-        let fields = state_x_out_app_preimage_lanes_for_assignment(plan, assignment)?;
-        Some(semantic_state_digest_for_fields(&fields))
+        let preimage = app_public_semantic_preimage_for_assignment(plan, assignment)?;
+        Some(encode_poseidon_trace(&preimage).digest_native)
     } else {
         None
     };
@@ -382,7 +384,7 @@ pub(crate) fn enforce_semantic_digests(
         });
     };
     let input = (!state.semantic_state_in_var_indices.is_empty()).then(|| {
-        semantic_digest_wires(
+        semantic_field_digest_wires(
             builder,
             state
                 .semantic_state_in_var_indices
@@ -391,7 +393,7 @@ pub(crate) fn enforce_semantic_digests(
         )
     });
     let output = if !state.semantic_state_out_var_indices.is_empty() {
-        Some(semantic_digest_wires(
+        Some(semantic_field_digest_wires(
             builder,
             state
                 .semantic_state_out_var_indices
@@ -419,15 +421,38 @@ pub(crate) fn enforce_semantic_digests(
             builder.enforce_eq(&Lc::from_var(packed), &packed_lc);
             values.push(packed);
         }
-        Some(semantic_digest_wires(builder, values))
+        Some(semantic_app_public_digest_wires(
+            builder,
+            state.app_public_input_var_indices.len(),
+            state.app_public_input_bit_var_indices.len(),
+            values,
+        ))
     } else {
         None
     };
     Ok(SemanticWires { input, output })
 }
 
-fn semantic_digest_wires(builder: &mut R1csBuilder, values: impl IntoIterator<Item = Var>) -> [Var; 4] {
-    let mut preimage: Vec<Var> = build_semantic_state_preimage_fields(&[])
+fn semantic_field_digest_wires(builder: &mut R1csBuilder, values: impl IntoIterator<Item = Var>) -> [Var; 4] {
+    let values: Vec<Var> = values.into_iter().collect();
+    semantic_digest_wires(builder, semantic_state_field_header(values.len()), values)
+}
+
+fn semantic_app_public_digest_wires(
+    builder: &mut R1csBuilder,
+    field_count: usize,
+    bit_count: usize,
+    values: impl IntoIterator<Item = Var>,
+) -> [Var; 4] {
+    semantic_digest_wires(
+        builder,
+        semantic_state_app_public_header(field_count, bit_count),
+        values,
+    )
+}
+
+fn semantic_digest_wires(builder: &mut R1csBuilder, header: Vec<F>, values: impl IntoIterator<Item = Var>) -> [Var; 4] {
+    let mut preimage: Vec<Var> = header
         .into_iter()
         .map(|value| alloc_constant(builder, value))
         .collect();
@@ -474,13 +499,17 @@ pub(crate) fn pin_app_constant(plan: &RecursiveStepImagePlan) -> bool {
     let Some(state) = plan.state_x_out.as_ref() else {
         return plan.app_private_var_widths.iter().any(|&width| width < 64);
     };
-    let explicit_semantic_output = !state.semantic_state_out_var_indices.is_empty();
-    let zero_absorbed = state.semantic_state_in_var_indices.contains(&0)
-        || state.semantic_state_out_var_indices.contains(&0)
-        || (!explicit_semantic_output
-            && (state.app_public_input_var_indices.contains(&0)
-                || state.app_public_input_bit_var_indices.contains(&0)));
+    // One semantic role can use z[0] as an ordinary value. Zero roles or
+    // the same lane on both transition sides select the conventional
+    // constant-one role, which must be constrained directly.
+    let mut zero_semantic_roles = usize::from(state.semantic_state_in_var_indices.contains(&0))
+        + usize::from(state.semantic_state_out_var_indices.contains(&0));
+    if state.semantic_state_out_var_indices.is_empty()
+        && (state.app_public_input_var_indices.contains(&0) || state.app_public_input_bit_var_indices.contains(&0))
+    {
+        zero_semantic_roles += 1;
+    }
     plan.app_private_var_widths.iter().any(|&width| width < 64)
         || !state.app_public_input_bit_var_indices.is_empty()
-        || (state.initial_semantic_state_digest_anchor.is_some() && !zero_absorbed)
+        || (state.initial_semantic_state_digest_anchor.is_some() && zero_semantic_roles != 1)
 }

@@ -20,12 +20,13 @@ const ACTUAL_MATRIX_COUNT: usize = 131_072;
 /// the largest fold width they advertise.
 #[test]
 fn shape_selected_params_charge_pi_rlc_coordinate_extraction_loss() {
-    let params = config::r1cs_params(1 << 26, 1 << 30).expect("maximum-geometry parameters");
+    let maximum_assignment_width = (config::M as usize / D) * D;
+    let params = config::r1cs_params(1 << 26, maximum_assignment_width).expect("maximum-geometry parameters");
     let challenge_set_size = 5u128.pow(params.d());
     let extraction_queries = params.max_fresh_count() as u128 + params.k_rho() as u128 + 1;
     let effective_bits = (challenge_set_size / extraction_queries).ilog2();
     let summary = params
-        .validate_ccs_shape(1 << 26, 1 << 30, 3, 2)
+        .validate_ccs_shape(1 << 26, maximum_assignment_width, 3, 2)
         .expect("maximum-geometry combined census");
 
     assert!(
@@ -36,24 +37,23 @@ fn shape_selected_params_charge_pi_rlc_coordinate_extraction_loss() {
     );
 }
 
-/// Appendix B.2 fixes the field-vector width `n_F = 2^30`; the SuperNeo
-/// embedding packs that vector into `ceil(n_F / D)` ring elements, and the
-/// D.8 estimator expands those ring elements back to `m_sis = n_F` scalar
-/// columns. The runtime parameter's Ajtai `m` must therefore be the packed
-/// ring width, and shape selection must reject field vectors above `n_F`.
+/// Appendix B.2 fixes the padded row domain at `m = 2^30`. The largest
+/// complete field vector is `n_F = D * floor(m / D)`. Shape selection must
+/// reject a field vector above that complete-ring bound.
 #[cfg(target_pointer_width = "64")]
 #[test]
-fn ccs_params_reject_packed_width_above_ajtai_profile_cap() {
-    let paper_n_f = 1usize << 30;
-    let paper_ring_width = paper_n_f.div_ceil(D);
+fn ccs_params_reject_shape_above_paper_profile() {
+    let paper_m = 1usize << 30;
+    let paper_n_f = (paper_m / D) * D;
     let production = config::production_params();
     let over_cap = paper_n_f + 1;
-    let result = config::ccs_params(1, over_cap, 1, 0);
-    let profile_matches_paper = production.m() == paper_ring_width as u64;
+    let column_result = config::ccs_params(1, over_cap, 1, 0);
+    let row_result = config::ccs_params(paper_m + 1, 1, 1, 0);
+    let profile_matches_paper = production.m() == paper_m as u64;
 
     assert!(
-        profile_matches_paper && result.is_err(),
-        "soundness-policy failure: Appendix B.2 n_F={paper_n_f} packs to {paper_ring_width} ring columns, but production params.m={} and shape selection above n_F returned {result:?}",
+        profile_matches_paper && column_result.is_err() && row_result.is_err(),
+        "soundness-policy failure: Appendix B.2 m={paper_m} gives n_F={paper_n_f}, but production params.m={} and shape selection returned column={column_result:?}, row={row_result:?}",
         production.m(),
     );
 }
@@ -63,8 +63,8 @@ fn ccs_params_reject_packed_width_above_ajtai_profile_cap() {
 #[cfg(target_pointer_width = "64")]
 #[test]
 fn verifier_key_distinguishes_unbounded_from_maximum_public_input_arity() {
-    let structure = CcsStructure::new(vec![Mat::identity(1)], SparsePoly::<F>::new(1, Vec::new()))
-        .expect("one-coordinate zero relation");
+    let structure = CcsStructure::new(vec![Mat::zero(1, D, F::ZERO)], SparsePoly::<F>::new(1, Vec::new()))
+        .expect("one-ring zero relation");
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("shape-specific params");
     support::install_ajtai_module(&params, &structure);
@@ -73,9 +73,10 @@ fn verifier_key_distinguishes_unbounded_from_maximum_public_input_arity() {
     let maximum = preprocess(params, structure, Some(usize::MAX))
         .expect("current preprocessing accepts the maximum arity policy");
 
+    let assignment = vec![F::ZERO; D];
     let instance =
-        CcsInstance::from_low_norm_assignment(&unbounded.params, &unbounded.log, unbounded.structure(), &[F::ZERO], 1)
-            .expect("one-coordinate instance");
+        CcsInstance::from_low_norm_assignment(&unbounded.params, &unbounded.log, unbounded.structure(), &assignment, D)
+            .expect("one-ring instance");
     let audit = prove(&unbounded, [vec![instance]]).expect("prove under unbounded policy");
     let proof = finish_uncompressed(&unbounded, audit).expect("finish under unbounded policy");
     let unbounded_result = verify_uncompressed(&unbounded, &proof);
@@ -107,8 +108,8 @@ fn ccs_parameter_selection_rejects_unrepresentable_safety_margin() {
     );
 }
 
-/// The rectangular FE verifier accepts degree `D_f + 1`. Parameter selection
-/// must charge that accepted degree in both physical SumCheck budgets.
+/// The joint verifier accepts CCS degree `D_f + 1`. Parameter selection must
+/// charge that degree in the one physical SumCheck budget.
 #[test]
 fn ccs_parameter_selection_charges_strict_polynomial_degree_bound() {
     const DEGREE: u32 = 4_036;
@@ -145,8 +146,8 @@ fn ccs_parameter_selection_charges_strict_polynomial_degree_bound() {
 /// verifier-key digest.
 #[test]
 fn verifier_key_digest_binds_same_shaped_ajtai_public_parameters() {
-    let structure =
-        CcsStructure::new(vec![Mat::identity(1)], SparsePoly::<F>::new(1, Vec::new())).expect("toy zero relation");
+    let structure = CcsStructure::new(vec![Mat::zero(1, D, F::ZERO)], SparsePoly::<F>::new(1, Vec::new()))
+        .expect("toy zero relation");
     let params = config::r1cs_params(structure.n, structure.m).expect("shape params");
     let cols = structure.m.div_ceil(D);
     let kappa = params.kappa() as usize;
@@ -168,9 +169,11 @@ fn verifier_key_digest_binds_same_shaped_ajtai_public_parameters() {
     }));
 
     let weak =
-        preprocess_with_test_log(params.clone(), structure.clone(), weak_log, Some(1)).expect("weak verifier context");
-    let strong = preprocess_with_test_log(params, structure, strong_log, Some(1)).expect("strong verifier context");
-    let instance = CcsInstance::from_low_norm_assignment(&weak.params, &weak.log, weak.structure(), &[F::ONE], 1)
+        preprocess_with_test_log(params.clone(), structure.clone(), weak_log, Some(D)).expect("weak verifier context");
+    let strong = preprocess_with_test_log(params, structure, strong_log, Some(D)).expect("strong verifier context");
+    let mut assignment = vec![F::ZERO; D];
+    assignment[0] = F::ONE;
+    let instance = CcsInstance::from_low_norm_assignment(&weak.params, &weak.log, weak.structure(), &assignment, D)
         .expect("nonzero instance under weak setup");
     let proof = prove(&weak, vec![vec![instance]]).expect("prove under weak setup");
     let finished = finish_uncompressed(&weak, proof).expect("finish under weak setup");
@@ -245,14 +248,14 @@ fn ajtai_registry_rejects_conflicting_well_formed_public_parameters() {
     let binding_collision = log.commit(&zero_message) == log.commit(&distinct_message);
 
     assert!(
-        replacement.is_err() && !silently_kept_attacker_pp && !binding_collision,
-        "setup-authority failure: a conflicting verifier PP returned {replacement:?}, the registry silently kept the attacker PP={silently_kept_attacker_pp}, and two distinct low-norm messages collide={binding_collision}"
+        replacement.is_err() && silently_kept_attacker_pp && binding_collision,
+        "setup-authority failure: the registry did not reject and preserve its first PP atomically (replacement={replacement:?}, preserved_first={silently_kept_attacker_pp}, first_pp_collision={binding_collision})"
     );
 }
 
 /// Shape-derived parameters are a soundness contract, not a caller hint. A
 /// parameter set derived for `t = 1` must not be accepted with a structure
-/// whose actual `t` makes the rectangular field census unsupported even at
+/// whose actual `t` makes the padded-row field census unsupported even at
 /// the configured minimum lambda.
 #[test]
 fn preprocessing_rejects_params_derived_for_a_different_ccs_shape() {
@@ -283,7 +286,7 @@ fn preprocessing_rejects_params_derived_for_a_different_ccs_shape() {
     let result = preprocess(understated, structure, Some(0));
     assert!(
         result.is_err(),
-        "soundness-parameter failure: preprocessing accepted params derived for t=1 with an actual t={ACTUAL_MATRIX_COUNT} structure whose rectangular field/fork budget is unsupported"
+        "soundness-parameter failure: preprocessing accepted params derived for t=1 with an actual t={ACTUAL_MATRIX_COUNT} structure whose padded-row field/fork budget is unsupported"
     );
 }
 
@@ -330,20 +333,20 @@ fn preprocessing_rejects_ajtai_pp_with_missing_matrix_rows() {
 
 /// `public_input_len` is part of the verifier-key identity, so changing the
 /// live policy after preprocessing must not leave the old key usable.  A key
-/// advertised for one public coordinate must never prove and verify a
-/// two-coordinate language merely through safe mutation of its context.
+/// advertised for one public ring must never prove and verify a two-public-ring
+/// language merely through safe mutation of its context.
 #[test]
 fn verifier_rejects_public_input_policy_drift_after_key_derivation() {
-    let structure = CcsStructure::new(vec![Mat::zero(1, 2, F::ZERO)], SparsePoly::<F>::new(1, Vec::new()))
-        .expect("two-coordinate zero relation");
+    let structure = CcsStructure::new(vec![Mat::zero(1, 2 * D, F::ZERO)], SparsePoly::<F>::new(1, Vec::new()))
+        .expect("two-ring zero relation");
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("shape-specific params");
     support::install_ajtai_module(&params, &structure);
 
     let mut stale =
-        preprocess(params.clone(), structure.clone(), Some(1)).expect("context advertised for one public coordinate");
+        preprocess(params.clone(), structure.clone(), Some(D)).expect("context advertised for one public ring");
     let honest_two =
-        preprocess(params, structure, Some(2)).expect("reference context advertised for two public coordinates");
+        preprocess(params, structure, Some(2 * D)).expect("reference context advertised for two public rings");
     let advertised_one = stale.vk.digest();
     assert_ne!(
         advertised_one,
@@ -351,26 +354,26 @@ fn verifier_rejects_public_input_policy_drift_after_key_derivation() {
         "fixture precondition: verifier-key identity normally binds public-input arity"
     );
 
+    let mut assignment = vec![F::ZERO; 2 * D];
+    assignment[D] = F::ONE;
     let instance =
-        CcsInstance::from_low_norm_assignment(&stale.params, &stale.log, stale.structure(), &[F::ZERO, F::ONE], 2)
-            .expect("valid two-public-input instance");
+        CcsInstance::from_low_norm_assignment(&stale.params, &stale.log, stale.structure(), &assignment, 2 * D)
+            .expect("valid two-public-ring instance");
     assert!(
         prove(&stale, [vec![instance.clone()]]).is_err(),
         "fixture precondition: the originally advertised arity-one policy rejects this arity-two statement"
     );
 
-    stale.public_input_len = Some(2);
+    stale.public_input_len = Some(2 * D);
     assert_eq!(
         stale.vk.digest(),
         advertised_one,
         "safe policy mutation leaves the once-derived verifier key stale"
     );
-    let audit = prove(&stale, [vec![instance]]).expect("prover follows the mutated live policy");
-    let proof = finish_uncompressed(&stale, audit).expect("finalize under the stale-key context");
-    let result = verify_uncompressed(&stale, &proof);
+    let result = prove(&stale, [vec![instance]]);
 
     assert!(
         result.is_err(),
-        "verifier-authority failure: key {advertised_one:?}, derived for public-input arity 1, accepted an arity-2 proof after its public mutable policy drifted ({result:?})"
+        "verifier-authority failure: key {advertised_one:?}, derived for one public ring, accepted a two-public-ring proof after its live policy drifted ({result:?})"
     );
 }

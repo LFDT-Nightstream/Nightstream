@@ -23,10 +23,10 @@ use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs
 const GENERATED_DIRECTORY: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Nifs/PiDec/Generated";
 const SHARD_SIZE: usize = 250;
-const ACTIVE_ROW_COUNT: usize = 11_845;
+const ACTIVE_ROW_COUNT: usize = 11_751;
 const ACTIVE_CHILD_COUNT: usize = 14;
 const ACTIVE_LOGICAL_X: usize = 270;
-const ACTIVE_MATRIX_COUNT: usize = 13;
+const ACTIVE_PAPER_MATRIX_COUNT: usize = 14;
 const ACTIVE_POINT_DIMENSION: usize = 24;
 const ACTIVE_COMMITMENT_ROWS: usize = 4;
 
@@ -302,13 +302,13 @@ fn render_metadata(strict: &PiDecStrictAudit, leaf_counts: &[usize]) -> String {
          | Payload | Meaning | Authority |\n\
          |---|---|---|\n\
          | source range | one contiguous outer strict-PiDEC program | untrusted until checked |\n\
-         | profile | `kappa = 4`, `t = 13`, `r = 24` | bounded fixture only |\n\
+         | profile | `kappa = 4`, `t = 14`, `r = 24` | bounded fixture only |\n\
          -/\n\n\
          namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated.Metadata\n\n\
          def schemaVersion : Nat := 1\n\
          def commitmentRows : Nat := {ACTIVE_COMMITMENT_ROWS}\n\
          def childCount : Nat := {ACTIVE_CHILD_COUNT}\n\
-         def matrixCount : Nat := {ACTIVE_MATRIX_COUNT}\n\
+         def matrixCount : Nat := {ACTIVE_PAPER_MATRIX_COUNT}\n\
          def pointDimension : Nat := {ACTIVE_POINT_DIMENSION}\n\
          def logicalPublicWidth : Nat := {ACTIVE_LOGICAL_X}\n\
          def sourceRowStart : Nat := {}\n\
@@ -346,7 +346,7 @@ fn render_rows_aggregate(shard_count: usize) -> String {
          Emits constraints: no.\n\n\
          | Payload | Meaning | Authority |\n\
          |---|---|---|\n\
-         | `sourceRows` | all 11,845 rows in source order | untrusted until checked |\n\
+         | `sourceRows` | all 11,751 rows in source order | untrusted until checked |\n\
          -/\n\n\
          namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated\n\n\
          open Nightstream.Implementation.R1CS\n\n\
@@ -387,7 +387,7 @@ fn generated_files() -> Vec<GeneratedLeanFile> {
         .collect::<Vec<_>>();
     assert_eq!(
         leaf_counts,
-        vec![216, 0, 270, 1_404, 70, 672, 532, 15, 4_320, 390, 3_900, 56]
+        vec![216, 0, 270, 1_512, 70, 672, 15, 4_320, 420, 4_200, 56]
     );
 
     let mut files = vec![

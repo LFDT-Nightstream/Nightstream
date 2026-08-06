@@ -1,4 +1,4 @@
-//! `PaddedRowIdentityV1` recursive PiCCS verifier.
+//! `PaddedRowIdentity` recursive PiCCS verifier.
 //!
 //! Owns: one joint SumCheck, the paper terminal equation, input authority,
 //! and the constrained output wire surface. The relation digest and claim

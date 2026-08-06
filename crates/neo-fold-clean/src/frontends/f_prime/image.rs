@@ -20,10 +20,11 @@
 use neo_math::ring::D;
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
+use thiserror::Error;
 
 use p3_field::PrimeField64;
 
-use crate::engine::ccs_native::poseidon2::POSEIDON2_GOLDILOCKS_BITS;
+use crate::engine::ccs_native::poseidon2::{POSEIDON2_GOLDILOCKS_BITS, POSEIDON2_RATE};
 use crate::engine::ccs_native::poseidon2_transcript::SpongeTraceImage;
 use crate::paper::f_prime::poseidon_trace::{PoseidonTraceImage, PoseidonTraceLayout, BITS_PER_PERMUTATION};
 use crate::paper::f_prime::ring_action_trace::{RingActionTraceImage, RingActionTraceLayout};
@@ -92,7 +93,7 @@ pub struct FPrimeImageConfig {
     pub kmul_count: usize,
     /// Number of ring-action lane-pairs in one step (κ · k_total).
     pub ring_action_pair_count: usize,
-    /// Projection-checked ring action (Road A, candidate E): one entry
+    /// Projection-checked ring action: one entry
     /// per projection identity, giving how many pair terms that
     /// identity consumes — the batch structure is part of the config,
     /// so an unpartitioned pair set is unrepresentable. `pair_count =
@@ -333,6 +334,58 @@ impl NifsPayloadShape {
     }
 }
 
+fn add_layout_bits(total: &mut usize, bits: usize) -> Option<()> {
+    *total = total.checked_add(bits)?;
+    Some(())
+}
+
+fn checked_nifs_payload_bits(shape: &NifsPayloadShape) -> Option<usize> {
+    let mut total = 0usize;
+    match shape {
+        NifsPayloadShape::CcsClaim(shape) => {
+            add_layout_bits(&mut total, 5usize.checked_mul(NIFS_LEN_HEADER_BITS)?)?;
+            add_layout_bits(
+                &mut total,
+                shape
+                    .c_data_entries
+                    .checked_mul(POSEIDON2_GOLDILOCKS_BITS)?,
+            )?;
+            add_layout_bits(&mut total, shape.x_entries.checked_mul(POSEIDON2_GOLDILOCKS_BITS)?)?;
+        }
+        NifsPayloadShape::CeClaim(shape) => {
+            add_layout_bits(&mut total, 9usize.checked_mul(NIFS_LEN_HEADER_BITS)?)?;
+            add_layout_bits(
+                &mut total,
+                shape
+                    .c_data_entries
+                    .checked_mul(POSEIDON2_GOLDILOCKS_BITS)?,
+            )?;
+            add_layout_bits(
+                &mut total,
+                shape
+                    .x_rows
+                    .checked_mul(shape.x_active_cols)?
+                    .checked_mul(POSEIDON2_GOLDILOCKS_BITS)?,
+            )?;
+            add_layout_bits(&mut total, shape.r_len.checked_mul(NIFS_K_LIMB_BITS)?)?;
+            for &inner in &shape.y_ring_inner_lens {
+                add_layout_bits(&mut total, NIFS_LEN_HEADER_BITS)?;
+                add_layout_bits(&mut total, inner.checked_mul(NIFS_K_LIMB_BITS)?)?;
+            }
+            add_layout_bits(&mut total, NIFS_FOLD_DIGEST_BITS)?;
+        }
+    }
+    Some(total)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Error)]
+pub enum FPrimeImageLayoutError {
+    #[error("invalid F' image configuration: {0}")]
+    InvalidConfig(&'static str),
+    #[error("F' image layout size exceeds usize")]
+    SizeOverflow,
+}
+
 /// Concrete layout for one F' image.
 #[derive(Clone, Debug)]
 pub struct FPrimeImageLayout {
@@ -362,7 +415,7 @@ pub struct FPrimeImageLayout {
     /// Splice offset (in image `values`) for each ring-action pair's
     /// non-constant bits.
     pub ring_action_pair_splices: Vec<usize>,
-    /// Projection region (Road A): shared ladder, then pairs, then
+    /// Projection region: shared ladder, then pairs, then
     /// identities — widths per `paper::f_prime::projection_trace`.
     pub projection: RegionRange,
     /// Splice offset of the shared β/ladder sub-region.
@@ -385,7 +438,136 @@ pub struct FPrimeImageLayout {
 }
 
 impl FPrimeImageLayout {
+    /// Build a layout from externally supplied size metadata.
+    pub fn try_new(config: FPrimeImageConfig) -> Result<Self, FPrimeImageLayoutError> {
+        if !config.app_private_var_widths.is_empty() {
+            let typed_bits = config
+                .app_private_var_widths
+                .iter()
+                .try_fold(0usize, |sum, &width| sum.checked_add(width))
+                .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+            if typed_bits != config.limbs.saturating_sub(1) {
+                return Err(FPrimeImageLayoutError::InvalidConfig(
+                    "typed app-private widths must sum to limbs - 1",
+                ));
+            }
+            if !config
+                .app_private_var_widths
+                .iter()
+                .all(|&width| (1..=64).contains(&width))
+            {
+                return Err(FPrimeImageLayoutError::InvalidConfig(
+                    "typed app-private widths must be in 1..=64",
+                ));
+            }
+        }
+        if config.projection_batches.iter().any(|&count| count == 0) {
+            return Err(FPrimeImageLayoutError::InvalidConfig(
+                "every projection identity must consume at least one pair",
+            ));
+        }
+
+        let logical_public_len = 1usize
+            .checked_add(config.boundary_bits)
+            .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        let public_remainder = logical_public_len % D;
+        let mut total = if public_remainder == 0 {
+            logical_public_len
+        } else {
+            logical_public_len
+                .checked_add(D - public_remainder)
+                .ok_or(FPrimeImageLayoutError::SizeOverflow)?
+        };
+        for bits in [
+            STATE_IN_BITS,
+            STATE_OUT_BITS,
+            CHUNK_DIGEST_BITS,
+            config.limbs.saturating_sub(1),
+            IS_BASE_BITS,
+        ] {
+            add_layout_bits(&mut total, bits).ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        }
+        for shape in &config.nifs_payload_shapes {
+            let bits = checked_nifs_payload_bits(shape).ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+            add_layout_bits(&mut total, bits).ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        }
+        let kmul_bits = config
+            .kmul_count
+            .checked_mul(KMUL_SLOT_BITS)
+            .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        add_layout_bits(&mut total, kmul_bits).ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+
+        let pair_bits =
+            config
+                .ring_action_pair_layout
+                .end
+                .checked_sub(1)
+                .ok_or(FPrimeImageLayoutError::InvalidConfig(
+                    "ring-action pair layout must include its constant slot",
+                ))?;
+        let ring_action_bits = config
+            .ring_action_pair_count
+            .checked_mul(pair_bits)
+            .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        add_layout_bits(&mut total, ring_action_bits).ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+
+        let projection_pairs = config
+            .projection_batches
+            .iter()
+            .try_fold(0usize, |sum, &count| sum.checked_add(count))
+            .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        if !config.projection_batches.is_empty() {
+            add_layout_bits(
+                &mut total,
+                crate::paper::f_prime::projection_trace::PROJECTION_SHARED_BITS,
+            )
+            .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        }
+        add_layout_bits(
+            &mut total,
+            projection_pairs
+                .checked_mul(crate::paper::f_prime::projection_trace::PROJECTION_PAIR_BITS)
+                .ok_or(FPrimeImageLayoutError::SizeOverflow)?,
+        )
+        .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        add_layout_bits(
+            &mut total,
+            config
+                .projection_batches
+                .len()
+                .checked_mul(crate::paper::f_prime::projection_trace::PROJECTION_IDENTITY_BITS)
+                .ok_or(FPrimeImageLayoutError::SizeOverflow)?,
+        )
+        .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+
+        for &preimage_len in &config.poseidon_one_shot_preimage_lens {
+            let absorbs = preimage_len
+                .div_ceil(POSEIDON2_RATE)
+                .checked_add(1)
+                .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+            let trace_bits = absorbs
+                .checked_mul(BITS_PER_PERMUTATION)
+                .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+            add_layout_bits(&mut total, trace_bits).ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        }
+        let sponge_bits = config
+            .sponge_transcript_permutes
+            .checked_mul(BITS_PER_PERMUTATION)
+            .ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+        add_layout_bits(&mut total, sponge_bits).ok_or(FPrimeImageLayoutError::SizeOverflow)?;
+
+        let layout = Self::new_validated(config);
+        debug_assert_eq!(layout.end, total);
+        Ok(layout)
+    }
+
+    /// Build a verifier-owned layout whose configuration is statically valid.
+    /// Use [`Self::try_new`] for external size metadata.
     pub fn new(config: FPrimeImageConfig) -> Self {
+        Self::try_new(config).expect("verifier-owned F' image configuration must be valid")
+    }
+
+    fn new_validated(config: FPrimeImageConfig) -> Self {
         if !config.app_private_var_widths.is_empty() {
             let typed_bits: usize = config.app_private_var_widths.iter().sum();
             assert_eq!(
@@ -479,7 +661,7 @@ impl FPrimeImageLayout {
             bits: cursor - ring_action_start,
         };
 
-        // projection (Road A): shared β/ladder once, then pairs, then
+        // Projection: shared β/ladder once, then pairs, then
         // identities. Empty (zero bits) when both counts are zero.
         let projection_start = cursor;
         let projection_shared_splice = cursor;

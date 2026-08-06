@@ -396,7 +396,7 @@ fn reduce_lcs_mod_phi_81(coeffs: &mut [Lc]) {
 // evaluation terms; the β power ladder is shared across every pair of a
 // step. The caller owns β's transcript binding. The production NIFS.V
 // commitment client supplies transcript-derived β and quotient wires;
-// other clients and the final low-norm lowering remain Road A work.
+// other clients and the final low-norm lowering remain separate work.
 
 use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_mul, KLc, KVar};
 

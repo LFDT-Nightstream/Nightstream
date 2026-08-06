@@ -527,8 +527,7 @@ fn manifest(honest: &ProjectionFixture, bad: &ProjectionFixture) -> Value {
             source_hash("formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ProjectionSound.lean"),
             source_hash("formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ProjectionBatchSound.lean"),
             source_hash("formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/PiRLCProjectionSound.lean"),
-            source_hash("formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean"),
-            source_hash("formal/nightstream-lean/Nightstream/Assurance/FPrimeRecursiveCircuit.lean")
+            source_hash("formal/nightstream-lean/Nightstream/SuperNeo/ProjectionCheck.lean")
         ]
     })
 }
@@ -574,4 +573,27 @@ fn production_projection_rows_expose_exact_or_bad_root_boundary() {
         &repo_root().join(LEAN_ARTIFACT_PATH),
         &render_lean_artifact(&honest, &bad),
     );
+}
+
+#[test]
+#[ignore = "deliberately promotes the reviewed PiRLC projection artifacts"]
+fn regenerate_pi_rlc_projection_boundary_artifacts() {
+    let honest = honest_fixture();
+    let bad = bad_root_fixture();
+    let manifest_path = repo_root().join(MANIFEST_PATH);
+    let lean_path = repo_root().join(LEAN_ARTIFACT_PATH);
+    let rendered_manifest = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&manifest(&honest, &bad)).expect("render projection manifest")
+    );
+    fs::write(&manifest_path, rendered_manifest).expect("write PiRLC projection manifest");
+    fs::write(&lean_path, render_lean_artifact(&honest, &bad)).expect("write PiRLC projection Lean artifact");
+    for candidate in [
+        manifest_path.with_extension("json.expected"),
+        lean_path.with_extension("lean.expected"),
+    ] {
+        if candidate.exists() {
+            fs::remove_file(candidate).expect("remove promoted PiRLC projection candidate");
+        }
+    }
 }

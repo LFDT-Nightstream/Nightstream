@@ -602,7 +602,7 @@ fn prepare_structure_parts(
     public_input_len: usize,
 ) -> Result<R1csFPrimePreparedStructure, Error> {
     let optimized_cache = OptimizedStructureCache::build(&structure.ccs)?;
-    let structure_digest = structure_digest_from_mat_digest(&structure.ccs, optimized_cache.mat_digest());
+    let structure_digest = structure_digest_from_mat_digest(&structure.ccs, optimized_cache.matrix_tree_digest());
     Ok(R1csFPrimePreparedStructure {
         plan,
         r1cs,
@@ -798,8 +798,8 @@ pub(crate) fn validate_plan(plan: &RecursiveStepImagePlan, r1cs: &R1csShape) -> 
     // When explicit semantic-state output variables are configured, the
     // app-public digest path is intentionally suppressed. Every declared
     // public R1CS input must therefore be represented by either the
-    // incoming or outgoing semantic hash, except for z[0] when the
-    // structure pins it as the conventional constant-one lane.
+    // incoming or outgoing semantic hash. A constant lane is still part of
+    // the declared public tuple and does not get a special exemption.
     if has_explicit_semantic_out {
         for index in state_x_out
             .app_public_input_var_indices
@@ -809,7 +809,7 @@ pub(crate) fn validate_plan(plan: &RecursiveStepImagePlan, r1cs: &R1csShape) -> 
         {
             let sem_bound = state_x_out.semantic_state_in_var_indices.contains(&index)
                 || state_x_out.semantic_state_out_var_indices.contains(&index);
-            if !sem_bound && index != 0 {
+            if !sem_bound {
                 return Err(Error::PlanPublicInputNotSemanticBound { index });
             }
         }

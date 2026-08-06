@@ -8,8 +8,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use neo_ccs::Mat;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::frontends::f_prime::structure::production_kmul_ring_action_shell_image_config;
-use neo_fold_clean::frontends::f_prime::{FPrimeImage, FPrimeImageLayout};
+use neo_fold_clean::frontends::f_prime::FPrimeImageLayout;
 use neo_fold_clean::paper::construction2::ProofState;
 use neo_fold_clean::paper::terminal_ce::merkle::{
     enforce_terminal_ce_merkle_root_from_leaf, terminal_ce_merkle_node, terminal_ce_merkle_root_from_leaf,
@@ -66,7 +65,7 @@ fn terminal_verifier_rejects_m_in_x_column_mismatch_without_panicking() {
     };
     let mut forged_pre_running = running.materialize().expect("materialized final running");
     forged_pre_running.witnesses.clear();
-    assert_eq!(forged_pre_running.claims[0].m_in, 1);
+    assert_eq!(forged_pre_running.claims[0].m_in, neo_math::D);
     forged_pre_running.claims[0].X = Mat::zero(neo_math::D, 0, F::ZERO);
     finished
         .final_fold
@@ -81,7 +80,7 @@ fn terminal_verifier_rejects_m_in_x_column_mismatch_without_panicking() {
 
     assert!(
         result.is_ok(),
-        "verifier availability failure: a canonical 54x0 matrix with m_in=1 reached unchecked active-column indexing"
+        "verifier availability failure: a canonical 54x0 matrix with m_in=54 reached unchecked active-column indexing"
     );
     assert!(
         result.unwrap().is_err(),
@@ -98,10 +97,15 @@ fn terminal_verifier_rejects_m_in_x_column_mismatch_without_panicking() {
 fn lifecycle_rejects_mixed_public_input_relations_without_panicking() {
     let prep = support::toy_preprocessing_unfixed_public_input_len();
     let wide = support::toy_instance(&prep, 0);
-    let narrow =
-        neo_fold_clean::CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[F::ZERO], 0)
-            .expect("valid arity-zero instance for the same CCS structure");
-    assert_eq!((wide.claim.m_in, narrow.claim.m_in), (1, 0));
+    let narrow = neo_fold_clean::CcsInstance::from_low_norm_assignment(
+        &prep.params,
+        &prep.log,
+        prep.structure(),
+        &vec![F::ZERO; prep.structure().m],
+        0,
+    )
+    .expect("valid arity-zero instance for the same CCS structure");
+    assert_eq!((wide.claim.m_in, narrow.claim.m_in), (neo_math::D, 0));
 
     let audit = neo_fold_clean::prove(&prep, [vec![wide, narrow]])
         .expect("the first lifecycle step currently accepts the mixed batch");
@@ -127,8 +131,6 @@ fn direct_r1cs_preprocessing_rejects_zero_constraint_relation_without_panicking(
         c: zero_rows,
         m_in: 0,
     };
-    r1cs.validate_shape()
-        .expect("zero-row R1CS has a consistent shape");
     r1cs.is_satisfied_by(&[F::ZERO])
         .expect("empty constraint set is satisfied vacuously");
 
@@ -145,25 +147,20 @@ fn direct_r1cs_preprocessing_rejects_zero_constraint_relation_without_panicking(
 }
 
 /// Public F' layout construction must reject a region-size sum that cannot be
-/// represented by `usize`. Wrapping the final cursor to zero creates a layout
-/// that `FPrimeImage::new` accepts far enough to index an empty backing vector.
+/// represented by `usize`. The checked public constructor must reject the
+/// configuration before any region cursor wraps.
 #[test]
 fn f_prime_image_layout_rejects_region_size_overflow_without_panicking() {
-    let mut config = production_kmul_ring_action_shell_image_config();
-    config.kmul_count = 0;
-    config.ring_action_pair_count = 0;
+    let mut config = support::empty_f_prime_image_config();
 
-    let fixed_end = FPrimeImageLayout::new(config.clone()).end;
-    assert!(fixed_end > 0);
-    config.boundary_bits = usize::MAX - fixed_end + 1;
-    let wrapped = FPrimeImageLayout::new(config);
-    assert_eq!(wrapped.end, 0, "attack precondition: layout cursor wrapped");
-
-    let result = catch_unwind(AssertUnwindSafe(|| FPrimeImage::new(wrapped)));
+    FPrimeImageLayout::try_new(config.clone()).expect("production shell layout");
+    config.boundary_bits = usize::MAX;
+    let result = catch_unwind(AssertUnwindSafe(|| FPrimeImageLayout::try_new(config)));
     assert!(
         result.is_ok(),
-        "F' setup availability failure: an unchecked region-size sum produced end=0 and FPrimeImage::new indexed its empty backing vector"
+        "F' setup availability failure: malformed region sizes caused a panic"
     );
+    assert!(result.unwrap().is_err(), "overflowing region sizes must reject");
 }
 
 fn merkle_digest(seed: u64) -> [F; 4] {

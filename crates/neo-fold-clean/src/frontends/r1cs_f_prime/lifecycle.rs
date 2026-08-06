@@ -26,8 +26,8 @@ use crate::frontends::f_prime::recursive_plan::{
 };
 use crate::frontends::r1cs_f_prime::compiler::{
     compile_chunk, compile_step, semantic_state_digests_for_inputs, semantic_state_in_preimage_for_assignment,
-    semantic_state_out_preimage_for_assignment, start_chain, R1csCompiledStep, R1csCompilerContext, R1csCompilerError,
-    R1csFPrimeStepInput, R1csFoldForStep,
+    semantic_state_out_preimage_for_assignment, start_chain, validate_chunk_inputs, R1csCompiledStep,
+    R1csCompilerContext, R1csCompilerError, R1csFPrimeStepInput, R1csFoldForStep,
 };
 use crate::frontends::r1cs_f_prime::instance::build_instance;
 use crate::frontends::r1cs_f_prime::{Error, R1csFPrimePreprocessing};
@@ -216,6 +216,11 @@ impl<'a> R1csChainBuilder<'a> {
             return Err(Error::EmptyChunk);
         }
         let k = inputs.len();
+        let max_fresh = self.prep.prep.params.max_fresh_count();
+        if k > max_fresh {
+            return Err(crate::lifecycle::Error::BatchTooLarge { got: k, max: max_fresh }.into());
+        }
+        validate_chunk_inputs(self.prep, &inputs)?;
         let is_recursive = self.audit.is_some();
         // Derive the semantic digests once. `compile_chunk` remains the
         // canonical funnel for all callers, but the builder also checks

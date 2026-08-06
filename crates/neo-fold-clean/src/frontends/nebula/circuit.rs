@@ -23,7 +23,8 @@
 //! (44 bits), `cnt` (running non-pad count), per stack an E11-pinned `sw`
 //! bit and a σ-bit running `sp` word (v3.1), and the running `h_rs`/`h_ws`
 //! words (128 bits each); per scan slot: the running `h_is`/`h_fs` words.
-//! `m_in = 1 + x_bits`: the constant and the `x` bits are the public prefix.
+//! `m_in` is the unique whole-ring completion of `1 + x_bits`. The completion
+//! columns are constrained to zero before the private lane columns begin.
 //!
 //! ## Gate families (one CCS polynomial, 15 matrices)
 //!
@@ -142,9 +143,14 @@ impl SMemCircuit {
         &self.params
     }
 
-    /// Public prefix length of `z` (the constant plus the `x` bits).
-    pub fn m_in(&self) -> usize {
+    /// Logical public payload length (the constant plus the `x` bits).
+    pub fn logical_public_input_len(&self) -> usize {
         1 + self.params.x_bits()
+    }
+
+    /// Canonical whole-ring public prefix length of `z`.
+    pub fn m_in(&self) -> usize {
+        self.logical_public_input_len().div_ceil(D) * D
     }
 
     /// Constraint rows.

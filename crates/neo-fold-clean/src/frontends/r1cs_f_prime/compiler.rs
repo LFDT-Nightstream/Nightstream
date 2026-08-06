@@ -35,8 +35,9 @@ use crate::frontends::f_prime::compiler::{
 };
 use crate::frontends::f_prime::encoder::EncodedFPrimeStep;
 use crate::frontends::f_prime::image::{NifsCeClaimShape, NifsCeClaimView};
-use crate::frontends::f_prime::recursive_plan::build_semantic_state_preimage_fields;
-use crate::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
+use crate::frontends::f_prime::recursive_plan::{
+    build_semantic_state_preimage_fields, semantic_state_app_public_header, RecursiveStepImagePlan,
+};
 use crate::frontends::r1cs_f_prime::encoder::{assignment_to_bits, encode_r1cs_f_prime_step, R1csEncoderInput};
 use crate::frontends::r1cs_f_prime::R1csFPrimePreprocessing;
 use crate::paper::construction2::TRIVIAL_PC;
@@ -146,22 +147,7 @@ pub fn compile_chunk(
     // ── App-level satisfaction check (all K assignments) ──────────
     #[cfg(feature = "perf-timers")]
     let t_satisfaction = std::time::Instant::now();
-    for (idx, input) in inputs.iter().enumerate() {
-        if input.assignment.len() != prep.r1cs.m() {
-            return Err(R1csCompilerError::AssignmentLength {
-                got: input.assignment.len(),
-                expected: prep.r1cs.m(),
-            });
-        }
-        if prep.anchors().constant_lane_pinned && input.assignment[0] != F::ONE {
-            return Err(R1csCompilerError::ConstantLaneNotOne {
-                got: input.assignment[0],
-            });
-        }
-        prep.r1cs
-            .is_satisfied_by(&input.assignment)
-            .map_err(|e| R1csCompilerError::UnsatisfiedAt { index: idx, source: e })?;
-    }
+    validate_chunk_inputs(prep, &inputs)?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[r1cs-compile] app satisfaction (x{:>2})       {:>7.2}s",
@@ -230,6 +216,29 @@ pub fn compile_chunk(
             .into()),
         }
     }
+}
+
+pub(super) fn validate_chunk_inputs(
+    prep: &R1csFPrimePreprocessing,
+    inputs: &[R1csFPrimeStepInput],
+) -> Result<(), R1csCompilerError> {
+    for (idx, input) in inputs.iter().enumerate() {
+        if input.assignment.len() != prep.r1cs.m() {
+            return Err(R1csCompilerError::AssignmentLength {
+                got: input.assignment.len(),
+                expected: prep.r1cs.m(),
+            });
+        }
+        if prep.anchors().constant_lane_pinned && input.assignment[0] != F::ONE {
+            return Err(R1csCompilerError::ConstantLaneNotOne {
+                got: input.assignment[0],
+            });
+        }
+        prep.r1cs
+            .is_satisfied_by(&input.assignment)
+            .map_err(|e| R1csCompilerError::UnsatisfiedAt { index: idx, source: e })?;
+    }
+    Ok(())
 }
 
 fn compile_base_chunk(
@@ -415,7 +424,7 @@ fn finalize_compile_chunk(
         // still learning this specific `x` was proven.
         #[cfg(feature = "perf-timers")]
         let t_lanes = std::time::Instant::now();
-        let app_public_input = state_x_out_app_preimage_lanes_for_assignment(prep.plan(), &input.assignment)?;
+        let app_public_preimage = app_public_semantic_preimage_for_assignment(prep.plan(), &input.assignment)?;
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "[r1cs-compile] app preimage lanes           {:>7.2}s",
@@ -457,9 +466,7 @@ fn finalize_compile_chunk(
             } else if !state_x_out.app_public_input_var_indices.is_empty()
                 || !state_x_out.app_public_input_bit_var_indices.is_empty()
             {
-                one_shot_traces.push(encode_poseidon_trace(&build_semantic_state_preimage_fields(
-                    &app_public_input,
-                )));
+                one_shot_traces.push(encode_poseidon_trace(&app_public_preimage));
             }
         }
         one_shot_traces.push(assembly.traces.state_x_out);
@@ -553,8 +560,8 @@ pub(crate) fn semantic_state_digests_for_inputs(
     let output = if !state_x_out.semantic_state_out_var_indices.is_empty() {
         semantic_state_digest_for_assignment(assignment, &state_x_out.semantic_state_out_var_indices)
     } else {
-        let app_public_lanes = state_x_out_app_preimage_lanes_for_assignment(prep.plan(), assignment)?;
-        semantic_state_digest_for_fields(&app_public_lanes)
+        let preimage = app_public_semantic_preimage_for_assignment(prep.plan(), assignment)?;
+        encode_poseidon_trace(&preimage).digest_native
     };
     Ok(Some(SemanticStateDigests { input, output }))
 }
@@ -580,8 +587,10 @@ pub(crate) fn semantic_state_out_preimage_for_assignment(
     }
     if !state_x_out.app_public_input_var_indices.is_empty() || !state_x_out.app_public_input_bit_var_indices.is_empty()
     {
-        let app_public_lanes = state_x_out_app_preimage_lanes_for_assignment(prep.plan(), assignment)?;
-        return Ok(Some(build_semantic_state_preimage_fields(&app_public_lanes)));
+        return Ok(Some(app_public_semantic_preimage_for_assignment(
+            prep.plan(),
+            assignment,
+        )?));
     }
     Ok(None)
 }
@@ -602,10 +611,6 @@ pub(crate) fn semantic_state_in_preimage_for_assignment(
     Some(build_semantic_state_preimage_fields(&values))
 }
 
-pub(super) fn semantic_state_digest_for_fields(fields: &[F]) -> [F; 4] {
-    encode_poseidon_trace(&build_semantic_state_preimage_fields(fields)).digest_native
-}
-
 fn semantic_state_trace_for_assignment(
     assignment: &[F],
     indices: &[usize],
@@ -614,7 +619,7 @@ fn semantic_state_trace_for_assignment(
     encode_poseidon_trace(&build_semantic_state_preimage_fields(&values))
 }
 
-pub(super) fn state_x_out_app_preimage_lanes_for_assignment(
+pub(super) fn app_public_semantic_preimage_for_assignment(
     plan: &RecursiveStepImagePlan,
     assignment: &[F],
 ) -> Result<Vec<F>, R1csCompilerError> {
@@ -622,9 +627,12 @@ pub(super) fn state_x_out_app_preimage_lanes_for_assignment(
         return Ok(Vec::new());
     };
 
-    let mut lanes = Vec::new();
+    let mut preimage = semantic_state_app_public_header(
+        state_x_out.app_public_input_var_indices.len(),
+        state_x_out.app_public_input_bit_var_indices.len(),
+    );
     for &index in &state_x_out.app_public_input_var_indices {
-        lanes.push(assignment[index]);
+        preimage.push(assignment[index]);
     }
 
     for chunk in state_x_out.app_public_input_bit_var_indices.chunks(64) {
@@ -640,10 +648,10 @@ pub(super) fn state_x_out_app_preimage_lanes_for_assignment(
             }
             return Err(R1csCompilerError::PackedPublicInputNotBit { index, value });
         }
-        lanes.push(F::from_u64(packed));
+        preimage.push(F::from_u64(packed));
     }
 
-    Ok(lanes)
+    Ok(preimage)
 }
 
 fn assignment_to_plan_bits(plan: &RecursiveStepImagePlan, assignment: &[F]) -> Result<Vec<F>, R1csCompilerError> {

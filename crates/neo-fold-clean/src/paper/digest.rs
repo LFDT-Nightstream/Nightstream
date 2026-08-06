@@ -892,9 +892,9 @@ pub fn empty_semantic_state_digest() -> [u8; 32] {
 /// Initial `z_0`. Pure function of the full structure digest and
 /// `public_input_len`.
 pub fn initial_boundary_digest(structure_digest: &[F; 4], public_input_len: Option<usize>) -> [u8; 32] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/initial_boundary/v1");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/initial_boundary/v2");
     preimage.extend(structure_digest.iter().copied());
-    preimage.push(F::from_u64(public_input_len.map_or(u64::MAX, |n| n as u64)));
+    extend_optional_usize(&mut preimage, public_input_len);
     digest_fields_as_digest32(poseidon_digest_fields(&preimage))
 }
 
@@ -935,8 +935,8 @@ pub fn public_trace_update_digest(prev: [u8; 32], chunk_digest: [F; 4]) -> [u8; 
 /// the circuit recomputes this same digest from witness key fields and feeds
 /// the same header wires to Pi_CCS.V. The Ajtai digest binds the exact
 /// commitment map used by that relation. The remaining preimage absorbs the
-/// full 11-field `NeoParams` view, the optional `public_input_len` (encoded as
-/// `u64::MAX` when absent), and `initial_semantic_state_digest` — the chain's
+/// full 11-field `NeoParams` view, the tagged optional `public_input_len`, and
+/// `initial_semantic_state_digest` — the chain's
 /// claimed starting application state.
 ///
 /// Absorbing the initial app-state digest into `vk_fs` (rather than
@@ -956,7 +956,7 @@ pub fn vk_fs_digest(
     public_input_len: Option<usize>,
     initial_semantic_state_digest: [u8; 32],
 ) -> [u8; 32] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v3");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs/v4");
     preimage.extend(structure_digest.iter().copied());
     preimage.extend(pi_ccs_header_bundle.iter().copied());
     preimage.extend(ajtai_pp_digest.iter().copied());
@@ -971,8 +971,29 @@ pub fn vk_fs_digest(
     preimage.push(F::from_u64(params.T as u64));
     preimage.push(F::from_u64(params.s as u64));
     preimage.push(F::from_u64(params.lambda as u64));
-    preimage.extend(u64_halves(public_input_len.map_or(u64::MAX, |n| n as u64)));
+    extend_optional_usize(&mut preimage, public_input_len);
     preimage.extend(digest32_as_fields(initial_semantic_state_digest));
+    digest_fields_as_digest32(poseidon_digest_fields(&preimage))
+}
+
+/// Bind verifier policy that changes the accepted language to the base
+/// Construction-2 verifier-key digest.
+///
+/// The structure digest alone cannot distinguish a generic CCS verifier from
+/// an F' verifier that applies recursive-link or terminal-induction checks
+/// outside the CCS relation. These bits are verifier authority and therefore
+/// must be part of the key identity.
+pub fn vk_fs_policy_digest(
+    base_digest: [u8; 32],
+    stateful: bool,
+    f_prime_recursive_link: bool,
+    terminal_induction: bool,
+) -> [u8; 32] {
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/vk_fs_policy/v1");
+    preimage.extend(digest32_as_fields(base_digest));
+    preimage.push(F::from_bool(stateful));
+    preimage.push(F::from_bool(f_prime_recursive_link));
+    preimage.push(F::from_bool(terminal_induction));
     digest_fields_as_digest32(poseidon_digest_fields(&preimage))
 }
 
@@ -1204,4 +1225,14 @@ pub(crate) fn state_x_out_digest_from_preimage(preimage: &[F]) -> [u8; 32] {
 #[inline]
 fn u64_halves(value: u64) -> [F; 2] {
     [F::from_u64(value & 0xffff_ffff), F::from_u64(value >> 32)]
+}
+
+fn extend_optional_usize(out: &mut Vec<F>, value: Option<usize>) {
+    match value {
+        None => out.extend([F::ZERO, F::ZERO]),
+        Some(value) => {
+            let [low, high] = u64_halves(value as u64);
+            out.extend([low + F::ONE, high]);
+        }
+    }
 }

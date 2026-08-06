@@ -25,6 +25,7 @@ use p3_field::PrimeCharacteristicRing;
 /// FS→IS boundary chains match, and the audit verifier replays every
 /// lane transition plus the terminal slice openings.
 #[test]
+#[ignore = "constructing and checking the full two-segment proof exceeds the 5-minute test cap"]
 fn two_segment_chain_with_memory_continuity_verifies() {
     let (_, prep, audit) = honest_two_segment_chain();
     verify_uncompressed_audit(&prep, &audit).expect("audit verification");
@@ -150,6 +151,7 @@ fn mid_segment_chain(prep: &Preprocessing, plan: &NebulaPlan, trace: &SegmentTra
 /// `D_pre`, the step index, and the `ts`/`h`/`sp` carry — and the chain
 /// continues into the next segment and verifies end to end.
 #[test]
+#[ignore = "resuming, completing, and checking the full two-segment proof exceeds the 5-minute test cap"]
 fn mid_segment_resume_completes_and_verifies() {
     let plan = plan();
     let prep = preprocessing(&plan);

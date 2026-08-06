@@ -64,6 +64,8 @@ pub enum FrontendError {
     },
     #[error("R1CS shape: m_in ({m_in}) > number of variables ({m})")]
     PublicInputTooLarge { m_in: usize, m: usize },
+    #[error("R1CS shape must contain at least one constraint and one assignment column")]
+    EmptyShape,
     #[error("R1CS unsatisfied at row {row}: (A·z)·(B·z) - (C·z) \u{2260} 0")]
     Unsatisfied { row: usize },
     #[error("witness assignment length {got} \u{2260} R1CS column count {expected}")]

@@ -68,7 +68,9 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 const TRANSCRIPT_LABEL: &[u8] = b"neo.test.f_prime/step/v1";
 // Every authoritative Pi_RLC ring-action client is projection-checked:
 // one shared D-step beta ladder, then one aggregate identity per output.
-const EXPECTED_COVERAGE_K_MULS: usize = 7_650;
+// Includes the strict PiDEC check that binds the incoming running children to
+// their verifier-recomputed parent before the one-joint PiCCS step.
+const EXPECTED_COVERAGE_K_MULS: usize = 9_773;
 const EXPECTED_COVERAGE_RING_MULS: usize = 0;
 
 // ── Fixture (mirrors tests/f_prime/r1cs.rs::build_fixture) ──────────────

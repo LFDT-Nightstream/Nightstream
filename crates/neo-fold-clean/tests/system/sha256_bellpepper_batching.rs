@@ -31,7 +31,7 @@ use neo_fold_clean::paper::digest::digest_fields_as_digest32;
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use sha2::{Digest, Sha256};
 
@@ -150,6 +150,12 @@ fn sha256_ordered_pair_r1cs_binds_both_public_digests() {
     pair.r1cs
         .is_satisfied_by(&tampered)
         .expect_err("tampering the second digest's first public bit must reject");
+
+    let mut tampered_padding = pair.assignment.clone();
+    tampered_padding[1 + 2 * 256] = F::ONE;
+    pair.r1cs
+        .is_satisfied_by(&tampered_padding)
+        .expect_err("tampering ordered-pair public-ring completion must reject");
 }
 
 #[test]
@@ -624,7 +630,7 @@ fn sha256_production_core_serial_pair_packed_state_two_transitions_perf_snapshot
 
     assert_eq!(
         snapshot.final_semantic_digest,
-        serial_state_lanes56_semantic_digest(&states[2]),
+        serial_public_state_digest(&states[2]),
         "packed serial-pair final semantic state should be SHA^2(initial)"
     );
 }
@@ -718,7 +724,7 @@ fn sha256_production_core_serial_pair_packed_state_four_transitions_perf_snapsho
 
     assert_eq!(
         snapshot.final_semantic_digest,
-        serial_state_lanes56_semantic_digest(&states[4]),
+        serial_public_state_digest(&states[4]),
         "packed serial-pair final semantic state should be SHA^4(initial)"
     );
 }
@@ -804,7 +810,7 @@ fn sha256_production_core_serial_quad_packed_state_four_transitions_perf_snapsho
 
     assert_eq!(
         snapshot.final_semantic_digest,
-        serial_state_lanes56_semantic_digest(&states[4]),
+        serial_public_state_digest(&states[4]),
         "packed serial-quad final semantic state should be SHA^4(initial)"
     );
 }
@@ -883,7 +889,7 @@ fn sha256_production_core_serial_quad_prepared_key_amortization_snapshot() {
             .expect("state trace includes final state");
         assert_eq!(
             snapshot.final_semantic_digest,
-            serial_state_lanes56_semantic_digest(&expected_final),
+            serial_public_state_digest(&expected_final),
             "prepared-key proof final semantic state should be SHA^4(initial)"
         );
         online.push(snapshot);
@@ -1183,7 +1189,7 @@ fn time_serial_sha_packed_state_transitions(chunks: &[BellpepperCcs], initial_st
     let mut chain = R1csChainBuilder::new(&prep).expect("packed serial-pair chain");
     let mut append_total = Duration::ZERO;
     let mut append_times = Vec::with_capacity(chunks.len());
-    let mut final_semantic_digest = serial_state_lanes56_semantic_digest(initial_state);
+    let mut final_semantic_digest = serial_public_state_digest(initial_state);
     for chunk in chunks {
         let start = Instant::now();
         let compiled = chain
@@ -1235,7 +1241,7 @@ fn prove_serial_sha_packed_state_with_preprocessing(
 ) -> ShaSerialOnlineSnapshot {
     let mut chain = R1csChainBuilder::new(prep).expect("packed serial prepared-key chain");
     let mut append_total = Duration::ZERO;
-    let mut final_semantic_digest = serial_state_lanes56_semantic_digest(initial_state);
+    let mut final_semantic_digest = serial_public_state_digest(initial_state);
     for chunk in chunks {
         let start = Instant::now();
         let compiled = chain
@@ -1264,40 +1270,46 @@ fn prove_serial_sha_packed_state_with_preprocessing(
     }
 }
 
-struct OrderedPairR1cs {
+struct OrderedBatchR1cs {
     r1cs: SparseR1cs,
     assignment: Vec<F>,
 }
 
-fn combine_ordered_pair(first: &BellpepperCcs, second: &BellpepperCcs) -> OrderedPairR1cs {
+fn combine_ordered_pair(first: &BellpepperCcs, second: &BellpepperCcs) -> OrderedBatchR1cs {
     combine_ordered_batch_refs(&[first, second])
 }
 
-fn combine_ordered_batch(artifacts: &[BellpepperCcs]) -> OrderedPairR1cs {
+fn combine_ordered_batch(artifacts: &[BellpepperCcs]) -> OrderedBatchR1cs {
     let refs = artifacts.iter().collect::<Vec<_>>();
     combine_ordered_batch_refs(&refs)
 }
 
-fn combine_ordered_batch_refs(artifacts: &[&BellpepperCcs]) -> OrderedPairR1cs {
+fn combine_ordered_batch_refs(artifacts: &[&BellpepperCcs]) -> OrderedBatchR1cs {
     assert!(!artifacts.is_empty());
     let first = artifacts[0];
     for artifact in artifacts.iter().skip(1) {
         assert_eq!(first.shape, artifact.shape);
     }
-    let single_inputs = first.shape.inputs;
-    let single_aux = first.shape.aux;
-    let combined_inputs = 1 + artifacts.len() * (single_inputs - 1);
-    let combined_aux = artifacts.len() * single_aux;
+    let single_logical_inputs = first.shape.inputs;
+    let single_public_inputs = first.sparse_r1cs.m_in;
+    let single_aux = first.assignment.len() - single_public_inputs;
+    assert_eq!(single_aux, first.shape.aux);
+    let single_public_padding = single_public_inputs - single_logical_inputs;
+    let private_stride = single_public_padding + single_aux;
+    let combined_logical_inputs = 1 + artifacts.len() * (single_logical_inputs - 1);
+    let combined_inputs = combined_logical_inputs.next_multiple_of(D);
+    let combined_aux = artifacts.len() * private_stride;
     let combined_m = combined_inputs + combined_aux;
-    let combined_n = artifacts.len() * first.shape.constraints;
+    let combined_source_rows = artifacts.len() * first.shape.constraints;
+    let combined_n = combined_source_rows + (combined_inputs - combined_logical_inputs);
 
     let map_col = |artifact_idx: usize, col: usize| -> usize {
         if col == 0 {
             0
-        } else if col < single_inputs {
-            1 + artifact_idx * (single_inputs - 1) + (col - 1)
+        } else if col < single_logical_inputs {
+            1 + artifact_idx * (single_logical_inputs - 1) + (col - 1)
         } else {
-            combined_inputs + artifact_idx * single_aux + (col - single_inputs)
+            combined_inputs + artifact_idx * private_stride + (col - single_logical_inputs)
         }
     };
 
@@ -1307,6 +1319,8 @@ fn combine_ordered_batch_refs(artifacts: &[&BellpepperCcs]) -> OrderedPairR1cs {
         combined_m,
         |artifact| &artifact.sparse_r1cs.a,
         &map_col,
+        combined_logical_inputs..combined_inputs,
+        |row, column, trips| trips.push((row, column, F::ONE)),
     );
     let b = combine_matrix_batch(
         artifacts,
@@ -1314,6 +1328,8 @@ fn combine_ordered_batch_refs(artifacts: &[&BellpepperCcs]) -> OrderedPairR1cs {
         combined_m,
         |artifact| &artifact.sparse_r1cs.b,
         &map_col,
+        combined_logical_inputs..combined_inputs,
+        |row, _, trips| trips.push((row, 0, F::ONE)),
     );
     let c = combine_matrix_batch(
         artifacts,
@@ -1321,22 +1337,25 @@ fn combine_ordered_batch_refs(artifacts: &[&BellpepperCcs]) -> OrderedPairR1cs {
         combined_m,
         |artifact| &artifact.sparse_r1cs.c,
         &map_col,
+        combined_logical_inputs..combined_inputs,
+        |_, _, _| {},
     );
     let r1cs = SparseR1cs::new(a, b, c, combined_n, combined_m, combined_inputs).expect("combined pair R1CS shape");
 
     let mut assignment = Vec::with_capacity(combined_m);
     assignment.push(F::ONE);
     for artifact in artifacts {
-        assignment.extend_from_slice(&artifact.assignment[1..single_inputs]);
+        assignment.extend_from_slice(&artifact.assignment[1..single_logical_inputs]);
     }
+    assignment.resize(combined_inputs, F::ZERO);
     for artifact in artifacts {
-        assignment.extend_from_slice(&artifact.assignment[single_inputs..]);
+        assignment.extend_from_slice(&artifact.assignment[single_logical_inputs..]);
     }
     assert_eq!(assignment.len(), combined_m);
     r1cs.is_satisfied_by(&assignment)
         .expect("combined ordered batch assignment satisfies R1CS");
 
-    OrderedPairR1cs { r1cs, assignment }
+    OrderedBatchR1cs { r1cs, assignment }
 }
 
 fn combine_matrix_batch(
@@ -1345,6 +1364,8 @@ fn combine_matrix_batch(
     ncols: usize,
     matrix: impl Fn(&BellpepperCcs) -> &CcsMatrix<F>,
     map_col: &impl Fn(usize, usize) -> usize,
+    public_padding: std::ops::Range<usize>,
+    append_public_zero_term: impl Fn(usize, usize, &mut Vec<(usize, usize, F)>),
 ) -> CcsMatrix<F> {
     let mut trips = Vec::new();
     let row_stride = artifacts[0].shape.constraints;
@@ -1355,6 +1376,10 @@ fn combine_matrix_batch(
             &|col| map_col(artifact_idx, col),
             &mut trips,
         );
+    }
+    let source_rows = artifacts.len() * row_stride;
+    for (offset, column) in public_padding.enumerate() {
+        append_public_zero_term(source_rows + offset, column, &mut trips);
     }
     CcsMatrix::Csc(CscMat::from_triplets(trips, nrows, ncols))
 }
@@ -1420,7 +1445,8 @@ fn sha256_lifecycle_plan_for_r1cs_with_params(
 ) {
     let shape = r1cs_f_prime::R1csShape::from(r1cs);
     let mut widths = shape.conservative_app_private_var_widths();
-    for index in 0..shape.m_in() {
+    let public_bit_count = sha256_packed_public_count(&shape);
+    for index in 0..public_bit_count {
         widths[index] = 1;
     }
     let typed_bits: usize = widths.iter().sum();
@@ -1429,7 +1455,14 @@ fn sha256_lifecycle_plan_for_r1cs_with_params(
     let mut r_len = challenge_len_for_domain(shape.n().max(typed_bits + 1));
 
     for _ in 0..8 {
-        let mut plan = sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), c_data_entries, child_count, r_len);
+        let mut plan = sha256_lifecycle_plan_with_ce_shape(
+            shape.m(),
+            shape.m_in(),
+            public_bit_count,
+            c_data_entries,
+            child_count,
+            r_len,
+        );
         plan.limbs = typed_bits + 1;
         plan.app_private_var_widths = widths.clone();
         let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
@@ -1459,19 +1492,26 @@ fn sha256_packed_state_derived_structure_for_r1cs_with_params(
     let typed_bits: usize = widths.iter().sum();
     let c_data_entries = params.kappa() as usize * params.d() as usize;
     let child_count = params.k_rho() as u64;
-    let initial_anchor = serial_state_lanes56_semantic_digest(initial_state);
+    let initial_anchor = serial_public_state_digest(initial_state);
     let mut r_len = challenge_len_for_domain(shape.n().max(typed_bits + 1));
 
     for iteration in 1..=8 {
-        let mut plan = sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), c_data_entries, child_count, r_len);
+        let mut plan =
+            sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), 0, c_data_entries, child_count, r_len);
         let state_x_out = plan
             .state_x_out
             .as_mut()
             .expect("SHA lifecycle plan installs state_x_out");
         state_x_out.app_public_input_var_indices = (0..shape.m_in()).collect();
         state_x_out.app_public_input_bit_var_indices = Vec::new();
-        state_x_out.semantic_state_in_var_indices = (1..=STATE_LANES56).collect();
-        state_x_out.semantic_state_out_var_indices = ((1 + STATE_LANES56)..=(2 * STATE_LANES56)).collect();
+        state_x_out.semantic_state_in_var_indices = std::iter::once(0)
+            .chain(1..=STATE_LANES56)
+            .chain((1 + 2 * STATE_LANES56)..shape.m_in())
+            .collect();
+        state_x_out.semantic_state_out_var_indices = std::iter::once(0)
+            .chain((1 + STATE_LANES56)..=(2 * STATE_LANES56))
+            .chain((1 + 2 * STATE_LANES56)..shape.m_in())
+            .collect();
         state_x_out.initial_semantic_state_digest_anchor = Some(initial_anchor);
         plan.limbs = typed_bits + 1;
         plan.app_private_var_widths = widths.clone();
@@ -1492,6 +1532,7 @@ fn sha256_packed_state_derived_structure_for_r1cs_with_params(
 fn sha256_lifecycle_plan_with_ce_shape(
     m: usize,
     m_in: usize,
+    public_bit_count: usize,
     c_data_entries: usize,
     child_count: u64,
     r_len: usize,
@@ -1534,13 +1575,27 @@ fn sha256_lifecycle_plan_with_ce_shape(
     plan.state_x_out = Some(StateXOutPlanOptions {
         pc: 1,
         public_x_out_lane_bit_starts,
-        app_public_input_var_indices: Vec::new(),
-        app_public_input_bit_var_indices: (0..m_in).collect(),
+        app_public_input_var_indices: (public_bit_count..m_in).collect(),
+        app_public_input_bit_var_indices: (0..public_bit_count).collect(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
         initial_semantic_state_digest_anchor: None,
     });
     plan
+}
+
+fn sha256_packed_public_count(shape: &r1cs_f_prime::R1csShape) -> usize {
+    let boolean_variables = shape.boolean_constrained_variables();
+    let completion_start = (1..shape.m_in())
+        .find(|&index| !boolean_variables[index])
+        .unwrap_or(shape.m_in());
+    assert!(
+        boolean_variables[completion_start..shape.m_in()]
+            .iter()
+            .all(|is_boolean| !*is_boolean),
+        "SHA public completion must follow one contiguous Boolean prefix"
+    );
+    completion_start
 }
 
 fn challenge_len_for_domain(size: usize) -> usize {
@@ -1570,6 +1625,12 @@ fn sha_state_trace(initial: &[u8], transitions: usize) -> Vec<Vec<u8>> {
 }
 
 fn expected_digest_bits(preimage: &[u8]) -> Vec<F> {
+    let mut out = logical_digest_bits(preimage);
+    out.resize(out.len().next_multiple_of(D), F::ZERO);
+    out
+}
+
+fn logical_digest_bits(preimage: &[u8]) -> Vec<F> {
     let digest = Sha256::digest(preimage);
     let digest_bits = ::bellpepper::gadgets::multipack::bytes_to_bits(&digest);
     let mut out = Vec::with_capacity(1 + digest_bits.len());
@@ -1595,13 +1656,17 @@ fn expected_serial_state_lanes56(state_in: &[u8], transitions: usize) -> Vec<F> 
     out.push(F::ONE);
     out.extend(state_lanes56_fields(&states[0]));
     out.extend(state_lanes56_fields(&states[transitions]));
+    out.resize(out.len().next_multiple_of(D), F::ZERO);
     out
 }
 
-fn serial_state_lanes56_semantic_digest(state: &[u8]) -> [u8; 32] {
-    digest_fields_as_digest32(
-        encode_poseidon_trace(&build_semantic_state_preimage_fields(&state_lanes56_fields(state))).digest_native,
-    )
+/// Hash `[1 | state_in | public-ring completion]` for one serial state.
+fn serial_public_state_digest(state: &[u8]) -> [u8; 32] {
+    let mut fields = Vec::with_capacity(D - STATE_LANES56);
+    fields.push(F::ONE);
+    fields.extend(state_lanes56_fields(state));
+    fields.resize(D - STATE_LANES56, F::ZERO);
+    digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
 
 fn state_lanes56_fields(state: &[u8]) -> Vec<F> {
@@ -1661,9 +1726,10 @@ fn expected_batch_digest_bits(preimages: &[Vec<u8>]) -> Vec<F> {
     let mut out = Vec::with_capacity(1 + preimages.len() * 256);
     out.push(F::ONE);
     for preimage in preimages {
-        let digest_bits = expected_digest_bits(preimage);
+        let digest_bits = logical_digest_bits(preimage);
         out.extend_from_slice(&digest_bits[1..]);
     }
+    out.resize(out.len().next_multiple_of(D), F::ZERO);
     out
 }
 

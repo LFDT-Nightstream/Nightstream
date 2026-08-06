@@ -16,8 +16,9 @@
 //!
 //! | Stage path | Mathematical obligation | Current payload | Lean owner |
 //! |---|---|---|---|
+//! | `fprime.recursive.step.accumulator.output_authority.claimed_digest` | allocate the claimed outgoing digest as an authoritative private input | four base-field elements | open |
 //! | `fprime.recursive.step.accumulator.output_authority.child_digests` | `d_i = SIS_claim(enc(child_i))` in index order | selected CE claim | `FPrime.AccumulatorBinding.claim_eq_or_failure` |
-//! | `fprime.recursive.step.accumulator.output_authority.aggregate` | `H_acc(k || d_0 || ... || d_(k-1))` | arity plus ordered child digests | `FPrime.AccumulatorBinding.digest_eq_or_failure` |
+//! | `fprime.recursive.step.accumulator.output_authority.aggregate` | `acc_digest_out = H_acc(k || d_0 || ... || d_(k-1))` | arity, ordered child digests, and the claimed digest | `FPrime.AccumulatorBinding.digest_eq_or_failure` |
 
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{R1csBuilder, Var};

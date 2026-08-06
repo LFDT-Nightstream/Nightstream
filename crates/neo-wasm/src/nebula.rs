@@ -121,7 +121,7 @@ impl WasmNebulaProfile {
     #[doc(hidden)]
     /// Build an unbounded production-parameter timing profile with an explicit
     /// instruction batch. This does not change the production default or imply
-    /// Road A width-budget compatibility.
+    /// compatibility with the fixed-shape low-norm width budget.
     pub fn production_with_profile_batch_size(batch_size: usize) -> Self {
         assert!(batch_size > 0, "WASM Nebula profile batch size must be nonzero");
         Self::production_with_batch_size(batch_size)

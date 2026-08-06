@@ -118,8 +118,8 @@ name = "gadgets_f_prime_chunk_digest_lean_artifact"
 path = "tests/gadgets/f_prime_chunk_digest_lean_artifact.rs"
 
 [[test]]
-name = "gadgets_f_prime_ce_continuity_lean_artifact"
-path = "tests/gadgets/f_prime_ce_continuity_lean_artifact.rs"
+name = "gadgets_ce_continuity"
+path = "tests/gadgets/ce_continuity.rs"
 
 [[test]]
 name = "gadgets_poseidon2_lean_artifact"
@@ -160,10 +160,6 @@ path = "tests/gadgets/sumcheck.rs"
 [[test]]
 name = "gadgets_redteam_sparse_poly_encoding"
 path = "tests/gadgets/redteam_sparse_poly_encoding.rs"
-
-[[test]]
-name = "gadgets_redteam_ce_consistency"
-path = "tests/gadgets/redteam_ce_consistency.rs"
 
 [[test]]
 name = "gadgets_transcript"

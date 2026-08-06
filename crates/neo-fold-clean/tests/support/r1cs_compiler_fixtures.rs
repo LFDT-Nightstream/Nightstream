@@ -247,16 +247,17 @@ pub fn make_tiny_stateful_lifecycle_plan_with_anchor(
 /// Reuses the production Goldilocks ring + decomposition constants
 /// (Q, ETA, D, B_BASE, K_RHO, T, EXTENSION_DEGREE) so every algebraic
 /// identity in Π_RLC / Π_DEC holds bit-for-bit. Only the
-/// commitment-width `kappa`, constraint count `m`, and security
-/// parameter `lambda` are shrunk so the lifecycle fits under the
-/// 5-minute test cap.
+/// commitment-width `kappa`, maximum padded row-domain length `m`, and
+/// security parameter `lambda` are shrunk so the lifecycle fits under the
+/// 5-minute test cap. The row-domain bound still covers the selected
+/// 24-variable verifier relation.
 pub fn tiny_params() -> Params {
     let inner = NeoParams::new(
         goldilocks_paper_b2::Q,
         goldilocks_paper_b2::ETA as u32,
         goldilocks_paper_b2::D as u32,
         /* kappa  */ 4,
-        /* m      */ 1u64 << 16,
+        /* m      */ 1u64 << 24,
         goldilocks_paper_b2::B_BASE,
         goldilocks_paper_b2::K_RHO,
         goldilocks_paper_b2::T,

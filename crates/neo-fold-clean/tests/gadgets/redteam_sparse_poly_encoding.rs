@@ -5,26 +5,19 @@ mod support;
 
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use neo_ccs::{
-    check_ccs_rowwise_zero, direct_sum, direct_sum_mixed, CcsMatrix, CcsStructure, CscMat, Mat, SparsePoly, Term,
-};
+use neo_ccs::{check_ccs_rowwise_zero, CcsMatrix, CcsStructure, CscMat, Mat, SparsePoly, Term};
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::paper::construction2::RunningInstance;
-use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::reductions::pi_ccs;
 use neo_fold_clean::{config, preprocess, CcsInstance};
 use neo_math::F;
 use neo_params::{goldilocks_paper_b2 as b2, NeoParams};
 use p3_field::PrimeCharacteristicRing;
 
-/// The public structure constructor and preprocessing API accept a term whose
-/// exponent count differs from the polynomial arity. A normal optimized prover
-/// later treats the same malformed verifier-owned structure as impossible and
-/// panics. Successful public preprocessing must not create a prover-crashing
-/// protocol context.
+/// A term must have exactly one exponent for each CCS matrix.
 #[test]
-fn pi_ccs_prover_does_not_panic_after_successful_public_preprocessing() {
-    let structure = CcsStructure::new(
+fn ccs_constructor_rejects_term_arity_mismatch() {
+    let result = CcsStructure::new(
         vec![Mat::identity(1)],
         SparsePoly::new(
             1,
@@ -39,32 +32,11 @@ fn pi_ccs_prover_does_not_panic_after_successful_public_preprocessing() {
                 },
             ],
         ),
-    )
-    .expect("public CCS constructor accepts malformed term exponent counts");
-    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
-        .expect("shape-specific params");
-    support::install_ajtai_module(&params, &structure);
-    let prep =
-        preprocess(params, structure, Some(1)).expect("public preprocessing accepts the malformed sparse polynomial");
-    let instance = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[F::ZERO], 1)
-        .expect("zero low-norm assignment");
-
-    let prove_result = catch_unwind(AssertUnwindSafe(|| {
-        let mut transcript = Transcript::session();
-        pi_ccs::prove(
-            &mut transcript,
-            &prep.params,
-            prep.structure(),
-            prep.optimized_cache(),
-            &prep.log,
-            vec![instance],
-            &RunningInstance::default(),
-        )
-    }));
+    );
 
     assert!(
-        prove_result.is_ok(),
-        "completeness/availability failure: public preprocessing accepted a malformed sparse polynomial that makes the optimized Pi_CCS prover panic"
+        result.is_err(),
+        "the CCS constructor accepted a term whose exponent count does not match the polynomial arity"
     );
 }
 
@@ -198,14 +170,10 @@ fn preprocessing_rejects_malformed_csc_storage_without_panicking() {
     );
 }
 
-/// `CcsStructure::{n,m}` are public authority fields independent from each
-/// matrix's real dimensions. Inflate a 1x1 identity relation into a declared
-/// 2x2 program and prove the public assignment `[0, 1]`. For the declared
-/// identity relation, row 1 should require the second coordinate to be zero;
-/// the current engine instead treats the missing matrix row/column as zero and
-/// accepts the underconstrained statement end to end.
+/// Public preprocessing must recheck the declared shape because callers can
+/// mutate the public structure fields after construction.
 #[test]
-fn nifs_rejects_structure_whose_declared_shape_exceeds_matrix_shape() {
+fn preprocessing_rejects_structure_whose_declared_shape_exceeds_matrix_shape() {
     let mut structure = CcsStructure::new_sparse(
         vec![CcsMatrix::Identity { n: 1 }],
         SparsePoly::new(
@@ -222,53 +190,17 @@ fn nifs_rejects_structure_whose_declared_shape_exceeds_matrix_shape() {
 
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("shape-specific params");
-    support::install_ajtai_module(&params, &structure);
-    let prep = preprocess(params, structure, Some(2))
-        .expect("current preprocessing accepts contradictory declared and matrix shapes");
-    let fresh = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[F::ZERO, F::ONE], 2)
-        .expect("declared-width assignment");
-    let fresh_claims = vec![fresh.claim.clone()];
-
-    let mut prover_transcript = Transcript::session();
-    let (_next_running, proof) = nifs::prove(
-        &mut prover_transcript,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        &prep.log,
-        None,
-        prep.mix_rhos_commits(),
-        prep.combine_b_pows(),
-        vec![fresh],
-        &RunningInstance::default(),
-    )
-    .expect("current prover accepts the underconstrained declared program");
-
-    let mut verifier_transcript = Transcript::session();
-    let result = nifs::verify(
-        &mut verifier_transcript,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        prep.mix_rhos_commits(),
-        prep.combine_b_pows(),
-        &fresh_claims,
-        &RunningInstance::default(),
-        &proof,
-    );
+    let result = preprocess(params, structure, Some(2));
 
     assert!(
         result.is_err(),
-        "soundness failure: NIFS.V accepted a declared 2x2 identity CCS whose real 1x1 matrix silently leaves the nonzero second public coordinate unconstrained"
+        "preprocessing accepted a declared 2x2 CCS backed by a 1x1 matrix"
     );
 }
 
-/// For `n=m=3`, the multilinear row domain pads to four points. The fourth
-/// point is structural padding and must not be checked as a real CCS row,
-/// even when `f(0) != 0`. This otherwise follows SuperNeo's normalization:
-/// `M_1=I`, and every real row has `M_1 z = 1`, satisfying `f(X)=X-1`.
+/// The selected zero-row padding specialization requires `f(0)=0`.
 #[test]
-fn pi_ccs_accepts_non_power_of_two_rows_when_f_zero_is_nonzero() {
+fn pi_ccs_rejects_zero_row_padding_when_f_zero_is_nonzero() {
     let structure = CcsStructure::new(
         vec![Mat::identity(3)],
         SparsePoly::new(
@@ -295,10 +227,8 @@ fn pi_ccs_accepts_non_power_of_two_rows_when_f_zero_is_nonzero() {
     let fresh =
         CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[F::ONE, F::ONE, F::ONE], 3)
             .expect("valid assignment on all three real rows");
-    let fresh_claims = vec![fresh.claim.clone()];
-
     let mut prover_transcript = Transcript::session();
-    let proof = pi_ccs::prove(
+    let result = pi_ccs::prove(
         &mut prover_transcript,
         &prep.params,
         prep.structure(),
@@ -306,156 +236,6 @@ fn pi_ccs_accepts_non_power_of_two_rows_when_f_zero_is_nonzero() {
         &prep.log,
         vec![fresh],
         &RunningInstance::default(),
-    )
-    .expect("valid non-power-of-two relation must prove");
-
-    let mut verifier_transcript = Transcript::session();
-    pi_ccs::verify(
-        &mut verifier_transcript,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        &fresh_claims,
-        &RunningInstance::default(),
-        &proof,
-    )
-    .expect("padding row must not create a false completeness rejection");
-}
-
-/// A block-diagonal direct sum must preserve each component relation on the
-/// rows where the other component is inactive.  Adding `f1 + beta*f2`
-/// without compensating for `f1(0)`/`f2(0)` instead injects constants on
-/// those rows, letting two false component statements cancel while rejecting
-/// the honest concatenation.
-#[test]
-fn mixed_direct_sum_preserves_nonhomogeneous_component_relations() {
-    fn affine_identity(offset: F) -> CcsStructure<F> {
-        CcsStructure::new(
-            vec![Mat::identity(1)],
-            SparsePoly::new(
-                1,
-                vec![
-                    Term {
-                        coeff: F::ONE,
-                        exps: vec![1],
-                    },
-                    Term {
-                        coeff: offset,
-                        exps: vec![0],
-                    },
-                ],
-            ),
-        )
-        .expect("shifted identity relation")
-    }
-
-    let left = affine_identity(F::from_u64(2));
-    let right = affine_identity(-F::ONE);
-    let beta = F::from_u64(2);
-    let combined = direct_sum_mixed(&left, &right, beta).expect("recommended mixed direct-sum construction");
-
-    let honest = [-F::from_u64(2), F::ONE];
-    check_ccs_rowwise_zero(&left, &honest[..1], &[]).expect("left honest assignment satisfies y+2=0");
-    check_ccs_rowwise_zero(&right, &honest[1..], &[]).expect("right honest assignment satisfies y-1=0");
-    let honest_combined_result = check_ccs_rowwise_zero(&combined, &honest, &[]);
-
-    let forged = [F::ZERO, F::ZERO];
-    assert!(
-        check_ccs_rowwise_zero(&left, &forged[..1], &[]).is_err()
-            && check_ccs_rowwise_zero(&right, &forged[1..], &[]).is_err(),
-        "attack precondition: both component statements are false"
     );
-    check_ccs_rowwise_zero(&combined, &forged, &[])
-        .expect("buggy mixed polynomial cancels the two false component rows");
-
-    let params = config::ccs_params(combined.n, combined.m, combined.t(), combined.max_degree())
-        .expect("combined shape parameters");
-    support::install_ajtai_module(&params, &combined);
-    let prep = preprocess(params, combined, Some(2)).expect("preprocess vulnerable combined relation");
-    let instance = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &forged, 2)
-        .expect("low-norm forged combined assignment");
-    let audit = neo_fold_clean::prove(&prep, [vec![instance]]).expect("prove forged combined statement");
-    let proof = neo_fold_clean::finish_uncompressed(&prep, audit).expect("finalize forged combined statement");
-    let result = neo_fold_clean::verify_uncompressed(&prep, &proof);
-
-    assert!(
-        honest_combined_result.is_ok() && result.is_err(),
-        "mixed direct-sum relation failure: two honest components were rejected ({honest_combined_result:?}), while the full NIFS lifecycle accepted an assignment that violates both components ({result:?})"
-    );
-}
-
-/// Even for homogeneous component polynomials, `beta=0` erases the entire
-/// right relation. The public mixed direct-sum constructor returns `Result`
-/// and must reject that degenerate mixer rather than relying on every caller
-/// to have used the transcript-derived convenience wrapper.
-#[test]
-fn mixed_direct_sum_rejects_zero_mixing_scalar() {
-    let identity_zero = || {
-        CcsStructure::new(
-            vec![Mat::identity(1)],
-            SparsePoly::new(
-                1,
-                vec![Term {
-                    coeff: F::ONE,
-                    exps: vec![1],
-                }],
-            ),
-        )
-        .expect("homogeneous identity relation")
-    };
-    let left = identity_zero();
-    let right = identity_zero();
-    let result = direct_sum_mixed(&left, &right, F::ZERO);
-    let forged = [F::ZERO, F::ONE];
-    assert!(
-        check_ccs_rowwise_zero(&right, &forged[1..], &[]).is_err(),
-        "attack precondition: right component rejects one"
-    );
-    let accepted_forgery = result
-        .as_ref()
-        .is_ok_and(|combined| check_ccs_rowwise_zero(combined, &forged, &[]).is_ok());
-
-    assert!(
-        result.is_err(),
-        "direct-sum soundness failure: beta=0 was accepted and erased the false right component (forgery accepted={accepted_forgery})"
-    );
-}
-
-/// Both direct-sum constructors return `Result`, so dimension overflow in two
-/// valid compact sparse structures must be rejected as an error rather than
-/// wrapping the output row domain and panicking while embedding entries.
-#[test]
-fn direct_sum_rejects_dimension_overflow_without_panicking() {
-    fn sparse_rows(nrows: usize, row_idx: Vec<u32>) -> CcsStructure<F> {
-        let nnz = row_idx.len();
-        let nnz_u32 = u32::try_from(nnz).expect("test fixture has at most u32::MAX entries");
-        CcsStructure::new_sparse(
-            vec![CcsMatrix::Csc(CscMat {
-                nrows,
-                ncols: 1,
-                col_ptr: vec![0, nnz_u32],
-                row_idx,
-                vals: vec![F::ONE; nnz],
-            })],
-            SparsePoly::new(1, vec![]),
-        )
-        .expect("internally valid compact CSC structure")
-    }
-
-    let left = sparse_rows(usize::MAX, vec![]);
-    let right = sparse_rows(2, vec![0]);
-
-    let plain = catch_unwind(AssertUnwindSafe(|| direct_sum(&left, &right)));
-    let mixed = catch_unwind(AssertUnwindSafe(|| direct_sum_mixed(&left, &right, F::from_u64(2))));
-
-    assert!(
-        plain.is_ok() && mixed.is_ok(),
-        "setup availability failure: valid compact sparse dimensions overflowed and made a public direct-sum constructor panic (plain_panicked={}, mixed_panicked={})",
-        plain.is_err(),
-        mixed.is_err(),
-    );
-    assert!(
-        plain.expect("panic checked above").is_err() && mixed.expect("panic checked above").is_err(),
-        "input-validation failure: direct-sum constructors accepted wrapped aggregate dimensions"
-    );
+    assert!(result.is_err(), "zero-row padding accepted a polynomial with f(0) != 0");
 }

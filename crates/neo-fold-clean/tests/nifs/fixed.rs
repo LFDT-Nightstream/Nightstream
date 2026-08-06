@@ -5,13 +5,13 @@ mod support;
 
 use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::paper::nifs::{prove_fixed, verify_fixed, Error, FixedNifsAccumulator};
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
 fn canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance() {
     let prep = support::toy_preprocessing();
-    let zero = FixedNifsAccumulator::canonical_zero(&prep.params, prep.structure(), prep.combine_b_pows(), 1)
+    let zero = FixedNifsAccumulator::canonical_zero(&prep.params, prep.structure(), prep.combine_b_pows(), D)
         .expect("canonical zero accumulator");
     assert_eq!(zero.claims().len(), prep.params.k_rho() as usize);
     assert!(zero.claims().iter().all(|claim| {
@@ -63,7 +63,7 @@ fn canonical_zero_is_fixed_k_and_round_trips_one_fresh_instance() {
 #[test]
 fn fixed_interface_rejects_variable_arity_running_state() {
     let prep = support::toy_preprocessing();
-    let zero = FixedNifsAccumulator::canonical_zero(&prep.params, prep.structure(), prep.combine_b_pows(), 1)
+    let zero = FixedNifsAccumulator::canonical_zero(&prep.params, prep.structure(), prep.combine_b_pows(), D)
         .expect("canonical zero accumulator");
     let mut malformed = zero.into_running();
     malformed.claims.pop();
@@ -78,7 +78,7 @@ fn fixed_interface_rejects_variable_arity_running_state() {
 #[test]
 fn fixed_interface_rejects_a_forged_decomposition_parent_cache() {
     let prep = support::toy_preprocessing();
-    let zero = FixedNifsAccumulator::canonical_zero(&prep.params, prep.structure(), prep.combine_b_pows(), 1)
+    let zero = FixedNifsAccumulator::canonical_zero(&prep.params, prep.structure(), prep.combine_b_pows(), D)
         .expect("canonical zero accumulator");
     let mut malformed = zero.into_running();
     malformed

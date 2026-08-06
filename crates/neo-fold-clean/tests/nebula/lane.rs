@@ -11,7 +11,7 @@ use neo_fold_clean::paper::digest;
 use neo_fold_clean::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use neo_fold_clean::paper::f_prime::r1cs::{FPrimePublicInputLayout, F_PRIME_PUBLIC_INPUT_LEN};
 use neo_fold_clean::paper::relations::{CcsClaim, LaneRanges, LaneScheme};
-use neo_math::{F, K};
+use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 /// Steps per segment for these tests (spec `N`, tiny).
@@ -147,6 +147,32 @@ fn delayed_claim_decode_excludes_ring_carrier_padding() {
         .expect("carrier padding is outside the delayed suffix");
     assert_eq!(replayed.idx, 1);
     assert_eq!(replayed.ts, 1);
+}
+
+#[test]
+fn claim_x_requires_canonical_zero_ring_completion() {
+    let advs: Vec<_> = (0..N).map(adv).collect();
+    let d_pre = honest_d_pre(&advs);
+    let cfg = config(d_pre[1]);
+    let mut opened = NebulaLane::base(&cfg);
+    open(&mut opened, &cfg, d_pre);
+    let step = honest_x(&opened);
+    let mut claim_x = vec![F::ONE];
+    claim_x.extend(step.encode(cfg.stacks).expect("encode step x"));
+    let logical_len = claim_x.len();
+    claim_x.resize(logical_len.div_ceil(D) * D, F::ZERO);
+
+    assert_eq!(
+        NebulaStepX::decode_claim_x(&claim_x, cfg.stacks).expect("canonical completed public ring"),
+        step
+    );
+
+    claim_x[logical_len] = F::ONE;
+    assert!(matches!(
+        NebulaStepX::decode_claim_x(&claim_x, cfg.stacks),
+        Err(neo_fold_clean::paper::construction2::NebulaXError::NonZeroCompletion(index))
+            if index == logical_len
+    ));
 }
 
 #[test]

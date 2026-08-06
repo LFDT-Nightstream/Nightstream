@@ -43,7 +43,7 @@ use crate::frontends::r1cs_f_prime::structure::{r1cs_coeff_rows, R1csShape};
 use crate::paper::construction2::verifier_key::VerifierKeyError;
 use crate::paper::construction2::VerifierKey;
 use crate::paper::digest::{digest32_as_fields, digest_fields_as_digest32, pack_bytes_as_fields, StateXOutDigestMode};
-use crate::paper::f_prime::digest_circuit::enforce_vk_fs_digest_circuit;
+use crate::paper::f_prime::digest_circuit::{enforce_vk_fs_digest_circuit, enforce_vk_fs_policy_digest_circuit};
 use crate::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit_with_header_bundle_wires,
     Error as FPrimeError, FPrimeBaseInputs, FPrimeRecursiveInputs, FPrimeStepConfig, FPrimeStepOutput,
@@ -80,7 +80,8 @@ impl FullFPrimeContext {
             ajtai_pp_digest,
             Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
             digest_fields_as_digest32(initial_semantic_state_digest),
-        )?;
+        )?
+        .with_policy(true, true, true);
         Ok(Self {
             vk_fs_digest: digest32_as_fields(vk.digest()),
             structure_digest,
@@ -164,7 +165,8 @@ impl<'a> FullFPrimeRelation<'a> {
             context.ajtai_pp_digest,
             Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
             digest_fields_as_digest32(context.initial_semantic_state_digest),
-        );
+        )
+        .with_policy(true, true, true);
         if context.vk_fs_digest != digest32_as_fields(configured_vk.digest()) {
             return Err(FullFPrimeError::ContextMismatch { field: "vk_fs" });
         }
@@ -929,7 +931,7 @@ fn alloc_verifier_key_wires(
     let initial_semantic_state_digest = context
         .initial_semantic_state_digest
         .map(|value| builder.alloc(value));
-    let vk_fs_digest = enforce_vk_fs_digest_circuit(
+    let base_vk_fs_digest = enforce_vk_fs_digest_circuit(
         builder,
         params,
         structure_digest,
@@ -938,6 +940,7 @@ fn alloc_verifier_key_wires(
         Some(crate::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
         initial_semantic_state_digest,
     );
+    let vk_fs_digest = enforce_vk_fs_policy_digest_circuit(builder, base_vk_fs_digest, true, true, true);
     FullFPrimeVerifierKeyWires {
         structure_digest,
         pi_ccs_header_bundle,

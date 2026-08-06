@@ -701,7 +701,7 @@ fn build_corpus() -> Corpus {
     );
 
     let profile = Profile {
-        name: "linked_bit_carrier_one_slot_terminal_v1",
+        name: "linked_bit_carrier_one_slot_terminal",
         relation_rows: prep.structure().n,
         relation_columns: prep.structure().m,
         matrix_count: prep.structure().t(),

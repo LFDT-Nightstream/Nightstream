@@ -1145,7 +1145,7 @@ fn build_corpus() -> Corpus {
         add_case(&mut builder, &fixture.prep, source);
     }
     let profile = Profile {
-        name: "linked_bit_carrier_one_slot_stateless_v1",
+        name: "linked_bit_carrier_one_slot_stateless",
         relation_rows: fixture.prep.structure().n,
         relation_columns: fixture.prep.structure().m,
         matrix_count: fixture.prep.structure().t(),

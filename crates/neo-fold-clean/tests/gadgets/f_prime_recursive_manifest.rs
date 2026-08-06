@@ -896,13 +896,19 @@ fn render_lean_data(manifest: &Value) -> String {
     rendered
 }
 
-#[test]
-fn recursive_program_manifest_matches_production_rows() {
+fn render_current_manifest_artifacts() -> (String, String) {
     let manifest = build_manifest();
-    let rendered = format!(
+    let json = format!(
         "{}\n",
         serde_json::to_string_pretty(&manifest).expect("render manifest")
     );
+    let lean = render_lean_data(&manifest);
+    (json, lean)
+}
+
+#[test]
+fn recursive_program_manifest_matches_production_rows() {
+    let (rendered, lean_rendered) = render_current_manifest_artifacts();
     let path = repo_root().join(MANIFEST_PATH);
     let committed = fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("read {}: {error}\nexpected manifest:\n{rendered}", path.display()));
@@ -915,7 +921,6 @@ fn recursive_program_manifest_matches_production_rows() {
         "recursive program manifest drifted; reviewed output:\n{rendered}"
     );
 
-    let lean_rendered = render_lean_data(&manifest);
     let lean_path = repo_root().join(LEAN_DATA_PATH);
     let lean_committed = fs::read_to_string(&lean_path).unwrap_or_else(|error| {
         panic!(
@@ -931,6 +936,24 @@ fn recursive_program_manifest_matches_production_rows() {
         lean_committed, lean_rendered,
         "recursive Lean manifest data drifted; reviewed output:\n{lean_rendered}"
     );
+}
+
+#[test]
+#[ignore = "deliberately promotes the reviewed recursive manifest artifacts"]
+fn regenerate_recursive_program_manifest() {
+    let (json, lean) = render_current_manifest_artifacts();
+    let json_path = repo_root().join(MANIFEST_PATH);
+    let lean_path = repo_root().join(LEAN_DATA_PATH);
+    fs::write(&json_path, json).expect("write recursive JSON manifest");
+    fs::write(&lean_path, lean).expect("write recursive Lean manifest");
+    for candidate in [
+        json_path.with_extension("json.expected"),
+        lean_path.with_extension("lean.expected"),
+    ] {
+        if candidate.exists() {
+            fs::remove_file(candidate).expect("remove promoted recursive manifest candidate");
+        }
+    }
 }
 
 #[test]

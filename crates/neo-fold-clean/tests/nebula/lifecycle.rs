@@ -25,10 +25,10 @@ mod support;
 
 /// Steps per segment for this fixture.
 const N: u64 = 2;
-/// `x = [1 ‖ 1,400 bits]`.
-const M_IN: usize = 1401;
-/// x occupies ring columns `[0, 26)` (`26·54 = 1404 ≥ 1401`); the three
-/// lanes follow on whole columns (L-ALIGN).
+/// `x = [1 ‖ 1,400 bits ‖ 3 zero completion coefficients]` occupies the
+/// complete public ring columns `[0, 26)`. The three lanes follow on whole
+/// columns.
+const M_IN: usize = 26 * D;
 const LANE_COLS: LaneRanges = LaneRanges {
     ops: 26..27,
     is: 27..28,

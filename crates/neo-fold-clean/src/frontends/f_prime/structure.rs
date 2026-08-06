@@ -22,12 +22,6 @@ use crate::frontends::f_prime::projection_structure::{
 use crate::frontends::f_prime::recursive_plan::{STATE_LANE_NEW_ACC_DIGEST_BASE, STATE_LANE_NEW_SEMANTIC_STATE_BASE};
 use crate::paper::f_prime::ring_action_trace::LowNormEncoding;
 
-pub use crate::frontends::f_prime::projection_structure::{
-    production_kmul_d2_ring_action_shell_image_config, production_kmul_ring_action_shell_image_config,
-    production_projection_batches, PRODUCTION_KMUL_COUNT, PRODUCTION_PROJECTION_IDENTITY_COUNT,
-    PRODUCTION_RING_ACTION_PAIR_COUNT,
-};
-
 const STATE_IN_DIGEST_COUNT: usize = 7;
 const STATE_OUT_COUNTER_COUNT: usize = 2;
 const STATE_OUT_DIGEST_COUNT: usize = 4;

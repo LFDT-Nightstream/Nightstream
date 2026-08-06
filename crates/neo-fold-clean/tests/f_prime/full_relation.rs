@@ -514,7 +514,8 @@ fn complete_base_relation_rejects_caller_chosen_chunk_digest() {
 }
 
 #[test]
-fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_application() {
+#[ignore = "materializing the 27.7-million-row production selector relation exceeds the 24 GiB audit limit"]
+fn diagnostic_complete_recursive_relation_folds_one_fresh_instance_and_binds_the_application() {
     let carrier = bit_carrier_r1cs();
     let prep = direct_ccs::preprocess_seeded(&carrier, 44).expect("carrier preprocessing");
     let cfg = step_config(&prep);
@@ -893,11 +894,11 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     assert_eq!((base_estimate.source_rows, base_estimate.source_cols), (24_022, 23_567));
     assert_eq!(
         (recursive_estimate.source_rows, recursive_estimate.source_cols),
-        (9_272_472, 8_975_812)
+        (9_310_410, 9_013_754)
     );
     assert_eq!(
         (direct_estimate.encoded_rows, direct_estimate.encoded_cols),
-        (1_103_585_128, 812_452_528)
+        (1_106_380_812, 814_511_368)
     );
     eprintln!(
         "full F' branches: base={}x{} ({} field), recursive={}x{} ({} field, {} linear definitions), un-audited direct CCS estimate={}x{}",
@@ -961,11 +962,11 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     assert_eq!((base_gadget.encoded_rows, base_gadget.encoded_cols), (70_138, 132_911));
     assert_eq!(
         (recursive_gadget.encoded_rows, recursive_gadget.encoded_cols),
-        (9_321_036, 12_330_019)
+        (9_437_519, 12_552_157)
     );
     assert_eq!(
         (fixed_gadget.encoded_rows, fixed_gadget.encoded_cols),
-        (15_067_639, 12_462_674)
+        (15_189_540, 12_684_812)
     );
     assert_eq!(base_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
     assert_eq!(recursive_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
@@ -1011,16 +1012,21 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     let challenge = stage_profile
         .aggregate_prefix("nifs.pi_rlc.challenge")
         .expect("Pi_RLC challenge cost center");
-    assert_eq!(challenge.source_rows, 127_611);
-    assert_eq!(challenge.source_cols, 121_566);
-    assert_eq!(challenge.one_bit_source_cols, 36_945);
-    assert_eq!(challenge.canonical_binary_field_source_cols, 0);
-    assert_eq!(challenge.ordinary_private_field_source_cols, 7_758);
-    assert_eq!(challenge.linearly_derived_source_cols, 26_169);
-    assert_eq!(challenge.gadget_derived_source_cols, 50_694);
-    assert_eq!(challenge.encoded_cols, 370_383);
-    assert_eq!(challenge.encoded_rows, 198_567);
-    assert_eq!(challenge.redundant_boolean_source_rows, 23_505);
+    assert_eq!(
+        (
+            challenge.source_rows,
+            challenge.source_cols,
+            challenge.one_bit_source_cols,
+            challenge.canonical_binary_field_source_cols,
+            challenge.ordinary_private_field_source_cols,
+            challenge.linearly_derived_source_cols,
+            challenge.gadget_derived_source_cols,
+            challenge.encoded_cols,
+            challenge.encoded_rows,
+            challenge.redundant_boolean_source_rows,
+        ),
+        (163_132, 157_087, 36_945, 0, 12_832, 41_394, 65_916, 578_417, 307_658, 23_505),
+    );
     #[derive(Debug)]
     struct ChallengeLeaf {
         path: &'static str,
@@ -1043,36 +1049,36 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         ChallengeLeaf {
             path: pi_rlc_challenge_stage::BIND_OUTPUTS_DIGEST,
             occurrences: 1,
-            source_rows: 1_206,
-            source_cols: 1_206,
-            encoded_rows: 3_698,
-            encoded_cols: 7_052,
-            ordinary_fields: 172,
+            source_rows: 1_807,
+            source_cols: 1_807,
+            encoded_rows: 5_547,
+            encoded_cols: 10_578,
+            ordinary_fields: 258,
             bits: 0,
-            linear: 518,
-            gadget: 516,
+            linear: 775,
+            gadget: 774,
             fallback: 0,
             redundant_boolean_rows: 0,
             selection_aggregate_rows: 0,
-            poseidon_permutations: 2,
-            sboxes: 172,
+            poseidon_permutations: 3,
+            sboxes: 258,
         },
         ChallengeLeaf {
             path: pi_rlc_challenge_stage::RHO_DOMAIN_SEPARATOR,
             occurrences: 15,
-            source_rows: 645,
-            source_cols: 645,
-            encoded_rows: 1_849,
-            encoded_cols: 3_526,
-            ordinary_fields: 86,
+            source_rows: 8_445,
+            source_cols: 8_445,
+            encoded_rows: 25_886,
+            encoded_cols: 49_364,
+            ordinary_fields: 1_204,
             bits: 0,
-            linear: 301,
-            gadget: 258,
+            linear: 3_629,
+            gadget: 3_612,
             fallback: 0,
             redundant_boolean_rows: 0,
             selection_aggregate_rows: 0,
-            poseidon_permutations: 1,
-            sboxes: 86,
+            poseidon_permutations: 14,
+            sboxes: 1_204,
         },
         ChallengeLeaf {
             path: pi_rlc_challenge_stage::SAMPLE_INITIALIZE,
@@ -1094,19 +1100,19 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
         ChallengeLeaf {
             path: pi_rlc_challenge_stage::TRANSCRIPT_DIGEST,
             occurrences: 60,
-            source_rows: 45_240,
-            source_cols: 45_240,
-            encoded_rows: 138_675,
-            encoded_cols: 264_450,
-            ordinary_fields: 6_450,
+            source_rows: 72_360,
+            source_cols: 72_360,
+            encoded_rows: 221_880,
+            encoded_cols: 423_120,
+            ordinary_fields: 10_320,
             bits: 0,
-            linear: 19_440,
-            gadget: 19_350,
+            linear: 31_080,
+            gadget: 30_960,
             fallback: 0,
             redundant_boolean_rows: 0,
             selection_aggregate_rows: 0,
-            poseidon_permutations: 75,
-            sboxes: 6_450,
+            poseidon_permutations: 120,
+            sboxes: 10_320,
         },
         ChallengeLeaf {
             path: pi_rlc_challenge_stage::LANE_BIT_DECOMPOSITION,
@@ -1436,7 +1442,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     assert!(full_recursive.snapshot().unconstrained_columns().is_empty());
     assert_eq!(
         (full_recursive.snapshot().rows(), full_recursive.snapshot().cols()),
-        (27_545_495, 18_272_308),
+        (27_659_313, 18_348_188),
         "materialized selector-composed source-R1CS dimensions"
     );
     let estimate = estimate_r1cs_encoding(
@@ -1448,7 +1454,7 @@ fn complete_recursive_relation_folds_one_fresh_instance_and_binds_the_applicatio
     assert_eq!(estimate.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
     assert_eq!(
         (estimate.encoded_rows, estimate.encoded_cols),
-        (2_268_956_902, 1_677_108_883),
+        (2_276_625_432, 1_682_772_213),
         "generic low-norm estimate of the materialized source selector relation"
     );
     assert_eq!(direct_estimate.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);

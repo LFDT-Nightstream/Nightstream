@@ -117,7 +117,7 @@ pub enum Error {
 pub struct Output {
     pub claim: CeClaim,
     pub witness: Mat<F>,
-    /// The Lemma 5 β schedule this fold ran (Road A candidate E) —
+    /// The Lemma 5 β schedule this fold ran —
     /// prover-side plumbing for the F' image's projection regions.
     pub projection: ProjectionSchedule,
 }

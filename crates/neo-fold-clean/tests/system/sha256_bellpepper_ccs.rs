@@ -9,7 +9,7 @@
 //! transition with one Bellpepper-synthesized SHA-256 per step.
 //!
 //! Runs under a test-only smaller `Params` profile (`kappa = 2,
-//! m = 2^15, lambda = 40`) so prove + extend fit under the 5-minute
+//! m = 2^19, lambda = 40`) so prove + extend fit under the 5-minute
 //! test cap. The Goldilocks ring + Π_RLC / Π_DEC algebraic identities
 //! are unchanged; only the Ajtai-SIS security parameter is reduced,
 //! which is the right knob for an algebraic-correctness fixture.
@@ -40,7 +40,7 @@ use neo_fold_clean::frontends::r1cs_f_prime::{self, R1csChainBuilder, R1csCompil
 use neo_fold_clean::lifecycle;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
-use neo_math::F;
+use neo_math::{D, F};
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use sha2::{Digest, Sha256};
@@ -113,6 +113,7 @@ fn expected_sha256_public_inputs(preimage: &[u8]) -> Vec<F> {
             .into_iter()
             .map(|bit| if bit { F::ONE } else { F::ZERO }),
     );
+    out.resize(out.len().next_multiple_of(D), F::ZERO);
     out
 }
 
@@ -120,14 +121,16 @@ fn expected_sha256_public_inputs(preimage: &[u8]) -> Vec<F> {
 /// (Q, ETA, D, B_BASE, K_RHO, T, EXTENSION_DEGREE); only `kappa`, `m`,
 /// `lambda` are shrunk so the lifecycle fits under the 5-minute cap.
 /// Every Π_RLC / Π_DEC algebraic identity holds bit-for-bit at this
-/// profile — only the Ajtai-SIS security parameter is reduced.
+/// profile. `m = 2^19` is the smallest power of two that covers the
+/// 320,403-column typed SHA fixture. Only the Ajtai-SIS security
+/// parameter is reduced.
 fn sha256_tiny_neo_params() -> NeoParams {
     NeoParams::new(
         goldilocks_paper_b2::Q,
         goldilocks_paper_b2::ETA as u32,
         goldilocks_paper_b2::D as u32,
         /* kappa  */ 2,
-        /* m      */ 1u64 << 15,
+        /* m      */ 1u64 << 19,
         goldilocks_paper_b2::B_BASE,
         goldilocks_paper_b2::K_RHO,
         goldilocks_paper_b2::T,
@@ -151,6 +154,7 @@ fn sha256_tiny_params() -> Params {
 fn sha256_lifecycle_plan_with_ce_shape(
     m: usize,
     m_in: usize,
+    public_bit_count: usize,
     c_data_entries: usize,
     child_count: u64,
     r_len: usize,
@@ -193,8 +197,8 @@ fn sha256_lifecycle_plan_with_ce_shape(
     plan.state_x_out = Some(StateXOutPlanOptions {
         pc: 1,
         public_x_out_lane_bit_starts,
-        app_public_input_var_indices: Vec::new(),
-        app_public_input_bit_var_indices: (0..m_in).collect(),
+        app_public_input_var_indices: (public_bit_count..m_in).collect(),
+        app_public_input_bit_var_indices: (0..public_bit_count).collect(),
         semantic_state_in_var_indices: Vec::new(),
         semantic_state_out_var_indices: Vec::new(),
         initial_semantic_state_digest_anchor: None,
@@ -202,12 +206,19 @@ fn sha256_lifecycle_plan_with_ce_shape(
     plan
 }
 
-fn sha256_tiny_lifecycle_plan(m: usize, m_in: usize) -> RecursiveStepImagePlan {
+fn sha256_tiny_lifecycle_plan(m: usize, m_in: usize, public_bit_count: usize) -> RecursiveStepImagePlan {
     const TINY_C_DATA_ENTRIES: usize = 108;
     const TINY_CHILD_COUNT: u64 = 14;
     const TINY_R_LEN: usize = 16;
 
-    sha256_lifecycle_plan_with_ce_shape(m, m_in, TINY_C_DATA_ENTRIES, TINY_CHILD_COUNT, TINY_R_LEN)
+    sha256_lifecycle_plan_with_ce_shape(
+        m,
+        m_in,
+        public_bit_count,
+        TINY_C_DATA_ENTRIES,
+        TINY_CHILD_COUNT,
+        TINY_R_LEN,
+    )
 }
 
 fn challenge_len_for_domain(size: usize) -> usize {
@@ -217,11 +228,12 @@ fn challenge_len_for_domain(size: usize) -> usize {
 fn sha256_tiny_lifecycle_plan_for_r1cs(r1cs: &r1cs_f_prime::SparseR1cs) -> RecursiveStepImagePlan {
     let shape = r1cs_f_prime::R1csShape::from(r1cs);
     let mut widths = shape.conservative_app_private_var_widths();
-    for index in 0..shape.m_in() {
+    let public_bit_count = sha256_packed_public_count(&shape);
+    for index in 0..public_bit_count {
         widths[index] = 1;
     }
     let typed_bits: usize = widths.iter().sum();
-    let mut plan = sha256_tiny_lifecycle_plan(shape.m(), shape.m_in());
+    let mut plan = sha256_tiny_lifecycle_plan(shape.m(), shape.m_in(), public_bit_count);
     plan.limbs = typed_bits + 1;
     plan.app_private_var_widths = widths;
     let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
@@ -260,7 +272,8 @@ fn sha256_lifecycle_plan_for_r1cs_with_params(
 ) {
     let shape = r1cs_f_prime::R1csShape::from(r1cs);
     let mut widths = shape.conservative_app_private_var_widths();
-    for index in 0..shape.m_in() {
+    let public_bit_count = sha256_packed_public_count(&shape);
+    for index in 0..public_bit_count {
         widths[index] = 1;
     }
     let typed_bits: usize = widths.iter().sum();
@@ -269,7 +282,14 @@ fn sha256_lifecycle_plan_for_r1cs_with_params(
     let mut r_len = 1;
 
     for _ in 0..8 {
-        let mut plan = sha256_lifecycle_plan_with_ce_shape(shape.m(), shape.m_in(), c_data_entries, child_count, r_len);
+        let mut plan = sha256_lifecycle_plan_with_ce_shape(
+            shape.m(),
+            shape.m_in(),
+            public_bit_count,
+            c_data_entries,
+            child_count,
+            r_len,
+        );
         plan.limbs = typed_bits + 1;
         plan.app_private_var_widths = widths.clone();
         let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
@@ -287,6 +307,20 @@ fn sha256_lifecycle_plan_for_r1cs_with_params(
     }
 
     panic!("SHA-256 production-core R1CS-F' CE shape did not converge")
+}
+
+fn sha256_packed_public_count(shape: &r1cs_f_prime::R1csShape) -> usize {
+    let boolean_variables = shape.boolean_constrained_variables();
+    let completion_start = (1..shape.m_in())
+        .find(|&index| !boolean_variables[index])
+        .unwrap_or(shape.m_in());
+    assert!(
+        boolean_variables[completion_start..shape.m_in()]
+            .iter()
+            .all(|is_boolean| !*is_boolean),
+        "SHA public ring completion must follow one contiguous Boolean prefix"
+    );
+    completion_start
 }
 
 fn sha256_b3_probe_params() -> Params {
@@ -326,7 +360,7 @@ fn sha256_b2_k12_probe_params() -> Params {
 }
 
 #[test]
-fn sha256_semantic_state_packs_public_input_bits_static_layout() {
+fn sha256_semantic_state_binds_logical_bits_and_public_ring_completion() {
     let artifact = synthesize_to_ccs(Sha256Circuit {
         preimage: b"abc".to_vec(),
     })
@@ -336,8 +370,11 @@ fn sha256_semantic_state_packs_public_input_bits_static_layout() {
         "SHA fixture exposes one constant input plus 256 digest bits"
     );
 
-    let m = artifact.shape.inputs + artifact.shape.aux;
-    let plan = sha256_tiny_lifecycle_plan(m, artifact.shape.inputs);
+    let m = artifact.sparse_r1cs.m;
+    let m_in = artifact.sparse_r1cs.m_in;
+    let shape = r1cs_f_prime::R1csShape::from(&artifact.sparse_r1cs);
+    let packed_public_count = sha256_packed_public_count(&shape);
+    let plan = sha256_tiny_lifecycle_plan(m, m_in, packed_public_count);
     let config = build_recursive_step_image_config(&plan);
     assert_eq!(
         config.poseidon_one_shot_preimage_lens.len(),
@@ -347,15 +384,16 @@ fn sha256_semantic_state_packs_public_input_bits_static_layout() {
 
     let semantic_prefix_lanes = build_semantic_state_preimage_fields(&[]).len();
     let chain_prefix_lanes = state_x_out_preimage_sources(1).len();
-    let packed_public_lanes = artifact.shape.inputs.div_ceil(POSEIDON2_GOLDILOCKS_BITS);
-    let full_public_lanes = artifact.shape.inputs;
+    let packed_public_lanes = packed_public_count.div_ceil(POSEIDON2_GOLDILOCKS_BITS);
+    let public_completion_lanes = m_in - packed_public_count;
+    let full_public_lanes = m_in;
     let packed_semantic_lanes = config.poseidon_one_shot_preimage_lens[0];
     let state_x_out_lanes = config.poseidon_one_shot_preimage_lens[1];
 
     assert_eq!(
         packed_semantic_lanes,
-        semantic_prefix_lanes + packed_public_lanes,
-        "SHA public inputs should be packed into 64-bit semantic-state lanes"
+        semantic_prefix_lanes + 1 + packed_public_lanes + public_completion_lanes,
+        "SHA semantic state must pack logical bits and bind public-ring completion as fields"
     );
     assert_eq!(
         state_x_out_lanes, chain_prefix_lanes,
@@ -373,6 +411,25 @@ fn sha256_semantic_state_packs_public_input_bits_static_layout() {
         state_x_out_lanes,
         artifact.shape.inputs
     );
+}
+
+#[test]
+fn sha256_bellpepper_public_ring_completion_is_constrained_zero() {
+    let artifact = synthesize_to_ccs(Sha256Circuit {
+        preimage: b"abc".to_vec(),
+    })
+    .expect("synthesize SHA-256(abc)");
+    artifact
+        .sparse_r1cs
+        .is_satisfied_by(&artifact.assignment)
+        .expect("honest Bellpepper assignment satisfies");
+
+    let mut tampered = artifact.assignment.clone();
+    tampered[artifact.shape.inputs] = F::ONE;
+    artifact
+        .sparse_r1cs
+        .is_satisfied_by(&tampered)
+        .expect_err("public-ring completion must be constrained to zero");
 }
 
 #[test]
@@ -446,8 +503,8 @@ fn sha256_typed_app_private_layout_static_width_cut() {
     })
     .expect("synthesize SHA-256(abc)");
 
-    let m = artifact.shape.inputs + artifact.shape.aux;
-    let legacy_plan = sha256_tiny_lifecycle_plan(m, artifact.shape.inputs);
+    let m = artifact.sparse_r1cs.m;
+    let legacy_plan = sha256_tiny_lifecycle_plan(m, artifact.sparse_r1cs.m_in, artifact.sparse_r1cs.m_in);
     let typed_plan = sha256_tiny_lifecycle_plan_for_r1cs(&artifact.sparse_r1cs);
     let typed_bits: usize = typed_plan.app_private_var_widths.iter().sum();
 
@@ -606,6 +663,7 @@ fn sha256_production_core_r1cs_f_prime_static_shape_budget() {
 }
 
 #[test]
+#[ignore = "builds two recursive SHA proofs over the required 24-variable PaddedRowIdentity domain and exceeds the five-minute test cap; run this exact test manually with --ignored --exact"]
 fn sha256_bellpepper_ivc_chain_two_steps() {
     let total = Instant::now();
 

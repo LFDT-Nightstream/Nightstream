@@ -4,6 +4,7 @@
 //! its hash-chain output. Used by `paper::f_prime::{prove, verify}`.
 
 use neo_math::F;
+use p3_field::PrimeField64;
 
 use crate::paper::construction2::nebula_lane::NebulaLane;
 use crate::paper::construction2::proof_state::ProofState;
@@ -138,6 +139,64 @@ pub(crate) fn state_base_case_check(state: &State) -> Result<(), Error> {
     Ok(())
 }
 
+pub(crate) fn validate_digest32(owner: &'static str, value: [u8; 32]) -> Result<(), Error> {
+    if let Some(lane) = digest::noncanonical_digest32_lane(value) {
+        return Err(Error::NoncanonicalDigest { owner, lane });
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_state_authority(
+    vk: &VerifierKey,
+    structure: &Structure,
+    state: &State,
+    semantic_mode: SemanticStateMode,
+) -> Result<(), Error> {
+    for (counter, value) in [("chunk_count", state.chunk_count), ("step_count", state.step_count)] {
+        if value >= F::ORDER_U64 {
+            return Err(Error::NoncanonicalCounter { counter });
+        }
+    }
+    for (owner, value) in [
+        ("z_0", state.z_0),
+        ("z_i", state.z_i),
+        ("initial_semantic_state", state.initial_semantic_state_digest),
+        ("semantic_state", state.semantic_state_digest),
+        ("accumulator", state.acc_digest),
+        ("public_trace", state.public_trace),
+    ] {
+        validate_digest32(owner, value)?;
+    }
+    if state.z_0 != vk.initial_boundary_digest()
+        || state.initial_semantic_state_digest != vk.initial_semantic_state_digest()
+    {
+        return Err(Error::StateAuthorityMismatch);
+    }
+    match &state.proof {
+        ProofState::Initial => {
+            let empty = digest::AccumulatorHandle::empty().digest();
+            if state.acc_digest != empty
+                || state.semantic_state_digest != state.initial_semantic_state_digest
+                || state.public_trace != vk.initial_public_trace()
+            {
+                return Err(Error::StateAuthorityMismatch);
+            }
+        }
+        ProofState::Active { running, .. } => {
+            if let Some(running) = running.as_materialized() {
+                if state.acc_digest != running.accumulator_digest(structure)? {
+                    return Err(Error::StateAuthorityMismatch);
+                }
+            }
+            if matches!(semantic_mode, SemanticStateMode::Stateless) && state.semantic_state_digest != state.acc_digest
+            {
+                return Err(Error::StateAuthorityMismatch);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Advance the IVC carrier by one step: bump counters, carry the
 /// chunk's public-instance digest as `z_i`, mirror `public_trace` to
 /// `z_i`, and re-derive `acc_digest` from the new running accumulator.
@@ -213,10 +272,16 @@ fn checked_advanced_counts(prev: &State, fresh_count: u64) -> Result<(u64, u64),
         .chunk_count
         .checked_add(1)
         .ok_or(Error::CounterOverflow { counter: "chunk_count" })?;
+    if chunk_count >= F::ORDER_U64 {
+        return Err(Error::CounterOverflow { counter: "chunk_count" });
+    }
     let step_count = prev
         .step_count
         .checked_add(fresh_count)
         .ok_or(Error::CounterOverflow { counter: "step_count" })?;
+    if step_count >= F::ORDER_U64 {
+        return Err(Error::CounterOverflow { counter: "step_count" });
+    }
     Ok((chunk_count, step_count))
 }
 

@@ -2,8 +2,8 @@
 //! low-norm lowered.
 //!
 //! This is the shell-vs-lowering decision datapoint. The manual projection
-//! shell prices a hand-typed image (14,040,452 bits/step, incomplete
-//! semantics); the alternative Road A completion lowers the field-native
+//! shell prices a hand-typed image (14,040,505 bits/step, incomplete
+//! semantics); the complete fixed-shape path lowers the field-native
 //! NIFS.V circuit — the relation that already IS the authority — into the
 //! b = 2 bit-backed CCS mechanically. This generic all-binary path is retained
 //! as a reference measurement; R2's production compiler instead shares

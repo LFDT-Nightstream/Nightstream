@@ -61,8 +61,8 @@ pub fn checked_native_step_receipts() -> (String, String) {
             &Outcome::Rejected(StableError::StatelessSemanticInvariantViolated),
             &Outcome::Rejected(StableError::XOutMismatch),
             &Outcome::Rejected(StableError::NifsPiDecVerifyRejected),
-            &Outcome::Rejected(StableError::NifsPiCcsOutputShapeMismatch),
-            &Outcome::Rejected(StableError::NifsPiCcsOutputShapeMismatch),
+            &Outcome::Rejected(StableError::StateAuthorityMismatch),
+            &Outcome::Rejected(StableError::StateAuthorityMismatch),
         ]
     );
     let case = |name: &str| {
@@ -112,14 +112,22 @@ pub fn checked_native_step_receipts() -> (String, String) {
         assert!(receipt.calls.advanced_state.is_some());
         assert!(receipt.calls.computed_x_out.is_some());
     }
+    for name in ["nifs_pi_dec_child_mutation"] {
+        let receipt = case(name);
+        assert!(receipt.transcript.is_some());
+        assert!(receipt.calls.nifs_call.is_some());
+        assert!(receipt.calls.advanced_state.is_none());
+        assert!(receipt.calls.computed_x_out.is_none());
+    }
     for name in [
-        "nifs_pi_dec_child_mutation",
         "incoming_accumulator_handle_mutation",
         "incoming_stateless_equality_mutation",
     ] {
         let receipt = case(name);
-        assert!(receipt.transcript.is_some());
-        assert!(receipt.calls.nifs_call.is_some());
+        assert_eq!(receipt.final_stage, ExecutionStage::Entry);
+        assert!(receipt.calls.execution_order.is_empty());
+        assert!(receipt.transcript.is_none());
+        assert!(receipt.calls.nifs_call.is_none());
         assert!(receipt.calls.advanced_state.is_none());
         assert!(receipt.calls.computed_x_out.is_none());
     }
@@ -348,6 +356,7 @@ enum Outcome {
 enum StableError {
     EmptyStep,
     FoldProofVariantMismatch,
+    StateAuthorityMismatch,
     StatelessSemanticInvariantViolated,
     XOutMismatch,
     NifsPiDecVerifyRejected,
@@ -1162,7 +1171,7 @@ fn build_native_step_corpus() -> NativeStepCorpus {
             "R1CS assignment/layout",
         ],
         profile: Profile {
-            name: "toy_direct_ccs_identity1_zero_poly_native_step_v1",
+            name: "toy_direct_ccs_identity1_zero_poly_native_step",
             params: ParamsProfile {
                 q: prep.params.q(),
                 eta: prep.params.eta(),
@@ -1248,6 +1257,7 @@ fn stable_step_error(case: &str, error: &construction2::Error) -> StableError {
     match error {
         construction2::Error::EmptyStep => StableError::EmptyStep,
         construction2::Error::FoldProofVariantMismatch => StableError::FoldProofVariantMismatch,
+        construction2::Error::StateAuthorityMismatch => StableError::StateAuthorityMismatch,
         construction2::Error::StatelessSemanticInvariantViolated => StableError::StatelessSemanticInvariantViolated,
         construction2::Error::XOutMismatch => StableError::XOutMismatch,
         construction2::Error::Nifs(error) => stable_nifs_error(case, error),

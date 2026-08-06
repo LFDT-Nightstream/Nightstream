@@ -228,6 +228,7 @@ impl WitnessAuthorityPerf {
 /// accumulator and latest CCS instance separately. Nebula additionally
 /// re-runs its terminal NIFS fold to close the delayed memory lane.
 pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result<(), Error> {
+    prep.validate_verifier_key_binding()?;
     if matches!(&proof.state.proof, ProofState::Initial) {
         return verify_base_case(prep, proof);
     }
@@ -242,6 +243,9 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
         return Err(Error::NotFinalized);
     }
     check_running_shape(&recorded_running)?;
+    if let Some(final_fold) = &proof.final_fold {
+        check_terminal_fold_claim_shapes(prep, &final_fold.terminal_inputs)?;
+    }
 
     // (0a) Initial-semantic-state anchor. The decider preflight catches
     // a tampered `statement.public.initial_semantic_state_digest` via the
@@ -412,6 +416,53 @@ fn require_active_state(state: &ProofState) -> Result<(RunningInstance, &LatestI
 fn check_running_shape(running: &RunningInstance) -> Result<(), Error> {
     if !running.shape_ok() {
         return Err(Error::FinalAccumulatorWitnessShapeMismatch);
+    }
+    Ok(())
+}
+
+fn check_terminal_fold_claim_shapes(
+    prep: &Preprocessing,
+    inputs: &construction2::TerminalFoldInputs,
+) -> Result<(), Error> {
+    for (index, claim) in inputs.pre_final_running.claims.iter().enumerate() {
+        check_claim_commitment_shape(prep, index, claim)?;
+        check_claim_public_input_len(prep, claim)?;
+        if claim.m_in > prep.structure().m
+            || claim.m_in % neo_math::D != 0
+            || claim.X.rows() != neo_math::D
+            || claim.X.cols() != claim.m_in
+        {
+            return Err(Error::FinalAccumulatorPublicInputMismatch { index });
+        }
+    }
+
+    let (expected_d, _) = prep.log.dims();
+    let expected_kappa = prep.params.kappa() as usize;
+    for (index, instance) in inputs.latest.instances.iter().enumerate() {
+        let claim = &instance.claim;
+        let fail = |reason: String| Error::TerminalLatestAuthority { index, reason };
+        if claim.m_in > prep.structure().m || claim.m_in % neo_math::D != 0 || claim.x.len() != claim.m_in {
+            return Err(fail(format!(
+                "public input shape is m_in={}, x.len()={}, structure.m={}",
+                claim.m_in,
+                claim.x.len(),
+                prep.structure().m
+            )));
+        }
+        if let Some(expected) = prep.public_input_len {
+            if claim.m_in != expected {
+                return Err(fail(format!(
+                    "public input length is {}, expected {expected}",
+                    claim.m_in
+                )));
+            }
+        }
+        if claim.c.d != expected_d
+            || claim.c.kappa != expected_kappa
+            || claim.c.data.len() != expected_d * expected_kappa
+        {
+            return Err(fail("commitment shape does not match verifier preprocessing".into()));
+        }
     }
     Ok(())
 }
@@ -776,6 +827,13 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
 fn check_running_witnesses_authority(prep: &Preprocessing, running: &RunningInstance) -> Result<(), Error> {
     check_running_shape(running)?;
 
+    // Commitment dimensions are proof-controlled. Validate them before the
+    // zero-witness fast path can allocate a zero commitment of that shape.
+    for (index, claim) in running.claims.iter().enumerate() {
+        check_claim_commitment_shape(prep, index, claim)?;
+        check_claim_public_input_len(prep, claim)?;
+    }
+
     let b = prep.params.b();
     let ell_d = ell_d_for_ce_check();
     let expected_r_len = expected_row_point_len(prep);
@@ -954,8 +1012,6 @@ fn check_running_claim_authority(
     ring_linear_forms: &[SuperneoRingLinearForm],
     perf: &WitnessAuthorityPerf,
 ) -> Result<(), Error> {
-    check_claim_commitment_shape(prep, index, claim)?;
-    check_claim_public_input_len(prep, claim)?;
     if opened != &claim.c {
         return Err(Error::FinalAccumulatorWitnessCommitmentMismatch { index });
     }
@@ -1307,6 +1363,9 @@ impl ProofStateBinding for ProofState {
 /// tests for the audit trail, the Spartan compressed-decider preflight, and
 /// chain-replay debugging.
 pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit) -> Result<(), Error> {
+    if let Some(final_fold) = &audit.proof.final_fold {
+        check_terminal_fold_claim_shapes(prep, &final_fold.terminal_inputs)?;
+    }
     let statement = super::build_decider_statement(prep, audit);
     decider::validate_witness(
         &prep.params,

@@ -208,10 +208,11 @@ fn phase_1_3b_parent_authority_ce_claim_round_trips() {
         c_data_entries: 0,
         x_entries: 0,
     };
-    let mut image = fresh_image(&fresh_placeholder, &shape);
+    let mut config = skeleton_config_for(&fresh_placeholder, &shape);
+    config.nifs_payload_shapes = vec![NifsPayloadShape::CeClaim(shape.clone())];
+    let mut image = FPrimeImage::new(FPrimeImageLayout::new(config));
 
-    // Skip past the (zero-bit) fresh placeholder and fill CE at offset 0
-    // of nifs_payloads.
+    // The selected image contains only this CE payload.
     let next = image.fill_nifs_ce_claim_at(0, &view);
     assert_eq!(next, shape.bits());
 
@@ -398,7 +399,9 @@ fn phase_1_3b_nifs_ce_claim_fs_bound_prefix_matches_ce_claim_digest() {
         c_data_entries: 0,
         x_entries: 0,
     };
-    let mut image = fresh_image(&fresh_placeholder, &shape);
+    let mut config = skeleton_config_for(&fresh_placeholder, &shape);
+    config.nifs_payload_shapes = vec![NifsPayloadShape::CeClaim(shape.clone())];
+    let mut image = FPrimeImage::new(FPrimeImageLayout::new(config));
     image.fill_nifs_ce_claim_at(0, &view);
 
     let prefix_fields = ce_claim_fs_bound_prefix_f_sequence(&view);

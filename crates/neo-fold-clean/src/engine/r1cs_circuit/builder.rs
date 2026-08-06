@@ -166,7 +166,7 @@ pub(crate) struct Poseidon2SboxTrace {
 
 /// Exact high-degree view of one Poseidon2 permutation.
 ///
-/// The ordinary R1CS rows remain authoritative and testable. Road A's
+/// The ordinary R1CS rows remain authoritative and testable. The low-norm
 /// low-norm compiler may replace precisely these rows with `x^7` gates and
 /// final linear-output rows, eliminating only the listed temporary columns.
 #[derive(Clone, Debug)]

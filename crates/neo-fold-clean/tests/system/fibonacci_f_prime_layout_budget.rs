@@ -25,7 +25,8 @@ const LEGACY_ACCUMULATOR_TAG: &[u8] = b"neo.fold.next/direct_ccs/accumulator_phi
 // The pi_ccs_header_bundle absorb (4 lanes) pushed the state_x_out
 // preimage over a rate boundary: one extra permutation = +21,888 bits
 // over the pre-bundle 134,852.
-const CURRENT_IMAGE_WIDTH: usize = 156_740;
+// The final 13 bits complete the public prefix to one full 54-lane ring.
+const CURRENT_IMAGE_WIDTH: usize = 156_753;
 const REMOVED_RECURSIVE_ACCUMULATOR_TRACE_DIGITS: usize = 5_406_336;
 const REMOVED_PUBLIC_TRACE_UPDATE_DIGITS: usize = 109_440;
 const REMOVED_BOUNDARY_UPDATE_TRACE_DIGITS: usize = 87_552;

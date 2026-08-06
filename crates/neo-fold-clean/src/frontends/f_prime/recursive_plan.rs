@@ -75,7 +75,24 @@ const PUBLIC_TRACE_UPDATE_TAG: &[u8] = b"neo.fold.clean/public_trace_update/v1";
 /// Domain-separation tag for the legacy parent-commitment accumulator hash.
 const ACCUMULATOR_TAG: &[u8] = b"neo.fold.next/direct_ccs/accumulator_phi_dec_parent/v1";
 /// Domain-separation tag for app semantic state digests.
-const SEMANTIC_STATE_TAG: &[u8] = b"neo.fold.clean/semantic_state/v1";
+const SEMANTIC_STATE_TAG: &[u8] = b"neo.fold.clean/semantic_state/v2";
+const SEMANTIC_STATE_FIELD_TUPLE: u64 = 1;
+const SEMANTIC_STATE_APP_PUBLIC: u64 = 2;
+
+pub(crate) fn semantic_state_field_header(field_count: usize) -> Vec<F> {
+    let mut header = pack_bytes_as_fields(SEMANTIC_STATE_TAG);
+    header.push(F::from_u64(SEMANTIC_STATE_FIELD_TUPLE));
+    header.push(F::from_u64(field_count as u64));
+    header
+}
+
+pub(crate) fn semantic_state_app_public_header(field_count: usize, bit_count: usize) -> Vec<F> {
+    let mut header = pack_bytes_as_fields(SEMANTIC_STATE_TAG);
+    header.push(F::from_u64(SEMANTIC_STATE_APP_PUBLIC));
+    header.push(F::from_u64(field_count as u64));
+    header.push(F::from_u64(bit_count as u64));
+    header
+}
 
 /// Build the preimage-source list for the `boundary_update` hash.
 ///
@@ -119,9 +136,9 @@ pub fn public_trace_update_preimage_sources() -> Vec<PoseidonPreimageLaneSource>
 /// R1CS assignment variables.
 ///
 /// Preimage layout:
-///   `pack_bytes_as_fields(tag)` ‖ app assignment lanes in caller order
+///   `pack_bytes_as_fields(tag)` ‖ `field_tuple` ‖ `field_count` ‖ fields
 pub fn semantic_state_preimage_sources(var_indices: &[usize]) -> Vec<PoseidonPreimageLaneSource> {
-    let header = pack_bytes_as_fields(SEMANTIC_STATE_TAG);
+    let header = semantic_state_field_header(var_indices.len());
     let mut sources: Vec<PoseidonPreimageLaneSource> = header
         .iter()
         .map(|&v| PoseidonPreimageLaneSource::Constant(v))
@@ -139,7 +156,10 @@ pub fn semantic_state_preimage_sources_with_app_public(
     app_public_input_var_indices: &[usize],
     app_public_input_bit_var_indices: &[usize],
 ) -> Vec<PoseidonPreimageLaneSource> {
-    let header = pack_bytes_as_fields(SEMANTIC_STATE_TAG);
+    let header = semantic_state_app_public_header(
+        app_public_input_var_indices.len(),
+        app_public_input_bit_var_indices.len(),
+    );
     let mut sources: Vec<PoseidonPreimageLaneSource> = header
         .iter()
         .map(|&v| PoseidonPreimageLaneSource::Constant(v))
@@ -156,7 +176,7 @@ pub fn semantic_state_preimage_sources_with_app_public(
 /// Native preimage for the semantic-state digest over app assignment
 /// variables. Mirrors [`semantic_state_preimage_sources`].
 pub fn build_semantic_state_preimage_fields(app_state: &[F]) -> Vec<F> {
-    let mut p = pack_bytes_as_fields(SEMANTIC_STATE_TAG);
+    let mut p = semantic_state_field_header(app_state.len());
     p.extend_from_slice(app_state);
     p
 }
@@ -322,7 +342,7 @@ pub struct RecursiveStepImagePlan {
     pub boundary_bits: usize,
     pub kmul_count: usize,
     pub ring_action_pair_count: usize,
-    /// Projection-checked ring action (Road A): per-identity pair
+    /// Projection-checked ring action: per-identity pair
     /// consumption; forwarded to the image config verbatim.
     pub projection_batches: Vec<usize>,
     pub ring_action_pair_layout: RingActionTraceLayout,

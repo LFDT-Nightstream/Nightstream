@@ -20,7 +20,7 @@ pub const ETA: usize = neo_params::goldilocks_paper_b2::ETA;
 pub const D: usize = neo_params::goldilocks_paper_b2::D;
 /// Ajtai module rank kappa.
 pub const KAPPA: u32 = neo_params::goldilocks_paper_b2::KAPPA;
-/// Ajtai message length m.
+/// Maximum padded row-domain length m.
 pub const M: u64 = neo_params::goldilocks_paper_b2::M;
 /// Small norm base b.
 pub const B_BASE: u32 = neo_params::goldilocks_paper_b2::B_BASE;
@@ -38,9 +38,9 @@ pub const EXTENSION_DEGREE: u32 = neo_params::goldilocks_paper_b2::EXTENSION_DEG
 /// Shape-specific constructors select the header-bound value below it.
 pub const LAMBDA: u32 = neo_params::goldilocks_paper_b2::LAMBDA;
 /// Minimum combined statistical security accepted by the executable
-/// rectangular `s = 2` profile.
+/// padded-row `s = 2` profile.
 ///
-/// The census adds both SumCheck errors, the rectangular mixing error, and
+/// The census adds the joint SumCheck error, the paper mixing error, and
 /// Appendix D.5's conservative coordinate-fork error. This is a per-protocol
 /// invocation floor; it is not a lifetime or computational-hardness claim.
 pub const MIN_EFFECTIVE_LAMBDA: u32 = 100;
@@ -57,7 +57,7 @@ pub const NEBULA_MAX_FS_QUERY_BITS: u32 = 16;
 ///
 /// This constructor is for table and serialization comparisons. Executable
 /// callers must use [`r1cs_params`] or [`ccs_params`] so the concrete shape
-/// receives the combined rectangular security check.
+/// receives the combined padded-row security check.
 pub fn production_params() -> Params {
     Params::production()
 }
@@ -70,17 +70,19 @@ pub fn production_params() -> Params {
 /// optimized-engine extension policy, with a hard floor at
 /// [`MIN_EFFECTIVE_LAMBDA`].
 ///
-/// FE rounds use `ccs_rows`; NC rounds use `ccs_vars`. Keep both dimensions
-/// separate so a rectangular relation is not charged as a square one.
+/// The joint row cube covers the larger of the padded relation rows and the
+/// padded assignment width. Keep both dimensions so parameter selection uses
+/// the actual rectangular shape.
 pub fn r1cs_params(ccs_rows: usize, ccs_vars: usize) -> Result<Params, neo_params::ParamsError> {
     Params::for_r1cs_shape_with(ccs_rows, ccs_vars, MIN_EFFECTIVE_LAMBDA, EXTENSION_SAFETY_MARGIN_BITS)
 }
 
 /// Return Appendix B.2 core params for a concrete CCS shape.
 ///
-/// This charges the rectangular field/fork census using the actual row and
-/// column dimensions, matrix count `t`, and polynomial degree `u`. R1CS callers should keep using
-/// [`r1cs_params`], which is the `(t=3, u=2)` specialization.
+/// This charges the padded-row field/fork census using the actual row and
+/// column dimensions, matrix count `t`, and polynomial degree `u`. R1CS
+/// callers should keep using [`r1cs_params`], which is the `(t=3, u=2)`
+/// specialization.
 pub fn ccs_params(
     ccs_rows: usize,
     ccs_vars: usize,

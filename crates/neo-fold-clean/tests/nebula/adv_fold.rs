@@ -61,7 +61,7 @@ fn adv_instance(prep: &Preprocessing, scheme: &LaneScheme, seed: u64) -> CcsInst
             *slot = F::ONE;
         }
     }
-    let mut instance = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 1)
+    let mut instance = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, D)
         .expect("low-norm adv instance");
     instance.claim.adv = Some(scheme.commit(&instance.witness.Z).expect("lane commit"));
     instance
@@ -216,7 +216,7 @@ fn mixed_adv_presence_is_rejected() {
     let with_adv = adv_instance(&prep, &scheme, 3);
     let plain = {
         let z = vec![F::ZERO; prep.structure().m];
-        CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 1).expect("plain instance")
+        CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, D).expect("plain instance")
     };
 
     let result = prove_fold(&prep, &scheme, vec![with_adv, plain]);

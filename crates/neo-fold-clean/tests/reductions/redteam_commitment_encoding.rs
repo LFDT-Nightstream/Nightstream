@@ -110,12 +110,16 @@ fn recursive_pi_rlc_rejects_empty_zero_kappa_commitment_shape() {
     };
     let rhos = [[F::ZERO; D]];
     let mut builder = R1csBuilder::new();
-    let wires = alloc_rlc_commitment_inputs(&mut builder, &rhos, core::slice::from_ref(&empty), &empty)
-        .expect("malformed commitment should receive a circuit verdict");
-    enforce_rlc_commitment_combination(&mut builder, &wires);
+    let accepted = match alloc_rlc_commitment_inputs(&mut builder, &rhos, core::slice::from_ref(&empty), &empty) {
+        Ok(wires) => {
+            enforce_rlc_commitment_combination(&mut builder, &wires);
+            builder.is_satisfied()
+        }
+        Err(_) => false,
+    };
 
     assert!(
-        !builder.is_satisfied(),
+        !accepted,
         "recursive-verifier soundness failure: Π_RLC accepted a vacuous kappa=0 commitment relation"
     );
 }

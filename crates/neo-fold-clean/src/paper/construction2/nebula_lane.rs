@@ -19,7 +19,7 @@
 use neo_ajtai::Commitment;
 use neo_ccs::LaneCommitments;
 use neo_math::field::KExtensions;
-use neo_math::{F, K};
+use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
@@ -125,6 +125,8 @@ pub enum NebulaXError {
     NonBit(usize),
     #[error("nebula x: leading public slot must be the constant 1")]
     MissingConstantOne,
+    #[error("nebula x: ring-completion slot {0} must be zero")]
+    NonZeroCompletion(usize),
     #[error("nebula x: delayed suffix with open = 0 must carry an all-zero D_pre encoding")]
     ClosedDPreNonZero,
 }
@@ -138,23 +140,32 @@ pub struct DelayedNebulaStepX {
 }
 
 impl NebulaStepX {
-    /// Decode a claim's full public input `x = [1 ‖ bits]` (length
-    /// `1 + stacks.x_bits()`, the `S_mem` `m_in` prefix), validating the
-    /// leading constant and every slot's bitness. Little-endian multi-bit
-    /// fields under the canonical encoding; the plan's [`StackShape`]
-    /// fixes the trailing `sp` slots.
+    /// Decode a claim's complete public ring
+    /// `x = [1 ‖ bits ‖ zero completion]`. The logical prefix has length
+    /// `1 + stacks.x_bits()`. The claim length is its unique multiple-of-`D`
+    /// completion. The decoder validates the leading constant, every bit, and
+    /// every zero completion coefficient.
     pub fn decode_claim_x(x: &[F], stacks: StackShape) -> Result<Self, NebulaXError> {
-        if x.len() != 1 + stacks.x_bits() {
+        let logical_len = 1 + stacks.x_bits();
+        let complete_len = logical_len.div_ceil(D) * D;
+        if x.len() != complete_len {
             return Err(NebulaXError::Length {
-                label: "claim x (1 + x_bits)",
-                want: 1 + stacks.x_bits(),
+                label: "complete public ring",
+                want: complete_len,
                 got: x.len(),
             });
         }
         if x[0] != F::ONE {
             return Err(NebulaXError::MissingConstantOne);
         }
-        Self::decode_bits(&x[1..], stacks)
+        if let Some((offset, _)) = x[logical_len..]
+            .iter()
+            .enumerate()
+            .find(|(_, value)| **value != F::ZERO)
+        {
+            return Err(NebulaXError::NonZeroCompletion(logical_len + offset));
+        }
+        Self::decode_bits(&x[1..logical_len], stacks)
     }
 
     /// Decode the canonical bit body without the CCS constant-one slot.

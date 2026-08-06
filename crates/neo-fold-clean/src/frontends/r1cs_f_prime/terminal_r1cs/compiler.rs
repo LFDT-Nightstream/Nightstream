@@ -556,7 +556,13 @@ fn validate_running_claim(
             return Err(TerminalR1csError::Unsupported("nonzero running evaluation padding"));
         }
     }
-    let expected_point = structure.n.next_power_of_two().trailing_zeros() as usize;
+    let assignment_width = neo_reductions::common::superneo_carrier_width(structure.m);
+    let expected_point = structure
+        .n
+        .max(assignment_width)
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
     require_len("running evaluation point", expected_point, claim.r.len())
 }
 

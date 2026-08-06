@@ -654,10 +654,17 @@ fn direct_combined_terminal_fixture(
     )
     .expect("honest combined fresh instance");
     let zero_witness = Mat::zero(D, emission.structure().m / D, F::ZERO);
+    let joint_row_variables = emission
+        .structure()
+        .n
+        .max(emission.structure().m)
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
     let zero_claim = CeClaim {
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
         X: Mat::zero(D, manifest.public_carrier_width(), F::ZERO),
-        r: vec![K::ZERO; manifest.terminal_r1cs().row_variables()],
+        r: vec![K::ZERO; joint_row_variables],
         y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; emission.structure().t()],
         ct: vec![K::ZERO; emission.structure().t()],
         m_in: manifest.public_carrier_width(),

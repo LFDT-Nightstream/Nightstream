@@ -3,8 +3,8 @@
 //! Each row proves one transition `next = prev + curr` using an R1CS over
 //! low-norm `0/1` witnesses:
 //!
-//! - public bits for `prev`, `curr`, and `next`,
-//! - private carry bits,
+//! - one complete public ring containing `prev`, `curr`, and `next` bits,
+//! - private carry bits after that ring,
 //! - booleanity constraints for every bit and carry,
 //! - ripple-carry addition constraints.
 //!
@@ -36,7 +36,7 @@ fn c_bit(j: usize) -> usize {
 
 fn carry_bit(j: usize) -> usize {
     debug_assert!(j < LIMBS - 1);
-    1 + 3 * LIMBS + j
+    D + j
 }
 
 fn public_width() -> usize {
@@ -48,16 +48,16 @@ fn private_width() -> usize {
 }
 
 fn circuit_width() -> usize {
-    public_width() + private_width()
+    D + private_width()
 }
 
 fn fibonacci_addition_r1cs() -> R1cs {
-    assert!(circuit_width() <= D);
+    assert!(public_width() <= D);
 
     let rows = 1 + 3 * LIMBS + private_width() + LIMBS;
-    let mut a = NeoMat::zero(rows, D, F::default());
-    let mut b = NeoMat::zero(rows, D, F::default());
-    let mut c = NeoMat::zero(rows, D, F::default());
+    let mut a = NeoMat::zero(rows, circuit_width(), F::default());
+    let mut b = NeoMat::zero(rows, circuit_width(), F::default());
+    let mut c = NeoMat::zero(rows, circuit_width(), F::default());
 
     let mut row = 0;
 
@@ -95,12 +95,7 @@ fn fibonacci_addition_r1cs() -> R1cs {
 
     debug_assert_eq!(row, rows);
 
-    R1cs {
-        a,
-        b,
-        c,
-        m_in: public_width(),
-    }
+    R1cs { a, b, c, m_in: D }
 }
 
 fn add_boolean_constraint(row: usize, idx: usize, a: &mut NeoMat<F>, b: &mut NeoMat<F>) {
@@ -125,7 +120,7 @@ fn fibonacci_transition_assignment(prev: u64, curr: u64, next: u64) -> Vec<F> {
     assert_eq!(prev + curr, next, "test fixture must be a Fibonacci transition");
     assert!(next < (1 << LIMBS), "increase LIMBS for this trace");
 
-    let mut z = vec![F::ZERO; D];
+    let mut z = vec![F::ZERO; circuit_width()];
     z[ONE] = F::ONE;
 
     for j in 0..LIMBS {

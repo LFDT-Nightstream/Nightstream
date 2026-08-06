@@ -51,9 +51,9 @@ const BIT_BACKED_PERMUTATION_LINEAR_ROWS: usize =
 // ── Test-local degree-7 / bit-backed sbox fixtures ──────────────────────
 
 fn degree7_sbox_structure() -> Structure {
-    let mut x = Mat::zero(1, 2, F::ZERO);
+    let mut x = Mat::zero(1, D, F::ZERO);
     x.set(0, 0, F::ONE);
-    let mut y = Mat::zero(1, 2, F::ZERO);
+    let mut y = Mat::zero(1, D, F::ZERO);
     y.set(0, 1, F::ONE);
     let f = SparsePoly::new(
         2,
@@ -85,8 +85,10 @@ fn install_ajtai_module(params: &Params, structure: &Structure) {
 }
 
 fn degree7_instance(params: &Params, structure: &Structure, log: &AjtaiSModule) -> CcsInstance {
-    let z = vec![-F::ONE, -F::ONE];
-    CcsInstance::from_low_norm_assignment(params, log, structure, &z, 1).expect("low-norm degree-7 assignment")
+    let mut z = vec![F::ZERO; D];
+    z[0] = -F::ONE;
+    z[1] = -F::ONE;
+    CcsInstance::from_low_norm_assignment(params, log, structure, &z, D).expect("low-norm degree-7 assignment")
 }
 
 fn bit_backed_sbox_structure() -> Structure {
@@ -143,7 +145,7 @@ fn bit_backed_sbox_assignment(x: F) -> Vec<F> {
 
 fn bit_backed_sbox_instance(params: &Params, structure: &Structure, log: &AjtaiSModule, x: F) -> CcsInstance {
     let z = bit_backed_sbox_assignment(x);
-    CcsInstance::from_low_norm_assignment(params, log, structure, &z, 1)
+    CcsInstance::from_low_norm_assignment(params, log, structure, &z, D)
         .expect("low-norm bit-backed degree-7 assignment")
 }
 
@@ -196,7 +198,7 @@ fn prove_verify_single_fresh(structure: &Structure, z: Vec<F>) -> Result<Vec<neo
     let log = AjtaiSModule::from_global_for_dims(D, cols).expect("Ajtai module");
     let cache = OptimizedStructureCache::build(structure).expect("cache build");
     let instance =
-        CcsInstance::from_low_norm_assignment(&params, &log, structure, &z, 1).expect("low-norm sparse CCS assignment");
+        CcsInstance::from_low_norm_assignment(&params, &log, structure, &z, D).expect("low-norm sparse CCS assignment");
 
     let mut prover_tr = Transcript::session();
     let proof = pi_ccs::prove(
@@ -279,7 +281,7 @@ fn native_pi_ccs_accepts_degree7_sbox_relation() {
     .expect("Π_CCS.V degree-7");
 
     assert_eq!(outputs.len(), 1);
-    assert_eq!(outputs[0].y_ring.len(), 2, "one opening for X and one for Y");
+    assert_eq!(outputs[0].y_ring.len(), 3, "padded identity, X, and Y openings");
 }
 
 #[test]
@@ -366,7 +368,7 @@ fn native_pi_ccs_rejects_wrong_bit_backed_degree7_output() {
 
     let mut z = bit_backed_sbox_assignment(F::from_u64(0x1234_5678_9abc_def0));
     z[1 + POSEIDON2_GOLDILOCKS_BITS] = F::ONE - z[1 + POSEIDON2_GOLDILOCKS_BITS];
-    let instance = CcsInstance::from_low_norm_assignment(&params, &log, &structure, &z, 1)
+    let instance = CcsInstance::from_low_norm_assignment(&params, &log, &structure, &z, D)
         .expect("tampered output remains low-norm");
 
     let mut prover_tr = Transcript::session();

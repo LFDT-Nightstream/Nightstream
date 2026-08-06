@@ -124,7 +124,7 @@ pub struct NebulaFPrimeFieldArmShape {
     pub poseidon2_permutations: usize,
 }
 
-/// Shape-only audit of all three Road A arms against one verifier relation.
+/// Shape-only audit of all three fixed-relation arms.
 /// This deliberately stops before low-norm compilation, whose output can be
 /// much larger than the field-native matrices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -288,7 +288,7 @@ impl NebulaFPrimeRelation {
     }
 
     /// Measure the three field-native arms without constructing their
-    /// low-norm union. This is the safe entry point for Road A cost audits.
+    /// low-norm union. This is the safe entry point for fixed-relation cost audits.
     pub fn audit_field_shapes(
         params: &Params,
         verifier_structure: &Structure,
@@ -982,7 +982,7 @@ fn enforce_current_application(
 ) -> Result<CurrentApplication, NebulaFPrimeError> {
     let nebula = cfg.nebula.ok_or(NebulaFPrimeError::MissingNebulaConfig)?;
     let expected_step_width = nebula.stacks.x_bits();
-    let actual_step_width = circuit.m_in() - 1;
+    let actual_step_width = circuit.logical_public_input_len() - 1;
     if actual_step_width != expected_step_width {
         return Err(NebulaFPrimeError::StepPublicWidth {
             actual: actual_step_width,
@@ -1052,7 +1052,7 @@ fn enforce_current_application(
         (Vec::new(), None)
     };
     let suffix_column_start = builder.witness().len();
-    let mut suffix = s_mem[1..circuit.m_in()].to_vec();
+    let mut suffix = s_mem[1..circuit.logical_public_input_len()].to_vec();
     let open = builder.alloc(if current_d_pre.is_some() { F::ONE } else { F::ZERO });
     enforce_bit(builder, open);
     suffix.push(open);

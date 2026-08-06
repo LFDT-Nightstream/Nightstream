@@ -210,6 +210,8 @@ pub enum Error {
          Rebuild `Preprocessing` via `preprocess` instead of mutating fields."
     )]
     StructureCacheMismatch,
+    #[error("lifecycle: verifier-key digest no longer matches the preprocessing policy")]
+    VerifierKeyBindingMismatch,
 }
 
 /// Verifier-owned protocol context. Built once per program and reused
@@ -233,7 +235,7 @@ pub struct Preprocessing {
     pub(crate) nebula: Option<std::sync::Arc<crate::paper::construction2::NebulaConfig>>,
     /// Program-fixed public-input length; absorbed into `vk_fs_digest` so
     /// the chain binds to a specific m_in. `None` means "unfixed at the
-    /// program level" — encoded as `u64::MAX` in the absorb.
+    /// program level". The digest uses an explicit presence tag.
     pub public_input_len: Option<usize>,
     /// Verifier-owned initial app/VM semantic-state digest.
     ///
@@ -386,6 +388,7 @@ impl Preprocessing {
             self.public_input_len,
             initial,
         );
+        self.rebind_verifier_key_policy();
         Ok(self)
     }
 
@@ -399,6 +402,7 @@ impl Preprocessing {
     /// `verify_uncompressed`'s stateless invariant.
     pub(crate) fn with_semantic_state_mode(mut self, mode: SemanticStateMode) -> Self {
         self.semantic_state_mode = mode;
+        self.rebind_verifier_key_policy();
         self
     }
 
@@ -407,6 +411,7 @@ impl Preprocessing {
     /// ownership boundary, not a prover/caller choice.
     pub(crate) fn with_f_prime_recursive_link(mut self) -> Self {
         self.f_prime_recursive_link = true;
+        self.rebind_verifier_key_policy();
         self
     }
 
@@ -416,6 +421,7 @@ impl Preprocessing {
     pub(crate) fn with_terminal_induction(mut self) -> Self {
         self.f_prime_recursive_link = true;
         self.terminal_induction = true;
+        self.rebind_verifier_key_policy();
         self
     }
 
@@ -488,6 +494,36 @@ impl Preprocessing {
             return Err(Error::StructureCacheMismatch);
         }
         Ok(())
+    }
+
+    /// Check that mutable preprocessing policy still matches the key derived
+    /// at preprocessing time.
+    pub fn validate_verifier_key_binding(&self) -> Result<(), Error> {
+        let expected = VerifierKey::derive_from_structure_digest(
+            &self.params,
+            &self.structure_digest,
+            self.pi_ccs_header_bundle,
+            self.ajtai_pp_digest,
+            self.public_input_len,
+            self.initial_semantic_state_digest,
+        )
+        .with_policy(
+            matches!(self.semantic_state_mode, SemanticStateMode::Stateful),
+            self.f_prime_recursive_link,
+            self.terminal_induction,
+        );
+        if expected.digest() != self.vk.digest() || expected.pi_ccs_header_bundle() != self.vk.pi_ccs_header_bundle() {
+            return Err(Error::VerifierKeyBindingMismatch);
+        }
+        Ok(())
+    }
+
+    fn rebind_verifier_key_policy(&mut self) {
+        self.vk = self.vk.clone().with_policy(
+            matches!(self.semantic_state_mode, SemanticStateMode::Stateful),
+            self.f_prime_recursive_link,
+            self.terminal_induction,
+        );
     }
 }
 
@@ -598,6 +634,9 @@ pub(crate) fn preprocess_shared(
     structure: std::sync::Arc<Structure>,
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
+    structure
+        .validate()
+        .map_err(|error| neo_reductions::error::PiCcsError::InvalidInput(error.to_string()))?;
     let cols = structure.m.div_ceil(D);
     let log = AjtaiSModule::from_global_for_dims(D, cols)?;
     let optimized_cache = OptimizedStructureCache::build_shared(std::sync::Arc::clone(&structure))?;
@@ -625,6 +664,9 @@ pub fn preprocess_with_test_log(
     log: AjtaiSModule,
     public_input_len: Option<usize>,
 ) -> Result<Preprocessing, Error> {
+    structure
+        .validate()
+        .map_err(|error| neo_reductions::error::PiCcsError::InvalidInput(error.to_string()))?;
     let structure = std::sync::Arc::new(structure);
     let optimized_cache = OptimizedStructureCache::build_shared(std::sync::Arc::clone(&structure))?;
     preprocess_with_test_log_and_optimized_cache(
@@ -660,17 +702,17 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     }
     // Verifier-derived cache: a pure function of `structure`, computed by the
     // frontend's prepared-structure constructor or by `preprocess_with_test_log`
-    // above. The optimized cache carries the Π_CCS `mat_digest`, which
+    // above. The optimized cache carries the matrix-tree digest, which
     // `structure_digest` also binds, so derive the structure digest from that
     // same matrix digest instead of walking the matrices twice here.
-    let structure_digest =
-        crate::paper::digest::structure_digest_from_mat_digest(structure.as_ref(), optimized_cache.mat_digest());
+    let structure_digest = crate::paper::digest::structure_digest_from_mat_digest(
+        structure.as_ref(),
+        optimized_cache.matrix_tree_digest(),
+    );
     params
         .validate_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree())
         .map_err(|error| neo_reductions::error::PiCcsError::ExtensionPolicyFailed(error.to_string()))?;
-    let pi_ccs_header_bundle = neo_reductions::engines::utils::digest_ccs_matrices(structure.as_ref())
-        .try_into()
-        .expect("the PiCCS matrix digest has four fields");
+    let pi_ccs_header_bundle = *optimized_cache.pi_ccs_matrix_digest();
     let ajtai_pp_digest = crate::paper::digest::ajtai_public_parameters_digest(&log)?;
     // Default seed: `empty_semantic_state_digest()`. Stateful frontends
     // call [`Preprocessing::with_initial_semantic_state_digest`] after

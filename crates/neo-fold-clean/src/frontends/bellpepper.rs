@@ -2,13 +2,13 @@
 //!
 //! This module owns only the adapter boundary from Bellpepper's R1CS API
 //! to the CCS relation the lifecycle already folds. It preserves sparse
-//! matrices, returns the full assignment `z = [x | w]`, and leaves
+//! matrices, pads `x` to complete public rings, returns `z = [x | w]`, and leaves
 //! preprocessing / folding to the normal lifecycle entrypoints.
 
 use bellpepper_core::{Circuit, ConstraintSystem, Index, LinearCombination, SynthesisError, Variable};
 use ff::PrimeField;
 use neo_ccs::{sparse_r1cs_to_ccs, CcsMatrix, CcsStructure, CscMat};
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
@@ -50,19 +50,30 @@ pub struct BellpepperCcs {
 
 impl BellpepperCcs {
     pub fn public_input_len(&self) -> usize {
-        self.shape.inputs
+        self.assignment.len() - self.shape.aux
     }
 
     pub fn public_inputs(&self) -> &[F] {
-        &self.assignment[..self.shape.inputs]
+        &self.assignment[..self.public_input_len()]
     }
 
     pub fn private_witness(&self) -> &[F] {
-        &self.assignment[self.shape.inputs..]
+        &self.assignment[self.public_input_len()..]
     }
 
     /// Build one lifecycle input instance from this assignment.
     pub fn build_instance(&self, prep: &Preprocessing) -> Result<CcsInstance, BellpepperFrontendError> {
+        if self.assignment.first() != Some(&F::ONE) {
+            return Err(BellpepperFrontendError::NonCanonicalConstant);
+        }
+        if let Some(offset) = self.assignment[self.shape.inputs..self.public_input_len()]
+            .iter()
+            .position(|value| *value != F::ZERO)
+        {
+            return Err(BellpepperFrontendError::NonCanonicalPublicPadding {
+                index: self.shape.inputs + offset,
+            });
+        }
         Ok(CcsInstance::from_low_norm_assignment(
             &prep.params,
             &prep.log,
@@ -83,6 +94,10 @@ pub enum BellpepperFrontendError {
     Frontend(#[from] FrontendError),
     #[error(transparent)]
     Relation(#[from] RelationError),
+    #[error("Bellpepper implicit constant-one input is not one")]
+    NonCanonicalConstant,
+    #[error("Bellpepper public-ring completion is nonzero at index {index}")]
+    NonCanonicalPublicPadding { index: usize },
 }
 
 /// Synthesize any Bellpepper circuit over Goldilocks into sparse CCS.
@@ -103,29 +118,30 @@ where
         b_trips,
         c_trips,
     } = cs;
-    let num_constraints = num_constraints as usize;
+    let source_constraints = num_constraints as usize;
     let num_inputs = inputs.len();
     let num_aux = aux.len();
-    let num_variables = num_inputs + num_aux;
+    let public_input_len = num_inputs.div_ceil(D) * D;
+    let public_padding_len = public_input_len - num_inputs;
+    let num_constraints = source_constraints + public_padding_len;
+    let num_variables = public_input_len + num_aux;
 
     let mut assignment = inputs;
+    assignment.resize(public_input_len, F::ZERO);
     assignment.extend(aux);
 
-    let a = CcsMatrix::Csc(CscMat::from_triplets(
-        TripletConstraintSystem::resolve_triplets(a_trips, num_inputs),
-        num_constraints,
-        num_variables,
-    ));
-    let b = CcsMatrix::Csc(CscMat::from_triplets(
-        TripletConstraintSystem::resolve_triplets(b_trips, num_inputs),
-        num_constraints,
-        num_variables,
-    ));
-    let c = CcsMatrix::Csc(CscMat::from_triplets(
-        TripletConstraintSystem::resolve_triplets(c_trips, num_inputs),
-        num_constraints,
-        num_variables,
-    ));
+    let mut a_trips = TripletConstraintSystem::resolve_triplets(a_trips, public_input_len);
+    let mut b_trips = TripletConstraintSystem::resolve_triplets(b_trips, public_input_len);
+    let c_trips = TripletConstraintSystem::resolve_triplets(c_trips, public_input_len);
+    for (offset, column) in (num_inputs..public_input_len).enumerate() {
+        let row = source_constraints + offset;
+        a_trips.push((row, column, F::ONE));
+        b_trips.push((row, 0, F::ONE));
+    }
+
+    let a = CcsMatrix::Csc(CscMat::from_triplets(a_trips, num_constraints, num_variables));
+    let b = CcsMatrix::Csc(CscMat::from_triplets(b_trips, num_constraints, num_variables));
+    let c = CcsMatrix::Csc(CscMat::from_triplets(c_trips, num_constraints, num_variables));
 
     let sparse_r1cs = SparseR1cs::new(
         a.clone(),
@@ -133,7 +149,7 @@ where
         c.clone(),
         num_constraints,
         num_variables,
-        num_inputs,
+        public_input_len,
     )?;
 
     Ok(BellpepperCcs {

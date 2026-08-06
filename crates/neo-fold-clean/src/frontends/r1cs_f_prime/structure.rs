@@ -421,9 +421,8 @@ impl R1csShape {
 
     /// Conservative syntactic Boolean-variable detector.
     ///
-    /// Seeds from explicit rows equivalent to `z[j] * (1 - z[j]) = 0`
-    /// or `(1 - z[j]) * z[j] = 0`, then propagates through exact copy
-    /// rows and exact products of already-Boolean values. This is
+    /// Seeds from explicit Boolean rows and exact fixed-zero rows, then
+    /// propagates through exact copy rows and exact products of already-Boolean values. This is
     /// deliberately narrow evidence for one-bit app-private slots, not
     /// a theorem prover for arbitrary Boolean implications.
     pub fn boolean_constrained_variables(&self) -> Vec<bool> {
@@ -559,7 +558,9 @@ fn boolean_constrained_variables_from_rows(rows: &R1csCoeffRows, row_count: usiz
         if !rows.c[row].is_empty() {
             continue;
         }
-        if let Some(var) = boolean_row_var(&rows.a[row], &rows.b[row]) {
+        if let Some(var) = fixed_zero_row_var(&rows.a[row], &rows.b[row]) {
+            out[var] = true;
+        } else if let Some(var) = boolean_row_var(&rows.a[row], &rows.b[row]) {
             out[var] = true;
         } else if let Some(var) = boolean_row_var(&rows.b[row], &rows.a[row]) {
             out[var] = true;
@@ -1084,6 +1085,16 @@ fn boolean_row_var(linear_var: &[(usize, F)], one_minus_var: &[(usize, F)]) -> O
     }
 }
 
+fn fixed_zero_row_var(a: &[(usize, F)], b: &[(usize, F)]) -> Option<usize> {
+    if is_one_lc(a) {
+        single_scaled_var(b)
+    } else if is_one_lc(b) {
+        single_scaled_var(a)
+    } else {
+        None
+    }
+}
+
 fn copy_row_vars(a: &[(usize, F)], b: &[(usize, F)], c: &[(usize, F)]) -> Option<(usize, usize)> {
     if is_one_lc(b) {
         return equal_single_var_pair(a, c);
@@ -1351,26 +1362,33 @@ where
 /// Pin the app R1CS conventional constant lane `z[0]` to the F' constant
 /// column. We emit this whenever the typed layout narrows any app
 /// variable below a full canonical lane, because the width prover treats
-/// `z[0]` as the conventional constant-one lane. Legacy full-lane R1CS
-/// shapes can still use variable 0 as an ordinary public value.
+/// `z[0]` as the conventional constant-one lane. An anchored transition
+/// can use `z[0]` as an ordinary value on one semantic side. If it carries
+/// `z[0]` on both sides, the lane is the invariant constant and is pinned
+/// directly instead of relying on a digest to make it authoritative.
 fn requires_r1cs_constant_lane_pin(layout: &FPrimeImageLayout) -> bool {
-    let app_var_zero_absorbed = layout
+    let app_var_zero_semantic_roles = layout
         .config
         .poseidon_transition_enforcements
         .iter()
-        .flat_map(|enforcement| enforcement.preimage_lanes.iter())
-        .any(|source| match source {
-            PoseidonPreimageLaneSource::AppAssignmentLane(0) => true,
-            PoseidonPreimageLaneSource::AppAssignmentBitPack(indices) => indices.contains(&0),
-            _ => false,
-        });
+        .filter(|enforcement| {
+            enforcement
+                .preimage_lanes
+                .iter()
+                .any(|source| match source {
+                    PoseidonPreimageLaneSource::AppAssignmentLane(0) => true,
+                    PoseidonPreimageLaneSource::AppAssignmentBitPack(indices) => indices.contains(&0),
+                    _ => false,
+                })
+        })
+        .count();
 
     layout
         .config
         .app_private_var_widths
         .iter()
         .any(|&width| width < POSEIDON2_GOLDILOCKS_BITS)
-        || (layout.config.initial_semantic_state_digest_anchor.is_some() && !app_var_zero_absorbed)
+        || (layout.config.initial_semantic_state_digest_anchor.is_some() && app_var_zero_semantic_roles != 1)
         || layout
             .config
             .poseidon_transition_enforcements

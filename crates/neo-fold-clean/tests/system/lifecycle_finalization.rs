@@ -2,21 +2,20 @@
 mod support;
 
 use neo_ccs::Mat;
-use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use neo_math::{D, F};
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::ProofState;
 use neo_fold_clean::paper::nifs::{self, NifsProverAdapter, NifsProverOutput, NifsProverRequest};
 use neo_fold_clean::CcsInstance;
 
-/// Toy instance whose public input is a specified low-norm `F` value, so
-/// callers can produce same-shape but distinct-content batches. Toy
-/// preprocessing has `m = m_in = 1`, so the assignment is a single field
-/// element (which is also the public input).
+/// Toy instance whose complete public ring contains one specified low-norm
+/// value, so callers can produce same-shape but distinct-content batches.
 fn toy_instance_with_x_value(prep: &neo_fold_clean::Preprocessing, x: F) -> CcsInstance {
-    let z = vec![x; prep.structure().m];
-    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, 1)
+    let mut z = vec![F::ZERO; prep.structure().m];
+    z[0] = x;
+    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &z, D)
         .expect("low-norm toy instance with chosen x")
 }
 
@@ -178,14 +177,56 @@ fn prove_rejects_empty_batch() {
 }
 
 #[test]
-fn extend_rejects_chunk_counter_overflow() {
+fn extend_rejects_noncanonical_chunk_counter() {
     let prep = support::toy_preprocessing();
     let mut audit = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 31)]])
         .expect("one-batch uncompressed proof");
     audit.proof.state.chunk_count = u64::MAX;
 
     let err = neo_fold_clean::extend(&prep, audit, vec![support::toy_instance(&prep, 32)])
-        .expect_err("extending a maximal chunk counter must fail instead of wrapping");
+        .expect_err("extending a noncanonical chunk counter must fail");
+
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::Construction2(neo_fold_clean::paper::construction2::Error::NoncanonicalCounter {
+                counter: "chunk_count"
+            })
+        ),
+        "expected chunk_count NoncanonicalCounter, got {err:?}"
+    );
+}
+
+#[test]
+fn extend_rejects_noncanonical_step_counter() {
+    let prep = support::toy_preprocessing();
+    let mut audit = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 33)]])
+        .expect("one-batch uncompressed proof");
+    audit.proof.state.step_count = u64::MAX;
+
+    let err = neo_fold_clean::extend(&prep, audit, vec![support::toy_instance(&prep, 34)])
+        .expect_err("extending a noncanonical step counter must fail");
+
+    assert!(
+        matches!(
+            err,
+            neo_fold_clean::Error::Construction2(neo_fold_clean::paper::construction2::Error::NoncanonicalCounter {
+                counter: "step_count"
+            })
+        ),
+        "expected step_count NoncanonicalCounter, got {err:?}"
+    );
+}
+
+#[test]
+fn extend_rejects_chunk_counter_past_the_canonical_field_range() {
+    let prep = support::toy_preprocessing();
+    let mut audit = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 35)]])
+        .expect("one-batch uncompressed proof");
+    audit.proof.state.chunk_count = F::ORDER_U64 - 1;
+
+    let err = neo_fold_clean::extend(&prep, audit, vec![support::toy_instance(&prep, 36)])
+        .expect_err("the next chunk counter must remain a canonical field value");
 
     assert!(
         matches!(
@@ -199,14 +240,14 @@ fn extend_rejects_chunk_counter_overflow() {
 }
 
 #[test]
-fn extend_rejects_step_counter_overflow() {
+fn extend_rejects_step_counter_past_the_canonical_field_range() {
     let prep = support::toy_preprocessing();
-    let mut audit = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 33)]])
+    let mut audit = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 37)]])
         .expect("one-batch uncompressed proof");
-    audit.proof.state.step_count = u64::MAX;
+    audit.proof.state.step_count = F::ORDER_U64 - 1;
 
-    let err = neo_fold_clean::extend(&prep, audit, vec![support::toy_instance(&prep, 34)])
-        .expect_err("extending a maximal step counter must fail instead of wrapping");
+    let err = neo_fold_clean::extend(&prep, audit, vec![support::toy_instance(&prep, 38)])
+        .expect_err("the next step counter must remain a canonical field value");
 
     assert!(
         matches!(
@@ -510,7 +551,7 @@ fn prove_rejects_public_input_len_mismatch() {
     assert!(
         matches!(
             neo_fold_clean::prove(&prep, vec![vec![mismatched]]),
-            Err(neo_fold_clean::Error::PublicInputLenMismatch { expected: 1, got: 0 })
+            Err(neo_fold_clean::Error::PublicInputLenMismatch { expected: D, got: 0 })
         ),
         "prove accepted an instance whose m_in disagreed with preprocessing"
     );
@@ -831,7 +872,7 @@ fn same_shape_different_batches_have_same_f_prime_trace_but_different_acc_digest
     let prep = support::toy_preprocessing();
 
     // Two single-batch proofs with same-shape but distinct-content batches.
-    // Toy structure has m = m_in = 1; we vary the single z element.
+    // Toy structure has one complete public ring; vary its first element.
     let proof_a = neo_fold_clean::prove(&prep, vec![vec![toy_instance_with_x_value(&prep, F::ZERO)]]).expect("prove a");
     let finished_a = neo_fold_clean::finish_uncompressed(&prep, proof_a).expect("finish a");
 
@@ -1133,8 +1174,8 @@ fn final_witness_authority_rejects_m_in_relabel_below_program_public_input_len()
     let prep = support::toy_preprocessing();
     assert_eq!(
         prep.public_input_len,
-        Some(1),
-        "toy preprocessing fixes a one-element public input"
+        Some(D),
+        "toy preprocessing fixes one complete public ring"
     );
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 81)]])
         .expect("one-batch uncompressed proof");
@@ -1162,9 +1203,9 @@ fn final_witness_authority_rejects_m_in_relabel_below_program_public_input_len()
     assert!(
         matches!(
             err,
-            neo_fold_clean::Error::PublicInputLenMismatch { expected: 1, got: 0 }
+            neo_fold_clean::Error::PublicInputLenMismatch { expected: D, got: 0 }
         ),
-        "expected PublicInputLenMismatch {{ expected: 1, got: 0 }}, got {err:?}"
+        "expected PublicInputLenMismatch {{ expected: D, got: 0 }}, got {err:?}"
     );
 }
 
@@ -1173,8 +1214,8 @@ fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_pu
     let prep = support::toy_preprocessing();
     assert_eq!(
         prep.public_input_len,
-        Some(1),
-        "toy preprocessing fixes a one-element public input"
+        Some(D),
+        "toy preprocessing fixes one complete public ring"
     );
     let proof = neo_fold_clean::prove(&prep, vec![vec![toy_instance_with_x_value(&prep, F::ONE)]])
         .expect("one-batch uncompressed proof");
@@ -1194,7 +1235,7 @@ fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_pu
     // `m_in` were treated as prover-owned, the local CE equations would
     // still be self-consistent: commit(Z) still opens, low-norm still
     // holds, and y_ring/ct are independent of L_in's projection width.
-    // The verifier must reject because the program fixed m_in = 1.
+    // The verifier must reject because the program fixed `m_in = D`.
     running.claims[0].m_in = 0;
     running.claims[0].X = Mat::zero(neo_math::D, 0, F::ZERO);
 
@@ -1203,9 +1244,9 @@ fn final_witness_authority_rejects_nonzero_witness_m_in_relabel_below_program_pu
     assert!(
         matches!(
             err,
-            neo_fold_clean::Error::PublicInputLenMismatch { expected: 1, got: 0 }
+            neo_fold_clean::Error::PublicInputLenMismatch { expected: D, got: 0 }
         ),
-        "expected PublicInputLenMismatch {{ expected: 1, got: 0 }}, got {err:?}"
+        "expected PublicInputLenMismatch {{ expected: D, got: 0 }}, got {err:?}"
     );
 }
 

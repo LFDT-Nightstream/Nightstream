@@ -30,7 +30,7 @@ const ACTIVE_MATRICES: usize = 14;
 const ACTIVE_ROW_POINT: usize = 24;
 const ACTIVE_LOGICAL_X: usize = 270;
 const ACTIVE_RING_DIMENSION: usize = 54;
-const ACTIVE_NONCOMMITMENT_SOURCE_ROWS: usize = 11_629;
+const ACTIVE_NONCOMMITMENT_SOURCE_ROWS: usize = 11_535;
 const ACTIVE_X_RECOMPOSITION_ROWS: usize = ACTIVE_LOGICAL_X;
 const ACTIVE_X_CANONICALITY_ROWS: usize = ACTIVE_LOGICAL_X * (2 + ACTIVE_CHILDREN);
 const ACTIVE_CANONICAL_X_SOURCE_ROWS: usize = ACTIVE_X_RECOMPOSITION_ROWS + ACTIVE_X_CANONICALITY_ROWS;
@@ -620,6 +620,7 @@ fn columns_in_source_rows(rows: &[R1csIvcPiDecSourceRowAudit]) -> BTreeSet<usize
 
 fn validate_active_strict(strict: &PiDecStrictAudit, arm: &SparseR1cs, params: &Params) -> Result<(), R1csIvcError> {
     let expected_source_rows = ACTIVE_RING_DIMENSION * params.kappa() as usize + ACTIVE_NONCOMMITMENT_SOURCE_ROWS;
+    let observed_source_rows = strict.row_end.saturating_sub(strict.row_start);
     if strict.radix != 2
         || strict.children.len() != ACTIVE_CHILDREN
         || strict.row_start >= strict.row_end
@@ -632,11 +633,18 @@ fn validate_active_strict(strict: &PiDecStrictAudit, arm: &SparseR1cs, params: &
         || strict.x_canonicality_rows.len() != ACTIVE_X_CANONICALITY_ROWS
         || strict.first_allocated_column >= arm.m
         || strict.x_sign_traces.len() != ACTIVE_LOGICAL_X
-        || strict.row_end - strict.row_start != expected_source_rows
+        || observed_source_rows != expected_source_rows
     {
-        return Err(invalid_pi_dec_audit(
-            "strict PiDEC header or source-row census is not the active radix-2 profile",
-        ));
+        return Err(invalid_pi_dec_audit(format!(
+            "strict PiDEC header or source-row census is not the active radix-2 profile: \
+             radix={}, children={}, rows={observed_source_rows}/{expected_source_rows}, \
+             x_recomposition={}, x_canonicality={}, sign_traces={}",
+            strict.radix,
+            strict.children.len(),
+            strict.x_recomposition_rows.len(),
+            strict.x_canonicality_rows.len(),
+            strict.x_sign_traces.len(),
+        )));
     }
 
     let sign_columns = strict

@@ -600,7 +600,7 @@ fn wasm_nebula_pipeline_profile() {
     );
 }
 
-/// Builds the production-parameter relation without enforcing the Road A width
+/// Builds the production-parameter relation without enforcing the fixed-shape width
 /// budget and executes the first occurrence of every F' branch. The prefix is
 /// intentionally left open: a complete production memory segment contains
 /// 1,088 folds and is a separate endurance benchmark.

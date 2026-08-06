@@ -131,7 +131,7 @@ fn actual_ccs_shape_validation_rejects_an_undercharged_matrix_count() {
 #[test]
 fn r1cs_params_reject_when_combined_floor_is_too_high_for_s2() {
     let err = Params::for_r1cs_shape_with(60, 54, 115, config::EXTENSION_SAFETY_MARGIN_BITS)
-        .expect_err("the combined rectangular census cannot provide 117 bits");
+        .expect_err("the combined padded-row census cannot provide 117 bits");
     assert!(matches!(
         err,
         neo_params::ParamsError::InsufficientStatisticalSecurity {

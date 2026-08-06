@@ -13,6 +13,6 @@ fn full_relation_rejects_a_noncanonical_nifs_verifier_configuration() {
     let result = FullFPrimeRelation::new(context, cfg, &application, vec![1, 2], vec![3, 4]);
     assert!(matches!(
         result,
-        Err(FullFPrimeError::NifsConfigMismatch { field: "header bundle" })
+        Err(FullFPrimeError::NifsConfigMismatch { field: "matrix digest" })
     ));
 }

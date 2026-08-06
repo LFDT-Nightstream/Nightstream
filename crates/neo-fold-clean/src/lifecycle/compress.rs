@@ -46,6 +46,7 @@ pub fn compress(prep: &Preprocessing, audit: UncompressedAudit) -> Result<Compre
 /// e.g. for the Spartan decider or for chain-replay debugging — use
 /// [`finish_uncompressed_with_audit`] instead.
 pub fn finish_uncompressed(prep: &Preprocessing, audit: UncompressedAudit) -> Result<Uncompressed, Error> {
+    prep.validate_verifier_key_binding()?;
     // HyperNova Construction 2 verifies the running accumulator and newest
     // fresh F' instance separately. Once preprocessing certifies that F'
     // itself constrains the preceding NIFS.V fold, a plain chain needs no
@@ -103,6 +104,7 @@ fn finish_uncompressed_with_audit_inner(
     adapter: Option<&mut dyn NifsProverAdapter>,
     audit: UncompressedAudit,
 ) -> Result<UncompressedAudit, Error> {
+    prep.validate_verifier_key_binding()?;
     let UncompressedAudit {
         proof: Uncompressed { state, final_fold },
         steps,

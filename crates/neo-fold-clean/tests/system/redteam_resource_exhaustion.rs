@@ -1,4 +1,4 @@
-//! Retained red-team regressions for verifier resource bounds.
+//! Verifier resource-bound regressions.
 
 #[path = "../support/mod.rs"]
 mod support;
@@ -50,8 +50,8 @@ static ALLOCATOR: TrackingAllocator = TrackingAllocator;
 /// Commitment dimensions are proof-controlled metadata. The verifier should
 /// compare them with the Ajtai setup before allocating an all-zero commitment
 /// of that shape. The zero-witness fast path currently allocates `d * kappa`
-/// field elements first, allowing a tiny malformed proof to request unbounded
-/// memory before its inevitable shape rejection.
+/// field elements first. This test requires shape rejection before an
+/// attacker-sized allocation.
 #[test]
 fn final_witness_authority_rejects_commitment_shape_before_attacker_sized_allocation() {
     const ATTACKER_D: usize = 1 << 14;
@@ -66,7 +66,7 @@ fn final_witness_authority_rejects_commitment_shape_before_attacker_sized_alloca
     let mut running = running.materialize().expect("materialized final running");
     assert!(
         running.witnesses[0]
-            .as_slice()
+            .to_dense_vec()
             .iter()
             .all(|&entry| entry == F::ZERO),
         "fixture must exercise the zero-witness fast path"

@@ -242,7 +242,7 @@ fn count_rejection_chunks(app: &'static [u8], seed: u64) -> usize {
 /// from an empty Poseidon2 transcript. Discovered via brute-force search
 /// (see git history); the test below sanity-checks that this seed still
 /// hits a rejection so we catch silent drift.
-const REJECTION_SEED: u64 = 0x2b1;
+const REJECTION_SEED: u64 = 0xb72;
 
 #[test]
 fn alphabet_sampling_handles_forced_rejection_chunk() {

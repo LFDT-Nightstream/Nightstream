@@ -27,16 +27,10 @@ fn assert_source_audit(params: &Params, audit: &R1csIvcPiDecSourceRowsAudit) {
         "the exact paper carrier has no product-commitment advice"
     );
     let active_source_rows = strict.row_end - strict.row_start;
-    let expected_active_source_rows = 54 * params.kappa() as usize + 11_629;
-    let prior_source_rows = 54 * params.kappa() as usize + 15_129;
+    let expected_active_source_rows = 54 * params.kappa() as usize + 11_535;
     assert_eq!(
         active_source_rows, expected_active_source_rows,
         "active strict PiDEC source-field R1CS row census"
-    );
-    assert_eq!(
-        prior_source_rows - active_source_rows,
-        3_500,
-        "canonical-X and semantic-prefix-y remove exactly 3,500 source rows"
     );
     assert_eq!(
         strict
@@ -65,14 +59,13 @@ fn assert_source_audit(params: &Params, audit: &R1csIvcPiDecSourceRowsAudit) {
             54 * params.kappa() as usize,
             0,
             270,
-            1_404,
+            1_512,
             70,
             672,
-            532,
             15,
             4_320,
-            390,
-            3_900,
+            420,
+            4_200,
             56,
         ],
         "exact source-field R1CS rows per active PiDEC leaf"

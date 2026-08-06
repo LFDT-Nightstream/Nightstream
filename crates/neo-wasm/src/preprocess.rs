@@ -201,12 +201,15 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
 /// independently of the folded semantic-state digest.
 pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     let layout = build_wasm_relation_layout();
-    let fields = layout
-        .auxiliary
-        .ivc_state_links
-        .iter()
-        .flat_map(|link| link.column_pairs.iter())
-        .map(|pair| carried_state_field(state, pair.next_before))
+    let fields = core::iter::once(F::ONE)
+        .chain(
+            layout
+                .auxiliary
+                .ivc_state_links
+                .iter()
+                .flat_map(|link| link.column_pairs.iter())
+                .map(|pair| carried_state_field(state, pair.next_before)),
+        )
         .collect::<Vec<_>>();
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
@@ -450,8 +453,11 @@ fn ceil_log2(n: usize) -> usize {
 pub(crate) fn wasm_batch_semantic_state_indices(batch_size: usize, single_width: usize) -> (Vec<usize>, Vec<usize>) {
     assert!(batch_size >= 1, "batch_size must be at least 1");
     let layout = build_wasm_relation_layout();
-    let mut input = Vec::new();
-    let mut output = Vec::new();
+    // `z[0]` is the public constant-one lane. Keep it in both carried
+    // preimages so the explicit semantic hashes bind the complete public
+    // tuple and use the same domain on both sides of a transition.
+    let mut input = vec![0];
+    let mut output = vec![0];
     let last_block_offset = (batch_size - 1) * single_width;
     for pair in layout
         .auxiliary

@@ -20,7 +20,7 @@ Authority boundary: callers supply explicit finite residual tables and one
 scalar for each typed carried coordinate. They do not supply polynomial
 evaluators, degree claims, bases, list lengths, or per-leaf equivalences. The
 carried scalar is formula-agnostic here; a later concrete construction must
-use the candidate orientation `T_local - sum Eval_local` and separately prove
+use the selected orientation `T_local - sum Eval_local` and separately prove
 the signed joint identity.
 
 | Residual family | Canonical source | Serialization order | Proven obligation |

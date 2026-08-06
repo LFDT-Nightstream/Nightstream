@@ -5,26 +5,26 @@ import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.TargetConvention
 Finite carried-target polynomials for the paper-level `Pi_CCS` exponent audit.
 
 Owns: typed carried coefficients, a fixed finite coordinate enumeration, local
-and `2K+k`-shifted target evaluation, the exact shift identity, and a genuine
-exponent-layout support witness separating the literal and shifted conventions.
+and selected `2K+k`-shifted target evaluation, the exact shift identity, and a
+support witness that separates the local and shifted conventions.
 
 Does not own: `Q`, carried-evaluation residual formulas, the signed joint
-identity, SumCheck, transcript semantics, a paper erratum decision, Rust, R1CS,
-constraint removal, or production approval.
+identity, SumCheck, transcript semantics, Rust, R1CS, constraint removal, or
+production approval.
 
 Emits constraints: no.
 
 Authority boundary: coefficient values are explicit typed data indexed by all
 carried coordinates. Exponents and the finite traversal are derived from
-`Shape`. The shifted convention remains a candidate; this file proves only its
-finite algebraic relation to the literal target and does not identify either
-target with `Q`.
+`Shape`. The shifted convention is the corrected paper selection. This file
+proves its finite algebraic relation to the local helper target and does not
+identify either target with `Q`.
 
 | Mathematical object | Definition | Proven property |
 |---|---|---|
 | carried coefficients | `CarriedTargetCoefficients` | one value per typed `(running, matrix, coefficient)` coordinate |
-| literal target | `evaluateLocal` | uses exponent `I(i,j,l)` |
-| shifted target | `evaluateShifted` | uses exponent `2K+k+I(i,j,l)` |
+| local helper target | `evaluateLocal` | uses exponent `I(i,j,l)` |
+| selected absolute target | `evaluateShifted` | uses exponent `2K+k+I(i,j,l)` |
 | shift relation | `evaluateShifted_eq_shift_mul_evaluateLocal` | `T_abs(gamma) = gamma^(2K+k) * T_local(gamma)` |
 | layout support | `ExponentLayoutSupport` | exponent `0` witnesses literal/shifted support mismatch for positive paper dimensions |
 -/
@@ -115,7 +115,7 @@ def evaluate
     (canonicalCarriedCoordinates shape).map fun coordinate =>
       term ops coefficients convention gamma coordinate
 
-/-- Literal displayed target evaluation using the local exponent `I`. -/
+/-- Paper helper target evaluation using the local exponent `I`. -/
 def evaluateLocal
     {Field : Type uField}
     {shape : Shape}
@@ -124,7 +124,7 @@ def evaluateLocal
     (gamma : Field) : Field :=
   evaluate ops coefficients .literalLocal gamma
 
-/-- Reviewable finite expansion of the literal target. The traversal and
+/-- Reviewable finite expansion of the local helper target. The traversal and
 exponents are derived from the shared typed carried-coordinate owner. -/
 theorem evaluateLocal_eq_foldr
     {Field : Type uField}
@@ -138,7 +138,7 @@ theorem evaluateLocal_eq_foldr
           ops.add ops.zero := by
   rfl
 
-/-- Candidate absolute target evaluation using exponent `2K+k+I`. -/
+/-- Selected absolute target evaluation using exponent `2K+k+I`. -/
 def evaluateShifted
     {Field : Type uField}
     {shape : Shape}

@@ -15,12 +15,20 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 
 #check parametersCodec_canonical
 #check structureCodec_canonical
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityCompilerDescription.fields_length
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityCompilerDescription.structureFields_length
+#check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityCompilerDescription.matrices_eq_of_fields_eq
 #check assignmentCodec_canonical
 #check runningClaimCodec_canonical
 #check freshClaimCodec_canonical
 #check defaultAlgorithm_holds
+#check canonicalZeroPadding
 #check compilerLayout_holds
+#check Nightstream.HyperNova.NIVCCompatibility.RecursiveSizeClosure.Holds
 #check statementIdentifier_holds
+#check statementIdentifier_matrices_eq_or_collision
+#check statementCodec_encode_exact
+#check statementCodec_encode_length
 #check compactVerifier_holds
 #check construction2Setup_initialTranscriptState
 #check definition12_holds
@@ -47,7 +55,7 @@ open Nightstream.SuperNeo.Concrete
 abbrev RuntimeAjtaiKey :=
   Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityNIVCCompatibility.AjtaiKey
 abbrev RuntimeStructure :=
-  Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityNIVCCompatibility.Structure
+  Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityNIVCCompatibility.DenseStructure
 abbrev RuntimeRunning :=
   Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityNIVCCompatibility.PublicRunning
 abbrev RuntimeFresh :=

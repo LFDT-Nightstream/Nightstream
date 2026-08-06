@@ -17,7 +17,7 @@ point, claimed-minus-derived residuals, and single/batch truth equivalence.
 
 Does not own: the concrete base-to-extension lift, proof that coefficient-
 expanded matrices refine cyclotomic ring multiplication, external row/bit
-serialization, the target exponent repair, placement inside signed joint `Q`,
+serialization, target placement inside signed joint `Q`,
 SumCheck, Fiat--Shamir, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
@@ -222,7 +222,7 @@ def EvaluationClaimHolds
   data.claimedCoefficient coordinate =
     computedCoefficient baseOps extensionOps liftCoefficient data coordinate
 
-/-- Candidate signed orientation from the paper audit: target coefficient
+/-- Selected signed orientation from the corrected paper: target coefficient
 minus the independently computed matrix-image evaluation. -/
 def residual
     {Base : Type uBase}

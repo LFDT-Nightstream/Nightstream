@@ -2,22 +2,22 @@ import Nightstream.SuperNeo.Concrete.Parameters
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
 /-!
-Frozen correction for the ambient norm boundary in SuperNeo Appendix D.5.
+Selected ambient norm boundary and historical obstruction for SuperNeo
+Appendix D.5.
 
-Owns: the concrete obstruction to the literal strict `q / 2` ambient bound
-and the smallest strict natural bound containing every centered Goldilocks
-residue.
+Owns: the selected `B_amb = floor(q / 2) + 1` bound, the concrete obstruction
+to the older strict `q / 2` bound, and the smallest strict natural bound that
+contains every centered Goldilocks residue.
 
 Does not own: the Pi_RLC extractor, a commitment reduction, probability,
 Fiat--Shamir, Rust, R1CS, or costs.
 
 Emits constraints: no.
 
-Appendix D.5 says that every field element satisfies the ambient `q / 2`
-bound. Definition 12 uses a strict norm inequality, however, and the
-Goldilocks modulus is odd. The midpoint residues have centered magnitude
-`floor(q / 2)`, so the literal claim is false. Keeping the strict relation,
-the least corrected natural bound is `floor(q / 2) + 1`.
+The corrected Appendix D.5 selects `B_amb = floor(q / 2) + 1`. The older
+strict `q / 2` form cannot contain the midpoint residues because the
+Goldilocks modulus is odd. This module records both the selected bound and the
+kernel-checked historical obstruction.
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiRLC.PaperCorrections
@@ -27,7 +27,7 @@ open Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra.Norm
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
 
-/-- Corrected strict ambient bound for arbitrary paper parameters. -/
+/-- Selected strict ambient bound for arbitrary paper parameters. -/
 def correctedAmbientBoundFor (params : Nightstream.SuperNeo.GlobalParams) : Nat :=
   params.ambientBound
 
@@ -38,9 +38,9 @@ theorem ambientStageBound_eq_correctedAmbientBoundFor
       correctedAmbientBoundFor params := by
   rfl
 
-/-- The corrected ambient CE relation shared literally by Pi_CCS's relaxed
+/-- The selected ambient CE relation shared literally by Pi_CCS's relaxed
 target and Pi_RLC's relaxed source. The statement's stage is intentionally
-irrelevant: this relation owns its verifier-derived corrected bound directly. -/
+irrelevant: this relation owns its verifier-derived bound directly. -/
 def CorrectedAmbientHolds
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -83,14 +83,14 @@ theorem correctedAmbientHolds_iff_ceHolds_of_ambient
     correctedAmbientBoundFor, ambient, Nightstream.SuperNeo.NormStage.bound,
     Nightstream.SuperNeo.GlobalParams.ambientBound]
 
-/-- Appendix D.5's literal strict ambient bound. -/
+/-- Historical uncorrected strict ambient bound. -/
 def literalAmbientBound : Nat := goldilocksModulus / 2
 
 /-- Smallest strict natural bound containing every centered residue. -/
 def correctedAmbientBound : Nat := literalAmbientBound + 1
 
-/-- The generic corrected paper bound specializes exactly to the production
-Goldilocks correction. -/
+/-- The generic corrected-paper bound specializes exactly to the selected
+production Goldilocks bound. -/
 theorem production_correctedAmbientBoundFor_eq :
     correctedAmbientBoundFor
       Nightstream.SuperNeo.Concrete.productionGlobalParams =
@@ -111,7 +111,7 @@ theorem centeredMagnitude_midpointResidue :
   simp [midpointResidue, literalAmbientBound, Centered.distance,
     Centered.halfModulus]
 
-/-- Kernel-checked obstruction to Appendix D.5's universal-coverage claim. -/
+/-- Kernel-checked obstruction to the historical strict-bound coverage claim. -/
 theorem midpointResidue_not_literalAmbientBounded :
     ¬ centeredMagnitude midpointResidue < literalAmbientBound := by
   rw [centeredMagnitude_midpointResidue]

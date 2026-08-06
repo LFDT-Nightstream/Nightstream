@@ -24,10 +24,10 @@ different production trace.
 | Branch/result | Mathematical obligation | Guarantee | Assurance boundary |
 |---|---|---|---|
 | base check | 7,528 runs partition 23,567 source columns with exact role totals | `base_data_check` | committed artifact check |
-| recursive check | 327,838 runs partition 8,975,812 source columns with exact role totals | `recursive_data_check` | committed artifact check |
-| eligible counts | declared ordinary-private counts and proved run subtotals are exactly 3,226 and 93,896 | `base_eligible_count`, `recursive_eligible_count`, `base_ordinaryRunSubtotal_count`, `recursive_ordinaryRunSubtotal_count` | source-only census |
-| width floors | a candidate reserving 41 coordinates per eligible source field needs 132,266 and 3,849,736 coordinates | `base_perField41_width_floor`, `recursive_perField41_width_floor` | conditional capacity theorem |
-| combined floor | separate base and recursive candidates need at least 3,982,002 coordinates in total | `combined_perField41_width_floor` | conditional capacity theorem |
+| recursive check | 340,565 runs partition 9,013,754 source columns with exact role totals | `recursive_data_check` | committed artifact check |
+| eligible counts | declared ordinary-private counts and proved run subtotals are exactly 3,226 and 99,314 | `base_eligible_count`, `recursive_eligible_count`, `base_ordinaryRunSubtotal_count`, `recursive_ordinaryRunSubtotal_count` | source-only census |
+| width floors | a candidate reserving 41 coordinates per eligible source field needs 132,266 and 4,071,874 coordinates | `base_perField41_width_floor`, `recursive_perField41_width_floor` | conditional capacity theorem |
+| combined floor | separate base and recursive candidates need at least 4,204,140 coordinates in total | `combined_perField41_width_floor` | conditional capacity theorem |
 | one-million no-go | the recursive per-field-41 candidate alone cannot fit in 1,000,000 coordinates | `recursive_one_million_perField41_budget_is_no_go` | conditional capacity theorem; alternative intra-recursive encodings remain open |
 -/
 
@@ -57,7 +57,7 @@ theorem base_eligible_count : baseSourceCensus.eligibleCount = 3226 := by
   rfl
 
 theorem recursive_eligible_count :
-    recursiveSourceCensus.eligibleCount = 93896 := by
+    recursiveSourceCensus.eligibleCount = 99314 := by
   rfl
 
 /-- The checked base runs, not merely the generated declaration, contain
@@ -68,10 +68,10 @@ theorem base_ordinaryRunSubtotal_count :
   exact base_eligible_count
 
 /-- The checked recursive runs, not merely the generated declaration, contain
-exactly 93,896 ordinary-private source columns. -/
+exactly 99,314 ordinary-private source columns. -/
 theorem recursive_ordinaryRunSubtotal_count :
     SourceSegment.eligibleCountOf recursiveSourceCensus.sourceSegments =
-      93896 := by
+      99314 := by
   rw [← recursiveSourceCensus.eligibleCount_eq_ordinaryRunSubtotal]
   exact recursive_eligible_count
 
@@ -89,7 +89,7 @@ disjoint 41-coordinate word per eligible source field. -/
 theorem recursive_perField41_width_floor {candidateWidth : Nat}
     (capacity :
       recursiveSourceCensus.PerField41CapacityRequirement candidateWidth) :
-    3849736 ≤ candidateWidth := by
+    4071874 ≤ candidateWidth := by
   simpa [recursive_eligible_count] using
     recursiveSourceCensus.perField41_width_floor capacity
 
@@ -102,7 +102,7 @@ theorem combined_perField41_width_floor
     (recursiveCapacity :
       recursiveSourceCensus.PerField41CapacityRequirement
         recursiveCandidateWidth) :
-    3982002 ≤ baseCandidateWidth + recursiveCandidateWidth := by
+    4204140 ≤ baseCandidateWidth + recursiveCandidateWidth := by
   have baseFloor := base_perField41_width_floor baseCapacity
   have recursiveFloor := recursive_perField41_width_floor recursiveCapacity
   omega

@@ -95,19 +95,19 @@ namespace Concrete
 open Nightstream.Implementation.R1CS.FPrimeRecursiveOrdinaryPlacement
 open Nightstream.Implementation.R1CS.FPrimeRecursiveSourceRoleCensus
 
-example : sourcePhaseEnd baseSourceCensus = 125695 := base_sourcePhaseEnd
-example : sourcePhaseEnd recursiveSourceCensus = 7830083 :=
+example : sourcePhaseEnd baseSourceCensus = 132911 := base_sourcePhaseEnd
+example : sourcePhaseEnd recursiveSourceCensus = 12330647 :=
   recursive_sourcePhaseEnd
-example : ordinaryCoordinateCount baseSourceCensus = 125050 :=
+example : ordinaryCoordinateCount baseSourceCensus = 132266 :=
   base_ordinaryCoordinateCount
-example : ordinaryCoordinateCount recursiveSourceCensus = 6344627 :=
+example : ordinaryCoordinateCount recursiveSourceCensus = 4071874 :=
   recursive_ordinaryCoordinateCount
 example : placementStart? baseSourceCensus 1 = some 257 := base_firstPlacement
-example : placementStart? baseSourceCensus 22336 = some 125654 :=
+example : placementStart? baseSourceCensus 23550 = some 132870 :=
   base_lastPlacement
 example : placementStart? recursiveSourceCensus 1 = some 257 :=
   recursive_firstPlacement
-example : placementStart? recursiveSourceCensus 2399090 = some 7830042 :=
+example : placementStart? recursiveSourceCensus 9013737 = some 12330606 :=
   recursive_lastPlacement
 
 end Concrete

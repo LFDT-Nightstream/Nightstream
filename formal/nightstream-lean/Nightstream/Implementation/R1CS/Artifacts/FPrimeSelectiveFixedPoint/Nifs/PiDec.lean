@@ -84,11 +84,11 @@ private theorem sourceChunk43_length : Generated.Rows.Chunk43.values.length = 25
 private theorem sourceChunk44_length : Generated.Rows.Chunk44.values.length = 250 := by native_decide
 private theorem sourceChunk45_length : Generated.Rows.Chunk45.values.length = 250 := by native_decide
 private theorem sourceChunk46_length : Generated.Rows.Chunk46.values.length = 250 := by native_decide
-private theorem sourceChunk47_length : Generated.Rows.Chunk47.values.length = 95 := by native_decide
+private theorem sourceChunk47_length : Generated.Rows.Chunk47.values.length = 1 := by native_decide
 
 theorem sourceRows_length :
     sourceRows.length = Generated.Metadata.sourceRowCount := by
-  change Generated.sourceRows.length = 11845
+  change Generated.sourceRows.length = 11751
   simp only [Generated.sourceRows, List.length_append,
     sourceChunk0_length, sourceChunk1_length, sourceChunk2_length,
     sourceChunk3_length, sourceChunk4_length, sourceChunk5_length,

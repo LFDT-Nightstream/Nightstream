@@ -1,5 +1,6 @@
 import Nightstream.HyperNova.Construction2.Default
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.PaddedRowIdentityConcreteNifs
+import Nightstream.Protocol.FPrime.CanonicalTerminalVerifier
 import Nightstream.Protocol.FPrime.CanonicalVerifier.PaperNonInteractiveNifs
 
 /-!
@@ -248,6 +249,26 @@ def terminalRelations {slotCount : Nat} :
       PublicFresh Assignment slotCount where
   runningHolds := fun _ => TerminalRunningHolds
   freshHolds := fun _ => TerminalFreshHolds
+
+/-- Exact Boolean terminal membership checkers for the selected CE and CCS
+relations. The checks evaluate the same propositions stored in
+`terminalRelations`; they do not accept a caller-supplied validity bit. -/
+noncomputable def terminalChecks {slotCount : Nat} :
+    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.RelationChecks
+      (terminalRelations (slotCount := slotCount)) := by
+  classical
+  exact {
+    runningCheck := fun _ key running witness =>
+      decide (TerminalRunningHolds key running witness)
+    freshCheck := fun _ key fresh witness =>
+      decide (TerminalFreshHolds key fresh witness)
+    runningCheck_iff := by
+      intro slot key running witness
+      exact decide_eq_true_iff
+    freshCheck_iff := by
+      intro slot key fresh witness
+      exact decide_eq_true_iff
+  }
 
 /-- The selected setup's default running vector satisfies every terminal
 running relation at every slot. -/

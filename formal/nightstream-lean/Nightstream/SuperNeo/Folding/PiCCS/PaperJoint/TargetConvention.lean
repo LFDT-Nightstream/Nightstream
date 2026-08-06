@@ -1,25 +1,24 @@
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Coefficients
 
 /-!
-Carried-evaluation target convention and paper erratum boundary.
+Carried-evaluation target convention for the corrected paper.
 
-Owns: a typed distinction between the literal local target exponents in the
-paper's displayed `T` and a candidate absolute shifted exponent layout.
+Owns: a typed distinction between the paper's local helper target and its
+selected absolute shifted target.
 
-Does not own: polynomial identities, CCS/norm table construction, a repair to
-the paper, SumCheck, transcript semantics, Rust, R1CS, or production policy.
+Does not own: polynomial identities, CCS/norm table construction, SumCheck,
+transcript semantics, Rust, R1CS, or production policy.
 
 Emits constraints: no.
 
-Authority boundary: the model records the coherent absolute convention
-`T_abs = C^(2K+k) * T_local` as a candidate pending protocol review. This is
-an explicit modeling convention, not a claim that the literal displayed
-equations already agree or that the candidate is production-approved.
+Authority boundary: the corrected paper selects the coherent absolute
+convention `T_abs = C^(2K+k) * T_local`. This file records that selection. It
+does not prove the joint polynomial identity or implementation conformance.
 
-| Candidate choice | Mathematical meaning | Proof owner / policy boundary |
+| Selected choice | Mathematical meaning | Proof owner |
 |---|---|---|
-| target exponent | `2K+k+I(i,j,l)` | equality with the declared shifted layout is proved here; protocol approval is separate |
-| residual orientation | `T_local - sum Eval_local` | the coherent-absolute signed identity is proved in `SignedJointIdentity`; protocol approval is separate |
+| target exponent | `2K+k+I(i,j,l)` | equality with the declared shifted layout is proved here |
+| residual orientation | `T_local - sum Eval_local` | the coherent-absolute signed identity is proved in `SignedJointIdentity` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
@@ -49,23 +48,22 @@ def exponent
 
 end CarriedTargetConvention
 
-/-- Coherent candidate convention pending protocol review. Defining it here
-does not select or approve it for a production verifier. -/
-def candidateCarriedTargetConvention : CarriedTargetConvention :=
+/-- Coherent absolute convention selected by the corrected paper. -/
+def selectedCarriedTargetConvention : CarriedTargetConvention :=
   .coherentAbsolute
 
-/-- Candidate sign convention pending protocol review. The coherent-absolute
+/-- Sign convention selected by the corrected paper. The coherent-absolute
 signed identity itself is owned by `SignedJointIdentity`. -/
-def candidateCarriedResidualOrientation : CarriedResidualOrientation :=
+def selectedCarriedResidualOrientation : CarriedResidualOrientation :=
   .targetMinusEvaluation
 
-/-- The candidate target exponent is definitionally the absolute exponent in
+/-- The selected target exponent is definitionally the absolute exponent in
 this model's declared carried layout. The corresponding `Q` identity is owned
 by `SignedJointIdentity`, not duplicated in this convention leaf. -/
-theorem candidateTargetExponent_eq_declaredCarriedExponent
+theorem selectedTargetExponent_eq_declaredCarriedExponent
     {shape : Shape}
     (coordinate : CarriedCoordinate shape) :
-    candidateCarriedTargetConvention.exponent coordinate =
+    selectedCarriedTargetConvention.exponent coordinate =
       coordinate.gammaExponent := by
   rfl
 

@@ -12,7 +12,7 @@ open Nightstream.Implementation.Rust.CanonicalConformance.NativeStep
 
 example : Generated.all.length = 11 := generated_case_count
 
-example : Generated.rawEncoding.length = 13 := by
+example : Generated.rawEncoding.length = 14 := by
   rfl
 
 example : Generated.honestRecursive.observed.executionOrder.length = 21 := by

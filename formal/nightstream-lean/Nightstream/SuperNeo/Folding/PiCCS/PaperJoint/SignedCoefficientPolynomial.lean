@@ -13,8 +13,8 @@ Owns: the three explicit coefficient lists, their exact block lengths, the
 constant-first finite polynomial, and the theorem that executable Horner
 evaluation equals the independently derived signed joint identity.
 
-Does not own: construction of concrete CCS/norm/ring tables, approval of the
-target erratum, SumCheck initial or terminal acceptance, root-counting
+Does not own: construction of concrete CCS/norm/ring tables, the paper-source
+target audit, SumCheck initial or terminal acceptance, root-counting
 probability, Fiat--Shamir, Rust, R1CS, or counts.
 
 Emits constraints: no.

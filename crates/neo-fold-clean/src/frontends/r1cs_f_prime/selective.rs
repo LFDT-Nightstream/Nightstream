@@ -75,7 +75,6 @@ pub use projected_rows::{
 use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_rows, PreparedSelectiveRows};
 pub(crate) use shape::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
-    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix,
     prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, selective_polynomial,
     SelectiveLowNormShape, SelectiveLowNormShapeSummary,
 };

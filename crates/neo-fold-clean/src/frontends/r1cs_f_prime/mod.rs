@@ -56,7 +56,6 @@ pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
 pub use nebula_combined_ccs::{LeanNebulaCombinedError, LeanNebulaCombinedPreprocessing};
 pub(crate) use selective::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
-    audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix,
     prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, SelectiveLowNormShape,
     SelectiveLowNormShapeSummary,
 };

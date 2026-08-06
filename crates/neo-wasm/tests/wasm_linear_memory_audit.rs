@@ -5,10 +5,11 @@ mod common;
 use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
 use neo_wasm::layout::{
-    COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE, COL_LINEAR_MEM_LANE0_BYTE1,
+    COL_CMP_LOW, COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE, COL_LINEAR_MEM_LANE0_BYTE1,
     COL_LINEAR_MEM_LANE0_BYTE1_BEFORE, COL_LINEAR_MEM_LANE0_BYTE2, COL_LINEAR_MEM_LANE0_BYTE2_BEFORE,
     COL_LINEAR_MEM_LANE0_BYTE3, COL_LINEAR_MEM_LANE0_BYTE3_BEFORE, COL_LINEAR_MEM_LANE0_VALUE,
-    COL_LINEAR_MEM_LANE0_VALUE_BEFORE, COL_LINEAR_MEM_LANE1_VALUE, COL_LINEAR_MEM_LANE2_VALUE,
+    COL_LINEAR_MEM_LANE0_VALUE_BEFORE, COL_LINEAR_MEM_LANE1_ADDR, COL_LINEAR_MEM_LANE1_VALUE,
+    COL_LINEAR_MEM_LANE2_ADDR, COL_LINEAR_MEM_LANE2_STORE_ACTIVE, COL_LINEAR_MEM_LANE2_VALUE, COL_LINEAR_MEM_USE_LANE2,
     COL_STACK_WRITE0_VALUE_LO,
 };
 use neo_wasm::witness_builder::build_witness_vector;
@@ -47,6 +48,32 @@ fn i32_store8_row_rejects_tampered_unselected_byte() {
         &witness,
         "i32.store8 must reject prover-chosen bytes outside the written byte slot",
     );
+}
+
+#[test]
+fn i32_store8_row_rejects_forged_lane2_write() {
+    let trace = trace_from_wat(
+        r#"(module
+             (memory 1)
+             (func (export "main") (result i32)
+               i32.const 0
+               i32.const 255
+               i32.store8
+               i32.const 0))"#,
+    );
+    let store = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::I32Store8)
+        .expect("store8 row");
+    let mut witness = build_witness_vector(store);
+    assert_satisfied(&witness, "untampered i32.store8 row");
+
+    witness[COL_LINEAR_MEM_USE_LANE2] = F::ONE;
+    witness[COL_LINEAR_MEM_LANE2_STORE_ACTIVE] = F::ONE;
+    witness[COL_LINEAR_MEM_LANE2_ADDR] = witness[COL_LINEAR_MEM_LANE1_ADDR] + F::ONE;
+    witness[COL_CMP_LOW] += F::ONE;
+
+    assert_rejected(&witness, "i32.store8 cannot activate an unrelated lane-2 write");
 }
 
 #[test]

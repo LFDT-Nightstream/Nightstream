@@ -1,7 +1,7 @@
 use neo_ccs::{CcsMatrix, CcsStructure, CscMat, GeometricRowRun, Mat, SeededPhi81LinearBlock, SparsePoly, Term};
 use neo_math::{D, F};
 use neo_reductions::engines::optimized_engine::SparseCache;
-use neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache;
+use neo_reductions::engines::utils::{digest_ccs_matrices, digest_ccs_matrices_with_sparse_cache};
 use p3_field::PrimeCharacteristicRing;
 
 fn sparse_two_matrix_structure() -> CcsStructure<F> {
@@ -33,6 +33,7 @@ fn cache_aware_matrix_digest_matches_with_or_without_sparse_cache() {
     let from_cache = digest_ccs_matrices_with_sparse_cache(&s, Some(&sparse));
 
     assert_eq!(from_structure, from_cache);
+    assert_eq!(digest_ccs_matrices(&s), from_structure);
 }
 
 #[test]

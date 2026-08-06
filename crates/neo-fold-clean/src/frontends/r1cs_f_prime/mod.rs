@@ -250,6 +250,7 @@ pub struct R1csFPrimePreparedStructure {
     plan: RecursiveStepImagePlan,
     r1cs: R1csShape,
     structure: Arc<FPrimeStructure>,
+    lifecycle_structure: Arc<crate::paper::relations::Structure>,
     anchors: R1csRowAnchors,
     public_input_len: usize,
     optimized_cache: OptimizedStructureCache,
@@ -600,12 +601,14 @@ fn prepare_structure_parts(
     anchors: R1csRowAnchors,
     public_input_len: usize,
 ) -> Result<R1csFPrimePreparedStructure, Error> {
-    let optimized_cache = OptimizedStructureCache::build(&structure.ccs)?;
-    let structure_digest = structure_digest_from_mat_digest(&structure.ccs, optimized_cache.matrix_tree_digest());
+    let lifecycle_structure = Arc::new(structure.ccs.clone());
+    let optimized_cache = OptimizedStructureCache::build_shared(Arc::clone(&lifecycle_structure))?;
+    let structure_digest = structure_digest_from_mat_digest(&lifecycle_structure, optimized_cache.matrix_digest());
     Ok(R1csFPrimePreparedStructure {
         plan,
         r1cs,
         structure,
+        lifecycle_structure,
         anchors,
         public_input_len,
         optimized_cache,
@@ -636,10 +639,10 @@ pub fn preprocess_seeded_prepared_with_params(
     params: Params,
     seed: u64,
 ) -> Result<R1csFPrimePreprocessing, Error> {
-    let log = ajtai::setup_seeded(&params, &prepared.structure.ccs, seed);
+    let log = ajtai::setup_seeded(&params, &prepared.lifecycle_structure, seed);
     let prep = preprocess_with_test_log_and_optimized_cache(
         params,
-        std::sync::Arc::new(prepared.structure.ccs.clone()),
+        prepared.lifecycle_structure,
         log,
         ajtai_rlc_mixer,
         ajtai_dec_mixer,

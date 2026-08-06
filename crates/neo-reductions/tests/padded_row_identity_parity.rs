@@ -671,7 +671,6 @@ fn paper_exact_sources_do_not_import_optimized_computation() -> Result<(), PiCcs
         "eval_all_mats_ring_cached",
         "build_joint_dims",
         "shared_me_input_r",
-        "digest_ccs_matrices",
         "interpolate_from_evals",
         "poly_eval_k",
         "project_x_from_witness_mat",

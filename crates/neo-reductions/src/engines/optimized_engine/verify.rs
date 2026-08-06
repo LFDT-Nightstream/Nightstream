@@ -68,7 +68,7 @@ pub fn optimized_verify_with_cache_and_perf(
     proof: &PiCcsProof,
     cache: &OptimizedStructureCache,
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
-    cache.validate_shape(structure)?;
+    cache.validate_structure(structure)?;
     verify_with_binding(
         transcript,
         params,
@@ -77,7 +77,7 @@ pub fn optimized_verify_with_cache_and_perf(
         running_claims,
         outputs,
         proof,
-        cache.pi_ccs_matrix_digest(),
+        cache.matrix_digest(),
         TranscriptBinding::claims(),
     )
 }
@@ -94,7 +94,7 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_perf(
     cache: &OptimizedStructureCache,
     public_instance_digest: [F; 4],
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
-    cache.validate_shape(structure)?;
+    cache.validate_structure(structure)?;
     verify_with_binding(
         transcript,
         params,
@@ -103,7 +103,7 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_perf(
         running_claims,
         outputs,
         proof,
-        cache.pi_ccs_matrix_digest(),
+        cache.matrix_digest(),
         TranscriptBinding::digest(public_instance_digest),
     )
 }
@@ -121,7 +121,7 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_p
     public_instance_digest: [F; 4],
     running_accumulator_handle: [F; 4],
 ) -> Result<(bool, PiCcsVerifyPerf), PiCcsError> {
-    cache.validate_shape(structure)?;
+    cache.validate_structure(structure)?;
     verify_with_binding(
         transcript,
         params,
@@ -130,7 +130,7 @@ pub fn optimized_verify_with_cache_and_instance_digest_and_me_input_handle_and_p
         running_claims,
         outputs,
         proof,
-        cache.pi_ccs_matrix_digest(),
+        cache.matrix_digest(),
         TranscriptBinding::digest_and_handle(public_instance_digest, running_accumulator_handle),
     )
 }

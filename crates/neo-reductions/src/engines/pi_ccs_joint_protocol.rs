@@ -157,7 +157,7 @@ fn validate_selected_inputs(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn bind_and_sample_with_trace(
+pub(crate) fn bind_and_sample_with_trace(
     transcript: &mut Poseidon2Transcript,
     trace: &mut ProtocolTrace,
     params: &NeoParams,
@@ -169,19 +169,17 @@ pub fn bind_and_sample_with_trace(
 ) -> Result<(JointDims, Challenges), PiCcsError> {
     let dims = build_joint_dims(params, structure, fresh.len(), running.len())?;
     validate_selected_inputs(structure, fresh, running, dims)?;
-    let matrix_digest: [F; 4] = crate::engines::utils::digest_ccs_matrices(structure)
-        .try_into()
-        .map_err(|digest: Vec<F>| {
-            PiCcsError::ProtocolError(format!(
-                "Pi_CCS expected four matrix-digest fields, got {}",
-                digest.len()
-            ))
-        })?;
-    if expected_matrix_digest.is_some_and(|expected| expected != &matrix_digest) {
-        return Err(PiCcsError::InvalidInput(
-            "optimized structure cache matrix digest does not match the selected CCS structure".into(),
-        ));
-    }
+    let matrix_digest: [F; 4] = match expected_matrix_digest {
+        Some(matrix_digest) => *matrix_digest,
+        None => crate::engines::utils::digest_ccs_matrices(structure)
+            .try_into()
+            .map_err(|digest: Vec<F>| {
+                PiCcsError::ProtocolError(format!(
+                    "Pi_CCS expected four matrix-digest fields, got {}",
+                    digest.len()
+                ))
+            })?,
+    };
     let mut public = vec![
         F::from_u64(PUBLIC_INPUT_TAG),
         F::from_u64(PROTOCOL_VERSION),
@@ -484,7 +482,7 @@ fn validate_outputs(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn verify_with_trace(
+pub(crate) fn verify_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,

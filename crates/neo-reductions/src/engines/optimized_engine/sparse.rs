@@ -330,4 +330,11 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
             SparseCacheSource::Shared(_) => None,
         }
     }
+
+    pub(crate) fn shares_structure(&self, structure: &CcsStructure<Ff>) -> bool {
+        match &self.source {
+            SparseCacheSource::Shared(source) => std::ptr::eq(source.as_ref(), structure),
+            SparseCacheSource::Owned(_) => false,
+        }
+    }
 }

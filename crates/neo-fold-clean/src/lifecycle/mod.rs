@@ -696,23 +696,20 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     optimized_cache: OptimizedStructureCache,
 ) -> Result<Preprocessing, Error> {
     validate_ajtai_context(&params, structure.as_ref(), &log)?;
-    let live_shape = (structure.n, structure.m, structure.t());
-    if optimized_cache.shape() != live_shape {
-        return Err(Error::StructureCacheMismatch);
-    }
+    optimized_cache
+        .validate_structure(structure.as_ref())
+        .map_err(|_| Error::StructureCacheMismatch)?;
     // Verifier-derived cache: a pure function of `structure`, computed by the
     // frontend's prepared-structure constructor or by `preprocess_with_test_log`
-    // above. The optimized cache carries the matrix-tree digest, which
+    // above. The optimized cache carries the canonical sparse matrix digest, which
     // `structure_digest` also binds, so derive the structure digest from that
     // same matrix digest instead of walking the matrices twice here.
-    let structure_digest = crate::paper::digest::structure_digest_from_mat_digest(
-        structure.as_ref(),
-        optimized_cache.matrix_tree_digest(),
-    );
+    let structure_digest =
+        crate::paper::digest::structure_digest_from_mat_digest(structure.as_ref(), optimized_cache.matrix_digest());
     params
         .validate_ccs_shape(structure.n, structure.m, structure.t(), structure.max_degree())
         .map_err(|error| neo_reductions::error::PiCcsError::ExtensionPolicyFailed(error.to_string()))?;
-    let pi_ccs_header_bundle = *optimized_cache.pi_ccs_matrix_digest();
+    let pi_ccs_header_bundle = *optimized_cache.matrix_digest();
     let ajtai_pp_digest = crate::paper::digest::ajtai_public_parameters_digest(&log)?;
     // Default seed: `empty_semantic_state_digest()`. Stateful frontends
     // call [`Preprocessing::with_initial_semantic_state_digest`] after

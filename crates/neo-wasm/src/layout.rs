@@ -389,7 +389,7 @@ define_columns!(
     (COL_GRAMMAR_SLOT_ARG, "grammar-ROM slot arg/oracle index"),
     (
         COL_GRAMMAR_SLOT_VARIANT,
-        "grammar-ROM kind-dependent slot variant: value kinds use 0 lo / 1 hi; memory kinds use 0 argument base / 1 local base; unused kinds use 0"
+        "encoded grammar-ROM slot variant: value kinds use 0 lo / 1 hi; memory kinds use bit 0 for local base and bit 1 for byte width"
     ),
     (COL_GRAMMAR_SLOT_CONST_LO, "grammar-ROM slot constant, low 32 bits"),
     (COL_GRAMMAR_SLOT_CONST_HI, "grammar-ROM slot constant, high 32 bits"),

@@ -280,6 +280,10 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     let is_grammar_byte_memory = trace
         .grammar_rom_slot
         .is_some_and(|rom| rom.variant.uses_byte_memory_width());
+    let is_grammar_half_memory = trace
+        .grammar_rom_slot
+        .is_some_and(|rom| rom.variant.uses_half_memory_width());
+    let is_grammar_subword_memory = is_grammar_byte_memory || is_grammar_half_memory;
     wit[COL_LINEAR_MEM_USE_LANE0] = if is_core_linear_memory { F::ONE } else { F::ZERO };
     wit[COL_LOCAL_WRITE_ENABLED] = if matches!(
         trace.opcode,
@@ -419,7 +423,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         if is_core_linear_memory {
             wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);
         }
-        if is_core_linear_memory || is_grammar_byte_memory {
+        if is_core_linear_memory || is_grammar_subword_memory {
             wit[COL_LINEAR_MEM_BYTE_OFFSET] = F::from_u64(u64::from(access.byte_offset));
             wit[COL_LINEAR_MEM_USE_LANE1] = if access.lane1.is_some() { F::ONE } else { F::ZERO };
             wit[COL_LINEAR_MEM_USE_LANE2] = if access.lane2.is_some() { F::ONE } else { F::ZERO };
@@ -452,7 +456,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         wit[COL_LINEAR_MEM_LANE0_STORE_ACTIVE] = store_live;
         wit[COL_LINEAR_MEM_LANE1_STORE_ACTIVE] = if access.lane1.is_some() { store_live } else { F::ZERO };
         wit[COL_LINEAR_MEM_LANE2_STORE_ACTIVE] = if access.lane2.is_some() { store_live } else { F::ZERO };
-        if is_core_linear_memory || is_grammar_byte_memory {
+        if is_core_linear_memory || is_grammar_subword_memory {
             match access.byte_offset {
                 0 => wit[COL_LINEAR_MEM_OFFSET_IS_0] = F::ONE,
                 1 => wit[COL_LINEAR_MEM_OFFSET_IS_1] = F::ONE,
@@ -661,6 +665,11 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                 u32::from(access.lane0.value_after.to_le_bytes()[usize::from(access.byte_offset)]),
                 0,
             ),
+            _ if is_grammar_half_memory => {
+                let bytes = access.lane0.value_after.to_le_bytes();
+                let offset = usize::from(access.byte_offset);
+                (u32::from(u16::from_le_bytes([bytes[offset], bytes[offset + 1]])), 0)
+            }
             _ => (0, 0),
         };
         write_u32_le_bytes(

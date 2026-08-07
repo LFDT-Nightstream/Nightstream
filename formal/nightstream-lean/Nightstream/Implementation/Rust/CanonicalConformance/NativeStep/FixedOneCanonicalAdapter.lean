@@ -123,19 +123,15 @@ local notation "PaperKey" =>
 semantics and context. -/
 def initialState (parameters : AdapterParameters) : DirectState :=
   let boundary := XOut.initialBoundary parameters.hash parameters.context
-  let accumulator :=
-    parameters.step.runningDigest parameters.step.emptyRunning
   {
     chunkCount := 0
     stepCount := 0
     z0 := boundary
     zi := boundary
     initialSemanticState := parameters.context.initialSemanticState
-    semanticState := match parameters.mode with
-      | .stateless => accumulator
-      | .stateful => parameters.context.initialSemanticState
+    semanticState := parameters.context.initialSemanticState
     pc := 1
-    accumulatorDigest := accumulator
+    accumulatorDigest := parameters.step.initialAccumulatorDigest
     publicTrace := XOut.publicTraceSeed parameters.hash parameters.context
     proof := .initial
     nebula := parameters.step.initialNebula

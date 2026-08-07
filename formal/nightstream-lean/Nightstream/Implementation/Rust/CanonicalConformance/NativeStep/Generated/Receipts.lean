@@ -135,7 +135,15 @@ def proof7 : NativeProof where
   semanticStateDigest := ⟨7⟩
   xOut := ⟨10⟩
 
-def rawEncoding : RawEncodingTable := [{ key := .digest ⟨1⟩, fields := [6050346961767540117, 6831654115071457408, 13584604561938226767, 10634950855421314340] }, { key := .digest ⟨2⟩, fields := [5834676143812929337, 3162803414617312995, 985830563108762290, 17923214113607856356] }, { key := .digest ⟨3⟩, fields := [3759297465106001902, 2311772895710159313, 9612990215135833598, 2009896705448410176] }, { key := .digest ⟨4⟩, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { key := .digest ⟨5⟩, fields := [14425098279764576730, 3462492557333068732, 15471443697090280446, 12426378785813145684] }, { key := .digest ⟨6⟩, fields := [1555050737218525676, 6387916706703269531, 11107509104402235978, 3961222251664291319] }, { key := .digest ⟨7⟩, fields := [1638084236540233835, 10665576311031910441, 3060590153078888380, 12973474903540551935] }, { key := .digest ⟨8⟩, fields := [14425098279764576731, 3462492557333068732, 15471443697090280446, 12426378785813145684] }, { key := .digest ⟨9⟩, fields := [8351065708767557140, 1929291718467825449, 9060288212434869556, 15001748591554935357] }, { key := .digest ⟨10⟩, fields := [14932572866393369940, 16875367274164850357, 7717255944367763040, 4350074737796556223] }, { key := .digest ⟨11⟩, fields := [8351065708767557141, 1929291718467825449, 9060288212434869556, 15001748591554935357] }, { key := .digest ⟨12⟩, fields := [8048902965263679014, 3314554452873394068, 11782270582060034738, 13184122396328130276] }, { key := .digest ⟨13⟩, fields := [6667842998817914184, 3259461148413744905, 11706191668941083614, 1635715927242043458] }, { key := .header ⟨1⟩, fields := [2675402769517345875, 12742797641526831133, 13173062538610660862, 11971498611807648178] }]
+def initialAccumulatorDigest : Digest := ⟨1⟩
+
+def initialBoundaryDigest : Digest := ⟨2⟩
+
+def publicTraceSeed : Digest := ⟨3⟩
+
+def runningDigests : RunningDigestTable := [(⟨1⟩, ⟨5⟩), (⟨2⟩, ⟨7⟩)]
+
+def rawEncoding : RawEncodingTable := [{ key := .digest ⟨1⟩, fields := [6050346961767540117, 6831654115071457408, 13584604561938226767, 10634950855421314340] }, { key := .digest ⟨2⟩, fields := [13917783062160697285, 4331950706517031180, 9285003983572278089, 3990007543724847648] }, { key := .digest ⟨3⟩, fields := [4770331301026758549, 8009507013605978912, 5067802477165839601, 14596572331013417917] }, { key := .digest ⟨4⟩, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { key := .digest ⟨5⟩, fields := [1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121] }, { key := .digest ⟨6⟩, fields := [1555050737218525676, 6387916706703269531, 11107509104402235978, 3961222251664291319] }, { key := .digest ⟨7⟩, fields := [14625725610257257792, 811664778435527428, 10231467547911836120, 3943165441346633174] }, { key := .digest ⟨8⟩, fields := [1164511749775049906, 10074146425696528134, 18372852718988082658, 2837136314702206121] }, { key := .digest ⟨9⟩, fields := [9408704594227739292, 6387514553373705747, 9285620601416574406, 9420746682686410033] }, { key := .digest ⟨10⟩, fields := [4189709018201826739, 4340764673504575005, 11903587239418498998, 9791287985391766124] }, { key := .digest ⟨11⟩, fields := [9408704594227739293, 6387514553373705747, 9285620601416574406, 9420746682686410033] }, { key := .digest ⟨12⟩, fields := [11850897906737288612, 10765508251757606931, 7372253738285730085, 17585974925162884672] }, { key := .digest ⟨13⟩, fields := [11921992675418448155, 14314897559866597893, 7944813534763482093, 8274974672654009231] }, { key := .header ⟨1⟩, fields := [2234294296696853469, 5093268742965250187, 16479147461346790447, 10704202965695071540] }]
 
 def honestBase : Receipt where
   mode := .stateless
@@ -144,6 +152,10 @@ def honestBase : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state1
   input := input1
   proof := proof1
@@ -154,7 +166,7 @@ def honestBase : Receipt where
     .hash (.verifier context) ⟨12⟩,
     .hash (.stateOutput { vkFsDigest := ⟨12⟩, piCcsHeader := ⟨1⟩, chunkCount := 1, stepCount := 1, pc := 1, currentBoundary := ⟨4⟩, semanticState := none, construction2Accumulator := ⟨5⟩, nebula := none }) ⟨9⟩
   ]
-  observed := { executionOrder := [.chunkDigest, .dispatch, .runningDigest, .stateAdvanced, .verifierDigestRead, .piCcsHeaderRead, .stateXOutHash], chunkDigest := some { startIndex := 0, orderedClaims := [⟨1⟩], output := ⟨4⟩ }, transcript := none, nifsCall := none, runningDigest := some { running := ⟨1⟩, relationColumns := 54, output := ⟨5⟩ }, advancedState := some state2, verifierDigestRead := some ⟨12⟩, piCcsHeaderRead := some ⟨1⟩, nebulaDigest := none, stateXOutHash := some { rawPreimage := [1313210370, 8048902965263679014, 3314554452873394068, 11782270582060034738, 13184122396328130276, 2675402769517345875, 12742797641526831133, 13173062538610660862, 11971498611807648178, 1, 0, 1, 0, 1, 0, 3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332, 14425098279764576730, 3462492557333068732, 15471443697090280446, 12426378785813145684], outputDigest := ⟨9⟩, output := ⟨9⟩ }, finalStage := .complete }
+  observed := { executionOrder := [.chunkDigest, .dispatch, .runningDigest, .stateAdvanced, .verifierDigestRead, .piCcsHeaderRead, .stateXOutHash], chunkDigest := some { startIndex := 0, orderedClaims := [⟨1⟩], output := ⟨4⟩ }, transcript := none, nifsCall := none, runningDigest := some { running := ⟨1⟩, relationColumns := 54, output := ⟨5⟩ }, advancedState := some state2, verifierDigestRead := some ⟨12⟩, piCcsHeaderRead := some ⟨1⟩, nebulaDigest := none, stateXOutHash := some { rawPreimage := [1313210370, 11850897906737288612, 10765508251757606931, 7372253738285730085, 17585974925162884672, 2234294296696853469, 5093268742965250187, 16479147461346790447, 10704202965695071540, 1, 0, 1, 0, 1, 0, 3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332, 1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121], outputDigest := ⟨9⟩, output := ⟨9⟩ }, finalStage := .complete }
   outcome := .accepted state2
 
 def honestRecursive : Receipt where
@@ -164,6 +176,10 @@ def honestRecursive : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state2
   input := input1
   proof := proof2
@@ -175,7 +191,7 @@ def honestRecursive : Receipt where
     .hash (.verifier context) ⟨12⟩,
     .hash (.stateOutput { vkFsDigest := ⟨12⟩, piCcsHeader := ⟨1⟩, chunkCount := 2, stepCount := 2, pc := 1, currentBoundary := ⟨6⟩, semanticState := none, construction2Accumulator := ⟨7⟩, nebula := none }) ⟨10⟩
   ]
-  observed := { executionOrder := [.chunkDigest, .dispatch, .transcriptStarted, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptPrefix, .nifsVerify, .runningDigest, .stateAdvanced, .verifierDigestRead, .piCcsHeaderRead, .stateXOutHash], chunkDigest := some { startIndex := 1, orderedClaims := [⟨1⟩], output := ⟨6⟩ }, transcript := some { label := .fPrimeStep, orderedAppends := [{ label := .vkFs, fields := [8048902965263679014, 3314554452873394068, 11782270582060034738, 13184122396328130276] }, { label := .piCcsHeader, fields := [2675402769517345875, 12742797641526831133, 13173062538610660862, 11971498611807648178] }, { label := .chunkCountIn, fields := [1] }, { label := .stepCountIn, fields := [1] }, { label := .z0, fields := [5834676143812929337, 3162803414617312995, 985830563108762290, 17923214113607856356] }, { label := .ziIn, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { label := .pc, fields := [1] }, { label := .semanticStateIn, fields := [14425098279764576730, 3462492557333068732, 15471443697090280446, 12426378785813145684] }, { label := .accDigestIn, fields := [14425098279764576730, 3462492557333068732, 15471443697090280446, 12426378785813145684] }, { label := .publicTraceIn, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { label := .chunkDigest, fields := [1555050737218525676, 6387916706703269531, 11107509104402235978, 3961222251664291319] }], prefixSnapshot := { state := [6387916706703269531, 11107509104402235978, 3961222251664291319, 1535013911875832686, 5430432694841818337, 16654462595024500577, 11120955370428751842, 17157303281069683067], absorbed := 3 } }, nifsCall := some { running := ⟨1⟩, fresh := [⟨1⟩], proof := ⟨1⟩, outcome := some ⟨2⟩ }, runningDigest := some { running := ⟨2⟩, relationColumns := 54, output := ⟨7⟩ }, advancedState := some state3, verifierDigestRead := some ⟨12⟩, piCcsHeaderRead := some ⟨1⟩, nebulaDigest := none, stateXOutHash := some { rawPreimage := [1313210370, 8048902965263679014, 3314554452873394068, 11782270582060034738, 13184122396328130276, 2675402769517345875, 12742797641526831133, 13173062538610660862, 11971498611807648178, 2, 0, 2, 0, 1, 0, 1555050737218525676, 6387916706703269531, 11107509104402235978, 3961222251664291319, 1638084236540233835, 10665576311031910441, 3060590153078888380, 12973474903540551935], outputDigest := ⟨10⟩, output := ⟨10⟩ }, finalStage := .complete }
+  observed := { executionOrder := [.chunkDigest, .dispatch, .transcriptStarted, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptPrefix, .nifsVerify, .runningDigest, .stateAdvanced, .verifierDigestRead, .piCcsHeaderRead, .stateXOutHash], chunkDigest := some { startIndex := 1, orderedClaims := [⟨1⟩], output := ⟨6⟩ }, transcript := some { label := .fPrimeStep, orderedAppends := [{ label := .vkFs, fields := [11850897906737288612, 10765508251757606931, 7372253738285730085, 17585974925162884672] }, { label := .piCcsHeader, fields := [2234294296696853469, 5093268742965250187, 16479147461346790447, 10704202965695071540] }, { label := .chunkCountIn, fields := [1] }, { label := .stepCountIn, fields := [1] }, { label := .z0, fields := [13917783062160697285, 4331950706517031180, 9285003983572278089, 3990007543724847648] }, { label := .ziIn, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { label := .pc, fields := [1] }, { label := .semanticStateIn, fields := [1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121] }, { label := .accDigestIn, fields := [1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121] }, { label := .publicTraceIn, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { label := .chunkDigest, fields := [1555050737218525676, 6387916706703269531, 11107509104402235978, 3961222251664291319] }], prefixSnapshot := { state := [6387916706703269531, 11107509104402235978, 3961222251664291319, 8909814797126307363, 15147229866557556359, 6226262040977164395, 8106216454025080154, 14257380038689494121], absorbed := 3 } }, nifsCall := some { running := ⟨1⟩, fresh := [⟨1⟩], proof := ⟨1⟩, outcome := some ⟨2⟩ }, runningDigest := some { running := ⟨2⟩, relationColumns := 54, output := ⟨7⟩ }, advancedState := some state3, verifierDigestRead := some ⟨12⟩, piCcsHeaderRead := some ⟨1⟩, nebulaDigest := none, stateXOutHash := some { rawPreimage := [1313210370, 11850897906737288612, 10765508251757606931, 7372253738285730085, 17585974925162884672, 2234294296696853469, 5093268742965250187, 16479147461346790447, 10704202965695071540, 2, 0, 2, 0, 1, 0, 1555050737218525676, 6387916706703269531, 11107509104402235978, 3961222251664291319, 14625725610257257792, 811664778435527428, 10231467547911836120, 3943165441346633174], outputDigest := ⟨10⟩, output := ⟨10⟩ }, finalStage := .complete }
   outcome := .accepted state3
 
 def initialWithRecursiveFold : Receipt where
@@ -185,6 +201,10 @@ def initialWithRecursiveFold : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state1
   input := input1
   proof := proof3
@@ -202,6 +222,10 @@ def activeWithNoFold : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state2
   input := input1
   proof := proof4
@@ -219,6 +243,10 @@ def emptyNextLatest : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state1
   input := input2
   proof := proof1
@@ -234,6 +262,10 @@ def semanticModeFlip : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state1
   input := input1
   proof := proof1
@@ -244,7 +276,7 @@ def semanticModeFlip : Receipt where
     .hash (.verifier context) ⟨12⟩,
     .hash (.stateOutput { vkFsDigest := ⟨12⟩, piCcsHeader := ⟨1⟩, chunkCount := 1, stepCount := 1, pc := 1, currentBoundary := ⟨4⟩, semanticState := some ⟨5⟩, construction2Accumulator := ⟨5⟩, nebula := none }) ⟨13⟩
   ]
-  observed := { executionOrder := [.chunkDigest, .dispatch, .runningDigest, .stateAdvanced, .verifierDigestRead, .piCcsHeaderRead, .stateXOutHash], chunkDigest := some { startIndex := 0, orderedClaims := [⟨1⟩], output := ⟨4⟩ }, transcript := none, nifsCall := none, runningDigest := some { running := ⟨1⟩, relationColumns := 54, output := ⟨5⟩ }, advancedState := some state2, verifierDigestRead := some ⟨12⟩, piCcsHeaderRead := some ⟨1⟩, nebulaDigest := none, stateXOutHash := some { rawPreimage := [1313210370, 8048902965263679014, 3314554452873394068, 11782270582060034738, 13184122396328130276, 2675402769517345875, 12742797641526831133, 13173062538610660862, 11971498611807648178, 1, 0, 1, 0, 1, 0, 3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332, 14425098279764576730, 3462492557333068732, 15471443697090280446, 12426378785813145684, 14425098279764576730, 3462492557333068732, 15471443697090280446, 12426378785813145684], outputDigest := ⟨13⟩, output := ⟨13⟩ }, finalStage := .xOut }
+  observed := { executionOrder := [.chunkDigest, .dispatch, .runningDigest, .stateAdvanced, .verifierDigestRead, .piCcsHeaderRead, .stateXOutHash], chunkDigest := some { startIndex := 0, orderedClaims := [⟨1⟩], output := ⟨4⟩ }, transcript := none, nifsCall := none, runningDigest := some { running := ⟨1⟩, relationColumns := 54, output := ⟨5⟩ }, advancedState := some state2, verifierDigestRead := some ⟨12⟩, piCcsHeaderRead := some ⟨1⟩, nebulaDigest := none, stateXOutHash := some { rawPreimage := [1313210370, 11850897906737288612, 10765508251757606931, 7372253738285730085, 17585974925162884672, 2234294296696853469, 5093268742965250187, 16479147461346790447, 10704202965695071540, 1, 0, 1, 0, 1, 0, 3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332, 1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121, 1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121], outputDigest := ⟨13⟩, output := ⟨13⟩ }, finalStage := .xOut }
   outcome := .rejected .xOutMismatch
 
 def statelessSemanticDigestMutation : Receipt where
@@ -254,6 +286,10 @@ def statelessSemanticDigestMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state1
   input := input1
   proof := proof5
@@ -272,6 +308,10 @@ def xOutMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state1
   input := input1
   proof := proof6
@@ -282,7 +322,7 @@ def xOutMutation : Receipt where
     .hash (.verifier context) ⟨12⟩,
     .hash (.stateOutput { vkFsDigest := ⟨12⟩, piCcsHeader := ⟨1⟩, chunkCount := 1, stepCount := 1, pc := 1, currentBoundary := ⟨4⟩, semanticState := none, construction2Accumulator := ⟨5⟩, nebula := none }) ⟨9⟩
   ]
-  observed := { executionOrder := [.chunkDigest, .dispatch, .runningDigest, .stateAdvanced, .verifierDigestRead, .piCcsHeaderRead, .stateXOutHash], chunkDigest := some { startIndex := 0, orderedClaims := [⟨1⟩], output := ⟨4⟩ }, transcript := none, nifsCall := none, runningDigest := some { running := ⟨1⟩, relationColumns := 54, output := ⟨5⟩ }, advancedState := some state2, verifierDigestRead := some ⟨12⟩, piCcsHeaderRead := some ⟨1⟩, nebulaDigest := none, stateXOutHash := some { rawPreimage := [1313210370, 8048902965263679014, 3314554452873394068, 11782270582060034738, 13184122396328130276, 2675402769517345875, 12742797641526831133, 13173062538610660862, 11971498611807648178, 1, 0, 1, 0, 1, 0, 3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332, 14425098279764576730, 3462492557333068732, 15471443697090280446, 12426378785813145684], outputDigest := ⟨9⟩, output := ⟨9⟩ }, finalStage := .xOut }
+  observed := { executionOrder := [.chunkDigest, .dispatch, .runningDigest, .stateAdvanced, .verifierDigestRead, .piCcsHeaderRead, .stateXOutHash], chunkDigest := some { startIndex := 0, orderedClaims := [⟨1⟩], output := ⟨4⟩ }, transcript := none, nifsCall := none, runningDigest := some { running := ⟨1⟩, relationColumns := 54, output := ⟨5⟩ }, advancedState := some state2, verifierDigestRead := some ⟨12⟩, piCcsHeaderRead := some ⟨1⟩, nebulaDigest := none, stateXOutHash := some { rawPreimage := [1313210370, 11850897906737288612, 10765508251757606931, 7372253738285730085, 17585974925162884672, 2234294296696853469, 5093268742965250187, 16479147461346790447, 10704202965695071540, 1, 0, 1, 0, 1, 0, 3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332, 1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121], outputDigest := ⟨9⟩, output := ⟨9⟩ }, finalStage := .xOut }
   outcome := .rejected .xOutMismatch
 
 def nifsPiDecChildMutation : Receipt where
@@ -292,6 +332,10 @@ def nifsPiDecChildMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state2
   input := input1
   proof := proof7
@@ -300,7 +344,7 @@ def nifsPiDecChildMutation : Receipt where
     .chunkDigest 1 [⟨1⟩] ⟨6⟩,
     .nifs ({ chunkCount := 1, stepCount := 1, z0 := ⟨2⟩, zi := ⟨4⟩, initialSemanticState := ⟨1⟩, semanticState := ⟨5⟩, pc := 1, accumulatorDigest := ⟨5⟩, publicTrace := ⟨4⟩, nebula := none, nextChunkDigest := ⟨6⟩ } : NativeNifsContext) ⟨1⟩ [⟨1⟩] ⟨2⟩ (none)
   ]
-  observed := { executionOrder := [.chunkDigest, .dispatch, .transcriptStarted, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptPrefix, .nifsVerify], chunkDigest := some { startIndex := 1, orderedClaims := [⟨1⟩], output := ⟨6⟩ }, transcript := some { label := .fPrimeStep, orderedAppends := [{ label := .vkFs, fields := [8048902965263679014, 3314554452873394068, 11782270582060034738, 13184122396328130276] }, { label := .piCcsHeader, fields := [2675402769517345875, 12742797641526831133, 13173062538610660862, 11971498611807648178] }, { label := .chunkCountIn, fields := [1] }, { label := .stepCountIn, fields := [1] }, { label := .z0, fields := [5834676143812929337, 3162803414617312995, 985830563108762290, 17923214113607856356] }, { label := .ziIn, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { label := .pc, fields := [1] }, { label := .semanticStateIn, fields := [14425098279764576730, 3462492557333068732, 15471443697090280446, 12426378785813145684] }, { label := .accDigestIn, fields := [14425098279764576730, 3462492557333068732, 15471443697090280446, 12426378785813145684] }, { label := .publicTraceIn, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { label := .chunkDigest, fields := [1555050737218525676, 6387916706703269531, 11107509104402235978, 3961222251664291319] }], prefixSnapshot := { state := [6387916706703269531, 11107509104402235978, 3961222251664291319, 1535013911875832686, 5430432694841818337, 16654462595024500577, 11120955370428751842, 17157303281069683067], absorbed := 3 } }, nifsCall := some { running := ⟨1⟩, fresh := [⟨1⟩], proof := ⟨2⟩, outcome := none }, runningDigest := none, advancedState := none, verifierDigestRead := none, piCcsHeaderRead := none, nebulaDigest := none, stateXOutHash := none, finalStage := .nifs }
+  observed := { executionOrder := [.chunkDigest, .dispatch, .transcriptStarted, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptAppend, .transcriptPrefix, .nifsVerify], chunkDigest := some { startIndex := 1, orderedClaims := [⟨1⟩], output := ⟨6⟩ }, transcript := some { label := .fPrimeStep, orderedAppends := [{ label := .vkFs, fields := [11850897906737288612, 10765508251757606931, 7372253738285730085, 17585974925162884672] }, { label := .piCcsHeader, fields := [2234294296696853469, 5093268742965250187, 16479147461346790447, 10704202965695071540] }, { label := .chunkCountIn, fields := [1] }, { label := .stepCountIn, fields := [1] }, { label := .z0, fields := [13917783062160697285, 4331950706517031180, 9285003983572278089, 3990007543724847648] }, { label := .ziIn, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { label := .pc, fields := [1] }, { label := .semanticStateIn, fields := [1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121] }, { label := .accDigestIn, fields := [1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121] }, { label := .publicTraceIn, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { label := .chunkDigest, fields := [1555050737218525676, 6387916706703269531, 11107509104402235978, 3961222251664291319] }], prefixSnapshot := { state := [6387916706703269531, 11107509104402235978, 3961222251664291319, 8909814797126307363, 15147229866557556359, 6226262040977164395, 8106216454025080154, 14257380038689494121], absorbed := 3 } }, nifsCall := some { running := ⟨1⟩, fresh := [⟨1⟩], proof := ⟨2⟩, outcome := none }, runningDigest := none, advancedState := none, verifierDigestRead := none, piCcsHeaderRead := none, nebulaDigest := none, stateXOutHash := none, finalStage := .nifs }
   outcome := .rejected .nifsRejected
 
 def incomingAccumulatorHandleMutation : Receipt where
@@ -310,6 +354,10 @@ def incomingAccumulatorHandleMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state4
   input := input1
   proof := proof2
@@ -325,6 +373,10 @@ def incomingStatelessEqualityMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
+  initialAccumulatorDigest := initialAccumulatorDigest
+  initialBoundaryDigest := initialBoundaryDigest
+  publicTraceSeed := publicTraceSeed
+  runningDigests := runningDigests
   prior := state5
   input := input1
   proof := proof2

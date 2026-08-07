@@ -405,7 +405,7 @@ fn reduced_profile_fixed_point_stabilizes() {
     );
     assert_eq!(
         (relation.structure().n, relation.structure().m),
-        (19_701_167, 27_272_916),
+        (8_167_445, 14_870_628),
         "reduced-profile rectangular verifier fixed point drifted"
     );
 }

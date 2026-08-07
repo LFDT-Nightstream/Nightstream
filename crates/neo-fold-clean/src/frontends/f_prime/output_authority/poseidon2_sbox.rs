@@ -17,11 +17,11 @@
 //!
 //! | Stage path | Function | Equation | Multiplicity | Source rows/formula | Lowered gate | Lean theorem |
 //! |---|---|---|---:|---|---|---|
-//! | `output_authority.prehash` | domain and child-count constants | eight fresh affine bindings | 8 | eight affine rows / columns | none | open |
-//! | `output_authority.poseidon2.sponge` | absorb | `next_i = state_i + input_i` | 64 | one affine row per input | none | open |
+//! | `output_authority.prehash` | domain, source-length, and chunk-count constants | twelve fresh affine bindings | 12 | twelve affine rows / columns | none | open |
+//! | `output_authority.poseidon2.sponge` | absorb | `next_i = state_i + input_i` | 16 | one affine row per input | none | open |
 //! | `output_authority.poseidon2.sponge` | pad | `next_0 = state_0 + 1` | 1 | one affine row | none | open |
-//! | `output_authority.poseidon2_sbox.definition` | S-box | `x2=x*x; x4=x2*x2; x6=x2*x4; x7=x*x6` | 1,462 | four product rows | none | `Sbox7Compact` |
-//! | `output_authority.poseidon2_sbox.consumers` | linear layers | exact uses of each `x7` output | 1,462 | eight A-uses plus one C-definition | none | `Sbox7OutputLayout` |
+//! | `output_authority.poseidon2_sbox.definition` | S-box | `x2=x*x; x4=x2*x2; x6=x2*x4; x7=x*x6` | 430 | four product rows | none | `Sbox7Compact` |
+//! | `output_authority.poseidon2_sbox.consumers` | linear layers | exact uses of each `x7` output | 430 | eight A-uses plus one C-definition | none | `Sbox7OutputLayout` |
 //! | `output_authority.digest_binding` | outgoing authority | `claimed_digest = computed_digest` | 4 | four affine rows | none | open |
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -39,16 +39,16 @@ use crate::paper::f_prime::stage;
 const WIDTH: usize = 8;
 const RATE: usize = 4;
 const DIGEST_LEN: usize = 4;
-const EXPECTED_HASH_INPUTS: usize = 64;
-const EXPECTED_PREHASH_ROWS: usize = 8;
-const EXPECTED_PREHASH_COLUMNS: usize = 8;
-const EXPECTED_FULL_ABSORBS: usize = 16;
+const EXPECTED_HASH_INPUTS: usize = 16;
+const EXPECTED_PREHASH_ROWS: usize = 12;
+const EXPECTED_PREHASH_COLUMNS: usize = 12;
+const EXPECTED_FULL_ABSORBS: usize = 4;
 const EXPECTED_PARTIAL_ABSORB_FIELDS: usize = 0;
-const EXPECTED_PERMUTATIONS: usize = 17;
+const EXPECTED_PERMUTATIONS: usize = 5;
 const SBOXES_PER_PERMUTATION: usize = 86;
-const EXPECTED_SBOXES: usize = 1_462;
-const EXPECTED_STAGE_ROWS: usize = 10_278;
-const EXPECTED_STAGE_COLUMNS: usize = 10_278;
+const EXPECTED_SBOXES: usize = 430;
+const EXPECTED_STAGE_ROWS: usize = 3_034;
+const EXPECTED_STAGE_COLUMNS: usize = 3_034;
 const EXPECTED_PERMUTATION_ROWS: usize = 600;
 const EXPECTED_PERMUTATION_COLUMNS: usize = 600;
 const EXPECTED_INITIAL_SBOXES_PER_PERMUTATION: usize = 32;
@@ -106,8 +106,8 @@ pub struct OutputAuthorityPoseidon2SboxFamilyLayout {
 
 /// Compact, exact call geometry for all output-authority S-box candidates.
 ///
-/// The manifest stores 17 call records plus 86 isolated output offsets, not
-/// a handwritten list of 1,462 columns.
+/// The manifest stores 5 call records plus 86 isolated output offsets, not
+/// a handwritten list of 430 columns.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OutputAuthorityPoseidon2SboxManifest {
     pub stage_rows: Range<usize>,
@@ -129,7 +129,7 @@ pub struct OutputAuthorityPoseidon2SboxManifest {
 }
 
 impl OutputAuthorityPoseidon2SboxManifest {
-    /// Resolve one candidate without materializing the full 36,292-column list.
+    /// Resolve one candidate without materializing the full 430-column list.
     pub fn candidate_column(&self, call: usize, sbox: usize) -> Option<usize> {
         let call = self.calls.get(call)?;
         let offset = *self.isolated_sbox_output_offsets.get(sbox)?;
@@ -143,7 +143,7 @@ impl OutputAuthorityPoseidon2SboxManifest {
 
     /// The 86 fresh-column offsets for one isolated production permutation.
     /// Combining this slice with each call's `first_allocated_column` yields
-    /// the full census without storing 36,292 absolute columns.
+    /// the full census without storing 430 absolute columns.
     pub fn isolated_sbox_output_offsets(&self) -> &[usize] {
         &self.isolated_sbox_output_offsets
     }
@@ -662,10 +662,7 @@ pub fn audit_output_authority_poseidon2_sboxes(
             .windows(2)
             .any(|window| window[1] != window[0] + 1)
     {
-        return Err(invalid(
-            "sbox trace",
-            "expected one contiguous 36,292-entry stage census",
-        ));
+        return Err(invalid("sbox trace", "expected one contiguous 430-entry stage census"));
     }
     let sbox_trace_range = overlapping_sboxes[0]..overlapping_sboxes[0] + overlapping_sboxes.len();
 

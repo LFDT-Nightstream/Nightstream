@@ -9,8 +9,11 @@ use crate::paper::relations::{CeClaim, WitnessMat};
 
 /// Arithmetic backend for the final witness-opening check.
 ///
-/// The backend returns identity-first opening values. It does not decide
-/// validity. The host verifier compares every value with the proof claims.
+/// This backend is part of the verifier's trusted computing base. It returns
+/// identity-first opening values, and the host compares those values with the
+/// proof claims without recomputing them. A faulty or malicious backend can
+/// therefore invalidate the verification result. Use the default CPU path
+/// when the accelerator is not trusted.
 pub trait FinalWitnessOpeningBackend {
     fn final_witness_openings(
         &mut self,

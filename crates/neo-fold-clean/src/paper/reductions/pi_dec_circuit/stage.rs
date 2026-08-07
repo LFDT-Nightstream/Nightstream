@@ -21,7 +21,6 @@
 //! | `recomposition.y_ring` | `y_parent = sum_i b^i y_i` on the semantic ring prefix | matrices x D x extension limbs | `enforce_lane_combination_y` | typed Pi_DEC evaluation homomorphism; row refinement open |
 //! | `shape` | Pin verifier-visible carrier dimensions | parent plus children | `enforce_shape_metadata_consistency` | concrete shape refinement open |
 //! | `r` | Parent and children share the CE evaluation point | children x point coordinates x extension limbs | `enforce_r_consistency` | paper Pi_DEC shared-point obligation |
-//! | `inactive_x` | Canonical inactive X coordinates are zero | inactive child coordinates | `enforce_inactive_x_zero` | encoding refinement open |
 //! | `alphabet` | Binary child X coordinates are the uniform-sign canonical split; wider radices retain centered CE(b) membership | active logical coordinates x (`k+2`) for b=2 | `enforce_child_x_canonical_split` | uniform-signed-digit refinement |
 //! | `ct` | Cached constant terms equal lane zero of `y_ring` | claims x matrices x extension limbs | `enforce_ct_consistency` | evaluation bridge partial |
 //! | `y_ring_padding` | Padded `y_ring` lanes are zero | padded claims x lanes x extension limbs | `enforce_y_ring_padding_zero` | encoding refinement open |
@@ -38,7 +37,6 @@ pub const RECOMPOSITION_Y_RING: &str = "nifs.pi_dec.verify.recomposition.y_ring"
 
 pub const SHAPE: &str = "nifs.pi_dec.verify.shape";
 pub const R: &str = "nifs.pi_dec.verify.r";
-pub const INACTIVE_X: &str = "nifs.pi_dec.verify.inactive_x";
 pub const ALPHABET: &str = "nifs.pi_dec.verify.alphabet";
 pub const CT: &str = "nifs.pi_dec.verify.ct";
 pub const Y_RING_PADDING: &str = "nifs.pi_dec.verify.y_ring_padding";
@@ -52,7 +50,6 @@ pub const LEAVES: &[&str] = &[
     RECOMPOSITION_Y_RING,
     SHAPE,
     R,
-    INACTIVE_X,
     ALPHABET,
     CT,
     Y_RING_PADDING,
@@ -70,7 +67,6 @@ pub const ROW_ALL: &[&str] = &[
     RECOMPOSITION_Y_RING,
     SHAPE,
     R,
-    INACTIVE_X,
     ALPHABET,
     CT,
     Y_RING_PADDING,
@@ -81,16 +77,7 @@ pub const ROW_ALL: &[&str] = &[
 pub const ROW_HIERARCHY: &[(&str, &[&str])] = &[
     (
         VERIFY,
-        &[
-            RECOMPOSITION,
-            SHAPE,
-            R,
-            INACTIVE_X,
-            ALPHABET,
-            CT,
-            Y_RING_PADDING,
-            FOLD_DIGEST,
-        ],
+        &[RECOMPOSITION, SHAPE, R, ALPHABET, CT, Y_RING_PADDING, FOLD_DIGEST],
     ),
     (
         RECOMPOSITION,

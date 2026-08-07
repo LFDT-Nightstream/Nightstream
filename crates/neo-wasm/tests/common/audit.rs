@@ -8,6 +8,8 @@ use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csFPrimePrepro
 use neo_fold_clean::lifecycle::verify_uncompressed_audit;
 use neo_fold_clean::paper::digest::structure_digest;
 use neo_fold_clean::UncompressedAudit;
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+use neo_prover_metal::MetalNifsProver;
 use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, semantic_state_digest};
 use neo_wasm::RANGE_CHECKED_WITNESS_WIDTH;
 use neo_wasm::{batch, WasmStepState, WasmVmStep};
@@ -56,12 +58,42 @@ pub fn prove_batched(
     let n_batches = batch::batch_count(trace.len(), batch_size);
     let mut chain =
         R1csChainBuilder::new(prep).map_err(|err| AuditProveError::Bridge(format!("R1csChainBuilder::new: {err}")))?;
+
+    #[cfg(all(feature = "metal", target_vendor = "apple"))]
+    let mut adapter = {
+        let mut metal =
+            MetalNifsProver::new().map_err(|err| AuditProveError::Bridge(format!("MetalNifsProver::new: {err}")))?;
+        metal
+            .prepare_static(
+                &prep.prep.log,
+                prep.prep.structure(),
+                prep.prep.optimized_cache(),
+                prep.prep.nebula().map(|config| &config.scheme),
+            )
+            .map_err(|err| AuditProveError::Bridge(format!("MetalNifsProver::prepare_static: {err}")))?;
+        metal
+    };
+
     for batch_idx in 0..n_batches {
         let assignment = batch::build_batched_witness(trace, batch_size, batch_idx);
+
+        #[cfg(all(feature = "metal", target_vendor = "apple"))]
+        chain
+            .append_assignment_with_nifs_adapter(assignment, &mut adapter)
+            .map_err(|err| AuditProveError::Bridge(format!("append_assignment: {err}")))?;
+
+        #[cfg(not(all(feature = "metal", target_vendor = "apple")))]
         chain
             .append_assignment(assignment)
             .map_err(|err| AuditProveError::Bridge(format!("append_assignment: {err}")))?;
     }
+
+    #[cfg(all(feature = "metal", target_vendor = "apple"))]
+    let run = chain
+        .finish_with_audit_and_nifs_adapter(&mut adapter)
+        .map_err(|err| AuditProveError::Bridge(format!("finish: {err}")))?;
+
+    #[cfg(not(all(feature = "metal", target_vendor = "apple")))]
     let run = chain
         .finish_with_audit()
         .map_err(|err| AuditProveError::Bridge(format!("finish: {err}")))?;
@@ -74,6 +106,7 @@ pub fn verify(
     claimed_final_state: WasmStepState,
 ) -> Result<(), AuditProveError> {
     validate_preprocessing(prep)?;
+
     verify_uncompressed_audit(&prep.prep, &proof.run)
         .map_err(|err| AuditProveError::Bridge(format!("verify_uncompressed_audit: {err}")))?;
     if proof.run.proof.state.semantic_state_digest != semantic_state_digest(claimed_final_state) {

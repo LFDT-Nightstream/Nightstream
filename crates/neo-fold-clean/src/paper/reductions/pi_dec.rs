@@ -24,7 +24,7 @@ use crate::engine::optimized as engine;
 use crate::engine::paper_exact as reference_engine;
 use crate::paper::params::Params;
 use crate::paper::relations::{
-    recompose_adv, superneo_inactive_x_zero, superneo_public_x_cols, CeClaim, DecMixer, LaneScheme, Structure,
+    recompose_adv, superneo_has_canonical_x_shape, superneo_public_x_cols, CeClaim, DecMixer, LaneScheme, Structure,
 };
 
 #[derive(Debug, Error)]
@@ -35,8 +35,8 @@ pub enum Error {
     AcceleratorWitnessCount { expected: usize, got: usize },
     #[error("\u{03A0}_DEC: verifier rejected the children reconstruction")]
     VerifyRejected,
-    #[error("\u{03A0}_DEC: inactive X columns must be zero in {0}")]
-    InactiveX(&'static str),
+    #[error("\u{03A0}_DEC: X must use the canonical whole-ring coefficient embedding in {0}")]
+    NoncanonicalXShape(&'static str),
     #[error("\u{03A0}_DEC: child X active entries must lie in the CE(b) alphabet")]
     ChildXLowNorm,
     #[error("\u{03A0}_DEC: child fold_digest must equal parent fold_digest")]
@@ -174,7 +174,7 @@ pub(crate) fn prove_paper_exact(
         })?;
     attach_child_adv(lanes, parent, &mut children, &witnesses)?;
     validate_child_count(pp, children.len())?;
-    validate_inactive_x_zero(parent, &children)?;
+    validate_canonical_x_shape(parent, &children)?;
     validate_child_x_low_norm(pp, &children)?;
     validate_adv_recomposition(pp, combine, parent, &children)?;
     Ok((
@@ -246,7 +246,7 @@ pub fn prove_from_split_material(
         attach_child_adv(lanes, parent, &mut children, &witnesses)?;
     }
     validate_child_count(pp, children.len())?;
-    validate_inactive_x_zero(parent, &children)?;
+    validate_canonical_x_shape(parent, &children)?;
     validate_child_x_low_norm(pp, &children)?;
     validate_adv_recomposition(pp, combine, parent, &children)?;
     Ok((
@@ -313,7 +313,7 @@ fn prove_inner(
     };
     attach_child_adv(lanes, parent, &mut children, &witnesses)?;
     validate_child_count(pp, children.len())?;
-    validate_inactive_x_zero(parent, &children)?;
+    validate_canonical_x_shape(parent, &children)?;
     validate_child_x_low_norm(pp, &children)?;
     validate_adv_recomposition(pp, combine, parent, &children)?;
     Ok((
@@ -420,7 +420,7 @@ fn validate_verifier_inputs(
     }
     validate_r_shape(s, parent, &proof.children)?;
     validate_y_ring_shape(s, parent, &proof.children)?;
-    validate_inactive_x_zero(parent, &proof.children)?;
+    validate_canonical_x_shape(parent, &proof.children)?;
     validate_child_x_low_norm(pp, &proof.children)?;
     validate_ct_consistency(parent, &proof.children)?;
     validate_y_ring_padding_zero(parent, &proof.children)?;
@@ -457,18 +457,14 @@ fn validate_child_count(pp: &Params, got: usize) -> Result<(), Error> {
     Ok(())
 }
 
-/// Reject parent + children whose `X` has non-zero entries in columns
-/// `[ceil(m_in / D), x.cols())`. Children become the next running
-/// accumulator; without this, a terminal state could carry a non-canonical
-/// accumulator that no downstream Π_CCS would re-validate. Mirrors the
-/// circuit-side `pi_dec_circuit::enforce_inactive_x_zero`.
-fn validate_inactive_x_zero(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
-    if !superneo_inactive_x_zero(&parent.X, parent.m_in) {
-        return Err(Error::InactiveX("parent"));
+/// Reject parent and children that are not exact whole-ring embeddings.
+fn validate_canonical_x_shape(parent: &CeClaim, children: &[CeClaim]) -> Result<(), Error> {
+    if !superneo_has_canonical_x_shape(&parent.X, parent.m_in) {
+        return Err(Error::NoncanonicalXShape("parent"));
     }
     for child in children {
-        if !superneo_inactive_x_zero(&child.X, child.m_in) {
-            return Err(Error::InactiveX("child"));
+        if !superneo_has_canonical_x_shape(&child.X, child.m_in) {
+            return Err(Error::NoncanonicalXShape("child"));
         }
     }
     Ok(())

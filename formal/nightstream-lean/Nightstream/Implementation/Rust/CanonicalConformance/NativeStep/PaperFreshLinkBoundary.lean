@@ -75,6 +75,7 @@ irrelevant to the obstruction and are fixed transparently. -/
 def counterSemantics :
     Step.Semantics Bool Bool Bool Bool Unit Unit where
   emptyRunning := false
+  initialAccumulatorDigest := false
   initialNebula := none
   runningDigest := id
   chunkDigest := fun _ fresh => fresh.any id

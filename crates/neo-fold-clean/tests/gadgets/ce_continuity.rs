@@ -41,7 +41,7 @@ fn claim_fixture() -> CeClaim {
         r: vec![k(1, 2)],
         y_ring: vec![y_ring.clone()],
         ct: vec![y_ring[0]],
-        m_in: 1,
+        m_in: D,
         fold_digest: [42u8; 32],
     }
 }

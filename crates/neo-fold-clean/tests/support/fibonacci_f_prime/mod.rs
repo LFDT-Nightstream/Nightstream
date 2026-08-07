@@ -75,7 +75,7 @@ use neo_fold_clean::frontends::direct_ccs::ajtai;
 use neo_fold_clean::frontends::f_prime::image::FPrimeImageLayout;
 use neo_fold_clean::frontends::f_prime::recursive_plan::{build_recursive_step_image_config, RecursiveStepImagePlan};
 use neo_fold_clean::frontends::f_prime::structure::{build_f_prime_structure, FPrimeStructure};
-use neo_fold_clean::lifecycle::{preprocess as lifecycle_preprocess, Preprocessing};
+use neo_fold_clean::lifecycle::{preprocess as lifecycle_preprocess, preprocess_with_test_log, Preprocessing};
 use neo_fold_clean::paper::params::Params;
 
 /// Lifecycle preprocessing pinned to one encoded-F' CCS structure.
@@ -164,8 +164,8 @@ pub fn preprocess_seeded(plan: &RecursiveStepImagePlan, seed: u64) -> Result<Fib
         structure.ccs.t(),
         structure.ccs.max_degree(),
     )?;
-    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
-    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?;
+    let log = ajtai::setup_seeded(&params, &structure.ccs, seed);
+    let prep = preprocess_with_test_log(params, structure.ccs.clone(), log, Some(public_input_len))?;
     Ok(FibonacciFPrimePreprocessing {
         prep,
         plan: plan.clone(),
@@ -184,8 +184,8 @@ pub fn preprocess_seeded_with_params(
     seed: u64,
 ) -> Result<FibonacciFPrimePreprocessing, Error> {
     let (structure, public_input_len) = derive_canonical_structure(plan);
-    let _ = ajtai::setup_seeded(&params, &structure.ccs, seed);
-    let prep = lifecycle_preprocess(params, structure.ccs.clone(), Some(public_input_len))?;
+    let log = ajtai::setup_seeded(&params, &structure.ccs, seed);
+    let prep = preprocess_with_test_log(params, structure.ccs.clone(), log, Some(public_input_len))?;
     Ok(FibonacciFPrimePreprocessing {
         prep,
         plan: plan.clone(),

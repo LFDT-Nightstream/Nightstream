@@ -134,9 +134,9 @@ pub struct DecInputWires {
 }
 
 /// Allocate witness variables for parent + k children CE claims and return
-/// their wire handles. Allocation also emits fail-closed carrier rows: one
-/// inactive-X zero sentinel and five fixed metadata pins per claim, plus a
-/// rejection row when a fold-digest limb is noncanonical.
+/// their wire handles. Allocation also emits fail-closed carrier rows: five
+/// fixed metadata pins per claim, plus a rejection row when a fold-digest limb
+/// is noncanonical.
 ///
 /// Callers must call [`enforce_dec_v`] (and optionally [`enforce_x_bitness`])
 /// to actually constrain the relationship.
@@ -373,10 +373,6 @@ pub fn enforce_dec_v_strict(
     builder.record_row_family(stage::R, phase_start);
 
     let phase_start = builder.rows();
-    enforce_inactive_x_zero(builder, wires)?;
-    builder.record_row_family(stage::INACTIVE_X, phase_start);
-
-    let phase_start = builder.rows();
     let x_sign_traces = enforce_child_x_canonical_split(builder, pp, wires)?;
     builder.record_row_family(stage::ALPHABET, phase_start);
     let x_canonicality_rows = phase_start..builder.rows();
@@ -547,33 +543,6 @@ pub fn enforce_fold_digest_consistency(builder: &mut R1csBuilder, wires: &DecInp
             );
         }
     }
-    Ok(())
-}
-
-/// Reject parent + children whose `X` has non-zero entries after the compact
-/// coefficient embedding. Canonical claims have no such stored columns.
-pub fn enforce_inactive_x_zero(builder: &mut R1csBuilder, wires: &DecInputWires) -> Result<(), Error> {
-    enforce_inactive_x_zero_one(builder, &wires.parent, 0)?;
-    for (idx, child) in wires.children.iter().enumerate() {
-        enforce_inactive_x_zero_one(builder, child, idx)?;
-    }
-    Ok(())
-}
-
-fn enforce_inactive_x_zero_one(builder: &mut R1csBuilder, claim: &CeClaimWires, idx: usize) -> Result<(), Error> {
-    let active_cols = crate::paper::relations::superneo_public_x_cols(claim.m_in);
-    if active_cols > claim.x_cols {
-        return Err(Error::ShapeMismatch {
-            what: "active X columns",
-            expected: claim.x_cols,
-            got: active_cols,
-            idx,
-        });
-    }
-    enforce_unique_zero_wires(
-        builder,
-        (0..claim.x_rows).flat_map(|r| (active_cols..claim.x_cols).map(move |c| claim.x[r * claim.x_cols + c])),
-    );
     Ok(())
 }
 
@@ -791,15 +760,6 @@ fn enforce_compiled_row(builder: &mut R1csBuilder, row: &CanonicalSparseRow) {
     );
 }
 
-fn enforce_unique_zero_wires(builder: &mut R1csBuilder, wires: impl Iterator<Item = Var>) {
-    let mut constrained = std::collections::HashSet::new();
-    for wire in wires {
-        if constrained.insert(wire.col()) {
-            builder.enforce_eq(&Lc::from_var(wire), &Lc::zero());
-        }
-    }
-}
-
 fn enforce_lane_combination_y(
     builder: &mut R1csBuilder,
     j: usize,
@@ -821,22 +781,7 @@ pub(crate) fn alloc_ce_claim(builder: &mut R1csBuilder, claim: &CeClaim) -> CeCl
     let adv = alloc_adv(builder, claim.adv.as_ref());
     let x_rows = claim.X.rows();
     let x_cols = claim.X.cols();
-    let mut x = Vec::with_capacity(x_rows * x_cols);
-    let active_cols = crate::paper::relations::superneo_public_x_cols(claim.m_in);
-    let inactive_nonzero = (0..x_rows).any(|r| (active_cols..x_cols).any(|c| claim.X[(r, c)] != F::ZERO));
-    let allocation_start = builder.rows();
-    let inactive_zero = builder.alloc(if inactive_nonzero { F::ONE } else { F::ZERO });
-    builder.enforce_eq(&Lc::from_var(inactive_zero), &Lc::zero());
-    builder.record_row_family(pi_rlc_stage::ROW_SHAPE_ALLOCATE_INACTIVE_X_SENTINEL, allocation_start);
-    for r in 0..x_rows {
-        for c in 0..x_cols {
-            x.push(if c < active_cols {
-                builder.alloc(claim.X[(r, c)])
-            } else {
-                inactive_zero
-            });
-        }
-    }
+    let x = builder.alloc_vec(claim.X.as_slice());
     let y_ring = claim
         .y_ring
         .iter()
@@ -1000,6 +945,14 @@ fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) -> Vec<V
 
 fn check_shapes(parent: &CeClaimWires, children: &[CeClaimWires]) -> Result<(), Error> {
     validate_adv_shape(parent.adv.as_ref(), parent.c_d, parent.c_kappa, "parent").map_err(Error::ProductCommitment)?;
+    if parent.m_in % D != 0 {
+        return Err(Error::ShapeMismatch {
+            what: "parent m_in remainder modulo D",
+            expected: 0,
+            got: parent.m_in % D,
+            idx: 0,
+        });
+    }
     if parent.c_d != D {
         return Err(Error::ShapeMismatch {
             what: "parent commitment d",

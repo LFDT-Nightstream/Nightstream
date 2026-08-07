@@ -100,6 +100,7 @@ def context : XOut.Context Unit Unit Unit Nat where
 
 def stepSemantics : Step.Semantics Nat Nat Nat Nat Unit Unit where
   emptyRunning := 0
+  initialAccumulatorDigest := 0
   initialNebula := none
   runningDigest := id
   chunkDigest := fun start fresh => 100 + start + fresh.length

@@ -22,21 +22,27 @@ fn toy_instance_with_x_value(prep: &neo_fold_clean::Preprocessing, x: F) -> CcsI
 /// One-bit relation `z * z = z`. This gives the red-team tests a
 /// shape-valid, low-norm-but-unsatisfied assignment: `z = -1`.
 fn bitness_r1cs() -> R1cs {
+    let mut identity_prefix = Mat::zero(1, D, F::ZERO);
+    identity_prefix[(0, 0)] = F::ONE;
     R1cs {
-        a: Mat::identity(1),
-        b: Mat::identity(1),
-        c: Mat::identity(1),
-        m_in: 1,
+        a: identity_prefix.clone(),
+        b: identity_prefix.clone(),
+        c: identity_prefix,
+        m_in: D,
     }
 }
 
 fn valid_bitness_instance(prep: &neo_fold_clean::Preprocessing, r1cs: &R1cs, z: F) -> CcsInstance {
-    direct_ccs::build_instance(prep, r1cs, &[z]).expect("valid bitness instance")
+    let mut assignment = vec![F::ZERO; D];
+    assignment[0] = z;
+    direct_ccs::build_instance(prep, r1cs, &assignment).expect("valid bitness instance")
 }
 
 fn invalid_bitness_instance_with_valid_shape(prep: &neo_fold_clean::Preprocessing) -> CcsInstance {
     let invalid_low_norm = F::ZERO - F::ONE;
-    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[invalid_low_norm], 1)
+    let mut assignment = vec![F::ZERO; D];
+    assignment[0] = invalid_low_norm;
+    CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, D)
         .expect("shape-valid low-norm instance that intentionally violates z*z=z")
 }
 
@@ -1163,6 +1169,32 @@ fn final_witness_authority_rejects_zero_witness_m_in_exceeds_structure_m() {
 
     let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
         .expect_err("zero-witness path must reject m_in beyond the structure width");
+    assert!(
+        matches!(err, neo_fold_clean::Error::FinalAccumulatorPublicInputMismatch { .. }),
+        "expected FinalAccumulatorPublicInputMismatch, got {err:?}"
+    );
+}
+
+#[test]
+fn final_witness_authority_rejects_zero_witness_partial_ring_public_input() {
+    let prep = support::toy_preprocessing_unfixed_public_input_len();
+    let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 801)]])
+        .expect("one-batch uncompressed proof");
+    let finished = neo_fold_clean::finish_uncompressed(&prep, proof).expect("finish");
+    let mut running = final_running(&finished);
+
+    assert!(
+        running.witnesses[0]
+            .to_dense_vec()
+            .iter()
+            .all(|&entry| entry == F::ZERO),
+        "toy fixture must exercise the zero-witness fast path"
+    );
+    running.claims[0].m_in = 1;
+    running.claims[0].X = Mat::zero(neo_math::D, 1, F::ZERO);
+
+    let err = neo_fold_clean::lifecycle::validate_final_witness_authority(&prep, &running)
+        .expect_err("zero-witness authority accepted a partial-ring public input");
     assert!(
         matches!(err, neo_fold_clean::Error::FinalAccumulatorPublicInputMismatch { .. }),
         "expected FinalAccumulatorPublicInputMismatch, got {err:?}"

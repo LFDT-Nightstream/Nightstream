@@ -45,7 +45,6 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated.Rows.Chunk44
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated.Rows.Chunk45
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated.Rows.Chunk46
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated.Rows.Chunk47
 
 /-! Generated exact strict-PiDEC source-row aggregation. Do not hand-edit.
 
@@ -57,7 +56,7 @@ Emits constraints: no.
 
 | Payload | Meaning | Authority |
 |---|---|---|
-| `sourceRows` | all 11,751 rows in source order | untrusted until checked |
+| `sourceRows` | all 11736 rows in source order | untrusted until checked |
 -/
 
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated
@@ -111,7 +110,6 @@ def sourceRows : List Row :=
     Rows.Chunk43.values ++
     Rows.Chunk44.values ++
     Rows.Chunk45.values ++
-    Rows.Chunk46.values ++
-    Rows.Chunk47.values
+    Rows.Chunk46.values
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated

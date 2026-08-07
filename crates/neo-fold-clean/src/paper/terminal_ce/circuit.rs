@@ -85,23 +85,27 @@ pub enum TerminalCeCircuitError {
         expected: usize,
         got: usize,
     },
-    #[error("terminal CE public circuit: child {index} X.cols ({got}) must equal m_in ({expected})")]
+    #[error(
+        "terminal CE public circuit: child {index} X.cols ({got}) must equal the compact coefficient width ({expected})"
+    )]
     XCols {
         index: usize,
         expected: usize,
         got: usize,
+    },
+    #[error(
+        "terminal CE public circuit: child {index} m_in ({got}) must be a whole number of degree-{degree} ring elements"
+    )]
+    MInNotWholeRing {
+        index: usize,
+        got: usize,
+        degree: usize,
     },
     #[error("terminal CE public circuit: child {index} m_in ({got}) must not exceed structure.m ({expected})")]
     MInExceedsStructureM {
         index: usize,
         expected: usize,
         got: usize,
-    },
-    #[error("terminal CE public circuit: child {index} active X cols ({active_cols}) exceed X.cols ({cols})")]
-    ActiveXCols {
-        index: usize,
-        active_cols: usize,
-        cols: usize,
     },
     #[error("terminal CE public circuit: child {index} r length ({got}) must equal row-domain length ({expected})")]
     RLen {
@@ -251,7 +255,7 @@ fn enforce_terminal_ce_claim_digest(
     preimage.push(alloc_const(builder, F::from_u64(claim.x_cols as u64)));
     preimage.push(alloc_const(builder, F::from_u64(active_x_cols as u64)));
     for r in 0..claim.x_rows {
-        for c in 0..active_x_cols {
+        for c in 0..claim.x_cols {
             preimage.push(claim.x[r * claim.x_cols + c]);
         }
     }
@@ -310,6 +314,20 @@ fn validate_terminal_child_wires(
     }
     validate_adv_shape(claim.adv.as_ref(), claim.c_d, claim.c_kappa, "terminal child")
         .map_err(|detail| TerminalCeCircuitError::ProductCommitment { index, detail })?;
+    if claim.m_in > context.structure.m {
+        return Err(TerminalCeCircuitError::MInExceedsStructureM {
+            index,
+            expected: context.structure.m,
+            got: claim.m_in,
+        });
+    }
+    if claim.m_in % D != 0 {
+        return Err(TerminalCeCircuitError::MInNotWholeRing {
+            index,
+            got: claim.m_in,
+            degree: D,
+        });
+    }
     if claim.x_rows != D {
         return Err(TerminalCeCircuitError::XRows {
             index,
@@ -331,13 +349,6 @@ fn validate_terminal_child_wires(
             index,
             expected: active_x_cols,
             got: claim.x_cols,
-        });
-    }
-    if claim.m_in > context.structure.m {
-        return Err(TerminalCeCircuitError::MInExceedsStructureM {
-            index,
-            expected: context.structure.m,
-            got: claim.m_in,
         });
     }
     let assignment_width = neo_reductions::common::superneo_carrier_width(context.structure.m);

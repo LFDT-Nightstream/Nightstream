@@ -71,7 +71,7 @@ fn gadget_native_removes_only_exact_singleton_boolean_source_rows() {
     assert_eq!(estimate.source_rows, 5);
     assert_eq!(estimate.redundant_boolean_source_rows, 2);
     assert_eq!(estimate.fallback_source_rows, 3);
-    assert_eq!(estimate.encoded_cols, 3);
+    assert_eq!(estimate.encoded_cols, D);
     assert_eq!(estimate.encoded_rows, 4);
 
     let mut encoded = encode_r1cs_gadget_native(&source, &trace, &public_bits).expect("Boolean dedup lowering");
@@ -463,7 +463,10 @@ fn gadget_native_lowering_is_differentially_equal_to_the_source_r1cs() {
         estimate_selector_gated_r1cs_gadget_native(&source, &trace, &[public_bit], &source, &trace, &[public_bit])
             .expect("selector-gated estimate");
     assert!(estimate.encoded_cols < generic.encoded_cols);
-    assert_eq!(fixed.encoded_cols, 2 * estimate.encoded_cols - 1);
+    assert_eq!(
+        fixed.encoded_cols,
+        2 * estimate.encoded_cols - estimate.public_input_len + 1
+    );
     assert!(fixed.encoded_rows > estimate.encoded_rows);
     assert_eq!(estimate.synthetic_ring_fields, 5 * 35);
     assert_eq!(estimate.max_degree, 8);

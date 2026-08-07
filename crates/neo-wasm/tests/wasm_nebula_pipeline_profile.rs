@@ -7,8 +7,11 @@
 
 mod common;
 
+#[cfg(feature = "perf-timers")]
 use std::cmp::Reverse;
+#[cfg(feature = "perf-timers")]
 use std::collections::BTreeMap;
+#[cfg(feature = "perf-timers")]
 use std::time::{Duration, Instant};
 
 use neo_ccs::{CcsMatrix, CcsStructure};
@@ -17,10 +20,11 @@ use neo_fold_clean::config;
 #[cfg(feature = "perf-timers")]
 use neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeChainBuilder;
 use neo_fold_clean::frontends::r1cs_f_prime::R1csShape;
+#[cfg(feature = "perf-timers")]
 use neo_fold_clean::paper::construction2::ProofState;
 use neo_fold_clean::paper::params::Params;
 use neo_math::{D, F};
-#[cfg(all(feature = "metal", target_vendor = "apple"))]
+#[cfg(all(feature = "perf-timers", feature = "metal", target_vendor = "apple"))]
 use neo_prover_metal::MetalNifsProver;
 use p3_field::PrimeCharacteristicRing;
 
@@ -67,6 +71,7 @@ struct RelationStructureStats {
     final_explicit_nnz: usize,
 }
 
+#[cfg(feature = "perf-timers")]
 fn ms(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1_000.0
 }
@@ -137,7 +142,7 @@ fn test_params() -> Params {
         neo_params::goldilocks_paper_b2::ETA as u32,
         neo_params::goldilocks_paper_b2::D as u32,
         1,
-        // The current reduced F' fixed point requires the 2^25 joint domain.
+        // This one-step timing schedule requires the 2^25 joint domain.
         1 << 25,
         neo_params::goldilocks_paper_b2::B_BASE,
         neo_params::goldilocks_paper_b2::K_RHO,
@@ -283,7 +288,7 @@ fn wasm_nebula_relation_structure_census() {
 }
 
 #[test]
-#[cfg(all(feature = "metal", target_vendor = "apple"))]
+#[cfg(all(feature = "perf-timers", feature = "metal", target_vendor = "apple"))]
 #[ignore = "full cached Metal folded-proof profile; run explicitly"]
 fn wasm_nebula_pipeline_profile() {
     let wall_started = Instant::now();

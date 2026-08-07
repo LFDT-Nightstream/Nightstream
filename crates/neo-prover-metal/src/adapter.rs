@@ -122,14 +122,15 @@ impl MetalNifsProver {
 
     #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
     fn ensure_joint_matrix_plan(&mut self, cache: &OptimizedStructureCache) -> Result<(), Error> {
+        let superneo = cache.superneo_arc();
         if self
             .joint_matrix_plan
             .as_ref()
-            .is_none_or(|plan| !plan.matches(cache.superneo()))
+            .is_none_or(|plan| !plan.matches(superneo.as_ref()))
         {
             self.joint_matrix_plan = Some(
                 self.session
-                    .prepare_joint_matrix_plan(cache.superneo())
+                    .prepare_joint_matrix_plan(superneo)
                     .map_err(|error| backend_failure("prepare one-joint matrix plan", error))?,
             );
         }

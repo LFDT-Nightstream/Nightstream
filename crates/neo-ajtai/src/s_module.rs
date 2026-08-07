@@ -928,7 +928,16 @@ pub struct AjtaiSModule {
 #[derive(Clone)]
 enum PpSource {
     Owned(PPRef),
-    Global { d: usize, m: usize },
+    Seeded {
+        seed: [u8; 32],
+        d: usize,
+        kappa: usize,
+        m: usize,
+    },
+    Global {
+        d: usize,
+        m: usize,
+    },
 }
 
 impl AjtaiSModule {
@@ -937,6 +946,29 @@ impl AjtaiSModule {
             pp: PpSource::Owned(pp),
         }
     }
+
+    /// Build a module that owns a deterministic setup descriptor.
+    ///
+    /// This source does not use the process-global registry. It is intended
+    /// for tests and demos that must remain deterministic when equal-shaped
+    /// setups with different seeds run in parallel.
+    #[doc(hidden)]
+    pub fn from_seeded(seed: [u8; 32], d: usize, kappa: usize, m: usize) -> Result<Self, AjtaiError> {
+        if d != D {
+            return Err(AjtaiError::InvalidDimensions(
+                "d parameter must match ring dimension D".to_string(),
+            ));
+        }
+        if kappa == 0 || m == 0 {
+            return Err(AjtaiError::InvalidDimensions(
+                "kappa and m must both be nonzero".to_string(),
+            ));
+        }
+        Ok(Self {
+            pp: PpSource::Seeded { seed, d, kappa, m },
+        })
+    }
+
     /// Legacy: pick the sole PP if only one exists.
     pub fn from_global() -> Result<Self, AjtaiError> {
         let pp = get_global_pp()?;
@@ -976,6 +1008,7 @@ impl AjtaiSModule {
     pub fn kappa(&self) -> usize {
         match &self.pp {
             PpSource::Owned(pp) => pp.kappa,
+            PpSource::Seeded { kappa, .. } => *kappa,
             PpSource::Global { d, m } => registry()
                 .read()
                 .ok()
@@ -994,6 +1027,7 @@ impl AjtaiSModule {
     pub fn dims(&self) -> (usize, usize) {
         match &self.pp {
             PpSource::Owned(pp) => (pp.d, pp.m),
+            PpSource::Seeded { d, m, .. } => (*d, *m),
             PpSource::Global { d, m } => (*d, *m),
         }
     }
@@ -1002,14 +1036,15 @@ impl AjtaiSModule {
     /// materializing the public matrix.
     #[doc(hidden)]
     pub fn seeded_params(&self) -> Option<(usize, [u8; 32])> {
-        let PpSource::Global { d, m } = &self.pp else {
-            return None;
-        };
-        registry().read().ok().and_then(|entries| {
-            entries
-                .get(&(*d, *m))
-                .and_then(|entry| entry.seed.map(|seed| (entry.kappa, seed)))
-        })
+        match &self.pp {
+            PpSource::Owned(_) => None,
+            PpSource::Seeded { seed, kappa, .. } => Some((*kappa, *seed)),
+            PpSource::Global { d, m } => registry().read().ok().and_then(|entries| {
+                entries
+                    .get(&(*d, *m))
+                    .and_then(|entry| entry.seed.map(|seed| (entry.kappa, seed)))
+            }),
+        }
     }
 
     /// Materialize the public matrix for verifier-side constraint emission.
@@ -1024,6 +1059,7 @@ impl AjtaiSModule {
     pub fn materialize_pp(&self) -> Result<Arc<PP<RqEl>>, AjtaiError> {
         match &self.pp {
             PpSource::Owned(pp) => Ok(pp.clone()),
+            PpSource::Seeded { seed, d, kappa, m } => Ok(Arc::new(materialize_seeded_pp(*seed, *d, *kappa, *m)?)),
             PpSource::Global { d, m } => get_or_load_global_pp_for_dims(*d, *m),
         }
     }
@@ -1033,6 +1069,17 @@ impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
     fn commit(&self, z: &Mat<Fq>) -> Commitment {
         match &self.pp {
             PpSource::Owned(pp) => ajtai_commit::commit_row_major(pp, z),
+            PpSource::Seeded { seed, d, kappa, m } => {
+                assert_eq!(z.rows(), *d, "AjtaiSModule: Z.rows != d");
+                assert_eq!(z.cols(), *m, "AjtaiSModule: Z.cols != m");
+                if let Some(column_bits) = pack_binary_column_bits(z, *d, *m) {
+                    return ajtai_commit::commit_row_major_seeded_binary_cols(*seed, *d, *kappa, *m, &column_bits);
+                }
+                if let Some(c) = commit_signed_unit_column_bits(*seed, *d, *kappa, *m, z) {
+                    return c;
+                }
+                ajtai_commit::commit_row_major_seeded(*seed, *d, *kappa, *m, z)
+            }
             PpSource::Global { d, m } => {
                 // Prefer not to materialize PP for seeded entries.
                 let (zd, zm) = (z.rows(), z.cols());
@@ -1086,6 +1133,28 @@ impl SModuleHomomorphism<Fq, Commitment> for AjtaiSModule {
                 .iter()
                 .map(|z| ajtai_commit::commit_row_major(pp, z))
                 .collect(),
+            PpSource::Seeded { seed, d, kappa, m } => {
+                for (idx, z) in zs.iter().enumerate() {
+                    assert_eq!(z.rows(), *d, "AjtaiSModule: Zs[{idx}].rows != d");
+                    assert_eq!(z.cols(), *m, "AjtaiSModule: Zs[{idx}].cols != m");
+                }
+                if let Some(packed) = zs
+                    .iter()
+                    .map(|z| pack_signed_unit_column_bits(z, *d, *m))
+                    .collect::<Option<Vec<_>>>()
+                {
+                    let (chunk_size, chunk_seeds_by_row) = ajtai_commit::seeded_pp_chunk_seeds(*seed, *kappa, *m);
+                    return commit_packed_signed_unit_column_bits_many(
+                        *d,
+                        *kappa,
+                        *m,
+                        &packed,
+                        chunk_size,
+                        &chunk_seeds_by_row,
+                    );
+                }
+                ajtai_commit::commit_row_major_seeded_many(*seed, *d, *kappa, *m, zs)
+            }
             PpSource::Global { d, m } => {
                 let want_d = *d;
                 let want_m = *m;

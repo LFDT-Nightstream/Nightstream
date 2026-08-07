@@ -9,6 +9,7 @@ use neo_fold_clean::paper::f_prime::source_image_circuit::{
     enforce_goldilocks_word_canonical, enforce_k_word_add, enforce_k_word_affine2, enforce_k_word_eq,
     enforce_k_word_mul, enforce_k_word_sub, enforce_word64_mul, SourceImageWires,
 };
+use neo_fold_clean::paper::relations::RelationError;
 use neo_fold_clean::{CcsInstance, Params, Structure};
 use neo_math::{KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -450,7 +451,7 @@ fn source_image_values_can_be_committed_as_low_norm_ccs_assignment() {
     z.extend_from_slice(image.values());
     z.resize(fixture.structure.m, F::ZERO);
 
-    let m_in = 1;
+    let m_in = D;
     let instance = CcsInstance::from_low_norm_assignment(&fixture.params, &fixture.log, &fixture.structure, &z, m_in);
 
     assert!(
@@ -477,13 +478,24 @@ fn source_image_assignment_rejects_non_binary_coordinate_at_ccs_boundary() {
     z.extend_from_slice(image.values());
     z.resize(fixture.structure.m, F::ZERO);
 
-    let m_in = 1;
+    let m_in = D;
     let result = CcsInstance::from_low_norm_assignment(&fixture.params, &fixture.log, &fixture.structure, &z, m_in);
 
     assert!(
         result.is_err(),
         "non-binary source-image coordinate must fail SuperNeo low-norm CCS construction"
     );
+}
+
+#[test]
+fn source_image_assignment_rejects_partial_public_ring_at_ccs_boundary() {
+    let fixture = small_ccs_audit_fixture(D);
+    let z = vec![F::ZERO; fixture.structure.m];
+
+    assert!(matches!(
+        CcsInstance::from_low_norm_assignment(&fixture.params, &fixture.log, &fixture.structure, &z, 1),
+        Err(RelationError::PublicInputNotWholeRing { m_in: 1, d: D })
+    ));
 }
 
 // ── `enc(F')` linear glue: K addition / subtraction / affine ──────────────

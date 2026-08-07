@@ -69,7 +69,7 @@ pub fn checked_canonical_step_cases() -> (String, String) {
     let first = serde_json::to_string(&corpus).expect("serialize canonical-step corpus");
     let second = serde_json::to_string(&corpus).expect("serialize canonical-step corpus twice");
     assert_eq!(first, second, "canonical-step corpus must be deterministic");
-    let json = first;
+    let json = format!("{first}\n");
     let lean = lean::render(&corpus);
     (json, lean)
 }

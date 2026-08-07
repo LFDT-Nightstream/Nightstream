@@ -146,7 +146,10 @@ pub fn checked_native_step_receipts() -> (String, String) {
     let first = serde_json::to_string(&corpus).expect("serialize native-step receipt");
     let second = serde_json::to_string(&corpus).expect("serialize native-step receipt twice");
     assert_eq!(first, second, "native-step receipt serialization must be deterministic");
-    let json = serde_json::to_string_pretty(&corpus).expect("serialize deterministic native-step conformance corpus");
+    let json = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&corpus).expect("serialize deterministic native-step conformance corpus")
+    );
     let lean = lean::render(&corpus);
     (json, lean)
 }

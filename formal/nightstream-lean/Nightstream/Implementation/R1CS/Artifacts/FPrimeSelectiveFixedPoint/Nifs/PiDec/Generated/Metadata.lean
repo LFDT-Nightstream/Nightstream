@@ -20,11 +20,11 @@ def childCount : Nat := 14
 def matrixCount : Nat := 14
 def pointDimension : Nat := 24
 def logicalPublicWidth : Nat := 270
-def sourceRowStart : Nat := 9304040
-def sourceRowEnd : Nat := 9315791
-def sourceRowCount : Nat := 11751
+def sourceRowStart : Nat := 7647696
+def sourceRowEnd : Nat := 7659432
+def sourceRowCount : Nat := 11736
 def shardSize : Nat := 250
-def shardCount : Nat := 48
-def leafRowCounts : List Nat := [216, 0, 270, 1512, 70, 672, 15, 4320, 420, 4200, 56]
+def shardCount : Nat := 47
+def leafRowCounts : List Nat := [216, 0, 270, 1512, 70, 672, 4320, 420, 4200, 56]
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated.Metadata

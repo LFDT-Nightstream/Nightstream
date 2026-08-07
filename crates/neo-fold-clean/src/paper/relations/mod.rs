@@ -47,9 +47,9 @@ pub use neo_ccs::superneo_public_x_cols;
 /// witness for CE claims after Π_CCS / Π_RLC / Π_DEC.
 pub type WitnessMat = Mat<F>;
 
-/// Check that `X` uses the canonical compact coefficient-embedding width.
-pub fn superneo_inactive_x_zero(x: &Mat<F>, m_in: usize) -> bool {
-    x.cols() == superneo_public_x_cols(m_in)
+/// Check the exact SuperNeo coefficient embedding for a public field vector.
+pub fn superneo_has_canonical_x_shape(x: &Mat<F>, m_in: usize) -> bool {
+    m_in % neo_math::D == 0 && x.rows() == neo_math::D && x.cols() == superneo_public_x_cols(m_in)
 }
 
 #[derive(Debug, Error)]
@@ -58,6 +58,8 @@ pub enum RelationError {
     AssignmentLength { got: usize, expected: usize },
     #[error("CCS instance: m_in {m_in} > assignment length {len}")]
     MInOutOfRange { m_in: usize, len: usize },
+    #[error("CCS instance: public-input length m_in={m_in} is not a whole degree-{d} ring block")]
+    PublicInputNotWholeRing { m_in: usize, d: usize },
     #[error("CCS instance: \u{2016}z\u{2016}_\u{221E} \u{2265} b at index {idx} (b = {b})")]
     NormBoundViolated { idx: usize, b: u32 },
 }

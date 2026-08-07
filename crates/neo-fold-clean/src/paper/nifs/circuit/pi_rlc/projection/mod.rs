@@ -12,7 +12,7 @@
 //! | [`binding`] | Bind combined values/advice, SIS-compress, sample beta |
 //! | [`shared`] | Build one beta ladder and evaluate all rho polynomials |
 //! | [`identities`] | Enforce paper-public commitment/X/identity-first y_ring identities and the separate adv extension |
-//! | [`super::padding`] | Enforce implementation-only inactive X and padded y tails as zero |
+//! | [`super::padding`] | Enforce padded ring-evaluation tails as zero |
 
 use crate::engine::r1cs_circuit::ring_action::PROJECTION_QUOTIENT_LEN;
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;

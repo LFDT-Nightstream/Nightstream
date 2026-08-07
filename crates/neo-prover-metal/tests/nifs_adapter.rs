@@ -6,7 +6,9 @@
 //! evaluator. The canonical prover owns PiRLC, PiDEC, transcript order, round
 //! checks, terminal checks, and proof bytes.
 
-use neo_ccs::{CcsMatrix, Mat, SeededPhi81LinearBlock};
+use std::sync::Arc;
+
+use neo_ccs::{CcsMatrix, CscMat, Mat, SeededPhi81LinearBlock};
 use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::engine::transcript::Transcript;
@@ -46,6 +48,50 @@ fn assignment(columns: usize, lhs: u64, rhs: u64) -> Vec<F> {
     values[2] = F::from_u64(rhs);
     values[3] = F::from_u64(lhs + rhs);
     values
+}
+
+fn with_extra_sparse_term(matrix: &CcsMatrix<F>, row: usize, column: usize, coefficient: F) -> CcsMatrix<F> {
+    let csc = matrix
+        .sparse_component()
+        .expect("test matrix must have a sparse component");
+    let mut terms = Vec::with_capacity(csc.vals.len() + 1);
+    for source_column in 0..csc.ncols {
+        for entry in csc.column_range(source_column) {
+            terms.push((csc.row_index(entry), source_column, csc.vals[entry]));
+        }
+    }
+    terms.push((row, column, coefficient));
+    CcsMatrix::csc_with_compact_rows(
+        CscMat::from_triplets(terms, csc.nrows, csc.ncols),
+        matrix.seeded_phi81_blocks().to_vec(),
+        matrix.geometric_runs().to_vec(),
+    )
+    .expect("rebuild test matrix")
+}
+
+#[test]
+fn metal_joint_plan_keeps_its_structure_cache_alive() {
+    let r1cs = relation(2 * D);
+    let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c41).expect("preprocess");
+    let superneo = prep.optimized_cache().superneo_arc();
+    let weak = Arc::downgrade(&superneo);
+    let mut metal = MetalNifsProver::new().expect("Metal adapter");
+
+    metal
+        .prepare_static(&prep.log, prep.structure(), prep.optimized_cache(), None)
+        .expect("prepare static Metal plan");
+    drop(superneo);
+    drop(prep);
+
+    assert!(
+        weak.upgrade().is_some(),
+        "the Metal plan must own the cache used to identify its matrix buffers"
+    );
+    drop(metal);
+    assert!(
+        weak.upgrade().is_none(),
+        "dropping the Metal plan must release its cache owner"
+    );
 }
 
 #[test]
@@ -114,6 +160,51 @@ fn metal_one_joint_oracle_matches_the_canonical_host_without_running_claims() {
     )
     .expect("verify delegated proof");
     assert_eq!(verified.claims, delegated.0.claims);
+}
+
+#[test]
+fn metal_partial_carrier_identity_opening_matches_the_canonical_host() {
+    let columns = 2 * D - 23;
+    let r1cs = relation(columns);
+    let prep = direct_ccs::preprocess_seeded(&r1cs, 0x4d45_5441_4c42).expect("preprocess");
+    let mut values = assignment(columns, 1, 0);
+    for (index, value) in values.iter_mut().enumerate().skip(4) {
+        *value = match index % 3 {
+            0 => F::ONE,
+            1 => F::ZERO - F::ONE,
+            _ => F::ZERO,
+        };
+    }
+    let fresh = direct_ccs::build_instance(&prep, &r1cs, &values).expect("fresh instance");
+    let variables = prep
+        .structure()
+        .n
+        .max(neo_reductions::common::superneo_carrier_width(prep.structure().m))
+        .next_power_of_two()
+        .trailing_zeros() as usize;
+    let point = (0..variables)
+        .map(|index| K::from(F::from_u64(index as u64 + 2)))
+        .collect::<Vec<_>>();
+    let expected = neo_reductions::common::compute_y_from_Z_and_r(
+        prep.structure(),
+        &fresh.witness.Z,
+        &point,
+        D.next_power_of_two().trailing_zeros() as usize,
+        prep.params.b(),
+    )
+    .0;
+    let mut metal = MetalNifsProver::new().expect("Metal adapter");
+    let actual = metal
+        .final_witness_openings(
+            prep.optimized_cache(),
+            std::slice::from_ref(&fresh.witness.Z),
+            &point,
+            prep.structure().m,
+        )
+        .expect("Metal openings")
+        .expect("supported Metal openings");
+
+    assert_eq!(&expected[0][..D], &actual[0][0], "partial-carrier identity opening");
 }
 
 #[test]
@@ -348,6 +439,24 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
     assert!(relation.is_satisfied(&assignment));
 
     let structure = relation.structure().clone();
+    let mut fallback_structure = structure.clone();
+    let seeded_row = fallback_structure.matrices[2]
+        .seeded_phi81_blocks()
+        .first()
+        .expect("seeded A block")
+        .row_start();
+    let zero_column = assignment
+        .iter()
+        .enumerate()
+        .skip(1)
+        .find_map(|(column, &value)| (value == F::ZERO).then_some(column))
+        .expect("fixture must contain a zero assignment coordinate");
+    fallback_structure.matrices[3] =
+        with_extra_sparse_term(&fallback_structure.matrices[3], seeded_row, zero_column, F::ONE);
+    assert!(
+        neo_ccs::check_ccs_rowwise_zero(&fallback_structure, &assignment, &[]).is_ok(),
+        "the fallback fixture must remain a valid selective assignment"
+    );
     let params = neo_fold_clean::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("selective parameters");
     let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x5345_4544_4544);
@@ -379,6 +488,7 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
     )
     .expect("canonical selective seeded proof");
     let mut metal = MetalNifsProver::new().expect("Metal adapter");
+    metal.session().reset_activity();
     let mut metal_transcript = Transcript::session();
     let accelerated = nifs::prove_with_adapter(
         &mut metal,
@@ -394,12 +504,77 @@ fn metal_selective_seeded_phi81_satisfied_rows_match_the_canonical_host() {
         &running,
     )
     .expect("Metal selective seeded proof");
+    let copy_activity = metal.session().activity();
 
     assert_eq!(accelerated.0.claims, cpu.0.claims);
     assert_eq!(accelerated.1.pi_ccs.outputs, cpu.1.pi_ccs.outputs);
     assert_eq!(
         accelerated.1.pi_ccs.sumcheck.canonical_bytes(),
         cpu.1.pi_ccs.sumcheck.canonical_bytes(),
+    );
+
+    let fallback_params = neo_fold_clean::config::ccs_params(
+        fallback_structure.n,
+        fallback_structure.m,
+        fallback_structure.t(),
+        fallback_structure.max_degree(),
+    )
+    .expect("fallback parameters");
+    let fallback_log = direct_ccs::ajtai::setup_seeded(&fallback_params, &fallback_structure, 0x5345_4544_4642);
+    let fallback_prep = neo_fold_clean::lifecycle::preprocess_with_test_log(
+        fallback_params,
+        fallback_structure,
+        fallback_log,
+        Some(relation.public_input_len()),
+    )
+    .expect("fallback preprocessing");
+    let fallback_fresh = CcsInstance::from_low_norm_assignment(
+        &fallback_prep.params,
+        &fallback_prep.log,
+        fallback_prep.structure(),
+        &assignment,
+        relation.public_input_len(),
+    )
+    .expect("fallback fresh instance");
+    let mut fallback_cpu_transcript = Transcript::session();
+    let fallback_cpu = nifs::prove(
+        &mut fallback_cpu_transcript,
+        &fallback_prep.params,
+        fallback_prep.structure(),
+        fallback_prep.optimized_cache(),
+        &fallback_prep.log,
+        None,
+        fallback_prep.mix_rhos_commits(),
+        fallback_prep.combine_b_pows(),
+        vec![fallback_fresh.clone()],
+        &running,
+    )
+    .expect("canonical fallback proof");
+    let mut fallback_metal = MetalNifsProver::new().expect("fallback Metal adapter");
+    fallback_metal.session().reset_activity();
+    let mut fallback_metal_transcript = Transcript::session();
+    let fallback_accelerated = nifs::prove_with_adapter(
+        &mut fallback_metal,
+        &mut fallback_metal_transcript,
+        &fallback_prep.params,
+        fallback_prep.structure(),
+        fallback_prep.optimized_cache(),
+        &fallback_prep.log,
+        None,
+        fallback_prep.mix_rhos_commits(),
+        fallback_prep.combine_b_pows(),
+        vec![fallback_fresh],
+        &running,
+    )
+    .expect("Metal fallback proof");
+    let fallback_activity = fallback_metal.session().activity();
+    assert_eq!(
+        fallback_accelerated.1.pi_ccs.sumcheck.canonical_bytes(),
+        fallback_cpu.1.pi_ccs.sumcheck.canonical_bytes(),
+    );
+    assert!(
+        fallback_activity.dispatches > copy_activity.dispatches,
+        "a noncanonical seeded row must use the complete Metal evaluation path"
     );
 }
 

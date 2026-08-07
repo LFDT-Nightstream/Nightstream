@@ -62,12 +62,9 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 mkdir -p "$(dirname "${OUT}")"
 
-AIR_FILES=()
-for source in field poseidon2; do
-  air="${TMP_DIR}/${source}.air"
-  xcrun -sdk "${SDK}" metal -I "${SHADER_DIR}" -c "${SHADER_DIR}/${source}.metal" -o "${air}"
-  AIR_FILES+=("${air}")
-done
-
-xcrun -sdk "${SDK}" metallib "${AIR_FILES[@]}" -o "${OUT}"
+AIR_FILE="${TMP_DIR}/goldilocks.air"
+# goldilocks.metal is the one translation unit. It includes the phase-specific
+# commitment, joint-oracle, and opening kernels used by the Rust build.
+xcrun -sdk "${SDK}" metal -std=metal3.0 -I "${SHADER_DIR}" -c "${SHADER_DIR}/goldilocks.metal" -o "${AIR_FILE}"
+xcrun -sdk "${SDK}" metallib "${AIR_FILE}" -o "${OUT}"
 echo "Wrote: ${OUT}"

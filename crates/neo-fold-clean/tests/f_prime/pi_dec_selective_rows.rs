@@ -27,7 +27,7 @@ fn assert_source_audit(params: &Params, audit: &R1csIvcPiDecSourceRowsAudit) {
         "the exact paper carrier has no product-commitment advice"
     );
     let active_source_rows = strict.row_end - strict.row_start;
-    let expected_active_source_rows = 54 * params.kappa() as usize + 11_535;
+    let expected_active_source_rows = 54 * params.kappa() as usize + 11_520;
     assert_eq!(
         active_source_rows, expected_active_source_rows,
         "active strict PiDEC source-field R1CS row census"
@@ -62,7 +62,6 @@ fn assert_source_audit(params: &Params, audit: &R1csIvcPiDecSourceRowsAudit) {
             1_512,
             70,
             672,
-            15,
             4_320,
             420,
             4_200,

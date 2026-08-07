@@ -50,7 +50,7 @@ use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
 use neo_math::F;
-use neo_params::{goldilocks_paper_b2, NeoParams};
+use neo_params::{goldilocks_paper_b2, NeoParams, ParamsError};
 use p3_field::PrimeCharacteristicRing;
 
 /// Test/demo Ajtai SRS seed. The Ajtai PP is shape-keyed in the global
@@ -153,9 +153,9 @@ pub fn preprocess_seeded_batched(
     let WasmCanonicalFPrimeShape {
         sparse_r1cs,
         plan,
-        structure: _,
+        structure,
     } = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(batch_size, initial_state_digest)?;
-    let params = wasm_tiny_params();
+    let params = wasm_tiny_params_for_shape(structure.ccs.n, structure.ccs.m)?;
     Ok(r1cs_f_prime::preprocess_sparse_seeded_with_params(
         &sparse_r1cs,
         &plan,
@@ -331,20 +331,26 @@ fn bool_field(value: bool) -> F {
 /// only `kappa`, `m`, `lambda` are shrunk so the lifecycle fits under the
 /// 5-minute test cap. Π_RLC / Π_DEC algebraic identities hold bit-for-bit;
 /// only the Ajtai-SIS security parameter is reduced.
-pub(crate) fn wasm_tiny_params() -> NeoParams {
+fn wasm_tiny_params_for_shape(row_count: usize, column_count: usize) -> Result<NeoParams, ParamsError> {
+    let ring_degree = goldilocks_paper_b2::D;
+    let packed_column_bound = column_count
+        .div_ceil(ring_degree)
+        .checked_mul(ring_degree)
+        .ok_or(ParamsError::ArithmeticOverflow("WASM test parameter m"))?;
+    let m = u64::try_from(row_count.max(packed_column_bound))
+        .map_err(|_| ParamsError::ArithmeticOverflow("WASM test parameter m"))?;
     NeoParams::new(
         goldilocks_paper_b2::Q,
         goldilocks_paper_b2::ETA as u32,
         goldilocks_paper_b2::D as u32,
         /* kappa  */ 2,
-        /* m      */ 1u64 << 15,
+        /* m      */ m,
         goldilocks_paper_b2::B_BASE,
         goldilocks_paper_b2::K_RHO,
         goldilocks_paper_b2::T,
         goldilocks_paper_b2::EXTENSION_DEGREE,
         /* lambda */ 40,
     )
-    .expect("wasm tiny NeoParams must satisfy the Π_RLC guard")
 }
 
 /// Build the recursive `RecursiveStepImagePlan` for the wasm R1CS shape
@@ -375,6 +381,7 @@ pub(crate) fn wasm_recursive_plan_and_structure(
 
     let limbs = app_private_var_widths.iter().sum::<usize>() + 1;
     let mut r_len = 8usize;
+    let mut y_ring_count = 1usize;
     assert_eq!(
         sparse_r1cs.m % batch_size,
         0,
@@ -389,7 +396,7 @@ pub(crate) fn wasm_recursive_plan_and_structure(
             x_rows: 54,
             x_active_cols: 5,
             r_len,
-            y_ring_inner_lens: vec![64; 8],
+            y_ring_inner_lens: vec![64; y_ring_count],
         };
         let probe_plan = RecursiveStepImagePlan {
             limbs,
@@ -432,15 +439,17 @@ pub(crate) fn wasm_recursive_plan_and_structure(
         let layout = FPrimeImageLayout::new(build_recursive_step_image_config(&plan));
         let (structure, _) = build_r1cs_f_prime_structure(layout, sparse_r1cs);
         let required_r = ceil_log2(structure.ccs.n.max(structure.ccs.m).max(2));
-        if required_r == r_len {
+        let required_y_ring_count = structure.ccs.t() + 1;
+        if required_r == r_len && required_y_ring_count == y_ring_count {
             return (plan, structure);
         }
         r_len = required_r;
+        y_ring_count = required_y_ring_count;
     }
 
     panic!(
         "wasm_recursive_plan_and_structure did not converge within {MAX_ITERATIONS} iterations \
-         (last r_len = {r_len}); the dependency should be logarithmic, \
+         (last r_len = {r_len}, last y_ring_count = {y_ring_count}); the dependency should be logarithmic, \
          so non-convergence indicates a deeper protocol mismatch"
     );
 }

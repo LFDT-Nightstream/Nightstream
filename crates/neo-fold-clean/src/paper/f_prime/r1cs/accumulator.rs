@@ -22,7 +22,8 @@ use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{R1csBuilder, Var};
 use crate::paper::f_prime::stage;
 use crate::paper::reductions::pi_ccs_circuit::{
-    enforce_strict_binary_accumulator_family_digest, AccumulatorCeClaimDigestInputs,
+    enforce_strict_binary_accumulator_family_digest,
+    enforce_strict_binary_accumulator_family_digest_with_aggregate_stage, AccumulatorCeClaimDigestInputs,
 };
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 
@@ -68,10 +69,16 @@ fn enforce_output_acc_digest(
         .map(|(child, y_ring)| accumulator_inputs(child, y_ring))
         .collect::<Vec<_>>();
     if record_recursive_stages {
-        builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE);
+        enforce_strict_binary_accumulator_family_digest_with_aggregate_stage(
+            builder,
+            &parent_inputs,
+            &child_inputs,
+            stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
+        )
+    } else {
+        enforce_strict_binary_accumulator_family_digest(builder, &parent_inputs, &child_inputs)
     }
-    enforce_strict_binary_accumulator_family_digest(builder, &parent_inputs, &child_inputs)
-        .map_err(|error| Error::Inner(format!("output accumulator family digest: {error}")))
+    .map_err(|error| Error::Inner(format!("output accumulator family digest: {error}")))
 }
 
 fn accumulator_inputs<'a>(claim: &'a CeClaimWires, y_ring: &'a [Vec<KVar>]) -> AccumulatorCeClaimDigestInputs<'a> {

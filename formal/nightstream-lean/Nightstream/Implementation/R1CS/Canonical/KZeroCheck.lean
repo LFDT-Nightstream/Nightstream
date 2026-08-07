@@ -3,22 +3,14 @@ import Nightstream.Implementation.R1CS.Canonical.KMul
 import Nightstream.Implementation.Lowering.Typed.Cost
 
 /-!
-Contract: the emitted row program for Π_DEC's inactive-`X` zero check.
+Contract: the emitted row program for a canonical zero check.
 
 Owns: the single row forcing a combination to zero, its derived count, its empty
 column allocation, conservation, soundness, honest completeness, and cost.
 
-## What Π_DEC asks for
-
-`superneo_inactive_x_zero` (`paper/relations/mod.rs`) requires `X[r, c] = 0` for
-every `c` in `[ceil(m_in / D), cols)`, with `D = 54`. Rust's own comment records
-that "the circuit side enforces `X[r, c] == 0`", so this is a row obligation
-rather than a decoder-side shape test.
-
-`ceil(m_in / D)` selects *which* entries are checked; it does not change the
-check. So this atom is parameterised by nothing at all — one combination in,
-one row out — and the `m_in` arithmetic belongs to whatever enumerates the
-inactive positions.
+The compact SuperNeo coefficient embedding has no inactive `X` columns. Rust
+uses this atom for actual zero obligations, including padded `y_ring` lanes.
+The atom is parameterised by one combination and does not own shape checks.
 
 ## One row, no columns
 

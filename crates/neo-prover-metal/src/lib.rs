@@ -9,12 +9,6 @@ pub mod poseidon2;
 #[cfg(all(feature = "metal", not(target_vendor = "apple")))]
 compile_error!("the `metal` feature requires an Apple target");
 
-#[cfg(all(feature = "metal", target_vendor = "apple"))]
-mod device;
-
-#[cfg(all(feature = "metal", target_vendor = "apple"))]
-pub use device::{MetalDevice, MetalError as MetalDeviceError, MetalTranscriptOp, MetalTranscriptOutput};
-
 use std::time::Duration;
 
 use thiserror::Error;

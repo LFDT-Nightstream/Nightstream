@@ -170,14 +170,11 @@ fn rlc_commitment_combination_rejects_pair_count_mismatch() {
 
 // ── X-combination ─────────────────────────────────────────────────────────
 
-const M_IN: usize = 2; // small for tests
+const M_IN: usize = D;
 
 fn deterministic_x_matrix(seed: u64) -> Mat<F> {
-    // Fill only the active ring columns (`ceil(M_IN / D)`); the rest must
-    // be structural zeros to match native `project_x_from_witness_mat` and
-    // the circuit's `enforce_rlc_x_combination` inactive-zero constraint.
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(M_IN);
-    let mut m = Mat::zero(D, M_IN, F::ZERO);
+    let active_cols = M_IN / D;
+    let mut m = Mat::zero(D, active_cols, F::ZERO);
     let mut s = seed.wrapping_mul(0xDEADBEEFCAFEBABE);
     for rr in 0..D {
         for col in 0..active_cols {
@@ -191,9 +188,10 @@ fn deterministic_x_matrix(seed: u64) -> Mat<F> {
 }
 
 fn native_x_combine(rhos: &[Rq], xs: &[Mat<F>]) -> Mat<F> {
-    let mut acc = Mat::zero(D, M_IN, F::ZERO);
+    let x_cols = M_IN / D;
+    let mut acc = Mat::zero(D, x_cols, F::ZERO);
     for (rho, x_i) in rhos.iter().zip(xs.iter()) {
-        for col in 0..M_IN {
+        for col in 0..x_cols {
             let mut x_col = [F::ZERO; D];
             for (rr, slot) in x_col.iter_mut().enumerate() {
                 *slot = x_i[(rr, col)];
@@ -264,47 +262,6 @@ fn rlc_x_combination_rejects_tampered_input_x() {
     b.tamper_witness(target_col, tampered);
 
     assert!(!b.is_satisfied(), "X-circuit accepted tampered input X[0,0]");
-}
-
-#[test]
-fn rlc_x_combination_rejects_nonzero_inactive_input_x() {
-    // active_cols = ceil(M_IN / D); the X fold enforces input cols
-    // >= active_cols are zero so a prover can't smuggle data into them.
-    let rhos = vec![deterministic_rq(131), deterministic_rq(132)];
-    let xs = vec![deterministic_x_matrix(231), deterministic_x_matrix(232)];
-    let combined = native_x_combine(&rhos, &xs);
-    let rho_cols: Vec<[F; D]> = rhos.iter().copied().map(cf).collect();
-
-    let mut b = R1csBuilder::new();
-    let wires = alloc_rlc_x_inputs(&mut b, &rho_cols, &xs, &combined).expect("alloc");
-    enforce_rlc_x_combination(&mut b, &wires);
-    assert!(b.is_satisfied(), "baseline must be satisfied");
-
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(M_IN);
-    assert!(active_cols < M_IN, "test setup: expected at least one inactive col");
-    // Tamper input[0]'s X[0, active_cols] (an inactive slot).
-    let target_col = wires.inputs[0].x_flat[0 * M_IN + active_cols].col();
-    b.tamper_witness(target_col, F::ONE);
-    assert!(!b.is_satisfied(), "X fold accepted non-zero inactive input X col");
-}
-
-#[test]
-fn rlc_x_combination_rejects_nonzero_inactive_combined_x() {
-    let rhos = vec![deterministic_rq(141), deterministic_rq(142)];
-    let xs = vec![deterministic_x_matrix(241), deterministic_x_matrix(242)];
-    let combined = native_x_combine(&rhos, &xs);
-    let rho_cols: Vec<[F; D]> = rhos.iter().copied().map(cf).collect();
-
-    let mut b = R1csBuilder::new();
-    let wires = alloc_rlc_x_inputs(&mut b, &rho_cols, &xs, &combined).expect("alloc");
-    enforce_rlc_x_combination(&mut b, &wires);
-    assert!(b.is_satisfied(), "baseline must be satisfied");
-
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(M_IN);
-    assert!(active_cols < M_IN, "test setup: expected at least one inactive col");
-    let target_col = wires.combined_x_flat[0 * M_IN + active_cols].col();
-    b.tamper_witness(target_col, F::ONE);
-    assert!(!b.is_satisfied(), "X fold accepted non-zero inactive combined X col");
 }
 
 // ── y_ring row combination ────────────────────────────────────────────────
@@ -790,24 +747,8 @@ fn pi_rlc_native_rejects_input_fold_digest_not_inherited_by_combined_parent() {
 }
 
 #[test]
-fn pi_rlc_native_rejects_nonzero_inactive_input_x() {
+fn pi_rlc_native_rejects_noncanonical_input_x_width() {
     let (prep, fresh_claims, running, mut proof) = native_pi_rlc_fixture_complete_public_ring(911, 2);
-
-    let mut raw_tr = Poseidon2Transcript::new(b"neo.fold.clean/session/v1");
-    let pi_ccs_ok = neo_fold_clean::engine::optimized::verify_pi_ccs(
-        &mut raw_tr,
-        &prep.params,
-        prep.structure(),
-        prep.optimized_cache(),
-        &fresh_claims,
-        &running,
-        &proof.pi_ccs.outputs,
-        &proof.pi_ccs.sumcheck,
-    )
-    .expect("raw Π_CCS.V must run");
-    assert!(pi_ccs_ok, "fixture Π_CCS proof must verify");
-    let rhos = neo_fold_clean::engine::optimized::sample_rho_n(&mut raw_tr, &prep.params, proof.pi_ccs.outputs.len())
-        .expect("sample Π_RLC rhos");
 
     let mut tr = PaperTranscript::session();
     let mut outputs = pi_ccs::verify(
@@ -821,24 +762,22 @@ fn pi_rlc_native_rejects_nonzero_inactive_input_x() {
     )
     .expect("paper Π_CCS.V fixture must accept");
 
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(outputs[0].m_in);
-    assert!(
-        active_cols < outputs[0].X.cols(),
-        "fixture must expose at least one inactive X column"
-    );
-
-    outputs[0].X.set(0, active_cols, F::ONE);
-    let rho0 = rhos[0].as_mat();
-    for row in 0..D {
-        let cur = proof.pi_rlc.combined.X[(row, active_cols)];
-        proof
-            .pi_rlc
-            .combined
-            .X
-            .set(row, active_cols, cur + rho0[(row, 0)]);
+    let widen = |claim: &mut neo_fold_clean::CeClaim| {
+        let old_cols = claim.X.cols();
+        let mut widened = Mat::zero(D, old_cols + 1, F::ZERO);
+        for row in 0..D {
+            for column in 0..old_cols {
+                widened[(row, column)] = claim.X[(row, column)];
+            }
+        }
+        claim.X = widened;
+    };
+    for output in &mut outputs {
+        widen(output);
     }
+    widen(&mut proof.pi_rlc.combined);
 
-    let err = pi_rlc::verify(
+    pi_rlc::verify(
         &mut tr,
         &prep.params,
         prep.structure(),
@@ -846,11 +785,7 @@ fn pi_rlc_native_rejects_nonzero_inactive_input_x() {
         &outputs,
         &proof.pi_rlc,
     )
-    .expect_err("native Π_RLC.V accepted a self-consistent non-zero inactive input X column");
-    assert!(
-        matches!(err, pi_rlc::Error::InactiveX("input")),
-        "expected inactive-X rejection, got {err:?}"
-    );
+    .expect_err("native Π_RLC.V accepted zero-padded X matrices wider than the SuperNeo coefficient embedding");
 }
 
 #[test]

@@ -196,6 +196,10 @@ pub enum Error {
     FinalizedProofInconsistent,
     #[error("lifecycle: public input length mismatch (expected {expected}, got {got})")]
     PublicInputLenMismatch { expected: usize, got: usize },
+    #[error("preprocess: public-input length {m_in} is not a whole degree-{d} ring block")]
+    PublicInputNotWholeRing { m_in: usize, d: usize },
+    #[error("preprocess: public-input length {m_in} exceeds structure assignment width {m}")]
+    PreprocessingPublicInputTooLarge { m_in: usize, m: usize },
     #[error("preprocess: Ajtai setup dimension mismatch (expected d={expected_d}, cols={expected_cols}; got d={got_d}, cols={got_cols})")]
     AjtaiDimensionMismatch {
         expected_d: usize,
@@ -657,6 +661,30 @@ pub(crate) fn preprocess_shared(
     )
 }
 
+/// Build test preprocessing over a shared structure with an explicitly owned
+/// Ajtai setup. Seeded test constructors use this path so equal-shaped tests
+/// cannot race through the production global setup registry.
+pub(crate) fn preprocess_shared_with_test_log(
+    params: Params,
+    structure: std::sync::Arc<Structure>,
+    log: AjtaiSModule,
+    public_input_len: Option<usize>,
+) -> Result<Preprocessing, Error> {
+    structure
+        .validate()
+        .map_err(|error| neo_reductions::error::PiCcsError::InvalidInput(error.to_string()))?;
+    let optimized_cache = OptimizedStructureCache::build_shared(std::sync::Arc::clone(&structure))?;
+    preprocess_with_test_log_and_optimized_cache(
+        params,
+        structure,
+        log,
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        public_input_len,
+        optimized_cache,
+    )
+}
+
 /// Build preprocessing with an explicitly supplied Ajtai module.
 ///
 /// This is for tests and adversarial fixtures only. Production callers use
@@ -700,6 +728,14 @@ pub(crate) fn preprocess_with_test_log_and_optimized_cache(
     public_input_len: Option<usize>,
     optimized_cache: OptimizedStructureCache,
 ) -> Result<Preprocessing, Error> {
+    if let Some(m_in) = public_input_len {
+        if m_in > structure.m {
+            return Err(Error::PreprocessingPublicInputTooLarge { m_in, m: structure.m });
+        }
+        if m_in % D != 0 {
+            return Err(Error::PublicInputNotWholeRing { m_in, d: D });
+        }
+    }
     validate_ajtai_context(&params, structure.as_ref(), &log)?;
     optimized_cache
         .validate_structure(structure.as_ref())

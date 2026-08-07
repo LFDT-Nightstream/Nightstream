@@ -211,6 +211,14 @@ fn validate_claim_shape(prep: &Preprocessing, index: usize, claim: &CeClaimWires
             got: claim.m_in,
         });
     }
+    if claim.m_in % neo_math::D != 0 {
+        return Err(CeRelationError::ShapeMismatch {
+            index,
+            what: "m_in remainder modulo D",
+            expected: 0,
+            got: claim.m_in % neo_math::D,
+        });
+    }
     if let Some(expected) = prep.public_input_len {
         if claim.m_in != expected {
             return Err(CeRelationError::ShapeMismatch {

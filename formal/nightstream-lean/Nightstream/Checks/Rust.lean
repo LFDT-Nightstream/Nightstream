@@ -114,9 +114,9 @@ def anchors : List (String × String) :=
   , ("../../crates/neo-fold-clean/src/paper/construction2/mod.rs",
      "CounterOverflow { counter: &'static str }")
   , ("../../crates/neo-fold-clean/tests/system/lifecycle_finalization.rs",
-     "fn extend_rejects_chunk_counter_overflow")
+     "fn extend_rejects_chunk_counter_past_the_canonical_field_range")
   , ("../../crates/neo-fold-clean/tests/system/lifecycle_finalization.rs",
-     "fn extend_rejects_step_counter_overflow")
+     "fn extend_rejects_step_counter_past_the_canonical_field_range")
   , ("../../crates/neo-fold-clean/src/paper/params.rs",
      "pub fn max_fresh_count")
   , ("../../crates/neo-fold-clean/tests/system/production_params.rs",

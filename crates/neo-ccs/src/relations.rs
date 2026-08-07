@@ -365,7 +365,8 @@ impl<F: Copy> CcsWitness<F> {
 pub struct CeClaim<C, F, K> {
     /// Commitment to Z.
     pub c: C,
-    /// Coefficient embedding `X = L_x(Z) ∈ F^{d×ceil(m_in/d)}`.
+    /// Exact coefficient embedding `X = L_x(Z) ∈ F^{d×(m_in/d)}`.
+    /// Valid protocol claims require `m_in % d == 0`.
     pub X: Mat<F>,
     /// r ∈ K^{log n}
     pub r: Vec<K>,
@@ -404,8 +405,9 @@ pub struct CeWitness<F> {
     pub Z: Mat<F>,
 }
 
-/// Number of ring columns in the coefficient embedding of `m_in` field
-/// elements.
+/// Storage width for the coefficient embedding of `m_in` field elements.
+/// Protocol claims additionally require `m_in % D == 0`, which makes this
+/// exact division for every valid public input.
 #[inline]
 pub fn superneo_public_x_cols(m_in: usize) -> usize {
     m_in.div_ceil(D)

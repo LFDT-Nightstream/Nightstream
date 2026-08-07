@@ -7,14 +7,14 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use neo_ajtai::Commitment;
 use neo_ccs::traits::SModuleHomomorphism;
-use neo_ccs::Mat;
+use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::paper::reductions::pi_dec_circuit::{alloc_dec_inputs, enforce_dec_v_strict};
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::{
     alloc_rlc_commitment_inputs, enforce_rlc_commitment_combination,
 };
 use neo_fold_clean::paper::relations::{CcsClaim, CcsWitness};
-use neo_fold_clean::{CcsInstance, CeClaim, Preprocessing};
+use neo_fold_clean::{config, preprocess, CcsInstance, CeClaim, Preprocessing};
 use neo_math::{D, F};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
@@ -124,21 +124,25 @@ fn recursive_pi_rlc_rejects_empty_zero_kappa_commitment_shape() {
     );
 }
 
-/// A logical width-one SuperNeo witness occupies one full `D`-lane ring
-/// column. Lanes 1..D are padding outside `z` and must be canonical zero for
-/// a fresh CCS opening. Otherwise they are committed but omitted from the
-/// fresh claim and from the NC digit table, giving the prover unbounded
-/// coordinates that are not in Definition 12's low-norm witness.
+/// A private suffix can end partway through its last storage ring. The unused
+/// lanes in that last column must be canonical zero. Otherwise they are
+/// committed but omitted from Definition 12's logical assignment and from
+/// the NC digit table.
 #[test]
 fn lifecycle_rejects_nonzero_out_of_norm_fresh_witness_padding_lane() {
-    let prep = support::toy_preprocessing();
-    let mut z = Mat::zero(D, 1, F::ZERO);
-    z[(1, 0)] = F::from_u64(prep.params.b() as u64);
+    let structure = CcsStructure::new(vec![Mat::zero(1, D + 1, F::ZERO)], SparsePoly::new(1, Vec::new()))
+        .expect("one-private-coordinate relation");
+    let params = config::r1cs_params(structure.n, structure.m).expect("test parameters");
+    support::install_ajtai_module(&params, &structure);
+    let prep = preprocess(params, structure, Some(D)).expect("test preprocessing");
+
+    let mut z = Mat::zero(D, 2, F::ZERO);
+    z[(1, 1)] = F::from_u64(prep.params.b() as u64);
     let fresh = CcsInstance {
         claim: CcsClaim {
             c: prep.log.commit(&z),
-            x: vec![F::ZERO],
-            m_in: 1,
+            x: vec![F::ZERO; D],
+            m_in: D,
             adv: None,
         },
         witness: CcsWitness { w: Vec::new(), Z: z },

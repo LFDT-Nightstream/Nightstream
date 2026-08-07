@@ -155,9 +155,8 @@ impl WasmNebulaProfile {
         }
     }
 
-    /// Build a reduced timing profile with an explicit instruction batch.
+    /// Build a reduced test profile with an explicit instruction batch.
     /// The supplied memory geometry still owns the complete Nebula scan.
-    #[cfg(feature = "perf-timers")]
     #[doc(hidden)]
     pub fn test_profile_with_schedule(memory: NebulaParams, batch_size: usize) -> Self {
         assert!(batch_size > 0, "WASM Nebula test batch size must be nonzero");
@@ -562,6 +561,10 @@ pub fn verify(
 }
 
 #[doc(hidden)]
+/// Verify with a trusted final-opening accelerator.
+///
+/// The backend is part of the verifier's trusted computing base. Normal
+/// callers must use [`verify`].
 pub fn verify_with_witness_opening_backend(
     prep: &WasmNebulaPreprocessing,
     proof: &WasmNebulaProof,

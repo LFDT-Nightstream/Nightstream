@@ -233,8 +233,8 @@ pub fn verify_uncompressed(prep: &Preprocessing, proof: &Uncompressed) -> Result
     verify_uncompressed_inner(prep, proof, None)
 }
 
-/// Verify an uncompressed proof and use a caller-owned arithmetic backend for
-/// the final identity-first witness openings when it supports this structure.
+/// Verify with a trusted caller-owned backend for final witness openings.
+/// This profiling hook expands the verifier TCB; untrusted callers use [`verify_uncompressed`].
 #[doc(hidden)]
 pub fn verify_uncompressed_with_opening_backend(
     prep: &Preprocessing,
@@ -1350,6 +1350,7 @@ fn identity_ring_mle(witness: &WitnessMat, expected_m: usize, point: &[K]) -> [K
 }
 fn check_zero_public_projection(prep: &Preprocessing, index: usize, claim: &CeClaim) -> Result<(), Error> {
     if claim.m_in > prep.structure().m
+        || claim.m_in % neo_math::D != 0
         || claim.X.rows() != neo_math::D
         || claim.X.cols() != crate::paper::relations::superneo_public_x_cols(claim.m_in)
     {

@@ -976,12 +976,11 @@ where
 }
 
 /// Project the SuperNeo public-input ring slots of packed witness matrix `Z`
-/// into the compact coefficient embedding `X ∈ F^{D×ceil(m_in/D)}`.
+/// into the exact coefficient embedding `X ∈ F^{D×(m_in/D)}`.
 ///
 /// `m_in` counts public field elements, but SuperNeo carries public inputs
-/// in packed ring columns. Rows in the final column that do not correspond
-/// to a scalar public input are part of the ring slot: after RLC they can be
-/// nonzero, and DEC must split and recombine them.
+/// in complete packed ring columns, so protocol claims require
+/// `m_in % D == 0`.
 pub fn project_x_from_witness_mat<Ff>(Z: &Mat<Ff>, expected_m: usize, m_in: usize) -> Result<Mat<Ff>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
@@ -992,7 +991,12 @@ where
             "project_x_from_witness_mat: m_in={m_in} exceeds expected_m={expected_m}"
         )));
     }
-    let required_cols = m_in.div_ceil(D);
+    if m_in % D != 0 {
+        return Err(PiCcsError::InvalidInput(format!(
+            "project_x_from_witness_mat: m_in={m_in} is not a whole number of degree-{D} ring elements"
+        )));
+    }
+    let required_cols = m_in / D;
     if required_cols > Z.cols() {
         return Err(PiCcsError::InvalidInput(format!(
             "project_x_from_witness_mat: m_in={m_in} needs {required_cols} packed columns, but Z has {}",

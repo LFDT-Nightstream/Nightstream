@@ -17,16 +17,11 @@ pub const SHAPE_OUTPUT_PARITY: &str = "nifs.pi_rlc.shape.output_parity";
 pub const SHAPE_PARENT: &str = "nifs.pi_rlc.shape.parent";
 pub const SHAPE_D_PAD: &str = "nifs.pi_rlc.shape.d_pad";
 
-pub const ROW_SHAPE_ALLOCATE_INACTIVE_X_SENTINEL: &str =
-    "nifs.pi_rlc.shape.allocate_parent_and_children.inactive_x_sentinel";
 pub const ROW_SHAPE_ALLOCATE_FOLD_DIGEST_CANONICALITY: &str =
     "nifs.pi_rlc.shape.allocate_parent_and_children.fold_digest_canonicality";
 pub const ROW_SHAPE_ALLOCATE_METADATA: &str = "nifs.pi_rlc.shape.allocate_parent_and_children.metadata";
-pub const ROW_SHAPE_ALLOCATE_CHILDREN: &[&str] = &[
-    ROW_SHAPE_ALLOCATE_INACTIVE_X_SENTINEL,
-    ROW_SHAPE_ALLOCATE_FOLD_DIGEST_CANONICALITY,
-    ROW_SHAPE_ALLOCATE_METADATA,
-];
+pub const ROW_SHAPE_ALLOCATE_CHILDREN: &[&str] =
+    &[ROW_SHAPE_ALLOCATE_FOLD_DIGEST_CANONICALITY, ROW_SHAPE_ALLOCATE_METADATA];
 pub const ROW_HIERARCHY: &[(&str, &[&str])] = &[(SHAPE_ALLOCATE, ROW_SHAPE_ALLOCATE_CHILDREN)];
 
 pub const VERIFY: &str = "nifs.pi_rlc.verify";
@@ -197,7 +192,6 @@ pub const IDENTITY_PHASE_NODES: &[&str] = &[
 ];
 
 pub const PADDING: &str = "nifs.pi_rlc.verify.padding";
-pub const PADDING_X: &str = "nifs.pi_rlc.verify.padding.x";
 pub const PADDING_Y_RING: &str = "nifs.pi_rlc.verify.padding.y_ring";
 
 pub const LIFECYCLE_ALL: &[&str] = &[
@@ -279,7 +273,6 @@ pub const ALL: &[&str] = &[
     IDENTITIES_Y_RING_K_PRODUCTS_QUOTIENT_TIMES_PHI,
     IDENTITIES_Y_RING_FINAL_LIMB_CHECKS,
     PADDING,
-    PADDING_X,
     PADDING_Y_RING,
 ];
 
@@ -430,5 +423,5 @@ pub const HIERARCHY: &[(&str, &[&str])] = &[
             IDENTITIES_Y_RING_K_PRODUCTS_QUOTIENT_TIMES_PHI,
         ],
     ),
-    (PADDING, &[PADDING_X, PADDING_Y_RING]),
+    (PADDING, &[PADDING_Y_RING]),
 ];

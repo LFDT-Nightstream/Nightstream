@@ -79,23 +79,23 @@ pub enum TerminalCePublicError {
         expected: usize,
         got: usize,
     },
-    #[error("terminal CE child {index} X.cols ({got}) must equal m_in ({expected})")]
+    #[error("terminal CE child {index} X.cols ({got}) must equal the compact coefficient width ({expected})")]
     XCols {
         index: usize,
         expected: usize,
         got: usize,
+    },
+    #[error("terminal CE child {index} m_in ({got}) must be a whole number of degree-{degree} ring elements")]
+    MInNotWholeRing {
+        index: usize,
+        got: usize,
+        degree: usize,
     },
     #[error("terminal CE child {index} m_in ({got}) must not exceed structure.m ({expected})")]
     MInExceedsStructureM {
         index: usize,
         expected: usize,
         got: usize,
-    },
-    #[error("terminal CE child {index} active X cols ({active_cols}) exceed X.cols ({cols})")]
-    ActiveXCols {
-        index: usize,
-        active_cols: usize,
-        cols: usize,
     },
     #[error("terminal CE child {index} r length ({got}) must equal row-domain length ({expected})")]
     RLen {
@@ -108,12 +108,6 @@ pub enum TerminalCePublicError {
         index: usize,
         expected: usize,
         got: usize,
-    },
-    #[error("terminal CE child {index} inactive X column ({row}, {col}) must be zero")]
-    InactiveXNonZero {
-        index: usize,
-        row: usize,
-        col: usize,
     },
     #[error("terminal CE child {index} y_ring row {matrix_index} has {got} lanes, expected {expected}")]
     YRingLaneCount {
@@ -178,6 +172,20 @@ fn validate_terminal_children(
                 got: claim.c.data.len(),
             });
         }
+        if claim.m_in > structure.m {
+            return Err(TerminalCePublicError::MInExceedsStructureM {
+                index,
+                expected: structure.m,
+                got: claim.m_in,
+            });
+        }
+        if claim.m_in % D != 0 {
+            return Err(TerminalCePublicError::MInNotWholeRing {
+                index,
+                got: claim.m_in,
+                degree: D,
+            });
+        }
         if claim.X.rows() != D {
             return Err(TerminalCePublicError::XRows {
                 index,
@@ -191,13 +199,6 @@ fn validate_terminal_children(
                 index,
                 expected: active_cols,
                 got: claim.X.cols(),
-            });
-        }
-        if claim.m_in > structure.m {
-            return Err(TerminalCePublicError::MInExceedsStructureM {
-                index,
-                expected: structure.m,
-                got: claim.m_in,
             });
         }
         if claim.r.len() != expected_r_len {

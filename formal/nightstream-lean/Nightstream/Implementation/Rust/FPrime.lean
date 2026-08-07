@@ -145,7 +145,7 @@ def checkInitial
     [DecidableEq Nebula]
     (hashSemantics : HashSemantics)
     (stepSemantics : StepSemantics)
-    (mode : XOut.Mode)
+    (_mode : XOut.Mode)
     (context : StepContext)
     (state : StepState) : Bool :=
   decide (state.pc = 1) &&
@@ -155,12 +155,10 @@ def checkInitial
   decide (state.z0 = XOut.initialBoundary hashSemantics context) &&
   decide (state.publicTrace = XOut.publicTraceSeed hashSemantics context) &&
   decide (state.initialSemanticState = context.initialSemanticState) &&
-  decide (state.accumulatorDigest = stepSemantics.runningDigest stepSemantics.emptyRunning) &&
+  decide (state.accumulatorDigest = stepSemantics.initialAccumulatorDigest) &&
   decide (state.nebula = stepSemantics.initialNebula) &&
   decide (state.proof = .initial) &&
-  match mode with
-  | .stateless => decide (state.semanticState = state.accumulatorDigest)
-  | .stateful => decide (state.semanticState = state.initialSemanticState)
+  decide (state.semanticState = state.initialSemanticState)
 
 theorem checkInitial_eq_true_iff
     [DecidableEq Digest]
@@ -174,7 +172,7 @@ theorem checkInitial_eq_true_iff
     (state : StepState) :
     checkInitial hashSemantics stepSemantics mode context state = true ↔
       Step.InitialState hashSemantics stepSemantics mode context state := by
-  cases mode <;> simp [checkInitial, Step.InitialState, and_assoc]
+  simp [checkInitial, Step.InitialState, and_assoc]
 
 def checkActive
     [DecidableEq Digest]

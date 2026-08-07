@@ -189,7 +189,11 @@ fn common_coordinate_schedule_is_exact_stage_local_and_executable() {
             }
         }
     }
-    assert_eq!(covered, (1..encoded.assignment.len()).collect());
+    let logical_public_end = 1 + encoded.plan.public_columns().len();
+    let expected = (1..logical_public_end)
+        .chain(encoded.plan.public_input_len()..encoded.assignment.len())
+        .collect();
+    assert_eq!(covered, expected);
     assert_boolean_pair_polynomial(&encoded.structure.f);
 
     let pair = schedule

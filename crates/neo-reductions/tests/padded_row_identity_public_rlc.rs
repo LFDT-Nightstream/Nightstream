@@ -5,6 +5,7 @@ use neo_ccs::{CcsStructure, CeClaim, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{rlc_public, rot_rhos_from_mats};
+use neo_reductions::common::project_x_from_witness_mat;
 use p3_field::PrimeCharacteristicRing;
 
 fn selected_claim(structure: &CcsStructure<F>, params: &NeoParams) -> CeClaim<Commitment, F, K> {
@@ -52,4 +53,10 @@ fn public_rlc_accepts_the_selected_shape_and_rejects_a_partial_ring() {
     partial_ring.m_in = 1;
     partial_ring.X = Mat::zero(D, 1, F::ZERO);
     assert!(rlc_public(&structure, &params, &rhos, &[partial_ring], mix_commitments, ell_d).is_err());
+
+    let witness = Mat::zero(D, 1, F::ZERO);
+    assert!(
+        project_x_from_witness_mat(&witness, D, 1).is_err(),
+        "the public-X constructor must reject a partial ring before it creates a claim"
+    );
 }

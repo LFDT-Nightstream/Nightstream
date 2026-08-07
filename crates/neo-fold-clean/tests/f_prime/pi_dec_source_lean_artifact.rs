@@ -23,7 +23,7 @@ use support::r1cs_compiler_fixtures::{make_tiny_lifecycle_plan, one_product_r1cs
 const GENERATED_DIRECTORY: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Nifs/PiDec/Generated";
 const SHARD_SIZE: usize = 250;
-const ACTIVE_ROW_COUNT: usize = 11_751;
+const ACTIVE_ROW_COUNT: usize = 11_736;
 const ACTIVE_CHILD_COUNT: usize = 14;
 const ACTIVE_LOGICAL_X: usize = 270;
 const ACTIVE_PAPER_MATRIX_COUNT: usize = 14;
@@ -166,19 +166,18 @@ fn render_commitment(commitment: &PiDecCommitmentAudit) -> String {
 }
 
 fn render_claim(claim: &PiDecClaimAudit) -> String {
-    let active_width = claim.m_in.div_ceil(D);
+    assert_eq!(
+        claim.m_in % D,
+        0,
+        "active PiDEC public input must contain whole ring elements"
+    );
+    let active_width = claim.m_in / D;
     let active_x = (0..claim.x_rows)
         .flat_map(|row| (0..active_width).map(move |column| claim.x_cols[row * claim.x_width + column]))
         .collect::<Vec<_>>();
-    let inactive_x = (0..claim.x_rows)
-        .flat_map(|row| (active_width..claim.x_width).map(move |column| claim.x_cols[row * claim.x_width + column]))
-        .collect::<Vec<_>>();
-    let inactive_column = *inactive_x
-        .first()
-        .expect("active PiDEC claim has inactive public-X storage");
-    assert!(
-        inactive_x.iter().all(|&column| column == inactive_column),
-        "active PiDEC inactive public-X coordinates share one zero wire"
+    assert_eq!(
+        claim.x_width, active_width,
+        "active PiDEC must store exactly the SuperNeo coefficient embedding"
     );
     assert!(claim.adv.is_none(), "active PiDEC carries no advice");
     let y_rows = claim
@@ -188,10 +187,9 @@ fn render_claim(claim: &PiDecClaimAudit) -> String {
         .collect::<Vec<_>>()
         .join(",\n        ");
     format!(
-        "{{\n      commitment := {}\n      xActiveCols := {}\n      xInactiveCol := {}\n      xRows := {}\n      xWidth := {}\n      xRowsCol := {}\n      xWidthCol := {}\n      mIn := {}\n      mInCol := {}\n      yRingCols :=\n        [{}]\n      ctCols := {}\n      rCols := {}\n      foldDigestCols := {} }}",
+        "{{\n      commitment := {}\n      xActiveCols := {}\n      xRows := {}\n      xWidth := {}\n      xRowsCol := {}\n      xWidthCol := {}\n      mIn := {}\n      mInCol := {}\n      yRingCols :=\n        [{}]\n      ctCols := {}\n      rCols := {}\n      foldDigestCols := {} }}",
         render_commitment(&claim.commitment),
         lean_compact_nat_sequence(&active_x),
-        inactive_column,
         claim.x_rows,
         claim.x_width,
         claim.x_rows_col,
@@ -232,7 +230,7 @@ fn render_layout(strict: &PiDecStrictAudit) -> String {
          open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec\n\n\
          set_option maxRecDepth 100000 in\n\
          def value : RawLayout := {{\n\
-           schemaVersion := 1\n\
+           schemaVersion := 2\n\
            radix := {}\n\
            ringDimension := {}\n\
            extensionLimbs := 2\n\
@@ -346,7 +344,7 @@ fn render_rows_aggregate(shard_count: usize) -> String {
          Emits constraints: no.\n\n\
          | Payload | Meaning | Authority |\n\
          |---|---|---|\n\
-         | `sourceRows` | all 11,751 rows in source order | untrusted until checked |\n\
+         | `sourceRows` | all {ACTIVE_ROW_COUNT} rows in source order | untrusted until checked |\n\
          -/\n\n\
          namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDec.Generated\n\n\
          open Nightstream.Implementation.R1CS\n\n\
@@ -385,10 +383,7 @@ fn generated_files() -> Vec<GeneratedLeanFile> {
         .iter()
         .map(|range| range.row_end - range.row_start)
         .collect::<Vec<_>>();
-    assert_eq!(
-        leaf_counts,
-        vec![216, 0, 270, 1_512, 70, 672, 15, 4_320, 420, 4_200, 56]
-    );
+    assert_eq!(leaf_counts, vec![216, 0, 270, 1_512, 70, 672, 4_320, 420, 4_200, 56]);
 
     let mut files = vec![
         GeneratedLeanFile {

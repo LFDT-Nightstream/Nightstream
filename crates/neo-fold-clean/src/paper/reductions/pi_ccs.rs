@@ -31,7 +31,7 @@ use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
 use crate::paper::digest;
 use crate::paper::params::Params;
-use crate::paper::relations::{superneo_inactive_x_zero, CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
+use crate::paper::relations::{superneo_has_canonical_x_shape, CcsClaim, CcsInstance, CcsWitness, CeClaim, Structure};
 
 /// Engine-level sumcheck transcript, opaque at the paper layer.
 pub use neo_reductions::api::PiCcsProof as SumcheckProof;
@@ -313,14 +313,10 @@ pub(crate) fn verify_paper_exact(
 // Step bodies — short, named, paper-referenced.
 // ──────────────────────────────────────────────────────────────────────────
 
-/// Reject CE claims whose `X` has non-zero entries in columns
-/// `[ceil(m_in / D), x.cols())`. The circuit-side verifier enforces the
-/// same invariant and the v2 `ce_claim_digest` skips inactive columns —
-/// so without this guard, a malicious prover could smuggle data into
-/// inactive columns where it is not transcript-bound.
-fn validate_inactive_x_zero(claims: &[CeClaim], label: &'static str) -> Result<(), Error> {
+/// Reject CE claims that are not exact whole-ring coefficient embeddings.
+fn validate_canonical_x_shape(claims: &[CeClaim], label: &'static str) -> Result<(), Error> {
     for claim in claims {
-        if !superneo_inactive_x_zero(&claim.X, claim.m_in) {
+        if !superneo_has_canonical_x_shape(&claim.X, claim.m_in) {
             return Err(Error::Shape(label));
         }
     }
@@ -352,6 +348,9 @@ fn validate_input_shape(
         if claim.m_in > s.m {
             return Err(Error::Shape("fresh m_in exceeds structure.m"));
         }
+        if claim.m_in % D != 0 {
+            return Err(Error::Shape("fresh m_in must contain whole degree-D ring elements"));
+        }
         if claim.x.len() != claim.m_in {
             return Err(Error::Shape("fresh x length does not match m_in"));
         }
@@ -359,7 +358,10 @@ fn validate_input_shape(
             return Err(Error::Shape("fresh m_in + witness length must equal structure.m"));
         }
     }
-    validate_inactive_x_zero(&running.claims, "running inactive X columns must be zero")?;
+    validate_canonical_x_shape(
+        &running.claims,
+        "running X must use the canonical coefficient embedding",
+    )?;
     validate_clean_padded_row_claims(s, &running.claims)?;
     Ok(())
 }
@@ -394,8 +396,11 @@ fn validate_verifier_shape(
     if fold_outputs.len() != expected_outputs {
         return Err(Error::Shape("|fold_outputs| \u{2260} K + k"));
     }
-    validate_inactive_x_zero(running_claims, "running inactive X columns must be zero")?;
-    validate_inactive_x_zero(fold_outputs, "fold output inactive X columns must be zero")?;
+    validate_canonical_x_shape(running_claims, "running X must use the canonical coefficient embedding")?;
+    validate_canonical_x_shape(
+        fold_outputs,
+        "fold output X must use the canonical coefficient embedding",
+    )?;
     validate_clean_padded_row_claims(s, running_claims)?;
     validate_clean_padded_row_claims(s, fold_outputs)?;
     Ok(())

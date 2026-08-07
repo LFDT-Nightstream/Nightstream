@@ -98,7 +98,7 @@ pub const F_PRIME_STATE_X_OUT_DOMAIN: u64 = 0x4e46_0002;
 /// 4-limb digest of the CCS structure's matrices. Forwarded from the engine
 /// so paper-layer code has one entry point.
 pub fn mat_digest(structure: &CcsStructure<F>) -> [F; 4] {
-    let raw = neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache(structure, None);
+    let raw = neo_reductions::engines::utils::digest_ccs_matrices(structure);
     [raw[0], raw[1], raw[2], raw[3]]
 }
 
@@ -531,21 +531,16 @@ pub fn ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
     preimage.push(F::from_u64(claim.c.kappa as u64));
     preimage.push(F::from_u64(claim.c.data.len() as u64));
     preimage.extend_from_slice(&claim.c.data);
-    // X public-input matrix: hash shape + entries of *active* columns only.
-    //
-    // `X` has logical shape `D × m_in`, but `project_x_from_witness_mat`
-    // populates only `ceil(m_in / D)` ring columns; the rest are structural
-    // zeros and contribute nothing distinguishable to the digest. Hashing
-    // only the active columns shaves a factor of `D / active_cols` off the
-    // CE-claim digest preimage for typical SuperNeo m_in. The active count
-    // is bound to `m_in` (which is also in the preimage), so a prover can't
-    // collide two different `m_in` values via the X portion.
+    // X is the exact compact coefficient embedding. Valid SuperNeo claims
+    // have shape `D × (m_in / D)` and require `m_in % D == 0`. Hash the
+    // stored shape and all stored entries so malformed claims remain safe to
+    // inspect and cannot hide data outside the canonical width.
     let active_x_cols = crate::paper::relations::superneo_public_x_cols(claim.m_in);
     preimage.push(F::from_u64(claim.X.rows() as u64));
     preimage.push(F::from_u64(claim.X.cols() as u64));
     preimage.push(F::from_u64(active_x_cols as u64));
     for r in 0..claim.X.rows() {
-        for c in 0..active_x_cols {
+        for c in 0..claim.X.cols() {
             preimage.push(claim.X[(r, c)]);
         }
     }
@@ -647,14 +642,18 @@ fn strict_binary_accumulator_family_preimage(
 ) -> Option<Vec<F>> {
     let first = claims.first()?;
     let active_x_cols = crate::paper::relations::superneo_public_x_cols(first.m_in);
-    if first.c.d != neo_math::D
+    if first.m_in % neo_math::D != 0
+        || first.c.d != neo_math::D
         || first.c.kappa == 0
         || first.c.data.len() != first.c.d * first.c.kappa
         || first.X.rows() != neo_math::D
         || first.X.cols() != active_x_cols
         || first.y_ring.is_empty()
         || first.ct.len() != first.y_ring.len()
-        || first.y_ring.iter().any(|row| row.len() < neo_math::D)
+        || first
+            .y_ring
+            .iter()
+            .any(|row| row.len() != neo_math::D.next_power_of_two())
         || !claim_has_canonical_derived_fields(first)
         || !adv_has_shape(&first.adv, first.c.d, first.c.kappa)
     {
@@ -845,7 +844,7 @@ fn append_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim<Commitme
     preimage.push(F::from_u64(claim.X.cols() as u64));
     preimage.push(F::from_u64(active_x_cols as u64));
     for r in 0..claim.X.rows() {
-        for c in 0..active_x_cols {
+        for c in 0..claim.X.cols() {
             preimage.push(claim.X[(r, c)]);
         }
     }

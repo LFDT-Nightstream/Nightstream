@@ -27,8 +27,8 @@
 //! - `nifs_v_rejects_tampered_combined_r_c1_limb`
 //! - `nifs_v_rejects_tampered_child_commitment_lane`
 //! - `nifs_v_rejects_tampered_child_x_active_lane`
-//! - `nifs_v_rejects_nonzero_inactive_x_in_dec_child`
-//! - `nifs_v_rejects_nonzero_inactive_x_in_running`
+//! - `nifs_v_rejects_noncanonical_x_width_in_dec_child`
+//! - `nifs_v_rejects_noncanonical_x_width_in_running`
 //! - `nifs_v_rejects_tampered_child_y_ring_lane`
 //! - `nifs_v_rejects_canceling_child_y_ring_padding_lanes`
 //! - `nifs_v_rejects_tampered_combined_ct_lane`
@@ -68,6 +68,17 @@ const SESSION_LABEL: &[u8] = b"neo.fold.clean/session/v1";
 
 fn k_c1_one() -> K {
     K::from_coeffs([F::ZERO, F::ONE])
+}
+
+fn append_noncanonical_x_column(claim: &mut CeClaim) {
+    let old_cols = claim.X.cols();
+    let mut widened = Mat::zero(D, old_cols + 1, F::ZERO);
+    for row in 0..D {
+        for column in 0..old_cols {
+            widened[(row, column)] = claim.X[(row, column)];
+        }
+    }
+    claim.X = widened;
 }
 
 fn three_term_addition() -> R1cs {
@@ -204,7 +215,7 @@ fn widen_x_with_zero_col(x: &Mat<F>) -> Mat<F> {
 
 fn widen_claim_x_with_zero_col(claim: &mut neo_fold_clean::CeClaim) {
     claim.X = widen_x_with_zero_col(&claim.X);
-    claim.m_in += 1;
+    claim.m_in += D;
 }
 
 fn pi_ccs_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> PiCcsVerifierConfig<'a> {
@@ -922,40 +933,22 @@ fn nifs_v_rejects_recomposition_preserving_out_of_alphabet_child_x() {
 }
 
 #[test]
-fn nifs_v_rejects_nonzero_inactive_x_in_dec_child() {
-    // Inactive X columns are not part of the SuperNeo public projection.
-    // They must be pinned to zero in-circuit, otherwise the next running
-    // accumulator could carry hidden data skipped by packed-X projections.
+fn nifs_v_rejects_noncanonical_x_width_in_dec_child() {
     let mut fixture = build_fixture();
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(fixture.children[0].m_in);
-    let total_cols = fixture.children[0].X.cols();
-    assert!(active_cols < total_cols, "fixture must have at least one inactive col");
-
-    fixture.children[0].X.set(0, active_cols, F::ONE);
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
+    append_noncanonical_x_column(&mut fixture.children[0]);
     assert!(
-        !builder.is_satisfied(),
-        "NIFS.V circuit accepted a non-zero inactive X column in a Π_DEC child"
+        emit_verifier(&fixture).is_err(),
+        "NIFS.V circuit accepted a Π_DEC child wider than the SuperNeo coefficient embedding"
     );
 }
 
 #[test]
-fn nifs_v_rejects_nonzero_inactive_x_in_running() {
-    // Running CE claims are consumed by Π_CCS and then carried into the
-    // next accumulator handle. Inactive X columns must not become a
-    // self-consistent side channel there either.
+fn nifs_v_rejects_noncanonical_x_width_in_running() {
     let mut fixture = build_fixture();
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(fixture.running.claims[0].m_in);
-    let total_cols = fixture.running.claims[0].X.cols();
-    assert!(active_cols < total_cols, "fixture must have at least one inactive col");
-
-    fixture.running.claims[0].X.set(0, active_cols, F::ONE);
-
-    let builder = emit_verifier(&fixture).expect("emit verifier");
+    append_noncanonical_x_column(&mut fixture.running.claims[0]);
     assert!(
-        !builder.is_satisfied(),
-        "NIFS.V circuit accepted a non-zero inactive X column in a running CE claim"
+        emit_verifier(&fixture).is_err(),
+        "NIFS.V circuit accepted a running claim wider than the SuperNeo coefficient embedding"
     );
 }
 
@@ -1237,7 +1230,7 @@ fn nifs_v_rejects_parent_m_in_drift() {
     // verify_dec_public. Otherwise a proof could alter CE shape metadata
     // without changing allocated X wires.
     let mut fixture = build_fixture();
-    fixture.combined.m_in += 1;
+    fixture.combined.m_in += D;
 
     let err = emit_verifier(&fixture)
         .err()
@@ -1376,23 +1369,10 @@ fn native_nifs_verify_rejects_tampered_dec_child_fold_digest() {
     assert!(result.is_err(), "native NIFS.V must reject child fold_digest tamper");
 }
 
-/// Native Π_DEC verify path must reject a children-side CE claim whose `X`
-/// has a non-zero entry in an inactive column. The Π_DEC children become
-/// the next running accumulator; without this guard, a terminal state
-/// could carry a non-canonical accumulator that no downstream Π_CCS step
-/// would catch.
 #[test]
-fn native_nifs_verify_rejects_nonzero_inactive_x_in_dec_child() {
+fn native_nifs_verify_rejects_noncanonical_x_width_in_dec_child() {
     let mut fixture = build_fixture();
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(fixture.children[0].m_in);
-    let total_cols = fixture.children[0].X.cols();
-    assert!(active_cols < total_cols, "fixture must have at least one inactive col");
-
-    // Mutate one inactive slot in proof.pi_dec.children[0].X (this is the
-    // verifier-side proof copy that `nifs::verify` walks).
-    fixture.proof.pi_dec.children[0]
-        .X
-        .set(0, active_cols, F::ONE);
+    append_noncanonical_x_column(&mut fixture.proof.pi_dec.children[0]);
 
     let mut tr = Transcript::session();
     let result = neo_fold_clean::paper::nifs::verify(
@@ -1408,7 +1388,7 @@ fn native_nifs_verify_rejects_nonzero_inactive_x_in_dec_child() {
     );
     assert!(
         result.is_err(),
-        "native nifs::verify must reject non-zero inactive X in Π_DEC child"
+        "native nifs::verify accepted a Π_DEC child wider than the SuperNeo coefficient embedding"
     );
 }
 
@@ -1444,20 +1424,10 @@ fn native_nifs_verify_rejects_recomposition_preserving_out_of_alphabet_child_x()
     );
 }
 
-/// Native Π_CCS shape check must reject a `running` CE claim whose `X` has
-/// a non-zero entry in an inactive column. The circuit-side verifier
-/// enforces the same invariant and the v2 `ce_claim_digest` skips inactive
-/// columns; without this guard, the column would not be transcript-bound
-/// natively, so an attacker could smuggle data there.
 #[test]
-fn native_nifs_verify_rejects_nonzero_inactive_x_in_running() {
+fn native_nifs_verify_rejects_noncanonical_x_width_in_running() {
     let mut fixture = build_fixture();
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(fixture.running.claims[0].m_in);
-    let total_cols = fixture.running.claims[0].X.cols();
-    assert!(active_cols < total_cols, "fixture must have at least one inactive col");
-
-    // Mutate one inactive slot in running[0].X.
-    fixture.running.claims[0].X.set(0, active_cols, F::ONE);
+    append_noncanonical_x_column(&mut fixture.running.claims[0]);
 
     let mut tr = Transcript::session();
     let result = neo_fold_clean::paper::nifs::verify(
@@ -1473,6 +1443,6 @@ fn native_nifs_verify_rejects_nonzero_inactive_x_in_running() {
     );
     assert!(
         result.is_err(),
-        "native nifs::verify must reject non-zero inactive X in running CE claim"
+        "native nifs::verify accepted a running claim wider than the SuperNeo coefficient embedding"
     );
 }

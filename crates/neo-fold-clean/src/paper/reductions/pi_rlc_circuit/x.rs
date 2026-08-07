@@ -17,7 +17,6 @@
 //! | `fold_wires.x` | `alloc_rlc_x_inputs*` | typed `(rho_i,X_i,parent)` view | once | none | none | parameter shape |
 //! | full X combination | `enforce_rlc_x_combination` | `X=sum_i rho_i*X_i` on active columns | active columns × inputs | ring products plus equalities | ring product | `xCombinationWithIntermediates_iff_direct` |
 //! | `identities.x` | projection helper | active aggregate identity at beta | one per active column | polynomial rows | product-sum | exact-or-bad-root bridge open |
-//! | `padding.x` | `enforce_rlc_x_padding_glue` | inactive input/output columns are zero | inactive cells | one equality each | linear | `PaddingZero` analogue |
 
 use neo_math::ring::D;
 use neo_math::F;
@@ -181,8 +180,7 @@ pub fn enforce_rlc_x_combination_projection_with_quotient_wires(
     wires: &RlcXWires,
     quotient_wires: &[[Var; PROJECTION_QUOTIENT_LEN]],
 ) -> Result<(), Error> {
-    enforce_rlc_x_projection_identities_with_quotient_wires(builder, powers, rho_evaluations, wires, quotient_wires)?;
-    enforce_rlc_x_padding_glue(builder, wires)
+    enforce_rlc_x_projection_identities_with_quotient_wires(builder, powers, rho_evaluations, wires, quotient_wires)
 }
 
 /// Emit one projection identity per active `X` ring column.
@@ -244,12 +242,6 @@ pub fn enforce_rlc_x_projection_identities_with_quotient_wires_and_stages(
             stages,
         );
     }
-    Ok(())
-}
-
-/// Validate that no noncanonical padding columns exist.
-pub fn enforce_rlc_x_padding_glue(_builder: &mut R1csBuilder, wires: &RlcXWires) -> Result<(), Error> {
-    validate_rlc_x_projection_shape(wires)?;
     Ok(())
 }
 

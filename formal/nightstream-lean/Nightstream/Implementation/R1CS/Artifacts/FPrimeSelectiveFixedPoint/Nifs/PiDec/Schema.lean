@@ -26,7 +26,6 @@ deriving DecidableEq, Repr
 structure RawClaim where
   commitment : RawCommitment
   xActiveCols : List Nat
-  xInactiveCol : Nat
   xRows : Nat
   xWidth : Nat
   xRowsCol : Nat
@@ -36,7 +35,6 @@ structure RawClaim where
   yRingCols : List (List Nat)
   ctCols : List (Nat × Nat)
   rCols : List (Nat × Nat)
-  sColCols : List (Nat × Nat)
   foldDigestCols : List Nat
 deriving DecidableEq, Repr
 

@@ -30,6 +30,7 @@ pub mod verifier;
 // Re-export the public surface so external paths (tests, NIFS.V) keep using
 // `paper::reductions::pi_ccs_circuit::*` without touching the
 // internal module split.
+pub(crate) use digests::enforce_strict_binary_accumulator_family_digest_with_aggregate_stage;
 pub use digests::{
     enforce_accumulator_ce_claim_digest, enforce_accumulator_claims_digest, enforce_ccs_claim_digest,
     enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest,

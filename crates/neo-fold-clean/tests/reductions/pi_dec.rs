@@ -217,10 +217,18 @@ fn pi_dec_strict_canonical_x_receipt_matches_every_emitted_row() {
     let mut parent = proof.pi_rlc.combined;
     let mut children = proof.pi_dec.children;
     parent.m_in = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
-    parent.X = Mat::zero(D, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
+    parent.X = Mat::zero(
+        D,
+        neo_fold_clean::paper::relations::superneo_public_x_cols(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
+        F::ZERO,
+    );
     for child in &mut children {
         child.m_in = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
-        child.X = Mat::zero(D, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, F::ZERO);
+        child.X = Mat::zero(
+            D,
+            neo_fold_clean::paper::relations::superneo_public_x_cols(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN),
+            F::ZERO,
+        );
     }
     let prep = support::toy_preprocessing();
     let mut builder = R1csBuilder::new();
@@ -429,11 +437,6 @@ fn pi_dec_strict_leaf_ranges_partition_every_emitted_row() {
             })
     };
     assert_eq!(
-        allocation_stats(pi_rlc_stage::ROW_SHAPE_ALLOCATE_INACTIVE_X_SENTINEL),
-        (claim_count, claim_count),
-        "one inactive-X sentinel row per allocated claim"
-    );
-    assert_eq!(
         allocation_stats(pi_rlc_stage::ROW_SHAPE_ALLOCATE_FOLD_DIGEST_CANONICALITY),
         (claim_count, 0),
         "canonical honest digests emit no rejection rows"
@@ -445,7 +448,7 @@ fn pi_dec_strict_leaf_ranges_partition_every_emitted_row() {
     );
     assert_eq!(
         verifier_start,
-        6 * claim_count,
+        5 * claim_count,
         "allocation row children must own the entire pre-verifier prefix"
     );
     enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict dec_v emit");
@@ -998,25 +1001,18 @@ fn pi_dec_circuit_strict_rejects_child_x_recomposition_mismatch() {
     );
 }
 #[test]
-fn pi_dec_circuit_rejects_nonzero_inactive_child_x() {
-    // `enforce_dec_v_strict` includes `enforce_inactive_x_zero`, which pins
-    // each child's `X[r, c]` to zero for `c >= ceil(m_in / D)`. Tampering
-    // inactive slots must break strict Π_DEC.V on its own. The tamper below
-    // is recomposition-canceling (`child0 = b`, `child1 = -1`, parent = 0),
-    // so the ordinary b-ary X equation still holds; only the inactive-X rows
-    // can reject.
+fn pi_dec_circuit_rejects_noncanonical_x_width() {
+    // SuperNeo stores exactly the coefficient embedding. An extra physical X
+    // column is a malformed claim shape, not an inactive carrier.
     let (proof, _claims) = drive_nifs(59);
     let mut parent = proof.pi_rlc.combined.clone();
     let mut children = proof.pi_dec.children.clone();
-    assert!(children.len() >= 2, "fixture must expose at least two DEC children");
-
     let widen_x = |claim: &mut neo_fold_clean::CeClaim| {
         let mut widened = Mat::zero(D, 2, F::ZERO);
         for row in 0..D {
             widened[(row, 0)] = claim.X[(row, 0)];
         }
         claim.X = widened;
-        claim.m_in = 2;
     };
     widen_x(&mut parent);
     for child in &mut children {
@@ -1026,25 +1022,31 @@ fn pi_dec_circuit_rejects_nonzero_inactive_child_x() {
     let prep = support::toy_preprocessing();
     let mut builder = R1csBuilder::new();
     let wires = alloc_dec_inputs(&mut builder, &parent, &children);
-    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict emit");
-    assert!(builder.is_satisfied(), "baseline must satisfy");
-
-    let child = &wires.children[0];
-    let m_in = child.x_cols;
-    let active_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(m_in);
     assert!(
-        active_cols < m_in,
-        "test fixture must expose inactive child X columns (active={active_cols}, m_in={m_in})"
-    );
-    let child0_col = child.x[active_cols].col();
-    let child1_col = wires.children[1].x[active_cols].col();
-    builder.tamper_witness(child0_col, F::from_u64(prep.params.b() as u64));
-    builder.tamper_witness(child1_col, F::ZERO - F::ONE);
-    assert!(
-        !builder.is_satisfied(),
-        "strict Π_DEC.V must reject recomposition-canceling non-zero inactive child X"
+        enforce_dec_v_strict(&mut builder, &prep.params, &wires).is_err(),
+        "strict Π_DEC.V accepted an X matrix wider than the coefficient embedding"
     );
 }
+
+#[test]
+fn pi_dec_circuit_rejects_partial_ring_public_input() {
+    let (proof, _claims) = drive_nifs(61);
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    parent.m_in = 1;
+    for child in &mut children {
+        child.m_in = 1;
+    }
+
+    let prep = support::toy_preprocessing();
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, &children);
+    assert!(
+        enforce_dec_v_strict(&mut builder, &prep.params, &wires).is_err(),
+        "strict PiDEC accepted a partial-ring public input"
+    );
+}
+
 fn drive_nifs(seed: u64) -> (nifs::NifsProof, Vec<neo_fold_clean::CcsInstance>) {
     let prep = support::toy_preprocessing();
     let fresh = vec![support::toy_instance(&prep, seed)];

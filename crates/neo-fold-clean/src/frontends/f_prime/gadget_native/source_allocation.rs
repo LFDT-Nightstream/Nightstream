@@ -98,9 +98,7 @@ pub(super) fn visit_planned_source_slots(
     public_bit_columns: &[usize],
     mut visit: impl FnMut(usize, ValueSlot) -> Result<(), GadgetNativeError>,
 ) -> Result<usize, GadgetNativeError> {
-    let public_input_len = 1usize
-        .checked_add(public_bit_columns.len())
-        .ok_or(GadgetNativeError::SourceAllocationOverflow { column: 0 })?;
+    let public_input_len = super::canonical_superneo_public_input_len(public_bit_columns.len())?;
     let public_starts = public_bit_columns
         .iter()
         .copied()
@@ -310,7 +308,7 @@ impl GadgetNativeOrdinaryPlacementManifest {
             .iter()
             .filter(|&&role| role == GadgetNativeSourceRole::PublicBit)
             .count();
-        if self.public_input_len != 1 + public_bits {
+        if self.public_input_len != super::canonical_superneo_public_input_len(public_bits)? {
             return Err(GadgetNativeError::SourceAllocationManifest {
                 detail: "public prefix length",
             });

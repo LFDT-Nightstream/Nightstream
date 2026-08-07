@@ -41,7 +41,7 @@
 
 use std::sync::Arc;
 
-use neo_ajtai::{setup as setup_ajtai, AjtaiSModule};
+use neo_ajtai::{set_global_pp_seeded, setup as setup_ajtai, AjtaiSModule};
 use neo_ccs::{traits::SModuleHomomorphism, Mat};
 use neo_fold_clean::engine::decider::{
     __test_isolation::{
@@ -338,15 +338,16 @@ fn decider_r1cs_synthesis_accepts_finished_statement() {
 fn decider_r1cs_honors_explicit_verifier_owned_ajtai_setup() {
     let r1cs = bit_carrier_r1cs();
 
-    // Install the process-global setup that the ordinary direct-CCS helper
-    // uses, then deliberately build this verifier context around a distinct,
-    // dimension-compatible owned setup. `preprocess_with_test_log` explicitly
-    // supports this adversarial-fixture context.
+    // Build the shape under a deterministic local setup, install a distinct
+    // process-global setup explicitly, then build this verifier context around
+    // a third, dimension-compatible owned setup. `preprocess_with_test_log`
+    // explicitly supports this adversarial-fixture context.
     let canonical = direct_ccs::preprocess_seeded(&r1cs, 42).expect("canonical preprocess");
     let params = canonical.params.clone();
     let structure = canonical.structure().clone();
     let public_input_len = canonical.public_input_len;
     let cols = structure.m.div_ceil(D);
+    set_global_pp_seeded(D, params.kappa() as usize, cols, [0x42; 32]).expect("install distinct global Ajtai setup");
     let mut rng = ChaCha20Rng::from_seed([0x93; 32]);
     let owned_pp = setup_ajtai(&mut rng, D, params.kappa() as usize, cols).expect("owned Ajtai setup");
     let owned_log = AjtaiSModule::new(Arc::new(owned_pp));

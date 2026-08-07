@@ -84,18 +84,21 @@ where
             ))
         })?;
 
-        if inst.x.len() != inst.m_in {
+        if inst.m_in % D != 0 || inst.x.len() != inst.m_in {
             return Err(PiCcsError::InvalidInput(format!(
-                "mcs_list[{idx}].x.len()={}, expected m_in={}",
+                "mcs_list[{idx}] must contain whole degree-{D} ring elements and x.len()={} must equal m_in={}",
                 inst.x.len(),
                 inst.m_in
             )));
         }
         let expected_x_cols = neo_ccs::superneo_public_x_cols(inst.m_in);
-        if out.X.cols() != expected_x_cols {
+        if out.m_in != inst.m_in || out.X.rows() != D || out.X.cols() != expected_x_cols {
             return Err(PiCcsError::ProtocolError(format!(
-                "me_outputs[{idx}].X cols mismatch (got {}, expected {})",
+                "me_outputs[{idx}] has m_in={} and X shape {}x{}, expected m_in={} and {D}x{}",
+                out.m_in,
+                out.X.rows(),
                 out.X.cols(),
+                inst.m_in,
                 expected_x_cols
             )));
         }
@@ -121,10 +124,13 @@ where
 /// every dense matrix entry. This function hashes that representation instead
 /// of materializing or scanning the dense matrix tables.
 pub fn digest_ccs_matrices<F: Field + PrimeField64 + Sync>(s: &CcsStructure<F>) -> Vec<Goldilocks> {
-    digest_ccs_matrices_with_sparse_cache(s, None)
+    digest_ccs_matrices_tree(s)
 }
 
 const CCS_DIGEST_SEED: u64 = 0x434353445F4D4154;
+// Keep four Goldilocks capacity elements. This gives the width-16 sponge the
+// same 256-bit capacity as the canonical width-8 Poseidon2 transcript.
+const CCS_DIGEST_RATE: usize = 12;
 const CCS_DIGEST_CHUNK_WORDS: usize = 65_536;
 const CCS_DIGEST_GEOMETRIC_RUNS_PER_CHUNK: usize = 8_192;
 
@@ -189,7 +195,7 @@ fn absorb_digest_limb(
     absorbed: &mut usize,
     v: Goldilocks,
 ) {
-    if *absorbed >= 15 {
+    if *absorbed >= CCS_DIGEST_RATE {
         poseidon2.permute_mut(state);
         *absorbed = 0;
     }
@@ -370,16 +376,13 @@ fn push_field_digest_chunks<'a, Ff>(leaves: &mut Vec<CcsDigestLeaf<'a, Ff>>, mat
     }
 }
 
-/// Compute the CCS matrix digest, optionally using a prebuilt sparse cache.
+/// Compute the CCS matrix digest from the authoritative sparse structure.
 ///
-/// This cache-aware variant binds a native CSC encoding under a Poseidon2 tree (`v3-tree`).
+/// This binds a native CSC encoding under a Poseidon2 tree (`v3-tree`).
 /// Matrix/segment leaves are hashed independently so preprocessing can use CPU parallelism,
 /// then the root absorbs the ordered leaf digests. Prover/verifier soundness is preserved
 /// because both sides bind the same domain, dimensions, matrix order, and full CSC content.
-pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64 + Sync>(
-    s: &CcsStructure<Ff>,
-    sparse: Option<&crate::engines::optimized_engine::SparseCache<Ff>>,
-) -> Vec<Goldilocks> {
+fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff>) -> Vec<Goldilocks> {
     let mut leaves = Vec::new();
 
     for (j, matrix) in s.matrices.iter().enumerate() {
@@ -388,38 +391,12 @@ pub fn digest_ccs_matrices_with_sparse_cache<Ff: Field + PrimeField64 + Sync>(
                 leaves.push(CcsDigestLeaf::Identity { matrix: j, n: *n });
             }
             CcsMatrix::Csc(csc_from_s) => {
-                let cached_csc = sparse.and_then(|sp| sp.csc(j));
-                #[cfg(debug_assertions)]
-                if let Some(c) = cached_csc {
-                    debug_assert_eq!(c.nrows, csc_from_s.nrows, "CSC cache nrows mismatch for matrix {j}");
-                    debug_assert_eq!(c.ncols, csc_from_s.ncols, "CSC cache ncols mismatch for matrix {j}");
-                    debug_assert_eq!(
-                        c.col_ptr, csc_from_s.col_ptr,
-                        "CSC cache col_ptr mismatch for matrix {j}"
-                    );
-                    debug_assert_eq!(
-                        c.row_idx, csc_from_s.row_idx,
-                        "CSC cache row_idx mismatch for matrix {j}"
-                    );
-                    debug_assert_eq!(c.vals, csc_from_s.vals, "CSC cache vals mismatch for matrix {j}");
-                }
-                let (nrows, ncols, col_ptr, row_idx, vals) = if let Some(c) = cached_csc {
-                    (
-                        c.nrows,
-                        c.ncols,
-                        c.col_ptr.as_slice(),
-                        c.row_idx.as_slice(),
-                        c.vals.as_slice(),
-                    )
-                } else {
-                    (
-                        csc_from_s.nrows,
-                        csc_from_s.ncols,
-                        csc_from_s.col_ptr.as_slice(),
-                        csc_from_s.row_idx.as_slice(),
-                        csc_from_s.vals.as_slice(),
-                    )
-                };
+                let (nrows, ncols) = (csc_from_s.nrows, csc_from_s.ncols);
+                let (col_ptr, row_idx, vals) = (
+                    csc_from_s.col_ptr.as_slice(),
+                    csc_from_s.row_idx.as_slice(),
+                    csc_from_s.vals.as_slice(),
+                );
 
                 leaves.push(CcsDigestLeaf::Metadata {
                     matrix: j,

@@ -21,7 +21,9 @@ use neo_fold_clean::paper::digest::{
 };
 use neo_fold_clean::paper::f_prime::r1cs::encode_f_prime_superneo_public_input;
 use neo_fold_clean::paper::params::Params;
-use neo_fold_clean::paper::relations::{CcsClaim, CcsInstance, CeClaim, WitnessMat};
+use neo_fold_clean::paper::relations::{
+    superneo_has_canonical_x_shape, superneo_public_x_cols, CcsClaim, CcsInstance, CeClaim, WitnessMat,
+};
 use neo_fold_clean::{
     finish_uncompressed, finish_with_spartan, prove, verify_spartan, verify_uncompressed, LeanNativeCcsManifest,
     LeanNativeCcsPreprocessing, LeanNebulaCombinedManifest, LeanNebulaCombinedPreprocessing, TerminalR1csError,
@@ -38,6 +40,15 @@ fn test_ajtai_seed() -> [u8; 32] {
     let mut seed = [0u8; 32];
     seed[..8].copy_from_slice(&TEST_AJTAI_SEED.to_le_bytes());
     seed
+}
+
+fn zero_superneo_public_x(m_in: usize) -> Mat<F> {
+    let x = Mat::zero(D, superneo_public_x_cols(m_in), F::ZERO);
+    assert!(
+        superneo_has_canonical_x_shape(&x, m_in),
+        "terminal fixture public input must contain complete degree-D ring elements"
+    );
+    x
 }
 
 fn prelude_owner() -> Value {
@@ -617,7 +628,7 @@ fn direct_terminal_fixture(
     let zero_witness = Mat::zero(D, step.structure().m / D, F::ZERO);
     let zero_claim = CeClaim {
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
-        X: Mat::zero(D, manifest.public_carrier_width(), F::ZERO),
+        X: zero_superneo_public_x(manifest.public_carrier_width()),
         r: Vec::new(),
         y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; step.structure().t()],
         ct: vec![K::ZERO; step.structure().t()],
@@ -663,7 +674,7 @@ fn direct_combined_terminal_fixture(
         .trailing_zeros() as usize;
     let zero_claim = CeClaim {
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
-        X: Mat::zero(D, manifest.public_carrier_width(), F::ZERO),
+        X: zero_superneo_public_x(manifest.public_carrier_width()),
         r: vec![K::ZERO; joint_row_variables],
         y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; emission.structure().t()],
         ct: vec![K::ZERO; emission.structure().t()],
@@ -697,7 +708,7 @@ fn terminal_lifecycle_fixture(manifest: &LeanNativeCcsManifest) -> (neo_fold_cle
     let zero_witness = Mat::zero(D, probe.structure().m / D, F::ZERO);
     let zero_claim = CeClaim {
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
-        X: Mat::zero(D, manifest.public_carrier_width(), F::ZERO),
+        X: zero_superneo_public_x(manifest.public_carrier_width()),
         r: Vec::new(),
         y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; probe.structure().t()],
         ct: vec![K::ZERO; probe.structure().t()],

@@ -40,7 +40,7 @@ fn wide_preprocessing() -> Preprocessing {
         CcsStructure::new(vec![Mat::identity(m)], SparsePoly::new(1, vec![])).expect("wide test structure");
     let params = config::r1cs_params(structure.n, structure.m).expect("params for wide structure");
     support::install_ajtai_module(&params, &structure);
-    preprocess(params, structure, Some(1)).expect("wide preprocessing")
+    preprocess(params, structure, Some(D)).expect("wide preprocessing")
 }
 
 #[path = "../support/mod.rs"]

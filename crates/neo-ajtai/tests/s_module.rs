@@ -64,3 +64,24 @@ fn ajtai_smodule_materializes_seeded_global_pp() {
     assert_eq!(materialized.m, m);
     assert_eq!(materialized.kappa, kappa);
 }
+
+#[test]
+fn equal_shaped_seeded_modules_keep_independent_setup_identity() {
+    let d = neo_math::ring::D;
+    let kappa = 3;
+    let m = 2;
+    let seed_a = [51u8; 32];
+    let seed_b = [52u8; 32];
+    let module_a = AjtaiSModule::from_seeded(seed_a, d, kappa, m).expect("seed A module");
+    let module_b = AjtaiSModule::from_seeded(seed_b, d, kappa, m).expect("seed B module");
+    let module_a_again = AjtaiSModule::from_seeded(seed_a, d, kappa, m).expect("second seed A module");
+
+    let mut z = neo_ccs::Mat::zero(d, m, Fq::ZERO);
+    z[(0, 0)] = Fq::ONE;
+    z[(1, 1)] = Fq::ONE;
+
+    assert_eq!(module_a.seeded_params(), Some((kappa, seed_a)));
+    assert_eq!(module_b.seeded_params(), Some((kappa, seed_b)));
+    assert_ne!(module_a.commit(&z), module_b.commit(&z));
+    assert_eq!(module_a.commit(&z), module_a_again.commit(&z));
+}

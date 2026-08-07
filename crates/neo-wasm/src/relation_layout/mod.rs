@@ -604,7 +604,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     address_columns: vec![linear_memory.lane0_addr],
                     value_column: linear_memory.lane0_value,
                     kind: WasmMemoryColumnKind::Write {
-                        value_before_column: None,
+                        value_before_column: Some(linear_memory.lane0_value_before),
                     },
                     activation: WasmMemoryActivation::BooleanGate(Column(
                         crate::ccs::host_event_chain::gather_memory_write_kind_col(),

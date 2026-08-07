@@ -442,4 +442,14 @@ fn memory_slots_validate_phase_base_and_claim_source() {
     ordered
         .validate(1)
         .expect("pointer bootstrap precedes memory write");
+
+    let byte_write = ImportTemplate {
+        events: vec![event(SlotSource::MemoryWrite8 {
+            claim: 0,
+            base: MemoryBase::Arg(0),
+            byte_offset: 0,
+        })],
+        claim_count: 1,
+    };
+    assert!(expand_import_events(&byte_write, &[(0, 0)], None, &[256], &[]).is_err());
 }

@@ -277,6 +277,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_STACK_WRITE0_ACTIVE] = if stack_writes >= 1 { F::ONE } else { F::ZERO };
     wit[COL_OP_TABLE_ENABLED] = if trace.info.uses_op_table { F::ONE } else { F::ZERO };
     let is_core_linear_memory = trace.row_kind.is_program() && trace.opcode.uses_linear_memory();
+    let is_grammar_byte_memory = trace
+        .grammar_rom_slot
+        .is_some_and(|rom| rom.variant.uses_byte_memory_width());
     wit[COL_LINEAR_MEM_USE_LANE0] = if is_core_linear_memory { F::ONE } else { F::ZERO };
     wit[COL_LOCAL_WRITE_ENABLED] = if matches!(
         trace.opcode,
@@ -415,6 +418,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     if let Some(access) = trace.linear_memory {
         if is_core_linear_memory {
             wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);
+        }
+        if is_core_linear_memory || is_grammar_byte_memory {
             wit[COL_LINEAR_MEM_BYTE_OFFSET] = F::from_u64(u64::from(access.byte_offset));
             wit[COL_LINEAR_MEM_USE_LANE1] = if access.lane1.is_some() { F::ONE } else { F::ZERO };
             wit[COL_LINEAR_MEM_USE_LANE2] = if access.lane2.is_some() { F::ONE } else { F::ZERO };
@@ -447,7 +452,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         wit[COL_LINEAR_MEM_LANE0_STORE_ACTIVE] = store_live;
         wit[COL_LINEAR_MEM_LANE1_STORE_ACTIVE] = if access.lane1.is_some() { store_live } else { F::ZERO };
         wit[COL_LINEAR_MEM_LANE2_STORE_ACTIVE] = if access.lane2.is_some() { store_live } else { F::ZERO };
-        if is_core_linear_memory {
+        if is_core_linear_memory || is_grammar_byte_memory {
             match access.byte_offset {
                 0 => wit[COL_LINEAR_MEM_OFFSET_IS_0] = F::ONE,
                 1 => wit[COL_LINEAR_MEM_OFFSET_IS_1] = F::ONE,
@@ -651,6 +656,10 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                     .stack_read1
                     .and_then(|lane| lane.value_hi)
                     .unwrap_or(0),
+            ),
+            _ if is_grammar_byte_memory => (
+                u32::from(access.lane0.value_after.to_le_bytes()[usize::from(access.byte_offset)]),
+                0,
             ),
             _ => (0, 0),
         };
@@ -1062,7 +1071,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_GATHER_LOCAL_WRITE_LO] = if trace.row_kind.is_host_event_gather()
         && trace
             .grammar_rom_slot
-            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::ClaimLocal && rom.variant == 0)
+            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::ClaimLocal && rom.variant.is_low_limb())
     {
         F::ONE
     } else {
@@ -1073,7 +1082,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     let result_hi_gather = trace.row_kind.is_host_event_gather()
         && trace
             .grammar_rom_slot
-            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant == 1);
+            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant.is_high_limb());
     wit[crate::layout::COL_STACK_WRITE0_HI_ACTIVE] =
         wit[crate::layout::COL_STACK_WRITE0_ACTIVE] + bool_f(result_hi_gather);
     wit[COL_GRAMMAR_EXIT_LATCH] = bool_f(
@@ -1103,7 +1112,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         wit[COL_GRAMMAR_SLOT_KIND] =
             F::from_u64(u64::from(rom.kind.code()) + WasmGrammarSlotKind::COUNT as u64 * u64::from(rom.advice));
         wit[COL_GRAMMAR_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
-        wit[COL_GRAMMAR_SLOT_VARIANT] = F::from_u64(u64::from(rom.variant));
+        wit[COL_GRAMMAR_SLOT_VARIANT] = F::from_u64(u64::from(rom.variant.encoded()));
         wit[COL_GRAMMAR_SLOT_CONST_LO] = F::from_u64(u64::from(rom.const_lo));
         wit[COL_GRAMMAR_SLOT_CONST_HI] = F::from_u64(u64::from(rom.const_hi));
     }

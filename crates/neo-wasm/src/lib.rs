@@ -39,8 +39,8 @@ pub use ccs::WasmVmSpec;
 pub use comm_chain::CommChainState;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
-    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmGrammarRomEntry, WasmGrammarSlotKind,
-    WasmGrammarState, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmGrammarRomEntry, WasmGrammarRomVariant,
+    WasmGrammarSlotKind, WasmGrammarState, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 pub use isa::{
     opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,

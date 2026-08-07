@@ -18,7 +18,7 @@ def carriedCount : Nat := 324
 def productionFreshCount : Nat := 1
 def productionRunningCount : Nat := 14
 def productionMatrixCount : Nat := 14
-def productionOutputFieldCount : Nat := 22681
+def productionOutputFieldCount : Nat := 22700
 def rowVariablesWhenRowsLtAssignment : Nat := 6
 def rowVariablesWhenRowsGtAssignment : Nat := 7
 def transcriptTags : List Nat := [40, 41, 42, 43, 45, 46, 47]
@@ -31,7 +31,7 @@ def carriedGammaExponents : List Nat :=
 def sampleProofWords : List Nat :=
   [1102, 1, 2, 3, 1, 101, 2, 102, 3, 103, 4, 104, 5, 105, 6, 106]
 
-def sampleOutputFieldCount : Nat := 1297
+def sampleOutputFieldCount : Nat := 1316
 def sampleOutputOrderMatches : Bool := true
 
 end Nightstream.Implementation.Rust.CanonicalConformance.PiCcsPaddedRowIdentity.Generated

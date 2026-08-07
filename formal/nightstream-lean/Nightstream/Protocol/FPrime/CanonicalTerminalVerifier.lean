@@ -3,7 +3,7 @@ import Nightstream.HyperNova.Construction2.Paper
 /-!
 Canonical executable terminal verifier for HyperNova Construction 2.
 
-Owns: executable base/recursive terminal branching, the prior public-link
+Owns: executable bottom/recursive terminal branching, the prior public-link
 check, finite validation of every running slot, validation of the selected
 fresh slot, and extensional equality with the independent terminal relation.
 
@@ -96,9 +96,11 @@ theorem allRunningAccepted_eq_true_iff
     exact (checks.runningCheck_iff slot (setupKeys slot)
       (proof.running slot) (proof.runningWitness slot)).2 (holds slot)
 
-/-- Compact terminal evaluation.  Iteration zero checks only the endpoint.
+/-- Payload-compatible terminal evaluation used by recursive lowerings.
+Iteration zero treats the payload as erased and checks only the endpoint.
 Every positive iteration checks the prior link, every running relation, and
-the selected fresh relation.  It never calls `NIFS.V`. -/
+the selected fresh relation. It never calls `NIFS.V`. Use `evalOuter` for the
+exact bottom-or-recursive proof syntax. -/
 def eval
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -143,8 +145,40 @@ def eval
   else
     false
 
-/-- The executable terminal verifier accepts exactly the independent terminal
-transition, including explicit base and recursive boundaries. -/
+/-- Exact Construction-2 outer evaluation.  The bottom constructor carries
+no payload.  A recursive constructor is accepted only at a positive
+iteration and is then checked by the payload evaluator above. -/
+def evalOuter
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {RunningWitness : Type uRunningWitness}
+    {Fresh : Type uFresh}
+    {FreshWitness : Type uFreshWitness}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    [DecidableEq State]
+    [DecidableEq Encoded]
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
+      slotCount)
+    (checks : RelationChecks relations)
+    (statement : TerminalStatement State)
+    (proof : OuterTerminalProof Running RunningWitness Fresh FreshWitness
+      slotCount) : Bool :=
+  match proof with
+  | .bottom => decide
+      (statement.iteration = 0 /\ statement.zi = statement.z0)
+  | .recursive payload =>
+      decide (0 < statement.iteration) &&
+        eval setup machine relations checks statement payload
+
+/-- The payload-compatible evaluator accepts exactly the erased-payload
+terminal transition. -/
 theorem eval_eq_true_iff_transition
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -216,5 +250,60 @@ theorem eval_eq_true_iff_transition
         rcases transition with base | recursive
         · exact False.elim (iterationZero base.1)
         · exact False.elim (pcValid recursive.1)
+
+/-- The exact outer evaluator accepts exactly the bottom-or-recursive paper
+transition. -/
+theorem evalOuter_eq_true_iff_transition
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {RunningWitness : Type uRunningWitness}
+    {Fresh : Type uFresh}
+    {FreshWitness : Type uFreshWitness}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    [DecidableEq State]
+    [DecidableEq Encoded]
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
+      slotCount)
+    (checks : RelationChecks relations)
+    (statement : TerminalStatement State)
+    (proof : OuterTerminalProof Running RunningWitness Fresh FreshWitness
+      slotCount) :
+    evalOuter setup machine relations checks statement proof = true <->
+      OuterTerminalTransition setup machine relations statement proof := by
+  cases proof with
+  | bottom =>
+      simp [evalOuter, OuterTerminalTransition]
+  | recursive payload =>
+      constructor
+      · intro accepted
+        have parts :
+            decide (0 < statement.iteration) = true /\
+              eval setup machine relations checks statement payload = true := by
+          simpa only [evalOuter, Bool.and_eq_true] using accepted
+        have iterationPositive : 0 < statement.iteration :=
+          of_decide_eq_true parts.1
+        have payloadTransition :=
+          (eval_eq_true_iff_transition setup machine relations checks statement
+            payload).1 parts.2
+        rcases payloadTransition with base | recursive
+        · have impossible : 0 < 0 := base.1 ▸ iterationPositive
+          exact False.elim (Nat.lt_irrefl 0 impossible)
+        · exact recursive
+      · intro recursive
+        rcases recursive with
+          ⟨pcValid, iterationPositive, priorPublicInput, runningValid,
+            freshValid⟩
+        simp only [evalOuter, Bool.and_eq_true]
+        exact ⟨decide_eq_true iterationPositive,
+          (eval_eq_true_iff_transition setup machine relations checks statement
+            payload).2 (Or.inr ⟨pcValid, iterationPositive,
+              priorPublicInput, runningValid, freshValid⟩)⟩
 
 end Nightstream.Protocol.FPrime.CanonicalTerminalVerifier

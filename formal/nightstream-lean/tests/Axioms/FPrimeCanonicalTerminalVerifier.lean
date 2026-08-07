@@ -20,3 +20,9 @@ open Nightstream.Protocol.FPrime.CanonicalTerminalVerifier
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms eval_eq_true_iff_transition
+
+/-- info: 'Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.evalOuter_eq_true_iff_transition' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms evalOuter_eq_true_iff_transition

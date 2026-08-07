@@ -8,7 +8,7 @@
 
 use neo_ccs::{LaneCommitments, Mat};
 use neo_fold_clean::paper::construction2::{self, FoldProof, ProofState, SemanticStateMode, State, StepProof};
-use neo_fold_clean::paper::digest::AccumulatorHandle;
+use neo_fold_clean::paper::digest::{self, AccumulatorHandle};
 use neo_fold_clean::paper::nifs::{self, NifsProof};
 use neo_fold_clean::paper::relations::{CcsClaim, CeClaim};
 use neo_fold_clean::{CcsInstance, Preprocessing, RunningInstance};
@@ -19,7 +19,7 @@ use serde::Serialize;
 #[path = "native_step_export/lean.rs"]
 mod lean;
 
-const SCHEMA: u32 = 2;
+const SCHEMA: u32 = 3;
 
 pub fn checked_native_step_receipts() -> (String, String) {
     let corpus = build_native_step_corpus();
@@ -146,12 +146,8 @@ pub fn checked_native_step_receipts() -> (String, String) {
     let first = serde_json::to_string(&corpus).expect("serialize native-step receipt");
     let second = serde_json::to_string(&corpus).expect("serialize native-step receipt twice");
     assert_eq!(first, second, "native-step receipt serialization must be deterministic");
-    let json = format!(
-        "{}\n",
-        serde_json::to_string_pretty(&corpus).expect("serialize deterministic native-step conformance corpus")
-    );
     let lean = lean::render(&corpus);
-    (json, lean)
+    (first, lean)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -174,6 +170,9 @@ struct Profile {
     transcript_label: String,
     structure_digest: [Felt; 4],
     verifier_key_digest: [u8; 32],
+    initial_boundary_digest: [u8; 32],
+    initial_accumulator_digest: [u8; 32],
+    initial_public_trace: [u8; 32],
     pi_ccs_header_bundle: [Felt; 4],
     ajtai_pp_digest: [Felt; 4],
 }
@@ -240,6 +239,7 @@ struct Receipt {
     input_state: u32,
     next_latest: Vec<u32>,
     step_proof: u32,
+    authority_running_digest: Option<RunningDigestCall>,
     transcript: Option<u32>,
     calls: NativeCallTrace,
     final_stage: ExecutionStage,
@@ -810,6 +810,15 @@ impl<'a> CorpusBuilder<'a> {
             .map(|claim| self.intern_ccs_claim(claim))
             .collect::<Vec<_>>();
         let step_proof = self.intern_execution_step_proof(&input.proof);
+        let authority_running_digest = match &input.state.proof {
+            construction2::VerifyStepExecutionProofState::Initial => None,
+            construction2::VerifyStepExecutionProofState::Active { running, .. } => Some(RunningDigestCall {
+                running: self.intern_running(running),
+                relation_columns: self.prep.structure().m,
+                output: AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref())
+                    .digest(),
+            }),
+        };
 
         let mut dispatch = None;
         let mut execution_order = Vec::with_capacity(events.len());
@@ -998,6 +1007,7 @@ impl<'a> CorpusBuilder<'a> {
             input_state,
             next_latest: ordered_claims,
             step_proof,
+            authority_running_digest,
             transcript,
             calls: NativeCallTrace {
                 execution_order,
@@ -1166,7 +1176,6 @@ fn build_native_step_corpus() -> NativeStepCorpus {
         excluded_checks: vec![
             "application Machine.step",
             "incoming prior fresh-link",
-            "full entry pinning",
             "stateful application authenticity",
             "Nebula transition authenticity",
             "terminal acceptance",
@@ -1201,6 +1210,9 @@ fn build_native_step_corpus() -> NativeStepCorpus {
             transcript_label: ascii(neo_fold_clean::paper::f_prime::native::F_PRIME_STEP_TRANSCRIPT_LABEL),
             structure_digest: prep.structure_digest().map(felt),
             verifier_key_digest: prep.vk.digest(),
+            initial_boundary_digest: digest::initial_boundary_digest(prep.structure_digest(), prep.public_input_len),
+            initial_accumulator_digest: AccumulatorHandle::empty().digest(),
+            initial_public_trace: digest::public_trace_seed_digest(prep.structure_digest()),
             pi_ccs_header_bundle: prep.pi_ccs_header_bundle().map(felt),
             ajtai_pp_digest: prep.ajtai_pp_digest().map(felt),
         },

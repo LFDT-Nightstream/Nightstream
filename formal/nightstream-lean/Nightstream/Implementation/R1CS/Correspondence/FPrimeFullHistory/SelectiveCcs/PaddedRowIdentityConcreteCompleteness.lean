@@ -7,7 +7,8 @@ Contract: executable honest completeness for the concrete
 
 Owns: conversion of the direct logical selective-CCS source relation into
 the concrete key's source relation, construction of one complete proof, and
-successful execution of the concrete `Pi_CCS`--`Pi_RLC`--`Pi_DEC` verifier.
+conditional successful execution of the concrete
+`Pi_CCS`--`Pi_RLC`--`Pi_DEC` verifier when its bounded sampler is available.
 
 Does not own: a production matrix artifact, Rust, generated R1CS rows,
 Poseidon2 collision security, Module-SIS hardness, or extraction soundness.
@@ -37,13 +38,15 @@ export PaddedRowIdentityConcreteAlgebra
 end Algebra
 
 namespace Concrete
-export PaddedRowIdentityConcreteNifs (key)
+export PaddedRowIdentityConcreteNifs (key samplerState verify)
 end Concrete
+
+abbrev StatementId := PaddedRowIdentityConcreteNifs.Poseidon2.StatementId
 
 /-- The direct logical selected source relation is exactly the source relation
 consumed by the concrete noninteractive verifier. -/
 theorem logicalSourceHolds_iff_sourceValid
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -72,12 +75,12 @@ theorem logicalSourceHolds_iff_sourceValid
           coordinate.coefficient)
       witness).symm
 
-/-- Every direct logical source witness constructs one concrete proof which
-the executable verifier accepts, together with an independently witnessed
-paper transition. No cryptographic soundness assumption is needed for honest
-completeness. -/
+/-- Every direct logical source witness constructs one concrete proof and an
+independently witnessed paper transition. The selected executable verifier
+accepts that proof whenever its exact post-`Pi_CCS` sampler state has no
+bounded-sampler shortfall. -/
 theorem logicalSource_exists_verifiedTransition
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -95,15 +98,24 @@ theorem logicalSource_exists_verifiedTransition
         witness) :
     exists proof : Proof K Algebra.Commitment shape 9,
     exists result : Running K Algebra.Commitment Algebra.PublicInput shape,
-      verify (Concrete.key statementId ajtaiKey matrices)
-          running fresh proof = some result /\
+      (PaddedRowIdentityConcreteNifs.Poseidon2.SamplerAvailable
+          (Concrete.samplerState
+            (Concrete.key statementId ajtaiKey matrices)
+            running fresh proof) ->
+        Concrete.verify (Concrete.key statementId ajtaiKey matrices)
+            running fresh proof = some result) /\
       Transition (Concrete.key statementId ajtaiKey matrices)
         running fresh result := by
-  apply sourceValid_exists_verifiedTransition
-    (Concrete.key statementId ajtaiKey matrices) running fresh witness
-  exact
+  have sourceValid :=
     (logicalSourceHolds_iff_sourceValid statementId ajtaiKey matrices
-      running fresh
-      witness).mp source
+      running fresh witness).mp source
+  rcases sourceValid_exists_verifiedTransition
+      (Concrete.key statementId ajtaiKey matrices) running fresh witness
+      sourceValid with ⟨proof, result, paperAccepted, transition⟩
+  refine ⟨proof, result, ?_, transition⟩
+  intro available
+  rw [PaddedRowIdentityConcreteNifs.verify_eq_paper_of_samplerAvailable
+    (Concrete.key statementId ajtaiKey matrices) running fresh proof available]
+  exact paperAccepted
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityConcreteCompleteness

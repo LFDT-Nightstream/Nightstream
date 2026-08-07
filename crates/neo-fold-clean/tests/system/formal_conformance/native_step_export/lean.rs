@@ -52,10 +52,6 @@ struct Renderer<'a> {
     inputs: Vec<Vec<u32>>,
     case_inputs: Vec<u32>,
     default_running: u32,
-    initial_accumulator_digest: [u8; 32],
-    initial_boundary_digest: [u8; 32],
-    public_trace_seed: [u8; 32],
-    running_digests: Vec<(u32, [u8; 32])>,
 }
 
 impl<'a> Renderer<'a> {
@@ -87,35 +83,12 @@ impl<'a> Renderer<'a> {
         let default_running = running + 1;
         let initial = &corpus.atoms.states[honest_base.input_state as usize];
         assert!(matches!(initial.branch, StateBranch::Initial));
-        let mut running_digests = Vec::new();
-        for call in corpus
-            .cases
-            .iter()
-            .filter_map(|case| case.calls.running_digest.as_ref())
-        {
-            if let Some((_, output)) = running_digests
-                .iter()
-                .find(|(found, _)| *found == call.running)
-            {
-                assert_eq!(
-                    *output, call.output,
-                    "one materialized running atom must have one digest"
-                );
-            } else {
-                running_digests.push((call.running, call.output));
-            }
-        }
-        running_digests.sort_by_key(|(running, _)| *running);
         Self {
             corpus,
             digests: DigestIds::default(),
             inputs,
             case_inputs,
             default_running,
-            initial_accumulator_digest: initial.acc_digest,
-            initial_boundary_digest: initial.z_0,
-            public_trace_seed: initial.public_trace,
-            running_digests,
         }
     }
 
@@ -145,7 +118,6 @@ impl<'a> Renderer<'a> {
         self.render_states(&mut out);
         self.render_inputs(&mut out);
         self.render_proofs(&mut out);
-        self.render_authority_oracles(&mut out);
         self.render_receipts(&mut out);
         writeln!(
             out,
@@ -248,39 +220,6 @@ impl<'a> Renderer<'a> {
         }
     }
 
-    fn render_authority_oracles(&mut self, out: &mut String) {
-        writeln!(
-            out,
-            "def initialAccumulatorDigest : Digest := {}\n",
-            atom(self.digests.id(self.initial_accumulator_digest))
-        )
-        .unwrap();
-        writeln!(
-            out,
-            "def initialBoundaryDigest : Digest := {}\n",
-            atom(self.digests.id(self.initial_boundary_digest))
-        )
-        .unwrap();
-        writeln!(
-            out,
-            "def publicTraceSeed : Digest := {}\n",
-            atom(self.digests.id(self.public_trace_seed))
-        )
-        .unwrap();
-        let entries = self
-            .running_digests
-            .clone()
-            .into_iter()
-            .map(|(running, digest)| format!("({}, {})", atom(running + 1), atom(self.digests.id(digest))))
-            .collect::<Vec<_>>();
-        writeln!(
-            out,
-            "def runningDigests : RunningDigestTable := [{}]\n",
-            entries.join(", ")
-        )
-        .unwrap();
-    }
-
     fn render_receipts(&mut self, out: &mut String) {
         let mut names = Vec::with_capacity(self.corpus.cases.len());
         let mut definitions = Vec::with_capacity(self.corpus.cases.len());
@@ -292,21 +231,35 @@ impl<'a> Renderer<'a> {
             let outcome = self.render_outcome(index);
             let case = self.corpus.cases[index].clone();
             let vk_fs_digest = self.digests.id(self.corpus.profile.verifier_key_digest);
+            let initial_boundary = self.digests.id(self.corpus.profile.initial_boundary_digest);
+            let initial_accumulator = self
+                .digests
+                .id(self.corpus.profile.initial_accumulator_digest);
+            let initial_public_trace = self.digests.id(self.corpus.profile.initial_public_trace);
+            let authority_running_digest = match &case.authority_running_digest {
+                Some(call) => format!(
+                    "some ({}, {})",
+                    atom(call.running + 1),
+                    atom(self.digests.id(call.output))
+                ),
+                None => "none".to_owned(),
+            };
             let mut definition = String::new();
             writeln!(
                 definition,
                 "def {name} : Receipt where\n  mode := {}\n  context := context\n  \
                  vkFsDigest := {}\n  relationColumns := {}\n  rawEncoding := rawEncoding\n  \
-                 emptyRunning := emptyRunning\n  \
-                 initialAccumulatorDigest := initialAccumulatorDigest\n  \
-                 initialBoundaryDigest := initialBoundaryDigest\n  \
-                 publicTraceSeed := publicTraceSeed\n  runningDigests := runningDigests\n  \
-                 prior := state{}\n  input := input{}\n  \
+                 emptyRunning := emptyRunning\n  authority := {{ initialBoundary := {}, \
+                 initialAccumulator := {}, initialPublicTrace := {}, \
+                 priorRunningDigest := {authority_running_digest} }}\n  prior := state{}\n  input := input{}\n  \
                  proof := proof{}\n  dispatch := {dispatch}\n  calls := {calls}\n  \
                  observed := {observed}\n  outcome := {outcome}\n",
                 mode(case.mode),
                 atom(vk_fs_digest),
                 self.corpus.profile.relation.columns,
+                atom(initial_boundary),
+                atom(initial_accumulator),
+                atom(initial_public_trace),
                 case.input_state + 1,
                 self.case_inputs[index],
                 case.step_proof + 1,

@@ -252,9 +252,9 @@ def check_source_derivation(config: dict) -> int:
     derivation = config["source_derivation"]
     sources = config["sources"]
     by_id = {source["id"]: source for source in sources}
-    patch_source = by_id[derivation["patch_source_id"]]
-    patch_path = ROOT / patch_source["path"]
-    patch_files = parse_unified_patch(patch_path.read_text())
+    patch_sources = [by_id[source_id] for source_id in derivation["patch_source_ids"]]
+    patch_text = "".join((ROOT / source["path"]).read_text() for source in patch_sources)
+    patch_files = parse_unified_patch(patch_text)
     require(
         len(patch_files) == derivation["changed_file_count"],
         "errata changed-file count differs from the locked profile",

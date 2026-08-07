@@ -96,64 +96,71 @@ def branchShape (prior : NativeState) : Bool :=
   | .active _ _ =>
       decide (prior.chunkCount ≠ 0 ∧ prior.stepCount ≠ 0)
 
+/-- Verifier-owned values used by the Rust entry-authority check.  These are
+not transition calls.  The optional running entry is present for the bounded
+materialized-running profile. -/
+structure NativeAuthority where
+  initialBoundary : Digest
+  initialAccumulator : Digest
+  initialPublicTrace : Digest
+  priorRunningDigest : Option (Running × Digest)
+deriving Repr, DecidableEq
+
+def NativeAuthority.runningDigest
+    (authority : NativeAuthority)
+    (running : Running) : Digest :=
+  match authority.priorRunningDigest with
+  | some (found, output) => if found = running then output else poison .digest
+  | none => poison .digest
+
 /-- Entry authority checked by Rust before it consumes the new batch.
 All compact `Running` atoms are materialized, so an active accumulator digest
 must be recomputed from the carried running value. -/
 def NativeStateAuthority
-    (hash :
-      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
-    (semantics :
-      Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (authority : NativeAuthority)
     (mode : XOut.Mode)
     (context : NativeContext)
     (prior : NativeState) : Prop :=
-  prior.z0 = XOut.initialBoundary hash context ∧
+  prior.z0 = authority.initialBoundary ∧
   prior.initialSemanticState = context.initialSemanticState ∧
   match prior.proof with
   | .initial =>
-      prior.accumulatorDigest = semantics.initialAccumulatorDigest ∧
+      prior.accumulatorDigest = authority.initialAccumulator ∧
       prior.semanticState = prior.initialSemanticState ∧
-      prior.publicTrace = XOut.publicTraceSeed hash context
+      prior.publicTrace = authority.initialPublicTrace
   | .active running _ =>
-      prior.accumulatorDigest = semantics.runningDigest running ∧
+      prior.accumulatorDigest = authority.runningDigest running ∧
       match mode with
       | .stateless => prior.semanticState = prior.accumulatorDigest
       | .stateful => True
 
 def nativeStateAuthorityCheck
-    (hash :
-      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
-    (semantics :
-      Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (authority : NativeAuthority)
     (mode : XOut.Mode)
     (context : NativeContext)
     (prior : NativeState) : Bool :=
   decide
-      (prior.z0 = XOut.initialBoundary hash context ∧
+      (prior.z0 = authority.initialBoundary ∧
        prior.initialSemanticState = context.initialSemanticState) &&
   match prior.proof with
   | .initial =>
       decide
-        (prior.accumulatorDigest =
-            semantics.initialAccumulatorDigest ∧
+        (prior.accumulatorDigest = authority.initialAccumulator ∧
          prior.semanticState = prior.initialSemanticState ∧
-         prior.publicTrace = XOut.publicTraceSeed hash context)
+         prior.publicTrace = authority.initialPublicTrace)
   | .active running _ =>
-      decide (prior.accumulatorDigest = semantics.runningDigest running) &&
+      decide (prior.accumulatorDigest = authority.runningDigest running) &&
       match mode with
       | .stateless => decide (prior.semanticState = prior.accumulatorDigest)
       | .stateful => true
 
 theorem nativeStateAuthorityCheck_eq_true_iff
-    (hash :
-      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
-    (semantics :
-      Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (authority : NativeAuthority)
     (mode : XOut.Mode)
     (context : NativeContext)
     (prior : NativeState) :
-    nativeStateAuthorityCheck hash semantics mode context prior = true ↔
-      NativeStateAuthority hash semantics mode context prior := by
+    nativeStateAuthorityCheck authority mode context prior = true ↔
+      NativeStateAuthority authority mode context prior := by
   cases proofCase : prior.proof <;> cases mode <;>
     simp [nativeStateAuthorityCheck, NativeStateAuthority, proofCase, and_assoc]
 
@@ -241,13 +248,14 @@ def NativeHolds
       XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
     (semantics :
       Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (authority : NativeAuthority)
     (mode : XOut.Mode)
     (context : NativeContext)
     (prior next : NativeState)
     (input : NativeInput)
     (proof : NativeProof) : Prop :=
   NativeEntryShape prior ∧
-  NativeStateAuthority hash semantics mode context prior ∧
+  NativeStateAuthority authority mode context prior ∧
   input.nextLatest ≠ [] ∧
   ∃ nextRunning,
     NativeFoldedTo semantics prior input proof nextRunning ∧
@@ -256,6 +264,53 @@ def NativeHolds
     nativeAdvancedState semantics mode prior nextRunning input proof = next ∧
     proof.xOut = XOut.compute hash mode context
       (nativeAdvancedState semantics mode prior nextRunning input proof)
+
+/-- The transition accepted by the native verifier, without its independent
+entry-state authority check.  Lifecycle composition changes some oracle
+semantics, so it transports this part separately from state authority. -/
+def NativeTransitionHolds
+    (hash :
+      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
+    (semantics :
+      Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (mode : XOut.Mode)
+    (context : NativeContext)
+    (prior next : NativeState)
+    (input : NativeInput)
+    (proof : NativeProof) : Prop :=
+  NativeEntryShape prior ∧
+  input.nextLatest ≠ [] ∧
+  ∃ nextRunning,
+    NativeFoldedTo semantics prior input proof nextRunning ∧
+    proof.nebulaOpen = input.nebulaOpen ∧
+    nativeSemanticCheck semantics mode nextRunning proof = true ∧
+    nativeAdvancedState semantics mode prior nextRunning input proof = next ∧
+    proof.xOut = XOut.compute hash mode context
+      (nativeAdvancedState semantics mode prior nextRunning input proof)
+
+theorem nativeHolds_iff_stateAuthority_and_transition
+    (hash :
+      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
+    (semantics :
+      Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (authority : NativeAuthority)
+    (mode : XOut.Mode)
+    (context : NativeContext)
+    (prior next : NativeState)
+    (input : NativeInput)
+    (proof : NativeProof) :
+    NativeHolds hash semantics authority mode context prior next input proof ↔
+      NativeStateAuthority authority mode context prior ∧
+      NativeTransitionHolds hash semantics mode context prior next input proof := by
+  constructor
+  · rintro ⟨entry, authority, nextNonempty, nextRunning, folded, openPayload,
+      semantic, nextState, xOut⟩
+    exact ⟨authority, entry, nextNonempty, nextRunning, folded, openPayload,
+      semantic, nextState, xOut⟩
+  · rintro ⟨authority, entry, nextNonempty, nextRunning, folded, openPayload,
+      semantic, nextState, xOut⟩
+    exact ⟨entry, authority, nextNonempty, nextRunning, folded, openPayload,
+      semantic, nextState, xOut⟩
 
 private def finishNative
     (hash :
@@ -320,6 +375,7 @@ def nativeVerifyStep
       XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
     (semantics :
       Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (authority : NativeAuthority)
     (mode : XOut.Mode)
     (context : NativeContext)
     (prior : NativeState)
@@ -329,7 +385,7 @@ def nativeVerifyStep
     .error .pcOutOfRange
   else if branchShape prior = false then
     .error .baseCaseMismatch
-  else if nativeStateAuthorityCheck hash semantics mode context prior = false then
+  else if nativeStateAuthorityCheck authority mode context prior = false then
     .error .stateAuthorityMismatch
   else if input.nextLatest = [] then
     .error .emptyStep
@@ -352,13 +408,14 @@ theorem nativeVerifyStep_eq_ok_iff
       XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
     (semantics :
       Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (authority : NativeAuthority)
     (mode : XOut.Mode)
     (context : NativeContext)
     (prior next : NativeState)
     (input : NativeInput)
     (proof : NativeProof) :
-    nativeVerifyStep hash semantics mode context prior input proof = .ok next ↔
-      NativeHolds hash semantics mode context prior next input proof := by
+    nativeVerifyStep hash semantics authority mode context prior input proof = .ok next ↔
+      NativeHolds hash semantics authority mode context prior next input proof := by
   unfold nativeVerifyStep NativeHolds NativeEntryShape
   by_cases pc : prior.pc = 1
   · have pcNotNe : ¬ prior.pc ≠ 1 := by simp [pc]
@@ -367,23 +424,23 @@ theorem nativeVerifyStep_eq_ok_iff
     | false => simp
     | true =>
         simp only [true_and]
-        cases authority :
-            nativeStateAuthorityCheck hash semantics mode context prior with
+        cases authorityCheck :
+            nativeStateAuthorityCheck authority mode context prior with
         | false =>
             have notAuthority :
-                ¬ NativeStateAuthority hash semantics mode context prior := by
+                ¬ NativeStateAuthority authority mode context prior := by
               intro holds
               have checkTrue :=
                 (nativeStateAuthorityCheck_eq_true_iff
-                  hash semantics mode context prior).2 holds
-              simp [authority] at checkTrue
+                  authority mode context prior).2 holds
+              simp [authorityCheck] at checkTrue
             simp [notAuthority]
         | true =>
             have authorityHolds :
-                NativeStateAuthority hash semantics mode context prior := by
+                NativeStateAuthority authority mode context prior := by
               exact
                 (nativeStateAuthorityCheck_eq_true_iff
-                  hash semantics mode context prior).1 authority
+                  authority mode context prior).1 authorityCheck
             simp only [authorityHolds, true_and]
             by_cases empty : input.nextLatest = []
             · simp [empty]

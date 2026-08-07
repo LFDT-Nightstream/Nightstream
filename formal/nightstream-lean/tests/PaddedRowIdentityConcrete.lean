@@ -33,8 +33,10 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 #check existsFiniteReductionThroughPiDec
 #check concreteFullOracleSoundness
 #check boundedSampler_refines
-#check shortfall_requires_eleven_rejections
-#check samplerShortfall_probability_le_121_bits
+#check piDecOutputFields_length
+#check shortfall_requires_three_rejections
+#check samplerShortfall_probability_le_182_bits
+#check acceptedCandidate_exactly_balanced
 #check publicWireFields_injective_on_admissible
 #check proofWireFields_injective
 #check ProductionMatrixRefinement
@@ -55,6 +57,15 @@ example : proofEnvelopeTag = 1002 := rfl
 example : codecVersion = 1 := rfl
 example : publicInputTag = 40 := rfl
 example : protocolVersion = 1 := rfl
+example : construction3DomainBytes.length = 34 := by decide
+example : eventSchedule.length = 53 := eventSchedule_length
+example : eventScheduleFields.length = 303 := eventScheduleFields_length
+example : statementIdentifierPrefixFields.length = 353 :=
+  statementIdentifierPrefixFields_length
+example (statementId :
+    Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityPoseidon2.StatementId) :
+    (proofPrefixFields statementId).length = 356 :=
+  proofPrefixFields_length statementId
 example : completeSamplerShortfallBound <= samplerSecurityTarget :=
   completeSamplerShortfallBound_le_target
 

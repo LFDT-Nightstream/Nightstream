@@ -300,7 +300,7 @@ theorem monotone
 
 abbrev VerifierData := Unit
 abbrev VerifierProjection := Unit
-abbrev StatementId := F
+abbrev StatementId := PaddedRowIdentityPoseidon2.StatementId
 abbrev VerifierInput := PublicRunning × PublicFresh × NifsProof
 abbrev VerifierOutput := Option PublicRunning
 abbrev FullStatement :=
@@ -365,19 +365,31 @@ theorem fullStatementBaseCodec_canonical :
     fullStatementProductCodec fullStatementData
     fullStatementProductCodec_canonical fullStatementData_injective
 
-def statementDomain : F := PaddedRowIdentityCodec.fieldOfNat 1201
+/-- Exact Construction 3 statement-identifier prefix: `dst_MF`, the literal
+`statement-id` label, and the complete fixed public event schedule. -/
+def statementIdentifierPrefix : List F :=
+  PaddedRowIdentityPoseidon2.statementIdentifierPrefixFields.map
+    PaddedRowIdentityCodec.fieldOfNat
+
+@[simp] theorem statementIdentifierPrefix_length :
+    statementIdentifierPrefix.length = 353 := by
+  simp [statementIdentifierPrefix]
 
 noncomputable def taggedStatementFields (statement : FullStatement) : List F :=
-  statementDomain :: fullStatementBaseCodec.encode statement
+  statementIdentifierPrefix ++ fullStatementBaseCodec.encode statement
 
 noncomputable def statementCodec :
     Nightstream.HyperNova.NIVCCompatibility.Codec FullStatement F :=
   Nightstream.HyperNova.NIVCCompatibility.Codec.withClassicalDecoder
     taggedStatementFields
 
+noncomputable def identifierGoldCodec :
+    Nightstream.Implementation.Lowering.Goldilocks.Codec StatementId :=
+  Codec.finFunction 4 fieldCodec
+
 noncomputable def identifierCodec :
-    Nightstream.HyperNova.NIVCCompatibility.Codec F F :=
-  toTotalNivcCodec fieldCodec
+    Nightstream.HyperNova.NIVCCompatibility.Codec StatementId F :=
+  toTotalNivcCodec identifierGoldCodec
 
 theorem statementCodec_canonical : statementCodec.Canonical :=
   Nightstream.HyperNova.NIVCCompatibility.Codec.injectivePrefixFree_canonical
@@ -386,17 +398,23 @@ theorem statementCodec_canonical : statementCodec.Canonical :=
       intro left right equal
       apply Nightstream.HyperNova.NIVCCompatibility.Codec.encode_injective
         fullStatementBaseCodec fullStatementBaseCodec_canonical
-      exact (List.cons.inj equal).2)
+      exact (List.append_right_inj statementIdentifierPrefix).mp equal)
     (by
       intro left right suffix prefixed
+      have bodyPrefixed :
+          fullStatementBaseCodec.encode right =
+            fullStatementBaseCodec.encode left ++ suffix := by
+        apply (List.append_right_inj statementIdentifierPrefix).mp
+        simpa only [taggedStatementFields, List.append_assoc] using prefixed
       exact fullStatementBaseCodec_canonical.2.2 left right suffix
-        (by simpa [taggedStatementFields] using prefixed))
+        bodyPrefixed)
 
-/-- The statement transcript contains only the parameter coordinates and two
-canonical sparse compiler streams. No dense matrix coordinate appears. -/
+/-- After the exact Construction 3 prefix, the statement transcript contains
+only the parameter coordinates and two canonical sparse compiler streams. No
+dense matrix coordinate appears. -/
 theorem statementCodec_encode_exact (statement : FullStatement) :
     statementCodec.encode statement =
-      statementDomain ::
+      statementIdentifierPrefix ++
         (parametersGoldCodec.encode statement.parameters ++
           (PaddedRowIdentityCompilerDescription.fields
               statement.runningStructure ++
@@ -407,7 +425,7 @@ theorem statementCodec_encode_exact (statement : FullStatement) :
 /-- Exact logical statement size after removal of dense matrix tables. -/
 theorem statementCodec_encode_length (statement : FullStatement) :
     (statementCodec.encode statement).length =
-      1 + parametersGoldCodec.width +
+      353 + parametersGoldCodec.width +
         (962 + 3 * statement.runningStructure.entryCount) +
         (962 + 3 * statement.freshStructure.entryCount) := by
   rw [statementCodec_encode_exact]
@@ -416,31 +434,38 @@ theorem statementCodec_encode_length (statement : FullStatement) :
   omega
 
 theorem identifierCodec_canonical : identifierCodec.Canonical :=
-  toTotalNivcCodec_canonical fieldCodec (fun _ => True.intro)
+  toTotalNivcCodec_canonical identifierGoldCodec (by
+    intro _ _
+    trivial)
 
-/-- Fixed-length Poseidon2 compression of the complete canonical statement. -/
-def poseidon2Identifier (fields : List F) : F :=
-  PaddedRowIdentityCodec.fieldOfNat
-    (Poseidon2Duplex.challengeField PaddedRowIdentityPoseidon2.constants
-      (Poseidon2Duplex.absorbList PaddedRowIdentityPoseidon2.constants
-        (fields.map fun field => field.val) Poseidon2Duplex.empty)).1
+/-- Fixed-length Poseidon2 compression of the complete canonical statement.
+One gated permutation supplies all four digest lanes. -/
+def poseidon2Identifier (fields : List F) : StatementId :=
+  let digestState := Poseidon2Duplex.gate PaddedRowIdentityPoseidon2.constants
+    (Poseidon2Duplex.absorbList PaddedRowIdentityPoseidon2.constants
+      (fields.map fun field => field.val) Poseidon2Duplex.empty)
+  fun lane => PaddedRowIdentityCodec.fieldOfNat
+    (digestState.lanes
+      ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩)
 
 noncomputable def statementIdentifier :
     StatementIdentifierScheme FullStatement StatementId F where
   statementCodec := statementCodec
-  domainLabel := [statementDomain]
+  domainLabel := statementIdentifierPrefix
   hash := poseidon2Identifier
   identifierCodec := identifierCodec
-  identifierWidth := 1
+  identifierWidth := 4
 
 theorem statementIdentifier_holds : statementIdentifier.Holds := by
   refine ⟨statementCodec_canonical, identifierCodec_canonical, ?_, ?_, ?_⟩
-  · change ([statementDomain] : List F) ≠ []
-    simp
+  · change statementIdentifierPrefix ≠ []
+    intro empty
+    have sameLength := congrArg List.length empty
+    simp at sameLength
   · intro statement
     exact ⟨fullStatementBaseCodec.encode statement, rfl⟩
   · intro statementId
-    exact fieldCodec.encode_length statementId
+    exact identifierGoldCodec.encode_length statementId
 
 /-- Equal Poseidon2 statement identifiers bind the exact thirteen-matrix
 families used by both relation positions, or expose the named complete-
@@ -477,7 +502,7 @@ def fixedStatement (parameters : Parameters) (system : Structure) :
 
 noncomputable def verifyFull
     (statement : FullStatement) (input : VerifierInput) : VerifierOutput :=
-  verify
+  PaddedRowIdentityConcreteNifs.verify
     (PaddedRowIdentityConcreteNifs.key
       (statementIdentifier.identifier statement)
       statement.parameters.ajtaiKey
@@ -488,7 +513,7 @@ noncomputable def verifyFull
 noncomputable def verifyRecursive
     (key : RecursiveVerifierKey VerifierProjection StatementId)
     (input : VerifierInput) : VerifierOutput :=
-  verify
+  PaddedRowIdentityConcreteNifs.verify
     (PaddedRowIdentityConcreteNifs.compactKey key.statementId)
     input.1 input.2.1 input.2.2
 
@@ -524,7 +549,8 @@ theorem compactVerifier_holds
 
 /-- The exact fixed-length statement identifier for one selected augmented
 circuit. It binds the public parameters, both structures, and verifier data. -/
-noncomputable def statementId (parameters : Parameters) (system : Structure) : F :=
+noncomputable def statementId
+    (parameters : Parameters) (system : Structure) : StatementId :=
   statementIdentifier.identifier (fixedStatement parameters system)
 
 /-- Construction 2 setup whose every NIFS transcript starts with the exact

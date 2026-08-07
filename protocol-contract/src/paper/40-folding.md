@@ -1,8 +1,14 @@
 ## PAPER-PICCS — reviewed joint PiCCS
 
-`PAPER-PICCS-001` The paper assumes `m=n_F`, `n_F` is a power of two, and the
-first matrix is the identity. PiCCS reduces
+`PAPER-PICCS-001` The paper assumes that `m` is a power of two, `n_F<=m`, and
+the first matrix is the canonical injection `M_1=[I_(n_F);0]`. PiCCS reduces
 `CCS(b,L)^K * CE(b,L)^k` to `CE(b,L)^(K+k)`.
+
+The paper permits one common row cube when the logical row count and the
+assignment width differ. It normalizes an original relation by choosing
+`m>=max(m',n_F)`, prepending the padding injection, and using either repeated
+constraint rows or zero rows when `f'(0,...,0)=0`. In both cases, PiCCS uses
+one `log m`-variable SumCheck. It does not require `m=n_F`.
 
 These are the literal printed relation powers. Under `PAPER-BATCH-001`, they are
 too broad because the displayed protocol has one carried point `r` and one
@@ -59,14 +65,14 @@ The proof needs the disjoint exponent blocks, linear independence of the powers
 of `C`, Lemma 6, and the scalar equivalence
 `P_b(a)=0 iff abs(ctr_q(a))<b`. All three items use the **same** vectors `z_i`.
 
-`PAPER-PICCS-005` The joint protocol states three hypotheses: `m=n_F`, `n_F` is
-a power of two, and `M_1=I_(n_F)`. The identity hypothesis carries the norm
-item of Lemma 7 to the verifier. Because `M_1=I`, the terminal opening gives
-`ct(y'_(i,1))=tilde(z_i)(r')`, and `y'_(i,1)` is a field of the output CE
+`PAPER-PICCS-005` The joint protocol requires `m` to be a power of two,
+`n_F<=m`, and `M_1=[I_(n_F);0]`. The padding-injection hypothesis carries the
+norm item of Lemma 7 to the verifier. The terminal opening gives
+`ct(y'_(i,1))=MLE(z_i||0)(r')`, and `y'_(i,1)` is a field of the output CE
 instance. The norm check therefore reads the same vector that the output CE
 relation binds to the commitment `c_i`.
 
-Remark 3 states this simplification. Without the identity hypothesis, the paper
+Remark 3 states this rule. Without the padding-injection hypothesis, the paper
 gives no other rule that binds the norm-check opening to the committed witness.
 
 `PAPER-PICCS-006` Lemma 3 states that `Pi_CCS` is strong for the function `phi`
@@ -80,7 +86,7 @@ R'_2 = CE(B_amb,L)^(K+k).
 
 The ambient output relation uses `B_amb`, not `b` and not `B`.
 
-Source: `SRC-PAPER-07`, lines 45-133, and `SRC-PAPER-13`, lines 84-180.
+Source: `SRC-PAPER-07`, lines 5-143, and `SRC-PAPER-13`, lines 102-200.
 
 ## PAPER-PIRLC — PiRLC
 

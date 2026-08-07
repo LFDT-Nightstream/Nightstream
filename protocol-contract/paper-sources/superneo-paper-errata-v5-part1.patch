@@ -1,0 +1,969 @@
+diff --git a/docs/superneo-paper/00-front-matter.md b/docs/superneo-paper/00-front-matter.md
+index df09b56cb7a8ab29310aef2522e7dd2378ea1103..26e00086623d6c59e5eb06d8c25e1fb8315d16b3 100644
+--- a/docs/superneo-paper/00-front-matter.md
++++ b/docs/superneo-paper/00-front-matter.md
+@@ -1,4 +1,6 @@
+-# Neo and SuperNeo: Post-quantum folding with pay-per-bit costs over small fields
++# Neo and SuperNeo: Lattice-based folding with pay-per-bit costs over small fields
++
++> **Local corrected working copy.** This repository copy applies local errata to the original Nguyen–Setty manuscript, including changes to the title, abstract, definitions, theorem statements, and proofs. Do not attribute the edited wording to the original authors. See Section 9.1 and `superneo-paper-errata.patch` for the complete delta.
+ 
+ Wilson Nguyen  
+ Stanford University, New York University,  
+@@ -7,6 +9,6 @@ and Microsoft Research
+ Srinath Setty  
+ Microsoft Research
+ 
+-**Abstract.** We construct the first folding scheme that simultaneously achieves six desirable properties: plausible post-quantum security, pay-per-bit commitment costs, field-native arithmetic (the sum-check and norm checks run purely over a small field), support for general (non-SIMD) constraint systems, small-field support (e.g., Goldilocks), and low recursion overheads. No existing scheme satisfies all six: group-based schemes (e.g., HyperNova) lack post-quantum security and are tied to large elliptic-curve fields; lattice-based schemes (e.g., LatticeFold) require expensive ring arithmetic, lose pay-per-bit costs, and impose SIMD constraints; and hash-based schemes (e.g., Arc) incur large verifier circuits.
++**Abstract.** We construct folding schemes that simultaneously achieve six desirable properties: a computational foundation based on Module-SIS, pay-per-bit commitment costs, field-native arithmetic (the sum-check and norm checks run purely over a small field), support for general (non-SIMD) constraint systems, small-field support (e.g., Goldilocks), and low recursion overheads. Group-based schemes such as HyperNova rely on discrete-logarithm assumptions and are tied to large elliptic-curve fields; lattice-based schemes such as LatticeFold require expensive ring arithmetic, lose pay-per-bit costs, and impose SIMD constraints; and hash-based schemes such as Arc incur large verifier circuits.
+ 
+-We present two lattice-based folding schemes for CCS—an NP-complete relation generalizing R1CS, Plonkish, and AIR—called Neo and SuperNeo. Neo satisfies five of the six properties but requires SIMD constraint systems; SuperNeo removes this restriction and satisfies all six. Both run a single invocation of the sum-check protocol over a small field extension and achieve pay-per-bit costs via new folding-friendly instantiations of Ajtai commitments under the Module-SIS assumption. At the core of our constructions are two new norm-preserving embeddings of field vectors into ring vectors that respect an evaluation homomorphism required for folding. We also introduce *interactive reductions*, a framework that generalizes reductions of knowledge and enables modular security proofs for composed lattice-based protocols.
++We present two lattice-based folding schemes for CCS—an NP-complete relation generalizing R1CS, Plonkish, and AIR—called Neo and SuperNeo. Neo satisfies five of the six properties but requires SIMD constraint systems; SuperNeo removes this restriction and satisfies all six. Both run a single invocation of the sum-check protocol over a small field extension and achieve pay-per-bit costs via new folding-friendly instantiations of Ajtai commitments under the Module-SIS assumption. At the core of our constructions are two new norm-preserving embeddings of field vectors into ring vectors that respect an evaluation homomorphism required for folding. We also introduce *interactive reductions*, a framework that generalizes reductions of knowledge and enables modular security proofs for composed lattice-based protocols. Our knowledge-soundness proofs use classical rewinding. Knowledge soundness against quantum provers and Fiat–Shamir security in the quantum random-oracle model are outside the scope of this work.
+diff --git a/docs/superneo-paper/01-1-introduction.md b/docs/superneo-paper/01-1-introduction.md
+index 6718495b84344366b81811dffe8e90662c260fc8..470f1d017617853657d9bef70d9fc51cf78a1726 100644
+--- a/docs/superneo-paper/01-1-introduction.md
++++ b/docs/superneo-paper/01-1-introduction.md
+@@ -6,7 +6,7 @@ A folding scheme [57] is a cryptographic primitive that reduces the task of chec
+ 
+ *A motivating application: post-quantum signature aggregation.* Ethereum’s consensus layer relies on BLS signatures [18], which offer efficient aggregation: a single pairing check suffices for hundreds of thousands of validator attestations. However, BLS signatures are not post-quantum secure. Ethereum’s planned transition to a post-quantum scheme (e.g., the hash-based XMSS [44]) reintroduces the scalability challenge, since such schemes lack the algebraic structure of BLS and their signatures are large and expensive to verify individually. A natural solution is to use recursive SNARKs to aggregate these signatures [34] in a distributed manner (a la proof-carrying data). Folding schemes are well suited here: each signature can be folded into the aggregate proof, yielding significantly lower latency and prover cost at each recursive step than traditional SNARK recursion—a critical advantage when up to a million signatures must be aggregated within time-sensitive slots of a consensus protocol.
+ 
+-Realizing this approach requires a folding scheme that is both efficient *and* plausibly post-quantum secure. More broadly, what properties should a practical folding scheme satisfy?
++Realizing this approach requires an efficient folding scheme whose computational assumptions are intended to resist quantum attacks. Full security for this application would also require knowledge soundness against quantum provers and a secure non-interactive compilation. This paper does not prove those two properties. More broadly, what properties should a practical folding scheme satisfy?
+ 
+ ### 1.1 Six desiderata for a practical folding scheme
+ 
+@@ -16,9 +16,9 @@ State-of-the-art folding schemes [20, 35, 53–57] have converged on an efficien
+ 
+ <sup>1</sup> If the witness contains “small” field elements (e.g., from the set  $\{0, 1, \dots, 2^{32} - 1\}$ ), state-of-the-art folding schemes perform more than two orders of magnitude less work than a monolithic SNARK prover such as Marlin [30]. Proof systems such as Spartan and variants [78, 79] incur lower overheads than Marlin, but they must still produce a PIOP and PCS evaluation argument.
+ 
+-(Pedersen or KZG) and employs sum-check-type techniques [62]. For instance, the prover in HyperNova [55] performs a *single* multi-scalar multiplication (MSM) to commit to its witness, with costs that scale with the bit-width of witness values ("pay-per-bit"). However, these schemes are not post-quantum secure and are tied to  $\approx 256$ -bit elliptic-curve fields. Below, we distill six properties that a practical folding scheme should satisfy.
++(Pedersen or KZG) and employs sum-check-type techniques [62]. For instance, the prover in HyperNova [55] performs a *single* multi-scalar multiplication (MSM) to commit to its witness, with costs that scale with the bit-width of witness values ("pay-per-bit"). However, the discrete-logarithm foundation of these schemes is vulnerable to quantum algorithms, and the schemes are tied to  $\approx 256$ -bit elliptic-curve fields. Below, we distill six properties that a practical folding scheme should satisfy.
+ 
+-*D1: Post-quantum security.* The scheme should be plausibly secure against quantum adversaries. Group-based folding schemes [20, 35, 55–57] rely on the hardness of the discrete logarithm problem, which Shor’s algorithm [80] can efficiently solve on a quantum computer.
++*D1: Quantum-resistant computational foundation.* The scheme's computational binding assumption should be one for which no efficient quantum attack is known. Group-based folding schemes [20, 35, 55–57] rely on the hardness of the discrete logarithm problem, which Shor’s algorithm [80] can efficiently solve on a quantum computer. For Neo and SuperNeo, D1 refers only to the Module-SIS assumption underlying commitment binding. It does not claim knowledge soundness against quantum provers or Fiat–Shamir security in the quantum random-oracle model.
+ 
+ *D2: Pay-per-bit commitment costs.* The cost to commit to a witness should scale with the bit-width of the witness values: for example, committing to a vector of  $b$ -bit values should be roughly  $b$  times cheaper than committing to values that span the full field. Group-based schemes achieve this via Pedersen or KZG commitments. LatticeFold, however, relies on the NTT embedding to map field vectors into ring vectors. Because the NTT is not a norm-preserving map, the resulting ring vectors have arbitrary norm regardless of the bit-width of the original witness elements. Since the Ajtai commitment scheme requires decomposing these arbitrary-norm ring elements for binding, the commitment cost is the same whether the original values are 1-bit or 64-bit. Hash-based schemes (e.g., Arc [24]) also lack this property, since their commitment costs are determined by the code rate and security parameter, not by witness bit-widths.
+ 
+@@ -34,13 +34,13 @@ we mean fields whose modulus  $q$  fits within a machine register—for example,
+ 
+ *D6: Low recursion overheads.* The recursive verifier circuit should be small enough that the per-step prover cost of IVC remains practical. Group-based schemes achieve this: Nova’s and NeutronNova’s verifier circuits are constant-sized:  $\approx 10,000$  R1CS constraints. Hash-based schemes suffer from large verifier circuits; for example, Arc [24] requires  $2 \cdot \lambda / \log(1/\rho)$  Merkle tree openings, translating to  $\approx 1,600,000$  R1CS constraints at  $\lambda = 128$  and  $\rho = 1/2$  with Poseidon [43]. Prior to this, Bünz et al. [25] provide a different hash-based scheme with even worse verifier circuit overheads [24, Table 1], and only provides “bounded depth” IVC. Lova also incurs extreme overheads, reporting a prover time of  $\approx 3,000$  seconds for a subset sum instance of length  $2^{19}$  [37, Table 2], compared to 500 ms for Nova on an R1CS instance of the same size. More broadly, folding schemes that rely on ring sum-check techniques—such as LatticeFold [14] and SALSAA [59]—inherit high recursion overheads because the recursive verifier must hash ring elements rather than field elements. For example, a single ring element in LatticeFold occupies  $64 \times 64 = 4,096$  bytes, compared to 32 bytes for a 256-bit field element in HyperNova, resulting in  $128 \times$  more data for the verifier circuit to hash. Achieving constant verifier circuit size like Nova or NeutronNova in the lattice setting is difficult and remains an open problem. Our goal is to achieve logarithmic recursion overhead (with similar constants) analogous to HyperNova.
+ 
+-*Research question. Can we build a folding scheme that satisfies all six desiderata—in particular, one that is post-quantum secure, works natively over small prime fields, and matches the efficiency of state-of-the-art group-based schemes?*
++*Research question. Can we build a folding scheme that satisfies all six desiderata—in particular, one based on a quantum-resistant computational assumption, that works natively over small prime fields, and that matches the efficiency of state-of-the-art group-based schemes?*
+ 
+-Figure 1 summarizes the landscape. No existing folding scheme satisfies all six desiderata. Group-based schemes meet D2–D4 and D6 but fail D1 and D5. Hash-based schemes achieve D1 but sacrifice D2 and D6. LatticeFold, LatticeFold+, and SALSAA each achieve D1 but fail D2–D4 and D6; LatticeFold and LatticeFold+ additionally fail D5. Neo satisfies D1–D3, D5, and D6, but requires SIMD constraint systems (D4). SuperNeo is the first scheme to satisfy all six.
++Figure 1 summarizes the landscape under these definitions. D1 classifies the computational foundation only; a check mark in that column is not a claim of quantum-prover knowledge soundness. Group-based schemes meet D2–D4 and D6 but fail D1 and D5. Hash-based schemes achieve D1 but sacrifice D2 and D6. LatticeFold, LatticeFold+, and SALSAA each achieve D1 but fail D2–D4 and D6; LatticeFold and LatticeFold+ additionally fail D5. Neo satisfies D1–D3, D5, and D6, but requires SIMD constraint systems (D4). SuperNeo satisfies all six.
+ 
+ ### 1.2 Our work: Neo and SuperNeo
+ 
+-We present Neo and SuperNeo, the first folding schemes to satisfy all six desiderata (Figure 1). Our constructions are lattice analogs of HyperNova [55]: the prover
++We present Neo and SuperNeo, lattice-based folding schemes that target all six desiderata (Figure 1). Our constructions are lattice analogs of HyperNova [55]: the prover
+ 
+ |                             | D1 | D2 | D3 | D4             | D5 | D6 |
+ |-----------------------------|----|----|----|----------------|----|----|
+@@ -59,13 +59,13 @@ We present Neo and SuperNeo, the first folding schemes to satisfy all six deside
+ 
+ <sup>†</sup>Neo requires a SIMD constraint system (D4) and is subsumed by SuperNeo, which removes this requirement. The table lists schemes in the order they appeared; we present Neo and SuperNeo separately because Neo was independently preprinted and several subsequent works build on it, so separating the two simplifies attributing techniques to the correct scheme.
+ 
+-Fig. 1: Comparison of folding schemes against the six desiderata. ✓ = satisfied, ✗ = not satisfied. See Section 1.1 for definitions.
++Fig. 1: Comparison of folding schemes against the six desiderata. ✓ = satisfied, ✗ = not satisfied. D1 concerns the computational foundation only. See Section 1.1 for definitions.
+ 
+-commits to a CCS [79] witness using a lattice-based commitment scheme with pay-per-bit costs, runs a single invocation of the sum-check protocol over an extension of a small prime field<sup>3</sup>, and achieves plausible post-quantum security under a standard structured lattice assumption (Module-SIS). Both schemes also provide multi-folding, which folds multiple CCS instances at once, amortizing the decomposition costs required to manage lattice norm growth. By applying standard compilers from folding schemes to IVC [55, 57] and PCD [85], we obtain a plausibly post-quantum IVC/PCD scheme. Since our constructions natively support SNARK-friendly fields like Goldilocks, they enable efficient proof compression using Spartan [78, 79] with a FRI-based polynomial commitment scheme [10]—without requiring any non-native arithmetic or field emulation.
++commits to a CCS [79] witness using a lattice-based commitment scheme with pay-per-bit costs, runs a single invocation of the sum-check protocol over an extension of a small prime field<sup>3</sup>, and relies on a standard structured lattice assumption (Module-SIS). Both schemes also provide multi-folding, which folds multiple CCS instances at once, amortizing the decomposition costs required to manage lattice norm growth. Standard compilers from folding schemes to IVC [55, 57] and PCD [85] apply in the paper's classical interactive-reduction model. Establishing knowledge soundness against quantum provers, or security of a Fiat–Shamir compilation in the quantum random-oracle model, requires a separate analysis. Since our constructions natively support SNARK-friendly fields like Goldilocks, they enable efficient proof compression using Spartan [78, 79] with a FRI-based polynomial commitment scheme [10]—without requiring any non-native arithmetic or field emulation.
+ 
+ The key technical challenge is *embedding* field vectors (CCS witnesses) into the ring vectors that Ajtai commitments operate over, while preserving the algebraic structure—norm bounds, evaluation homomorphisms—that a sum-check-based folding scheme like HyperNova requires. We introduce two new norm-preserving embeddings (the **Neo** and **SuperNeo embeddings**) that resolve this challenge, and a new security framework (**interactive reductions**) that enables modular proofs of knowledge soundness for lattice-based protocols. We detail the problems with prior approaches and our solutions in the following sections.
+ 
+-<sup>3</sup> When using a 64-bit field, a degree-2 extension is sufficient for 128 bits of security.
++<sup>3</sup> When using a 64-bit base field, a degree-2 extension gives a challenge field of approximately 128 bits.
+ 
+ **1.2.1 Challenges and prior solutions** Achieving desiderata D2–D4 and D6 for a lattice-based folding scheme requires solving a common problem: how to embed field vectors into the ring vectors that Ajtai commitments [2] operate over. Any such embedding must support protocols that check both the norm of the committed ring vectors and CCS constraints on the underlying field vectors. Below, we describe the Ajtai commitment scheme and the challenges that prior solutions leave open.
+ 
+@@ -112,11 +112,11 @@ with constraints over the coefficient vectors of the ring vector itself, and vic
+ 
+ $$\text{Coeff}(\mathbf{z}) = \begin{bmatrix} \hline z^{(1)} \\ \hline z^{(2)} \\ \hline \vdots \\ \hline z^{(d)} \end{bmatrix} = \begin{bmatrix} | & | & & | \\ z_1 & z_2 & \cdots & z_n \end{bmatrix}$$
+ 
+-Since the coefficient vectors coincide exactly with the underlying field vectors, the Neo embedding is a norm-preserving map; checking the norm of the ring vector can be done purely with field constraints over the underlying vectors  $z^{(1)}, \dots, z^{(d)} \in \mathbb{F}^n$ . Moreover, the field CCS constraints can immediately be checked over the underlying field vectors themselves. As a result, the sum-check protocol can be executed purely over the field, and no ring operations are required. The sum-check protocol reduces these norm and CCS constraints down to checking random multilinear evaluations of the underlying field vectors; for example,  $y = \overline{Mz}(r)$  for some CCS matrix  $M \in \mathbb{F}^{m \times n}$ . Explicitly, an evaluation claim has the following form: Consider a committed ring vector  $\mathbf{z}$  (with commitment  $c = Az$ ), do the underlying field vectors  $z^{(1)}, \dots, z^{(d)}$  evaluate to some claimed values  $y^{(1)}, \dots, y^{(d)}$  at a random extension field point  $r$ ? Since we are constructing a folding scheme, our goal is to fold these evaluation claims together into a single evaluation claim by taking a random linear combination of the commitments and of the evaluation claims.
++Since the coefficient vectors coincide exactly with the underlying field vectors, the Neo embedding is a norm-preserving map; checking the norm of the ring vector can be done purely with field constraints over the underlying vectors  $z^{(1)}, \dots, z^{(d)} \in \mathbb{F}^n$ . Moreover, the field CCS constraints can immediately be checked over the underlying field vectors themselves. As a result, the sum-check protocol can be executed purely over the field, and no ring operations are required. The sum-check protocol reduces these norm and CCS constraints down to checking random multilinear evaluations of the underlying field vectors; for example,  $y = \widetilde{Mz}(r)$  for some CCS matrix  $M \in \mathbb{F}^{m \times n}$ . Explicitly, an evaluation claim has the following form: Consider a committed ring vector  $\mathbf{z}$  (with commitment  $c = A\mathbf z$ ), do the underlying field vectors  $z^{(1)}, \dots, z^{(d)}$  evaluate to some claimed values  $y^{(1)}, \dots, y^{(d)}$  at a random extension field point  $r$ ? Since we are constructing a folding scheme, our goal is to fold these evaluation claims together into a single evaluation claim by taking a random linear combination of the commitments and of the evaluation claims.
+ 
+ *Does the Neo embedding respect an **evaluation homomorphism** such that we can fold these evaluation claims together?*
+ 
+-We prove that the Neo embedding does indeed exactly respect the type of evaluation homomorphism required to fold these evaluation claims together. Consider two committed ring vectors  $\mathbf{z}$  and  $\mathbf{z}'$  (with commitments  $c = Az$  and  $c' = Az'$ ) and their underlying field vectors  $z^{(1)}, \dots, z^{(d)}$  and  $z'^{(1)}, \dots, z'^{(d)}$  with evaluations  $y^{(1)}, \dots, y^{(d)}$  and  $y'^{(1)}, \dots, y'^{(d)}$  at the same random extension field point  $r$ . We simply embed the evaluations into ring elements  $\mathbf{y} := \sum_i y^{(i)} \cdot X^{i-1}$  and  $\mathbf{y}' := \sum_i y'^{(i)} \cdot X^{i-1}$  by placing the evaluations in the same coefficient slots as the underlying field vectors. We show that taking the linear combination  $\mathbf{z}'' := \mathbf{z} + \delta \cdot \mathbf{z}'$  ( $c'' = c + \delta \cdot c'$ ) for any  $\delta \in \mathbb{R}_{\mathbb{F}}$  results in a ring vector  $\mathbf{z}''$  ( $c''$ ) whose underlying field vectors  $z''^{(1)}, \dots, z''^{(d)}$  evaluate to the coefficients of the linear combination  $\mathbf{y}'' := \mathbf{y} + \delta \cdot \mathbf{y}'$ . If the challenge  $\delta$  is a ring element with low-norm [3, 28], then the resulting vector  $\mathbf{z}''$  will also have low norm and the commitment  $c''$  will be a valid commitment to  $\mathbf{z}''$ . It is quite surprising that
++We prove that the Neo embedding does indeed exactly respect the type of evaluation homomorphism required to fold these evaluation claims together. Consider two committed ring vectors  $\mathbf{z}$  and  $\mathbf{z}'$  (with commitments  $c = A\mathbf z$  and  $c' = A\mathbf z'$ ) and their underlying field vectors  $z^{(1)}, \dots, z^{(d)}$  and  $z'^{(1)}, \dots, z'^{(d)}$  with evaluations  $y^{(1)}, \dots, y^{(d)}$  and  $y'^{(1)}, \dots, y'^{(d)}$  at the same random extension field point  $r$ . We simply embed the evaluations into ring elements  $\mathbf{y} := \sum_i y^{(i)} \cdot X^{i-1}$  and  $\mathbf{y}' := \sum_i y'^{(i)} \cdot X^{i-1}$  by placing the evaluations in the same coefficient slots as the underlying field vectors. We show that taking the linear combination  $\mathbf{z}'' := \mathbf{z} + \delta \cdot \mathbf{z}'$  ( $c'' = c + \delta \cdot c'$ ) for any  $\delta \in \mathbb{R}_{\mathbb{F}}$  results in a ring vector  $\mathbf{z}''$  ( $c''$ ) whose underlying field vectors  $z''^{(1)}, \dots, z''^{(d)}$  evaluate to the coefficients of the linear combination  $\mathbf{y}'' := \mathbf{y} + \delta \cdot \mathbf{y}'$ . If the challenge  $\delta$  is a ring element with low-norm [3, 28], then the resulting vector  $\mathbf{z}''$  will also have low norm and the commitment  $c''$  will be a valid commitment to  $\mathbf{z}''$ . It is quite surprising that
+ 
+ this type of embedding would respect any sort of evaluation homomorphism for multilinear evaluations over the underlying field vectors, given that the commitment scheme and linear combination are defined over the ring. For the NTT embedding, this type of evaluation homomorphism is trivial since the NTT is a ring isomorphism, but for the Neo embedding over coefficients, this is not at all clear. While this embedding is quite natural, it is quite non-trivial to show that it also respects an **evaluation homomorphism**, which is required to batch multilinear evaluations of the underlying field vectors together (a requirement for folding schemes based on sum-check). Given two ring vectors and multilinear evaluations of their underlying field vectors, why does taking a random linear combination of these ring vectors over the ring result in a ring vector whose underlying field vectors evaluate to the same random linear combination of the original field evaluations? For the NTT embedding, this is trivial since the NTT is a ring isomorphism, but for the Neo embedding over coefficients, this is not at all clear. In a prior version of this work, we proved that the Neo embedding respected this evaluation homomorphism with the fact that a ring multiplication (and hence the random linear combination) is merely a linear map over the field; in particular, a ring multiplication can be simulated by multiplying the coefficient vector by the rotation matrix  $\text{rot}(\delta)$  (or circulant matrix) associated with the ring element  $\delta$ . Because of this linearity, the ring linear combination must respect the corresponding multilinear evaluations of the coefficients. However, we present a much simpler interpretation and proof of the evaluation homomorphism by identifying the base field  $\mathbb{F}$  as merely the constant polynomials in the cyclotomic ring  $R_{\mathbb{F}} := \mathbb{F}[X]/(\phi(X))$  and identifying the ring  $R_{\mathbb{F}}$  itself as base field polynomials in a larger ring  $R_{\mathbb{K}} := \mathbb{K}[X]/(\phi(X))$  consisting of polynomials whose coefficients belong to the extension field  $\mathbb{K}$ .
+ 
+@@ -136,13 +136,17 @@ Thus, in this work, we also introduce the **SuperNeo embedding**, which is a nor
+ 
+ $$z = \left[ \begin{array}{c|c|c|c|c} z_1 & z_2 & \cdots & z_n \end{array} \right]$$
+ 
+-$$\text{Coeff}(z) = \left[ \begin{array}{c|c|c|c|c} z_1 & z_2 & \cdots & z_n \end{array} \right]$$
++$$\operatorname{cf}(\mathbf z) = \left[ \begin{array}{c|c|c|c|c} z_1 & z_2 & \cdots & z_n \end{array} \right]$$
+ 
+-The SuperNeo embedding is a norm-preserving map since the underlying field vector  $z \in \mathbb{F}^{dn}$  is exactly the coefficients of the committed ring vector  $\mathbf{z} \in R_{\mathbb{F}}^n$ . Hence, checking both the norm and CCS constraints can be done purely with field constraints over the underlying vector  $z \in \mathbb{F}^{dn}$ . As such, the sum-check protocol can be executed purely over the field, resulting in evaluation claims of the form  $y = \overline{Mz}(r)$  for some CCS matrix  $M \in \mathbb{F}^{m \times dn}$ . Now, it is unclear whether the SuperNeo embedding respects the required evaluation homomorphism. Unlike the Neo embedding evaluation claims, we only have single evaluations  $y, y' \in \mathbb{K}$  (instead of  $d$ ); how can we embed these evaluations into ring elements  $\mathbf{y}, \mathbf{y}'$  such that taking a random linear combination of the committed ring vectors  $\mathbf{z}'' := \mathbf{z} + \delta \cdot \mathbf{z}' \in R_{\mathbb{F}}^n$  results in a ring vector whose underlying field vector  $z'' \in \mathbb{F}^{dn}$  that evaluates to the embedded evaluation in  $\mathbf{y}'' := \mathbf{y} + \delta \cdot \mathbf{y}'$ ? As we will see, arguing the evaluation homomorphism for the Neo embedding relies on the fact that the underlying field vectors are directly placed in the coefficient slots of the ring vector, but in the SuperNeo embedding we do not have this nice parallel structure (taking a random linear combination over the ring permutes and mixes the coefficients in a non-trivial way).
++The SuperNeo embedding is a norm-preserving map since the underlying field vector  $z \in \mathbb{F}^{dn}$  is exactly the coefficients of the committed ring vector  $\mathbf{z} \in R_{\mathbb{F}}^n$ . Hence, checking both the norm and CCS constraints can be done purely with field constraints over the underlying vector  $z \in \mathbb{F}^{dn}$ . As such, the sum-check protocol can be executed purely over the field, resulting in evaluation claims of the form  $y = \widetilde{Mz}(r)$  for some CCS matrix  $M \in \mathbb{F}^{m \times dn}$ . Now, it is unclear whether the SuperNeo embedding respects the required evaluation homomorphism. Unlike the Neo embedding evaluation claims, we only have single evaluations  $y, y' \in \mathbb{K}$  (instead of  $d$ ); how can we embed these evaluations into ring elements  $\mathbf{y}, \mathbf{y}'$  such that taking a random linear combination of the committed ring vectors  $\mathbf{z}'' := \mathbf{z} + \delta \cdot \mathbf{z}' \in R_{\mathbb{F}}^n$  results in a ring vector whose underlying field vector  $z'' \in \mathbb{F}^{dn}$  that evaluates to the embedded evaluation in  $\mathbf{y}'' := \mathbf{y} + \delta \cdot \mathbf{y}'$ ? As we will see, arguing the evaluation homomorphism for the Neo embedding relies on the fact that the underlying field vectors are directly placed in the coefficient slots of the ring vector, but in the SuperNeo embedding we do not have this nice parallel structure (taking a random linear combination over the ring permutes and mixes the coefficients in a non-trivial way).
+ 
+ However, we show that there is indeed a corresponding choice of evaluation embedding of  $y \in \mathbb{K}$  into  $\mathbf{y} \in R_{\mathbb{K}}$  such that the evaluation homomorphism holds. To do so, we adapt a technique from the lattice literature [12, 36, 64] called the (*Galois, conjugation, or inner product*) *automorphism* trick for cyclotomic rings. In these works, the automorphism trick  $\sigma : R_{\mathbb{F}} \to R_{\mathbb{F}}$  was used to check the norm of ring vectors by simulating field vector inner products  $\langle a, b \rangle$  with ring multiplication  $\sigma(\mathbf{a}) \cdot \mathbf{b}$  (which help with checking random projections [12] or products [64]). We lift this automorphism trick to embed the CCS matrices  $M \in \mathbb{F}^{m \times dn}$  into ring
+ 
+-matrices  $\mathbf{M} \in \mathbb{R}_{\mathbb{K}}^{m \times n}$  such that the evaluation  $\mathbf{y} = \widetilde{\mathbf{M}z(r)} \in \mathbb{K}$  is the constant term of  $\mathbf{y} = \widetilde{\mathbf{M}z(r)} \in \mathbb{R}_{\mathbb{K}}$ . Then, we show that the evaluation homomorphism follows from linearity (similar to the Neo embedding).
++matrices  $\bar M \in \mathbb{R}_{\mathbb{F}}^{m \times n}$  such that, for the coefficient embedding  $\mathbf z\in\mathbb R_{\mathbb F}^n$  of  $z$  and every  $r\in\mathbb K^{\log m}$ ,
++
++$$\operatorname{ct}\!\left(\widehat{\bar M\mathbf z}(r)\right)=\widetilde{Mz}(r).$$
++
++Then, we show that the evaluation homomorphism follows from linearity (similar to the Neo embedding).
+ 
+ ### Contribution 2: Strong and Weak Interactive Reductions
+ 
+diff --git a/docs/superneo-paper/02-2-technical-overview.md b/docs/superneo-paper/02-2-technical-overview.md
+index 568c8f5b3a6cec92f68807e146685658097d6fa9..3ab02b9eda1c73b1728b061ba1bca4f19202e717 100644
+--- a/docs/superneo-paper/02-2-technical-overview.md
++++ b/docs/superneo-paper/02-2-technical-overview.md
+@@ -6,11 +6,13 @@ We recall HyperNova and the challenges of moving to lattice-based commitments (
+ 
+ HyperNova [55] *reduces* CCS claims into random evaluation claims. These claims are instances in a *CCS relation*,  $\text{CCS}$ , and a *CCS evaluation relation*,  $\text{CE}$ .
+ 
+-$$\begin{aligned} \text{CCS} &:= \left\{ (\mathbf{s}; (c, x); w) : \begin{array}{l} \text{For } z := [x, w], c = \text{Commit}(z) \\ \wedge f(\overline{M_1 z}, \dots, \overline{M_t z}) \text{ vanishes on } \{0, 1\}^{\log m} \end{array} \right\} \\ \text{CE} &:= \left\{ (\mathbf{s}; (c, x, r, \{y_j\}_{j \in [t]}); w) : \begin{array}{l} \text{For } z := [x, w], c = \text{Commit}(z) \\ \wedge \forall j \in [t], y_j = \overline{M_j z}(r) \end{array} \right\} \end{aligned}$$
++$$\begin{aligned} \text{CCS} &:= \left\{ (\mathbf{s}; (c, x); w) : \begin{array}{l} \text{For } z := [x, w], c = \text{Commit}(z) \\ \wedge f(\widetilde{M_1 z}, \dots, \widetilde{M_t z}) \text{ vanishes on } \{0, 1\}^{\log m} \end{array} \right\} \\ \text{CE} &:= \left\{ (\mathbf{s}; (c, x, r, \{y_j\}_{j \in [t]}); w) : \begin{array}{l} \text{For } z := [x, w], c = \text{Commit}(z) \\ \wedge \forall j \in [t], y_j = \widetilde{M_j z}(r) \end{array} \right\} \end{aligned}$$
+ 
+ To be considered a folding scheme, we must be able to describe HyperNova as an interactive reduction  $\Pi : \text{CCS} \times \text{CE} \to \text{CE}$ , which takes as input a CCS relation claim and a CCS evaluation relation claim and outputs a single CCS evaluation relation claim.<sup>6</sup> Unlike the original HyperNova paper (for reasons that will become clear later), we decide to break up HyperNova into two interactive reductions which will be composed to form the overall reduction:
+ 
+-$$(\text{Informal}) \quad \Pi_{\text{CCS}} : \text{CCS} \times \text{CE} \to \text{CE}^2 \quad \text{and} \quad \Pi_{\text{RLC}} : \text{CE}^2 \to \text{CE}.$$
++$$(\text{Informal}) \quad \Pi_{\text{CCS}} : \text{CCS} \times \text{CE} \to \operatorname{BatchCE}_2 \quad \text{and} \quad \Pi_{\text{RLC}} : \operatorname{BatchCE}_2 \to \text{CE},$$
++
++where  $\operatorname{BatchCE}_2$  denotes two evaluation claims with one shared evaluation point (Definition 13a).
+ 
+ The first reduction  $\Pi_{\text{CCS}}$  utilizes the sum-check protocol [62, 78] to reduce a CCS claim and a CCS evaluation claim over a point  $r'$  into a pair of CCS evaluation claims over the same point  $r$ .
+ 
+@@ -30,37 +32,47 @@ In order to construct the Neo and SuperNeo folding scheme, we will need to const
+ 
+ ### 2.2 The Neo embedding
+ 
+-The Neo embedding is incredibly simple to describe, and what's surprising is that it also preserves both norm and the required form of evaluation homomorphism. To embed field vectors  $z^{(1)}, \dots, z^{(d)} \in \mathbb{F}^n$  into a ring vector  $\mathbf{z} \in R_{\mathbb{F}}$ , the Neo embedding simply embeds the field vectors along the  $d$  coefficient slots.
++The Neo embedding is incredibly simple to describe, and what's surprising is that it also preserves both norm and the required form of evaluation homomorphism. To embed field vectors  $z^{(1)}, \dots, z^{(d)} \in \mathbb{F}^n$  into a ring vector  $\mathbf{z} \in R_{\mathbb{F}}^n$ , the Neo embedding simply embeds the field vectors along the  $d$  coefficient slots.
+ 
+ $$\mathbf{z} = \sum_{j=1}^{d} z^{(j)} \cdot X^{j-1} \iff \forall i \in [n], z_i = \sum_{j=1}^{d} z_i^{(j)} \cdot X^{j-1}$$
+ 
+ In the expression above,  $z^{(j)} \cdot X^{j-1}$  denotes scaling the field vector  $z^{(j)}$  by the monomial  $X^{j-1}$  (i.e. every element in the scaled vector has the form  $c \cdot X^{j-1}$  for some constant  $c \in \mathbb{F}$ ).
+ 
+-**Preserving evaluation homomorphism** The first observation is any collection of elements in the field  $\mathbb{F}$  can be naturally embedded into the ring  $R_{\mathbb{F}} \subseteq R_{\mathbb{K}}$  by interpreting them as constant polynomials. The second observation is that  $\mathbb{K}$  also contains an (isomorphic) copy of the base field  $\mathbb{F}$ . Thus, a polynomial with coefficients in the base field  $\mathbb{F}$  can also be interpreted as a polynomial with coefficients in the larger field  $\mathbb{K}$ . Thus, CCS matrices  $M_j \in \mathbb{F}^{m \times n}$  and the evaluation point  $r \in \mathbb{K}^{\log m}$  can both be trivially embedded into the ring as matrices  $M_j \in R_{\mathbb{K}}^{m \times n}$  and a point  $r \in R_{\mathbb{K}}^{\log m}$ . What happens when we take the multilinear extension of  $\mathbf{z}$  and evaluate it at this point  $r$  over the ring? The first observation is multilinear evaluation is equivalent to taking an inner product  $\widetilde{\mathbf{z}}(r) = \langle \mathbf{z}, \hat{r} \rangle$ , where  $\hat{r} \in \mathbb{K}^n$  is a field vector derived from  $r$ . The second observation is that multiplying a ring element  $a(X) = \sum_{i=0}^{d-1} a_i X^i \in R_{\mathbb{F}}$  by a constant polynomial  $c \in \mathbb{K}$  simply scales each coefficient by  $c$  (i.e.  $a(X) \cdot c = \sum_{i=0}^{d-1} (a_i \cdot c) X^i \in R_{\mathbb{K}}$ ). Combining these two observations, we can see that evaluating the multilinear extension of  $\mathbf{z}$  at the point  $r$  is equivalent to evaluating each of the underlying field vectors  $z^{(1)}, \dots, z^{(d)}$  at the point  $r$  and stacking the results as coefficients in a ring element.
++**Preserving evaluation homomorphism** The first observation is any collection of elements in the field  $\mathbb{F}$  can be naturally embedded into the ring  $R_{\mathbb{F}} \subseteq R_{\mathbb{K}}$  by interpreting them as constant polynomials. The second observation is that  $\mathbb{K}$  also contains an (isomorphic) copy of the base field  $\mathbb{F}$ . Thus, a polynomial with coefficients in the base field  $\mathbb{F}$  can also be interpreted as a polynomial with coefficients in the larger field  $\mathbb{K}$ . Thus, CCS matrices  $M_j \in \mathbb{F}^{m \times n}$  and the evaluation point  $r \in \mathbb{K}^{\log m}$  can both be trivially embedded into the ring as matrices  $M_j \in R_{\mathbb{K}}^{m \times n}$  and a point  $r \in R_{\mathbb{K}}^{\log m}$ . What happens when we take the multilinear extension of  $\mathbf{z}$  and evaluate it at this point  $r$  over the ring? The first observation is multilinear evaluation is equivalent to taking an inner product  $\widehat{\mathbf{z}}(r) = \langle \mathbf{z}, \hat{r} \rangle$ , where  $\hat{r} \in \mathbb{K}^n$  is a field vector derived from  $r$ . The second observation is that multiplying a ring element  $a(X) = \sum_{i=0}^{d-1} a_i X^i \in R_{\mathbb{F}}$  by a constant polynomial  $c \in \mathbb{K}$  simply scales each coefficient by  $c$  (i.e.  $a(X) \cdot c = \sum_{i=0}^{d-1} (a_i \cdot c) X^i \in R_{\mathbb{K}}$ ). Combining these two observations, we can see that evaluating the multilinear extension of  $\mathbf{z}$  at the point  $r$  is equivalent to evaluating each of the underlying field vectors  $z^{(1)}, \dots, z^{(d)}$  at the point  $r$  and stacking the results as coefficients in a ring element.
+ 
+-$$\widetilde{\mathbf{z}}(r) = \langle \mathbf{z}, \hat{r} \rangle = \left\langle \sum_{j=1}^{d} z^{(j)} \cdot X^{j-1}, \hat{r} \right\rangle = \sum_{j=1}^{d} \langle z^{(j)}, \hat{r} \rangle \cdot X^{j-1} = \sum_{j=1}^{d} \widetilde{z^{(j)}}(r) \cdot X^{j-1}$$
++$$\widehat{\mathbf{z}}(r) = \langle \mathbf{z}, \hat{r} \rangle = \left\langle \sum_{j=1}^{d} z^{(j)} \cdot X^{j-1}, \hat{r} \right\rangle = \sum_{j=1}^{d} \langle z^{(j)}, \hat{r} \rangle \cdot X^{j-1} = \sum_{j=1}^{d} \widetilde{z^{(j)}}(r) \cdot X^{j-1}$$
+ 
+-Moreover, this property extends to matrix-vector multiplications as well. For  $r \in \mathbb{F}^{\log m}$ , the evaluation  $\overline{M_j z}(r)$  has coefficients that are exactly the evaluations  $\overline{M_j z^{(1)}}(r), \dots, \overline{M_j z^{(d)}}(r)$ .
++Moreover, this property extends to matrix-vector multiplications as well. For  $r \in \mathbb{K}^{\log m}$ , the ring evaluation  $\widehat{M_j\mathbf z}(r)$  has coefficients that are exactly the field evaluations  $\widetilde{M_j z^{(1)}}(r), \dots, \widetilde{M_j z^{(d)}}(r)$ .
+ 
+-We can now see that the evaluation homomorphism trivially holds for the Neo embedding. Consider two ring vectors  $\mathbf{z}, \mathbf{z}' \in \mathbb{R}_{\mathbb{F}}^n$  that are Neo embeddings of field vectors  $z^{(1)}, \dots, z^{(d)} \in \mathbb{F}^n$  and  $z'^{(1)}, \dots, z'^{(d)} \in \mathbb{F}^n$  respectively. Also, consider their evaluations  $\mathbf{y} = \overline{M_j \mathbf{z}}(r) \in \mathbb{R}_{\mathbb{K}}$  and  $\mathbf{y}' = \overline{M_j \mathbf{z}'}(r) \in \mathbb{R}_{\mathbb{K}}$  at some point  $r \in \mathbb{K}^{\log m}$ . For an arbitrary ring scalar  $\delta \in \mathbb{R}_{\mathbb{F}}$ , define  $\mathbf{z}^* = \mathbf{z} + \delta \cdot \mathbf{z}' \in \mathbb{R}_{\mathbb{F}}$  ( $c^* = c + \delta \cdot c'$ ) and  $\mathbf{y}^* = \mathbf{y} + \delta \cdot \mathbf{y}'$ . We must have that the underlying field vectors of  $\mathbf{z}^*$  evaluate to the coefficients of  $\mathbf{y}^*$  at the point  $r$ . This is because multilinear evaluation  $\mathbf{z} \mapsto \overline{M_j \mathbf{z}}(r)$  is linear over the ring so  $\mathbf{y}^* = \overline{M_j \mathbf{z}^*}(r)$ , and we just showed that the coefficients of  $\overline{M_j \mathbf{z}^*}(r)$  are exactly the evaluations of the underlying field vectors of  $\mathbf{z}^*$  at the point  $r$ . Also, the vector  $\mathbf{z}^*$  still belongs to the smaller ring  $\mathbb{R}_{\mathbb{F}}$  and the underlying field vectors of  $\mathbf{z}^*$  still belong to the base field  $\mathbb{F}$ . Thus, as long as the norm of  $\mathbf{z}^*$  is small enough (which happens if we sample  $\delta$  from a special-set),  $c^*$  is a valid commitment to  $\mathbf{z}^*$  directly using the Ajtai commitment scheme.
++We can now see that the evaluation homomorphism trivially holds for the Neo embedding. Consider two ring vectors  $\mathbf{z}, \mathbf{z}' \in \mathbb{R}_{\mathbb{F}}^n$  that are Neo embeddings of field vectors  $z^{(1)}, \dots, z^{(d)} \in \mathbb{F}^n$  and  $z'^{(1)}, \dots, z'^{(d)} \in \mathbb{F}^n$  respectively. Also, consider their evaluations  $\mathbf{y} = \widehat{M_j \mathbf{z}}(r) \in \mathbb{R}_{\mathbb{K}}$  and  $\mathbf{y}' = \widehat{M_j \mathbf{z}'}(r) \in \mathbb{R}_{\mathbb{K}}$  at some point  $r \in \mathbb{K}^{\log m}$ . For an arbitrary ring scalar  $\delta \in \mathbb{R}_{\mathbb{F}}$ , define  $\mathbf{z}^* = \mathbf{z} + \delta \cdot \mathbf{z}' \in \mathbb{R}_{\mathbb{F}}^n$  ( $c^* = c + \delta \cdot c'$ ) and  $\mathbf{y}^* = \mathbf{y} + \delta \cdot \mathbf{y}'$ . We must have that the underlying field vectors of  $\mathbf{z}^*$  evaluate to the coefficients of  $\mathbf{y}^*$  at the point  $r$ . This is because multilinear evaluation  $\mathbf{z} \mapsto \widehat{M_j \mathbf{z}}(r)$  is linear over the ring, so  $\mathbf{y}^* = \widehat{M_j \mathbf{z}^*}(r)$ . Also, the vector  $\mathbf{z}^*$  still belongs to  $\mathbb{R}_{\mathbb{F}}^n$  and its coefficient vectors still belong to the base field  $\mathbb{F}$ . Thus, as long as the norm of  $\mathbf{z}^*$  is small enough,  $c^*$  is a valid Ajtai commitment to  $\mathbf{z}^*$ .
+ 
+ ### 2.3 The SuperNeo embedding
+ 
+ **The SuperNeo embedding** Given a field vector  $z \in \mathbb{F}^{d \cdot n}$ , split the vector into  $n$  sub-vectors of length  $d$  each, i.e.,  $z = [z_1, z_2, \dots, z_n]$  where each  $z_i := [z_{i,1}, \dots, z_{i,d}] \in \mathbb{F}^d$ . We will embed each sub-vector  $z_i$  as the coefficients of a single ring element  $\mathbf{z}_i := \sum_{j=1}^d z_{i,j} X^{j-1} \in \mathbb{R}_{\mathbb{F}}$ . The resulting vector  $\mathbf{z} := [\mathbf{z}_1, \mathbf{z}_2, \dots, \mathbf{z}_n] \in \mathbb{R}_{\mathbb{F}}^n$  is the SuperNeo embedding of  $z$ .
+ 
+-**Evaluation Homomorphism** For cyclotomic rings, there exists a linear transformation  $\overline{\cdot} : \mathbb{F}^d \to \mathbb{F}^d$  such that for all  $a, b \in \mathbb{F}^d$ , we have the constant term  $\text{ct}(\overline{\mathbf{a}} \cdot \overline{\mathbf{b}}) = \langle a, b \rangle$  where we embed  $\overline{\mathbf{a}} \in \mathbb{F}^d$  into a ring element  $\overline{\mathbf{a}} \in \mathbb{R}_{\mathbb{F}}$  via coefficients. In layman's terms, a product over the ring simulates an inner product over the field. We can extend this transformation to vectors  $m \in \mathbb{F}^{dn}$  by applying  $\overline{\cdot}$  to each sub-vector of length  $d$ . Now, the constant term of the ring inner product  $\text{ct}(\langle \overline{\mathbf{m}}, \overline{\mathbf{z}} \rangle) = \langle m, z \rangle$ . Finally, we can extend this transformation to matrices  $M_j \in \mathbb{F}^{m \times dn}$  by applying  $\overline{\cdot}$  to each row of length  $dn$ . Thus, the constant term coefficient vector  $\text{ct}(\overline{M_j \mathbf{z}}) = M_j z$ , where we extract the constant terms of each of the  $m$  ring elements in  $\overline{M_j \mathbf{z}} \in \mathbb{R}_{\mathbb{F}}^m$ . Given a point  $r \in \mathbb{K}^{\log m}$ , we can evaluate the ring vector  $\mathbf{y} = \overline{M_j \mathbf{z}}(r)$ . As argued before, evaluating at the point  $r$  evaluates each of the underlying coefficient vectors of  $\overline{M_j \mathbf{z}}$  in parallel. Hence, the constant coefficient of the ring evaluation  $\mathbf{y}$  is exactly the desired field evaluation  $y = \overline{M_j z}(r)$ .
++**Evaluation Homomorphism** For cyclotomic rings, there exists a linear transformation  $\overline{\cdot} : \mathbb{F}^d \to \mathbb{F}^d$  such that for all  $a, b \in \mathbb{F}^d$ ,
++
++$$\operatorname{ct}(\overline{\mathbf a}\cdot\mathbf b)=\langle a,b\rangle,$$
++
++where  $\overline{\mathbf a}$  is the coefficient embedding of the transformed vector and  $\mathbf b$  is the ordinary coefficient embedding of  $b$ . The transform is applied to one factor only. Apply this transform block-wise to a vector  $v\in\mathbb F^{dn}$ . Then  $\operatorname{ct}(\langle\overline{\mathbf v},\mathbf z\rangle)=\langle v,z\rangle$ . Applying it block-wise to every row of  $M_j\in\mathbb F^{m\times dn}$  gives a ring matrix  $\bar M_j$  such that
++
++$$\operatorname{ct}(\bar M_j\mathbf z)=M_jz.$$
++
++For  $r\in\mathbb K^{\log m}$ , define  $\mathbf y=\widehat{\bar M_j\mathbf z}(r)\in\mathbb R_{\mathbb K}$ . Multilinear evaluation acts coefficient-wise, so
++
++$$\operatorname{ct}(\mathbf y)=\widetilde{M_jz}(r).$$
+ 
+-Moreover, since  $z \mapsto \overline{M_j \mathbf{z}}(r)$  is a linear map over  $\mathbb{R}_{\mathbb{K}}$  (similar to the case in Neo), the evaluation homomorphism property will identically be preserved. In particular, given field vectors  $z, z' \in \mathbb{F}^{dn}$  with embeddings  $\mathbf{z}, \mathbf{z}' \in \mathbb{R}_{\mathbb{F}}^n$  and evaluations  $\mathbf{y} = \overline{M_j \mathbf{z}}(r)$  and  $\mathbf{y}' = \overline{M_j \mathbf{z}'}(r)$ . For an arbitrary scalar  $\delta \in \mathbb{R}_{\mathbb{F}}$ , let  $\mathbf{z}^* = \mathbf{z} + \delta \mathbf{z}'$  and  $\mathbf{y}^* = \mathbf{y} + \delta \mathbf{y}'$ . Then, we will have that the constant coefficient
++Moreover, since  $\mathbf z \mapsto \widehat{\bar M_j\mathbf z}(r)$  is a linear map over  $\mathbb{R}_{\mathbb{K}}$  (similar to the case in Neo), the evaluation homomorphism property is preserved. In particular, given field vectors  $z, z' \in \mathbb{F}^{dn}$  with embeddings  $\mathbf{z}, \mathbf{z}' \in \mathbb{R}_{\mathbb{F}}^n$  and evaluations  $\mathbf{y} = \widehat{\bar M_j \mathbf{z}}(r)$  and  $\mathbf{y}' = \widehat{\bar M_j \mathbf{z}'}(r)$ , for an arbitrary scalar  $\delta \in \mathbb{R}_{\mathbb{F}}$  let  $\mathbf{z}^* = \mathbf{z} + \delta \mathbf{z}'$  and  $\mathbf{y}^* = \mathbf{y} + \delta \mathbf{y}'$ . Then the constant coefficient
+ 
+-of  $\mathbf{y}^*$  is exactly the field evaluation  $\widehat{M_j z^*}(r)$  for  $z^*$  being the underlying field vector of  $\mathbf{z}^*$ .
++of  $\mathbf{y}^*$  is exactly the field evaluation  $\widetilde{M_j z^*}(r)$ , where  $z^*$  is the inverse coefficient embedding of  $\mathbf{z}^*$ .
+ 
+-**Pay-per-bit costs** Neo and SuperNeo are both norm preserving embeddings. Computing the Ajtai commitment  $c \leftarrow Az$  requires a ring matrix-vector product. When both the degree  $d \le 64$  and field size  $|\mathbb{F}| \le 64$  are small, a ring operation  $a \cdot b \in \mathbb{R}_{\mathbb{F}}$  is most efficiently implemented (using AVX-512) with a rotation matrix product  $\text{cf}(a \cdot b) = \text{rot}(a) \cdot \text{cf}(b) = \sum_{i=1}^d b_i \cdot \text{rot}(a)_i$  over the field  $\mathbb{F}$ . The dominating costs are scaling  $b_i \cdot \text{rot}(a)_i$ , which scales linearly with the norm of  $b_i$ . When the  $b_i$ 's are small (such as bits), the cost to compute the ring operation is essentially adding the rotations  $\text{rot}(a)_i$  for which  $b_i$  is non-zero. For security reasons [15], the cyclotomic ring cannot be perfectly splitting (ie.  $\mathbb{R} \not\cong \mathbb{F}^d$ ), so using the NTT transform is a more inefficient method to compute ring operations than simply adding scaled rotations. In particular, the NTT transform (in the non-full splitting setting) is more memory intensive, is less cache friendly, and computing high degree extension field multiplications (ex. 16  $\mathbb{F}_{q^4}$  muls) is concretely more expensive than computing the corresponding base field scaling and additions.
++**Pay-per-bit costs** Neo and SuperNeo are both norm preserving embeddings. Computing the Ajtai commitment  $c \leftarrow Az$  requires a ring matrix-vector product. When both the degree  $d \le 64$  and the field modulus fits in at most 64 bits, a ring operation  $a \cdot b \in \mathbb{R}_{\mathbb{F}}$  is most efficiently implemented (using AVX-512) with a rotation matrix product  $\text{cf}(a \cdot b) = \text{rot}(a) \cdot \text{cf}(b) = \sum_{i=1}^d b_i \cdot \text{rot}(a)_i$  over the field  $\mathbb{F}$ . The dominating costs are scaling  $b_i \cdot \text{rot}(a)_i$ , which scales linearly with the norm of  $b_i$ . When the  $b_i$ 's are small (such as bits), the cost to compute the ring operation is essentially adding the rotations  $\text{rot}(a)_i$  for which  $b_i$  is non-zero. For security reasons [15], the cyclotomic ring cannot be perfectly splitting (ie.  $\mathbb{R} \not\cong \mathbb{F}^d$ ), so using the NTT transform is a more inefficient method to compute ring operations than simply adding scaled rotations. In particular, the NTT transform (in the non-full splitting setting) is more memory intensive, is less cache friendly, and computing high degree extension field multiplications (ex. 16  $\mathbb{F}_{q^4}$  muls) is concretely more expensive than computing the corresponding base field scaling and additions.
+ 
+ ### 2.4 Proving the security with interactive reductions
+ 
+-To understand why interactive reductions are necessary, we first need to understand why the original proof of security for the HyperNova folding scheme [58] does not carry over to SuperNeo. In particular, when we move to using lattice-based commitments (such as Ajtai commitments), we will have to extract candidate openings  $z$  that not only satisfy the linear relationship  $c = Az$ , but are also sufficiently low norm (as Ajtai commitments are only binding for low norm openings). However, in the process of solving for these candidate openings, the extractor will end up obtaining vectors that potentially may have arbitrary norm. This is often the case with lattice-based proof systems, which often must combine some information-theoretic sound method to check the norm of committed vectors (such as random projections or sum-check) with a method to batch prove knowledge of linear openings (special-sound protocols). Recall (unlike in the original work) that we broke the HyperNova folding scheme down into two reductions:  $\Pi_{\text{CCS}} : \text{CCS} \times \text{CE} \to \text{CE}^2$  and  $\Pi_{\text{RLC}} : \text{CE}^2 \to \text{CE}$ . The first reduction  $\Pi_{\text{CCS}}$  reduced the CCS and CCS evaluation claim into two CCS evaluations claims by using the sum-check protocol and the second reduction  $\Pi_{\text{RLC}}$  combined the two CCS evaluation claims into a single CCS evaluation claim by taking a random linear combination. The first issue arises when we try to prove  $\Pi_{\text{RLC}}$  is knowledge sound in the lattice setting. If we follow the same extraction strategy in HyperNova, we would produce two candidate commitment openings  $z_1$  and  $z'_1$  by solving the linear system  $z_1^* = z_1 + \delta_1 z'_1$  and  $z_2^* = z_1 + \delta_2 z'_1$  for two different random challenges  $\delta_1$  and  $\delta_2$ . In particular, this will require scaling by the inverse of the difference of the two challenges  $(\delta_1 - \delta_2)^{-1}$ . However, in the ring setting, even if  $\delta_1$  and  $\delta_2$  are low norm, the inverse  $\Delta := (\delta_1 - \delta_2)^{-1}$  may have arbitrarily high norm, which would lead to candidate openings  $z_1$  and  $z'_1$  that also have arbitrarily high norm. Thus, we cannot guarantee that the extracted openings are valid openings for the commitments, but that they do indeed satisfy the linear relations  $c = Az$  and
++To understand why interactive reductions are necessary, we first need to understand why the original proof of security for the HyperNova folding scheme [58] does not carry over to SuperNeo. In particular, when we move to using lattice-based commitments (such as Ajtai commitments), we will have to extract candidate ring openings  $\mathbf z$  that not only satisfy the linear relationship  $c = A\mathbf z$ , but are also sufficiently low norm (as Ajtai commitments are only binding for low norm openings). However, in the process of solving for these candidate openings, the extractor will end up obtaining vectors that potentially may have arbitrary norm. This is often the case with lattice-based proof systems, which often must combine some information-theoretic sound method to check the norm of committed vectors (such as random projections or sum-check) with a method to batch prove knowledge of linear openings (special-sound protocols). Recall (unlike in the original work) that we broke the HyperNova folding scheme down into two reductions:  $\Pi_{\text{CCS}} : \text{CCS} \times \text{CE} \to \operatorname{BatchCE}_2$  and  $\Pi_{\text{RLC}} : \operatorname{BatchCE}_2 \to \text{CE}$ . The first reduction  $\Pi_{\text{CCS}}$  reduced the CCS and CCS evaluation claim into two CCS evaluations claims at one shared point by using the sum-check protocol, and the second reduction  $\Pi_{\text{RLC}}$  combined them into a single CCS evaluation claim by taking a random linear combination. The first issue arises when we try to prove  $\Pi_{\text{RLC}}$  is knowledge sound in the lattice setting. If we follow the same extraction strategy in HyperNova, we would produce two candidate commitment openings  $\mathbf z_1$  and  $\mathbf z'_1$  by solving the linear system  $\mathbf z_1^* = \mathbf z_1 + \delta_1 \mathbf z'_1$  and  $\mathbf z_2^* = \mathbf z_1 + \delta_2 \mathbf z'_1$  for two different random challenges  $\delta_1$  and  $\delta_2$ . In particular, this will require scaling by the inverse of the difference of the two challenges  $(\delta_1 - \delta_2)^{-1}$ . However, in the ring setting, even if  $\delta_1$  and  $\delta_2$  are low norm, the inverse  $\Delta := (\delta_1 - \delta_2)^{-1}$  may have arbitrarily high norm, which would lead to candidate openings  $\mathbf z_1$  and  $\mathbf z'_1$  that also have arbitrarily high norm. Thus, we cannot guarantee that the extracted openings are valid openings for the commitments, but that they do indeed satisfy the linear relations  $c = A\mathbf z$  and
+ 
+-$z \mapsto \widehat{Mz}(r)$ . This means that  $\Pi_{\text{RLC}}$  is not knowledge sound for the input relation, but instead a relaxed relation where we drop the low norm requirement on the openings. However, there is something special about these candidate openings. In particular, in the process of extracting these openings, we produced what are referred to as **relaxed** openings  $\Delta \cdot c = Az$  for the original commitments where  $z$  is low norm and  $\Delta$  belongs to the difference set  $\mathcal{C} - \mathcal{C}$ . Under the hardness of MSIS, producing multiple relaxed openings for the same commitment is hard. Thus, even if we run the extractor multiple times, it will ultimately only be able to output a single pair of candidate openings  $(z_1, z'_1)$ ; otherwise, it would be able to produce multiple relaxed openings for the same commitment. In summary, while  $\Pi_{\text{RLC}}$  by itself is not knowledge sound for the original relation, we can construct an extractor which extracts candidate witnesses for a relaxed relation, and is restricted to only being able to output a unique candidate witness (with high probability). Informally, we call an interactive reduction that satisfies these properties as a **weak interactive reduction**.
++$\mathbf z \mapsto \widehat{\bar M\mathbf z}(r)$ . This means that  $\Pi_{\text{RLC}}$  is not knowledge sound for the input relation, but instead a relaxed relation where we drop the low norm requirement on the openings. However, there is something special about these candidate openings. In particular, in the process of extracting these openings, we produced what are referred to as **relaxed** openings  $\Delta \cdot c = A\mathbf z$  for the original commitments where  $\mathbf z$  is low norm and  $\Delta$  belongs to the difference set  $\mathcal{C} - \mathcal{C}$ . Under the hardness of MSIS, producing multiple relaxed openings for the same commitment is hard. Thus, even if we run the extractor multiple times, it will ultimately only be able to output a single pair of candidate openings  $(\mathbf z_1, \mathbf z'_1)$ ; otherwise, it would be able to produce multiple relaxed openings for the same commitment. In summary, while  $\Pi_{\text{RLC}}$  by itself is not knowledge sound for the original relation, we can construct an extractor which extracts candidate witnesses for a relaxed relation, and is restricted to only being able to output a unique candidate witness (with high probability). Informally, we call an interactive reduction that satisfies these properties as a **weak interactive reduction**.
+ 
+ The second issue arises when we try to prove that  $\Pi_{\text{CCS}}$  is knowledge sound. In a folklore security argument (for sum-check protocols), the extractor for  $\Pi_{\text{CCS}}$  essentially rewinds the potentially malicious prover multiple times to obtain multiple candidate openings (the output witnesses) for the same commitment. These candidate openings must also satisfy the evaluations outputted by the sum-check protocol (assuming the prover is successful in both executions). However, since the commitment is binding, all these candidate openings must be the same. Hence, we are able to argue that the candidate opening (witness) from the first execution must have evaluated to the correct evaluations required by the sum-check protocol in the second execution. Observe, however, that the second execution used verifier challenges that were independent of the first execution. Hence, with high probability, the extracted candidate opening must satisfy the required CCS claims. This argument crucially relies on that the fact that the commitment scheme is binding to the candidate openings outputted by the prover. This is trivial in the original HyperNova setting since the commitments are binding to the whole message space. However, in the lattice setting, the commitments are only binding to low norm openings.
+ 
+@@ -70,10 +82,10 @@ openings for the original commitments. Generally, what do we require from the fi
+ 
+ In our work, we use this framework to prove the security of our SuperNeo folding scheme  $\Pi_{\text{SuperNeo}} := \Pi_{\text{DEC}} \circ \Pi_{\text{RLC}} \circ \Pi_{\text{CCS}}$  by decomposing it into a strong interactive reduction  $\Pi_{\text{CCS}}$ , a weak interactive reduction  $\Pi_{\text{RLC}}$ , and a final reduction of knowledge  $\Pi_{\text{DEC}}$  [12, 15, 71].
+ 
+-**Lemma 1.** *The sequential composition  $\Pi_{\text{RLC}} \circ \Pi_{\text{CCS}}$  is a **reduction of knowledge** (Definition 5) from  $\text{CCS}(b, \mathcal{L})^K \times \text{CE}(b, \mathcal{L})^k$  to  $\text{CE}(B, \mathcal{L})$ .*
++**Lemma 1.** *The sequential composition  $\Pi_{\text{RLC}} \circ \Pi_{\text{CCS}}$  is a **reduction of knowledge** (Definition 5) from  $\text{CCS}(b, \mathcal{L})^K \times \operatorname{BatchCE}_k(b, \mathcal{L})$  to  $\text{CE}(B, \mathcal{L})$ .*
+ 
+ *Proof.* Follows directly from  $\Pi_{\text{CCS}}$  being a strong interactive reduction (Lemma 3),  $\Pi_{\text{RLC}}$  being a weak interactive reduction (Lemma 4), and the strong-weak composition theorem (Theorem 6).  $\square$
+ 
+-**Theorem 1.** *The sequential composition  $\Pi_{\text{DEC}} \circ \Pi_{\text{RLC}} \circ \Pi_{\text{CCS}}$  is a **reduction of knowledge** (Definition 5) from  $\text{CCS}(b, \mathcal{L})^K \times \text{CE}(b, \mathcal{L})^k$  to  $\text{CE}(b, \mathcal{L})^k$ .*
++**Theorem 1.** *The sequential composition  $\Pi_{\text{DEC}} \circ \Pi_{\text{RLC}} \circ \Pi_{\text{CCS}}$  is a **reduction of knowledge** (Definition 5) from  $\text{CCS}(b, \mathcal{L})^K \times \operatorname{BatchCE}_k(b, \mathcal{L})$  to  $\operatorname{BatchCE}_k(b, \mathcal{L})$ .*
+ 
+ *Proof.* Follows directly from  $\Pi_{\text{RLC}} \circ \Pi_{\text{CCS}}$  being a reduction of knowledge (Lemma 1),  $\Pi_{\text{DEC}}$  being a reduction of knowledge (Theorem 7), and sequential composition of reductions of knowledge being reductions of knowledge (Lemma 2).  $\square$
+diff --git a/docs/superneo-paper/04-4-preliminaries.md b/docs/superneo-paper/04-4-preliminaries.md
+index 60e50c7ca9d93983d81f398f65a67b3e59da6a09..501e0c34d56f316aad88c373550e729d70168bfd 100644
+--- a/docs/superneo-paper/04-4-preliminaries.md
++++ b/docs/superneo-paper/04-4-preliminaries.md
+@@ -2,9 +2,29 @@
+ 
+ For brevity, we defer some additional background to Appendix C.
+ 
+-*Notation* We let  $\lambda$  denote the security parameter and  $\text{negl}(\lambda)$  denote a negligible function in  $\lambda$ . Throughout the paper, the depicted asymptotics depend on  $\lambda$ , but we elide this for brevity. We let PPT denote probabilistic polynomial time and EPT denote expected probabilistic polynomial time. We let  $[n]$  denote the set  $\{1, \dots, n\}$ , and  $\{u_i\}_{i \in [n]}$  denote the set  $\{u_1, \dots, u_n\}$ .
++*Notation.* We let  $\lambda$  denote the security parameter and  $\text{negl}(\lambda)$  denote a negligible function in  $\lambda$ . We let PPT denote probabilistic polynomial time and EPT denote expected probabilistic polynomial time. All adversaries and extractors in this paper are classical. We let  $[n]$  denote the set  $\{1, \dots, n\}$ , and  $\{u_i\}_{i \in [n]}$  denote the set  $\{u_1, \dots, u_n\}$ .
+ 
+-*Polynomials* We write  $\mathbb{F}^d[X_1, \dots, X_n]$  to denote multivariate polynomials over field  $\mathbb{F}$  in the variables  $(X_1, \dots, X_n)$  with degree bound  $\le d$  for each variable. We omit the superscript if there is no degree bound. We define  $\mathbb{ZS}_\ell$  as the set of all multivariate polynomials  $F \in \mathbb{F}[X_1, \dots, X_\ell]$  such that for all  $x \in \{0, 1\}^\ell$ ,  $F(x) = 0$  (i.e. vanish over the Boolean hypercube). We denote the polynomial  $\text{eq}(x, y) = \prod_{i=1}^\ell (x_i \cdot y_i + (1-x_i) \cdot (1-y_i))$ , which outputs 1 if  $x = y$  and 0 otherwise for  $x, y \in \{0, 1\}^\ell$ . For vector  $v \in \mathbb{F}^n$  we let  $\tilde{v} \in \mathbb{F}^1[X_1, \dots, X_{\log n}]$  denote the multilinear polynomial extension of  $v$ :  $\tilde{v} = \sum_{j \in \{0, 1\}^{\log n}} \text{eq}(X_1, \dots, X_{\log n}, j) \cdot v_j$
++*Asymptotic-family convention.* Every statement that uses  $\text{negl}(\lambda)$  is conditional on a uniformly and efficiently constructible family  $\{\mathcal P_\lambda\}_{\lambda\in\mathbb N}$ . For each  $\lambda$ , the member  $\mathcal P_\lambda$  fixes the fields  $\mathbb F_\lambda\subseteq\mathbb K_\lambda$ , cyclotomic rings, dimensions, structure bounds, batch sizes, norm bounds, Module-SIS rank, and challenge set
++
++$$\mathcal P_\lambda=(q_\lambda,\eta_\lambda,d_\lambda,\kappa_\lambda,m_\lambda,n_{R,\lambda},u_\lambda,t_\lambda,k_\lambda,K_\lambda,b_\lambda,B_\lambda,T_\lambda,\mathcal C_\lambda).$$
++
++All parameter encodings, exact challenge samplers, and protocol algorithms must run in time polynomial in  $\lambda$ , and all encoded dimensions must be polynomially bounded in  $\lambda$ . Let
++
++$$D_{Q,\lambda}:=\max(D_{f,\lambda}+1,2b_\lambda,2).$$
++
++The asymptotic knowledge-soundness statements require each of
++
++$$\frac{D_{Q,\lambda}\log m_\lambda}{|\mathbb K_\lambda|},\qquad
++\frac{2K_\lambda+k_\lambda-1+\max(\log m_\lambda,k_\lambda t_\lambda d_\lambda)}{|\mathbb K_\lambda|},\qquad
++\frac{K_\lambda+k_\lambda+1}{|\mathcal C_\lambda|},$$
++
++and the relaxed-binding error  $\epsilon_{\mathrm{rk},\lambda}(2B_\lambda,\mathcal C_\lambda)$  to be negligible in  $\lambda$ . The corresponding family of Module-SIS instances is assumed hard against classical PPT adversaries. All asymptotic theorems in this paper are conditional on these requirements. Appendix B gives fixed concrete parameter sets and finite error estimates. It neither defines nor proves a family that satisfies this convention.
++
++*Polynomials* We write  $\mathbb{F}^d[X_1, \dots, X_n]$  to denote multivariate polynomials over field  $\mathbb{F}$  in the variables  $(X_1, \dots, X_n)$  with degree bound  $\le d$  for each variable. We omit the superscript if there is no individual-degree bound. For a polynomial  $g$ , we write  $\deg_{\mathrm{tot}}(g)$  for its total degree and  $\deg_{\mathrm{ind}}(g)$  for its maximum individual degree. We define  $\mathbb{ZS}_\ell$  as the set of all multivariate polynomials  $F \in \mathbb{F}[X_1, \dots, X_\ell]$  such that for all  $x \in \{0, 1\}^\ell$ ,  $F(x) = 0$  (i.e. vanish over the Boolean hypercube). We denote the polynomial  $\text{eq}(x, y) = \prod_{i=1}^\ell (x_i \cdot y_i + (1-x_i) \cdot (1-y_i))$ , which outputs 1 if  $x = y$  and 0 otherwise for  $x, y \in \{0, 1\}^\ell$ . For a field vector  $v \in \mathbb{F}^n$ , we let  $\widetilde v \in \mathbb{F}^1[X_1, \dots, X_{\log n}]$  denote its multilinear extension. For a ring vector  $\mathbf v \in \mathbb R_{\mathbb F}^n$ , we use  $\widehat{\mathbf v} \in \mathbb R_{\mathbb K}[X_1,\dots,X_{\log n}]$  for the coefficient-wise multilinear extension after embedding  $\mathbb R_{\mathbb F}$  into  $\mathbb R_{\mathbb K}$ . Thus
++
++$$\widetilde v(\vec X)=\sum_{j\in\{0,1\}^{\log n}}\operatorname{eq}(\vec X,j)v_j,
++\qquad
++\widehat{\mathbf v}(\vec X)=\sum_{j\in\{0,1\}^{\log n}}\operatorname{eq}(\vec X,j)\mathbf v_j.$$
+ 
+ #### Definition 1 (Fields, Rings, and Dimensions).
+ 
+@@ -12,44 +32,66 @@ Fields: Let  $\mathbb{F}$  be a finite field of prime order  $q$  and  $\mathbb{
+ 
+ Rings: Let  $\Phi(X) := X^d + \Phi_{d-1}X^{d-1} + \dots + \Phi_1X + \Phi_0 \in \mathbb{F}[X]$  be the  $\eta$ -th cyclotomic polynomial with degree  $d$ . We define the ring  $\mathbb{R}_\mathbb{F} := \mathbb{F}[X]/(\Phi(X))$  and the ring  $\mathbb{R}_\mathbb{K} := \mathbb{K}[X]/(\Phi(X))$ . We identify  $\mathbb{F}$  as a sub-ring of  $\mathbb{R}_\mathbb{F}$  and  $\mathbb{R}_\mathbb{F}$  as a sub-ring of  $\mathbb{R}_\mathbb{K}$ .
+ 
+-Dimensions: Let  $m, n_R, n_\mathbb{F} = d \cdot n_R, n_{\mathbb{F}, \text{in}} = d \cdot n_{R, \text{in}} \in \mathbb{N}_{\ge 1}$ . We use  $m$  to denote the number of constraints,  $n_\mathbb{F}$  to denote the length of a field vector,  $n_R$  to denote the length of a ring vector, and  $n_{\mathbb{F}, \text{in}}$  and  $n_{R, \text{in}}$  to denote input lengths. Let  $u, t \in \mathbb{N}_{\ge 1}$ , where  $u$  denotes a degree and  $t$  denotes a number of matrices. Let  $k, K \in \mathbb{N}_{\ge 1}$ , where  $k$  and  $K$  indicate the number of instances.
++Dimensions: Let  $m, n_R, n_\mathbb{F} = d \cdot n_R, n_{\mathbb{F}, \text{in}} = d \cdot n_{R, \text{in}} \in \mathbb{N}_{\ge 1}$ . We use  $m$  to denote the number of constraints,  $n_\mathbb{F}$  to denote the length of a field vector,  $n_R$  to denote the length of a ring vector, and  $n_{\mathbb{F}, \text{in}}$  and  $n_{R, \text{in}}$  to denote input lengths. Let  $u, t \in \mathbb{N}_{\ge 1}$ , where  $u$  denotes an upper bound on the total degree of the CCS constraint polynomial and  $t$  denotes a number of matrices. Let  $k, K \in \mathbb{N}_{\ge 1}$ , where  $k$  and  $K$  indicate the number of instances.
++
++Norm bounds: Let  $b, B = b^k \in \mathbb{N}_{\ge 2}$  be protocol norm bounds satisfying  $B < q/2$ . This restriction implies that the prime  $q$  is odd. Define the universal ambient bound
+ 
+-Norm bounds: Let  $b, B = b^k < q/2 \in \mathbb{N}_{\ge 2}$  be norm bounds.
++$$B_{\mathrm{amb}} := \left\lfloor \frac q2 \right\rfloor + 1 = \frac{q+1}{2} \in \mathbb{N}.$$
+ 
+-**Definition 2 (Coefficient maps).** We denote the **coefficient vector** of an element  $a \in \mathbb{R}_\mathbb{F}$  as  $\text{cf}(a) \in \mathbb{F}^d$ . Given a vector  $z \in \mathbb{R}_\mathbb{F}^m$ , we denote  $\text{cf}(z)$  to be the **coefficient matrix**  $[\text{cf}(z_1), \text{cf}(z_2), \dots, \text{cf}(z_m)] \in \mathbb{F}^{d \times m}$ . We define  $\text{cf}(z)_\ell$  to be the  $\ell$ -th row of the coefficient matrix  $\text{cf}(z)$  (i.e. the  $\ell$ -th coefficient vector of  $z$ ).
++The bound  $B_{\mathrm{amb}}$  is used only for the universal ambient relation; it does not replace the protocol bound  $B=b^k$  or the binding assumptions parameterized by  $B$ .
+ 
+-We denote the **constant term** of an element  $a \in \mathbb{R}_\mathbb{F}$  as  $\text{ct}(a) \in \mathbb{F}$ . Given a vector  $z \in \mathbb{R}_\mathbb{F}^m$ , we denote  $\text{ct}(z)$  to be the vector  $(\text{ct}(z_1), \text{ct}(z_2), \dots, \text{ct}(z_m)) \in \mathbb{F}^m$ .
++**Definition 2 (Coefficient maps).** We denote the **coefficient vector** of an element  $a \in \mathbb{R}_\mathbb{F}$  as  $\text{cf}(a) \in \mathbb{F}^d$ . Given a vector  $z \in \mathbb{R}_\mathbb{F}^N$ , we denote  $\text{cf}(z)$  to be the **coefficient matrix**  $[\text{cf}(z_1), \text{cf}(z_2), \dots, \text{cf}(z_N)] \in \mathbb{F}^{d \times N}$ . We define  $\text{cf}(z)_\ell$  to be the  $\ell$ -th row of the coefficient matrix  $\text{cf}(z)$  (i.e. the  $\ell$ -th coefficient vector of  $z$ ).
++
++We denote the **constant term** of an element  $a \in \mathbb{R}_\mathbb{F}$  as  $\text{ct}(a) \in \mathbb{F}$ . Given a vector  $z \in \mathbb{R}_\mathbb{F}^N$ , we denote  $\text{ct}(z)$  to be the vector  $(\text{ct}(z_1), \text{ct}(z_2), \dots, \text{ct}(z_N)) \in \mathbb{F}^N$ .
+ 
+ We analogously define these maps for elements and vectors in  $\mathbb{R}_\mathbb{K}$ .
+ 
+-**Definition 3 (Norm).** For an element  $a \in \mathbb{F}$ , we define  $\|a\|_\infty$  as follows: Let  $a' \in [0, q-1]$  denote the integer representation of  $a \bmod q$ . If  $a' \le (q-1)/2$ , then  $\|a\|_\infty = a'$ . Otherwise, if  $a' > (q-1)/2$ , then  $\|a\|_\infty = |a' - q|$ . For a vector  $z \in \mathbb{F}^n$ , we define the  $\ell_\infty$ -norm  $\|z\|_\infty$  to be the max infinity norm of its elements. For an element  $a \in \mathbb{R}_\mathbb{F}$ , we define  $\|a\|_\infty$  to be the  $\ell_\infty$ -norm of the vector  $\text{cf}(a)$ . For a vector  $z \in \mathbb{R}_\mathbb{F}^m$ , we define  $\|z\|_\infty$  to be the maximum  $\ell_\infty$ -norm of its elements.
++**Definition 3 (Centered representative and norm).** For an integer  $r \in \mathbb{Z}$ , let  $\iota_q(r) \in \mathbb{F}$  denote reduction modulo  $q$ . For  $a \in \mathbb{F}$ , let  $a' \in \{0, \dots, q-1\}$  be its standard integer representative and define its centered integer representative by
++
++$$\operatorname{ctr}_q(a) := \begin{cases} a' & \text{if } a' \le (q-1)/2, \\ a'-q & \text{if } a' > (q-1)/2. \end{cases}$$
++
++We define  $\|a\|_\infty := |\operatorname{ctr}_q(a)|$ . Hence every field element satisfies
++
++$$\|a\|_\infty \le \left\lfloor \frac q2 \right\rfloor < B_{\mathrm{amb}}.$$
++
++For a vector  $z \in \mathbb{F}^N$ , we define the  $\ell_\infty$ -norm  $\|z\|_\infty$  to be the maximum norm of its elements. For an element  $a \in \mathbb{R}_\mathbb{F}$ , we define  $\|a\|_\infty$  to be the  $\ell_\infty$ -norm of the vector  $\text{cf}(a)$ . For a vector  $z \in \mathbb{R}_\mathbb{F}^N$ , we define  $\|z\|_\infty$  to be the maximum  $\ell_\infty$ -norm of its elements.
++
++*Decomposition* For fixed  $b,k,N\in\mathbb N_{\ge 1}$ , define the total, coordinate-wise map
++
++$$\operatorname{split}_{b,k}:\mathbb F^N\longrightarrow (\mathbb F^N)^k\cup\{\perp\}.$$
++
++For each coordinate  $a\in\mathbb F$ , apply ordinary signed base- $b$  division to its centered representative  $\operatorname{ctr}_q(a)$ . At every step, use the remainder with the same sign as the current dividend. This gives a deterministic digit in  $\{-(b-1),\dots,b-1\}$ . Return  $\perp$  if a nonzero quotient remains after  $k$  digits. Otherwise, embed the signed digits in  $\mathbb F$  coordinate-wise and return  $(z_1,\dots,z_k)$ . In particular,
+ 
+-*Decomposition* We define  $\text{split}_b : \mathbb{F}^m \to (\mathbb{F}^m)^*$  to be the  $b$ -ary decomposition map, which performs the  $b$ -ary decomposition of a vector  $z \in \mathbb{F}^m$  into vectors  $z_1, z_2, \dots, z_k$ . For example, if  $z \in \mathbb{F}^m$  such that  $\|z\|_\infty < b^k$ , then we have
++$$\operatorname{split}_{b,k}(z)=(z_1,\dots,z_k)
++\quad\Longrightarrow\quad
++z=\sum_{i=1}^k b^{i-1}z_i
++\quad\text{and}\quad
++\|z_i\|_\infty<b\ \text{ for every }i.$$
+ 
+-$$\text{split}_b(z) := (z_1, z_2, \dots, z_k) \quad \text{such that} \quad z = \sum_{i=1}^{k} b^{i-1} \cdot z_i \quad \text{and} \quad \|z_i\|_\infty < b$$
++Every vector with  $\|z\|_\infty<b^k$  has such a canonical  $k$ -digit decomposition. The map commutes with coordinate projection.
+ 
+ **Definition 4 (Ring Commitment Scheme).** A ring commitment scheme  $\text{com} := (\text{Setup}, \text{Commit})$  consists of two PPT algorithms:
+ 
+-- $\text{Setup}(1^\lambda, m) \to \text{pp}$ : Takes as input a security parameter  $1^\lambda$  and length  $m \in \mathbb{N}_{\ge 1}$ , outputs public parameters  $\text{pp}$ .
+-- $\text{Commit}(\text{pp}, z) \to c$ : Takes as input public parameters  $\text{pp}$  and a vector  $z \in \mathbb{R}_\mathbb{F}^m$ , outputs a commitment  $c \in \mathbb{C}$ .
++- $\text{Setup}(1^\lambda, n) \to \text{pp}$ : Takes as input a security parameter  $1^\lambda$  and ring-message length  $n \in \mathbb{N}_{\ge 1}$ , outputs public parameters  $\text{pp}$ .
++- $\text{Commit}(\text{pp}, z) \to c$ : Takes as input public parameters  $\text{pp}$  and a vector  $z \in \mathbb{R}_\mathbb{F}^n$ , outputs a commitment  $c \in \mathbb{C}$ .
+ 
+ A ring commitment scheme can satisfy the following properties:
+ 
+-**$B$ -binding:** For every length  $m = \text{poly}(\lambda)$  and every EPT adversary  $\mathcal{A}$ , a ring commitment scheme is  $B$ -binding (for  $B \in \mathbb{N}$ ) if the following probability holds:
++**$B$ -binding:** For every length  $n = \text{poly}(\lambda)$  and every EPT adversary  $\mathcal{A}$ , a ring commitment scheme is  $B$ -binding (for  $B \in \mathbb{N}$ ) if the following probability holds:
+ 
+-$$\Pr \left[ \begin{array}{l} \text{Commit}(\text{pp}, z_1) = \text{Commit}(\text{pp}, z_2) \\ \wedge \|z_1\|_\infty, \|z_2\|_\infty < B, \\ \wedge z_1 \neq z_2 \end{array} \middle| \begin{array}{l} \text{pp} \leftarrow \text{Setup}(1^\lambda, m) \\ z_1, z_2 \in \mathbb{R}_\mathbb{F}^m \leftarrow \mathcal{A}(\text{pp}) \end{array} \right] \le \epsilon_{\text{bind}}(B)$$
++$$\Pr \left[ \begin{array}{l} \text{Commit}(\text{pp}, z_1) = \text{Commit}(\text{pp}, z_2) \\ \wedge \|z_1\|_\infty, \|z_2\|_\infty < B, \\ \wedge z_1 \neq z_2 \end{array} \middle| \begin{array}{l} \text{pp} \leftarrow \text{Setup}(1^\lambda, n) \\ z_1, z_2 \in \mathbb{R}_\mathbb{F}^n \leftarrow \mathcal{A}(\text{pp}) \end{array} \right] \le \epsilon_{\text{bind}}(B)$$
+ 
+ for  $\epsilon_{\text{bind}}(B) \le \text{negl}(\lambda)$ . We refer to a pair of vectors  $(z_1, z_2)$  which satisfies the conditions in the probability as a  **$B$ -binding collision**.
+ 
+-**$(B, \mathcal{C})$ -relaxed binding:** For every length  $m = \text{poly}(\lambda)$  and every EPT adversary  $\mathcal{A}$ , a ring commitment scheme is  $(B, \mathcal{C})$ -relaxed binding (for  $B \in \mathbb{N}$  and set  $\mathcal{C} \subseteq \mathbb{R}_\mathbb{F}$ ) if the following probability holds:
++**$(B, \mathcal{C})$ -relaxed binding:** For every length  $n = \text{poly}(\lambda)$  and every EPT adversary  $\mathcal{A}$ , a ring commitment scheme is  $(B, \mathcal{C})$ -relaxed binding (for  $B \in \mathbb{N}$  and set  $\mathcal{C} \subseteq \mathbb{R}_\mathbb{F}$ ) if the following probability holds:
+ 
+-$$\Pr \left[ \begin{array}{l} \Delta_1 \cdot c = \text{Commit}(\text{pp}, z_1) \\ \wedge \Delta_2 \cdot c = \text{Commit}(\text{pp}, z_2) \\ \wedge \|z_1\|_\infty, \|z_2\|_\infty < B, \\ \wedge \Delta_1 z_2 \neq \Delta_2 z_1 \end{array} \middle| \begin{array}{l} \text{pp} \leftarrow \text{Setup}(1^\lambda, m) \\ \left( \begin{array}{c} c \in \mathcal{C}, \\ \Delta_1, \Delta_2 \in (\mathcal{C} - \mathcal{C}), \\ z_1, z_2 \in \mathbb{R}_\mathbb{F}^m \end{array} \right) \leftarrow \mathcal{A}(\text{pp}) \end{array} \right] \le \epsilon_{\text{rk}}(B, \mathcal{C})$$
++$$\Pr \left[ \begin{array}{l} \Delta_1 \cdot c = \text{Commit}(\text{pp}, z_1) \\ \wedge \Delta_2 \cdot c = \text{Commit}(\text{pp}, z_2) \\ \wedge \|z_1\|_\infty, \|z_2\|_\infty < B, \\ \wedge \Delta_1 z_2 \neq \Delta_2 z_1 \end{array} \middle| \begin{array}{l} \text{pp} \leftarrow \text{Setup}(1^\lambda, n) \\ \left( \begin{array}{c} c \in \mathbb{C}, \\ \Delta_1, \Delta_2 \in (\mathcal{C} - \mathcal{C}), \\ z_1, z_2 \in \mathbb{R}_\mathbb{F}^n \end{array} \right) \leftarrow \mathcal{A}(\text{pp}) \end{array} \right] \le \epsilon_{\text{rk}}(B, \mathcal{C})$$
+ 
+ for  $\epsilon_{\text{rk}}(B, \mathcal{C}) \le \text{negl}(\lambda)$ . We refer to a tuple of elements  $(c, \Delta_1, \Delta_2, z_1, z_2)$  which satisfies the conditions in the probability as a  **$(B, \mathcal{C})$ -relaxed binding collision**.
+ 
+-**Homomorphic:** For every  $m \in \mathbb{N}$  and  $\text{pp} \in \text{Setup}(1^\lambda, m)$ , the commitment algorithm,  $\text{Commit}(\text{pp}, \cdot) : \mathbb{R}_\mathbb{F}^m \to \mathbb{C}$ , is an  $\mathbb{R}_\mathbb{F}$ -module homomorphism.
++**Homomorphic:** For every  $n \in \mathbb{N}$  and  $\text{pp} \in \text{Setup}(1^\lambda, n)$ , the commitment algorithm,  $\text{Commit}(\text{pp}, \cdot) : \mathbb{R}_\mathbb{F}^n \to \mathbb{C}$ , is an  $\mathbb{R}_\mathbb{F}$ -module homomorphism.
+ 
+-**Theorem 2 (Properties [2, 7, 9, 14]).** The Ajtai commitment scheme (Definition 18) is a ring commitment scheme (Definition 4) that is **homomorphic**,  **$B$ -binding** (assuming the  $\text{MSIS}_{m, 2B}^{\infty, \kappa, q}$  problem (Definition 16) is hard), and  **$(B, \mathcal{C})$ -relaxed binding** (assuming the  $\text{MSIS}_{m, 4TB}^{\infty, \kappa, q}$  problem is hard and  $\mathcal{C}$  is a strong sampling set (Definition 17) with expansion factor  $T$  (Theorem 9)).
++**Theorem 2 (Properties [2, 7, 9, 14]).** The Ajtai commitment scheme (Definition 18) with ring-message length  $n$  is a ring commitment scheme (Definition 4) that is **homomorphic**,  **$B$ -binding** (assuming the  $\text{MSIS}_{n, 2B}^{\infty, \kappa, q}$  problem (Definition 16) is hard), and  **$(B, \mathcal{C})$ -relaxed binding** (assuming the  $\text{MSIS}_{n, 4TB}^{\infty, \kappa, q}$  problem is hard and  $\mathcal{C}$  is a strong sampling set (Definition 17) with expansion factor  $T$  (Theorem 9)).
+ 
+ **Definition 5 (Interactive Reductions [50, 52]).** Consider relations  $\mathcal{R}_1$  and  $\mathcal{R}_2$  over parameters, structure, instance, and witness tuples. An **interactive reduction** from  $\mathcal{R}_1$  to  $\mathcal{R}_2$  is defined by PPT algorithms  $(\mathcal{G}, \mathcal{K}, \mathcal{P}, \mathcal{V})$  called the generator, encoder, prover, and verifier respectively with the following interface.
+ 
+@@ -74,12 +116,12 @@ $\ge 1/\text{poly}(\lambda)$ , then we have that
+ 
+ $$\Pr \left[ (\text{pp}, \mathbf{s}, u_1, w_1) \in \mathcal{R}_1 \left| \begin{array}{l} \text{pp} \leftarrow \mathcal{G}(1^\lambda, \text{sz}) \\ (\mathbf{s}, u_1, \text{st}) \leftarrow \mathcal{A}(\text{pp}) \\ (\text{pk}, \text{vk}) \leftarrow \mathcal{K}(\text{pp}, \mathbf{s}) \\ w_1 \leftarrow \mathcal{E}(\text{pp}, \mathbf{s}, u_1, \text{st}) \end{array} \right. \right] \ge \epsilon(\mathcal{A}, \mathcal{P}^*) - \text{negl}(\lambda).$$
+ 
+-- (iii) **Public Coin**: All of the verifier's messages are uniformly random strings of some prescribed length. Furthermore, the verifier's messages contain all of the random coins (randomness) used by the verifier.<sup>7</sup>
++- (iii) **Public Coin**: Each verifier message is sampled uniformly from its prescribed finite challenge set, and the verifier messages reveal all randomness used by the verifier.<sup>7</sup> A bit-string implementation must sample the prescribed distribution exactly or account for its statistical distance from that distribution.
+ 
+ <sup>7</sup> If a reduction of knowledge is public-coin, then it trivially satisfies the property of **public reducibility** described in [52] as the execution of the verifier  $\mathcal{V}$  can be emulated using the randomness from the transcript.
+ 
+ **Lemma 2 (Sequential composition [50, 52]).** *For reductions of knowledge  $\Pi_1 = (\mathcal{G}, \mathcal{K}, \mathcal{P}_1, \mathcal{V}_1) : \mathcal{R}_1 \to \mathcal{R}_2$  and  $\Pi_2 = (\mathcal{G}, \mathcal{K}, \mathcal{P}_2, \mathcal{V}_2) : \mathcal{R}_2 \to \mathcal{R}_3$ , we have that  $\Pi_2 \circ \Pi_1 = (\mathcal{G}, \mathcal{K}, \mathcal{P}, \mathcal{V}) : \mathcal{R}_1 \to \mathcal{R}_3$  is a reduction of knowledge where  $\mathcal{K}(\mathbf{pp}, \mathbf{s})$  computes  $(\mathbf{pk}, \mathbf{vk})$  and where*
+ 
+-$$\begin{aligned}\mathcal{P}(\mathbf{pk}, u_1, w_1) &= \mathcal{P}_2(\mathbf{pk}, \mathcal{P}_1(\mathbf{pk}, u_1, w_1)) \\ \mathcal{V}(\mathbf{vk}, u_1) &= \mathcal{V}_2(\mathbf{vk}, \mathcal{V}_1(\mathbf{vk}, u_1, w_1))\end{aligned}$$
++$$\begin{aligned}\mathcal{P}(\mathbf{pk}, u_1, w_1) &= \mathcal{P}_2(\mathbf{pk}, \mathcal{P}_1(\mathbf{pk}, u_1, w_1)) \\ \mathcal{V}(\mathbf{vk}, u_1) &= \mathcal{V}_2(\mathbf{vk}, \mathcal{V}_1(\mathbf{vk}, u_1))\end{aligned}$$
+ 
+ **Definition 6 (The sum-check protocol [62]).** *The sum-check protocol SumCheck( $T; Q$ ) is a classic interactive proof protocol between two PPT algorithms  $(\mathcal{P}, \mathcal{V})$  that checks that the sum of evaluations of a  $\ell$ -variate polynomial  $Q \in \mathbb{F}^{\le d}[X_1, \dots, X_\ell]$  on the Boolean hypercube results in some claimed value  $T$ . The output of the sum-check protocol is a claim that  $v \stackrel{?}{=} Q(r)$  for some random point  $r \in \mathbb{F}^\ell$  and claimed evaluations  $v$ , which the verifier  $\mathcal{V}$  can query  $Q$  to check. The protocol is public-coin, has a completeness error of 0, and has a soundness error of  $\le \ell d / |\mathbb{F}|$ . More generally, the field can be chosen to be an extension field  $\mathbb{K}$ . In this case, the soundness error is  $\le \ell d / |\mathbb{K}|$ . A self-contained description of the sum-check protocol can be found in this note [81].*
+diff --git a/docs/superneo-paper/05-5-embedding-products-with-evaluation-homomorphism.md b/docs/superneo-paper/05-5-embedding-products-with-evaluation-homomorphism.md
+index ed0af1abcdfbe7a428d1d58353769a42387f0da2..6c91d2d5ee1a09062bc9fd493be33dffd5a9186d 100644
+--- a/docs/superneo-paper/05-5-embedding-products-with-evaluation-homomorphism.md
++++ b/docs/superneo-paper/05-5-embedding-products-with-evaluation-homomorphism.md
+@@ -1,10 +1,10 @@
+ ## 5 Embedding products with evaluation homomorphism
+ 
+-Here, we define a bijective embedding from the field  $\mathbb{F}$  into the ring  $\mathbb{R}_\mathbb{F}$ .
++Here, we define a bijective coefficient embedding from  $\mathbb{F}^d$  into the ring  $\mathbb{R}_\mathbb{F}$ .
+ 
+ **Definition 7 (Coefficient Embedding).**
+ 
+-Element embedding: Consider a vector  $v \in \mathbb{F}^d$ . We define  $\mathbf{v} \in \mathbb{R}_\mathbb{F}$  (in bold font) to be the ring element whose coefficient vector is  $v$ , i.e.  $\mathbf{cf}(\mathbf{v}) = v$ .
++Element embedding: Consider a vector  $v \in \mathbb{F}^d$ . We define  $\mathbf{v} \in \mathbb{R}_\mathbb{F}$  (in bold font) to be the ring element whose coefficient vector is  $v$ , i.e.  $\operatorname{cf}(\mathbf{v}) = v$ .
+ 
+ Vector embedding: Recall that we define  $n_\mathbb{F} = d \cdot n_R$ . Hence, for a field vector  $z \in \mathbb{F}^{n_\mathbb{F}}$ , we have a natural partition into  $d$ -sized sub-vectors  $z = [z_1, \dots, z_{n_R}]$ . We define the ring vector  $\mathbf{z} := (z_1, \dots, z_{n_R}) \in \mathbb{R}_\mathbb{F}^{n_R}$  to be the vector of ring elements, which are the embeddings of the  $n_R = n_\mathbb{F}/d$  field sub-vectors.
+ 
+@@ -14,34 +14,55 @@ Inverse embedding: Similarly, given a ring vector  $\mathbf{v} \in \mathbb{R}_\m
+ 
+ **Theorem 3 (Inner Product Transform [36, 64]).** *There exists a linear transform  $\overline{\cdot} : \mathbb{F}^d \to \mathbb{F}^d$  such that for all  $a, b \in \mathbb{F}^d$ , we have the constant term*
+ 
+-$$\mathbf{ct}(\overline{\mathbf{a}} \cdot \overline{\mathbf{b}}) = \langle a, b \rangle$$
++$$\operatorname{ct}(\overline{\mathbf{a}} \cdot \mathbf{b}) = \langle a, b \rangle$$
+ 
+-where  $\overline{\mathbf{a}}$  denotes applying the transform to  $a$  and embedding  $\overline{a}$  into the ring.
++where  $\overline{\mathbf{a}}$  denotes applying the transform to  $a$  and embedding  $\overline a$  into the ring, while  $\mathbf b$  is the ordinary coefficient embedding of  $b$ . The transform is applied to exactly one factor.
+ 
+ Here, we define an extension of the inner product transform  $\overline{\cdot} : \mathbb{F}^d \to \mathbb{F}^d$  (Theorem 3) to vectors and matrices.
+ 
+ **Definition 8 (Lifting the Transform).**
+ 
+-Vector Transform: Consider a vector  $v \in \mathbb{F}^{n_{\mathbb{F}}}$ , we can partition  $v$  into  $d$ -sized sub-vectors  $[v_1, \dots, v_{n_{\mathbb{R}}}]$ . We define  $\bar{\cdot} : \mathbb{F}^{n_{\mathbb{F}}} \to \mathbb{F}^{n_{\mathbb{F}}}$  to be  $\bar{v} := [\bar{v}_1, \dots, \bar{v}_{n_{\mathbb{R}}}] \in \mathbb{F}^{n_{\mathbb{F}}}$ .
++Vector Transform: Consider a vector  $v \in \mathbb{F}^{n_{\mathbb{F}}}$ , which we partition into  $d$ -sized sub-vectors  $[v_1, \dots, v_{n_R}]$ . We define  $\bar{\cdot} : \mathbb{F}^{n_{\mathbb{F}}} \to \mathbb{F}^{n_{\mathbb{F}}}$  block-wise by  $\bar{v} := [\bar{v}_1, \dots, \bar{v}_{n_R}]$ . When used in a ring product, each transformed block is identified with its coefficient embedding in  $\mathbb R_{\mathbb F}$ .
+ 
+ Matrix Transform: Consider a matrix  $M \in \mathbb{F}^{m \times n_{\mathbb{F}}}$  with rows  $M_1, \dots, M_m \in \mathbb{F}^{n_{\mathbb{F}}}$ . We define  $\bar{\cdot} : \mathbb{F}^{m \times n_{\mathbb{F}}} \to \mathbb{F}^{m \times n_{\mathbb{F}}}$  to be  $\bar{M} := [\bar{M}_1, \dots, \bar{M}_m] \in \mathbb{F}^{m \times n_{\mathbb{F}}}$ .
+ 
+-*Remark 1 (Efficiency and Sparsity Preservation).* When the cyclotomic polynomial  $\phi(X)$  is a power-of-two cyclotomic or a trinomial cyclotomic, the transform  $\bar{\cdot} : \mathbb{F}^{n_{\mathbb{F}}} \to \mathbb{F}^{n_{\mathbb{F}}}$  essentially only involves permuting and adding entries of the input vector, and hence can be computed in  $O(n_{\mathbb{F}})$  time. Since the  $\bar{\cdot}$  is linear, if the original matrix  $M$  is sparse, then the transformed matrix  $\bar{M}$  is also sparse.
++*Remark 1 (Efficiency and Sparsity).* When the cyclotomic polynomial  $\phi(X)$  is a power-of-two cyclotomic or a trinomial cyclotomic, the block transform can be implemented with a fixed pattern of permutations and additions, and hence in  $O(n_{\mathbb F})$  time. More precisely, if each column of the  $d\times d$  block transform has at most  $s$  nonzero entries, then  $\operatorname{nnz}(\bar M)\le s\operatorname{nnz}(M)$ . Thus the specific bounded-support transform preserves sparsity up to this factor; linearity alone would not imply sparsity preservation.
+ 
+-**Theorem 4 (Matrix-Vector Product Transform).** Consider an arbitrary matrix  $M \in \mathbb{F}^{m \times n_{\mathbb{F}}}$  and vector  $z \in \mathbb{F}^{n_{\mathbb{F}}}$ . The matrix-vector product  $Mz \in \mathbb{F}^m$  is equal to the constant terms of the matrix-vector product  $\bar{M}z \in \mathbb{R}_{\mathbb{F}}^m$ , when viewing each ring element as a polynomial. More succinctly,  $Mz = \text{ct}(\bar{M}z)$ .
++**Theorem 4 (Matrix-Vector Product Transform).** Consider an arbitrary matrix  $M \in \mathbb{F}^{m \times n_{\mathbb{F}}}$  and vector  $z \in \mathbb{F}^{n_{\mathbb{F}}}$ . Let  $\mathbf z\in\mathbb R_{\mathbb F}^{n_R}$  be the coefficient embedding of  $z$ , and view each transformed  $d$ -column block of  $\bar M$  as a ring element. Then
++
++$$Mz=\operatorname{ct}(\bar M\mathbf z)\in\mathbb F^m.$$
+ 
+ *Proof.* For brevity, we defer the proof to Appendix D.1.  $\square$
+ 
+-*Remark 2 (Matrix-vector Product Evaluation).* Consider an arbitrary vector  $z \in \mathbb{F}^{n_{\mathbb{F}}}$ , matrix  $M \in \mathbb{F}^{m \times n_{\mathbb{F}}}$ , and multilinear evaluation point  $r \in \mathbb{K}^{\log m}$ . Define the evaluation  $y := \widehat{\bar{M}z_i}(r) = \langle \bar{M}z_i, \hat{r} \rangle \in \mathbb{R}_{\mathbb{K}}$ . Observe that multiplying a ring element in  $\mathbb{R}_{\mathbb{F}}$  with an extension field element in  $\mathbb{K}$  scales each coefficient of the ring element by the extension field element. Hence, by Definition 2, we must have that for all  $\ell \in [d]$ ,  $\text{cf}(y)_{\ell} = \widehat{\text{cf}(\bar{M}z_i)}_{\ell}(r) \in \mathbb{K}$  (i.e. the  $\ell$ -th coefficient of  $y$  is equal to the multilinear evaluation of the  $\ell$ -th coefficient vector of  $\bar{M}z_i$  at point  $r$ ). Since  $\text{ct}(y) = \text{cf}(y)_1$  and  $\text{ct}(\bar{M}z_i) = \widehat{\text{cf}(\bar{M}z_i)}_1$ , by Theorem 4, we can observe that the constant term  $\text{ct}(y) = \bar{M}z(r) \in \mathbb{K}$  is exactly the multilinear evaluation of the field vector  $Mz$  at point  $r$ .
++*Remark 2 (Matrix-vector Product Evaluation).* Consider an arbitrary vector  $z \in \mathbb{F}^{n_{\mathbb{F}}}$ , its coefficient embedding  $\mathbf z\in\mathbb R_{\mathbb F}^{n_R}$ , a matrix  $M \in \mathbb{F}^{m \times n_{\mathbb{F}}}$ , and a multilinear evaluation point  $r \in \mathbb{K}^{\log m}$ . Define
++
++$$\mathbf y:=\widehat{\bar M\mathbf z}(r)\in\mathbb R_{\mathbb K}.$$
++
++Multiplication by an extension-field scalar acts coefficient-wise. Hence, for every  $\ell\in[d]$ ,
++
++$$\operatorname{cf}(\mathbf y)_\ell
++=\widetilde{\operatorname{cf}(\bar M\mathbf z)_\ell}(r)\in\mathbb K.$$
++
++By Theorem 4,  $\operatorname{ct}(\bar M\mathbf z)=Mz$ . Therefore,
+ 
+-**Theorem 5 (Evaluation Homomorphism).** Consider an arbitrary matrix  $M \in \mathbb{F}^{m \times n_{\mathbb{F}}}$ , vectors  $z_1, \dots, z_{\ell} \in \mathbb{F}^{n_{\mathbb{F}}}$ , scalars  $\rho_1, \dots, \rho_{\ell} \in \mathbb{R}_{\mathbb{F}}$ , and evaluation point  $r \in \mathbb{K}^{\log m}$ . Let  $\mathcal{L} : \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}}} \to \mathbb{C}$ ,  $\mathcal{L}_{\text{in}} : \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}}} \to \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}, \text{in}}}$  be arbitrary  $\mathbb{R}_{\mathbb{F}}$ -module homomorphisms. For all  $i \in [\ell]$ , define
++$$\operatorname{ct}(\mathbf y)=\widetilde{Mz}(r).$$
+ 
+-$$c_i := \mathcal{L}(z_i) \in \mathbb{C} \quad \mathbf{x}_i := \mathcal{L}_{\text{in}}(z_i) \in \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}, \text{in}}} \quad y_i := \widehat{\bar{M}z_i}(r) \in \mathbb{R}_{\mathbb{K}}$$
++**Theorem 5 (Evaluation Homomorphism).** Consider an arbitrary matrix  $M \in \mathbb{F}^{m \times n_{\mathbb{F}}}$ , vectors  $z_1, \dots, z_{\ell} \in \mathbb{F}^{n_{\mathbb{F}}}$  with coefficient embeddings  $\mathbf z_1,\dots,\mathbf z_\ell\in\mathbb R_{\mathbb F}^{n_R}$ , scalars  $\rho_1, \dots, \rho_{\ell} \in \mathbb{R}_{\mathbb{F}}$ , and evaluation point  $r \in \mathbb{K}^{\log m}$ . Let  $\mathcal{L} : \mathbb{R}_{\mathbb{F}}^{n_R} \to \mathbb{C}$  and  $\mathcal{L}_{\text{in}} : \mathbb{R}_{\mathbb{F}}^{n_R} \to \mathbb{R}_{\mathbb{F}}^{n_{R, \text{in}}}$  be arbitrary  $\mathbb{R}_{\mathbb{F}}$ -module homomorphisms. For all  $i \in [\ell]$ , define
++
++$$c_i := \mathcal{L}(\mathbf z_i) \in \mathbb{C}, \qquad \mathbf{x}_i := \mathcal{L}_{\text{in}}(\mathbf z_i) \in \mathbb{R}_{\mathbb{F}}^{n_{R, \text{in}}}, \qquad \mathbf y_i := \widehat{\bar M\mathbf z_i}(r) \in \mathbb{R}_{\mathbb{K}}.$$
+ 
+ Additionally, define
+ 
+-$$\begin{aligned} c &:= \sum_{i \in [\ell]} \rho_i c_i \in \mathbb{C}, & \mathbf{x} &:= \sum_{i \in [\ell]} \rho_i \mathbf{x}_i \in \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}, \text{in}}}, \\ \mathbf{z} &:= \sum_{i \in [\ell]} \rho_i z_i \in \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}}}, & y &:= \sum_{i \in [\ell]} \rho_i y_i \in \mathbb{R}_{\mathbb{K}} \end{aligned}$$
++$$\begin{aligned} c &:= \sum_{i \in [\ell]} \rho_i c_i \in \mathbb{C}, & \mathbf{x} &:= \sum_{i \in [\ell]} \rho_i \mathbf{x}_i \in \mathbb{R}_{\mathbb{F}}^{n_{R, \text{in}}}, \\ \mathbf{z} &:= \sum_{i \in [\ell]} \rho_i \mathbf z_i \in \mathbb{R}_{\mathbb{F}}^{n_R}, & \mathbf y &:= \sum_{i \in [\ell]} \rho_i \mathbf y_i \in \mathbb{R}_{\mathbb{K}}. \end{aligned}$$
++
++We must have
++
++$$c=\mathcal L(\mathbf z),\qquad \mathbf x=\mathcal L_{\mathrm{in}}(\mathbf z),\qquad \mathbf y=\widehat{\bar M\mathbf z}(r).$$
++
++Let  $z\in\mathbb F^{n_{\mathbb F}}$  be the inverse coefficient embedding of  $\mathbf z$ . Additionally, for all  $i\in[\ell]$ ,
+ 
+-We must have that  $c = \mathcal{L}(\mathbf{z})$  and  $y = \widehat{\bar{M}\mathbf{z}}(r)$ . Additionally, for all  $i \in [\ell]$ ,  $\text{ct}(y_i) = \bar{M}z_i(r)$  and  $\text{ct}(y) = \bar{M}\mathbf{z}(r)$ .
++$$\operatorname{ct}(\mathbf y_i)=\widetilde{Mz_i}(r),
++\qquad
++\operatorname{ct}(\mathbf y)=\widetilde{Mz}(r).$$
+ 
+ *Proof.* For brevity, we defer the proof to Appendix D.2.  $\square$
+diff --git a/docs/superneo-paper/06-6-strong-and-weak-interactive-reductions.md b/docs/superneo-paper/06-6-strong-and-weak-interactive-reductions.md
+index 91b9e616057d6c6a56ce967a5aef7b7261a6ca7a..75f6d2d1ad6ccc3b24f02b8b65c3c51387aa815e 100644
+--- a/docs/superneo-paper/06-6-strong-and-weak-interactive-reductions.md
++++ b/docs/superneo-paper/06-6-strong-and-weak-interactive-reductions.md
+@@ -8,7 +8,7 @@ $$\Pr \left[ \left( \text{pp}, s, u_1, w_1 \right) \in \mathcal{R}'_1 \left| \be
+ 
+ and if  $\mathcal{A} := (\mathcal{B}, \mathcal{B}')$  such that
+ 
+-$$\Pr \left[ \begin{array}{c} u_1, u'_1 \neq \perp \\ \downarrow \\ \phi(u_1) = \phi(u'_1) \end{array} \left| \begin{array}{l} \text{pp} \leftarrow \mathcal{G}(1^\lambda, \text{sz}) \\ (s, \text{st}^*) \leftarrow \mathcal{B}(\text{pp}) \\ (u_1, \text{st}) \leftarrow \mathcal{B}'(\text{st}^*) \\ (u'_1, \text{st}') \leftarrow \mathcal{B}'(\text{st}^*) \end{array} \right. \right] = 1,$$
++$$\Pr \left[ \begin{array}{c} u_1, u'_1 \neq \perp \\ \wedge \\ \phi(u_1) \neq \phi(u'_1) \end{array} \left| \begin{array}{l} \text{pp} \leftarrow \mathcal{G}(1^\lambda, \text{sz}) \\ (s, \text{st}^*) \leftarrow \mathcal{B}(\text{pp}) \\ (u_1, \text{st}) \leftarrow \mathcal{B}'(\text{st}^*) \\ (u'_1, \text{st}') \leftarrow \mathcal{B}'(\text{st}^*) \end{array} \right. \right] = 0,$$
+ 
+ then
+ 
+@@ -20,7 +20,7 @@ An interactive reduction  $\Pi : \mathcal{R}_1 \to \mathcal{R}_2$ , defined by P
+ 
+ (i) For any EPT adversary  $(\mathcal{A}, \mathcal{P}^*)$ ,
+ 
+-$$\Pr \left[ \begin{array}{c} u_2, u'_2 \neq \perp \\ \downarrow \\ \phi(u_2) = \phi(u'_2) \end{array} \left| \begin{array}{l} \text{pp} \leftarrow \text{Gen}(1^\lambda) \\ (s, u_1, \text{st}_1) \leftarrow \mathcal{A}(\text{pp}) \\ (\text{pk}, \text{vk}) \leftarrow \mathcal{K}(\text{pp}, s) \\ (u_2, w_2) \leftarrow \langle \mathcal{P}^*, \mathcal{V} \rangle ((\text{pk}, \text{vk}), u_1, \text{st}) \\ (u'_2, w'_2) \leftarrow \langle \mathcal{P}^*, \mathcal{V} \rangle ((\text{pk}, \text{vk}), u_1, \text{st}) \end{array} \right. \right] = 1$$
++$$\Pr \left[ \begin{array}{c} u_2, u'_2 \neq \perp \\ \wedge \\ \phi(u_2) \neq \phi(u'_2) \end{array} \left| \begin{array}{l} \text{pp} \leftarrow \mathcal{G}(1^\lambda,\text{sz}) \\ (s, u_1, \text{st}) \leftarrow \mathcal{A}(\text{pp}) \\ (\text{pk}, \text{vk}) \leftarrow \mathcal{K}(\text{pp}, s) \\ (u_2, w_2) \leftarrow \langle \mathcal{P}^*, \mathcal{V} \rangle ((\text{pk}, \text{vk}), u_1, \text{st}) \\ (u'_2, w'_2) \leftarrow \langle \mathcal{P}^*, \mathcal{V} \rangle ((\text{pk}, \text{vk}), u_1, \text{st}) \end{array} \right. \right] = 0$$
+ 
+ (ii) For any EPT adversary  $(\mathcal{A}, \mathcal{P}^*)$ , there exists an EPT extractor  $\mathcal{E}$  such that if
+ 
+@@ -28,13 +28,13 @@ $$\epsilon'(\mathcal{A}, \mathcal{P}^*) := \Pr \left[ \left( \text{pp}, s, \lang
+ 
+ $\ge 1/\text{poly}(\lambda)$ , and
+ 
+-$$\Pr \left[ \begin{array}{l} w_2, w'_2 \neq \perp \\ \wedge \\ w_2 \neq w'_2 \end{array} \left| \begin{array}{l} \text{pp} \leftarrow \text{Gen}(1^\lambda) \\ (s, u_1, \text{st}) \leftarrow \mathcal{A}(\text{pp}) \\ (\text{pk}, \text{vk}) \leftarrow \mathcal{K}(\text{pp}, s) \\ (u_2, w_2) \leftarrow \langle \mathcal{P}^*, \mathcal{V} \rangle((\text{pk}, \text{vk}), u_1, \text{st}) \\ (u'_2, w'_2) \leftarrow \langle \mathcal{P}^*, \mathcal{V} \rangle((\text{pk}, \text{vk}), u_1, \text{st}) \end{array} \right. \right] \le \text{negl}(\lambda)$$
++$$\Pr \left[ \begin{array}{l} w_2, w'_2 \neq \perp \\ \wedge \\ w_2 \neq w'_2 \end{array} \left| \begin{array}{l} \text{pp} \leftarrow \mathcal{G}(1^\lambda,\text{sz}) \\ (s, u_1, \text{st}) \leftarrow \mathcal{A}(\text{pp}) \\ (\text{pk}, \text{vk}) \leftarrow \mathcal{K}(\text{pp}, s) \\ (u_2, w_2) \leftarrow \langle \mathcal{P}^*, \mathcal{V} \rangle((\text{pk}, \text{vk}), u_1, \text{st}) \\ (u'_2, w'_2) \leftarrow \langle \mathcal{P}^*, \mathcal{V} \rangle((\text{pk}, \text{vk}), u_1, \text{st}) \end{array} \right. \right] \le \text{negl}(\lambda)$$
+ 
+ then we have that
+ 
+ $$\Pr \left[ (\text{pp}, s, u_1, w_1) \in \mathcal{R}_1 \left| \begin{array}{l} \text{pp} \leftarrow \mathcal{G}(1^\lambda, \text{sz}) \\ (s, u_1, \text{st}) \leftarrow \mathcal{A}(\text{pp}) \\ (\text{pk}, \text{vk}) \leftarrow \mathcal{K}(\text{pp}, s) \\ w_1 \leftarrow \mathcal{E}(\text{pp}, s, u_1, \text{st}) \end{array} \right. \right] \ge \epsilon'(\mathcal{A}, \mathcal{P}^*) - \text{negl}(\lambda).$$
+ 
+-**Theorem 6 (Strong-Weak Composition).** Consider relations  $\mathcal{R}_1, \mathcal{R}_2, \mathcal{R}'_2$  and  $\mathcal{R}_3$  over public parameters, structure, instance, and witness tuples such that  $\mathcal{R}_2 \subseteq \mathcal{R}'_2$ . Let  $\mathcal{U}_2$  be the ambient instance space of  $\mathcal{R}_2$ . Consider interactive reductions (Definition 5)  $\Pi_1 : \mathcal{R}_1 \to \mathcal{R}_2$  ( $\mathcal{R}'_2$ ),  $\Pi_2 : \mathcal{R}_2$  ( $\mathcal{R}'_2$ )  $\to \mathcal{R}_3$  such that
++**Theorem 6 (Strong-Weak Composition).** Consider relations  $\mathcal{R}_1, \mathcal{R}_2, \mathcal{R}'_2$  and  $\mathcal{R}_3$  over public parameters, structure, instance, and witness tuples such that  $\mathcal{R}_2 \subseteq \mathcal{R}'_2$ . Let  $\mathcal{U}_2$  be the ambient instance space of  $\mathcal{R}_2$ . Consider an interactive reduction  $\Pi_1 : \mathcal{R}_1 \to \mathcal{R}_2$  whose ambient output relation is  $\mathcal R'_2$ , and an interactive reduction  $\Pi_2 : \mathcal{R}_2 \to \mathcal{R}_3$  whose ambient input relation is  $\mathcal R'_2$ , such that
+ 
+ - (i)  $\Pi_1$  is **strong** (Definition 10) with respect to a function  $\phi : \mathcal{U}_2 \to \mathbb{C}$  and
+ - (ii)  $\Pi_2$  is **weak** (Definition 9) with respect to the **same** function  $\phi$ ,
+diff --git a/docs/superneo-paper/07-7-neo-s-folding-scheme-for-ccs.md b/docs/superneo-paper/07-7-neo-s-folding-scheme-for-ccs.md
+index 558d1e6ddd9e7a287da38598733f491bb6669970..d54d1bb132689d4db6b5faa52422aaf950526905 100644
+--- a/docs/superneo-paper/07-7-neo-s-folding-scheme-for-ccs.md
++++ b/docs/superneo-paper/07-7-neo-s-folding-scheme-for-ccs.md
+@@ -4,19 +4,41 @@
+ 
+ **Definition 11 (Structure).** We define a **structure** as a collection of elements
+ 
+-$$s := \left\{ \left\{ M_j \in \mathbb{F}^{m \times n_{\mathbb{F}}} \right\}_{j \in [t]}, f \in \mathbb{F}^{<u}[X_1, \dots, X_t] \right\},$$
++$$s := \left\{ \left\{ M_j \in \mathbb{F}^{m \times n_{\mathbb{F}}} \right\}_{j \in [t]}, f \in \mathbb{F}[X_1, \dots, X_t] \right\},$$
+ 
+-which consists of matrices and a degree- $u$  polynomial.
++which consists of matrices and a constraint polynomial. Define
+ 
+-**Definition 12 (Norm-bounded CCS).** Let  $\mathcal{L} : \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}}} \to \mathbb{C}$  be an arbitrary  $\mathbb{R}_{\mathbb{F}}$ -module homomorphism. Let  $s$  be a structure as defined in Definition 11. We define the **norm-bounded CCS relation**,  $\text{CCS}(b, \mathcal{L})$ , as follows:
++$$D_f := \deg_{\mathrm{tot}}(f).$$
+ 
+-$$\left\{ \begin{array}{l} (s; (c \in \mathbb{C}, x \in \mathbb{F}^{n_{\mathbb{F}, \text{in}}}); w \in \mathbb{F}^{n_{\mathbb{F}} - n_{\mathbb{F}, \text{in}}}) : \\ \quad \text{For } z := [x, w], \\ \quad c = \mathcal{L}(z) \wedge \|z\|_{\infty} < b \wedge \\ \quad f(\overline{M_1 z}, \dots, \overline{M_t z}) \in \mathbb{Z}^{\text{log } m} \end{array} \right\}$$
++An admissible structure must satisfy
+ 
+-**Definition 13 (Norm-bounded CCS Evaluation Relation).** Let  $s$  be a structure as defined in Definition 11. Let  $\mathcal{L} : \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}}} \to \mathbb{C}$  be an arbitrary  $\mathbb{R}_{\mathbb{F}}$ -module homomorphism. Define  $\mathcal{L}_{\text{in}} : \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}, \text{in}}} \to \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}, \text{in}}}$  to be the trivial  $\mathbb{R}_{\mathbb{F}}$ -module
++$$D_f \le u, \qquad m\text{ is a power of two}, \qquad n_{\mathbb F}\le m,$$
++
++and its first matrix must be the canonical zero-padding injection
++
++$$M_1:=\begin{bmatrix}I_{n_{\mathbb F}}\\0_{(m-n_{\mathbb F})\times n_{\mathbb F}}\end{bmatrix}\in\mathbb F^{m\times n_{\mathbb F}}.$$
++
++Thus  $M_1z=(z,0^{m-n_{\mathbb F}})$  and  $\|M_1z\|_\infty=\|z\|_\infty$ . This normalization is part of the relation domain. The quantity  $D_f$ , rather than an individual-degree annotation on  $f$ , is used in the sum-check degree bound.
++
++**Definition 12 (Norm-bounded CCS).** Let  $\mathcal{L} : \mathbb{R}_{\mathbb{F}}^{n_R} \to \mathbb{C}$  be an arbitrary  $\mathbb{R}_{\mathbb{F}}$ -module homomorphism. For every field vector  $v$  whose length is a multiple of  $d$ , write  $\mathbf v$  for its coefficient embedding from Definition 7. Let  $s$  be a structure as defined in Definition 11. We define the **norm-bounded CCS relation**,  $\text{CCS}(b, \mathcal{L})$ , as follows:
++
++$$\left\{ \begin{array}{l} (s; (c \in \mathbb{C}, x \in \mathbb{F}^{n_{\mathbb{F}, \text{in}}}); w \in \mathbb{F}^{n_{\mathbb{F}} - n_{\mathbb{F}, \text{in}}}) : \\ \quad \text{For } z := [x, w], \\ \quad c = \mathcal{L}(\mathbf z) \wedge \|z\|_{\infty} < b \wedge \\ \quad f(\widetilde{M_1 z}, \dots, \widetilde{M_t z}) \in \mathbb{ZS}_{\log m} \end{array} \right\}$$
++
++**Definition 13 (Norm-bounded CCS Evaluation Relation).** Let  $s$  be a structure as defined in Definition 11. Let  $\mathcal{L} : \mathbb{R}_{\mathbb{F}}^{n_R} \to \mathbb{C}$  be an arbitrary  $\mathbb{R}_{\mathbb{F}}$ -module homomorphism. Define  $\mathcal{L}_{\text{in}} : \mathbb{R}_{\mathbb{F}}^{n_R} \to \mathbb{R}_{\mathbb{F}}^{n_{R, \text{in}}}$  to be the trivial  $\mathbb{R}_{\mathbb{F}}$ -module
+ 
+ homomorphism that projects the first  $n_{R,\text{in}}$  indices. We define the **norm-bounded CCS evaluation relation**,  $\text{CE}(b, \mathcal{L})$ , as follows:
+ 
+-$$\left\{ \left( \mathbf{s}; \left( \begin{array}{c} c \in \mathbb{C}, \\ x \in \mathbb{F}^{n_{\mathbb{F},\text{in}}}, \\ r \in \mathbb{K}^{\log m}, \\ \{y_j \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]} \end{array} \right); z \in \mathbb{F}^n \right) : \begin{array}{l} c = \mathcal{L}(z) \wedge \mathbf{x} = \mathcal{L}_{\text{in}}(z) \\ \wedge \|z\|_{\infty} < b \wedge \\ \forall j \in [t], y_j = \overline{\mathcal{M}_j z}(r) \end{array} \right\}$$
++$$\left\{ \left( \mathbf{s}; \left( \begin{array}{c} c \in \mathbb{C}, \\ x \in \mathbb{F}^{n_{\mathbb{F},\text{in}}}, \\ r \in \mathbb{K}^{\log m}, \\ \{y_j \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]} \end{array} \right); z \in \mathbb{F}^{n_{\mathbb{F}}} \right) : \begin{array}{l} c = \mathcal{L}(\mathbf z) \wedge \mathbf{x} = \mathcal{L}_{\text{in}}(\mathbf z) \\ \wedge \|z\|_{\infty} < b \wedge \\ \forall j \in [t], y_j = \widehat{\bar{M}_j\mathbf z}(r) \end{array} \right\}$$
++
++**Definition 13a (Batched CCS Evaluation Relation).** For  $N\in\mathbb N_{\ge1}$ , define  $\operatorname{BatchCE}_N(b,\mathcal L)$  to have instances
++
++$$\left(\left(c_i\in\mathbb C,\ x_i\in\mathbb F^{n_{\mathbb F,\mathrm{in}}},\ \{y_{i,j}\in\mathbb R_{\mathbb K}\}_{j\in[t]}\right)_{i\in[N]},\ r\in\mathbb K^{\log m}\right)$$
++
++and witnesses  $(z_i\in\mathbb F^{n_{\mathbb F}})_{i\in[N]}$ , such that for every  $i\in[N]$ ,
++
++$$\left(\mathbf s;\left(c_i,x_i,r,\{y_{i,j}\}_{j\in[t]}\right);z_i\right)\in\operatorname{CE}(b,\mathcal L).$$
++
++The evaluation point  $r$  occurs once in the batched instance and is shared by every component. Protocol displays sometimes repeat the same symbol  $r$  inside each component tuple for readability; every such occurrence denotes this one outer point, not a separate point. Under the canonical identification of one-component tuples,  $\operatorname{BatchCE}_1(b,\mathcal L)=\operatorname{CE}(b,\mathcal L)$ . An ordinary product  $\operatorname{CE}(b,\mathcal L)^N$  continues to mean the component-wise product from Appendix C and does not impose this shared-point condition.
+ 
+ ### 7.2 A folding scheme for CCS via interactive reductions
+ 
+@@ -24,30 +46,30 @@ $$\left\{ \left( \mathbf{s}; \left( \begin{array}{c} c \in \mathbb{C}, \\ x \in
+ 
+ Here, we define the global parameters used in our reductions:
+ 
+-- Define  $\mathbb{F}, \mathbb{K}, d, \mathbb{R}_{\mathbb{F}}, \mathbb{R}_{\mathbb{K}}, m, n_{\mathbb{F}}, n_{\mathbb{R}}, n_{\mathbb{F},\text{in}}, n_{\mathbb{R},\text{in}}, u, t, k, K, b, B$  as in Definition 1.
++- Define  $\mathbb{F}, \mathbb{K}, d, \mathbb{R}_{\mathbb{F}}, \mathbb{R}_{\mathbb{K}}, m, n_{\mathbb{F}}, n_R, n_{\mathbb{F},\text{in}}, n_{R,\text{in}}, u, t, k, K, b, B, B_{\mathrm{amb}}$  as in Definition 1. For a structure  $s$ , define  $D_f := \deg_{\mathrm{tot}}(f)$  as in Definition 11.
+ - Let  $\mathcal{C} \subseteq \mathbb{R}_{\mathbb{F}}$  be a strong sampling set (Definition 17) with expansion factor  $T$  such that  $(K + k)T(b - 1) < B$  and  $1/|\mathcal{C}| = \text{negl}(\lambda)$ .
+-- Let  $\text{com} := (\text{Setup}, \text{Commit})$  be a ring commitment scheme (Definition 4), which is homomorphic and  $(2B, \mathcal{C})$ -relaxed binding. For  $\text{pp} \leftarrow \text{Setup}(1^\lambda, m)$ , define  $\mathcal{L} := \text{Commit}(\text{pp}, \cdot) : \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}}} \to \mathbb{C}$ , which is a  $\mathbb{R}_{\mathbb{F}}$ -module homomorphism.
+-- Let  $\mathcal{L}_{\text{in}} : \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R}}} \to \mathbb{R}_{\mathbb{F}}^{n_{\mathbb{R},\text{in}}}$  be the trivial  $\mathbb{R}_{\mathbb{F}}$ -module homomorphism that projects the first  $n_{\mathbb{R},\text{in}}$  columns.
++- Let  $\text{com} := (\text{Setup}, \text{Commit})$  be a ring commitment scheme (Definition 4), which is homomorphic and  $(2B, \mathcal{C})$ -relaxed binding. For  $\text{pp} \leftarrow \text{Setup}(1^\lambda, n_R)$ , define  $\mathcal{L} := \text{Commit}(\text{pp}, \cdot) : \mathbb{R}_{\mathbb{F}}^{n_R} \to \mathbb{C}$ , which is a  $\mathbb{R}_{\mathbb{F}}$ -module homomorphism.
++- Let  $\mathcal{L}_{\text{in}} : \mathbb{R}_{\mathbb{F}}^{n_R} \to \mathbb{R}_{\mathbb{F}}^{n_{R,\text{in}}}$  be the trivial  $\mathbb{R}_{\mathbb{F}}$ -module homomorphism that projects the first  $n_{R,\text{in}}$  columns.
+ - Let  $\mathbf{s}$  denote a structure as defined in Definition 11.
+ 
+-In Appendix B, we instantiate these parameters with concrete values.
++Appendix B gives fixed parameter sets and finite error estimates. It does not instantiate the asymptotic-family convention from Section 4.
+ 
+ ### 7.3 Interactive reduction for CCS – $\Pi_{\text{CCS}}$
+ 
+-*Overview.* The reduction of knowledge  $\Pi_{\text{CCS}}$  checks that the  $K$  incoming CCS instances (Definition 12) indeed satisfy the required CCS constraints, the  $k$  evaluation claims (Definition 13), from the prior folding step, hold for point  $r$ , and checks that the norms of all of the witness vectors (all  $K + k$  of them) involved are less than  $b$ . To do so,  $\Pi_{\text{CCS}}$  relies on the classic sum-check protocol (Definition 6). The approach is inspired by similar reductions from [14, 55].  $\Pi_{\text{CCS}}$  defines helper polynomials that, when used in the sum-check protocol, will perform the previously specified checks.  $F(\vec{X})$  encodes the CCS constraints (all  $K$  of them).  $\text{NC}(\vec{X})$  encodes the norm constraints (all  $K + k$  of them).  $\text{Eval}(\vec{X})$  encodes the evaluation claims (all  $k$  of them) from the prior step. Finally,  $Q(\vec{X})$  is defined such that if its sum over the boolean hypercube  $\{0, 1\}^{\log(m)}$  equals to the constructed sum  $T$ , then all the respective checks hold.
++*Overview.* The interactive reduction  $\Pi_{\text{CCS}}$  checks that the  $K$  incoming CCS instances (Definition 12) satisfy the required CCS constraints, that the  $k$  evaluation claims from the prior folding step form a shared-point batch (Definitions 13 and 13a) at point  $r$ , and that the norms of all  $K + k$  witness vectors are less than  $b$ . To do so,  $\Pi_{\text{CCS}}$  relies on the classic sum-check protocol (Definition 6). The approach is inspired by similar reductions from [14, 55].  $\Pi_{\text{CCS}}$  defines helper polynomials that, when used in the sum-check protocol, perform the previously specified checks.  $F(\vec{X})$  encodes the CCS constraints (all  $K$  of them).  $\text{NC}(\vec{X})$  encodes the norm constraints (all  $K + k$  of them).  $\text{Eval}(\vec{X})$  encodes the evaluation claims (all  $k$  of them) from the prior step. Finally,  $Q(\vec{X})$  is defined such that if its sum over the Boolean hypercube  $\{0, 1\}^{\log(m)}$  equals the absolute carried target  $T_{\mathrm{abs}}$ , then all the respective checks hold.
+ 
+ #### CCS reduction $\Pi_{\text{CCS}}$
+ 
+-**Parameters:** Refer to Definition 14. Without loss of generality, assume that  $m = n_{\mathbb{F}}$  and  $n_{\mathbb{F}}$  is a power of two and that  $M_1 = I_{n_{\mathbb{F}}}$  is the identity matrix.
++**Parameters:** Refer to Definition 14 and the admissibility conditions in Definition 11. A norm-bounded CCS structure with  $m'$  rows, matrices  $(M'_1,\dots,M'_{t'})$ , and polynomial  $f'$  can meet the first-matrix convention by setting  $t=t'+1$ , prepending the canonical  $M_1$ , and replacing  $f'$  by  $f(X_1,\dots,X_t):=f'(X_2,\dots,X_t)$ . Choose a power-of-two row length  $m\ge\max(m',n_{\mathbb F})$ . Repeating existing constraint rows is the generic safe padding rule. If  $f'(0,\dots,0)=0$ , one may instead append zero rows to every original matrix; each added row then evaluates to zero, so this specialization also preserves and reflects the constraint zero set. Nightstream uses this zero-row specialization. Both rules preserve the bounded vector  $z=[x,w]$ . This normalization does not claim a compiler from unrestricted CCS, whose public and private coordinates can have arbitrary magnitude. It increases the matrix count by one, and row padding can increase  $m$ ; all degree, soundness, and cost expressions use these normalized values. The sum-check below always uses the single  $\log m$ -variable domain. It does not require  $d\mid m$  or  $m=n_{\mathbb F}$ .
+ 
+-**Input**  $\in \text{CCS}(b, \mathcal{L})^K \times \text{CE}(b, \mathcal{L})^k$
++**Input**  $\in \text{CCS}(b, \mathcal{L})^K \times \operatorname{BatchCE}_k(b, \mathcal{L})$
+ 
+-(s;  $(c_i \in \mathbb{C}, x_i \in \mathbb{F}^{n_{\text{F,in}}}); w_i \in \mathbb{F}^{n_{\text{F}} - n_{\text{F,in}}})_{i=1}^K$ ,  
+-(s;  $c_i \in \mathbb{C}, x_i \in \mathbb{F}^{n_{\text{F,in}}}, r \in \mathbb{K}^{\log m}, \{y_{i,j} \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]}; z_i \in \mathbb{F}^{n_{\text{F}}})_{i=K+1}^{K+k}$
++(s;  $(c_i \in \mathbb{C}, x_i \in \mathbb{F}^{n_{\mathbb F,\text{in}}}); w_i \in \mathbb{F}^{n_{\mathbb F} - n_{\mathbb F,\text{in}}})_{i=1}^K$ ,
++(s;  $c_i \in \mathbb{C}, x_i \in \mathbb{F}^{n_{\mathbb F,\text{in}}}, r \in \mathbb{K}^{\log m}, \{y_{i,j} \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]}; z_i \in \mathbb{F}^{n_{\mathbb F}})_{i=K+1}^{K+k}$
+ 
+-**Output**  $\in \text{CE}(b, \mathcal{L})^{K+k}$
++**Output**  $\in \operatorname{BatchCE}_{K+k}(b, \mathcal{L})$
+ 
+-(s;  $c_i \in \mathbb{C}, x_i \in \mathbb{F}^{n_{\text{F,in}}}, r' \in \mathbb{K}^{\log m}, \{y'_{i,j} \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]}; z_i \in \mathbb{F}^{n_{\text{F}}})_{i \in [K+k]}$
++(s;  $c_i \in \mathbb{C}, x_i \in \mathbb{F}^{n_{\mathbb F,\text{in}}}, r' \in \mathbb{K}^{\log m}, \{y'_{i,j} \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]}; z_i \in \mathbb{F}^{n_{\mathbb F}})_{i \in [K+k]}$
+ 
+ **Setup**  $\mathcal{G}(1^\lambda, n_R) \to \text{pp}$ : Output  $\text{pp} \leftarrow \text{Setup}(1^\lambda, n_R)$ .
+ 
+@@ -56,37 +78,59 @@ In Appendix B, we instantiate these parameters with concrete values.
+ **Reduction**  $\langle \mathcal{P}, \mathcal{V} \rangle((\text{pk}, \text{vk}), u_1, w_1) \to (u_2; w_2)$ :
+ 
+ 1.  $\mathcal{V}$ : Send challenges  $\alpha \xleftarrow{\$} \mathbb{K}^{\log m}$  and  $\gamma \xleftarrow{\$} \mathbb{K}$  to  $\mathcal{P}$ .
+-2.  $\mathcal{V} \leftrightarrow \mathcal{P}$ : For all  $i \in [K]$ , define  $z_i := [x_i, w_i]$ . Define  $\vec{X} := (X_1, \dots, X_{\log m})$ ,
++2.  $\mathcal{V} \leftrightarrow \mathcal{P}$ : For all  $i \in [K]$ , define  $z_i := [x_i, w_i]$ . For every  $i\in[K+k]$ , write  $\mathbf z_i\in\mathbb R_{\mathbb F}^{n_R}$  for the coefficient embedding of  $z_i$ . Define  $\vec{X} := (X_1, \dots, X_{\log m})$  and the scalar norm polynomial
++
++$$P_b(Z) := \prod_{a=-(b-1)}^{b-1} \left(Z-\iota_q(a)\right) \in \mathbb{F}[Z].$$
++
++Because  $b \le B < q/2$ , its roots are distinct and, for every scalar  $a \in \mathbb{F}$ ,
++
++$$P_b(a)=0 \quad\Longleftrightarrow\quad |\operatorname{ctr}_q(a)|<b.$$
++
++The polynomial has degree  $\deg P_b=2b-1$ . After multiplication by the equality selector, the norm contribution to  $Q$  has individual degree at most  $2b$ . In particular,  $P_2(Z)=(Z+1)Z(Z-1)$  is cubic and its equality-gated contribution is quartic. Define
+ 
+-$$F(\vec{X}) := \sum_{i=1}^K \gamma^{i-1} \cdot f(\overline{M_1 z_i}, \dots, \overline{M_t z_i}) \in \mathbb{K}[\vec{X}]$$
++$$F(\vec{X}) := \sum_{i=1}^K \gamma^{i-1} \cdot f(\widetilde{M_1 z_i}(\vec X), \dots, \widetilde{M_t z_i}(\vec X)) \in \mathbb{K}[\vec{X}]$$
+ 
+-$$\text{NC}(\vec{X}) := \sum_{i=1}^{K+k} \gamma^{i-1} \cdot \prod_{j=b-1}^{b-1} (\tilde{z}_i - j) \in \mathbb{K}[\vec{X}]$$
++$$\text{NC}(\vec{X}) := \sum_{i=1}^{K+k} \gamma^{i-1} \cdot P_b(\widetilde{M_1z_i}(\vec{X})) \in \mathbb{K}[\vec{X}]$$
+ 
+-$$\text{Eval}(\vec{X}) := \text{eq}(\vec{X}, r) \cdot \sum_{i=K+1}^{K+k} \sum_{j=1}^t \sum_{\ell=1}^d \gamma^{I(i,j,\ell)} \cdot \overline{\text{cf}(\overline{M_j z_i})_\ell} \in \mathbb{K}[\vec{X}]$$
++$$\text{Eval}(\vec{X}) := \text{eq}(\vec{X}, r) \cdot \sum_{i=K+1}^{K+k} \sum_{j=1}^t \sum_{\ell=1}^d \gamma^{I(i,j,\ell)} \cdot \widetilde{\text{cf}(\bar M_j\mathbf z_i)_\ell}(\vec{X}) \in \mathbb{K}[\vec{X}]$$
+ 
+-where  $I(i, j, \ell) = (i - (K + 1)) + k(j - 1) + kt(\ell - 1)$  and  $\overline{\text{cf}(\overline{M_j z_i})_\ell}$  is the multi-linear extension of the  $\ell$ -th coefficient vector of  $\overline{M_j z_i}$  (Definition 2).  
++where  $I(i, j, \ell) = (i - (K + 1)) + k(j - 1) + kt(\ell - 1)$  and  $\widetilde{\text{cf}(\bar M_j\mathbf z_i)_\ell}$  is the multilinear extension of the  $\ell$ -th coefficient vector of  $\bar M_j\mathbf z_i$  (Definition 2). As  $i-(K+1)\in\{0,\ldots,k-1\}$ ,  $j-1\in\{0,\ldots,t-1\}$ , and  $\ell-1\in\{0,\ldots,d-1\}$ , the map
++
++$$I:\{K+1,\ldots,K+k\}\times[t]\times[d]\longrightarrow\{0,\ldots,ktd-1\}$$
++
++is the standard mixed-radix bijection.
+ Define
+ 
+-$$Q(\vec{X}) := \text{eq}(\vec{X}, \alpha) \cdot (F(\vec{X}) + \gamma^K \cdot \text{NC}(\vec{X})) + \gamma^{2K+k} \cdot \text{Eval}(\vec{X}) \in \mathbb{K}[\vec{X}]$$
++$$Q(\vec{X}) := \text{eq}(\vec{X}, \alpha) \cdot (F(\vec{X}) + \gamma^K \cdot \text{NC}(\vec{X})) + \gamma^{2K+k} \cdot \text{Eval}(\vec{X}) \in \mathbb{K}[\vec{X}].$$
++
++Its maximum individual degree is bounded by
++
++$$\deg_{\mathrm{ind}} Q \le D_Q := \max(D_f+1,\;2b,\;2).$$
+ 
+-Define claimed sum of  $Q$  over  $\{0, 1\}^{\log m}$  as
++Define the unshifted local encoding of the carried evaluation target by
+ 
+-$$T := \sum_{i=K+1}^{K+k} \sum_{j=1}^t \sum_{\ell=1}^d \gamma^{I(i,j,\ell)} \cdot \text{cf}(y_{i,j})_\ell \in \mathbb{K}$$
++$$T_{\mathrm{local}} := \sum_{i=K+1}^{K+k} \sum_{j=1}^t \sum_{\ell=1}^d \gamma^{I(i,j,\ell)} \cdot \text{cf}(y_{i,j})_\ell \in \mathbb{K},$$
+ 
+-Perform **SumCheck** ( $T$ ;  $Q$ ) (Definition 6) which reduces the claim that
++and define the absolute target used by the joint sum-check as
+ 
+-$$T = \sum_{\vec{x} \in \{0,1\}^{\log m}} Q(\vec{x})$$
++$$T_{\mathrm{abs}} := \gamma^{2K+k}T_{\mathrm{local}} = \sum_{i=K+1}^{K+k} \sum_{j=1}^t \sum_{\ell=1}^d \gamma^{2K+k+I(i,j,\ell)} \cdot \text{cf}(y_{i,j})_\ell.$$
++
++Thus the three coefficient blocks use the disjoint exponent ranges  $0,\dots,K-1$  for fresh constraints,  $K,\dots,2K+k-1$  for norm constraints, and  $2K+k,\dots,2K+k+ktd-1$  for carried constraints. The value  $T_{\mathrm{local}}$  is not the target of the combined sum-check.
++
++Perform **SumCheck** ( $T_{\mathrm{abs}}$ ;  $Q$ ) (Definition 6), which reduces the claim that
++
++$$T_{\mathrm{abs}} = \sum_{\vec{x} \in \{0,1\}^{\log m}} Q(\vec{x})$$
+ 
+ to a new evaluation claim  $v \stackrel{?}{=} Q(r')$  for new evaluation point  $r' \in \mathbb{K}^{\log m}$ .
+ 
+-3.  $\mathcal{P}$ : Send  $\forall i \in [K+k], \forall j \in [t], y'_{i,j} \leftarrow \overline{M_j z_i}(r') \in \mathbb{R}_{\mathbb{K}}$ .
++3.  $\mathcal{P}$ : Send  $\forall i \in [K+k], \forall j \in [t], y'_{i,j} \leftarrow \widehat{\bar M_j\mathbf z_i}(r') \in \mathbb{R}_{\mathbb{K}}$ .
+ 4.  $\mathcal{V}$ : Derive the claimed intermediate evaluations (Remark 2),
+ 
+ $$F := \sum_{i=1}^K \gamma^{i-1} \cdot f(\text{ct}(y'_{i,1}), \dots, \text{ct}(y'_{i,t})) \in \mathbb{K}$$
+ 
+-$$N := \sum_{i=1}^{K+k} \gamma^{i-1} \cdot \prod_{j=b-1}^{b-1} (\text{ct}(y'_{i,1}) - j) \in \mathbb{K}$$
++$$N := \sum_{i=1}^{K+k} \gamma^{i-1} \cdot P_b(\text{ct}(y'_{i,1})) \in \mathbb{K}$$
+ 
+-$$E := \text{eq}(r', r) \sum_{i=K+1}^{K+k} \sum_{j=1}^{t} \sum_{\ell=1}^{d} \gamma^{\mathbb{I}(i,j,\ell)} \cdot \text{cf}(y'_{i,j})_{\ell} \in \mathbb{K}$$
++$$E := \text{eq}(r', r) \sum_{i=K+1}^{K+k} \sum_{j=1}^{t} \sum_{\ell=1}^{d} \gamma^{I(i,j,\ell)} \cdot \text{cf}(y'_{i,j})_{\ell} \in \mathbb{K}$$
+ 
+ Check the evaluation claim  $v \stackrel{?}{=} Q(r')$  as follows,
+ 
+@@ -94,9 +138,9 @@ $$v \stackrel{?}{=} \text{eq}(r', \alpha) \cdot (F + \gamma^K \cdot N) + \gamma^
+ 
+ 5. Output  $(s; c_i, x_i, r', \{y'_{i,j}\}_{j \in [t]}; z_i)_{i \in [K+k]}$
+ 
+-*Remark 3.* By choosing  $M_1 = \mathbb{I}_{n_F}$ , we simplify our notation, because folding  $\widehat{M_1 z} = \widehat{\mathbb{I}_{n_F} z}$  evaluations is equivalent to folding  $\tilde{z}$  evaluations.
++*Remark 3.* The padding injection  $M_1$  preserves every witness coordinate and adds only zeros. Thus  $\widetilde{M_1z}$  is the multilinear extension of the zero-padded witness, and  $\|M_1z\|_\infty=\|z\|_\infty$ . The verifier can obtain  $\widetilde{M_1z}(r')$  as  $\operatorname{ct}(\widehat{\bar M_1\mathbf z}(r'))$  by Remark 2.
+ 
+-**Lemma 3 (Π<sub>CCS</sub> is strong).** *The interactive reduction  $\Pi_{\text{CCS}} : \text{CCS}(b, \mathcal{L})^K \times \text{CE}(b, \mathcal{L})^k \to \text{CE}(b, \mathcal{L})^{K+k}$  ( $\text{CE}(q/2, \mathcal{L})^{K+k}$ ) is **strong** (Definition 10) for the function  $\phi$ , which projects commitments  $(c_i)_{i \in [K+k]}$  from the instance.*
++**Lemma 3 (Π<sub>CCS</sub> is strong).** *The interactive reduction  $\Pi_{\text{CCS}} : \text{CCS}(b, \mathcal{L})^K \times \operatorname{BatchCE}_k(b, \mathcal{L}) \to \operatorname{BatchCE}_{K+k}(b, \mathcal{L})$  is **strong** (Definition 10), with ambient output relation  $\operatorname{BatchCE}_{K+k}(B_{\mathrm{amb}}, \mathcal{L})$ , for the function  $\phi$  that projects commitments  $(c_i)_{i \in [K+k]}$  from the instance.*
+ 
+ *Proof.* For brevity, we defer the proof to Appendix D.4.  $\square$
+ 
+@@ -108,13 +152,13 @@ The interactive reduction Π<sub>RLC</sub> does exactly as the name suggests. Gi
+ 
+ **Parameters:** Refer to Definition 14.
+ 
+-**Input**  $\in \text{CE}(b, \mathcal{L})^{K+k}$
++**Input**  $\in \operatorname{BatchCE}_{K+k}(b, \mathcal{L})$
+ 
+-$(s; c_i \in \mathbb{C}, x_i \in \mathbb{F}^{n_{F,\text{in}}}, r \in \mathbb{K}^{\log m}, \{y_{i,j} \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]}; z_i \in \mathbb{F}^{n_F})_{i \in [K+k]}$
++$(s; c_i \in \mathbb{C}, x_i \in \mathbb{F}^{n_{\mathbb F,\text{in}}}, r \in \mathbb{K}^{\log m}, \{y_{i,j} \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]}; z_i \in \mathbb{F}^{n_{\mathbb F}})_{i \in [K+k]}$
+ 
+ **Output**  $\in \text{CE}(B, \mathcal{L})$
+ 
+-$(s; c \in \mathbb{C}, x \in \mathbb{F}^{n_{F,\text{in}}}, r \in \mathbb{K}^{\log m}, \{y_j \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]}; z \in \mathbb{F}^{n_F})$
++$(s; c \in \mathbb{C}, x \in \mathbb{F}^{n_{\mathbb F,\text{in}}}, r \in \mathbb{K}^{\log m}, \{y_j \in \mathbb{R}_{\mathbb{K}}\}_{j \in [t]}; z \in \mathbb{F}^{n_{\mathbb F}})$
+ 
+ **Setup**  $\mathcal{G}(1^\lambda, n_R) \to \text{pp}$ : Output  $\text{pp} \leftarrow \text{Setup}(1^\lambda, n_R)$ .
+ 
+@@ -122,17 +166,23 @@ $(s; c \in \mathbb{C}, x \in \mathbb{F}^{n_{F,\text{in}}}, r \in \mathbb{K}^{\lo
+ 
+ **Reduction**  $\langle \mathcal{P}, \mathcal{V} \rangle((\text{pk}, \text{vk}), u_1, w_1) \to (u_2; w_2)$ :
+ 
+-1.  $\mathcal{V}$ : Sample  $\rho_1, \dots, \rho_{K+k} \xleftarrow{\$} \mathcal{C}$  and compute:
++1.  $\mathcal{V}$ : Sample  $\rho_1, \dots, \rho_{K+k} \xleftarrow{\$} \mathcal{C}$ . For every  $i\in[K+k]$ , let  $\mathbf x_i\in\mathbb R_{\mathbb F}^{n_{R,\mathrm{in}}}$  be the coefficient embedding of  $x_i$ . Compute
+ 
+-$$c \leftarrow \sum_{i \in [K+k]} \rho_i c_i, \quad x \leftarrow \sum_{i \in [K+k]} \rho_i x_i, \quad \forall j \in [t], \quad y_j \leftarrow \sum_{i \in [K+k]} \rho_i y_{i,j}$$
++$$c \leftarrow \sum_{i \in [K+k]} \rho_i c_i,
++\qquad
++\mathbf x \leftarrow \sum_{i \in [K+k]} \rho_i\mathbf x_i,
++\qquad
++\forall j \in [t],\quad y_j \leftarrow \sum_{i \in [K+k]} \rho_i y_{i,j},$$
+ 
+-Send  $\rho_1, \dots, \rho_\ell$  to  $\mathcal{P}$ .
++and let  $x\in\mathbb F^{n_{\mathbb F,\mathrm{in}}}$  be the inverse coefficient embedding of  $\mathbf x$ .
+ 
+-2.  $\mathcal{P}$ : Compute  $z \leftarrow \sum_{i \in [K+k]} \rho_i z_i$ .
++Send  $\rho_1, \dots, \rho_{K+k}$  to  $\mathcal{P}$ .
++
++2.  $\mathcal{P}$ : Let  $\mathbf z_i$  be the coefficient embedding of  $z_i$  for every  $i\in[K+k]$ . Compute  $\mathbf z \leftarrow \sum_{i \in [K+k]} \rho_i\mathbf z_i$ , and let  $z\in\mathbb F^{n_{\mathbb F}}$  be its inverse coefficient embedding.
+ 
+ 3. Output  $(s; c, x, r, \{y_j\}_{j \in [t]}; z)$ .
+ 
+-**Lemma 4 ( $\Pi_{RLC}$  is weak).** *The interactive reduction  $\Pi_{RLC} : \text{CE}(b, \mathcal{L})^{K+k} (\text{CE}(q/2, \mathcal{L})^{K+k}) \to \text{CE}(B, \mathcal{L})$  is **weak** (Definition 9) for the function  $\phi$ , which projects commitments  $(c_i)_{i \in [K+k]}$  from the instance.*
++**Lemma 4 ( $\Pi_{RLC}$  is weak).** *The interactive reduction  $\Pi_{RLC} : \operatorname{BatchCE}_{K+k}(b, \mathcal{L}) \to \text{CE}(B, \mathcal{L})$  is **weak** (Definition 9), with ambient input relation  $\operatorname{BatchCE}_{K+k}(B_{\mathrm{amb}}, \mathcal{L})$ , for the function  $\phi$  that projects commitments  $(c_i)_{i \in [K+k]}$  from the instance.*
+ 
+ *Proof.* For brevity, we defer the proof to Appendix D.5.  $\square$
+ 
+@@ -140,10 +190,41 @@ Send  $\rho_1, \dots, \rho_\ell$  to  $\mathcal{P}$ .
+ 
+ Inspired by folklore techniques [12, 15, 71], our final reduction aims to reduce the norm of claims from  $B = b^k$  to  $b$ , which will allow us to continually fold CCS claims without increasing the norm of the openings  $(z_i)_i$  to the commitments.
+ 
+-| Decomposition reduction $\Pi_{DEC}$                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+-| <p><b>Parameters:</b> Refer to Definition 14.</p> <p><b>Input</b> <math>\in \text{CE}(B, \mathcal{L})</math><br/> <math>(s; c \in \mathbb{C}, x \in \mathbb{F}^{n_{\mathbb{F}, \text{in}}}, r \in \mathbb{K}^{\log m}, \{y_j \in R_{\mathbb{K}}\}_{j \in [t]}; z \in \mathbb{F}^{n_{\mathbb{F}}})</math></p> <p><b>Output</b> <math>\in \text{CE}(b, \mathcal{L})^k</math><br/> <math>(s; c_i \in \mathbb{C}, x_i \in \mathbb{F}^{n_{\mathbb{F}, \text{in}}}, r \in \mathbb{K}^{\log m}, \{y_{i,j} \in R_{\mathbb{K}}\}_{j \in [t]}; z_i \in \mathbb{F}^{n_{\mathbb{F}}})_{i \in [k]}</math></p> <hr/> <p><b>Setup</b> <math>\mathcal{G}(1^\lambda, n_R) \to \text{pp}</math>: Output <math>\text{pp} \leftarrow \text{Setup}(1^\lambda, n_R)</math>.</p> <p><b>Encoder</b> <math>\mathcal{K}(\text{pp}, s) \to (\text{pk}, \text{vk})</math>: Output <math>((\text{pp}, s), \perp)</math>.</p> <p><b>Reduction</b> <math>\langle \mathcal{P}, \mathcal{V} \rangle((\text{pk}, \text{vk}), u_1, w_1) \to (u_2; w_2)</math>:</p> <ol style="list-style-type: none"> <li>1. <math>\mathcal{P}</math>: Compute <math>(c_i, \{y_{i,j}\}_{j \in [t]}; z_i)_{i \in [k]}</math> as follows,<br/> <math display="block">(z_1, \dots, z_k) \leftarrow \text{split}_b(z), \quad c_i \leftarrow \mathcal{L}(z_i), \quad \forall j \in [t], \quad y_{i,j} \leftarrow \widehat{\mathbf{M}_j} z_i(r)</math> Send <math>(c_i, \{y_{i,j}\}_{j \in [t]})_{i \in [k]}</math> to <math>\mathcal{V}</math>.</li> <li>2. <math>\mathcal{V}</math>: Compute <math>(x_1, \dots, x_k) \leftarrow \text{split}_b(x)</math>. Check the following equations,<br/> <math display="block">c \stackrel{?}{=} \sum_{i \in [k]} b^{i-1} \cdot c_i \quad \text{and} \quad \forall j \in [t], \quad y_j \stackrel{?}{=} \sum_{i \in [k]} b^{i-1} \cdot y_{i,j}</math> where the norm-bound <math>b</math> is treated as a field element.</li> <li>3. Output <math>(s; c_i, x_i, r, \{y_{i,j}\}_{j \in [t]}; z_i)_{i \in [k]}</math></li> </ol> |
++#### Decomposition reduction $\Pi_{DEC}$
++
++**Parameters:** Refer to Definition 14.
++
++**Input**  $\in\operatorname{CE}(B,\mathcal L)$ :
++
++$$(s;c\in\mathbb C,x\in\mathbb F^{n_{\mathbb F,\mathrm{in}}},r\in\mathbb K^{\log m},\{y_j\in\mathbb R_{\mathbb K}\}_{j\in[t]};z\in\mathbb F^{n_{\mathbb F}}).$$
++
++**Output**  $\in\operatorname{BatchCE}_k(b,\mathcal L)$ :
++
++$$\left(s;c_i\in\mathbb C,x_i\in\mathbb F^{n_{\mathbb F,\mathrm{in}}},r\in\mathbb K^{\log m},\{y_{i,j}\in\mathbb R_{\mathbb K}\}_{j\in[t]};z_i\in\mathbb F^{n_{\mathbb F}}\right)_{i\in[k]}.$$
++
++**Setup**  $\mathcal G(1^\lambda,n_R)\to\mathrm{pp}$ : Output  $\mathrm{pp}\leftarrow\operatorname{Setup}(1^\lambda,n_R)$ .
++
++**Encoder**  $\mathcal K(\mathrm{pp},s)\to(\mathrm{pk},\mathrm{vk})$ : Output  $((\mathrm{pp},s),\perp)$ .
++
++**Reduction**  $\langle\mathcal P,\mathcal V\rangle((\mathrm{pk},\mathrm{vk}),u_1,w_1)\to(u_2;w_2)$ :
++
++1.  $\mathcal P$ : Compute  $(z_1,\dots,z_k)\leftarrow\operatorname{split}_{b,k}(z)$ . If the result is  $\perp$ , output  $\perp$ . Otherwise, let  $\mathbf z_i$  be the coefficient embedding of  $z_i$  and compute
++
++   $$c_i\leftarrow\mathcal L(\mathbf z_i),\qquad
++   y_{i,j}\leftarrow\widehat{\bar M_j\mathbf z_i}(r)
++   \quad\text{for every }i\in[k],j\in[t].$$
++
++   Send  $(c_i,\{y_{i,j}\}_{j\in[t]})_{i\in[k]}$  to  $\mathcal V$ .
++2.  $\mathcal V$ : Compute  $(x_1,\dots,x_k)\leftarrow\operatorname{split}_{b,k}(x)$ . If the result is  $\perp$ , reject. Otherwise, check
++
++   $$c\stackrel?=\sum_{i\in[k]}b^{i-1}c_i,
++   \qquad
++   y_j\stackrel?=\sum_{i\in[k]}b^{i-1}y_{i,j}
++   \quad\text{for every }j\in[t],$$
++
++   where  $b$  is treated as a field element.
++3. Output  $(s;c_i,x_i,r,\{y_{i,j}\}_{j\in[t]};z_i)_{i\in[k]}$ .
+ 
+-**Theorem 7.**  $\Pi_{DEC} : \text{CE}(B, \mathcal{L}) \to \text{CE}(b, \mathcal{L})^k$  is a *reduction of knowledge* (Definition 5).
++**Theorem 7.**  $\Pi_{DEC} : \text{CE}(B, \mathcal{L}) \to \operatorname{BatchCE}_k(b, \mathcal{L})$  is a *reduction of knowledge* (Definition 5).
+ 
+ *Proof.* For brevity, we defer the proof to Appendix D.6.  $\square$
+diff --git a/docs/superneo-paper/08-references.md b/docs/superneo-paper/08-references.md
+index 565dc1914c88cbe7e83ada8b15165b8cd20a7179..65da4c78109c5f8486f60bcdc7e31b42188c3d1d 100644
+--- a/docs/superneo-paper/08-references.md
++++ b/docs/superneo-paper/08-references.md
+@@ -11,9 +11,7 @@
+ - [9] Attema, T., Lyubashevsky, V., Seiler, G.: Practical product proofs for lattice commitments. In: Micciancio, D., Ristenpart, T. (eds.) *Advances in Cryptology – CRYPTO 2020*, Part II. *Lecture Notes in Computer Science*, vol. 12171, pp. 470–499. Springer, Cham, Switzerland, Santa Barbara, CA, USA (Aug 17–21, 2020). [https://doi.org/10.1007/978-3-030-56880-1\\_17](https://doi.org/10.1007/978-3-030-56880-1_17)
+ - [10] Ben-Sasson, E., Bentov, I., Horesh, Y., Riabzev, M.: Scalable zero knowledge with no trusted setup. In: *CRYPTO* (2019)
+ - [11] Ben-Sasson, E., Chiesa, A., Tromer, E., Virza, M.: Scalable zero knowledge via cycles of elliptic curves. In: *CRYPTO* (2014)
+-- [12] Beullens, W., Seiler, G.: LaBRADOR: Compact proofs for R1CS from module-SIS. In: Handschuh, H., Lysyanskaya, A. (eds.) *Advances in Cryp-*
+-
+-- tology – CRYPTO 2023, Part V. Lecture Notes in Computer Science, vol. 14085, pp. 518–548. Springer, Cham, Switzerland, Santa Barbara, CA, USA (Aug 20–24, 2023). [https://doi.org/10.1007/978-3-031-38554-4\\_17](https://doi.org/10.1007/978-3-031-38554-4_17)
++- [12] Beullens, W., Seiler, G.: LaBRADOR: Compact proofs for R1CS from module-SIS. In: Handschuh, H., Lysyanskaya, A. (eds.) *Advances in Cryptology – CRYPTO 2023*, Part V. *Lecture Notes in Computer Science*, vol. 14085, pp. 518–548. Springer, Cham, Switzerland, Santa Barbara, CA, USA (Aug 20–24, 2023). [https://doi.org/10.1007/978-3-031-38554-4\\_17](https://doi.org/10.1007/978-3-031-38554-4_17)
+ - [13] Bitansky, N., Canetti, R., Chiesa, A., Tromer, E.: Recursive composition and bootstrapping for SNARKs and proof-carrying data. In: STOC (2013)
+ - [14] Boneh, D., Chen, B.: LatticeFold: A lattice-based folding scheme and its applications to succinct proof systems. Cryptology ePrint Archive, Paper 2024/257 (2024)
+ - [15] Boneh, D., Chen, B.: LatticeFold: A lattice-based folding scheme and its applications to succinct proof systems. In: Hanaoka, G., Yang, B.Y. (eds.) Advances in Cryptology – ASIACRYPT 2025, Part III. Lecture Notes in Computer Science, vol. 16247, pp. 330–362. Springer, Singapore, Singapore, Melbourne, VIC, Australia (Dec 8–12, 2025). [https://doi.org/10.1007/978-981-95-5099-9\\_11](https://doi.org/10.1007/978-981-95-5099-9_11)
+@@ -23,7 +21,7 @@
+ - [19] Bootle, J., Lyubashevsky, V., Seiler, G.: Algebraic techniques for short(er) exact lattice-based zero-knowledge proofs. In: Boldyreva, A., Micciancio, D. (eds.) Advances in Cryptology – CRYPTO 2019, Part I. Lecture Notes in Computer Science, vol. 11692, pp. 176–202. Springer, Cham, Switzerland, Santa Barbara, CA, USA (Aug 18–22, 2019). [https://doi.org/10.1007/978-3-030-26948-7\\_7](https://doi.org/10.1007/978-3-030-26948-7_7)
+ - [20] Bünz, B., Chen, B.: Protostar: Generic efficient accumulation/folding for special sound protocols. Cryptology ePrint Archive, Paper 2023/620 (2023)
+ - [21] Bünz, B., Chiesa, A., Fenzi, G., Wang, W.: Linear-time accumulation schemes. In: Applebaum, B., Lin, H.R. (eds.) TCC 2025: 23rd Theory of Cryptography Conference, Part I. Lecture Notes in Computer Science, vol. 16268, pp. 369–399. Springer, Cham, Switzerland, Aarhus, Denmark (Dec 1–5, 2025). [https://doi.org/10.1007/978-3-032-12287-2\\_13](https://doi.org/10.1007/978-3-032-12287-2_13)
+-- [22] Bunz, B., Fenzi, G., Rothblum, R., Wang, W.: Tensorswitch: Nearly optimal polynomial commitments from tensor codes. Cryptology ePrint Archive, Paper 2025/2065 (2025), <https://eprint.iacr.org/2025/2065>, <https://eprint.iacr.org/2025/2065>
++- [22] Bunz, B., Fenzi, G., Rothblum, R., Wang, W.: Tensorswitch: Nearly optimal polynomial commitments from tensor codes. Cryptology ePrint Archive, Paper 2025/2065 (2025), <https://eprint.iacr.org/2025/2065>
+ - [23] Bünz, B., Fisch, B., Szepieniec, A.: Transparent SNARKs from DARK compilers. In: EUROCRYPT (2020)
+ - [24] Bunz, B., Mishra, P., Nguyen, W., Wang, W.: Arc: Accumulation for reed–solomon codes. Cryptology ePrint Archive, Paper 2024/1731 (2024)
+ 
+@@ -40,12 +38,10 @@
+ - [35] Eagen, L., Gabizon, A.: Protogalaxy: Efficient protostar-style folding of multiple instances. Cryptology ePrint Archive, Paper 2023/1106 (2023)
+ - [36] Esgin, M.F., Nguyen, N.K., Seiler, G.: Practical exact proofs from lattices: New techniques to exploit fully-splitting rings. In: Moriai, S., Wang, H. (eds.) Advances in Cryptology – ASIACRYPT 2020, Part II. Lecture Notes in Computer Science, vol. 12492, pp. 259–288. Springer, Cham, Switzerland, Daejeon, South Korea (Dec 7–11, 2020). [https://doi.org/10.1007/978-3-030-64834-3\\_9](https://doi.org/10.1007/978-3-030-64834-3_9)
+ - [37] Fenzi, G., Knabenhans, C., Nguyen, N.K., Pham, D.T.: Lova: Lattice-based folding scheme from unstructured lattices. Cryptology ePrint Archive, Paper 2024/1964 (2024)
+-- [38] Fenzi, G., Knabenhans, C., Nguyen, N.K., Pham, D.T.: Lova: Lattice-based folding scheme from unstructured lattices. In: Chung, K.M., Sasaki, Y. (eds.) Advances in Cryptology – ASIACRYPT 2024, Part IV. Lecture Notes in
+-
+-- Computer Science, vol. 15487, pp. 303–326. Springer, Singapore, Singapore, Kolkata, India (Dec 9–13, 2024). [https://doi.org/10.1007/978-981-96-0894-2\\_10](https://doi.org/10.1007/978-981-96-0894-2_10)
++- [38] Fenzi, G., Knabenhans, C., Nguyen, N.K., Pham, D.T.: Lova: Lattice-based folding scheme from unstructured lattices. In: Chung, K.M., Sasaki, Y. (eds.) *Advances in Cryptology – ASIACRYPT 2024*, Part IV. *Lecture Notes in Computer Science*, vol. 15487, pp. 303–326. Springer, Singapore, Singapore, Kolkata, India (Dec 9–13, 2024). [https://doi.org/10.1007/978-981-96-0894-2\\_10](https://doi.org/10.1007/978-981-96-0894-2_10)
+ - [39] Fenzi, G., Moghaddas, H., Nguyen, N.K.: Lattice-based polynomial commitments: Towards asymptotic and concrete efficiency. *Journal of Cryptology* **37**(3), 31 (Jul 2024). <https://doi.org/10.1007/s00145-024-09511-8>
+-- [40] Flynn, M.J.: Very high-speed computing systems. *Proceedings of the IEEE* **54**(12), 1901–1909 (2005)
+-- [41] Flynn, M.J.: Some computer organizations and their effectiveness. *IEEE transactions on computers* **100**(9), 948–960 (2009)
++- [40] Flynn, M.J.: Very high-speed computing systems. *Proceedings of the IEEE* **54**(12), 1901–1909 (1966). <https://doi.org/10.1109/PROC.1966.5273>
++- [41] Flynn, M.J.: Some computer organizations and their effectiveness. *IEEE Transactions on Computers* **C-21**(9), 948–960 (1972). <https://doi.org/10.1109/TC.1972.5009071>
+ - [42] Gentry, C., Halevi, S., Lyubashevsky, V.: Practical non-interactive publicly verifiable secret sharing with thousands of parties. In: Dunkelman, O., Dziembowski, S. (eds.) *Advances in Cryptology – EUROCRYPT 2022, Part I. Lecture Notes in Computer Science*, vol. 13275, pp. 458–487. Springer, Cham, Switzerland, Trondheim, Norway (May 30 – Jun 3, 2022). [https://doi.org/10.1007/978-3-031-06944-4\\_16](https://doi.org/10.1007/978-3-031-06944-4_16)
+ - [43] Grassi, L., Khovratovich, D., Rechberger, C., Roy, A., Schofnegger, M.: Poseidon: A new hash function for zero-knowledge proof systems. *Cryptology ePrint Archive, Paper 2019/458* (2019)
+ - [44] Hülsing, A., Butin, D., Gazdag, S.L., Rijneveld, J., Mohaisen, A.: XMSS: eXtended Merkle signature scheme. *RFC 8391* (2018)
+@@ -59,12 +55,12 @@
+ - [51] Kothapalli, A., Parno, B.: Algebraic reductions of knowledge. In: Handschuh, H., Lysyanskaya, A. (eds.) *Advances in Cryptology – CRYPTO 2023, Part IV*. Lecture Notes in Computer Science, vol. 14084, pp. 669–701. Springer, Cham, Switzerland, Santa Barbara, CA, USA (Aug 20–24, 2023). [https://doi.org/10.1007/978-3-031-38551-3\\_21](https://doi.org/10.1007/978-3-031-38551-3_21)
+ - [52] Kothapalli, A., Parno, B.: Algebraic reductions of knowledge. In: *CRYPTO* (2023)
+ - [53] Kothapalli, A., Setty, S.: SuperNova: Proving universal machine executions without universal circuits. *Cryptology ePrint Archive* (2022)
+-- [54] Kothapalli, A., Setty, S.: Cyclefold: Folding-scheme-based recursive arguments over a cycle of elliptic curves. *Cryptology ePrint Archive*, Paper 2023/1192 (2023), <https://eprint.iacr.org/2023/1192>, <https://eprint.iacr.org/2023/1192>
++- [54] Kothapalli, A., Setty, S.: Cyclefold: Folding-scheme-based recursive arguments over a cycle of elliptic curves. *Cryptology ePrint Archive*, Paper 2023/1192 (2023), <https://eprint.iacr.org/2023/1192>
+ - [55] Kothapalli, A., Setty, S.: HyperNova: Recursive arguments for customizable constraint systems. In: *CRYPTO* (2024)
+ - [56] Kothapalli, A., Setty, S.: NeutronNova: Folding everything that reduces to zero-check. *Cryptology ePrint Archive* (2024)
+ - [57] Kothapalli, A., Setty, S., Tzialla, I.: Nova: Recursive Zero-Knowledge Arguments from Folding Schemes. In: *CRYPTO* (2022)
+ - [58] Kothapalli, A., Setty, S.T.V.: HyperNova: Recursive arguments for customizable constraint systems. In: Reyzin, L., Stebila, D. (eds.) *Advances in Cryptology – CRYPTO 2024, Part X*. Lecture Notes in Computer Science, vol. 14929, pp. 345–379. Springer, Cham, Switzerland, Santa Barbara, CA, USA (Aug 18–22, 2024). [https://doi.org/10.1007/978-3-031-68403-6\\_11](https://doi.org/10.1007/978-3-031-68403-6_11)
+-- [59] Kuriyama, S., Lai, R., Osadnik, M., Tucci, L.: Salsaa - sumcheck-aided lattice-based succinct arguments and applications. *Cryptology ePrint Archive*, Paper 2025/2124 (2025), <https://eprint.iacr.org/2025/2124>, <https://eprint.iacr.org/2025/2124>
++- [59] Kuriyama, S., Lai, R., Osadnik, M., Tucci, L.: Salsaa - sumcheck-aided lattice-based succinct arguments and applications. *Cryptology ePrint Archive*, Paper 2025/2124 (2025), <https://eprint.iacr.org/2025/2124>
+ - [60] Langlois, A., Stehlé, D.: Worst-case to average-case reductions for module lattices. *Designs, Codes and Cryptography* **75**(3), 565–599 (2015). <https://doi.org/10.1007/s10623-014-9938-4>
+ - [61] Longa, P., Naehrig, M.: Speeding up the number theoretic transform for faster ideal lattice-based cryptography. In: Foresti, S., Persiano, G. (eds.) *CANS 16: 15th International Conference on Cryptology and Network Security*. Lecture Notes in Computer Science, vol. 10052, pp. 124–139. Springer, Cham, Switzerland, Milan, Italy (Nov 14–16, 2016). [https://doi.org/10.1007/978-3-319-48965-0\\_8](https://doi.org/10.1007/978-3-319-48965-0_8)
+ - [62] Lund, C., Fortnow, L., Karloff, H., Nisan, N.: Algebraic methods for interactive proof systems. In: *FOCS* (Oct 1990)
+@@ -74,14 +70,14 @@
+ - [65] Lyubashevsky, V., Seiler, G.: Short, invertible elements in partially splitting cyclotomic rings and applications to lattice-based zero-knowledge proofs. In: Nielsen, J.B., Rijmen, V. (eds.) *Advances in Cryptology – EUROCRYPT 2018, Part I. Lecture Notes in Computer Science*, vol. 10820, pp. 204–224. Springer, Cham, Switzerland, Tel Aviv, Israel (Apr 29 – May 3, 2018). [https://doi.org/10.1007/978-3-319-78381-9\\_8](https://doi.org/10.1007/978-3-319-78381-9_8)
+ - [66] Micali, S.: CS proofs. In: *FOCS* (1994)
+ - [67] Nethermind Research: Lattice-based operations performance report. <https://nethermind.notion.site/Latticefold-and-lattice-based-operations-performance-report-153360fc38d080ac930cdeeffed69559> (2025)
+-- [68] Nguyen, N.K., O’Rourke, G., Zhang, J.: Hachi: Efficient lattice-based multilinear polynomial commitments over extension fields. *Cryptology ePrint Archive*, Paper 2026/156 (2026), <https://eprint.iacr.org/2026/156>, <https://eprint.iacr.org/2026/156>
++- [68] Nguyen, N.K., O’Rourke, G., Zhang, J.: Hachi: Efficient lattice-based multilinear polynomial commitments over extension fields. *Cryptology ePrint Archive*, Paper 2026/156 (2026), <https://eprint.iacr.org/2026/156>
+ - [69] Nguyen, N.K., Seiler, G.: Greyhound: Fast polynomial commitments from lattices. In: Reyzin, L., Stebila, D. (eds.) *Advances in Cryptology – CRYPTO 2024, Part X. Lecture Notes in Computer Science*, vol. 14929, pp. 243–275. Springer, Cham, Switzerland, Santa Barbara, CA, USA (Aug 18–22, 2024). [https://doi.org/10.1007/978-3-031-68403-6\\_8](https://doi.org/10.1007/978-3-031-68403-6_8)
+ - [70] Nguyen, W., Setty, S.: Neo: Lattice-based folding scheme for CCS over small fields and pay-per-bit commitments. *Cryptology ePrint Archive*, Report 2025/294 (2025), <https://eprint.iacr.org/2025/294>
+ - [71] Papamanthou, C., Shi, E., Tamassia, R., Yi, K.: Streaming authenticated data structures. In: Johansson, T., Nguyen, P.Q. (eds.) *Advances in Cryptology – EUROCRYPT 2013. Lecture Notes in Computer Science*, vol. 7881, pp. 353–370. Springer Berlin Heidelberg, Germany, Athens, Greece (May 26–30, 2013). [https://doi.org/10.1007/978-3-642-38348-9\\_22](https://doi.org/10.1007/978-3-642-38348-9_22)
+ - [72] Pedersen, T.P.: Non-interactive and information-theoretic secure verifiable secret sharing. In: Feigenbaum, J. (ed.) *Advances in Cryptology – CRYPTO’91. Lecture Notes in Computer Science*, vol. 576, pp. 129–140. Springer Berlin Heidelberg, Germany, Santa Barbara, CA, USA (Aug 11–15, 1992). [https://doi.org/10.1007/3-540-46766-1\\_9](https://doi.org/10.1007/3-540-46766-1_9)
+ - [73] Peikert, C., Rosen, A.: Efficient collision-resistant hashing from worst-case assumptions on cyclic lattices. In: Halevi, S., Rabin, T. (eds.) *TCC 2006: 3rd Theory of Cryptography Conference. Lecture Notes in Computer Science*, vol. 3876, pp. 145–166. Springer Berlin Heidelberg, Germany, New York, NY, USA (Mar 4–7, 2006). [https://doi.org/10.1007/11681878\\_8](https://doi.org/10.1007/11681878_8)
+ 
+-- [74] Polygon Zero Team: Plonky2: Fast recursive arguments with PLONK and FRI (2022), <https://docs.rs/crate/plonky2/latest/source/plonky2.pdf>, <https://docs.rs/crate/plonky2/latest/source/plonky2.pdf>
++- [74] Polygon Zero Team: Plonky2: Fast recursive arguments with PLONK and FRI (2022), <https://docs.rs/crate/plonky2/latest/source/plonky2.pdf>
+ - [75] Regev, O.: Lattice-based cryptography. In: Annual International Cryptology Conference. pp. 131–141. Springer (2006)
+ - [76] Schwartz, J.T.: Fast probabilistic algorithms for verification of polynomial identities. J. ACM **27**(4) (1980)
+ - [77] Seiler, G.: Faster avx2 optimized ntt multiplication for ring-lwe lattice cryptography. Cryptology ePrint Archive (2018)
+@@ -93,3 +89,4 @@
+ - [83] Zeilberger, H., Chen, B., Fisch, B.: BaseFold: Efficient field-agnostic polynomial commitment schemes from foldable codes. In: Reyzin, L., Stebila, D. (eds.) Advances in Cryptology – CRYPTO 2024, Part X. Lecture Notes in Computer Science, vol. 14929, pp. 138–169. Springer, Cham, Switzerland, Santa Barbara, CA, USA (Aug 18–22, 2024). [https://doi.org/10.1007/978-3-031-68403-6\\_5](https://doi.org/10.1007/978-3-031-68403-6_5)
+ - [84] Zhao, J., Setty, S.T.V., Cui, W., Zaverucha, G.: MicroNova: Folding-based arguments with efficient (on-chain) verification. In: Blanton, M., Enck, W., Nita-Rotaru, C. (eds.) 2025 IEEE Symposium on Security and Privacy. pp. 1964–1982. IEEE Computer Society Press, San Francisco, CA, USA (May 12–15, 2025). <https://doi.org/10.1109/SP61157.2025.00168>
+ - [85] Zhou, Z., Zhang, Z., Dong, J.: Proof-carrying data from multi-folding schemes. Cryptology ePrint Archive, Paper 2023/1282 (2023)
++- [86] Attema, T., Cramer, R., Xing, C.: A note on short invertible ring elements and applications to cyclotomic and trinomials number fields. *Cryptology ePrint Archive*, Report 2019/1200 (2019), <https://eprint.iacr.org/2019/1200>
+diff --git a/docs/superneo-paper/09-supplementary-material.md b/docs/superneo-paper/09-supplementary-material.md
+index 7e1ef4423884f62b94299e6bf29924f71f35add3..9362a2ba387add67662be9aabbc3fd586164652b 100644
+--- a/docs/superneo-paper/09-supplementary-material.md
++++ b/docs/superneo-paper/09-supplementary-material.md
+@@ -1 +1,29 @@
+ ## Supplementary Material
++
++### 9.1 Errata and security-proof changelog
++
++This source revision incorporates the following corrections and the zero-padded rectangular-row specialization. The specialization keeps the paper's joint polynomial, one challenge point, one SumCheck, and one terminal point. It pads the common row domain to a power of two and adds the canonical first matrix  $M_1=[I;0]$ . It does not add a column point, a second SumCheck, or a separate norm-opening object.
++
++The selected specialization is modeled in [`PaddedRowIdentityV1.lean`](../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/SelectiveCcs/PaddedRowIdentityV1.lean). Its model-level results prove that zero padding preserves and reflects the selected logical relation when  $f(0,\ldots,0)=0$ . Rust, transcript, codec, circuit, and production-artifact conformance remain separate implementation obligations.
++
++| Area | Corrected convention or argument |
++|---|---|
++| Joint sum-check target | The carried target is encoded locally as  $T_{\mathrm{local}}$  and shifted to  $T_{\mathrm{abs}}=\gamma^{2K+k}T_{\mathrm{local}}$ . The combined sum-check uses  $T_{\mathrm{abs}}$ , so the fresh, norm, and carried constraints occupy disjoint exponent ranges. |
++| Strict norm test and degree | The scalar norm polynomial is  $P_b(Z)=\prod_{a=-(b-1)}^{b-1}(Z-\iota_q(a))$ . For  $a\in\mathbb F$ ,  $P_b(a)=0$  if and only if  $|\operatorname{ctr}_q(a)|<b$ . Writing  $D_f=\deg_{\mathrm{tot}}f$ , the joint polynomial has individual degree at most  $D_Q=\max(D_f+1,2b,2)$ . |
++| Universal ambient relation | The universal strict ambient bound is the integer  $B_{\mathrm{amb}}=\lfloor q/2\rfloor+1=(q+1)/2$ . Every centered field representative has magnitude strictly below this bound. The protocol and binding bounds remain  $B=b^k<q/2$ . |
++| Coordinate-wise extraction | Theorem 10 loses  $\ell/|\mathcal C|$ , where  $|\mathcal C|$  is the per-coordinate challenge-set size. Appendix D.5 keeps the conservative corollary  $(\ell+1)/|\mathcal C|$ . |
++| Strong extraction for  $\Pi_{\mathrm{CCS}}$ | The extractor now makes one unconditioned execution and outputs  $\perp$  if it is not ambient-successful. Only after that success does it repeat fresh executions until obtaining a second ambient-successful witness. This success-gated order uses at most two fresh protocol executions in expectation for every fixed extractor input. For fixed input  $x$ , witness disagreement costs  $\delta_x/p_x$ ; because  $\delta_x\le p_x^2$ , Cauchy--Schwarz gives the global loss  $\mathbb E_x[\delta_x/p_x]\le\sqrt{\delta}$ . Together with the direct joint-event sum-check and Schwartz--Zippel bounds, extraction succeeds with probability at least  $\epsilon'-\sqrt\delta-\overline\epsilon_{\mathrm{SC}}-\epsilon_{\mathrm{SZ}}=\epsilon'-\operatorname{negl}(\lambda)$ . No pointwise success-floor premise is required. |
++| One-sided inner-product transform | The transform is applied to the matrix block only:  $\operatorname{ct}(\overline{\mathbf a}\mathbf b)=\langle a,b\rangle$ . Field multilinear extensions use a tilde and ring-valued multilinear extensions use a hat. The matrix-product and evaluation-homomorphism statements now have matching types. |
++| Row domain and packed witness length | The power-of-two value  $m$  is the SumCheck row-domain length. The packed witness length is  $n_{\mathbb F}=dn_R\le m$ . The matrix  $M_1$  injects the witness into that domain and pads the remaining rows with zeros. The generic relation can repeat existing constraint rows. When  $f(0,\ldots,0)=0$ , the Nightstream specialization instead appends zero rows to the other matrices. This permits the degree-54 concrete rings without changing the paper's single joint SumCheck. Commitment setup uses ring-message length  $n_R$ . |
++| Relation domains | Admissible structures include the canonical injection  $M_1=[I;0]$ , so the norm polynomial checks the norm of the relation witness. Batched evaluation relations use  $\operatorname{BatchCE}_N$ , which contains one shared evaluation point. The normalization statement is limited to norm-bounded CCS and records the changes to  $t$  and  $m$ . |
++| Aborts and public coins | Consistency is stated as zero probability of a mismatch when both executions do not abort. Public-coin challenges are exact uniform elements of finite challenge sets, not fixed-length bit strings. |
++| Composition, RLC, and decomposition | The strong--weak composition proof now preserves  $u_1$  in an explicit augmented state and lets the constructed prover interact with the external first verifier. Ring-linear combinations of public field inputs and witnesses in  $\Pi_{\mathrm{RLC}}$  are typed through coefficient embeddings and their inverses. The signed base- $b$  split is a total deterministic map with explicit failure, and it commutes with coordinate projection. |
++| Concrete parameters and scripts | Appendix B distinguishes heuristic Module-SIS work-factor estimates from end-to-end statistical soundness and states the field and coordinate-fork terms separately. It gives the one-activation statistical terms for normalized R1CS with  $t=4$  and records the square-root binding loss. The concrete lengths use  $n_R=\lfloor m/d\rfloor$ . Appendix D.7 places the full analytic product under the square root; its corrected  $\log_2 B$  diagnostics are approximately 13.40, 14.39, and 14.44. Appendices D.7 and D.8 state their reproduction limits. |
++| Cyclotomic hypotheses | Theorem 8 now requires  $z$  and  $\eta$  to have the same prime support. It cites the later proof of the singular-value bound used for even  $z$ . The D.7 search enforces the same condition. |
++| Security scope | Every negligible-error claim is conditional on the explicit, efficiently constructible parameter-family convention in Section 4. The Appendix B tables are fixed snapshots and do not prove such a family. D1 and the comparison table classify the computational assumption only. The knowledge extractors are classical. Quantum-prover extraction and Fiat--Shamir security in the quantum random-oracle model are outside the claim. |
++| Implementation conformance | The paper proves the single-domain interactive protocol. Rust sampler bounds, transcript encodings, Fiat--Shamir derivation, and Rust--Lean correspondence are separate implementation obligations. No theorem in this manuscript claims those properties. |
++| Source provenance | The front matter identifies this manuscript as a locally corrected working copy and does not attribute the edited wording to the original authors. The single cumulative `superneo-paper-errata.patch` is generated from the pinned original ZIP by `docs/generate-superneo-errata-patch.sh`. |
++| Source cleanup | The D.4 and D.5 strong/weak labels and the notation  $I(i,j,\ell)$  are made consistent. The CCS zero-set type, the domain of  $\mathcal L_{\mathrm{in}}$ , the RLC challenge range, Equation (16), and the missing Equation (6) label are corrected. |
++| Post-review source corrections | The structure defines  $D_f$  separately from the invariant  $D_f\le u$ , and the mixed-radix map  $I$  is stated to be bijective. The CE and Module-SIS witness dimensions, the relaxed-binding commitment type, the expansion-factor domain, the Appendix B.3 extension-field type, and the introductory challenge-field wording are corrected. The success-gated runtime display is explicitly conditioned on entering the loop. The  $\Pi_{\mathrm{DEC}}$  completeness equations and transformed-matrix evaluation notation are corrected and made consistent. |
++
++The old notation  $\mathrm{CE}(q/2,\mathcal L)$  mixed a rational-looking threshold with a relation parameter declared to lie in  $\mathbb N$ . The replacement  $B_{\mathrm{amb}}$  is the least integer bound for which every centered representative satisfies the paper's strict inequality, and avoids any ambiguity from interpreting division on natural numbers.
+diff --git a/docs/superneo-paper/11-b-concrete-parameters.md b/docs/superneo-paper/11-b-concrete-parameters.md
+index 544af7e77030148087ae8f1a4130b3f3637a3d6b..9f2a8ae743617e05448429ceea12806c7976d505 100644
+--- a/docs/superneo-paper/11-b-concrete-parameters.md
++++ b/docs/superneo-paper/11-b-concrete-parameters.md
+@@ -1,29 +1,55 @@
+ ## B Concrete parameters
+ 
+-This section provides three efficient parameterizations over  $\le 64$ -bit fields. Additionally, Appendix D.7 and Appendix D.8 provide the corresponding sage scripts that we used to determine valid parameterizations. In Definition 14, we require the commitment scheme to be  $(d, m, 2B, \mathcal{C})$ -relaxed binding (Definition 4). Thus, we need the commitment scheme to be  $(d, m, 4TB)$ -binding (Definition 4). Finally, Ajtai’s commitment scheme is  $(d, m, 4TB)$ -binding if  $\text{MSIS}_{m, 8TB}^{\infty, \kappa, q}$  is hard. We estimate the hardness of Module-SIS using the lattice estimator library provided by [4] using our script (Appendix D.8).
++This section gives three efficient ring and commitment parameterizations over fields whose moduli fit in at most 64 bits. Appendix D.7 and Appendix D.8 give the corresponding Sage scripts. In Definition 14, the Ajtai commitment has ring-message length  $n_R$  and must be  $(2B,\mathcal C)$ -relaxed binding. By Theorem 2, this follows from the hardness of  $\operatorname{MSIS}_{n_R,8TB}^{\infty,\kappa,q}$ .
++
++For the single-domain protocol in Section 7.3, let  $m$  be the power-of-two SumCheck row length and set
++
++$$n_R:=\left\lfloor\frac m d\right\rfloor,
++\qquad
++n_{\mathbb F}:=dn_R\le m.$$
++
++The padding injection  $M_1$  from Section 7.3 maps a logical witness of length  $n_{\mathbb F}$  into the  $m$ -entry SumCheck domain. Thus the exact coefficient-packing identity  $n_{\mathbb F}=dn_R$  holds even when  $d\nmid m$ .
++
++The tables below use the protocol bound  $B=b^k<q/2$ . The universal ambient bound  $B_{\mathrm{amb}}=\lfloor q/2\rfloor+1$  is used only in the ambient relation  $\operatorname{CE}(B_{\mathrm{amb}},\mathcal L)$  in the security reduction. It does not replace  $B$  in the protocol, relaxed-binding assumption, or Module-SIS parameters.
++
++The stated security estimates are heuristic work-factor estimates for the indicated Module-SIS instances only; they are not proved upper bounds on adversarial advantage and are not end-to-end knowledge-soundness estimates. The source used for the reported figures did not record the exact lattice-estimator revision and configuration. Treat these figures as indicative until they are regenerated with a pinned revision. For a structure with total-degree bound  $u$ , the corrected single-domain statistical terms include
++
++$$\epsilon_{\mathrm{field}}
++\le
++\frac{\max(u+1,2b,2)\log m+2K+k-1+\max(\log m,ktd)}{|\mathbb K|},
++\qquad
++\epsilon_{\mathrm{fork}}
++\le
++\frac{K+k+1}{|\mathcal C|},$$
++
++before any other applicable error terms. These terms depend on the concrete CCS structure and batch size and must be added as probabilities.
++
++For the normalized compilation of R1CS, the three original matrices are preceded by the injection matrix, so  $u=2$  and  $t=4$ . At the maximum stated batch sizes,  $\epsilon_{\mathrm{field}}+\epsilon_{\mathrm{fork}}$  is approximately  $2^{-116.17}$  for Almost Goldilocks,  $2^{-116.13}$  for Goldilocks, and  $2^{-110.32}$  for Mersenne 61. These are one-activation statistical terms. They exclude the other losses and computational assumptions needed for an end-to-end statement.
++
++In particular, the strong-extractor analysis in Appendix D.4 also contains a  $\sqrt\delta$  witness-disagreement loss. To make this term at most  $2^{-\lambda_s}$ , the underlying disagreement bound must satisfy  $\delta\le2^{-2\lambda_s}$ .
+ 
+ ### B.1 Almost Goldilocks: $(2^{64} - 2^{32} + 1) - 32$
+ 
+-We provide a new field, which we refer to as *Almost Goldilocks*. This field’s order is  $q = (2^{64} - 2^{32} + 1) - 32$ , which is close to the order of the Goldilocks field  $2^{64} - 2^{32} + 1$ . Because of this, the field admits an efficient implementation with a small change to the Solinas prime reduction algorithm (which is typically used for the Goldilocks field).
++We provide a new field, which we refer to as *Almost Goldilocks*. This field’s order is  $q = (2^{64} - 2^{32} + 1) - 32$ , which is close to the order of the Goldilocks field  $2^{64} - 2^{32} + 1$ . Because of this, the field admits an efficient implementation with a small change to the Solinas prime reduction algorithm typically used for the Goldilocks field.
+ 
+-$\eta = 128$ ,  $\Phi = X^{64} + 1$ ,  $d = 64$ ,  $\mathbb{R}_{\mathbb{F}} := \mathbb{F}[X]/(\Phi)$ ,  $\kappa = 15$ ,  $n_{\mathbb{F}} = 2^{33}$ ,  $b = 2$ ,  $k = 13$ ,  $K \in [50]$ ,  $B = 2^{13}$ . Define  $\mathcal{C}$  to be the set polynomials in  $\mathbb{R}_{\mathbb{F}}$  whose coefficients belong to  $[-1, 0, 1, 2]$ . By Theorem 9,  $T = 128$ . By Theorem 8,  $b_{\text{inv}} \approx 4$ .  $\mathbb{K} = \mathbb{F}_{q^2}$ .  $|\mathcal{C}| \approx 2^{128}$ ,  $|\mathbb{K}| \approx 2^{128}$ ,  $\text{MSIS}_{m, 8TB}^{\infty, \kappa, q} \approx 129$  bits of security.
++$\eta = 128$ ,  $\Phi = X^{64} + 1$ ,  $d = 64$ ,  $\mathbb{R}_{\mathbb{F}} := \mathbb{F}[X]/(\Phi)$ ,  $\kappa = 15$ ,  $m=2^{33}$ ,  $n_R=2^{27}$ ,  $n_{\mathbb F}=2^{33}$ ,  $b = 2$ ,  $k = 13$ ,  $K \in [50]$ ,  $B = 2^{13}$ . Define  $\mathcal{C}$  to be the set of polynomials in  $\mathbb{R}_{\mathbb{F}}$  whose coefficients belong to  $[-1, 0, 1, 2]$ . For  $\Phi=X^{64}+1$ , the direct negacyclic convolution bound gives  $T\le d\max_{\rho\in\mathcal C}\|\rho\|_\infty=64\cdot2=128$ ; the generic bound in Theorem 9 is looser. By Theorem 8,  $b_{\mathrm{inv}} \approx 4$ .  $\mathbb{K} = \mathbb{F}_{q^2}$ .  $|\mathcal{C}| = 2^{128}$ ,  $|\mathbb{K}| \approx 2^{128}$ , and the lattice-estimator output for  $\operatorname{MSIS}_{n_R,8TB}^{\infty,\kappa,q}$  is approximately 129 bits.
+ 
+ ### B.2 Goldilocks: $(2^{64} - 2^{32} + 1)$
+ 
+-This is a popular choice of field for SNARKs as the field admits an efficient implementation: field operations can be implemented with essentially only bit-shifts and the field has high 2-adicity ( $2^{32} \mid (p-1)$ ), which is useful for compressing Neo’s IVC proofs with SNARKs.
++This is a popular choice of field for SNARKs as the field admits an efficient implementation: field operations can be implemented with essentially only bit-shifts and the field has high 2-adicity ( $2^{32} \mid (q-1)$ ), which is useful for compressing Neo’s IVC proofs with SNARKs.
+ 
+-$\eta = 81$ ,  $\Phi = X^{54} + X^{27} + 1$ ,  $d = 54$ ,  $\mathbb{R}_{\mathbb{F}} := \mathbb{F}[X]/(\Phi)$ ,  $\kappa = 18$ ,  $n_{\mathbb{F}} = 2^{30}$ ,  $b = 2$ ,  $k = 14$ ,  $K \in [61]$ ,  $B = 2^{14}$ . Define  $\mathcal{C}$  to be the set polynomials in  $\mathbb{R}_{\mathbb{F}}$  whose coefficients belong to  $[-2, -1, 0, 1, 2]$ . By Theorem 9,  $T = 216$ . By Theorem 8,  $b_{\text{inv}} \approx 2.5 \cdot 10^9$ .  $\mathbb{K} = \mathbb{F}_{q^2}$ .
++$\eta = 81$ ,  $\Phi = X^{54} + X^{27} + 1$ ,  $d = 54$ ,  $\mathbb{R}_{\mathbb{F}} := \mathbb{F}[X]/(\Phi)$ ,  $\kappa = 18$ ,  $m=2^{30}$ ,  $n_R=\lfloor2^{30}/54\rfloor=19{,}884{,}107$ ,  $n_{\mathbb F}=54n_R=1{,}073{,}741{,}778$ ,  $b = 2$ ,  $k = 14$ ,  $K \in [61]$ ,  $B = 2^{14}$ . Define  $\mathcal{C}$  to be the set of polynomials in  $\mathbb{R}_{\mathbb{F}}$  whose coefficients belong to  $[-2, -1, 0, 1, 2]$ . By Theorem 9,  $T \le 216$ ; we use this upper bound. By Theorem 8,  $b_{\mathrm{inv}} \approx 2.5 \cdot 10^9$ .  $\mathbb{K} = \mathbb{F}_{q^2}$ .
+ 
+-$|\mathcal{C}| \approx 2^{125}$ ,  $|\mathbb{K}| \approx 2^{128}$ ,  $\text{MSIS}_{m, 8TB}^{\infty, \kappa, q} \approx 129$  bits of security.
++$|\mathcal{C}| = 5^{54}\approx 2^{125.38}$ ,  $|\mathbb{K}| \approx 2^{128}$ , and the lattice-estimator output for  $\operatorname{MSIS}_{n_R,8TB}^{\infty,\kappa,q}$  is approximately 129 bits.
+ 
+-*Remark 4 (Incompatibility with LatticeFold [14]).* In LatticeFold [14], the constructions and analysis are limited to power-of-two cyclotomic polynomials, namely of the form  $X^d + 1$  with  $d$  being a power-of-two. Since the Goldilocks field has high 2-adicity, the cyclotomic polynomial completely factors into linear terms. This means that the ring  $R_F$  is isomorphic to  $\mathbb{F}_q^d$  (the NTT representation). The security of LatticeFold’s construction depends on the size of the field in the NTT representation [14, Sec 3.3], which here is only 64 bits.
++*Remark 4 (Incompatibility with LatticeFold [14]).* In LatticeFold [14], the constructions and analysis are limited to power-of-two cyclotomic polynomials, namely of the form  $X^d + 1$  with  $d$  being a power of two. Since the Goldilocks field has high 2-adicity, the cyclotomic polynomial completely factors into linear terms. This means that the ring  $\mathbb R_{\mathbb F}$  is isomorphic to  $\mathbb{F}_q^d$  (the NTT representation). The security of LatticeFold’s construction depends on the size of the field in the NTT representation [14, Sec. 3.3], which here is only 64 bits.
+ 
+ ### B.3 Mersenne 61: $2^{61} - 1$
+ 
+-This field admits an incredibly efficient implementation as it is only one off from a power-of-two. Specifically, modular arithmetic over this field can be implemented with simple bit-shifts with an algorithm more efficient than Goldilocks.
++This field admits an efficient implementation because its modulus is one less than a power of two. Modular arithmetic over this field can use simple bit shifts.
+ 
+-$\eta = 81$ ,  $\Phi = X^{54} + X^{27} + 1$ ,  $d = 54$ ,  $R_F := \mathbb{F}[X]/(\Phi)$ ,  $\kappa = 18$ ,  $n_F = 2^{28}$ ,  $b = 2$ ,  $k = 14$ ,  $K \in [61]$ ,  $B = 2^{14}$ . Define  $\mathcal{C}$  to be the set polynomials in  $R_F$  whose coefficients belong to  $[-2, -1, 0, 1, 2]$ . By Theorem 9,  $T = 216$ . By Theorem 8,  $b_{\text{inv}} \approx 383$ .  $|\mathbb{K}| = \mathbb{F}_{q^2}$ .
++$q=2^{61}-1$ ,  $\eta = 81$ ,  $\Phi = X^{54} + X^{27} + 1$ ,  $d = 54$ ,  $\mathbb R_{\mathbb F} := \mathbb{F}[X]/(\Phi)$ ,  $\kappa = 18$ ,  $m=2^{28}$ ,  $n_R=\lfloor2^{28}/54\rfloor=4{,}971{,}026$ ,  $n_{\mathbb F}=54n_R=268{,}435{,}404$ ,  $b = 2$ ,  $k = 14$ ,  $K \in [61]$ ,  $B = 2^{14}$ . Define  $\mathcal{C}$  to be the set of polynomials in  $\mathbb R_{\mathbb F}$  whose coefficients belong to  $[-2, -1, 0, 1, 2]$ . By Theorem 9,  $T \le 216$ ; we use this upper bound. By Theorem 8,  $b_{\mathrm{inv}} \approx 383$ .  $\mathbb{K} = \mathbb{F}_{q^2}$  and  $|\mathbb{K}| = q^2$ .
+ 
+-$|\mathcal{C}| \approx 2^{125}$ ,  $|\mathbb{K}| \approx 2^{122}$ ,  $\text{MSIS}_{m, 8TB}^{\infty, \kappa, q} \approx 129$  bits of security.
++$|\mathcal{C}| = 5^{54}\approx 2^{125.38}$ ,  $|\mathbb{K}| \approx 2^{122}$ , and the lattice-estimator output for  $\operatorname{MSIS}_{n_R,8TB}^{\infty,\kappa,q}$  is approximately 129 bits.
+ 
+-*Remark 5 (Incompatibility with Latticefold [14]).* As stated earlier, LatticeFold’s constructions and analysis are limited to power-of-two cyclotomic polynomials, namely of the form  $X^d + 1$  for  $d$  being a power-of-two. For Mersenne 61, there is no choice of power-of-two cyclotomic polynomials, which satisfies the requirements of Theorem 8. Hence, it cannot be determined whether a choice of parameters with  $\Phi = X^d + 1$  leads to a secure construction.
++*Remark 5 (Incompatibility with LatticeFold [14]).* As stated earlier, LatticeFold’s constructions and analysis are limited to power-of-two cyclotomic polynomials, namely of the form  $X^d + 1$  for  $d$  being a power of two. For Mersenne 61, there is no choice of power-of-two cyclotomic polynomial that satisfies the requirements of Theorem 8. Hence, it cannot be determined whether a choice of parameters with  $\Phi = X^d + 1$  leads to a secure construction.
+diff --git a/docs/superneo-paper/12-c-additional-background.md b/docs/superneo-paper/12-c-additional-background.md
+index f80cb5db17deca078f8858991903baf1e14b1f90..481d0a9c45ce8da3e4608b9055f8218abe14cbdd 100644
+--- a/docs/superneo-paper/12-c-additional-background.md
++++ b/docs/superneo-paper/12-c-additional-background.md
+@@ -8,24 +8,26 @@ $$\Pr_{x \leftarrow S^\ell} [g(x) = 0] \le d/|S|.$$
+ 
+ **Lemma 6.** *Let  $Q \in \mathbb{F}[X_1, \dots, X_\ell]$  be an arbitrary multivariate polynomial. Define multivariate polynomial  $Q'(\vec{X}, \vec{Z}) := \text{eq}(\vec{X}, \vec{Z}) \cdot Q(\vec{X})$ .*
+ 
+-$$0 = \sum_{\vec{x} \in \{0,1\}^{\log \ell}} Q'(\vec{x}, \vec{Z}) \quad \text{if and only if} \quad Q(\vec{X}) \in \mathbb{Z}S_\ell$$
++$$0 = \sum_{\vec{x} \in \{0,1\}^{\ell}} Q'(\vec{x}, \vec{Z}) \quad \text{if and only if} \quad Q(\vec{X}) \in \mathbb{ZS}_\ell,$$
++
++where the equality on the left is an identity in  $\mathbb F[\vec Z]$ .
+ 
+ **Definition 15 (Module Homomorphism).** *Modules are a generalization of vector spaces for which the field of scalars is replaced by a ring  $R$ . Suppose  $R$  is a commutative ring with identity  $1$  and  $G$  is an abelian (commutative) group. The group  $G$  is an  $R$ -module if there is an operation  $\cdot : R \times G \to G$  such that for all  $r, s \in R$  and  $x, y \in G$ ,  $r \cdot (x + y) = r \cdot x + r \cdot y$ ,  $(r + s) \cdot x = r \cdot x + s \cdot x$ ,  $(rs) \cdot x = r \cdot (s \cdot x)$ ,  $1 \cdot x = x$ . Suppose  $G_1$  and  $G_2$  are  $R$ -modules. Similarly, an  $R$ -module homomorphism is a map  $\mathcal{L} : G_1 \to G_2$  that is a generalization of a linear map of vector spaces.  $\mathcal{L}$  is an  $R$ -module homomorphism if for all  $x, y \in G_1$  and  $r \in R$ ,  $\mathcal{L}(x + y) = \mathcal{L}(x) + \mathcal{L}(y)$  and  $\mathcal{L}(r \cdot x) = r \cdot \mathcal{L}(x)$ .*
+ 
+-**Definition 16 (Module short integer solution [60, 63, 73]).** *Define the ring  $R_Z := \mathbb{Z}[X]/(\Phi(X))$ . The MSIS $_{m,B}^{\infty,\kappa,q}$  problem is defined as follows: Given a matrix  $M \xleftarrow{\$} \mathbb{R}_{\mathbb{F}}^{\kappa \times m}$  sampled uniformly at random, find a non-zero vector  $z \in \mathbb{R}_Z$  such that  $Mz = 0 \pmod q$  and  $\|z\|_{\infty} < B$ .*
++**Definition 16 (Module short integer solution [60, 63, 73]).** *Define the ring  $R_Z := \mathbb{Z}[X]/(\Phi(X))$ . The  $\operatorname{MSIS}_{n,B}^{\infty,\kappa,q}$  problem is defined as follows: Given a matrix  $M \xleftarrow{\$} \mathbb{R}_{\mathbb{F}}^{\kappa \times n}$  sampled uniformly at random, find a non-zero vector  $z \in R_Z^n$  such that  $Mz = 0 \pmod q$  and  $\|z\|_{\infty} < B$ .*
+ 
+-**Theorem 8 (Low norm invertibility [65, Theorem 1.1, Conjecture 2.6]).** *Let  $z \in \mathbb{N}$  such that  $z \mid \eta$ ,  $q \equiv 1 \pmod z$ , and  $\text{ord}_{\eta}(q) = \eta/z$ . Define  $\mathbf{b}_{\text{inv}} := 1/\sqrt{\tau(z)} \cdot q^{1/\phi(z)}$  where  $\tau(z) := z$  if  $z$  is odd, otherwise  $\tau(z) = z/2$ . For an arbitrary  $a \in \mathbb{R}_{\mathbb{F}}$ , if  $0 < \|a\|_{\infty} < \mathbf{b}_{\text{inv}}$ , then  $a$  is invertible in  $\mathbb{R}_{\mathbb{F}}$ .*
++**Theorem 8 (Low norm invertibility [65, Theorem 1.1; 86, Theorem 2 and Proposition 2]).** *Write  $\eta=\prod_i p_i^{e_i}$  and let  $z=\prod_i p_i^{f_i}$  for integers  $1\le f_i\le e_i$ ; thus  $z\mid\eta$  and  $z$  and  $\eta$  have the same prime support. Suppose  $q \equiv 1 \pmod z$  and  $\text{ord}_{\eta}(q) = \eta/z$ . Define  $\mathbf{b}_{\text{inv}} := 1/\sqrt{\tau(z)} \cdot q^{1/\phi(z)}$  where  $\tau(z) := z$  if  $z$  is odd, otherwise  $\tau(z) = z/2$ . For an arbitrary  $a \in \mathbb{R}_{\mathbb{F}}$ , if  $0 < \|a\|_{\infty} < \mathbf{b}_{\text{inv}}$ , then  $a$  is invertible in  $\mathbb{R}_{\mathbb{F}}$ .*
+ 
+-**Definition 17 (Strong sampling sets [3, 28]).** *Define  $\mathcal{C} \subseteq \mathbb{R}_{\mathbb{F}}$  to be any set of ring elements such that for any distinct elements  $a, b \in \mathcal{C}$ ,  $\|a - b\|_{\infty} < \mathbf{b}_{\text{inv}}$  (Theorem 8). Furthermore, we define the*
++**Definition 17 (Strong sampling sets [3]).** *Define  $\mathcal{C} \subseteq \mathbb{R}_{\mathbb{F}}$  to be any set of ring elements such that for any distinct elements  $a, b \in \mathcal{C}$ ,  $\|a - b\|_{\infty} < \mathbf{b}_{\text{inv}}$  (Theorem 8). Furthermore, we define the*
+ 
+-$$\text{expansion factor of } \mathcal{C} := \max_{\substack{v \in \mathbb{R}_{\mathbb{F}} \\ \rho \in \mathcal{C}}} \frac{\|\rho v\|_{\infty}}{\|v\|_{\infty}}$$
++$$\text{expansion factor of } \mathcal{C} := \max_{\substack{0\ne v \in \mathbb{R}_{\mathbb{F}} \\ \rho \in \mathcal{C}}} \frac{\|\rho v\|_{\infty}}{\|v\|_{\infty}}$$
+ 
+ **Theorem 9 (Expansion factors [3]).** *Let  $\mathcal{C}$  be a strong sampling set over the cyclotomic ring  $\mathbb{R}_{\mathbb{F}}$  (Definition 17), We denote the Euler totient function as  $\phi$ . We must have that the expansion factor of  $\mathcal{C}$  is  $\le 2 \cdot \phi(\eta) \cdot \max_{\rho \in \mathcal{C}} \|\rho\|_{\infty}$ .*
+ 
+-**Definition 18 (Ajtai commitment scheme [2]).** *Let message length  $m \in \mathbb{N}$ . The Ajtai commitment scheme  $\text{com} := (\text{Setup}, \text{Commit})$  consists of the following PPT algorithms:*
++**Definition 18 (Ajtai commitment scheme [2]).** *Let ring-message length  $n \in \mathbb{N}$ . The Ajtai commitment scheme  $\text{com} := (\text{Setup}, \text{Commit})$  consists of the following PPT algorithms:*
+ 
+-- **Setup** $(\kappa, m) \to \text{pp}$ : Sample a random matrix  $M \xleftarrow{\$} \mathbb{R}_{\mathbb{F}}^{\kappa \times m}$ . Output  $\text{pp} \leftarrow M$ .
+-- **Commit** $(\text{pp}, z) \to c$ : Given parameters  $\text{pp}$  and vector  $z \in \mathbb{R}_{\mathbb{F}}^m$ , output  $Mz$ .
++- **Setup** $(1^\lambda, n) \to \text{pp}$ : Choose the Module-SIS rank  $\kappa$  as a function of the security parameter, sample a random matrix  $M \xleftarrow{\$} \mathbb{R}_{\mathbb{F}}^{\kappa \times n}$ , and output  $\text{pp} \leftarrow M$ .
++- **Commit** $(\text{pp}, z) \to c$ : Given parameters  $\text{pp}$  and vector  $z \in \mathbb{R}_{\mathbb{F}}^n$ , output  $Mz$ .
+ 
+ In this work, we are primarily interested in building folding schemes, a particular type of reduction of knowledge that reduces the task of checking instances in some relation  $\mathcal{R}_2$  into a running instance in a relation  $\mathcal{R}_1$ .
+ 
+@@ -43,8 +45,14 @@ $$\text{SS}(\mathcal{C}, \ell) = \left\{ (\vec{c}, \vec{c}_1, \dots, \vec{c}_\el
+ 
+ $$\epsilon^V(A) := \Pr_{\vec{c} \in \vec{\mathcal{C}}} [V(\vec{c}, A(\vec{c})) = 1]$$
+ 
+-Then, there exists an expected polynomial-time oracle algorithm  $E_A$  (extractor) that makes at most  $\ell + 1$  queries to  $A$  in expectation and with probability at least  $\epsilon^V(A) - \frac{\ell}{|\vec{\mathcal{C}}|}$  outputs  $\ell + 1$  pairs  $(\vec{c}, w), (\vec{c}_1, w_1), \dots, (\vec{c}_\ell, w_\ell)$  such that
++Then, there exists an expected polynomial-time oracle algorithm  $E_A$  (extractor) that makes at most  $\ell + 1$  queries to  $A$  in expectation and with probability at least  $\epsilon^V(A) - \frac{\ell}{|\mathcal{C}|}$  outputs  $\ell + 1$  pairs  $(\vec{c}, w), (\vec{c}_1, w_1), \dots, (\vec{c}_\ell, w_\ell)$  such that
+ 
+ - $V(\vec{c}, w) = 1$ ,
+ - for all  $i \in [\ell]$ ,  $V(\vec{c}_i, w_i) = 1$ ,
+ - and  $(\vec{c}, \vec{c}_1, \dots, \vec{c}_\ell) \in \text{SS}(\mathcal{C}, \ell)$ .
++
++In particular, the theorem immediately implies the weaker conservative bound
++
++$$\epsilon^V(A)-\frac{\ell+1}{|\mathcal{C}|},$$
++
++which is the form retained in Appendix D.5.

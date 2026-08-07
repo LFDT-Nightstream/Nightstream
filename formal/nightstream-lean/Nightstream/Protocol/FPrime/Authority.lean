@@ -46,11 +46,14 @@ end Nifs
 namespace Terminal
 
 export Nightstream.HyperNova.Construction2.Paper
-  (TerminalProof TerminalStatement TerminalRelations TerminalTransition
+  (TerminalProof OuterTerminalProof TerminalStatement TerminalRelations
+    RecursiveTerminalTransition TerminalTransition OuterTerminalTransition
+    OuterTerminalHolds outerTerminalHolds_iff_transition
     terminalHolds_iff_transition)
 
 export Nightstream.Protocol.FPrime.CanonicalTerminalVerifier
-  (RelationChecks allRunningAccepted eval eval_eq_true_iff_transition)
+  (RelationChecks allRunningAccepted eval evalOuter eval_eq_true_iff_transition
+    evalOuter_eq_true_iff_transition)
 
 end Terminal
 

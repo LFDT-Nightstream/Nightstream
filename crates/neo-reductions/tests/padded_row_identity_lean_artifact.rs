@@ -77,6 +77,21 @@ fn sample_output_words() -> Vec<u64> {
     .collect()
 }
 
+fn construction3_output_frame(compact: &[u64]) -> Vec<u64> {
+    let (&message_type, payload) = compact
+        .split_first()
+        .expect("PiCCS output has its message-type tag");
+    assert_eq!(message_type, 47, "selected PiCCS output message type");
+
+    let label = b"prover-message";
+    let mut fields = Vec::with_capacity(2 + label.len() + 4 + payload.len());
+    fields.extend([32, label.len() as u64]);
+    fields.extend(label.iter().map(|byte| u64::from(*byte)));
+    fields.extend([51, 25, message_type, payload.len() as u64]);
+    fields.extend_from_slice(payload);
+    fields
+}
+
 fn render() -> String {
     let mut carried = Vec::with_capacity(RUNNING_COUNT * MATRIX_COUNT * D);
     for coefficient in 0..D {
@@ -98,10 +113,32 @@ fn render() -> String {
         .iter()
         .map(u64::to_string)
         .collect::<Vec<_>>();
-    let output_words = sample_output_words();
+    let compact_output_words = sample_output_words();
+    let output_words = construction3_output_frame(&compact_output_words);
     let output_coordinate_count = (FRESH_COUNT + RUNNING_COUNT) * MATRIX_COUNT * D;
-    let mut expected_output_words = Vec::with_capacity(1 + 2 * output_coordinate_count);
-    expected_output_words.push(47);
+    let mut expected_output_words = Vec::with_capacity(20 + 2 * output_coordinate_count);
+    expected_output_words.extend([
+        32,
+        14,
+        112,
+        114,
+        111,
+        118,
+        101,
+        114,
+        45,
+        109,
+        101,
+        115,
+        115,
+        97,
+        103,
+        101,
+        51,
+        25,
+        47,
+        (2 * output_coordinate_count) as u64,
+    ]);
     for ordinal in 1..=output_coordinate_count as u64 {
         expected_output_words.extend([ordinal, 10_000 + ordinal]);
     }
@@ -112,8 +149,9 @@ fn render() -> String {
     let sample_output_field_count = output_words.len();
     let production_running_count = neo_params::goldilocks_paper_b2::K_RHO as usize;
     let production_matrix_count = PRODUCTION_APPLICATION_MATRIX_COUNT + 1;
-    let production_output_field_count =
-        1 + (PRODUCTION_FRESH_COUNT + production_running_count) * production_matrix_count * D * 2;
+    let production_output_payload_count =
+        (PRODUCTION_FRESH_COUNT + production_running_count) * production_matrix_count * D * 2;
+    let production_output_field_count = 20 + production_output_payload_count;
 
     format!(
         "import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Coefficients\n\n\

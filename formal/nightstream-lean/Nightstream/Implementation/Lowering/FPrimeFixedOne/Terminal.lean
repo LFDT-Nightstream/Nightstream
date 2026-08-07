@@ -9,12 +9,12 @@ Owns:
 - intrinsic base/recursive control flow selected by the iteration-zero call;
 - the base endpoint assertion;
 - the recursive prior-link and two terminal-relation assertions;
-- equivalence with the independently defined fixed-one terminal verifier and
-  paper transition.
+- equivalence with the independently defined fixed-one payload verifier and
+  erased-payload transition.
 
-Does not own: NIFS verification, a whole-verifier opaque call, an external
-branch selector, physical rows or columns, Rust behavior, or an encoding
-recipe.
+Does not own: the exact outer bottom-or-recursive proof envelope, NIFS
+verification, a whole-verifier opaque call, an external branch selector,
+physical rows or columns, Rust behavior, or an encoding recipe.
 
 Emits constraints: no.
 -/
@@ -1089,7 +1089,7 @@ theorem accepts_iff_fixedOne
   exact referenceExec_eq_some_iff_fixedOne parameters statement proof
 
 /-- The typed terminal lowering program recognizes exactly the independent
-paper terminal transition, including its base and positive-iteration
+erased-payload transition, including its base and positive-iteration
 boundaries. -/
 theorem accepts_iff_transition
     (parameters : Parameters)

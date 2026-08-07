@@ -3,9 +3,6 @@
 > Generated reading view. Edit `src/normative/` and
 > `src/requirements/`; `refresh_derived.py` rebuilds this file.
 
-> Assembly overrides:
-> - `NS-PICCS-VARIANT` replaces `SN-PICCS-IDENTITY`.
-
 
 Status: **selected implementation specification; production assurance open**.
 This contract does not state that the current Rust code or circuit conforms to
@@ -565,12 +562,12 @@ Decision: NSD-ENCODING-001 and NSD-AUTHORITY-001.
 
 Nightstream MUST use the reviewed joint PiCCS polynomial on the selected
 24-variable row cube. In its norm term, `MLE(z_i)` MUST mean the 24-variable
-MLE of `z_i` followed by zero padding. It MUST NOT dispatch to a rectangular
-FE/NC split.
+MLE of `z_i` followed by zero padding. It MUST use the paper's one row-domain
+SumCheck and MUST NOT add a second column-domain SumCheck.
 
 Decision: NSD-PICCS-001 and NSD-NORM-BINDING-001.
 
-### NS-PICCS-PADDING-EQUIVALENCE — Zero-row refinement
+### NS-PICCS-PADDING-EQUIVALENCE — Zero-row specialization
 
 For every application matrix, the padded output MUST equal its logical output
 on rows `0..14944218` and zero afterwards. The Structure MUST satisfy
@@ -642,7 +639,7 @@ coordinate-fork numerator = K_fresh+k+1 = 16.
 These values are component counts, not an end-to-end security level.
 
 Decision: NSD-SECURITY-001 and NSD-DOMAIN-MAP-001.
-## 7. Nightstream fold refinement
+## 7. Nightstream fold specialization
 
 ### NS-PIRLC-PROFILE — Selected PiRLC inputs and challenges
 
@@ -665,19 +662,20 @@ MUST reject.
 
 Decision: NSD-SPLIT-001 and NSD-AUTHORITY-001.
 
-### NS-RED-PADDED-RELATIONS — Reduction relation refinement
+### NS-RED-PADDED-RELATIONS — Reduction relation specialization
 
 The Nightstream PiCCS strong relation MUST be the paper relation under the
 zero-row embedding. Its output and ambient relations MUST remain
 `BatchCE_15(b,L)` and `BatchCE_15(B_amb,L)`. The commitment projection MUST
-remain unchanged and no padding or cache field may enter it.
+remain unchanged and no padding or cache field may enter it. This is the
+paper's stated zero-row normalization, not a new reduction relation.
 
 Decision: NSD-REDUCTION-FRAMEWORK-001 and NSD-NORM-BINDING-001.
 
 ### NS-RED-COMPOSITION — Padded fold proof obligation
 
-The end-to-end fold proof MUST first establish that zero-row embedding
-preserves the paper PiCCS identities and strong conditions. It MUST then use
+The end-to-end fold proof MUST instantiate the paper's zero-row embedding and
+establish its stated acceptance equivalence. It MUST then use
 the reviewed weak PiRLC and PiDEC composition without an extended carrier
 relation or an extra batching lemma.
 

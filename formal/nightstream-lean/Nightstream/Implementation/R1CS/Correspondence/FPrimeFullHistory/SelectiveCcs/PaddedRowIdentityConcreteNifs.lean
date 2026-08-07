@@ -70,21 +70,26 @@ end Composition
 
 namespace Poseidon2
 export PaddedRowIdentityPoseidon2
-  (State oracle initialState initialStateForStatement absorbPublicInput
-    absorbFullOutput piRlcResponse
+  (State StatementId oracle initialState initialStateForStatement absorbPublicInput
+    absorbFullOutput sampleCoefficient samplerSucceeded scalarResponse
+    piRlcResponse
     piRlcResponse_valid SamplerAvailable SamplerShortfall
     available_or_shortfall available_excludes_shortfall
-    not_available_iff_shortfall piRlcResponse_refines_of_available
+    not_available_iff_shortfall samplerSucceeded_eq_true_iff
+    samplerSucceeded_eq_false_iff piRlcResponse_refines_of_available
     piRlcResponse_refines_of_no_shortfall)
 end Poseidon2
+
+abbrev StatementId := Poseidon2.StatementId
 
 namespace SamplerSecurity
 export PaddedRowIdentitySamplerSecurity
   (GoldilocksRandomOracleSamplerContract completeSamplerShortfallBound
-    samplerSecurityTarget shortfall_requires_eleven_rejections
+    samplerSecurityTarget shortfall_requires_three_rejections
+    sampleCoefficient_eq_none_iff_threeRejections
     completeSamplerShortfallBound_le_target
     samplerShortfall_probability_le
-    samplerShortfall_probability_le_121_bits)
+    samplerShortfall_probability_le_182_bits)
 end SamplerSecurity
 
 namespace Generic
@@ -96,7 +101,7 @@ end Generic
 operation is selected here; a caller supplies the statement identifier, the
 verifier-owned Ajtai key, and the application matrix family. -/
 noncomputable def key
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices) :
     Key K Algebra.Commitment Algebra.PublicInput RingF Poseidon2.State shape
@@ -170,17 +175,17 @@ def compactMatrices : ApplicationMatrices where
 
 /-- Fixed executable key for the compact recursive verifier. Only the
 statement identifier varies inside the recursive circuit. -/
-noncomputable def compactKey (statementId : F) :=
+noncomputable def compactKey (statementId : StatementId) :=
   key statementId compactAjtaiKey compactMatrices
 
 @[simp] theorem key_arity_total
-    (statementId : F) (ajtaiKey : Algebra.AjtaiKey)
+    (statementId : StatementId) (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices) :
     (key statementId ajtaiKey matrices).arity.total = 15 := by
   rfl
 
 theorem key_initialTranscriptState
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices) :
     (key statementId ajtaiKey matrices).initialTranscriptState =
@@ -190,7 +195,7 @@ theorem key_initialTranscriptState
 /-- The executable transcript prefix reads the statement identifier and the
 public claims. It does not read the Ajtai base or application-matrix entries. -/
 theorem key_publicInputState
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -201,14 +206,14 @@ theorem key_publicInputState
   rfl
 
 theorem key_oracle
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices) :
     (key statementId ajtaiKey matrices).oracle = Poseidon2.oracle := by
   rfl
 
 theorem key_absorbPiCcsOutput
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (state : Poseidon2.State)
@@ -232,7 +237,7 @@ def verifierInput
       coordinate.coefficient
 
 theorem key_verifierInput
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -261,7 +266,7 @@ def piCcsCertificate
   }
 
 theorem key_piCcsCertificate
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -274,7 +279,7 @@ theorem key_piCcsCertificate
 /-- Complete joint-SumCheck replay from only the statement ID, public claims,
 and prover message. -/
 def piCcsExecution
-    (statementId : F)
+    (statementId : StatementId)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
     (fresh : Fresh Algebra.Commitment Algebra.PublicInput shape)
     (proof : Proof K Algebra.Commitment shape 9) :=
@@ -288,7 +293,7 @@ def piCcsExecution
       Poseidon2.absorbFullOutput execution.coins.finalState proof.piCcsOutput }
 
 theorem key_piCcsExecution
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -301,10 +306,108 @@ theorem key_piCcsExecution
     key_oracle]
   simp only [key_absorbPiCcsOutput]
 
+abbrev VerifierKey :=
+  Key K Algebra.Commitment Algebra.PublicInput RingF Poseidon2.State shape
+    assignmentColumns (Phi81ColumnLayout.blockCount assignmentColumns) 9
+
+/-- Exact post-`Pi_CCS` state from which all selected `Pi_RLC` coefficients
+are sampled. -/
+def samplerState
+    (verifierKey : VerifierKey)
+    (running : Running K Algebra.Commitment Algebra.PublicInput shape)
+    (fresh : Fresh Algebra.Commitment Algebra.PublicInput shape)
+    (proof : Proof K Algebra.Commitment shape 9) : Poseidon2.State :=
+  (verifierKey.piCcsExecution running fresh proof).outgoingState
+
+/-- Selected executable verifier. A bounded-sampler shortfall rejects before
+the generic paper verifier can consume its total internal response. -/
+noncomputable def verify
+    (verifierKey : VerifierKey)
+    (running : Running K Algebra.Commitment Algebra.PublicInput shape)
+    (fresh : Fresh Algebra.Commitment Algebra.PublicInput shape)
+    (proof : Proof K Algebra.Commitment shape 9) :
+    Option (Running K Algebra.Commitment Algebra.PublicInput shape) :=
+  if Poseidon2.samplerSucceeded
+      (samplerState verifierKey running fresh proof) then
+    Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify
+      verifierKey running fresh proof
+  else
+    none
+
+theorem verify_eq_paper_of_samplerAvailable
+    (verifierKey : VerifierKey)
+    (running : Running K Algebra.Commitment Algebra.PublicInput shape)
+    (fresh : Fresh Algebra.Commitment Algebra.PublicInput shape)
+    (proof : Proof K Algebra.Commitment shape 9)
+    (available : Poseidon2.SamplerAvailable
+      (samplerState verifierKey running fresh proof)) :
+    verify verifierKey running fresh proof =
+      Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify
+        verifierKey running fresh proof := by
+  have succeeded : Poseidon2.samplerSucceeded
+      (samplerState verifierKey running fresh proof) = true :=
+    (Poseidon2.samplerSucceeded_eq_true_iff _).2 available
+  simp [verify, succeeded]
+
+theorem verify_eq_none_of_samplerShortfall
+    (verifierKey : VerifierKey)
+    (running : Running K Algebra.Commitment Algebra.PublicInput shape)
+    (fresh : Fresh Algebra.Commitment Algebra.PublicInput shape)
+    (proof : Proof K Algebra.Commitment shape 9)
+    (shortfall : Poseidon2.SamplerShortfall
+      (samplerState verifierKey running fresh proof)) :
+    verify verifierKey running fresh proof = none := by
+  have failed : Poseidon2.samplerSucceeded
+      (samplerState verifierKey running fresh proof) = false :=
+    (Poseidon2.samplerSucceeded_eq_false_iff _).2 shortfall
+  simp [verify, failed]
+
+theorem verify_implies_samplerAvailable
+    (verifierKey : VerifierKey)
+    (running : Running K Algebra.Commitment Algebra.PublicInput shape)
+    (fresh : Fresh Algebra.Commitment Algebra.PublicInput shape)
+    (proof : Proof K Algebra.Commitment shape 9)
+    (result : Running K Algebra.Commitment Algebra.PublicInput shape)
+    (accepted : verify verifierKey running fresh proof = some result) :
+    Poseidon2.SamplerAvailable
+      (samplerState verifierKey running fresh proof) := by
+  by_contra unavailable
+  have shortfall : Poseidon2.SamplerShortfall
+      (samplerState verifierKey running fresh proof) :=
+    (Poseidon2.not_available_iff_shortfall _).mp unavailable
+  have rejected := verify_eq_none_of_samplerShortfall
+    verifierKey running fresh proof shortfall
+  rw [rejected] at accepted
+  contradiction
+
+/-- Selected-verifier acceptance has the same independent paper transition
+or named paper bad event as generic acceptance. Sampler shortfall is not an
+accepted bad event because the selected verifier rejects it first. -/
+theorem verify_sound
+    (verifierKey : VerifierKey)
+    (running : Running K Algebra.Commitment Algebra.PublicInput shape)
+    (fresh : Fresh Algebra.Commitment Algebra.PublicInput shape)
+    (proof : Proof K Algebra.Commitment shape 9)
+    (result : Running K Algebra.Commitment Algebra.PublicInput shape)
+    (accepted : verify verifierKey running fresh proof = some result) :
+    Transition verifierKey running fresh result \/
+      BadEvent verifierKey running fresh proof result := by
+  have available := verify_implies_samplerAvailable
+    verifierKey running fresh proof result accepted
+  have paperAccepted :
+      Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify
+          verifierKey running fresh proof = some result := by
+    rw [← verify_eq_paper_of_samplerAvailable
+      verifierKey running fresh proof available]
+    exact accepted
+  exact
+    Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify_sound
+      verifierKey running fresh proof result paperAccepted
+
 /-- The joint-SumCheck Boolean is independent of the semantic Ajtai key and
 matrix entries. These values remain bound by the statement identifier. -/
 theorem piCcsCheck_eq_compact
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -325,7 +428,7 @@ theorem piCcsCheck_eq_compact
 /-- The verifier-computed combined commitment uses only public commitments and
 transcript-derived challenges. -/
 theorem parent_commitment_eq_compact
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -342,7 +445,7 @@ theorem parent_commitment_eq_compact
 /-- The verifier-computed combined public input uses only public inputs and
 transcript-derived challenges. -/
 theorem parent_publicInput_eq_compact
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -359,7 +462,7 @@ theorem parent_publicInput_eq_compact
 /-- The verifier-computed parent point is the transcript-derived SumCheck
 point. -/
 theorem parent_point_eq_compact
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -374,7 +477,7 @@ theorem parent_point_eq_compact
 /-- The verifier-computed combined evaluations use only the complete joint
 SumCheck output and transcript-derived challenges. -/
 theorem parent_evaluations_eq_compact
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -392,7 +495,7 @@ theorem parent_evaluations_eq_compact
 /-- The operational `Pi_DEC` proposition reads only the public parent fields
 and prover child messages. Its result is independent of semantic key data. -/
 theorem piDecAccepted_iff_compact
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -446,7 +549,7 @@ theorem piDecAccepted_iff_compact
 
 /-- The executable `Pi_DEC` Boolean is independent of semantic key data. -/
 theorem piDecCheck_eq_compact
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -461,7 +564,7 @@ theorem piDecCheck_eq_compact
 /-- The accepted running output uses only the checked parent point and public
 input plus the prover child commitment and evaluation messages. -/
 theorem output_eq_compact
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -475,11 +578,29 @@ theorem output_eq_compact
     parent_publicInput_eq_compact statementId ajtaiKey matrices running fresh proof]
   simp only [compactKey, key, Algebra.publicInputSplit]
 
-/-- Exact executable refinement used by the recursive circuit. The full Ajtai
-key and matrix family are bound through the statement identifier, but the
-Boolean verifier and returned public claim do not copy them into the circuit. -/
+/-- The generic paper verifier has the same result for the full and compact
+keys because it does not read the semantic Ajtai key or matrix entries. -/
+private theorem paperVerify_eq_compact
+    (statementId : StatementId)
+    (ajtaiKey : Algebra.AjtaiKey)
+    (matrices : ApplicationMatrices)
+    (running : Running K Algebra.Commitment Algebra.PublicInput shape)
+    (fresh : Fresh Algebra.Commitment Algebra.PublicInput shape)
+    (proof : Proof K Algebra.Commitment shape 9) :
+    Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify
+        (key statementId ajtaiKey matrices) running fresh proof =
+      Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify
+        (compactKey statementId) running fresh proof := by
+  unfold Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify
+  rw [piCcsCheck_eq_compact statementId ajtaiKey matrices running fresh proof,
+    piDecCheck_eq_compact statementId ajtaiKey matrices running fresh proof,
+    output_eq_compact statementId ajtaiKey matrices running fresh proof]
+
+/-- Exact executable refinement used by the recursive circuit. The full and
+compact verifiers also compute the same sampler state, so both reject the
+same bounded-sampler shortfall. -/
 theorem verify_eq_compact
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -487,15 +608,21 @@ theorem verify_eq_compact
     (proof : Proof K Algebra.Commitment shape 9) :
     verify (key statementId ajtaiKey matrices) running fresh proof =
       verify (compactKey statementId) running fresh proof := by
-  unfold verify
-  rw [piCcsCheck_eq_compact statementId ajtaiKey matrices running fresh proof,
-    piDecCheck_eq_compact statementId ajtaiKey matrices running fresh proof,
-    output_eq_compact statementId ajtaiKey matrices running fresh proof]
+  have compactExecution :
+      (compactKey statementId).piCcsExecution running fresh proof =
+        piCcsExecution statementId running fresh proof := by
+    unfold compactKey
+    exact key_piCcsExecution statementId compactAjtaiKey compactMatrices
+      running fresh proof
+  unfold verify samplerState
+  rw [key_piCcsExecution statementId ajtaiKey matrices running fresh proof,
+    compactExecution,
+    paperVerify_eq_compact statementId ajtaiKey matrices running fresh proof]
 
 section ContextBridge
 
 variable
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (running : Running K Algebra.Commitment Algebra.PublicInput shape)
@@ -553,7 +680,7 @@ def ModuleSisBindingBoundary
 boundary. This type names the PiDEC extraction loss and the Module-SIS binding
 losses instead of treating them as algebraic facts. -/
 abbrev InteractiveSecurityBoundary
-    {statementId : F}
+    {statementId : StatementId}
     {ajtaiKey : Algebra.AjtaiKey}
     {matrices : ApplicationMatrices}
     (prefixExperiment :
@@ -573,7 +700,7 @@ abbrev InteractiveSecurityBoundary
 sampler shortfall is a separate event because it concerns the concrete
 finite sampler, not transcript collision resistance. -/
 abbrev Poseidon2RandomOracleBoundary
-    {statementId : F}
+    {statementId : StatementId}
     {ajtaiKey : Algebra.AjtaiKey}
     {matrices : ApplicationMatrices}
     (prefixExperiment :
@@ -586,18 +713,15 @@ abbrev Poseidon2RandomOracleBoundary
     collisionBudget
 
 /-- Per-state bounded-sampler refinement boundary. Outside this exact event,
-the key response is the canonical four-digest, 54-of-64 rejection sampler. -/
+the key response is the canonical three-attempt full-field rejection sampler. -/
 def BoundedSamplerSecurityBoundary (state : Poseidon2.State) : Prop :=
   ¬ Poseidon2.SamplerShortfall state
 
 theorem boundedSampler_refines
     {state : Poseidon2.State}
     (boundary : BoundedSamplerSecurityBoundary state) :
-    Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ResponseRefinesAt
-      PaddedRowIdentityPoseidon2.scalarResponse
-      PaddedRowIdentityPoseidon2.samplerSpecification
-      Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.candidateBound
-      state :=
+    PaddedRowIdentityPoseidon2.ResponseRefinesAt
+      PaddedRowIdentityPoseidon2.scalarResponse state :=
   Poseidon2.piRlcResponse_refines_of_no_shortfall boundary
 
 /-! ## Concrete finite-oracle theorem -/
@@ -611,7 +735,7 @@ production certification must also bound `SamplerShortfall`; this theorem
 does not hide that concrete distribution event. -/
 theorem concreteFullOracleSoundness
     [DecidableEq Poseidon2.State]
-    (statementId : F)
+    (statementId : StatementId)
     (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices)
     (theorem8 : Phi81LowNormInvertibilityBoundary)

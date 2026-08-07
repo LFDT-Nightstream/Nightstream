@@ -29,7 +29,7 @@ closure_state = "open"
 display_status = "partial"
 freshness = "stale"
 depends_on = ["SRC-REVIEWED-LOCK"]
-evidence = ["protocol-contract/paper-sources/superneo-paper-errata-v4.patch", "protocol-contract/src/sources/lock.toml", "protocol-contract/base-paper-model.md", "protocol-contract/reviewed-errata.md", "protocol-contract/check_contract.py", "protocol-contract/contract_checks.py", "protocol-contract/contract_model.py"]
+evidence = ["protocol-contract/paper-sources/superneo-paper-errata-v5-part1.patch", "protocol-contract/paper-sources/superneo-paper-errata-v5-part2.patch", "protocol-contract/src/sources/lock.toml", "protocol-contract/base-paper-model.md", "protocol-contract/reviewed-errata.md", "protocol-contract/check_contract.py", "protocol-contract/contract_checks.py", "protocol-contract/contract_model.py"]
 blocker_ids = []
 unresolved_blocker_ids = []
 

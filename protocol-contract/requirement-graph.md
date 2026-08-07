@@ -75,7 +75,7 @@ SN-FND-FIELD -> SN-FND-RING -> SN-FND-DIMENSIONS -> SN-EMBED-COEFFICIENTS -> SN-
 | `NS-PUBLIC-CARRIER` | add | — |
 | `NS-SPLIT-BINARY` | add | — |
 | `NS-COMMITMENT-PROFILE` | add | — |
-| `NS-PICCS-VARIANT` | replace | `SN-PICCS-IDENTITY` |
+| `NS-PICCS-VARIANT` | add | — |
 | `NS-PICCS-PADDING-EQUIVALENCE` | add | — |
 | `NS-PICCS-COINS` | add | — |
 | `NS-PICCS-SUMCHECK` | add | — |

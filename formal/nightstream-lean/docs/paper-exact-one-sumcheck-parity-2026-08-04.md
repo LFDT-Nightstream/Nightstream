@@ -1,5 +1,10 @@
 # Paper-Exact One-SumCheck Parity Report
 
+> **Superseded:** Use
+> `paper-exact-one-sumcheck-audit-2026-08-07.md`. This historical report has
+> an obsolete one-field statement-identifier description and an obsolete
+> HyperNova source reference. It is not current assurance evidence.
+
 Date: 2026-08-04
 
 The selected protocol follows corrected SuperNeo Section 7.3: one joint

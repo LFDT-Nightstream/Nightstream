@@ -43,13 +43,11 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 #audit_axioms extractionStrongSetUnits
 
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityPoseidon2.piRlcResponse_refines_of_no_shortfall' depends on axioms: [propext,
- Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms piRlcResponse_refines_of_no_shortfall
 
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityConcreteNifs.boundedSampler_refines' depends on axioms: [propext,
- Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms boundedSampler_refines
@@ -60,11 +58,11 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 #guard_msgs in
 #audit_axioms completeSamplerShortfallBound_le_target
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentitySamplerSecurity.samplerShortfall_probability_le_121_bits' depends on axioms: [propext,
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentitySamplerSecurity.samplerShortfall_probability_le_182_bits' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms samplerShortfall_probability_le_121_bits
+#audit_axioms samplerShortfall_probability_le_182_bits
 
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityCodec.publicWireFields_injective_on_admissible' depends on axioms: [propext,
  Classical.choice,

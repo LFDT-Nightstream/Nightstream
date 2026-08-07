@@ -1,9 +1,8 @@
 # Reviewed SuperNeo errata and semantic normalizations
 
-Status: **v4 applied to the reviewed paper snapshot; later normalizations
-applied only by the normative contract**.
+Status: **v5 applied to the reviewed paper snapshot**.
 
-The v4 patch contains the reviewed v3 security corrections and later
+The two-part v5 patch set contains the reviewed v3 security corrections and later
 post-review source corrections. Each row below has one semantic meaning. A
 general "source cleanup" row cannot close one of these obligations.
 
@@ -26,11 +25,10 @@ general "source cleanup" row cannot close one of these obligations.
 | ERR-PIDEC-EQUATIONS | PiDEC checks commitment and evaluation recomposition; completeness derives public-input recomposition from the verifier-computed split. | `protocol-contract/paper-sources/07-7-neo-s-folding-scheme-for-ccs.md:151-176` |
 | ERR-EVALUATION-NOTATION | CE and PiDEC use the transformed matrix-vector multilinear evaluation consistently. | `protocol-contract/paper-sources/07-7-neo-s-folding-scheme-for-ccs.md:26-34,151-176` |
 
-## Post-v4 semantic normalizations
+## Additional v5 source corrections
 
-The immutable paper snapshot and its exact v4 patch remain unchanged. The
-following corrections were found after that source review. They are explicit
-normative corrections, not claims about the literal paper notation.
+The immutable paper snapshot and its exact v5 patch set include these corrections.
+They are part of the locked paper source, not contract-only normalizations.
 
 | ID | Corrected rule | Locked source evidence |
 |---|---|---|
@@ -40,17 +38,19 @@ normative corrections, not claims about the literal paper notation.
 The machine-readable erratum-to-rule mapping is derived from normative rule
 citations and appears in `rule-index.json`. This table does not own that edge.
 
-## Other post-review corrections
+## Other v5 corrections
 
-Errata v4 also makes the mixed-radix map `I` explicitly bijective, corrects
+Errata v5 also makes the mixed-radix map `I` explicitly bijective, corrects
 the Appendix B.3 extension-field type, corrects the introductory challenge
 field wording, and repairs the Boolean-cube statement in Lemma 6. These changes
-are source-locked. They do not resolve the dimension defect below.
+are source-locked. It also permits `n_F<=m`, requires `M_1=[I;0]`, and states
+the zero-row rectangular specialization with one row SumCheck. It does not
+resolve the ring-divisibility defect below.
 
 ## Remaining paper defect
 
 Definition 1 requires `n_F=d*n_R`. Appendix B.2 selects `d=54` and
-`n_F=2^30`, but `2^30 mod 54=46`. Joint PiCCS also assumes one power-of-two
-domain with `m=n_F`. Errata v4 does not resolve this defect. Nightstream v1
-selects its actual ring-aligned assignment width, its actual row count, and one
-larger zero-padded row cube. This is a Nightstream decision, not paper errata.
+`n_F=2^30`, but `2^30 mod 54=46`. Errata v5 does not resolve this defect.
+It does resolve the old row-domain coupling: PiCCS now permits `n_F<=m` and
+uses one zero-padded row cube. Nightstream v1 selects a ring-aligned assignment
+width and then applies that paper normalization to its actual row count.

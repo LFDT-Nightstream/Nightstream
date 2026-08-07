@@ -236,12 +236,12 @@ theorem terminal_exact_without_nifs
         relations)
     (statement : TerminalStatement State)
     (proof :
-      TerminalProof Running RunningWitness Fresh FreshWitness slotCount) :
-    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.eval
+      OuterTerminalProof Running RunningWitness Fresh FreshWitness slotCount) :
+    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.evalOuter
         setup machine relations checks statement proof = true <->
-      TerminalTransition setup machine relations statement proof := by
+      OuterTerminalTransition setup machine relations statement proof := by
   exact
-    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.eval_eq_true_iff_transition
+    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.evalOuter_eq_true_iff_transition
       setup machine relations checks statement proof
 
 end Nightstream.Protocol.FPrime.CanonicalVerifier.NifsRefinement

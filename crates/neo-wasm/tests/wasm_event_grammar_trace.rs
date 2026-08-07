@@ -282,7 +282,7 @@ fn i64_result_lane_writes() {
             row.row_kind.is_host_event_gather()
                 && row
                     .grammar_rom_slot
-                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant == 0)
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant.is_low_limb())
         })
         .expect("result lo slot row");
     let write = lo_row.stack_write0.expect("result push");
@@ -316,7 +316,7 @@ fn i64_result_lane_writes() {
             row.row_kind.is_host_event_gather()
                 && row
                     .grammar_rom_slot
-                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant == 1)
+                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant.is_high_limb())
         })
         .expect("result hi slot row");
     assert_eq!(
@@ -427,7 +427,7 @@ fn advice_import_pushes_without_absorbing() {
         .iter()
         .find(|row| {
             row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant == 0)
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant.is_low_limb())
         })
         .expect("advice result-lo row");
     assert_eq!(lo_row.stack_write0.expect("push").value_lo, 42);
@@ -828,7 +828,7 @@ fn claim_words_are_row_free_and_transcript_bound() {
 }
 
 #[test]
-fn import_memory32_reads_and_writes_at_argument_based_addresses() {
+fn import_memory_accesses_use_argument_based_addresses() {
     let component_bytes = wat::parse_str(
         r#"
         (component
@@ -878,47 +878,97 @@ fn import_memory32_reads_and_writes_at_argument_based_addresses() {
     grammar.imports.insert(
         host_fref,
         ImportTemplate {
-            events: vec![GrammarEvent::op(
-                40,
-                slots(&[
-                    (
-                        0,
-                        SlotSource::MemoryRead32 {
-                            base: MemoryBase::Arg(0),
-                            byte_offset: 0,
-                        },
-                    ),
-                    (
-                        1,
-                        SlotSource::MemoryRead32 {
-                            base: MemoryBase::Arg(0),
-                            byte_offset: 4,
-                        },
-                    ),
-                    (
-                        2,
-                        SlotSource::MemoryWrite32 {
-                            claim: 0,
-                            base: MemoryBase::Arg(0),
-                            byte_offset: 4,
-                        },
-                    ),
-                    (
-                        3,
-                        SlotSource::MemoryRead32 {
-                            base: MemoryBase::Arg(0),
-                            byte_offset: 4,
-                        },
-                    ),
-                    (
-                        4,
-                        SlotSource::MemoryRead32 {
-                            base: MemoryBase::Arg(0),
-                            byte_offset: 8,
-                        },
-                    ),
-                ]),
-            )],
+            events: vec![
+                GrammarEvent::op(
+                    40,
+                    slots(&[
+                        (
+                            0,
+                            SlotSource::MemoryRead32 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 0,
+                            },
+                        ),
+                        (
+                            1,
+                            SlotSource::MemoryRead32 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 4,
+                            },
+                        ),
+                        (
+                            2,
+                            SlotSource::MemoryWrite32 {
+                                claim: 0,
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 4,
+                            },
+                        ),
+                        (
+                            3,
+                            SlotSource::MemoryRead32 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 4,
+                            },
+                        ),
+                        (
+                            4,
+                            SlotSource::MemoryRead32 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 8,
+                            },
+                        ),
+                    ]),
+                ),
+                GrammarEvent::op(
+                    41,
+                    slots(&[
+                        (
+                            0,
+                            SlotSource::MemoryRead8 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 0,
+                            },
+                        ),
+                        (
+                            1,
+                            SlotSource::MemoryRead8 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 1,
+                            },
+                        ),
+                        (
+                            2,
+                            SlotSource::MemoryRead8 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 2,
+                            },
+                        ),
+                        (
+                            3,
+                            SlotSource::MemoryRead8 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 3,
+                            },
+                        ),
+                        (
+                            4,
+                            SlotSource::MemoryWrite8 {
+                                claim: 0,
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 2,
+                            },
+                        ),
+                        (
+                            5,
+                            SlotSource::MemoryRead8 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 2,
+                            },
+                        ),
+                    ]),
+                ),
+            ],
             claim_count: 1,
         },
     );
@@ -945,14 +995,24 @@ fn import_memory32_reads_and_writes_at_argument_based_addresses() {
     neo_wasm::memory_semantics::sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect("grammar argument base and linear-memory accesses match");
 
-    let observed_reads: Vec<u32> = trace
+    let observed_word_reads: Vec<u32> = trace
         .iter()
         .filter_map(|row| {
-            (row.grammar_rom_slot?.kind == WasmGrammarSlotKind::MemoryRead)
+            (row.grammar_rom_slot?.kind == WasmGrammarSlotKind::MemoryRead && row.linear_memory?.width_bytes == 4)
                 .then_some(row.linear_memory?.lane0.value_before)
         })
         .collect();
-    assert_eq!(observed_reads, [0x3400_0063, 0x12, 77, 123]);
+    assert_eq!(observed_word_reads, [0x3400_0063, 0x12, 77, 123]);
+
+    let observed_byte_reads: Vec<u8> = trace
+        .iter()
+        .filter_map(|row| {
+            let access = row.linear_memory?;
+            (row.grammar_rom_slot?.kind == WasmGrammarSlotKind::MemoryRead && access.width_bytes == 1)
+                .then_some(access.lane0.value_before.to_le_bytes()[usize::from(access.byte_offset)])
+        })
+        .collect();
+    assert_eq!(observed_byte_reads, [99, 0, 0, 0x34, 77]);
 
     let mut high_pointer_steps = run.steps.clone();
     let host_call = high_pointer_steps
@@ -1031,4 +1091,70 @@ fn import_memory32_reads_and_writes_at_argument_based_addresses() {
     common::assert_satisfied(&forged, "untampered grammar memory write");
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE] += neo_math::F::ONE;
     common::assert_rejected(&forged, "grammar memory write diverging from the staged claim");
+
+    let byte_read = trace
+        .iter()
+        .find(|row| {
+            row.grammar_rom_slot
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+                && row
+                    .linear_memory
+                    .is_some_and(|access| access.width_bytes == 1 && access.byte_offset == 3)
+        })
+        .expect("byte memory read gather");
+    let mut redirected = byte_read.clone();
+    redirected
+        .linear_memory
+        .as_mut()
+        .expect("byte access")
+        .byte_offset = 2;
+    common::assert_rejected(
+        &build_witness_vector(&redirected),
+        "grammar byte read with a forged intra-word offset",
+    );
+
+    let equal_neighbor_read = trace
+        .iter()
+        .find(|row| {
+            row.grammar_rom_slot
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+                && row
+                    .linear_memory
+                    .is_some_and(|access| access.width_bytes == 1 && access.byte_offset == 1)
+        })
+        .expect("byte read beside an equal-valued byte");
+    let mut forged = build_witness_vector(equal_neighbor_read);
+    common::assert_satisfied(&forged, "untampered grammar byte offset selector");
+    forged[neo_wasm::layout::COL_LINEAR_MEM_OFFSET_IS_1] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_LINEAR_MEM_OFFSET_IS_2] = neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2] = neo_math::F::ONE;
+    common::assert_rejected(
+        &forged,
+        "grammar byte routing selector diverging from the effective address",
+    );
+
+    let byte_write_index = trace
+        .iter()
+        .position(|row| {
+            row.grammar_rom_slot
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryWrite)
+                && row
+                    .linear_memory
+                    .is_some_and(|access| access.width_bytes == 1)
+        })
+        .expect("byte memory write gather");
+    let byte_write = &trace[byte_write_index];
+    let mut forged = build_witness_vector(byte_write);
+    common::assert_satisfied(&forged, "untampered grammar byte write");
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE] += neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE0] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "grammar byte write changing an unselected byte");
+
+    let mut forged_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
+    forged_rows[byte_write_index][neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE_BEFORE] +=
+        neo_math::F::from_u64(1 << 16);
+    forged_rows[byte_write_index][neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE2_BEFORE] += neo_math::F::ONE;
+    neo_wasm::memory_semantics::sanity_check_memory_rows(layout, &forged_rows, &preload)
+        .expect_err("grammar byte write must authenticate its prior word");
 }

@@ -390,6 +390,48 @@ impl WasmGrammarSlotKind {
     }
 }
 
+/// Native meaning of the grammar ROM's kind-dependent variant column.
+///
+/// [`WasmGrammarRomVariant::encoded`] is the only conversion to the compact
+/// field representation used by the ROM and circuit.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WasmGrammarRomVariant {
+    None,
+    LowLimb,
+    HighLimb,
+    Memory { local_base: bool, byte_width: bool },
+}
+
+impl WasmGrammarRomVariant {
+    pub(crate) const MEMORY_BYTE_ENCODING_FACTOR: u8 = 2;
+
+    pub const fn encoded(self) -> u8 {
+        match self {
+            Self::None | Self::LowLimb => 0,
+            Self::HighLimb => 1,
+            Self::Memory { local_base, byte_width } => {
+                local_base as u8 + Self::MEMORY_BYTE_ENCODING_FACTOR * byte_width as u8
+            }
+        }
+    }
+
+    pub const fn is_low_limb(self) -> bool {
+        matches!(self, Self::LowLimb)
+    }
+
+    pub const fn is_high_limb(self) -> bool {
+        matches!(self, Self::HighLimb)
+    }
+
+    pub const fn uses_local_memory_base(self) -> bool {
+        matches!(self, Self::Memory { local_base: true, .. })
+    }
+
+    pub const fn uses_byte_memory_width(self) -> bool {
+        matches!(self, Self::Memory { byte_width: true, .. })
+    }
+}
+
 /// The grammar-ROM entry a gather row claims (bound by the `grammar_slot_*`
 /// families at key `(fref, event_index, slot_cursor)`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -397,10 +439,8 @@ pub struct WasmGrammarRomEntry {
     pub kind: WasmGrammarSlotKind,
     /// Argument/local/claim index, depending on `kind`.
     pub arg: u8,
-    /// Kind-dependent slot variant. Value kinds use `0 = lo`, `1 = hi`;
-    /// memory kinds use `0 = argument base`, `1 = local base`; kinds without
-    /// a variant use zero.
-    pub variant: u8,
+    /// Kind-dependent native variant; encoded only at the ROM/circuit boundary.
+    pub variant: WasmGrammarRomVariant,
     pub const_lo: u32,
     pub const_hi: u32,
     /// Whether this slot belongs to an unabsorbed event.

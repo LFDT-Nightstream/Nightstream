@@ -968,6 +968,47 @@ fn import_memory_accesses_use_argument_based_addresses() {
                         ),
                     ]),
                 ),
+                GrammarEvent::op(
+                    42,
+                    slots(&[
+                        (
+                            0,
+                            SlotSource::MemoryRead16 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 0,
+                            },
+                        ),
+                        (
+                            1,
+                            SlotSource::MemoryRead16 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 2,
+                            },
+                        ),
+                        (
+                            2,
+                            SlotSource::MemoryWrite16 {
+                                claim: 0,
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 2,
+                            },
+                        ),
+                        (
+                            3,
+                            SlotSource::MemoryRead16 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 2,
+                            },
+                        ),
+                        (
+                            4,
+                            SlotSource::MemoryRead16 {
+                                base: MemoryBase::Arg(0),
+                                byte_offset: 10,
+                            },
+                        ),
+                    ]),
+                ),
             ],
             claim_count: 1,
         },
@@ -1013,6 +1054,44 @@ fn import_memory_accesses_use_argument_based_addresses() {
         })
         .collect();
     assert_eq!(observed_byte_reads, [99, 0, 0, 0x34, 77]);
+
+    let observed_half_reads: Vec<u16> = trace
+        .iter()
+        .filter_map(|row| {
+            let access = row.linear_memory?;
+            if row.grammar_rom_slot?.kind != WasmGrammarSlotKind::MemoryRead || access.width_bytes != 2 {
+                return None;
+            }
+            let bytes = access.lane0.value_before.to_le_bytes();
+            let offset = usize::from(access.byte_offset);
+            Some(u16::from_le_bytes([bytes[offset], bytes[offset + 1]]))
+        })
+        .collect();
+    assert_eq!(observed_half_reads, [99, 0x344d, 77, 0]);
+
+    let mut misaligned_grammar = grammar.clone();
+    let half_read = misaligned_grammar
+        .imports
+        .get_mut(&host_fref)
+        .expect("host template")
+        .events
+        .iter_mut()
+        .flat_map(|event| &mut event.block)
+        .find_map(|slot| match slot {
+            SlotSource::MemoryRead16 { byte_offset, .. } => Some(byte_offset),
+            _ => None,
+        })
+        .expect("half-word read");
+    *half_read = 1;
+    let err = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &misaligned_grammar,
+        &[Default::default()],
+        Default::default(),
+    )
+    .expect_err("misaligned grammar half-word access must be rejected");
+    assert!(err.to_string().contains("is not naturally aligned"));
 
     let mut high_pointer_steps = run.steps.clone();
     let host_call = high_pointer_steps
@@ -1150,6 +1229,48 @@ fn import_memory_accesses_use_argument_based_addresses() {
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE] += neo_math::F::ONE;
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE0] += neo_math::F::ONE;
     common::assert_rejected(&forged, "grammar byte write changing an unselected byte");
+
+    let half_read = trace
+        .iter()
+        .find(|row| {
+            row.grammar_rom_slot
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+                && row.linear_memory.is_some_and(|access| {
+                    access.width_bytes == 2 && access.byte_offset == 2 && access.lane0.word_addr == 6
+                })
+        })
+        .expect("zero-valued aligned half-word read");
+    let mut misaligned = half_read.clone();
+    misaligned
+        .stack_read0
+        .as_mut()
+        .expect("pointer argument read")
+        .value_lo = 15;
+    misaligned
+        .linear_memory
+        .as_mut()
+        .expect("half-word access")
+        .byte_offset = 1;
+    common::assert_rejected(
+        &build_witness_vector(&misaligned),
+        "grammar half-word read with an odd effective address",
+    );
+
+    let half_write = trace
+        .iter()
+        .find(|row| {
+            row.grammar_rom_slot
+                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryWrite)
+                && row
+                    .linear_memory
+                    .is_some_and(|access| access.width_bytes == 2)
+        })
+        .expect("half-word memory write gather");
+    let mut forged = build_witness_vector(half_write);
+    common::assert_satisfied(&forged, "untampered grammar half-word write");
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE] += neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE0] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "grammar half-word write changing an unselected byte");
 
     let mut forged_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     forged_rows[byte_write_index][neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE_BEFORE] +=

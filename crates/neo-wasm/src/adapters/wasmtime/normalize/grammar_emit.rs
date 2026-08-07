@@ -13,8 +13,8 @@ use crate::event_grammar::{
 };
 use crate::ir::{
     LinearMemoryAccess, StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState,
-    WasmGrammarRomVariant, WasmGrammarSlotKind, WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState,
-    WasmVmStep,
+    WasmGrammarMemoryWidth, WasmGrammarRomVariant, WasmGrammarSlotKind, WasmOutputState, WasmPcEdgeKind, WasmRowKind,
+    WasmStepState, WasmVmStep,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -106,6 +106,15 @@ fn resolve_import_memory(
                 reads.push(u32::from(value));
                 accesses.push(access);
             }
+            SlotSource::MemoryRead16 { base, byte_offset } => {
+                let MemoryBase::Arg(arg) = base else {
+                    unreachable!("validated import memory base")
+                };
+                let pointer = import_memory_pointer(import_args, arg)?;
+                let (value, access) = memory.read_half(pointer, byte_offset)?;
+                reads.push(u32::from(value));
+                accesses.push(access);
+            }
             SlotSource::MemoryWrite32 {
                 claim,
                 base,
@@ -138,6 +147,22 @@ fn resolve_import_memory(
                 let pointer = import_memory_pointer(import_args, arg)?;
                 accesses.push(memory.write_byte(pointer, byte_offset, value)?);
             }
+            SlotSource::MemoryWrite16 {
+                claim,
+                base,
+                byte_offset,
+            } => {
+                let value = claims.get(usize::from(claim)).copied().ok_or_else(|| {
+                    WasmBuildError::Trace(format!("grammar memory write references missing claim {claim}"))
+                })?;
+                let value = u16::try_from(value)
+                    .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u16".to_string()))?;
+                let MemoryBase::Arg(arg) = base else {
+                    unreachable!("validated import memory base")
+                };
+                let pointer = import_memory_pointer(import_args, arg)?;
+                accesses.push(memory.write_half(pointer, byte_offset, value)?);
+            }
             _ => {}
         }
     }
@@ -152,6 +177,15 @@ fn import_memory_pointer(import_args: &[(u32, u32)], arg: u8) -> Result<u32, Was
         )));
     }
     Ok(lo)
+}
+
+fn grammar_memory_width(source: SlotSource) -> WasmGrammarMemoryWidth {
+    match source {
+        SlotSource::MemoryRead8 { .. } | SlotSource::MemoryWrite8 { .. } => WasmGrammarMemoryWidth::Byte,
+        SlotSource::MemoryRead16 { .. } | SlotSource::MemoryWrite16 { .. } => WasmGrammarMemoryWidth::Half,
+        SlotSource::MemoryRead32 { .. } | SlotSource::MemoryWrite32 { .. } => WasmGrammarMemoryWidth::Word,
+        _ => unreachable!("non-memory grammar slot"),
+    }
 }
 
 pub(super) fn apply_export_entry_memory(
@@ -183,6 +217,14 @@ pub(super) fn apply_export_entry_memory(
                 };
                 accesses.push(memory.write_byte(locals[usize::from(local)], byte_offset, value)?);
             }
+            SlotSource::MemoryWrite16 { base, byte_offset, .. } => {
+                let value = u16::try_from(*value)
+                    .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u16".to_string()))?;
+                let MemoryBase::Local(local) = base else {
+                    unreachable!("validated export memory base")
+                };
+                accesses.push(memory.write_half(locals[usize::from(local)], byte_offset, value)?);
+            }
             _ => {}
         }
     }
@@ -210,6 +252,13 @@ pub(super) fn read_export_exit_memory(
                     unreachable!("validated export memory base")
                 };
                 let (value, access) = memory.read_byte(locals[usize::from(local)], byte_offset)?;
+                Some((u32::from(value), access))
+            }
+            SlotSource::MemoryRead16 { base, byte_offset } => {
+                let MemoryBase::Local(local) = base else {
+                    unreachable!("validated export memory base")
+                };
+                let (value, access) = memory.read_half(locals[usize::from(local)], byte_offset)?;
                 Some((u32::from(value), access))
             }
             _ => None,
@@ -307,9 +356,9 @@ fn plan_grammar_blocks(
                             0,
                         )),
                         SlotSource::MemoryRead32 { base, byte_offset }
+                        | SlotSource::MemoryRead16 { base, byte_offset }
                         | SlotSource::MemoryRead8 { base, byte_offset } => {
-                            let (arg, variant) =
-                                memory_rom_arg_variant(base, matches!(*source, SlotSource::MemoryRead8 { .. }));
+                            let (arg, variant) = memory_rom_arg_variant(base, grammar_memory_width(*source));
                             let MemoryBase::Arg(_) = base else {
                                 unreachable!("validated import memory base")
                             };
@@ -328,13 +377,17 @@ fn plan_grammar_blocks(
                             base,
                             byte_offset,
                         }
+                        | SlotSource::MemoryWrite16 {
+                            claim,
+                            base,
+                            byte_offset,
+                        }
                         | SlotSource::MemoryWrite8 {
                             claim,
                             base,
                             byte_offset,
                         } => {
-                            let (arg, variant) =
-                                memory_rom_arg_variant(base, matches!(*source, SlotSource::MemoryWrite8 { .. }));
+                            let (arg, variant) = memory_rom_arg_variant(base, grammar_memory_width(*source));
                             let MemoryBase::Arg(_) = base else {
                                 unreachable!("validated import memory base")
                             };
@@ -460,9 +513,9 @@ pub(super) fn plan_export_blocks(
                             base_slot_row(entry(WasmGrammarSlotKind::Output, 0, limb_variant(limb)))
                         }
                         SlotSource::MemoryRead32 { base, byte_offset }
+                        | SlotSource::MemoryRead16 { base, byte_offset }
                         | SlotSource::MemoryRead8 { base, byte_offset } => {
-                            let (local, variant) =
-                                memory_rom_arg_variant(base, matches!(*source, SlotSource::MemoryRead8 { .. }));
+                            let (local, variant) = memory_rom_arg_variant(base, grammar_memory_width(*source));
                             let MemoryBase::Local(_) = base else {
                                 unreachable!("validated export memory base")
                             };
@@ -489,13 +542,17 @@ pub(super) fn plan_export_blocks(
                             base,
                             byte_offset,
                         }
+                        | SlotSource::MemoryWrite16 {
+                            claim,
+                            base,
+                            byte_offset,
+                        }
                         | SlotSource::MemoryWrite8 {
                             claim,
                             base,
                             byte_offset,
                         } => {
-                            let (local, variant) =
-                                memory_rom_arg_variant(base, matches!(*source, SlotSource::MemoryWrite8 { .. }));
+                            let (local, variant) = memory_rom_arg_variant(base, grammar_memory_width(*source));
                             let MemoryBase::Local(_) = base else {
                                 unreachable!("validated export memory base")
                             };

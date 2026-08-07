@@ -394,23 +394,40 @@ impl WasmGrammarSlotKind {
 ///
 /// [`WasmGrammarRomVariant::encoded`] is the only conversion to the compact
 /// field representation used by the ROM and circuit.
+/// Width of a grammar-driven linear-memory access.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WasmGrammarMemoryWidth {
+    Byte,
+    Half,
+    Word,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmGrammarRomVariant {
     None,
     LowLimb,
     HighLimb,
-    Memory { local_base: bool, byte_width: bool },
+    Memory {
+        local_base: bool,
+        width: WasmGrammarMemoryWidth,
+    },
 }
 
 impl WasmGrammarRomVariant {
     pub(crate) const MEMORY_BYTE_ENCODING_FACTOR: u8 = 2;
+    pub(crate) const MEMORY_HALF_ENCODING_FACTOR: u8 = 4;
 
     pub const fn encoded(self) -> u8 {
         match self {
             Self::None | Self::LowLimb => 0,
             Self::HighLimb => 1,
-            Self::Memory { local_base, byte_width } => {
-                local_base as u8 + Self::MEMORY_BYTE_ENCODING_FACTOR * byte_width as u8
+            Self::Memory { local_base, width } => {
+                let width = match width {
+                    WasmGrammarMemoryWidth::Word => 0,
+                    WasmGrammarMemoryWidth::Byte => Self::MEMORY_BYTE_ENCODING_FACTOR,
+                    WasmGrammarMemoryWidth::Half => Self::MEMORY_HALF_ENCODING_FACTOR,
+                };
+                local_base as u8 + width
             }
         }
     }
@@ -428,7 +445,23 @@ impl WasmGrammarRomVariant {
     }
 
     pub const fn uses_byte_memory_width(self) -> bool {
-        matches!(self, Self::Memory { byte_width: true, .. })
+        matches!(
+            self,
+            Self::Memory {
+                width: WasmGrammarMemoryWidth::Byte,
+                ..
+            }
+        )
+    }
+
+    pub const fn uses_half_memory_width(self) -> bool {
+        matches!(
+            self,
+            Self::Memory {
+                width: WasmGrammarMemoryWidth::Half,
+                ..
+            }
+        )
     }
 }
 

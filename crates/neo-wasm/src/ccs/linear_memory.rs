@@ -176,6 +176,7 @@ fn push_address_normalization(
     linear_memory_selectors: &[usize],
 ) {
     let grammar_byte = super::host_event_chain::gather_memory_byte_width_col();
+    let grammar_half = super::host_event_chain::gather_memory_half_width_col();
     b.with_tag(
         shared("linear memory address normalization", &linear_memory_ops()),
         |b| {
@@ -184,7 +185,7 @@ fn push_address_normalization(
                 linear_memory_selectors
                     .iter()
                     .map(|&selector| (selector, F::ONE))
-                    .chain([(grammar_byte, F::ONE)]),
+                    .chain([(grammar_byte, F::ONE), (grammar_half, F::ONE)]),
                 [
                     (idx(linear_memory.offset_is[0]), F::ONE),
                     (idx(linear_memory.offset_is[1]), F::ONE),
@@ -199,7 +200,7 @@ fn push_address_normalization(
                 linear_memory_selectors
                     .iter()
                     .map(|&selector| (selector, F::ONE))
-                    .chain([(grammar_byte, F::ONE)]),
+                    .chain([(grammar_byte, F::ONE), (grammar_half, F::ONE)]),
                 [
                     (idx(linear_memory.byte_offset), F::ONE),
                     (idx(linear_memory.offset_is[1]), -F::ONE),
@@ -227,7 +228,7 @@ fn push_address_normalization(
                 linear_memory_selectors
                     .iter()
                     .copied()
-                    .chain([grammar_byte]),
+                    .chain([grammar_byte, grammar_half]),
                 idx(linear_memory.lane0_value),
                 linear_memory.lane0_bytes.map(idx),
             );
@@ -252,7 +253,7 @@ fn push_address_normalization(
                 linear_memory_selectors
                     .iter()
                     .copied()
-                    .chain([grammar_byte]),
+                    .chain([grammar_byte, grammar_half]),
                 idx(linear_memory.lane0_value_before),
                 linear_memory.lane0_bytes_before.map(idx),
             );
@@ -388,6 +389,8 @@ fn push_width_opcode_bindings(b: &mut R1csBuilder, linear_memory: &LinearMemoryC
                 );
                 if width_bytes == 1 {
                     terms.push((super::host_event_chain::gather_memory_byte_width_col(), -F::ONE));
+                } else if width_bytes == 2 {
+                    terms.push((super::host_event_chain::gather_memory_half_width_col(), -F::ONE));
                 }
                 b.push_linear_zero(terms);
             }

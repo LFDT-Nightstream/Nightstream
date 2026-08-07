@@ -212,7 +212,7 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
 /// grammar-mode trace.
 pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::event_grammar::HostEventGrammar) {
     use crate::event_grammar::{memory_rom_arg_variant, GrammarEvent, Limb, SlotSource};
-    use crate::ir::{WasmGrammarRomVariant, WasmGrammarSlotKind};
+    use crate::ir::{WasmGrammarMemoryWidth, WasmGrammarRomVariant, WasmGrammarSlotKind};
     let limb_variant = |limb| match limb {
         Limb::Lo => WasmGrammarRomVariant::LowLimb,
         Limb::Hi => WasmGrammarRomVariant::HighLimb,
@@ -255,7 +255,7 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
             0,
         ),
         SlotSource::MemoryRead32 { base, byte_offset } => {
-            let (arg, variant) = memory_rom_arg_variant(base, false);
+            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Word);
             (
                 u32::from(WasmGrammarSlotKind::MemoryRead.code()),
                 u32::from(arg),
@@ -265,7 +265,17 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
             )
         }
         SlotSource::MemoryRead8 { base, byte_offset } => {
-            let (arg, variant) = memory_rom_arg_variant(base, true);
+            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Byte);
+            (
+                u32::from(WasmGrammarSlotKind::MemoryRead.code()),
+                u32::from(arg),
+                u32::from(variant.encoded()),
+                byte_offset,
+                0,
+            )
+        }
+        SlotSource::MemoryRead16 { base, byte_offset } => {
+            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Half);
             (
                 u32::from(WasmGrammarSlotKind::MemoryRead.code()),
                 u32::from(arg),
@@ -279,7 +289,7 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
             base,
             byte_offset,
         } => {
-            let (arg, variant) = memory_rom_arg_variant(base, false);
+            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Word);
             (
                 u32::from(WasmGrammarSlotKind::MemoryWrite.code()),
                 u32::from(arg),
@@ -293,7 +303,21 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
             base,
             byte_offset,
         } => {
-            let (arg, variant) = memory_rom_arg_variant(base, true);
+            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Byte);
+            (
+                u32::from(WasmGrammarSlotKind::MemoryWrite.code()),
+                u32::from(arg),
+                u32::from(variant.encoded()),
+                byte_offset,
+                u32::from(claim),
+            )
+        }
+        SlotSource::MemoryWrite16 {
+            claim,
+            base,
+            byte_offset,
+        } => {
+            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Half);
             (
                 u32::from(WasmGrammarSlotKind::MemoryWrite.code()),
                 u32::from(arg),

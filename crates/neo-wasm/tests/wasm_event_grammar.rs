@@ -452,4 +452,14 @@ fn memory_slots_validate_phase_base_and_claim_source() {
         claim_count: 1,
     };
     assert!(expand_import_events(&byte_write, &[(0, 0)], None, &[256], &[]).is_err());
+
+    let half_write = ImportTemplate {
+        events: vec![event(SlotSource::MemoryWrite16 {
+            claim: 0,
+            base: MemoryBase::Arg(0),
+            byte_offset: 0,
+        })],
+        claim_count: 1,
+    };
+    assert!(expand_import_events(&half_write, &[(0, 0)], None, &[1 << 16], &[]).is_err());
 }

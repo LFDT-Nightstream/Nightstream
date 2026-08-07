@@ -362,7 +362,7 @@ fn i64_param_bootstraps_both_lanes() {
 }
 
 #[test]
-fn export_memory32_uses_a_local_pointer_base() {
+fn export_memory_accesses_use_a_local_pointer_base() {
     let component_bytes = wat::parse_str(
         r#"
         (component
@@ -406,24 +406,41 @@ fn export_memory32_uses_a_local_pointer_base() {
                             byte_offset: 0,
                         },
                     ),
+                    (
+                        2,
+                        SlotSource::MemoryWrite8 {
+                            claim: 2,
+                            base: MemoryBase::Local(0),
+                            byte_offset: 1,
+                        },
+                    ),
                 ]),
             )],
             exit: vec![GrammarEvent::op(
                 31,
-                slots(&[(
-                    0,
-                    SlotSource::MemoryRead32 {
-                        base: MemoryBase::Local(0),
-                        byte_offset: 0,
-                    },
-                )]),
+                slots(&[
+                    (
+                        0,
+                        SlotSource::MemoryRead32 {
+                            base: MemoryBase::Local(0),
+                            byte_offset: 0,
+                        },
+                    ),
+                    (
+                        1,
+                        SlotSource::MemoryRead8 {
+                            base: MemoryBase::Local(0),
+                            byte_offset: 1,
+                        },
+                    ),
+                ]),
             )],
-            entry_claim_count: 2,
+            entry_claim_count: 3,
             exit_claim_count: 0,
         },
     );
     let turns = [neo_wasm::event_grammar::TurnClaims {
-        entry: vec![16, 77],
+        entry: vec![16, 77, 5],
         exit: vec![],
         ..Default::default()
     }];
@@ -446,6 +463,16 @@ fn export_memory32_uses_a_local_pointer_base() {
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("grammar local base and linear-memory accesses match");
+
+    let staged_reads: Vec<u64> = trace
+        .iter()
+        .filter_map(|row| {
+            let rom = row.grammar_rom_slot?;
+            (rom.kind == WasmGrammarSlotKind::MemoryRead)
+                .then(|| row.state_after.event_absorb.evbuf[usize::from(row.state_before.grammar.slot_cursor)])
+        })
+        .collect();
+    assert_eq!(staged_reads, [77 | (5 << 8), 5]);
 
     let read = trace
         .iter()

@@ -44,15 +44,48 @@ impl LinearMemoryImage {
         memory
     }
 
-    pub(super) fn read_aligned_word(&self, base: u32, byte_offset: u32) -> Result<u32, WasmBuildError> {
+    pub(super) fn read_aligned_word(
+        &self,
+        base: u32,
+        byte_offset: u32,
+    ) -> Result<(u32, LinearMemoryAccess), WasmBuildError> {
         let word_addr = aligned_word_addr(base, byte_offset)?;
-        Ok(self.read_word(word_addr))
+        let value = self.read_word(word_addr);
+        Ok((value, memory_access(4, 0, word_addr, value, value)))
     }
 
-    pub(super) fn write_aligned_word(&mut self, base: u32, byte_offset: u32, value: u32) -> Result<(), WasmBuildError> {
+    pub(super) fn write_aligned_word(
+        &mut self,
+        base: u32,
+        byte_offset: u32,
+        value: u32,
+    ) -> Result<LinearMemoryAccess, WasmBuildError> {
         let word_addr = aligned_word_addr(base, byte_offset)?;
+        let prior = self.read_word(word_addr);
         self.write_word(word_addr, value);
-        Ok(())
+        Ok(memory_access(4, 0, word_addr, prior, value))
+    }
+
+    pub(super) fn read_byte(&self, base: u32, byte_offset: u32) -> Result<(u8, LinearMemoryAccess), WasmBuildError> {
+        let (word_addr, byte_in_word) = byte_address(base, byte_offset)?;
+        let word = self.read_word(word_addr);
+        let value = word.to_le_bytes()[usize::from(byte_in_word)];
+        Ok((value, memory_access(1, byte_in_word, word_addr, word, word)))
+    }
+
+    pub(super) fn write_byte(
+        &mut self,
+        base: u32,
+        byte_offset: u32,
+        value: u8,
+    ) -> Result<LinearMemoryAccess, WasmBuildError> {
+        let (word_addr, byte_in_word) = byte_address(base, byte_offset)?;
+        let prior = self.read_word(word_addr);
+        let mut bytes = prior.to_le_bytes();
+        bytes[usize::from(byte_in_word)] = value;
+        let updated = u32::from_le_bytes(bytes);
+        self.write_word(word_addr, updated);
+        Ok(memory_access(1, byte_in_word, word_addr, prior, updated))
     }
 
     pub(super) fn apply_program_access(&mut self, step: &NormalizedStep) -> Result<(), WasmBuildError> {
@@ -134,17 +167,29 @@ fn grammar_uses_linear_memory(grammar: &HostEventGrammar) -> bool {
         .any(|source| {
             matches!(
                 source,
-                SlotSource::MemoryRead32 { .. } | SlotSource::MemoryWrite32 { .. }
+                SlotSource::MemoryRead32 { .. }
+                    | SlotSource::MemoryRead8 { .. }
+                    | SlotSource::MemoryWrite32 { .. }
+                    | SlotSource::MemoryWrite8 { .. }
             )
         })
 }
 
-pub(super) fn aligned_word_addr(base: u32, byte_offset: u32) -> Result<u64, WasmBuildError> {
-    let effective = base.checked_add(byte_offset).ok_or_else(|| {
+fn effective_byte_address(base: u32, byte_offset: u32) -> Result<u32, WasmBuildError> {
+    base.checked_add(byte_offset).ok_or_else(|| {
         WasmBuildError::Trace(format!(
             "grammar memory address overflows wasm32: {base} + {byte_offset}"
         ))
-    })?;
+    })
+}
+
+fn byte_address(base: u32, byte_offset: u32) -> Result<(u64, u8), WasmBuildError> {
+    let effective = effective_byte_address(base, byte_offset)?;
+    Ok((u64::from(effective / 4), (effective % 4) as u8))
+}
+
+fn aligned_word_addr(base: u32, byte_offset: u32) -> Result<u64, WasmBuildError> {
+    let effective = effective_byte_address(base, byte_offset)?;
     if effective % 4 != 0 {
         return Err(WasmBuildError::Trace(format!(
             "grammar Memory32 address {effective} is not naturally aligned"
@@ -153,10 +198,16 @@ pub(super) fn aligned_word_addr(base: u32, byte_offset: u32) -> Result<u64, Wasm
     Ok(u64::from(effective / 4))
 }
 
-pub(super) fn memory_word_access(word_addr: u64, value_before: u32, value_after: u32) -> LinearMemoryAccess {
+fn memory_access(
+    width_bytes: u8,
+    byte_offset: u8,
+    word_addr: u64,
+    value_before: u32,
+    value_after: u32,
+) -> LinearMemoryAccess {
     LinearMemoryAccess {
-        width_bytes: 4,
-        byte_offset: 0,
+        width_bytes,
+        byte_offset,
         lane0: LinearMemoryWordLane {
             word_addr,
             value_before,

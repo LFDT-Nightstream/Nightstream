@@ -87,9 +87,10 @@ const GK2_HI: usize = GSLOT_VALUE + 1; // result-slot hi-lane write: GK2 · slot
 const GHC_PARAMS: usize = GK2_HI + 1; // grammar host-call arg pops: GHC · call_param_count
 const G_ADVICE: usize = GHC_PARAMS + 1; // advice-event slot flag in the ROM kind cell
 const GMEM_LOCAL: usize = G_ADVICE + 1; // memory slot whose pointer base is an export local
+const GMEM_BYTE: usize = GMEM_LOCAL + 1; // byte-width rather than word-width memory slot
 
 /// Width of the gadget-internal column block.
-pub const AUX_WIDTH: usize = GMEM_LOCAL + 1 - POS0;
+pub const AUX_WIDTH: usize = GMEM_BYTE + 1 - POS0;
 
 /// Declared bit-widths of the gadget-internal columns, in block order (for
 /// the F' norm decomposition): booleans for the one-hot/masks/products,
@@ -100,7 +101,7 @@ pub(crate) fn auxiliary_column_widths() -> impl Iterator<Item = usize> {
         .chain(core::iter::repeat_n(1, 4 + 4 + 3))
         .chain(core::iter::repeat_n(1, 8 + GKINDS))
         .chain(core::iter::repeat_n(64, 3))
-        .chain([1, 64, 1, 1])
+        .chain([1, 64, 1, 1, 1])
 }
 
 /// The gather column whose flag pins a non-popping stack read (arg slots).
@@ -122,6 +123,10 @@ pub(crate) const fn gather_memory_write_kind_col() -> usize {
 
 pub(crate) const fn gather_memory_local_base_col() -> usize {
     GMEM_LOCAL
+}
+
+pub(crate) const fn gather_memory_byte_width_col() -> usize {
+    GMEM_BYTE
 }
 
 /// Product column carrying `grammar_host_call · call_param_count`: the sp
@@ -318,10 +323,10 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         COL_GRAMMAR_SLOT_CONST_HI as CONST_HI, COL_GRAMMAR_SLOT_CONST_LO as CONST_LO,
         COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A, COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B,
         COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT as SLOT_VARIANT, COL_HALTED, COL_HALTED_BEFORE,
-        COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_VALUE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
-        COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE,
-        COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-        COL_TURN_BOUNDARY,
+        COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_LANE0_ADDR,
+        COL_LINEAR_MEM_LANE0_VALUE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEM_OOB,
+        COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE,
+        COL_STACK_READ0_ADDR_LO, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
@@ -607,17 +612,33 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [],
         );
 
-        // Memory slots (kinds 6-7): the ROM selects an import-argument or
-        // export-local pointer base and a static byte offset. The effective
-        // address must be naturally aligned and in bounds. Reads stage the
-        // authenticated current word; writes stage and store the same
-        // transcript-bound claim word.
+        // Memory slots (kinds 6-7): ROM variant bit 0 selects an
+        // import-argument or export-local pointer base; bit 1 selects byte
+        // rather than word width.
         b.push_row(
             [(GK_MEMORY_READ, F::ONE), (GK_MEMORY_WRITE, F::ONE)],
             [(SLOT_VARIANT, F::ONE)],
-            [(GMEM_LOCAL, F::ONE)],
+            [
+                (GMEM_LOCAL, F::ONE),
+                (
+                    GMEM_BYTE,
+                    F::from_u64(u64::from(crate::ir::WasmGrammarRomVariant::MEMORY_BYTE_ENCODING_FACTOR)),
+                ),
+            ],
         );
         b.push_boolean(GMEM_LOCAL);
+        b.push_boolean(GMEM_BYTE);
+        // Word slots have no intra-word byte offset. Byte slots bind it
+        // through the shared width/offset selector family below.
+        b.push_row(
+            [
+                (GK_MEMORY_READ, F::ONE),
+                (GK_MEMORY_WRITE, F::ONE),
+                (GMEM_BYTE, -F::ONE),
+            ],
+            [(COL_LINEAR_MEM_BYTE_OFFSET, F::ONE)],
+            [],
+        );
         // Argument-base memory rows read the pointer from the call's
         // non-popping argument area.
         b.push_row(
@@ -641,6 +662,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             ],
             [
                 (COL_LINEAR_MEM_LANE0_ADDR, F::from_u64(4)),
+                (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
                 (COL_STACK_READ0_VALUE_LO, -F::ONE),
                 (CONST_LO, -F::ONE),
             ],
@@ -667,14 +689,24 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [(GMEM_LOCAL, F::ONE)],
             [
                 (COL_LINEAR_MEM_LANE0_ADDR, F::from_u64(4)),
+                (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
                 (COL_LOCAL_VALUE, -F::ONE),
                 (CONST_LO, -F::ONE),
             ],
             [],
         );
         b.push_row(
-            [(GK_MEMORY_READ, F::ONE), (GK_MEMORY_WRITE, F::ONE)],
+            [
+                (GK_MEMORY_READ, F::ONE),
+                (GK_MEMORY_WRITE, F::ONE),
+                (GMEM_BYTE, -F::ONE),
+            ],
             [(GSLOT_VALUE, F::ONE), (COL_LINEAR_MEM_LANE0_VALUE, -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(GMEM_BYTE, F::ONE)],
+            [(GSLOT_VALUE, F::ONE), (COL_LINEAR_MEM_ACCESS_BYTE0, -F::ONE)],
             [],
         );
         b.push_row(
@@ -1264,14 +1296,10 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
         wit[GSLOT_VALUE] = F::from_u64(trace.state_after.event_absorb.evbuf[cursor]);
         if let Some(rom) = trace.grammar_rom_slot {
             wit[GK0 + rom.kind.index()] = F::ONE;
-            wit[GK2_HI] = bool_f(rom.kind == WasmGrammarSlotKind::Result && rom.variant == 1);
+            wit[GK2_HI] = bool_f(rom.kind == WasmGrammarSlotKind::Result && rom.variant.is_high_limb());
             wit[G_ADVICE] = bool_f(rom.advice);
-            wit[GMEM_LOCAL] = bool_f(
-                matches!(
-                    rom.kind,
-                    WasmGrammarSlotKind::MemoryRead | WasmGrammarSlotKind::MemoryWrite
-                ) && rom.variant == 1,
-            );
+            wit[GMEM_LOCAL] = bool_f(rom.variant.uses_local_memory_base());
+            wit[GMEM_BYTE] = bool_f(rom.variant.uses_byte_memory_width());
         }
     }
     // Grammar host-call arg pops: GHC · ROM-bound param count.

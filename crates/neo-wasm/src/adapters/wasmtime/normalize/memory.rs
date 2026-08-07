@@ -67,10 +67,32 @@ impl LinearMemoryImage {
     }
 
     pub(super) fn read_byte(&self, base: u32, byte_offset: u32) -> Result<(u8, LinearMemoryAccess), WasmBuildError> {
-        let (word_addr, byte_in_word) = byte_address(base, byte_offset)?;
+        self.read_subword(base, byte_offset, |b, i| b[i])
+    }
+
+    pub(super) fn read_half(&self, base: u32, byte_offset: u32) -> Result<(u16, LinearMemoryAccess), WasmBuildError> {
+        self.read_subword(base, byte_offset, |b, i| u16::from_le_bytes([b[i], b[i + 1]]))
+    }
+
+    pub(super) fn read_subword<T>(
+        &self,
+        base: u32,
+        byte_offset: u32,
+        f: impl Fn([u8; 4], usize) -> T,
+    ) -> Result<(T, LinearMemoryAccess), WasmBuildError> {
+        let byte_width = std::mem::size_of::<T>();
+        // FIXME: maybe restrict this with a trait instead
+        // but probably should be in some helper module or smh
+        debug_assert!((1..=2).contains(&byte_width));
+
+        let (word_addr, byte_in_word) = subword_address(base, byte_offset, byte_width as u32)?;
         let word = self.read_word(word_addr);
-        let value = word.to_le_bytes()[usize::from(byte_in_word)];
-        Ok((value, memory_access(1, byte_in_word, word_addr, word, word)))
+        let value = f(word.to_le_bytes(), byte_in_word as usize);
+
+        Ok((
+            value,
+            memory_access(byte_width as u8, byte_in_word, word_addr, word, word),
+        ))
     }
 
     pub(super) fn write_byte(
@@ -79,13 +101,41 @@ impl LinearMemoryImage {
         byte_offset: u32,
         value: u8,
     ) -> Result<LinearMemoryAccess, WasmBuildError> {
-        let (word_addr, byte_in_word) = byte_address(base, byte_offset)?;
+        self.write_subword(base, byte_offset, value as u16, 1)
+    }
+
+    pub(super) fn write_half(
+        &mut self,
+        base: u32,
+        byte_offset: u32,
+        value: u16,
+    ) -> Result<LinearMemoryAccess, WasmBuildError> {
+        self.write_subword(base, byte_offset, value, 2)
+    }
+
+    pub(super) fn write_subword(
+        &mut self,
+        base: u32,
+        byte_offset: u32,
+        value: u16,
+        byte_width: usize,
+    ) -> Result<LinearMemoryAccess, WasmBuildError> {
+        let value_le_bytes = &value.to_le_bytes()[0..byte_width];
+        let (word_addr, byte_in_word) = subword_address(base, byte_offset, 1)?;
         let prior = self.read_word(word_addr);
         let mut bytes = prior.to_le_bytes();
-        bytes[usize::from(byte_in_word)] = value;
+        let offset = usize::from(byte_in_word);
+        bytes[offset..offset + byte_width].copy_from_slice(&value_le_bytes);
         let updated = u32::from_le_bytes(bytes);
         self.write_word(word_addr, updated);
-        Ok(memory_access(1, byte_in_word, word_addr, prior, updated))
+
+        Ok(memory_access(
+            value_le_bytes.len() as u8,
+            byte_in_word,
+            word_addr,
+            prior,
+            updated,
+        ))
     }
 
     pub(super) fn apply_program_access(&mut self, step: &NormalizedStep) -> Result<(), WasmBuildError> {
@@ -168,8 +218,10 @@ fn grammar_uses_linear_memory(grammar: &HostEventGrammar) -> bool {
             matches!(
                 source,
                 SlotSource::MemoryRead32 { .. }
+                    | SlotSource::MemoryRead16 { .. }
                     | SlotSource::MemoryRead8 { .. }
                     | SlotSource::MemoryWrite32 { .. }
+                    | SlotSource::MemoryWrite16 { .. }
                     | SlotSource::MemoryWrite8 { .. }
             )
         })
@@ -183,8 +235,15 @@ fn effective_byte_address(base: u32, byte_offset: u32) -> Result<u32, WasmBuildE
     })
 }
 
-fn byte_address(base: u32, byte_offset: u32) -> Result<(u64, u8), WasmBuildError> {
+fn subword_address(base: u32, byte_offset: u32, alignment: u32) -> Result<(u64, u8), WasmBuildError> {
     let effective = effective_byte_address(base, byte_offset)?;
+
+    if effective % alignment != 0 {
+        return Err(WasmBuildError::Trace(format!(
+            "grammar Memory16 address {effective} is not naturally aligned"
+        )));
+    }
+
     Ok((u64::from(effective / 4), (effective % 4) as u8))
 }
 

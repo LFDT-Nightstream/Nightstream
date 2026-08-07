@@ -414,6 +414,14 @@ fn export_memory_accesses_use_a_local_pointer_base() {
                             byte_offset: 1,
                         },
                     ),
+                    (
+                        3,
+                        SlotSource::MemoryWrite16 {
+                            claim: 3,
+                            base: MemoryBase::Local(0),
+                            byte_offset: 2,
+                        },
+                    ),
                 ]),
             )],
             exit: vec![GrammarEvent::op(
@@ -433,14 +441,21 @@ fn export_memory_accesses_use_a_local_pointer_base() {
                             byte_offset: 1,
                         },
                     ),
+                    (
+                        2,
+                        SlotSource::MemoryRead16 {
+                            base: MemoryBase::Local(0),
+                            byte_offset: 2,
+                        },
+                    ),
                 ]),
             )],
-            entry_claim_count: 3,
+            entry_claim_count: 4,
             exit_claim_count: 0,
         },
     );
     let turns = [neo_wasm::event_grammar::TurnClaims {
-        entry: vec![16, 77, 5],
+        entry: vec![16, 77, 5, 0x1234],
         exit: vec![],
         ..Default::default()
     }];
@@ -472,7 +487,7 @@ fn export_memory_accesses_use_a_local_pointer_base() {
                 .then(|| row.state_after.event_absorb.evbuf[usize::from(row.state_before.grammar.slot_cursor)])
         })
         .collect();
-    assert_eq!(staged_reads, [77 | (5 << 8), 5]);
+    assert_eq!(staged_reads, [77 | (5 << 8) | (0x1234 << 16), 5, 0x1234]);
 
     let read = trace
         .iter()

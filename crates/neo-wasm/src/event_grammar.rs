@@ -13,7 +13,7 @@
 //! or static linear-memory accesses.
 
 use crate::comm_chain::{COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_EVENT_ARGS};
-use crate::ir::{WasmBuildError, WasmGrammarRomVariant};
+use crate::ir::{WasmBuildError, WasmGrammarMemoryWidth, WasmGrammarRomVariant};
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
 use std::collections::BTreeMap;
@@ -70,6 +70,9 @@ pub enum SlotSource {
     /// Read one byte from linear memory and stage its zero-extended value as
     /// this event word.
     MemoryRead8 { base: MemoryBase, byte_offset: u32 },
+    /// Read one naturally aligned little-endian 16-bit value from linear
+    /// memory and stage its zero-extended value as this event word.
+    MemoryRead16 { base: MemoryBase, byte_offset: u32 },
     /// Write one naturally aligned 32-bit claim word to linear memory and
     /// stage the same word in this event slot. Host memory mutations later
     /// observed by proof-visible execution must be represented by a grammar
@@ -86,14 +89,24 @@ pub enum SlotSource {
         base: MemoryBase,
         byte_offset: u32,
     },
+    /// Write one naturally aligned 16-bit claim word to linear memory and
+    /// stage the same zero-extended value in this event slot.
+    MemoryWrite16 {
+        claim: u8,
+        base: MemoryBase,
+        byte_offset: u32,
+    },
 }
 
-pub(crate) const fn memory_rom_arg_variant(base: MemoryBase, byte_width: bool) -> (u8, WasmGrammarRomVariant) {
+pub(crate) const fn memory_rom_arg_variant(
+    base: MemoryBase,
+    width: WasmGrammarMemoryWidth,
+) -> (u8, WasmGrammarRomVariant) {
     let (arg, local_base) = match base {
         MemoryBase::Arg(arg) => (arg, false),
         MemoryBase::Local(local) => (local, true),
     };
-    (arg, WasmGrammarRomVariant::Memory { local_base, byte_width })
+    (arg, WasmGrammarRomVariant::Memory { local_base, width })
 }
 
 /// One grammar event: one block of 8 arbitrary slot sources.
@@ -244,13 +257,16 @@ impl ExportTemplate {
                                 return err(ctx("output reference before the export halts"));
                             }
                         }
-                        SlotSource::MemoryRead32 { base, .. } | SlotSource::MemoryRead8 { base, .. } => {
+                        SlotSource::MemoryRead32 { base, .. }
+                        | SlotSource::MemoryRead16 { base, .. }
+                        | SlotSource::MemoryRead8 { base, .. } => {
                             if matches!(phase, ExportPhase::Entry) {
                                 return err(ctx("memory reads only apply to the export exit phase"));
                             }
                             validate_export_memory_base(base, local_bound, &ctx)?;
                         }
                         SlotSource::MemoryWrite32 { claim, base, .. }
+                        | SlotSource::MemoryWrite16 { claim, base, .. }
                         | SlotSource::MemoryWrite8 { claim, base, .. } => {
                             if matches!(phase, ExportPhase::Exit) {
                                 return err(ctx("memory writes only apply to the export entry phase"));
@@ -370,7 +386,9 @@ impl ImportTemplate {
                             )));
                         }
                     }
-                    SlotSource::MemoryRead32 { base, .. } | SlotSource::MemoryRead8 { base, .. } => {
+                    SlotSource::MemoryRead32 { base, .. }
+                    | SlotSource::MemoryRead16 { base, .. }
+                    | SlotSource::MemoryRead8 { base, .. } => {
                         if base == MemoryBase::Arg(0) && result_lo_seen {
                             return err(ctx(
                                 "argument 0 is overwritten by the result push; move this memory slot earlier",
@@ -378,7 +396,9 @@ impl ImportTemplate {
                         }
                         validate_import_memory_base(base, param_count, &ctx)?;
                     }
-                    SlotSource::MemoryWrite32 { claim, base, .. } | SlotSource::MemoryWrite8 { claim, base, .. } => {
+                    SlotSource::MemoryWrite32 { claim, base, .. }
+                    | SlotSource::MemoryWrite16 { claim, base, .. }
+                    | SlotSource::MemoryWrite8 { claim, base, .. } => {
                         if claim >= self.claim_count {
                             return err(ctx(&format!(
                                 "claim index {claim} out of range for {} claim words",
@@ -503,6 +523,15 @@ pub fn expand_export_entry(
                         }
                         value
                     }
+                    SlotSource::MemoryWrite16 { claim, .. } => {
+                        let value = entry_claims[usize::from(claim)];
+                        if value > u64::from(u16::MAX) {
+                            return Err(WasmBuildError::Trace(format!(
+                                "entry claim {claim} for a half-word memory write does not fit u16"
+                            )));
+                        }
+                        value
+                    }
                     other => {
                         return Err(WasmBuildError::Trace(format!(
                             "slot source {other:?} does not apply to the export entry phase"
@@ -538,7 +567,9 @@ pub fn expand_export_exit(
                         .map(|pair| limb_of(pair, limb))
                         .ok_or_else(|| WasmBuildError::Trace("export slot references a missing output".to_string()))?,
                     SlotSource::Claim { idx } => exit_claims[usize::from(idx)],
-                    SlotSource::MemoryRead32 { .. } | SlotSource::MemoryRead8 { .. } => {
+                    SlotSource::MemoryRead32 { .. }
+                    | SlotSource::MemoryRead16 { .. }
+                    | SlotSource::MemoryRead8 { .. } => {
                         let value = memory_reads[memory_index];
                         memory_index += 1;
                         u64::from(value)
@@ -577,7 +608,12 @@ fn check_memory_reads(phase: &str, memory_reads: &[u32], events: &[GrammarEvent]
     let expected = events
         .iter()
         .flat_map(|event| &event.block)
-        .filter(|source| matches!(source, SlotSource::MemoryRead32 { .. } | SlotSource::MemoryRead8 { .. }))
+        .filter(|source| {
+            matches!(
+                source,
+                SlotSource::MemoryRead32 { .. } | SlotSource::MemoryRead16 { .. } | SlotSource::MemoryRead8 { .. }
+            )
+        })
         .count();
     if memory_reads.len() != expected {
         return Err(WasmBuildError::Trace(format!(
@@ -646,7 +682,7 @@ fn resolve_slot(
             .get(usize::from(idx))
             .copied()
             .ok_or_else(|| WasmBuildError::Trace(format!("grammar slot references missing claim {idx}"))),
-        SlotSource::MemoryRead32 { .. } | SlotSource::MemoryRead8 { .. } => {
+        SlotSource::MemoryRead32 { .. } | SlotSource::MemoryRead16 { .. } | SlotSource::MemoryRead8 { .. } => {
             let value = memory_reads[*memory_index];
             *memory_index += 1;
             Ok(u64::from(value))
@@ -663,6 +699,18 @@ fn resolve_slot(
             if value > u64::from(u8::MAX) {
                 return Err(WasmBuildError::Trace(format!(
                     "grammar memory write claim {claim} does not fit u8"
+                )));
+            }
+            Ok(value)
+        }
+        SlotSource::MemoryWrite16 { claim, .. } => {
+            let value = claims
+                .get(usize::from(claim))
+                .copied()
+                .ok_or_else(|| WasmBuildError::Trace(format!("grammar slot references missing claim {claim}")))?;
+            if value > u64::from(u16::MAX) {
+                return Err(WasmBuildError::Trace(format!(
+                    "grammar memory write claim {claim} does not fit u16"
                 )));
             }
             Ok(value)

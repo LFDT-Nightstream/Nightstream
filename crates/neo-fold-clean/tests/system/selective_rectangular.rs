@@ -263,13 +263,13 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (2, 270, 9_210_286, 14_656_680),
-            (9_210_286, 14_656_680, 9_306_382, 15_126_696),
-            (9_306_382, 15_126_696, 9_306_382, 15_126_696),
+            (2, 270, 7_028_402, 11_775_078),
+            (7_028_402, 11_775_078, 7_059_026, 12_229_542),
+            (7_059_026, 12_229_542, 7_059_026, 12_229_542),
         ],
         "the selected one-joint production shape must stabilize at the measured fixed point",
     );
-    assert_eq!(width.total_coordinates, 15_126_688);
+    assert_eq!(width.total_coordinates, 12_229_504);
     assert_eq!(width.branch_start, 311);
     assert_eq!(width.shared_private_coordinates, 0);
     assert_eq!(
@@ -295,12 +295,12 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
         vec![
             (14_261, 11_631, 82_111, 448, 0, 81_663, 0, 0, 81_663, 22, 77_828),
             (
-                13_475_758, 6_981_782, 18_868_075, 4_146_942, 2_996, 14_598_297, 12_880, 528_080, 15_126_377, 1_251,
-                4_426_898,
+                10_606_197, 5_458_899, 15_017_477, 3_278_972, 912, 11_701_113, 12_880, 528_080, 12_229_193, 785,
+                2_783_782,
             ),
             (
-                13_475_758, 6_981_782, 18_868_075, 4_146_942, 2_996, 14_598_297, 12_880, 528_080, 15_126_377, 1_251,
-                4_426_898,
+                10_606_197, 5_458_899, 15_017_477, 3_278_972, 912, 11_701_113, 12_880, 528_080, 12_229_193, 785,
+                2_783_782,
             ),
         ],
         "each selector-disjoint arm must retain the measured compressed-width profile",
@@ -423,8 +423,8 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
         accumulator_stage_census,
         vec![
             (0, None, None),
-            (1, Some((10_761, 4_483_178, 757_610)), Some((10_762, 10_278, 1_466)),),
-            (2, Some((10_761, 4_483_178, 757_610)), Some((10_762, 10_278, 1_466)),),
+            (1, Some((10_759, 3_034_465, 513_786)), Some((10_760, 3_034, 434)),),
+            (2, Some((10_759, 3_034_465, 513_786)), Some((10_760, 3_034, 434)),),
         ],
         "the selected protocol must bind exact outgoing children without a delayed pending-family stage",
     );

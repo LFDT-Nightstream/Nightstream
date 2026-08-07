@@ -636,9 +636,10 @@ fn verifier_key_digest_binds_f_prime_recursive_link_policy() {
         neo_fold_clean::paper::construction2::SemanticStateMode::Stateless
     ));
 
-    let weak = neo_fold_clean::lifecycle::preprocess(
+    let weak = neo_fold_clean::lifecycle::preprocess_with_test_log(
         strong.prep.params.clone(),
         strong.prep.structure().clone(),
+        strong.prep.log.clone(),
         strong.prep.public_input_len,
     )
     .expect("generic preprocessing over the same verifier-owned artifacts");

@@ -41,7 +41,7 @@ theorem nifsChildMutation_is_rejected :
 
 theorem incomingHandleMutation_is_rejected :
     nativeOutcome Generated.incomingAccumulatorHandleMutation =
-      .rejected .nifsRejected := by
+      .rejected .stateAuthorityMismatch := by
   exact nativeOutcome_eq_recorded_of_mem_generated
     Generated.incomingAccumulatorHandleMutation (by simp [Generated.all])
 

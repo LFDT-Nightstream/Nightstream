@@ -7,7 +7,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use toy_spartan::{provider::goldi::F as SpartanF, SparseMatrix, SplitR1CSShape};
 
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
-use crate::paper::relations::{superneo_inactive_x_zero, CcsClaim, CcsWitness, CeClaim, Structure, WitnessMat};
+use crate::paper::relations::{superneo_has_canonical_x_shape, CcsClaim, CcsWitness, CeClaim, Structure, WitnessMat};
 
 use super::{
     CompiledTerminalR1cs, CompiledTerminalR1csStatement, LeanNativeCcsManifest, TerminalR1csError, TerminalR1csInput,
@@ -538,10 +538,10 @@ fn validate_running_claim(
     validate_witness(witness, structure.m)?;
     validate_commitment(&claim.c, verifier_rows)?;
     require_len("running public width", public_width, claim.m_in)?;
-    require_len("running X rows", D, claim.X.rows())?;
-    require_len("running X columns", claim.m_in, claim.X.cols())?;
-    if !superneo_inactive_x_zero(&claim.X, claim.m_in) {
-        return Err(TerminalR1csError::Unsupported("nonzero inactive running X coordinates"));
+    if !superneo_has_canonical_x_shape(&claim.X, claim.m_in) {
+        return Err(TerminalR1csError::Unsupported(
+            "running X is not a canonical whole-ring coefficient embedding",
+        ));
     }
     require_len("running evaluation count", structure.t(), claim.y_ring.len())?;
     for values in &claim.y_ring {

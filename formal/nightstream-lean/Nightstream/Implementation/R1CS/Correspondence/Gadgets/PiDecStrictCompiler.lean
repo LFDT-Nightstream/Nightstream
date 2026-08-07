@@ -31,7 +31,6 @@ structure ClaimLayout where
   commitment : CommitmentLayout
   adv : Option AdvLayout
   xActiveCols : List Nat
-  xInactiveCol : Nat
   xRows : Nat
   xWidth : Nat
   xRowsCol : Nat
@@ -41,7 +40,6 @@ structure ClaimLayout where
   yRingCols : List (List Nat)
   ctCols : List (Nat × Nat)
   rCols : List (Nat × Nat)
-  sColCols : List (Nat × Nat)
   foldDigestCols : List Nat
 deriving DecidableEq, Repr
 
@@ -55,7 +53,7 @@ structure Layout where
 deriving DecidableEq, Repr
 
 def activeColumns (layout : Layout) : Nat :=
-  (layout.parent.mIn + layout.ringDimension - 1) / layout.ringDimension
+  layout.parent.mIn / layout.ringDimension
 
 def equalityCheck (lhs rhs : Nat) : Instruction :=
   .check ⟨[(lhs, 1), (rhs, goldilocksP - 1)], [(0, 1)], []⟩
@@ -100,28 +98,13 @@ def advInstructions
       advCoordinateInstructions parent.fs (children.map (·.fs)) powers
 
 def xColumn (layout : Layout) (claim : ClaimLayout) (row column : Nat) : Nat :=
-  if column < activeColumns layout then
-    claim.xActiveCols.getD
-      (row * activeColumns layout + column) 0
-  else claim.xInactiveCol
+  claim.xActiveCols.getD
+    (row * activeColumns layout + column) 0
 
 def activeXColumns (layout : Layout) (claim : ClaimLayout) : List Nat :=
   (List.range claim.xRows).flatMap fun row =>
     (List.range (activeColumns layout)).map fun column =>
       xColumn layout claim row column
-
-def inactiveXColumns (layout : Layout) (claim : ClaimLayout) : List Nat :=
-  (List.range claim.xRows).flatMap fun row =>
-    (List.range (claim.xWidth - activeColumns layout)).map fun offset =>
-      xColumn layout claim row (activeColumns layout + offset)
-
-def uniqueAux : List Nat → List Nat → List Nat
-  | _, [] => []
-  | seen, head :: tail =>
-      if head ∈ seen then uniqueAux seen tail
-      else head :: uniqueAux (head :: seen) tail
-
-def unique (values : List Nat) : List Nat := uniqueAux [] values
 
 def xRecompositionInstructions
     (layout : Layout) (powers : List Nat) : List Instruction :=
@@ -154,10 +137,6 @@ def pairEqualityInstructions
     (parent.zip child).flatMap fun pair =>
       [equalityCheck pair.1.1 pair.2.1,
        equalityCheck pair.1.2 pair.2.2]
-
-def inactiveInstructions (layout : Layout) : List Instruction :=
-  (layout.parent :: layout.children).flatMap fun claim =>
-    (unique (inactiveXColumns layout claim)).map zeroCheck
 
 def centeredUnitInstructions (column output : Nat) : List Instruction :=
   [.define ⟨output,
@@ -214,9 +193,6 @@ def groups (layout : Layout) : List (List Instruction) :=
    shapeInstructions layout,
    pairEqualityInstructions layout.parent.rCols
       (layout.children.map (·.rCols)),
-   pairEqualityInstructions layout.parent.sColCols
-      (layout.children.map (·.sColCols)),
-   inactiveInstructions layout,
    alphabetInstructions layout,
    ctInstructions layout,
    paddingInstructions layout,
@@ -241,9 +217,6 @@ def checkRows (layout : Layout) : List Row :=
     CheckedProgram.rows (shapeInstructions layout) ++
     CheckedProgram.rows (pairEqualityInstructions layout.parent.rCols
       (layout.children.map (·.rCols))) ++
-    CheckedProgram.rows (pairEqualityInstructions layout.parent.sColCols
-      (layout.children.map (·.sColCols))) ++
-    CheckedProgram.rows (inactiveInstructions layout) ++
     alphabetCheckRows layout ++
     CheckedProgram.rows (ctInstructions layout) ++
     CheckedProgram.rows (paddingInstructions layout) ++
@@ -304,6 +277,7 @@ instance (value : Nat) : Decidable (CenteredUnit value) := by
 wire arrays. They contain no verifier acceptance conclusion. -/
 structure ShapeValid (layout : Layout) : Prop where
   ringPositive : 0 < layout.ringDimension
+  wholeRing : layout.parent.mIn % layout.ringDimension = 0
   powersCanonical : ∀ coefficient ∈
       radixPowers layout.radix layout.children.length,
     0 < coefficient ∧ coefficient < goldilocksP
@@ -313,6 +287,8 @@ structure ShapeValid (layout : Layout) : Prop where
     child.xRows = layout.parent.xRows ∧
     child.xWidth = layout.parent.xWidth ∧
     child.mIn = layout.parent.mIn
+  canonicalXWidths : ∀ claim ∈ layout.parent :: layout.children,
+    claim.xWidth = activeColumns layout
   activeXLengths : ∀ claim ∈ layout.parent :: layout.children,
     claim.xActiveCols.length = claim.xRows * activeColumns layout
   yShapes : ∀ child ∈ layout.children,
@@ -322,8 +298,6 @@ structure ShapeValid (layout : Layout) : Prop where
         (layout.parent.yRingCols.getD row []).length
   rShapes : ∀ child ∈ layout.children,
     child.rCols.length = layout.parent.rCols.length
-  sColShapes : ∀ child ∈ layout.children,
-    child.sColCols.length = layout.parent.sColCols.length
   ctShapes : ∀ claim ∈ layout.parent :: layout.children,
     claim.ctCols.length = claim.yRingCols.length ∧
     ∀ row ∈ claim.yRingCols, 2 ≤ row.length
@@ -360,10 +334,6 @@ structure Accepted (layout : Layout) (assignment : Nat → Nat) : Prop where
     assignment layout.parent.mInCol = assignment child.mInCol
   sameR : ∀ child ∈ layout.children,
     EqualPairs assignment layout.parent.rCols child.rCols
-  sameSCol : ∀ child ∈ layout.children,
-    EqualPairs assignment layout.parent.sColCols child.sColCols
-  inactiveZero : ∀ claim ∈ layout.parent :: layout.children,
-    ∀ column ∈ unique (inactiveXColumns layout claim), assignment column = 0
   childCentered : ∀ child ∈ layout.children,
     ∀ column ∈ activeXColumns layout child, CenteredUnit (assignment column)
   ct : ∀ claim ∈ layout.parent :: layout.children,
@@ -574,11 +544,6 @@ def check (layout : Layout) (assignment : Nat → Nat) : Bool :=
       decide (assignment layout.parent.mInCol = assignment child.mInCol)
   let sameR := layout.children.all fun child =>
     equalPairsCheck assignment layout.parent.rCols child.rCols
-  let sameSCol := layout.children.all fun child =>
-    equalPairsCheck assignment layout.parent.sColCols child.sColCols
-  let inactive := (layout.parent :: layout.children).all fun claim =>
-      (unique (inactiveXColumns layout claim)).all fun column =>
-        decide (assignment column = 0)
   let centered := layout.children.all fun child =>
       (activeXColumns layout child).all fun column =>
         centeredUnitCheck (assignment column)
@@ -593,7 +558,7 @@ def check (layout : Layout) (assignment : Nat → Nat) : Bool :=
   let foldDigest := layout.children.all fun child =>
       (child.foldDigestCols.zip layout.parent.foldDigestCols).all fun pair =>
         decide (assignment pair.1 = assignment pair.2)
-  [radix, commitment, adv, x, y, shape, sameR, sameSCol, inactive,
+  [radix, commitment, adv, x, y, shape, sameR,
     centered, ct, padding, foldDigest].all id
 
 /-- The executable semantic checker accepts exactly the independent
@@ -606,8 +571,8 @@ theorem check_eq_true_iff (layout : Layout) (assignment : Nat → Nat) :
     equalPairsCheck_eq_true_iff, centeredUnitCheck_eq_true_iff,
     and_true]
   constructor
-  · rintro ⟨radix, commitment, adv, x, y, shape, sameR, sameSCol,
-      inactive, centered, ct, padding, foldDigest⟩
+  · rintro ⟨radix, commitment, adv, x, y, shape, sameR,
+      centered, ct, padding, foldDigest⟩
     exact ⟨radix, commitment, adv,
       (fun row column rowLt columnLt => x row rowLt column columnLt),
       (fun row lane rowLt laneLt => y row rowLt lane laneLt),
@@ -615,12 +580,7 @@ theorem check_eq_true_iff (layout : Layout) (assignment : Nat → Nat) :
         let facts := shape child childMember
         ⟨facts.1.1.1.1, facts.1.1.1.2, facts.1.1.2,
           facts.1.2, facts.2⟩),
-      sameR, sameSCol,
-      (fun claim claimMember => by
-        rcases List.mem_cons.mp claimMember with rfl | childMember
-        · exact inactive.1
-        · exact inactive.2 claim childMember),
-      centered,
+      sameR, centered,
       (fun claim claimMember => by
         rcases List.mem_cons.mp claimMember with rfl | childMember
         · exact ct.1
@@ -638,10 +598,7 @@ theorem check_eq_true_iff (layout : Layout) (assignment : Nat → Nat) :
         let facts := accepted.shape child childMember
         ⟨⟨⟨⟨facts.1, facts.2.1⟩, facts.2.2.1⟩,
           facts.2.2.2.1⟩, facts.2.2.2.2⟩),
-      accepted.sameR, accepted.sameSCol,
-      ⟨accepted.inactiveZero layout.parent (by simp),
-        fun claim claimMember => accepted.inactiveZero claim (by simp [claimMember])⟩,
-      accepted.childCentered,
+      accepted.sameR, accepted.childCentered,
       ⟨accepted.ct layout.parent (by simp),
         fun claim claimMember => accepted.ct claim (by simp [claimMember])⟩,
       ⟨accepted.paddingZero layout.parent (by simp),

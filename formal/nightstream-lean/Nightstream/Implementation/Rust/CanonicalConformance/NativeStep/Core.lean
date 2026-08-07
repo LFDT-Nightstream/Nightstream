@@ -111,7 +111,7 @@ def NativeStateAuthority
   prior.initialSemanticState = context.initialSemanticState ∧
   match prior.proof with
   | .initial =>
-      prior.accumulatorDigest = semantics.runningDigest semantics.emptyRunning ∧
+      prior.accumulatorDigest = semantics.initialAccumulatorDigest ∧
       prior.semanticState = prior.initialSemanticState ∧
       prior.publicTrace = XOut.publicTraceSeed hash context
   | .active running _ =>
@@ -135,7 +135,7 @@ def nativeStateAuthorityCheck
   | .initial =>
       decide
         (prior.accumulatorDigest =
-            semantics.runningDigest semantics.emptyRunning ∧
+            semantics.initialAccumulatorDigest ∧
          prior.semanticState = prior.initialSemanticState ∧
          prior.publicTrace = XOut.publicTraceSeed hash context)
   | .active running _ =>

@@ -1,4 +1,4 @@
-//! Π_RLC projection identities and their explicit padding glue.
+//! Π_RLC projection identities and ring-evaluation padding glue.
 //!
 //! Owns: branch order, audit-role assignment, and the interleaving of each
 //! identity with its zero-padding rows.
@@ -15,7 +15,6 @@
 //! |---|---|---|---|---|
 //! | `identities.{commitment,x,y_ring}` | Paper-public one-point projection equations over the packed carrier | yes | `pi_rlc_circuit::{commitment,x,padded_k}` | `NifsPaper.PiRlc` (conditional) |
 //! | `identities.adv` | Nebula product-commitment extension projection | yes | `pi_rlc_circuit::commitment` | separate Nebula refinement open |
-//! | `padding.x` | Inactive X columns equal zero | yes | `pi_rlc_circuit/x.rs` | `Claims/X.lean` |
 //! | `padding.y_ring` | Every padded y_ring tail equals zero | yes | `pi_rlc_circuit/padded_k.rs` | `Claims/Padding.lean` |
 
 use crate::engine::r1cs_circuit::builder::{ProjectionIdentityRole, ProjectionNebulaCoordinate};
@@ -85,8 +84,6 @@ pub(super) fn enforce(
         &binding.x_q,
         Some(stage::X_IDENTITY_STAGES),
     )?;
-
-    padding::enforce_x(builder, &folds.x)?;
 
     builder.begin_encoding_stage(stage::IDENTITIES_Y_RING);
     for (row, (wires, quotients)) in folds.y_ring.iter().zip(&binding.y_ring_q).enumerate() {

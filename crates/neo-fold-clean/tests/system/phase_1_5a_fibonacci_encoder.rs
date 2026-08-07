@@ -206,7 +206,7 @@ fn phase_1_5b_encoded_f_prime_instance_folds_through_nifs() {
     use neo_fold_clean::frontends::direct_ccs::{ajtai_dec_mixer, ajtai_rlc_mixer};
     use neo_fold_clean::paper::construction2::RunningInstance;
     use neo_fold_clean::paper::nifs;
-    use neo_fold_clean::paper::relations::superneo_inactive_x_zero;
+    use neo_fold_clean::paper::relations::superneo_has_canonical_x_shape;
 
     const LABEL: &[u8] = b"neo.fold.clean/test/encoded-f-prime-nifs/v1";
 
@@ -257,23 +257,19 @@ fn phase_1_5b_encoded_f_prime_instance_folds_through_nifs() {
     assert_eq!(verified.claims, next_running.claims);
     assert_eq!(verified.parent_authority, next_running.parent_authority);
 
-    // Regression gate: every CE claim coming out of Π_DEC (in
-    // `next_running`) and Π_CCS (in `verified`) must have all-zero
-    // entries in the inactive columns of `X`. This is the soundness
-    // invariant `pi_dec::validate_inactive_x_zero` checks, and
-    // re-asserting it here pins the encoded-F' path to honor it for
-    // non-trivial `m_in`.
+    // Regression gate: every CE claim coming out of Π_DEC and Π_CCS
+    // must use the exact whole-ring coefficient embedding.
     for claim in &next_running.claims {
         assert!(
-            superneo_inactive_x_zero(&claim.X, claim.m_in),
-            "running claim X must be zero past its active columns (m_in = {})",
+            superneo_has_canonical_x_shape(&claim.X, claim.m_in),
+            "running claim X must have the canonical compact shape (m_in = {})",
             claim.m_in
         );
     }
     for claim in &verified.claims {
         assert!(
-            superneo_inactive_x_zero(&claim.X, claim.m_in),
-            "verified claim X must be zero past its active columns (m_in = {})",
+            superneo_has_canonical_x_shape(&claim.X, claim.m_in),
+            "verified claim X must have the canonical compact shape (m_in = {})",
             claim.m_in
         );
     }

@@ -26,7 +26,6 @@ use neo_fold_clean::lifecycle::preprocess_with_test_log;
 use neo_fold_clean::paper::construction2::{EncInst, SemanticStateMode};
 use neo_fold_clean::paper::digest::{self, StateXOutDigestMode};
 use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
-use neo_fold_clean::preprocess as lifecycle_preprocess;
 use neo_fold_clean::{finish_uncompressed, prove, verify_uncompressed, Preprocessing, Uncompressed};
 
 fn three_term_addition() -> R1cs {
@@ -85,6 +84,21 @@ fn public_input_split_too_large() {
         Err(FrontendError::PublicInputTooLarge { .. }) => {}
         other => panic!("expected PublicInputTooLarge, got {:?}", other),
     }
+}
+
+#[test]
+fn preprocessing_rejects_partial_public_ring() {
+    let mut r1cs = three_term_addition();
+    r1cs.m_in = 1;
+    r1cs.validate_shape()
+        .expect("generic application R1CS permits an arbitrary split point");
+
+    assert!(matches!(
+        direct_ccs::preprocess_seeded(&r1cs, 0xD1EC_7001),
+        Err(FrontendError::Lifecycle(
+            neo_fold_clean::Error::PublicInputNotWholeRing { m_in: 1, d: D }
+        ))
+    ));
 }
 
 #[test]
@@ -155,8 +169,8 @@ fn build_instance_rejects_preprocessing_polynomial_mismatch() {
         }],
     );
     let params = config::r1cs_params(bad_structure.n, bad_structure.m).expect("production-core R1CS params");
-    let _ = direct_ccs::ajtai::setup_seeded(&params, &bad_structure, /* seed = */ 15);
-    let prep = lifecycle_preprocess(params, bad_structure, Some(r1cs_for_prep.m_in))
+    let log = direct_ccs::ajtai::setup_seeded(&params, &bad_structure, /* seed = */ 15);
+    let prep = preprocess_with_test_log(params, bad_structure, log, Some(r1cs_for_prep.m_in))
         .expect("preprocess with deliberately bad polynomial");
 
     let z = satisfying_three_term_assignment();

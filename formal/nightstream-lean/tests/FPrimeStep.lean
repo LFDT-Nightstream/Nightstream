@@ -61,6 +61,7 @@ def expectedNifsProof
 
 def stepSemantics : Step.Semantics Nat Nat Fresh Nat Nat Nat where
   emptyRunning := 0
+  initialAccumulatorDigest := 13
   initialNebula := none
   runningDigest := id
   chunkDigest := fun start fresh => 1000 + 100 * start + fresh.length
@@ -87,9 +88,9 @@ def initial : TestState where
   z0 := XOut.initialBoundary hashSemantics context
   zi := XOut.initialBoundary hashSemantics context
   initialSemanticState := 11
-  semanticState := 0
+  semanticState := 11
   pc := 1
-  accumulatorDigest := 0
+  accumulatorDigest := 13
   publicTrace := XOut.publicTraceSeed hashSemantics context
   proof := .initial
   nebula := none

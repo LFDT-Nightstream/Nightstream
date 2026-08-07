@@ -327,6 +327,24 @@ fn source_image_for_public_x_out(fixture: &RedteamFixture, public_x_out: [F; 4])
     }
 }
 
+#[test]
+fn malformed_extra_y_lane_cannot_alias_compact_accumulator_handle() {
+    let fixture = build_honest_fixture();
+    let canonical = AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined));
+    let mut malformed = fixture.children.clone();
+    for claim in &mut malformed {
+        for row in &mut claim.y_ring {
+            row.push(neo_math::K::ZERO);
+        }
+    }
+
+    assert_ne!(
+        AccumulatorHandle::from_running_parts(&malformed, Some(&fixture.combined)),
+        canonical,
+        "a noncanonical extra evaluation lane must not use the compact accumulator codec"
+    );
+}
+
 fn build_honest_fixture() -> RedteamFixture {
     build_transcript_replay_fixture(|_| {})
 }

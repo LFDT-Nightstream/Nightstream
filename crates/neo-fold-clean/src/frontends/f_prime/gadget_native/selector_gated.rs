@@ -95,6 +95,8 @@ pub fn estimate_selector_gated_r1cs_gadget_native(
     let base = estimate_r1cs_gadget_native(base_source, base_trace, base_public_bit_columns)?;
     let recursive = estimate_r1cs_gadget_native(recursive_source, recursive_trace, recursive_public_bit_columns)?;
     let public_bits = base_public_bit_columns.len();
+    let public_input_len = super::canonical_superneo_public_input_len(public_bits)?;
+    let public_padding = public_input_len - (1 + public_bits);
     let base_private_bits = base.one_bit_source_cols - public_bits;
     let recursive_private_bits = recursive.one_bit_source_cols - public_bits;
     let canonical_binary_field_slots = base
@@ -131,6 +133,7 @@ pub fn estimate_selector_gated_r1cs_gadget_native(
         .saturating_add(recursive_private_bits);
     let encoded_cols = 1usize
         .saturating_add(one_bit_slots)
+        .saturating_add(public_padding)
         .saturating_add(acceptance_tree_output_coordinates)
         .saturating_add(ordinary_private_coordinates)
         .saturating_add(balanced_ternary_field_slots.saturating_mul(BALANCED_TERNARY_DIGITS))
@@ -222,7 +225,7 @@ pub fn estimate_selector_gated_r1cs_gadget_native(
         .saturating_add(recursive_semantic_rows)
         .saturating_add(inactive_binding_rows);
     Ok(SelectorGatedGadgetNativeEstimate {
-        public_input_len: 1 + public_bits,
+        public_input_len,
         encoded_cols,
         encoded_rows,
         max_degree: 8,

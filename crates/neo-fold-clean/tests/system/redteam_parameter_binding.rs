@@ -59,10 +59,9 @@ fn ccs_params_reject_shape_above_paper_profile() {
 }
 
 /// Optional public-input arity is verifier policy. `None` must have a tagged
-/// encoding distinct from every `Some(n)`, including the maximum machine word.
-#[cfg(target_pointer_width = "64")]
+/// encoding distinct from the valid fixed-zero policy.
 #[test]
-fn verifier_key_distinguishes_unbounded_from_maximum_public_input_arity() {
+fn verifier_key_distinguishes_unbounded_from_fixed_zero_public_input_arity() {
     let structure = CcsStructure::new(vec![Mat::zero(1, D, F::ZERO)], SparsePoly::<F>::new(1, Vec::new()))
         .expect("one-ring zero relation");
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
@@ -70,8 +69,7 @@ fn verifier_key_distinguishes_unbounded_from_maximum_public_input_arity() {
     support::install_ajtai_module(&params, &structure);
 
     let unbounded = preprocess(params.clone(), structure.clone(), None).expect("unbounded public-input policy");
-    let maximum = preprocess(params, structure, Some(usize::MAX))
-        .expect("current preprocessing accepts the maximum arity policy");
+    let fixed_zero = preprocess(params, structure, Some(0)).expect("fixed-zero public-input policy");
 
     let assignment = vec![F::ZERO; D];
     let instance =
@@ -80,19 +78,34 @@ fn verifier_key_distinguishes_unbounded_from_maximum_public_input_arity() {
     let audit = prove(&unbounded, [vec![instance]]).expect("prove under unbounded policy");
     let proof = finish_uncompressed(&unbounded, audit).expect("finish under unbounded policy");
     let unbounded_result = verify_uncompressed(&unbounded, &proof);
-    let maximum_result = verify_uncompressed(&maximum, &proof);
+    let fixed_zero_result = verify_uncompressed(&fixed_zero, &proof);
     assert!(
-        unbounded_result.is_ok() && maximum_result.is_err(),
-        "fixture requires different verifier languages (unbounded={unbounded_result:?}, maximum={maximum_result:?})"
+        unbounded_result.is_ok() && fixed_zero_result.is_err(),
+        "fixture requires different verifier languages (unbounded={unbounded_result:?}, fixed_zero={fixed_zero_result:?})"
     );
 
-    let same_vk = unbounded.vk.digest() == maximum.vk.digest();
+    let same_vk = unbounded.vk.digest() == fixed_zero.vk.digest();
     let same_boundary = neo_fold_clean::paper::digest::initial_boundary_digest(unbounded.structure_digest(), None)
-        == neo_fold_clean::paper::digest::initial_boundary_digest(maximum.structure_digest(), Some(usize::MAX));
+        == neo_fold_clean::paper::digest::initial_boundary_digest(fixed_zero.structure_digest(), Some(0));
     assert!(
         !same_vk && !same_boundary,
-        "verifier-policy encoding failure: None and Some(usize::MAX) define different accepted languages but collide (same_vk={same_vk}, same_initial_boundary={same_boundary})"
+        "verifier-policy encoding failure: None and Some(0) define different accepted languages but collide (same_vk={same_vk}, same_initial_boundary={same_boundary})"
     );
+}
+
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn preprocessing_rejects_public_input_arity_above_structure_width() {
+    let structure = CcsStructure::new(vec![Mat::zero(1, D, F::ZERO)], SparsePoly::<F>::new(1, Vec::new()))
+        .expect("one-ring zero relation");
+    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("shape-specific params");
+    support::install_ajtai_module(&params, &structure);
+
+    assert!(matches!(
+        preprocess(params, structure, Some(usize::MAX)),
+        Err(neo_fold_clean::Error::PreprocessingPublicInputTooLarge { m_in: usize::MAX, m: D })
+    ));
 }
 
 /// Parameter-selection margins are verifier security policy. A public `u32`
@@ -205,7 +218,7 @@ fn preprocessing_rejects_malformed_explicit_ajtai_matrix_shape() {
     }));
 
     assert!(
-        preprocess_with_test_log(params, structure, malformed_log, Some(1)).is_err(),
+        preprocess_with_test_log(params, structure, malformed_log, Some(0)).is_err(),
         "preprocessing must reject an explicit Ajtai matrix whose physical row count disagrees with κ"
     );
 }
@@ -312,13 +325,13 @@ fn preprocessing_rejects_ajtai_pp_with_missing_matrix_rows() {
     })
     .expect("current PP registry accepts a header-only malformed setup");
 
-    let prep = match preprocess(params, structure, Some(1)) {
+    let prep = match preprocess(params, structure, Some(D)) {
         Err(_) => return,
         Ok(prep) => prep,
     };
     let assignment = vec![F::ZERO; width];
     let result = catch_unwind(AssertUnwindSafe(|| {
-        CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, 1)
+        CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, D)
     }));
 
     assert!(

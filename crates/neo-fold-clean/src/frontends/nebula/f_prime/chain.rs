@@ -137,7 +137,7 @@ impl NebulaFPrimePreprocessing {
     /// verifier-owned Ajtai setup.
     pub fn new(params: Params, plan: NebulaPlan) -> Result<Self, NebulaFPrimeChainError> {
         let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)?;
-        Self::from_relation(params, plan, relation)
+        Self::from_relation(params, plan, relation, None)
     }
 
     /// Compile and preprocess only when the final relation fits the caller's
@@ -149,7 +149,7 @@ impl NebulaFPrimePreprocessing {
     ) -> Result<Self, NebulaFPrimeChainError> {
         let relation =
             NebulaFPrimeRelation::compile_fixed_point_with_coordinate_limit(&params, &plan, max_coordinates)?;
-        Self::from_relation(params, plan, relation)
+        Self::from_relation(params, plan, relation, None)
     }
 
     pub fn new_with_application(
@@ -158,7 +158,7 @@ impl NebulaFPrimePreprocessing {
         application: NebulaApplication,
     ) -> Result<Self, NebulaFPrimeChainError> {
         let relation = NebulaFPrimeRelation::compile_application_fixed_point(&params, &plan, application)?;
-        Self::from_relation(params, plan, relation)
+        Self::from_relation(params, plan, relation, None)
     }
 
     /// Compile and preprocess an application relation only when its final
@@ -175,15 +175,15 @@ impl NebulaFPrimePreprocessing {
             application,
             max_coordinates,
         )?;
-        Self::from_relation(params, plan, relation)
+        Self::from_relation(params, plan, relation, None)
     }
 
     /// Deterministic test/demo constructor. Production callers use [`Self::new`].
     #[doc(hidden)]
     pub fn new_seeded(params: Params, plan: NebulaPlan, seed: u64) -> Result<Self, NebulaFPrimeChainError> {
         let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)?;
-        let _ = ajtai::setup_seeded(&params, relation.structure(), seed);
-        Self::from_relation(params, plan, relation)
+        let log = ajtai::setup_seeded(&params, relation.structure(), seed);
+        Self::from_relation(params, plan, relation, Some(log))
     }
 
     #[doc(hidden)]
@@ -194,8 +194,8 @@ impl NebulaFPrimePreprocessing {
         seed: u64,
     ) -> Result<Self, NebulaFPrimeChainError> {
         let relation = NebulaFPrimeRelation::compile_application_fixed_point(&params, &plan, application)?;
-        let _ = ajtai::setup_seeded(&params, relation.structure(), seed);
-        Self::from_relation(params, plan, relation)
+        let log = ajtai::setup_seeded(&params, relation.structure(), seed);
+        Self::from_relation(params, plan, relation, Some(log))
     }
 
     #[doc(hidden)]
@@ -212,19 +212,25 @@ impl NebulaFPrimePreprocessing {
             application,
             max_coordinates,
         )?;
-        let _ = ajtai::setup_seeded(&params, relation.structure(), seed);
-        Self::from_relation(params, plan, relation)
+        let log = ajtai::setup_seeded(&params, relation.structure(), seed);
+        Self::from_relation(params, plan, relation, Some(log))
     }
 
     fn from_relation(
         params: Params,
         plan: NebulaPlan,
         mut relation: NebulaFPrimeRelation,
+        test_log: Option<neo_ajtai::AjtaiSModule>,
     ) -> Result<Self, NebulaFPrimeChainError> {
-        let mut prep =
-            lifecycle::preprocess_shared(params, relation.structure_arc(), Some(relation.public_input_len()))?
-                .with_nebula(relation.nebula_config().clone())
-                .with_terminal_induction();
+        let public_input_len = Some(relation.public_input_len());
+        let mut prep = match test_log {
+            Some(log) => {
+                lifecycle::preprocess_shared_with_test_log(params, relation.structure_arc(), log, public_input_len)
+            }
+            None => lifecycle::preprocess_shared(params, relation.structure_arc(), public_input_len),
+        }?
+        .with_nebula(relation.nebula_config().clone())
+        .with_terminal_induction();
         if let Some(application) = relation.application() {
             let mode = crate::frontends::r1cs_f_prime::semantic_state_mode_for_plan(application.recursive_plan());
             let initial =

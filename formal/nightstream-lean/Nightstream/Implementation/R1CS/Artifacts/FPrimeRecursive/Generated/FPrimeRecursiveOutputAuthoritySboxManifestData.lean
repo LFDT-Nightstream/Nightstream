@@ -17,9 +17,9 @@ evidence; they do not prove `SourceCallRowsMatch` or `WholeMatrixNoEscape`.
 | Generated branch | Exact content | Lean check | Permits row removal? |
 |---|---|---|---|
 | boundaries | stage/prehash/hash/digest intervals | `Boundaries.Valid` | no |
-| calls | 17 call geometries | `CallGeometry.Valid` plus order | no |
+| calls | 5 call geometries | `CallGeometry.Valid` plus order | no |
 | offsets/families | 86 isolated outputs in 32/22/32 phases | exact equality | no |
-| census | 1,462 candidates and 13,158 roles | `Census.Valid` | no |
+| census | 430 candidates and 3,870 roles | `Census.Valid` | no |
 | Rust evidence | exact rows and whole-matrix scan accepted | metadata only | no |
 -/
 
@@ -30,23 +30,11 @@ open Nightstream.Implementation.R1CS.OutputAuthoritySboxManifest
 set_option maxRecDepth 1048576
 
 def calls : List CallGeometry :=
-  [ { traceIndex := 812, rowStart := 9281533, rowEnd := 9282133, inputColumns := [8985333, 8985334, 8985335, 8985336, 8985332, 8985332, 8985332, 8985332], firstAllocatedColumn := 8985337, allocatedColumnCount := 600, outputColumns := [8985929, 8985930, 8985931, 8985932, 8985933, 8985934, 8985935, 8985936] }
-  , { traceIndex := 813, rowStart := 9282137, rowEnd := 9282737, inputColumns := [8985937, 8985938, 8985939, 8985940, 8985933, 8985934, 8985935, 8985936], firstAllocatedColumn := 8985941, allocatedColumnCount := 600, outputColumns := [8986533, 8986534, 8986535, 8986536, 8986537, 8986538, 8986539, 8986540] }
-  , { traceIndex := 814, rowStart := 9282741, rowEnd := 9283341, inputColumns := [8986541, 8986542, 8986543, 8986544, 8986537, 8986538, 8986539, 8986540], firstAllocatedColumn := 8986545, allocatedColumnCount := 600, outputColumns := [8987137, 8987138, 8987139, 8987140, 8987141, 8987142, 8987143, 8987144] }
-  , { traceIndex := 815, rowStart := 9283345, rowEnd := 9283945, inputColumns := [8987145, 8987146, 8987147, 8987148, 8987141, 8987142, 8987143, 8987144], firstAllocatedColumn := 8987149, allocatedColumnCount := 600, outputColumns := [8987741, 8987742, 8987743, 8987744, 8987745, 8987746, 8987747, 8987748] }
-  , { traceIndex := 816, rowStart := 9283949, rowEnd := 9284549, inputColumns := [8987749, 8987750, 8987751, 8987752, 8987745, 8987746, 8987747, 8987748], firstAllocatedColumn := 8987753, allocatedColumnCount := 600, outputColumns := [8988345, 8988346, 8988347, 8988348, 8988349, 8988350, 8988351, 8988352] }
-  , { traceIndex := 817, rowStart := 9284553, rowEnd := 9285153, inputColumns := [8988353, 8988354, 8988355, 8988356, 8988349, 8988350, 8988351, 8988352], firstAllocatedColumn := 8988357, allocatedColumnCount := 600, outputColumns := [8988949, 8988950, 8988951, 8988952, 8988953, 8988954, 8988955, 8988956] }
-  , { traceIndex := 818, rowStart := 9285157, rowEnd := 9285757, inputColumns := [8988957, 8988958, 8988959, 8988960, 8988953, 8988954, 8988955, 8988956], firstAllocatedColumn := 8988961, allocatedColumnCount := 600, outputColumns := [8989553, 8989554, 8989555, 8989556, 8989557, 8989558, 8989559, 8989560] }
-  , { traceIndex := 819, rowStart := 9285761, rowEnd := 9286361, inputColumns := [8989561, 8989562, 8989563, 8989564, 8989557, 8989558, 8989559, 8989560], firstAllocatedColumn := 8989565, allocatedColumnCount := 600, outputColumns := [8990157, 8990158, 8990159, 8990160, 8990161, 8990162, 8990163, 8990164] }
-  , { traceIndex := 820, rowStart := 9286365, rowEnd := 9286965, inputColumns := [8990165, 8990166, 8990167, 8990168, 8990161, 8990162, 8990163, 8990164], firstAllocatedColumn := 8990169, allocatedColumnCount := 600, outputColumns := [8990761, 8990762, 8990763, 8990764, 8990765, 8990766, 8990767, 8990768] }
-  , { traceIndex := 821, rowStart := 9286969, rowEnd := 9287569, inputColumns := [8990769, 8990770, 8990771, 8990772, 8990765, 8990766, 8990767, 8990768], firstAllocatedColumn := 8990773, allocatedColumnCount := 600, outputColumns := [8991365, 8991366, 8991367, 8991368, 8991369, 8991370, 8991371, 8991372] }
-  , { traceIndex := 822, rowStart := 9287573, rowEnd := 9288173, inputColumns := [8991373, 8991374, 8991375, 8991376, 8991369, 8991370, 8991371, 8991372], firstAllocatedColumn := 8991377, allocatedColumnCount := 600, outputColumns := [8991969, 8991970, 8991971, 8991972, 8991973, 8991974, 8991975, 8991976] }
-  , { traceIndex := 823, rowStart := 9288177, rowEnd := 9288777, inputColumns := [8991977, 8991978, 8991979, 8991980, 8991973, 8991974, 8991975, 8991976], firstAllocatedColumn := 8991981, allocatedColumnCount := 600, outputColumns := [8992573, 8992574, 8992575, 8992576, 8992577, 8992578, 8992579, 8992580] }
-  , { traceIndex := 824, rowStart := 9288781, rowEnd := 9289381, inputColumns := [8992581, 8992582, 8992583, 8992584, 8992577, 8992578, 8992579, 8992580], firstAllocatedColumn := 8992585, allocatedColumnCount := 600, outputColumns := [8993177, 8993178, 8993179, 8993180, 8993181, 8993182, 8993183, 8993184] }
-  , { traceIndex := 825, rowStart := 9289385, rowEnd := 9289985, inputColumns := [8993185, 8993186, 8993187, 8993188, 8993181, 8993182, 8993183, 8993184], firstAllocatedColumn := 8993189, allocatedColumnCount := 600, outputColumns := [8993781, 8993782, 8993783, 8993784, 8993785, 8993786, 8993787, 8993788] }
-  , { traceIndex := 826, rowStart := 9289989, rowEnd := 9290589, inputColumns := [8993789, 8993790, 8993791, 8993792, 8993785, 8993786, 8993787, 8993788], firstAllocatedColumn := 8993793, allocatedColumnCount := 600, outputColumns := [8994385, 8994386, 8994387, 8994388, 8994389, 8994390, 8994391, 8994392] }
-  , { traceIndex := 827, rowStart := 9290593, rowEnd := 9291193, inputColumns := [8994393, 8994394, 8994395, 8994396, 8994389, 8994390, 8994391, 8994392], firstAllocatedColumn := 8994397, allocatedColumnCount := 600, outputColumns := [8994989, 8994990, 8994991, 8994992, 8994993, 8994994, 8994995, 8994996] }
-  , { traceIndex := 828, rowStart := 9291194, rowEnd := 9291794, inputColumns := [8994997, 8994990, 8994991, 8994992, 8994993, 8994994, 8994995, 8994996], firstAllocatedColumn := 8994998, allocatedColumnCount := 600, outputColumns := [8995590, 8995591, 8995592, 8995593, 8995594, 8995595, 8995596, 8995597] }
+  [ { traceIndex := 358, rowStart := 7072025, rowEnd := 7072625, inputColumns := [7004140, 7004141, 7004142, 7004143, 7004139, 7004139, 7004139, 7004139], firstAllocatedColumn := 7004144, allocatedColumnCount := 600, outputColumns := [7004736, 7004737, 7004738, 7004739, 7004740, 7004741, 7004742, 7004743] }
+  , { traceIndex := 359, rowStart := 7072629, rowEnd := 7073229, inputColumns := [7004744, 7004745, 7004746, 7004747, 7004740, 7004741, 7004742, 7004743], firstAllocatedColumn := 7004748, allocatedColumnCount := 600, outputColumns := [7005340, 7005341, 7005342, 7005343, 7005344, 7005345, 7005346, 7005347] }
+  , { traceIndex := 360, rowStart := 7073233, rowEnd := 7073833, inputColumns := [7005348, 7005349, 7005350, 7005351, 7005344, 7005345, 7005346, 7005347], firstAllocatedColumn := 7005352, allocatedColumnCount := 600, outputColumns := [7005944, 7005945, 7005946, 7005947, 7005948, 7005949, 7005950, 7005951] }
+  , { traceIndex := 361, rowStart := 7073837, rowEnd := 7074437, inputColumns := [7005952, 7005953, 7005954, 7005955, 7005948, 7005949, 7005950, 7005951], firstAllocatedColumn := 7005956, allocatedColumnCount := 600, outputColumns := [7006548, 7006549, 7006550, 7006551, 7006552, 7006553, 7006554, 7006555] }
+  , { traceIndex := 362, rowStart := 7074438, rowEnd := 7075038, inputColumns := [7006556, 7006549, 7006550, 7006551, 7006552, 7006553, 7006554, 7006555], firstAllocatedColumn := 7006557, allocatedColumnCount := 600, outputColumns := [7007149, 7007150, 7007151, 7007152, 7007153, 7007154, 7007155, 7007156] }
   ]
 
 def isolatedOutputOffsets : List Nat := [11, 15, 19, 23, 27, 31, 35, 39, 51, 55, 59, 63, 67, 71, 75, 79, 91, 95, 99, 103, 107, 111, 115, 119, 131, 135, 139, 143, 147, 151, 155, 159, 171, 183, 195, 207, 219, 231, 243, 255, 267, 279, 291, 303, 315, 327, 339, 351, 363, 375, 387, 399, 411, 423, 435, 439, 443, 447, 451, 455, 459, 463, 475, 479, 483, 487, 491, 495, 499, 503, 515, 519, 523, 527, 531, 535, 539, 543, 555, 559, 563, 567, 571, 575, 579, 583]
@@ -54,37 +42,37 @@ def isolatedOutputOffsets : List Nat := [11, 15, 19, 23, 27, 31, 35, 39, 51, 55,
 def manifest : Manifest :=
   { schemaVersion := 1
     boundaries :=
-      { stageRows := { start := 9281520, finish := 9291798 }
-        stageColumns := { start := 8985324, finish := 8995602 }
-        prehashRows := { start := 9281520, finish := 9281528 }
-        prehashColumns := { start := 8985324, finish := 8985332 }
-        hashRows := { start := 9281528, finish := 9291794 }
-        hashZeroColumn := 8985332
-        hashOutputColumns := [8995590, 8995591, 8995592, 8995593]
-        claimedDigestColumns := [5569712, 5569713, 5569714, 5569715]
-        semanticStateOutputColumns := [8995598, 8995599, 8995600, 8995601]
-        permutationTraceRange := { start := 812, finish := 829 } }
+      { stageRows := { start := 7072008, finish := 7075042 }
+        stageColumns := { start := 7004127, finish := 7007161 }
+        prehashRows := { start := 7072008, finish := 7072020 }
+        prehashColumns := { start := 7004127, finish := 7004139 }
+        hashRows := { start := 7072020, finish := 7075038 }
+        hashZeroColumn := 7004139
+        hashOutputColumns := [7007149, 7007150, 7007151, 7007152]
+        claimedDigestColumns := [4575484, 4575485, 4575486, 4575487]
+        semanticStateOutputColumns := [7007157, 7007158, 7007159, 7007160]
+        permutationTraceRange := { start := 358, finish := 363 } }
     calls := calls
     isolatedOutputOffsets := isolatedOutputOffsets
     families := { initialExternal := { start := 0, finish := 32 }, partialRounds := { start := 32, finish := 54 }, terminalExternal := { start := 54, finish := 86 } }
     census :=
-      { scannedSourceRows := 9297088
-        scannedSourceColumns := 9000422
-        prehashBindingRows := 8
-        prehashFreshColumns := 8
-        hashInputFields := 64
-        fullAbsorbRounds := 16
+      { scannedSourceRows := 7080332
+        scannedSourceColumns := 7011981
+        prehashBindingRows := 12
+        prehashFreshColumns := 12
+        hashInputFields := 16
+        fullAbsorbRounds := 4
         partialAbsorbFields := 0
         padRounds := 1
-        permutations := 17
+        permutations := 5
         sboxesPerPermutation := 86
-        initialExternalSboxes := 544
-        partialSboxes := 374
-        terminalExternalSboxes := 544
-        candidateSboxOutputs := 1462
-        definitionCUses := 1462
-        linearAUses := 11696
-        totalMatrixUses := 13158 }
+        initialExternalSboxes := 160
+        partialSboxes := 110
+        terminalExternalSboxes := 160
+        candidateSboxOutputs := 430
+        definitionCUses := 430
+        linearAUses := 3440
+        totalMatrixUses := 3870 }
     rustEvidence := { exactCallRowsAccepted := true, wholeMatrixNoEscapeAccepted := true } }
 
 def certificate : manifest.Certificate where

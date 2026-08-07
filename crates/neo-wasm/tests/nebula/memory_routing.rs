@@ -363,7 +363,7 @@ fn s_mem_structure_census() {
             reduced.cols() - reduced.m_in(),
             reduced.nnz(),
         ),
-        (449_816, 446_229, 1_400, 444_829, 2_824_355),
+        (449_816, 446_229, 1_403, 444_826, 2_824_355),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
     assert_eq!(profile.memory().b_ops, 21 * profile.batch_size());
@@ -375,7 +375,7 @@ fn s_mem_structure_census() {
             private_bits,
             circuit.nnz(),
         ),
-        (54_938, 54_939, 1_400, 53_539, 354_431),
+        (54_938, 54_939, 1_403, 53_536, 354_431),
         "production S_mem structure changed; review the constraint and committed-bit census",
     );
 }

@@ -25,7 +25,7 @@ the generated `.expected` file is reviewed and promoted.
 | Theorem | Mathematical obligation | Guarantee | Remaining premise | Permits row removal? |
 |---|---|---|---|---|
 | `allCalls_transport` | 17 renamed isolated layouts | `poseidon2Call_transport` holds for every listed call | source rows still need `SourceCallRowsMatch` | no |
-| `candidate_count` | compact Cartesian census | exactly 1,462 derived candidate entries | manifest certificate | no |
+| `candidate_count` | compact Cartesian census | exactly 430 derived candidate entries | manifest certificate | no |
 | `candidateColumns_nodup` | mapped interval injectivity | all derived candidate columns are unique | manifest certificate | no |
 | `candidate_in_allocated_interval` | local mapped range | each offset stays inside its call's 600 fresh columns | manifest certificate | no |
 | `family_census` | three Poseidon2 S-box phases | `32 + 22 + 32 = 86` per call | manifest certificate | no |
@@ -95,11 +95,11 @@ theorem columnsStrictlyIncreasing_nodup
           (columnsStrictlyIncreasing_head_lt head tail ordered head member)
       · exact ih (columnsStrictlyIncreasing_tail head tail ordered)
 
-/-- The compact manifest yields `17 * 86 = 1,462` candidate entries without
+/-- The compact manifest yields `5 * 86 = 430` candidate entries without
 listing those entries in generated Lean. -/
 theorem candidate_count
     (manifest : Manifest) (certificate : manifest.Certificate) :
-    manifest.candidateColumns.length = 1462 := by
+    manifest.candidateColumns.length = 430 := by
   rw [manifest.candidateColumns_length, certificate.callCount,
     certificate.offsetCount]
   rcases certificate.censusValid with
@@ -170,9 +170,9 @@ theorem allCalls_transport (manifest : Manifest) :
 
 theorem use_census
     (manifest : Manifest) (certificate : manifest.Certificate) :
-    manifest.census.definitionCUses = 1462 ∧
-      manifest.census.linearAUses = 11696 ∧
-      manifest.census.totalMatrixUses = 13158 := by
+    manifest.census.definitionCUses = 430 ∧
+      manifest.census.linearAUses = 3440 ∧
+      manifest.census.totalMatrixUses = 3870 := by
   rcases certificate.censusValid with
     ⟨_, _, _, _, _, _, permutations, sboxes, _, _, _, candidates,
       definitions, linear, total⟩

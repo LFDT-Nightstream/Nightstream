@@ -46,7 +46,7 @@ pub use r1cs::R1cs;
 
 use thiserror::Error;
 
-use crate::lifecycle::{preprocess as lifecycle_preprocess, Preprocessing};
+use crate::lifecycle::{preprocess as lifecycle_preprocess, preprocess_with_test_log, Preprocessing};
 use crate::paper::params::Params;
 
 #[derive(Debug, Error)]
@@ -109,6 +109,6 @@ pub fn preprocess_seeded(r1cs: &R1cs, seed: u64) -> Result<Preprocessing, Fronte
     r1cs.validate_shape()?;
     let structure = r1cs.to_structure();
     let params = crate::config::r1cs_params(structure.n, structure.m)?;
-    let _ = ajtai::setup_seeded(&params, &structure, seed);
-    Ok(lifecycle_preprocess(params, structure, Some(r1cs.m_in))?)
+    let log = ajtai::setup_seeded(&params, &structure, seed);
+    Ok(preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))?)
 }

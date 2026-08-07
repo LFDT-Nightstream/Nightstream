@@ -46,6 +46,7 @@ const ACCUMULATOR_CLAIM_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
 };
 
 const NEBULA_ADV_PRESENT_MARKER: u64 = 0x4e42_4c41;
+const PROTOCOL_BINDING_MAX_FIELDS: usize = 50_371 * D / 41;
 
 #[derive(Clone)]
 struct LaneProjection {
@@ -75,13 +76,176 @@ pub(crate) fn pi_ccs_instance_digest(
     poseidon(&preimage)
 }
 
-pub(crate) fn accumulator_handle(claims: &[CeClaim]) -> [F; 4] {
+pub(crate) fn accumulator_handle(claims: &[CeClaim], parent: Option<&CeClaim>) -> [F; 4] {
+    let shape_is_valid = (claims.is_empty() && parent.is_none()) || (!claims.is_empty() && parent.is_some());
+    if claims.is_empty() && parent.is_none() {
+        return exact_child_accumulator_handle(claims);
+    }
+    if let Some(parent) = parent {
+        if let Some(digest) = strict_binary_accumulator_family_digest(claims, parent) {
+            return digest;
+        }
+    }
+    if shape_is_valid {
+        return exact_child_accumulator_handle(claims);
+    }
+
+    let mut preimage = pack_bytes(b"neo.fold.clean/accumulator/malformed/v3");
+    preimage.push(F::from_u64(claims.len() as u64));
+    preimage.extend_from_slice(&exact_child_accumulator_handle(claims));
+    match parent {
+        Some(parent) => {
+            preimage.push(F::ONE);
+            preimage.extend_from_slice(&accumulator_claim_digest(parent));
+        }
+        None => preimage.push(F::ZERO),
+    }
+    poseidon(&preimage)
+}
+
+fn exact_child_accumulator_handle(claims: &[CeClaim]) -> [F; 4] {
     let mut preimage = pack_bytes(b"neo.fold.clean/accumulator/children/v4");
     preimage.push(F::from_u64(claims.len() as u64));
     for claim in claims {
         preimage.extend_from_slice(&accumulator_claim_digest(claim));
     }
     poseidon(&preimage)
+}
+
+fn strict_binary_accumulator_family_digest(claims: &[CeClaim], parent: &CeClaim) -> Option<[F; 4]> {
+    let preimage = strict_binary_accumulator_family_preimage(claims, parent)?;
+    let chunk_digests = preimage
+        .chunks(PROTOCOL_BINDING_MAX_FIELDS)
+        .map(|chunk| {
+            accumulator_digest(ACCUMULATOR_CLAIM_CONFIG, chunk).expect("PaperExact strict-family SIS chunk is nonempty")
+        })
+        .collect::<Vec<_>>();
+
+    let mut aggregate = pack_bytes(b"neo.fold.clean/accumulator/strict_binary_family/aggregate/v1");
+    aggregate.push(F::from_u64(preimage.len() as u64));
+    aggregate.push(F::from_u64(chunk_digests.len() as u64));
+    for digest in chunk_digests {
+        aggregate.extend_from_slice(&digest);
+    }
+    Some(poseidon(&aggregate))
+}
+
+fn strict_binary_accumulator_family_preimage(claims: &[CeClaim], parent: &CeClaim) -> Option<Vec<F>> {
+    let first = claims.first()?;
+    let active_x_columns = crate::paper::relations::superneo_public_x_cols(first.m_in);
+    if first.m_in % D != 0
+        || first.c.d != D
+        || first.c.kappa == 0
+        || first.c.data.len() != first.c.d * first.c.kappa
+        || first.X.rows() != D
+        || first.X.cols() != active_x_columns
+        || first.y_ring.is_empty()
+        || first.ct.len() != first.y_ring.len()
+        || first
+            .y_ring
+            .iter()
+            .any(|row| row.len() != D.next_power_of_two())
+        || !claim_has_canonical_derived_fields(first)
+        || !adv_has_shape(&first.adv, first.c.d, first.c.kappa)
+    {
+        return None;
+    }
+
+    let expected_child_x = neo_reductions::common::split_b_matrix_k(&parent.X, claims.len(), 2).ok()?;
+    if parent.m_in != first.m_in
+        || parent.X.rows() != first.X.rows()
+        || parent.X.cols() != first.X.cols()
+        || expected_child_x.len() != claims.len()
+    {
+        return None;
+    }
+
+    let has_adv = first.adv.is_some();
+    for (claim, expected_x) in claims.iter().zip(&expected_child_x) {
+        if claim.c.d != first.c.d
+            || claim.c.kappa != first.c.kappa
+            || claim.c.data.len() != first.c.data.len()
+            || claim.X.rows() != first.X.rows()
+            || claim.X.cols() != first.X.cols()
+            || claim.X != *expected_x
+            || claim.r != first.r
+            || claim.y_ring.len() != first.y_ring.len()
+            || claim
+                .y_ring
+                .iter()
+                .zip(&first.y_ring)
+                .any(|(row, first_row)| row.len() != first_row.len())
+            || claim.ct.len() != claim.y_ring.len()
+            || claim.m_in != first.m_in
+            || claim.fold_digest != first.fold_digest
+            || claim.adv.is_some() != has_adv
+            || !claim_has_canonical_derived_fields(claim)
+            || !adv_has_shape(&claim.adv, first.c.d, first.c.kappa)
+        {
+            return None;
+        }
+    }
+
+    let mut preimage = pack_bytes(b"neo.fold.clean/accumulator/strict_binary_family/v5");
+    preimage.push(F::from_u64(claims.len() as u64));
+    preimage.push(F::from_u64(first.c.d as u64));
+    preimage.push(F::from_u64(first.c.kappa as u64));
+    preimage.push(F::from_u64(first.c.data.len() as u64));
+    preimage.push(F::from_u64(first.X.rows() as u64));
+    preimage.push(F::from_u64(first.X.cols() as u64));
+    preimage.push(F::from_u64(active_x_columns as u64));
+    for row in 0..parent.X.rows() {
+        for column in 0..active_x_columns {
+            preimage.push(parent.X[(row, column)]);
+        }
+    }
+    push_k_slice(&mut preimage, &first.r);
+    preimage.push(F::from_u64(first.y_ring.len() as u64));
+    preimage.push(F::from_u64(D as u64));
+    preimage.push(F::from_u64(first.m_in as u64));
+    for chunk in first.fold_digest.chunks_exact(8) {
+        preimage.push(F::from_u64(u64::from_le_bytes(
+            chunk.try_into().expect("eight-byte digest limb"),
+        )));
+    }
+    preimage.push(if has_adv { F::ONE } else { F::ZERO });
+
+    for (index, claim) in claims.iter().enumerate() {
+        preimage.push(F::from_u64(index as u64));
+        preimage.extend_from_slice(&claim.c.data);
+        for row in &claim.y_ring {
+            for value in row.iter().take(D) {
+                preimage.extend_from_slice(&value.as_coeffs());
+            }
+        }
+        if let Some(adv) = &claim.adv {
+            preimage.extend_from_slice(&adv.ops.data);
+            preimage.extend_from_slice(&adv.is.data);
+            preimage.extend_from_slice(&adv.fs.data);
+        }
+    }
+    Some(preimage)
+}
+
+fn claim_has_canonical_derived_fields(claim: &CeClaim) -> bool {
+    claim
+        .ct
+        .iter()
+        .zip(&claim.y_ring)
+        .all(|(ct, row)| row.first() == Some(ct))
+        && claim
+            .y_ring
+            .iter()
+            .all(|row| row.iter().skip(D).all(|value| *value == K::ZERO))
+}
+
+fn adv_has_shape(adv: &Option<LaneCommitments<Commitment>>, d: usize, kappa: usize) -> bool {
+    let Some(adv) = adv else {
+        return true;
+    };
+    [&adv.ops, &adv.is, &adv.fs]
+        .into_iter()
+        .all(|commitment| commitment.d == d && commitment.kappa == kappa && commitment.data.len() == d * kappa)
 }
 
 pub(crate) fn pi_ccs_outputs_digest(claims: &[CeClaim]) -> [F; 4] {
@@ -215,8 +379,14 @@ pub(crate) fn projection_schedule(
         }
     };
 
-    let active_x_columns = combined.m_in.div_ceil(D);
-    if active_x_columns > combined.X.cols() || inputs.iter().any(|claim| active_x_columns > claim.X.cols()) {
+    let active_x_columns = crate::paper::relations::superneo_public_x_cols(combined.m_in);
+    if combined.m_in % D != 0
+        || combined.X.rows() != D
+        || combined.X.cols() != active_x_columns
+        || inputs
+            .iter()
+            .any(|claim| claim.m_in != combined.m_in || claim.X.rows() != D || claim.X.cols() != active_x_columns)
+    {
         return Err(Error::Shape);
     }
     let mut x_lanes = Vec::with_capacity(active_x_columns);
@@ -287,12 +457,12 @@ fn accumulator_claim_digest(claim: &CeClaim) -> [F; 4] {
     let mut preimage = pack_bytes(b"neo.fold.clean/accumulator_ce_claim_digest/v3");
     push_commitment(&mut preimage, &claim.c);
 
-    let active_x_columns = claim.m_in.div_ceil(D);
+    let active_x_columns = crate::paper::relations::superneo_public_x_cols(claim.m_in);
     preimage.push(F::from_u64(claim.X.rows() as u64));
     preimage.push(F::from_u64(claim.X.cols() as u64));
     preimage.push(F::from_u64(active_x_columns as u64));
     for row in 0..claim.X.rows() {
-        for column in 0..active_x_columns {
+        for column in 0..claim.X.cols() {
             preimage.push(claim.X[(row, column)]);
         }
     }

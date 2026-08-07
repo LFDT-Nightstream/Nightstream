@@ -9,7 +9,7 @@
 //! Two fixtures:
 //! - The whole-ring toy running plucked from a real lifecycle proof
 //!   — easy baseline + commit/X tampering.
-//! - A non-trivial `(n=4, m=16, log_n=2)` R1CS-derived fixture built
+//! - A non-trivial `(n=4, m=108, log_n=2)` R1CS-derived fixture built
 //!   from scratch via `r1cs_to_ccs` + a synthetic CE claim. This is
 //!   the only path that actually exercises the in-circuit `chi_r`
 //!   tensor unfold for `log_n ≥ 2` and the low-norm rows in isolation.
@@ -97,6 +97,18 @@ fn decider_ce_isolation_rejects_claim_witness_count_mismatch() {
             "expected count-mismatch error for {name}, got: {err}"
         );
     }
+}
+
+#[test]
+fn decider_ce_isolation_rejects_partial_ring_public_input() {
+    let mut fixture = non_trivial_fixture_with_shape(3 * D, D, None);
+    fixture.claim.m_in = 1;
+    fixture.claim.X = Mat::zero(D, 1, F::ZERO);
+
+    assert!(
+        enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).is_err(),
+        "the terminal CE relation accepted a partial-ring public input"
+    );
 }
 
 /// **y_ring isolation.** Mutate one `y_ring` entry on the terminal
@@ -222,20 +234,16 @@ fn decider_ce_isolation_rejects_x_not_projected_from_z() {
     );
 }
 
-/// **Packed X tail isolation.** `m_in` counts scalar public field lanes, but
-/// SuperNeo's `L_in(Z)` projects whole active ring columns. For `m_in = 1`,
-/// row 0 of column 0 is the scalar public input while rows `1..D` in the
-/// same column are still active ring coordinates. Mutate one of those tail
-/// rows, leaving the scalar public lane untouched. A scalar-only projection
-/// check would accept this; the terminal CE closure must reject it by binding
-/// the full active packed column to `Z`.
+/// **Whole-ring X isolation.** Mutate a non-leading coefficient of the first
+/// public ring element. The terminal CE closure must bind all `D`
+/// coefficients, not only coefficient zero.
 #[test]
-fn decider_ce_isolation_rejects_active_x_tail_not_projected_from_z() {
-    let mut fixture = non_trivial_fixture_with_m_in(1);
-    assert_eq!(fixture.claim.m_in, 1, "fixture must expose one scalar public lane");
+fn decider_ce_isolation_rejects_nonleading_x_coefficient_not_projected_from_z() {
+    let mut fixture = non_trivial_fixture_with_m_in(D);
+    assert_eq!(fixture.claim.m_in, D, "fixture must expose one complete public ring");
     assert!(
         fixture.claim.X.rows() > 1 && fixture.claim.X.cols() == 1,
-        "fixture must have active packed-tail X lanes"
+        "fixture must have one complete public coefficient column"
     );
 
     let original = fixture.claim.X[(1, 0)];
@@ -243,14 +251,13 @@ fn decider_ce_isolation_rejects_active_x_tail_not_projected_from_z() {
     assert_ne!(
         fixture.claim.X[(1, 0)],
         original,
-        "mutation must change the active packed tail lane without touching X[0,0]"
+        "mutation must change a non-leading coefficient without touching X[0,0]"
     );
 
     let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
     assert!(
         !builder.is_satisfied(),
-        "CE-relation gadget accepted an active packed X tail lane that does not project from Z; \
-         terminal X projection must bind full active ring columns, not only scalar public lanes"
+        "CE-relation gadget accepted a non-leading public-ring coefficient that does not project from Z"
     );
 }
 
@@ -263,7 +270,7 @@ fn decider_ce_isolation_rejects_active_x_tail_not_projected_from_z() {
 /// unchanged.
 #[test]
 fn decider_ce_isolation_rejects_stale_y_after_packed_witness_tail_mutation() {
-    let mut fixture = non_trivial_fixture_with_load_bearing_final_block(257, 1, Some(1));
+    let mut fixture = non_trivial_fixture_with_load_bearing_final_block(257, D, Some(D));
     let packed_width = fixture.witness.cols() * D;
     assert_eq!(
         packed_width, 270,
@@ -357,8 +364,8 @@ fn decider_ce_isolation_rejects_nonzero_witness_m_in_relabel_below_preprocessing
     let mut fixture = non_trivial_fixture();
     assert_eq!(
         fixture.prep.public_input_len,
-        Some(1),
-        "non-trivial fixture fixes a one-element public input"
+        Some(D),
+        "non-trivial fixture fixes one complete public ring"
     );
     assert!(
         fixture
@@ -398,7 +405,7 @@ fn decider_ce_isolation_rejects_m_in_exceeding_structure_width_when_public_input
     assert_eq!(fixture.claim.m_in, 2 * D, "claim overstates m_in by one scalar lane");
     assert_eq!(
         fixture.witness.cols(),
-        fixture.claim.m_in.div_ceil(D),
+        fixture.claim.m_in / D,
         "overstated m_in still fits the existing packed witness columns"
     );
 
@@ -411,33 +418,28 @@ fn decider_ce_isolation_rejects_m_in_exceeding_structure_width_when_public_input
     );
 }
 
-/// **inactive-X isolation.** Native `project_x_from_witness_mat`
-/// returns a `D × m_in` matrix and leaves packed columns
-/// `ceil(m_in / D)..m_in` as structural zeros. The terminal CE gadget
-/// must enforce those inactive columns locally rather than relying on
-/// upstream callers. Here we keep the active column honest, add one
-/// inactive X column, and make it non-zero. A gadget that checks only
-/// the active prefix accepts this; the fixed gadget rejects.
+/// **Compact-X shape isolation.** SuperNeo stores only the coefficient
+/// embedding. An extra physical column is malformed even when it is zero.
 #[test]
-fn decider_ce_isolation_rejects_inactive_x_not_zero() {
-    let mut fixture = non_trivial_fixture_with_m_in(2);
+fn decider_ce_isolation_rejects_noncanonical_x_width() {
+    let mut fixture = non_trivial_fixture_with_m_in(D);
     let mut x = Mat::zero(D, 2, F::ZERO);
     for row in 0..D {
         x[(row, 0)] = fixture.claim.X[(row, 0)];
     }
-    x[(0, 1)] = F::ONE;
     fixture.claim.X = x;
 
-    let builder = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness).expect("synthesis");
+    let error = enforce_ce_relations_against(&fixture.prep, &fixture.claim, &fixture.witness)
+        .err()
+        .expect("CE-relation synthesis must reject an X matrix wider than the coefficient embedding");
     assert!(
-        !builder.is_satisfied(),
-        "CE-relation gadget accepted a non-zero inactive X column; inactive X columns \
-         must be constrained to zero to match native project_x_from_witness_mat"
+        error.contains("x_cols"),
+        "expected compact-X shape rejection, got: {error}"
     );
 }
 
-/// **Honest baseline, log_n=2.** Builds a non-trivial CCS (n=4,
-/// m=16) from scratch via `r1cs_to_ccs`, synthesises a satisfying
+/// **Honest baseline, log_n=2.** Builds a non-trivial CCS (`n = 4`,
+/// `m = 108`) from scratch via `r1cs_to_ccs`, synthesises a satisfying
 /// `Z`, computes the honest CE claim consistently, and asserts the
 /// in-circuit gadget accepts. This is the only fixture that actually
 /// exercises `enforce_y_ring_from_z_at_r`'s tensor unfold for
@@ -453,7 +455,7 @@ fn decider_ce_isolation_accepts_honest_pair_log_n_2() {
     let builder = &output.builder;
     assert!(
         builder.is_satisfied(),
-        "honest non-trivial (n=4, m=16, log_n=2) CE pair must satisfy the gadget; \
+        "honest non-trivial (n=4, m=108, log_n=2) CE pair must satisfy the gadget; \
          first unsatisfied row: {:?}",
         builder.first_unsatisfied_row()
     );
@@ -788,14 +790,14 @@ fn honest_terminal_pair() -> (
     (prep, claim, witness)
 }
 
-/// Non-trivial CE fixture: 4-row R1CS over m=16 variables.
+/// Non-trivial CE fixture: 4-row R1CS over `m = 2D = 108` variables.
 ///
 /// - **R1CS**: 4 independent multiplication constraints `z[col_c] = z[col_a] * z[col_b]`
 ///   chosen so the assignment stays inside `{-1, 0, 1}` (the typical
 ///   SuperNeo alphabet for `b=2`). This gives a satisfying low-norm Z.
 /// - **Structure**: `r1cs_to_ccs(A, B, C)` → CCS with 3 matrices and
-///   `f(a, b, c) = a * b - c`. `n = 4`, `m = 16`, so `log_n = 2` and
-///   `m / D = 2` blocks per packed witness column.
+///   `f(a, b, c) = a * b - c`. `n = 4`, `m = 108`, so `log_n = 2` and
+///   the packed witness has two complete ring columns.
 /// - **Claim**: built from `(c = Commit(Z), X = L_in(Z), r = random K²,
 ///   y_ring = eval(M · Z, r))` so the gadget accepts.
 ///
@@ -810,11 +812,11 @@ struct NonTrivialFixture {
 }
 
 fn non_trivial_fixture() -> NonTrivialFixture {
-    non_trivial_fixture_with_m_in(1)
+    non_trivial_fixture_with_m_in(D)
 }
 
 fn non_trivial_nebula_fixture() -> NonTrivialFixture {
-    let mut fixture = non_trivial_fixture_with_shape(3 * D, 1, Some(1));
+    let mut fixture = non_trivial_fixture_with_shape(3 * D, D, Some(D));
     let scheme = LaneScheme::from_seeds(
         fixture.prep.params.kappa() as usize,
         LaneRanges {
@@ -949,12 +951,17 @@ fn project_x_from_witness_mat_lenient_for_overclaimed_padding(
     witness: &neo_fold_clean::paper::relations::WitnessMat,
     m_in: usize,
 ) -> Mat<F> {
-    let required_cols = m_in.div_ceil(D);
+    assert_eq!(
+        m_in % D,
+        0,
+        "overclaimed fixture must still contain whole ring elements"
+    );
+    let required_cols = m_in / D;
     assert!(
         required_cols <= witness.cols(),
         "overclaimed-padding fixture must still fit the witness packing"
     );
-    let mut X = Mat::zero(D, m_in, F::ZERO);
+    let mut X = Mat::zero(D, required_cols, F::ZERO);
     for col in 0..required_cols {
         for row in 0..D {
             X[(row, col)] = witness[(row, col)];
@@ -964,7 +971,7 @@ fn project_x_from_witness_mat_lenient_for_overclaimed_padding(
 }
 
 // ── Ajtai setup + mixers (copy of the toy support fixture).
-// Kept local so the non-trivial fixture's m=16 setup can register a
+// Kept local so the non-trivial fixture's two-column setup can register a
 // separate (D, cols=2) Ajtai global PP without colliding with the
 // toy support's (D, cols=1).
 

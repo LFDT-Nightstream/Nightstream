@@ -36,7 +36,7 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::output_message::{encode_pi_ccs_outputs_preimage, PiCcsOutputMessageDigestInputs, PiCcsOutputsPreimage};
 use super::{alloc_constant_var, extend_f_slice_wires, extend_packed_bytes_as_fields_wires, stage, Error};
-use crate::engine::r1cs_circuit::builder::{Lc, Var};
+use crate::engine::r1cs_circuit::builder::Var;
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::poseidon2::enforce_poseidon2_hash;
 use crate::engine::r1cs_circuit::R1csBuilder;
@@ -144,19 +144,12 @@ pub fn enforce_accumulator_ce_claim_digest(
         )));
     }
     let active_x_cols = crate::paper::relations::superneo_public_x_cols(input.m_in);
-    if active_x_cols > input.x_cols {
+    if input.x_cols != active_x_cols {
         return Err(Error::Shape(format!(
-            "enforce_accumulator_ce_claim_digest: active_x_cols ({active_x_cols}) > x_cols ({})",
+            "enforce_accumulator_ce_claim_digest: x_cols ({}) must equal compact coefficient width ({active_x_cols})",
             input.x_cols
         )));
     }
-    enforce_unique_inactive_x_zero(
-        builder,
-        input.x_flat_row_major,
-        input.x_rows,
-        input.x_cols,
-        active_x_cols,
-    );
 
     let mut preimage = Vec::new();
     extend_packed_bytes_as_fields_wires(builder, &mut preimage, ACCUMULATOR_CE_CLAIM_DIGEST_DOMAIN);
@@ -169,7 +162,7 @@ pub fn enforce_accumulator_ce_claim_digest(
     preimage.push(alloc_constant_var(builder, F::from_u64(input.x_cols as u64)));
     preimage.push(alloc_constant_var(builder, F::from_u64(active_x_cols as u64)));
     for r in 0..input.x_rows {
-        for c in 0..active_x_cols {
+        for c in 0..input.x_cols {
             preimage.push(input.x_flat_row_major[r * input.x_cols + c]);
         }
     }
@@ -212,6 +205,24 @@ pub fn enforce_strict_binary_accumulator_family_digest(
     builder: &mut R1csBuilder,
     parent: &AccumulatorCeClaimDigestInputs<'_>,
     children: &[AccumulatorCeClaimDigestInputs<'_>],
+) -> Result<[Var; 4], Error> {
+    enforce_strict_binary_accumulator_family_digest_inner(builder, parent, children, None)
+}
+
+pub(crate) fn enforce_strict_binary_accumulator_family_digest_with_aggregate_stage(
+    builder: &mut R1csBuilder,
+    parent: &AccumulatorCeClaimDigestInputs<'_>,
+    children: &[AccumulatorCeClaimDigestInputs<'_>],
+    aggregate_stage: &'static str,
+) -> Result<[Var; 4], Error> {
+    enforce_strict_binary_accumulator_family_digest_inner(builder, parent, children, Some(aggregate_stage))
+}
+
+fn enforce_strict_binary_accumulator_family_digest_inner(
+    builder: &mut R1csBuilder,
+    parent: &AccumulatorCeClaimDigestInputs<'_>,
+    children: &[AccumulatorCeClaimDigestInputs<'_>],
+    aggregate_stage: Option<&'static str>,
 ) -> Result<[Var; 4], Error> {
     let first = children
         .first()
@@ -270,6 +281,9 @@ pub fn enforce_strict_binary_accumulator_family_digest(
                 .digest
         })
         .collect::<Vec<_>>();
+    if let Some(aggregate_stage) = aggregate_stage {
+        builder.begin_encoding_stage(aggregate_stage);
+    }
     let mut aggregate = Vec::new();
     extend_packed_bytes_as_fields_wires(builder, &mut aggregate, ACCUMULATOR_FAMILY_AGGREGATE_TAG);
     aggregate.push(alloc_constant_var(builder, F::from_u64(preimage.len() as u64)));
@@ -286,9 +300,14 @@ fn validate_family_member_shape(
     first: &AccumulatorCeClaimDigestInputs<'_>,
 ) -> Result<(), Error> {
     let active_x_cols = crate::paper::relations::superneo_public_x_cols(first.m_in);
-    let same_shape = member.c_d == first.c_d
+    let same_shape = first.m_in % neo_math::D == 0
+        && first.c_d == neo_math::D
+        && first.c_kappa > 0
+        && first.c_data.len() == first.c_d * first.c_kappa
+        && member.c_d == first.c_d
         && member.c_kappa == first.c_kappa
         && member.c_data.len() == first.c_data.len()
+        && member.c_data.len() == member.c_d * member.c_kappa
         && member.x_rows == first.x_rows
         && member.x_cols == first.x_cols
         && member.x_flat_row_major.len() == member.x_rows * member.x_cols
@@ -300,7 +319,7 @@ fn validate_family_member_shape(
             .y_ring
             .iter()
             .zip(first.y_ring.iter())
-            .all(|(row, first_row)| row.len() == first_row.len() && row.len() >= neo_math::D)
+            .all(|(row, first_row)| row.len() == first_row.len() && row.len() == neo_math::D.next_power_of_two())
         && member.ct.len() == member.y_ring.len()
         && member.m_in == first.m_in
         && member.adv.is_some() == first.adv.is_some()
@@ -347,18 +366,6 @@ pub fn enforce_pi_ccs_outputs_digest(
         preimage,
         sis_layout: sis.layout,
     })
-}
-
-fn enforce_unique_inactive_x_zero(builder: &mut R1csBuilder, x: &[Var], rows: usize, cols: usize, active_cols: usize) {
-    let mut constrained = std::collections::HashSet::new();
-    for r in 0..rows {
-        for c in active_cols..cols {
-            let wire = x[r * cols + c];
-            if constrained.insert(wire.col()) {
-                builder.enforce_eq(&Lc::from_var(wire), &Lc::zero());
-            }
-        }
-    }
 }
 
 // The fields deliberately absent above are all pinned before this digest is

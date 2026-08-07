@@ -230,10 +230,17 @@ pub(crate) fn enforce_x_projection(
             got: witness.rows,
         });
     }
-    let required_cols = claim.m_in.div_ceil(D);
+    if claim.m_in % D != 0 {
+        return Err(XProjectionError {
+            what: "claim.m_in remainder modulo D",
+            expected: 0,
+            got: claim.m_in % D,
+        });
+    }
+    let required_cols = claim.m_in / D;
     if claim.x_cols != required_cols {
         return Err(XProjectionError {
-            what: "claim.x_cols == ceil(m_in / D)",
+            what: "claim.x_cols == m_in / D",
             expected: required_cols,
             got: claim.x_cols,
         });

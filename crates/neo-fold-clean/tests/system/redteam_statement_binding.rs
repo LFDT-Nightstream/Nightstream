@@ -492,7 +492,7 @@ fn terminal_ce_public_rejects_noncanonical_fold_digest_alias() {
         r: vec![K::ZERO; ell],
         y_ring: vec![vec![K::ZERO; d_pad]; evaluation_count],
         ct: vec![K::ZERO; evaluation_count],
-        m_in: 1,
+        m_in: D,
         fold_digest: [0u8; 32],
     };
     let canonical_public =

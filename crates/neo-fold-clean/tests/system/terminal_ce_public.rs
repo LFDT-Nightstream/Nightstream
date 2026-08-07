@@ -13,7 +13,7 @@ use neo_fold_clean::paper::digest::{terminal_ce_public_digest, terminal_ce_relat
 use neo_fold_clean::paper::terminal_ce::{
     TerminalCeProof, TerminalCePublic, TerminalCePublicError, TerminalCeVerifyError,
 };
-use neo_fold_clean::{config, preprocess, CeClaim, Params, Preprocessing};
+use neo_fold_clean::{CeClaim, Params};
 use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
@@ -46,19 +46,8 @@ fn changed_terminal_ce_polynomial_fixture() -> neo_fold_clean::Structure {
     .expect("changed terminal CE polynomial fixture")
 }
 
-fn two_col_terminal_ce_preprocessing() -> Preprocessing {
-    let mut m0 = Mat::zero(1, 2, F::ZERO);
-    m0[(0, 0)] = F::ONE;
-    let structure =
-        CcsStructure::new(vec![m0], SparsePoly::new(1, vec![])).expect("two-column terminal CE structure fixture");
-    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
-        .expect("two-column terminal CE params");
-    support::install_ajtai_module(&params, &structure);
-    preprocess(params, structure, Some(1)).expect("two-column terminal CE preprocessing")
-}
-
 fn terminal_child_fixture() -> CeClaim {
-    let mut X = Mat::zero(D, D, F::ZERO);
+    let mut X = Mat::zero(D, 1, F::ZERO);
     for row in 0..D {
         X[(row, 0)] = f(100 + row as u64);
     }
@@ -349,7 +338,11 @@ fn terminal_ce_public_rejects_locally_malformed_ce_shapes() {
 
     let mut bad_m_in = supported_terminal_child_fixture();
     bad_m_in.m_in = structure.m + 1;
-    bad_m_in.X = Mat::zero(D, bad_m_in.m_in, F::ZERO);
+    bad_m_in.X = Mat::zero(
+        D,
+        neo_fold_clean::paper::relations::superneo_public_x_cols(bad_m_in.m_in),
+        F::ZERO,
+    );
     bad_m_in.X[(0, 0)] = F::ONE;
     assert_eq!(
         TerminalCePublic::from_terminal_children(params, structure, &[bad_m_in]).unwrap_err(),
@@ -357,6 +350,17 @@ fn terminal_ce_public_rejects_locally_malformed_ce_shapes() {
             index: 0,
             expected: structure.m,
             got: structure.m + 1,
+        }
+    );
+
+    let mut partial_ring = supported_terminal_child_fixture();
+    partial_ring.m_in = 1;
+    assert_eq!(
+        TerminalCePublic::from_terminal_children(params, structure, &[partial_ring]).unwrap_err(),
+        TerminalCePublicError::MInNotWholeRing {
+            index: 0,
+            got: 1,
+            degree: D,
         }
     );
 
@@ -434,15 +438,15 @@ fn terminal_ce_public_rejects_malformed_active_x_shape() {
     );
 
     let mut bad_cols = supported_terminal_child_fixture();
-    bad_cols.m_in = D + 1;
+    bad_cols.X = Mat::zero(D, 2, F::ZERO);
     let err = TerminalCePublic::from_terminal_children(params, structure, &[bad_cols])
-        .expect_err("terminal CE public statement must reject X.cols that drift from m_in");
+        .expect_err("terminal CE public statement must reject noncanonical compact X width");
     assert_eq!(
         err,
         TerminalCePublicError::XCols {
             index: 0,
-            expected: D + 1,
-            got: D
+            expected: 1,
+            got: 2
         }
     );
 }
@@ -480,8 +484,17 @@ fn terminal_ce_public_circuit_rejects_locally_malformed_ce_shapes() {
         ("m_in", {
             let mut claim = supported_terminal_child_fixture();
             claim.m_in = prep.structure().m + 1;
-            claim.X = Mat::zero(D, claim.m_in, F::ZERO);
+            claim.X = Mat::zero(
+                D,
+                neo_fold_clean::paper::relations::superneo_public_x_cols(claim.m_in),
+                F::ZERO,
+            );
             claim.X[(0, 0)] = F::ONE;
+            claim
+        }),
+        ("whole number", {
+            let mut claim = supported_terminal_child_fixture();
+            claim.m_in = 1;
             claim
         }),
         ("r length", {
@@ -532,59 +545,29 @@ fn terminal_ce_public_circuit_rejects_denormalized_ct_and_y_ring_padding() {
 }
 
 #[test]
-fn terminal_ce_public_rejects_x_cols_not_matching_m_in() {
+fn terminal_ce_public_rejects_x_cols_not_matching_compact_width() {
     let prep = support::toy_preprocessing();
     let params = &prep.params;
     let structure = prep.structure();
     let mut child = supported_terminal_child_fixture();
-    child.X = Mat::zero(D, child.m_in + 1, F::ZERO);
+    let expected_x_cols = neo_fold_clean::paper::relations::superneo_public_x_cols(child.m_in);
+    child.X = Mat::zero(D, expected_x_cols + 1, F::ZERO);
 
     let err = TerminalCePublic::from_terminal_children(params, structure, &[child.clone()])
-        .expect_err("terminal CE public statement must use the reference X.cols == m_in shape");
+        .expect_err("terminal CE public statement must use the compact coefficient width");
     assert_eq!(
         err,
         TerminalCePublicError::XCols {
             index: 0,
-            expected: child.m_in,
-            got: child.m_in + 1,
+            expected: expected_x_cols,
+            got: expected_x_cols + 1,
         }
     );
 
     let err = enforce_terminal_ce_public_from_children_against(&prep, &[child])
         .err()
-        .expect("circuit public constructor must reject X.cols != m_in before digesting");
+        .expect("circuit public constructor must reject noncompact X before digesting");
     assert!(err.contains("X.cols"), "expected X.cols shape error, got: {err}");
-}
-
-#[test]
-fn terminal_ce_public_rejects_inactive_x_columns_not_zero() {
-    let prep = two_col_terminal_ce_preprocessing();
-    let params = &prep.params;
-    let structure = prep.structure();
-    let mut child = supported_terminal_child_fixture();
-    child.m_in = 2;
-    let active = child.X[(0, 0)];
-    child.X = Mat::zero(D, 2, F::ZERO);
-    child.X[(0, 0)] = active;
-    child.X[(0, 1)] = F::ONE;
-
-    let err = TerminalCePublic::from_terminal_children(params, structure, &[child.clone()])
-        .expect_err("native public statement must reject unabsorbed inactive X data");
-    assert_eq!(
-        err,
-        TerminalCePublicError::InactiveXNonZero {
-            index: 0,
-            row: 0,
-            col: 1,
-        }
-    );
-
-    let circuit = enforce_terminal_ce_public_from_children_against(&prep, &[child])
-        .expect("circuit public constructor should emit inactive-X zero rows");
-    assert!(
-        !circuit.builder.is_satisfied(),
-        "circuit public constructor must reject unabsorbed inactive X data"
-    );
 }
 
 #[test]

@@ -2,8 +2,6 @@ mod common;
 
 use common::audit::{prove, verify, AuditProveError};
 use neo_fold_clean::frontends::r1cs_f_prime;
-use neo_fold_clean::paper::params::Params;
-use neo_params::{goldilocks_paper_b2, NeoParams};
 use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched};
 use neo_wasm::{WasmVmSpec, WasmVmStep};
 
@@ -1055,31 +1053,13 @@ fn wasm_trace_run_folding_proof() {
         ),
         "verify must reject a claimed final state without the captured output"
     );
-}
-
-#[test]
-fn wasm_verify_rejects_preprocessing_with_wrong_widths() {
-    let (wasm, trace, ..) = compile_and_trace(
-        r#"(module (func (export "main") (result i32)
-             i32.const 7
-             i32.const 9
-             i32.add))"#,
-    );
-    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let digest = common::verifier_initial_state_digest(&artifacts);
-    let prep = preprocess_seeded_batched(1, digest).expect("prep");
-    let proof = prove(&prep, &trace).expect("prove with canonical prep");
 
     let mut canonical = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(1, digest).expect("shape");
     canonical.plan.app_private_var_widths = vec![64; canonical.plan.app_private_var_widths.len()];
     canonical.plan.limbs = canonical.plan.app_private_var_widths.iter().sum::<usize>() + 1;
-    let verifier_prep = r1cs_f_prime::preprocess_sparse_seeded_with_params(
-        &canonical.sparse_r1cs,
-        &canonical.plan,
-        Params::test_only_from_neo_params(wasm_tiny_params()),
-        0xa55ec_a11ed_15ea,
-    )
-    .expect("wrong-width prep");
+    let verifier_prep =
+        r1cs_f_prime::preprocess_sparse_seeded(&canonical.sparse_r1cs, &canonical.plan, 0xa55ec_a11ed_15ea)
+            .expect("wrong-width prep");
 
     let err = match verify(&verifier_prep, &proof, common::final_state(&trace)) {
         Ok(_) => panic!("verify must reject a wasm preprocessing with non-canonical widths"),
@@ -1090,20 +1070,4 @@ fn wasm_verify_rejects_preprocessing_with_wrong_widths() {
             .contains("preprocessing widths do not match"),
         "unexpected error: {err}"
     );
-}
-
-fn wasm_tiny_params() -> NeoParams {
-    NeoParams::new(
-        goldilocks_paper_b2::Q,
-        goldilocks_paper_b2::ETA as u32,
-        goldilocks_paper_b2::D as u32,
-        /* kappa  */ 2,
-        /* m      */ 1u64 << 15,
-        goldilocks_paper_b2::B_BASE,
-        goldilocks_paper_b2::K_RHO,
-        goldilocks_paper_b2::T,
-        goldilocks_paper_b2::EXTENSION_DEGREE,
-        /* lambda */ 40,
-    )
-    .expect("wasm tiny NeoParams must satisfy the Pi_RLC guard")
 }

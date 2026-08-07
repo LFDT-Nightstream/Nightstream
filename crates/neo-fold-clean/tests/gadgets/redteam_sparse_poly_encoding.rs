@@ -10,7 +10,7 @@ use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::reductions::pi_ccs;
 use neo_fold_clean::{config, preprocess, CcsInstance};
-use neo_math::F;
+use neo_math::{D, F};
 use neo_params::{goldilocks_paper_b2 as b2, NeoParams};
 use p3_field::PrimeCharacteristicRing;
 
@@ -158,7 +158,7 @@ fn preprocessing_rejects_malformed_csc_storage_without_panicking() {
         .expect("shape-specific params");
     support::install_ajtai_module(&params, &structure);
 
-    let preprocess_result = catch_unwind(AssertUnwindSafe(|| preprocess(params, structure, Some(1))));
+    let preprocess_result = catch_unwind(AssertUnwindSafe(|| preprocess(params, structure, Some(0))));
 
     assert!(
         preprocess_result.is_ok(),
@@ -190,7 +190,7 @@ fn preprocessing_rejects_structure_whose_declared_shape_exceeds_matrix_shape() {
 
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("shape-specific params");
-    let result = preprocess(params, structure, Some(2));
+    let result = preprocess(params, structure, Some(0));
 
     assert!(
         result.is_err(),
@@ -201,8 +201,12 @@ fn preprocessing_rejects_structure_whose_declared_shape_exceeds_matrix_shape() {
 /// The selected zero-row padding specialization requires `f(0)=0`.
 #[test]
 fn pi_ccs_rejects_zero_row_padding_when_f_zero_is_nonzero() {
+    let mut identity_prefix = Mat::zero(3, D, F::ZERO);
+    for row in 0..3 {
+        identity_prefix[(row, row)] = F::ONE;
+    }
     let structure = CcsStructure::new(
-        vec![Mat::identity(3)],
+        vec![identity_prefix],
         SparsePoly::new(
             1,
             vec![
@@ -218,15 +222,16 @@ fn pi_ccs_rejects_zero_row_padding_when_f_zero_is_nonzero() {
         ),
     )
     .expect("three-row CCS");
-    check_ccs_rowwise_zero(&structure, &[F::ONE, F::ONE, F::ONE], &[])
+    let mut assignment = vec![F::ZERO; D];
+    assignment[..3].fill(F::ONE);
+    check_ccs_rowwise_zero(&structure, &assignment, &[])
         .expect("the public CCS relation checker accepts every real row");
     let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("shape-specific params");
     support::install_ajtai_module(&params, &structure);
-    let prep = preprocess(params, structure, Some(3)).expect("preprocessing");
-    let fresh =
-        CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &[F::ONE, F::ONE, F::ONE], 3)
-            .expect("valid assignment on all three real rows");
+    let prep = preprocess(params, structure, Some(D)).expect("preprocessing");
+    let fresh = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &assignment, D)
+        .expect("valid assignment on all three real rows");
     let mut prover_transcript = Transcript::session();
     let result = pi_ccs::prove(
         &mut prover_transcript,

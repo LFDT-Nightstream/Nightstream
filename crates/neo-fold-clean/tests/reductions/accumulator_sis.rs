@@ -87,8 +87,8 @@ fn accumulator_ce_golden_claim() -> TestCeClaim {
             .map(|index| F::from_u64(index as u64 + 1))
             .collect(),
     };
-    let m_in = 4;
-    let mut x = Mat::zero(D, m_in, F::ZERO);
+    let m_in = D;
+    let mut x = Mat::zero(D, 1, F::ZERO);
     for row in 0..D {
         x.set(row, 0, F::from_u64(1_000 + row as u64));
     }
@@ -152,8 +152,9 @@ fn reference_accumulator_ce_claim_v3_preimage(claim: &TestCeClaim) -> Vec<F> {
     ]);
     fields.extend_from_slice(&claim.c.data);
 
-    let active_x_cols = claim.m_in.div_ceil(D);
-    assert!(active_x_cols <= claim.X.cols());
+    assert_eq!(claim.m_in % D, 0);
+    let active_x_cols = claim.m_in / D;
+    assert_eq!(active_x_cols, claim.X.cols());
     fields.extend([
         F::from_u64(claim.X.rows() as u64),
         F::from_u64(claim.X.cols() as u64),
@@ -439,10 +440,10 @@ fn accumulator_ce_claim_digest_v3_golden_pins_validated_core_serialization() {
     assert_eq!(
         production.map(|lane| lane.as_canonical_u64()),
         [
-            3_804_304_127_796_207_193,
-            8_329_948_621_553_678_770,
-            5_529_618_066_491_846_472,
-            5_145_244_565_432_441_439,
+            3_283_612_841_881_098_215,
+            16_883_277_564_599_068_139,
+            3_789_798_726_854_940_133,
+            719_699_190_080_965_509,
         ],
         "deterministic v3 accumulator CE digest golden vector"
     );

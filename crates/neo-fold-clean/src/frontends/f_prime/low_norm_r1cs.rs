@@ -25,7 +25,7 @@ use std::collections::BTreeMap;
 
 use neo_ajtai::AjtaiSModule;
 use neo_ccs::CcsStructure;
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use thiserror::Error;
 
@@ -37,6 +37,16 @@ use crate::paper::relations::{CcsInstance, RelationError};
 const FIELD_BITS: usize = 64;
 const HIGH_BITS_START: usize = 32;
 const CANONICAL_PREFIX_AUX: usize = 31;
+
+fn canonical_superneo_public_input_len(public_bits: usize) -> Result<usize, LowNormR1csError> {
+    let logical_len = 1usize
+        .checked_add(public_bits)
+        .ok_or(LowNormR1csError::PublicInputLengthOverflow)?;
+    logical_len
+        .div_ceil(D)
+        .checked_mul(D)
+        .ok_or(LowNormR1csError::PublicInputLengthOverflow)
+}
 
 /// Encoding policy for private source-R1CS wires.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -259,6 +269,8 @@ pub enum LowNormR1csError {
     PublicColumnNotBoolean { column: usize },
     #[error("selector-gated R1CS branches expose different public bit counts ({base} versus {recursive})")]
     BranchPublicInputLength { base: usize, recursive: usize },
+    #[error("whole-ring public-input length overflows usize")]
+    PublicInputLengthOverflow,
     #[error("source Boolean column {column} has non-Boolean witness value")]
     BooleanWitness { column: usize },
     #[error("encoded assignment length {got} does not match plan length {expected}")]
@@ -325,7 +337,8 @@ pub fn estimate_r1cs_encoding(
     };
     let mut one_bit_source_cols = public_bit_columns.len();
     let mut canonical_field_source_cols = 0usize;
-    let mut encoded_cols = 1usize + public_bit_columns.len();
+    let public_input_len = canonical_superneo_public_input_len(public_bit_columns.len())?;
+    let mut encoded_cols = public_input_len;
     for column in 1..source.cols() {
         if is_public[column] || linearly_derived[column] {
             continue;
@@ -344,7 +357,7 @@ pub fn estimate_r1cs_encoding(
     Ok(LowNormR1csEstimate {
         source_rows: source.rows(),
         source_cols: source.cols(),
-        public_input_len: 1 + public_bit_columns.len(),
+        public_input_len,
         encoded_cols,
         encoded_rows,
         one_bit_source_cols,
@@ -382,7 +395,7 @@ pub fn estimate_selector_gated_r1cs_encoding(
         base_estimate.canonical_field_source_cols + recursive_estimate.canonical_field_source_cols;
     let private_encoded_cols = (base_estimate.encoded_cols - base_estimate.public_input_len)
         + (recursive_estimate.encoded_cols - recursive_estimate.public_input_len);
-    let public_input_len = 1 + public_bits;
+    let public_input_len = canonical_superneo_public_input_len(public_bits)?;
     let encoded_cols = public_input_len + 1 + private_encoded_cols;
     let inactive_zero_rows = base_private_one_bit + recursive_private_one_bit + canonical_field_source_cols;
     let branch_rows = base
@@ -453,7 +466,8 @@ fn encode_r1cs(
             canonical_aux_start: None,
         });
     }
-    let public_input_len = assignment.len();
+    let public_input_len = canonical_superneo_public_input_len(public_bit_columns.len())?;
+    assignment.resize(public_input_len, F::ZERO);
 
     // `enc`: all remaining source variables are private.
     for column in 1..source.cols() {

@@ -5,8 +5,15 @@
 mod common;
 
 use common::audit::{prove_batched, verify};
+use neo_fold_clean::frontends::f_prime::NifsPayloadShape;
 use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csCompilerError};
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+use neo_fold_clean::FinalWitnessOpeningBackend;
 use neo_math::F;
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+use neo_math::{D, K};
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+use neo_prover_metal::MetalNifsProver;
 use neo_wasm::batch::{batch_count, build_batched_wasm_ccs, build_batched_witness};
 use neo_wasm::layout::{COL_LOCALS_FBP_AFTER, COL_PC_BEFORE, COL_SP_BEFORE};
 use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched};
@@ -108,6 +115,20 @@ fn canonical_plan_semantically_binds_the_public_constant() {
     assert_eq!(state.app_public_input_var_indices, vec![0]);
     assert!(state.semantic_state_in_var_indices.contains(&0));
     assert!(state.semantic_state_out_var_indices.contains(&0));
+}
+
+#[test]
+fn canonical_plan_carries_every_identity_first_superneo_image() {
+    let canonical = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(1, [0; 32]).expect("shape");
+    let NifsPayloadShape::CeClaim(shape) = &canonical.plan.nifs_payload_shapes[0] else {
+        panic!("canonical accumulator payload must be a CE claim");
+    };
+
+    assert_eq!(
+        shape.y_ring_inner_lens.len(),
+        canonical.structure.ccs.t() + 1,
+        "the recursive image must carry the identity image and every application-matrix image"
+    );
 }
 
 #[test]
@@ -242,14 +263,63 @@ fn semantic_state_rejects_wrong_initial_state_digest() {
 }
 
 #[test]
-#[ignore = "folding proof; gated by the 5-min test cap"]
 fn batched_prove_verify_simple_add() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    // Cover both dividing (2, 4) and padding-required (3) sizes.
-    for batch_size in [2usize, 3, 4] {
-        let digest = common::verifier_initial_state_digest(&checked.artifacts);
-        let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-        let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-        verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
+    // The CCS tests above cover several dividing sizes. Keep one complete
+    // proof here for the padding-required batch path.
+    let batch_size = 3;
+    let digest = common::verifier_initial_state_digest(&checked.artifacts);
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
+    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
+    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
+}
+
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+#[test]
+fn metal_openings_match_the_canonical_bare_wasm_relation() {
+    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
+    let batch_size = 3;
+    let digest = common::verifier_initial_state_digest(&checked.artifacts);
+    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
+    let mut chain = R1csChainBuilder::new(&prep).expect("chain");
+    let compiled = chain
+        .append_assignment(build_batched_witness(&checked.trace, batch_size, 0))
+        .expect("base step");
+    let fresh = compiled
+        .encoded
+        .to_public_ccs_instance(&prep.prep.params, &prep.prep.log)
+        .expect("base instance");
+    let structure = prep.prep.structure();
+    let variables = structure
+        .n
+        .max(neo_reductions::common::superneo_carrier_width(structure.m))
+        .next_power_of_two()
+        .trailing_zeros() as usize;
+    let point = (0..variables)
+        .map(|index| K::from(F::from_u64(index as u64 + 2)))
+        .collect::<Vec<_>>();
+    let expected = neo_reductions::common::compute_y_from_Z_and_r(
+        structure,
+        &fresh.witness.Z,
+        &point,
+        D.next_power_of_two().trailing_zeros() as usize,
+        prep.prep.params.b(),
+    )
+    .0;
+    let mut metal = MetalNifsProver::new().expect("Metal adapter");
+    let actual = metal
+        .final_witness_openings(
+            prep.prep.optimized_cache(),
+            std::slice::from_ref(&fresh.witness.Z),
+            &point,
+            structure.m,
+        )
+        .expect("Metal openings")
+        .expect("supported Metal openings");
+
+    assert_eq!(actual.len(), 1);
+    assert_eq!(actual[0].len(), expected.len());
+    for (matrix, (expected, actual)) in expected.iter().zip(&actual[0]).enumerate() {
+        assert_eq!(&expected[..D], actual, "bare WASM opening matrix {matrix}");
     }
 }

@@ -42,7 +42,7 @@ impl R1csIvcPreprocessing {
     pub fn new(params: Params, app: impl Into<R1csShape>, plan: RecursiveStepImagePlan) -> Result<Self, R1csIvcError> {
         let app = app.into();
         let relation = R1csIvcRelation::compile_fixed_point(&params, &app, &plan)?;
-        Self::from_relation(params, app, plan, relation)
+        Self::from_relation(params, app, plan, relation, None)
     }
 
     #[doc(hidden)]
@@ -54,8 +54,8 @@ impl R1csIvcPreprocessing {
     ) -> Result<Self, R1csIvcError> {
         let app = app.into();
         let relation = R1csIvcRelation::compile_fixed_point(&params, &app, &plan)?;
-        let _ = ajtai::setup_seeded(&params, relation.structure(), seed);
-        Self::from_relation(params, app, plan, relation)
+        let log = ajtai::setup_seeded(&params, relation.structure(), seed);
+        Self::from_relation(params, app, plan, relation, Some(log))
     }
 
     fn from_relation(
@@ -63,13 +63,20 @@ impl R1csIvcPreprocessing {
         app: R1csShape,
         plan: RecursiveStepImagePlan,
         mut relation: R1csIvcRelation,
+        test_log: Option<neo_ajtai::AjtaiSModule>,
     ) -> Result<Self, R1csIvcError> {
         let mode = super::super::semantic_state_mode_for_plan(&plan);
         let initial = super::super::initial_semantic_state_digest_for_plan(&plan);
-        let prep = lifecycle::preprocess(params, relation.structure().clone(), Some(relation.public_input_len()))?
-            .with_terminal_induction()
-            .with_semantic_state_mode(mode)
-            .with_initial_semantic_state_digest(initial)?;
+        let public_input_len = Some(relation.public_input_len());
+        let prep = match test_log {
+            Some(log) => {
+                lifecycle::preprocess_with_test_log(params, relation.structure().clone(), log, public_input_len)
+            }
+            None => lifecycle::preprocess(params, relation.structure().clone(), public_input_len),
+        }?
+        .with_terminal_induction()
+        .with_semantic_state_mode(mode)
+        .with_initial_semantic_state_digest(initial)?;
         relation.bind_preprocessing(&prep)?;
         Ok(Self {
             prep,

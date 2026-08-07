@@ -234,7 +234,7 @@ fn multi_turn_proof_binds_both_turns_inputs() {
         "verifier initial state must match the trace's first before-state"
     );
 
-    let batch_size = 8;
+    let batch_size = 16;
     let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &setup.trace, batch_size).expect("prove");
     let final_state = common::final_state(&setup.trace);

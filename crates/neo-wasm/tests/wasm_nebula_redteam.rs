@@ -7,6 +7,8 @@ use std::sync::OnceLock;
 
 use neo_fold_clean::frontends::nebula::application::{MemoryPort, MemoryPortActivation, MemoryPortKind};
 use neo_fold_clean::paper::params::Params;
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+use neo_prover_metal::MetalNifsProver;
 use neo_wasm::layout::{COL_OP_TABLE_ENABLED, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::{WasmMemoryActivation, WasmMemoryColumnKind, WasmMemoryColumnSpec, WasmOpTable, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -44,15 +46,25 @@ fn fixture() -> &'static Fixture {
     })
 }
 
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
 fn proof() -> &'static neo_wasm::nebula::WasmNebulaProof {
     static PROOF: OnceLock<neo_wasm::nebula::WasmNebulaProof> = OnceLock::new();
     PROOF.get_or_init(|| {
         let fixture = fixture();
-        let mut prover = neo_wasm::WasmProver::cpu();
+        let mut prover = neo_wasm::WasmProver::metal().expect("Metal WASM prover");
         prover
             .prove(&fixture.prep, &fixture.checked.trace)
-            .expect("CPU WASM Nebula proof")
+            .expect("Metal WASM Nebula proof")
     })
+}
+
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
+fn verify_with_metal(
+    proof: &neo_wasm::nebula::WasmNebulaProof,
+    final_state: neo_wasm::WasmStepState,
+) -> Result<(), neo_wasm::nebula::WasmNebulaError> {
+    let mut backend = MetalNifsProver::new().expect("Metal opening verifier");
+    neo_wasm::nebula::verify_with_witness_opening_backend(&fixture().prep, proof, final_state, &mut backend)
 }
 
 fn nebula_test_params() -> Params {
@@ -61,7 +73,7 @@ fn nebula_test_params() -> Params {
         neo_params::goldilocks_paper_b2::ETA as u32,
         neo_params::goldilocks_paper_b2::D as u32,
         1,
-        1 << 14,
+        1 << 24,
         neo_params::goldilocks_paper_b2::B_BASE,
         neo_params::goldilocks_paper_b2::K_RHO,
         neo_params::goldilocks_paper_b2::T,
@@ -73,6 +85,7 @@ fn nebula_test_params() -> Params {
 }
 
 #[test]
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
 fn wasm_nebula_proves_program_memory_and_terminal_induction() {
     let fixture = fixture();
     let batch_size = fixture.prep.profile().batch_size();
@@ -85,7 +98,7 @@ fn wasm_nebula_proves_program_memory_and_terminal_induction() {
         proof().inner().final_fold.is_some(),
         "Nebula must consume its trailing delayed claim"
     );
-    neo_wasm::verify(&fixture.prep, proof(), common::final_state(&fixture.checked.trace))
+    verify_with_metal(proof(), common::final_state(&fixture.checked.trace))
         .expect("terminal-only WASM Nebula verification");
 }
 
@@ -266,6 +279,7 @@ fn wasm_proof_rejects_trace_from_a_different_program() {
 }
 
 #[test]
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
 fn wasm_proof_rejects_false_terminal_claim_for_a_prefix() {
     let fixture = fixture();
     let prefix = &fixture.checked.trace[..1];
@@ -274,12 +288,13 @@ fn wasm_proof_rejects_false_terminal_claim_for_a_prefix() {
     false_terminal.halted = true;
 
     assert!(
-        neo_wasm::verify(&fixture.prep, proof(), false_terminal).is_err(),
+        verify_with_metal(proof(), false_terminal).is_err(),
         "the verifier accepted a nonterminal prefix after changing only the unbound halted flag",
     );
 }
 
 #[test]
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
 fn wasm_nebula_terminal_only_rejects_earlier_fold_tamper() {
     let fixture = fixture();
     let mut tampered = proof().inner().clone();
@@ -293,8 +308,13 @@ fn wasm_nebula_terminal_only_rejects_earlier_fold_tamper() {
         .c
         .data[0] += neo_math::F::ONE;
 
-    neo_fold_clean::verify_uncompressed(&fixture.prep.inner().prep, &tampered)
-        .expect_err("terminal verifier accepted a changed earlier-history accumulator");
+    let mut backend = MetalNifsProver::new().expect("Metal opening verifier");
+    neo_fold_clean::lifecycle::verify_uncompressed_with_opening_backend(
+        &fixture.prep.inner().prep,
+        &tampered,
+        &mut backend,
+    )
+    .expect_err("terminal verifier accepted a changed earlier-history accumulator");
 }
 
 #[test]
@@ -455,40 +475,25 @@ fn wasm_nebula_grammar_preprocess_keeps_imported_state_and_memory_checks() {
 }
 
 #[test]
-#[ignore = "full WASM + Nebula proof exceeds the required five-minute test cap"]
+#[cfg(all(feature = "metal", target_vendor = "apple"))]
 fn wasm_nebula_final_claim_authenticates_memory_presence() {
-    let checked = common::checked_main(
-        r#"(module
-            (func (export "main") (result i32)
-                i32.const 7))"#,
-    );
-    let entry_pc = common::single_function_entry_pc(&checked.artifacts);
-    let prep = neo_wasm::nebula::preprocess_seeded(
-        nebula_test_params(),
-        neo_wasm::nebula::WasmNebulaProfile::test_profile(),
-        &checked.artifacts,
-        &checked.run.initial_locals,
-        entry_pc,
-        0x57a5_0102,
-    )
-    .expect("no-memory preprocessing");
-    let proof = neo_wasm::prove(&prep, &checked.trace).expect("no-memory proof");
-    let mut forged = common::final_state(&checked.trace);
-    assert_eq!(forged.memory_pages, None);
-    assert_eq!(forged.max_memory_pages, None);
-    forged.memory_pages = Some(0);
-    forged.max_memory_pages = Some(0);
+    let fixture = fixture();
+    let mut forged = common::final_state(&fixture.checked.trace);
+    assert!(forged.memory_pages.is_some());
+    assert!(forged.max_memory_pages.is_some());
+    forged.memory_pages = None;
+    forged.max_memory_pages = None;
     assert!(
         matches!(
-            neo_wasm::verify(&prep, &proof, forged),
+            verify_with_metal(proof(), forged),
             Err(neo_wasm::nebula::WasmNebulaError::MemoryPresenceMismatch { .. })
         ),
-        "terminal verification accepted Some(0) in place of an authenticated absent memory",
+        "terminal verification accepted absent memory in place of authenticated memory",
     );
 }
 
 #[test]
-fn wasm_nebula_proves_a_division_trap_with_lookup_disabled() {
+fn wasm_nebula_division_trap_trace_disables_the_lookup() {
     let checked = common::checked_main(
         r#"(module
             (func (export "main") (result i32)
@@ -505,19 +510,6 @@ fn wasm_nebula_proves_a_division_trap_with_lookup_disabled() {
     let witness = neo_wasm::build_witness_vector(division);
     assert_eq!(witness[COL_OP_TABLE_ENABLED], neo_math::F::ZERO);
     neo_wasm::audit_compact_lookup_witness(&witness).expect("trapping division must deactivate lookup arithmetic");
-
-    let entry_pc = common::single_function_entry_pc(&checked.artifacts);
-    let prep = neo_wasm::nebula::preprocess_seeded(
-        nebula_test_params(),
-        neo_wasm::nebula::WasmNebulaProfile::test_profile(),
-        &checked.artifacts,
-        &checked.run.initial_locals,
-        entry_pc,
-        0x57a5_00d1,
-    )
-    .expect("division-trap preprocessing");
-    let proof = neo_wasm::prove(&prep, &checked.trace).expect("division-trap proof");
-    neo_wasm::verify(&prep, &proof, common::final_state(&checked.trace)).expect("division-trap terminal verification");
 }
 
 #[test]

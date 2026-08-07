@@ -613,6 +613,7 @@ pub(super) struct CoordinateGateInputs<'a> {
     pub(super) reduction: &'a ReductionPlan,
     pub(super) acceptance: &'a AcceptanceSlots,
     pub(super) mod5: &'a PackedMod5Slots,
+    pub(super) public_padding: Range<usize>,
     pub(super) encoded_columns: usize,
 }
 
@@ -707,7 +708,8 @@ pub(super) fn build_schedule(
 }
 
 fn omitted(inputs: &CoordinateGateInputs<'_>, column: usize) -> bool {
-    inputs.reduction.omits_coordinate_column(column)
+    inputs.public_padding.contains(&column)
+        || inputs.reduction.omits_coordinate_column(column)
         || inputs.acceptance.omits_coordinate(column)
         || inputs.mod5.omits_coordinate(column)
 }

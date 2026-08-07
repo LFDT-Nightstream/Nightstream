@@ -34,7 +34,9 @@ impl CcsInstance {
     /// 4. splits z into `x = z[..m_in]` (public) and `w = z[m_in..]` (private),
     /// 5. returns the `(claim, witness)` pair.
     ///
-    /// `m_in` (paper: `n_𝔽,in`) is the public-input length the caller chose.
+    /// `m_in` (paper: `n_𝔽,in`) must contain complete degree-`D`
+    /// ring elements. Private assignment storage can still end in a partial
+    /// ring column because `structure.m` need not be divisible by `D`.
     pub fn from_low_norm_assignment(
         pp: &Params,
         log: &AjtaiSModule,
@@ -76,6 +78,9 @@ fn validate_assignment_shape(structure: &Structure, z: &[F], m_in: usize) -> Res
     }
     if m_in > z.len() {
         return Err(RelationError::MInOutOfRange { m_in, len: z.len() });
+    }
+    if m_in % D != 0 {
+        return Err(RelationError::PublicInputNotWholeRing { m_in, d: D });
     }
     Ok(())
 }

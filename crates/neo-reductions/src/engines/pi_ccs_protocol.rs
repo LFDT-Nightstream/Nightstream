@@ -30,16 +30,17 @@ impl Challenges {
 }
 
 /// Reject a noncanonical public-input coefficient embedding.
-pub fn validate_inactive_x_zero<Ff>(label: &str, claim: &CeClaim<Cmt, Ff, K>) -> Result<(), PiCcsError>
+pub fn validate_canonical_x_shape<Ff>(label: &str, claim: &CeClaim<Cmt, Ff, K>) -> Result<(), PiCcsError>
 where
     Ff: Field,
 {
     let active_columns = neo_ccs::superneo_public_x_cols(claim.m_in);
-    if claim.X.rows() != D || claim.X.cols() != active_columns {
+    if claim.m_in % D != 0 || claim.X.rows() != D || claim.X.cols() != active_columns {
         return Err(PiCcsError::InvalidInput(format!(
-            "{label}: X has shape {}x{}, expected {D}x{}",
+            "{label}: X has shape {}x{} for m_in={}, expected a whole-ring {D}x{} coefficient embedding",
             claim.X.rows(),
             claim.X.cols(),
+            claim.m_in,
             active_columns
         )));
     }

@@ -20,7 +20,7 @@
 //! |---|---|---|
 //! | `structure` | relation whose full assignment has length `m` | gadget-native lowering |
 //! | `assignment` | low-norm `z = [x, w]`, packed column-major into `Z` | `CcsInstance` |
-//! | `plan.public_input_len()` | exact public/private split of `z` | gadget-native plan |
+//! | `plan.public_input_len()` | whole-ring public prefix, including fixed zero padding | gadget-native plan |
 
 use neo_ajtai::AjtaiSModule;
 

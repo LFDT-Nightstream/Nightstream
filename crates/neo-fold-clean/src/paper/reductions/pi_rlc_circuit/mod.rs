@@ -16,7 +16,7 @@
 //! |---|---|---|---|---|
 //! | `commitment` | Paper CE commitment combination and projection | yes | `commitment` | `NifsPaper.PiRlc` paper-public leaf |
 //! | adv | Nebula product-commitment extension; not a SuperNeo CE field | yes | `commitment` | separate Nebula refinement open |
-//! | `x` | Packed 270-coefficient combination plus inactive zero encoding | yes | `x` | packed arithmetic only; 257-field paper bridge open |
+//! | `x` | Compact coefficient-embedding combination | yes | `x` | packed arithmetic only; public-input refinement open |
 //! | `y_ring` | Identity-first paper CE ring evaluations | yes | `padded_k` | ring-action refinement |
 //! | padded `y_ring` | Active paper evaluation plus canonical zero tail | yes | `padded_k` | active leaf plus encoding refinement |
 //! | `consistency` | Fold-digest continuity | yes | `consistency` | authority replay |

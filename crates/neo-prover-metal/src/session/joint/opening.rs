@@ -463,9 +463,14 @@ impl MetalSession {
         let chi_len = 1usize
             .checked_shl(u32::try_from(point.len()).map_err(|_| MetalError::Shape("opening point is too long"))?)
             .ok_or(MetalError::Shape("one-joint opening tensor length overflow"))?;
+        let carrier_width = plan
+            .blocks
+            .checked_mul(D)
+            .ok_or(MetalError::Shape("one-joint opening carrier width overflow"))?;
         if point.is_empty()
             || witness_count == 0
-            || assignment_width > chi_len
+            || assignment_width > carrier_width
+            || carrier_width > chi_len
             || !masks.matches(witness_count, plan.blocks)
         {
             return Err(MetalError::Shape("one-joint opening dimensions are invalid"));
@@ -481,7 +486,7 @@ impl MetalSession {
             plan.blocks as u64,
             plan.rows as u64,
             chi_len as u64,
-            assignment_width as u64,
+            carrier_width as u64,
         ])?;
         let form_rows = 2 * plan.matrix_count;
         let partial_words = checked_product(

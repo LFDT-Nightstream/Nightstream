@@ -34,7 +34,7 @@
 use std::collections::BTreeMap;
 
 use neo_ccs::CcsStructure;
-use neo_math::F;
+use neo_math::{D, F};
 use p3_field::{Field, PrimeCharacteristicRing};
 use thiserror::Error;
 
@@ -126,6 +126,16 @@ const TOOM_SPLIT: usize = 18;
 const TOOM_COEFFICIENTS: usize = 2 * TOOM_SPLIT - 1;
 const TOOM_EVALUATIONS: usize = 5;
 const MAX_PRODUCT_TERMS: usize = TOOM_SPLIT;
+
+fn canonical_superneo_public_input_len(public_bits: usize) -> Result<usize, GadgetNativeError> {
+    let logical_len = 1usize
+        .checked_add(public_bits)
+        .ok_or(GadgetNativeError::SourceAllocationOverflow { column: 0 })?;
+    logical_len
+        .div_ceil(D)
+        .checked_mul(D)
+        .ok_or(GadgetNativeError::SourceAllocationOverflow { column: 0 })
+}
 
 /// One materialized gadget-native CCS instance before Ajtai commitment.
 #[derive(Clone, Debug)]
@@ -391,8 +401,11 @@ fn estimate_r1cs_gadget_native_from_schedule(
         ordinary_private_field_source_cols.saturating_mul(ordinary_private_field::ORDINARY_PRIVATE_DIGITS);
     let sis_centered_encoded_cols = balanced_ternary_field_source_cols.saturating_mul(BALANCED_TERNARY_DIGITS);
     let centered_encoded_cols = ordinary_private_encoded_cols.saturating_add(sis_centered_encoded_cols);
+    let public_input_len = canonical_superneo_public_input_len(public_bit_columns.len())?;
+    let public_padding = public_input_len - (1 + public_bit_columns.len());
     let encoded_cols = 1usize
         .saturating_add(one_bit_source_cols)
+        .saturating_add(public_padding)
         .saturating_add(centered_encoded_cols)
         .saturating_add(acceptance_tree_output_cols)
         .saturating_add(packed_mod5_synthetic_cols)
@@ -451,7 +464,7 @@ fn estimate_r1cs_gadget_native_from_schedule(
     Ok(GadgetNativeEstimate {
         source_rows: source.rows(),
         source_cols: source.cols(),
-        public_input_len: 1 + public_bit_columns.len(),
+        public_input_len,
         encoded_cols,
         encoded_rows,
         max_degree: 8,
@@ -523,7 +536,8 @@ pub fn encode_r1cs_gadget_native(
         let slot = push_boolean_slot(&mut assignment, source.witness()[column], column)?;
         source_columns[column] = Some(SourceColumn::Encoded(slot));
     }
-    let public_input_len = assignment.len();
+    let public_input_len = canonical_superneo_public_input_len(public_bit_columns.len())?;
+    assignment.resize(public_input_len, F::ZERO);
     let mut source_allocation = source_allocation::SourceAllocationCursor::new(public_input_len);
 
     for (column, decision) in decisions.into_iter().enumerate() {
@@ -641,6 +655,7 @@ pub fn encode_r1cs_gadget_native(
         reduction: &balanced_ternary_reduction,
         acceptance: &acceptance_slots,
         mod5: &mod5_slots,
+        public_padding: (1 + public_bit_columns.len())..public_input_len,
         encoded_columns: assignment.len(),
     })?;
     balanced_ternary_reduction.install_coordinate_rows(&coordinate_gates)?;

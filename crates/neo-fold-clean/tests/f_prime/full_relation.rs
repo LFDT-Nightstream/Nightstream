@@ -395,7 +395,7 @@ fn complete_base_relation_executes_then_encodes_and_rejects_disconnected_state()
         derived.decode().expect("derived inverse"),
         execution.snapshot().witness()
     );
-    assert_eq!(derived.plan.public_input_len(), F_PRIME_PUBLIC_INPUT_LEN);
+    assert_eq!(derived.plan.public_input_len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     assert!(derived.assignment.len() < oracle_cols);
 
     // Change the application input while keeping the claimed F' state and
@@ -968,12 +968,12 @@ fn diagnostic_complete_recursive_relation_folds_one_fresh_instance_and_binds_the
         (fixed_gadget.encoded_rows, fixed_gadget.encoded_cols),
         (15_189_540, 12_684_812)
     );
-    assert_eq!(base_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
-    assert_eq!(recursive_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
+    assert_eq!(base_gadget.public_input_len, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
+    assert_eq!(recursive_gadget.public_input_len, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     assert!(base_gadget.encoded_cols < base_estimate.encoded_cols);
     assert!(recursive_gadget.encoded_cols < recursive_estimate.encoded_cols);
     assert!(recursive_gadget.gadget_derived_source_cols > 0);
-    assert_eq!(fixed_gadget.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
+    assert_eq!(fixed_gadget.public_input_len, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     assert!(fixed_gadget.encoded_cols > recursive_gadget.encoded_cols);
     assert_fixed_selector_cost_formula(&fixed_gadget);
     eprintln!(
@@ -1451,13 +1451,13 @@ fn diagnostic_complete_recursive_relation_folds_one_fresh_instance_and_binds_the
         LowNormR1csEncodingKind::Derived,
     )
     .expect("full F' derived-encoding estimate");
-    assert_eq!(estimate.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
+    assert_eq!(estimate.public_input_len, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     assert_eq!(
         (estimate.encoded_rows, estimate.encoded_cols),
         (2_276_625_432, 1_682_772_213),
         "generic low-norm estimate of the materialized source selector relation"
     );
-    assert_eq!(direct_estimate.public_input_len, F_PRIME_PUBLIC_INPUT_LEN);
+    assert_eq!(direct_estimate.public_input_len, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     assert!(direct_estimate.encoded_cols < estimate.encoded_cols);
     assert!(direct_estimate.encoded_rows < estimate.encoded_rows);
     eprintln!(

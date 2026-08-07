@@ -75,6 +75,9 @@ inductive Call where
   | nebulaDigest (input : Nebula) (output : NebulaDigest)
 deriving Repr, DecidableEq
 
+/-- Equality-normalized verifier oracle for materialized running digests. -/
+abbrev RunningDigestTable := List (Running × Digest)
+
 /-- Calls not owned by the native step.  A lifecycle differential may supply
 these separately when composing the native result with `Step.LocalHolds`. -/
 inductive BoundaryCall where
@@ -105,6 +108,14 @@ structure Receipt where
   relationColumns : Nat
   rawEncoding : RawEncodingTable
   emptyRunning : Running
+  /-- Verifier-owned digest of Rust's empty accumulator handle. -/
+  initialAccumulatorDigest : Digest
+  /-- Equality oracle for the verifier-owned initial-boundary digest. -/
+  initialBoundaryDigest : Digest
+  /-- Equality oracle for the verifier-owned public-trace seed. -/
+  publicTraceSeed : Digest
+  /-- Equality oracle for materialized running accumulators. -/
+  runningDigests : RunningDigestTable
   prior : NativeState
   input : NativeInput
   proof : NativeProof
@@ -142,13 +153,12 @@ private def lookupNifs
   | _ :: rest => lookupNifs rest context running latest proof
 
 private def lookupRunningDigest
-    (calls : List Call)
+    (table : RunningDigestTable)
     (running : Running) : Digest :=
-  match calls with
+  match table with
   | [] => poison .digest
-  | .runningDigest found output :: rest =>
+  | (found, output) :: rest =>
       if found = running then output else lookupRunningDigest rest running
-  | _ :: rest => lookupRunningDigest rest running
 
 private def lookupHash
     (calls : List Call)
@@ -158,6 +168,22 @@ private def lookupHash
   | .hash found output :: rest =>
       if found = input then output else lookupHash rest input
   | _ :: rest => lookupHash rest input
+
+private def receiptHash
+    (receipt : Receipt)
+    (input : NativeHashMessage) : Digest :=
+  match input with
+  | .initialBoundary preimage =>
+      if preimage = XOut.initialBoundaryPreimage receipt.context then
+        receipt.initialBoundaryDigest
+      else
+        poison .digest
+  | .publicTraceSeed preimage =>
+      if preimage.structureDigest = receipt.context.structureDigest then
+        receipt.publicTraceSeed
+      else
+        poison .digest
+  | _ => lookupHash receipt.calls input
 
 private def lookupNebulaDigest
     (calls : List Call)
@@ -170,14 +196,15 @@ private def lookupNebulaDigest
 
 def hashSemantics (receipt : Receipt) :
     XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest where
-  hash := lookupHash receipt.calls
+  hash := receiptHash receipt
   nebulaDigest := lookupNebulaDigest receipt.calls
 
 def stepSemantics (receipt : Receipt) :
     Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen where
   emptyRunning := receipt.emptyRunning
+  initialAccumulatorDigest := receipt.initialAccumulatorDigest
   initialNebula := none
-  runningDigest := lookupRunningDigest receipt.calls
+  runningDigest := lookupRunningDigest receipt.runningDigests
   chunkDigest := lookupChunkDigest receipt.calls
   freshLink := fun _ _ => false
   nifsVerify := lookupNifs receipt.calls
@@ -188,7 +215,7 @@ private def boundaryHash
     (receipt : Receipt)
     (boundary : BoundaryReceipt)
     (input : NativeHashMessage) : Digest :=
-  let native := lookupHash receipt.calls input
+  let native := (hashSemantics receipt).hash input
   if live native then
     native
   else
@@ -218,7 +245,7 @@ private def boundaryRunningDigest
     (receipt : Receipt)
     (boundary : BoundaryReceipt)
     (running : Running) : Digest :=
-  let native := lookupRunningDigest receipt.calls running
+  let native := lookupRunningDigest receipt.runningDigests running
   if live native then
     native
   else
@@ -271,6 +298,7 @@ def boundaryHashSemantics (receipt : Receipt) (boundary : BoundaryReceipt) :
 def boundaryStepSemantics (receipt : Receipt) (boundary : BoundaryReceipt) :
     Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen where
   emptyRunning := receipt.emptyRunning
+  initialAccumulatorDigest := receipt.initialAccumulatorDigest
   initialNebula := boundary.initialNebula
   runningDigest := boundaryRunningDigest receipt boundary
   chunkDigest := lookupChunkDigest receipt.calls
@@ -287,10 +315,10 @@ theorem boundaryHash_eq_native_of_live
     (resultLive : live ((hashSemantics receipt).hash input) = true) :
     (boundaryHashSemantics receipt boundary).hash input =
       (hashSemantics receipt).hash input := by
-  change live (lookupHash receipt.calls input) = true at resultLive
+  change live (receiptHash receipt input) = true at resultLive
   change boundaryHash receipt boundary input =
-    lookupHash receipt.calls input
-  simp only [boundaryHash, resultLive, ↓reduceIte]
+    receiptHash receipt input
+  simp only [boundaryHash, hashSemantics, resultLive, ↓reduceIte]
 
 /-- A live native Nebula digest cannot be replaced by lifecycle fallback data. -/
 theorem boundaryNebulaDigest_eq_native_of_live
@@ -315,9 +343,9 @@ theorem boundaryRunningDigest_eq_native_of_live
       live ((stepSemantics receipt).runningDigest running) = true) :
     (boundaryStepSemantics receipt boundary).runningDigest running =
       (stepSemantics receipt).runningDigest running := by
-  change live (lookupRunningDigest receipt.calls running) = true at resultLive
+  change live (lookupRunningDigest receipt.runningDigests running) = true at resultLive
   change boundaryRunningDigest receipt boundary running =
-    lookupRunningDigest receipt.calls running
+    lookupRunningDigest receipt.runningDigests running
   simp only [boundaryRunningDigest, resultLive, ↓reduceIte]
 
 /-- Calls and outcome emitted by one execution of the typed native checker. -/
@@ -386,6 +414,9 @@ def run (receipt : Receipt) : Run :=
     ⟨[], .rejected .pcOutOfRange⟩
   else if branchShape receipt.prior = false then
     ⟨[], .rejected .baseCaseMismatch⟩
+  else if nativeStateAuthorityCheck (hashSemantics receipt)
+      (stepSemantics receipt) receipt.mode receipt.context receipt.prior = false then
+    ⟨[], .rejected .stateAuthorityMismatch⟩
   else if receipt.input.nextLatest = [] then
     ⟨[], .rejected .emptyStep⟩
   else
@@ -533,6 +564,7 @@ private def expectedFinalStage : Outcome → ExecutionStage
   | .accepted _ => .complete
   | .rejected .pcOutOfRange => .entry
   | .rejected .baseCaseMismatch => .entry
+  | .rejected .stateAuthorityMismatch => .entry
   | .rejected .emptyStep => .entry
   | .rejected .foldProofVariantMismatch => .dispatch
   | .rejected .nifsRejected => .nifs
@@ -669,6 +701,10 @@ private def callAtomsLive : Call → Bool
   | .hash _ output => live output
   | .nebulaDigest input output => live input && live output
 
+private def runningDigestTableAtomsLive
+    (table : RunningDigestTable) : Bool :=
+  table.all fun entry => live entry.1 && live entry.2
+
 private def rawEncodingKeyAtomsLive : RawEncodingKey → Bool
   | .digest value => live value
   | .header value => live value
@@ -772,6 +808,17 @@ private def hashPhaseCallBindingCheck (receipt : Receipt) : Bool :=
   | none => true
   | some next => NativeCallBindingCheck receipt next
 
+/-- State-authority values are verifier inputs, not calls made by `verify_step`.
+This check keeps lifecycle fallback from supplying a missing verifier value. -/
+def StateAuthorityPrimitiveBindingCheck (receipt : Receipt) : Bool :=
+  live (XOut.initialBoundary (hashSemantics receipt) receipt.context) &&
+  live (XOut.publicTraceSeed (hashSemantics receipt) receipt.context) &&
+  live (stepSemantics receipt).initialAccumulatorDigest &&
+  match receipt.prior.proof with
+  | .initial => true
+  | .active running _ =>
+      live ((stepSemantics receipt).runningDigest running)
+
 /-- Materialized identifiers carried by the compact receipt. -/
 private def receiptAtomsLive (receipt : Receipt) : Bool :=
   live receipt.context.params &&
@@ -782,6 +829,10 @@ private def receiptAtomsLive (receipt : Receipt) : Bool :=
   decide (receipt.relationColumns ≠ 0) &&
   rawEncodingAtomsLive receipt.rawEncoding &&
   live receipt.emptyRunning &&
+  live receipt.initialAccumulatorDigest &&
+  live receipt.initialBoundaryDigest &&
+  live receipt.publicTraceSeed &&
+  runningDigestTableAtomsLive receipt.runningDigests &&
   stateAtomsLive receipt.prior &&
   inputAtomsLive receipt.input &&
   proofAtomsLive receipt.proof &&
@@ -805,8 +856,46 @@ private def receiptShapeWellFormed (receipt : Receipt) : Bool :=
 
 def ReceiptWellFormed (receipt : Receipt) : Bool :=
   receiptShapeWellFormed receipt &&
-    (runningPhaseCallBindingCheck receipt &&
-      hashPhaseCallBindingCheck receipt)
+    (StateAuthorityPrimitiveBindingCheck receipt &&
+      (runningPhaseCallBindingCheck receipt &&
+        hashPhaseCallBindingCheck receipt))
+
+theorem stateAuthorityPrimitiveBinding_of_wellFormed
+    (receipt : Receipt)
+    (wellFormed : ReceiptWellFormed receipt = true) :
+    StateAuthorityPrimitiveBindingCheck receipt = true := by
+  simp only [ReceiptWellFormed, Bool.and_eq_true] at wellFormed
+  exact wellFormed.2.1
+
+theorem initialBoundary_live_of_wellFormed
+    (receipt : Receipt)
+    (wellFormed : ReceiptWellFormed receipt = true) :
+    live (XOut.initialBoundary (hashSemantics receipt) receipt.context) = true := by
+  have binding :=
+    stateAuthorityPrimitiveBinding_of_wellFormed receipt wellFormed
+  simp only [StateAuthorityPrimitiveBindingCheck, Bool.and_eq_true] at binding
+  exact binding.1.1.1
+
+theorem publicTraceSeed_live_of_wellFormed
+    (receipt : Receipt)
+    (wellFormed : ReceiptWellFormed receipt = true) :
+    live (XOut.publicTraceSeed (hashSemantics receipt) receipt.context) = true := by
+  have binding :=
+    stateAuthorityPrimitiveBinding_of_wellFormed receipt wellFormed
+  simp only [StateAuthorityPrimitiveBindingCheck, Bool.and_eq_true] at binding
+  exact binding.1.1.2
+
+theorem priorRunningDigest_live_of_wellFormed
+    (receipt : Receipt)
+    (running : Running)
+    (latest : List Fresh)
+    (wellFormed : ReceiptWellFormed receipt = true)
+    (priorProof : receipt.prior.proof = .active running latest) :
+    live ((stepSemantics receipt).runningDigest running) = true := by
+  have binding :=
+    stateAuthorityPrimitiveBinding_of_wellFormed receipt wellFormed
+  simp only [StateAuthorityPrimitiveBindingCheck, Bool.and_eq_true] at binding
+  simpa only [priorProof] using binding.2
 
 theorem controlFlowAndCallConservation_of_wellFormed
     (receipt : Receipt)
@@ -932,7 +1021,7 @@ theorem outputRunningDigest_live_of_wellFormed_and_folded
     live ((stepSemantics receipt).runningDigest nextRunning) = true := by
   have runningCheck : runningPhaseCallBindingCheck receipt = true := by
     simp only [ReceiptWellFormed, Bool.and_eq_true] at wellFormed
-    exact wellFormed.2.1
+    exact wellFormed.2.2.1
   have candidate :=
     foldedRunning_eq_some_of_shape receipt nextRunning entry nextNonempty
       folded
@@ -948,7 +1037,7 @@ private theorem hashCandidate_eq_some_of_nativeHolds
         receipt.prior next receipt.input receipt.proof) :
     hashCandidate? receipt = some next := by
   rcases native with
-    ⟨entry, nextNonempty, nextRunning, folded, openPayload, semantic,
+    ⟨entry, _authority, nextNonempty, nextRunning, folded, openPayload, semantic,
       nextState, xOut⟩
   have runningCandidate :=
     foldedRunning_eq_some_of_shape receipt nextRunning entry nextNonempty
@@ -968,7 +1057,7 @@ theorem nativeCallBinding_of_wellFormed_and_accepted
       hashPhaseCallBindingCheck receipt = true :=
     by
       simp only [ReceiptWellFormed, Bool.and_eq_true] at wellFormed
-      exact wellFormed.2.2
+      exact wellFormed.2.2.2
   have candidate :=
     hashCandidate_eq_some_of_nativeHolds receipt (hashSemantics receipt) next
       native
@@ -989,7 +1078,7 @@ theorem nativeCallBinding_of_wellFormed_and_nativeHolds
       hashPhaseCallBindingCheck receipt = true :=
     by
       simp only [ReceiptWellFormed, Bool.and_eq_true] at wellFormed
-      exact wellFormed.2.2
+      exact wellFormed.2.2.2
   have candidate :=
     hashCandidate_eq_some_of_nativeHolds receipt hash next native
   simpa [hashPhaseCallBindingCheck, candidate, NativeCallBinding] using

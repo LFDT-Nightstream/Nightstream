@@ -107,6 +107,9 @@ structure Semantics
     (Nebula : Type)
     (NebulaOpen : Type uNebulaOpen) where
   emptyRunning : Running
+  /-- Verifier-owned digest of Rust's empty accumulator handle.  This is not
+  generally the digest of a materialized `emptyRunning` accumulator. -/
+  initialAccumulatorDigest : Digest
   /-- Verifier-owned base memory lane; `none` for a plain chain. -/
   initialNebula : Option Nebula
   runningDigest : Running → Digest
@@ -234,7 +237,7 @@ def InitialState
     (hashSemantics : XOut.Semantics
       Params StructureDigest Header Digest Nebula NebulaDigest)
     (stepSemantics : Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
-    (mode : XOut.Mode)
+    (_mode : XOut.Mode)
     (context : XOut.Context Params StructureDigest Header Digest)
     (state : State Digest Running Fresh Nebula) : Prop :=
   state.pc = 1 ∧
@@ -244,12 +247,10 @@ def InitialState
   state.z0 = XOut.initialBoundary hashSemantics context ∧
   state.publicTrace = XOut.publicTraceSeed hashSemantics context ∧
   state.initialSemanticState = context.initialSemanticState ∧
-  state.accumulatorDigest = stepSemantics.runningDigest stepSemantics.emptyRunning ∧
+  state.accumulatorDigest = stepSemantics.initialAccumulatorDigest ∧
   state.nebula = stepSemantics.initialNebula ∧
   state.proof = .initial ∧
-  match mode with
-  | .stateless => state.semanticState = state.accumulatorDigest
-  | .stateful => state.semanticState = state.initialSemanticState
+  state.semanticState = state.initialSemanticState
 
 /-- Active states must be pinned and bind the carried running accumulator. -/
 def ActiveState

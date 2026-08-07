@@ -375,7 +375,6 @@ pub struct ProjectionLadderAudit {
 /// Semantic owner of affine rows emitted between projection identities.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProjectionGlueRole {
-    InactiveXZero,
     YRingPaddingZero { row: usize },
 }
 

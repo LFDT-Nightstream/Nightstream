@@ -35,7 +35,7 @@ use crate::paper::reductions::accumulator_sis_circuit::{
 };
 use crate::paper::reductions::paper_exact_protocol;
 use crate::paper::reductions::pi_rlc_circuit::rlc_projection_quotients;
-use crate::paper::relations::{superneo_inactive_x_zero, validate_adv_shape, CeClaim, RlcMixer};
+use crate::paper::relations::{superneo_has_canonical_x_shape, validate_adv_shape, CeClaim, RlcMixer};
 use crate::paper::sampling::check_rlc_bound;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -64,8 +64,8 @@ pub enum Error {
     FoldDigest,
     #[error("\u{03A0}_RLC: noncanonical fold_digest byte limb in {owner} at lane {lane}")]
     FoldDigestCanonicality { owner: &'static str, lane: usize },
-    #[error("\u{03A0}_RLC: inactive X columns must be zero in {0}")]
-    InactiveX(&'static str),
+    #[error("\u{03A0}_RLC: X must use the canonical whole-ring coefficient embedding in {0}")]
+    NoncanonicalXShape(&'static str),
     #[error("\u{03A0}_RLC: r length must match the padded joint row point in {0}")]
     RShape(&'static str),
     #[error("\u{03A0}_RLC: combined r must match every input r")]
@@ -816,7 +816,7 @@ fn validate_inputs_before_rho(s: &crate::paper::relations::Structure, inputs: &[
     for input in inputs {
         validate_adv_shape(input.adv.as_ref(), input.c.d, input.c.kappa, "input").map_err(Error::AdvShape)?;
         validate_fold_digest_canonical("input", input)?;
-        validate_inactive_x_zero_one("input", input)?;
+        validate_canonical_x_shape_one("input", input)?;
         validate_r_shape_one("input", s, input)?;
         validate_y_ring_shape_one("input", s, input)?;
         validate_y_ring_padding_zero_one("input", input)?;
@@ -853,7 +853,7 @@ fn validate_combined_claim(
 ) -> Result<(), Error> {
     validate_adv_shape(combined.adv.as_ref(), combined.c.d, combined.c.kappa, "combined").map_err(Error::AdvShape)?;
     validate_fold_digest_canonical("combined", combined)?;
-    validate_inactive_x_zero(inputs, combined)?;
+    validate_canonical_x_shape(inputs, combined)?;
     validate_r_shape(s, inputs, combined)?;
     validate_r_consistency(inputs, combined)?;
     validate_y_ring_shape(s, inputs, combined)?;
@@ -895,17 +895,17 @@ fn mixed_adv(
     })
 }
 
-fn validate_inactive_x_zero(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), Error> {
+fn validate_canonical_x_shape(inputs: &[CeClaim], combined: &CeClaim) -> Result<(), Error> {
     for input in inputs {
-        validate_inactive_x_zero_one("input", input)?;
+        validate_canonical_x_shape_one("input", input)?;
     }
-    validate_inactive_x_zero_one("combined", combined)?;
+    validate_canonical_x_shape_one("combined", combined)?;
     Ok(())
 }
 
-fn validate_inactive_x_zero_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
-    if !superneo_inactive_x_zero(&claim.X, claim.m_in) {
-        return Err(Error::InactiveX(owner));
+fn validate_canonical_x_shape_one(owner: &'static str, claim: &CeClaim) -> Result<(), Error> {
+    if !superneo_has_canonical_x_shape(&claim.X, claim.m_in) {
+        return Err(Error::NoncanonicalXShape(owner));
     }
     Ok(())
 }

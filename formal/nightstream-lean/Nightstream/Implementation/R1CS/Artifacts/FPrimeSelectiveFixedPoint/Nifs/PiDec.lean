@@ -9,7 +9,7 @@ Assurance tier: proof-free generated data plus artifact-checked census facts
 for the tiny fixed-point fixture with `kappa = 4`. The correspondence owner
 performs the coefficient comparison with the independent compiler.
 
-Owns: the concrete raw active layout, all 11,845 generated Rust sparse source
+Owns: the concrete raw active layout, all 11,736 generated Rust sparse source
 rows, and their bounded schema/arity/count checks.
 
 Does not own: final selective-CCS rows, production `kappa = 18`, witness
@@ -31,8 +31,8 @@ abbrev rawLayout := Generated.Layout.value
 abbrev sourceRows := Generated.sourceRows
 abbrev commitmentRows := Generated.Metadata.commitmentRows
 
-/- Each executable subject below is one proof-free `List Row`: chunks 0--46
-contain exactly 250 rows and chunk 47 contains exactly 95 rows.  The global
+/- Each executable subject below is one proof-free `List Row`: chunks 0--45
+contain exactly 250 rows and chunk 46 contains exactly 236 rows.  The global
 count is reconstructed by the kernel; it is never submitted to
 `native_decide`. -/
 set_option maxRecDepth 100000
@@ -83,12 +83,11 @@ private theorem sourceChunk42_length : Generated.Rows.Chunk42.values.length = 25
 private theorem sourceChunk43_length : Generated.Rows.Chunk43.values.length = 250 := by native_decide
 private theorem sourceChunk44_length : Generated.Rows.Chunk44.values.length = 250 := by native_decide
 private theorem sourceChunk45_length : Generated.Rows.Chunk45.values.length = 250 := by native_decide
-private theorem sourceChunk46_length : Generated.Rows.Chunk46.values.length = 250 := by native_decide
-private theorem sourceChunk47_length : Generated.Rows.Chunk47.values.length = 1 := by native_decide
+private theorem sourceChunk46_length : Generated.Rows.Chunk46.values.length = 236 := by native_decide
 
 theorem sourceRows_length :
     sourceRows.length = Generated.Metadata.sourceRowCount := by
-  change Generated.sourceRows.length = 11751
+  change Generated.sourceRows.length = 11736
   simp only [Generated.sourceRows, List.length_append,
     sourceChunk0_length, sourceChunk1_length, sourceChunk2_length,
     sourceChunk3_length, sourceChunk4_length, sourceChunk5_length,
@@ -105,14 +104,14 @@ theorem sourceRows_length :
     sourceChunk36_length, sourceChunk37_length, sourceChunk38_length,
     sourceChunk39_length, sourceChunk40_length, sourceChunk41_length,
     sourceChunk42_length, sourceChunk43_length, sourceChunk44_length,
-    sourceChunk45_length, sourceChunk46_length, sourceChunk47_length]
+    sourceChunk45_length, sourceChunk46_length]
 
 theorem sourceRange_exact :
     Generated.Metadata.sourceRowEnd - Generated.Metadata.sourceRowStart =
       Generated.Metadata.sourceRowCount := by
   decide
 
-theorem schemaVersion_exact : rawLayout.schemaVersion = 1 := by
+theorem schemaVersion_exact : rawLayout.schemaVersion = 2 := by
   decide
 
 theorem childCount_exact :

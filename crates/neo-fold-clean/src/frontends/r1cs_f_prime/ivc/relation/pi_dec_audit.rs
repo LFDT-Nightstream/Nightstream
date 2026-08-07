@@ -30,7 +30,7 @@ const ACTIVE_MATRICES: usize = 14;
 const ACTIVE_ROW_POINT: usize = 24;
 const ACTIVE_LOGICAL_X: usize = 270;
 const ACTIVE_RING_DIMENSION: usize = 54;
-const ACTIVE_NONCOMMITMENT_SOURCE_ROWS: usize = 11_535;
+const ACTIVE_NONCOMMITMENT_SOURCE_ROWS: usize = 11_520;
 const ACTIVE_X_RECOMPOSITION_ROWS: usize = ACTIVE_LOGICAL_X;
 const ACTIVE_X_CANONICALITY_ROWS: usize = ACTIVE_LOGICAL_X * (2 + ACTIVE_CHILDREN);
 const ACTIVE_CANONICAL_X_SOURCE_ROWS: usize = ACTIVE_X_RECOMPOSITION_ROWS + ACTIVE_X_CANONICALITY_ROWS;
@@ -678,9 +678,10 @@ fn validate_active_claim(claim: &PiDecClaimAudit, index: usize, kappa: usize) ->
     let extension_limbs = <K as BasedVectorSpace<F>>::DIMENSION;
     if claim.commitment.data_cols.len() != D * kappa
         || claim.x_rows != D
-        || claim.x_width != F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN
+        || claim.m_in % D != 0
         || claim.m_in != F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN
-        || claim.x_cols.len() != claim.x_rows * claim.x_width
+        || claim.x_width != active_columns
+        || claim.x_cols.len() != claim.x_rows * active_columns
         || claim.x_rows * active_columns != ACTIVE_LOGICAL_X
         || claim.y_ring_cols.len() != ACTIVE_MATRICES
         || claim.ct_cols.len() != ACTIVE_MATRICES
@@ -691,7 +692,7 @@ fn validate_active_claim(claim: &PiDecClaimAudit, index: usize, kappa: usize) ->
         || claim.r_cols.len() != ACTIVE_ROW_POINT
     {
         return Err(invalid_pi_dec_audit(format!(
-            "strict PiDEC claim {index} is not the active 54x270, 14-matrix identity-first profile"
+            "strict PiDEC claim {index} is not the active 54x5 compact-X, 14-matrix identity-first profile"
         )));
     }
     if claim.adv.is_some() {

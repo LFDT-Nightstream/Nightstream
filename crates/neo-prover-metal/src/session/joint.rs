@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::mem::size_of;
+use std::sync::Arc;
 
 use neo_ccs::Mat;
 use neo_math::{KExtensions, Rq, D, F, K};
@@ -66,13 +67,12 @@ pub(crate) struct MetalJointMatrixPlan {
     blocks: usize,
     seeded: Option<DeviceSeededRows>,
     has_seeded: bool,
-    cache_identity: usize,
+    cache_owner: Arc<SuperneoEvalCache>,
 }
 
 impl MetalJointMatrixPlan {
     pub(crate) fn matches(&self, cache: &SuperneoEvalCache) -> bool {
-        self.cache_identity == cache as *const SuperneoEvalCache as usize
-            && self.matrix_count == cache.matrix_caches().len()
+        std::ptr::eq(self.cache_owner.as_ref(), cache) && self.matrix_count == cache.matrix_caches().len()
     }
 }
 
@@ -178,7 +178,7 @@ impl MetalSession {
 
     pub(crate) fn prepare_joint_matrix_plan(
         &self,
-        cache: &SuperneoEvalCache,
+        cache: Arc<SuperneoEvalCache>,
     ) -> Result<MetalJointMatrixPlan, MetalError> {
         let cache_matrices = cache.matrix_caches();
         let Some(first) = cache_matrices.first() else {
@@ -250,7 +250,7 @@ impl MetalSession {
             blocks,
             seeded,
             has_seeded,
-            cache_identity: cache as *const SuperneoEvalCache as usize,
+            cache_owner: cache,
         })
     }
 
@@ -389,7 +389,7 @@ impl MetalSession {
             work_count,
             eval_group_count,
             base_group_count,
-            selective_copy_compatible: output_meta.iter().all(|meta| meta.matrix == 2),
+            selective_copy_compatible: selective_seeded_copy_compatible(matrices, &output_meta),
         }))
     }
 
@@ -1245,6 +1245,62 @@ impl<'a> MetalPaperJointOracle<'a> {
         encoder.endEncoding();
         Ok(())
     }
+}
+
+fn selective_seeded_copy_compatible(
+    matrices: &[neo_reductions::superneo_eval::SuperneoMatrixCache],
+    outputs: &[SeededOutputMeta],
+) -> bool {
+    const UNUSED_MATRICES: [usize; 9] = [0, 5, 6, 7, 8, 9, 10, 11, 12];
+    if matrices.len() != 13 || outputs.is_empty() || outputs.iter().any(|output| output.matrix != 2) {
+        return false;
+    }
+    outputs.iter().all(|output| {
+        (output.row_start..output.row_start + D).all(|row| {
+            compact_row_is_constant_one(&matrices[3], row)
+                && UNUSED_MATRICES
+                    .iter()
+                    .all(|&matrix| compact_row_is_zero(&matrices[matrix], row))
+        })
+    })
+}
+
+fn compact_row_is_zero(matrix: &neo_reductions::superneo_eval::SuperneoMatrixCache, row: usize) -> bool {
+    let (_, columns, identity) = matrix.compact_explicit_shape();
+    if (identity && row < columns)
+        || matrix
+            .compact_seeded_phi81_blocks()
+            .iter()
+            .any(|block| (block.row_start()..block.row_end()).contains(&row))
+    {
+        return false;
+    }
+    let mut nonzero = false;
+    matrix.for_each_compact_explicit_row_coefficient(row, |_, _, coefficient| {
+        nonzero |= coefficient != F::ZERO;
+    });
+    !nonzero
+}
+
+fn compact_row_is_constant_one(matrix: &neo_reductions::superneo_eval::SuperneoMatrixCache, row: usize) -> bool {
+    let (_, columns, identity) = matrix.compact_explicit_shape();
+    if matrix
+        .compact_seeded_phi81_blocks()
+        .iter()
+        .any(|block| (block.row_start()..block.row_end()).contains(&row))
+    {
+        return false;
+    }
+    if identity {
+        return row == 0 && row < columns;
+    }
+    let mut terms = 0usize;
+    let mut exact = true;
+    matrix.for_each_compact_explicit_row_coefficient(row, |block, local, coefficient| {
+        terms += 1;
+        exact &= block as usize * D + local as usize == 0 && coefficient == F::ONE;
+    });
+    terms == 1 && exact
 }
 
 impl PaperJointRoundOracle for MetalPaperJointOracle<'_> {

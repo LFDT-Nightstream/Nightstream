@@ -48,8 +48,10 @@ where
         running.claims.len(),
         running.parent_authority.as_ref(),
     );
-    let running_accumulator_handle =
-        crate::paper::reductions::paper_exact_protocol::accumulator_handle(&running.claims);
+    let running_accumulator_handle = crate::paper::reductions::paper_exact_protocol::accumulator_handle(
+        &running.claims,
+        running.parent_authority.as_ref(),
+    );
     neo_reductions::engines::paper_exact_engine::paper_exact_prove_with_instance_digest_and_me_input_handle(
         transcript,
         params.inner(),
@@ -80,8 +82,10 @@ pub fn verify_pi_ccs(
         running.claims.len(),
         running.parent_authority.as_ref(),
     );
-    let running_accumulator_handle =
-        crate::paper::reductions::paper_exact_protocol::accumulator_handle(&running.claims);
+    let running_accumulator_handle = crate::paper::reductions::paper_exact_protocol::accumulator_handle(
+        &running.claims,
+        running.parent_authority.as_ref(),
+    );
     neo_reductions::engines::paper_exact_engine::paper_exact_verify_with_instance_digest_and_me_input_handle(
         transcript,
         params.inner(),

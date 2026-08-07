@@ -16,7 +16,7 @@
 //! | [`fold_wires`] | Build typed branch views | no | `fold_wires.rs` | claim parameters |
 //! | [`consistency`] | Bind the fold digest across the fold | yes | `consistency.rs` | transcript authority |
 //! | [`projection`] | Bind advice, share beta evaluation, and enforce paper-public plus Nebula identities | yes | `projection/` | `NifsPaper.PiRlc` and the Nebula extension |
-//! | [`padding`] | Canonically zero inactive X and padded y tails | yes | `padding.rs` | encoding refinement |
+//! | [`padding`] | Canonically zero padded ring-evaluation tails | yes | `padding.rs` | encoding refinement |
 
 use neo_ccs::LaneCommitments;
 use neo_math::ring::D;

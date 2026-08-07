@@ -137,7 +137,7 @@ private def pinValid (pin : ConstantPin) : Bool :=
 
 private def callValidAt (index : Nat) : Bool :=
   let call := calls.getD index default
-  decide (call.traceIndex = 407 + index) &&
+  decide (call.traceIndex = 174 + index) &&
     decide (call.rowStart < call.rowEnd) &&
     decide (call.rowEnd - call.rowStart = 600) &&
     decide (call.rowEnd ≤ artifact.sourceRows) &&
@@ -167,7 +167,7 @@ private def boundaryValid : Bool :=
   let firstCall := calls.getD 0 default
   let firstRhoCall := calls.getD artifact.firstRhoCallIndex default
   let lastCall := calls.getD (calls.length - 1) default
-  decide (artifact.entryProducerTraceIndex = 389) &&
+  decide (artifact.entryProducerTraceIndex = 156) &&
     decide (initialStateColumns.length = 8) &&
     decide (initialCursor = 0) &&
     decide (postBindStateColumns.length = 8) &&
@@ -200,8 +200,8 @@ private def fieldOutputAliasValidAt (index : Nat) : Bool :=
     decide (alias.canonicalRowEnd ≤ artifact.sourceRows)
 
 def StructureValid : Prop :=
-  artifact.sourceRows = 9297088 ∧
-    artifact.sourceColumns = 9000422 ∧
+  artifact.sourceRows = 7080332 ∧
+    artifact.sourceColumns = 7011981 ∧
     artifact.ownedRowCount = 82612 ∧
     ownedRanges.length = 76 ∧
     constantPins.length = 412 ∧
@@ -285,8 +285,8 @@ theorem field_output_aliases_match_calls :
 
 theorem initial_state_columns_eq :
     initialStateColumns =
-      [4009282, 4009283, 4009284, 4009285,
-        4009286, 4009287, 4009288, 4009289] := by
+      [3015069, 3015070, 3015071, 3015072,
+        3015073, 3015074, 3015075, 3015076] := by
   rfl
 
 theorem initial_cursor_eq : initialCursor = 0 := by
@@ -294,8 +294,8 @@ theorem initial_cursor_eq : initialCursor = 0 := by
 
 theorem post_bind_state_columns_eq :
     postBindStateColumns =
-      [4848434, 4850783, 4850784, 4850785,
-        4850786, 4850787, 4850788, 4850789] := by
+      [3854221, 3856570, 3856571, 3856572,
+        3856573, 3856574, 3856575, 3856576] := by
   rfl
 
 theorem post_bind_cursor_eq : postBindCursor = 1 := by
@@ -303,15 +303,15 @@ theorem post_bind_cursor_eq : postBindCursor = 1 := by
 
 theorem final_state_columns_eq :
     finalStateColumns =
-      [5002992, 5002993, 5002994, 5002995,
-        5002996, 5002997, 5002998, 5002999] := by
+      [4008779, 4008780, 4008781, 4008782,
+        4008783, 4008784, 4008785, 4008786] := by
   rfl
 
 theorem final_cursor_eq : finalCursor = 0 := by
   rfl
 
 theorem pi_ccs_output_digest_input_columns_eq :
-    piCcsOutputDigestInputColumns = [4848431, 4848432, 4848433, 4848434] := by
+    piCcsOutputDigestInputColumns = [3854218, 3854219, 3854220, 3854221] := by
   rfl
 
 theorem constant_pin_profile :
@@ -326,7 +326,7 @@ theorem constant_pin_profile :
 theorem compact_call_profile :
     ∀ index : Fin calls.length,
       let call := compactCallAt index
-      call.traceIndex = 407 + index.val ∧
+      call.traceIndex = 174 + index.val ∧
         call.rowStart < call.rowEnd ∧
         call.rowEnd - call.rowStart = 600 ∧
         call.inputColumns.length = 8 ∧

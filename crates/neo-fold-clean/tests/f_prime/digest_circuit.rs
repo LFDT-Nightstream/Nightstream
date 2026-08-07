@@ -20,7 +20,7 @@ use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::CcsClaim;
 use neo_math::{D, F};
 use neo_params::{goldilocks_paper_b2, NeoParams};
-use neo_reductions::engines::utils::digest_ccs_matrices_with_sparse_cache;
+use neo_reductions::engines::utils::digest_ccs_matrices;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ fn f_prime_chunk_shape_digest_circuit_matches_native_and_binds_start_index() {
     let start_index = 9u64;
     let fresh_len = 3usize;
     let kappa = goldilocks_paper_b2::KAPPA as usize;
-    let m_in = 257usize;
+    let m_in = 270usize;
     let template = CcsClaim {
         c: Commitment::zeros(D, kappa),
         x: vec![F::ZERO; m_in],
@@ -218,8 +218,8 @@ fn ccs_matrix_digest_binds_sparse_identity_dimensions_without_field_aliasing() {
     let aliased = identity_structure((F::ORDER_U64 + 1) as usize);
 
     assert_ne!(
-        digest_ccs_matrices_with_sparse_cache(&base, None),
-        digest_ccs_matrices_with_sparse_cache(&aliased, None),
+        digest_ccs_matrices(&base),
+        digest_ccs_matrices(&aliased),
         "Π_CCS matrix digest must encode sparse/identity dimensions injectively; \
          the header transcript must not alias n=m=1 with n=m=p+1"
     );

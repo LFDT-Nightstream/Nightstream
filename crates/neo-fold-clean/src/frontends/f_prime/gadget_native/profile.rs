@@ -799,7 +799,9 @@ pub fn profile_r1cs_gadget_native_stages(
     }
 
     let sum = |f: fn(&GadgetNativeStageEstimate) -> usize| stages.iter().map(f).sum::<usize>();
-    let encoded_cols = 1 + sum(|stage| stage.encoded_cols);
+    let public_input_len = super::canonical_superneo_public_input_len(public_bit_columns.len())?;
+    let public_padding = public_input_len - (1 + public_bit_columns.len());
+    let encoded_cols = 1 + public_padding + sum(|stage| stage.encoded_cols);
     let mut boolean_pairing = GadgetNativeBooleanPairingBreakdown::default();
     for stage in &stages {
         boolean_pairing.add(stage.boolean_pairing);
@@ -807,7 +809,7 @@ pub fn profile_r1cs_gadget_native_stages(
     let total = GadgetNativeEstimate {
         source_rows: source.rows(),
         source_cols: source.cols(),
-        public_input_len: 1 + public_bit_columns.len(),
+        public_input_len,
         encoded_cols,
         encoded_rows: sum(|stage| stage.encoded_rows),
         max_degree: 8,

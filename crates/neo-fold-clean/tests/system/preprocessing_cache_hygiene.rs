@@ -43,7 +43,7 @@ fn one_product_r1cs() -> R1cs {
     b[(0, 2)] = F::ONE;
     let mut c = NeoMat::zero(1, m, F::default());
     c[(0, 0)] = F::ONE;
-    R1cs { a, b, c, m_in: 1 }
+    R1cs { a, b, c, m_in: D }
 }
 
 #[test]
@@ -85,6 +85,27 @@ fn preprocessing_cache_accessors_expose_read_only_views() {
 }
 
 #[test]
+fn seeded_preprocessing_does_not_share_equal_shaped_setup_state() {
+    let r1cs = one_product_r1cs();
+    let seed_a = 0xCACE_1001;
+    let seed_b = 0xCACE_1002;
+    let prep_a = direct_ccs::preprocess_seeded(&r1cs, seed_a).expect("seed A preprocessing");
+    let prep_b = direct_ccs::preprocess_seeded(&r1cs, seed_b).expect("seed B preprocessing");
+    let prep_a_again = direct_ccs::preprocess_seeded(&r1cs, seed_a).expect("second seed A preprocessing");
+
+    assert_ne!(prep_a.vk.digest(), prep_b.vk.digest());
+    assert_eq!(prep_a.vk.digest(), prep_a_again.vk.digest());
+    assert_eq!(
+        prep_a.log.seeded_params().expect("seed A descriptor").1[..8],
+        seed_a.to_le_bytes()
+    );
+    assert_eq!(
+        prep_b.log.seeded_params().expect("seed B descriptor").1[..8],
+        seed_b.to_le_bytes()
+    );
+}
+
+#[test]
 fn nifs_rejects_high_norm_fresh_witness_even_when_digits_are_low_norm() {
     let first = NeoMat::identity(2);
     let structure = CcsStructure::new(vec![first], SparsePoly::new(1, vec![])).expect("test structure shape is valid");
@@ -96,7 +117,7 @@ fn nifs_rejects_high_norm_fresh_witness_even_when_digits_are_low_norm() {
 
     let params = config::r1cs_params(structure.n, structure.m).expect("test params");
     support::install_ajtai_module(&params, &structure);
-    let result = preprocess(params, structure, Some(1));
+    let result = preprocess(params, structure, Some(0));
     let Ok(prep) = result else {
         return;
     };
@@ -107,8 +128,8 @@ fn nifs_rejects_high_norm_fresh_witness_even_when_digits_are_low_norm() {
         claim: CcsClaim {
             adv: None,
             c: prep.log.commit(&z_mat),
-            x: vec![z_mat[(0, 0)]],
-            m_in: 1,
+            x: Vec::new(),
+            m_in: 0,
         },
         witness: CcsWitness {
             w: vec![z_mat[(1, 0)]],

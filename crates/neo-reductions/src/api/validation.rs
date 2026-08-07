@@ -103,7 +103,7 @@ pub(crate) fn validate_ce_claim_shape(
             x_cols
         )));
     }
-    crate::engines::pi_ccs_protocol::validate_inactive_x_zero(label, ce)?;
+    crate::engines::pi_ccs_protocol::validate_canonical_x_shape(label, ce)?;
     let ell_n = ell_n_for_ccs(s);
     if ce.r.len() != ell_n {
         return Err(PiCcsError::InvalidInput(format!(
@@ -179,7 +179,7 @@ pub(crate) fn validate_pi_ccs_outputs(
                 x_cols
             )));
         }
-        crate::engines::pi_ccs_protocol::validate_inactive_x_zero(&owner, output)?;
+        crate::engines::pi_ccs_protocol::validate_canonical_x_shape(&owner, output)?;
         let point_len = ell_n_for_ccs(s);
         if output.r.len() != point_len {
             return Err(PiCcsError::InvalidInput(format!(

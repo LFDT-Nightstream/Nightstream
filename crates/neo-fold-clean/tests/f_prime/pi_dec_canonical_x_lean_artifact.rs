@@ -197,7 +197,7 @@ fn production_fixture() -> ProductionFixture {
     assert_eq!(children.len(), CHILD_COUNT);
     assert_eq!(parent.m_in, LOGICAL_COORDINATES);
     assert_eq!(parent.X.rows(), D);
-    assert_eq!(parent.X.cols(), LOGICAL_COORDINATES);
+    assert_eq!(parent.X.cols(), ACTIVE_COLUMNS);
 
     let mut child_values = vec![vec![F::ZERO; LOGICAL_COORDINATES]; CHILD_COUNT];
     for (child_index, ((claim, witness), values)) in children
@@ -207,9 +207,14 @@ fn production_fixture() -> ProductionFixture {
         .enumerate()
     {
         assert_eq!(claim.m_in, LOGICAL_COORDINATES);
+        assert_eq!(
+            claim.m_in % D,
+            0,
+            "production public input must contain whole ring elements"
+        );
         assert_eq!(claim.y_ring.len(), PAPER_MATRIX_COUNT);
         assert_eq!(witness.rows(), D);
-        assert_eq!(witness.cols(), LOGICAL_COORDINATES.div_ceil(D));
+        assert_eq!(witness.cols(), LOGICAL_COORDINATES / D);
         for (public_column, value) in values.iter_mut().enumerate() {
             let row = public_column % D;
             let column = public_column / D;

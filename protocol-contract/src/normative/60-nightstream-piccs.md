@@ -4,12 +4,12 @@
 
 Nightstream MUST use the reviewed joint PiCCS polynomial on the selected
 24-variable row cube. In its norm term, `MLE(z_i)` MUST mean the 24-variable
-MLE of `z_i` followed by zero padding. It MUST NOT dispatch to a rectangular
-FE/NC split.
+MLE of `z_i` followed by zero padding. It MUST use the paper's one row-domain
+SumCheck and MUST NOT add a second column-domain SumCheck.
 
 Decision: NSD-PICCS-001 and NSD-NORM-BINDING-001.
 
-### NS-PICCS-PADDING-EQUIVALENCE — Zero-row refinement
+### NS-PICCS-PADDING-EQUIVALENCE — Zero-row specialization
 
 For every application matrix, the padded output MUST equal its logical output
 on rows `0..14944218` and zero afterwards. The Structure MUST satisfy

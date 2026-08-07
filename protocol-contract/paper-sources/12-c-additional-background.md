@@ -8,24 +8,26 @@ $$\Pr_{x \leftarrow S^\ell} [g(x) = 0] \le d/|S|.$$
 
 **Lemma 6.** *Let  $Q \in \mathbb{F}[X_1, \dots, X_\ell]$  be an arbitrary multivariate polynomial. Define multivariate polynomial  $Q'(\vec{X}, \vec{Z}) := \text{eq}(\vec{X}, \vec{Z}) \cdot Q(\vec{X})$ .*
 
-$$0 = \sum_{\vec{x} \in \{0,1\}^{\ell}} Q'(\vec{x}, \vec{Z}) \quad \text{if and only if} \quad Q(\vec{X}) \in \mathbb{ZS}_\ell$$
+$$0 = \sum_{\vec{x} \in \{0,1\}^{\ell}} Q'(\vec{x}, \vec{Z}) \quad \text{if and only if} \quad Q(\vec{X}) \in \mathbb{ZS}_\ell,$$
+
+where the equality on the left is an identity in  $\mathbb F[\vec Z]$ .
 
 **Definition 15 (Module Homomorphism).** *Modules are a generalization of vector spaces for which the field of scalars is replaced by a ring  $R$ . Suppose  $R$  is a commutative ring with identity  $1$  and  $G$  is an abelian (commutative) group. The group  $G$  is an  $R$ -module if there is an operation  $\cdot : R \times G \to G$  such that for all  $r, s \in R$  and  $x, y \in G$ ,  $r \cdot (x + y) = r \cdot x + r \cdot y$ ,  $(r + s) \cdot x = r \cdot x + s \cdot x$ ,  $(rs) \cdot x = r \cdot (s \cdot x)$ ,  $1 \cdot x = x$ . Suppose  $G_1$  and  $G_2$  are  $R$ -modules. Similarly, an  $R$ -module homomorphism is a map  $\mathcal{L} : G_1 \to G_2$  that is a generalization of a linear map of vector spaces.  $\mathcal{L}$  is an  $R$ -module homomorphism if for all  $x, y \in G_1$  and  $r \in R$ ,  $\mathcal{L}(x + y) = \mathcal{L}(x) + \mathcal{L}(y)$  and  $\mathcal{L}(r \cdot x) = r \cdot \mathcal{L}(x)$ .*
 
-**Definition 16 (Module short integer solution [60, 63, 73]).** *Define the ring  $R_Z := \mathbb{Z}[X]/(\Phi(X))$ . The MSIS $_{m,B}^{\infty,\kappa,q}$  problem is defined as follows: Given a matrix  $M \xleftarrow{\$} \mathbb{R}_{\mathbb{F}}^{\kappa \times m}$  sampled uniformly at random, find a non-zero vector  $z \in \mathbb{R}_Z$  such that  $Mz = 0 \pmod q$  and  $\|z\|_{\infty} < B$ .*
+**Definition 16 (Module short integer solution [60, 63, 73]).** *Define the ring  $R_Z := \mathbb{Z}[X]/(\Phi(X))$ . The  $\operatorname{MSIS}_{n,B}^{\infty,\kappa,q}$  problem is defined as follows: Given a matrix  $M \xleftarrow{\$} \mathbb{R}_{\mathbb{F}}^{\kappa \times n}$  sampled uniformly at random, find a non-zero vector  $z \in R_Z^n$  such that  $Mz = 0 \pmod q$  and  $\|z\|_{\infty} < B$ .*
 
-**Theorem 8 (Low norm invertibility [65, Theorem 1.1, Conjecture 2.6]).** *Let  $z \in \mathbb{N}$  such that  $z \mid \eta$ ,  $q \equiv 1 \pmod z$ , and  $\text{ord}_{\eta}(q) = \eta/z$ . Define  $\mathbf{b}_{\text{inv}} := 1/\sqrt{\tau(z)} \cdot q^{1/\phi(z)}$  where  $\tau(z) := z$  if  $z$  is odd, otherwise  $\tau(z) = z/2$ . For an arbitrary  $a \in \mathbb{R}_{\mathbb{F}}$ , if  $0 < \|a\|_{\infty} < \mathbf{b}_{\text{inv}}$ , then  $a$  is invertible in  $\mathbb{R}_{\mathbb{F}}$ .*
+**Theorem 8 (Low norm invertibility [65, Theorem 1.1; 86, Theorem 2 and Proposition 2]).** *Write  $\eta=\prod_i p_i^{e_i}$  and let  $z=\prod_i p_i^{f_i}$  for integers  $1\le f_i\le e_i$ ; thus  $z\mid\eta$  and  $z$  and  $\eta$  have the same prime support. Suppose  $q \equiv 1 \pmod z$  and  $\text{ord}_{\eta}(q) = \eta/z$ . Define  $\mathbf{b}_{\text{inv}} := 1/\sqrt{\tau(z)} \cdot q^{1/\phi(z)}$  where  $\tau(z) := z$  if  $z$  is odd, otherwise  $\tau(z) = z/2$ . For an arbitrary  $a \in \mathbb{R}_{\mathbb{F}}$ , if  $0 < \|a\|_{\infty} < \mathbf{b}_{\text{inv}}$ , then  $a$  is invertible in  $\mathbb{R}_{\mathbb{F}}$ .*
 
-**Definition 17 (Strong sampling sets [3, 28]).** *Define  $\mathcal{C} \subseteq \mathbb{R}_{\mathbb{F}}$  to be any set of ring elements such that for any distinct elements  $a, b \in \mathcal{C}$ ,  $\|a - b\|_{\infty} < \mathbf{b}_{\text{inv}}$  (Theorem 8). Furthermore, we define the*
+**Definition 17 (Strong sampling sets [3]).** *Define  $\mathcal{C} \subseteq \mathbb{R}_{\mathbb{F}}$  to be any set of ring elements such that for any distinct elements  $a, b \in \mathcal{C}$ ,  $\|a - b\|_{\infty} < \mathbf{b}_{\text{inv}}$  (Theorem 8). Furthermore, we define the*
 
-$$\text{expansion factor of } \mathcal{C} := \max_{\substack{v \in \mathbb{R}_{\mathbb{F}} \\ \rho \in \mathcal{C}}} \frac{\|\rho v\|_{\infty}}{\|v\|_{\infty}}$$
+$$\text{expansion factor of } \mathcal{C} := \max_{\substack{0\ne v \in \mathbb{R}_{\mathbb{F}} \\ \rho \in \mathcal{C}}} \frac{\|\rho v\|_{\infty}}{\|v\|_{\infty}}$$
 
 **Theorem 9 (Expansion factors [3]).** *Let  $\mathcal{C}$  be a strong sampling set over the cyclotomic ring  $\mathbb{R}_{\mathbb{F}}$  (Definition 17), We denote the Euler totient function as  $\phi$ . We must have that the expansion factor of  $\mathcal{C}$  is  $\le 2 \cdot \phi(\eta) \cdot \max_{\rho \in \mathcal{C}} \|\rho\|_{\infty}$ .*
 
-**Definition 18 (Ajtai commitment scheme [2]).** *Let message length  $m \in \mathbb{N}$ . The Ajtai commitment scheme  $\text{com} := (\text{Setup}, \text{Commit})$  consists of the following PPT algorithms:*
+**Definition 18 (Ajtai commitment scheme [2]).** *Let ring-message length  $n \in \mathbb{N}$ . The Ajtai commitment scheme  $\text{com} := (\text{Setup}, \text{Commit})$  consists of the following PPT algorithms:*
 
-- **Setup** $(\kappa, m) \to \text{pp}$ : Sample a random matrix  $M \xleftarrow{\$} \mathbb{R}_{\mathbb{F}}^{\kappa \times m}$ . Output  $\text{pp} \leftarrow M$ .
-- **Commit** $(\text{pp}, z) \to c$ : Given parameters  $\text{pp}$  and vector  $z \in \mathbb{R}_{\mathbb{F}}^m$ , output  $Mz$ .
+- **Setup** $(1^\lambda, n) \to \text{pp}$ : Choose the Module-SIS rank  $\kappa$  as a function of the security parameter, sample a random matrix  $M \xleftarrow{\$} \mathbb{R}_{\mathbb{F}}^{\kappa \times n}$ , and output  $\text{pp} \leftarrow M$ .
+- **Commit** $(\text{pp}, z) \to c$ : Given parameters  $\text{pp}$  and vector  $z \in \mathbb{R}_{\mathbb{F}}^n$ , output  $Mz$ .
 
 In this work, we are primarily interested in building folding schemes, a particular type of reduction of knowledge that reduces the task of checking instances in some relation  $\mathcal{R}_2$  into a running instance in a relation  $\mathcal{R}_1$ .
 

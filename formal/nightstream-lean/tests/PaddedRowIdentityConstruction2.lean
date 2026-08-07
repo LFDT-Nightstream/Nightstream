@@ -13,6 +13,9 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 
 #check setup_verifierKey
 #check setup_nifs_verify
+#check BaseAdviceCanonical
+#check baseAdviceAccepted_eq_true_iff
+#check base_rejects_noncanonical_advice
 #check machine_control
 #check machine_step
 #check machine_freshPublic
@@ -26,6 +29,10 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 #check constantStep_semanticSoundness_and_stateRecovery
 #check base_complete_without_fold
 #check recursive_complete_with_one_fold
+#check TerminalProof.bottom
+#check TerminalProof.recursive
+#check terminalAccepts_bottom
+#check terminalAccepts_recursive
 #check terminalAccepts_iff_transition
 #check terminal_base_accepts_without_fold
 #check terminal_recursive_accepts_without_fold

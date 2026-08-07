@@ -93,7 +93,7 @@ theorem sample_proof_codec_matches :
 
 theorem sample_output_field_count_matches :
     Generated.sampleOutputFieldCount =
-      1 + shape.sourceCount * shape.matrixCount * shape.coefficientCount * 2 := by
+      20 + shape.sourceCount * shape.matrixCount * shape.coefficientCount * 2 := by
   decide
 
 /-- The Rust generator compares every sampled output field against the exact

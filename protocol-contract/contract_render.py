@@ -412,11 +412,14 @@ def _render_sources(model: ContractModel) -> bytes:
             f"`{base}` | {source['role']} |"
         )
     derivation = lock["source_derivation"]
+    patch_source_ids = ", ".join(
+        f"`{source_id}`" for source_id in derivation["patch_source_ids"]
+    )
     lines.extend([
         "",
         "## Derivation rule",
         "",
-        f"The checker reverse-applies `{derivation['patch_source_id']}` without fuzz",
+        f"The checker concatenates and reverse-applies {patch_source_ids} without fuzz",
         "or path substitution. It requires every reconstructed base hash. It then",
         "applies the patch forward and requires byte equality with the reviewed",
         "files. An unchanged file has equal base and reviewed hashes.",
@@ -424,7 +427,7 @@ def _render_sources(model: ContractModel) -> bytes:
         "The external v3 archive has SHA-256",
         f"`{registry['external_v3_archive_sha256']}`.",
         "It reconstructs the same base snapshot. It is not normative because this",
-        "repository uses the later reviewed v4 patch and source bytes.",
+        "repository uses the later reviewed v5 patch and source bytes.",
         "",
         "Nightstream decisions are not paper sources. Their authority is in",
         "`src/decisions/decisions.jsonl`; `deviations.md` is a generated view.",

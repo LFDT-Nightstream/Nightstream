@@ -369,8 +369,9 @@ inductive TerminalTrace where
       (freshRelation : FreshRelationReceipt)
 deriving Repr, DecidableEq
 
-/-- One proof-free terminal comparison case.  The base branch ignores proof
-data, exactly as the frozen canonical terminal verifier does. -/
+/-- One proof-free terminal comparison case.  The trace tag reconstructs the
+exact outer proof constructor.  Fields retained in a base corpus row are not
+part of the reconstructed `bottom` proof. -/
 structure TerminalCase where
   verifierKey : Key
   defaultRunning : Running
@@ -456,6 +457,14 @@ def terminalProof (case : TerminalCase) :
   freshWitness := case.freshWitness
   pc := case.pc
 
+/-- Reconstruct the exact bottom-or-recursive paper proof envelope from the
+branch-tagged receipt. -/
+def outerTerminalProof (case : TerminalCase) :
+    OuterTerminalProof Running RunningWitness Fresh FreshWitness slotCount :=
+  match case.trace with
+  | .base => .bottom
+  | .recursive _ _ _ _ _ => .recursive (terminalProof case)
+
 def terminalPriorHashInput (case : TerminalCase) : HashInput where
   verifierKey := case.verifierKey
   iteration := case.iteration
@@ -488,9 +497,9 @@ def terminalSchemaAccepted (case : TerminalCase) : Bool :=
 /-- Execute the frozen canonical terminal verifier over reconstructed receipts. -/
 def terminalAccepted (case : TerminalCase) : Bool :=
   terminalSchemaAccepted case &&
-    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.eval
+    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.evalOuter
       (terminalSetup case) (terminalMachine case) (terminalRelations case)
-      (terminalChecks case) (terminalStatement case) (terminalProof case)
+      (terminalChecks case) (terminalStatement case) (outerTerminalProof case)
 
 /-- The external Rust result is deliberately isolated to this final equality. -/
 def terminalAgrees (case : TerminalCase) : Bool :=

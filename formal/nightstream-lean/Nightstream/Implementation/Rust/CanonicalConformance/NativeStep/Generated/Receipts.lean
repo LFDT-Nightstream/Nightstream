@@ -135,14 +135,6 @@ def proof7 : NativeProof where
   semanticStateDigest := ⟨7⟩
   xOut := ⟨10⟩
 
-def initialAccumulatorDigest : Digest := ⟨1⟩
-
-def initialBoundaryDigest : Digest := ⟨2⟩
-
-def publicTraceSeed : Digest := ⟨3⟩
-
-def runningDigests : RunningDigestTable := [(⟨1⟩, ⟨5⟩), (⟨2⟩, ⟨7⟩)]
-
 def rawEncoding : RawEncodingTable := [{ key := .digest ⟨1⟩, fields := [6050346961767540117, 6831654115071457408, 13584604561938226767, 10634950855421314340] }, { key := .digest ⟨2⟩, fields := [13917783062160697285, 4331950706517031180, 9285003983572278089, 3990007543724847648] }, { key := .digest ⟨3⟩, fields := [4770331301026758549, 8009507013605978912, 5067802477165839601, 14596572331013417917] }, { key := .digest ⟨4⟩, fields := [3390071764332877037, 17261146152011705470, 1146231647026019988, 17211836976717526332] }, { key := .digest ⟨5⟩, fields := [1164511749775049907, 10074146425696528134, 18372852718988082658, 2837136314702206121] }, { key := .digest ⟨6⟩, fields := [1555050737218525676, 6387916706703269531, 11107509104402235978, 3961222251664291319] }, { key := .digest ⟨7⟩, fields := [14625725610257257792, 811664778435527428, 10231467547911836120, 3943165441346633174] }, { key := .digest ⟨8⟩, fields := [1164511749775049906, 10074146425696528134, 18372852718988082658, 2837136314702206121] }, { key := .digest ⟨9⟩, fields := [9408704594227739292, 6387514553373705747, 9285620601416574406, 9420746682686410033] }, { key := .digest ⟨10⟩, fields := [4189709018201826739, 4340764673504575005, 11903587239418498998, 9791287985391766124] }, { key := .digest ⟨11⟩, fields := [9408704594227739293, 6387514553373705747, 9285620601416574406, 9420746682686410033] }, { key := .digest ⟨12⟩, fields := [11850897906737288612, 10765508251757606931, 7372253738285730085, 17585974925162884672] }, { key := .digest ⟨13⟩, fields := [11921992675418448155, 14314897559866597893, 7944813534763482093, 8274974672654009231] }, { key := .header ⟨1⟩, fields := [2234294296696853469, 5093268742965250187, 16479147461346790447, 10704202965695071540] }]
 
 def honestBase : Receipt where
@@ -152,10 +144,7 @@ def honestBase : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := none }
   prior := state1
   input := input1
   proof := proof1
@@ -176,10 +165,7 @@ def honestRecursive : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := some (⟨1⟩, ⟨5⟩) }
   prior := state2
   input := input1
   proof := proof2
@@ -201,10 +187,7 @@ def initialWithRecursiveFold : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := none }
   prior := state1
   input := input1
   proof := proof3
@@ -222,10 +205,7 @@ def activeWithNoFold : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := some (⟨1⟩, ⟨5⟩) }
   prior := state2
   input := input1
   proof := proof4
@@ -243,10 +223,7 @@ def emptyNextLatest : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := none }
   prior := state1
   input := input2
   proof := proof1
@@ -262,10 +239,7 @@ def semanticModeFlip : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := none }
   prior := state1
   input := input1
   proof := proof1
@@ -286,10 +260,7 @@ def statelessSemanticDigestMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := none }
   prior := state1
   input := input1
   proof := proof5
@@ -308,10 +279,7 @@ def xOutMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := none }
   prior := state1
   input := input1
   proof := proof6
@@ -332,10 +300,7 @@ def nifsPiDecChildMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := some (⟨1⟩, ⟨5⟩) }
   prior := state2
   input := input1
   proof := proof7
@@ -354,10 +319,7 @@ def incomingAccumulatorHandleMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := some (⟨1⟩, ⟨5⟩) }
   prior := state4
   input := input1
   proof := proof2
@@ -373,10 +335,7 @@ def incomingStatelessEqualityMutation : Receipt where
   relationColumns := 54
   rawEncoding := rawEncoding
   emptyRunning := emptyRunning
-  initialAccumulatorDigest := initialAccumulatorDigest
-  initialBoundaryDigest := initialBoundaryDigest
-  publicTraceSeed := publicTraceSeed
-  runningDigests := runningDigests
+  authority := { initialBoundary := ⟨2⟩, initialAccumulator := ⟨1⟩, initialPublicTrace := ⟨3⟩, priorRunningDigest := some (⟨1⟩, ⟨5⟩) }
   prior := state5
   input := input1
   proof := proof2

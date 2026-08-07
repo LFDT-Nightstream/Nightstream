@@ -45,6 +45,7 @@ abbrev Point := PaddedRowIdentityConcreteAlgebra.Point
 abbrev Evaluation := PaddedRowIdentityConcreteAlgebra.Evaluation
 abbrev AjtaiKey := PaddedRowIdentityConcreteAlgebra.AjtaiKey
 abbrev Structure := ApplicationMatrices
+abbrev StatementId := PaddedRowIdentityConcreteNifs.Poseidon2.StatementId
 
 abbrev VerifierKey :=
   Key K Commitment PublicInput RingF
@@ -159,6 +160,22 @@ def defaultRunning : PublicRunning where
   publicInputs := fun _ => zeroClaim.publicInput
   evaluations := fun _ => zeroClaim.evaluation
 
+/-- Canonical unused fresh value in the base-step advice encoding. -/
+def baseDummyFresh : PublicFresh where
+  commitments := fun _ => zeroClaim.commitment
+  publicInputs := fun _ => zeroClaim.publicInput
+
+/-- Canonical unused NIFS message in the base-step advice encoding. Its
+contents have no protocol authority because the base branch performs no fold. -/
+def baseDummyNifsProof : NifsProof where
+  piCcsRounds := fun _ => {
+    coefficients := List.replicate 10 K.zero
+    coefficients_length := by simp
+  }
+  piCcsOutput := { coordinate := fun _ _ _ => K.zero }
+  piDecCommitments := fun _ => zeroClaim.commitment
+  piDecEvaluations := fun _ => zeroClaim.evaluation
+
 /-- Prover openings for the deterministic default running product. -/
 def defaultRunningWitness : Fin shape.runningCount -> Assignment :=
   fun _ => zeroAssignment
@@ -188,25 +205,24 @@ theorem defaultRunning_holds
 application matrices. Every selected NIFS verifier uses the same one-joint
 paper protocol. -/
 noncomputable def setup {slotCount : Nat}
-    (statementIds : Fin slotCount -> F)
+    (statementIds : Fin slotCount -> StatementId)
     (ajtaiKeys : Fin slotCount -> AjtaiKey)
     (systems : Fin slotCount -> Structure) :
-    Paper.Setup VerifierKey PublicRunning PublicFresh NifsProof slotCount :=
-  Nightstream.Protocol.FPrime.CanonicalVerifier.PaperNonInteractiveNifs.construction2Setup
-    rfl
-    (fun slot => PaddedRowIdentityConcreteNifs.key
-      (statementIds slot) (ajtaiKeys slot) (systems slot))
-    defaultRunning
+    Paper.Setup VerifierKey PublicRunning PublicFresh NifsProof slotCount where
+  verifierKeys := fun slot => PaddedRowIdentityConcreteNifs.key
+    (statementIds slot) (ajtaiKeys slot) (systems slot)
+  nifs := { verify := PaddedRowIdentityConcreteNifs.verify }
+  defaultRunning := defaultRunning
 
 @[simp] theorem setup_defaultRunning {slotCount : Nat}
-    (statementIds : Fin slotCount -> F)
+    (statementIds : Fin slotCount -> StatementId)
     (ajtaiKeys : Fin slotCount -> AjtaiKey)
     (systems : Fin slotCount -> Structure) :
     (setup statementIds ajtaiKeys systems).defaultRunning = defaultRunning := by
   rfl
 
 @[simp] theorem setup_verifierKey {slotCount : Nat}
-    (statementIds : Fin slotCount -> F)
+    (statementIds : Fin slotCount -> StatementId)
     (ajtaiKeys : Fin slotCount -> AjtaiKey)
     (systems : Fin slotCount -> Structure)
     (slot : Fin slotCount) :
@@ -274,7 +290,7 @@ noncomputable def terminalChecks {slotCount : Nat} :
 running relation at every slot. -/
 theorem setup_defaultRunning_terminal
     {slotCount : Nat}
-    (statementIds : Fin slotCount -> F)
+    (statementIds : Fin slotCount -> StatementId)
     (ajtaiKeys : Fin slotCount -> AjtaiKey)
     (systems : Fin slotCount -> Structure)
     (slot : Fin slotCount) :
@@ -285,27 +301,27 @@ theorem setup_defaultRunning_terminal
   intro index
   exact zeroClaim_holds (ajtaiKeys slot) (systems slot)
 
-/-- Concrete outer Construction 2 verifier theorem. The base branch checks
-only the initial endpoint. The recursive branch checks the prior public link,
-all running CE relations, and the selected fresh CCS relation. It performs no
-NIFS call and adds no SumCheck. -/
+/-- Concrete outer Construction 2 verifier theorem. The base branch accepts
+only the bottom constructor and checks the initial endpoint. The recursive
+branch checks the prior public link, all running CE relations, and the selected
+fresh CCS relation. It performs no NIFS call and adds no SumCheck. -/
 theorem terminalHolds_iff_transition
     {Digest State Witness Encoded : Type}
     {slotCount : Nat}
-    (statementIds : Fin slotCount -> F)
+    (statementIds : Fin slotCount -> StatementId)
     (ajtaiKeys : Fin slotCount -> AjtaiKey)
     (systems : Fin slotCount -> Structure)
     (machine : Paper.Machine VerifierKey Digest State Witness PublicRunning
       PublicFresh Encoded slotCount)
     (statement : Paper.TerminalStatement State)
-    (proof : Paper.TerminalProof PublicRunning RunningWitness PublicFresh
+    (proof : Paper.OuterTerminalProof PublicRunning RunningWitness PublicFresh
       Assignment slotCount) :
-    Paper.TerminalHolds (setup statementIds ajtaiKeys systems) machine
+    Paper.OuterTerminalHolds (setup statementIds ajtaiKeys systems) machine
         terminalRelations
         statement proof <->
-      Paper.TerminalTransition (setup statementIds ajtaiKeys systems) machine
+      Paper.OuterTerminalTransition (setup statementIds ajtaiKeys systems) machine
         terminalRelations statement proof := by
-  exact Paper.terminalHolds_iff_transition
+  exact Paper.outerTerminalHolds_iff_transition
     (setup statementIds ajtaiKeys systems) machine terminalRelations
       statement proof
 

@@ -59,7 +59,7 @@ NS-SHAPE-POLYNOMIAL,"not-in-paper","NSD-DOMAIN-MAP-001;NSD-PICCS-001","","open",
 NS-PUBLIC-CARRIER,"not-in-paper","NSD-AUTHORITY-001;NSD-CARRIER-001","formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/FPrimeCarrier270/LogicalCarrier.lean;formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/FPrimeFullHistory/SelectiveCcs/PaddedRowIdentityConcreteAlgebra.lean","open","crates/neo-fold-clean/src/frontends/r1cs_f_prime/lean_native_ccs_manifest.rs","open","","open","crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit","open","protocol-contract/security-reduction.md","open",""
 NS-SPLIT-BINARY,"not-in-paper","NSD-SPLIT-001","formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/PiDECAlgebra/Radix.lean","open","crates/neo-reductions/src/common.rs","open","","open","crates/neo-fold-clean/src/paper/reductions/pi_dec_circuit","open","protocol-contract/security-reduction.md","open",""
 NS-COMMITMENT-PROFILE,"not-in-paper","NSD-AUTHORITY-001;NSD-ENCODING-001","","open","","open","","open","","open","","open",""
-NS-PICCS-VARIANT,"not-in-paper","NSD-NORM-BINDING-001;NSD-PICCS-001","","open","","open","","open","","open","","open",""
+NS-PICCS-VARIANT,"SRC-PAPER-07","NSD-NORM-BINDING-001;NSD-PICCS-001","","open","","open","","open","","open","","open",""
 NS-PICCS-PADDING-EQUIVALENCE,"not-in-paper","NSD-DOMAIN-MAP-001;NSD-NORM-BINDING-001","","open","","open","","open","","open","","open",""
 NS-PICCS-COINS,"not-in-paper","NSD-BATCH-COINS-001;NSD-TRANSCRIPT-001","","open","","open","","open","","open","","open",""
 NS-PICCS-SUMCHECK,"not-in-paper","NSD-ENCODING-001;NSD-PICCS-001;NSD-TRANSCRIPT-001","","open","","open","","open","","open","","open",""

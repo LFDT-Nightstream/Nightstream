@@ -13,6 +13,9 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityHyperNova
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityNIVCCompatibility
 
+abbrev SelectedStatementId :=
+  Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityNIVCCompatibility.StatementId
+
 #check parametersCodec_canonical
 #check structureCodec_canonical
 #check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityCompilerDescription.fields_length
@@ -37,15 +40,18 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 
 #check (verifyRecursive :
   Nightstream.HyperNova.NIVCCompatibility.RecursiveVerifierKey
-      VerifierProjection StatementId ->
+      VerifierProjection SelectedStatementId ->
     VerifierInput -> VerifierOutput)
 
 example : assignmentColumns <= 2 ^ rowVariables :=
   assignmentColumns_covered
 
-example : statementIdentifier.domainLabel = [statementDomain] := rfl
+example : statementIdentifier.domainLabel = statementIdentifierPrefix := rfl
 
-example : statementIdentifier.identifierWidth = 1 := rfl
+example : statementIdentifier.domainLabel.length = 353 :=
+  statementIdentifierPrefix_length
+
+example : statementIdentifier.identifierWidth = 4 := rfl
 
 namespace RuntimeIndependence
 
@@ -64,7 +70,7 @@ abbrev RuntimeProof :=
   Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityNIVCCompatibility.NifsProof
 
 example
-    (statementId : F)
+    (statementId : SelectedStatementId)
     (leftKey rightKey : RuntimeAjtaiKey)
     (leftSystem rightSystem : RuntimeStructure)
     (running : RuntimeRunning)
@@ -74,7 +80,7 @@ example
   rw [key_publicInputState, key_publicInputState]
 
 example
-    (statementId : F)
+    (statementId : SelectedStatementId)
     (leftKey rightKey : RuntimeAjtaiKey)
     (leftSystem rightSystem : RuntimeStructure)
     (running : RuntimeRunning)
@@ -86,15 +92,15 @@ example
   rw [key_verifierInput, key_verifierInput]
 
 example
-    (statementId : F)
+    (statementId : SelectedStatementId)
     (ajtaiKey : RuntimeAjtaiKey)
     (system : RuntimeStructure)
     (running : RuntimeRunning)
     (fresh : RuntimeFresh)
     (proof : RuntimeProof) :
-    Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify
+    Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityConcreteNifs.verify
         (key statementId ajtaiKey system) running fresh proof =
-      Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.verify
+      Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityConcreteNifs.verify
         (compactKey statementId) running fresh proof :=
   verify_eq_compact statementId ajtaiKey system running fresh proof
 

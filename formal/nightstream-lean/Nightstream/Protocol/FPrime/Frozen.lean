@@ -504,9 +504,9 @@ theorem canonicalFprime_semanticTransition_implies_exists_nifsProof_accepts
 
 universe uRunningWitness uFreshWitness
 
-/-- Headline terminal equation: base checks only the endpoint; recursive
-terminal acceptance checks all instance/witness relations and performs no
-additional NIFS fold. -/
+/-- Headline terminal equation: the base proof is the unique bottom
+constructor and checks only the endpoint. Recursive terminal acceptance checks
+all instance/witness relations and performs no additional NIFS fold. -/
 theorem terminal_accepts_iff_transition
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -524,10 +524,11 @@ theorem terminal_accepts_iff_transition
     (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
       slotCount)
     (statement : TerminalStatement State)
-    (proof : TerminalProof Running RunningWitness Fresh FreshWitness slotCount) :
-    TerminalHolds setup machine relations statement proof <->
-      TerminalTransition setup machine relations statement proof := by
-  exact terminalHolds_iff_transition setup machine relations statement proof
+    (proof : OuterTerminalProof Running RunningWitness Fresh FreshWitness
+      slotCount) :
+    OuterTerminalHolds setup machine relations statement proof <->
+      OuterTerminalTransition setup machine relations statement proof := by
+  exact outerTerminalHolds_iff_transition setup machine relations statement proof
 
 /-- Headline obligation-7 terminal equation: the compact executable terminal
 checker accepts exactly the independent Construction-2 terminal relation and
@@ -554,11 +555,12 @@ theorem canonicalTerminal_accepts_iff_transition
       Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.RelationChecks
         relations)
     (statement : TerminalStatement State)
-    (proof : TerminalProof Running RunningWitness Fresh FreshWitness slotCount) :
-    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.eval
+    (proof : OuterTerminalProof Running RunningWitness Fresh FreshWitness
+      slotCount) :
+    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.evalOuter
         setup machine relations checks statement proof = true <->
-      TerminalTransition setup machine relations statement proof := by
-  exact Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.eval_eq_true_iff_transition
+      OuterTerminalTransition setup machine relations statement proof := by
+  exact Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.evalOuter_eq_true_iff_transition
     setup machine relations checks statement proof
 
 /-- Executable terminal exactness is independent of NIFS soundness and
@@ -585,10 +587,11 @@ theorem canonicalTerminal_exact_without_nifs
       Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.RelationChecks
         relations)
     (statement : TerminalStatement State)
-    (proof : TerminalProof Running RunningWitness Fresh FreshWitness slotCount) :
-    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.eval
+    (proof : OuterTerminalProof Running RunningWitness Fresh FreshWitness
+      slotCount) :
+    Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.evalOuter
         setup machine relations checks statement proof = true <->
-      TerminalTransition setup machine relations statement proof := by
+      OuterTerminalTransition setup machine relations statement proof := by
   exact Nightstream.Protocol.FPrime.CanonicalVerifier.NifsRefinement.terminal_exact_without_nifs
     setup machine relations checks statement proof
 

@@ -1,5 +1,6 @@
 {"availability":"packaged","id":"ART-SOURCE-REGISTRY","kind":"source","path":"protocol-contract/sources.md"}
-{"availability":"packaged","id":"ART-ERRATA-V4","kind":"source","path":"protocol-contract/paper-sources/superneo-paper-errata-v4.patch"}
+{"availability":"packaged","id":"ART-ERRATA-V5-PART1","kind":"source","path":"protocol-contract/paper-sources/superneo-paper-errata-v5-part1.patch"}
+{"availability":"packaged","id":"ART-ERRATA-V5-PART2","kind":"source","path":"protocol-contract/paper-sources/superneo-paper-errata-v5-part2.patch"}
 {"availability":"packaged","id":"ART-LITERAL-MODEL","kind":"review","path":"protocol-contract/literal-paper-model.md"}
 {"availability":"packaged","id":"ART-DECISION-LEDGER","kind":"decision-ledger","path":"protocol-contract/src/decisions/decisions.jsonl"}
 {"availability":"packaged","id":"ART-NORMATIVE-CONTRACT","kind":"contract","path":"protocol-contract/superneo-v1.md"}

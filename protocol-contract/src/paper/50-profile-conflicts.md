@@ -29,13 +29,13 @@ Source: `SRC-PAPER-13`, lines 617-632.
 
 `PAPER-CONFLICT-001` The reviewed paper still requires `n_F=d*n_R`, but its
 Goldilocks profile selects `d=54` and `n_F=2^30`. Since
-`2^30 mod 54=46`, these values do not define an integer `n_R`. The joint PiCCS
-also uses one power-of-two domain with `m=n_F`.
+`2^30 mod 54=46`, these values do not define an integer `n_R`.
 
-This extraction does not resolve the conflict. Nightstream decisions
-`NSD-DOMAIN-001` and `NSD-DOMAIN-MAP-001` instead select the actual logical
-widths and one larger padded row cube. They do not treat the printed
-`n_F=2^30` value as a valid ring-aligned committed-vector width.
+This extraction does not resolve that profile conflict. Nightstream decisions
+`NSD-DOMAIN-001` and `NSD-DOMAIN-MAP-001` select the actual ring-aligned
+assignment width and one larger padded row cube. This is an instance of the
+paper's `n_F<=m` normalization, but it does not treat the printed `n_F=2^30`
+value as a valid ring-aligned committed-vector width.
 
 Source: `SRC-PAPER-04`, `SRC-PAPER-07`, and `SRC-PAPER-11`.
 

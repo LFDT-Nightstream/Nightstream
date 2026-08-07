@@ -220,6 +220,10 @@ presented as established security theorems here.
 #guard_msgs in
 #audit_axioms Nightstream.HyperNova.Construction2.Paper.terminalHolds_iff_transition
 
+/-- info: 'Nightstream.HyperNova.Construction2.Paper.outerTerminalHolds_iff_transition' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.HyperNova.Construction2.Paper.outerTerminalHolds_iff_transition
+
 /-- info: 'Nightstream.Protocol.FPrime.Frozen.HyperNova.nifsV_accepts_iff' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms Nightstream.Protocol.FPrime.Frozen.HyperNova.nifsV_accepts_iff

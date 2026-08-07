@@ -102,79 +102,7 @@ private theorem outputRunningDigest_live_of_callBinding
   simp only [NativeCallBinding, NativeCallBindingCheck, Bool.and_eq_true] at binding
   simpa only [nextProof] using binding.1
 
-private theorem nativeStateAuthority_boundaryStep_iff_of_wellFormed
-    (receipt : Receipt)
-    (boundary : BoundaryReceipt)
-    (hash :
-      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
-    (wellFormed : ReceiptWellFormed receipt = true) :
-    NativeStateAuthority hash (boundaryStepSemantics receipt boundary)
-        receipt.mode receipt.context receipt.prior ↔
-      NativeStateAuthority hash (stepSemantics receipt) receipt.mode
-        receipt.context receipt.prior := by
-  cases priorProof : receipt.prior.proof with
-  | initial =>
-      simp [NativeStateAuthority, priorProof, boundaryStepSemantics,
-        stepSemantics]
-  | active running latest =>
-      have runningLive :=
-        priorRunningDigest_live_of_wellFormed receipt running latest wellFormed
-          priorProof
-      have runningEq :=
-        boundaryRunningDigest_eq_native_of_live receipt boundary running
-          runningLive
-      cases receipt.mode <;>
-        simp only [NativeStateAuthority, priorProof] <;>
-        rw [runningEq]
-
-private theorem nativeStateAuthority_boundary_iff_of_wellFormed
-    (receipt : Receipt)
-    (boundary : BoundaryReceipt)
-    (wellFormed : ReceiptWellFormed receipt = true) :
-    NativeStateAuthority (hashSemantics receipt) (stepSemantics receipt)
-        receipt.mode receipt.context receipt.prior ↔
-      NativeStateAuthority (boundaryHashSemantics receipt boundary)
-        (boundaryStepSemantics receipt boundary) receipt.mode receipt.context
-        receipt.prior := by
-  have initialBoundaryEq :
-      XOut.initialBoundary (boundaryHashSemantics receipt boundary)
-          receipt.context =
-        XOut.initialBoundary (hashSemantics receipt) receipt.context := by
-    unfold XOut.initialBoundary
-    exact boundaryHash_eq_native_of_live receipt boundary
-      (.initialBoundary (XOut.initialBoundaryPreimage receipt.context))
-      (by
-        simpa only [XOut.initialBoundary] using
-          initialBoundary_live_of_wellFormed receipt wellFormed)
-  have publicTraceEq :
-      XOut.publicTraceSeed (boundaryHashSemantics receipt boundary)
-          receipt.context =
-        XOut.publicTraceSeed (hashSemantics receipt) receipt.context := by
-    unfold XOut.publicTraceSeed
-    exact boundaryHash_eq_native_of_live receipt boundary
-      (.publicTraceSeed {
-        structureDigest := receipt.context.structureDigest
-      })
-      (by
-        simpa only [XOut.publicTraceSeed] using
-          publicTraceSeed_live_of_wellFormed receipt wellFormed)
-  cases priorProof : receipt.prior.proof with
-  | initial =>
-      simp only [NativeStateAuthority, priorProof]
-      rw [initialBoundaryEq, publicTraceEq]
-      rfl
-  | active running latest =>
-      have runningLive :=
-        priorRunningDigest_live_of_wellFormed receipt running latest wellFormed
-          priorProof
-      have runningEq :=
-        boundaryRunningDigest_eq_native_of_live receipt boundary running
-          runningLive
-      cases receipt.mode <;>
-        simp only [NativeStateAuthority, priorProof] <;>
-        rw [initialBoundaryEq, runningEq]
-
-private theorem nativeHolds_boundaryStep_implies_nativeStep_of_wellFormed
+private theorem nativeTransitionHolds_boundaryStep_implies_nativeStep_of_wellFormed
     (receipt : Receipt)
     (boundary : BoundaryReceipt)
     (hash :
@@ -182,18 +110,13 @@ private theorem nativeHolds_boundaryStep_implies_nativeStep_of_wellFormed
     (next : NativeState)
     (wellFormed : ReceiptWellFormed receipt = true)
     (native :
-      NativeHolds hash (boundaryStepSemantics receipt boundary) receipt.mode
+      NativeTransitionHolds hash (boundaryStepSemantics receipt boundary) receipt.mode
         receipt.context receipt.prior next receipt.input receipt.proof) :
-    NativeHolds hash (stepSemantics receipt) receipt.mode receipt.context
+    NativeTransitionHolds hash (stepSemantics receipt) receipt.mode receipt.context
       receipt.prior next receipt.input receipt.proof := by
   rcases native with
-    ⟨entry, authority, nextNonempty, nextRunning, folded, openPayload, semantic,
+    ⟨entry, nextNonempty, nextRunning, folded, openPayload, semantic,
       nextState, xOut⟩
-  have authority' :
-      NativeStateAuthority hash (stepSemantics receipt) receipt.mode
-        receipt.context receipt.prior :=
-    (nativeStateAuthority_boundaryStep_iff_of_wellFormed receipt boundary hash
-      wellFormed).1 authority
   have folded' :
       NativeFoldedTo (stepSemantics receipt) receipt.prior receipt.input
         receipt.proof nextRunning := by
@@ -212,34 +135,27 @@ private theorem nativeHolds_boundaryStep_implies_nativeStep_of_wellFormed
       nativeAdvancedState (stepSemantics receipt) receipt.mode receipt.prior
           nextRunning receipt.input receipt.proof = next := by
     simpa [nativeAdvancedState, runningEq] using nextState
-  refine ⟨entry, authority', nextNonempty, nextRunning, folded', openPayload, semantic',
+  refine ⟨entry, nextNonempty, nextRunning, folded', openPayload, semantic',
     nextState', ?_⟩
   rw [nextState']
   simpa [nextState] using xOut
 
-private theorem nativeHolds_boundary_iff
+private theorem nativeTransitionHolds_boundary_iff
     (receipt : Receipt)
     (boundary : BoundaryReceipt)
     (next : NativeState)
-    (wellFormed : ReceiptWellFormed receipt = true)
     (binding : NativeCallBinding receipt next) :
-    NativeHolds (hashSemantics receipt) (stepSemantics receipt)
+    NativeTransitionHolds (hashSemantics receipt) (stepSemantics receipt)
         receipt.mode receipt.context receipt.prior next receipt.input
         receipt.proof ↔
-      NativeHolds (boundaryHashSemantics receipt boundary)
+      NativeTransitionHolds (boundaryHashSemantics receipt boundary)
         (boundaryStepSemantics receipt boundary) receipt.mode receipt.context
         receipt.prior next receipt.input receipt.proof := by
   have xOutEq :=
     xOut_boundary_eq_native_of_callBinding receipt boundary next binding
   constructor
-  · rintro ⟨entry, authority, nextNonempty, nextRunning, folded, openPayload,
+  · rintro ⟨entry, nextNonempty, nextRunning, folded, openPayload,
       semantic, nextState, xOut⟩
-    have authority' :
-        NativeStateAuthority (boundaryHashSemantics receipt boundary)
-          (boundaryStepSemantics receipt boundary) receipt.mode receipt.context
-          receipt.prior :=
-      (nativeStateAuthority_boundary_iff_of_wellFormed receipt boundary
-        wellFormed).1 authority
     have nextProof :
         next.proof = .active nextRunning receipt.input.nextLatest := by
       rw [← nextState]
@@ -263,7 +179,7 @@ private theorem nativeHolds_boundary_iff
             receipt.mode receipt.prior nextRunning receipt.input
             receipt.proof = next := by
       simpa [nativeAdvancedState, runningEq] using nextState
-    refine ⟨entry, authority', nextNonempty, nextRunning, folded', openPayload, semantic',
+    refine ⟨entry, nextNonempty, nextRunning, folded', openPayload, semantic',
       nextState', ?_⟩
     rw [nextState']
     calc
@@ -272,13 +188,8 @@ private theorem nativeHolds_boundary_iff
             next := by simpa [nextState] using xOut
       _ = XOut.compute (boundaryHashSemantics receipt boundary) receipt.mode
             receipt.context next := xOutEq.symm
-  · rintro ⟨entry, authority, nextNonempty, nextRunning, folded, openPayload,
+  · rintro ⟨entry, nextNonempty, nextRunning, folded, openPayload,
       semantic, nextState, xOut⟩
-    have authority' :
-        NativeStateAuthority (hashSemantics receipt) (stepSemantics receipt)
-          receipt.mode receipt.context receipt.prior :=
-      (nativeStateAuthority_boundary_iff_of_wellFormed receipt boundary
-        wellFormed).2 authority
     have nextProof :
         next.proof = .active nextRunning receipt.input.nextLatest := by
       rw [← nextState]
@@ -301,7 +212,7 @@ private theorem nativeHolds_boundary_iff
         nativeAdvancedState (stepSemantics receipt) receipt.mode receipt.prior
             nextRunning receipt.input receipt.proof = next := by
       simpa [nativeAdvancedState, runningEq] using nextState
-    refine ⟨entry, authority', nextNonempty, nextRunning, folded', openPayload, semantic',
+    refine ⟨entry, nextNonempty, nextRunning, folded', openPayload, semantic',
       nextState', ?_⟩
     rw [nextState']
     calc
@@ -334,43 +245,6 @@ def EntryAuthority
   | .initial => Step.InitialState hash semantics mode context prior
   | .active running latest =>
       Step.ActiveState hash semantics mode context prior running latest
-
-private theorem nativeStateAuthority_of_entryAuthority
-    (hash :
-      XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
-    (semantics :
-      Step.Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
-    (mode : XOut.Mode)
-    (context : NativeContext)
-    (prior : NativeState)
-    (entry : EntryAuthority hash semantics mode context prior) :
-    NativeStateAuthority hash semantics mode context prior := by
-  cases priorProof : prior.proof with
-  | initial =>
-      have initial : Step.InitialState hash semantics mode context prior := by
-        simpa [EntryAuthority, priorProof] using entry
-      rcases initial with
-        ⟨_pc, _chunk, _step, _z, initialBoundary, publicTrace,
-          initialSemantic, accumulator, _initialNebula, _proofState,
-          semanticInitial⟩
-      refine ⟨initialBoundary, initialSemantic, ?_⟩
-      simp only [priorProof]
-      exact ⟨accumulator, semanticInitial, publicTrace⟩
-  | active running latest =>
-      have active :
-          Step.ActiveState hash semantics mode context prior running latest := by
-        simpa [EntryAuthority, priorProof] using entry
-      rcases active with
-        ⟨_pc, _chunk, _step, _proofState, accumulator, pinned⟩
-      refine ⟨pinned.initialBoundaryPinned,
-        pinned.initialSemanticStatePinned, ?_⟩
-      simp only [priorProof]
-      refine ⟨accumulator, ?_⟩
-      cases mode with
-      | stateless =>
-          exact pinned.statelessSemanticEqualsAccumulator rfl
-      | stateful =>
-          trivial
 
 /-- The delayed prior fresh link is owned by the consumer/lifecycle replay. -/
 def IncomingPriorLinked
@@ -454,7 +328,7 @@ private theorem nativeAdvancedState_eq_advancedState
   | stateful =>
       rfl
 
-theorem nativeHolds_with_boundaries_iff_localHolds
+theorem nativeTransitionHolds_with_boundaries_iff_localHolds
     (hash :
       XOut.Semantics Params StructureDigest Header Digest Nebula NebulaDigest)
     (semantics :
@@ -464,7 +338,7 @@ theorem nativeHolds_with_boundaries_iff_localHolds
     (prior next : NativeState)
     (input : NativeInput)
     (proof : NativeProof) :
-    (NativeHolds hash semantics mode context prior next input proof ∧
+    (NativeTransitionHolds hash semantics mode context prior next input proof ∧
       EntryAuthority hash semantics mode context prior ∧
       IncomingPriorLinked hash semantics mode context prior ∧
       StatefulSemanticBound semantics mode prior input proof ∧
@@ -473,7 +347,7 @@ theorem nativeHolds_with_boundaries_iff_localHolds
   constructor
   · rintro ⟨native, entry, incoming, stateful, nebula⟩
     rcases native with
-      ⟨entryShape, _nativeAuthority, nextNonempty, nextRunning, folded, openPayload,
+      ⟨entryShape, nextNonempty, nextRunning, folded, openPayload,
         semantic, nextNative, xOut⟩
     have semanticBound :
         Step.SemanticAdvance semantics mode prior nextRunning input proof := by
@@ -563,13 +437,9 @@ theorem nativeHolds_with_boundaries_iff_localHolds
               advanceEq.trans nextStep.symm
             have initialAuthority := initial
             have native :
-                NativeHolds hash semantics mode context prior next input
+                NativeTransitionHolds hash semantics mode context prior next input
                   proof := by
-              refine ⟨?_,
-                nativeStateAuthority_of_entryAuthority hash semantics mode
-                  context prior (by
-                    simpa [EntryAuthority, priorProof] using initialAuthority),
-                nextNonempty, semantics.emptyRunning, ?_, ?_,
+              refine ⟨?_, nextNonempty, semantics.emptyRunning, ?_, ?_,
                 semantic, nextNative, ?_⟩
               · rcases initial with
                   ⟨pc, chunk, step, z, initialBoundary, publicTrace,
@@ -627,13 +497,9 @@ theorem nativeHolds_with_boundaries_iff_localHolds
                   advanceEq.trans nextStep.symm
                 have activeAuthority := active
                 have native :
-                    NativeHolds hash semantics mode context prior next input
+                    NativeTransitionHolds hash semantics mode context prior next input
                       proof := by
-                  refine ⟨?_,
-                    nativeStateAuthority_of_entryAuthority hash semantics mode
-                      context prior (by
-                        simpa [EntryAuthority, priorProof] using activeAuthority),
-                    nextNonempty, nextRunning, ?_, nebulaBound.1,
+                  refine ⟨?_, nextNonempty, nextRunning, ?_, nebulaBound.1,
                     semantic, nextNative, ?_⟩
                   · rcases active with
                       ⟨pc, chunk, step, proofState, accumulator, pinned⟩
@@ -667,9 +533,11 @@ theorem nativeAccepted_with_boundaries_iff_localHolds
         receipt.mode receipt.prior receipt.input receipt.proof ∧
       NebulaAdvanceBound (boundaryStepSemantics receipt boundary)
         receipt.prior receipt.input) ↔
-      Step.LocalHolds (boundaryHashSemantics receipt boundary)
-        (boundaryStepSemantics receipt boundary) receipt.mode receipt.context
-        receipt.prior next receipt.input receipt.proof := by
+      (Step.LocalHolds (boundaryHashSemantics receipt boundary)
+          (boundaryStepSemantics receipt boundary) receipt.mode receipt.context
+          receipt.prior next receipt.input receipt.proof ∧
+        NativeStateAuthority receipt.authority receipt.mode receipt.context
+          receipt.prior) := by
   constructor
   · rintro ⟨accepted, entry, incoming, stateful, nebula⟩
     have binding :=
@@ -677,37 +545,52 @@ theorem nativeAccepted_with_boundaries_iff_localHolds
         accepted
     have native :=
       (nativeAccepted_iff_nativeHolds receipt next).1 accepted
+    have nativeParts :=
+      (nativeHolds_iff_stateAuthority_and_transition
+        (hashSemantics receipt) (stepSemantics receipt) receipt.authority
+        receipt.mode receipt.context receipt.prior next receipt.input
+        receipt.proof).1 native
     have boundaryNative :=
-      (nativeHolds_boundary_iff receipt boundary next wellFormed binding).1
-        native
-    exact
-      (nativeHolds_with_boundaries_iff_localHolds
+      (nativeTransitionHolds_boundary_iff receipt boundary next binding).1
+        nativeParts.2
+    have localHoldsProof :=
+      (nativeTransitionHolds_with_boundaries_iff_localHolds
         (boundaryHashSemantics receipt boundary)
         (boundaryStepSemantics receipt boundary) receipt.mode receipt.context
         receipt.prior next receipt.input receipt.proof).1
         ⟨boundaryNative, entry, incoming, stateful, nebula⟩
-  · intro localHolds
+    exact ⟨localHoldsProof, nativeParts.1⟩
+  · rintro ⟨localHolds, nativeAuthority⟩
     have composed :=
-      (nativeHolds_with_boundaries_iff_localHolds
+      (nativeTransitionHolds_with_boundaries_iff_localHolds
         (boundaryHashSemantics receipt boundary)
         (boundaryStepSemantics receipt boundary) receipt.mode receipt.context
         receipt.prior next receipt.input receipt.proof).2 localHolds
     rcases composed with
       ⟨boundaryNative, entry, incoming, stateful, nebula⟩
     have boundaryNativeStep :
-        NativeHolds (boundaryHashSemantics receipt boundary)
+        NativeTransitionHolds (boundaryHashSemantics receipt boundary)
           (stepSemantics receipt) receipt.mode receipt.context receipt.prior
           next receipt.input receipt.proof :=
-      nativeHolds_boundaryStep_implies_nativeStep_of_wellFormed receipt
+      nativeTransitionHolds_boundaryStep_implies_nativeStep_of_wellFormed receipt
         boundary (boundaryHashSemantics receipt boundary) next wellFormed
         boundaryNative
     have binding :=
-      nativeCallBinding_of_wellFormed_and_nativeHolds receipt
+      nativeCallBinding_of_wellFormed_and_nativeTransitionHolds receipt
         (boundaryHashSemantics receipt boundary) next wellFormed
         boundaryNativeStep
-    have native :=
-      (nativeHolds_boundary_iff receipt boundary next wellFormed binding).2
+    have nativeTransition :=
+      (nativeTransitionHolds_boundary_iff receipt boundary next binding).2
         boundaryNative
+    have native :
+        NativeHolds (hashSemantics receipt) (stepSemantics receipt)
+          receipt.authority receipt.mode receipt.context receipt.prior next
+          receipt.input receipt.proof :=
+      (nativeHolds_iff_stateAuthority_and_transition
+        (hashSemantics receipt) (stepSemantics receipt) receipt.authority
+        receipt.mode receipt.context receipt.prior next receipt.input
+        receipt.proof).2
+        ⟨nativeAuthority, nativeTransition⟩
     have accepted :=
       (nativeAccepted_iff_nativeHolds receipt next).2 native
     exact ⟨accepted, entry, incoming, stateful, nebula⟩

@@ -178,6 +178,10 @@ import Nightstream.Protocol.FPrime.Frozen
 #check Nightstream.HyperNova.Construction2.Paper.holds_iff_transition
 #check Nightstream.HyperNova.Construction2.Paper.TerminalTransition
 #check Nightstream.HyperNova.Construction2.Paper.terminalHolds_iff_transition
+#check Nightstream.HyperNova.Construction2.Paper.OuterTerminalProof.bottom
+#check Nightstream.HyperNova.Construction2.Paper.OuterTerminalProof.recursive
+#check Nightstream.HyperNova.Construction2.Paper.OuterTerminalTransition
+#check Nightstream.HyperNova.Construction2.Paper.outerTerminalHolds_iff_transition
 
 #check Nightstream.Protocol.FPrime.Frozen.HyperNova.nifsV_accepts_iff
 #check Nightstream.Protocol.FPrime.Frozen.HyperNova.fprime_accepts_iff_transition

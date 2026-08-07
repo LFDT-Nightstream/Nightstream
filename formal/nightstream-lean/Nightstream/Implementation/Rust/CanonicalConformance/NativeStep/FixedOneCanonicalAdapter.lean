@@ -1044,15 +1044,17 @@ theorem nativeAccepted_with_boundaries_and_outgoing_iff_canonicalAccepts
       Step.OutgoingLinked
         (boundaryStepSemantics receipt boundary)
         receipt.input receipt.proof) ↔
-      Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Accepts
-        (setup (nativeParameters receipt boundary))
-        (machine (nativeParameters receipt boundary))
-        (input (nativeParameters receipt boundary)
-          receipt.prior receipt.input receipt.proof)
-        (output (nativeParameters receipt boundary) next receipt.proof) := by
+      (Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Accepts
+          (setup (nativeParameters receipt boundary))
+          (machine (nativeParameters receipt boundary))
+          (input (nativeParameters receipt boundary)
+            receipt.prior receipt.input receipt.proof)
+          (output (nativeParameters receipt boundary) next receipt.proof) ∧
+        NativeStateAuthority receipt.authority receipt.mode receipt.context
+          receipt.prior) := by
   constructor
   · rintro ⟨native, entry, incoming, stateful, nebula, outgoing⟩
-    have localHolds :=
+    have localAndAuthority :=
       (nativeAccepted_with_boundaries_iff_localHolds receipt boundary next
         wellFormed).1
         ⟨native, entry, incoming, stateful, nebula⟩
@@ -1066,12 +1068,13 @@ theorem nativeAccepted_with_boundaries_and_outgoing_iff_canonicalAccepts
         (boundaryHashSemantics receipt boundary)
         (boundaryStepSemantics receipt boundary)
         receipt.mode receipt.context receipt.prior next receipt.input
-        receipt.proof localHolds outgoing
-    exact
+        receipt.proof localAndAuthority.1 outgoing
+    exact ⟨
       (canonicalAccepts_iff_holds
         (nativeParameters receipt boundary)
-        receipt.prior next receipt.input receipt.proof).2 holds
-  · intro accepted
+        receipt.prior next receipt.input receipt.proof).2 holds,
+      localAndAuthority.2⟩
+  · rintro ⟨accepted, nativeAuthority⟩
     have holds :=
       (canonicalAccepts_iff_holds
         (nativeParameters receipt boundary)
@@ -1084,7 +1087,7 @@ theorem nativeAccepted_with_boundaries_and_outgoing_iff_canonicalAccepts
         receipt.proof).1 holds
     have native :=
       (nativeAccepted_with_boundaries_iff_localHolds receipt boundary next
-        wellFormed).2 split.1
+        wellFormed).2 ⟨split.1, nativeAuthority⟩
     exact ⟨native.1, native.2.1, native.2.2.1, native.2.2.2.1,
       native.2.2.2.2, split.2⟩
 
@@ -1114,12 +1117,14 @@ theorem checkedRecorded_with_boundaries_and_outgoing_iff_canonicalAccepts
       Step.OutgoingLinked
         (boundaryStepSemantics receipt boundary)
         receipt.input receipt.proof) ↔
-      Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Accepts
-        (setup (nativeParameters receipt boundary))
-        (machine (nativeParameters receipt boundary))
-        (input (nativeParameters receipt boundary)
-          receipt.prior receipt.input receipt.proof)
-        (output (nativeParameters receipt boundary) next receipt.proof) := by
+      (Nightstream.Protocol.FPrime.CanonicalVerifier.FixedOne.Accepts
+          (setup (nativeParameters receipt boundary))
+          (machine (nativeParameters receipt boundary))
+          (input (nativeParameters receipt boundary)
+            receipt.prior receipt.input receipt.proof)
+          (output (nativeParameters receipt boundary) next receipt.proof) ∧
+        NativeStateAuthority receipt.authority receipt.mode receipt.context
+          receipt.prior) := by
   have replay :=
     (check_eq_true_iff_oracleReplayConforms receipt).1 checked
   have wellFormed : ReceiptWellFormed receipt = true := replay.1

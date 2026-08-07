@@ -1,4 +1,4 @@
-## 7. Nightstream fold refinement
+## 7. Nightstream fold specialization
 
 ### NS-PIRLC-PROFILE — Selected PiRLC inputs and challenges
 
@@ -21,19 +21,20 @@ MUST reject.
 
 Decision: NSD-SPLIT-001 and NSD-AUTHORITY-001.
 
-### NS-RED-PADDED-RELATIONS — Reduction relation refinement
+### NS-RED-PADDED-RELATIONS — Reduction relation specialization
 
 The Nightstream PiCCS strong relation MUST be the paper relation under the
 zero-row embedding. Its output and ambient relations MUST remain
 `BatchCE_15(b,L)` and `BatchCE_15(B_amb,L)`. The commitment projection MUST
-remain unchanged and no padding or cache field may enter it.
+remain unchanged and no padding or cache field may enter it. This is the
+paper's stated zero-row normalization, not a new reduction relation.
 
 Decision: NSD-REDUCTION-FRAMEWORK-001 and NSD-NORM-BINDING-001.
 
 ### NS-RED-COMPOSITION — Padded fold proof obligation
 
-The end-to-end fold proof MUST first establish that zero-row embedding
-preserves the paper PiCCS identities and strong conditions. It MUST then use
+The end-to-end fold proof MUST instantiate the paper's zero-row embedding and
+establish its stated acceptance equivalence. It MUST then use
 the reviewed weak PiRLC and PiDEC composition without an extended carrier
 relation or an extra batching lemma.
 

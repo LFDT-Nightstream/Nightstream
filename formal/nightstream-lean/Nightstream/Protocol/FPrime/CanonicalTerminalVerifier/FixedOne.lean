@@ -1,14 +1,13 @@
 import Nightstream.Protocol.FPrime.CanonicalTerminalVerifier
 
 /-!
-Paper-only executable terminal verifier specialized to the one-slot
-Construction-2 profile.
+Payload evaluator specialized to the one-slot Construction-2 profile.
 
 Assurance tier: model-level.
 
-Owns: the payload-minimal one-slot terminal proof, direct base/recursive
-evaluation, derivation of the sole selected slot and one-based counter, and
-extensional equality with the frozen generic paper transition.
+Owns: the payload-minimal recursive data, direct erased-payload evaluation,
+derivation of the sole selected slot and one-based counter, and extensional
+equality with the generic payload transition.
 
 Does not own: concrete SuperNeo relations, Rust, R1CS, lowering, commitment
 security, or costs.
@@ -16,8 +15,10 @@ security, or costs.
 Emits constraints: no.
 
 The recursive evaluator retains exactly the prior public-link check, the sole
-running-relation check, and the selected fresh-relation check.  It carries no
-prover-selected program counter and performs no finite dispatch loop.
+running-relation check, and the selected fresh-relation check. It carries no
+prover-selected program counter and performs no finite dispatch loop. This
+module does not own the exact outer proof envelope. Callers must wrap this
+payload with `OuterTerminalProof.bottom` or `.recursive`.
 -/
 
 namespace Nightstream.Protocol.FPrime.CanonicalTerminalVerifier.FixedOne
@@ -50,8 +51,8 @@ theorem selected_counter_in_range : InRange 1 (oneBased selected) := by
     selectedIndex valid = selected := by
   exact fin_eq_selected (selectedIndex valid)
 
-/-- Payload-minimal terminal proof for the fixed-one profile.  The program
-counter and one-element function carriers are verifier-computed. -/
+/-- Payload-minimal recursive terminal data for the fixed-one profile. The
+program counter and one-element function carriers are verifier-computed. -/
 structure Proof
     (Running : Type uRunning)
     (RunningWitness : Type uRunningWitness)
@@ -167,8 +168,8 @@ theorem allRunningAccepted_eq_runningAccepted
     subst slot
     simpa [runningAccepted, Proof.toGeneric] using accepted
 
-/-- Direct payload-minimal terminal evaluation.  Iteration zero checks only
-the endpoint.  A positive iteration checks the prior link, the sole running
+/-- Direct erased-payload terminal evaluation. Iteration zero checks only the
+endpoint. A positive iteration checks the prior link, the sole running
 relation, and the selected fresh relation; it performs no NIFS call. -/
 def eval
     {Key : Type uKey}
@@ -288,9 +289,8 @@ theorem accepts_iff_generic
   unfold Accepts
   rw [eval_eq_generic]
 
-/-- The payload-minimal fixed-one terminal checker is extensionally equal to
-the frozen paper terminal transition, including the base and recursive
-boundaries. -/
+/-- The payload-minimal fixed-one checker is extensionally equal to the
+generic erased-payload terminal transition. -/
 theorem accepts_iff_transition
     {Key : Type uKey}
     {Digest : Type uDigest}

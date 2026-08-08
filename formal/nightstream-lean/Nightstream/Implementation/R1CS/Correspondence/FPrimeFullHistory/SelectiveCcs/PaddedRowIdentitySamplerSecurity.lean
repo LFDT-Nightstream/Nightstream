@@ -9,9 +9,9 @@ Contract: finite failure bound for the selected 54-of-64 `Pi_RLC` sampler.
 Owns:
 - the proof that one scalar shortfalls only after at least eleven rejected
   chunks;
-- the Goldilocks-word conservative fixed-set and union-bound constants;
+- the exact low-word fixed-set and union-bound constants;
 - the union bound over all fifteen sampled scalars; and
-- the exact 121-bit rational security inequality.
+- the exact 132-bit rational completeness inequality.
 
 Does not own: a proof that concrete Poseidon2 outputs are independent uniform
 Goldilocks words, collision resistance, the random-oracle assumption,
@@ -69,14 +69,14 @@ theorem shortfall_requires_eleven_rejections
     simpa [candidateBound] using lengthExact
   omega
 
-/-- One rejected 16-bit chunk fixes one of four digits in a Goldilocks word. -/
+/-- Radix of one raw low-word candidate. -/
 def chunkBase : Nat := chunkModulus
 
-/-- A shortfall has eleven fixed rejected positions. For each occupied
-Goldilocks word, the elementary preimage bound loses at most a factor two
-because `q > 2^63`. There are at most eleven occupied words. -/
+/-- A specified raw-zero word has probability at most `1 / (2^16 - 1)`.
+The same bound composes for both low words of one independent Goldilocks lane,
+so eleven specified rejection positions cost this factor eleven times. -/
 def fixedElevenRejectionBound : Rat :=
-  ((2 ^ 11 : Nat) : Rat) / ((chunkBase ^ 11 : Nat) : Rat)
+  (1 : Rat) / ((((chunkBase - 1) ^ 11 : Nat)) : Rat)
 
 /-- Union bound over all choices of eleven rejected positions in one
 64-candidate scalar. -/
@@ -89,7 +89,7 @@ def completeSamplerShortfallBound : Rat :=
 
 /-- Target used to report the sampler loss in security bits. -/
 def samplerSecurityTarget : Rat :=
-  (1 : Rat) / (((2 : Nat) ^ 121 : Nat) : Rat)
+  (1 : Rat) / (((2 : Nat) ^ 132 : Nat) : Rat)
 
 theorem selected_sampler_parameters :
     PaperProfile.arity.total = 15 /\
@@ -98,17 +98,11 @@ theorem selected_sampler_parameters :
     chunkBase = 65536 := by
   decide
 
-/-- Goldilocks is larger than half of the 64-bit word space. This is the
-source of the conservative factor two per occupied word. -/
-theorem goldilocks_exceeds_half_word :
-    (2 : Nat) ^ 63 < goldilocksModulus := by
-  decide
-
 theorem choose_64_11_value :
     Nat.choose 64 11 = 743595781824 := by
   decide
 
-/-- The complete conservative sampler loss is at most `2^-121`. -/
+/-- The complete sampler loss is at most `2^-132`. -/
 theorem completeSamplerShortfallBound_le_target :
     completeSamplerShortfallBound <= samplerSecurityTarget := by
   norm_num [completeSamplerShortfallBound, singleScalarShortfallBound,
@@ -218,10 +212,10 @@ theorem samplerShortfall_probability_le
   have bound := shortfallBelow_probability_le experiment distribution 15 (by decide)
   simpa [completeSamplerShortfallBound, PaperProfile.arity] using bound
 
-/-- Headline sampler-security result: under the named random-oracle
+/-- Headline sampler-completeness result: under the named random-oracle
 distribution premise, the full fifteen-scalar bounded sampler loss is at most
-`2^-121`. -/
-theorem samplerShortfall_probability_le_121_bits
+`2^-132`. -/
+theorem samplerShortfall_probability_le_132_bits
     (experiment : Experiment State)
     (distribution : GoldilocksRandomOracleSamplerContract experiment) :
     experiment.probability SamplerShortfall <= samplerSecurityTarget :=

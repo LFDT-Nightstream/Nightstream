@@ -28,9 +28,6 @@ use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs_circuit::PiCcsVerifierRelation;
 use crate::paper::relations::{CcsInstance, Structure};
 
-/// Hard ceiling shared with the production Road-A relation.
-pub const R1CS_IVC_COMMITTED_COORDINATE_BUDGET: usize = 16_000_000;
-
 struct FixedPointCandidate {
     arms: [SparseR1cs; 3],
     shape: SelectiveLowNormShape,
@@ -67,7 +64,8 @@ pub(super) struct ArmShape {
 pub struct R1csIvcRelation {
     relation: MultiBranchLowNormR1cs,
     arm_shapes: [ArmShape; 3],
-    compilation_audit: R1csIvcCompilationAudit,
+    fixed_point_rounds: Vec<FixedPointRoundAudit>,
+    pi_ccs_output_digest: super::PiCcsOutputDigestAudit,
     preprocessing_digest: Option<[F; 4]>,
 }
 
@@ -109,8 +107,6 @@ impl R1csIvcRelation {
         app: &R1csShape,
         plan: &RecursiveStepImagePlan,
     ) -> Result<FixedPointCandidate, R1csIvcError> {
-        const MAX_ROUNDS: usize = 8;
-
         app.validate_shape()?;
         super::super::validate_plan(plan, app)?;
         // The first guess only supplies NIFS dimensions. It must already be
@@ -125,15 +121,14 @@ impl R1csIvcRelation {
             super::super::selective::selective_polynomial(),
         );
         let mut folded_public_input_len = F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
-        let mut last_output = (verifier_relation.n(), verifier_relation.m());
         let mut rounds = Vec::new();
-        for round in 0..MAX_ROUNDS {
+        loop {
+            let round = rounds.len();
             let input_signature = verifier_relation_signature(&verifier_relation, folded_public_input_len);
             let synthesized =
                 shape::synthesize_arm_shapes(params, &verifier_relation, folded_public_input_len, app, plan)?;
             let arms = synthesized.arms;
             let next_shape = audit_multi_branch_selective_low_norm_shape_with_alignment(&arms, 0, D, arms[0].m_in % D)?;
-            last_output = (next_shape.rows, next_shape.columns);
             rounds.push(FixedPointRoundAudit {
                 round,
                 input: RelationHeaderAudit {
@@ -154,8 +149,8 @@ impl R1csIvcRelation {
                     polynomial: next_shape.polynomial.clone(),
                 },
             });
-            if round > 0
-                && input_signature == shape_signature(&next_shape)
+            let output_signature = shape_signature(&next_shape);
+            if input_signature == output_signature
                 && same_polynomial(verifier_relation.polynomial(), &next_shape.polynomial)
             {
                 // The bootstrap arm has no running claims. Only the stabilized
@@ -174,17 +169,22 @@ impl R1csIvcRelation {
                     pi_ccs_output_digest,
                 });
             }
+            if rounds.iter().any(|previous| {
+                relation_header_signature(&previous.input) == output_signature
+                    && same_polynomial(&previous.input.polynomial, &next_shape.polynomial)
+            }) {
+                return Err(R1csIvcError::NoFixedPoint {
+                    rounds: rounds.len(),
+                    input_rows: verifier_relation.n(),
+                    input_columns: verifier_relation.m(),
+                    output_rows: next_shape.rows,
+                    output_columns: next_shape.columns,
+                });
+            }
             folded_public_input_len = next_shape.public_input_len;
             verifier_relation =
                 PiCcsVerifierRelation::from_parts(next_shape.rows, next_shape.columns, next_shape.polynomial);
         }
-        Err(R1csIvcError::NoFixedPoint {
-            rounds: MAX_ROUNDS,
-            input_rows: verifier_relation.n(),
-            input_columns: verifier_relation.m(),
-            output_rows: last_output.0,
-            output_columns: last_output.1,
-        })
     }
 
     fn compile_arms_selected(
@@ -199,25 +199,16 @@ impl R1csIvcRelation {
             public_columns: arms[index].m_in,
         });
         let public_fields = arms[0].m_in;
-        if shape.compiler_audit.width().total_coordinates > R1CS_IVC_COMMITTED_COORDINATE_BUDGET {
-            return Err(R1csIvcError::BudgetExceeded {
-                required: shape.compiler_audit.width().total_coordinates,
-                budget: R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
-            });
-        }
         let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&arms, 0, D, public_fields % D)?;
-        let emitted_audit = relation
-            .selective_compiler_audit()
-            .cloned()
-            .ok_or_else(|| {
-                R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
-                    "selective relation omitted its exact compiler audit".into(),
-                ))
-            })?;
+        let emitted_audit = relation.selective_compiler_audit().ok_or_else(|| {
+            R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                "selective relation omitted its exact compiler audit".into(),
+            ))
+        })?;
         let emitted_layout = emitted_audit.layout();
         if relation_signature(relation.structure(), relation.public_input_len()) != shape_signature(&shape)
             || !same_polynomial(&relation.structure().f, &shape.polynomial)
-            || emitted_audit != shape.compiler_audit
+            || emitted_audit != &shape.compiler_audit
             || emitted_layout.total_columns() != relation.structure().m
             || emitted_layout.public_input_len() != relation.public_input_len()
             || emitted_layout.selector_columns() != relation.selector_cols()
@@ -227,17 +218,11 @@ impl R1csIvcRelation {
                 "shape-only or exact selective audit differs from emitted relation".into(),
             )));
         }
-        if relation.structure().m > R1CS_IVC_COMMITTED_COORDINATE_BUDGET {
-            return Err(R1csIvcError::BudgetExceeded {
-                required: relation.structure().m,
-                budget: R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
-            });
-        }
-        let compilation_audit = R1csIvcCompilationAudit::new(rounds, emitted_audit, pi_ccs_output_digest);
         Ok(Self {
             relation,
             arm_shapes,
-            compilation_audit,
+            fixed_point_rounds: rounds,
+            pi_ccs_output_digest,
             preprocessing_digest: None,
         })
     }
@@ -250,8 +235,12 @@ impl R1csIvcRelation {
         self.relation.public_input_len()
     }
 
-    pub fn compilation_audit(&self) -> &R1csIvcCompilationAudit {
-        &self.compilation_audit
+    pub fn compilation_audit(&self) -> R1csIvcCompilationAudit<'_> {
+        R1csIvcCompilationAudit::new(
+            &self.fixed_point_rounds,
+            self.compiler_audit(),
+            &self.pi_ccs_output_digest,
+        )
     }
 
     pub(super) fn arm_shape(&self, branch: R1csIvcBranch) -> ArmShape {
@@ -298,8 +287,8 @@ impl R1csIvcRelation {
         let encode_start = std::time::Instant::now();
         let assignment = self.encode(branch, field_assignment)?;
         if let Some(row) = self.relation.first_unsatisfied_row(&assignment) {
-            let owner = self
-                .compilation_audit
+            let compiler_audit = self.compiler_audit();
+            let owner = compiler_audit
                 .rows()
                 .emitted_runs()
                 .iter()
@@ -307,7 +296,7 @@ impl R1csIvcRelation {
                 .map(|run| {
                     let stage = run.arm().and_then(|arm| {
                         run.source_stage_occurrence().and_then(|occurrence| {
-                            self.compilation_audit
+                            compiler_audit
                                 .source_arm_physical_stages()
                                 .get(arm)?
                                 .get(occurrence)
@@ -343,6 +332,12 @@ impl R1csIvcRelation {
         );
         Ok(instance)
     }
+
+    fn compiler_audit(&self) -> &crate::frontends::r1cs_f_prime::SelectiveCompilerAudit {
+        self.relation
+            .selective_compiler_audit()
+            .expect("compiled R1CS IVC relation must retain its checked compiler audit")
+    }
 }
 
 fn relation_signature(structure: &Structure, public_input_len: usize) -> (usize, usize, usize, u32, usize) {
@@ -375,6 +370,16 @@ fn shape_signature(shape: &SelectiveLowNormShape) -> (usize, usize, usize, u32, 
         shape.polynomial.arity(),
         shape.polynomial.max_degree(),
         shape.public_input_len,
+    )
+}
+
+fn relation_header_signature(header: &RelationHeaderAudit) -> (usize, usize, usize, u32, usize) {
+    (
+        header.rows,
+        header.columns,
+        header.polynomial.arity(),
+        header.polynomial.max_degree(),
+        header.public_input_len,
     )
 }
 

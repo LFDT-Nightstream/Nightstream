@@ -223,7 +223,6 @@ pub fn build_decider_statement(prep: &Preprocessing, audit: &UncompressedAudit) 
         public_batches: audit.public_batches.clone(),
         final_fold: audit.proof.final_fold.clone(),
         final_state: audit.proof.state.clone(),
-        terminal_ce_proof: None,
     };
     decider::Statement { public, witness }
 }

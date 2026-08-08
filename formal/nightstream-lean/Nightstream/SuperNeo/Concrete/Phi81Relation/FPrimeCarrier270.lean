@@ -12,9 +12,8 @@ This facade intentionally does not import `PiRLCAlgebra`: carrier ownership is
 independent of the concurrent algebra instantiation and therefore cannot create
 an import cycle or imply NIFS closure.
 
-It also does not export `PaddedIdentityEvaluation`. That separate auxiliary CE
-opening remains a direct import until a protocol theorem composes it with the
-active relation; exposing it here would blur carrier ownership with authority.
+The joint protocol owns its padded-identity opening. This carrier facade does
+not export that protocol-level value.
 
 | Protocol | Phase | Family | Public module |
 |---|---|---|---|

@@ -6,8 +6,8 @@ import Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSymbolicMachine
 Contract: attach Lean-owned canonical-u64 rows to every Poseidon2 digest lane
 used by the `Pi_RLC` strong-set sampler.
 
-Each scalar executes four digest blocks and each block exposes four field
-lanes.  This module therefore emits exactly sixteen canonical-u64 occurrences
+Each scalar executes eight digest blocks and each block exposes four field
+lanes. This module therefore emits exactly thirty-two canonical-u64 occurrences
 per scalar.  Their inputs are the exact symbolic output expressions of
 `PiRlcCanonicalSymbolicMachine`; no digest value or generated row is imported.
 
@@ -25,15 +25,15 @@ open Nightstream.Implementation.R1CS.Canonical.LinCombNormal
 open Nightstream.Implementation.R1CS.Canonical.Poseidon2Schedule
 open Nightstream.Implementation.R1CS.Canonical.SymbolicDuplexSemantics
 
-/-- Four blocks times four field lanes. -/
-def lanesPerScalar : Nat := 16
+/-- Eight blocks times four field lanes. -/
+def lanesPerScalar : Nat := 32
 
 private theorem sum_const {α : Type} (items : List α) (value : Nat) :
     (items.map (fun _ => value)).sum = items.length * value := by
   rw [List.map_const', List.sum_replicate_nat]
 
 /-- Position of an occurrence's digest block. -/
-def blockOf (position : Fin lanesPerScalar) : Fin 4 :=
+def blockOf (position : Fin lanesPerScalar) : Fin 8 :=
   ⟨position.val / 4, by
     have bounded := position.isLt
     simp only [lanesPerScalar] at bounded
@@ -109,7 +109,7 @@ theorem laneInput_eval
     (beforeBlock duplexBase builder coordinate position)
     (coordinate + (blockOf position).val) valid (laneOf position)
 
-/-- Rows for one scalar's sixteen full-lane decompositions. -/
+/-- Rows for one scalar's thirty-two full-lane decompositions. -/
 def scalarRows
     (duplexBase u64Base : Nat) (initial : SymbolicDuplex.Builder)
     {count : Nat} (coordinate : Fin count) : List Row :=
@@ -149,7 +149,7 @@ theorem rows_length
 
 theorem fixedActive_rows_length
     (duplexBase u64Base : Nat) (initial : SymbolicDuplex.Builder) :
-    (rows duplexBase u64Base 15 initial).length = 16560 := by
+    (rows duplexBase u64Base 15 initial).length = 33120 := by
   rw [rows_length]
   decide
 
@@ -168,7 +168,7 @@ theorem allocation_length (u64Base count : Nat) :
     CanonicalU64Recipe.auxiliaryCount]
 
 theorem fixedActive_allocation_length (u64Base : Nat) :
-    (allocation u64Base 15).length = 15840 := by
+    (allocation u64Base 15).length = 31680 := by
   rw [allocation_length]
   decide
 

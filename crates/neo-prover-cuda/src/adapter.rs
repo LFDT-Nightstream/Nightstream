@@ -1,53 +1,57 @@
-//! CUDA availability wrapper for the selected one-joint NIFS protocol.
+//! CUDA availability boundary for the selected one-joint NIFS protocol.
 //!
-//! CUDA does not yet own a one-joint `PaddedRowIdentity` kernel. The adapter
-//! therefore uses the canonical host prover. This prevents accelerator
-//! selection from changing protocol messages or proof bytes.
+//! CUDA does not yet own a one-joint `PaddedRowIdentity` kernel. Construction
+//! fails until that kernel exists. This module never reports CPU work as CUDA
+//! work.
 
 use std::sync::Arc;
 
 use cuda_core::CudaContext;
-use neo_fold_clean::paper::nifs::{
-    AcceleratorCrosscheckNifsProver, Error, NifsProof, NifsProverAdapter, NifsProverRequest, OptimizedCpuNifsProver,
-    OptimizedNifsProverAdapter,
-};
+use neo_fold_clean::paper::nifs::{Error, NifsProof, NifsProverAdapter, NifsProverRequest};
 use neo_fold_clean::RunningInstance;
 
-/// CUDA-selected prover with canonical one-joint protocol execution.
+const MISSING_KERNEL: &str = "the canonical one-joint CUDA NIFS kernel is not implemented";
+
+/// CUDA prover for the canonical one-joint protocol.
+///
+/// Construction returns [`Error::BackendUnavailable`] until the device kernel
+/// implements the same protocol as the optimized CPU and PaperExact provers.
 pub struct CudaNifsProver {
     _context: Arc<CudaContext>,
-    cpu: OptimizedCpuNifsProver,
 }
 
 impl CudaNifsProver {
-    /// Open CUDA device zero and construct a canonical NIFS prover.
+    /// Open CUDA device zero and construct the CUDA NIFS prover.
     pub fn new() -> Result<Self, Error> {
+        require_kernel()?;
         let context = CudaContext::new(0).map_err(|error| Error::BackendFailure {
             backend: "cuda",
             phase: "initialization",
             reason: error.to_string(),
         })?;
-        Ok(Self::new_on_context(context))
+        Ok(Self { _context: context })
     }
 
-    /// Construct a prover in a caller-owned CUDA context.
-    pub fn new_on_context(context: Arc<CudaContext>) -> Self {
-        Self {
-            _context: context,
-            cpu: OptimizedCpuNifsProver,
-        }
-    }
-
-    /// Wrap this complete CUDA selection in an optimized-CPU NIFS crosscheck.
-    pub fn crosschecked(self) -> AcceleratorCrosscheckNifsProver<Self> {
-        AcceleratorCrosscheckNifsProver::new(self)
+    /// Construct the CUDA NIFS prover in a caller-owned context.
+    pub fn new_on_context(context: Arc<CudaContext>) -> Result<Self, Error> {
+        require_kernel()?;
+        Ok(Self { _context: context })
     }
 }
 
 impl NifsProverAdapter for CudaNifsProver {
-    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<(RunningInstance, NifsProof), Error> {
-        self.cpu.prove(request)
+    fn prove(&mut self, _request: NifsProverRequest<'_>) -> Result<(RunningInstance, NifsProof), Error> {
+        Err(unavailable())
     }
 }
 
-impl OptimizedNifsProverAdapter for CudaNifsProver {}
+fn require_kernel() -> Result<(), Error> {
+    Err(unavailable())
+}
+
+fn unavailable() -> Error {
+    Error::BackendUnavailable {
+        backend: "cuda",
+        reason: MISSING_KERNEL,
+    }
+}

@@ -3,12 +3,9 @@
 //! This module owns the app-agnostic encoded-F' image: boundary,
 //! lifecycle state, optional source-image NIFS payloads, accumulator
 //! handles/selectors, Poseidon traces, recursive-step image plan, and
-//! the base shell CCS rows. App frontends such as [`fibonacci_f_prime`] and
-//! [`crate::frontends::r1cs_f_prime`] add their own app semantics on
-//! top of this shell.
+//! the base shell CCS rows. [`crate::frontends::r1cs_f_prime`] and Nebula add
+//! their application semantics on top of this shell.
 
-pub mod compiler;
-pub mod encoder;
 pub mod gadget_native;
 pub mod image;
 pub mod low_norm_r1cs;
@@ -17,7 +14,6 @@ pub mod projection_structure;
 pub mod recursive_plan;
 pub mod structure;
 
-pub use encoder::{encode_f_prime_step, EncodedFPrimeStep, FPrimeStepInput, NifsPayloadInput};
 pub use image::{
     FPrimeImage, FPrimeImageConfig, FPrimeImageLayout, KMulView, NifsCcsClaimView, NifsCeClaimShape, NifsCeClaimView,
     NifsPayloadShape, StateIn, StateOut,

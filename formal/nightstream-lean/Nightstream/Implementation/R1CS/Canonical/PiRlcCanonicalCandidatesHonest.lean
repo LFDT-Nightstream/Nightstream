@@ -258,6 +258,8 @@ theorem prefixWitness_sourceValue
           initialBuilder coordinate initial processed sourcesBelow candidate
           head]
         exact hypothesis _
+  apply congrArg (fun value => ProductionAlphabet.rejectionBucket - value)
+  unfold rawValue
   exact go _ 0
 
 theorem prefixWitness_acceptValue
@@ -555,14 +557,19 @@ private theorem combBelow_pair
 private theorem chunkTerms_below
     (layout : Layout) (below : InputsBelowBase layout) :
     CombBelow layout (chunkTerms layout) := by
-  intro column mentioned
-  unfold chunkTerms Mentions at mentioned
-  rw [List.map_map] at mentioned
-  change
-    column ∈ (List.finRange sourceBitCount).map layout.sourceBit at mentioned
-  rcases List.mem_map.mp mentioned with ⟨index, _, rfl⟩
-  have sourceLt := below.source index
-  omega
+  unfold chunkTerms
+  apply combBelow_append
+  · exact combBelow_single layout 0 ProductionAlphabet.rejectionBucket (by
+      simp only [auxiliaryCount]
+      omega)
+  · intro column mentioned
+    unfold Mentions at mentioned
+    rw [List.map_map] at mentioned
+    change
+      column ∈ (List.finRange sourceBitCount).map layout.sourceBit at mentioned
+    rcases List.mem_map.mp mentioned with ⟨index, _, rfl⟩
+    have sourceLt := below.source index
+    omega
 
 private theorem quotientTerms_below (layout : Layout) :
     CombBelow layout (quotientTerms layout) := by

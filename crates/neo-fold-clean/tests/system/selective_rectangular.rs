@@ -9,7 +9,7 @@ use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::poseidon2::enforce_poseidon2_permutation;
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{BalancedTernaryOpeningTraceEntry, Lc, R1csBuilder};
-use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcRelation, R1CS_IVC_COMMITTED_COORDINATE_BUDGET};
+use neo_fold_clean::frontends::r1cs_f_prime::ivc::R1csIvcRelation;
 use neo_fold_clean::frontends::r1cs_f_prime::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
     build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs, LowNormR1csError,
@@ -242,7 +242,7 @@ fn selective_f_prime_public_carrier_precedes_selectors() {
 }
 
 #[test]
-fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
+fn active_fixed_point_shape_stabilizes_after_accumulator_ce_compression() {
     let app = one_product_r1cs();
     let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
     let audit = R1csIvcRelation::audit_fixed_point_shape(&tiny_params(), &app.into(), &plan)
@@ -263,13 +263,13 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
             })
             .collect::<Vec<_>>(),
         vec![
-            (2, 270, 7_028_402, 11_775_078),
-            (7_028_402, 11_775_078, 7_059_026, 12_229_542),
-            (7_059_026, 12_229_542, 7_059_026, 12_229_542),
+            (2, 270, 7_113_380, 12_223_656),
+            (7_113_380, 12_223_656, 7_143_950, 12_678_066),
+            (7_143_950, 12_678_066, 7_143_950, 12_678_066),
         ],
         "the selected one-joint production shape must stabilize at the measured fixed point",
     );
-    assert_eq!(width.total_coordinates, 12_229_504);
+    assert_eq!(width.total_coordinates, 12_678_064);
     assert_eq!(width.branch_start, 311);
     assert_eq!(width.shared_private_coordinates, 0);
     assert_eq!(
@@ -295,12 +295,12 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
         vec![
             (14_261, 11_631, 82_111, 448, 0, 81_663, 0, 0, 81_663, 22, 77_828),
             (
-                10_606_197, 5_458_899, 15_017_477, 3_278_972, 912, 11_701_113, 12_880, 528_080, 12_229_193, 785,
-                2_783_782,
+                10_694_397, 5_520_699, 15_481_397, 3_294_332, 912, 12_149_673, 12_880, 528_080, 12_677_753, 905,
+                3_222_262,
             ),
             (
-                10_606_197, 5_458_899, 15_017_477, 3_278_972, 912, 11_701_113, 12_880, 528_080, 12_229_193, 785,
-                2_783_782,
+                10_694_397, 5_520_699, 15_481_397, 3_294_332, 912, 12_149_673, 12_880, 528_080, 12_677_753, 905,
+                3_222_262,
             ),
         ],
         "each selector-disjoint arm must retain the measured compressed-width profile",
@@ -313,10 +313,6 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
     assert_eq!(terminal_round.output.public_input_len % D, 0);
     assert!(terminal_round.output.columns >= terminal_round.output.public_input_len);
     assert_eq!(terminal_round.output.polynomial.arity(), 13);
-    assert!(
-        audit.width().total_coordinates <= R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
-        "SIS-compressed accumulator CE bindings must keep the fixed point within the guarded materializer"
-    );
     let output_digest = audit.pi_ccs_output_digest();
     let output_profile = output_digest.profile();
     assert_eq!(output_profile.source_count(), 15);
@@ -423,8 +419,8 @@ fn active_fixed_point_shape_fits_guard_after_accumulator_ce_compression() {
         accumulator_stage_census,
         vec![
             (0, None, None),
-            (1, Some((10_759, 3_034_465, 513_786)), Some((10_760, 3_034, 434)),),
-            (2, Some((10_759, 3_034_465, 513_786)), Some((10_760, 3_034, 434)),),
+            (1, Some((11_059, 3_034_465, 513_786)), Some((11_060, 3_034, 434)),),
+            (2, Some((11_059, 3_034_465, 513_786)), Some((11_060, 3_034, 434)),),
         ],
         "the selected protocol must bind exact outgoing children without a delayed pending-family stage",
     );

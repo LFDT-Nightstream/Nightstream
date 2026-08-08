@@ -5,8 +5,8 @@ import Nightstream.Implementation.R1CS.Canonical.SymbolicDuplexPhysical
 Contract: discharge the canonical-u64 sampler's caller-column placement from
 the actual symbolic transcript layout.
 
-The symbolic transcript owns one 361-column Poseidon2 space per emitted
-permutation.  The selected post-PiCCS cursor-one handoff emits five
+The symbolic transcript owns one 352-column Poseidon2 space per emitted
+permutation.  The selected post-PiCCS cursor-one handoff emits nine
 permutations per sampler coordinate.  This module proves that placing the u64
 allocation after the exact end of the `count`-coordinate transcript constructs
 `InputsBelow`; no caller supplies a per-lane ownership conclusion.
@@ -29,7 +29,7 @@ def transcriptEnd
     (duplexBase count : Nat)
     (initialBuilder : SymbolicDuplex.Builder) : Nat :=
   duplexBase +
-    (initialBuilder.entries.length + count * 5) * SymbolicDuplex.stride
+    (initialBuilder.entries.length + count * 9) * SymbolicDuplex.stride
 
 private theorem guarded_entries_length_mono
     (base : Nat) (builder : SymbolicDuplex.Builder) :
@@ -223,7 +223,7 @@ private theorem laneInput_member_lt_transcriptEnd
   have scalarLength :
       (PiRlcCanonicalSymbolicMachine.scalarBuilder
           duplexBase state coordinate.val).entries.length =
-        initialBuilder.entries.length + (coordinate.val + 1) * 5 := by
+        initialBuilder.entries.length + (coordinate.val + 1) * 9 := by
     by_cases first : coordinate.val = 0
     · have stateOne : state.absorbed = 1 := by
         simpa [first] using stateCursor
@@ -243,15 +243,15 @@ private theorem laneInput_member_lt_transcriptEnd
   rw [scalarLength] at blockToScalar
   have coordinateBound : coordinate.val + 1 ≤ count := by omega
   have scalarToBatch :
-      initialBuilder.entries.length + (coordinate.val + 1) * 5 ≤
-        initialBuilder.entries.length + count * 5 := by
+      initialBuilder.entries.length + (coordinate.val + 1) * 9 ≤
+        initialBuilder.entries.length + count * 9 := by
     omega
   have blockToBatch :
       (PiRlcCanonicalSymbolicMachine.digestBlock duplexBase
           (PiRlcCanonicalU64.beforeBlock
             duplexBase state coordinate.val position)
           (coordinate.val + round)).entries.length ≤
-        initialBuilder.entries.length + count * 5 :=
+        initialBuilder.entries.length + count * 9 :=
     Nat.le_trans blockToScalar scalarToBatch
   exact Nat.lt_of_lt_of_le laneBound
     (Nat.add_le_add_left
@@ -275,7 +275,7 @@ theorem laneInput_member_temporaryColumns
           coordinate.val position) :
     column ∈
       SymbolicDuplexPhysical.temporaryColumns duplexBase
-        (initialBuilder.entries.length + count * 5) := by
+        (initialBuilder.entries.length + count * 9) := by
   let state :=
     PiRlcCanonicalSymbolicMachine.stateAt
       duplexBase initialBuilder coordinate.val
@@ -314,7 +314,7 @@ theorem laneInput_member_temporaryColumns
   have scalarLength :
       (PiRlcCanonicalSymbolicMachine.scalarBuilder
           duplexBase state coordinate.val).entries.length =
-        initialBuilder.entries.length + (coordinate.val + 1) * 5 := by
+        initialBuilder.entries.length + (coordinate.val + 1) * 9 := by
     by_cases first : coordinate.val = 0
     · have stateOne : state.absorbed = 1 := by
         simpa [first] using stateCursor
@@ -337,10 +337,10 @@ theorem laneInput_member_temporaryColumns
           (PiRlcCanonicalU64.beforeBlock
             duplexBase state coordinate.val position)
           (coordinate.val + round)).entries.length ≤
-        initialBuilder.entries.length + count * 5 := by
+        initialBuilder.entries.length + count * 9 := by
     exact Nat.le_trans blockToScalar (by omega)
   exact digestLanes_member_temporaryColumns
-    duplexBase (initialBuilder.entries.length + count * 5)
+    duplexBase (initialBuilder.entries.length + count * 9)
     (PiRlcCanonicalU64.beforeBlock
       duplexBase state coordinate.val position)
     (coordinate.val + round) (PiRlcCanonicalU64.laneOf position)

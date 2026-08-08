@@ -6,8 +6,8 @@ Contract: structural placement and honest completeness for the exact
 fixed-active `Pi_RLC` symbolic transcript schedule.
 
 Owns: proof that every raw-pair word and gate marker stays in the authoritative
-prefix, closure of `WellPlaced` through the four-block/fifteen-coordinate
-recurrence, and the explicit satisfying assignment for its 75 emitted
+prefix, closure of `WellPlaced` through the eight-block/fifteen-coordinate
+recurrence, and the explicit satisfying assignment for its 135 emitted
 permutations.
 
 Does not own: canonical-u64 decomposition, rejection candidates, or selection;
@@ -255,7 +255,7 @@ theorem fixedBuilder_wellOwned
     (initialBuilder_wellOwned base lanes lanesInPrefix) 15
 
 theorem fixedBuilder_entries_length (base : Nat) (lanes : State) :
-    (fixedBuilder base lanes).entries.length = 75 := by
+    (fixedBuilder base lanes).entries.length = 135 := by
   unfold fixedBuilder initialBuilder
   simpa using
     PiRlcCanonicalSymbolicMachine.fixedActive_entries_length_of_one
@@ -264,21 +264,21 @@ theorem fixedBuilder_entries_length (base : Nat) (lanes : State) :
 theorem fixedRows_length
     (base : Nat) (constants : Constants) (lanes : State) :
     (SymbolicDuplex.rows base constants (fixedBuilder base lanes)).length =
-      26400 := by
+      47520 := by
   rw [SymbolicDuplex.rows_length, fixedBuilder_entries_length]
 
 def fixedAllocation (base : Nat) : List Nat :=
-  temporaryColumns base 75
+  temporaryColumns base 135
 
 theorem fixedAllocation_length (base : Nat) :
-    (fixedAllocation base).length = 26400 := by
+    (fixedAllocation base).length = 47520 := by
   unfold fixedAllocation
   rw [temporaryColumns_length]
   rfl
 
 theorem fixedAllocation_nodup (base : Nat) :
     (fixedAllocation base).Nodup :=
-  temporaryColumns_nodup base 75
+  temporaryColumns_nodup base 135
 
 theorem fixedRows_ownership
     (base : Nat) (constants : Constants) (lanes : State) :

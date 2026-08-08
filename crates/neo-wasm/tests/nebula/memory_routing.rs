@@ -8,12 +8,16 @@ use crate::layout::{
     selector_col, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED,
     COL_PARAM_INIT_ACTIVE_BEFORE, COL_STACK_READ0_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED,
 };
-use crate::nebula::WasmNebulaProfile;
+use crate::nebula::{WasmNebulaLimits, WasmNebulaProfile};
 use crate::{build_wasm_relation_layout, WasmOpcode, RANGE_CHECKED_WITNESS_WIDTH};
 use neo_fold_clean::frontends::nebula::application::{MemoryOpSlot, MemoryPortActivation, MemoryPortKind};
 use neo_fold_clean::frontends::nebula::circuit::SMemCircuit;
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use std::collections::BTreeSet;
+
+fn paper_memory_profile() -> WasmNebulaProfile {
+    WasmNebulaProfile::production(WasmNebulaLimits::test_profile(), 3).expect("paper-memory test profile")
+}
 
 #[test]
 fn activation_support_derives_only_known_disjointness() {
@@ -296,7 +300,7 @@ fn nebula_geometry_uses_the_physical_slot_count() {
     let relation = build_wasm_relation_layout();
     let physical_slots = build_single_step_memory_slots(relation).len();
 
-    for profile in [WasmNebulaProfile::test_profile(), WasmNebulaProfile::production()] {
+    for profile in [WasmNebulaProfile::test_profile(), paper_memory_profile()] {
         assert_eq!(profile.memory().b_ops, physical_slots * profile.batch_size());
     }
     assert_eq!(physical_slots, 21);
@@ -304,7 +308,7 @@ fn nebula_geometry_uses_the_physical_slot_count() {
 
 #[test]
 fn s_mem_structure_census() {
-    let profile = WasmNebulaProfile::production();
+    let profile = paper_memory_profile();
     let circuit = SMemCircuit::new(*profile.memory());
     let reduced = SMemCircuit::new(*WasmNebulaProfile::test_profile().memory());
     println!(

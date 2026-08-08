@@ -8,9 +8,8 @@
 //! `Σ 2^i · bit_i` and enforce `(A_i·z)(B_i·z) = (C_i·z)`. The committed
 //! witness entries are 0/1, so `‖z‖_∞ < b = 2` holds soundly.
 //!
-//! The R1CS-F' plan constants below were tuned by running the recursive
-//! compile and reading the `PostParentShapeMismatch` error — same fixed-point
-//! discovery used by the SHA-256 R1CS-F' plan.
+//! Recursive image dimensions are derived to a fixed point from the compiled
+//! relation and selected protocol parameters.
 
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
@@ -46,6 +45,7 @@ use neo_fold_clean::frontends::r1cs_f_prime::{build_r1cs_f_prime_structure, Spar
 use neo_fold_clean::paper::digest::digest_fields_as_digest32;
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
+use neo_fold_clean::paper::params::Params;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -68,6 +68,7 @@ pub(crate) struct WasmNebulaCanonicalShape {
 }
 
 pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
+    params: &Params,
     batch_size: usize,
     initial_semantic_state_digest: [u8; 32],
 ) -> Result<WasmNebulaCanonicalShape, WasmPreprocessError> {
@@ -78,6 +79,7 @@ pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
     let lookup_auxiliary_columns_per_instruction = compact.auxiliary_column_count;
     let batched = batch::batch_wasm_relation(&compact.relation, &compact.widths, batch_size)?;
     let (plan, _) = wasm_recursive_plan_and_structure(
+        params,
         &batched.sparse_r1cs,
         &batched.widths,
         batch_size,
@@ -265,21 +267,15 @@ fn bool_field(value: bool) -> F {
 /// `r_len` feeds back into the F' structure, so the point length and the
 /// structure are mutually constrained. Iterate until the value is stable.
 pub(crate) fn wasm_recursive_plan_and_structure(
+    params: &Params,
     sparse_r1cs: &SparseR1cs,
     app_private_var_widths: &[usize],
     batch_size: usize,
     m_in: usize,
     initial_semantic_state_digest: [u8; 32],
 ) -> (RecursiveStepImagePlan, FPrimeStructure) {
-    // kappa * D for `wasm_tiny_params` = 2 * 54 = 108.
-    const C_DATA_ENTRIES: usize = 108;
-    // = K_RHO.
-    const CHILD_COUNT: u64 = 14;
-    // Safety bound: the sumcheck length contributes linearly to F' structure
-    // rows, so log2(rows) grows by at most about one per added round. Eight
-    // iterations are more than needed; the bound guards
-    // against an unexpected non-monotone iteration.
-    const MAX_ITERATIONS: usize = 8;
+    let c_data_entries = params.kappa() as usize * neo_math::D;
+    let child_count = u64::from(params.k_rho());
 
     let limbs = app_private_var_widths.iter().sum::<usize>() + 1;
     let mut r_len = 8usize;
@@ -292,9 +288,16 @@ pub(crate) fn wasm_recursive_plan_and_structure(
     let single_width = sparse_r1cs.m / batch_size;
     let semantic_state_indices = wasm_batch_semantic_state_indices(batch_size, single_width);
 
-    for _ in 0..MAX_ITERATIONS {
+    let mut seen = Vec::new();
+    loop {
+        if seen.contains(&(r_len, y_ring_count)) {
+            panic!(
+                "wasm_recursive_plan_and_structure entered a shape cycle at r_len={r_len}, y_ring_count={y_ring_count}"
+            );
+        }
+        seen.push((r_len, y_ring_count));
         let ce_shape = NifsCeClaimShape {
-            c_data_entries: C_DATA_ENTRIES,
+            c_data_entries,
             x_rows: 54,
             x_active_cols: 5,
             r_len,
@@ -317,8 +320,8 @@ pub(crate) fn wasm_recursive_plan_and_structure(
             nifs_payload_shapes: vec![NifsPayloadShape::CeClaim(ce_shape)],
             accumulator: Some(AccumulatorPlanOptions {
                 ce_claim_payload_index: 0,
-                c_data_entries: C_DATA_ENTRIES,
-                child_count: CHILD_COUNT,
+                c_data_entries,
+                child_count,
                 unified: true,
             }),
             state_x_out: None,
@@ -348,12 +351,6 @@ pub(crate) fn wasm_recursive_plan_and_structure(
         r_len = required_r;
         y_ring_count = required_y_ring_count;
     }
-
-    panic!(
-        "wasm_recursive_plan_and_structure did not converge within {MAX_ITERATIONS} iterations \
-         (last r_len = {r_len}, last y_ring_count = {y_ring_count}); the dependency should be logarithmic, \
-         so non-convergence indicates a deeper protocol mismatch"
-    );
 }
 
 fn ceil_log2(n: usize) -> usize {

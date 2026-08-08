@@ -10,7 +10,7 @@ Contract: emit the Poseidon2-duplex portion of the production-shaped
 same schedule a symbolic row program:
 
 * absorb the raw-pair length word and scalar tag;
-* for each of four blocks, absorb the raw-pair length word, block tag, and
+* for each of eight blocks, absorb the raw-pair length word, block tag, and
   exact `coordinate + round` counter;
 * force the pre-squeeze gate permutation; and
 * carry the four freshly permuted digest lanes into the next decoding layer.
@@ -19,8 +19,8 @@ The refinement theorems are driven only by satisfaction of
 `SymbolicDuplex.rows`.  No digest, transcript state, or verifier conclusion is
 accepted as a premise.
 
-This module does not yet decompose the four digest lanes into sixteen checked
-16-bit chunks or implement first-accepted selection.  Consequently it owns
+This module does not yet turn the low words of the digest lanes into checked
+16-bit candidates or implement first-accepted selection. Consequently it owns
 the transcript schedule and digest-lane source, but not a complete physical
 sampler or `nifsVerify` recipe.
 
@@ -374,7 +374,7 @@ theorem decoded_stateBeforeBlock
             (PiRlcCanonicalMachine.machine constants)
             (decodedBuilder assignment entered) seed (round + 1) := rfl
 
-/-- One complete scalar source: enter its coordinate and execute all four
+/-- One complete scalar source: enter its coordinate and execute all eight
 digest blocks, irrespective of the later rejection-selection outcome. -/
 def scalarBuilder
     (base : Nat) (builder : SymbolicDuplex.Builder)
@@ -396,19 +396,23 @@ theorem scalarBuilder_extends
     (scalarBuilder base builder coordinate).absorbed = 0 := by
   rfl
 
-/-- From a freshly gated cursor, one scalar uses five permutations: the first
+/-- From a freshly gated cursor, one scalar uses nine permutations: the first
 block flushes the three-word scalar prefix while absorbing its own raw pair,
-and each of the four blocks ends in one forced gate permutation. -/
+and each of the eight blocks ends in one forced gate permutation. -/
 theorem scalarBuilder_entries_length_of_zero
     (base : Nat) (builder : SymbolicDuplex.Builder)
     (coordinate : Nat) (cursorZero : builder.absorbed = 0) :
     (scalarBuilder base builder coordinate).entries.length =
-      builder.entries.length + 5 := by
+      builder.entries.length + 9 := by
   let entered := enterScalar base builder coordinate
   let block0 := digestBlock base entered coordinate
   let block1 := digestBlock base block0 (coordinate + 1)
   let block2 := digestBlock base block1 (coordinate + 2)
   let block3 := digestBlock base block2 (coordinate + 3)
+  let block4 := digestBlock base block3 (coordinate + 4)
+  let block5 := digestBlock base block4 (coordinate + 5)
+  let block6 := digestBlock base block5 (coordinate + 6)
+  let block7 := digestBlock base block6 (coordinate + 7)
   have enteredShape :=
     appendRawPair_shape_of_zero base 0 coordinate builder cursorZero
   have block0Length :=
@@ -423,28 +427,45 @@ theorem scalarBuilder_entries_length_of_zero
   have block3Length :=
     digestBlock_entries_length_of_zero base block2 (coordinate + 3)
       (by rfl)
-  have scalarEq : scalarBuilder base builder coordinate = block3 := by
+  have block4Length :=
+    digestBlock_entries_length_of_zero base block3 (coordinate + 4)
+      (by rfl)
+  have block5Length :=
+    digestBlock_entries_length_of_zero base block4 (coordinate + 5)
+      (by rfl)
+  have block6Length :=
+    digestBlock_entries_length_of_zero base block5 (coordinate + 6)
+      (by rfl)
+  have block7Length :=
+    digestBlock_entries_length_of_zero base block6 (coordinate + 7)
+      (by rfl)
+  have scalarEq : scalarBuilder base builder coordinate = block7 := by
     rfl
   rw [scalarEq]
-  rw [block3Length, block2Length, block1Length, block0Length]
-  change entered.entries.length + 2 + 1 + 1 + 1 =
-    builder.entries.length + 5
+  rw [block7Length, block6Length, block5Length, block4Length,
+    block3Length, block2Length, block1Length, block0Length]
+  change entered.entries.length + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 =
+    builder.entries.length + 9
   rw [show entered.entries.length = builder.entries.length by
     simpa [entered, enterScalar] using enteredShape.1]
 
-/-- From the selected post-PiCCS cursor one, one scalar still uses five
+/-- From the selected post-PiCCS cursor one, one scalar still uses nine
 permutations: the scalar prefix fills the rate, the first digest block flushes
 it once, and every digest block ends in one forced permutation. -/
 theorem scalarBuilder_entries_length_of_one
     (base : Nat) (builder : SymbolicDuplex.Builder)
     (coordinate : Nat) (cursorOne : builder.absorbed = 1) :
     (scalarBuilder base builder coordinate).entries.length =
-      builder.entries.length + 5 := by
+      builder.entries.length + 9 := by
   let entered := enterScalar base builder coordinate
   let block0 := digestBlock base entered coordinate
   let block1 := digestBlock base block0 (coordinate + 1)
   let block2 := digestBlock base block1 (coordinate + 2)
   let block3 := digestBlock base block2 (coordinate + 3)
+  let block4 := digestBlock base block3 (coordinate + 4)
+  let block5 := digestBlock base block4 (coordinate + 5)
+  let block6 := digestBlock base block5 (coordinate + 6)
+  let block7 := digestBlock base block6 (coordinate + 7)
   have enteredShape :=
     appendRawPair_shape_of_one base 0 coordinate builder cursorOne
   have block0Length :=
@@ -459,11 +480,24 @@ theorem scalarBuilder_entries_length_of_one
   have block3Length :=
     digestBlock_entries_length_of_zero base block2 (coordinate + 3)
       (by rfl)
-  have scalarEq : scalarBuilder base builder coordinate = block3 := by
+  have block4Length :=
+    digestBlock_entries_length_of_zero base block3 (coordinate + 4)
+      (by rfl)
+  have block5Length :=
+    digestBlock_entries_length_of_zero base block4 (coordinate + 5)
+      (by rfl)
+  have block6Length :=
+    digestBlock_entries_length_of_zero base block5 (coordinate + 6)
+      (by rfl)
+  have block7Length :=
+    digestBlock_entries_length_of_zero base block6 (coordinate + 7)
+      (by rfl)
+  have scalarEq : scalarBuilder base builder coordinate = block7 := by
     rfl
-  rw [scalarEq, block3Length, block2Length, block1Length, block0Length]
-  change entered.entries.length + 2 + 1 + 1 + 1 =
-    builder.entries.length + 5
+  rw [scalarEq, block7Length, block6Length, block5Length, block4Length,
+    block3Length, block2Length, block1Length, block0Length]
+  change entered.entries.length + 2 + 1 + 1 + 1 + 1 + 1 + 1 + 1 =
+    builder.entries.length + 9
   rw [show entered.entries.length = builder.entries.length by
     simpa [entered, enterScalar] using enteredShape.1]
 
@@ -526,7 +560,7 @@ theorem stateAt_entries_length_of_zero
     (cursorZero : initial.absorbed = 0) :
     ∀ coordinate,
       (stateAt base initial coordinate).entries.length =
-        initial.entries.length + coordinate * 5
+        initial.entries.length + coordinate * 9
   | 0 => rfl
   | coordinate + 1 => by
       rw [stateAt,
@@ -539,14 +573,14 @@ theorem stateAt_entries_length_of_zero
       omega
 
 /-- Exact permutation count for a fixed-size scalar batch beginning at the
-selected post-PiCCS cursor one.  The first scalar consumes five calls and
+selected post-PiCCS cursor one. The first scalar consumes nine calls and
 leaves cursor zero; every later scalar uses the existing cursor-zero law. -/
 theorem stateAt_entries_length_of_one
     (base : Nat) (initial : SymbolicDuplex.Builder)
     (cursorOne : initial.absorbed = 1) :
     ∀ coordinate,
       (stateAt base initial coordinate).entries.length =
-        initial.entries.length + coordinate * 5
+        initial.entries.length + coordinate * 9
   | 0 => rfl
   | coordinate + 1 => by
       rw [stateAt]
@@ -554,7 +588,7 @@ theorem stateAt_entries_length_of_one
       · subst coordinate
         change
           (scalarBuilder base initial 0).entries.length =
-            initial.entries.length + (0 + 1) * 5
+            initial.entries.length + (0 + 1) * 9
         rw [scalarBuilder_entries_length_of_one base initial 0 cursorOne]
       · have stateCursorZero :
           (stateAt base initial coordinate).absorbed = 0 := by
@@ -567,26 +601,26 @@ theorem stateAt_entries_length_of_one
           stateAt_entries_length_of_one base initial cursorOne coordinate]
         omega
 
-/-- The fixed-active fifteen-scalar suffix contributes exactly 75 canonical
+/-- The fixed-active fifteen-scalar suffix contributes exactly 135 canonical
 Poseidon2 permutations once the preceding replay hands off a cursor-zero
 state. -/
 theorem fixedActive_entries_length_of_zero
     (base : Nat) (initial : SymbolicDuplex.Builder)
     (cursorZero : initial.absorbed = 0) :
     (stateAt base initial 15).entries.length =
-      initial.entries.length + 75 := by
+      initial.entries.length + 135 := by
   simpa using stateAt_entries_length_of_zero base initial cursorZero 15
 
-/-- The selected cursor-one handoff contributes the same exact 75
+/-- The selected cursor-one handoff contributes the same exact 135
 permutations as the standalone cursor-zero schedule. -/
 theorem fixedActive_entries_length_of_one
     (base : Nat) (initial : SymbolicDuplex.Builder)
     (cursorOne : initial.absorbed = 1) :
     (stateAt base initial 15).entries.length =
-      initial.entries.length + 75 := by
+      initial.entries.length + 135 := by
   simpa using stateAt_entries_length_of_one base initial cursorOne 15
 
-/-- The fifteen-scalar duplex suffix therefore contributes exactly 26,400
+/-- The fifteen-scalar duplex suffix therefore contributes exactly 47,520
 Poseidon2 rows beyond the rows already present in the incoming builder. -/
 theorem fixedActive_rows_length_of_zero
     (base : Nat) (constants : Constants)
@@ -594,7 +628,7 @@ theorem fixedActive_rows_length_of_zero
     (cursorZero : initial.absorbed = 0) :
     (SymbolicDuplex.rows base constants
         (stateAt base initial 15)).length =
-      initial.entries.length * 352 + 26400 := by
+      initial.entries.length * 352 + 47520 := by
   rw [SymbolicDuplex.rows_length,
     fixedActive_entries_length_of_zero base initial cursorZero]
   omega

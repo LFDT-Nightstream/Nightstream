@@ -165,19 +165,19 @@ def anchors : List (String × String) :=
      "pub fn verify_uncompressed_audit(")
   , ("../../crates/neo-fold-clean/src/paper/decider.rs",
      "pub fn validate_witness(")
-  , ("../../crates/neo-fold-clean/src/paper/decider.rs",
-     "Err(Error::Unsupported)")
   , ("../../crates/neo-fold-clean/tests/system/formal_conformance.rs",
      "fn conformance_manifest_fails_closed_on_rust_or_lean_drift")
-  , ("../../crates/neo-fold-clean/tests/system/formal_conformance.rs",
-     "fn compact_decider_is_explicitly_fail_closed")
   , ("../../crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/lifecycle.rs",
      "pub fn finish_with_spartan(")
   , ("../../crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/lifecycle.rs",
      "pub fn verify_spartan(")
-  , ("../../crates/toy-spartan/src/spartan/parallel_repetition.rs",
+  , ("../../crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/lifecycle.rs",
+     "RepeatedR1CSSNARK::<TerminalSpartanEngine>::prove_direct")
+  , ("../../crates/neo-fold-clean/tests/system/lean_native_ccs_manifest.rs",
+     "fn terminal_r1cs_proves_and_verifies_with_spartan_and_whir")
+  , ("../../crates/wip-spartan/src/spartan/parallel_repetition.rs",
      "direct-r1cs/parallel-3/v1")
-  , ("../../crates/toy-spartan/src/sumcheck.rs",
+  , ("../../crates/wip-spartan/src/sumcheck.rs",
      "fn verify_parallel_3(")
   ]
 
@@ -219,7 +219,7 @@ def runWasmModuleArtifact : IO Bool := do
 /-- Emit a conformance token only after the complete result is known. -/
 def resultLine : Bool → String
   | true =>
-      "rust_conformance=M5-reopened (functional probes and artifact checks pass; Rust-originated provenance audit open); direct_terminal_spartan=artifact-checked-bounded-lockstep; compact_decider=fail-closed-unsupported; DEC-SOUND=open"
+      "rust_conformance=M5-reopened (functional probes and artifact checks pass; Rust-originated provenance audit open); direct_terminal_spartan=artifact-checked-bounded-lockstep; generic_compact_decider=not-exposed; DEC-SOUND=open"
   | false =>
       "rust_conformance=M5-fail; no Rust-conformant claim is established; DEC-SOUND=open"
 

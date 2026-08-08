@@ -25,8 +25,3 @@ perf-timers = ["neo-fold-clean/perf-timers"]
 [dependencies]
 cuda-core = { git = "https://github.com/NVlabs/cuda-oxide.git", rev = "baa1773ad834e6869f5341ff6dd0ba1b48c3e1b8", optional = true }
 neo-fold-clean = { path = "../neo-fold-clean" }
-
-[dev-dependencies]
-neo-ccs = { path = "../neo-ccs" }
-neo-math = { path = "../neo-math" }
-p3-field = { workspace = true }

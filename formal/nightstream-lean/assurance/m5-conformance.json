@@ -9,11 +9,10 @@
       "evidence_state": "rust-conformant",
       "statement_parity": "pass",
       "state_parity": "pass with u64 representation delegated to FPR-COUNTER-REFINE",
-      "transition_parity": "pass for base, recursive, outgoing-link, terminal, and compact-unsupported branches",
+      "transition_parity": "pass for base, recursive, outgoing-link, and terminal branches",
       "encoding_parity": "not applicable to native in-memory verification; ENC-CANON and M4 own encodings and generated rows",
       "runtime_regressions": [
-        "lifecycle_replay_exercises_fprime_success_and_rejection_paths",
-        "compact_decider_is_explicitly_fail_closed"
+        "lifecycle_replay_exercises_fprime_success_and_rejection_paths"
       ],
       "lean_theorems": [
         "Nightstream.Implementation.Rust.FPrime.verify_eq_ok_iff_checkLocal",
@@ -44,15 +43,11 @@
     }
   ],
   "compact_decider": {
-    "status": "fail-closed-unsupported",
-    "runtime_regression": "compact_decider_is_explicitly_fail_closed",
-    "reopens_on_acceptance": [
-      "RUST-REFINE",
-      "DEC-SOUND"
-    ]
+    "status": "not-exposed",
+    "replacement": "frontends::r1cs_f_prime::finish_with_spartan and verify_spartan"
   },
   "open_property": {
     "property_id": "DEC-SOUND",
-    "reason": "paper::decider::{prove, verify} and terminal_ce::circuit::enforce_verify_public_statement reject Unsupported; no compact acceptance exists to reduce"
+    "reason": "the full-history audit relation is not the direct terminal Spartan relation; no generic compact proof API is exposed"
   }
 }

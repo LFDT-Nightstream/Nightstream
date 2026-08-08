@@ -6,12 +6,8 @@ use super::isa::WasmOpcode;
 pub struct Column(pub usize);
 
 pub const PUBLIC_INPUTS: usize = 7;
-/// Reserved `control_choice` value under which `pc_rom` stores a call site's
-/// continuation pc (the instruction after the call): the return address for
-/// guest calls, the fall-through target for indirect host calls. Shares the
-/// choice axis with the per-opcode branch discriminants (`br_if`, `if`,
-/// `br_table` arms), which use 0/1/arm-index at their own pcs; the
-/// reservation is per call-site pc, not global.
+/// Per-call-site `control_choice` used by `pc_rom` for the continuation pc.
+/// Other control instructions can use the same value at other pcs.
 pub const PC_ROM_CALL_RETURN_CHOICE: u64 = 1;
 
 /// Declared intrinsic range for a witness column.

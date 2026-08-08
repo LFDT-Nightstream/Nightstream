@@ -101,3 +101,25 @@ pub fn tiny_params() -> Params {
     .expect("test parameters satisfy the reduction guard");
     Params::test_only_from_neo_params(inner)
 }
+
+/// Smallest Goldilocks algebraic profile that can run the selected IVC path.
+///
+/// With `b = 2` and the minimum nonzero `T = 1`, `k_rho = 2` is the first
+/// exponent for which `(k_rho + 1) T (b - 1) < b^k_rho`. Rank and lambda use
+/// their constructor minima. The production ring and extension stay fixed.
+pub fn minimal_ivc_test_params() -> Params {
+    let inner = NeoParams::new(
+        goldilocks_paper_b2::Q,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::D as u32,
+        1,
+        goldilocks_paper_b2::M,
+        goldilocks_paper_b2::B_BASE,
+        2,
+        1,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        1,
+    )
+    .expect("minimal IVC test parameters satisfy the exact RLC guard");
+    Params::test_only_from_neo_params(inner)
+}

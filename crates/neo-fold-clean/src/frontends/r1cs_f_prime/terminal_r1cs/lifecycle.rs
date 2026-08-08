@@ -10,7 +10,7 @@
 use neo_ccs::CcsMatrix;
 use p3_field::PrimeCharacteristicRing;
 use serde::{Deserialize, Serialize};
-use toy_spartan::spartan::{RepeatedR1CSSNARK, R1CSSNARK};
+use wip_spartan::spartan::{RepeatedR1CSSNARK, R1CSSNARK};
 
 use crate::lifecycle::{Preprocessing, PublicImage, Uncompressed};
 use crate::paper::construction2::{self, ProofState, RunningInstance, SemanticStateMode, State};
@@ -18,7 +18,6 @@ use crate::paper::digest::{digest_fields_as_digest32, initial_boundary_digest};
 use crate::paper::f_prime::r1cs::{f_prime_public_input_link_matches, FPrimePublicInputLayout};
 use crate::paper::relations::{CcsClaim, CeClaim, Structure};
 
-use super::compiler::MAX_DIRECT_TERMINAL_ROWS;
 use super::{
     compile_terminal_r1cs, compile_terminal_r1cs_statement, LeanNativeCcsManifest, TerminalR1csError,
     TerminalR1csInput, TerminalR1csStatement, TerminalSpartanEngine,
@@ -193,13 +192,6 @@ pub fn verify_spartan(
 fn validate_context(prep: &Preprocessing, manifest: &LeanNativeCcsManifest) -> Result<(), TerminalR1csError> {
     if !prep.enforces_terminal_induction() {
         return Err(TerminalR1csError::UncertifiedInduction);
-    }
-    let rows = manifest.terminal_r1cs().cost().recurring_rows();
-    if rows > MAX_DIRECT_TERMINAL_ROWS {
-        return Err(TerminalR1csError::ResourceLimit {
-            rows,
-            cap: MAX_DIRECT_TERMINAL_ROWS,
-        });
     }
     if prep.nebula().is_some() {
         return Err(TerminalR1csError::Unsupported(

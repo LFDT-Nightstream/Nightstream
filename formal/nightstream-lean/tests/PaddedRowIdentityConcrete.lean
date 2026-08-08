@@ -34,7 +34,7 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 #check concreteFullOracleSoundness
 #check boundedSampler_refines
 #check shortfall_requires_eleven_rejections
-#check samplerShortfall_probability_le_121_bits
+#check samplerShortfall_probability_le_132_bits
 #check publicWireFields_injective_on_admissible
 #check proofWireFields_injective
 #check ProductionMatrixRefinement

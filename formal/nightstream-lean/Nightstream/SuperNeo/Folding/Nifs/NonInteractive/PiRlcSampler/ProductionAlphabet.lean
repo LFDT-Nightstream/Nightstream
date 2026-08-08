@@ -11,8 +11,8 @@ first-accepted selection, and the fixed 54-of-64 success boundary.
 Owns: the exact numerical sampler parameters; the verifier-owned accepted
 domain; centered coefficient bounds; a bijection between accepted chunks and
 `Fin 13107 × Fin 5`; the conditional bounded/reference equivalence at 54 of
-64; and the theorem that every successful least cursor lies in digest window
-four.
+64; and the theorem that every successful least cursor passes six complete
+eight-candidate digest windows.
 
 Does not own: candidate generation, transcript serialization, Poseidon2,
 successor transcript state, rotation/ring-scalar assembly, the SuperNeo
@@ -24,16 +24,16 @@ Authority boundary: acceptance and decoding are mathematical functions of the
 candidate chunk. The prover supplies neither. The 64-candidate theorem is
 conditional on a successful bounded execution; it does not assume that every
 stream succeeds and does not yet prove that a concrete transcript produces
-this stream or advances by exactly four Poseidon2 digests.
+this stream or advances by exactly eight Poseidon2 digests.
 
 | Protocol | Phase | Mathematical object | Exact obligation |
 |---|---|---|---|
-| `Pi_RLC` | parameters | `parameter_values` | fix 16-bit chunks, rejection `65535`, alphabet `5`, need `54`, and bound `64 = 4 × 16` |
+| `Pi_RLC` | parameters | `parameter_values` | fix 16-bit chunks, rejection `65535`, alphabet `5`, need `54`, and bound `64 = 8 × 8` |
 | `Pi_RLC` | acceptance | `accepts_eq_true_iff` | accept exactly chunks below the rejection bucket |
 | `Pi_RLC` | decoding | `centeredValue_bounds` | every decoded symbol represents an integer in `[-2, 2]` |
 | `Pi_RLC` | balance | `acceptedFactorization` | accepted chunks are exactly `Fin 13107 × Fin 5` |
 | `Pi_RLC` | bounded/reference | `sample54of64_eq_some_iff_reference_within` | fixed execution equals the least terminating reference run inside 64 candidates |
-| `Pi_RLC` | digest window | `successful_cursor_in_fourth_digest_window` | success implies `48 < consumed ≤ 64` |
+| `Pi_RLC` | digest window | `successful_cursor_after_sixth_digest` | success implies `48 < consumed ≤ 64` |
 -/
 
 namespace Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet
@@ -52,11 +52,11 @@ def alphabetSize : Nat := 5
 /-- Number of coefficients in one production rotation/ring scalar. -/
 def coefficientCount : Nat := 54
 
-/-- Number of 16-bit candidates exposed by one four-lane digest. -/
-def chunksPerDigest : Nat := 16
+/-- Number of exact 16-bit candidates exposed by one four-lane digest. -/
+def chunksPerDigest : Nat := 8
 
 /-- Fixed number of digest rounds in the bounded recursive verifier. -/
-def digestRounds : Nat := 4
+def digestRounds : Nat := 8
 
 /-- Fixed candidate prefix inspected by the recursive verifier. -/
 def candidateBound : Nat := 64
@@ -69,8 +69,8 @@ theorem parameter_values :
     rejectionBucket = 65535 /\
     alphabetSize = 5 /\
     coefficientCount = 54 /\
-    chunksPerDigest = 16 /\
-    digestRounds = 4 /\
+    chunksPerDigest = 8 /\
+    digestRounds = 8 /\
     candidateBound = 64 /\
     candidateBound = digestRounds * chunksPerDigest /\
     rejectionBucket = acceptedQuotientCount * alphabetSize := by
@@ -220,14 +220,14 @@ theorem sample54of64_eq_some_iff_reference_within
   exact FirstAccepted.boundedSample_eq_some_iff_referenceExecution_within
 
 /-- The least successful cursor must occur after candidate 48 and no later
-than candidate 64. Thus a whole-digest implementation necessarily reaches the
-fourth 16-candidate window. Connecting that fact to a concrete successor
-transcript state is intentionally left to the Poseidon2 refinement layer. -/
-theorem successful_cursor_in_fourth_digest_window
+than candidate 64. Thus a whole-digest implementation necessarily completes
+at least six eight-candidate windows. The fixed implementation consumes all
+eight windows independently of this least cursor. -/
+theorem successful_cursor_after_sixth_digest
     {stream : FirstAccepted.CandidateStream Chunk}
     (execution : FirstAccepted.BoundedExecution verifier coefficientCount
       stream candidateBound) :
-    3 * chunksPerDigest < execution.consumed /\
+    6 * chunksPerDigest < execution.consumed /\
       execution.consumed ≤ digestRounds * chunksPerDigest := by
   have needLeConsumed : coefficientCount ≤ execution.consumed := by
     calc

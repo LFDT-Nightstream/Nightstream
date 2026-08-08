@@ -380,13 +380,14 @@ fn rlc_y_row_combination_rejects_tampered_input_y() {
 use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::enforce_pi_rlc_rhos_from_transcript;
 use neo_fold_clean::engine::r1cs_circuit::TranscriptGadget;
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::alloc_rlc_commitment_inputs_with_rhos;
+use neo_params::goldilocks_paper_b2::PI_RLC_SAMPLER_DIGEST_ROUNDS;
 use neo_transcript::{Poseidon2Transcript, Transcript as NeoTranscript};
 
 const TR_APP: &[u8] = b"neo.test.pi_rlc/transcript/v1";
 const TR_ALPHABET: [i8; 5] = [-2, -1, 0, 1, 2];
 
 /// Native mirror of `enforce_pi_rlc_rhos_from_transcript`, with `[0, i]`
-/// outer separator + 4-iteration alphabet sampler.
+/// outer separator and the fixed exact alphabet sampler.
 fn native_pi_rlc_rho_coeffs(tr: &mut Poseidon2Transcript, count: usize) -> Vec<[F; D]> {
     let mut out = Vec::with_capacity(count);
     for i in 0..count {
@@ -394,21 +395,22 @@ fn native_pi_rlc_rho_coeffs(tr: &mut Poseidon2Transcript, count: usize) -> Vec<[
         let mut symbols = Vec::with_capacity(D);
         let mut ctr = i as u64;
         let bucket = 65535u32;
-        while symbols.len() < D {
+        for _ in 0..PI_RLC_SAMPLER_DIGEST_ROUNDS {
             tr.append_fields_raw(&[F::from_u64(1), F::from_u64(ctr)]);
-            let dig = tr.digest32();
-            for w in dig.chunks_exact(2) {
-                let x = u16::from_le_bytes([w[0], w[1]]) as u32;
-                if x < bucket {
-                    let idx = (x % 5) as usize;
-                    symbols.push(TR_ALPHABET[idx]);
-                    if symbols.len() == D {
-                        break;
+            let digest = tr.digest32();
+            for lane in digest.chunks_exact(8) {
+                let value = u64::from_le_bytes(lane.try_into().expect("digest lane"));
+                for offset in [0, 16] {
+                    let raw = ((value >> offset) & 0xffff) as u16;
+                    let candidate = (!raw) as u32;
+                    if candidate < bucket && symbols.len() < D {
+                        symbols.push(TR_ALPHABET[(candidate % 5) as usize]);
                     }
                 }
             }
             ctr = ctr.wrapping_add(1);
         }
+        assert_eq!(symbols.len(), D, "fixed production sampler shortfall");
         let mut coeffs = [F::ZERO; D];
         for (slot, &s) in coeffs.iter_mut().zip(symbols.iter()) {
             *slot = if s >= 0 {

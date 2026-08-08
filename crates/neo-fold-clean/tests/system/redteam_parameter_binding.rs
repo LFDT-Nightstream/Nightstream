@@ -30,8 +30,7 @@ fn shape_selected_params_charge_pi_rlc_coordinate_extraction_loss() {
         .expect("maximum-geometry combined census");
 
     assert!(
-        effective_bits >= params.lambda()
-            && summary.slack_bits >= config::EXTENSION_SAFETY_MARGIN_BITS as i32,
+        effective_bits >= params.lambda() && summary.security_bits == params.lambda() && summary.slack_bits == 0,
         "soundness-policy failure: Π_RLC's (K+k+1)/|C| extractor loss leaves {effective_bits} whole bits at {extraction_queries} queries, while the combined census is {summary:?} for lambda={}",
         params.lambda(),
     );
@@ -108,7 +107,7 @@ fn preprocessing_rejects_public_input_arity_above_structure_width() {
     ));
 }
 
-/// Parameter-selection margins are verifier security policy. A public `u32`
+/// An explicit parameter-selection margin is verifier policy. A public `u32`
 /// margin that cannot be represented by the internal signed slack type must
 /// be rejected, not narrowed to a negative number that makes the comparison
 /// vacuously succeed.
@@ -146,7 +145,7 @@ fn ccs_parameter_selection_charges_strict_polynomial_degree_bound() {
     assert!(
         true_policy
             .as_ref()
-            .is_ok_and(|summary| summary.verifier_degree == DEGREE + 1 && summary.slack_bits >= 2),
+            .is_ok_and(|summary| summary.verifier_degree == DEGREE + 1 && summary.slack_bits == 0),
         "soundness-policy failure: actual degree {DEGREE} requires verifier degree {}, but selected lambda={} has {true_policy:?}",
         DEGREE + 1,
         params.inner().lambda,
@@ -268,8 +267,7 @@ fn ajtai_registry_rejects_conflicting_well_formed_public_parameters() {
 
 /// Shape-derived parameters are a soundness contract, not a caller hint. A
 /// parameter set derived for `t = 1` must not be accepted with a structure
-/// whose actual `t` makes the padded-row field census unsupported even at
-/// the configured minimum lambda.
+/// whose actual `t` supports only a lower shape-derived lambda.
 #[test]
 fn preprocessing_rejects_params_derived_for_a_different_ccs_shape() {
     let structure = CcsStructure::new_sparse(
@@ -285,10 +283,14 @@ fn preprocessing_rejects_params_derived_for_a_different_ccs_shape() {
         /* poly_degree = */ 0,
     )
     .expect("parameters derived for the understated shape");
+    let actual = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("parameters derived for the actual shape");
 
     assert!(
-        config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree(),).is_err(),
-        "the actual shape should exceed the configured s=2/min-lambda D.4 budget"
+        actual.lambda() < understated.lambda(),
+        "the larger matrix census must derive a lower lambda (actual={}, understated={})",
+        actual.lambda(),
+        understated.lambda(),
     );
     assert!(
         neo_reductions::engines::pi_ccs_joint::build_joint_dims(understated.inner(), &structure, 1, 0).is_err(),

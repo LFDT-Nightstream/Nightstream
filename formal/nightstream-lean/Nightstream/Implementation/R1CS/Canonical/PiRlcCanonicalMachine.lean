@@ -13,9 +13,9 @@ semantic machine is selected by the canonical Lean schedule.
 Owns:
 - overwrite absorption and the raw-pair length word;
 - the exact scalar and digest-block domain words;
-- four little-endian 16-bit candidates from each of four digest lanes;
-- one jointly owned successor state and sixteen-candidate block; and
-- the existing four-block/54-of-64 successor-state theorem.
+- two complemented low-word candidates from each of four digest lanes;
+- one jointly owned successor state and eight-candidate block; and
+- the fixed eight-block/54-of-64 successor state.
 
 Does not own:
 - the state handed off by `Pi_CCS`;
@@ -69,22 +69,23 @@ def digest
       simp only [width]
       omega⟩)
 
-/-- The `part`th little-endian 16-bit chunk of one canonical lane value. -/
-def laneChunk (lane : Nat) (part : Fin 4) : Chunk :=
-  ⟨(lane / (2 ^ (16 * part.val))) % chunkModulus,
+/-- The bitwise complement of the `part`th low 16-bit word. -/
+def laneChunk (lane : Nat) (part : Fin 2) : Chunk :=
+  ⟨((chunkModulus - 1) + chunkModulus -
+      ((lane / (2 ^ (16 * part.val))) % chunkModulus)) % chunkModulus,
     Nat.mod_lt _ (by decide)⟩
 
-/-- Four chunks per lane and four lanes per digest, in lane-major order. -/
+/-- Two exact candidates per lane and four lanes per digest, in lane-major order. -/
 def digestChunks (lanes : Fin 4 → Nat) :
     Fin chunksPerDigest → Chunk :=
   fun position =>
     let lane : Fin 4 :=
-      ⟨position.val / 4, by
-        have positionLt : position.val < 16 := by
+      ⟨position.val / 2, by
+        have positionLt : position.val < 8 := by
           exact position.isLt
         omega⟩
-    let part : Fin 4 :=
-      ⟨position.val % 4, Nat.mod_lt _ (by decide)⟩
+    let part : Fin 2 :=
+      ⟨position.val % 2, Nat.mod_lt _ (by decide)⟩
     laneChunk (lanes lane) part
 
 /-- Per-scalar domain separation. -/
@@ -93,7 +94,7 @@ def enterScalar
     (coordinate : Nat) : Poseidon2Duplex.State :=
   appendRawPair constants state 0 coordinate
 
-/-- One counter block jointly returns its successor state and all sixteen
+/-- One counter block jointly returns its successor state and all eight
 candidates.  The two projections cannot drift independently. -/
 def digestBlock
     (constants : Constants) (state : Poseidon2Duplex.State)
@@ -129,31 +130,31 @@ def specification (constants : Constants) :
 
 /-- The lane/part quotient-remainder address is exact. -/
 theorem digestChunks_lane_part
-    (lanes : Fin 4 → Nat) (lane part : Fin 4) :
+    (lanes : Fin 4 → Nat) (lane : Fin 4) (part : Fin 2) :
     digestChunks lanes
-        ⟨lane.val * 4 + part.val, by
+        ⟨lane.val * 2 + part.val, by
           have laneLt := lane.isLt
           have partLt := part.isLt
-          change lane.val * 4 + part.val < chunksPerDigest
+          change lane.val * 2 + part.val < chunksPerDigest
           simp only [chunksPerDigest]
           omega⟩ =
       laneChunk (lanes lane) part := by
   unfold digestChunks
   dsimp only
   have laneEq :
-      (⟨(lane.val * 4 + part.val) / 4, by
+      (⟨(lane.val * 2 + part.val) / 2, by
         have laneLt := lane.isLt
         have partLt := part.isLt
         omega⟩ : Fin 4) = lane := by
     apply Fin.ext
-    change (lane.val * 4 + part.val) / 4 = lane.val
+    change (lane.val * 2 + part.val) / 2 = lane.val
     have partLt := part.isLt
     omega
   have partEq :
-      (⟨(lane.val * 4 + part.val) % 4, Nat.mod_lt _ (by decide)⟩ :
-        Fin 4) = part := by
+      (⟨(lane.val * 2 + part.val) % 2, Nat.mod_lt _ (by decide)⟩ :
+        Fin 2) = part := by
     apply Fin.ext
-    change (lane.val * 4 + part.val) % 4 = part.val
+    change (lane.val * 2 + part.val) % 2 = part.val
     have partLt := part.isLt
     omega
   rw [laneEq, partEq]
@@ -165,22 +166,19 @@ theorem digestChunks_lane_part
     (digestBlock constants state counter).1.absorbed = 0 :=
   rfl
 
-/-- Candidate output and successor state agree with the same four canonical
-digest blocks whenever the bounded sampler succeeds. -/
-theorem successfulExecution_successorState
+/-- Candidate output and successor state agree with the same eight canonical
+digest blocks. -/
+theorem fixedSchedule_successorState
     (constants : Constants)
     (initial : Poseidon2Duplex.State)
-    (coordinate : Nat)
-    (execution :
-      CoefficientExecution (specification constants) candidateBound
-        initial coordinate) :
+    (coordinate : Nat) :
     (sourceAt (specification constants) initial coordinate).nextState =
       stateBeforeBlock (machine constants)
         (enterScalar constants
           (stateAt (specification constants) initial coordinate) coordinate)
-        coordinate (blocksUsed execution.consumed) := by
-  exact source_nextState_eq_referenceBlockState
-    (machine constants) assembleCoefficients initial coordinate execution
+        coordinate digestRounds := by
+  exact source_nextState_eq_fixedBlockState
+    (machine constants) assembleCoefficients initial coordinate
 
 /-- The independent strong-set coefficient law applies directly to this
 canonical machine. -/

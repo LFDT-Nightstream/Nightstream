@@ -631,65 +631,60 @@ pub fn rot_rhos_to_mats(rhos: &[RotRho]) -> Vec<Mat<F>> {
     rhos.iter().map(|rho| rho.as_mat().clone()).collect()
 }
 
-/// Draw `need` samples uniformly from `alphabet` using transcript randomness (rejection sampling).
+const DIGEST_LANES: usize = 4;
+const U16_CARDINALITY: u32 = 1 << 16;
+
+/// Draw exact alphabet samples from the two low 16-bit words of each field lane.
 ///
-/// Uses 16-bit chunks from the transcript digest to achieve unbiased sampling:
-/// - Accept chunk if it falls in [0, largest_multiple_of_|alphabet|)
-/// - Reject and retry otherwise
-fn draw_alphabet_vector(tr: &mut Poseidon2Transcript, need: usize, alphabet: &[i8], seed: u64) -> Vec<i8> {
-    let m = alphabet.len() as u32;
-    let bucket = (1u32 << 16) / m * m; // Largest multiple of m below 2^16
-
+/// Goldilocks has `q = 2^64 - 2^32 + 1`. Across canonical field elements, each
+/// low 32-bit word occurs `2^32 - 1` times, except `(0, 0)`, which occurs once
+/// more. Bitwise complement maps that extra pair to `(65535, 65535)`.
+/// Rejecting the top tail then leaves every accepted 16-bit value with exactly
+/// the same number of preimages.
+fn draw_alphabet_vector(
+    tr: &mut Poseidon2Transcript,
+    need: usize,
+    alphabet: &[i8],
+    seed: u64,
+    fixed_rounds: Option<usize>,
+) -> Result<Vec<i8>, PiCcsError> {
+    let alphabet_len = alphabet.len() as u32;
+    // The exact source range is 0..65535. Keep the largest prefix whose size
+    // is divisible by the alphabet size.
+    let bucket = (U16_CARDINALITY - 1) / alphabet_len * alphabet_len;
     let mut out = Vec::with_capacity(need);
     let mut ctr = seed;
+    let mut rounds = 0usize;
 
-    while out.len() < need {
+    while fixed_rounds.map_or(out.len() < need, |limit| rounds < limit) {
         tr.append_fields_raw(&[F::from_u64(1), F::from_u64(ctr)]);
-        let dig = tr.digest32();
+        let digest = tr.digest32();
+        debug_assert_eq!(digest.len(), DIGEST_LANES * 8);
 
-        for w in dig.chunks_exact(2) {
-            let x = u16::from_le_bytes([w[0], w[1]]) as u32;
-            if x < bucket {
-                let idx = (x % m) as usize;
-                out.push(alphabet[idx]);
-                if out.len() == need {
-                    break;
+        for lane in digest.chunks_exact(8) {
+            let value = u64::from_le_bytes(lane.try_into().expect("digest32 lanes are 8 bytes"));
+            for offset in [0, 16] {
+                let raw = ((value >> offset) & 0xffff) as u16;
+                let candidate = (!raw) as u32;
+                if candidate < bucket && out.len() < need {
+                    out.push(alphabet[(candidate % alphabet_len) as usize]);
                 }
             }
         }
+        rounds += 1;
         ctr = ctr.wrapping_add(1);
     }
 
-    out
-}
-
-fn draw_alphabet_vector_pow2(tr: &mut Poseidon2Transcript, need: usize, alphabet: &[i8], seed: u64) -> Vec<i8> {
-    debug_assert!(alphabet.len().is_power_of_two());
-    let bits_per_symbol = alphabet.len().trailing_zeros() as usize;
-    let mask = (1u64 << bits_per_symbol) - 1;
-
-    let mut out = Vec::with_capacity(need);
-    let mut ctr = seed;
-    while out.len() < need {
-        tr.append_fields_raw(&[F::from_u64(1), F::from_u64(ctr)]);
-        let dig = tr.digest32();
-        for limb in dig.chunks_exact(8) {
-            let value = u64::from_le_bytes(limb.try_into().expect("digest32 limbs are 8 bytes"));
-            let symbols = 64 / bits_per_symbol;
-            for symbol_idx in 0..symbols {
-                let idx = ((value >> (bits_per_symbol * symbol_idx)) & mask) as usize;
-                out.push(alphabet[idx]);
-                if out.len() == need {
-                    break;
-                }
-            }
-            if out.len() == need {
-                break;
-            }
-        }
-        ctr = ctr.wrapping_add(1);
+    if out.len() == need {
+        Ok(out)
+    } else {
+        Err(PiCcsError::InvalidInput(format!(
+            "Π_RLC sampler accepted {} of {} required coefficients after {} fixed digest rounds",
+            out.len(),
+            need,
+            rounds
+        )))
     }
-    out
 }
 
 fn validate_sampling_alphabet(alphabet: &[i8]) -> Result<(), PiCcsError> {
@@ -831,11 +826,9 @@ pub fn sample_rot_rhos_n(
         tr.append_fields_raw(&[F::from_u64(0), F::from_u64(i as u64)]);
 
         // Draw D coefficients from the strong-set alphabet.
-        let coeffs_i8 = if ring.alphabet.len().is_power_of_two() {
-            draw_alphabet_vector_pow2(tr, D, ring.alphabet, i as u64)
-        } else {
-            draw_alphabet_vector(tr, D, ring.alphabet, i as u64)
-        };
+        let production_alphabet = ring.alphabet == goldilocks_paper_b2::CHALLENGE_ALPHABET;
+        let fixed_rounds = production_alphabet.then_some(goldilocks_paper_b2::PI_RLC_SAMPLER_DIGEST_ROUNDS);
+        let coeffs_i8 = draw_alphabet_vector(tr, D, ring.alphabet, i as u64, fixed_rounds)?;
 
         // Lift to field F
         let a_coeffs_f: Vec<F> = coeffs_i8.iter().map(|&c| f_from_i64(c as i64)).collect();

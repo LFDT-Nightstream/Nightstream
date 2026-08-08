@@ -6,10 +6,10 @@
 //!
 //! See the crate-level docs in `lib.rs` for the canonical example.
 //!
-//! ## Two paths, two verifier types
+//! ## Terminal and audit paths
 //!
-//! The Phase 1.7 type split makes the verifier-authority boundary
-//! structural. Production code wires the non-replay path; the audit
+//! The type split makes the verifier-authority boundary structural.
+//! Production code wires the non-replay path; the audit
 //! path is for diagnostics, the Spartan decider statement, and red-team
 //! tests that need to mutate the per-step audit trail.
 //!
@@ -30,32 +30,30 @@
 //!        complete authoritative F' relation. Image-only relations remain
 //!        fail-closed and require the audit path below.
 //!
-//! Audit / decider (chain replay, Spartan):
+//! Audit / decider (chain replay):
 //!   ... prove + extend as above ...
 //!   finish_uncompressed_with_audit(prep, audit) → UncompressedAudit
 //!     └─ flush trailing latest, KEEP audit trail
 //!   verify_uncompressed_audit(prep, &UncompressedAudit) → Result<()>
 //!     └─ linear-time chain replay; catches audit-trail tampers
 //!   build_decider_statement(prep, &UncompressedAudit) → decider::Statement
-//!     └─ feeds the (PR5) Spartan compress / verify SNARK
-//!   compress(prep, UncompressedAudit) → Compressed              (PR5)
-//!   verify(prep, &Compressed) → Result<()>                      (PR5)
+//!     └─ feeds the checked decider relation and its tests
 //! ```
 //!
 //! ## What this module owns
 //!
 //! - `mod.rs` (this file) — public types ([`Preprocessing`],
-//!   [`Uncompressed`], [`UncompressedAudit`], [`Compressed`],
+//!   [`Uncompressed`], [`UncompressedAudit`],
 //!   [`PublicImage`]), the [`Error`] enum, and [`preprocess`].
 //! - `prove.rs` — [`prove`], [`extend`], and the `start_proof` helper.
-//! - `verify.rs` — [`verify`] (compressed), [`verify_uncompressed`]
-//!   (non-replay IVC), [`verify_uncompressed_audit`] (chain replay).
-//! - `compress.rs` — [`finish_uncompressed`] / [`finish_uncompressed_with_audit`],
-//!   [`compress`], public-image / decider-statement builders.
+//! - `verify.rs` — [`verify_uncompressed`] (non-replay IVC) and
+//!   [`verify_uncompressed_audit`] (chain replay).
+//! - `finish.rs` — [`finish_uncompressed`] / [`finish_uncompressed_with_audit`],
+//!   public-image / decider-statement builders.
 //! - `schedule.rs` — [`FoldSchedule`], `partition<T>`, [`ScheduleError`].
 
-pub mod compress;
 mod final_openings;
+mod finish;
 pub mod prove;
 pub mod schedule;
 pub mod verify;
@@ -192,6 +190,8 @@ pub enum Error {
     TerminalInductionExternalNebulaOpen,
     #[error("extend: batch has {got} fresh instances, but this SuperNeo profile supports at most {max}")]
     BatchTooLarge { got: usize, max: usize },
+    #[error("recursive step preparation requires an active Construction-2 state")]
+    RecursivePreparationRequiresActiveState,
     #[error("finish_uncompressed: already-finalized proof is internally inconsistent")]
     FinalizedProofInconsistent,
     #[error("lifecycle: public input length mismatch (expected {expected}, got {got})")]
@@ -415,15 +415,6 @@ impl Preprocessing {
         self
     }
 
-    /// In-crate hook for R1CS-F' frontends to enable F'-specific recursive
-    /// public-input checks. This must not be public: the mode is a verifier
-    /// ownership boundary, not a prover/caller choice.
-    pub(crate) fn with_f_prime_recursive_link(mut self) -> Self {
-        self.f_prime_recursive_link = true;
-        self.rebind_verifier_key_policy();
-        self
-    }
-
     /// Install the complete folded-induction capability. Kept crate-private:
     /// this is a statement about verifier-owned relation construction, never
     /// a caller-selected verification mode.
@@ -594,13 +585,6 @@ pub struct UncompressedAudit {
     pub public_batches: Vec<Vec<CcsClaim>>,
 }
 
-/// The final proof bundle.
-pub struct Compressed {
-    pub proof: decider::Proof,
-    pub vk: decider::VerifierKeyDigest,
-    pub public_image: PublicImage,
-}
-
 // Public image lives with the decider contract; re-export so lifecycle
 // callers can name it without reaching into `paper::decider`.
 pub use crate::paper::decider::PublicImage;
@@ -610,7 +594,7 @@ pub use crate::paper::decider::PublicImage;
 // ──────────────────────────────────────────────────────────────────────────
 
 // Terminal-only lifecycle path.
-pub use compress::{finish_uncompressed, finish_uncompressed_with_audit_and_nifs_adapter};
+pub use finish::{finish_uncompressed, finish_uncompressed_with_audit_and_nifs_adapter};
 pub use prove::{
     extend, extend_nebula_open, extend_nebula_open_with_nifs_adapter, extend_with_nifs_adapter, prove,
     prove_with_nifs_adapter,
@@ -620,8 +604,8 @@ pub use verify::{
     validate_terminal_latest_link, verify_uncompressed, verify_uncompressed_with_opening_backend,
 };
 
-// Audit / decider path — chain replay, Spartan, diagnostic tests.
-pub use compress::{build_decider_statement, compress, finish_uncompressed_with_audit, verify};
+// Audit / decider path — chain replay and diagnostic tests.
+pub use finish::{build_decider_statement, finish_uncompressed_with_audit};
 pub use verify::verify_uncompressed_audit;
 
 pub use schedule::{FoldSchedule, ScheduleError};

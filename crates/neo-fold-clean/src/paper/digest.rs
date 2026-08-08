@@ -8,7 +8,7 @@
 //! Each absorb is part of a Soundness Invariant: the order of fields, the
 //! domain tag, and the field/byte conversions are all part of the protocol
 //! binding. Any change here must move in lockstep with the in-circuit
-//! gadget that recomputes the same digest in PR5's `engine::decider`.
+//! gadget that recomputes the same digest in the F' and decider relations.
 
 use crate::paper::reductions::accumulator_sis_circuit::{
     accumulator_digest as sis_accumulator_digest, ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG,
@@ -417,7 +417,7 @@ fn append_adv_leaves(preimage: &mut Vec<F>, adv: &Option<LaneCommitments<Commitm
 /// Rationale: in F', a fresh CCS instance's `x` is the recursive link
 /// (`x = enc_inst(prior_x_out)`, where `prior_x_out` is computed from
 /// state-in, which itself depends on the previous step's `chunk_digest`).
-/// In neo-fold-clean's direct-CCS interim, the Ajtai log commitment binds
+/// The Ajtai log commitment binds
 /// the **full** assignment `z = [x | w]`, so `claim.c.data` also depends
 /// on `x`. Folding either `x` or `c.data` into the chunk digest creates
 /// a hash fixed point

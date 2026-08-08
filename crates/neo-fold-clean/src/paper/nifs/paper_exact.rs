@@ -1,7 +1,7 @@
 //! Independent direct NIFS composition used as the correctness reference.
 //!
 //! This module spells out PiCCS, PiRLC, and PiDEC in protocol order. It owns
-//! no optimized cache, accelerator, or deferred-output path.
+//! no optimized cache or accelerator path.
 
 use neo_ajtai::{AjtaiSModule, Commitment};
 use neo_math::{KExtensions, F, K};
@@ -10,9 +10,7 @@ use p3_field::PrimeField64;
 use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
 use crate::paper::nifs::work::{chain_witness_refs, split_fresh_instances};
-use crate::paper::nifs::{
-    Error, NifsProof, NifsProverAdapter, NifsProverOutput, NifsProverRequest, PaperExactNifsProver,
-};
+use crate::paper::nifs::{Error, NifsProof, NifsProverAdapter, NifsProverRequest, PaperExactNifsProver};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsInstance, CeClaim, DecMixer, LaneScheme, RlcMixer, Structure};
 use crate::paper::{pi_ccs, pi_dec, pi_rlc};
@@ -68,8 +66,8 @@ pub fn prove_paper_exact(
 }
 
 impl NifsProverAdapter for PaperExactNifsProver {
-    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
-        let (running, proof) = prove_paper_exact(
+    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<(RunningInstance, NifsProof), Error> {
+        prove_paper_exact(
             request.tr,
             request.pp,
             request.s,
@@ -79,8 +77,7 @@ impl NifsProverAdapter for PaperExactNifsProver {
             request.combine_b_pows,
             request.fresh,
             request.running,
-        )?;
-        Ok(NifsProverOutput::materialized(running, proof))
+        )
     }
 }
 

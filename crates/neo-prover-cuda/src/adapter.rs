@@ -8,9 +8,10 @@ use std::sync::Arc;
 
 use cuda_core::CudaContext;
 use neo_fold_clean::paper::nifs::{
-    AcceleratorCrosscheckNifsProver, Error, NifsProverAdapter, NifsProverOutput, NifsProverRequest,
-    OptimizedCpuNifsProver, OptimizedNifsProverAdapter,
+    AcceleratorCrosscheckNifsProver, Error, NifsProof, NifsProverAdapter, NifsProverRequest, OptimizedCpuNifsProver,
+    OptimizedNifsProverAdapter,
 };
+use neo_fold_clean::RunningInstance;
 
 /// CUDA-selected prover with canonical one-joint protocol execution.
 pub struct CudaNifsProver {
@@ -44,7 +45,7 @@ impl CudaNifsProver {
 }
 
 impl NifsProverAdapter for CudaNifsProver {
-    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
+    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<(RunningInstance, NifsProof), Error> {
         self.cpu.prove(request)
     }
 }

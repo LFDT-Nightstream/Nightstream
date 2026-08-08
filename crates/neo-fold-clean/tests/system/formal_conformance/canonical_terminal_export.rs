@@ -455,12 +455,7 @@ fn active_parts(proof: &Uncompressed) -> (RunningInstance, &LatestInstance) {
     let ProofState::Active { running, latest } = &proof.state.proof else {
         panic!("recursive terminal case must be active")
     };
-    (
-        running
-            .materialize()
-            .expect("bounded terminal running state is materialized"),
-        latest,
-    )
+    (running.clone(), latest)
 }
 
 fn add_base_case(
@@ -667,9 +662,6 @@ fn build_corpus() -> Corpus {
     let ProofState::Active { running, .. } = &mut bad_running.state.proof else {
         unreachable!("recursive fixture is active")
     };
-    let running = running
-        .as_materialized_mut()
-        .expect("bounded terminal running state is materialized");
     running.witnesses[0].as_mut_slice()[0] += F::ONE;
     add_recursive_case(
         &mut builder,

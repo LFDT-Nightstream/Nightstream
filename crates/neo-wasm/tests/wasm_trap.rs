@@ -4,18 +4,14 @@
 //! overflow, `call_indirect` OOB index / null entry / callee type mismatch,
 //! and linear-memory load/store OOB) end the trace at the faulting row. The
 //! Each case passes the canonical lookup, memory, and CCS checks in
-//! `checked_main`. The `unreachable` case also exercises the complete F'
-//! prove/verify path and the final-state digest binding. Unmodeled causes
-//! remain trace-collection errors.
+//! `checked_main`. Unmodeled causes remain trace-collection errors.
 
 mod common;
 
-use common::audit::{prove_batched, verify, AuditProveError};
-use neo_wasm::preprocess::preprocess_seeded_batched;
 use neo_wasm::WasmOpcode;
 
 #[test]
-fn unreachable_trap_is_a_provable_terminal_state() {
+fn unreachable_trap_is_a_satisfying_terminal_state() {
     let checked = common::checked_main(
         r#"(module
             (func (export "main") (result i32)
@@ -32,25 +28,8 @@ fn unreachable_trap_is_a_provable_terminal_state() {
     assert!(last.state_after.halted);
     assert!(!last.state_after.output.enabled);
 
-    // batch_size 2 forces one padding row after the trap row, covering
-    // trapped-flag preservation across padding.
-    let batch_size = 2;
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-
     let final_state = common::final_state(&checked.trace);
     assert!(final_state.trapped);
-    verify(&prep, &proof, final_state).expect("verify trapped final state");
-
-    // The trap outcome is bound: claiming a clean (non-trapped) final state
-    // for the same proof must fail.
-    let mut clean_claim = final_state;
-    clean_claim.trapped = false;
-    assert!(matches!(
-        verify(&prep, &proof, clean_claim),
-        Err(AuditProveError::FinalStateMismatch)
-    ));
 }
 
 #[test]

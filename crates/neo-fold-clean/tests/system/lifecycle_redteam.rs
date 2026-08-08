@@ -128,9 +128,7 @@ fn final_running(proof: &neo_fold_clean::Uncompressed) -> neo_fold_clean::Runnin
                 latest.instances.is_empty(),
                 "red-team helper expects a finalized proof with empty latest"
             );
-            running
-                .materialize()
-                .expect("test fixture expects materialized final running")
+            running.clone()
         }
         ProofState::Initial => panic!("test helper requires a finalized Active proof"),
     }
@@ -144,8 +142,6 @@ fn final_running_mut(proof: &mut neo_fold_clean::Uncompressed) -> &mut neo_fold_
                 "red-team helper expects a finalized proof with empty latest"
             );
             running
-                .as_materialized_mut()
-                .expect("test fixture expects materialized final running")
         }
         ProofState::Initial => panic!("test helper requires a finalized Active proof"),
     }
@@ -180,38 +176,6 @@ fn final_running_passes_witness_authority(prep: &neo_fold_clean::Preprocessing, 
     let running = final_running(proof);
     neo_fold_clean::lifecycle::validate_final_witness_authority(prep, &running)
         .expect("final running accumulator must remain locally valid under terminal CE authority");
-}
-
-#[test]
-fn compressed_verify_returns_unsupported_until_decider_lands() {
-    let prep = support::toy_preprocessing();
-    let compressed = neo_fold_clean::Compressed {
-        proof: neo_fold_clean::paper::decider::Proof,
-        vk: neo_fold_clean::paper::decider::VerifierKeyDigest([0u8; 32]),
-        public_image: neo_fold_clean::PublicImage {
-            vk_fs_digest: [0u8; 32],
-            chunk_count: 0,
-            step_count: 0,
-            z_0: [0u8; 32],
-            z_i: [0u8; 32],
-            pc: 0,
-            initial_semantic_state_digest: [0u8; 32],
-            semantic_state_digest: [0u8; 32],
-            acc_digest: [0u8; 32],
-            public_trace: [0u8; 32],
-            x_out: neo_fold_clean::paper::construction2::EncInst::from_digest([0u8; 32]),
-        },
-    };
-
-    let err = neo_fold_clean::verify(&prep, &compressed)
-        .expect_err("compressed verify must fail closed until the decider verifier lands");
-    assert!(
-        matches!(
-            err,
-            neo_fold_clean::Error::Decider(neo_fold_clean::paper::decider::Error::Unsupported)
-        ),
-        "compressed verify should return an explicit unsupported error, got {err:?}"
-    );
 }
 
 #[test]
@@ -266,24 +230,6 @@ fn verify_uncompressed_audit_rejects_commitment_kernel_terminal_witness_forge() 
                 | neo_fold_clean::Error::FinalAccumulatorCeRelationViolation { .. }
         ),
         "commitment-kernel witness forge must be rejected by terminal authority, got {err:?}"
-    );
-}
-
-#[test]
-fn compress_returns_unsupported_until_decider_lands() {
-    let prep = support::toy_preprocessing();
-    let audit =
-        neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 90)]]).expect("one-batch audit proof");
-
-    let err = neo_fold_clean::compress(&prep, audit)
-        .err()
-        .expect("compress must fail closed until the decider prover lands");
-    assert!(
-        matches!(
-            err,
-            neo_fold_clean::Error::Decider(neo_fold_clean::paper::decider::Error::Unsupported)
-        ),
-        "compress should return an explicit unsupported decider error, got {err:?}"
     );
 }
 

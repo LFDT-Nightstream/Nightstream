@@ -7,6 +7,58 @@
 use crate::paper::construction2::proof_state::ProofState;
 use crate::paper::construction2::TRIVIAL_PC;
 
+/// Public state coordinates that do not depend on the pending `latest`
+/// instance. The recursive frontend uses this form while it synthesizes the
+/// real next instance from the fold result.
+#[derive(Clone, Debug)]
+pub(crate) struct StateCoordinates {
+    pub chunk_count: u64,
+    pub step_count: u64,
+    pub z_0: [u8; 32],
+    pub z_i: [u8; 32],
+    pub pc: u64,
+    pub initial_semantic_state_digest: [u8; 32],
+    pub semantic_state_digest: [u8; 32],
+    pub acc_digest: [u8; 32],
+    pub public_trace: [u8; 32],
+    pub nebula: Option<crate::paper::construction2::nebula_lane::NebulaLane>,
+}
+
+impl StateCoordinates {
+    pub(crate) fn with_proof(self, proof: ProofState) -> State {
+        State {
+            chunk_count: self.chunk_count,
+            step_count: self.step_count,
+            z_0: self.z_0,
+            z_i: self.z_i,
+            pc: self.pc,
+            initial_semantic_state_digest: self.initial_semantic_state_digest,
+            semantic_state_digest: self.semantic_state_digest,
+            acc_digest: self.acc_digest,
+            public_trace: self.public_trace,
+            proof,
+            nebula: self.nebula,
+        }
+    }
+}
+
+impl From<&State> for StateCoordinates {
+    fn from(state: &State) -> Self {
+        Self {
+            chunk_count: state.chunk_count,
+            step_count: state.step_count,
+            z_0: state.z_0,
+            z_i: state.z_i,
+            pc: state.pc,
+            initial_semantic_state_digest: state.initial_semantic_state_digest,
+            semantic_state_digest: state.semantic_state_digest,
+            acc_digest: state.acc_digest,
+            public_trace: state.public_trace,
+            nebula: state.nebula.clone(),
+        }
+    }
+}
+
 /// IVC carrier — Construction-2 §6.3.
 ///
 /// `proof` holds the soundness-relevant fold pair (running, latest); the
@@ -15,10 +67,10 @@ use crate::paper::construction2::TRIVIAL_PC;
 /// ## What binds what
 ///
 /// - `z_i` and `public_trace` chain `f_prime_chunk_public_digest`, which
-///   under the direct-CCS interim is a **step/shape digest only** — it
+///   is a **step/shape digest only** — it
 ///   absorbs `(commitment.d, commitment.kappa, m_in, start_index,
 ///   fresh.len())` but **not** `claim.x` or `claim.c.data` (both depend
-///   on the recursive-link `x` in direct-CCS and would otherwise create
+///   on the recursive-link `x` and would otherwise create
 ///   a hash fixed point; see `digest::f_prime_chunk_claim_digest`). So
 ///   for same-shape chunks across different proofs `z_i` and
 ///   `public_trace` can be identical even though the underlying CCS

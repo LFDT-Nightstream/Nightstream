@@ -158,9 +158,6 @@ fn terminal_lane_bit_flip_fails_the_openings() {
     let ProofState::Active { running, .. } = &mut audit.proof.state.proof else {
         panic!("finalized chain is Active");
     };
-    let running = running
-        .as_materialized_mut()
-        .expect("CPU Nebula fixture has materialized running state");
 
     // On the untampered chain, every terminal child's tuple
     // opens against its own lane slices...

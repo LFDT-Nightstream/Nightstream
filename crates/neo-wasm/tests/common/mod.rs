@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-pub mod audit;
 pub mod grammar_fixture;
 
 use neo_ccs::check_ccs_rowwise_zero;

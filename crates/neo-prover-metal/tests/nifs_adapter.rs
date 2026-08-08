@@ -810,7 +810,6 @@ fn metal_fresh_commitment_matches_the_canonical_constructor() {
             log: &prep.log,
             m_in: r1cs.m_in,
             assignments: &assignments,
-            image_overlay: None,
             lane_scheme: None,
         })
         .expect("Metal fresh-instance build")
@@ -887,7 +886,6 @@ fn metal_selected_nifs_crosschecks_after_gpu_fresh_commitment() {
             log: &prep.log,
             m_in: r1cs.m_in,
             assignments: &assignments,
-            image_overlay: None,
             lane_scheme: None,
         })
         .expect("Metal fresh-instance build")

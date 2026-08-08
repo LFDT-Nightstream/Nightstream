@@ -413,7 +413,7 @@ fn collect_ring_action_slots(layout: &FPrimeImageLayout) -> Vec<LaneSlot> {
     slots
 }
 
-/// Phase 1.4 CCS structure for one `enc(F')` step.
+/// CCS structure for one `enc(F')` step.
 #[derive(Clone, Debug)]
 pub struct FPrimeStructure {
     pub layout: FPrimeImageLayout,
@@ -1189,7 +1189,7 @@ fn emit_variable_poseidon_absorb_rows(
 impl FPrimeStructure {
     /// Return the strict low-norm witness for this image: just `image.values`.
     ///
-    /// Strict-encoding invariant (Phase 1.5b-0): the CCS witness is
+    /// Strict-encoding invariant: the CCS witness is
     /// exactly the committed image vector, with low-norm entries and
     /// `z[0] = 1`. Lane-recomposed u64 values appear inside constraint
     /// rows as `Σ 2^i · z[bit_start + i]`, never as fresh witness columns.

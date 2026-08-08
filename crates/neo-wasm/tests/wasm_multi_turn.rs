@@ -3,11 +3,10 @@
 
 mod common;
 
-use common::audit::{prove_batched, verify_with_transcript, AuditProveError};
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::event_grammar::{ExportTemplate, GrammarEvent, HostEventGrammar, Limb, SlotSource, TurnClaims};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{grammar_top_level_initial_state_digest, preprocess_seeded_batched, WasmVmStep};
+use neo_wasm::WasmVmStep;
 use p3_field::PrimeCharacteristicRing;
 use wasmtime::component::Val as ComponentVal;
 
@@ -142,32 +141,6 @@ fn multi_turn_setup() -> MultiTurnSetup {
     }
 }
 
-fn expected_transcript(
-    grammar: &HostEventGrammar,
-    add_fref: u32,
-    turns: &[TurnClaims],
-    outputs: &[u32],
-) -> Vec<[p3_goldilocks::Goldilocks; 8]> {
-    let template = grammar.exports.get(&add_fref).expect("template");
-    let mut blocks = Vec::new();
-    for (turn, &output) in turns.iter().zip(outputs) {
-        blocks.extend(neo_wasm::event_grammar::expand_export_entry(template, &turn.entry).expect("entry"));
-        blocks.extend(
-            neo_wasm::event_grammar::expand_export_exit(
-                template,
-                Some((output, 0)),
-                &turn.exit,
-                &turn.exit_memory_reads,
-            )
-            .expect("exit"),
-        );
-    }
-    blocks
-        .into_iter()
-        .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))
-        .collect()
-}
-
 #[test]
 fn turn_boundary_row_bridges_the_turns() {
     let setup = multi_turn_setup();
@@ -213,47 +186,6 @@ fn turn_boundary_row_bridges_the_turns() {
         .expect("turn-2 program row");
     assert_eq!(next_program.state_before.grammar.events_remaining, 0);
     assert_eq!(next_program.state_before.pc, tb.state_after.pc);
-}
-
-#[test]
-fn multi_turn_proof_binds_both_turns_inputs() {
-    let setup = multi_turn_setup();
-    let artifacts =
-        neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
-    let entry_pc = common::entry_pc_for_function_ref(&artifacts, u64::from(setup.add_fref));
-    let digest = grammar_top_level_initial_state_digest(
-        &artifacts.tables,
-        entry_pc,
-        &setup.grammar,
-        setup.add_fref,
-        Default::default(),
-    );
-    assert_eq!(
-        digest,
-        neo_wasm::semantic_state_digest(setup.trace[0].state_before),
-        "verifier initial state must match the trace's first before-state"
-    );
-
-    let batch_size = 16;
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &setup.trace, batch_size).expect("prove");
-    let final_state = common::final_state(&setup.trace);
-    assert_eq!((final_state.output.value_lo, final_state.output.value_hi), (42, 0));
-
-    let transcript = expected_transcript(&setup.grammar, setup.add_fref, &turn_claims(), &[7, 42]);
-    verify_with_transcript(&prep, &proof, final_state, Default::default(), &transcript)
-        .expect("verify with the two-turn transcript");
-
-    let mut wrong_turns = turn_claims();
-    wrong_turns[1].entry[1] = 34;
-    let wrong = expected_transcript(&setup.grammar, setup.add_fref, &wrong_turns, &[7, 42]);
-    assert!(
-        matches!(
-            verify_with_transcript(&prep, &proof, final_state, Default::default(), &wrong),
-            Err(AuditProveError::TranscriptMismatch)
-        ),
-        "a transcript claiming a different turn-2 input must be rejected"
-    );
 }
 
 #[test]

@@ -145,15 +145,6 @@ impl R1csSnapshot {
         normalize_rows(std::slice::from_mut(&mut relation.c_rows[row]));
     }
 
-    pub(crate) fn relation_arc(&self) -> Arc<R1csRelation> {
-        Arc::clone(&self.relation)
-    }
-
-    pub(crate) fn from_shared_relation(relation: Arc<R1csRelation>, witness: Vec<F>) -> Self {
-        assert_eq!(relation.cols, witness.len(), "shared R1CS witness width");
-        Self { relation, witness }
-    }
-
     pub fn first_unsatisfied_row(&self, witness: &[F]) -> Option<usize> {
         if witness.len() != self.cols() {
             return Some(0);

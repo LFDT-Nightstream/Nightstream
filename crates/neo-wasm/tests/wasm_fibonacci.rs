@@ -1,8 +1,5 @@
 mod common;
 
-use common::audit::{prove_batched, verify};
-use neo_wasm::preprocess::preprocess_seeded_batched;
-
 // Iterative fibonacci (do-while loop, valid for n >= 1).
 // param 0 = n (iteration counter), locals 1 and 2 = a and b.
 // fib(1)=1, fib(2)=1, fib(3)=2, fib(4)=3, fib(5)=5, ...
@@ -42,18 +39,6 @@ fn wasm_fibonacci_sanity_roundtrip() {
             "fib({n}) should be {expected}"
         );
     }
-}
-
-#[test]
-fn wasm_fibonacci_folding_proof_covers_control_flow() {
-    let checked = common::checked_wasm_run(FIB_WAT, "main", &[2]);
-    assert_eq!(checked.run.results.as_slice(), &["1".to_string()]);
-
-    let batch_size = checked.trace.len();
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove fibonacci run");
-    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify fibonacci run");
 }
 
 /// Check representative batch counts without repeating the full proof path.

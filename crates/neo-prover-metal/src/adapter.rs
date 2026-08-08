@@ -11,12 +11,12 @@ use neo_ccs::{LaneCommitments, Mat};
 use neo_fold_clean::paper::nifs::OptimizedCpuNifsProver;
 use neo_fold_clean::paper::nifs::{
     AcceleratorCrosscheckNifsProver, Error, NifsFreshInstancesRequest, NifsFreshSignedUnitAssignment,
-    NifsFreshSignedUnitInstancesRequest, NifsProverAdapter, NifsProverOutput, NifsProverRequest,
-    OptimizedNifsProverAdapter,
+    NifsFreshSignedUnitInstancesRequest, NifsProof, NifsProverAdapter, NifsProverRequest, OptimizedNifsProverAdapter,
 };
 use neo_fold_clean::paper::relations::{CcsClaim, LaneRanges, LaneScheme, Structure};
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
 use neo_fold_clean::FinalWitnessOpeningBackend;
+use neo_fold_clean::RunningInstance;
 use neo_fold_clean::{CcsInstance, CcsWitness};
 use neo_math::ring::Rq;
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
@@ -363,7 +363,7 @@ impl MetalNifsProver {
 }
 
 impl NifsProverAdapter for MetalNifsProver {
-    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
+    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<(RunningInstance, NifsProof), Error> {
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
         {
             return neo_fold_clean::paper::nifs::prove_with_joint_oracle_backend(request, self);

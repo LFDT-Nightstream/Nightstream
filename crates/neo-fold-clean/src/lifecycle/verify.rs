@@ -1,8 +1,5 @@
 //! Verifier-side lifecycle: `verify_uncompressed` + `verify_uncompressed_audit`.
 //!
-//! `verify` (the compressed variant) lives in `compress.rs` next to
-//! `compress` because they share the decider statement-builder helpers.
-//!
 //! ## Two verifiers, two input types
 //!
 //! - [`verify_uncompressed`] **(terminal-only IVC verifier)** consumes
@@ -17,12 +14,12 @@
 //!   audit-trail tampers (`steps`, `public_batches`) the IVC verifier
 //!   intentionally ignores.
 //!
-//! The Spartan decider statement is built from
+//! The checked decider statement is built from
 //! [`crate::lifecycle::UncompressedAudit`] for the same reason: the
 //! audit trail binds the public image to a verifiable history. See
 //! [`crate::lifecycle::build_decider_statement`].
 //!
-//! ## Contract — non-replay IVC verifier (Phase 1.7)
+//! ## Contract — non-replay IVC verifier
 //!
 //! [`verify_uncompressed`] is the compact verifier: its work is constant in
 //! chain length. For plain authoritative F' it checks HyperNova's running
@@ -39,7 +36,7 @@
 //! inductively. Other frontends do not own that relation and remain rejected.
 //!
 //! The plain HyperNova branch checks the opened running CE accumulator and the
-//! latest CCS relation directly. For Nebula or legacy terminal-fold inputs,
+//! latest CCS relation directly. For Nebula or other terminal-fold inputs,
 //! the verifier additionally follows this path:
 //! the prover stored in `final_fold.terminal_inputs`, the verifier:
 //!
@@ -428,9 +425,7 @@ fn check_f_prime_non_replay_scope(prep: &Preprocessing, proof: &Uncompressed) ->
 fn require_active_state(state: &ProofState) -> Result<(RunningInstance, &LatestInstance), Error> {
     match state {
         ProofState::Initial => Err(Error::NotFinalized),
-        ProofState::Active { running, latest } => {
-            Ok((running.materialize().map_err(construction2::Error::from)?, latest))
-        }
+        ProofState::Active { running, latest } => Ok((running.clone(), latest)),
     }
 }
 
@@ -837,7 +832,7 @@ fn bind_derived_state_to_recorded(derived: &State, recorded: &State) -> Result<(
 ///
 /// **Layering note.** This makes `verify_uncompressed` sound for any
 /// consumer that runs it. It does NOT substitute for the parallel
-/// obligation on a future decider R1CS / SNARK consumer; that lives
+/// obligation in the decider R1CS; that lives
 /// in `paper::decider_ce_relation` (reference gadget for the
 /// in-circuit version).
 ///
@@ -1424,7 +1419,6 @@ impl ProofStateBinding for ProofState {
                 if !latest.instances.is_empty() {
                     return Err(());
                 }
-                let running = running.materialize().map_err(|_| ())?;
                 Ok(running.claims_only())
             }
         }
@@ -1481,8 +1475,7 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
         return Err(Error::PostStateMismatch);
     }
     check_nebula_terminal_state(prep, &audit.proof.state)?;
-    let running = running.materialize().map_err(construction2::Error::from)?;
-    check_running_witnesses_authority(prep, &running, None)
+    check_running_witnesses_authority(prep, running, None)
 }
 
 /// Enforce Nebula finalization and lane/config presence coherence.

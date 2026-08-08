@@ -120,10 +120,7 @@ fn build_real_fold_uncached(
     // to drive.
     let pre_state = audit.proof.state.clone();
     let (pre_running, latest) = match &pre_state.proof {
-        ProofState::Active { running, latest } => (
-            running.materialize().expect("pre-running materialization"),
-            latest.clone(),
-        ),
+        ProofState::Active { running, latest } => (running.clone(), latest.clone()),
         _ => panic!("expected Active state at the start of call n-1"),
     };
 
@@ -143,13 +140,11 @@ fn build_real_fold_uncached(
     // Recursive NIFS proof for `(pre_running, latest) -> post_running`.
     audit = lifecycle::extend(&prep.prep, audit, vec![instances[n - 1].clone()]).expect("final extend");
     let proof = match &audit.steps[n - 1].fold {
-        FoldProof::Recursive(p) => p
-            .materialize()
-            .expect("recursive NIFS proof materialization"),
+        FoldProof::Recursive(p) => p.clone(),
         _ => panic!("expected Recursive at step_proof[{}]", n - 1),
     };
     let post_running = match &audit.proof.state.proof {
-        ProofState::Active { running, .. } => running.materialize().expect("post-running materialization"),
+        ProofState::Active { running, .. } => running.clone(),
         _ => panic!("expected Active state after final extend"),
     };
 

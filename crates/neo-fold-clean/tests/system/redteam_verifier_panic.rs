@@ -30,9 +30,6 @@ fn audit_verifier_rejects_malformed_final_witness_without_panicking() {
     let ProofState::Active { running, .. } = &mut finalized.proof.state.proof else {
         panic!("finalized proof must be active");
     };
-    let running = running
-        .as_materialized_mut()
-        .expect("fixture uses a materialized running accumulator");
     let original_cols = running.witnesses[0].cols();
     running.witnesses[0] = Mat::zero(neo_math::D - 1, original_cols, F::ZERO);
 
@@ -63,7 +60,7 @@ fn terminal_verifier_rejects_m_in_x_column_mismatch_without_panicking() {
     let ProofState::Active { running, .. } = &finished.state.proof else {
         panic!("finalized proof must be active");
     };
-    let mut forged_pre_running = running.materialize().expect("materialized final running");
+    let mut forged_pre_running = running.clone();
     forged_pre_running.witnesses.clear();
     assert_eq!(forged_pre_running.claims[0].m_in, neo_math::D);
     forged_pre_running.claims[0].X = Mat::zero(neo_math::D, 0, F::ZERO);

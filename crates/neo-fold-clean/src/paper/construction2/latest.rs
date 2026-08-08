@@ -1,8 +1,8 @@
 //! `LatestInstance` — the K fresh CCS instances u_i the next NIFS.P will
 //! fold into the running accumulator.
 //!
-//! In strict Construction 2, these are the encoding of F'_{i-1}'s execution.
-//! In the direct-CCS interim (today), they're caller-supplied.
+//! These instances encode F'_{i-1}. Authoritative frontends synthesize them
+//! from the verifier-derived post-fold coordinates.
 
 use crate::paper::relations::{CcsClaim, CcsInstance};
 

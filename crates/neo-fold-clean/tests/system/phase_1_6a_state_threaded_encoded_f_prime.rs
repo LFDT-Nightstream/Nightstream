@@ -134,9 +134,7 @@ fn phase_1_6a_state_threaded_encoded_steps_fold_through_lifecycle() {
     let proof = fibonacci_f_prime::prove_encoded_steps(&prep, &steps).expect("prove");
 
     let running = match &proof.proof.state.proof {
-        neo_fold_clean::ProofState::Active { running, .. } => running
-            .materialize()
-            .expect("running materialization for shape check"),
+        neo_fold_clean::ProofState::Active { running, .. } => running,
         _ => panic!("expected ProofState::Active after folding encoded F' steps"),
     };
     assert!(

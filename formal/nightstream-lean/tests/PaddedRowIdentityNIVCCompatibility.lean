@@ -16,6 +16,9 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 abbrev SelectedStatementId :=
   Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityNIVCCompatibility.StatementId
 
+abbrev SelectedStructure :=
+  Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityNIVCCompatibility.Structure
+
 #check parametersCodec_canonical
 #check structureCodec_canonical
 #check Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityCompilerDescription.fields_length
@@ -52,6 +55,10 @@ example : statementIdentifier.domainLabel.length = 353 :=
   statementIdentifierPrefix_length
 
 example : statementIdentifier.identifierWidth = 4 := rfl
+
+example (parameters : Parameters) (system : SelectedStructure) :
+    (compactVerifier parameters system).ProjectionHasFixedWidth :=
+  (compactVerifier_holds parameters system).2.2.1
 
 namespace RuntimeIndependence
 

@@ -828,7 +828,6 @@ structure CompactVerifierInterface
   project : Parameters -> VerifierKey -> VerifierProjection
   projectionCodec : Codec VerifierProjection Word
   projectionWidth : Nat -> Nat
-  projectionCompact : Parameters -> VerifierProjection -> Prop
   statementIdentifier : StatementIdentifierScheme
     (FullStatement Parameters RunningStructure FreshStructure VerifierKey)
     StatementId Word
@@ -840,6 +839,27 @@ structure CompactVerifierInterface
       VerifierInput -> VerifierOutput
 
 namespace CompactVerifierInterface
+
+/-- Every projected verifier key has the canonical width fixed by its public
+size bound. This universal law prevents a caller from declaring one selected
+projection compact with an unrelated proposition. -/
+def ProjectionHasFixedWidth
+    {Word : Type uWord}
+    {Parameters : Type uParameters}
+    {RunningStructure : Type uRunningStructure}
+    {FreshStructure : Type uFreshStructure}
+    {VerifierKey : Type uVerifierKey}
+    {VerifierProjection : Type uVerifierProjection}
+    {StatementId : Type uStatementId}
+    {VerifierInput : Type uVerifierInput}
+    {VerifierOutput : Type uVerifierOutput}
+    (interface : CompactVerifierInterface Word Parameters RunningStructure
+      FreshStructure VerifierKey VerifierProjection StatementId VerifierInput
+      VerifierOutput) : Prop :=
+  forall parameters verifierKey,
+    (interface.projectionCodec.encode
+      (interface.project parameters verifierKey)).length =
+        interface.projectionWidth (interface.declaredSizeBound parameters)
 
 /-- Compute the fixed circuit's recursive key without copying either complete
 structure. -/
@@ -863,9 +883,9 @@ def recursiveKey
   statementId :=
     interface.statementIdentifier.identifier interface.fixedStatement
 
-/-- The projection has a size-bound-fixed canonical layout, is declared
-compact, and computes the same verifier result for the fixed full statement
-when paired with its identifier. -/
+/-- The projection has a canonical layout fixed for every public size bound
+and verifier key. For the fixed statement, the projected key and identifier
+compute the same verifier result as the full statement. -/
 def Holds
     {Word : Type uWord}
     {Parameters : Type uParameters}
@@ -881,15 +901,7 @@ def Holds
       VerifierOutput) : Prop :=
   interface.projectionCodec.Canonical /\
   interface.statementIdentifier.Holds /\
-  ((interface.projectionCodec.encode
-      (interface.project interface.fixedStatement.parameters
-        interface.fixedStatement.verifierKey)).length =
-        interface.projectionWidth
-          (interface.declaredSizeBound
-            interface.fixedStatement.parameters) /\
-    interface.projectionCompact interface.fixedStatement.parameters
-      (interface.project interface.fixedStatement.parameters
-        interface.fixedStatement.verifierKey)) /\
+  interface.ProjectionHasFixedWidth /\
   (forall input : VerifierInput,
     interface.verifyRecursive interface.recursiveKey input =
       interface.verifyFull interface.fixedStatement input)

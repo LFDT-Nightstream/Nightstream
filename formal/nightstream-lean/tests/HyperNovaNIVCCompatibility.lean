@@ -16,6 +16,7 @@ import Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec
 #check Nightstream.HyperNova.NIVCCompatibility.StatementIdentifierScheme.Collision
 #check Nightstream.HyperNova.NIVCCompatibility.StatementIdentifierScheme.eq_or_collision
 #check Nightstream.HyperNova.NIVCCompatibility.CompactVerifierInterface.recursiveKey
+#check Nightstream.HyperNova.NIVCCompatibility.CompactVerifierInterface.ProjectionHasFixedWidth
 #check Nightstream.HyperNova.NIVCCompatibility.CompactVerifierInterface.Holds
 #check Nightstream.HyperNova.NIVCCompatibility.Holds
 #check Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec.toNivcCodec

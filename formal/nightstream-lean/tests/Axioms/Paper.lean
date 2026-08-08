@@ -1,4 +1,5 @@
 import Nightstream.SuperNeo
+import Nightstream.SuperNeo.Concrete.Relation
 import tests.Axioms.Support
 
 /-!
@@ -19,6 +20,9 @@ module is built; the aggregate entrypoint imports all ownership groups.
 /-- info: 'Nightstream.SuperNeo.CheckPlan.inclusionMinimalSound_of_witnesses' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.CheckPlan.inclusionMinimalSound_of_witnesses
+
+/-! Explicit axiom gate for the non-paper scalar-row relation model. This
+module is not exported by the curated `Nightstream.SuperNeo` facade. -/
 
 /-- info: 'Nightstream.SuperNeo.Concrete.ccsMembership_iff' depends on axioms: [propext] -/
 #guard_msgs in

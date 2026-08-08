@@ -19,7 +19,7 @@ use neo_reductions::engines::pi_ccs_protocol::Challenges;
 use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle;
 use neo_reductions::optimized_engine::{OptimizedStructureCache, PaperJointRoundOracle};
 use neo_reductions::sumcheck::RoundOracle;
-use neo_reductions::{split_b_matrix_k, PiCcsError, PiCcsProof};
+use neo_reductions::{split_b_matrix_k, verify_and_export_pi_ccs_receipt, PiCcsError, PiCcsProof};
 use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
@@ -370,6 +370,115 @@ fn compact_recursive_transcript_matches_the_independent_reference() {
         binding,
     )
     .expect("compact transcript crosscheck verify"));
+}
+
+#[test]
+fn accepting_compact_production_path_exports_receipt_and_rejects_mutations() {
+    let columns = D + 1;
+    let structure = rectangular_ccs(D / 2, columns);
+    let params = NeoParams::goldilocks_auto_r1cs_ccs(columns).expect("parameters");
+    let log = committer(&params, columns);
+    let cache = OptimizedStructureCache::build(&structure).expect("structure cache");
+    let (claim, witness) = source(&log, columns, 12);
+    let label = b"padded-row/execution-receipt";
+    let public_instance_digest = [F::from_u64(31), F::from_u64(32), F::from_u64(33), F::from_u64(34)];
+    let running_handle = [F::from_u64(41), F::from_u64(42), F::from_u64(43), F::from_u64(44)];
+    let (outputs, proof, _, _) =
+        neo_reductions::optimized_engine::optimized_prove_with_cache_and_instance_digest_and_me_input_handle_and_perf(
+            &mut Poseidon2Transcript::new(label),
+            &params,
+            &structure,
+            std::slice::from_ref(&claim),
+            std::slice::from_ref(&witness),
+            &[],
+            &[],
+            public_instance_digest,
+            running_handle,
+            &log,
+            &cache,
+        )
+        .expect("compact production proof");
+
+    let receipt = verify_and_export_pi_ccs_receipt(
+        &mut Poseidon2Transcript::new(label),
+        &params,
+        &structure,
+        std::slice::from_ref(&claim),
+        &[],
+        &outputs,
+        &proof,
+        &cache,
+        public_instance_digest,
+        running_handle,
+    )
+    .expect("accepted execution receipt");
+    assert_eq!(receipt.proof.proof_bytes, proof.canonical_bytes());
+    assert_eq!(receipt.proof.full_output.len(), outputs.len() * (structure.t() + 1) * D);
+    assert_eq!(receipt.statement.relation_id.len(), 4);
+    assert_eq!(receipt.statement.public_fields[0], 40);
+    assert_eq!(receipt.statement.pi_ccs_statement_fields[0], 41);
+
+    let mut changed_proof = proof.clone();
+    changed_proof.sumcheck_rounds[0][0] += K::ONE;
+    assert!(verify_and_export_pi_ccs_receipt(
+        &mut Poseidon2Transcript::new(label),
+        &params,
+        &structure,
+        std::slice::from_ref(&claim),
+        &[],
+        &outputs,
+        &changed_proof,
+        &cache,
+        public_instance_digest,
+        running_handle,
+    )
+    .is_err());
+
+    let mut changed_output = outputs.clone();
+    changed_output[0].y_ring[0][0] += K::ONE;
+    changed_output[0].ct[0] += K::ONE;
+    assert!(verify_and_export_pi_ccs_receipt(
+        &mut Poseidon2Transcript::new(label),
+        &params,
+        &structure,
+        std::slice::from_ref(&claim),
+        &[],
+        &changed_output,
+        &proof,
+        &cache,
+        public_instance_digest,
+        running_handle,
+    )
+    .is_err());
+
+    let changed_digest = [F::from_u64(30), F::from_u64(32), F::from_u64(33), F::from_u64(34)];
+    assert!(verify_and_export_pi_ccs_receipt(
+        &mut Poseidon2Transcript::new(label),
+        &params,
+        &structure,
+        std::slice::from_ref(&claim),
+        &[],
+        &outputs,
+        &proof,
+        &cache,
+        changed_digest,
+        running_handle,
+    )
+    .is_err());
+
+    assert!(verify_and_export_pi_ccs_receipt(
+        &mut Poseidon2Transcript::new(b"padded-row/execution-receipt-drift"),
+        &params,
+        &structure,
+        std::slice::from_ref(&claim),
+        &[],
+        &outputs,
+        &proof,
+        &cache,
+        public_instance_digest,
+        running_handle,
+    )
+    .is_err());
 }
 
 #[test]

@@ -29,6 +29,10 @@ pub use engines::paper_exact_engine as pi_ccs_paper_exact;
 
 // Re-export commonly used types
 pub use engines::optimized_engine::{pi_ccs_prove, pi_ccs_prove_simple, pi_ccs_verify, Challenges, PiCcsProof};
+pub use engines::pi_ccs_execution_receipt::{
+    verify_and_export_pi_ccs_receipt, PiCcsCanonicalStatement, PiCcsExecutionProof, PiCcsExecutionReceipt,
+    PiCcsReceiptK,
+};
 
 pub use error::PiCcsError;
 

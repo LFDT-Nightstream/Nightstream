@@ -82,6 +82,8 @@ import tests.Axioms.PiCCSBooleanReproduction
 import tests.Axioms.PiCCSConstraintPolynomialLift
 import tests.Axioms.PiCCSFiniteSumAlgebra
 import tests.Axioms.PaddedRowIdentityRustConformance
+import tests.Axioms.PiCcsExecutionReceipt
+import tests.Axioms.NifsProductionGolden
 import tests.Axioms.PiCCSNumericBooleanDomain
 import tests.Axioms.SevenBytePacking
 import tests.Axioms.Phi81EvaluationHomomorphism

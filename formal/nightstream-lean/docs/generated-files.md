@@ -27,6 +27,8 @@ file without a live Rust path owner is stale and must be removed.
 | Goldilocks Poseidon2 constants | `cargo test -p neo-ccs --release --test poseidon2_round_constants` |
 | Phi81 bar matrix | `cargo test -p neo-math --release --test phi81_bar_lean_artifact` |
 | Padded-row one-joint PiCCS layout, gamma slots, transcript tags, and codec | `cargo test -p neo-reductions --release --test padded_row_identity_lean_artifact` |
+| Selected-profile PiCCS execution receipt | `cargo test -p neo-fold-clean --lib --release pi_ccs_execution_receipt_matches_generated_lean` |
+| Small production NIFS receipt, claims, and Poseidon2 round traces | `cargo test -p neo-fold-clean --release --test nifs_production_golden_receipts` |
 | Canonical u64, increment, and addition | `gadgets_lean_artifact`, `gadgets_u64_increment_lean_artifact`, `gadgets_u64_add_lean_artifact` |
 | Seeded Phi81 and shifted ternary | `gadgets_seeded_phi81_lean_artifact`, `gadgets_shifted_ternary_lean_artifact` |
 | Poseidon2 permutation | `gadgets_poseidon2_lean_artifact` |
@@ -53,6 +55,9 @@ the five-minute non-Lean limit.
 ```bash
 cargo test -p neo-reductions --release \
   --test padded_row_identity_lean_artifact
+
+cargo test -p neo-fold-clean --release \
+  --test nifs_production_golden_receipts
 
 cargo test -p neo-fold-clean --release \
   --test gadgets_nifs_compiler_conformance \

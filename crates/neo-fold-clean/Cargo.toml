@@ -230,6 +230,10 @@ name = "nifs_r1cs_isolated"
 path = "tests/nifs/r1cs_isolated.rs"
 
 [[test]]
+name = "nifs_production_golden_receipts"
+path = "tests/nifs/production_golden_receipts.rs"
+
+[[test]]
 name = "direct_ccs_r1cs"
 path = "tests/direct_ccs/r1cs.rs"
 

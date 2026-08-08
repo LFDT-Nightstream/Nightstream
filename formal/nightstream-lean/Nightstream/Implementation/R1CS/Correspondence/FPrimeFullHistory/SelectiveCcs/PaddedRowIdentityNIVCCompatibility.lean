@@ -526,7 +526,6 @@ noncomputable def compactVerifier
   project := fun _ _ => ()
   projectionCodec := projectionCodec
   projectionWidth := fun _ => 0
-  projectionCompact := fun _ _ => True
   statementIdentifier := statementIdentifier
   verifyFull := verifyFull
   verifyRecursive := verifyRecursive
@@ -535,7 +534,8 @@ theorem compactVerifier_holds
     (parameters : Parameters) (system : Structure) :
     (compactVerifier parameters system).Holds := by
   refine ⟨projectionCodec_canonical, statementIdentifier_holds, ?_, ?_⟩
-  · exact ⟨rfl, True.intro⟩
+  · intro _ _
+    rfl
   · intro input
     simpa only [compactVerifier, CompactVerifierInterface.recursiveKey,
       verifyRecursive, verifyFull] using

@@ -2,6 +2,7 @@ import Nightstream.Checks.Common
 import Nightstream.Checks.Protocol
 import Nightstream.Implementation.Rust.FPrime
 import Nightstream.Implementation.Rust.Terminal
+import Nightstream.Implementation.R1CS.Artifacts.PiCcsExecution
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Applications.WasmBenchmark42x6.ModuleExport
 import Nightstream.Protocol.Terminal.CE
 
@@ -63,6 +64,31 @@ def terminalRejectedChildAuthority :
 
 end M5Probe
 
+namespace PiCcsExecutionProbe
+
+open Nightstream.Implementation.Rust.PiCcsExecution
+open Nightstream.Implementation.R1CS.Artifacts.PiCcsExecution.Generated.SelectedReceipt
+
+/-- Runtime structural check of the generated selected-profile receipt. -/
+def accepts (_ : Unit) : Bool :=
+  receiptShapeCheck expectedRelationId statement rustProof
+
+/-- Structural mutation probes fail before the expensive full replay. Rust
+owns repeated proof, output, digest, and transcript mutation coverage. -/
+def rejectsMutations (_ : Unit) : Bool :=
+  !checkReceipt [700, 702, 703, 704] statement rustProof &&
+  !checkReceipt expectedRelationId
+    { statement with publicFields := 0 :: statement.publicFields.drop 1 }
+    rustProof &&
+  !checkReceipt expectedRelationId
+    { statement with
+      piCcsStatementFields := 0 :: statement.piCcsStatementFields.drop 1 }
+    rustProof &&
+  !checkReceipt expectedRelationId statement
+    { rustProof with proofBytes := 0 :: rustProof.proofBytes.drop 1 }
+
+end PiCcsExecutionProbe
+
 /-- Executable M5 probes exercise both Rust-shaped refinement programs. -/
 def probes : List Nightstream.Checks.Probe :=
   [ ⟨"rust_fprime_base_accepts", fun _ =>
@@ -82,6 +108,10 @@ def probes : List Nightstream.Checks.Probe :=
       M5Probe.terminalRejectedChildAuthority
         (Nightstream.Implementation.Rust.Terminal.verify M5Probe.terminalSemantics
           { M5Probe.terminal with recordedClaims := [] }), true⟩
+  , ⟨"rust_pi_ccs_execution_receipt_shape_accepts",
+      PiCcsExecutionProbe.accepts, true⟩
+  , ⟨"rust_pi_ccs_execution_receipt_rejects_mutations",
+      PiCcsExecutionProbe.rejectsMutations, true⟩
   ]
 
 /-- Symbol anchors in mapped Rust sources. Their contents remain a conformance

@@ -12,6 +12,7 @@ pub mod utils;
 // Engine implementation modules
 pub mod optimized_engine;
 pub mod pi_ccs;
+pub mod pi_ccs_execution_receipt;
 pub mod pi_ccs_joint;
 pub mod pi_ccs_joint_protocol;
 pub mod pi_ccs_protocol;

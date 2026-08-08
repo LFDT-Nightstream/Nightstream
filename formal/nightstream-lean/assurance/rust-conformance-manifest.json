@@ -43,7 +43,7 @@
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/CanonicalConformance/NativeStep/Core.lean",
-      "sha256": "84985d6b9e9ad2fd0de5d57f6540988983147a621eddea0b00a1a9c6ec68b40e"
+      "sha256": "fc308ad52566bd63c5043675a5dc08ea0eb31c156e9b2bcd7b294e0e98ab1930"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/Terminal.lean",

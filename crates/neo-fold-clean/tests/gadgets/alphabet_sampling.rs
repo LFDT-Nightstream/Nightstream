@@ -7,7 +7,7 @@
 //!     transcripts.
 //!   - Outer-domain-separator wrapper `enforce_pi_rlc_rhos_from_transcript`
 //!     mirrors `sample_rot_rhos_n`'s `append_fields_raw([0, i])` prefix.
-//!   - Forced-rejection path: a seed chosen so chunk == 65535 occurs at a
+//!   - Forced-rejection path: a seed chosen so an exact candidate is 65535 at a
 //!     known position, exercising the accept = 0 branch and the
 //!     "skip-this-chunk" selection logic.
 //!   - Tamper rejection: changing a sampled symbol breaks the constraint.
@@ -18,34 +18,35 @@ use neo_fold_clean::engine::r1cs_circuit::alphabet_sampling::{
 use neo_fold_clean::engine::r1cs_circuit::{R1csBuilder, TranscriptGadget};
 use neo_math::ring::D;
 use neo_math::F;
+use neo_params::goldilocks_paper_b2::PI_RLC_SAMPLER_DIGEST_ROUNDS;
 use neo_transcript::{Poseidon2Transcript, Transcript as NeoTranscript};
 use p3_field::PrimeCharacteristicRing;
 
 const APP: &[u8] = b"neo.test.alphabet_sampling/v1";
 const ALPHABET: [i8; 5] = [-2, -1, 0, 1, 2];
 
-/// Inlined replica of `neo_reductions::common::draw_alphabet_vector` so this
-/// test does not depend on a private function.
+/// Inlined replica of the production fixed-round sampler.
 fn native_draw_alphabet_vector(tr: &mut Poseidon2Transcript, need: usize, alphabet: &[i8], seed: u64) -> Vec<i8> {
-    let m = alphabet.len() as u32;
-    let bucket = (1u32 << 16) / m * m;
+    let alphabet_len = alphabet.len() as u32;
+    let bucket = 65_535 / alphabet_len * alphabet_len;
     let mut out = Vec::with_capacity(need);
     let mut ctr = seed;
-    while out.len() < need {
+    for _ in 0..PI_RLC_SAMPLER_DIGEST_ROUNDS {
         tr.append_fields_raw(&[F::from_u64(1), F::from_u64(ctr)]);
-        let dig = tr.digest32();
-        for w in dig.chunks_exact(2) {
-            let x = u16::from_le_bytes([w[0], w[1]]) as u32;
-            if x < bucket {
-                let idx = (x % m) as usize;
-                out.push(alphabet[idx]);
-                if out.len() == need {
-                    break;
+        let digest = tr.digest32();
+        for lane in digest.chunks_exact(8) {
+            let value = u64::from_le_bytes(lane.try_into().expect("digest lane"));
+            for offset in [0, 16] {
+                let raw = ((value >> offset) & 0xffff) as u16;
+                let candidate = (!raw) as u32;
+                if candidate < bucket && out.len() < need {
+                    out.push(alphabet[(candidate % alphabet_len) as usize]);
                 }
             }
         }
         ctr = ctr.wrapping_add(1);
     }
+    assert_eq!(out.len(), need, "fixed production sampler shortfall");
     out
 }
 
@@ -217,20 +218,23 @@ fn alphabet_sampling_rejects_negative_mod5_residue_forgery() {
     );
 }
 
-/// Confirm that `seed` causes at least one chunk == 65535 within MAX_ITER
+/// Confirm that `seed` causes at least one candidate == 65535 within the fixed
 /// iterations, given the supplied app label and prior absorbs. Returns the
 /// number of rejection events observed (≥ 1 for a true rejection seed).
 fn count_rejection_chunks(app: &'static [u8], seed: u64) -> usize {
     let mut native = Poseidon2Transcript::new(app);
     let mut ctr = seed;
     let mut count = 0;
-    for _ in 0..4 {
+    for _ in 0..PI_RLC_SAMPLER_DIGEST_ROUNDS {
         native.append_fields_raw(&[F::from_u64(1), F::from_u64(ctr)]);
-        let dig = native.digest32();
-        for w in dig.chunks_exact(2) {
-            let x = u16::from_le_bytes([w[0], w[1]]);
-            if x == 65535 {
-                count += 1;
+        let digest = native.digest32();
+        for lane in digest.chunks_exact(8) {
+            let value = u64::from_le_bytes(lane.try_into().expect("digest lane"));
+            for offset in [0, 16] {
+                let raw = ((value >> offset) & 0xffff) as u16;
+                if !raw == 65_535 {
+                    count += 1;
+                }
             }
         }
         ctr = ctr.wrapping_add(1);
@@ -238,31 +242,22 @@ fn count_rejection_chunks(app: &'static [u8], seed: u64) -> usize {
     count
 }
 
-/// Hard-coded seed that triggers a rejection chunk under [`APP`] starting
-/// from an empty Poseidon2 transcript. Discovered via brute-force search
-/// (see git history); the test below sanity-checks that this seed still
-/// hits a rejection so we catch silent drift.
-const REJECTION_SEED: u64 = 0xb72;
-
 #[test]
 fn alphabet_sampling_handles_forced_rejection_chunk() {
-    let rejects = count_rejection_chunks(APP, REJECTION_SEED);
-    assert!(
-        rejects >= 1,
-        "hard-coded REJECTION_SEED = {REJECTION_SEED:#x} no longer triggers a rejection; \
-         re-run a brute-force search and update the constant"
-    );
+    let rejection_seed = (0u64..)
+        .find(|&seed| count_rejection_chunks(APP, seed) > 0)
+        .expect("deterministic transcript search must find a rejected candidate");
 
     let mut native = Poseidon2Transcript::new(APP);
-    let native_syms = native_draw_alphabet_vector(&mut native, D, &ALPHABET, REJECTION_SEED);
+    let native_syms = native_draw_alphabet_vector(&mut native, D, &ALPHABET, rejection_seed);
 
     let mut b = R1csBuilder::new();
     let mut tr = TranscriptGadget::new(&mut b, APP);
-    let circ_syms = enforce_alphabet_sample_5_d(&mut b, &mut tr, REJECTION_SEED);
+    let circ_syms = enforce_alphabet_sample_5_d(&mut b, &mut tr, rejection_seed);
 
     assert!(
         b.is_satisfied(),
-        "rejection-path circuit unsatisfied at seed {REJECTION_SEED:#x} (first bad row: {:?})",
+        "rejection-path circuit unsatisfied at seed {rejection_seed:#x} (first bad row: {:?})",
         b.first_unsatisfied_row()
     );
     for (i, (sym_var, &native_sym)) in circ_syms.iter().zip(native_syms.iter()).enumerate() {
@@ -270,7 +265,7 @@ fn alphabet_sampling_handles_forced_rejection_chunk() {
         let native_val = symbol_to_f(native_sym);
         assert_eq!(
             circ_val, native_val,
-            "rejection-path symbol {i} divergence at seed {REJECTION_SEED:#x}"
+            "rejection-path symbol {i} divergence at seed {rejection_seed:#x}"
         );
     }
 }
@@ -291,7 +286,8 @@ fn first_chunk_mod5(app: &'static [u8], seed: u64) -> (u32, u64, u64) {
     let mut native = Poseidon2Transcript::new(app);
     native.append_fields_raw(&[F::from_u64(1), F::from_u64(seed)]);
     let dig = native.digest32();
-    let chunk = u16::from_le_bytes([dig[0], dig[1]]) as u32;
+    let raw = u16::from_le_bytes([dig[0], dig[1]]);
+    let chunk = (!raw) as u32;
     let idx = (chunk as u64) % 5;
     let q = (chunk as u64) / 5;
     (chunk, idx, q)

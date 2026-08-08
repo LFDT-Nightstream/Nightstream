@@ -123,8 +123,6 @@ pub mod params;
 pub mod reductions;
 pub mod relations;
 pub mod sampling;
-pub mod terminal_ce;
-
 // Path stability: keep the short paths working so call sites don't churn
 // every time we relocate. The auditor still reads the new structure via
 // the directory layout.

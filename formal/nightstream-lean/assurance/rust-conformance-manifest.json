@@ -3,31 +3,39 @@
   "sources": [
     {
       "path": "crates/neo-fold-clean/src/paper/f_prime/native.rs",
-      "sha256": "cab39fa7323476afa969d9a29692f7fcb7ca3e1286c8f9b6569e90a7f77e46da"
+      "sha256": "9f37ed3c59e1d54cd1525e65bc429a1ba80c3b8c693375fa20e3a31ef2183d2b"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/construction2/transition.rs",
-      "sha256": "6e06a8fdb0c2a79f24c8469b78357fa65bca2a9e5966a9fae09026b7d38c43d5"
+      "sha256": "5570daab0fb5c4ff5372ab3e7e05eb0eb326953d8b0899f4d89bfc7a8f95c4a1"
     },
     {
       "path": "crates/neo-fold-clean/src/lifecycle/verify.rs",
-      "sha256": "50b177553e3691fb1c00fc507418a51254362bb24f7cc780627498c4af68130c"
+      "sha256": "7bd44138c6fdfc747821ec9413e166d97b1e3c26a5ef483443b7a3556786021f"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/decider.rs",
-      "sha256": "8b19acd8dab3b8f8b8237d57d25d6cc86efbdd0d04c28e1a68c50a445539c773"
+      "sha256": "2d6c5a71df8b7905226229ac99ddf0270b3502e8d914b091db5e643283e3fa2e"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/decider_ce_relation/mod.rs",
       "sha256": "7be12315fb5e02cd8131857fb7d77d1e1bea0c5d143e6ad0e2ecf4d54c6a3423"
     },
     {
-      "path": "crates/neo-fold-clean/src/paper/terminal_ce/public.rs",
-      "sha256": "570121c0cc9cc81e9b6685adef1163d8215c18faad6a53a7e1ac6827c837f6a5"
+      "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/mod.rs",
+      "sha256": "4109224d101325826d47a0c0245d2902f6c7e3110896e94903334d3c8931777b"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/compiler.rs",
+      "sha256": "2eb66acaab7e9ba57aa40a22f8a59f2936cf826988aff4ac1f3aab0acb4f8497"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/lifecycle.rs",
+      "sha256": "c44b22f394a3150848ffd53cafea3fb010623f87c681204a8e21903fc5450e81"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/formal_conformance.rs",
-      "sha256": "5faa7b8737b1c1c0eaf89cd127c4a780728159b956a989e4c11a97bf2900530f"
+      "sha256": "2c1aa36e4ec001c4765d0c4ab64bbc45305da397ee52a5f591a09cbba08534f9"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Protocol/FPrime/Step.lean",

@@ -90,7 +90,7 @@ impl PoseidonTraceLayout {
 /// step's app public input) can be computed once per SuperNeo chunk and
 /// cloned into each step's encoder input — cheaper than recomputing the
 /// Poseidon permutations K times. See
-/// `frontends::f_prime::compiler::assemble_shared_chunk_traces`.
+/// the F-prime circuit compiler.
 #[derive(Clone)]
 pub struct PoseidonTraceImage {
     pub layout: PoseidonTraceLayout,

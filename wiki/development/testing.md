@@ -1,63 +1,42 @@
 # Testing
 
-## Hard policies (from [CLAUDE.md](../../CLAUDE.md))
+The root [AGENTS.md](../../AGENTS.md) defines the test rules.
 
-1. **Always `--release`** — debug builds are unusably slow for proof code.
-2. **5-minute cap per test invocation** — if a test needs more, shrink its work or
-   mark it `#[ignore]` with a comment.
-3. **`FoldingMode::Optimized` only** — `PaperExact` is an O(2^ℓ) reference engine and
-   requires explicit approval.
-4. **Tests live under `tests/`**, never inline in implementation files.
-5. **A test added to catch a problem must fail while the problem exists.**
+- Run Rust tests with `--release`.
+- Give every non-Lean test command a timeout of at most five minutes.
+- Use `FoldingMode::Optimized` in normal tests.
+- Use PaperExact only for an explicitly approved reference check.
+- Put integration tests under `tests/`, not in implementation files.
+- A regression test must fail while the defect exists.
 
-```bash
-cargo test --workspace --release
-cargo test -p neo-fold-clean --release --test system_fibonacci_bits_e2e -- --nocapture
-# extra debugging output:
-cargo test ... --features paper-exact,debug-logs
+## Core checks
+
+```sh
+timeout 300s cargo test -p neo-reductions --release
+timeout 300s cargo test -p neo-fold-clean --release --test nifs_round_trip
+timeout 300s cargo test -p neo-fold-clean --release --test f_prime_r1cs
+timeout 300s cargo test -p neo-fold-clean --release --test nebula_f_prime
+timeout 300s cargo test -p neo-fold-clean --release --test system_r1cs_ivc_terminal
+timeout 300s cargo test -p wip-spartan --release
 ```
 
-## neo-fold-clean test layout
+## neo-fold-clean test areas
 
-Test files live in subdirectories of `crates/neo-fold-clean/tests/`; each file is
-registered in `Cargo.toml` as a target named `<dir>_<file>` (so
-`tests/system/lifecycle_redteam.rs` → `--test system_lifecycle_redteam`).
-
-| Directory | Covers |
+| Directory | Scope |
 |---|---|
-| `system/` | End-to-end chains (`fibonacci_bits_e2e`), lifecycle finalization/links/invariants, decider R1CS, terminal CE, production params, SHA-256 via Bellpepper, the `phase_1_*` F′ build-out suites |
-| `direct_ccs/` | Direct-CCS frontend: R1CS round-trips and frontend red-team |
-| `f_prime/` | F′ relation: R1CS scaffold, digest-circuit parity, source image, transcript red-team |
-| `nifs/` | NIFS round-trip and isolated in-circuit NIFS.V |
-| `reductions/` | Π_CCS split-NC verifier circuit (fe/nc/verifier), Π_RLC, Π_DEC, NIFS.V (+transcript), degree-7 Π_CCS, CCS-native Poseidon |
-| `gadgets/` | R1CS builder primitives: booleans, u64/mux, Poseidon2, sum-check, transcript, alphabet sampling |
-| `perf/` | `--ignored` perf snapshots — see [Profiling](profiling.md) |
-| `support/` | Shared fixtures, including the Fibonacci F′ app fixture (`fibonacci_f_prime/`) and R1CS compiler fixtures |
+| `direct_ccs/` | Direct R1CS conversion and rejection checks |
+| `f_prime/` | F' image, lowering, selective rows, and recursive relation |
+| `nebula/` | Memory relation, segments, lane commitments, and lifecycle |
+| `nifs/` | NIFS round trips, fixed adapters, and crosschecks |
+| `reductions/` | PiCCS, PiRLC, PiDEC, and transcript binding |
+| `gadgets/` | R1CS primitives and Poseidon2 transcript gadgets |
+| `system/` | Lifecycle, decider, formal-conformance, and red-team checks |
+| `perf/` | Ignored performance snapshots |
 
-Other crates keep their suites local: `neo-reductions/tests/` (engine parity, matrix
-digests, digit-table parity), `neo-ajtai/tests/` (commit parity), etc.
+## Formal checks
 
-## Red-team suites
-
-The project treats tamper-rejection as a first-class test dimension. A red-team test
-mutates one field of a proof/transcript/statement and asserts the verifier rejects
-with the *specific* expected error:
-
-- `system_lifecycle_redteam` — lifecycle-level tampers: audit-trail fields, final
-  accumulator witnesses, counters, digests.
-- `direct_ccs_redteam` — frontend-level tampers.
-- `f_prime_transcript_redteam`, `reductions_nifs_v_transcript` — Fiat-Shamir binding:
-  every absorbed datum must influence the challenges.
-- `system_decider_ce_relation_isolation`, `nifs_r1cs_isolated` — relation/circuit
-  isolation checks.
-
-When you close a soundness gap, add the failing red-team case first — a test meant to
-catch a problem must fail while the problem exists.
-
-## Choosing the right e2e entry point
-
-- Lifecycle behavior or folding changes → `system_fibonacci_bits_e2e`, then
-  `system_lifecycle_redteam`.
-- F′ structure/encoder changes → the relevant `system_phase_1_*` suite (they pin
-  layout, fill, NIFS payloads, digests, recursive plan, and parity step by step).
-- Decider changes → `system_decider_r1cs` plus the shape snapshot in `perf/`.
+Use only the validation wrapper in
+`formal/nightstream-lean/scripts/validate.sh`. Lean commands have a
+25-minute cap. Read
+[formal/nightstream-lean/AGENTS.md](../../formal/nightstream-lean/AGENTS.md)
+before a Lean change.

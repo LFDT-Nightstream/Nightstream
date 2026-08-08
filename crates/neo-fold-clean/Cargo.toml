@@ -23,7 +23,7 @@ neo-ccs        = { path = "../neo-ccs" }
 neo-ajtai      = { path = "../neo-ajtai" }
 neo-transcript = { path = "../neo-transcript" }
 neo-reductions = { path = "../neo-reductions" }
-toy-spartan     = { workspace = true }
+wip-spartan     = { workspace = true }
 bellpepper-core = { workspace = true }
 ff              = { workspace = true, features = ["derive"] }
 p3-field       = { workspace = true }
@@ -44,12 +44,6 @@ serde_json     = { workspace = true }
 thiserror      = { workspace = true }
 
 [dev-dependencies]
-neo-ajtai   = { path = "../neo-ajtai" }
-neo-ccs     = { path = "../neo-ccs" }
-neo-math    = { path = "../neo-math" }
-neo-params  = { path = "../neo-params" }
-p3-field    = { workspace = true }
-rand_chacha = { workspace = true }
 bellpepper  = { workspace = true }
 sha2        = "0.10"
 bincode     = { workspace = true }
@@ -334,10 +328,6 @@ name = "system_projection_shell"
 path = "tests/system/projection_shell.rs"
 
 [[test]]
-name = "system_ivc_invariants"
-path = "tests/system/ivc_invariants.rs"
-
-[[test]]
 name = "system_phase_1_mini_1_state_x_out"
 path = "tests/system/phase_1_mini_1_state_x_out.rs"
 
@@ -418,44 +408,8 @@ name = "system_phase_1_4f_state_x_out"
 path = "tests/system/phase_1_4f_state_x_out.rs"
 
 [[test]]
-name = "system_phase_1_5a_fibonacci_encoder"
-path = "tests/system/phase_1_5a_fibonacci_encoder.rs"
-
-[[test]]
-name = "system_phase_1_6a_state_threaded_encoded_f_prime"
-path = "tests/system/phase_1_6a_state_threaded_encoded_f_prime.rs"
-
-[[test]]
-name = "system_phase_1_7a_non_linear_verifier"
-path = "tests/system/phase_1_7a_non_linear_verifier.rs"
-
-[[test]]
-name = "system_fibonacci_compiler_recursive_step"
-path = "tests/system/fibonacci_compiler_recursive_step.rs"
-
-[[test]]
-name = "system_fibonacci_unified_accumulator_selector"
-path = "tests/system/fibonacci_unified_accumulator_selector.rs"
-
-[[test]]
-name = "system_fibonacci_f_prime_layout_budget"
-path = "tests/system/fibonacci_f_prime_layout_budget.rs"
-
-[[test]]
-name = "system_fibonacci_compiler_unified_structure"
-path = "tests/system/fibonacci_compiler_unified_structure.rs"
-
-[[test]]
 name = "system_decider_ce_relation_isolation"
 path = "tests/system/decider_ce_relation_isolation.rs"
-
-[[test]]
-name = "system_terminal_ce_public"
-path = "tests/system/terminal_ce_public.rs"
-
-[[test]]
-name = "system_terminal_ce_merkle"
-path = "tests/system/terminal_ce_merkle.rs"
 
 [[test]]
 name = "system_lean_canonical_manifest"

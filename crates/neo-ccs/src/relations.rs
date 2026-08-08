@@ -490,11 +490,12 @@ fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: 
     }
 }
 
-/// Build SuperNeo ring-coefficient linear forms for one CE point `r`.
+/// Build identity-first SuperNeo ring-coefficient linear forms for one CE point `r`.
 ///
-/// Returns `forms[j][col][rho]` such that for each matrix `j`, the ring row
-/// satisfies `y_ring[j][rho] = Σ_col forms[j][col][rho] * z[col]`, where `col`
-/// ranges over logical witness columns padded up to the next multiple of `D`.
+/// Returns `forms[j][col][rho]` such that the virtual padded identity is at
+/// `j = 0` and structure matrix `j - 1` follows it. Each ring row satisfies
+/// `y_ring[j][rho] = Σ_col forms[j][col][rho] * z[col]`, where `col` ranges
+/// over witness columns padded up to the next multiple of `D`.
 pub fn build_superneo_ring_forms<
     F: Field + PrimeCharacteristicRing + Copy + Into<GoldiF>,
     K: Field + From<F> + KExtensions + Copy,
@@ -515,7 +516,28 @@ pub fn build_superneo_ring_forms<
     let chi_r = tensor_point::<K>(r);
     let m_eff = s.m.div_ceil(D) * D;
     let block_count = m_eff / D;
-    let mut out = Vec::with_capacity(s.t());
+    let mut out = Vec::with_capacity(s.t() + 1);
+
+    let mut identity_forms = vec![[K::ZERO; D]; m_eff];
+    for (row, &weight) in chi_r.iter().take(m_eff).enumerate() {
+        if weight == K::ZERO {
+            continue;
+        }
+        let block = row / D;
+        let mut identity_row = [GoldiF::ZERO; D];
+        identity_row[row % D] = GoldiF::ONE;
+        let identity_bar = Rq(superneo_bar_block(identity_row));
+        for witness_lane in 0..D {
+            let mut basis = [GoldiF::ZERO; D];
+            basis[witness_lane] = GoldiF::ONE;
+            let shifted = identity_bar.mul(&Rq(basis));
+            let slot = &mut identity_forms[block * D + witness_lane];
+            for rho in 0..D {
+                slot[rho] += weight.scale_base(shifted.0[rho]);
+            }
+        }
+    }
+    out.push(identity_forms);
 
     for matrix in &s.matrices {
         let mut forms = vec![[K::ZERO; D]; m_eff];

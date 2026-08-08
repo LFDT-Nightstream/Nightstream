@@ -26,7 +26,21 @@ The smallest acceptance criteria are:
 - This audit covers the Rust implementation. It does not audit the Lean models or prove the cryptographic assumptions.
 - In the complexity review, “slop” means duplicate protocol paths, speculative backend flexibility, false public capabilities, audit-only data in runtime ownership, and wrappers that exist only to support those surfaces. Explicit circuit equations are not slop when they make the constrained relation easier to audit.
 
-## Executive result
+## Completion update — 2026-08-08
+
+The current tree closes the accepted implementation and repository findings from the baseline audit:
+
+- `Pi_RLC` now uses one exact native and circuit sampler. Eight Poseidon2 digests provide 64 ordered 16-bit candidates. The sampler rejects the exact tail and emits the first 54 accepted values, so each output is uniform in the five-symbol challenge set. The security census derives its claim from this schedule.
+- The authoritative generic R1CS terminal and multi-segment Nebula tests are active and pass in release mode under the project test cap.
+- Fixed-point compilation halts on a repeated shape instead of an arbitrary round count. Coordinate limits and heuristic test floors are removed. Security parameters and other protocol limits come from the selected relation shape or an explicit caller-owned input.
+- Every Rust file is at or below the approved 1,500-line ceiling. Large files were split by ownership.
+- Stale protocol comments, NIFS arities, links, and backend claims are corrected.
+- `toy-spartan` is now `wip-spartan`. The crate keeps only the Nightstream Goldilocks, Poseidon2, WHIR, and direct sparse-R1CS path.
+- The prover API names the four required backends: optimized CPU, PaperExact, CUDA, and Metal. Metal runs the canonical one-joint device oracle on supported Apple builds. CUDA remains a required target, but its canonical one-joint kernel is not implemented. An explicit CUDA request returns `BackendUnavailable`; it never reports CPU work as CUDA work.
+
+The sections marked as baseline remain as the evidence that motivated these changes.
+
+## Baseline executive result
 
 The main architecture is coherent and close to the three paper contracts. The authoritative R1CS and Nebula frontends compile the augmented function `F'`, include the in-circuit NIFS verifier, bind the application state, and mark preprocessing with terminal-induction authority. The compact uncompressed verifier checks the running accumulator and the latest `F'` instance. Nebula also forces the delayed memory lane to close.
 
@@ -66,7 +80,7 @@ The implementation completed CX-1 through CX-5 and the necessary part of CX-6:
 - The root no-op `Compressed`, `compress`, and generic `verify` API is removed. The implemented `finish_with_spartan` path remains.
 - Runtime audit ownership is narrower. Formal and source-audit data that still feeds checked Lean artifacts remains.
 
-The Rust crate changes remove 15,916 net lines, including the renamed finalization module. They do not change protocol parameters, hash families, or transcript order. SN-1, EV-1, AG-1, and AG-2 remain separate findings; they were not required to simplify the active ownership model.
+The first simplification slice removed 15,916 net lines, including the renamed finalization module. It did not change protocol parameters, hash families, or transcript order. The completion slice then closed SN-1, EV-1, AG-1, AG-2, and DOC-1 as stated above.
 
 ## Baseline architecture and ownership
 
@@ -268,7 +282,7 @@ The `NifsProverAdapter` boundary itself is necessary. CPU, Metal, and CUDA types
 The speculative parts are not necessary:
 
 - `DeferredNifsProofMaterializer`, `DeferredNifsRunningMaterializer`, and the two `Deferred` carrier variants have no implementation in the workspace (`crates/neo-fold-clean/src/paper/nifs/backend.rs:51`).
-- Every concrete backend returns a materialized output. Metal returns the canonical materialized output after its joint oracle, and CUDA currently delegates `prove` to CPU (`crates/neo-prover-metal/src/adapter.rs:365`, `crates/neo-prover-cuda/src/adapter.rs:46`).
+- At baseline, every concrete backend returned a materialized output. Metal returned the canonical materialized output after its joint oracle, and CUDA delegated `prove` to CPU (`crates/neo-prover-metal/src/adapter.rs:365`, `crates/neo-prover-cuda/src/adapter.rs:46`).
 - `begin_f_prime_step` and `requires_recursive_compile_reverify` have no concrete backend override. Only the crosscheck wrapper forwards them (`crates/neo-fold-clean/src/paper/nifs/backend.rs:488`, `crates/neo-fold-clean/src/paper/nifs/backend.rs:519`).
 - `NifsPostFoldSummary` and its many `into_*_with_summary` forms support the old image compiler and the crosscheck wrapper. They do not carry verifier authority (`crates/neo-fold-clean/src/paper/nifs/backend.rs:196`).
 
@@ -280,7 +294,7 @@ The proof checks are the optimized CPU NIFS tests, Metal and CUDA crosschecks, W
 
 The crate root exports `Compressed`, `compress`, and a generic function named `verify` (`crates/neo-fold-clean/src/lib.rs:103`, `crates/neo-fold-clean/src/lib.rs:111`). `compress` always reaches `decider::prove`, and the decider prover and verifier are placeholders that return `Unsupported` (`crates/neo-fold-clean/src/lifecycle/compress.rs:27`, `crates/neo-fold-clean/src/paper/decider.rs:51`). Workspace source has no product caller. Tests only assert that these functions fail closed.
 
-The code also exposes `TerminalCeProof`, an opaque byte container whose documentation says that it has no successful verifier (`crates/neo-fold-clean/src/paper/terminal_ce/proof.rs:3`). In contrast, `engine::decider` is a useful full-history audit R1CS and says explicitly that it is not a compact production decider (`crates/neo-fold-clean/src/engine/decider.rs:1`). The direct terminal CE relation is also necessary for current soundness.
+At baseline, the code also exposed `TerminalCeProof`, an opaque byte container whose documentation said that it had no successful verifier (`crates/neo-fold-clean/src/paper/terminal_ce/proof.rs:3`). In contrast, `engine::decider` was a useful full-history audit R1CS and said explicitly that it was not a compact production decider (`crates/neo-fold-clean/src/engine/decider.rs:1`). The direct terminal CE relation was also necessary for current soundness.
 
 The smaller and more honest boundary is:
 
@@ -331,7 +345,7 @@ The smallest dependency order is:
 
 Each step has its own caller and test proof. None requires a compatibility layer.
 
-## Accepted findings
+## Baseline accepted findings
 
 ### SN-1: `Pi_RLC` does not sample the strong set exactly uniformly
 
@@ -465,7 +479,7 @@ The uncompressed proof contains terminal witnesses and the verifier checks them 
 
 The false generic compression seam is removed. The crate does not expose an opaque compact proof type or a generic compression function that can only return an error. The separate `finish_with_spartan` path remains under its narrower frontend-specific contract.
 
-## Test evidence
+## Audit test evidence
 
 All commands used release mode and the required five-minute cap. No `PaperExact` mode was used.
 

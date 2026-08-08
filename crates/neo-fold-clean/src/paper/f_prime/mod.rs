@@ -24,11 +24,9 @@
 //! ## Boundary rule
 //!
 //! `paper::f_prime` **does not know about any app frontend**. The
-//! generic F' image / structure / encoder / recursive-step plan live
-//! under [`crate::frontends::f_prime`] (the engine) and the app
-//! adapters (`frontends::r1cs_f_prime` for production; the Fibonacci
-//! test fixture lives under `tests/support/fibonacci_f_prime`) build
-//! on top of that. The dependency direction is one-way:
+//! generic F' image, structure, and recursive-step plan live under
+//! [`crate::frontends::f_prime`]. The R1CS and Nebula frontends build their
+//! application relations on that shell. The dependency direction is one-way:
 //! `frontends::* → paper::f_prime`.
 
 pub mod digest_circuit;

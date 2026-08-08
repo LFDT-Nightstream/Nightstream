@@ -179,9 +179,9 @@ pub trait NifsProverAdapter {
 
 /// Marker for complete NIFS adapters that always use optimized reductions.
 ///
-/// Built-in CUDA and Metal provers implement this marker. Their public NIFS
-/// selection therefore includes optimized PiCCS, PiRLC, and PiDEC; callers do
-/// not select a second reduction mode.
+/// Implemented accelerator provers use this marker when their public NIFS
+/// selection includes optimized PiCCS, PiRLC, and PiDEC. Callers then do not
+/// select a second reduction mode.
 pub trait OptimizedNifsProverAdapter: NifsProverAdapter {}
 
 /// Canonical optimized host implementation of the complete NIFS prover.

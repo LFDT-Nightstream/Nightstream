@@ -5,10 +5,6 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-const ACTIVE_BLOCK_PAR_THRESHOLD: usize = 4096;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-const ACTIVE_BLOCK_CHUNK: usize = 512;
 #[inline]
 pub(super) fn eval_active_blocks(
     active_blocks: &[usize],
@@ -18,21 +14,16 @@ pub(super) fn eval_active_blocks(
 ) -> Option<[K; D]> {
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
-        if active_blocks.len() < ACTIVE_BLOCK_PAR_THRESHOLD || rayon::current_num_threads() <= 1 {
+        if rayon::current_num_threads() <= 1 || rayon::current_thread_index().is_some() {
             return None;
         }
         let (out_re, out_im) = active_blocks
-            .par_chunks(ACTIVE_BLOCK_CHUNK)
-            .map(|blocks| {
+            .par_iter()
+            .map(|&blk| {
                 let mut local_re = [F::ZERO; D];
                 let mut local_im = [F::ZERO; D];
-                for &blk in blocks {
-                    if !z_blocks.real_nonzero(blk) {
-                        continue;
-                    }
-                    let re_nonzero = !is_all_zero(&agg_re[blk].0);
-                    let im_nonzero = !is_all_zero(&agg_im[blk].0);
-                    match (re_nonzero, im_nonzero) {
+                if z_blocks.real_nonzero(blk) {
+                    match (!is_all_zero(&agg_re[blk].0), !is_all_zero(&agg_im[blk].0)) {
                         (true, true) => {
                             z_blocks.accumulate_real_pair(&mut local_re, &mut local_im, &agg_re[blk], &agg_im[blk], blk)
                         }

@@ -23,7 +23,7 @@ pub use pi_ccs_output_digest_audit::{
 pub use relation::{
     R1csIvcBranch, R1csIvcPiDecCanonicalXSelectiveRowsAudit, R1csIvcPiDecSelectiveRowsAudit,
     R1csIvcPiDecSourceRowAudit, R1csIvcPiDecSourceRowsAudit, R1csIvcRawRunningAssignmentAudit,
-    R1csIvcRawRunningEncodingAudit, R1csIvcRelation, R1CS_IVC_COMMITTED_COORDINATE_BUDGET,
+    R1csIvcRawRunningEncodingAudit, R1csIvcRelation,
 };
 
 use thiserror::Error;
@@ -50,7 +50,7 @@ pub enum R1csIvcError {
     Lifecycle(#[from] lifecycle::Error),
     #[error(transparent)]
     Instance(#[from] RelationError),
-    #[error("R1CS IVC fixed point did not stabilize after {rounds} rounds (last input {input_rows}x{input_columns}, output {output_rows}x{output_columns})")]
+    #[error("R1CS IVC fixed-point discovery entered a shape cycle after {rounds} rounds (last input {input_rows}x{input_columns}, output {output_rows}x{output_columns})")]
     NoFixedPoint {
         rounds: usize,
         input_rows: usize,
@@ -58,8 +58,6 @@ pub enum R1csIvcError {
         output_rows: usize,
         output_columns: usize,
     },
-    #[error("R1CS IVC relation needs {required} committed coordinates, exceeding the {budget} coordinate budget")]
-    BudgetExceeded { required: usize, budget: usize },
     #[error("invalid stabilized PiCCS output-digest audit: {detail}")]
     InvalidPiCcsOutputDigestAudit { detail: String },
     #[error("R1CS IVC branch {branch:?} synthesized {rows}x{columns} with {public_columns} public columns; expected {expected_rows}x{expected_columns} with {expected_public_columns} public columns")]

@@ -1,9 +1,10 @@
 //! Prover backend selection and reusable accelerator-session ownership.
 //!
 //! The protocol and proof format remain backend-independent. This module owns
-//! only the prover-side choice between CPU, Metal, and CUDA.
+//! only the prover-side choice between optimized CPU, PaperExact, Metal, and
+//! CUDA.
 
-use neo_fold_clean::paper::nifs::{NifsProverAdapter, OptimizedCpuNifsProver};
+use neo_fold_clean::paper::nifs::{NifsProverAdapter, OptimizedCpuNifsProver, PaperExactNifsProver};
 
 use crate::nebula::{prove_with_nifs_adapter, WasmNebulaError, WasmNebulaPreprocessing, WasmNebulaProof};
 use crate::WasmVmStep;
@@ -11,22 +12,24 @@ use crate::WasmVmStep;
 /// Prover implementation selected for the next proof.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmProverBackend {
-    Cpu,
-    Metal,
+    CpuOptimized,
+    PaperExact,
     Cuda,
+    Metal,
 }
 
 impl WasmProverBackend {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Cpu => "cpu",
-            Self::Metal => "metal",
+            Self::CpuOptimized => "cpu-optimized",
+            Self::PaperExact => "paper-exact",
             Self::Cuda => "cuda",
+            Self::Metal => "metal",
         }
     }
 }
 
-/// Reusable WASM prover with one owned CPU or accelerator session.
+/// Reusable WASM prover with one owned reference, CPU, or accelerator session.
 ///
 /// Use [`WasmProver::auto`] for ordinary proving. Use an explicit constructor
 /// for benchmarks, diagnostics, or deployments that require one backend.
@@ -38,7 +41,7 @@ impl WasmProverBackend {
 /// let proof = neo_wasm::prove(&prep, &trace)?;
 /// neo_wasm::verify(&prep, &proof, final_state)?;
 ///
-/// let mut cpu = neo_wasm::WasmProver::cpu();
+/// let mut cpu = neo_wasm::WasmProver::cpu_optimized();
 /// let proof = cpu.prove(&prep, &trace)?;
 /// # Ok::<(), neo_wasm::WasmNebulaError>(())
 /// ```
@@ -50,7 +53,7 @@ pub struct WasmProver {
 }
 
 impl WasmProver {
-    /// Select the best enabled accelerator and fall back to CPU when needed.
+    /// Select the best enabled accelerator and fall back to optimized CPU.
     ///
     /// CUDA has priority when the `cuda` feature is enabled. Metal is next on
     /// Apple targets when the default `metal` feature is enabled.
@@ -72,7 +75,7 @@ impl WasmProver {
         match neo_prover_metal::MetalNifsProver::new() {
             Ok(metal) => return Self::new(WasmProverBackend::Metal, metal, true),
             Err(metal_error) => {
-                let mut cpu = Self::cpu();
+                let mut cpu = Self::cpu_optimized();
                 cpu.automatic = true;
                 cpu.fallback_reason = Some(match fallback_reason {
                     Some(cuda_reason) => {
@@ -86,16 +89,24 @@ impl WasmProver {
 
         #[cfg(not(all(feature = "metal", target_vendor = "apple")))]
         {
-            let mut cpu = Self::cpu();
+            let mut cpu = Self::cpu_optimized();
             cpu.automatic = true;
             cpu.fallback_reason = fallback_reason;
             cpu
         }
     }
 
-    /// Create a reusable canonical CPU prover.
-    pub fn cpu() -> Self {
-        Self::new(WasmProverBackend::Cpu, OptimizedCpuNifsProver, false)
+    /// Create a reusable optimized CPU prover.
+    pub fn cpu_optimized() -> Self {
+        Self::new(WasmProverBackend::CpuOptimized, OptimizedCpuNifsProver, false)
+    }
+
+    /// Create the direct PaperExact reference prover.
+    ///
+    /// PaperExact has exponential cost and is intended for small protocol
+    /// checks. Automatic selection never chooses it.
+    pub fn paper_exact() -> Self {
+        Self::new(WasmProverBackend::PaperExact, PaperExactNifsProver, false)
     }
 
     /// Create a reusable Metal prover or return an explicit availability error.
@@ -139,7 +150,7 @@ impl WasmProver {
 
     /// Return the backend that the next proof will use.
     ///
-    /// Automatic fallback updates this value to `Cpu`.
+    /// Automatic fallback updates this value to `CpuOptimized`.
     pub fn backend(&self) -> WasmProverBackend {
         self.backend
     }
@@ -160,7 +171,7 @@ impl WasmProver {
         }
 
         let result = prove_with_nifs_adapter(prep, self.adapter.as_mut(), trace);
-        if self.automatic && self.backend != WasmProverBackend::Cpu {
+        if self.automatic && self.backend != WasmProverBackend::CpuOptimized {
             if let Err(error) = &result {
                 if is_backend_error(error) {
                     self.fallback_to_cpu(format!("{} proving failed: {error}", self.backend.as_str()));
@@ -186,7 +197,7 @@ impl WasmProver {
     }
 
     fn fallback_to_cpu(&mut self, reason: String) {
-        self.backend = WasmProverBackend::Cpu;
+        self.backend = WasmProverBackend::CpuOptimized;
         self.adapter = Box::new(OptimizedCpuNifsProver);
         self.fallback_reason = Some(reason);
     }

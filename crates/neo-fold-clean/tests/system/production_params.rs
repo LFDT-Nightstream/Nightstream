@@ -59,17 +59,16 @@ fn r1cs_params_keep_production_core_and_make_effective_lambda_explicit() {
 
     assert_eq!(
         config::R1CS_PROFILE,
-        "superneo-appendix-b2-goldilocks-b2-r1cs-effective-lambda"
+        "superneo-appendix-b2-goldilocks-b2-shape-derived-lambda"
     );
     assert!(pp.has_production_core());
     assert_eq!(pp.k_rho(), config::K_RHO);
     assert_eq!(pp.big_b(), config::BIG_B);
     assert_eq!(pp.extension_degree(), config::EXTENSION_DEGREE);
-    assert!((config::MIN_EFFECTIVE_LAMBDA..=config::LAMBDA).contains(&pp.lambda()));
     assert_eq!(
         pp.lambda(),
-        114,
-        "current Fibonacci-sized R1CS shape should choose the strongest s=2 lambda above the 100-bit floor"
+        116,
+        "the header must bind the exact strongest lambda supported by this shape"
     );
 }
 
@@ -102,22 +101,14 @@ fn ccs_params_charge_matrix_count_and_degree() {
     let t8 = config::ccs_params(60, 54, 8, 2).expect("t=8 CCS params");
     let degree7 = config::ccs_params(60, 54, 3, 7).expect("degree-7 CCS params");
 
-    assert_eq!(r1cs.lambda(), 114);
-    assert_eq!(t8.lambda(), 113);
-    assert_eq!(degree7.lambda(), 114);
+    assert_eq!(r1cs.lambda(), 116);
+    assert_eq!(t8.lambda(), 115);
+    assert_eq!(degree7.lambda(), 116);
 }
 
 #[test]
 fn actual_ccs_shape_validation_rejects_an_undercharged_matrix_count() {
-    let params = Params::for_ccs_shape_with(
-        1 << 24,
-        1,
-        1,
-        8,
-        config::MIN_EFFECTIVE_LAMBDA,
-        config::EXTENSION_SAFETY_MARGIN_BITS,
-    )
-    .expect("small-t profile");
+    let params = Params::for_ccs_shape(1 << 24, 1, 1, 8).expect("small-t profile");
 
     params
         .validate_ccs_shape(1 << 24, 1, 1, 8)
@@ -129,8 +120,8 @@ fn actual_ccs_shape_validation_rejects_an_undercharged_matrix_count() {
 }
 
 #[test]
-fn r1cs_params_reject_when_combined_floor_is_too_high_for_s2() {
-    let err = Params::for_r1cs_shape_with(60, 54, 115, config::EXTENSION_SAFETY_MARGIN_BITS)
+fn explicit_r1cs_minimum_rejects_an_unsupported_target() {
+    let err = Params::for_r1cs_shape_with(60, 54, 117, 0)
         .expect_err("the combined padded-row census cannot provide 117 bits");
     assert!(matches!(
         err,

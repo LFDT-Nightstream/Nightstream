@@ -11,10 +11,10 @@
 //! rows, one radix-three product aggregate, and one root/acceptance binding.
 //!
 //! Authority boundary: the sixteen checked source bits remain the local
-//! implementation arithmetic reference. The inverse is reconstructed
-//! canonically from their exact little-endian difference; tree outputs and
-//! `accept` are bound by the emitted rows. Independent sampler semantics must
-//! still justify this check family.
+//! implementation arithmetic reference. The candidate is their bitwise
+//! complement. The inverse is reconstructed canonically from the exact
+//! candidate difference; tree outputs and `accept` are bound by the emitted
+//! rows. Independent sampler semantics must still justify this check family.
 //!
 //! | Stage path | Mathematical obligation | Coordinates | Rows | Lean theorem |
 //! |---|---|---:|---:|---|
@@ -211,16 +211,16 @@ fn validate_canonical_witness(
 }
 
 fn acceptance_difference(event: &AcceptanceTraceEntry) -> Lc {
-    let mut difference = little_endian_lc(&event.chunk_bits);
+    let mut difference = complemented_little_endian_lc(&event.chunk_bits);
     difference.add_constant(-F::from_u64(REJECTION_BUCKET));
     difference
 }
 
-fn little_endian_lc<const N: usize>(bits: &[Var; N]) -> Lc {
-    let mut out = Lc::zero();
+fn complemented_little_endian_lc<const N: usize>(bits: &[Var; N]) -> Lc {
+    let mut out = Lc::from_const(F::from_u64(REJECTION_BUCKET));
     let mut power = F::ONE;
     for &bit in bits {
-        out.add_term(bit, power);
+        out.add_term(bit, -power);
         power += power;
     }
     out
@@ -316,7 +316,7 @@ pub(super) fn allocate_and_install(
         let accept = encoded_boolean(source_columns, event.accept.col(), chunk)?;
         let bits = event
             .chunk_bits
-            .map(|variable| source.witness()[variable.col()]);
+            .map(|variable| F::ONE - source.witness()[variable.col()]);
         let values = product_tree_values(&bits);
         let outputs = values.map(|value| push_boolean_coordinate(assignment, value));
         let difference = acceptance_difference(event);
@@ -472,7 +472,12 @@ fn edge_terms(
     lookup: &mut impl FnMut(usize, usize) -> Result<Vec<(usize, F)>, GadgetNativeError>,
     index: usize,
 ) -> Result<(Vec<(usize, F)>, Vec<(usize, F)>), GadgetNativeError> {
-    let mut bit = |index: usize| lookup(event.chunk_bits[index].col(), event.source_rows.start);
+    let mut bit = |index: usize| -> Result<Vec<(usize, F)>, GadgetNativeError> {
+        let raw = lookup(event.chunk_bits[index].col(), event.source_rows.start)?;
+        let mut complemented = vec![(0, F::ONE)];
+        complemented.extend(scaled_terms(raw, -F::ONE));
+        Ok(complemented)
+    };
     let output = |index: usize| slot_terms(slots.outputs[index]);
     match index {
         0 => Ok((bit(0)?, bit(1)?)),

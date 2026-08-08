@@ -85,13 +85,17 @@ private theorem combAllowed_pair
 
 private theorem chunkTerms_allowed (layout : Layout) :
     CombAllowed layout (chunkTerms layout) := by
-  intro column mentioned
-  unfold chunkTerms Mentions at mentioned
-  rw [List.map_map] at mentioned
-  change
-    column ∈ (List.finRange sourceBitCount).map layout.sourceBit at mentioned
-  rcases List.mem_map.mp mentioned with ⟨index, _, rfl⟩
-  exact Or.inr (Or.inl ⟨index, rfl⟩)
+  unfold chunkTerms
+  apply combAllowed_append
+  · exact combAllowed_single layout 0 rejectionBucket
+      (allowed_constant layout)
+  · intro column mentioned
+    unfold Mentions at mentioned
+    rw [List.map_map] at mentioned
+    change
+      column ∈ (List.finRange sourceBitCount).map layout.sourceBit at mentioned
+    rcases List.mem_map.mp mentioned with ⟨index, _, rfl⟩
+    exact Or.inr (Or.inl ⟨index, rfl⟩)
 
 private theorem quotientTerms_allowed (layout : Layout) :
     CombAllowed layout (quotientTerms layout) := by

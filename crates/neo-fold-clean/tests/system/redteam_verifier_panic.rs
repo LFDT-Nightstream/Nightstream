@@ -6,13 +6,9 @@ mod support;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use neo_ccs::Mat;
-use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::frontends::f_prime::FPrimeImageLayout;
 use neo_fold_clean::paper::construction2::ProofState;
-use neo_fold_clean::paper::terminal_ce::merkle::{
-    enforce_terminal_ce_merkle_root_from_leaf, terminal_ce_merkle_node, terminal_ce_merkle_root_from_leaf,
-};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -158,83 +154,4 @@ fn f_prime_image_layout_rejects_region_size_overflow_without_panicking() {
         "F' setup availability failure: malformed region sizes caused a panic"
     );
     assert!(result.unwrap().is_err(), "overflowing region sizes must reject");
-}
-
-fn merkle_digest(seed: u64) -> [F; 4] {
-    [
-        F::from_u64(seed),
-        F::from_u64(seed + 1),
-        F::from_u64(seed + 2),
-        F::from_u64(seed + 3),
-    ]
-}
-
-fn canonical_merkle_root(leaf: [F; 4], path: &[[F; 4]], index: usize) -> [F; 4] {
-    let mut acc = leaf;
-    for (level, sibling) in path.iter().copied().enumerate() {
-        let bit = if level < usize::BITS as usize {
-            (index >> level) & 1
-        } else {
-            0
-        };
-        acc = if bit == 0 {
-            terminal_ce_merkle_node(acc, sibling)
-        } else {
-            terminal_ce_merkle_node(sibling, acc)
-        };
-    }
-    acc
-}
-
-fn alloc_merkle_digest(builder: &mut R1csBuilder, digest: [F; 4]) -> [Var; 4] {
-    digest.map(|value| builder.alloc(value))
-}
-
-/// A `usize` leaf index has exactly `usize::BITS` bits. For a deeper path,
-/// every higher direction bit is mathematically zero; optimized Rust instead
-/// masks an oversized shift count and reuses low bits unless the verifier
-/// handles those levels explicitly.
-#[test]
-fn terminal_ce_merkle_native_treats_index_bits_above_usize_as_zero() {
-    let leaf = merkle_digest(1);
-    let path = (0..=usize::BITS)
-        .map(|level| merkle_digest(100 + u64::from(level) * 10))
-        .collect::<Vec<_>>();
-    let index = 1usize;
-    let expected = canonical_merkle_root(leaf, &path, index);
-    let actual =
-        terminal_ce_merkle_root_from_leaf(leaf, &path, index).expect("the index fits every finite usize path prefix");
-
-    assert_eq!(
-        actual, expected,
-        "terminal CE Merkle verification reused a low index bit above usize::BITS"
-    );
-}
-
-#[test]
-fn terminal_ce_merkle_circuit_treats_index_bits_above_usize_as_zero() {
-    let leaf = merkle_digest(1_000);
-    let path = (0..=usize::BITS)
-        .map(|level| merkle_digest(2_000 + u64::from(level) * 10))
-        .collect::<Vec<_>>();
-    let index = 1usize;
-    let expected = canonical_merkle_root(leaf, &path, index);
-
-    let mut builder = R1csBuilder::new();
-    let leaf_vars = alloc_merkle_digest(&mut builder, leaf);
-    let path_vars = path
-        .iter()
-        .copied()
-        .map(|node| alloc_merkle_digest(&mut builder, node))
-        .collect::<Vec<_>>();
-    let root = enforce_terminal_ce_merkle_root_from_leaf(&mut builder, leaf_vars, &path_vars, index)
-        .expect("the index fits every finite usize path prefix");
-    for (wire, value) in root.into_iter().zip(expected) {
-        builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(value));
-    }
-
-    assert!(
-        builder.is_satisfied(),
-        "recursive terminal CE Merkle verifier reused a low index bit above usize::BITS"
-    );
 }

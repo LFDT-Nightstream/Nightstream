@@ -4,7 +4,6 @@
 // into errors per binary, so opt them all out at the module root.
 #![allow(dead_code, unused_imports)]
 
-pub mod fibonacci_f_prime;
 pub mod r1cs_compiler_fixtures;
 
 use neo_ajtai::{has_global_pp_for_dims, s_mul_add, scale_commitment_add_inplace, set_global_pp_seeded, Commitment};

@@ -84,7 +84,7 @@ export PaddedRowIdentitySamplerSecurity
     samplerSecurityTarget shortfall_requires_eleven_rejections
     completeSamplerShortfallBound_le_target
     samplerShortfall_probability_le
-    samplerShortfall_probability_le_121_bits)
+    samplerShortfall_probability_le_132_bits)
 end SamplerSecurity
 
 namespace Generic

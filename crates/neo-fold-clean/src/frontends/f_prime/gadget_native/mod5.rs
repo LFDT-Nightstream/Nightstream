@@ -10,9 +10,10 @@
 //! row per traced chunk. Its fifteen coordinates receive no common gates.
 //!
 //! Authority boundary: source rows remain the local implementation arithmetic
-//! reference until replayed exactly. The packed equations use the fixed
-//! Goldilocks nonresidue seven; no digest or prover-supplied summary substitutes
-//! for source arithmetic. Sampler-level semantic necessity is proved elsewhere.
+//! reference until replayed exactly. Each candidate is the bitwise complement
+//! of its sixteen source bits. The packed equations use the fixed Goldilocks
+//! nonresidue seven; no digest or prover-supplied summary substitutes for source
+//! arithmetic. Sampler-level semantic necessity is proved elsewhere.
 //!
 //! | Stage path | Source obligation | Encoded coordinates | Packed rows | Lean theorem |
 //! |---|---|---:|---:|---|
@@ -42,6 +43,7 @@ const SOURCE_COLUMNS_PER_CHUNK: usize = 19;
 const QUOTIENT_BITS: usize = 14;
 pub(super) const LOW_QUOTIENT_BITS: usize = QUOTIENT_BITS - 1;
 const ALPHABET_SIZE: u64 = 5;
+const REJECTION_BUCKET: u64 = 65_535;
 const HIGH_WEIGHT: u64 = 1 << LOW_QUOTIENT_BITS;
 const HIGH_DENOMINATOR: u64 = ALPHABET_SIZE * HIGH_WEIGHT;
 const NONRESIDUE: u64 = super::gates::GADGET_NATIVE_RESIDUAL_PAIR_NONRESIDUE;
@@ -276,7 +278,7 @@ fn validate_rows(source: &R1csSnapshot, event: &Mod5TraceEntry) -> Result<(), Ga
         &Lc::zero(),
     )?;
 
-    let chunk_lc = little_endian_lc(&event.chunk_bits);
+    let chunk_lc = complemented_little_endian_lc(&event.chunk_bits);
     let mut decomposition_difference = chunk_lc;
     decomposition_difference.add_term(event.quotient, -F::from_u64(ALPHABET_SIZE));
     decomposition_difference.add_term(event.index, -F::ONE);
@@ -295,6 +297,16 @@ fn little_endian_lc<const N: usize>(bits: &[Var; N]) -> Lc {
     let mut power = F::ONE;
     for &bit in bits {
         out.add_term(bit, power);
+        power += power;
+    }
+    out
+}
+
+fn complemented_little_endian_lc<const N: usize>(bits: &[Var; N]) -> Lc {
+    let mut out = Lc::from_const(F::from_u64(REJECTION_BUCKET));
+    let mut power = F::ONE;
+    for &bit in bits {
+        out.add_term(bit, -power);
         power += power;
     }
     out
@@ -549,12 +561,12 @@ fn install_source_definitions(
         source_columns,
     )?;
 
-    let mut high_terms = Vec::new();
+    let mut high_terms = vec![(0, F::from_u64(REJECTION_BUCKET))];
     let mut power = F::ONE;
     for &bit in &event.chunk_bits {
         high_terms.extend(scale_terms(
             encoded_source_terms(source_columns, bit.col(), chunk)?,
-            power,
+            -power,
         ));
         power += power;
     }

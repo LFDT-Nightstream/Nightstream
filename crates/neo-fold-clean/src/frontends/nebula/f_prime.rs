@@ -12,7 +12,6 @@ pub use chain::{NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePr
 use neo_math::D;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use rayon::prelude::*;
 use thiserror::Error;
 
 use crate::engine::r1cs_circuit::boolean::enforce_bit;
@@ -82,15 +81,7 @@ pub enum NebulaFPrimeRelationError {
     #[error("fixed Nebula F': preprocessing was built for a different relation")]
     PreprocessingMismatch,
     #[error(
-        "fixed Nebula F': direct low-norm relation needs {required_coordinates} committed coordinates, exceeding the caller limit of {max_coordinates}; shared-prefix candidates: {candidate_widths:?}"
-    )]
-    CommittedCoordinateLimitExceeded {
-        required_coordinates: usize,
-        max_coordinates: usize,
-        candidate_widths: Vec<(usize, usize)>,
-    },
-    #[error(
-        "fixed Nebula F': relation shape did not stabilize after {rounds} rounds \
+        "fixed Nebula F': relation-shape discovery entered a cycle after {rounds} rounds \
          (last verifier relation {input_rows}x{input_cols}, next {output_rows}x{output_cols})"
     )]
     NoFixedPoint {
@@ -165,18 +156,7 @@ impl NebulaFPrimeRelation {
     /// to all three compiled arms, including an interior segment step, and
     /// therefore fails if live synthesis drifts from this fixed relation.
     pub fn compile_fixed_point(params: &Params, plan: &NebulaPlan) -> Result<Self, NebulaFPrimeRelationError> {
-        Self::compile_fixed_point_inner(params, plan, None, None)
-    }
-
-    /// Compile the fixed point only when its final committed width does not
-    /// exceed `max_coordinates`. Shape discovery completes before the limit is
-    /// checked, but the rectangular low-norm relation is not materialized.
-    pub fn compile_fixed_point_with_coordinate_limit(
-        params: &Params,
-        plan: &NebulaPlan,
-        max_coordinates: usize,
-    ) -> Result<Self, NebulaFPrimeRelationError> {
-        Self::compile_fixed_point_inner(params, plan, None, Some(max_coordinates))
+        Self::compile_fixed_point_inner(params, plan, None)
     }
 
     pub fn compile_application_fixed_point(
@@ -185,35 +165,23 @@ impl NebulaFPrimeRelation {
         application: NebulaApplication,
     ) -> Result<Self, NebulaFPrimeRelationError> {
         application.validate_for(plan)?;
-        Self::compile_fixed_point_inner(params, plan, Some(application), None)
-    }
-
-    /// Compile an application fixed point only when its final committed width
-    /// does not exceed `max_coordinates`.
-    pub fn compile_application_fixed_point_with_coordinate_limit(
-        params: &Params,
-        plan: &NebulaPlan,
-        application: NebulaApplication,
-        max_coordinates: usize,
-    ) -> Result<Self, NebulaFPrimeRelationError> {
-        application.validate_for(plan)?;
-        Self::compile_fixed_point_inner(params, plan, Some(application), Some(max_coordinates))
+        Self::compile_fixed_point_inner(params, plan, Some(application))
     }
 
     fn compile_fixed_point_inner(
         params: &Params,
         plan: &NebulaPlan,
         application: Option<NebulaApplication>,
-        max_coordinates: Option<usize>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
-        const MAX_ROUNDS: usize = 8;
-
         let mut verifier_relation = PiCcsVerifierRelation::from_structure(plan.circuit().structure());
-        let mut last_output = (verifier_relation.n(), verifier_relation.m());
-        for round in 0..MAX_ROUNDS {
+        let mut seen = Vec::new();
+        loop {
+            #[cfg(feature = "perf-timers")]
+            let round = seen.len();
             #[cfg(feature = "perf-timers")]
             let round_started = std::time::Instant::now();
             let input_signature = verifier_relation_signature(&verifier_relation);
+            seen.push(input_signature);
             #[cfg(feature = "perf-timers")]
             let synthesis_started = std::time::Instant::now();
             let arms = shape::synthesize_arm_shapes(params, &verifier_relation, plan, application.as_ref())?;
@@ -236,7 +204,7 @@ impl NebulaFPrimeRelation {
             #[cfg(feature = "perf-timers")]
             let lowering_started = std::time::Instant::now();
             let arm_relations = [arms.base, arms.bootstrap_recursive, arms.recursive];
-            let (shared_private_fields, next_shape, candidate_widths) =
+            let (shared_private_fields, next_shape) =
                 select_low_norm_shape_summary(&arm_relations, plan, shared_private_candidates)?;
             let output_signature = shape_summary_signature(&next_shape);
             #[cfg(feature = "perf-timers")]
@@ -260,28 +228,27 @@ impl NebulaFPrimeRelation {
                 lowering_started.elapsed().as_secs_f64(),
                 round_started.elapsed().as_secs_f64(),
             );
-            last_output = (next_shape.rows, next_shape.columns);
-            if round > 0 && input_signature == output_signature {
+            if input_signature == output_signature {
                 return Self::compile_owned_selected(
                     arm_relations,
                     plan,
                     application.clone(),
                     shared_private_fields,
                     next_shape,
-                    candidate_widths,
-                    max_coordinates,
                 );
+            }
+            if seen.contains(&output_signature) {
+                return Err(NebulaFPrimeRelationError::NoFixedPoint {
+                    rounds: seen.len(),
+                    input_rows: verifier_relation.n(),
+                    input_cols: verifier_relation.m(),
+                    output_rows: next_shape.rows,
+                    output_cols: next_shape.columns,
+                });
             }
             verifier_relation =
                 PiCcsVerifierRelation::from_parts(next_shape.rows, next_shape.columns, next_shape.polynomial);
         }
-        Err(NebulaFPrimeRelationError::NoFixedPoint {
-            rounds: MAX_ROUNDS,
-            input_rows: verifier_relation.n(),
-            input_cols: verifier_relation.m(),
-            output_rows: last_output.0,
-            output_cols: last_output.1,
-        })
     }
 
     /// Measure the three field-native arms without constructing their
@@ -325,21 +292,7 @@ impl NebulaFPrimeRelation {
     ) -> Result<Self, NebulaFPrimeRelationError> {
         let arms = [base.clone(), bootstrap_recursive.clone(), recursive.clone()];
         let shared_private_fields = plan.circuit().cols() - plan.circuit().logical_public_input_len();
-        Self::compile_owned(arms, plan, None, vec![shared_private_fields], None)
-    }
-
-    /// Compile already-synthesized arms only when their final committed width
-    /// does not exceed `max_coordinates`.
-    pub fn compile_with_coordinate_limit(
-        base: &SparseR1cs,
-        bootstrap_recursive: &SparseR1cs,
-        recursive: &SparseR1cs,
-        plan: &NebulaPlan,
-        max_coordinates: usize,
-    ) -> Result<Self, NebulaFPrimeRelationError> {
-        let arms = [base.clone(), bootstrap_recursive.clone(), recursive.clone()];
-        let shared_private_fields = plan.circuit().cols() - plan.circuit().logical_public_input_len();
-        Self::compile_owned(arms, plan, None, vec![shared_private_fields], Some(max_coordinates))
+        Self::compile_owned(arms, plan, None, vec![shared_private_fields])
     }
 
     fn compile_owned(
@@ -347,19 +300,9 @@ impl NebulaFPrimeRelation {
         plan: &NebulaPlan,
         application: Option<NebulaApplication>,
         shared_private_candidates: Vec<usize>,
-        max_coordinates: Option<usize>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
-        let (shared_private_fields, shape, candidate_widths) =
-            select_low_norm_shape_summary(&arms, plan, shared_private_candidates)?;
-        Self::compile_owned_selected(
-            arms,
-            plan,
-            application,
-            shared_private_fields,
-            shape,
-            candidate_widths,
-            max_coordinates,
-        )
+        let (shared_private_fields, shape) = select_low_norm_shape_summary(&arms, plan, shared_private_candidates)?;
+        Self::compile_owned_selected(arms, plan, application, shared_private_fields, shape)
     }
 
     fn compile_owned_selected(
@@ -368,10 +311,7 @@ impl NebulaFPrimeRelation {
         application: Option<NebulaApplication>,
         shared_private_fields: usize,
         shape: SelectiveLowNormShapeSummary,
-        candidate_widths: Vec<(usize, usize)>,
-        max_coordinates: Option<usize>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
-        enforce_coordinate_limit(&shape, &candidate_widths, max_coordinates)?;
         let circuit = plan.circuit();
         let logical_public_fields = circuit.logical_public_input_len();
         let shared_private_bit_fields = circuit.cols() - logical_public_fields;
@@ -601,7 +541,7 @@ fn select_low_norm_shape_summary(
     arms: &[SparseR1cs; 3],
     plan: &NebulaPlan,
     mut shared_private_candidates: Vec<usize>,
-) -> Result<(usize, SelectiveLowNormShapeSummary, Vec<(usize, usize)>), NebulaFPrimeRelationError> {
+) -> Result<(usize, SelectiveLowNormShapeSummary), NebulaFPrimeRelationError> {
     let circuit = plan.circuit();
     let logical_public_fields = circuit.logical_public_input_len();
     let shared_private_bit_fields = circuit.cols() - logical_public_fields;
@@ -610,66 +550,33 @@ fn select_low_norm_shape_summary(
     shared_private_candidates.dedup();
     shared_private_candidates.retain(|&shared_private_fields| shared_private_fields >= shared_private_bit_fields);
 
-    // Each candidate owns large per-column plan vectors. Keep only two live at
-    // once so useful parallel work does not scale memory with candidate count.
-    let mut candidates = Vec::with_capacity(shared_private_candidates.len());
-    for batch in shared_private_candidates.chunks(2) {
-        let mut batch = batch
-            .par_iter()
-            .copied()
-            .map(
-                |shared_private_fields| -> Result<_, NebulaFPrimeRelationError> {
-                    #[cfg(feature = "perf-timers")]
-                    let candidate_started = std::time::Instant::now();
-                    let shape = prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix(
-                        arms,
-                        shared_private_fields,
-                        shared_private_bit_fields,
-                        D,
-                        logical_public_fields % D,
-                    )?;
-                    #[cfg(feature = "perf-timers")]
-                    eprintln!(
-                        "[fprime-low-norm-candidate] shared_private_fields={shared_private_fields} rows={} columns={} coordinates={} total={:.3}s",
-                        shape.rows,
-                        shape.columns,
-                        shape.total_coordinates,
-                        candidate_started.elapsed().as_secs_f64(),
-                    );
-                    Ok((shared_private_fields, shape))
-                },
-            )
-            .collect::<Result<Vec<_>, _>>()?;
-        candidates.append(&mut batch);
-    }
-    let candidate_widths = candidates
-        .iter()
-        .map(|(shared_private_fields, shape)| (*shared_private_fields, shape.total_coordinates))
-        .collect();
-    let (shared_private_fields, shape) = candidates
+    let (shared_private_fields, shape) = shared_private_candidates
+        .into_iter()
+        .map(|shared_private_fields| -> Result<_, NebulaFPrimeRelationError> {
+            #[cfg(feature = "perf-timers")]
+            let candidate_started = std::time::Instant::now();
+            let shape = prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix(
+                arms,
+                shared_private_fields,
+                shared_private_bit_fields,
+                D,
+                logical_public_fields % D,
+            )?;
+            #[cfg(feature = "perf-timers")]
+            eprintln!(
+                "[fprime-low-norm-candidate] shared_private_fields={shared_private_fields} rows={} columns={} coordinates={} total={:.3}s",
+                shape.rows,
+                shape.columns,
+                shape.total_coordinates,
+                candidate_started.elapsed().as_secs_f64(),
+            );
+            Ok((shared_private_fields, shape))
+        })
+        .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .min_by_key(|(_, shape)| shape.total_coordinates)
         .ok_or_else(|| NebulaFPrimeRelationError::Geometry("no valid shared-private prefix candidate".into()))?;
-    Ok((shared_private_fields, shape, candidate_widths))
-}
-
-fn enforce_coordinate_limit(
-    shape: &SelectiveLowNormShapeSummary,
-    candidate_widths: &[(usize, usize)],
-    max_coordinates: Option<usize>,
-) -> Result<(), NebulaFPrimeRelationError> {
-    let Some(max_coordinates) = max_coordinates else {
-        return Ok(());
-    };
-    let required_coordinates = shape.total_coordinates.max(shape.columns);
-    if required_coordinates > max_coordinates {
-        return Err(NebulaFPrimeRelationError::CommittedCoordinateLimitExceeded {
-            required_coordinates,
-            max_coordinates,
-            candidate_widths: candidate_widths.to_vec(),
-        });
-    }
-    Ok(())
+    Ok((shared_private_fields, shape))
 }
 
 fn remap_lane_ranges(

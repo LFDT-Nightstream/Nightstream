@@ -1,51 +1,36 @@
 # Nightstream Wiki
 
-Nightstream is a lattice-based proving system: a folding scheme for **CCS**
-(Neo and SuperNeo, ePrint 2026/242, which supersedes Neo ePrint 2025/294)
-composed with a **HyperNova-style recursive IVC layer** (Construction 2). The
-active path proves CCS over the **Goldilocks** field with a degree-2 extension
-for sum-check soundness, **Ajtai (Module-SIS) commitments**, and a
-**Poseidon2-only** Fiat-Shamir transcript. Module-SIS supplies a
-quantum-resistant computational foundation. The current knowledge-soundness
-and Fiat-Shamir analyses are classical; quantum-prover extraction and quantum
-random-oracle security are not established.
-The in-tree **Toy Spartan** + WHIR backend is standalone and is not connected to
-terminal compression.
+Nightstream combines SuperNeo folding for CCS, HyperNova Construction 2, and
+Nebula memory checking. The active protocol uses Goldilocks, a degree-two
+extension field, Ajtai commitments, and Poseidon2 transcripts.
 
-> **Status**: research software under active development. `neo-fold-clean` is the main
-> proving crate. The earlier `neo-fold-prototype` sandbox (RV32IM/CHIP-8 pipelines) has
-> been removed from the tree. The compressed Spartan decider ("PR5") is not wired yet;
-> `lifecycle::compress` / `lifecycle::verify` return an explicit unsupported error.
-> Not production-ready, not independently audited.
+The code is research software. It is not production-ready and has not had an
+independent audit.
 
-## The one-paragraph mental model
+## Current model
 
-Each IVC step folds a batch of fresh CCS instances into a running accumulator of `k`
-low-norm CE (committed-evaluation) claims using SuperNeo's three-reduction chain
-`Π_CCS → Π_RLC → Π_DEC` (= `NIFS` in HyperNova terms). HyperNova's Construction 2
-turns that folding scheme into IVC: an augmented function `F′` re-runs `NIFS.V`
-in-circuit and hash-chains the public state (`x_out`). At the end, a decider checks the
-final accumulator — today via direct relation checks and chain replay, eventually via a
-compact backend that has not yet been selected or connected.
+Each step folds fresh CCS claims into a low-norm running accumulator through
+PiCCS, PiRLC, and PiDEC. The recursive R1CS and Nebula frontends compile F' so
+that a recursive step verifies the preceding NIFS fold. The terminal path
+closes the accumulator relation and can prove its sparse R1CS with the WIP
+Spartan and WHIR backend.
+
+Optimized CPU and PaperExact paths are implemented. Metal performs device work
+on supported Apple builds. CUDA is a required backend target, but its canonical
+kernel is not implemented and selection fails explicitly.
 
 ## Sections
 
-| Section | What it covers |
+| Section | Content |
 |---|---|
-| [Getting started](getting-started.md) | Build, test, lifecycle quickstart, where to read code |
-| [Glossary](glossary.md) | Paper symbols ↔ code identifiers |
-| [Protocol](protocol/index.md) | How SuperNeo (folding) and HyperNova (IVC) compose |
-| — [SuperNeo folding](protocol/superneo-folding.md) | Relations, Π_CCS / Π_RLC / Π_DEC, norm control |
-| — [HyperNova IVC](protocol/hypernova-ivc.md) | Construction 2, F′, NIFS, the state chain |
-| — [Parameters](protocol/parameters.md) | Appendix B.2 Goldilocks profile, soundness bounds |
-| — [Transcript & digests](protocol/transcript-and-digests.md) | Fiat-Shamir binding, digest authority rules |
-| [Architecture](architecture/index.md) | Workspace layering and the `neo-fold-clean` module map |
-| — [Lifecycle API](architecture/lifecycle.md) | `prove` / `extend` / `finish` / `verify`, the two verifier paths |
-| — [Frontends](architecture/frontends.md) | direct-CCS, the F′ shell, R1CS-F′, Bellpepper |
-| — [Decider](architecture/decider.md) | Terminal compression: statement, audit R1CS, terminal CE |
-| [Crates](crates/index.md) | Per-crate reference for all 8 workspace members |
-| [Testing](development/testing.md) | Test layout, red-team suites, project test policies |
-| [Profiling](development/profiling.md) | Perf snapshots and profiling scripts |
-| [Formal (Lean)](formal/index.md) | The five Lean subprojects |
-| [Security](security.md) | Security model, soundness boundaries, known gaps |
-| [Roadmap](roadmap.md) | What works, what is in progress |
+| [Getting started](getting-started.md) | Build and code orientation |
+| [Glossary](glossary.md) | Paper symbols and code names |
+| [Protocol](protocol/index.md) | SuperNeo, HyperNova, parameters, transcripts |
+| [Architecture](architecture/index.md) | Crate and module ownership |
+| [Frontends](architecture/frontends.md) | Direct CCS, recursive R1CS, and Nebula |
+| [Decider](architecture/decider.md) | Terminal relation and WIP Spartan |
+| [Crates](crates/index.md) | Per-crate reference |
+| [Testing](development/testing.md) | Test rules and active checks |
+| [Formal](formal/index.md) | Lean projects and evidence boundaries |
+| [Security](security.md) | Assumptions and open work |
+| [Roadmap](roadmap.md) | Required implementation work |

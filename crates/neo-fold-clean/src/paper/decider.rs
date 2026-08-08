@@ -46,7 +46,6 @@ use crate::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len
 use crate::paper::f_prime::r1cs::{f_prime_public_input_link_matches, FPrimePublicInputLayout};
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsClaim, DecMixer, RlcMixer, Structure};
-use crate::paper::terminal_ce::TerminalCeProof;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -66,10 +65,6 @@ pub enum Error {
     BatchTooLarge { got: usize, max: usize },
     #[error("decider: terminal latest claim {index} public input does not encode the pre-final state x_out")]
     TerminalLatestPublicInputMismatch { index: usize },
-    #[error(
-        "decider: compact terminal CE proof verification is not implemented; direct terminal CE rows are required"
-    )]
-    TerminalCeProofUnsupported,
 }
 
 /// Public coordinates the compact terminal proof binds — same fields the verifier
@@ -119,13 +114,6 @@ pub struct Witness {
     /// claims and witness matrices; `validate_witness` requires
     /// `proof = Active { running, latest: empty }`.
     pub final_state: State,
-    /// Future compact terminal-CE proof material.
-    ///
-    /// Current decider synthesis rejects `Some(_)` and keeps using the direct
-    /// terminal CE rows. This field exists so the eventual compact verifier has
-    /// an explicit data-flow slot instead of treating terminal-child digests as
-    /// authority.
-    pub terminal_ce_proof: Option<TerminalCeProof>,
 }
 
 /// Public coordinates and prover witness for the checked decider relation.
@@ -184,12 +172,7 @@ pub fn validate_witness(
         public_batches,
         final_fold,
         final_state,
-        terminal_ce_proof,
     } = &statement.witness;
-
-    if terminal_ce_proof.is_some() {
-        return Err(Error::TerminalCeProofUnsupported);
-    }
 
     if steps.len() != public_batches.len() {
         return Err(Error::StepsBatchesLengthMismatch {

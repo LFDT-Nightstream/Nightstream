@@ -4,7 +4,7 @@ use neo_ajtai::{precompute_rot_columns, AjtaiSModule};
 use neo_ccs::build_superneo_ring_forms;
 use neo_math::{KExtensions, D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use toy_spartan::{provider::goldi::F as SpartanF, SparseMatrix, SplitR1CSShape};
+use wip_spartan::{provider::goldi::F as SpartanF, SparseMatrix, SplitR1CSShape};
 
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use crate::paper::relations::{superneo_has_canonical_x_shape, CcsClaim, CcsWitness, CeClaim, Structure, WitnessMat};
@@ -17,8 +17,6 @@ use crate::frontends::r1cs_f_prime::lean_manifest::{ColumnId, ManifestCost, Mani
 use crate::frontends::r1cs_f_prime::lean_nebula_combined_manifest::{
     map_native_index, map_nebula_index, CombinedLayout, LeanNebulaCombinedManifest, NebulaFamily, NebulaTerm,
 };
-
-pub(super) const MAX_DIRECT_TERMINAL_ROWS: usize = 1_000_000;
 
 type Rotations = [[F; D]; D];
 
@@ -141,12 +139,6 @@ fn compile_relation(
     let descriptor = manifest.terminal_r1cs();
     validate_ajtai_setup(manifest, log)?;
     let expected_cost = descriptor.cost();
-    if expected_cost.recurring_rows() > MAX_DIRECT_TERMINAL_ROWS {
-        return Err(TerminalR1csError::ResourceLimit {
-            rows: expected_cost.recurring_rows(),
-            cap: MAX_DIRECT_TERMINAL_ROWS,
-        });
-    }
     require_len("running claims", manifest.running_claim_count(), running_claims.len())?;
     if let Some(witnesses) = running_witnesses {
         require_len("running witnesses", manifest.running_claim_count(), witnesses.len())?;
@@ -223,12 +215,6 @@ fn compile_combined_relation(
     let descriptor = manifest.terminal_r1cs();
     validate_combined_ajtai_setup(manifest, log)?;
     let expected_cost = descriptor.cost();
-    if expected_cost.recurring_rows() > MAX_DIRECT_TERMINAL_ROWS {
-        return Err(TerminalR1csError::ResourceLimit {
-            rows: expected_cost.recurring_rows(),
-            cap: MAX_DIRECT_TERMINAL_ROWS,
-        });
-    }
     require_len("running claims", manifest.running_claim_count(), running_claims.len())?;
     if let Some(witnesses) = running_witnesses {
         require_len("running witnesses", manifest.running_claim_count(), witnesses.len())?;
@@ -445,8 +431,9 @@ fn compile_running(
     let projected_values = projected_ce_values(claim, public_width);
     let projection_wires = alloc_public_vec(builder, public_vars, &projected_values);
 
-    let mut low_values = Vec::with_capacity(structure.t() * D);
-    let mut high_values = Vec::with_capacity(structure.t() * D);
+    let evaluation_count = structure.t() + 1;
+    let mut low_values = Vec::with_capacity(evaluation_count * D);
+    let mut high_values = Vec::with_capacity(evaluation_count * D);
     for evaluation in &claim.y_ring {
         for value in &evaluation[..D] {
             let [low, high] = value.as_coeffs();
@@ -543,7 +530,7 @@ fn validate_running_claim(
             "running X is not a canonical whole-ring coefficient embedding",
         ));
     }
-    require_len("running evaluation count", structure.t(), claim.y_ring.len())?;
+    require_len("running evaluation count", structure.t() + 1, claim.y_ring.len())?;
     for values in &claim.y_ring {
         if values.len() != D && values.len() != D.next_power_of_two() {
             return Err(TerminalR1csError::Shape {

@@ -140,41 +140,12 @@ impl NebulaFPrimePreprocessing {
         Self::from_relation(params, plan, relation, None)
     }
 
-    /// Compile and preprocess only when the final relation fits the caller's
-    /// committed-coordinate limit.
-    pub fn new_with_coordinate_limit(
-        params: Params,
-        plan: NebulaPlan,
-        max_coordinates: usize,
-    ) -> Result<Self, NebulaFPrimeChainError> {
-        let relation =
-            NebulaFPrimeRelation::compile_fixed_point_with_coordinate_limit(&params, &plan, max_coordinates)?;
-        Self::from_relation(params, plan, relation, None)
-    }
-
     pub fn new_with_application(
         params: Params,
         plan: NebulaPlan,
         application: NebulaApplication,
     ) -> Result<Self, NebulaFPrimeChainError> {
         let relation = NebulaFPrimeRelation::compile_application_fixed_point(&params, &plan, application)?;
-        Self::from_relation(params, plan, relation, None)
-    }
-
-    /// Compile and preprocess an application relation only when its final
-    /// committed width fits the caller's limit.
-    pub fn new_with_application_and_coordinate_limit(
-        params: Params,
-        plan: NebulaPlan,
-        application: NebulaApplication,
-        max_coordinates: usize,
-    ) -> Result<Self, NebulaFPrimeChainError> {
-        let relation = NebulaFPrimeRelation::compile_application_fixed_point_with_coordinate_limit(
-            &params,
-            &plan,
-            application,
-            max_coordinates,
-        )?;
         Self::from_relation(params, plan, relation, None)
     }
 
@@ -194,24 +165,6 @@ impl NebulaFPrimePreprocessing {
         seed: u64,
     ) -> Result<Self, NebulaFPrimeChainError> {
         let relation = NebulaFPrimeRelation::compile_application_fixed_point(&params, &plan, application)?;
-        let log = ajtai::setup_seeded(&params, relation.structure(), seed);
-        Self::from_relation(params, plan, relation, Some(log))
-    }
-
-    #[doc(hidden)]
-    pub fn new_seeded_with_application_and_coordinate_limit(
-        params: Params,
-        plan: NebulaPlan,
-        application: NebulaApplication,
-        seed: u64,
-        max_coordinates: usize,
-    ) -> Result<Self, NebulaFPrimeChainError> {
-        let relation = NebulaFPrimeRelation::compile_application_fixed_point_with_coordinate_limit(
-            &params,
-            &plan,
-            application,
-            max_coordinates,
-        )?;
         let log = ajtai::setup_seeded(&params, relation.structure(), seed);
         Self::from_relation(params, plan, relation, Some(log))
     }

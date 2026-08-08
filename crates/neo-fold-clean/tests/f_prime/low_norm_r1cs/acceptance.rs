@@ -16,10 +16,11 @@ use neo_fold_clean::frontends::f_prime::gadget_native::{
     AggregateAcceptanceBooleanRowOwner, AggregateAcceptanceDecodedImage, GadgetNativeError,
 };
 use neo_math::F;
+use neo_params::goldilocks_paper_b2::PI_RLC_SAMPLER_DIGEST_ROUNDS;
+use neo_transcript::{Poseidon2Transcript, Transcript};
 use p3_field::{Field, PrimeCharacteristicRing};
 
 const APP: &[u8] = b"neo.test.alphabet_sampling/v1";
-const REJECTION_SEED: u64 = 0xb72;
 const CHUNKS: usize = 64;
 const SOURCE_ROWS_PER_CHUNK: usize = 4;
 const SOURCE_COLUMNS_PER_CHUNK: usize = 2;
@@ -46,6 +47,29 @@ fn chunk_inputs(builder: &R1csBuilder) -> Vec<usize> {
         .flat_map(|event| event.chunk_bits)
         .map(Var::col)
         .collect()
+}
+
+fn rejection_seed() -> u64 {
+    (0u64..)
+        .find(|&seed| {
+            let mut transcript = Poseidon2Transcript::new(APP);
+            let mut counter = seed;
+            for _ in 0..PI_RLC_SAMPLER_DIGEST_ROUNDS {
+                transcript.append_fields_raw(&[F::ONE, F::from_u64(counter)]);
+                let digest = transcript.digest32();
+                if digest.chunks_exact(8).any(|lane| {
+                    let value = u64::from_le_bytes(lane.try_into().expect("digest lane"));
+                    [0, 16]
+                        .into_iter()
+                        .any(|offset| ((value >> offset) & 0xffff) == 0)
+                }) {
+                    return true;
+                }
+                counter = counter.wrapping_add(1);
+            }
+            false
+        })
+        .expect("deterministic transcript search must find a rejected candidate")
 }
 
 #[test]
@@ -194,7 +218,7 @@ fn aggregate_acceptance_outer_image_records_derived_terminal_bits_and_exact_rows
         }
     }
 
-    assert_eq!(linear, CHUNKS / 4);
+    assert_eq!(linear, 0, "all sampled raw bits come from direct low-word slots");
     assert_eq!(singleton + linear, CHUNKS * 16);
     assert_eq!(audit.linear_definitions.len(), 3 * linear);
     for definition in &audit.linear_definitions {
@@ -212,7 +236,7 @@ fn aggregate_acceptance_outer_image_records_derived_terminal_bits_and_exact_rows
 
 #[test]
 fn aggregate_acceptance_materializes_both_canonical_inverse_branches() {
-    let builder = sampler_builder(REJECTION_SEED);
+    let builder = sampler_builder(rejection_seed());
     let source = builder.snapshot();
     let trace = builder.encoding_trace();
     let inputs = chunk_inputs(&builder);
@@ -226,8 +250,8 @@ fn aggregate_acceptance_materializes_both_canonical_inverse_branches() {
             .chunk_bits
             .iter()
             .enumerate()
-            .fold(-F::from_u64(65_535), |value, (index, bit)| {
-                value + F::from_u64(1u64 << index) * source.witness()[bit.col()]
+            .fold(F::ZERO, |value, (index, bit)| {
+                value - F::from_u64(1u64 << index) * source.witness()[bit.col()]
             });
         let audit = encoded.plan.aggregate_acceptance_audit(chunk).unwrap();
         let accept = source.witness()[event.accept.col()];
@@ -246,7 +270,7 @@ fn aggregate_acceptance_materializes_both_canonical_inverse_branches() {
             assert_eq!(source.witness()[event.inverse.col()], difference.inverse());
         }
     }
-    assert!(rejected >= 1, "hard-coded seed must exercise canonical rejection");
+    assert!(rejected >= 1, "selected seed must exercise canonical rejection");
     assert!(accepted >= 1, "fixture must also exercise ordinary acceptance");
     assert_eq!(
         encoded.decode_source().expect("branch-complete decoder"),

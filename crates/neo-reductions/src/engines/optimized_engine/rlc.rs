@@ -11,10 +11,8 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-const RLC_RING_MUL_COL_THRESHOLD: usize = 256;
 const RLC_RING_SPLIT: usize = D / 3;
 const RLC_RING_CHUNK_OUT: usize = 2 * RLC_RING_SPLIT - 1;
-const RLC_RING_SPARSE_RHS_THRESHOLD: usize = D / 4;
 
 fn add_sparse_rows<Ff>(acc: &mut Mat<Ff>, rho_data: &[Ff], rows: &[Vec<(usize, Ff)>], m: usize)
 where
@@ -109,114 +107,8 @@ where
         add_sparse_rows(acc, rho_data, &row_nonzeros, m);
         return;
     }
-    let a_data = a.as_slice();
-    let neg_one = Ff::ZERO - Ff::ONE;
-
-    if m >= 1024 {
-        let total = D * m;
-        let mut row_counts = [0usize; D];
-        for kk in 0..D {
-            let row = &a_data[kk * m..(kk + 1) * m];
-            row_counts[kk] = row.iter().filter(|&&value| value != Ff::ZERO).count();
-        }
-        let total_nnz: usize = row_counts.iter().sum();
-
-        // Sparse witnesses are common after DEC. In that case the dense
-        // row-wise loop scans the same mostly-zero matrix once per output
-        // row; building row nonzero lists once cuts the work from D^2*m
-        // zero checks to D*nnz updates. Keep the threshold conservative so
-        // dense SHA/F' traces stay on the locality-friendly dense path.
-        if total_nnz > 0 && total_nnz * 8 <= total {
-            let mut row_nonzeros: Vec<Vec<(usize, Ff)>> = row_counts
-                .iter()
-                .map(|&count| Vec::with_capacity(count))
-                .collect();
-            for kk in 0..D {
-                let row = &a_data[kk * m..(kk + 1) * m];
-                for (col, &value) in row.iter().enumerate() {
-                    if value != Ff::ZERO {
-                        row_nonzeros[kk].push((col, value));
-                    }
-                }
-            }
-
-            add_sparse_rows(acc, rho_data, &row_nonzeros, m);
-            return;
-        }
-    }
-
-    if m >= RLC_RING_MUL_COL_THRESHOLD {
-        left_mul_acc_rotation_ring(acc, rho_data, a_data, m);
-        return;
-    }
-
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    {
-        if rayon::current_num_threads() > 1 {
-            let acc_data = acc.as_mut_slice();
-            const BLOCK_COLS: usize = 1024;
-            acc_data
-                .par_chunks_exact_mut(m)
-                .enumerate()
-                .for_each(|(rr, row_out)| {
-                    for col0 in (0..m).step_by(BLOCK_COLS) {
-                        let len = core::cmp::min(BLOCK_COLS, m - col0);
-                        for kk in 0..D {
-                            let coeff = rho_data[rr * D + kk];
-                            if coeff == Ff::ZERO {
-                                continue;
-                            }
-                            let in_off = kk * m + col0;
-                            for t in 0..len {
-                                let value = a_data[in_off + t];
-                                if value == Ff::ZERO {
-                                    continue;
-                                }
-                                if value == Ff::ONE {
-                                    row_out[col0 + t] += coeff;
-                                } else if value == neg_one {
-                                    row_out[col0 + t] -= coeff;
-                                } else {
-                                    row_out[col0 + t] += coeff * value;
-                                }
-                            }
-                        }
-                    }
-                });
-            return;
-        }
-    }
-
-    let acc_data = acc.as_mut_slice();
-    const BLOCK_COLS: usize = 1024;
-    for rr in 0..D {
-        let row_out = &mut acc_data[rr * m..(rr + 1) * m];
-        for col0 in (0..m).step_by(BLOCK_COLS) {
-            let len = core::cmp::min(BLOCK_COLS, m - col0);
-            for kk in 0..D {
-                let coeff = rho_data[rr * D + kk];
-                if coeff == Ff::ZERO {
-                    continue;
-                }
-                let in_off = kk * m + col0;
-                for t in 0..len {
-                    let value = a_data[in_off + t];
-                    if value == Ff::ZERO {
-                        continue;
-                    }
-                    if value == Ff::ONE {
-                        row_out[col0 + t] += coeff;
-                    } else if value == neg_one {
-                        row_out[col0 + t] -= coeff;
-                    } else {
-                        row_out[col0 + t] += coeff * value;
-                    }
-                }
-            }
-        }
-    }
+    left_mul_acc_rotation_ring(acc, rho_data, a.as_slice(), m);
 }
-
 #[inline]
 fn left_mul_acc_rotation_ring<Ff>(acc: &mut Mat<Ff>, rho_data: &[Ff], a_data: &[Ff], cols: usize)
 where
@@ -229,21 +121,13 @@ where
 
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
-        if rayon::current_num_threads() > 1 && cols >= 1024 {
+        if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() {
             let products: Vec<[Ff; D]> = (0..cols)
                 .into_par_iter()
                 .map(|col| {
                     let mut rhs = [Ff::ZERO; D];
-                    let mut nnz = 0usize;
                     for row in 0..D {
-                        let value = a_data[row * cols + col];
-                        rhs[row] = value;
-                        if value != Ff::ZERO {
-                            nnz += 1;
-                        }
-                    }
-                    if nnz <= RLC_RING_SPARSE_RHS_THRESHOLD {
-                        return mul_phi_81_sparse_rhs(&rho_coeffs, &rhs);
+                        rhs[row] = a_data[row * cols + col];
                     }
                     mul_phi_81_toom3(&rho_coeffs, &rhs)
                 })
@@ -262,107 +146,14 @@ where
     let acc_data = acc.as_mut_slice();
     let mut rhs = [Ff::ZERO; D];
     for col in 0..cols {
-        let mut nnz = 0usize;
         for row in 0..D {
-            let value = a_data[row * cols + col];
-            rhs[row] = value;
-            if value != Ff::ZERO {
-                nnz += 1;
-            }
+            rhs[row] = a_data[row * cols + col];
         }
-        let product = if nnz <= RLC_RING_SPARSE_RHS_THRESHOLD {
-            mul_phi_81_sparse_rhs(&rho_coeffs, &rhs)
-        } else {
-            mul_phi_81_toom3(&rho_coeffs, &rhs)
-        };
+        let product = mul_phi_81_toom3(&rho_coeffs, &rhs);
         for row in 0..D {
             acc_data[row * cols + col] += product[row];
         }
     }
-}
-
-#[inline]
-fn mul_phi_81_sparse_rhs<Ff>(lhs: &[Ff; D], rhs: &[Ff; D]) -> [Ff; D]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    let mut out = [Ff::ZERO; D];
-    let mut rot_col = *lhs;
-    let mut rot_pos = 0usize;
-    let neg_one = Ff::ZERO - Ff::ONE;
-
-    for (pos, &scale) in rhs.iter().enumerate() {
-        if scale == Ff::ZERO {
-            continue;
-        }
-        advance_rot_col_phi_81(&mut rot_col, pos - rot_pos);
-        if scale == Ff::ONE {
-            for lane in 0..D {
-                out[lane] += rot_col[lane];
-            }
-        } else if scale == neg_one {
-            for lane in 0..D {
-                out[lane] -= rot_col[lane];
-            }
-        } else {
-            for lane in 0..D {
-                out[lane] += rot_col[lane] * scale;
-            }
-        }
-        rot_pos = pos;
-    }
-
-    out
-}
-
-#[inline]
-fn advance_rot_col_phi_81<Ff>(col: &mut [Ff; D], delta: usize)
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    match delta {
-        0 => {}
-        1 => {
-            let last = col[D - 1];
-            for idx in (1..D).rev() {
-                col[idx] = col[idx - 1];
-            }
-            col[0] = Ff::ZERO - last;
-            col[D / 2] -= last;
-        }
-        _ => *col = mul_coeffs_by_monomial_phi_81(col, delta),
-    }
-}
-
-#[inline]
-fn mul_coeffs_by_monomial_phi_81<Ff>(input: &[Ff; D], j: usize) -> [Ff; D]
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    debug_assert!(j < D);
-    if j == 0 {
-        return *input;
-    }
-
-    let mut out = [Ff::ZERO; D];
-    let first_reduced = D - j;
-    let first_wrap = (D + D / 2).saturating_sub(j).min(D);
-
-    for i in 0..first_reduced {
-        out[i + j] = input[i];
-    }
-
-    for i in first_reduced..first_wrap {
-        let reduced = i + j - D;
-        out[reduced] -= input[i];
-        out[reduced + D / 2] -= input[i];
-    }
-
-    for i in first_wrap..D {
-        out[i + j - D - D / 2] += input[i];
-    }
-
-    out
 }
 
 #[inline]

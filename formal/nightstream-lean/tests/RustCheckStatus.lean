@@ -5,7 +5,7 @@ import Nightstream.Checks.Rust
 namespace NightstreamTests.RustCheckStatus
 
 #guard Nightstream.Checks.Rust.resultLine true ==
-  "rust_conformance=M5-reopened (functional probes and artifact checks pass; Rust-originated provenance audit open); direct_terminal_spartan=artifact-checked-bounded-lockstep; compact_decider=fail-closed-unsupported; DEC-SOUND=open"
+  "rust_conformance=M5-reopened (functional probes and artifact checks pass; Rust-originated provenance audit open); direct_terminal_spartan=artifact-checked-bounded-lockstep; generic_compact_decider=not-exposed; DEC-SOUND=open"
 
 #guard Nightstream.Checks.Rust.resultLine false ==
   "rust_conformance=M5-fail; no Rust-conformant claim is established; DEC-SOUND=open"

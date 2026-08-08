@@ -31,10 +31,9 @@
 //! [`padding_step_after`] handles by construction.
 //!
 //! Scope: this module emits only the equality rows *within* one batch.
-//! Cross-batch continuity is carried by preprocessing built with
-//! [`crate::preprocess::preprocess_seeded_batched`],
-//! which uses spec-derived state columns and a verifier-owned initial
-//! semantic-state digest.
+//! Cross-batch continuity is carried by the authoritative Nebula application
+//! relation, which uses the same state-link columns and a verifier-owned
+//! initial semantic-state digest.
 
 use neo_ccs::{CcsMatrix, CscMat};
 use neo_fold_clean::frontends::direct_ccs::FrontendError;

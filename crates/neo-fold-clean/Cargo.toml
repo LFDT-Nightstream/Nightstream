@@ -262,10 +262,6 @@ name = "f_prime_low_norm_r1cs"
 path = "tests/f_prime/low_norm_r1cs.rs"
 
 [[test]]
-name = "f_prime_full_relation"
-path = "tests/f_prime/full_relation.rs"
-
-[[test]]
 name = "f_prime_selective_snapshot"
 path = "tests/f_prime/selective_snapshot.rs"
 
@@ -300,10 +296,6 @@ path = "tests/system/redteam_verifier_panic.rs"
 [[test]]
 name = "system_redteam_resource_exhaustion"
 path = "tests/system/redteam_resource_exhaustion.rs"
-
-[[test]]
-name = "system_redteam_lifecycle_fsm"
-path = "tests/system/redteam_lifecycle_fsm.rs"
 
 [[test]]
 name = "system_fibonacci_bits_e2e"
@@ -466,10 +458,6 @@ name = "system_terminal_ce_merkle"
 path = "tests/system/terminal_ce_merkle.rs"
 
 [[test]]
-name = "system_r1cs_compiler"
-path = "tests/system/r1cs_compiler.rs"
-
-[[test]]
 name = "system_lean_canonical_manifest"
 path = "tests/system/lean_canonical_manifest.rs"
 
@@ -486,24 +474,8 @@ name = "system_selective_rectangular"
 path = "tests/system/selective_rectangular.rs"
 
 [[test]]
-name = "system_r1cs_compiler_stateful"
-path = "tests/system/r1cs_compiler_stateful.rs"
-
-[[test]]
-name = "system_redteam_statement_binding"
-path = "tests/system/redteam_statement_binding.rs"
-
-[[test]]
 name = "system_redteam_parameter_binding"
 path = "tests/system/redteam_parameter_binding.rs"
-
-[[test]]
-name = "system_redteam_f_prime_encoding_gap"
-path = "tests/system/redteam_f_prime_encoding_gap.rs"
-
-[[test]]
-name = "system_r1cs_preprocess"
-path = "tests/system/r1cs_preprocess.rs"
 
 [[test]]
 name = "system_width_inference_oracle"
@@ -516,14 +488,6 @@ path = "tests/system/production_params.rs"
 [[test]]
 name = "system_preprocessing_cache_hygiene"
 path = "tests/system/preprocessing_cache_hygiene.rs"
-
-[[test]]
-name = "system_sha256_bellpepper_ccs"
-path = "tests/system/sha256_bellpepper_ccs.rs"
-
-[[test]]
-name = "system_sha256_bellpepper_batching"
-path = "tests/system/sha256_bellpepper_batching.rs"
 
 [[test]]
 name = "system_r1cs_ivc_terminal"

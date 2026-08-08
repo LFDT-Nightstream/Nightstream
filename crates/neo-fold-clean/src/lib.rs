@@ -33,7 +33,7 @@
 //! }
 //!
 //! // Finalize and drop the per-step audit trail. Authoritative plain F'
-//! // preserves HyperNova's running/latest pair; Nebula and legacy one-chunk
+//! // preserves HyperNova's running/latest pair; Nebula and one-chunk
 //! // relations flush latest through a terminal fold. Generic direct CCS has
 //! // no terminal-induction capability, so this compact path verifies only a
 //! // single chunk.
@@ -102,15 +102,14 @@ pub mod paper;
 // Terminal-only lifecycle path.
 pub use lifecycle::{
     extend, finish_uncompressed, preprocess, prove, verify_uncompressed, verify_uncompressed_with_opening_backend,
-    Compressed, Error, FinalWitnessOpeningBackend, Preprocessing, PublicImage, Uncompressed,
+    Error, FinalWitnessOpeningBackend, Preprocessing, PublicImage, Uncompressed,
 };
 
 // Audit / decider path — chain-replay verifier, Spartan statement, diagnostic
 // tests. See the crate-level docs for when each is appropriate; reach for
 // these only when the production names above don't fit the use case.
 pub use lifecycle::{
-    build_decider_statement, compress, finish_uncompressed_with_audit, verify, verify_uncompressed_audit,
-    UncompressedAudit,
+    build_decider_statement, finish_uncompressed_with_audit, verify_uncompressed_audit, UncompressedAudit,
 };
 
 pub use frontends::r1cs_f_prime::{

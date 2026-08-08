@@ -350,10 +350,7 @@ fn bootstrap_real_intermediate_fold_uncached() -> BootstrapShared {
 
     let pre_state = audit_after_base.proof.state.clone();
     let (pre_running, latest) = match &pre_state.proof {
-        ProofState::Active { running, latest } => (
-            running.materialize().expect("pre-running materialization"),
-            latest.clone(),
-        ),
+        ProofState::Active { running, latest } => (running.clone(), latest.clone()),
         _ => panic!("expected Active state at the start of step 1"),
     };
     let chain_state = FibonacciChainState {
@@ -368,13 +365,11 @@ fn bootstrap_real_intermediate_fold_uncached() -> BootstrapShared {
     let audit_after_recursive =
         lifecycle::extend(&prep.prep, audit_after_base, vec![base_instance]).expect("derive recursive fold proof");
     let proof = match &audit_after_recursive.steps[1].fold {
-        FoldProof::Recursive(p) => p
-            .materialize()
-            .expect("recursive NIFS proof materialization"),
+        FoldProof::Recursive(p) => p.clone(),
         _ => panic!("expected Recursive at audit.steps[1]"),
     };
     let post_running = match &audit_after_recursive.proof.state.proof {
-        ProofState::Active { running, .. } => running.materialize().expect("post-running materialization"),
+        ProofState::Active { running, .. } => running.clone(),
         _ => panic!("expected Active state after final extend"),
     };
 
@@ -798,7 +793,7 @@ fn compiler_two_step_chain_builds_from_scratch_and_rejects_terminal_only() {
     //         compiled instance (another full prove pass).
     //
     //    So this test-support builder pays ≈ 2× prove + 1× (compile +
-    //    NIFS.V) per recursive step. The R1csChainBuilder used by the
+    //    NIFS.V) per recursive step. The fixture builder used by the
     //    SHA-256 benchmark instead stashes the post-fold audit from (a)
     //    and swaps the compiled instance in at deposit time — that one
     //    pays 1× prove. Comparing fib-ivc and sha-ivc step-1 numbers

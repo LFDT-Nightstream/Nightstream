@@ -63,7 +63,7 @@ fn final_witness_authority_rejects_commitment_shape_before_attacker_sized_alloca
     let ProofState::Active { running, .. } = &finished.state.proof else {
         panic!("finalized proof must be active");
     };
-    let mut running = running.materialize().expect("materialized final running");
+    let mut running = running.clone();
     assert!(
         running.witnesses[0]
             .to_dense_vec()

@@ -23,8 +23,7 @@ use crate::engine::transcript::Transcript;
 use crate::paper::construction2::RunningInstance;
 use crate::paper::nifs::work::{chain_witness_refs, split_fresh_instances};
 use crate::paper::nifs::{
-    Error, NifsProof, NifsProverAdapter, NifsProverOutput, NifsProverRequest, OptimizedCpuNifsProver,
-    OptimizedNifsProverAdapter,
+    Error, NifsProof, NifsProverAdapter, NifsProverRequest, OptimizedCpuNifsProver, OptimizedNifsProverAdapter,
 };
 use crate::paper::params::Params;
 use crate::paper::relations::{CcsInstance, DecMixer, LaneScheme, RlcMixer, Structure};
@@ -222,130 +221,6 @@ pub fn prove_with_adapter(
     fresh: Vec<CcsInstance>,
     running: &RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), Error> {
-    let output = prove_with_adapter_output(
-        adapter,
-        tr,
-        pp,
-        s,
-        cache,
-        log,
-        lanes,
-        mix_rhos_commits,
-        combine_b_pows,
-        fresh,
-        running,
-    )?;
-    output.into_materialized_parts()
-}
-
-pub(crate) fn prove_with_adapter_output(
-    adapter: &mut dyn NifsProverAdapter,
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    log: &AjtaiSModule,
-    lanes: Option<&LaneScheme>,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
-    fresh: Vec<CcsInstance>,
-    running: &RunningInstance,
-) -> Result<NifsProverOutput, Error> {
-    prove_with_adapter_output_inner(
-        adapter,
-        tr,
-        pp,
-        s,
-        cache,
-        log,
-        lanes,
-        mix_rhos_commits,
-        combine_b_pows,
-        fresh,
-        None,
-        running,
-        true,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn prove_terminal_with_adapter_output_from_carrier(
-    adapter: &mut dyn NifsProverAdapter,
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    log: &AjtaiSModule,
-    lanes: Option<&LaneScheme>,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
-    fresh: Vec<CcsInstance>,
-    running_carrier: &crate::paper::nifs::NifsRunningCarrier,
-    running: &RunningInstance,
-) -> Result<NifsProverOutput, Error> {
-    prove_with_adapter_output_inner(
-        adapter,
-        tr,
-        pp,
-        s,
-        cache,
-        log,
-        lanes,
-        mix_rhos_commits,
-        combine_b_pows,
-        fresh,
-        Some(running_carrier),
-        running,
-        false,
-    )
-}
-
-pub(crate) fn prove_with_adapter_output_from_carrier(
-    adapter: &mut dyn NifsProverAdapter,
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    log: &AjtaiSModule,
-    lanes: Option<&LaneScheme>,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
-    fresh: Vec<CcsInstance>,
-    running_carrier: &crate::paper::nifs::NifsRunningCarrier,
-    running: &RunningInstance,
-) -> Result<NifsProverOutput, Error> {
-    prove_with_adapter_output_inner(
-        adapter,
-        tr,
-        pp,
-        s,
-        cache,
-        log,
-        lanes,
-        mix_rhos_commits,
-        combine_b_pows,
-        fresh,
-        Some(running_carrier),
-        running,
-        true,
-    )
-}
-
-fn prove_with_adapter_output_inner(
-    adapter: &mut dyn NifsProverAdapter,
-    tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    log: &AjtaiSModule,
-    lanes: Option<&LaneScheme>,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
-    fresh: Vec<CcsInstance>,
-    running_carrier: Option<&crate::paper::nifs::NifsRunningCarrier>,
-    running: &RunningInstance,
-    cache_output_for_next_step: bool,
-) -> Result<NifsProverOutput, Error> {
     adapter.prove(NifsProverRequest {
         tr,
         pp,
@@ -356,15 +231,13 @@ fn prove_with_adapter_output_inner(
         mix_rhos_commits,
         combine_b_pows,
         fresh,
-        running_carrier,
         running,
-        cache_output_for_next_step,
     })
 }
 
 impl NifsProverAdapter for OptimizedCpuNifsProver {
-    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
-        let (running, proof) = prove(
+    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<(RunningInstance, NifsProof), Error> {
+        prove(
             request.tr,
             request.pp,
             request.s,
@@ -375,8 +248,7 @@ impl NifsProverAdapter for OptimizedCpuNifsProver {
             request.combine_b_pows,
             request.fresh,
             request.running,
-        )?;
-        Ok(NifsProverOutput::materialized(running, proof))
+        )
     }
 }
 
@@ -388,7 +260,7 @@ impl NifsProverAdapter for OptimizedCpuNifsProver {
 pub fn prove_with_joint_oracle_backend(
     request: NifsProverRequest<'_>,
     backend: &mut dyn PaperJointOracleBackend,
-) -> Result<NifsProverOutput, Error> {
+) -> Result<(RunningInstance, NifsProof), Error> {
     let (running, proof) = prove_owned_inner(
         request.tr,
         request.pp,
@@ -402,7 +274,7 @@ pub fn prove_with_joint_oracle_backend(
         request.running.clone(),
         Some(backend),
     )?;
-    Ok(NifsProverOutput::materialized(running, proof))
+    Ok((running, proof))
 }
 
 impl OptimizedNifsProverAdapter for OptimizedCpuNifsProver {}

@@ -386,7 +386,6 @@ fn decider_r1cs_honors_explicit_verifier_owned_ajtai_setup() {
         latest.instances.is_empty(),
         "finished audit must have no pending latest"
     );
-    let running = running.materialize().expect("materialized final running");
     assert!(
         running
             .claims
@@ -454,11 +453,7 @@ fn decider_r1cs_synthesis_rejects_tampered_step_proof() {
     if let neo_fold_clean::paper::construction2::FoldProof::Recursive(ref mut nifs) =
         statement.witness.steps[recursive_idx].fold
     {
-        let mut proof = nifs
-            .materialize()
-            .expect("recursive NIFS proof materialization");
-        proof.pi_dec.children[0].c.data[0] += F::ONE;
-        *nifs = neo_fold_clean::paper::nifs::NifsProofCarrier::materialized(proof);
+        nifs.pi_dec.children[0].c.data[0] += F::ONE;
     }
 
     let result = synthesize_statement_r1cs(&prep, &statement);

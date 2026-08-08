@@ -9,7 +9,7 @@ use p3_field::PrimeField64;
 use crate::paper::construction2::nebula_lane::NebulaLane;
 use crate::paper::construction2::proof_state::ProofState;
 use crate::paper::construction2::running::RunningInstance;
-use crate::paper::construction2::state::State;
+use crate::paper::construction2::state::{State, StateCoordinates};
 use crate::paper::construction2::verifier_key::VerifierKey;
 use crate::paper::construction2::{enc_inst::EncInst, Error, TRIVIAL_PC};
 use crate::paper::digest;
@@ -183,10 +183,8 @@ pub(crate) fn validate_state_authority(
             }
         }
         ProofState::Active { running, .. } => {
-            if let Some(running) = running.as_materialized() {
-                if state.acc_digest != running.accumulator_digest(structure)? {
-                    return Err(Error::StateAuthorityMismatch);
-                }
+            if state.acc_digest != running.accumulator_digest(structure)? {
+                return Err(Error::StateAuthorityMismatch);
             }
             if matches!(semantic_mode, SemanticStateMode::Stateless) && state.semantic_state_digest != state.acc_digest
             {
@@ -213,9 +211,6 @@ pub(crate) fn advance_state_recorded<R: VerifyTransitionRecorder>(
     let (chunk_count, step_count) = checked_advanced_counts(&prev, fresh_count)?;
     let canonical = canonical_accumulator_digest(&new_proof, structure)?;
     if let ProofState::Active { running, .. } = &new_proof {
-        let running = running
-            .as_materialized()
-            .ok_or(Error::AccumulatorDigestOverrideMismatch)?;
         recorder.running_digest(running, structure.m, canonical.0);
     }
     let state = finish_state_advance(
@@ -232,39 +227,50 @@ pub(crate) fn advance_state_recorded<R: VerifyTransitionRecorder>(
     Ok(state)
 }
 
-pub(crate) fn advance_state_with_acc_digest(
-    _pp: &Params,
+/// Advance the public coordinates before the next `latest` instance exists.
+/// The recursive relation needs these coordinates to synthesize that instance;
+/// the running accumulator already fixes every coordinate used by `x_out`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn advance_state_coordinates(
     structure: &Structure,
-    prev: State,
-    new_proof: ProofState,
+    prev: &StateCoordinates,
+    next_running: &RunningInstance,
     fresh_count: u64,
     chunk_digest: [F; 4],
     semantic_advance: SemanticStateAdvance,
-    acc_digest_override: Option<[u8; 32]>,
     nebula_next: Option<crate::paper::construction2::NebulaLane>,
-) -> Result<State, Error> {
-    let (chunk_count, step_count) = checked_advanced_counts(&prev, fresh_count)?;
-    let canonical = canonical_accumulator_digest_optional(&new_proof, structure)?;
-    let new_acc_digest = match (canonical.map(|digest| digest.0), acc_digest_override) {
-        (Some(canonical), Some(supplied)) if canonical != supplied => {
-            return Err(Error::AccumulatorDigestOverrideMismatch);
-        }
-        (Some(canonical), _) => canonical,
-        (None, Some(supplied)) => supplied,
-        (None, None) => {
-            return Err(Error::AccumulatorDigestOverrideMismatch);
-        }
-    };
-    Ok(finish_state_advance(
-        prev,
-        new_proof,
+) -> Result<StateCoordinates, Error> {
+    let chunk_count = prev
+        .chunk_count
+        .checked_add(1)
+        .ok_or(Error::CounterOverflow { counter: "chunk_count" })?;
+    if chunk_count >= F::ORDER_U64 {
+        return Err(Error::CounterOverflow { counter: "chunk_count" });
+    }
+    let step_count = prev
+        .step_count
+        .checked_add(fresh_count)
+        .ok_or(Error::CounterOverflow { counter: "step_count" })?;
+    if step_count >= F::ORDER_U64 {
+        return Err(Error::CounterOverflow { counter: "step_count" });
+    }
+    let new_acc_digest = next_running.accumulator_digest(structure)?;
+    let z_i = digest::digest_fields_as_digest32(chunk_digest);
+    Ok(StateCoordinates {
         chunk_count,
         step_count,
-        chunk_digest,
-        semantic_advance,
-        new_acc_digest,
-        nebula_next,
-    ))
+        z_0: prev.z_0,
+        z_i,
+        pc: prev.pc,
+        initial_semantic_state_digest: prev.initial_semantic_state_digest,
+        semantic_state_digest: match semantic_advance {
+            SemanticStateAdvance::Stateless => new_acc_digest,
+            SemanticStateAdvance::Stateful(digest) => digest,
+        },
+        acc_digest: new_acc_digest,
+        public_trace: z_i,
+        nebula: nebula_next.or_else(|| prev.nebula.clone()),
+    })
 }
 
 fn checked_advanced_counts(prev: &State, fresh_count: u64) -> Result<(u64, u64), Error> {
@@ -289,21 +295,9 @@ fn canonical_accumulator_digest(
     new_proof: &ProofState,
     structure: &Structure,
 ) -> Result<CanonicalAccumulatorDigest, Error> {
-    canonical_accumulator_digest_optional(new_proof, structure)?.ok_or(Error::AccumulatorDigestOverrideMismatch)
-}
-
-fn canonical_accumulator_digest_optional(
-    new_proof: &ProofState,
-    structure: &Structure,
-) -> Result<Option<CanonicalAccumulatorDigest>, Error> {
     match new_proof {
-        ProofState::Initial => Ok(Some(CanonicalAccumulatorDigest(
-            digest::AccumulatorHandle::empty().digest(),
-        ))),
-        ProofState::Active { running, .. } => match running.as_materialized() {
-            Some(running) => Ok(Some(CanonicalAccumulatorDigest(running.accumulator_digest(structure)?))),
-            None => Ok(None),
-        },
+        ProofState::Initial => Ok(CanonicalAccumulatorDigest(digest::AccumulatorHandle::empty().digest())),
+        ProofState::Active { running, .. } => Ok(CanonicalAccumulatorDigest(running.accumulator_digest(structure)?)),
     }
 }
 
@@ -373,6 +367,30 @@ pub(crate) fn compute_x_out(
 ) -> EncInst {
     let mut recorder = NoopVerifyTransitionRecorder;
     compute_x_out_recorded(vk, structure_digest, state, semantic_mode, &mut recorder)
+}
+
+pub(crate) fn compute_x_out_for_coordinates(
+    vk: &VerifierKey,
+    coordinates: &StateCoordinates,
+    semantic_mode: SemanticStateMode,
+) -> EncInst {
+    let mode = match semantic_mode {
+        SemanticStateMode::Stateless => digest::StateXOutDigestMode::Stateless,
+        SemanticStateMode::Stateful => digest::StateXOutDigestMode::Stateful,
+    };
+    let preimage = digest::state_x_out_preimage_with_mode(
+        mode,
+        vk.digest(),
+        vk.pi_ccs_header_bundle(),
+        coordinates.chunk_count,
+        coordinates.step_count,
+        coordinates.z_i,
+        coordinates.pc,
+        coordinates.semantic_state_digest,
+        coordinates.acc_digest,
+        coordinates.nebula.as_ref().map(|lane| lane.digest()),
+    );
+    EncInst::from_digest(digest::state_x_out_digest_from_preimage(&preimage))
 }
 
 pub(crate) fn compute_x_out_recorded<R: VerifyTransitionRecorder>(

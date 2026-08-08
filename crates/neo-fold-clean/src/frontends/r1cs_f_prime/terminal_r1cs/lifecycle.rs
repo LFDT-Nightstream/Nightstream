@@ -115,9 +115,6 @@ pub fn finish_with_spartan(
             "terminal compression needs an active running/latest pair",
         ));
     };
-    let running = running
-        .materialize()
-        .map_err(|error| TerminalR1csError::Carrier(error.to_string()))?;
     if latest.instances.len() != 1 {
         return Err(TerminalR1csError::Shape {
             what: "terminal fresh claim count",
@@ -127,7 +124,7 @@ pub fn finish_with_spartan(
     }
     let fresh = &latest.instances[0];
     let public_image = public_image_from_state(prep, &proof.state);
-    let running_statement = TerminalRunningStatement::from_running(&running);
+    let running_statement = TerminalRunningStatement::from_running(running);
     validate_public_statement(prep, manifest, &public_image, &running_statement, &fresh.claim)?;
 
     let relation = compile_terminal_r1cs(

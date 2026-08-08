@@ -148,7 +148,7 @@ fn prove_final_fold_with_nifs_prover(
 
     let pre_nebula = nebula.clone();
     let mut terminal_nebula = nebula;
-    let (post_running_carrier, post_running, nifs_with_inputs, post_acc_digest_override) = match proof {
+    let (post_running, nifs_with_inputs) = match proof {
         ProofState::Initial => {
             return Ok((
                 State {
@@ -167,18 +167,8 @@ fn prove_final_fold_with_nifs_prover(
                 None,
             ));
         }
-        ProofState::Active { running, latest } if latest.instances.is_empty() => {
-            let public = running.materialize_prover_input()?.claims_only();
-            (running, public, None, None)
-        }
-        ProofState::Active {
-            running: running_carrier,
-            latest,
-        } => {
-            let running = match &nifs_prover {
-                FinalFoldNifsProver::Cpu => running_carrier.materialize()?,
-                FinalFoldNifsProver::Adapter(_) => running_carrier.materialize_prover_input()?,
-            };
+        ProofState::Active { running, latest } if latest.instances.is_empty() => (running, None),
+        ProofState::Active { running, latest } => {
             if let Some(cfg) = delayed_nebula {
                 let lane = terminal_nebula.as_mut().ok_or(Error::BaseCaseMismatch)?;
                 lane.advance_for_delayed_claims(
@@ -201,7 +191,7 @@ fn prove_final_fold_with_nifs_prover(
             };
 
             let mut tr = final_fold_transcript();
-            let (post_running_carrier, post_running, nifs_proof, post_acc_digest_override) = match &mut nifs_prover {
+            let (post_running, nifs_proof) = match &mut nifs_prover {
                 FinalFoldNifsProver::Cpu => {
                     let (running, proof) = nifs::prove(
                         &mut tr,
@@ -215,47 +205,27 @@ fn prove_final_fold_with_nifs_prover(
                         latest.instances,
                         &running,
                     )?;
-                    let public = running.claims_only();
-                    (nifs::NifsRunningCarrier::materialized(running), public, proof, None)
+                    (running, proof)
                 }
-                FinalFoldNifsProver::Adapter(adapter) => {
-                    let output = nifs::prove_terminal_with_adapter_output_from_carrier(
-                        *adapter,
-                        &mut tr,
-                        pp,
-                        s,
-                        cache,
-                        log,
-                        lanes,
-                        mix_rhos_commits,
-                        combine_b_pows,
-                        latest.instances,
-                        &running_carrier,
-                        &running,
-                    )?;
-                    let (running, proof, post_summary) = output.into_carriers_with_summary();
-                    let public = running.materialize_prover_input()?.claims_only();
-                    let proof = proof.into_materialized()?;
-                    let acc_digest = post_summary.and_then(|summary| summary.acc_digest_override());
-                    (running, public, proof, acc_digest)
-                }
+                FinalFoldNifsProver::Adapter(adapter) => nifs::prove_with_adapter(
+                    *adapter,
+                    &mut tr,
+                    pp,
+                    s,
+                    cache,
+                    log,
+                    lanes,
+                    mix_rhos_commits,
+                    combine_b_pows,
+                    latest.instances,
+                    &running,
+                )?,
             };
-            (
-                post_running_carrier,
-                post_running,
-                Some((nifs_proof, terminal_inputs)),
-                post_acc_digest_override,
-            )
+            (post_running, Some((nifs_proof, terminal_inputs)))
         }
     };
 
-    let canonical_post_acc_digest = post_running.accumulator_digest(s)?;
-    let post_acc_digest = match post_acc_digest_override {
-        Some(supplied) if supplied != canonical_post_acc_digest => {
-            return Err(Error::AccumulatorDigestOverrideMismatch);
-        }
-        _ => canonical_post_acc_digest,
-    };
+    let post_acc_digest = post_running.accumulator_digest(s)?;
 
     let state_after = State {
         chunk_count,
@@ -268,7 +238,7 @@ fn prove_final_fold_with_nifs_prover(
         acc_digest: post_acc_digest,
         public_trace,
         nebula: terminal_nebula,
-        proof: ProofState::active_carrier(post_running_carrier, LatestInstance::from_instances(Vec::new())),
+        proof: ProofState::active(post_running, LatestInstance::from_instances(Vec::new())),
     };
     let final_proof = nifs_with_inputs.map(|(nifs, terminal_inputs)| FinalFoldProof {
         x_out: transition::compute_x_out(vk, pp, structure_digest, &state_after, semantic_mode),
@@ -363,10 +333,10 @@ pub(crate) fn verify_final_fold(
             if proof.is_some() {
                 return Err(Error::UnexpectedFinalFoldProof);
             }
-            running.materialize_prover_input()?.claims_only()
+            running.claims_only()
         }
         ProofState::Active { running, latest } => {
-            let running = running.materialize_prover_input()?.claims_only();
+            let running = running.claims_only();
             let proof = proof.ok_or(Error::MissingFinalFoldProof)?;
             if let Some(cfg) = delayed_nebula {
                 let lane = terminal_nebula.as_mut().ok_or(Error::BaseCaseMismatch)?;

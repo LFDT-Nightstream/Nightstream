@@ -25,7 +25,7 @@ use p3_field::PrimeCharacteristicRing;
 use crate::engine::transcript::{Poseidon2TranscriptSnapshot, Transcript};
 use crate::paper::construction2::{
     self, EncInst, FoldProof, LaneCommitmentMode, LatestInstance, NebulaAdvance, NebulaLane, ProofState,
-    RunningInstance, SemanticStateAdvance, SemanticStateMode, State, StepProof, VerifierKey,
+    RunningInstance, SemanticStateAdvance, SemanticStateMode, State, StateCoordinates, StepProof, VerifierKey,
 };
 use crate::paper::digest::digest32_as_fields;
 use crate::paper::nifs;
@@ -185,41 +185,25 @@ pub struct VerifyStepExecutionReceipt {
     pub result: Result<State, Error>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum VerifyStepExecutionReceiptError {
-    DeferredRunningInput,
-    DeferredProofInput,
-}
-
 fn execution_input(
     state: &State,
     next_latest_claims: &[CcsClaim],
     proof: &StepProof,
     semantic_mode: SemanticStateMode,
     nebula_advance: Option<&NebulaAdvance>,
-) -> Result<VerifyStepExecutionInput, VerifyStepExecutionReceiptError> {
+) -> VerifyStepExecutionInput {
     let state_proof = match &state.proof {
         ProofState::Initial => VerifyStepExecutionProofState::Initial,
-        ProofState::Active { running, latest } => {
-            let running = running
-                .as_materialized()
-                .ok_or(VerifyStepExecutionReceiptError::DeferredRunningInput)?;
-            VerifyStepExecutionProofState::Active {
-                running: running.claims_only(),
-                latest_claims: latest.claims(),
-            }
-        }
+        ProofState::Active { running, latest } => VerifyStepExecutionProofState::Active {
+            running: running.claims_only(),
+            latest_claims: latest.claims(),
+        },
     };
     let fold = match &proof.fold {
         FoldProof::NoFold => VerifyStepExecutionFoldProof::NoFold,
-        FoldProof::Recursive(carrier) => match carrier {
-            nifs::NifsProofCarrier::Materialized(proof) => VerifyStepExecutionFoldProof::Recursive(proof.clone()),
-            nifs::NifsProofCarrier::Deferred(_) => {
-                return Err(VerifyStepExecutionReceiptError::DeferredProofInput);
-            }
-        },
+        FoldProof::Recursive(proof) => VerifyStepExecutionFoldProof::Recursive(proof.clone()),
     };
-    Ok(VerifyStepExecutionInput {
+    VerifyStepExecutionInput {
         state: VerifyStepExecutionState {
             chunk_count: state.chunk_count,
             step_count: state.step_count,
@@ -242,7 +226,7 @@ fn execution_input(
         },
         semantic_mode,
         nebula_advance: nebula_advance.cloned(),
-    })
+    }
 }
 
 trait VerifyStepRecorder: construction2::transition::VerifyTransitionRecorder {
@@ -482,6 +466,54 @@ fn f_prime_step_transcript_recorded<R: VerifyStepRecorder>(
 // F' prove (native)
 // ──────────────────────────────────────────────────────────────────────────
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct FreshClaimShape {
+    pub d: usize,
+    pub kappa: usize,
+    pub m_in: usize,
+}
+
+impl FreshClaimShape {
+    fn from_instance(instance: &CcsInstance) -> Self {
+        Self {
+            d: instance.claim.c.d,
+            kappa: instance.claim.c.kappa,
+            m_in: instance.claim.m_in,
+        }
+    }
+}
+
+/// A recursive F' step whose fold and public coordinates are ready, while the
+/// real next instance is still being synthesized from those coordinates.
+pub(crate) struct PreparedFPrimeStep {
+    coordinates: StateCoordinates,
+    running: RunningInstance,
+    proof: StepProof,
+    fresh_shapes: Vec<FreshClaimShape>,
+}
+
+impl PreparedFPrimeStep {
+    pub(crate) fn coordinates(&self) -> &StateCoordinates {
+        &self.coordinates
+    }
+
+    pub(crate) fn proof(&self) -> &StepProof {
+        &self.proof
+    }
+
+    pub(crate) fn complete(self, next_latest: Vec<CcsInstance>) -> Result<(State, StepProof), Error> {
+        let actual_shapes: Vec<_> = next_latest
+            .iter()
+            .map(FreshClaimShape::from_instance)
+            .collect();
+        if actual_shapes != self.fresh_shapes {
+            return Err(Error::PreparedLatestShapeMismatch);
+        }
+        let proof_state = ProofState::active(self.running, LatestInstance::from_instances(next_latest));
+        Ok((self.coordinates.with_proof(proof_state), self.proof))
+    }
+}
+
 /// One full F' invocation on the prover side.
 ///
 /// Reads `state.proof` to decide base-vs-recursive case:
@@ -491,10 +523,9 @@ fn f_prime_step_transcript_recorded<R: VerifyStepRecorder>(
 /// - **Active** (i ≥ 1): NIFS.P folds `state.proof.latest` into
 ///   `state.proof.running`. `FoldProof::Recursive(π)`.
 ///
-/// The new `next_latest` (the K instances the *next* step will fold) comes
-/// from the caller. In strict Construction 2 (PR5+) it would be synthesized
-/// internally from the F' encoder; in the direct-CCS interim it's the
-/// caller's batch of CcsInstances.
+/// `next_latest` contains the encoded F' instances that the next step folds.
+/// Authoritative frontends use the prepare/complete phase so these instances
+/// are synthesized from verifier-derived post-fold coordinates.
 pub fn prove(
     pp: &Params,
     s: &Structure,
@@ -540,7 +571,7 @@ pub fn prove_with_semantic_state(
     lanes: Option<&LaneScheme>,
     nebula_advance: Option<NebulaAdvance>,
 ) -> Result<(State, StepProof), Error> {
-    let (state, proof, _) = prove_with_nifs_prover_and_semantic_state(
+    prove_with_nifs_prover_and_semantic_state(
         NifsProverSource::Cpu,
         pp,
         s,
@@ -555,8 +586,7 @@ pub fn prove_with_semantic_state(
         semantic_advance,
         lanes,
         nebula_advance,
-    )?;
-    Ok((state, proof))
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -576,42 +606,6 @@ pub fn prove_with_adapter_and_semantic_state(
     lanes: Option<&LaneScheme>,
     nebula_advance: Option<NebulaAdvance>,
 ) -> Result<(State, StepProof), Error> {
-    let (state, proof, _) = prove_with_adapter_output_and_semantic_state(
-        adapter,
-        pp,
-        s,
-        cache,
-        structure_digest,
-        log,
-        mix_rhos_commits,
-        combine_b_pows,
-        vk,
-        state,
-        next_latest,
-        semantic_advance,
-        lanes,
-        nebula_advance,
-    )?;
-    Ok((state, proof))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn prove_with_adapter_output_and_semantic_state(
-    adapter: &mut dyn nifs::NifsProverAdapter,
-    pp: &Params,
-    s: &Structure,
-    cache: &OptimizedStructureCache,
-    structure_digest: &[F; 4],
-    log: &AjtaiSModule,
-    mix_rhos_commits: RlcMixer,
-    combine_b_pows: DecMixer,
-    vk: &VerifierKey,
-    state: State,
-    next_latest: Vec<CcsInstance>,
-    semantic_advance: SemanticStateAdvance,
-    lanes: Option<&LaneScheme>,
-    nebula_advance: Option<NebulaAdvance>,
-) -> Result<(State, StepProof, Option<nifs::NifsPostFoldSummary>), Error> {
     prove_with_nifs_prover_and_semantic_state(
         NifsProverSource::Adapter(adapter),
         pp,
@@ -630,21 +624,99 @@ pub(crate) fn prove_with_adapter_output_and_semantic_state(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_single_with_semantic_state(
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[F; 4],
+    log: &AjtaiSModule,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    vk: &VerifierKey,
+    state: State,
+    fresh_shape: FreshClaimShape,
+    semantic_advance: SemanticStateAdvance,
+    lanes: Option<&LaneScheme>,
+    nebula_advance: Option<NebulaAdvance>,
+) -> Result<PreparedFPrimeStep, Error> {
+    let chunk_digest = crate::paper::digest::f_prime_chunk_public_digest_for_uniform_shape(
+        state.step_count,
+        1,
+        fresh_shape.d,
+        fresh_shape.kappa,
+        fresh_shape.m_in,
+    );
+    prepare_with_nifs_prover_and_semantic_state(
+        NifsProverSource::Cpu,
+        pp,
+        s,
+        cache,
+        structure_digest,
+        log,
+        mix_rhos_commits,
+        combine_b_pows,
+        vk,
+        state,
+        vec![fresh_shape],
+        chunk_digest,
+        semantic_advance,
+        lanes,
+        nebula_advance,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_single_with_adapter_and_semantic_state(
+    adapter: &mut dyn nifs::NifsProverAdapter,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[F; 4],
+    log: &AjtaiSModule,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    vk: &VerifierKey,
+    state: State,
+    fresh_shape: FreshClaimShape,
+    semantic_advance: SemanticStateAdvance,
+    lanes: Option<&LaneScheme>,
+    nebula_advance: Option<NebulaAdvance>,
+) -> Result<PreparedFPrimeStep, Error> {
+    let chunk_digest = crate::paper::digest::f_prime_chunk_public_digest_for_uniform_shape(
+        state.step_count,
+        1,
+        fresh_shape.d,
+        fresh_shape.kappa,
+        fresh_shape.m_in,
+    );
+    prepare_with_nifs_prover_and_semantic_state(
+        NifsProverSource::Adapter(adapter),
+        pp,
+        s,
+        cache,
+        structure_digest,
+        log,
+        mix_rhos_commits,
+        combine_b_pows,
+        vk,
+        state,
+        vec![fresh_shape],
+        chunk_digest,
+        semantic_advance,
+        lanes,
+        nebula_advance,
+    )
+}
+
 enum NifsProverSource<'a> {
     Cpu,
     Adapter(&'a mut dyn nifs::NifsProverAdapter),
 }
 
-fn materialize_running_for_nifs_input(running: &nifs::NifsRunningCarrier) -> Result<RunningInstance, Error> {
-    // NIFS.P still accepts a concrete `RunningInstance`, but accelerator
-    // backends may satisfy this boundary with a claim shell while keeping
-    // prover-private witnesses in backend-owned memory.
-    Ok(running.materialize_prover_input()?)
-}
-
 #[allow(clippy::too_many_arguments)]
 fn prove_with_nifs_prover_and_semantic_state(
-    mut nifs_prover: NifsProverSource<'_>,
+    nifs_prover: NifsProverSource<'_>,
     pp: &Params,
     s: &Structure,
     cache: &OptimizedStructureCache,
@@ -658,7 +730,50 @@ fn prove_with_nifs_prover_and_semantic_state(
     semantic_advance: SemanticStateAdvance,
     lanes: Option<&LaneScheme>,
     nebula_advance: Option<NebulaAdvance>,
-) -> Result<(State, StepProof, Option<nifs::NifsPostFoldSummary>), Error> {
+) -> Result<(State, StepProof), Error> {
+    let fresh_shapes = next_latest
+        .iter()
+        .map(FreshClaimShape::from_instance)
+        .collect();
+    let chunk_digest = construction2::f_prime_chunk_public_digest_for_step(state.step_count, &next_latest);
+    prepare_with_nifs_prover_and_semantic_state(
+        nifs_prover,
+        pp,
+        s,
+        cache,
+        structure_digest,
+        log,
+        mix_rhos_commits,
+        combine_b_pows,
+        vk,
+        state,
+        fresh_shapes,
+        chunk_digest,
+        semantic_advance,
+        lanes,
+        nebula_advance,
+    )?
+    .complete(next_latest)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_with_nifs_prover_and_semantic_state(
+    mut nifs_prover: NifsProverSource<'_>,
+    pp: &Params,
+    s: &Structure,
+    cache: &OptimizedStructureCache,
+    structure_digest: &[F; 4],
+    log: &AjtaiSModule,
+    mix_rhos_commits: RlcMixer,
+    combine_b_pows: DecMixer,
+    vk: &VerifierKey,
+    state: State,
+    fresh_shapes: Vec<FreshClaimShape>,
+    chunk_digest: [F; 4],
+    semantic_advance: SemanticStateAdvance,
+    lanes: Option<&LaneScheme>,
+    nebula_advance: Option<NebulaAdvance>,
+) -> Result<PreparedFPrimeStep, Error> {
     let semantic_mode = match semantic_advance {
         SemanticStateAdvance::Stateless => SemanticStateMode::Stateless,
         SemanticStateAdvance::Stateful(digest) => {
@@ -669,12 +784,11 @@ fn prove_with_nifs_prover_and_semantic_state(
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
     construction2::validate_state_authority(vk, s, &state, semantic_mode)?;
-    if next_latest.is_empty() {
+    if fresh_shapes.is_empty() {
         return Err(Error::EmptyStep);
     }
 
-    let fresh_count = next_latest.len() as u64;
-    let chunk_digest = construction2::f_prime_chunk_public_digest_for_step(state.step_count, &next_latest);
+    let fresh_count = fresh_shapes.len() as u64;
 
     // Destructure proof out of state up front so the rest can move the
     // remaining fields freely.
@@ -693,14 +807,13 @@ fn prove_with_nifs_prover_and_semantic_state(
     } = state;
 
     // F' fold step — branch on the tagged ProofState.
-    let (next_running, fold, post_fold_summary) = match prev_proof {
+    let (next_running, fold) = match prev_proof {
         ProofState::Initial => {
             // HyperNova Construction 2, base case: no NIFS.P runs, but U_1
             // is the fixed vector of default satisfying R_1 instances.
-            let m_in = next_latest
+            let m_in = fresh_shapes
                 .first()
-                .expect("nonempty next_latest was checked above")
-                .claim
+                .expect("nonempty fresh_shapes was checked above")
                 .m_in;
             let running = RunningInstance::canonical_zero(
                 pp,
@@ -708,7 +821,7 @@ fn prove_with_nifs_prover_and_semantic_state(
                 m_in,
                 LaneCommitmentMode::from_nebula(nebula_advance.is_some()),
             )?;
-            (nifs::NifsRunningCarrier::materialized(running), FoldProof::NoFold, None)
+            (running, FoldProof::NoFold)
         }
         ProofState::Active { running, latest } => {
             // Fresh per-step F' transcript: init label + state-in context
@@ -727,8 +840,7 @@ fn prove_with_nifs_prover_and_semantic_state(
                 nebula: nebula.clone(),
             };
             let mut tr = f_prime_step_transcript(vk, structure_digest, &state_in, chunk_digest);
-            let running_input = materialize_running_for_nifs_input(&running)?;
-            let (next_running, proof_carrier, post_fold_summary) = match &mut nifs_prover {
+            let (next_running, proof) = match &mut nifs_prover {
                 NifsProverSource::Cpu => {
                     let (running, proof) = nifs::prove(
                         &mut tr,
@@ -740,62 +852,31 @@ fn prove_with_nifs_prover_and_semantic_state(
                         mix_rhos_commits,
                         combine_b_pows,
                         latest.instances,
-                        &running_input,
-                    )?;
-                    (
-                        nifs::NifsRunningCarrier::materialized(running),
-                        nifs::NifsProofCarrier::materialized(proof),
-                        None,
-                    )
-                }
-                NifsProverSource::Adapter(adapter) => {
-                    adapter.begin_f_prime_step(nifs::NifsFPrimeStepContext {
-                        vk_fs_digest: vk.digest(),
-                        structure_digest: *structure_digest,
-                        chunk_count,
-                        step_count,
-                        z_0,
-                        z_i,
-                        pc,
-                        semantic_state_digest,
-                        acc_digest,
-                        public_trace,
-                        chunk_digest,
-                    });
-                    let output = nifs::prove_with_adapter_output_from_carrier(
-                        *adapter,
-                        &mut tr,
-                        pp,
-                        s,
-                        cache,
-                        log,
-                        lanes,
-                        mix_rhos_commits,
-                        combine_b_pows,
-                        latest.instances,
                         &running,
-                        &running_input,
                     )?;
-                    let (running, proof, post_summary) = output.into_carriers_with_summary();
-                    (running, proof, post_summary)
+                    (running, proof)
                 }
+                NifsProverSource::Adapter(adapter) => nifs::prove_with_adapter(
+                    *adapter,
+                    &mut tr,
+                    pp,
+                    s,
+                    cache,
+                    log,
+                    lanes,
+                    mix_rhos_commits,
+                    combine_b_pows,
+                    latest.instances,
+                    &running,
+                )?,
             };
-            (
-                next_running,
-                FoldProof::recursive_carrier(proof_carrier),
-                post_fold_summary,
-            )
+            (next_running, FoldProof::Recursive(proof))
         }
     };
-    let post_acc_digest_override = post_fold_summary
-        .as_ref()
-        .and_then(|summary| summary.acc_digest_override());
 
-    // Build next ProofState: running advances, latest is what the caller just supplied.
-    let new_proof = ProofState::active_carrier(next_running, LatestInstance::from_instances(next_latest));
-
-    // F' steps 1, 2, 5 — advance state and compute x_out.
-    let prev_state_for_advance = State {
+    // F' steps 1, 2, 5 advance before the recursive relation can synthesize
+    // the real next latest instance. No claim or witness is fabricated here.
+    let previous_coordinates = StateCoordinates {
         chunk_count,
         step_count,
         z_0,
@@ -805,34 +886,32 @@ fn prove_with_nifs_prover_and_semantic_state(
         semantic_state_digest,
         acc_digest,
         public_trace,
-        proof: ProofState::Initial, // placeholder; advance_state reads new_proof for the new state
         nebula: nebula.clone(),
     };
     let nebula_open = nebula_advance.as_ref().and_then(|adv| adv.open);
-    let next_state = construction2::advance_state_with_acc_digest(
-        pp,
+    let coordinates = construction2::advance_state_coordinates(
         s,
-        prev_state_for_advance,
-        new_proof,
+        &previous_coordinates,
+        &next_running,
         fresh_count,
         chunk_digest,
         semantic_advance,
-        post_acc_digest_override,
         nebula_advance.map(|adv| adv.lane_out),
     )?;
-    let x_out = construction2::compute_x_out(vk, pp, structure_digest, &next_state, semantic_mode);
-    let semantic_state_digest = next_state.semantic_state_digest;
+    let x_out = construction2::compute_x_out_for_coordinates(vk, &coordinates, semantic_mode);
+    let semantic_state_digest = coordinates.semantic_state_digest;
 
-    Ok((
-        next_state,
-        StepProof {
+    Ok(PreparedFPrimeStep {
+        coordinates,
+        running: next_running,
+        proof: StepProof {
             fold,
             nebula_open,
             semantic_state_digest,
             x_out,
         },
-        post_fold_summary,
-    ))
+        fresh_shapes,
+    })
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -910,14 +989,14 @@ pub fn verify_with_execution_receipt(
     proof: &StepProof,
     semantic_mode: SemanticStateMode,
     nebula_advance: Option<NebulaAdvance>,
-) -> Result<VerifyStepExecutionReceipt, VerifyStepExecutionReceiptError> {
+) -> VerifyStepExecutionReceipt {
     let input = execution_input(
         &state,
         next_latest_claims,
         proof,
         semantic_mode,
         nebula_advance.as_ref(),
-    )?;
+    );
     let mut recorder = ReceiptRecorder::new();
     let result = verify_core(
         pp,
@@ -934,12 +1013,12 @@ pub fn verify_with_execution_receipt(
         nebula_advance,
         &mut recorder,
     );
-    Ok(VerifyStepExecutionReceipt {
+    VerifyStepExecutionReceipt {
         input,
         events: recorder.events,
         final_stage: recorder.final_stage,
         result,
-    })
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1003,7 +1082,6 @@ fn verify_core<R: VerifyStepRecorder>(
         (ProofState::Active { running, latest }, FoldProof::Recursive(nifs_proof)) => {
             recorder.dispatch(VerifyStepDispatch::ActiveRecursive);
             recorder.stage(VerifyStepExecutionStage::Nifs);
-            let running = running.into_materialized()?;
             // Same fresh per-step F' transcript the prover used.
             let state_in = State {
                 chunk_count,
@@ -1020,7 +1098,6 @@ fn verify_core<R: VerifyStepRecorder>(
             };
             let mut tr = f_prime_step_transcript_recorded(vk, structure_digest, &state_in, chunk_digest, recorder);
             recorder.transcript_prefix(tr.snapshot());
-            let nifs_proof = nifs_proof.materialize()?;
             let fresh_claims = latest.claims();
             let result = nifs::verify(
                 &mut tr,
@@ -1122,9 +1199,3 @@ fn latest_from_claims_for_verifier(claims: &[CcsClaim]) -> LatestInstance {
             .collect(),
     )
 }
-
-// PR5 will add the in-circuit gadget mirror of `prove` / `verify`. The
-// gadget reads Soundness Invariant I-5 — the absorb sequence in
-// `paper::digest::state_x_out_digest` — and the `nifs::verify`
-// composition above; both must move in lockstep with their R1CS
-// counterparts.

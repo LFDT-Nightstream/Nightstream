@@ -203,9 +203,7 @@ fn running_accumulator_witness_must_carry_f_prime_encoded_size() {
     let proof = fibonacci_f_prime::prove_encoded_steps(&prep, &steps).expect("prove");
 
     let running = match &proof.proof.state.proof {
-        neo_fold_clean::ProofState::Active { running, .. } => running
-            .materialize()
-            .expect("running materialization for shape check"),
+        neo_fold_clean::ProofState::Active { running, .. } => running,
         _ => panic!("test setup must leave state in ProofState::Active"),
     };
     assert!(

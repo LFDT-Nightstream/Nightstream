@@ -1,49 +1,21 @@
-//! Compression seam: `compress` (Spartan terminal SNARK) + `verify` (Spartan
-//! verifier) + the public-image / decider-statement builders both share.
-//!
-//! The seam is wired, but the PR5 decider is not implemented yet, so public
-//! `compress` / compressed `verify` return `decider::Error::Unsupported`.
+//! Terminal finalization and decider-statement construction.
 //!
 //! `build_decider_statement` is `pub` so tests can exercise
 //! `decider::validate_witness` directly against the lifecycle's output
 //! without re-deriving the statement shape.
 
-use crate::lifecycle::{Compressed, Error, Preprocessing, PublicImage, Uncompressed, UncompressedAudit};
+use crate::lifecycle::{Error, Preprocessing, PublicImage, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{self, EncInst, ProofState};
 use crate::paper::decider;
 use crate::paper::nifs::NifsProverAdapter;
 
-/// Compress the uncompressed proof to a Spartan SNARK.
-///
-/// **Flushes the trailing latest** before handing to Spartan: the last
-/// `extend` left `state.proof.latest` un-folded (it'd be the input to the
-/// *next* extend, but there is no next). Compression folds it now via
-/// one final NIFS.P call so the final `running` accumulator covers every
-/// batch the user passed.
-///
-/// Takes an [`UncompressedAudit`] because Spartan's terminal-compression
-/// statement consumes the chain audit trail (`steps`, `public_batches`)
-/// to bind the public image to a verifiable history.
-pub fn compress(prep: &Preprocessing, audit: UncompressedAudit) -> Result<Compressed, Error> {
-    let post_audit = finish_uncompressed_with_audit(prep, audit)?;
-    super::verify::verify_uncompressed_audit(prep, &post_audit)?;
-    let statement = build_decider_statement(prep, &post_audit);
-    let public_image = statement.public.clone();
-    let (snark_proof, vk_digest) = decider::prove(&statement)?;
-    Ok(Compressed {
-        proof: snark_proof,
-        vk: vk_digest,
-        public_image,
-    })
-}
-
 /// Finalize an [`UncompressedAudit`] into a compact [`Uncompressed`] proof.
 /// Plain authoritative F' keeps HyperNova's running/latest pair; Nebula and
-/// legacy one-chunk relations use the terminal-fold representation.
+/// one-chunk terminal relations use the terminal-fold representation.
 ///
 /// Pass the result to [`super::verify::verify_uncompressed`] (the
 /// non-replay IVC verifier). If you also need the audit trail —
-/// e.g. for the Spartan decider or for chain-replay debugging — use
+/// e.g. for the checked decider relation or chain-replay debugging — use
 /// [`finish_uncompressed_with_audit`] instead.
 pub fn finish_uncompressed(prep: &Preprocessing, audit: UncompressedAudit) -> Result<Uncompressed, Error> {
     prep.validate_verifier_key_binding()?;
@@ -68,16 +40,8 @@ pub fn finish_uncompressed(prep: &Preprocessing, audit: UncompressedAudit) -> Re
 ///
 /// Same finalization work as [`finish_uncompressed`] (one terminal NIFS.P
 /// call to flush the trailing `latest`); the difference is the return
-/// type. Use this when you need the audit trail downstream — concretely
-/// only these three call sites should reach for it:
-///
-/// 1. The Spartan compressed-decider statement (via
-///    [`build_decider_statement`] → [`compress`]).
-/// 2. The chain-replay verifier
-///    [`super::verify::verify_uncompressed_audit`] (debugging / red-team
-///    coverage of audit-trail tampers).
-/// 3. Tests that intentionally mutate `steps` / `public_batches` to
-///    exercise the chain-replay verifier.
+/// type. Use it to build the checked decider statement, replay the chain, or
+/// test audit-trail tampering.
 ///
 /// Terminal-only callers use [`finish_uncompressed`] +
 /// [`super::verify::verify_uncompressed`]; the audit trail is dropped
@@ -197,8 +161,6 @@ fn check_already_finalized_consistency(prep: &Preprocessing, proof: &Uncompresse
     if !latest.instances.is_empty() {
         return Err(Error::FinalizedProofInconsistent);
     }
-    let running = running.materialize().map_err(construction2::Error::from)?;
-
     let expected_acc_digest = running
         .accumulator_digest(prep.structure())
         .map_err(|_| Error::FinalizedProofInconsistent)?;
@@ -218,11 +180,6 @@ fn check_already_finalized_consistency(prep: &Preprocessing, proof: &Uncompresse
     }
 
     Ok(())
-}
-
-/// Verify a compressed proof against the expected public image.
-pub fn verify(_prep: &Preprocessing, compressed: &Compressed) -> Result<(), Error> {
-    decider::verify(&compressed.public_image, &compressed.vk, &compressed.proof).map_err(Into::into)
 }
 
 // ──────────────────────────────────────────────────────────────────────────

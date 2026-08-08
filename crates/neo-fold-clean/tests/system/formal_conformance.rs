@@ -89,9 +89,7 @@ fn final_running(proof: &Uncompressed) -> RunningInstance {
     match &proof.state.proof {
         ProofState::Active { running, latest } => {
             assert!(latest.instances.is_empty(), "fixture must be finalized");
-            running
-                .materialize()
-                .expect("CPU fixture has materialized running state")
+            running.clone()
         }
         ProofState::Initial => panic!("fixture must be active"),
     }
@@ -186,9 +184,6 @@ fn terminal_ce_native_success_and_each_authority_rejection_are_live() {
     let ProofState::Active { running, .. } = &mut disconnected_child.state.proof else {
         unreachable!("finished fixture is active")
     };
-    let running = running
-        .as_materialized_mut()
-        .expect("CPU fixture has materialized running state");
     running.claims[0].c.data[0] += F::ONE;
     assert!(
         neo_fold_clean::verify_uncompressed(&prep, &disconnected_child).is_err(),
@@ -341,15 +336,4 @@ fn linked_canonical_terminal_cases_are_exact_and_deterministic() {
         drifted.is_empty(),
         "linked canonical-terminal corpus drifted; inspect and deliberately promote {drifted:?}"
     );
-}
-
-#[test]
-fn compact_decider_is_explicitly_fail_closed() {
-    let prep = support::toy_preprocessing();
-    let audit = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 901)]]).expect("one-step audit");
-
-    assert!(matches!(
-        neo_fold_clean::compress(&prep, audit),
-        Err(Error::Decider(neo_fold_clean::paper::decider::Error::Unsupported))
-    ));
 }

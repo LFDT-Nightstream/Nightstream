@@ -82,8 +82,8 @@ impl PoseidonTraceLayout {
 }
 
 /// Bit-backed witness for one Poseidon2 hash invocation, packaged with
-/// its layout and the digest the builder computed natively. Phase 1
-/// callers use `values` as a contiguous slice in the larger F' source
+/// its layout and the digest the builder computed natively. Callers use
+/// `values` as a contiguous slice in the larger F' source
 /// image and `digest_native` as the parity-test reference.
 ///
 /// `Clone` so a chunk-shared trace (one that does not depend on a

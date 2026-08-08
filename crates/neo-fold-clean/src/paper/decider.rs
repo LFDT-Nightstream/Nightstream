@@ -5,9 +5,9 @@
 //! authority path — walking every per-step NIFS.V plus the terminal fold.
 //! This is a superset of `lifecycle::verify_uncompressed` (non-replay IVC,
 //! which authenticates only the terminal fold), but it is not the whole proof
-//! relation: the future compact proof must reproduce the decider R1CS in
-//! `crate::engine::decider`, including terminal CE rows. `prove` / `verify`
-//! are `Unsupported` placeholders until that verifier is implemented.
+//! relation: a compact proof must reproduce the decider R1CS in
+//! `crate::engine::decider`, including terminal CE rows. The concrete terminal
+//! Spartan implementation owns proof generation and verification.
 //!
 //! ## Authority boundary
 //!
@@ -50,8 +50,6 @@ use crate::paper::terminal_ce::TerminalCeProof;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("decider: terminal compression is not implemented yet")]
-    Unsupported,
     #[error("decider: validation walk failed: {0}")]
     WalkFailed(String),
     #[error("decider: public image derived from witness ≠ statement.public")]
@@ -130,9 +128,7 @@ pub struct Witness {
     pub terminal_ce_proof: Option<TerminalCeProof>,
 }
 
-/// What the compact terminal proof proves. Bundles the public coordinates and the
-/// prover-side witness. The verifier-side `compress::verify` consumes only
-/// `public` (the witness stays prover-private).
+/// Public coordinates and prover witness for the checked decider relation.
 #[derive(Clone, Debug)]
 pub struct Statement {
     pub public: PublicImage,
@@ -429,10 +425,7 @@ fn validate_terminal_fold_snapshot(state: &State, snapshot: &TerminalFoldInputs)
     let ProofState::Active { running, latest } = &state.proof else {
         return Err(Error::WitnessShape);
     };
-    let expected_running = running
-        .materialize_prover_input()
-        .map_err(|error| Error::WalkFailed(format!("terminal running snapshot: {error}")))?
-        .claims_only();
+    let expected_running = running.claims_only();
     if !snapshot.pre_final_running.witnesses.is_empty()
         || snapshot.pre_final_running.claims != expected_running.claims
         || snapshot.pre_final_running.parent_authority != expected_running.parent_authority
@@ -461,9 +454,7 @@ fn validate_terminal_fold_snapshot(state: &State, snapshot: &TerminalFoldInputs)
 /// error.
 fn final_running(state: &State) -> Result<RunningInstance, Error> {
     match &state.proof {
-        ProofState::Active { running, latest } if latest.instances.is_empty() => {
-            running.materialize().map_err(|_| Error::WitnessShape)
-        }
+        ProofState::Active { running, latest } if latest.instances.is_empty() => Ok(running.clone()),
         _ => Err(Error::WitnessShape),
     }
 }
@@ -501,30 +492,4 @@ fn check_terminal_latest_link(
         }
     }
     Ok(())
-}
-
-/// The compressed proof handed to the verifier.
-///
-/// Future code will populate this with compact terminal proof bytes (and any
-/// auxiliary public-IO fields the decider's R1CS exposes). Today it is a
-/// placeholder type so the lifecycle wiring compiles end-to-end.
-#[derive(Clone, Debug, Default)]
-pub struct Proof;
-
-/// Verifier key digest (32 bytes). Compared by the caller against an expected
-/// value, never trusted as authority.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct VerifierKeyDigest(pub [u8; 32]);
-
-/// Run terminal compression on the IVC statement. Placeholder until a compact
-/// verifier is wired; the contract `validate_witness` enforces is only the
-/// native preflight for the relation the proof must reproduce.
-pub fn prove(_statement: &Statement) -> Result<(Proof, VerifierKeyDigest), Error> {
-    Err(Error::Unsupported)
-}
-
-/// Verify a compact terminal proof against the expected public image.
-/// Placeholder until a compact verifier is wired.
-pub fn verify(_public: &PublicImage, _vk_digest: &VerifierKeyDigest, _proof: &Proof) -> Result<(), Error> {
-    Err(Error::Unsupported)
 }

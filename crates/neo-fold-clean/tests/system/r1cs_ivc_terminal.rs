@@ -40,7 +40,6 @@ fn generic_ivc_verifies_running_accumulator_and_latest_f_prime() {
     let ProofState::Active { running, latest } = &proof.state.proof else {
         panic!("three-step IVC proof must be active");
     };
-    let running = running.materialize().expect("materialized running state");
     assert!(!running.claims.is_empty());
     assert_eq!(latest.instances.len(), 1);
     neo_fold_clean::verify_uncompressed(&prep.prep, &proof)
@@ -66,12 +65,7 @@ fn generic_ivc_verifies_running_accumulator_and_latest_f_prime() {
     let ProofState::Active { running, .. } = &mut bad_history.state.proof else {
         unreachable!()
     };
-    running
-        .as_materialized_mut()
-        .expect("materialized running state")
-        .claims[0]
-        .c
-        .data[0] += F::ONE;
+    running.claims[0].c.data[0] += F::ONE;
     neo_fold_clean::verify_uncompressed(&prep.prep, &bad_history).expect_err("a changed accumulated claim must fail");
 }
 

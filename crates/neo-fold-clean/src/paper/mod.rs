@@ -120,7 +120,6 @@ pub mod digest;
 pub mod f_prime;
 pub mod nifs;
 pub mod params;
-pub mod proof;
 pub mod reductions;
 pub mod relations;
 pub mod sampling;

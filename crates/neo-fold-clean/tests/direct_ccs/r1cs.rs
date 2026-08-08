@@ -236,9 +236,6 @@ fn finish_uncompressed_rejects_manual_oversized_latest() {
     audit.proof.state.public_trace = repaired_boundary;
     match &mut audit.proof.state.proof {
         ProofState::Active { running, latest } => {
-            let running = running
-                .as_materialized()
-                .expect("one-step fixture running must be materialized");
             assert_eq!(
                 running.claims.len(),
                 prep.params.k_rho() as usize,

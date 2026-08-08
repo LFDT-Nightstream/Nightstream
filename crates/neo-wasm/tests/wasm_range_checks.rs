@@ -108,23 +108,3 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
         "rejection must come from the column's own range-check row, failed row {row_idx} is tagged {tag:?}"
     );
 }
-
-/// The canonical plan must declare the typed widths. This is the only test
-/// pinning that: empty widths are legal and self-consistent (they mean
-/// "commit every variable as a full 64-bit lane"), so a regression to an
-/// undeclared plan would pass every prove/verify test while silently
-/// tripling the committed limbs and making the unconditional F' width
-/// audit vacuous. Declaring the widths is what makes preprocessing
-/// re-derive each one from the range rows and hard-error on any it cannot
-/// prove, so this passing also certifies the pass covers every column.
-#[test]
-fn canonical_preprocessing_audits_declared_widths() {
-    let digest = [0u8; 32];
-    let batch_size = 2;
-    let prep = neo_wasm::preprocess::preprocess_seeded_batched(batch_size, digest).expect("canonical preprocessing");
-    assert_eq!(
-        prep.plan().app_private_var_widths.len(),
-        batch_size * RANGE_CHECKED_WITNESS_WIDTH,
-        "the canonical plan must declare (and thus have audited) the typed widths"
-    );
-}

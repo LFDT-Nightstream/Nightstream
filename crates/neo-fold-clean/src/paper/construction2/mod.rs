@@ -88,12 +88,8 @@ pub enum Error {
     MissingFinalFoldProof,
     #[error("Construction 2: final fold proof present but no trailing latest exists")]
     UnexpectedFinalFoldProof,
-    #[error("Construction 2: backend accumulator digest disagrees with the canonical running-family digest")]
-    AccumulatorDigestOverrideMismatch,
-    #[error(
-        "Construction 2: deferred production running accumulator cannot supply authoritative pending-family state"
-    )]
-    DeferredPendingAccumulatorUnsupported,
+    #[error("Construction 2: synthesized next instance does not match its prepared verifier-owned shape")]
+    PreparedLatestShapeMismatch,
 }
 
 // Public re-exports: paper-named types live in submodules, but the auditor
@@ -113,21 +109,21 @@ pub use verifier_key::VerifierKey;
 // canonical Construction-2 names so call sites use one path.
 pub use crate::paper::f_prime::prove as step;
 pub use crate::paper::f_prime::prove_with_adapter_and_semantic_state as step_with_adapter_and_semantic_state;
-pub(crate) use crate::paper::f_prime::prove_with_adapter_output_and_semantic_state as step_with_adapter_output_and_semantic_state;
 pub use crate::paper::f_prime::prove_with_semantic_state as step_with_semantic_state;
 pub use crate::paper::f_prime::verify as verify_step;
 pub use crate::paper::f_prime::verify_with_execution_receipt as verify_step_with_execution_receipt;
 pub use crate::paper::f_prime::{
     NifsVerifyExecutionOutcome, VerifyStepDispatch, VerifyStepExecutionEvent, VerifyStepExecutionFoldProof,
     VerifyStepExecutionInput, VerifyStepExecutionProof, VerifyStepExecutionProofState, VerifyStepExecutionReceipt,
-    VerifyStepExecutionReceiptError, VerifyStepExecutionStage, VerifyStepExecutionState,
+    VerifyStepExecutionStage, VerifyStepExecutionState,
 };
 
 // Transition + finalization helpers exposed `pub(crate)` for f_prime and lifecycle.
 pub(crate) use finalization::{prove_final_fold, prove_final_fold_with_adapter, verify_final_fold};
+pub(crate) use state::StateCoordinates;
 pub(crate) use transition::{
-    advance_state_recorded, advance_state_with_acc_digest, compute_x_out, compute_x_out_recorded, enforce_pc_in_range,
-    f_prime_chunk_public_digest_for_step, f_prime_chunk_public_digest_from_claims, state_base_case_check,
-    validate_digest32, validate_state_authority,
+    advance_state_coordinates, advance_state_recorded, compute_x_out, compute_x_out_for_coordinates,
+    compute_x_out_recorded, enforce_pc_in_range, f_prime_chunk_public_digest_for_step,
+    f_prime_chunk_public_digest_from_claims, state_base_case_check, validate_digest32, validate_state_authority,
 };
 pub use transition::{SemanticStateAdvance, SemanticStateMode};

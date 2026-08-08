@@ -8,7 +8,7 @@
 //! (compile → fold → derive next per-step fold authority → compile
 //! recursive → extend) so callers do not have to thread
 //! `fold_for_step` manually. Mirrors
-//! [`neo_fold_clean::frontends::r1cs_f_prime::R1csChainBuilder`].
+//! the historical Fibonacci audit fixture.
 
 use super::compiler::{
     compile_fibonacci_step, start_fibonacci_chain, FibonacciAppStepInput, FibonacciChainState, FibonacciCompiledStep,
@@ -136,7 +136,7 @@ impl<'a> FibonacciChainBuilder<'a> {
         let pre_state = audit.proof.state.clone();
 
         let (pre_running, latest) = match &pre_state.proof {
-            ProofState::Active { running, latest } => (running.materialize()?, latest.clone()),
+            ProofState::Active { running, latest } => (running.clone(), latest.clone()),
             _ => return Err(Error::ChainExpectedActiveState),
         };
 
@@ -148,11 +148,11 @@ impl<'a> FibonacciChainBuilder<'a> {
         // after the recursive step has been compiled below.
         let derived = neo_fold_clean::lifecycle::extend(&self.prep.prep, audit.clone(), vec![latest_instance.clone()])?;
         let fold = match &derived.steps.last().expect("extend appended one step").fold {
-            FoldProof::Recursive(p) => p.materialize()?,
+            FoldProof::Recursive(p) => p.clone(),
             FoldProof::NoFold => return Err(Error::ChainExpectedActiveState),
         };
         let post_running = match &derived.proof.state.proof {
-            ProofState::Active { running, .. } => running.materialize()?,
+            ProofState::Active { running, .. } => running.clone(),
             _ => return Err(Error::ChainExpectedActiveState),
         };
 

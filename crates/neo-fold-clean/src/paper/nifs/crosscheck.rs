@@ -3,9 +3,9 @@
 use crate::engine::transcript::{Poseidon2TranscriptSnapshot, Transcript};
 use crate::paper::construction2::RunningInstance;
 use crate::paper::nifs::{
-    verify, verify_paper_exact, AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, Error, NifsFPrimeStepContext,
-    NifsFreshInstancesRequest, NifsFreshSignedUnitInstancesRequest, NifsProof, NifsProverAdapter, NifsProverOutput,
-    NifsProverRequest, OptimizedCpuNifsProver, OptimizedNifsProverAdapter, PaperExactNifsProver,
+    verify, verify_paper_exact, AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, Error,
+    NifsFreshInstancesRequest, NifsFreshSignedUnitInstancesRequest, NifsProof, NifsProverAdapter, NifsProverRequest,
+    OptimizedCpuNifsProver, OptimizedNifsProverAdapter, PaperExactNifsProver,
 };
 
 /// Require two complete materialized NIFS executions to be byte-identical.
@@ -50,7 +50,7 @@ fn prove_with_reference(
     primary: &mut dyn NifsProverAdapter,
     reference_backend: ReferenceBackend,
     request: NifsProverRequest<'_>,
-) -> Result<NifsProverOutput, Error> {
+) -> Result<(RunningInstance, NifsProof), Error> {
     let NifsProverRequest {
         tr,
         pp,
@@ -61,9 +61,7 @@ fn prove_with_reference(
         mix_rhos_commits,
         combine_b_pows,
         fresh,
-        running_carrier,
         running,
-        cache_output_for_next_step,
     } = request;
 
     let initial_transcript = tr.snapshot();
@@ -87,9 +85,7 @@ fn prove_with_reference(
                 mix_rhos_commits,
                 combine_b_pows,
                 fresh: fresh_reference,
-                running_carrier,
                 running,
-                cache_output_for_next_step: false,
             }),
             ReferenceBackend::PaperExact => PaperExactNifsProver.prove(NifsProverRequest {
                 tr: &mut reference_transcript,
@@ -101,9 +97,7 @@ fn prove_with_reference(
                 mix_rhos_commits,
                 combine_b_pows,
                 fresh: fresh_reference,
-                running_carrier,
                 running,
-                cache_output_for_next_step: false,
             }),
         };
         (reference_result, reference_transcript.snapshot())
@@ -122,9 +116,7 @@ fn prove_with_reference(
             mix_rhos_commits,
             combine_b_pows,
             fresh,
-            running_carrier,
             running,
-            cache_output_for_next_step,
         });
         let primary_transcript = tr.snapshot();
         let (reference_result, reference_transcript) = reference.join().map_err(|_| Error::CrosscheckWorkerPanic)?;
@@ -148,9 +140,7 @@ fn prove_with_reference(
             mix_rhos_commits,
             combine_b_pows,
             fresh,
-            running_carrier,
             running,
-            cache_output_for_next_step,
         });
         let primary_transcript = tr.snapshot();
         let (reference_result, reference_transcript) = run_reference();
@@ -177,14 +167,8 @@ fn prove_with_reference(
         }
     };
 
-    let (primary_running, primary_proof, primary_summary) = primary_output.into_materialized_parts_with_summary()?;
-    let (reference_running, reference_proof, reference_summary) =
-        reference_output.into_materialized_parts_with_summary()?;
-    if reference_summary.is_some() {
-        return Err(Error::CrosscheckMismatch {
-            boundary: "reference post-fold summary",
-        });
-    }
+    let (primary_running, primary_proof) = primary_output;
+    let (reference_running, reference_proof) = reference_output;
     require_nifs_execution_match(
         primary_transcript,
         &primary_running,
@@ -257,25 +241,17 @@ fn prove_with_reference(
         });
     }
 
-    let mut output = NifsProverOutput::materialized(primary_running, primary_proof);
-    if let Some(summary) = primary_summary {
-        output = output.with_post_fold_summary(summary);
-    }
-    Ok(output)
+    Ok((primary_running, primary_proof))
 }
 
 impl NifsProverAdapter for CrosscheckNifsProver {
-    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
+    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<(RunningInstance, NifsProof), Error> {
         prove_with_reference(&mut OptimizedCpuNifsProver, ReferenceBackend::PaperExact, request)
     }
 }
 
 impl<A: OptimizedNifsProverAdapter> NifsProverAdapter for AcceleratorCrosscheckNifsProver<A> {
-    fn begin_f_prime_step(&mut self, context: NifsFPrimeStepContext) {
-        self.accelerator_mut().begin_f_prime_step(context);
-    }
-
-    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, Error> {
+    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<(RunningInstance, NifsProof), Error> {
         prove_with_reference(self.accelerator_mut(), ReferenceBackend::Optimized, request)
     }
 
@@ -292,9 +268,5 @@ impl<A: OptimizedNifsProverAdapter> NifsProverAdapter for AcceleratorCrosscheckN
     ) -> Result<Option<Vec<crate::paper::relations::CcsInstance>>, Error> {
         self.accelerator_mut()
             .build_fresh_signed_unit_instances(request)
-    }
-
-    fn requires_recursive_compile_reverify(&self) -> bool {
-        true
     }
 }

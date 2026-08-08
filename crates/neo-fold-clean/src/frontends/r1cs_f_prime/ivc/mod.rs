@@ -28,7 +28,6 @@ pub use relation::{
 
 use thiserror::Error;
 
-use super::R1csCompilerError;
 use crate::frontends::direct_ccs::FrontendError;
 use crate::frontends::r1cs_f_prime::{FieldR1csLoweringError, LowNormR1csError};
 use crate::lifecycle;
@@ -47,8 +46,6 @@ pub enum R1csIvcError {
     LowNorm(#[from] LowNormR1csError),
     #[error(transparent)]
     Composition(#[from] r1cs::Error),
-    #[error(transparent)]
-    Compiler(#[from] R1csCompilerError),
     #[error(transparent)]
     Lifecycle(#[from] lifecycle::Error),
     #[error(transparent)]
@@ -91,4 +88,6 @@ pub enum R1csIvcError {
     EmptyChain,
     #[error("R1CS IVC semantic input does not match the carried state")]
     SemanticInputMismatch,
+    #[error("R1CS IVC packed public-input variable z[{index}] is not Boolean (got {value:?})")]
+    PackedPublicInputNotBit { index: usize, value: neo_math::F },
 }

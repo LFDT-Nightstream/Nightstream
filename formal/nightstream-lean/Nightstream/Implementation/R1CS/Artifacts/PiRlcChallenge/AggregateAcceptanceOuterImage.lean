@@ -3,8 +3,8 @@ import Nightstream.Implementation.R1CS.Artifacts.PiRlcChallenge.Generated.Aggreg
 /-!
 Stable facade for the generated fixed-recursive aggregate-acceptance image.
 
-Owns: the public artifact import boundary for exact dimensions, 720 removed
-linear definitions, fifteen challenge shards and 960 ordered chunk records.
+Owns: the public artifact import boundary for exact dimensions, fifteen
+challenge shards, and 960 ordered direct-decoder chunk records.
 
 Does not own: semantic interpretation, Rust refinement, constraint
 soundness, cost authority, or permission to remove rows.
@@ -17,7 +17,6 @@ meaning to the records.
 
 | Child branch | Records | Semantic consumer |
 |---|---:|---|
-| shape | one fixed profile and 391 coefficients | outer-image artifact refinement |
-| definitions | 720 removed source definitions | decoder refinement |
+| shape | one fixed direct-decoder profile | outer-image artifact refinement |
 | challenges | 15 × 64 chunks | physical placement refinement |
 -/

@@ -5,10 +5,10 @@ import Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionA
 /-!
 Semantic refinement for one 16-bit `Pi_RLC` sampler candidate.
 
-Owns: the independent integer interpretation of the 16 source bits and the
-proof that the four acceptance rows force the verifier-owned production
-predicate. Mod-5 decoding and cumulative-prefix refinement are added as
-separate theorem families below this acceptance boundary.
+Owns: the independent bitwise-complement interpretation of the 16 raw source
+bits and the proof that the four acceptance rows force the verifier-owned
+production predicate. Mod-5 decoding and cumulative-prefix refinement are
+added as separate theorem families below this acceptance boundary.
 
 Does not own: transcript generation, source-bit decomposition, first-accepted
 selection, whole-lane composition, production column placement, Rust
@@ -50,11 +50,12 @@ private theorem range14 :
       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] := by
   decide
 
-/-- Independent little-endian integer interpretation of one candidate. -/
+/-- Independent little-endian interpretation of the complemented raw word. -/
 def chunkValue (assignment : Nat → Nat) (chunk : Nat) : Nat :=
   (List.range 16).foldl
     (fun value offset =>
-      value + 2 ^ offset * assignment (ChunkRows.sourceBitCol chunk offset)) 0
+      value + 2 ^ offset *
+        (1 - assignment (ChunkRows.sourceBitCol chunk offset))) 0
 
 def BitsBoolean (assignment : Nat → Nat) (chunk : Nat) : Prop :=
   ∀ offset, offset < 16 →
@@ -123,17 +124,29 @@ def candidate
 
 private theorem lcEval_chunkTerms
     {assignment : Nat → Nat} {chunk : Nat}
-    (bits : BitsBoolean assignment chunk) :
+    (one : assignment 0 = 1) (bits : BitsBoolean assignment chunk) :
     lcEval assignment (ChunkRows.chunkTerms chunk) =
       chunkValue assignment chunk := by
-  have valueLt := chunkValue_lt_bound bits
-  have valueGoldilocks : chunkValue assignment chunk < goldilocksP := by
-    have value16 : chunkValue assignment chunk < 65536 := by
-      simpa [ProductionAlphabet.chunkModulus] using valueLt
-    have bound : 65536 < goldilocksP := by decide
-    exact Nat.lt_trans value16 bound
-  simpa [lcEval, ChunkRows.chunkTerms, chunkValue, range16] using
-    (Nat.mod_eq_of_lt valueGoldilocks)
+  have b0 := bits 0 (by decide)
+  have b1 := bits 1 (by decide)
+  have b2 := bits 2 (by decide)
+  have b3 := bits 3 (by decide)
+  have b4 := bits 4 (by decide)
+  have b5 := bits 5 (by decide)
+  have b6 := bits 6 (by decide)
+  have b7 := bits 7 (by decide)
+  have b8 := bits 8 (by decide)
+  have b9 := bits 9 (by decide)
+  have b10 := bits 10 (by decide)
+  have b11 := bits 11 (by decide)
+  have b12 := bits 12 (by decide)
+  have b13 := bits 13 (by decide)
+  have b14 := bits 14 (by decide)
+  have b15 := bits 15 (by decide)
+  simp [ChunkRows.sourceBitCol] at b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 b10 b11 b12 b13 b14 b15
+  simp [lcEval, ChunkRows.chunkTerms, chunkValue, range16,
+    ChunkRows.sourceBitCol, one, goldilocksP]
+  omega
 
 private theorem lcEval_quotientTerms
     {assignment : Nat → Nat} {chunk : Nat}
@@ -194,12 +207,13 @@ private theorem linearEquality_sound
 
 private theorem lcEval_differenceTerms
     {assignment : Nat → Nat} {chunk : Nat}
-    (one : assignment 0 = 1) :
+    (one : assignment 0 = 1) (bits : BitsBoolean assignment chunk) :
     lcEval assignment (ChunkRows.differenceTerms chunk) =
       (chunkValue assignment chunk + goldilocksP - 65535) %
         goldilocksP := by
-  simp [lcEval, ChunkRows.differenceTerms, ChunkRows.chunkTerms, chunkValue,
-    range16, ChunkRows.sourceBitCol, one, goldilocksP]
+  rw [ChunkRows.differenceTerms, lcEval_append,
+    lcEval_chunkTerms one bits]
+  simp [lcEval, one, goldilocksP]
 
 private theorem lcEval_oneMinusAccept
     {assignment : Nat → Nat} {chunk : Nat}
@@ -520,7 +534,7 @@ theorem decompositionRow_sound
       5 * assignment (ChunkRows.quotientCol chunk) +
         assignment (ChunkRows.residueCol chunk) := by
     simp [rightTerms, lcEval, Nat.mod_eq_of_lt rightLt]
-  rw [lcEval_chunkTerms sourceBits, rightEval, quotientEq] at equation
+  rw [lcEval_chunkTerms one sourceBits, rightEval, quotientEq] at equation
   exact equation
 
 /-- The decoded residue equals the verifier-owned modulo-five symbol. -/
@@ -607,7 +621,7 @@ theorem acceptanceRows_sound
       [(ChunkRows.inverseCol chunk, 1)],
       [(ChunkRows.acceptCol chunk, 1)]⟩
     (by simp [ChunkRows.acceptanceRows])
-  have differenceEq := lcEval_differenceTerms (chunk := chunk) one
+  have differenceEq := lcEval_differenceTerms (chunk := chunk) one bits
   have oneMinusEq := lcEval_oneMinusAccept (chunk := chunk) one acceptLe
   have valueLt := chunkValue_lt_bound bits
   have differenceZero := difference_mod_eq_zero_iff valueLt

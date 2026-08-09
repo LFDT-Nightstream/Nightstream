@@ -4,10 +4,10 @@ import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Sampler.Chu
 /-!
 Independent source and product-tree semantics for one sixteen-bit sampler chunk.
 
-Owns: the authoritative source-bit view, Boolean carrier meaning, balanced
-fourteen-edge tree, canonical tree materialization, root products, the
-all-ones rejection condition, and correspondence with the independent
-production-alphabet verifier.
+Owns: the authoritative raw-bit view, its bitwise-complement candidate view,
+Boolean carrier meaning, the balanced fourteen-edge tree, canonical tree
+materialization, root products, the all-ones candidate rejection condition,
+and correspondence with the independent production-alphabet verifier.
 
 Does not own: paired equations, aggregate exactness, generated artifacts,
 Rust emission, production placement, fixed selectors, the 960-chunk image,
@@ -28,11 +28,15 @@ open Nightstream.Implementation.R1CS
 open Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler
 open Mod5
 
-/-- The sixteen authoritative source coordinates of one active chunk. -/
+/-- The sixteen authoritative raw source coordinates of one active chunk. -/
 def sourceBits (assignment : Nat → Nat) (chunk : Nat) : Fin 16 → GateField :=
   fun index =>
     fieldResidue
       (assignment (ChunkRows.sourceBitCol chunk index.val))
+
+/-- Candidate bits after the exact bitwise complement used by production. -/
+def candidateBits (rawBits : Fin 16 → GateField) : Fin 16 → GateField :=
+  fun index => fieldSub 1 (rawBits index)
 
 /-- Semantic bit membership used after decoding the paired equations. -/
 def FieldBit (value : GateField) : Prop :=
@@ -57,6 +61,22 @@ theorem sourceBits_are_boolean
   · right
     unfold sourceBits
     rw [one]
+    apply Fin.ext
+    native_decide
+
+theorem candidateBits_are_boolean
+    {rawBits : Fin 16 → GateField}
+    (rawBoolean : ∀ index, FieldBit (rawBits index)) :
+    ∀ index, FieldBit (candidateBits rawBits index) := by
+  intro index
+  unfold candidateBits
+  rcases rawBoolean index with zero | one
+  · rw [zero]
+    right
+    apply Fin.ext
+    native_decide
+  · rw [one]
+    left
     apply Fin.ext
     native_decide
 
@@ -515,6 +535,9 @@ theorem sourceProduct_eq_one_iff_allSourceBitsOne
     apply Fin.ext
     native_decide
 
+private theorem fieldResidue_zero : fieldResidue 0 = 0 := by
+  rfl
+
 private theorem fieldSub_one_one : fieldSub (1 : GateField) 1 = 0 := by
   apply Fin.ext
   native_decide
@@ -553,67 +576,62 @@ private theorem acceptance_range16 :
       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] := by
   decide
 
-private theorem sourceBit_eq_one_iff
+private theorem candidateBit_eq_one_iff
     {assignment : Nat → Nat} {chunk : Nat}
     (bits : BitsBoolean assignment chunk) (index : Fin 16) :
-    sourceBits assignment chunk index = 1 ↔
-      assignment (ChunkRows.sourceBitCol chunk index.val) = 1 := by
-  constructor
-  · intro equal
-    have values := congrArg Fin.val equal
-    have sourceLtField :
-        assignment (ChunkRows.sourceBitCol chunk index.val) < goldilocksP := by
-      have sourceLe := bits index.val index.isLt
-      have bound : 1 < goldilocksP := by decide
-      omega
-    simp only [sourceBits, fieldResidue] at values
-    rw [Nat.mod_eq_of_lt sourceLtField] at values
-    simpa using values
-  · intro equal
-    unfold sourceBits
-    rw [equal]
-    apply Fin.ext
-    native_decide
+    candidateBits (sourceBits assignment chunk) index = 1 ↔
+      assignment (ChunkRows.sourceBitCol chunk index.val) = 0 := by
+  have sourceLe := bits index.val index.isLt
+  have cases :
+      assignment (ChunkRows.sourceBitCol chunk index.val) = 0 ∨
+        assignment (ChunkRows.sourceBitCol chunk index.val) = 1 := by
+    omega
+  rcases cases with zero | one
+  · simp [candidateBits, sourceBits, zero, fieldResidue_zero,
+      fieldSub_one_zero]
+  · have modulusNeOne : goldilocksP ≠ 1 := by decide
+    simp [candidateBits, sourceBits, one, fieldResidue_one,
+      fieldSub_one_one, modulusNeOne]
 
-theorem allSourceBitsOne_iff_rejectionBucket
+theorem allCandidateBitsOne_iff_rejectionBucket
     {assignment : Nat → Nat} {chunk : Nat}
     (bits : BitsBoolean assignment chunk) :
-    AllSourceBitsOne (sourceBits assignment chunk) ↔
+    AllSourceBitsOne (candidateBits (sourceBits assignment chunk)) ↔
       chunkValue assignment chunk = ProductionAlphabet.rejectionBucket := by
   constructor
   · intro allOne
-    have a0 := (sourceBit_eq_one_iff bits 0).mp (allOne 0)
-    have a1 := (sourceBit_eq_one_iff bits 1).mp (allOne 1)
-    have a2 := (sourceBit_eq_one_iff bits 2).mp (allOne 2)
-    have a3 := (sourceBit_eq_one_iff bits 3).mp (allOne 3)
-    have a4 := (sourceBit_eq_one_iff bits 4).mp (allOne 4)
-    have a5 := (sourceBit_eq_one_iff bits 5).mp (allOne 5)
-    have a6 := (sourceBit_eq_one_iff bits 6).mp (allOne 6)
-    have a7 := (sourceBit_eq_one_iff bits 7).mp (allOne 7)
-    have a8 := (sourceBit_eq_one_iff bits 8).mp (allOne 8)
-    have a9 := (sourceBit_eq_one_iff bits 9).mp (allOne 9)
-    have a10 := (sourceBit_eq_one_iff bits 10).mp (allOne 10)
-    have a11 := (sourceBit_eq_one_iff bits 11).mp (allOne 11)
-    have a12 := (sourceBit_eq_one_iff bits 12).mp (allOne 12)
-    have a13 := (sourceBit_eq_one_iff bits 13).mp (allOne 13)
-    have a14 := (sourceBit_eq_one_iff bits 14).mp (allOne 14)
-    have a15 := (sourceBit_eq_one_iff bits 15).mp (allOne 15)
-    change assignment (ChunkRows.sourceBitCol chunk 0) = 1 at a0
-    change assignment (ChunkRows.sourceBitCol chunk 1) = 1 at a1
-    change assignment (ChunkRows.sourceBitCol chunk 2) = 1 at a2
-    change assignment (ChunkRows.sourceBitCol chunk 3) = 1 at a3
-    change assignment (ChunkRows.sourceBitCol chunk 4) = 1 at a4
-    change assignment (ChunkRows.sourceBitCol chunk 5) = 1 at a5
-    change assignment (ChunkRows.sourceBitCol chunk 6) = 1 at a6
-    change assignment (ChunkRows.sourceBitCol chunk 7) = 1 at a7
-    change assignment (ChunkRows.sourceBitCol chunk 8) = 1 at a8
-    change assignment (ChunkRows.sourceBitCol chunk 9) = 1 at a9
-    change assignment (ChunkRows.sourceBitCol chunk 10) = 1 at a10
-    change assignment (ChunkRows.sourceBitCol chunk 11) = 1 at a11
-    change assignment (ChunkRows.sourceBitCol chunk 12) = 1 at a12
-    change assignment (ChunkRows.sourceBitCol chunk 13) = 1 at a13
-    change assignment (ChunkRows.sourceBitCol chunk 14) = 1 at a14
-    change assignment (ChunkRows.sourceBitCol chunk 15) = 1 at a15
+    have a0 := (candidateBit_eq_one_iff bits 0).mp (allOne 0)
+    have a1 := (candidateBit_eq_one_iff bits 1).mp (allOne 1)
+    have a2 := (candidateBit_eq_one_iff bits 2).mp (allOne 2)
+    have a3 := (candidateBit_eq_one_iff bits 3).mp (allOne 3)
+    have a4 := (candidateBit_eq_one_iff bits 4).mp (allOne 4)
+    have a5 := (candidateBit_eq_one_iff bits 5).mp (allOne 5)
+    have a6 := (candidateBit_eq_one_iff bits 6).mp (allOne 6)
+    have a7 := (candidateBit_eq_one_iff bits 7).mp (allOne 7)
+    have a8 := (candidateBit_eq_one_iff bits 8).mp (allOne 8)
+    have a9 := (candidateBit_eq_one_iff bits 9).mp (allOne 9)
+    have a10 := (candidateBit_eq_one_iff bits 10).mp (allOne 10)
+    have a11 := (candidateBit_eq_one_iff bits 11).mp (allOne 11)
+    have a12 := (candidateBit_eq_one_iff bits 12).mp (allOne 12)
+    have a13 := (candidateBit_eq_one_iff bits 13).mp (allOne 13)
+    have a14 := (candidateBit_eq_one_iff bits 14).mp (allOne 14)
+    have a15 := (candidateBit_eq_one_iff bits 15).mp (allOne 15)
+    change assignment (ChunkRows.sourceBitCol chunk 0) = 0 at a0
+    change assignment (ChunkRows.sourceBitCol chunk 1) = 0 at a1
+    change assignment (ChunkRows.sourceBitCol chunk 2) = 0 at a2
+    change assignment (ChunkRows.sourceBitCol chunk 3) = 0 at a3
+    change assignment (ChunkRows.sourceBitCol chunk 4) = 0 at a4
+    change assignment (ChunkRows.sourceBitCol chunk 5) = 0 at a5
+    change assignment (ChunkRows.sourceBitCol chunk 6) = 0 at a6
+    change assignment (ChunkRows.sourceBitCol chunk 7) = 0 at a7
+    change assignment (ChunkRows.sourceBitCol chunk 8) = 0 at a8
+    change assignment (ChunkRows.sourceBitCol chunk 9) = 0 at a9
+    change assignment (ChunkRows.sourceBitCol chunk 10) = 0 at a10
+    change assignment (ChunkRows.sourceBitCol chunk 11) = 0 at a11
+    change assignment (ChunkRows.sourceBitCol chunk 12) = 0 at a12
+    change assignment (ChunkRows.sourceBitCol chunk 13) = 0 at a13
+    change assignment (ChunkRows.sourceBitCol chunk 14) = 0 at a14
+    change assignment (ChunkRows.sourceBitCol chunk 15) = 0 at a15
     simp [chunkValue, acceptance_range16, ProductionAlphabet.rejectionBucket,
       a0, a1, a2, a3, a4, a5, a6, a7,
       a8, a9, a10, a11, a12, a13, a14, a15]
@@ -636,52 +654,55 @@ theorem allSourceBitsOne_iff_rejectionBucket
     have b15 := bits 15 (by decide)
     simp [chunkValue, acceptance_range16,
       ProductionAlphabet.rejectionBucket] at rejected
-    have a0 : assignment (ChunkRows.sourceBitCol chunk 0) = 1 := by omega
-    have a1 : assignment (ChunkRows.sourceBitCol chunk 1) = 1 := by omega
-    have a2 : assignment (ChunkRows.sourceBitCol chunk 2) = 1 := by omega
-    have a3 : assignment (ChunkRows.sourceBitCol chunk 3) = 1 := by omega
-    have a4 : assignment (ChunkRows.sourceBitCol chunk 4) = 1 := by omega
-    have a5 : assignment (ChunkRows.sourceBitCol chunk 5) = 1 := by omega
-    have a6 : assignment (ChunkRows.sourceBitCol chunk 6) = 1 := by omega
-    have a7 : assignment (ChunkRows.sourceBitCol chunk 7) = 1 := by omega
-    have a8 : assignment (ChunkRows.sourceBitCol chunk 8) = 1 := by omega
-    have a9 : assignment (ChunkRows.sourceBitCol chunk 9) = 1 := by omega
-    have a10 : assignment (ChunkRows.sourceBitCol chunk 10) = 1 := by omega
-    have a11 : assignment (ChunkRows.sourceBitCol chunk 11) = 1 := by omega
-    have a12 : assignment (ChunkRows.sourceBitCol chunk 12) = 1 := by omega
-    have a13 : assignment (ChunkRows.sourceBitCol chunk 13) = 1 := by omega
-    have a14 : assignment (ChunkRows.sourceBitCol chunk 14) = 1 := by omega
-    have a15 : assignment (ChunkRows.sourceBitCol chunk 15) = 1 := by omega
+    have a0 : assignment (ChunkRows.sourceBitCol chunk 0) = 0 := by omega
+    have a1 : assignment (ChunkRows.sourceBitCol chunk 1) = 0 := by omega
+    have a2 : assignment (ChunkRows.sourceBitCol chunk 2) = 0 := by omega
+    have a3 : assignment (ChunkRows.sourceBitCol chunk 3) = 0 := by omega
+    have a4 : assignment (ChunkRows.sourceBitCol chunk 4) = 0 := by omega
+    have a5 : assignment (ChunkRows.sourceBitCol chunk 5) = 0 := by omega
+    have a6 : assignment (ChunkRows.sourceBitCol chunk 6) = 0 := by omega
+    have a7 : assignment (ChunkRows.sourceBitCol chunk 7) = 0 := by omega
+    have a8 : assignment (ChunkRows.sourceBitCol chunk 8) = 0 := by omega
+    have a9 : assignment (ChunkRows.sourceBitCol chunk 9) = 0 := by omega
+    have a10 : assignment (ChunkRows.sourceBitCol chunk 10) = 0 := by omega
+    have a11 : assignment (ChunkRows.sourceBitCol chunk 11) = 0 := by omega
+    have a12 : assignment (ChunkRows.sourceBitCol chunk 12) = 0 := by omega
+    have a13 : assignment (ChunkRows.sourceBitCol chunk 13) = 0 := by omega
+    have a14 : assignment (ChunkRows.sourceBitCol chunk 14) = 0 := by omega
+    have a15 : assignment (ChunkRows.sourceBitCol chunk 15) = 0 := by omega
     exact fin16_all
-      (predicate := fun index => sourceBits assignment chunk index = 1)
-      ((sourceBit_eq_one_iff bits 0).mpr a0)
-      ((sourceBit_eq_one_iff bits 1).mpr a1)
-      ((sourceBit_eq_one_iff bits 2).mpr a2)
-      ((sourceBit_eq_one_iff bits 3).mpr a3)
-      ((sourceBit_eq_one_iff bits 4).mpr a4)
-      ((sourceBit_eq_one_iff bits 5).mpr a5)
-      ((sourceBit_eq_one_iff bits 6).mpr a6)
-      ((sourceBit_eq_one_iff bits 7).mpr a7)
-      ((sourceBit_eq_one_iff bits 8).mpr a8)
-      ((sourceBit_eq_one_iff bits 9).mpr a9)
-      ((sourceBit_eq_one_iff bits 10).mpr a10)
-      ((sourceBit_eq_one_iff bits 11).mpr a11)
-      ((sourceBit_eq_one_iff bits 12).mpr a12)
-      ((sourceBit_eq_one_iff bits 13).mpr a13)
-      ((sourceBit_eq_one_iff bits 14).mpr a14)
-      ((sourceBit_eq_one_iff bits 15).mpr a15)
+      (predicate := fun index =>
+        candidateBits (sourceBits assignment chunk) index = 1)
+      ((candidateBit_eq_one_iff bits 0).mpr a0)
+      ((candidateBit_eq_one_iff bits 1).mpr a1)
+      ((candidateBit_eq_one_iff bits 2).mpr a2)
+      ((candidateBit_eq_one_iff bits 3).mpr a3)
+      ((candidateBit_eq_one_iff bits 4).mpr a4)
+      ((candidateBit_eq_one_iff bits 5).mpr a5)
+      ((candidateBit_eq_one_iff bits 6).mpr a6)
+      ((candidateBit_eq_one_iff bits 7).mpr a7)
+      ((candidateBit_eq_one_iff bits 8).mpr a8)
+      ((candidateBit_eq_one_iff bits 9).mpr a9)
+      ((candidateBit_eq_one_iff bits 10).mpr a10)
+      ((candidateBit_eq_one_iff bits 11).mpr a11)
+      ((candidateBit_eq_one_iff bits 12).mpr a12)
+      ((candidateBit_eq_one_iff bits 13).mpr a13)
+      ((candidateBit_eq_one_iff bits 14).mpr a14)
+      ((candidateBit_eq_one_iff bits 15).mpr a15)
 
 theorem sourceAcceptanceMeaning_iff_verifier
     {assignment : Nat → Nat} {chunk : Nat}
     (bits : BitsBoolean assignment chunk) (accept : GateField) :
-    SourceAcceptanceMeaning (sourceBits assignment chunk) accept ↔
+    SourceAcceptanceMeaning
+        (candidateBits (sourceBits assignment chunk)) accept ↔
       VerifierAcceptanceMeaning assignment chunk bits accept := by
-  have sourceBoolean := sourceBits_are_boolean bits
-  by_cases allOne : AllSourceBitsOne (sourceBits assignment chunk)
+  have sourceBoolean := candidateBits_are_boolean (sourceBits_are_boolean bits)
+  by_cases allOne :
+      AllSourceBitsOne (candidateBits (sourceBits assignment chunk))
   · have productOne :=
       (sourceProduct_eq_one_iff_allSourceBitsOne
-        (sourceBits assignment chunk) sourceBoolean).mpr allOne
-    have rejected := (allSourceBitsOne_iff_rejectionBucket bits).mp allOne
+        (candidateBits (sourceBits assignment chunk)) sourceBoolean).mpr allOne
+    have rejected := (allCandidateBitsOne_iff_rejectionBucket bits).mp allOne
     have acceptedIff :=
       ProductionAlphabet.accepts_eq_true_iff_ne_rejectionBucket
         (candidate assignment chunk bits)
@@ -696,22 +717,22 @@ theorem sourceAcceptanceMeaning_iff_verifier
     simp
   · have productBit := sourceProduct_boolean sourceBoolean
     have productNotOne :
-        lowHalfProduct (sourceBits assignment chunk) *
-            highHalfProduct (sourceBits assignment chunk) ≠ 1 := by
+        lowHalfProduct (candidateBits (sourceBits assignment chunk)) *
+            highHalfProduct (candidateBits (sourceBits assignment chunk)) ≠ 1 := by
       intro productOne
       exact allOne
         ((sourceProduct_eq_one_iff_allSourceBitsOne
-          (sourceBits assignment chunk) sourceBoolean).mp productOne)
+          (candidateBits (sourceBits assignment chunk)) sourceBoolean).mp productOne)
     have productZero :
-        lowHalfProduct (sourceBits assignment chunk) *
-            highHalfProduct (sourceBits assignment chunk) = 0 := by
+        lowHalfProduct (candidateBits (sourceBits assignment chunk)) *
+            highHalfProduct (candidateBits (sourceBits assignment chunk)) = 0 := by
       rcases productBit with zero | one
       · exact zero
       · exact False.elim (productNotOne one)
     have notRejected :
         chunkValue assignment chunk ≠ ProductionAlphabet.rejectionBucket := by
       intro rejected
-      exact allOne ((allSourceBitsOne_iff_rejectionBucket bits).mpr rejected)
+      exact allOne ((allCandidateBitsOne_iff_rejectionBucket bits).mpr rejected)
     have accepted :
         ProductionAlphabet.verifier.accepts
             (candidate assignment chunk bits) = true :=

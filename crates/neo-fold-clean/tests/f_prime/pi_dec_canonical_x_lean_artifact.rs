@@ -145,7 +145,8 @@ fn compact_preprocessing() -> Preprocessing {
         .collect::<Vec<_>>();
     let structure = CcsStructure::new(matrices, SparsePoly::new(APPLICATION_MATRIX_COUNT, vec![]))
         .expect("compact 270-coordinate paper-shape structure");
-    let params = config::r1cs_params(structure.n, structure.m).expect("compact paper-shape params");
+    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("compact paper-shape params");
     support::install_ajtai_module(&params, &structure);
     preprocess(params, structure, Some(LOGICAL_COORDINATES)).expect("compact paper-shape preprocessing")
 }

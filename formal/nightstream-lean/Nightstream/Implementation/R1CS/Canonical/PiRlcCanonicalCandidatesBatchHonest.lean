@@ -63,9 +63,10 @@ theorem sourcesBelow_of_u64End
   simp only [PiRlcCanonicalU64.lanesPerScalar,
     CanonicalU64Recipe.auxiliaryCount] at separated positionLt ⊢
   have occurrenceLt :
-      coordinate.val * 16 +
+      coordinate.val * PiRlcCanonicalU64.lanesPerScalar +
           (PiRlcCanonicalCandidates.lanePosition candidate).val <
-        count * 16 := by
+        count * PiRlcCanonicalU64.lanesPerScalar := by
+    simp only [PiRlcCanonicalU64.lanesPerScalar]
     omega
   omega
 

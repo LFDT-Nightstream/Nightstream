@@ -5,7 +5,7 @@ Stable facade for the active fixed-recursive PiRLC transcript layout.
 
 Owns: the exact physical source-row partition, constant pins, compact
 Poseidon2-call locations, emission order, state-column continuity, boundary
-state columns/cursors, 240 field-output aliases, and four external bind-input
+state columns/cursors, 480 field-output aliases, and four external bind-input
 columns exported by the Rust trace drift gate.
 
 Does not own: row satisfaction, message or cursor semantics, Poseidon2
@@ -17,10 +17,10 @@ provenance only; digests remain non-authoritative until replayed by a verifier.
 
 | Surface | Fixed profile | Structural boundary |
 |---|---:|---|
-| source partition | 76 ranges / 82,612 rows | 412 pins plus 137 compact 600-row calls |
-| ordered emissions | 549 | every pin and call occurs exactly once |
-| state continuity | 136 adjacent call edges | exact same-lane column aliases only |
-| field outputs | 15 x 4 x 4 = 240 | compact-call output to canonical-u64 input aliases |
+| source partition | 136 ranges / 154,972 rows | 772 pins plus 257 compact 600-row calls |
+| ordered emissions | 1,029 | every pin and call occurs exactly once |
+| state continuity | 256 adjacent call edges | exact same-lane column aliases only |
+| field outputs | 15 x 8 x 4 = 480 | compact-call output to canonical-u64 input aliases |
 | external bind inputs | 4 columns | physical locations only |
 -/
 
@@ -47,7 +47,7 @@ abbrev stateContinuity : List StateContinuity := artifact.stateContinuity
 abbrev fieldOutputAliases : List FieldOutputAlias := artifact.fieldOutputAliases
 
 def groupCount : Nat := 15
-def digestBlockCount : Nat := 4
+def digestBlockCount : Nat := 8
 def lanesPerBlock : Nat := 4
 
 def constantPinAt (index : Fin constantPins.length) : ConstantPin :=
@@ -186,13 +186,13 @@ private def fieldOutputAliasValidAt (index : Nat) : Bool :=
   let alias := fieldOutputAliases.getD index default
   let call := calls.getD alias.callIndex default
   decide (alias.ordinal = index) &&
-    decide (alias.groupIndex = index / 16) &&
-    decide (alias.blockIndex = (index / 4) % 4) &&
+    decide (alias.groupIndex = index / 32) &&
+    decide (alias.blockIndex = (index / 4) % 8) &&
     decide (alias.laneIndex = index % 4) &&
     decide (alias.groupIndex < groupCount) &&
     decide (alias.blockIndex < digestBlockCount) &&
     decide (alias.laneIndex < lanesPerBlock) &&
-    decide (alias.callIndex = 4 + 9 * alias.groupIndex + 2 * alias.blockIndex) &&
+    decide (alias.callIndex = 4 + 17 * alias.groupIndex + 2 * alias.blockIndex) &&
     decide (alias.outputLane = alias.laneIndex) &&
     decide (alias.fieldColumn = call.outputColumn alias.outputLane) &&
     decide (alias.canonicalRowEnd - alias.canonicalRowStart = 69) &&
@@ -200,15 +200,15 @@ private def fieldOutputAliasValidAt (index : Nat) : Bool :=
     decide (alias.canonicalRowEnd ≤ artifact.sourceRows)
 
 def StructureValid : Prop :=
-  artifact.sourceRows = 7080332 ∧
-    artifact.sourceColumns = 7011981 ∧
-    artifact.ownedRowCount = 82612 ∧
-    ownedRanges.length = 76 ∧
-    constantPins.length = 412 ∧
-    calls.length = 137 ∧
-    emissionOrder.length = 549 ∧
-    stateContinuity.length = 136 ∧
-    fieldOutputAliases.length = 240 ∧
+  artifact.sourceRows = 7169252 ∧
+    artifact.sourceColumns = 7100181 ∧
+    artifact.ownedRowCount = 154972 ∧
+    ownedRanges.length = 136 ∧
+    constantPins.length = 772 ∧
+    calls.length = 257 ∧
+    emissionOrder.length = 1029 ∧
+    stateContinuity.length = 256 ∧
+    fieldOutputAliases.length = 480 ∧
     artifact.bindCallIndices = [0, 1, 2] ∧
     artifact.firstRhoCallIndex = 3 ∧
     piCcsOutputDigestInputColumns.length = 4 ∧
@@ -230,19 +230,19 @@ theorem structure_check : StructureValid := by
   set_option maxRecDepth 100000 in
     decide
 
-theorem exact_pin_count : constantPins.length = 412 := by
+theorem exact_pin_count : constantPins.length = 772 := by
   set_option maxRecDepth 100000 in
     decide
 
-theorem exact_call_count : calls.length = 137 := by
+theorem exact_call_count : calls.length = 257 := by
   set_option maxRecDepth 100000 in
     decide
 
-theorem exact_emission_count : emissionOrder.length = 549 := by
+theorem exact_emission_count : emissionOrder.length = 1029 := by
   set_option maxRecDepth 100000 in
     decide
 
-theorem exact_field_output_alias_count : fieldOutputAliases.length = 240 :=
+theorem exact_field_output_alias_count : fieldOutputAliases.length = 480 :=
   structure_check.2.2.2.2.2.2.2.2.1
 
 theorem exact_external_bind_input_count :
@@ -303,8 +303,8 @@ theorem post_bind_cursor_eq : postBindCursor = 1 := by
 
 theorem final_state_columns_eq :
     finalStateColumns =
-      [4008779, 4008780, 4008781, 4008782,
-        4008783, 4008784, 4008785, 4008786] := by
+      [4097163, 4097164, 4097165, 4097166,
+        4097167, 4097168, 4097169, 4097170] := by
   rfl
 
 theorem final_cursor_eq : finalCursor = 0 := by
@@ -342,11 +342,11 @@ theorem field_output_alias_at_formula :
         ∀ lane : Fin lanesPerBlock,
           let alias := fieldOutputAliasAt group block lane
           let call := calls.getD alias.callIndex default
-          alias.ordinal = group.val * 16 + block.val * 4 + lane.val ∧
+          alias.ordinal = group.val * 32 + block.val * 4 + lane.val ∧
             alias.groupIndex = group.val ∧
             alias.blockIndex = block.val ∧
             alias.laneIndex = lane.val ∧
-            alias.callIndex = 4 + 9 * group.val + 2 * block.val ∧
+            alias.callIndex = 4 + 17 * group.val + 2 * block.val ∧
             alias.outputLane = lane.val ∧
             alias.fieldColumn = call.outputColumn lane.val ∧
             alias.canonicalRowEnd - alias.canonicalRowStart = 69 := by

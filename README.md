@@ -43,7 +43,7 @@ direct CCS proofs still require the audit replay path.
 
 | Choice | Status |
 |---|---|
-| `CpuOptimized` | Implemented; automatic fallback |
+| `Optimized CPU` | Implemented; default host prover |
 | `PaperExact` | Implemented reference path; exponential cost |
 | `Metal` | Implemented on Apple builds with the production shader library |
 | `Cuda` | Required WIP target; no silent CPU fallback |

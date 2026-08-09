@@ -14,6 +14,7 @@ set_option maxRecDepth 100000
 namespace Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSymbolicMachineCallOrder
 
 open Nightstream.Implementation.R1CS.Canonical.SymbolicDuplexPhysical
+open Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet
 
 theorem appendRawPair
     (base first second : Nat) (builder : SymbolicDuplex.Builder)
@@ -64,7 +65,7 @@ theorem scalarBuilder
         base builder coordinate) := by
   unfold PiRlcCanonicalSymbolicMachine.scalarBuilder
   exact stateBeforeBlock base _ coordinate
-    (enterScalar base builder coordinate ordered) 4
+    (enterScalar base builder coordinate ordered) digestRounds
 
 theorem stateAt
     (base : Nat) (initial : SymbolicDuplex.Builder)

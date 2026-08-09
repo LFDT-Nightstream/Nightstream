@@ -1,12 +1,11 @@
-import Nightstream.Implementation.R1CS.Ownership.AlphabetSampling.AlphabetSamplingResidualTemplate
+import Nightstream.Implementation.R1CS.Core.Program
 
 /-!
 Exact row schema for the four 16-bit candidates in one recursive-profile
 `Pi_RLC` sampler lane.
 
-Owns: a readable, equation-derived construction of the 26 rows per candidate;
-the four-candidate lane composition; and a kernel-checked equality between that
-schema and the generated 104-row residual template.
+Owns: a readable, equation-derived construction of the 26 rows per candidate
+and the four-candidate lane composition.
 
 Does not own: the independent acceptance/decoding semantics, proofs that these
 rows imply those semantics, the 64-candidate selection tail, transcript
@@ -52,7 +51,9 @@ def priorCumulativeCol (chunk : Nat) : Nat :=
 def sourceBitCol (chunk offset : Nat) : Nat := 1 + 16 * chunk + offset
 
 def chunkTerms (chunk : Nat) : List (Nat × Nat) :=
-  (List.range 16).map fun offset => (sourceBitCol chunk offset, 2 ^ offset)
+  [(0, 65535)] ++
+    (List.range 16).map fun offset =>
+      (sourceBitCol chunk offset, goldilocksP - 2 ^ offset)
 
 def quotientTerms (chunk : Nat) : List (Nat × Nat) :=
   (List.range 14).map fun offset => (quotientBitCol chunk offset, 2 ^ offset)
@@ -129,13 +130,6 @@ theorem chunkRows_length (chunk : Nat) : (chunkRows chunk).length = 26 := by
   simp [chunkRows, acceptanceRows, residueRangeRows, quotientRangeRows]
 
 theorem rows_length : rows.length = 104 := by
-  decide
-
-/-- Kernel-checked structural correspondence. This theorem says which
-equations the generated template contains; it does not prove those equations
-are sufficient for sampler correctness. -/
-theorem rows_eq_generated :
-    rows = AlphabetSamplingResidualTemplate.laneTemplateRows := by
   decide
 
 end Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.ChunkRows

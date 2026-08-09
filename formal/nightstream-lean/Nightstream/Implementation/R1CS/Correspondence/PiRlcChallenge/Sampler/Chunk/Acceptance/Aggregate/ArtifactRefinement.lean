@@ -95,6 +95,33 @@ private theorem coefficient_59049 : coefficient 59049 = fieldResidue 59049 := by
 private theorem coefficient_177147 : coefficient 177147 = fieldResidue 177147 := by rfl
 private theorem coefficient_531441 : coefficient 531441 = fieldResidue 531441 := by rfl
 private theorem coefficient_1594323 : coefficient 1594323 = fieldResidue 1594323 := by rfl
+private theorem coefficient_negThree :
+    coefficient (-3) = fieldResidue 3 * fieldResidue (goldilocksP - 1) := by
+  native_decide
+
+private theorem coefficient_negNine :
+    coefficient (-9) = fieldResidue 9 * fieldResidue (goldilocksP - 1) := by
+  native_decide
+
+private theorem coefficient_negTwentySeven :
+    coefficient (-27) = fieldResidue 27 * fieldResidue (goldilocksP - 1) := by
+  native_decide
+
+private theorem coefficient_neg2187 :
+    coefficient (-2187) = fieldResidue 2187 * fieldResidue (goldilocksP - 1) := by
+  native_decide
+
+private theorem coefficient_neg6561 :
+    coefficient (-6561) = fieldResidue 6561 * fieldResidue (goldilocksP - 1) := by
+  native_decide
+
+private theorem coefficient_neg19683 :
+    coefficient (-19683) = fieldResidue 19683 * fieldResidue (goldilocksP - 1) := by
+  native_decide
+
+private theorem coefficient_neg59049 :
+    coefficient (-59049) = fieldResidue 59049 * fieldResidue (goldilocksP - 1) := by
+  native_decide
 
 private theorem generatedBitRow_polynomial
     (bits : Fin 16 → GateField) (outputs : ProductTreeOutputs)
@@ -166,12 +193,12 @@ theorem generatedProductTreeOutputBitRows_iff
     generatedBitRow_iff bits outputs accept (activeRows[6]) 12 13 (by rfl)]
 
 private theorem generatedProductAggregateRow_polynomial
-    (bits : Fin 16 → GateField) (outputs : ProductTreeOutputs)
+    (rawBits : Fin 16 → GateField) (outputs : ProductTreeOutputs)
     (accept : GateField) :
     evalPolynomial polynomialTerms
-        ((activeRows[7]).point (coordinateAssignment bits outputs accept)) =
+        ((activeRows[7]).point (coordinateAssignment rawBits outputs accept)) =
       fieldSub
-        (radix3Field (productTreeProducts bits outputs))
+        (radix3Field (productTreeProducts (candidateBits rawBits) outputs))
         (radix3Field outputs) := by
   simp [evalPolynomial, evalPolynomialTerm, evalPowers, polynomialTerms,
     activeRows, ActiveRow.point, MatrixLinearCombination.value,
@@ -180,13 +207,16 @@ private theorem generatedProductAggregateRow_polynomial
     coefficient_fourteen, fieldResidue_one, gateField_one_mul,
     gateField_mul_one, gateField_mul_zero, productTreeProducts,
     productTreeLeft, productTreeRight, fieldSub, radix3Field,
-    gateField_mul_add, gateField_mul_assoc,
+    gateField_mul_add, gateField_add_mul, gateField_mul_assoc,
     fieldResidue_mul_residue_mul, coefficient_three, coefficient_nine,
     coefficient_twentySeven, coefficient_eightyOne, coefficient_243,
     coefficient_729, coefficient_2187, coefficient_6561,
     coefficient_19683, coefficient_59049, coefficient_177147,
-    coefficient_531441, coefficient_1594323]
-  simp only [gateField_add_assoc]
+    coefficient_531441, coefficient_1594323, coefficient_negThree,
+    coefficient_negNine, coefficient_negTwentySeven, coefficient_neg2187,
+    coefficient_neg6561, coefficient_neg19683, coefficient_neg59049,
+    candidateBits]
+  simp only [← fieldResidue_mul_hom, ← Nat.mul_assoc, gateField_add_assoc]
 
 /-- The generated radix-three product row as a separate artifact family. -/
 def GeneratedProductTreeAggregateRow
@@ -196,10 +226,10 @@ def GeneratedProductTreeAggregateRow
     (coordinateAssignment bits outputs accept)
 
 theorem generatedProductTreeAggregateRow_iff
-    (bits : Fin 16 → GateField) (outputs : ProductTreeOutputs)
+    (rawBits : Fin 16 → GateField) (outputs : ProductTreeOutputs)
     (accept : GateField) :
-    GeneratedProductTreeAggregateRow bits outputs accept ↔
-      ProductTreeAggregateRow bits outputs := by
+    GeneratedProductTreeAggregateRow rawBits outputs accept ↔
+      ProductTreeAggregateRow (candidateBits rawBits) outputs := by
   unfold GeneratedProductTreeAggregateRow ActiveRow.Holds
   rw [generatedProductAggregateRow_polynomial, fieldSub_eq_zero_iff,
     radix3Field_eq_residue, radix3Field_eq_residue,
@@ -250,10 +280,10 @@ def GeneratedAggregateAcceptanceRows
 aggregate acceptance relation. This remains leaf-local: it says nothing about
 the recursive 960-chunk physical image. -/
 theorem generatedAggregateAcceptanceRows_iff
-    (bits : Fin 16 → GateField) (outputs : ProductTreeOutputs)
+    (rawBits : Fin 16 → GateField) (outputs : ProductTreeOutputs)
     (accept : GateField) :
-    GeneratedAggregateAcceptanceRows bits outputs accept ↔
-      AggregateAcceptanceRows bits outputs accept := by
+    GeneratedAggregateAcceptanceRows rawBits outputs accept ↔
+      AggregateAcceptanceRows (candidateBits rawBits) outputs accept := by
   unfold GeneratedAggregateAcceptanceRows AggregateAcceptanceRows
   rw [generatedProductTreeOutputBitRows_iff,
     generatedProductTreeAggregateRow_iff,
@@ -261,14 +291,15 @@ theorem generatedAggregateAcceptanceRows_iff
 
 theorem generatedAggregateAcceptanceRows_iff_sourceMeaning
     (prime : EuclidPrime goldilocksP) (nonresidue : SevenNonresidue)
-    (bits : Fin 16 → GateField) (outputs : ProductTreeOutputs)
-    (accept : GateField) (sourceBoolean : ∀ index, FieldBit (bits index)) :
-    GeneratedAggregateAcceptanceRows bits outputs accept ↔
-      ProductTreeMeaning bits outputs ∧
-        SourceAcceptanceMeaning bits accept := by
+    (rawBits : Fin 16 → GateField) (outputs : ProductTreeOutputs)
+    (accept : GateField) (sourceBoolean : ∀ index, FieldBit (rawBits index)) :
+    GeneratedAggregateAcceptanceRows rawBits outputs accept ↔
+      ProductTreeMeaning (candidateBits rawBits) outputs ∧
+        SourceAcceptanceMeaning (candidateBits rawBits) accept := by
   rw [generatedAggregateAcceptanceRows_iff,
     aggregateAcceptanceRows_iff_sourceMeaning prime nonresidue
-      bits outputs accept sourceBoolean]
+      (candidateBits rawBits) outputs accept
+      (candidateBits_are_boolean sourceBoolean)]
 
 theorem generatedAggregateAcceptanceRows_iff_verifierMeaning
     (prime : EuclidPrime goldilocksP) (nonresidue : SevenNonresidue)
@@ -277,7 +308,8 @@ theorem generatedAggregateAcceptanceRows_iff_verifierMeaning
     (accept : GateField) :
     GeneratedAggregateAcceptanceRows
         (sourceBits assignment chunk) outputs accept ↔
-      ProductTreeMeaning (sourceBits assignment chunk) outputs ∧
+      ProductTreeMeaning
+          (candidateBits (sourceBits assignment chunk)) outputs ∧
         VerifierAcceptanceMeaning assignment chunk bits accept := by
   rw [generatedAggregateAcceptanceRows_iff,
     aggregateAcceptanceRows_iff_verifierMeaning prime nonresidue

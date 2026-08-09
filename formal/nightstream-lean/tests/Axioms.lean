@@ -1,4 +1,5 @@
 import tests.Axioms.Paper
+import tests.Axioms.DeciderReduction
 import tests.Axioms.FPrimeAccumulatorBinding
 import tests.Axioms.FPrimeCanonicalVerifier
 import tests.Axioms.FPrimeCanonicalNifsRefinement

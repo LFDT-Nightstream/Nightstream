@@ -486,7 +486,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/u64.rs",
-      "sha256": "75c945d436c1ead96a8d6fbc804810f077e47a5cc58821d29b5d467ffbe8eed8"
+      "sha256": "ff34828dfd714aec2a5d74edfb0ba80ef3949a023df7c7c4e1899b71b095fb6a"
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling/mod.rs",

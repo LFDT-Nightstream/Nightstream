@@ -9,7 +9,7 @@ open Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Acceptance
 #check productTreeMeaning_iff_equations
 #check productTreeOutputBitRows_iff
 #check productTreeAggregateRow_iff
-#check allSourceBitsOne_iff_rejectionBucket
+#check allCandidateBitsOne_iff_rejectionBucket
 #check sourceAcceptanceMeaning_iff_verifier
 #check aggregateAcceptanceRows_iff_sourceMeaning
 #check aggregateAcceptanceRows_iff_verifierMeaning

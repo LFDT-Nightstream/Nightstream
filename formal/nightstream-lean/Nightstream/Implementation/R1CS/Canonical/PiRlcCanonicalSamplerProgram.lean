@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalU64Placement
 /-!
 Contract: the complete Lean-owned fixed-active `Pi_RLC` sampler row program.
 
-Owns the exact concatenation of the 75-call transcript and the 15-coordinate
+Owns the exact concatenation of the 135-call transcript and the 15-coordinate
 sampler suffix, their physical placement, receipt fold, exact cost, and one
 honest satisfying assignment.
 
@@ -16,7 +16,6 @@ Assurance tier: model-level canonical encoding.
 -/
 
 set_option autoImplicit false
-set_option maxRecDepth 100000
 
 namespace Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSamplerProgram
 
@@ -30,7 +29,7 @@ open Nightstream.SuperNeo.Sampling
 open Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler
 
 def coordinateCount : Nat := 15
-def transcriptCalls : Nat := 75
+def transcriptCalls : Nat := coordinateCount * 9
 
 def u64Base (duplexBase : Nat) : Nat :=
   duplexBase + transcriptCalls * SymbolicDuplex.stride
@@ -127,22 +126,40 @@ def allocation (duplexBase : Nat) : List Nat :=
   transcriptAllocation duplexBase ++ suffixAllocation duplexBase
 
 def cost : Nightstream.Implementation.Lowering.Typed.Cost :=
-  ⟨105930, 0, 0, 99885⟩
+  ⟨transcriptCalls * SymbolicDuplex.stride +
+      (PiRlcCanonicalSamplerHonest.suffixCost coordinateCount).recurringRows,
+    0,
+    0,
+    transcriptCalls * SymbolicDuplex.stride +
+      (PiRlcCanonicalSamplerHonest.suffixCost coordinateCount).auxiliaryColumns⟩
+
+theorem cost_recurringRows : cost.recurringRows = 143610 := by
+  rfl
+
+theorem cost_auxiliaryColumns : cost.auxiliaryColumns = 136845 := by
+  rfl
 
 theorem rows_length
     (duplexBase : Nat) (constants : Constants) (lanes : State) :
     (rows duplexBase constants lanes).length = cost.recurringRows := by
-  unfold rows transcriptRows suffixRows cost coordinateCount
+  unfold rows transcriptRows suffixRows coordinateCount
   rw [List.length_append,
     PiRlcCanonicalSymbolicMachineHonest.fixedRows_length,
-    PiRlcCanonicalSamplerHonest.fixedActive_suffixRows_length]
+    PiRlcCanonicalSamplerHonest.fixedActive_suffixRows_length,
+    cost_recurringRows]
 
 theorem allocation_length (duplexBase : Nat) :
     (allocation duplexBase).length = cost.auxiliaryColumns := by
-  unfold allocation transcriptAllocation suffixAllocation cost coordinateCount
+  unfold allocation transcriptAllocation suffixAllocation coordinateCount
   rw [List.length_append,
     PiRlcCanonicalSymbolicMachineHonest.fixedAllocation_length,
-    PiRlcCanonicalSamplerHonest.fixedActive_suffixAllocation_length]
+    PiRlcCanonicalSamplerHonest.fixedActive_suffixAllocation_length,
+    cost_auxiliaryColumns]
+
+theorem transcriptAllocation_eq (duplexBase : Nat) :
+    transcriptAllocation duplexBase =
+      SymbolicDuplexPhysical.temporaryColumns duplexBase transcriptCalls := by
+  rfl
 
 theorem u64_separated (duplexBase : Nat) :
     PiRlcCanonicalCandidatesBatchHonest.u64End
@@ -200,15 +217,14 @@ theorem allocation_nodup (duplexBase : Nat) :
       ?_⟩
   intro transcriptColumn transcriptMember suffixColumn suffixMember equal
   subst suffixColumn
+  rw [transcriptAllocation_eq] at transcriptMember
   have below :=
     SymbolicDuplexPhysical.temporaryColumns_lt_end
       duplexBase transcriptCalls transcriptColumn
-      (by simpa [transcriptAllocation,
-          PiRlcCanonicalSymbolicMachineHonest.fixedAllocation,
-          transcriptCalls] using transcriptMember)
+      transcriptMember
   have above := suffixAllocation_ge duplexBase transcriptColumn suffixMember
   have notAbove : ¬ u64Base duplexBase ≤ transcriptColumn := by
-    simpa [u64Base] using (Nat.not_le_of_gt below)
+    exact Nat.not_le_of_gt below
   exact notAbove above
 
 theorem allocation_ge
@@ -232,14 +248,15 @@ theorem allocation_lt_end
     (duplexBase column : Nat)
     (member : column ∈ allocation duplexBase) :
     column < duplexBase + cost.auxiliaryColumns := by
+  rw [cost_auxiliaryColumns]
   rcases List.mem_append.mp member with inTranscript | inSuffix
-  · have below :=
+  · rw [transcriptAllocation_eq] at inTranscript
+    have below :=
       SymbolicDuplexPhysical.temporaryColumns_lt_end
         duplexBase transcriptCalls column
-        (by simpa [transcriptAllocation,
-            PiRlcCanonicalSymbolicMachineHonest.fixedAllocation,
-            transcriptCalls] using inTranscript)
-    simp only [transcriptCalls, SymbolicDuplex.stride, cost] at below ⊢
+        inTranscript
+    simp only [transcriptCalls, coordinateCount,
+      SymbolicDuplex.stride] at below
     omega
   · unfold suffixAllocation PiRlcCanonicalSamplerHonest.suffixAllocation at inSuffix
     simp only [List.mem_append] at inSuffix
@@ -250,7 +267,7 @@ theorem allocation_lt_end
       simp only [u64Base, coordinateCount, transcriptCalls,
         SymbolicDuplex.stride,
         PiRlcCanonicalU64.lanesPerScalar,
-        CanonicalU64Recipe.auxiliaryCount, cost] at upper ⊢
+        CanonicalU64Recipe.auxiliaryCount] at upper ⊢
       omega
     · have upper :=
         (PiRlcCanonicalCandidates.allocation_mem_iff
@@ -263,7 +280,7 @@ theorem allocation_lt_end
         PiRlcCanonicalU64.lanesPerScalar,
         CanonicalU64Recipe.auxiliaryCount,
         PiRlcCanonicalCandidates.candidatesPerScalar,
-        PiRlcCanonicalCandidate.auxiliaryCount, cost] at upper ⊢
+        PiRlcCanonicalCandidate.auxiliaryCount] at upper ⊢
       omega
     · have upper :=
         (PiRlcCanonicalSelector.allocation_mem_iff
@@ -279,7 +296,7 @@ theorem allocation_lt_end
         PiRlcCanonicalCandidate.auxiliaryCount,
         PiRlcCanonicalSelector.scalarAuxiliaryCount,
         PiRlcCanonicalSelector.outputCount,
-        PiRlcCanonicalSelector.positionAuxiliaryCount, cost] at upper ⊢
+        PiRlcCanonicalSelector.positionAuxiliaryCount] at upper ⊢
       omega
 
 /-! ## Combined structured row receipts -/
@@ -408,10 +425,11 @@ theorem inputsBelow
       duplexBase (u64Base duplexBase) coordinateCount
       (PiRlcCanonicalSymbolicMachineHonest.initialBuilder lanes) := by
   apply PiRlcCanonicalU64Placement.inputsBelow_of_transcriptEnd
-  · rfl
-  · unfold PiRlcCanonicalU64Placement.transcriptEnd u64Base
-      transcriptCalls coordinateCount
-      PiRlcCanonicalSymbolicMachineHonest.initialBuilder SymbolicDuplex.start
+  · exact PiRlcCanonicalSymbolicMachineHonest.initialBuilder_absorbed lanes
+  · simp only [PiRlcCanonicalU64Placement.transcriptEnd, u64Base,
+      transcriptCalls,
+      PiRlcCanonicalSymbolicMachineHonest.initialBuilder_entries_length,
+      Nat.zero_add]
     exact Nat.le_refl _
 
 private theorem rowHolds_congr
@@ -724,9 +742,10 @@ theorem honestAssignment_satisfies
       · have below :=
           SymbolicDuplexPhysical.temporaryColumns_lt_end
             duplexBase transcriptCalls column
-            (by simpa [PiRlcCanonicalSymbolicMachineHonest.fixedAllocation,
-                transcriptCalls] using inAllocation)
-        simpa [u64Base] using below
+            (by
+              rw [← transcriptAllocation_eq]
+              exact inAllocation)
+        exact below
     symm
     exact PiRlcCanonicalSamplerHonest.finalWitness_before_u64Base field
       duplexBase (u64Base duplexBase) (candidateBase duplexBase)

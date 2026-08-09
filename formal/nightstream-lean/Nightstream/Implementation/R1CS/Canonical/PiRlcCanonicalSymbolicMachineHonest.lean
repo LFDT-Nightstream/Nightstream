@@ -17,7 +17,6 @@ Assurance tier: model-level canonical encoding.
 -/
 
 set_option autoImplicit false
-set_option maxRecDepth 100000
 
 namespace Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSymbolicMachineHonest
 
@@ -217,6 +216,9 @@ def initialBuilder (lanes : State) : SymbolicDuplex.Builder :=
 @[simp] theorem initialBuilder_absorbed (lanes : State) :
     (initialBuilder lanes).absorbed = 1 := rfl
 
+@[simp] theorem initialBuilder_entries_length (lanes : State) :
+    (initialBuilder lanes).entries.length = 0 := rfl
+
 theorem initialBuilder_wellPlaced
     (base : Nat) (lanes : State)
     (lanesBefore :
@@ -323,7 +325,7 @@ theorem fixedRows_conservation
   rw [fixedBuilder_entries_length] at conserved
   exact conserved
 
-/-- The explicit final assignment for the exact 75-call transcript. -/
+/-- The explicit final assignment for the exact 135-call transcript. -/
 def fixedWitness
     (base : Nat) (constants : Constants) (lanes : State)
     (initial : Nat → Nat) : Nat → Nat :=
@@ -346,7 +348,7 @@ theorem fixedWitness_constantWire
   SymbolicDuplexHonest.witnesses_constantWire base constants basePositive
     (fixedBuilder base lanes).entries initial
 
-/-- Honest completeness of the exact 26,400-row symbolic transcript.  No
+/-- Honest completeness of the exact 47,520-row symbolic transcript.  No
 already-satisfied transcript or caller-supplied permutation result appears as
 a premise. -/
 theorem fixedRows_honest

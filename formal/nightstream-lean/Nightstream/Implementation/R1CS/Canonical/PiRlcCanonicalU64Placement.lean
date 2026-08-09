@@ -15,7 +15,6 @@ Assurance tier: model-level canonical encoding.
 -/
 
 set_option autoImplicit false
-set_option maxRecDepth 100000
 
 namespace Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalU64Placement
 

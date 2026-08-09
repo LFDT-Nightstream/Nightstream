@@ -114,37 +114,6 @@ private theorem fieldResidue_foldl
       simp only [List.foldl]
       rw [inductionHypothesis, fieldResidue_add_hom, fieldResidue_mul_hom]
 
-private theorem fieldResidue_chunkFold
-    (assignment : Nat → Nat) (chunk : Nat) (offsets : List Nat)
-    (initial : Nat) :
-    fieldResidue
-        (offsets.foldl (fun value offset =>
-          value + 2 ^ offset *
-            assignment (ChunkRows.sourceBitCol chunk offset)) initial) =
-      offsets.foldl (fun value offset =>
-        value + fieldResidue (2 ^ offset) *
-          fieldResidue (assignment (ChunkRows.sourceBitCol chunk offset)))
-        (fieldResidue initial) := by
-  induction offsets generalizing initial with
-  | nil => rfl
-  | cons head tail inductionHypothesis =>
-      simp only [List.foldl]
-      rw [inductionHypothesis, fieldResidue_add_hom, fieldResidue_mul_hom]
-
-private theorem fieldResidue_chunkValue
-    (assignment : Nat → Nat) (chunk : Nat) :
-    fieldResidue (Chunk.chunkValue assignment chunk) =
-      (List.range 16).foldl (fun value offset =>
-        value + fieldResidue (2 ^ offset) *
-          fieldResidue (assignment (ChunkRows.sourceBitCol chunk offset))) 0 := by
-  unfold Chunk.chunkValue
-  rw [fieldResidue_chunkFold, fieldResidue_zero]
-
-private theorem rangeSixteen :
-    List.range 16 =
-      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] := by
-  decide
-
 private theorem fieldResidue_lcEval
     (assignment : Nat → Nat) (terms : List (Nat × Nat)) :
     fieldResidue (lcEval assignment terms) =
@@ -196,6 +165,51 @@ def evalDecoderFieldTerms
   terms.foldl (fun value term =>
     value + term.2 * decoderAtomFieldValue source coordinates term.1) 0
 
+private theorem foldlDecoderTerms_from
+    (source : SourceAssignment) (coordinates : CoordinateAssignment)
+    (terms : List DecoderFieldTerm) (initial : GateField) :
+    terms.foldl (fun value term =>
+        value + term.2 * decoderAtomFieldValue source coordinates term.1)
+        initial =
+      initial + evalDecoderFieldTerms source coordinates terms := by
+  induction terms generalizing initial with
+  | nil =>
+      exact (gateField_add_zero initial).symm
+  | cons head tail inductionHypothesis =>
+      rw [List.foldl_cons, inductionHypothesis]
+      change (initial +
+            head.2 * decoderAtomFieldValue source coordinates head.1) +
+          evalDecoderFieldTerms source coordinates tail =
+        initial +
+          tail.foldl (fun value term =>
+              value + term.2 *
+                decoderAtomFieldValue source coordinates term.1)
+            (0 + head.2 *
+              decoderAtomFieldValue source coordinates head.1)
+      rw [inductionHypothesis, gateField_zero_add, gateField_add_assoc]
+
+private theorem evalDecoderFieldTerms_cons
+    (source : SourceAssignment) (coordinates : CoordinateAssignment)
+    (head : DecoderFieldTerm) (tail : List DecoderFieldTerm) :
+    evalDecoderFieldTerms source coordinates (head :: tail) =
+      head.2 * decoderAtomFieldValue source coordinates head.1 +
+        evalDecoderFieldTerms source coordinates tail := by
+  change tail.foldl (fun value term =>
+        value + term.2 * decoderAtomFieldValue source coordinates term.1)
+      (0 + head.2 * decoderAtomFieldValue source coordinates head.1) = _
+  rw [foldlDecoderTerms_from, gateField_zero_add]
+
+private theorem evalDecoderFieldTerms_append
+    (source : SourceAssignment) (coordinates : CoordinateAssignment)
+    (left right : List DecoderFieldTerm) :
+    evalDecoderFieldTerms source coordinates (left ++ right) =
+      evalDecoderFieldTerms source coordinates left +
+        evalDecoderFieldTerms source coordinates right := by
+  unfold evalDecoderFieldTerms
+  rw [List.foldl_append]
+  rw [foldlDecoderTerms_from]
+  rfl
+
 /-- Translating a role LC through the artifact column map and evaluating it
 with the Nat R1CS evaluator agrees with direct field-role evaluation. -/
 theorem fieldResidue_evalDecoderLinearCombination
@@ -218,34 +232,42 @@ private def negOne : GateField := fieldResidue (goldilocksP - 1)
 
 private def twoPower (index : Nat) : GateField := fieldResidue (2 ^ index)
 
-private def chunkIndex (value : Nat) (isLt : value < 16) : Fin 16 :=
-  ⟨value, isLt⟩
+private def chunkFieldTerms : List DecoderFieldTerm :=
+  [(.source (.chunkBit ⟨0, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 0)),
+   (.source (.chunkBit ⟨1, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 1)),
+   (.source (.chunkBit ⟨2, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 2)),
+   (.source (.chunkBit ⟨3, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 3)),
+   (.source (.chunkBit ⟨4, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 4)),
+   (.source (.chunkBit ⟨5, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 5)),
+   (.source (.chunkBit ⟨6, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 6)),
+   (.source (.chunkBit ⟨7, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 7)),
+   (.source (.chunkBit ⟨8, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 8)),
+   (.source (.chunkBit ⟨9, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 9)),
+   (.source (.chunkBit ⟨10, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 10)),
+   (.source (.chunkBit ⟨11, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 11)),
+   (.source (.chunkBit ⟨12, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 12)),
+   (.source (.chunkBit ⟨13, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 13)),
+   (.source (.chunkBit ⟨14, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 14)),
+   (.source (.chunkBit ⟨15, by decide⟩),
+      negOne * (highDenominatorInverse * twoPower 15))]
 
-/-- Independent coefficient-level expansion of
-`high = (chunk - 5 * low - residueIndex) / (5 * 2^13)`.
-
-Unlike the generated artifact, this list names coefficients as field
-operations on the semantic denominator inverse. -/
-def highFormulaFieldTerms : List DecoderFieldTerm :=
-  [(.source .one,
-      negOne * (highDenominatorInverse * fieldResidue 2)),
-   (.source (.chunkBit 0), highDenominatorInverse * twoPower 0),
-   (.source (.chunkBit 1), highDenominatorInverse * twoPower 1),
-   (.source (.chunkBit 2), highDenominatorInverse * twoPower 2),
-   (.source (.chunkBit 3), highDenominatorInverse * twoPower 3),
-   (.source (.chunkBit 4), highDenominatorInverse * twoPower 4),
-   (.source (.chunkBit 5), highDenominatorInverse * twoPower 5),
-   (.source (.chunkBit 6), highDenominatorInverse * twoPower 6),
-   (.source (.chunkBit 7), highDenominatorInverse * twoPower 7),
-   (.source (.chunkBit 8), highDenominatorInverse * twoPower 8),
-   (.source (.chunkBit 9), highDenominatorInverse * twoPower 9),
-   (.source (.chunkBit 10), highDenominatorInverse * twoPower 10),
-   (.source (.chunkBit 11), highDenominatorInverse * twoPower 11),
-   (.source (.chunkBit 12), highDenominatorInverse * twoPower 12),
-   (.source (.chunkBit 13), highDenominatorInverse * twoPower 13),
-   (.source (.chunkBit 14), highDenominatorInverse * twoPower 14),
-   (.source (.chunkBit 15), highDenominatorInverse * twoPower 15),
-   (.coordinate (.quotientLow 0),
+private def quotientLowFieldTerms : List DecoderFieldTerm :=
+  [(.coordinate (.quotientLow 0),
       negOne * (highDenominatorInverse * (fieldResidue 5 * twoPower 0))),
    (.coordinate (.quotientLow 1),
       negOne * (highDenominatorInverse * (fieldResidue 5 * twoPower 1))),
@@ -270,74 +292,37 @@ def highFormulaFieldTerms : List DecoderFieldTerm :=
    (.coordinate (.quotientLow 11),
       negOne * (highDenominatorInverse * (fieldResidue 5 * twoPower 11))),
    (.coordinate (.quotientLow 12),
-      negOne * (highDenominatorInverse * (fieldResidue 5 * twoPower 12))),
-   (.coordinate .residueLeft, negOne * highDenominatorInverse),
+      negOne * (highDenominatorInverse * (fieldResidue 5 * twoPower 12)))]
+
+private def residueFieldTerms : List DecoderFieldTerm :=
+  [(.coordinate .residueLeft, negOne * highDenominatorInverse),
    (.coordinate .residueRight, negOne * highDenominatorInverse)]
+
+private def highTailFieldTerms : List DecoderFieldTerm :=
+  chunkFieldTerms ++ quotientLowFieldTerms ++ residueFieldTerms
+
+private theorem highConstantSplit :
+    highDenominatorInverse * fieldResidue 65533 =
+      highDenominatorInverse * fieldResidue 65535 +
+        highDenominatorInverse * (negOne * fieldResidue 2) := by
+  native_decide
+
+/-- Independent coefficient-level expansion of
+`high = (chunk - 5 * low - residueIndex) / (5 * 2^13)`.
+
+Unlike the generated artifact, this list names coefficients as field
+operations on the semantic denominator inverse. -/
+def highFormulaFieldTerms : List DecoderFieldTerm :=
+  (.source .one, highDenominatorInverse * fieldResidue 65533) ::
+    highTailFieldTerms
 
 /-- The same semantic atoms ordered as the independently stated derived-high
 formula: chunk, low quotient, residue pair, then the constant offset. -/
 def derivedHighFieldTerms : List DecoderFieldTerm :=
-  [(.source (.chunkBit (chunkIndex 0 (by decide))),
-      highDenominatorInverse * twoPower 0),
-   (.source (.chunkBit (chunkIndex 1 (by decide))),
-      highDenominatorInverse * twoPower 1),
-   (.source (.chunkBit (chunkIndex 2 (by decide))),
-      highDenominatorInverse * twoPower 2),
-   (.source (.chunkBit (chunkIndex 3 (by decide))),
-      highDenominatorInverse * twoPower 3),
-   (.source (.chunkBit (chunkIndex 4 (by decide))),
-      highDenominatorInverse * twoPower 4),
-   (.source (.chunkBit (chunkIndex 5 (by decide))),
-      highDenominatorInverse * twoPower 5),
-   (.source (.chunkBit (chunkIndex 6 (by decide))),
-      highDenominatorInverse * twoPower 6),
-   (.source (.chunkBit (chunkIndex 7 (by decide))),
-      highDenominatorInverse * twoPower 7),
-   (.source (.chunkBit (chunkIndex 8 (by decide))),
-      highDenominatorInverse * twoPower 8),
-   (.source (.chunkBit (chunkIndex 9 (by decide))),
-      highDenominatorInverse * twoPower 9),
-   (.source (.chunkBit (chunkIndex 10 (by decide))),
-      highDenominatorInverse * twoPower 10),
-   (.source (.chunkBit (chunkIndex 11 (by decide))),
-      highDenominatorInverse * twoPower 11),
-   (.source (.chunkBit (chunkIndex 12 (by decide))),
-      highDenominatorInverse * twoPower 12),
-   (.source (.chunkBit (chunkIndex 13 (by decide))),
-      highDenominatorInverse * twoPower 13),
-   (.source (.chunkBit (chunkIndex 14 (by decide))),
-      highDenominatorInverse * twoPower 14),
-   (.source (.chunkBit (chunkIndex 15 (by decide))),
-      highDenominatorInverse * twoPower 15),
-   (.coordinate (.quotientLow 0),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 0))),
-   (.coordinate (.quotientLow 1),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 1))),
-   (.coordinate (.quotientLow 2),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 2))),
-   (.coordinate (.quotientLow 3),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 3))),
-   (.coordinate (.quotientLow 4),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 4))),
-   (.coordinate (.quotientLow 5),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 5))),
-   (.coordinate (.quotientLow 6),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 6))),
-   (.coordinate (.quotientLow 7),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 7))),
-   (.coordinate (.quotientLow 8),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 8))),
-   (.coordinate (.quotientLow 9),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 9))),
-   (.coordinate (.quotientLow 10),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 10))),
-   (.coordinate (.quotientLow 11),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 11))),
-   (.coordinate (.quotientLow 12),
-      highDenominatorInverse * (negOne * (fieldResidue 5 * twoPower 12))),
-   (.coordinate .residueLeft, highDenominatorInverse * negOne),
-   (.coordinate .residueRight, highDenominatorInverse * negOne),
-   (.source .one, highDenominatorInverse * (negOne * fieldResidue 2))]
+  (.source .one, highDenominatorInverse * fieldResidue 65535) ::
+    (highTailFieldTerms ++
+      [(.source .one,
+        highDenominatorInverse * (negOne * fieldResidue 2))])
 
 /-- Closed coefficient audit: the generated high LC is exactly the semantic
 field expansion above, atom for atom and in the same order. -/
@@ -347,30 +332,146 @@ theorem generatedHighDecoder_fieldTerms_exact :
       highFormulaFieldTerms := by
   native_decide
 
-/-- Closed permutation audit between artifact order and semantic formula order. -/
-theorem highFormulaFieldTerms_perm_derived :
-    highFormulaFieldTerms.Perm derivedHighFieldTerms := by
-  native_decide
-
-private theorem evalDecoderFieldTerms_perm
+/-- Splitting the combined constant into `65535 - 2` preserves evaluation;
+all source and coordinate terms stay unchanged. -/
+theorem highFormulaFieldTerms_eval_derived
     (source : SourceAssignment) (coordinates : CoordinateAssignment)
-    {left right : List DecoderFieldTerm} (permutation : left.Perm right) :
-    evalDecoderFieldTerms source coordinates left =
-      evalDecoderFieldTerms source coordinates right := by
-  unfold evalDecoderFieldTerms
-  apply permutation.foldl_eq'
-  intro leftTerm _ rightTerm _ value
-  apply Fin.ext
-  simp only [Fin.val_add]
-  simp [Nat.mod_add_mod, Nat.add_mod_mod, Nat.add_assoc,
-    Nat.add_comm, Nat.add_left_comm]
+    (one : source SourceRole.one.column = 1) :
+    evalDecoderFieldTerms source coordinates highFormulaFieldTerms =
+      evalDecoderFieldTerms source coordinates derivedHighFieldTerms := by
+  have sourceOne : fieldResidue (source 0) = 1 := by
+    have rawOne : source 0 = 1 := by
+      simpa [SourceRole.column] using one
+    rw [rawOne]
+    rfl
+  unfold highFormulaFieldTerms derivedHighFieldTerms
+  rw [evalDecoderFieldTerms_cons, evalDecoderFieldTerms_cons,
+    evalDecoderFieldTerms_append, evalDecoderFieldTerms_cons]
+  have empty : evalDecoderFieldTerms source coordinates [] = 0 := rfl
+  rw [empty, gateField_add_zero]
+  simp only [decoderAtomFieldValue, SourceRole.column, sourceOne,
+    gateField_mul_one]
+  let tailValue := evalDecoderFieldTerms source coordinates highTailFieldTerms
+  change highDenominatorInverse * fieldResidue 65533 + tailValue =
+    highDenominatorInverse * fieldResidue 65535 +
+      (tailValue + highDenominatorInverse * (negOne * fieldResidue 2))
+  rw [highConstantSplit]
+  rw [gateField_add_assoc,
+    gateField_add_comm
+      (highDenominatorInverse * (negOne * fieldResidue 2)) tailValue]
+
+private theorem rangeSixteen :
+    List.range 16 =
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] := by
+  decide
+
+private theorem swapMultipliers
+    (left right value : GateField) :
+    left * (right * value) = right * (left * value) := by
+  rw [← gateField_mul_assoc,
+    gateField_mul_comm left right,
+    gateField_mul_assoc]
+
+private theorem chunkFieldTerms_value
+    (source : SourceAssignment) (coordinates : CoordinateAssignment)
+    (one : source SourceRole.one.column = 1)
+    (bits : Chunk.BitsBoolean source 0) :
+    highDenominatorInverse * fieldResidue 65535 *
+          decoderAtomFieldValue source coordinates (.source .one) +
+        evalDecoderFieldTerms source coordinates chunkFieldTerms =
+      highDenominatorInverse * fieldResidue (Chunk.chunkValue source 0) := by
+  rw [← Chunk.chunkTerms_value one bits, fieldResidue_lcEval]
+  have sourceOne : fieldResidue (source 0) = 1 := by
+    have rawOne : source 0 = 1 := by
+      simpa [SourceRole.column] using one
+    rw [rawOne]
+    rfl
+  have c0 : fieldResidue (goldilocksP - 2 ^ 0) = negOne * twoPower 0 := by native_decide
+  have c1 : fieldResidue (goldilocksP - 2 ^ 1) = negOne * twoPower 1 := by native_decide
+  have c2 : fieldResidue (goldilocksP - 2 ^ 2) = negOne * twoPower 2 := by native_decide
+  have c3 : fieldResidue (goldilocksP - 2 ^ 3) = negOne * twoPower 3 := by native_decide
+  have c4 : fieldResidue (goldilocksP - 2 ^ 4) = negOne * twoPower 4 := by native_decide
+  have c5 : fieldResidue (goldilocksP - 2 ^ 5) = negOne * twoPower 5 := by native_decide
+  have c6 : fieldResidue (goldilocksP - 2 ^ 6) = negOne * twoPower 6 := by native_decide
+  have c7 : fieldResidue (goldilocksP - 2 ^ 7) = negOne * twoPower 7 := by native_decide
+  have c8 : fieldResidue (goldilocksP - 2 ^ 8) = negOne * twoPower 8 := by native_decide
+  have c9 : fieldResidue (goldilocksP - 2 ^ 9) = negOne * twoPower 9 := by native_decide
+  have c10 : fieldResidue (goldilocksP - 2 ^ 10) = negOne * twoPower 10 := by native_decide
+  have c11 : fieldResidue (goldilocksP - 2 ^ 11) = negOne * twoPower 11 := by native_decide
+  have c12 : fieldResidue (goldilocksP - 2 ^ 12) = negOne * twoPower 12 := by native_decide
+  have c13 : fieldResidue (goldilocksP - 2 ^ 13) = negOne * twoPower 13 := by native_decide
+  have c14 : fieldResidue (goldilocksP - 2 ^ 14) = negOne * twoPower 14 := by native_decide
+  have c15 : fieldResidue (goldilocksP - 2 ^ 15) = negOne * twoPower 15 := by native_decide
+  simp only [chunkFieldTerms, evalDecoderFieldTerms, ChunkRows.chunkTerms,
+    rangeSixteen, List.map, List.foldl,
+    decoderAtomFieldValue, SourceRole.column, ChunkRows.sourceBitCol,
+    sourceOne, gateField_mul_one, gateField_zero_add]
+  rw [List.foldl_append]
+  simp only [List.foldl, gateField_zero_add]
+  rw [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15]
+  simp only [sourceOne, gateField_one_mul, gateField_mul_one,
+    gateField_mul_add, gateField_mul_assoc]
+  simp only [swapMultipliers negOne highDenominatorInverse,
+    gateField_add_assoc]
+
+private theorem quotientLowFieldTerms_value
+    (source : SourceAssignment) (coordinates : CoordinateAssignment) :
+    evalDecoderFieldTerms source coordinates quotientLowFieldTerms =
+      negOne *
+        (highDenominatorInverse *
+          (fieldResidue 5 *
+            (witnessOfCoordinates coordinates).quotientLowValue)) := by
+  simp only [quotientLowFieldTerms, evalDecoderFieldTerms, List.foldl,
+    decoderAtomFieldValue, CoordinateRole.column, witnessOfCoordinates,
+    Witness.quotientLowValue, gateField_zero_add]
+  simp only [gateField_mul_add, gateField_mul_assoc, gateField_mul_zero,
+    gateField_add_zero]
+  ac_rfl
+
+private theorem residueFieldTerms_value
+    (source : SourceAssignment) (coordinates : CoordinateAssignment) :
+    evalDecoderFieldTerms source coordinates residueFieldTerms =
+      negOne * highDenominatorInverse *
+        ((witnessOfCoordinates coordinates).residueLeft +
+          (witnessOfCoordinates coordinates).residueRight) := by
+  simp only [residueFieldTerms, evalDecoderFieldTerms, List.foldl,
+    decoderAtomFieldValue, CoordinateRole.column, witnessOfCoordinates,
+    gateField_zero_add]
+  rw [gateField_mul_add]
+
+private theorem derivedHighAlgebraCore
+    (inverse negative five two chunk low left right : GateField) :
+    (((inverse * chunk + negative * (inverse * (five * low))) +
+        negative * inverse * (left + right)) +
+      inverse * (negative * two)) =
+      inverse *
+        ((chunk + negative * (five * low)) +
+          negative * (left + right + two)) := by
+  simp only [gateField_mul_add, gateField_mul_assoc]
+  simp only [swapMultipliers negative inverse, gateField_add_assoc]
+
+private theorem derivedHighAlgebra
+    (chunk low left right : GateField) :
+    (((highDenominatorInverse * chunk +
+          negOne *
+            (highDenominatorInverse * (fieldResidue 5 * low))) +
+        negOne * highDenominatorInverse * (left + right)) +
+      highDenominatorInverse * (negOne * fieldResidue 2)) =
+      highDenominatorInverse *
+        fieldSub (fieldSub chunk (fieldResidue 5 * low))
+          (left + right + fieldResidue 2) := by
+  unfold fieldSub negOne
+  exact derivedHighAlgebraCore highDenominatorInverse
+    (fieldResidue (goldilocksP - 1)) (fieldResidue 5) (fieldResidue 2)
+    chunk low left right
 
 /-- Evaluation of the generated high decoder LC is the independently stated
 derived-high formula. This theorem is isolated to chunk zero, matching the
 role-normalized artifact; it makes no production placement claim. -/
 theorem generatedHighDecoderRhs_eq_derived
     (source : SourceAssignment) (coordinates : CoordinateAssignment)
-    (one : source SourceRole.one.column = 1) :
+    (one : source SourceRole.one.column = 1)
+    (bits : Chunk.BitsBoolean source 0) :
     fieldResidue
         (evalDecoderLinearCombination source coordinates
           generatedHighDecoderRhs) =
@@ -382,28 +483,52 @@ theorem generatedHighDecoderRhs_eq_derived
     rfl
   rw [fieldResidue_evalDecoderLinearCombination,
     generatedHighDecoder_fieldTerms_exact]
-  rw [evalDecoderFieldTerms_perm source coordinates
-    highFormulaFieldTerms_perm_derived]
-  simp only [evalDecoderFieldTerms, derivedHighFieldTerms, chunkIndex,
-    List.foldl, decoderAtomFieldValue, SourceRole.column,
-    CoordinateRole.column, ChunkRows.sourceBitCol]
-  simp only [derivedQuotientHigh, witnessOfCoordinates,
-    Witness.quotientLowValue, Witness.residueIndex, fieldSub,
-    twoPower, negOne]
-  rw [fieldResidue_chunkValue, rangeSixteen]
-  simp only [List.foldl, ChunkRows.sourceBitCol, CoordinateRole.column,
-    Nat.pow_succ, Nat.pow_zero, Nat.reduceMul, Nat.reduceAdd]
-  simp
-  rw [sourceOne]
-  simp only [gateField_mul_add, gateField_add_assoc, gateField_mul_assoc,
-    gateField_mul_one, gateField_one_mul, fieldResidue_one,
-    fieldResidue_two]
+  rw [highFormulaFieldTerms_eval_derived source coordinates one]
+  calc
+    evalDecoderFieldTerms source coordinates derivedHighFieldTerms =
+        (((highDenominatorInverse * fieldResidue 65535 *
+              decoderAtomFieldValue source coordinates (.source .one) +
+            evalDecoderFieldTerms source coordinates chunkFieldTerms) +
+          evalDecoderFieldTerms source coordinates quotientLowFieldTerms) +
+        evalDecoderFieldTerms source coordinates residueFieldTerms) +
+          highDenominatorInverse * (negOne * fieldResidue 2) *
+            decoderAtomFieldValue source coordinates (.source .one) := by
+      unfold derivedHighFieldTerms highTailFieldTerms
+      rw [evalDecoderFieldTerms_cons, evalDecoderFieldTerms_append,
+        evalDecoderFieldTerms_append, evalDecoderFieldTerms_append,
+        evalDecoderFieldTerms_cons]
+      have empty : evalDecoderFieldTerms source coordinates [] = 0 := rfl
+      rw [empty, gateField_add_zero]
+      simp only [gateField_add_assoc, gateField_mul_assoc]
+    _ =
+        ((highDenominatorInverse * fieldResidue (Chunk.chunkValue source 0) +
+            negOne *
+              (highDenominatorInverse *
+                (fieldResidue 5 *
+                  (witnessOfCoordinates coordinates).quotientLowValue))) +
+          negOne * highDenominatorInverse *
+            ((witnessOfCoordinates coordinates).residueLeft +
+              (witnessOfCoordinates coordinates).residueRight)) +
+        highDenominatorInverse * (negOne * fieldResidue 2) := by
+      rw [chunkFieldTerms_value source coordinates one bits,
+        quotientLowFieldTerms_value, residueFieldTerms_value]
+      simp only [decoderAtomFieldValue, SourceRole.column, sourceOne,
+        gateField_mul_one]
+    _ = derivedQuotientHigh source 0
+          (witnessOfCoordinates coordinates) := by
+      unfold derivedQuotientHigh Witness.residueIndex
+      exact derivedHighAlgebra
+        (fieldResidue (Chunk.chunkValue source 0))
+        (witnessOfCoordinates coordinates).quotientLowValue
+        (witnessOfCoordinates coordinates).residueLeft
+        (witnessOfCoordinates coordinates).residueRight
 
 /-- If the generated high decoder holds, its output source cell is exactly the
 independently derived high quotient bit in the active Goldilocks carrier. -/
 theorem generatedHighDecoder_output_eq_derived
     {source : SourceAssignment} {coordinates : CoordinateAssignment}
     (one : source SourceRole.one.column = 1)
+    (bits : Chunk.BitsBoolean source 0)
     (holds : generatedHighDecoder.Holds source coordinates) :
     fieldResidue
         (source (SourceRole.quotientBit highSourceIndex).column) =
@@ -413,6 +538,6 @@ theorem generatedHighDecoder_output_eq_derived
       evalDecoderLinearCombination source coordinates
         generatedHighDecoderRhs at holds
   rw [holds]
-  exact generatedHighDecoderRhs_eq_derived source coordinates one
+  exact generatedHighDecoderRhs_eq_derived source coordinates one bits
 
 end Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5

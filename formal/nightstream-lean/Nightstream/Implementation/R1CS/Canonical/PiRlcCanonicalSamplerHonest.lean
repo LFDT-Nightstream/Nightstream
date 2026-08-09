@@ -20,7 +20,6 @@ Assurance tier: model-level canonical encoding.
 -/
 
 set_option autoImplicit false
-set_option maxRecDepth 100000
 
 namespace Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSamplerHonest
 
@@ -51,10 +50,20 @@ def suffixAllocation
 the concrete row and allocation lists. -/
 def suffixCost (count : Nat) :
     Nightstream.Implementation.Lowering.Typed.Cost where
-  recurringRows := count * 5302
+  recurringRows :=
+    count * PiRlcCanonicalU64.lanesPerScalar *
+        CanonicalU64Recipe.cost.recurringRows +
+      count * PiRlcCanonicalCandidates.candidatesPerScalar *
+        PiRlcCanonicalCandidate.cost.recurringRows +
+      (PiRlcCanonicalSelector.cost count).recurringRows
   committedColumns := 0
   publicColumns := 0
-  auxiliaryColumns := count * 4899
+  auxiliaryColumns :=
+    count * PiRlcCanonicalU64.lanesPerScalar *
+        CanonicalU64Recipe.cost.auxiliaryColumns +
+      count * PiRlcCanonicalCandidates.candidatesPerScalar *
+        PiRlcCanonicalCandidate.cost.auxiliaryColumns +
+      (PiRlcCanonicalSelector.cost count).auxiliaryColumns
 
 /-- Row cost is derived from the three emitted family lists. -/
 theorem suffixRows_length
@@ -67,11 +76,11 @@ theorem suffixRows_length
     PiRlcCanonicalU64.rows_length,
     PiRlcCanonicalCandidates.rows_length,
     PiRlcCanonicalSelector.rows_length, suffixCost,
+    PiRlcCanonicalSelector.cost,
     PiRlcCanonicalU64.lanesPerScalar,
     CanonicalU64Recipe.cost,
     PiRlcCanonicalCandidate.cost,
     PiRlcCanonicalCandidates.candidatesPerScalar]
-  omega
 
 /-- Column cost is derived from the exact concatenated allocation. -/
 theorem suffixAllocation_length
@@ -82,6 +91,7 @@ theorem suffixAllocation_length
     PiRlcCanonicalU64.allocation_length,
     PiRlcCanonicalCandidates.allocation_length,
     PiRlcCanonicalSelector.allocation_length, suffixCost,
+    PiRlcCanonicalSelector.cost,
     PiRlcCanonicalU64.lanesPerScalar,
     CanonicalU64Recipe.cost,
     PiRlcCanonicalCandidate.cost,
@@ -89,21 +99,28 @@ theorem suffixAllocation_length
     PiRlcCanonicalSelector.scalarAuxiliaryCount,
     PiRlcCanonicalSelector.outputCount,
     PiRlcCanonicalSelector.positionAuxiliaryCount]
-  omega
 
 theorem fixedActive_suffixRows_length
     (duplexBase u64Base candidateBase selectorBase : Nat)
     (initialBuilder : SymbolicDuplex.Builder) :
     (suffixRows duplexBase u64Base candidateBase selectorBase 15
-      initialBuilder).length = 79530 := by
+      initialBuilder).length = 96090 := by
   rw [suffixRows_length]
   rfl
 
 theorem fixedActive_suffixAllocation_length
     (u64Base candidateBase selectorBase : Nat) :
     (suffixAllocation u64Base candidateBase selectorBase 15).length =
-      73485 := by
+      89325 := by
   rw [suffixAllocation_length]
+  rfl
+
+theorem fixedActive_suffixCost_recurringRows :
+    (suffixCost 15).recurringRows = 96090 := by
+  rfl
+
+theorem fixedActive_suffixCost_auxiliaryColumns :
+    (suffixCost 15).auxiliaryColumns = 89325 := by
   rfl
 
 /-- Exact placement separation makes the three contiguous allocations

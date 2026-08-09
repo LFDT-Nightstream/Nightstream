@@ -27,8 +27,8 @@ and no theorem is inherited from them.
 | M2 | PiCCS/PiRLC/PiDEC folding shapes and their composed reduction expose explicit sampling, binding, and collision events. Probability bounds remain M6 work. |
 | M3 | F' base/recursive/terminal semantics and exact trace induction establish `ValidExecution` for the advertised semantic interface. |
 | M4 | `CIR-SOUND` and `CIR-COMPLETE` are artifact-checked for the exact plain, stateless, `[1,1]`, one-recursive-step, terminal-fold, direct-terminal-CE, minimal-bit-carrier profile. |
-| M5 | The supported Rust-shaped F' and terminal verifier surfaces are proved equivalent to their Lean predicates and pinned by conformance manifests. |
-| M6 | Open: compact-decider soundness, final verifier reduction, and probability bounds for recursive/terminal bad-root events. |
+| M5 | Pass for the exact plain, stateless, one-slot step and terminal profiles: fresh Rust-origin execution is checked independently and replayed in Lean. Universal and production refinement are not included. |
+| M6 | The exact F' decider reduction to `ValidExecution` is model-proved with a fixed bad-event census. A production transfer and complete numeric probability instantiation remain open. |
 
 These are scoped claims, not an assertion that every production profile is
 verified. M4 does not yet cover stateful mode, Nebula, other schedules, multiple

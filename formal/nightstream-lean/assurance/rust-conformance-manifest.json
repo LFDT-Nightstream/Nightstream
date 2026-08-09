@@ -35,7 +35,27 @@
     },
     {
       "path": "crates/neo-fold-clean/tests/system/formal_conformance.rs",
-      "sha256": "2c1aa36e4ec001c4765d0c4ab64bbc45305da397ee52a5f591a09cbba08534f9"
+      "sha256": "0585111800eb36b92cfdf685b96aa64b1bc6e7a0adf9a367001e949fa93e7dbb"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/system/formal_conformance/canonical_step_export.rs",
+      "sha256": "119bc953cb3a02cff7cd1c1f33113fca54373aa2a5c2b1354c528a8dcf7b1319"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/system/formal_conformance/canonical_terminal_export.rs",
+      "sha256": "f99ad3e4b9187ee723fff64c47f96e21f4f6ce428874c9011ed2dad9a700e03e"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/system/formal_conformance/rust_origin.rs",
+      "sha256": "3329d13a145a4c303439a3ffb9c9703e2c53ec5f03ec92a2f5abfe63eebb24d4"
+    },
+    {
+      "path": "protocol-contract/check_rust_evidence.py",
+      "sha256": "c8bd4bb8838f1ef3ae78b99f6a7237c73278a879fe3e4397788b31a1211b22f4"
+    },
+    {
+      "path": "formal/nightstream-lean/scripts/validate.sh",
+      "sha256": "3a6a09f91f7faf3e50a50d3e8a32da14ed1fa70c5a19ecfde898586a22d12768"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Protocol/FPrime/Step.lean",
@@ -54,8 +74,20 @@
       "sha256": "84985d6b9e9ad2fd0de5d57f6540988983147a621eddea0b00a1a9c6ec68b40e"
     },
     {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/CanonicalConformance/OneSlot.lean",
+      "sha256": "4f261d6d96ee47bba7e763674928ec3a438b447127ac44d5c234ef41af0641b8"
+    },
+    {
       "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/Terminal.lean",
       "sha256": "5920e181bf541cef0fa9711798dbe92e5ee27528ec9323efd2bea6f4a18341ca"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/DeciderReduction.lean",
+      "sha256": "1fe28128c689d6589bea5734b0549c46601bfa791f24142c89b8c73b9623f158"
+    },
+    {
+      "path": "formal/nightstream-lean/tests/Axioms/DeciderReduction.lean",
+      "sha256": "c21bd4c7a282c7fdb9ec4c66709b9825e5e5d2663543d2175f3c8d12383e0c79"
     }
   ],
   "theorem_anchors": [
@@ -86,6 +118,22 @@
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/Terminal.lean",
       "name": "theorem invalid_has_named_rejection"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/CanonicalConformance/OneSlot.lean",
+      "name": "theorem stepAgrees_eq_true_iff"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/CanonicalConformance/OneSlot.lean",
+      "name": "theorem terminalAgrees_eq_true_iff"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/DeciderReduction.lean",
+      "name": "theorem sound_or_bad"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/DeciderReduction.lean",
+      "name": "theorem verifierReductionTarget"
     }
   ]
 }

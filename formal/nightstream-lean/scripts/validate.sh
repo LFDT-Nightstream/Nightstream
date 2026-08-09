@@ -270,6 +270,30 @@ executable_check() {
   (cd "$ROOT" && run_lean_capped "$LEAN_TIMEOUT_SECONDS" lake exe check)
 }
 
+rust_origin_check() {
+  local evidence_dir="$ROOT/.lake/build/rust-origin"
+  (cd "$REPO_ROOT" && run_non_lean_capped cargo test -p neo-fold-clean \
+    --release --test system_formal_conformance \
+    rust_origin_native_verifier_evidence_is_emitted_for_independent_checks -- \
+    --exact --nocapture)
+  local scope
+  for scope in step terminal; do
+    (cd "$REPO_ROOT" && run_non_lean_capped python3 \
+      protocol-contract/check_rust_evidence.py \
+      "$scope" \
+      "$REPO_ROOT" \
+      "$evidence_dir/native-$scope-evidence.json" \
+      "$evidence_dir/native-$scope-corpus.json" \
+      "$evidence_dir/native-$scope-replay.lean")
+  done
+  (cd "$ROOT" && run_lean_capped "$LEAN_TIMEOUT_SECONDS" lake build \
+    Nightstream.Implementation.Rust.CanonicalConformance.OneSlot)
+  for scope in step terminal; do
+    (cd "$ROOT" && run_lean_capped "$LEAN_TIMEOUT_SECONDS" lake env lean \
+      "$evidence_dir/native-$scope-replay.lean")
+  done
+}
+
 memory_monitor_self_test() {
   local pid_file
   pid_file="$(mktemp "${TMPDIR:-/tmp}/nightstream-monitor.XXXXXX")"
@@ -346,7 +370,7 @@ memory_monitor_self_test() {
 }
 
 usage() {
-  echo "usage: $0 {static|build|axioms|check|monitor-self-test|all|bounded COMMAND...}" >&2
+  echo "usage: $0 {static|build|axioms|check|rust-origin|monitor-self-test|all|bounded COMMAND...}" >&2
   exit 2
 }
 
@@ -363,12 +387,16 @@ case "${1:-}" in
   check)
     executable_check
     ;;
+  rust-origin)
+    rust_origin_check
+    ;;
   monitor-self-test)
     memory_monitor_self_test
     ;;
   all)
     static_checks
     lean_build
+    rust_origin_check
     axiom_report
     executable_check
     ;;

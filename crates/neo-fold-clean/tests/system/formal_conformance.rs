@@ -8,6 +8,8 @@ mod canonical_step_export;
 mod canonical_terminal_export;
 #[path = "formal_conformance/native_step_export.rs"]
 mod native_step_export;
+#[path = "formal_conformance/rust_origin.rs"]
+mod rust_origin;
 #[path = "formal_conformance/state_x_out_program_export.rs"]
 mod state_x_out_program_export;
 #[path = "../support/mod.rs"]
@@ -240,6 +242,19 @@ fn native_verify_step_receipts_are_exact_and_deterministic() {
         drifted.is_empty(),
         "native verify_step receipt drifted; inspect and deliberately promote {drifted:?}"
     );
+}
+
+#[test]
+fn rust_origin_native_verifier_evidence_is_emitted_for_independent_checks() {
+    let evidence = rust_origin::emit();
+    for paths in [evidence.step, evidence.terminal] {
+        assert!(
+            paths.evidence.is_file(),
+            "Rust-origin evidence envelope was not emitted"
+        );
+        assert!(paths.corpus.is_file(), "Rust-origin bounded corpus was not emitted");
+        assert!(paths.lean_replay.is_file(), "Rust-origin Lean replay was not emitted");
+    }
 }
 
 #[test]

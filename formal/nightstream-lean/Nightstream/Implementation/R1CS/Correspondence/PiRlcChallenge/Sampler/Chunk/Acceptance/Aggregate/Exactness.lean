@@ -312,11 +312,14 @@ theorem aggregateAcceptanceRows_iff_verifierMeaning
     {assignment : Nat → Nat} {chunk : Nat}
     (bits : BitsBoolean assignment chunk) (outputs : ProductTreeOutputs)
     (accept : GateField) :
-    AggregateAcceptanceRows (sourceBits assignment chunk) outputs accept ↔
-      ProductTreeMeaning (sourceBits assignment chunk) outputs ∧
+    AggregateAcceptanceRows
+        (candidateBits (sourceBits assignment chunk)) outputs accept ↔
+      ProductTreeMeaning
+          (candidateBits (sourceBits assignment chunk)) outputs ∧
         VerifierAcceptanceMeaning assignment chunk bits accept := by
   rw [aggregateAcceptanceRows_iff_sourceMeaning prime nonresidue
-    (sourceBits assignment chunk) outputs accept (sourceBits_are_boolean bits),
+    (candidateBits (sourceBits assignment chunk)) outputs accept
+      (candidateBits_are_boolean (sourceBits_are_boolean bits)),
     sourceAcceptanceMeaning_iff_verifier bits accept]
 
 /-! ## Canonical extension -/

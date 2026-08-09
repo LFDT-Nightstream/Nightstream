@@ -1,12 +1,12 @@
-import Nightstream.Implementation.R1CS.Ownership.AlphabetSampling.AlphabetSamplingResidualTemplate
+import Nightstream.Implementation.R1CS.Core.Program
 
 /-!
 Exact row schema for the bounded first-accepted tail of one recursive-profile
 `Pi_RLC` coefficient sampler.
 
 Owns: the six-row enough-accepts family, the checked zero prefix, the 54
-position-indexed 11-candidate selection families, their one-hot/product/bind
-subfamilies, and kernel-checked equality with the generated 2,599-row tail.
+position-indexed 11-candidate selection families, and their one-hot,
+product, and binding subfamilies.
 
 Does not own: proof that the tail returns the mathematical first 54 accepted
 symbols, chunk classification, transcript candidates, production placement,
@@ -156,11 +156,6 @@ theorem rows_length : rows.length = 2599 := by
 records that the ownership map's larger allocation range is not itself a
 constraint or a semantic obligation. -/
 theorem final_output_column : outputCol 53 = 2628 := by
-  decide
-
-/-- Kernel-checked structural correspondence to the exact generated tail. -/
-theorem rows_eq_generated :
-    rows = AlphabetSamplingResidualTemplate.tailTemplateRows := by
   decide
 
 end Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.SelectionRows

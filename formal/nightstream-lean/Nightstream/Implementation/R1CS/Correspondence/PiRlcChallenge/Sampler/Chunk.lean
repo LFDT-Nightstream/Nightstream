@@ -122,7 +122,9 @@ def candidate
     (bits : BitsBoolean assignment chunk) : ProductionAlphabet.Chunk :=
   ⟨chunkValue assignment chunk, chunkValue_lt_bound bits⟩
 
-private theorem lcEval_chunkTerms
+/-- The emitted chunk linear combination is the independent complemented
+candidate value when the source cells are Boolean and column zero is one. -/
+theorem chunkTerms_value
     {assignment : Nat → Nat} {chunk : Nat}
     (one : assignment 0 = 1) (bits : BitsBoolean assignment chunk) :
     lcEval assignment (ChunkRows.chunkTerms chunk) =
@@ -212,7 +214,7 @@ private theorem lcEval_differenceTerms
       (chunkValue assignment chunk + goldilocksP - 65535) %
         goldilocksP := by
   rw [ChunkRows.differenceTerms, lcEval_append,
-    lcEval_chunkTerms one bits]
+    chunkTerms_value one bits]
   simp [lcEval, one, goldilocksP]
 
 private theorem lcEval_oneMinusAccept
@@ -373,7 +375,6 @@ theorem quotientRecompositionRow_sound
   rw [lcEval_quotientTerms bits] at decoded
   exact decoded
 
-set_option maxRecDepth 100000 in
 /-- The exact four-row product chain forces the residue witness into the
 five-element decoder alphabet. This is a semantic range theorem, not merely a
 row-inclusion certificate. -/
@@ -534,7 +535,7 @@ theorem decompositionRow_sound
       5 * assignment (ChunkRows.quotientCol chunk) +
         assignment (ChunkRows.residueCol chunk) := by
     simp [rightTerms, lcEval, Nat.mod_eq_of_lt rightLt]
-  rw [lcEval_chunkTerms one sourceBits, rightEval, quotientEq] at equation
+  rw [chunkTerms_value one sourceBits, rightEval, quotientEq] at equation
   exact equation
 
 /-- The decoded residue equals the verifier-owned modulo-five symbol. -/

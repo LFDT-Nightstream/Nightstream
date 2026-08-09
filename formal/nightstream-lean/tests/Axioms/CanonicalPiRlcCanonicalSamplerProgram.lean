@@ -90,8 +90,7 @@ open Nightstream.Implementation.R1CS.Canonical
 #guard_msgs in
 #audit_axioms PiRlcCanonicalSamplerProgram.rows_length
 
-/-- info: 'Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSamplerProgram.allocation_length' depends on axioms: [propext,
- Quot.sound] -/
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSamplerProgram.allocation_length' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms PiRlcCanonicalSamplerProgram.allocation_length
 

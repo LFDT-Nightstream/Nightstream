@@ -36,12 +36,12 @@
 
 use super::super::gadgets::push_zero_test_gadget;
 use super::super::layout::{
-    COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE, COL_EVBUF0_AFTER,
-    COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_FUNCTION_REF, COL_GATHER_ACTIVE,
-    COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
-    COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER,
-    COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_ONE,
-    COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
+    ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE,
+    COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_FUNCTION_REF,
+    COL_GATHER_ACTIVE, COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE,
+    COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE,
+    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE,
+    COL_ONE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
     COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE,
     COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
     COL_STACK_READS, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
@@ -50,6 +50,7 @@ use super::super::layout::{
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
 use super::call::host_call_gate_terms;
+use crate::column_registry::define_column_region;
 use crate::comm_chain::{
     perm_external_linear, perm_full_round_constants, perm_internal_linear, perm_partial_round_constants,
     perm_row_is_full_round, COMM_CHAIN_PERM_ROWS, HOST_CALL_EVENT_TAG, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW,
@@ -63,47 +64,41 @@ type R1csBuilder = WasmTaggedR1csBuilder;
 // Gadget-internal column block, allocated right after the named layout (the
 // range-check bit columns follow it). Indices are private: the interface
 // columns everything else uses are the named carried-state columns above.
-const POS0: usize = crate::witness_layout::POSEIDON_AUX_START; // 19 position one-hot flags
-const FULL_T0: usize = POS0 + COMM_CHAIN_PERM_ROWS; // 48 full-round S-box powers
-const PARTIAL_U0: usize = FULL_T0 + 48; // 8 partial-pair S-box powers
-const WSA0: usize = PARTIAL_U0 + 8; // 4 arg-row write masks
-const WSR0: usize = WSA0 + 4; // 4 result-row write masks
-const STREAM_DONE: usize = WSR0 + 4; // event stream complete after this row
-const EVENT_END: usize = STREAM_DONE + 1; // this row streams the final word pair
-const EVENT_END_OR: usize = EVENT_END + 1; // (block filled)·(event end) product
-const GW0: usize = EVENT_END_OR + 1; // 8 gather block-word one-hot flags
-const GK0: usize = GW0 + 8; // gather slot-kind one-hot flags
 const GKINDS: usize = WasmGrammarSlotKind::COUNT;
+define_column_region! {
+    region: "host_event_chain_aux",
+    start: crate::witness_layout::POSEIDON_AUX_START,
+    width: pub AUX_WIDTH,
+    specs: pub AUX_COLUMN_SPECS,
+    columns: [
+        (POS0, COMM_CHAIN_PERM_ROWS, "permutation row-position one-hot flags", ColumnWidth::Boolean),
+        (FULL_T0, 48, "full-round S-box power witnesses", ColumnWidth::Field),
+        (PARTIAL_U0, 8, "partial-round S-box power witnesses", ColumnWidth::Field),
+        (WSA0, 4, "raw argument-row event-buffer write masks", ColumnWidth::Boolean),
+        (WSR0, 4, "raw result-row event-buffer write masks", ColumnWidth::Boolean),
+        (STREAM_DONE, 1, "raw event stream completed after this row", ColumnWidth::Boolean),
+        (EVENT_END, 1, "raw row streams the final event word pair", ColumnWidth::Boolean),
+        (EVENT_END_OR, 1, "raw block-filled and event-end product", ColumnWidth::Boolean),
+        (GW0, 8, "gather block-word one-hot flags", ColumnWidth::Boolean),
+        (GK0, GKINDS, "gather slot-kind one-hot flags", ColumnWidth::Boolean),
+        (GARG_VAL, 1, "limb-selected stack argument value", ColumnWidth::Field),
+        (GOUT_VAL, 1, "limb-selected export output value", ColumnWidth::Field),
+        (GSLOT_VALUE, 1, "word staged by the current gather row", ColumnWidth::Field),
+        (GK2_HI, 1, "result-slot high-limb write flag", ColumnWidth::Boolean),
+        (GHC_PARAMS, 1, "grammar host-call and parameter-count product", ColumnWidth::Field),
+        (G_ADVICE, 1, "advice-event slot flag", ColumnWidth::Boolean),
+        (GMEM_LOCAL, 1, "memory pointer comes from an export local", ColumnWidth::Boolean),
+        (GMEM_BYTE, 1, "byte-width grammar memory slot", ColumnWidth::Boolean),
+        (GMEM_HALF, 1, "half-width grammar memory slot", ColumnWidth::Boolean),
+    ]
+}
+
 const GK_ARG: usize = GK0 + WasmGrammarSlotKind::Arg.index();
 const GK_RESULT: usize = GK0 + WasmGrammarSlotKind::Result.index();
 const GK_CLAIM_LOCAL: usize = GK0 + WasmGrammarSlotKind::ClaimLocal.index();
 const GK_OUTPUT: usize = GK0 + WasmGrammarSlotKind::Output.index();
 const GK_MEMORY_READ: usize = GK0 + WasmGrammarSlotKind::MemoryRead.index();
 const GK_MEMORY_WRITE: usize = GK0 + WasmGrammarSlotKind::MemoryWrite.index();
-const GARG_VAL: usize = GK0 + GKINDS; // limb-selected stack-read value
-const GOUT_VAL: usize = GARG_VAL + 1; // limb-selected output-carry value (export result)
-const GSLOT_VALUE: usize = GOUT_VAL + 1; // the block word this gather row stages
-const GK2_HI: usize = GSLOT_VALUE + 1; // result-slot hi-lane write: GK2 · slot_variant
-const GHC_PARAMS: usize = GK2_HI + 1; // grammar host-call arg pops: GHC · call_param_count
-const G_ADVICE: usize = GHC_PARAMS + 1; // advice-event slot flag in the ROM kind cell
-const GMEM_LOCAL: usize = G_ADVICE + 1; // memory slot whose pointer base is an export local
-const GMEM_BYTE: usize = GMEM_LOCAL + 1; // byte-width rather than word-width memory slot
-const GMEM_HALF: usize = GMEM_BYTE + 1; // half-width rather than word-width memory slot
-
-/// Width of the gadget-internal column block.
-pub const AUX_WIDTH: usize = GMEM_HALF + 1 - POS0;
-
-/// Declared bit-widths of the gadget-internal columns, in block order (for
-/// the F' norm decomposition): booleans for the one-hot/masks/products,
-/// full field elements for the S-box powers and gather values.
-pub(crate) fn auxiliary_column_widths() -> impl Iterator<Item = usize> {
-    core::iter::repeat_n(1, COMM_CHAIN_PERM_ROWS)
-        .chain(core::iter::repeat_n(64, 48 + 8))
-        .chain(core::iter::repeat_n(1, 4 + 4 + 3))
-        .chain(core::iter::repeat_n(1, 8 + GKINDS))
-        .chain(core::iter::repeat_n(64, 3))
-        .chain([1, 64, 1, 1, 1, 1])
-}
 
 /// The gather column whose flag pins a non-popping stack read (arg slots).
 /// The `sp' = sp - reads + writes` identity in `ccs.rs` exempts these reads

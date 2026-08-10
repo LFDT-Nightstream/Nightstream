@@ -2,6 +2,7 @@ mod common;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
+use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_SPECS, AUX_WIDTH};
 use neo_wasm::layout::{
     ColumnWidth, COLUMN_SPECS, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_RETURN_PC_VALUE,
     NAMED_COLUMN_COUNT,
@@ -25,7 +26,7 @@ fn expected_aux_bits() -> usize {
 fn range_checked_width_bookkeeping() {
     assert_eq!(
         RANGE_CHECKED_WITNESS_WIDTH,
-        NAMED_COLUMN_COUNT + neo_wasm::ccs::host_event_chain::AUX_WIDTH + expected_aux_bits()
+        NAMED_COLUMN_COUNT + AUX_WIDTH + expected_aux_bits()
     );
 
     let vm = WasmVmSpec::default();
@@ -34,8 +35,48 @@ fn range_checked_width_bookkeeping() {
 }
 
 #[test]
+fn host_event_auxiliary_registry_preserves_the_existing_layout() {
+    let expected = [
+        ("POS0", 19, ColumnWidth::Boolean),
+        ("FULL_T0", 48, ColumnWidth::Field),
+        ("PARTIAL_U0", 8, ColumnWidth::Field),
+        ("WSA0", 4, ColumnWidth::Boolean),
+        ("WSR0", 4, ColumnWidth::Boolean),
+        ("STREAM_DONE", 1, ColumnWidth::Boolean),
+        ("EVENT_END", 1, ColumnWidth::Boolean),
+        ("EVENT_END_OR", 1, ColumnWidth::Boolean),
+        ("GW0", 8, ColumnWidth::Boolean),
+        ("GK0", 8, ColumnWidth::Boolean),
+        ("GARG_VAL", 1, ColumnWidth::Field),
+        ("GOUT_VAL", 1, ColumnWidth::Field),
+        ("GSLOT_VALUE", 1, ColumnWidth::Field),
+        ("GK2_HI", 1, ColumnWidth::Boolean),
+        ("GHC_PARAMS", 1, ColumnWidth::Field),
+        ("G_ADVICE", 1, ColumnWidth::Boolean),
+        ("GMEM_LOCAL", 1, ColumnWidth::Boolean),
+        ("GMEM_BYTE", 1, ColumnWidth::Boolean),
+        ("GMEM_HALF", 1, ColumnWidth::Boolean),
+    ];
+
+    assert_eq!(AUX_WIDTH, 111);
+    assert_eq!(AUX_COLUMN_SPECS.len(), expected.len());
+
+    let mut next = NAMED_COLUMN_COUNT;
+    for (spec, (name, len, width)) in AUX_COLUMN_SPECS.iter().zip(expected) {
+        assert_eq!(spec.region, "host_event_chain_aux");
+        assert_eq!(spec.name, name);
+        assert_eq!(spec.start, next, "{name}");
+        assert_eq!(spec.len, len, "{name}");
+        assert_eq!(spec.width, width, "{name}");
+        assert_eq!(spec.end(), next + len, "{name}");
+        next += len;
+    }
+    assert_eq!(next, NAMED_COLUMN_COUNT + AUX_WIDTH);
+}
+
+#[test]
 fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
-    let mut next = NAMED_COLUMN_COUNT + neo_wasm::ccs::host_event_chain::AUX_WIDTH;
+    let mut next = NAMED_COLUMN_COUNT + AUX_WIDTH;
 
     for spec in COLUMN_SPECS {
         let bit_count = match spec.width {

@@ -4,6 +4,8 @@
 //! reusable range-check bits. Backend-specific advice and batching extend
 //! this base layout separately.
 
+use crate::ccs::host_event_chain::{AUX_COLUMN_SPECS, AUX_WIDTH};
+use crate::column_registry::{f_prime_width, family_f_prime_widths};
 use crate::layout::{ColumnWidth, COLUMN_SPECS, NAMED_COLUMN_COUNT};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,8 +51,7 @@ pub(crate) const NAMED_COLUMNS: WitnessRegion = WitnessRegion::new(0, NAMED_COLU
 // Kept as a standalone constant so Poseidon can use its assigned base without
 // depending on the `POSEIDON_AUX` value that itself contains Poseidon's width.
 pub(crate) const POSEIDON_AUX_START: usize = NAMED_COLUMNS.end();
-pub(crate) const POSEIDON_AUX: WitnessRegion =
-    WitnessRegion::new(POSEIDON_AUX_START, crate::ccs::host_event_chain::AUX_WIDTH);
+pub(crate) const POSEIDON_AUX: WitnessRegion = WitnessRegion::new(POSEIDON_AUX_START, AUX_WIDTH);
 pub(crate) const RANGE_BITS: WitnessRegion = WitnessRegion::new(POSEIDON_AUX.end(), RANGE_BIT_COUNT);
 
 /// Width of the WASM witness after named columns, Poseidon advice, and
@@ -78,16 +79,11 @@ pub(crate) const fn range_bit_region(column: usize) -> Option<WitnessRegion> {
 pub(crate) fn range_checked_variable_widths() -> Vec<usize> {
     let mut widths: Vec<usize> = COLUMN_SPECS
         .iter()
-        .map(|spec| match spec.width {
-            ColumnWidth::Boolean => 1,
-            ColumnWidth::Byte => 8,
-            ColumnWidth::U32 => 32,
-            ColumnWidth::Field => 64,
-        })
+        .map(|spec| f_prime_width(spec.width))
         .collect();
 
     debug_assert_eq!(widths.len(), NAMED_COLUMNS.end());
-    widths.extend(crate::ccs::host_event_chain::auxiliary_column_widths());
+    widths.extend(family_f_prime_widths(AUX_COLUMN_SPECS));
     debug_assert_eq!(widths.len(), POSEIDON_AUX.end());
     widths.resize(RANGE_BITS.end(), 1);
     debug_assert_eq!(widths.len(), RANGE_CHECKED_WITNESS_WIDTH);

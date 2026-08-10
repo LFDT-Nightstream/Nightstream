@@ -1,6 +1,8 @@
 //! Owns the static WASM row layout.
 
 use super::isa::WasmOpcode;
+use crate::column_registry::define_columns;
+pub use crate::column_registry::{ColumnWidth, WasmColumnFamilySpec, WasmColumnSpec};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Column(pub usize);
@@ -13,73 +15,6 @@ pub const PUBLIC_INPUTS: usize = 7;
 /// `br_table` arms), which use 0/1/arm-index at their own pcs; the
 /// reservation is per call-site pc, not global.
 pub const PC_ROM_CALL_RETURN_CHOICE: u64 = 1;
-
-/// Declared intrinsic range for a witness column.
-///
-/// These declarations are meant to be enforced; otherwise the proof is not
-/// sound. Enforcement can happen in the wasm CCS itself, as part of a lookup
-/// argument. The selected approach is not supposed to change the semantics, but
-/// may affect performance.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ColumnWidth {
-    /// Constrained to {0, 1}.
-    Boolean,
-    /// Constrained to [0, 256).
-    Byte,
-    /// Constrained to [0, 2^32).
-    U32,
-    /// No declared bound: the value is treated as a full field element.
-    /// Use for columns whose intrinsic range has not been audited yet, or
-    /// whose width depends on a row gate (e.g. wide limbs that are 64-bit
-    /// only when `wide_values_enabled = 1`).
-    Field,
-}
-
-/// Static metadata about a witness column. `name` is the `UPPER_SNAKE_CASE`
-/// Rust identifier (e.g. `"COL_OPCODE_CODE"`) as produced by `stringify!`;
-/// consumers that want a lowercased / display label should strip the `COL_`
-/// prefix and lowercase. `role` is a free-form human-readable description (may
-/// be empty if the column has not been documented). `width` declares the
-/// intrinsic range; see [`ColumnWidth`].
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmColumnSpec {
-    pub index: usize,
-    pub name: &'static str,
-    pub role: &'static str,
-    pub width: ColumnWidth,
-}
-
-/// Used to define named columns directly related to wasm/vm semantics. More
-/// generic constraints like range-checks and lookups are supposed to be added
-/// modularly on top of the base CSS.
-macro_rules! define_columns {
-    ($( ( $name:ident, $role:literal $(, $width:expr)? ) ),+ $(,)?) => {
-        define_columns!(@assign 0usize; $($name),+);
-
-        /// Macro-generated table of column metadata.i
-        pub const COLUMN_SPECS: &[WasmColumnSpec] = &[
-            $(WasmColumnSpec {
-                index: $name,
-                name: stringify!($name),
-                role: $role,
-                width: define_columns!(@maybe_width $($width)?),
-            }),+
-        ];
-    };
-    (@maybe_width $width:expr) => { $width };
-    (@maybe_width) => { ColumnWidth::Field };
-    (@assign $idx:expr; $name:ident, $($rest:ident),+) => {
-        pub const $name: usize = $idx;
-        define_columns!(@assign $idx + 1usize; $($rest),+);
-    };
-    (@assign $idx:expr; $name:ident) => {
-        pub const $name: usize = $idx;
-        /// Number of macro-declared named columns. NOT the final witness
-        /// width. Range constraints may be added, plus the F' transformation,
-        /// lookup/mcc related constraints derived from the specs.
-        pub const NAMED_COLUMN_COUNT: usize = $idx + 1usize;
-    };
-}
 
 define_columns!(
     (COL_ONE, ""),

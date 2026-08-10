@@ -4,6 +4,7 @@ pub mod adapters;
 mod application;
 pub mod batch;
 pub mod ccs;
+mod column_registry;
 pub mod comm_chain;
 pub mod event_grammar;
 mod gadgets;
@@ -51,7 +52,7 @@ pub use isa::{
     WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo,
 };
 pub use ivc_state::{WasmCrossStepColumnPair, WasmCrossStepLinkSpec};
-pub use layout::{Column, ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
+pub use layout::{Column, ColumnWidth, WasmColumnFamilySpec, WasmColumnSpec, COLUMN_SPECS};
 #[doc(hidden)]
 pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};

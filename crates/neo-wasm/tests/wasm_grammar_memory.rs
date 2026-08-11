@@ -374,7 +374,7 @@ fn grammar_memory_reads_reject_forged_addresses() {
     common::assert_satisfied(&baseline, "untampered argument-base memory read");
 
     let mut forged = baseline.clone();
-    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_ADDR] += neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_ADDR[0]] += neo_math::F::ONE;
     common::assert_rejected(&forged, "grammar memory read redirected to another word");
 
     let mut high_pointer = read.clone();
@@ -503,7 +503,7 @@ fn grammar_memory_writes_bind_values_and_preserve_unselected_bytes() {
         .expect("word memory write gather");
     let mut forged = build_witness_vector(word_write);
     common::assert_satisfied(&forged, "untampered grammar word write");
-    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE] += neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE[0]] += neo_math::F::ONE;
     common::assert_rejected(&forged, "grammar memory write diverging from the staged claim");
 
     let byte_write = fixture
@@ -519,7 +519,7 @@ fn grammar_memory_writes_bind_values_and_preserve_unselected_bytes() {
         .expect("byte memory write gather");
     let mut forged = build_witness_vector(byte_write);
     common::assert_satisfied(&forged, "untampered grammar byte write");
-    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE] += neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE[0]] += neo_math::F::ONE;
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE0] += neo_math::F::ONE;
     common::assert_rejected(&forged, "grammar byte write changing an unselected byte");
 
@@ -536,7 +536,7 @@ fn grammar_memory_writes_bind_values_and_preserve_unselected_bytes() {
         .expect("half-word memory write gather");
     let mut forged = build_witness_vector(half_write);
     common::assert_satisfied(&forged, "untampered grammar half-word write");
-    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE] += neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE[0]] += neo_math::F::ONE;
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE0] += neo_math::F::ONE;
     common::assert_rejected(&forged, "grammar half-word write changing an unselected byte");
 }
@@ -556,7 +556,7 @@ fn grammar_memory_replay_authenticates_prior_values() {
         })
         .expect("byte memory write gather");
     let mut forged_rows: Vec<Vec<neo_math::F>> = fixture.trace.iter().map(build_witness_vector).collect();
-    forged_rows[byte_write_index][neo_wasm::layout::COL_LINEAR_MEM_LANE0_VALUE_BEFORE] +=
+    forged_rows[byte_write_index][neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE_BEFORE[0]] +=
         neo_math::F::from_u64(1 << 16);
     forged_rows[byte_write_index][neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE2_BEFORE] += neo_math::F::ONE;
 

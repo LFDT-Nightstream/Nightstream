@@ -5,12 +5,10 @@ mod common;
 use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
 use neo_wasm::layout::{
-    COL_CMP_LOW, COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE, COL_LINEAR_MEM_LANE0_BYTE1,
-    COL_LINEAR_MEM_LANE0_BYTE1_BEFORE, COL_LINEAR_MEM_LANE0_BYTE2, COL_LINEAR_MEM_LANE0_BYTE2_BEFORE,
-    COL_LINEAR_MEM_LANE0_BYTE3, COL_LINEAR_MEM_LANE0_BYTE3_BEFORE, COL_LINEAR_MEM_LANE0_VALUE,
-    COL_LINEAR_MEM_LANE0_VALUE_BEFORE, COL_LINEAR_MEM_LANE1_ADDR, COL_LINEAR_MEM_LANE1_VALUE,
-    COL_LINEAR_MEM_LANE2_ADDR, COL_LINEAR_MEM_LANE2_STORE_ACTIVE, COL_LINEAR_MEM_LANE2_VALUE, COL_LINEAR_MEM_USE_LANE2,
-    COL_STACK_WRITE0_VALUE_LO,
+    COL_CMP_LOW, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE, COL_LINEAR_MEM_LANE0_BYTE1, COL_LINEAR_MEM_LANE0_BYTE1_BEFORE,
+    COL_LINEAR_MEM_LANE0_BYTE2, COL_LINEAR_MEM_LANE0_BYTE2_BEFORE, COL_LINEAR_MEM_LANE0_BYTE3,
+    COL_LINEAR_MEM_LANE0_BYTE3_BEFORE, COL_LINEAR_MEM_LANE_ADDR, COL_LINEAR_MEM_LANE_STORE_ACTIVE,
+    COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_LANE_VALUE_BEFORE, COL_LINEAR_MEM_USE_LANE2, COL_STACK_WRITE0_VALUE_LO,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
@@ -43,7 +41,7 @@ fn i32_store8_row_rejects_tampered_unselected_byte() {
         .expect("store8 row");
     let mut witness = build_witness_vector(store);
     witness[COL_LINEAR_MEM_LANE0_BYTE1] = F::from_u64(0x42);
-    witness[COL_LINEAR_MEM_LANE0_VALUE] = F::from_u64(0x42FF);
+    witness[COL_LINEAR_MEM_LANE_VALUE[0]] = F::from_u64(0x42FF);
     assert_rejected(
         &witness,
         "i32.store8 must reject prover-chosen bytes outside the written byte slot",
@@ -69,8 +67,8 @@ fn i32_store8_row_rejects_forged_lane2_write() {
     assert_satisfied(&witness, "untampered i32.store8 row");
 
     witness[COL_LINEAR_MEM_USE_LANE2] = F::ONE;
-    witness[COL_LINEAR_MEM_LANE2_STORE_ACTIVE] = F::ONE;
-    witness[COL_LINEAR_MEM_LANE2_ADDR] = witness[COL_LINEAR_MEM_LANE1_ADDR] + F::ONE;
+    witness[COL_LINEAR_MEM_LANE_STORE_ACTIVE[2]] = F::ONE;
+    witness[COL_LINEAR_MEM_LANE_ADDR[2]] = witness[COL_LINEAR_MEM_LANE_ADDR[1]] + F::ONE;
     witness[COL_CMP_LOW] += F::ONE;
 
     assert_rejected(&witness, "i32.store8 cannot activate an unrelated lane-2 write");
@@ -108,12 +106,12 @@ fn i32_store8_memory_check_rejects_tampered_consistent_prior_state() {
     let claimed_after = u32::from_le_bytes(after_bytes);
 
     let w = &mut witnesses[store_idx];
-    w[COL_LINEAR_MEM_LANE0_VALUE_BEFORE] = F::from_u64(u64::from(claimed_prior));
+    w[COL_LINEAR_MEM_LANE_VALUE_BEFORE[0]] = F::from_u64(u64::from(claimed_prior));
     w[COL_LINEAR_MEM_LANE0_BYTE0_BEFORE] = F::from_u64(u64::from(prior_bytes[0]));
     w[COL_LINEAR_MEM_LANE0_BYTE1_BEFORE] = F::from_u64(u64::from(prior_bytes[1]));
     w[COL_LINEAR_MEM_LANE0_BYTE2_BEFORE] = F::from_u64(u64::from(prior_bytes[2]));
     w[COL_LINEAR_MEM_LANE0_BYTE3_BEFORE] = F::from_u64(u64::from(prior_bytes[3]));
-    w[COL_LINEAR_MEM_LANE0_VALUE] = F::from_u64(u64::from(claimed_after));
+    w[COL_LINEAR_MEM_LANE_VALUE[0]] = F::from_u64(u64::from(claimed_after));
     w[COL_LINEAR_MEM_LANE0_BYTE1] = F::from_u64(u64::from(after_bytes[1]));
     w[COL_LINEAR_MEM_LANE0_BYTE2] = F::from_u64(u64::from(after_bytes[2]));
     w[COL_LINEAR_MEM_LANE0_BYTE3] = F::from_u64(u64::from(after_bytes[3]));
@@ -158,7 +156,7 @@ fn i64_store_row_rejects_tampered_high_lane() {
         .find(|row| row.opcode == WasmOpcode::I64Store)
         .expect("i64.store row");
     let mut row = build_witness_vector(store);
-    row[COL_LINEAR_MEM_LANE1_VALUE] += F::ONE;
+    row[COL_LINEAR_MEM_LANE_VALUE[1]] += F::ONE;
     assert_rejected(&row, "tampered i64.store high lane");
 }
 
@@ -186,7 +184,7 @@ fn i64_unaligned_load_row_rejects_tampered_lane2() {
         .find(|row| row.opcode == WasmOpcode::I64Load)
         .expect("i64.load row");
     let mut row = build_witness_vector(load);
-    row[COL_LINEAR_MEM_LANE2_VALUE] += F::ONE;
+    row[COL_LINEAR_MEM_LANE_VALUE[2]] += F::ONE;
     assert_rejected(&row, "tampered unaligned i64.load lane2");
 }
 
@@ -210,7 +208,7 @@ fn i64_unaligned_store_row_rejects_tampered_lane2() {
         .find(|row| row.opcode == WasmOpcode::I64Store)
         .expect("i64.store row");
     let mut row = build_witness_vector(store);
-    row[COL_LINEAR_MEM_LANE2_VALUE] += F::ONE;
+    row[COL_LINEAR_MEM_LANE_VALUE[2]] += F::ONE;
     assert_rejected(&row, "tampered unaligned i64.store lane2");
 }
 
@@ -231,7 +229,7 @@ fn i32_load_row_rejects_wrong_linear_memory_word_addr() {
         .find(|row| row.opcode == WasmOpcode::I32Load)
         .expect("load row");
     let mut row = build_witness_vector(load);
-    row[COL_LINEAR_MEM_LANE0_ADDR] = F::from_u64(2);
+    row[COL_LINEAR_MEM_LANE_ADDR[0]] = F::from_u64(2);
     assert_rejected(&row, "tampered i32.load linear memory word addr");
 }
 

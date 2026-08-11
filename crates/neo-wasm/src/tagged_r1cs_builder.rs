@@ -12,7 +12,11 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WasmConstraintScope {
+    /// Relation-wide VM invariant without a narrower semantic owner.
     Always,
+    /// Constraint owned by the host-event state machine. The label identifies
+    /// its grammar, buffering, or permutation phase.
+    HostEvent,
     Opcode(WasmOpcode),
     Opcodes(Box<[WasmOpcode]>),
 }
@@ -20,7 +24,7 @@ pub enum WasmConstraintScope {
 impl WasmConstraintScope {
     pub fn applies_to(&self, opcode: WasmOpcode) -> bool {
         match self {
-            Self::Always => true,
+            Self::Always | Self::HostEvent => true,
             Self::Opcode(single) => *single == opcode,
             Self::Opcodes(opcodes) => opcodes.contains(&opcode),
         }
@@ -78,6 +82,21 @@ impl WasmConstraintCatalog {
             .enumerate()
             .filter_map(|(row, tag)| matches!(&tag.scope, WasmConstraintScope::Always).then_some(row))
             .collect()
+    }
+
+    pub fn host_event_rows(&self) -> Vec<usize> {
+        self.row_tags
+            .iter()
+            .enumerate()
+            .filter_map(|(row, tag)| matches!(&tag.scope, WasmConstraintScope::HostEvent).then_some(row))
+            .collect()
+    }
+
+    pub fn count_host_event_rows(&self) -> usize {
+        self.row_tags
+            .iter()
+            .filter(|tag| matches!(&tag.scope, WasmConstraintScope::HostEvent))
+            .count()
     }
 
     pub fn rows_owned_by_opcode(&self, opcode: WasmOpcode) -> Vec<usize> {

@@ -8,6 +8,7 @@ mod column_registry;
 pub mod comm_chain;
 pub mod event_grammar;
 mod gadgets;
+mod host_event_layout;
 pub mod witness_builder;
 pub use gadgets::push_zero_test_gadget;
 pub mod ir;
@@ -52,7 +53,7 @@ pub use isa::{
     WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo,
 };
 pub use ivc_state::{WasmCrossStepColumnPair, WasmCrossStepLinkSpec};
-pub use layout::{Column, ColumnWidth, WasmColumnSpec, COLUMN_SPECS};
+pub use layout::{column_spec, column_specs, Column, ColumnWidth, WasmColumnSpec, NAMED_COLUMN_COUNT};
 #[doc(hidden)]
 pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};

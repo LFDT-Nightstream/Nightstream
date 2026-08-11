@@ -25,8 +25,8 @@
 //! selectors are all zero), and only the linear round-output rows are gated
 //! by the position one-hot.
 //!
-//! Column ownership: only the gadget's *interface* lives in the named wasm
-//! layout — the carried absorb state (buffer, slot cursor, pending flag,
+//! Column ownership: the gadget's shared interface lives in
+//! `host_event_layout` — the carried absorb state (buffer, slot cursor, pending flag,
 //! round counter + its zero-test, permutation lanes) that continuity links,
 //! the semantic digest, and `ccs/call.rs` refer to. The gadget-internal
 //! witness columns (position one-hot, S-box powers, write masks, event-end
@@ -48,8 +48,8 @@ use super::super::layout::{
     COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
-use super::always;
 use super::call::host_call_gate_terms;
+use super::host_event;
 use crate::column_registry::define_column_region;
 use crate::comm_chain::{
     perm_external_linear, perm_full_round_constants, perm_internal_linear, perm_partial_round_constants,
@@ -67,7 +67,7 @@ type R1csBuilder = WasmTaggedR1csBuilder;
 const GKINDS: usize = WasmGrammarSlotKind::COUNT;
 define_column_region! {
     region: "host_event_chain_aux",
-    start: crate::witness_layout::POSEIDON_AUX_START,
+    start: crate::witness_layout::HOST_EVENT_AUX_START,
     width: pub AUX_WIDTH,
     specs: pub AUX_COLUMN_SPECS,
     indices: pub(self),
@@ -210,7 +210,7 @@ pub(super) fn push_constraints(b: &mut R1csBuilder) {
 /// slot-fill rows bind them to the grammar ROM) and raise `perm_pending`;
 /// they exist only in grammar mode, so raw-mode enforcement is unaffected.
 fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
-    b.with_tag(always("host event grammar mode"), |b| {
+    b.with_tag(host_event("host event grammar mode"), |b| {
         // Per-program constant: preserved on every row; the initial value is
         // verifier-pinned through the semantic-state digest.
         b.push_linear_zero([(COL_GRAMMAR_MODE_AFTER, F::ONE), (COL_GRAMMAR_MODE_BEFORE, -F::ONE)]);
@@ -332,7 +332,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
-    b.with_tag(always("grammar gather binding"), |b| {
+    b.with_tag(host_event("grammar gather binding"), |b| {
         // Grammar-mode row mask: grammar_host_call = gate - raw = gate · mode.
         b.push_linear_zero(
             [(GHC, F::ONE), (COL_RAW_HOST_CALL, F::ONE)]
@@ -806,7 +806,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
 /// gadget-internal, so their booleanity rows are pushed here (the
 /// range-check pass only covers named columns).
 fn push_position_onehot_constraints(b: &mut R1csBuilder) {
-    b.with_tag(always("host event perm position"), |b| {
+    b.with_tag(host_event("host event perm position"), |b| {
         push_zero_test_gadget(
             b,
             COL_PERM_ROUND_BEFORE,
@@ -865,7 +865,7 @@ fn push_position_onehot_constraints(b: &mut R1csBuilder) {
 /// `WSA3 + WSR3 + E - (WSA3 + WSR3)·E` (block filled or event stream done),
 /// cleared on the absorb row, preserved everywhere else.
 fn push_pending_update_constraints(b: &mut R1csBuilder) {
-    b.with_tag(always("host event pending update"), |b| {
+    b.with_tag(host_event("host event pending update"), |b| {
         // The product flags are booleans; the rows also let the F' width
         // audit prove their declared 1-bit width.
         for col in [STREAM_DONE, EVENT_END, EVENT_END_OR] {
@@ -920,7 +920,7 @@ fn push_pending_update_constraints(b: &mut R1csBuilder) {
 /// word pair at the slot cursor, the absorb row clears the buffer, and
 /// every untouched slot is carried.
 fn push_buffer_write_constraints(b: &mut R1csBuilder) {
-    b.with_tag(always("host event buffer write"), |b| {
+    b.with_tag(host_event("host event buffer write"), |b| {
         // The write masks are booleans; the rows also let the F' width
         // audit prove their declared 1-bit width.
         for k in 0..4 {
@@ -1019,7 +1019,7 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
 /// each word-pair write rotates it, the absorb row resets it to pair 0, and
 /// every other row carries it.
 fn push_slot_cursor_constraints(b: &mut R1csBuilder) {
-    b.with_tag(always("host event slot cursor"), |b| {
+    b.with_tag(host_event("host event slot cursor"), |b| {
         for k in 0..4 {
             let call_target = if k == 2 {
                 vec![(COL_EVBUF_SLOT_AFTER[k], F::ONE), (COL_ONE, -F::ONE)]
@@ -1064,7 +1064,7 @@ fn push_slot_cursor_constraints(b: &mut R1csBuilder) {
 /// `state_before = M_ext · [chain_before | evbuf_before]`.
 fn push_absorb_constraints(b: &mut R1csBuilder) {
     let me = external_matrix();
-    b.with_tag(always("host event absorb"), |b| {
+    b.with_tag(host_event("host event absorb"), |b| {
         for lane in 0..12 {
             let mut terms = vec![(COL_PERM_STATE_BEFORE[lane], F::ONE)];
             for (k, coeff) in me[lane].iter().enumerate() {
@@ -1089,7 +1089,7 @@ fn push_full_round_constraints(b: &mut R1csBuilder) {
         .filter(|&p| perm_row_is_full_round(p))
         .collect();
 
-    b.with_tag(always("host event perm full round"), |b| {
+    b.with_tag(host_event("host event perm full round"), |b| {
         for lane in 0..12 {
             // x = state_before[lane] + sum_pos P_pos * RC[pos][lane]
             let x_terms: Vec<(usize, F)> = core::iter::once((COL_PERM_STATE_BEFORE[lane], F::ONE))
@@ -1131,7 +1131,7 @@ fn push_partial_pair_constraints(b: &mut R1csBuilder) {
     // a: t'_i = MI[i][0]·U3 + sum_{j>=1} MI[i][j]·SB_j.
     let u = |i: usize| PARTIAL_ROUND_POWERS[i];
 
-    b.with_tag(always("host event perm partial pair"), |b| {
+    b.with_tag(host_event("host event perm partial pair"), |b| {
         // Round a S-box input: x_a = SB_0 + selected RC.
         let x_a: Vec<(usize, F)> = core::iter::once((COL_PERM_STATE_BEFORE[0], F::ONE))
             .chain(
@@ -1193,7 +1193,7 @@ fn push_partial_pair_constraints(b: &mut R1csBuilder) {
 /// other row in the trace carries the chain unchanged.
 fn push_chain_update_constraints(b: &mut R1csBuilder) {
     let last = PERM_POSITION[COMM_CHAIN_PERM_ROWS - 1];
-    b.with_tag(always("host event chain update"), |b| {
+    b.with_tag(host_event("host event chain update"), |b| {
         for limb in 0..4 {
             b.push_row(
                 [(last, F::ONE)],
@@ -1237,7 +1237,7 @@ fn push_chain_update_constraints(b: &mut R1csBuilder) {
 /// state suspends across the group (pc/param-init handling lives with the
 /// other aux-row shape rows in `ccs/call.rs`).
 fn push_perm_row_shape_constraints(b: &mut R1csBuilder) {
-    b.with_tag(always("host event perm row shape"), |b| {
+    b.with_tag(host_event("host event perm row shape"), |b| {
         b.push_row(perm_row_gate_terms(), [(COL_STACK_READS, F::ONE)], []);
         b.push_row(perm_row_gate_terms(), [(COL_STACK_WRITES, F::ONE)], []);
         for (after, before) in [

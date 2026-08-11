@@ -29,27 +29,24 @@ use super::layout::{
     COL_LINEAR_MEM_I64_STORE_OFFSET_IS_0, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_1, COL_LINEAR_MEM_I64_STORE_OFFSET_IS_2,
     COL_LINEAR_MEM_I64_STORE_OFFSET_IS_3, COL_LINEAR_MEM_IMM_OFFSET, COL_LINEAR_MEM_IS_BYTE_WIDTH,
     COL_LINEAR_MEM_IS_DOUBLE_WIDTH, COL_LINEAR_MEM_IS_FULL_WIDTH, COL_LINEAR_MEM_IS_HALF_WIDTH,
-    COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_BYTE0, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE,
-    COL_LINEAR_MEM_LANE0_BYTE1, COL_LINEAR_MEM_LANE0_BYTE1_BEFORE, COL_LINEAR_MEM_LANE0_BYTE2,
-    COL_LINEAR_MEM_LANE0_BYTE2_BEFORE, COL_LINEAR_MEM_LANE0_BYTE3, COL_LINEAR_MEM_LANE0_BYTE3_BEFORE,
-    COL_LINEAR_MEM_LANE0_LOAD_ACTIVE, COL_LINEAR_MEM_LANE0_STORE_ACTIVE, COL_LINEAR_MEM_LANE0_VALUE,
-    COL_LINEAR_MEM_LANE0_VALUE_BEFORE, COL_LINEAR_MEM_LANE1_ADDR, COL_LINEAR_MEM_LANE1_BYTE0,
+    COL_LINEAR_MEM_LANE0_BYTE0, COL_LINEAR_MEM_LANE0_BYTE0_BEFORE, COL_LINEAR_MEM_LANE0_BYTE1,
+    COL_LINEAR_MEM_LANE0_BYTE1_BEFORE, COL_LINEAR_MEM_LANE0_BYTE2, COL_LINEAR_MEM_LANE0_BYTE2_BEFORE,
+    COL_LINEAR_MEM_LANE0_BYTE3, COL_LINEAR_MEM_LANE0_BYTE3_BEFORE, COL_LINEAR_MEM_LANE1_BYTE0,
     COL_LINEAR_MEM_LANE1_BYTE0_BEFORE, COL_LINEAR_MEM_LANE1_BYTE1, COL_LINEAR_MEM_LANE1_BYTE1_BEFORE,
     COL_LINEAR_MEM_LANE1_BYTE2, COL_LINEAR_MEM_LANE1_BYTE2_BEFORE, COL_LINEAR_MEM_LANE1_BYTE3,
-    COL_LINEAR_MEM_LANE1_BYTE3_BEFORE, COL_LINEAR_MEM_LANE1_LOAD_ACTIVE, COL_LINEAR_MEM_LANE1_STORE_ACTIVE,
-    COL_LINEAR_MEM_LANE1_VALUE, COL_LINEAR_MEM_LANE1_VALUE_BEFORE, COL_LINEAR_MEM_LANE2_ADDR,
-    COL_LINEAR_MEM_LANE2_BYTE0, COL_LINEAR_MEM_LANE2_BYTE0_BEFORE, COL_LINEAR_MEM_LANE2_BYTE1,
-    COL_LINEAR_MEM_LANE2_BYTE1_BEFORE, COL_LINEAR_MEM_LANE2_BYTE2, COL_LINEAR_MEM_LANE2_BYTE2_BEFORE,
-    COL_LINEAR_MEM_LANE2_BYTE3, COL_LINEAR_MEM_LANE2_BYTE3_BEFORE, COL_LINEAR_MEM_LANE2_LOAD_ACTIVE,
-    COL_LINEAR_MEM_LANE2_STORE_ACTIVE, COL_LINEAR_MEM_LANE2_VALUE, COL_LINEAR_MEM_LANE2_VALUE_BEFORE,
-    COL_LINEAR_MEM_OFFSET_IS_0, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3,
-    COL_LINEAR_MEM_USE_LANE0, COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER,
-    COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED,
-    COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE,
-    COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
-    COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
-    COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
+    COL_LINEAR_MEM_LANE1_BYTE3_BEFORE, COL_LINEAR_MEM_LANE2_BYTE0, COL_LINEAR_MEM_LANE2_BYTE0_BEFORE,
+    COL_LINEAR_MEM_LANE2_BYTE1, COL_LINEAR_MEM_LANE2_BYTE1_BEFORE, COL_LINEAR_MEM_LANE2_BYTE2,
+    COL_LINEAR_MEM_LANE2_BYTE2_BEFORE, COL_LINEAR_MEM_LANE2_BYTE3, COL_LINEAR_MEM_LANE2_BYTE3_BEFORE,
+    COL_LINEAR_MEM_LANE_ADDR, COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE,
+    COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_LANE_VALUE_BEFORE, COL_LINEAR_MEM_OFFSET_IS_0,
+    COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0,
+    COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX,
+    COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_MAX_MEMORY_PAGES_AFTER,
+    COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB,
+    COL_MEM_STORE_LIVE, COL_ONE, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE,
+    COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER,
+    COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE,
+    COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
     COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE,
     COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE,
     COL_PC_ROM_CALL_RETURN_CHOICE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
@@ -442,12 +439,12 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         let store_live = if is_store { not_oob } else { F::ZERO };
         wit[COL_MEM_LOAD_LIVE] = load_live;
         wit[COL_MEM_STORE_LIVE] = store_live;
-        wit[COL_LINEAR_MEM_LANE0_LOAD_ACTIVE] = load_live;
-        wit[COL_LINEAR_MEM_LANE1_LOAD_ACTIVE] = if access.lane1.is_some() { load_live } else { F::ZERO };
-        wit[COL_LINEAR_MEM_LANE2_LOAD_ACTIVE] = if access.lane2.is_some() { load_live } else { F::ZERO };
-        wit[COL_LINEAR_MEM_LANE0_STORE_ACTIVE] = store_live;
-        wit[COL_LINEAR_MEM_LANE1_STORE_ACTIVE] = if access.lane1.is_some() { store_live } else { F::ZERO };
-        wit[COL_LINEAR_MEM_LANE2_STORE_ACTIVE] = if access.lane2.is_some() { store_live } else { F::ZERO };
+        wit[COL_LINEAR_MEM_LANE_LOAD_ACTIVE[0]] = load_live;
+        wit[COL_LINEAR_MEM_LANE_LOAD_ACTIVE[1]] = if access.lane1.is_some() { load_live } else { F::ZERO };
+        wit[COL_LINEAR_MEM_LANE_LOAD_ACTIVE[2]] = if access.lane2.is_some() { load_live } else { F::ZERO };
+        wit[COL_LINEAR_MEM_LANE_STORE_ACTIVE[0]] = store_live;
+        wit[COL_LINEAR_MEM_LANE_STORE_ACTIVE[1]] = if access.lane1.is_some() { store_live } else { F::ZERO };
+        wit[COL_LINEAR_MEM_LANE_STORE_ACTIVE[2]] = if access.lane2.is_some() { store_live } else { F::ZERO };
         if is_core_linear_memory || is_grammar_subword_memory {
             match access.byte_offset {
                 0 => wit[COL_LINEAR_MEM_OFFSET_IS_0] = F::ONE,
@@ -511,7 +508,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                 }
             }
         }
-        wit[COL_LINEAR_MEM_LANE0_ADDR] = F::from_u64(access.lane0.word_addr);
+        wit[COL_LINEAR_MEM_LANE_ADDR[0]] = F::from_u64(access.lane0.word_addr);
         let lane0_value = match trace.opcode {
             super::isa::WasmOpcode::I32Load
             | super::isa::WasmOpcode::I64Load
@@ -525,7 +522,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             | super::isa::WasmOpcode::I32Store16 => access.lane0.value_after,
             _ => access.lane0.value_after,
         };
-        wit[COL_LINEAR_MEM_LANE0_VALUE] = F::from_u64(u64::from(lane0_value));
+        wit[COL_LINEAR_MEM_LANE_VALUE[0]] = F::from_u64(u64::from(lane0_value));
         write_u32_le_bytes(
             &mut wit,
             [
@@ -537,7 +534,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             lane0_value,
         );
         // Prior word state for the store-side RMW read and byte preservation.
-        wit[COL_LINEAR_MEM_LANE0_VALUE_BEFORE] = F::from_u64(u64::from(access.lane0.value_before));
+        wit[COL_LINEAR_MEM_LANE_VALUE_BEFORE[0]] = F::from_u64(u64::from(access.lane0.value_before));
         write_u32_le_bytes(
             &mut wit,
             [
@@ -549,7 +546,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             access.lane0.value_before,
         );
         if let Some(lane1) = access.lane1 {
-            wit[COL_LINEAR_MEM_LANE1_ADDR] = F::from_u64(lane1.word_addr);
+            wit[COL_LINEAR_MEM_LANE_ADDR[1]] = F::from_u64(lane1.word_addr);
             let lane1_value = match trace.opcode {
                 super::isa::WasmOpcode::I32Load
                 | super::isa::WasmOpcode::I64Load
@@ -563,7 +560,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                 | super::isa::WasmOpcode::I32Store16 => lane1.value_after,
                 _ => lane1.value_after,
             };
-            wit[COL_LINEAR_MEM_LANE1_VALUE] = F::from_u64(u64::from(lane1_value));
+            wit[COL_LINEAR_MEM_LANE_VALUE[1]] = F::from_u64(u64::from(lane1_value));
             write_u32_le_bytes(
                 &mut wit,
                 [
@@ -574,7 +571,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                 ],
                 lane1_value,
             );
-            wit[COL_LINEAR_MEM_LANE1_VALUE_BEFORE] = F::from_u64(u64::from(lane1.value_before));
+            wit[COL_LINEAR_MEM_LANE_VALUE_BEFORE[1]] = F::from_u64(u64::from(lane1.value_before));
             write_u32_le_bytes(
                 &mut wit,
                 [
@@ -587,13 +584,13 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             );
         }
         if let Some(lane2) = access.lane2 {
-            wit[COL_LINEAR_MEM_LANE2_ADDR] = F::from_u64(lane2.word_addr);
+            wit[COL_LINEAR_MEM_LANE_ADDR[2]] = F::from_u64(lane2.word_addr);
             let lane2_value = match trace.opcode {
                 super::isa::WasmOpcode::I64Load => lane2.value_before,
                 super::isa::WasmOpcode::I64Store => lane2.value_after,
                 _ => lane2.value_after,
             };
-            wit[COL_LINEAR_MEM_LANE2_VALUE] = F::from_u64(u64::from(lane2_value));
+            wit[COL_LINEAR_MEM_LANE_VALUE[2]] = F::from_u64(u64::from(lane2_value));
             write_u32_le_bytes(
                 &mut wit,
                 [
@@ -604,7 +601,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                 ],
                 lane2_value,
             );
-            wit[COL_LINEAR_MEM_LANE2_VALUE_BEFORE] = F::from_u64(u64::from(lane2.value_before));
+            wit[COL_LINEAR_MEM_LANE_VALUE_BEFORE[2]] = F::from_u64(u64::from(lane2.value_before));
             write_u32_le_bytes(
                 &mut wit,
                 [

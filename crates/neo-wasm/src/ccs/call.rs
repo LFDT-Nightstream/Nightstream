@@ -20,10 +20,11 @@ use super::super::layout::{
     COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV,
     COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
     COL_PC_ROM_CALL_RETURN_CHOICE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO,
-    COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READ0_ADDR_LO,
-    COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITES,
-    COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE, COL_TAIL_ENTER_ACTIVE,
-    COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
+    COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_LO,
+    COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE,
+    COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
+    PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -242,12 +243,12 @@ pub(super) fn push_call_constraints(b: &mut R1csBuilder) {
         push_gated_linear_zero(
             b,
             param_init_row_gate,
-            [(COL_STACK_READ0_VALUE_LO, F::ONE), (COL_LOCAL_VALUE, -F::ONE)],
+            [(COL_STACK_READ_VALUE_LO[0], F::ONE), (COL_LOCAL_VALUE, -F::ONE)],
         );
         push_gated_linear_zero(
             b,
             param_init_row_gate,
-            [(COL_STACK_READ0_VALUE_HI, F::ONE), (COL_LOCAL_VALUE_HI, -F::ONE)],
+            [(COL_STACK_READ_VALUE_HI[0], F::ONE), (COL_LOCAL_VALUE_HI, -F::ONE)],
         );
     });
 
@@ -415,7 +416,7 @@ fn push_simple_output_constraints(b: &mut R1csBuilder) {
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
             [
-                (COL_STACK_READ0_ADDR_LO, F::ONE),
+                (COL_STACK_READ_ADDR_LO[0], F::ONE),
                 (COL_SP_BEFORE, -F::from_u64(2)),
                 (COL_ONE, F::from_u64(2)),
             ],
@@ -423,12 +424,18 @@ fn push_simple_output_constraints(b: &mut R1csBuilder) {
         );
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
-            [(COL_OUTPUT_VALUE_LO_AFTER, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+            [
+                (COL_OUTPUT_VALUE_LO_AFTER, F::ONE),
+                (COL_STACK_READ_VALUE_LO[0], -F::ONE),
+            ],
             [],
         );
         b.push_row(
             [(COL_OUTPUT_CAPTURED, F::ONE)],
-            [(COL_OUTPUT_VALUE_HI_AFTER, F::ONE), (COL_STACK_READ0_VALUE_HI, -F::ONE)],
+            [
+                (COL_OUTPUT_VALUE_HI_AFTER, F::ONE),
+                (COL_STACK_READ_VALUE_HI[0], -F::ONE),
+            ],
             [],
         );
     });
@@ -465,13 +472,13 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut R1csBuilder) {
     // Bind the table read to the index popped from the stack top.
     b.push_row(
         [(call_indirect, F::ONE), (return_call_indirect, F::ONE)],
-        [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
         [],
     );
     b.push_row(
         [(call_indirect, F::ONE), (return_call_indirect, F::ONE)],
         [
-            (COL_STACK_READ0_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[0], F::ONE),
             (COL_SP_BEFORE, -F::from_u64(2)),
             (COL_ONE, F::from_u64(2)),
         ],
@@ -649,7 +656,7 @@ fn push_host_call_arg_aux_row_constraints(b: &mut R1csBuilder) {
         b,
         selector,
         [
-            (COL_STACK_READ0_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[0], F::ONE),
             (COL_SP_BEFORE, -F::from_u64(2)),
             (COL_ONE, F::from_u64(2)),
         ],
@@ -818,7 +825,7 @@ fn push_call_param_init_aux_row_constraints(b: &mut R1csBuilder) {
         b,
         selector,
         [
-            (COL_STACK_READ0_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[0], F::ONE),
             (COL_SP_BEFORE, -F::from_u64(2)),
             (COL_ONE, F::from_u64(2)),
         ],

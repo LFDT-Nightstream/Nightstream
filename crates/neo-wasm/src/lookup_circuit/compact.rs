@@ -6,8 +6,8 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use super::builder::{selector_lc, Bit, Lc, LookupR1csBuilder};
 use crate::isa::WasmOpcode;
 use crate::layout::{
-    selector_col, COL_DIV_OVERFLOW_COND, COL_OP_TABLE_ENABLED, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
-    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    selector_col, COL_DIV_OVERFLOW_COND, COL_OP_TABLE_ENABLED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
 };
 use crate::range_check::range_checked_bit_columns;
 use crate::tagged_r1cs_builder::WasmR1csRow;
@@ -61,11 +61,11 @@ pub(super) fn synthesize(base_assignment: &[F]) -> Result<(Vec<WasmR1csRow>, Vec
 
 impl Inputs {
     fn new() -> Result<Self, String> {
-        let left32 = column_bits(COL_STACK_READ0_VALUE_LO)?;
-        let right32 = column_bits(COL_STACK_READ1_VALUE_LO)?;
+        let left32 = column_bits(COL_STACK_READ_VALUE_LO[0])?;
+        let right32 = column_bits(COL_STACK_READ_VALUE_LO[1])?;
         let output32 = column_bits(COL_STACK_WRITE0_VALUE_LO)?;
-        let left64 = wide_bits(COL_STACK_READ0_VALUE_LO, COL_STACK_READ0_VALUE_HI)?;
-        let right64 = wide_bits(COL_STACK_READ1_VALUE_LO, COL_STACK_READ1_VALUE_HI)?;
+        let left64 = wide_bits(COL_STACK_READ_VALUE_LO[0], COL_STACK_READ_VALUE_HI[0])?;
+        let right64 = wide_bits(COL_STACK_READ_VALUE_LO[1], COL_STACK_READ_VALUE_HI[1])?;
         let output64 = wide_bits(COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITE0_VALUE_HI)?;
         Ok(Self {
             left32,

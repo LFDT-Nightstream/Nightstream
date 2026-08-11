@@ -6,7 +6,7 @@ use super::{
 };
 use crate::layout::{
     selector_col, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED,
-    COL_PARAM_INIT_ACTIVE_BEFORE, COL_STACK_READ0_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_STACK_READ_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED,
 };
 use crate::nebula::WasmNebulaProfile;
 use crate::{build_wasm_relation_layout, WasmOpcode, RANGE_CHECKED_WITNESS_WIDTH};
@@ -62,12 +62,12 @@ fn activation_support_derives_only_known_disjointness() {
         &supports,
     ));
     assert!(activations_are_disjoint(
-        COL_STACK_READ0_ACTIVE,
+        COL_STACK_READ_ACTIVE[0],
         selector_col(WasmOpcode::GlobalGet).unwrap(),
         &supports,
     ));
     assert!(!activations_are_disjoint(
-        COL_STACK_READ0_ACTIVE,
+        COL_STACK_READ_ACTIVE[0],
         selector_col(WasmOpcode::LocalSet).unwrap(),
         &supports,
     ));

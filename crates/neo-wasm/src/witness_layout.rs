@@ -5,7 +5,7 @@
 //! this base layout separately.
 
 use crate::ccs::host_event_chain::{AUX_COLUMN_SPECS, AUX_WIDTH};
-use crate::column_registry::{f_prime_width, family_f_prime_widths};
+use crate::column_registry::expanded_f_prime_widths;
 use crate::layout::{ColumnWidth, COLUMN_SPECS, NAMED_COLUMN_COUNT};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,7 +36,7 @@ const fn build_range_bit_offsets() -> [usize; NAMED_COLUMN_COUNT + 1] {
     let mut offsets = [0; NAMED_COLUMN_COUNT + 1];
     let mut i = 0;
     while i < NAMED_COLUMN_COUNT {
-        assert!(COLUMN_SPECS[i].index == i);
+        assert!(COLUMN_SPECS[i].start == i);
         offsets[i + 1] = offsets[i] + decomposed_bits(COLUMN_SPECS[i].width);
         i += 1;
     }
@@ -77,13 +77,10 @@ pub(crate) const fn range_bit_region(column: usize) -> Option<WitnessRegion> {
 
 /// Declared F' widths of the variables in the range-checked WASM witness.
 pub(crate) fn range_checked_variable_widths() -> Vec<usize> {
-    let mut widths: Vec<usize> = COLUMN_SPECS
-        .iter()
-        .map(|spec| f_prime_width(spec.width))
-        .collect();
+    let mut widths: Vec<usize> = expanded_f_prime_widths(COLUMN_SPECS).collect();
 
     debug_assert_eq!(widths.len(), NAMED_COLUMNS.end());
-    widths.extend(family_f_prime_widths(AUX_COLUMN_SPECS));
+    widths.extend(expanded_f_prime_widths(AUX_COLUMN_SPECS));
     debug_assert_eq!(widths.len(), POSEIDON_AUX.end());
     widths.resize(RANGE_BITS.end(), 1);
     debug_assert_eq!(widths.len(), RANGE_CHECKED_WITNESS_WIDTH);

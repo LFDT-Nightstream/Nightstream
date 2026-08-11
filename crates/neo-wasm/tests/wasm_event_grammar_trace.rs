@@ -635,7 +635,7 @@ fn ccs_rejects_redirected_gather_read() {
         .expect("arg slot row");
     let mut witness = build_witness_vector(arg_slot_row);
     common::assert_satisfied(&witness, "untampered arg slot row");
-    witness[neo_wasm::layout::COL_STACK_READ0_ADDR_LO] += neo_math::F::from_u64(2);
+    witness[neo_wasm::layout::COL_STACK_READ_ADDR_LO[0]] += neo_math::F::from_u64(2);
     common::assert_rejected(&witness, "arg slot row reading a different stack slot");
 }
 

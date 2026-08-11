@@ -14,9 +14,9 @@ use crate::layout::{
     COL_LINEAR_MEM_LANE2_LOAD_ACTIVE, COL_LINEAR_MEM_LANE2_STORE_ACTIVE, COL_LINEAR_MEM_USE_LANE0,
     COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_FREF_ACTIVE,
     COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
-    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_STACK_READ0_ACTIVE, COL_STACK_READ1_ACTIVE,
-    COL_STACK_READ2_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED,
-    COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE, COL_TURN_BOUNDARY, SELECTOR_COLS,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE,
+    COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
 use crate::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmRelationLayout};
 
@@ -221,7 +221,7 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     insert_derived_activation_support(
         &mut supports,
         "stack read lane 0",
-        COL_STACK_READ0_ACTIVE,
+        COL_STACK_READ_ACTIVE[0],
         read0_selectors.iter().copied().chain([
             COL_PARAM_INIT_ACTIVE_BEFORE,
             COL_HOST_ARGS_ACTIVE_BEFORE,
@@ -229,8 +229,8 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         ]),
     );
     for (name, gate, minimum_reads) in [
-        ("stack read lane 1", COL_STACK_READ1_ACTIVE, 2),
-        ("stack read lane 2", COL_STACK_READ2_ACTIVE, 3),
+        ("stack read lane 1", COL_STACK_READ_ACTIVE[1], 2),
+        ("stack read lane 2", COL_STACK_READ_ACTIVE[2], 3),
     ] {
         insert_derived_activation_support(
             &mut supports,

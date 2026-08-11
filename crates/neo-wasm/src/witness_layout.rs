@@ -34,12 +34,20 @@ const fn decomposed_bits(width: ColumnWidth) -> usize {
 
 const fn build_range_bit_offsets() -> [usize; NAMED_COLUMN_COUNT + 1] {
     let mut offsets = [0; NAMED_COLUMN_COUNT + 1];
-    let mut i = 0;
-    while i < NAMED_COLUMN_COUNT {
-        assert!(COLUMN_SPECS[i].start == i);
-        offsets[i + 1] = offsets[i] + decomposed_bits(COLUMN_SPECS[i].width);
-        i += 1;
+    let mut column = 0;
+    let mut spec_index = 0;
+    while spec_index < COLUMN_SPECS.len() {
+        let spec = &COLUMN_SPECS[spec_index];
+        assert!(spec.start == column);
+        let mut member = 0;
+        while member < spec.len {
+            offsets[column + 1] = offsets[column] + decomposed_bits(spec.width);
+            column += 1;
+            member += 1;
+        }
+        spec_index += 1;
     }
+    assert!(column == NAMED_COLUMN_COUNT);
     offsets
 }
 

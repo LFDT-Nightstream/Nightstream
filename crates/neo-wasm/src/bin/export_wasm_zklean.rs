@@ -81,7 +81,15 @@ fn emit_columns() -> String {
         if !spec.role.is_empty() {
             out.push_str(&format!("/-- {} -/\n", spec.role));
         }
-        out.push_str(&format!("def {camel} : Nat := {}\n", spec.start));
+        if spec.len == 1 {
+            out.push_str(&format!("def {camel} : Nat := {}\n", spec.start));
+        } else {
+            let indices = (spec.start..spec.end())
+                .map(|column| column.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            out.push_str(&format!("def {camel} : Array Nat := #[{indices}]\n"));
+        }
     }
     out.push('\n');
     out.push_str(&format!("def namedColumnCount : Nat := {NAMED_COLUMN_COUNT}\n"));

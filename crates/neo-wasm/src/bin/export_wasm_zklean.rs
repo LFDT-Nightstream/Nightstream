@@ -3,7 +3,7 @@
 //!
 //! This binary owns the Rust→Lean code-emission wiring. It does not own the
 //! circuit data — that lives in `WasmTaggedR1csBuilder` / `WasmConstraintCatalog`
-//! (see `crates/neo-wasm/src/`) and in the `define_columns!` macro
+//! (see `crates/neo-wasm/src/`) and in the `define_column_region!` macro
 //! in `wasm/layout.rs`.
 //!
 //! Outputs:
@@ -70,7 +70,7 @@ fn emit_columns() -> String {
     out.push_str("--\n");
     out.push_str("-- Column index definitions for the wasm zkVM constraint system. The single\n");
     out.push_str("-- source of truth is `crates/neo-wasm/src/layout.rs::COLUMN_SPECS`,\n");
-    out.push_str("-- itself derived from the `define_columns!` macro — Lean names here are in\n");
+    out.push_str("-- itself derived from the `define_column_region!` macro — Lean names here are in\n");
     out.push_str("-- lockstep with the Rust `COL_*` constants by construction.\n");
     out.push('\n');
     out.push_str("namespace WasmCircuit.Columns\n");
@@ -81,7 +81,7 @@ fn emit_columns() -> String {
         if !spec.role.is_empty() {
             out.push_str(&format!("/-- {} -/\n", spec.role));
         }
-        out.push_str(&format!("def {camel} : Nat := {}\n", spec.index));
+        out.push_str(&format!("def {camel} : Nat := {}\n", spec.start));
     }
     out.push('\n');
     out.push_str(&format!("def namedColumnCount : Nat := {NAMED_COLUMN_COUNT}\n"));

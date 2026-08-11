@@ -8,8 +8,8 @@ mod common;
 use common::{assert_rejected, assert_satisfied};
 use neo_math::F;
 use neo_wasm::layout::{
-    COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
-    COL_STACK_READ1_VALUE_HI, COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_LO,
+    COL_CMP_LO_DIFF, COL_CMP_LO_INV, COL_CMP_LO_IS_ZERO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
+    COL_STACK_WRITE0_VALUE_LO,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
@@ -170,8 +170,8 @@ fn i64_eqz_row_rejects_goldilocks_modulus_collision() {
         Some(StackValueAccess::new(0, 1)),
         true,
     ));
-    row[COL_STACK_READ0_VALUE_LO] = F::from_u64(1);
-    row[COL_STACK_READ0_VALUE_HI] = F::from_u64(0xFFFF_FFFFu64);
+    row[COL_STACK_READ_VALUE_LO[0]] = F::from_u64(1);
+    row[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(0xFFFF_FFFFu64);
     row[COL_CMP_LO_DIFF] = F::ZERO;
     row[COL_CMP_LO_INV] = F::ZERO;
     row[COL_CMP_LO_IS_ZERO] = F::ONE;
@@ -261,10 +261,10 @@ fn i64_eq_row_rejects_goldilocks_modulus_collision() {
         Some(StackValueAccess::new(0, 1)),
         true,
     ));
-    row[COL_STACK_READ0_VALUE_LO] = F::from_u64(1);
-    row[COL_STACK_READ0_VALUE_HI] = F::from_u64(0xFFFF_FFFFu64);
-    row[COL_STACK_READ1_VALUE_LO] = F::ZERO;
-    row[COL_STACK_READ1_VALUE_HI] = F::ZERO;
+    row[COL_STACK_READ_VALUE_LO[0]] = F::from_u64(1);
+    row[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(0xFFFF_FFFFu64);
+    row[COL_STACK_READ_VALUE_LO[1]] = F::ZERO;
+    row[COL_STACK_READ_VALUE_HI[1]] = F::ZERO;
     row[COL_CMP_LO_DIFF] = F::ZERO;
     row[COL_CMP_LO_INV] = F::ZERO;
     row[COL_CMP_LO_IS_ZERO] = F::ONE;

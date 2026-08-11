@@ -13,8 +13,8 @@ use super::super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
 use super::super::isa::{WasmMemoryAccessKind, WasmMemoryExtension, WasmOpcode};
 use super::super::layout::Column;
 use super::super::layout::{
-    selector_col, COL_MEM_LOAD_LIVE, COL_MEM_STORE_LIVE, COL_ONE, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI,
-    COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    selector_col, COL_MEM_LOAD_LIVE, COL_MEM_STORE_LIVE, COL_ONE, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
 };
 use super::super::relation_layout::{LinearMemoryColumns, SignExtensionColumns};
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
@@ -217,7 +217,7 @@ fn push_address_normalization(
                 [
                     (idx(linear_memory.lane0_addr), f_u64(4)),
                     (idx(linear_memory.byte_offset), F::ONE),
-                    (COL_STACK_READ0_VALUE_LO, -F::ONE),
+                    (COL_STACK_READ_VALUE_LO[0], -F::ONE),
                     (idx(linear_memory.imm_offset), -F::ONE),
                 ],
                 [],
@@ -532,7 +532,7 @@ fn push_access_byte_bindings(
         push_u32_le_bytes_decomp(
             b,
             store_low_byte_ops.iter().copied().map(op_selector),
-            COL_STACK_READ1_VALUE_LO,
+            COL_STACK_READ_VALUE_LO[1],
             sign_extension.bytes.map(idx),
         );
     });
@@ -551,7 +551,7 @@ fn push_access_byte_bindings(
             push_u32_le_bytes_decomp(
                 b,
                 [op_selector(WasmOpcode::I64Store)],
-                COL_STACK_READ1_VALUE_HI,
+                COL_STACK_READ_VALUE_HI[1],
                 linear_memory.access_bytes_hi.map(idx),
             );
         },
@@ -912,7 +912,7 @@ fn push_linear_memory_store64_constraints(
         b,
         idx(linear_memory.i64_store_offset_is[0]),
         [
-            (COL_STACK_READ1_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], F::ONE),
             (idx(linear_memory.lane0_value), -F::ONE),
         ],
     );
@@ -920,7 +920,7 @@ fn push_linear_memory_store64_constraints(
         b,
         idx(linear_memory.i64_store_offset_is[0]),
         [
-            (COL_STACK_READ1_VALUE_HI, F::ONE),
+            (COL_STACK_READ_VALUE_HI[1], F::ONE),
             (idx(linear_memory.lane1_value), -F::ONE),
         ],
     );

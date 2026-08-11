@@ -1,5 +1,5 @@
 use neo_math::F;
-use neo_wasm::layout::{COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
+use neo_wasm::layout::{COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{build_wasm_relation_layout, sanity_check_lookup_row, traces_from_wasmtime_wasm_bytes, WasmOpcode};
 use p3_field::PrimeCharacteristicRing;
@@ -66,7 +66,7 @@ fn lookup_semantics_reject_tampered_i64_unary_input_hi() {
         .find(|row| row.opcode == WasmOpcode::I64Clz)
         .expect("i64.clz row");
     let mut witness = build_witness_vector(&row);
-    witness[COL_STACK_READ0_VALUE_HI] = F::from_u64(2);
+    witness[COL_STACK_READ_VALUE_HI[0]] = F::from_u64(2);
     let err = sanity_check_lookup_row(&layout.auxiliary, &witness).expect_err("tampered i64 unary input should fail");
     assert!(err.contains("i64_clz"));
 }
@@ -79,7 +79,7 @@ fn lookup_semantics_reject_tampered_i64_binary_input_hi() {
         .find(|row| row.opcode == WasmOpcode::I64LtS)
         .expect("i64.lt_s row");
     let mut witness = build_witness_vector(&row);
-    witness[COL_STACK_READ0_VALUE_HI] = F::ZERO;
+    witness[COL_STACK_READ_VALUE_HI[0]] = F::ZERO;
     let err = sanity_check_lookup_row(&layout.auxiliary, &witness).expect_err("tampered i64 binary input should fail");
     assert!(err.contains("i64_lt_s"));
 }

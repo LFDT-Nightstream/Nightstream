@@ -2,7 +2,7 @@ use neo_math::F;
 use neo_wasm::layout::{
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CURRENT_FUNCTION_NUM_LOCALS,
     COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX,
-    COL_OPCODE_CODE, COL_STACK_READ0_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE,
+    COL_OPCODE_CODE, COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE,
     COL_TABLE_VALUE, PC_ROM_CALL_RETURN_CHOICE,
 };
 use neo_wasm::{
@@ -81,7 +81,7 @@ fn memory_semantics_rejects_tampered_i64_stack_high_limb() {
         .position(|row| row.opcode == WasmOpcode::I64Add)
         .expect("i64.add row");
 
-    witnesses[add_idx][COL_STACK_READ0_VALUE_HI] = F::from_u64(9);
+    witnesses[add_idx][COL_STACK_READ_VALUE_HI[0]] = F::from_u64(9);
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)

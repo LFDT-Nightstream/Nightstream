@@ -616,7 +616,7 @@ fn ccs_rejects_forged_gather_word() {
         .expect("discriminant slot row");
     let mut witness = build_witness_vector(disc_row);
     common::assert_satisfied(&witness, "untampered discriminant slot row");
-    witness[neo_wasm::layout::COL_EVBUF0_AFTER] += neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_EVBUF_AFTER[0]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "gather row staging a forged discriminant");
 }
 
@@ -820,7 +820,7 @@ fn claim_words_are_row_free_and_transcript_bound() {
     // Forge the claim word consistently in the staged buffer and the
     // gadget's slot value: the row still satisfies (free word) ...
     let cursor = usize::from(claim_row.state_before.grammar.slot_cursor);
-    witness[neo_wasm::layout::COL_EVBUF0_AFTER + cursor] += neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_EVBUF_AFTER[cursor]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "buffer word diverging from the staged slot value");
     // ... but any divergence between the absorbed words and the claimed
     // transcript is caught by the final-chain fold (see

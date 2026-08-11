@@ -23,31 +23,33 @@ pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
 /// `COL_*` name so constraint provenance dumps itemize the cost per column.
 pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
     for spec in COLUMN_SPECS {
-        let tag = WasmConstraintTag {
-            label: spec.name,
-            scope: WasmConstraintScope::Always,
-        };
-        match spec.width {
-            ColumnWidth::Field => {}
-            ColumnWidth::Boolean => {
-                b.with_tag(tag, |b| {
-                    b.push_boolean(spec.start);
-                });
-            }
-            ColumnWidth::Byte | ColumnWidth::U32 => {
-                let region = range_bit_region(spec.start).expect("decomposed column has a range-bit region");
-                b.with_tag(tag, |b| {
-                    for bit in region.start..region.end() {
-                        b.push_boolean(bit);
-                    }
-                    b.push_row(
-                        (region.start..region.end())
-                            .enumerate()
-                            .map(|(i, bit)| (bit, F::from_u64(1u64 << i))),
-                        [(COL_ONE, F::ONE)],
-                        [(spec.start, F::ONE)],
-                    );
-                });
+        for column in spec.start..spec.end() {
+            let tag = WasmConstraintTag {
+                label: spec.name,
+                scope: WasmConstraintScope::Always,
+            };
+            match spec.width {
+                ColumnWidth::Field => {}
+                ColumnWidth::Boolean => {
+                    b.with_tag(tag, |b| {
+                        b.push_boolean(column);
+                    });
+                }
+                ColumnWidth::Byte | ColumnWidth::U32 => {
+                    let region = range_bit_region(column).expect("decomposed column has a range-bit region");
+                    b.with_tag(tag, |b| {
+                        for bit in region.start..region.end() {
+                            b.push_boolean(bit);
+                        }
+                        b.push_row(
+                            (region.start..region.end())
+                                .enumerate()
+                                .map(|(i, bit)| (bit, F::from_u64(1u64 << i))),
+                            [(COL_ONE, F::ONE)],
+                            [(column, F::ONE)],
+                        );
+                    });
+                }
             }
         }
     }
@@ -70,12 +72,14 @@ pub fn write_range_check_bits(witness: &mut Vec<F>) {
     );
     witness.resize(RANGE_CHECKED_WITNESS_WIDTH, F::ZERO);
     for spec in COLUMN_SPECS {
-        let Some(region) = range_bit_region(spec.start) else {
-            continue;
-        };
-        let value = witness[spec.start].as_canonical_u64();
-        for (i, bit) in (region.start..region.end()).enumerate() {
-            witness[bit] = F::from_u64((value >> i) & 1);
+        for column in spec.start..spec.end() {
+            let Some(region) = range_bit_region(column) else {
+                continue;
+            };
+            let value = witness[column].as_canonical_u64();
+            for (i, bit) in (region.start..region.end()).enumerate() {
+                witness[bit] = F::from_u64((value >> i) & 1);
+            }
         }
     }
 }

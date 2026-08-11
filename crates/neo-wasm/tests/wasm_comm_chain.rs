@@ -11,7 +11,7 @@ mod common;
 use neo_wasm::comm_chain::{
     self, commit_event, fold_event_blocks, CommChainState, COMM_CHAIN_EVENT_ARGS, COMM_CHAIN_STATE_LEN,
 };
-use neo_wasm::layout::{COL_COMM_CHAIN0_AFTER, COL_EVBUF4_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_STATE0_AFTER};
+use neo_wasm::layout::{COL_COMM_CHAIN0_AFTER, COL_EVBUF_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_STATE_AFTER};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmVmStep;
 use p3_field::PrimeCharacteristicRing;
@@ -199,7 +199,7 @@ fn ccs_rejects_forged_perm_round_output() {
     for row in perm_rows(&trace).into_iter().take(2) {
         let mut witness = build_witness_vector(row);
         common::assert_satisfied(&witness, "untampered perm row");
-        witness[COL_PERM_STATE0_AFTER] += neo_math::F::ONE;
+        witness[COL_PERM_STATE_AFTER[0]] += neo_math::F::ONE;
         common::assert_rejected(&witness, "perm row with a forged round output lane");
     }
 }
@@ -215,7 +215,7 @@ fn ccs_rejects_forged_absorb_buffer() {
         .expect("perm group absorb row");
     let mut witness = build_witness_vector(absorb_row);
     common::assert_satisfied(&witness, "untampered absorb row");
-    witness[COL_EVBUF4_BEFORE] += neo_math::F::ONE;
+    witness[COL_EVBUF_BEFORE[4]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "absorb row with a forged buffer word");
 }
 

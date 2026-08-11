@@ -31,13 +31,10 @@ use crate::layout::{
     COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV,
     COL_PC_EDGE_KIND_IS_STATIC, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
     COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
-    COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READ0_ACTIVE,
-    COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
-    COL_STACK_READ1_ACTIVE, COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO, COL_STACK_READ1_VALUE_HI,
-    COL_STACK_READ1_VALUE_LO, COL_STACK_READ2_ACTIVE, COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO,
-    COL_STACK_READ2_VALUE_HI, COL_STACK_READ2_VALUE_LO, COL_STACK_READS, COL_STACK_WRITE0_ACTIVE,
-    COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
+    COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
+    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_WIDE_VALUES_ENABLED,
 };
 use neo_ccs::CcsStructure;
 use neo_math::F;
@@ -237,7 +234,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
 
     b.with_tag(always("narrow high limbs zero"), |b| {
         b.push_row(
-            [(COL_STACK_READ0_VALUE_HI, F::ONE)],
+            [(COL_STACK_READ_VALUE_HI[0], F::ONE)],
             [
                 (COL_ONE, F::ONE),
                 (COL_WIDE_VALUES_ENABLED, -F::ONE),
@@ -246,8 +243,8 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
             [],
         );
         for column in [
-            COL_STACK_READ1_VALUE_HI,
-            COL_STACK_READ2_VALUE_HI,
+            COL_STACK_READ_VALUE_HI[1],
+            COL_STACK_READ_VALUE_HI[2],
             COL_STACK_WRITE0_VALUE_HI,
             COL_LOCAL_VALUE_HI,
             COL_GLOBAL_VALUE_HI,
@@ -360,20 +357,20 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         b.push_row(fixed_stack_arity_gate_terms(), fixed_stack_writes_terms(), []);
     });
     b.push_linear_zero([
-        (COL_STACK_READ0_ACTIVE, F::ONE),
-        (COL_STACK_READ1_ACTIVE, F::ONE),
-        (COL_STACK_READ2_ACTIVE, F::ONE),
+        (COL_STACK_READ_ACTIVE[0], F::ONE),
+        (COL_STACK_READ_ACTIVE[1], F::ONE),
+        (COL_STACK_READ_ACTIVE[2], F::ONE),
         (COL_STACK_READS, -F::ONE),
     ]);
     b.push_linear_zero([(COL_STACK_WRITE0_ACTIVE, F::ONE), (COL_STACK_WRITES, -F::ONE)]);
     b.push_row(
-        [(COL_STACK_READ1_ACTIVE, F::ONE)],
-        [(COL_ONE, F::ONE), (COL_STACK_READ0_ACTIVE, -F::ONE)],
+        [(COL_STACK_READ_ACTIVE[1], F::ONE)],
+        [(COL_ONE, F::ONE), (COL_STACK_READ_ACTIVE[0], -F::ONE)],
         [],
     );
     b.push_row(
-        [(COL_STACK_READ2_ACTIVE, F::ONE)],
-        [(COL_ONE, F::ONE), (COL_STACK_READ1_ACTIVE, -F::ONE)],
+        [(COL_STACK_READ_ACTIVE[2], F::ONE)],
+        [(COL_ONE, F::ONE), (COL_STACK_READ_ACTIVE[1], -F::ONE)],
         [],
     );
 
@@ -460,9 +457,9 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
 
     b.with_tag(always("stack high limb addresses"), |b| {
         for (addr_hi, addr_lo) in [
-            (COL_STACK_READ0_ADDR_HI, COL_STACK_READ0_ADDR_LO),
-            (COL_STACK_READ1_ADDR_HI, COL_STACK_READ1_ADDR_LO),
-            (COL_STACK_READ2_ADDR_HI, COL_STACK_READ2_ADDR_LO),
+            (COL_STACK_READ_ADDR_HI[0], COL_STACK_READ_ADDR_LO[0]),
+            (COL_STACK_READ_ADDR_HI[1], COL_STACK_READ_ADDR_LO[1]),
+            (COL_STACK_READ_ADDR_HI[2], COL_STACK_READ_ADDR_LO[2]),
             (COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO),
         ] {
             b.push_linear_zero([(addr_hi, F::ONE), (addr_lo, -F::ONE), (COL_ONE, -F::ONE)]);
@@ -606,7 +603,7 @@ fn push_stack_read0_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack read0 sp-1 selector"), F::ONE)),
         [
-            (COL_STACK_READ0_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[0], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -633,7 +630,7 @@ fn push_select_stack_addrs(b: &mut R1csBuilder) {
         b,
         selector,
         [
-            (COL_STACK_READ0_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[0], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(6)),
         ],
@@ -642,7 +639,7 @@ fn push_select_stack_addrs(b: &mut R1csBuilder) {
         b,
         selector,
         [
-            (COL_STACK_READ1_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[1], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(4)),
         ],
@@ -651,7 +648,7 @@ fn push_select_stack_addrs(b: &mut R1csBuilder) {
         b,
         selector,
         [
-            (COL_STACK_READ2_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[2], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -677,23 +674,23 @@ fn push_select_constraints(b: &mut R1csBuilder) {
     let selector = selector_col(WasmOpcode::Select).unwrap();
     push_zero_test_gadget(
         b,
-        COL_STACK_READ2_VALUE_LO,
+        COL_STACK_READ_VALUE_LO[2],
         COL_SELECT_SCRATCH_INV,
         COL_SELECT_COND_IS_ZERO,
     );
     push_select_mux_limb(
         b,
         selector,
-        COL_STACK_READ0_VALUE_LO,
-        COL_STACK_READ1_VALUE_LO,
+        COL_STACK_READ_VALUE_LO[0],
+        COL_STACK_READ_VALUE_LO[1],
         COL_STACK_WRITE0_VALUE_LO,
         COL_SELECT_OUT_DELTA_LO,
     );
     push_select_mux_limb(
         b,
         selector,
-        COL_STACK_READ0_VALUE_HI,
-        COL_STACK_READ1_VALUE_HI,
+        COL_STACK_READ_VALUE_HI[0],
+        COL_STACK_READ_VALUE_HI[1],
         COL_STACK_WRITE0_VALUE_HI,
         COL_SELECT_OUT_DELTA_HI,
     );
@@ -715,7 +712,7 @@ fn push_stack_read0_addr_sp_minus_2(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack read0 sp-2 selector"), F::ONE)),
         [
-            (COL_STACK_READ0_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[0], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(4)),
         ],
@@ -728,7 +725,7 @@ fn push_stack_read1_addr_sp_minus_1(b: &mut R1csBuilder, ops: &[WasmOpcode]) {
         ops.iter()
             .map(|&op| (selector_col(op).expect("stack read1 sp-1 selector"), F::ONE)),
         [
-            (COL_STACK_READ1_ADDR_LO, F::ONE),
+            (COL_STACK_READ_ADDR_LO[1], F::ONE),
             (COL_SP_BEFORE, -f_u64(2)),
             (COL_ONE, f_u64(2)),
         ],
@@ -759,8 +756,8 @@ fn push_add_relation(b: &mut R1csBuilder) {
         b,
         selector_col(WasmOpcode::I32Add).unwrap(),
         [
-            (COL_STACK_READ0_VALUE_LO, F::ONE),
-            (COL_STACK_READ1_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], F::ONE),
             (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
             (COL_WIDE_AUX0, -f_u64(1_u64 << 32)),
         ],
@@ -776,8 +773,8 @@ fn push_sub_relation(b: &mut R1csBuilder) {
         b,
         selector_col(WasmOpcode::I32Sub).unwrap(),
         [
-            (COL_STACK_READ0_VALUE_LO, F::ONE),
-            (COL_STACK_READ1_VALUE_LO, -F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], -F::ONE),
             (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
             (COL_WIDE_AUX0, f_u64(1_u64 << 32)),
         ],
@@ -788,8 +785,8 @@ fn push_i64_add_relation(b: &mut R1csBuilder) {
     let selector = selector_col(WasmOpcode::I64Add).unwrap();
     b.push_row(
         [
-            (COL_STACK_READ0_VALUE_LO, F::ONE),
-            (COL_STACK_READ1_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], F::ONE),
             (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
             (COL_WIDE_AUX0, -f_u64(1_u64 << 32)),
         ],
@@ -798,8 +795,8 @@ fn push_i64_add_relation(b: &mut R1csBuilder) {
     );
     b.push_row(
         [
-            (COL_STACK_READ0_VALUE_HI, F::ONE),
-            (COL_STACK_READ1_VALUE_HI, F::ONE),
+            (COL_STACK_READ_VALUE_HI[0], F::ONE),
+            (COL_STACK_READ_VALUE_HI[1], F::ONE),
             (COL_STACK_WRITE0_VALUE_HI, -F::ONE),
             (COL_WIDE_AUX0, F::ONE),
             (COL_WIDE_AUX1, -f_u64(1_u64 << 32)),
@@ -813,20 +810,20 @@ fn push_i64_sub_relation(b: &mut R1csBuilder) {
     let selector = selector_col(WasmOpcode::I64Sub).unwrap();
     b.push_row(
         [
-            (COL_STACK_READ0_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], F::ONE),
             (COL_WIDE_AUX0, f_u64(1_u64 << 32)),
             (COL_STACK_WRITE0_VALUE_LO, -F::ONE),
-            (COL_STACK_READ1_VALUE_LO, -F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], -F::ONE),
         ],
         [(selector, F::ONE)],
         [],
     );
     b.push_row(
         [
-            (COL_STACK_READ0_VALUE_HI, F::ONE),
+            (COL_STACK_READ_VALUE_HI[0], F::ONE),
             (COL_WIDE_AUX1, f_u64(1_u64 << 32)),
             (COL_STACK_WRITE0_VALUE_HI, -F::ONE),
-            (COL_STACK_READ1_VALUE_HI, -F::ONE),
+            (COL_STACK_READ_VALUE_HI[1], -F::ONE),
             (COL_WIDE_AUX0, -F::ONE),
         ],
         [(selector, F::ONE)],
@@ -839,7 +836,10 @@ fn push_i32_wrap_i64_relation(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         selector,
-        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [
+            (COL_STACK_WRITE0_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], -F::ONE),
+        ],
     );
     push_gated_linear_zero(b, selector, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
@@ -847,7 +847,10 @@ fn push_i32_wrap_i64_relation(b: &mut R1csBuilder) {
 fn push_i64_extend_i32_u_low_relation(b: &mut R1csBuilder) {
     b.push_row(
         [(selector_col(WasmOpcode::I64ExtendI32U).unwrap(), F::ONE)],
-        [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [
+            (COL_STACK_WRITE0_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], -F::ONE),
+        ],
         [],
     );
 }
@@ -869,7 +872,7 @@ fn push_integer_sign_extend_relation(
 ) {
     debug_assert!((1..=4).contains(&width_bytes));
     let selector = selector_col(opcode).unwrap();
-    push_u32_le_bytes_decomp(b, [selector], COL_STACK_READ0_VALUE_LO, sign_extension.bytes.map(idx));
+    push_u32_le_bytes_decomp(b, [selector], COL_STACK_READ_VALUE_LO[0], sign_extension.bytes.map(idx));
 
     let sign_source = sign_extension.bytes[width_bytes - 1];
     push_gated_linear_zero(
@@ -970,13 +973,13 @@ fn push_comparator_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         sel_eqz_i32,
-        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
     // cmp_lo_diff = read0_value (lo limb only) on i64.eqz rows.
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
-        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+        [(COL_CMP_LO_DIFF, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
     // cmp_lo_diff = read0_value - read1_value on i32.eq/ne and i64.eq/ne rows.
     // (Same lo-limb diff expression for all four; hi-limb diff is pinned
@@ -990,8 +993,8 @@ fn push_comparator_constraints(b: &mut R1csBuilder) {
         ],
         [
             (COL_CMP_LO_DIFF, F::ONE),
-            (COL_STACK_READ0_VALUE_LO, -F::ONE),
-            (COL_STACK_READ1_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], -F::ONE),
+            (COL_STACK_READ_VALUE_LO[1], F::ONE),
         ],
         [],
     );
@@ -1004,14 +1007,14 @@ fn push_comparator_constraints(b: &mut R1csBuilder) {
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
-        [(COL_CMP_HI_DIFF, F::ONE), (COL_STACK_READ0_VALUE_HI, -F::ONE)],
+        [(COL_CMP_HI_DIFF, F::ONE), (COL_STACK_READ_VALUE_HI[0], -F::ONE)],
     );
     b.push_row(
         [(sel_i64_eq, F::ONE), (sel_i64_ne, F::ONE)],
         [
             (COL_CMP_HI_DIFF, F::ONE),
-            (COL_STACK_READ0_VALUE_HI, -F::ONE),
-            (COL_STACK_READ1_VALUE_HI, F::ONE),
+            (COL_STACK_READ_VALUE_HI[0], -F::ONE),
+            (COL_STACK_READ_VALUE_HI[1], F::ONE),
         ],
         [],
     );

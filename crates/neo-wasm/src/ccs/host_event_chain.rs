@@ -43,8 +43,8 @@ use super::super::layout::{
     COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_ONE,
     COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
     COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
-    COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
-    COL_STACK_READS, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
+    COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READS, COL_STACK_READ_VALUE_HI,
+    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
     COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
@@ -327,7 +327,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_BYTE_OFFSET,
         COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3,
         COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OUTPUT_ENABLED_BEFORE,
-        COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ0_ADDR_LO,
+        COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ_ADDR_LO,
         COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
@@ -507,7 +507,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         b.push_row(
             [(GK_ARG, F::ONE)],
             [
-                (COL_STACK_READ0_ADDR_LO, F::ONE),
+                (COL_STACK_READ_ADDR_LO[0], F::ONE),
                 (ARGS_BASE_BEFORE, -F::from_u64(2)),
                 (SLOT_ARG, -F::from_u64(2)),
             ],
@@ -515,8 +515,11 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         );
         b.push_row(
             [(SLOT_VARIANT, F::ONE)],
-            [(COL_STACK_READ0_VALUE_HI, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
-            [(GARG_VAL, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+            [
+                (COL_STACK_READ_VALUE_HI[0], F::ONE),
+                (COL_STACK_READ_VALUE_LO[0], -F::ONE),
+            ],
+            [(GARG_VAL, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
         );
         b.push_row([(GK_ARG, F::ONE)], [(GSLOT_VALUE, F::ONE), (GARG_VAL, -F::ONE)], []);
 
@@ -666,7 +669,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
                 (GMEM_LOCAL, -F::ONE),
             ],
             [
-                (COL_STACK_READ0_ADDR_LO, F::ONE),
+                (COL_STACK_READ_ADDR_LO[0], F::ONE),
                 (ARGS_BASE_BEFORE, -F::from_u64(2)),
                 (SLOT_ARG, -F::from_u64(2)),
             ],
@@ -681,7 +684,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [
                 (COL_LINEAR_MEM_LANE0_ADDR, F::from_u64(4)),
                 (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
-                (COL_STACK_READ0_VALUE_LO, -F::ONE),
+                (COL_STACK_READ_VALUE_LO[0], -F::ONE),
                 (CONST_LO, -F::ONE),
             ],
             [],
@@ -694,7 +697,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
                 (GK_MEMORY_WRITE, F::ONE),
                 (GMEM_LOCAL, -F::ONE),
             ],
-            [(COL_STACK_READ0_VALUE_HI, F::ONE)],
+            [(COL_STACK_READ_VALUE_HI[0], F::ONE)],
             [],
         );
         // Local-base memory rows bind the pointer through the locals RAM.
@@ -962,14 +965,14 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
         for k in 0..4 {
             b.push_row(
                 [(RAW_ARG_WRITE_MASK[k], F::ONE)],
-                [(COL_EVBUF_AFTER[2 * k], F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+                [(COL_EVBUF_AFTER[2 * k], F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
                 [],
             );
             b.push_row(
                 [(RAW_ARG_WRITE_MASK[k], F::ONE)],
                 [
                     (COL_EVBUF_AFTER[2 * k + 1], F::ONE),
-                    (COL_STACK_READ0_VALUE_HI, -F::ONE),
+                    (COL_STACK_READ_VALUE_HI[0], -F::ONE),
                 ],
                 [],
             );
@@ -1335,8 +1338,8 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
         wit[super::super::layout::COL_GRAMMAR_HOST_CALL] * wit[super::super::layout::COL_CALL_PARAM_COUNT];
     // Limb-selected values: filled on every row so the unconditional select
     // rows hold (the limb column is zero off gather rows).
-    let read_lo = wit[super::super::layout::COL_STACK_READ0_VALUE_LO];
-    let read_hi = wit[COL_STACK_READ0_VALUE_HI];
+    let read_lo = wit[super::super::layout::COL_STACK_READ_VALUE_LO[0]];
+    let read_hi = wit[COL_STACK_READ_VALUE_HI[0]];
     let variant = wit[super::super::layout::COL_GRAMMAR_SLOT_VARIANT];
     wit[GARG_VAL] = read_lo + variant * (read_hi - read_lo);
     let out_lo = wit[super::super::layout::COL_OUTPUT_VALUE_LO_BEFORE];

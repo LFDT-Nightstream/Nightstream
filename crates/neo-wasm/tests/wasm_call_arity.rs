@@ -5,7 +5,7 @@
 mod common;
 
 use neo_math::F;
-use neo_wasm::layout::{COL_STACK_READ0_ADDR_LO, COL_TABLE_INDEX};
+use neo_wasm::layout::{COL_STACK_READ_ADDR_LO, COL_TABLE_INDEX};
 use neo_wasm::WasmOpcode;
 use p3_field::PrimeCharacteristicRing;
 
@@ -132,7 +132,7 @@ fn call_indirect_rejects_index_read_redirected_to_other_slot() {
         .position(|row| row.opcode == WasmOpcode::CallIndirect)
         .expect("call_indirect row");
     let mut witness = checked.witnesses[row_index].clone();
-    witness[COL_STACK_READ0_ADDR_LO] = F::ZERO;
+    witness[COL_STACK_READ_ADDR_LO[0]] = F::ZERO;
     common::assert_rejected(&witness, "index read redirected away from sp - 1");
 }
 

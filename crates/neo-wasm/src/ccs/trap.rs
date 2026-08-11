@@ -9,9 +9,8 @@ use super::super::layout::{
     COL_DIV_DIVISOR_IS_ZERO, COL_DIV_DIVISOR_NEG1_INV, COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP,
     COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_TYPE_ID, COL_GUEST_ENTRY_ACTIVE,
     COL_IS_PROGRAM_ROW, COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
-    COL_OUTPUT_CAPTURED, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO, COL_STACK_READ1_VALUE_HI,
-    COL_STACK_READ1_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE,
-    COL_TABLE_VALUE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_OUTPUT_CAPTURED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
+    COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_SIZE, COL_TABLE_VALUE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
 };
 use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
 use super::{always, idx, shared, R1csBuilder};
@@ -131,7 +130,10 @@ fn push_div_trap_constraints(b: &mut R1csBuilder) {
     // Div/rem by zero is terminal. Since both divisor limbs are U32,
     // read1_lo + read1_hi is below the field modulus, so the sum is zero
     // exactly when both limbs are zero.
-    let divisor = [(COL_STACK_READ1_VALUE_LO, F::ONE), (COL_STACK_READ1_VALUE_HI, F::ONE)];
+    let divisor = [
+        (COL_STACK_READ_VALUE_LO[1], F::ONE),
+        (COL_STACK_READ_VALUE_HI[1], F::ONE),
+    ];
     push_zero_test_expr_gadget(b, divisor, COL_DIV_DIVISOR_INV, COL_DIV_DIVISOR_IS_ZERO);
 
     // Signed division overflow (MIN / -1) is a trap because the result
@@ -164,8 +166,8 @@ fn push_div_trap_constraints(b: &mut R1csBuilder) {
     let i64_div_s = selector_col(WasmOpcode::I64DivS).expect("i64.div_s selector");
     let i64_rem_s = selector_col(WasmOpcode::I64RemS).expect("i64.rem_s selector");
     let dividend_min = [
-        (COL_STACK_READ0_VALUE_LO, F::ONE),
-        (COL_STACK_READ0_VALUE_HI, F::from_u64(1 << 32)),
+        (COL_STACK_READ_VALUE_LO[0], F::ONE),
+        (COL_STACK_READ_VALUE_HI[0], F::from_u64(1 << 32)),
         (i32_div_s, -F::from_u64(1 << 31)),
         (i32_rem_s, -F::from_u64(1 << 31)),
         (i64_div_s, -F::from_u64(1 << 63)),
@@ -183,8 +185,8 @@ fn push_div_trap_constraints(b: &mut R1csBuilder) {
     // high limb is pinned to zero (same `narrow high limbs zero`
     // constraint as above), so it degrades to a simple equality check.
     let divisor_neg1 = [
-        (COL_STACK_READ1_VALUE_LO, F::ONE),
-        (COL_STACK_READ1_VALUE_HI, F::ONE),
+        (COL_STACK_READ_VALUE_LO[1], F::ONE),
+        (COL_STACK_READ_VALUE_HI[1], F::ONE),
         // limb sum of -1i32: u32::MAX (the high limb is 0)
         (i32_div_s, -F::from_u64(u32::MAX as u64)),
         (i32_rem_s, -F::from_u64(u32::MAX as u64)),

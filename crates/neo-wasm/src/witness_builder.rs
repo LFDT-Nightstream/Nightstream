@@ -1011,7 +1011,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
 /// gadget-internal block is filled by `ccs::host_event_chain::fill_witness`.
 fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     use crate::layout::{
-        COL_EVBUF0_AFTER, COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_GATHER_ACTIVE,
+        COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_EVBUF_SLOT_AFTER, COL_EVBUF_SLOT_BEFORE, COL_GATHER_ACTIVE,
         COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GRAMMAR_ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE,
         COL_GRAMMAR_EVIDX_AFTER, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_AFTER, COL_GRAMMAR_EVREM_BEFORE,
         COL_GRAMMAR_EVREM_BEFORE_INV, COL_GRAMMAR_EVREM_BEFORE_IS_ZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL,
@@ -1019,7 +1019,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER,
         COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT, COL_PERM_PENDING_AFTER,
         COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
-        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE, COL_RAW_ARGS_ACTIVE,
+        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE, COL_RAW_ARGS_ACTIVE,
         COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE,
     };
 
@@ -1028,12 +1028,12 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     let after = trace.state_after.event_absorb;
 
     for j in 0..8 {
-        wit[COL_EVBUF0_BEFORE + j] = F::from_u64(before.evbuf[j]);
-        wit[COL_EVBUF0_AFTER + j] = F::from_u64(after.evbuf[j]);
+        wit[COL_EVBUF_BEFORE[j]] = F::from_u64(before.evbuf[j]);
+        wit[COL_EVBUF_AFTER[j]] = F::from_u64(after.evbuf[j]);
     }
     for k in 0..4 {
-        wit[COL_EVBUF_SLOT0_BEFORE + k] = bool_f(usize::from(before.evbuf_slot) == k);
-        wit[COL_EVBUF_SLOT0_AFTER + k] = bool_f(usize::from(after.evbuf_slot) == k);
+        wit[COL_EVBUF_SLOT_BEFORE[k]] = bool_f(usize::from(before.evbuf_slot) == k);
+        wit[COL_EVBUF_SLOT_AFTER[k]] = bool_f(usize::from(after.evbuf_slot) == k);
     }
     wit[COL_PERM_PENDING_BEFORE] = bool_f(before.perm_pending);
     wit[COL_PERM_PENDING_AFTER] = bool_f(after.perm_pending);
@@ -1043,8 +1043,8 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_PERM_ROUND_BEFORE_IS_ZERO] = round_is_zero;
     wit[COL_PERM_ROUND_BEFORE_INV] = round_inv;
     for lane in 0..12 {
-        wit[COL_PERM_STATE0_BEFORE + lane] = F::from_u64(before.perm_state[lane]);
-        wit[COL_PERM_STATE0_AFTER + lane] = F::from_u64(after.perm_state[lane]);
+        wit[COL_PERM_STATE_BEFORE[lane]] = F::from_u64(before.perm_state[lane]);
+        wit[COL_PERM_STATE_AFTER[lane]] = F::from_u64(after.perm_state[lane]);
     }
 
     // Grammar mode flag, gather row kind, and the raw-machinery masks

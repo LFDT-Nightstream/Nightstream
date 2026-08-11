@@ -37,6 +37,10 @@ impl WasmColumnSpec {
     pub const fn end(&self) -> usize {
         self.start + self.len
     }
+
+    pub const fn contains(&self, column: usize) -> bool {
+        self.start <= column && column < self.end()
+    }
 }
 
 pub(crate) const fn f_prime_width(width: ColumnWidth) -> usize {
@@ -54,11 +58,20 @@ pub(crate) fn expanded_f_prime_widths(specs: &'static [WasmColumnSpec]) -> impl 
         .flat_map(|spec| core::iter::repeat_n(f_prime_width(spec.width), spec.len))
 }
 
+pub(crate) const fn column_indices<const N: usize>(start: usize) -> [usize; N] {
+    let mut indices = [0; N];
+    let mut i = 0;
+    while i < N {
+        indices[i] = start + i;
+        i += 1;
+    }
+    indices
+}
+
 /// Define a contiguous subsystem-owned region at an assigned absolute base.
 ///
-/// Each entry uses Rust's `[element; length]` array notation, with a declared
-/// column width in the element position. The generated name is the absolute
-/// index of the family's first column.
+/// Scalar entries name their column width directly. Families use Rust's
+/// `[element; length]` array notation and generate arrays of absolute indices.
 macro_rules! define_column_region {
     (
         region: $region:literal,
@@ -67,32 +80,50 @@ macro_rules! define_column_region {
         specs: $specs_vis:vis $specs_name:ident,
         indices: $index_vis:vis,
         columns: [
-            $($name:ident: [$column_width:ident; $len:expr] => $role:literal),+ $(,)?
+            $($name:ident: $shape:tt => $role:literal),+ $(,)?
         ]
     ) => {
-        define_column_region!(@assign $index_vis, $start; $(($name, $len)),+);
+        define_column_region!(@assign $index_vis, $start; $(($name, $shape)),+);
 
         /// Number of witness columns allocated by this region.
-        $width_vis const $width_name: usize = 0usize $(+ $len)+;
+        $width_vis const $width_name: usize =
+            0usize $(+ define_column_region!(@len $shape))+;
         /// Macro-generated metadata for the region's declared column families.
         $specs_vis const $specs_name: &[$crate::column_registry::WasmColumnSpec] = &[
             $($crate::column_registry::WasmColumnSpec {
                 region: $region,
-                start: $name,
-                len: $len,
+                start: define_column_region!(@start $name, $shape),
+                len: define_column_region!(@len $shape),
                 name: stringify!($name),
                 role: $role,
-                width: $crate::column_registry::ColumnWidth::$column_width,
+                width: define_column_region!(@width $shape),
             }),+
         ];
     };
-    (@assign $index_vis:vis, $idx:expr; ($name:ident, $len:expr), $(($rest_name:ident, $rest_len:expr)),+) => {
-        $index_vis const $name: usize = $idx;
-        define_column_region!(@assign $index_vis, $idx + $len; $(($rest_name, $rest_len)),+);
+    (@assign $index_vis:vis, $idx:expr; ($name:ident, $shape:tt), $(($rest_name:ident, $rest_shape:tt)),+) => {
+        define_column_region!(@declare $index_vis, $idx; $name, $shape);
+        define_column_region!(
+            @assign $index_vis,
+            $idx + define_column_region!(@len $shape);
+            $(($rest_name, $rest_shape)),+
+        );
     };
-    (@assign $index_vis:vis, $idx:expr; ($name:ident, $len:expr)) => {
+    (@assign $index_vis:vis, $idx:expr; ($name:ident, $shape:tt)) => {
+        define_column_region!(@declare $index_vis, $idx; $name, $shape);
+    };
+    (@declare $index_vis:vis, $idx:expr; $name:ident, $column_width:ident) => {
         $index_vis const $name: usize = $idx;
     };
+    (@declare $index_vis:vis, $idx:expr; $name:ident, [$column_width:ident; $len:expr]) => {
+        $index_vis const $name: [usize; $len] =
+            $crate::column_registry::column_indices::<$len>($idx);
+    };
+    (@start $name:ident, $column_width:ident) => { $name };
+    (@start $name:ident, [$column_width:ident; $len:expr]) => { $name[0] };
+    (@len $column_width:ident) => { 1usize };
+    (@len [$column_width:ident; $len:expr]) => { $len };
+    (@width $column_width:ident) => { $crate::column_registry::ColumnWidth::$column_width };
+    (@width [$column_width:ident; $len:expr]) => { $crate::column_registry::ColumnWidth::$column_width };
 }
 
 pub(crate) use define_column_region;

@@ -36,13 +36,13 @@
 
 use super::super::gadgets::push_zero_test_gadget;
 use super::super::layout::{
-    COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE, COL_EVBUF0_AFTER,
-    COL_EVBUF0_BEFORE, COL_EVBUF_SLOT0_AFTER, COL_EVBUF_SLOT0_BEFORE, COL_FUNCTION_REF, COL_GATHER_ACTIVE,
+    COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE, COL_EVBUF_AFTER,
+    COL_EVBUF_BEFORE, COL_EVBUF_SLOT_AFTER, COL_EVBUF_SLOT_BEFORE, COL_FUNCTION_REF, COL_GATHER_ACTIVE,
     COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
     COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER,
     COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_ONE,
     COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
-    COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE0_AFTER, COL_PERM_STATE0_BEFORE,
+    COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
     COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READ0_VALUE_HI, COL_STACK_READ0_VALUE_LO,
     COL_STACK_READS, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
     COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
@@ -72,34 +72,34 @@ define_column_region! {
     specs: pub AUX_COLUMN_SPECS,
     indices: pub(self),
     columns: [
-        POS0: [Boolean; COMM_CHAIN_PERM_ROWS] => "permutation row-position one-hot flags",
-        FULL_T0: [Field; 48] => "full-round S-box power witnesses",
-        PARTIAL_U0: [Field; 8] => "partial-round S-box power witnesses",
-        WSA0: [Boolean; 4] => "raw argument-row event-buffer write masks",
-        WSR0: [Boolean; 4] => "raw result-row event-buffer write masks",
-        STREAM_DONE: [Boolean; 1] => "raw event stream completed after this row",
-        EVENT_END: [Boolean; 1] => "raw row streams the final event word pair",
-        EVENT_END_OR: [Boolean; 1] => "raw block-filled and event-end product",
-        GW0: [Boolean; 8] => "gather block-word one-hot flags",
-        GK0: [Boolean; GKINDS] => "gather slot-kind one-hot flags",
-        GARG_VAL: [Field; 1] => "limb-selected stack argument value",
-        GOUT_VAL: [Field; 1] => "limb-selected export output value",
-        GSLOT_VALUE: [Field; 1] => "word staged by the current gather row",
-        GK2_HI: [Boolean; 1] => "result-slot high-limb write flag",
-        GHC_PARAMS: [Field; 1] => "grammar host-call and parameter-count product",
-        G_ADVICE: [Boolean; 1] => "advice-event slot flag",
-        GMEM_LOCAL: [Boolean; 1] => "memory pointer comes from an export local",
-        GMEM_BYTE: [Boolean; 1] => "byte-width grammar memory slot",
-        GMEM_HALF: [Boolean; 1] => "half-width grammar memory slot",
+        PERM_POSITION: [Boolean; COMM_CHAIN_PERM_ROWS] => "permutation row-position one-hot flags",
+        FULL_ROUND_POWERS: [Field; 48] => "full-round S-box power witnesses",
+        PARTIAL_ROUND_POWERS: [Field; 8] => "partial-round S-box power witnesses",
+        RAW_ARG_WRITE_MASK: [Boolean; 4] => "raw argument-row event-buffer write masks",
+        RAW_RESULT_WRITE_MASK: [Boolean; 4] => "raw result-row event-buffer write masks",
+        STREAM_DONE: Boolean => "raw event stream completed after this row",
+        EVENT_END: Boolean => "raw row streams the final event word pair",
+        EVENT_END_OR: Boolean => "raw block-filled and event-end product",
+        GATHER_WORD_POSITION: [Boolean; 8] => "gather block-word one-hot flags",
+        GATHER_KIND: [Boolean; GKINDS] => "gather slot-kind one-hot flags",
+        GARG_VAL: Field => "limb-selected stack argument value",
+        GOUT_VAL: Field => "limb-selected export output value",
+        GSLOT_VALUE: Field => "word staged by the current gather row",
+        GK2_HI: Boolean => "result-slot high-limb write flag",
+        GHC_PARAMS: Field => "grammar host-call and parameter-count product",
+        G_ADVICE: Boolean => "advice-event slot flag",
+        GMEM_LOCAL: Boolean => "memory pointer comes from an export local",
+        GMEM_BYTE: Boolean => "byte-width grammar memory slot",
+        GMEM_HALF: Boolean => "half-width grammar memory slot",
     ]
 }
 
-const GK_ARG: usize = GK0 + WasmGrammarSlotKind::Arg.index();
-const GK_RESULT: usize = GK0 + WasmGrammarSlotKind::Result.index();
-const GK_CLAIM_LOCAL: usize = GK0 + WasmGrammarSlotKind::ClaimLocal.index();
-const GK_OUTPUT: usize = GK0 + WasmGrammarSlotKind::Output.index();
-const GK_MEMORY_READ: usize = GK0 + WasmGrammarSlotKind::MemoryRead.index();
-const GK_MEMORY_WRITE: usize = GK0 + WasmGrammarSlotKind::MemoryWrite.index();
+const GK_ARG: usize = GATHER_KIND[WasmGrammarSlotKind::Arg.index()];
+const GK_RESULT: usize = GATHER_KIND[WasmGrammarSlotKind::Result.index()];
+const GK_CLAIM_LOCAL: usize = GATHER_KIND[WasmGrammarSlotKind::ClaimLocal.index()];
+const GK_OUTPUT: usize = GATHER_KIND[WasmGrammarSlotKind::Output.index()];
+const GK_MEMORY_READ: usize = GATHER_KIND[WasmGrammarSlotKind::MemoryRead.index()];
+const GK_MEMORY_WRITE: usize = GATHER_KIND[WasmGrammarSlotKind::MemoryWrite.index()];
 
 /// The gather column whose flag pins a non-popping stack read (arg slots).
 /// The `sp' = sp - reads + writes` identity in `ccs.rs` exempts these reads
@@ -140,7 +140,7 @@ pub(super) const fn grammar_host_call_params_col() -> usize {
 /// The position one-hot flag of the group's last row (position 18), needed
 /// by `ccs/call.rs` to hand arg mode back after a perm group.
 pub(super) const fn perm_last_pos_col() -> usize {
-    POS0 + COMM_CHAIN_PERM_ROWS - 1
+    PERM_POSITION[COMM_CHAIN_PERM_ROWS - 1]
 }
 
 /// Dense 12×12 matrix of the external (`mds_light`) linear layer, probed
@@ -266,12 +266,12 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
         );
         // On the last gather row, pending_after = 1 - advice.
         b.push_row(
-            [(GW0 + 7, F::ONE)],
+            [(GATHER_WORD_POSITION[7], F::ONE)],
             [(COL_PERM_PENDING_AFTER, F::ONE), (COL_ONE, -F::ONE), (G_ADVICE, F::ONE)],
             [],
         );
         b.push_row(
-            [(COL_GATHER_ACTIVE, F::ONE), (GW0 + 7, -F::ONE)],
+            [(COL_GATHER_ACTIVE, F::ONE), (GATHER_WORD_POSITION[7], -F::ONE)],
             [(COL_PERM_PENDING_AFTER, F::ONE)],
             [],
         );
@@ -362,7 +362,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [],
         );
         b.push_row(
-            [(GW0 + 7, F::ONE)],
+            [(GATHER_WORD_POSITION[7], F::ONE)],
             [(EVREM_A, F::ONE), (EVREM_B, -F::ONE), (COL_ONE, F::ONE)],
             [],
         );
@@ -370,7 +370,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [
                 (COL_ONE, F::ONE),
                 (GHC, -F::ONE),
-                (GW0 + 7, -F::ONE),
+                (GATHER_WORD_POSITION[7], -F::ONE),
                 (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
                 (COL_TURN_BOUNDARY, -F::ONE),
             ],
@@ -393,7 +393,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         // Event index: the ROM key component walking the template.
         b.push_row([(GHC, F::ONE)], [(EVIDX_A, F::ONE)], []);
         b.push_row(
-            [(GW0 + 7, F::ONE)],
+            [(GATHER_WORD_POSITION[7], F::ONE)],
             [(EVIDX_A, F::ONE), (EVIDX_B, -F::ONE), (COL_ONE, -F::ONE)],
             [],
         );
@@ -401,7 +401,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [
                 (COL_ONE, F::ONE),
                 (GHC, -F::ONE),
-                (GW0 + 7, -F::ONE),
+                (GATHER_WORD_POSITION[7], -F::ONE),
                 (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
                 (COL_TURN_BOUNDARY, -F::ONE),
             ],
@@ -432,17 +432,17 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         // Slot cursor + block-word one-hot lockstep (the same pattern as the
         // perm position one-hot).
         for k in 0..8 {
-            b.push_boolean(GW0 + k);
+            b.push_boolean(GATHER_WORD_POSITION[k]);
         }
         b.push_linear_zero(
             (0..8)
-                .map(|k| (GW0 + k, F::ONE))
+                .map(|k| (GATHER_WORD_POSITION[k], F::ONE))
                 .chain([(COL_GATHER_ACTIVE, -F::ONE)]),
         );
         b.push_row(
             [(COL_GATHER_ACTIVE, F::ONE)],
             (0..8)
-                .map(|k| (GW0 + k, F::from_u64(k as u64)))
+                .map(|k| (GATHER_WORD_POSITION[k], F::from_u64(k as u64)))
                 .chain([(S_B, -F::ONE)]),
             [],
         );
@@ -450,24 +450,24 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             (S_A, F::ONE),
             (S_B, -F::ONE),
             (COL_GATHER_ACTIVE, -F::ONE),
-            (GW0 + 7, F::from_u64(8)),
+            (GATHER_WORD_POSITION[7], F::from_u64(8)),
         ]);
         b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(S_B, F::ONE)], []);
 
         // Advice uses the next code range above the raw slot kinds.
         for j in 0..GKINDS {
-            b.push_boolean(GK0 + j);
+            b.push_boolean(GATHER_KIND[j]);
         }
         b.push_boolean(G_ADVICE);
         b.push_linear_zero(
             (0..GKINDS)
-                .map(|j| (GK0 + j, F::ONE))
+                .map(|j| (GATHER_KIND[j], F::ONE))
                 .chain([(COL_GATHER_ACTIVE, -F::ONE)]),
         );
         b.push_row(
             [(COL_GATHER_ACTIVE, F::ONE)],
             (0..GKINDS)
-                .map(|j| (GK0 + j, F::from_u64(j as u64)))
+                .map(|j| (GATHER_KIND[j], F::from_u64(j as u64)))
                 .chain([
                     (G_ADVICE, F::from_u64(WasmGrammarSlotKind::COUNT as u64)),
                     (SLOT_KIND, -F::ONE),
@@ -478,15 +478,15 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         // The staged word lands in the buffer slot the cursor points at.
         for k in 0..8 {
             b.push_row(
-                [(GW0 + k, F::ONE)],
-                [(COL_EVBUF0_AFTER + k, F::ONE), (GSLOT_VALUE, -F::ONE)],
+                [(GATHER_WORD_POSITION[k], F::ONE)],
+                [(COL_EVBUF_AFTER[k], F::ONE), (GSLOT_VALUE, -F::ONE)],
                 [],
             );
         }
 
         // Const slots: the word is the ROM constant (u32 limb pair).
         b.push_row(
-            [(GK0, F::ONE)],
+            [(GATHER_KIND[0], F::ONE)],
             [
                 (GSLOT_VALUE, F::ONE),
                 (CONST_LO, -F::ONE),
@@ -811,14 +811,14 @@ fn push_position_onehot_constraints(b: &mut R1csBuilder) {
             COL_PERM_ROUND_BEFORE_IS_ZERO,
         );
         for pos in 0..COMM_CHAIN_PERM_ROWS {
-            b.push_boolean(POS0 + pos);
+            b.push_boolean(PERM_POSITION[pos]);
         }
 
         // sum(pos) = pending + (1 - round_is_zero): exactly one position on
         // perm rows, none elsewhere.
         b.push_linear_zero(
             (0..COMM_CHAIN_PERM_ROWS)
-                .map(|pos| (POS0 + pos, F::ONE))
+                .map(|pos| (PERM_POSITION[pos], F::ONE))
                 .chain([
                     (COL_PERM_PENDING_BEFORE, -F::ONE),
                     (COL_ONE, -F::ONE),
@@ -828,7 +828,7 @@ fn push_position_onehot_constraints(b: &mut R1csBuilder) {
         // sum(pos * P_pos) = round_before: the one-hot points at the counter.
         b.push_linear_zero(
             (0..COMM_CHAIN_PERM_ROWS)
-                .map(|pos| (POS0 + pos, F::from_u64(pos as u64)))
+                .map(|pos| (PERM_POSITION[pos], F::from_u64(pos as u64)))
                 .chain([(COL_PERM_ROUND_BEFORE, -F::ONE)]),
         );
         // round_after = round_before + perm_row_gate - 19 * P_last: advance
@@ -840,18 +840,18 @@ fn push_position_onehot_constraints(b: &mut R1csBuilder) {
             (COL_ONE, -F::ONE),
             (COL_PERM_ROUND_BEFORE_IS_ZERO, F::ONE),
             (
-                POS0 + COMM_CHAIN_PERM_ROWS - 1,
+                PERM_POSITION[COMM_CHAIN_PERM_ROWS - 1],
                 F::from_u64(COMM_CHAIN_PERM_ROWS as u64),
             ),
         ]);
         // pending forces the absorb row now, and only pending rows absorb.
         b.push_row(
             [(COL_PERM_PENDING_BEFORE, F::ONE)],
-            [(COL_ONE, F::ONE), (POS0, -F::ONE)],
+            [(COL_ONE, F::ONE), (PERM_POSITION[0], -F::ONE)],
             [],
         );
         b.push_row(
-            [(POS0, F::ONE)],
+            [(PERM_POSITION[0], F::ONE)],
             [(COL_PERM_PENDING_BEFORE, F::ONE), (COL_ONE, -F::ONE)],
             [],
         );
@@ -879,7 +879,7 @@ fn push_pending_update_constraints(b: &mut R1csBuilder) {
         b.push_row(event_write_gate_terms(), [(STREAM_DONE, F::ONE)], [(EVENT_END, F::ONE)]);
         // end_or = (WSA3 + WSR3) · end, so pending can OR both triggers.
         b.push_row(
-            [(WSA0 + 3, F::ONE), (WSR0 + 3, F::ONE)],
+            [(RAW_ARG_WRITE_MASK[3], F::ONE), (RAW_RESULT_WRITE_MASK[3], F::ONE)],
             [(EVENT_END, F::ONE)],
             [(EVENT_END_OR, F::ONE)],
         );
@@ -888,17 +888,21 @@ fn push_pending_update_constraints(b: &mut R1csBuilder) {
             event_write_gate_terms(),
             [
                 (COL_PERM_PENDING_AFTER, F::ONE),
-                (WSA0 + 3, -F::ONE),
-                (WSR0 + 3, -F::ONE),
+                (RAW_ARG_WRITE_MASK[3], -F::ONE),
+                (RAW_RESULT_WRITE_MASK[3], -F::ONE),
                 (EVENT_END, -F::ONE),
                 (EVENT_END_OR, F::ONE),
             ],
             [],
         );
         // Absorb row consumes the flag.
-        b.push_row([(POS0, F::ONE)], [(COL_PERM_PENDING_AFTER, F::ONE)], []);
+        b.push_row([(PERM_POSITION[0], F::ONE)], [(COL_PERM_PENDING_AFTER, F::ONE)], []);
         // Everything else preserves it (gather rows set it themselves).
-        let mut preserve_gate = vec![(COL_ONE, F::ONE), (POS0, -F::ONE), (COL_GATHER_ACTIVE, -F::ONE)];
+        let mut preserve_gate = vec![
+            (COL_ONE, F::ONE),
+            (PERM_POSITION[0], -F::ONE),
+            (COL_GATHER_ACTIVE, -F::ONE),
+        ];
         preserve_gate.extend(event_write_gate_terms().map(|(col, coeff)| (col, -coeff)));
         b.push_row(
             preserve_gate,
@@ -917,34 +921,37 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
         // The write masks are booleans; the rows also let the F' width
         // audit prove their declared 1-bit width.
         for k in 0..4 {
-            b.push_boolean(WSA0 + k);
-            b.push_boolean(WSR0 + k);
+            b.push_boolean(RAW_ARG_WRITE_MASK[k]);
+            b.push_boolean(RAW_RESULT_WRITE_MASK[k]);
         }
         // WSA_k / WSR_k: slot-cursor one-hot masked by the raw writing row
         // kind (inert in grammar mode).
         for k in 0..4 {
             b.push_row(
-                [(COL_EVBUF_SLOT0_BEFORE + k, F::ONE)],
+                [(COL_EVBUF_SLOT_BEFORE[k], F::ONE)],
                 [(COL_RAW_ARGS_ACTIVE, F::ONE)],
-                [(WSA0 + k, F::ONE)],
+                [(RAW_ARG_WRITE_MASK[k], F::ONE)],
             );
             b.push_row(
-                [(COL_EVBUF_SLOT0_BEFORE + k, F::ONE)],
+                [(COL_EVBUF_SLOT_BEFORE[k], F::ONE)],
                 [(COL_RAW_RESULT_ACTIVE, F::ONE)],
-                [(WSR0 + k, F::ONE)],
+                [(RAW_RESULT_WRITE_MASK[k], F::ONE)],
             );
         }
 
         // Call-row header: [TAG, fref, param_count, result_count, 0, 0, 0, 0].
         let header = [
-            vec![(COL_EVBUF0_AFTER, F::ONE), (COL_ONE, -F::from_u64(HOST_CALL_EVENT_TAG))],
-            vec![(COL_EVBUF0_AFTER + 1, F::ONE), (COL_FUNCTION_REF, -F::ONE)],
-            vec![(COL_EVBUF0_AFTER + 2, F::ONE), (COL_CALL_PARAM_COUNT, -F::ONE)],
-            vec![(COL_EVBUF0_AFTER + 3, F::ONE), (COL_CALL_RESULT_COUNT, -F::ONE)],
-            vec![(COL_EVBUF0_AFTER + 4, F::ONE)],
-            vec![(COL_EVBUF0_AFTER + 5, F::ONE)],
-            vec![(COL_EVBUF0_AFTER + 6, F::ONE)],
-            vec![(COL_EVBUF0_AFTER + 7, F::ONE)],
+            vec![
+                (COL_EVBUF_AFTER[0], F::ONE),
+                (COL_ONE, -F::from_u64(HOST_CALL_EVENT_TAG)),
+            ],
+            vec![(COL_EVBUF_AFTER[1], F::ONE), (COL_FUNCTION_REF, -F::ONE)],
+            vec![(COL_EVBUF_AFTER[2], F::ONE), (COL_CALL_PARAM_COUNT, -F::ONE)],
+            vec![(COL_EVBUF_AFTER[3], F::ONE), (COL_CALL_RESULT_COUNT, -F::ONE)],
+            vec![(COL_EVBUF_AFTER[4], F::ONE)],
+            vec![(COL_EVBUF_AFTER[5], F::ONE)],
+            vec![(COL_EVBUF_AFTER[6], F::ONE)],
+            vec![(COL_EVBUF_AFTER[7], F::ONE)],
         ];
         for terms in header {
             b.push_row([(COL_RAW_HOST_CALL, F::ONE)], terms, []);
@@ -954,27 +961,27 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
         // cursor; the value columns are bound by the stack argument.
         for k in 0..4 {
             b.push_row(
-                [(WSA0 + k, F::ONE)],
-                [(COL_EVBUF0_AFTER + 2 * k, F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
+                [(RAW_ARG_WRITE_MASK[k], F::ONE)],
+                [(COL_EVBUF_AFTER[2 * k], F::ONE), (COL_STACK_READ0_VALUE_LO, -F::ONE)],
                 [],
             );
             b.push_row(
-                [(WSA0 + k, F::ONE)],
+                [(RAW_ARG_WRITE_MASK[k], F::ONE)],
                 [
-                    (COL_EVBUF0_AFTER + 2 * k + 1, F::ONE),
+                    (COL_EVBUF_AFTER[2 * k + 1], F::ONE),
                     (COL_STACK_READ0_VALUE_HI, -F::ONE),
                 ],
                 [],
             );
             b.push_row(
-                [(WSR0 + k, F::ONE)],
-                [(COL_EVBUF0_AFTER + 2 * k, F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
+                [(RAW_RESULT_WRITE_MASK[k], F::ONE)],
+                [(COL_EVBUF_AFTER[2 * k], F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
                 [],
             );
             b.push_row(
-                [(WSR0 + k, F::ONE)],
+                [(RAW_RESULT_WRITE_MASK[k], F::ONE)],
                 [
-                    (COL_EVBUF0_AFTER + 2 * k + 1, F::ONE),
+                    (COL_EVBUF_AFTER[2 * k + 1], F::ONE),
                     (COL_STACK_WRITE0_VALUE_HI, -F::ONE),
                 ],
                 [],
@@ -984,7 +991,7 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
         // The absorb row consumes the block: the buffer resets to zero so
         // the next block's unwritten slots are the zero padding.
         for j in 0..8 {
-            b.push_row([(POS0, F::ONE)], [(COL_EVBUF0_AFTER + j, F::ONE)], []);
+            b.push_row([(PERM_POSITION[0], F::ONE)], [(COL_EVBUF_AFTER[j], F::ONE)], []);
         }
 
         // Untouched slots carry: gate out the raw call row (rewrites all 8),
@@ -994,17 +1001,13 @@ fn push_buffer_write_constraints(b: &mut R1csBuilder) {
             let pair = j / 2;
             let gate = vec![
                 (COL_ONE, F::ONE),
-                (WSA0 + pair, -F::ONE),
-                (WSR0 + pair, -F::ONE),
-                (POS0, -F::ONE),
+                (RAW_ARG_WRITE_MASK[pair], -F::ONE),
+                (RAW_RESULT_WRITE_MASK[pair], -F::ONE),
+                (PERM_POSITION[0], -F::ONE),
                 (COL_RAW_HOST_CALL, -F::ONE),
-                (GW0 + j, -F::ONE),
+                (GATHER_WORD_POSITION[j], -F::ONE),
             ];
-            b.push_row(
-                gate,
-                [(COL_EVBUF0_AFTER + j, F::ONE), (COL_EVBUF0_BEFORE + j, -F::ONE)],
-                [],
-            );
+            b.push_row(gate, [(COL_EVBUF_AFTER[j], F::ONE), (COL_EVBUF_BEFORE[j], -F::ONE)], []);
         }
     });
 }
@@ -1016,41 +1019,38 @@ fn push_slot_cursor_constraints(b: &mut R1csBuilder) {
     b.with_tag(always("host event slot cursor"), |b| {
         for k in 0..4 {
             let call_target = if k == 2 {
-                vec![(COL_EVBUF_SLOT0_AFTER + k, F::ONE), (COL_ONE, -F::ONE)]
+                vec![(COL_EVBUF_SLOT_AFTER[k], F::ONE), (COL_ONE, -F::ONE)]
             } else {
-                vec![(COL_EVBUF_SLOT0_AFTER + k, F::ONE)]
+                vec![(COL_EVBUF_SLOT_AFTER[k], F::ONE)]
             };
             b.push_row([(COL_RAW_HOST_CALL, F::ONE)], call_target, []);
 
             b.push_row(
                 [(COL_RAW_ARGS_ACTIVE, F::ONE), (COL_RAW_RESULT_ACTIVE, F::ONE)],
                 [
-                    (COL_EVBUF_SLOT0_AFTER + k, F::ONE),
-                    (COL_EVBUF_SLOT0_BEFORE + (k + 3) % 4, -F::ONE),
+                    (COL_EVBUF_SLOT_AFTER[k], F::ONE),
+                    (COL_EVBUF_SLOT_BEFORE[(k + 3) % 4], -F::ONE),
                 ],
                 [],
             );
 
             let absorb_target = if k == 0 {
-                vec![(COL_EVBUF_SLOT0_AFTER + k, F::ONE), (COL_ONE, -F::ONE)]
+                vec![(COL_EVBUF_SLOT_AFTER[k], F::ONE), (COL_ONE, -F::ONE)]
             } else {
-                vec![(COL_EVBUF_SLOT0_AFTER + k, F::ONE)]
+                vec![(COL_EVBUF_SLOT_AFTER[k], F::ONE)]
             };
-            b.push_row([(POS0, F::ONE)], absorb_target, []);
+            b.push_row([(PERM_POSITION[0], F::ONE)], absorb_target, []);
 
             let gate = vec![
                 (COL_ONE, F::ONE),
                 (COL_RAW_ARGS_ACTIVE, -F::ONE),
                 (COL_RAW_RESULT_ACTIVE, -F::ONE),
-                (POS0, -F::ONE),
+                (PERM_POSITION[0], -F::ONE),
                 (COL_RAW_HOST_CALL, -F::ONE),
             ];
             b.push_row(
                 gate,
-                [
-                    (COL_EVBUF_SLOT0_AFTER + k, F::ONE),
-                    (COL_EVBUF_SLOT0_BEFORE + k, -F::ONE),
-                ],
+                [(COL_EVBUF_SLOT_AFTER[k], F::ONE), (COL_EVBUF_SLOT_BEFORE[k], -F::ONE)],
                 [],
             );
         }
@@ -1063,16 +1063,16 @@ fn push_absorb_constraints(b: &mut R1csBuilder) {
     let me = external_matrix();
     b.with_tag(always("host event absorb"), |b| {
         for lane in 0..12 {
-            let mut terms = vec![(COL_PERM_STATE0_BEFORE + lane, F::ONE)];
+            let mut terms = vec![(COL_PERM_STATE_BEFORE[lane], F::ONE)];
             for (k, coeff) in me[lane].iter().enumerate() {
                 let input = if k < 4 {
                     COL_COMM_CHAIN0_BEFORE + k
                 } else {
-                    COL_EVBUF0_BEFORE + (k - 4)
+                    COL_EVBUF_BEFORE[k - 4]
                 };
                 terms.push((input, -*coeff));
             }
-            b.push_row([(POS0, F::ONE)], terms, []);
+            b.push_row([(PERM_POSITION[0], F::ONE)], terms, []);
         }
     });
 }
@@ -1089,14 +1089,14 @@ fn push_full_round_constraints(b: &mut R1csBuilder) {
     b.with_tag(always("host event perm full round"), |b| {
         for lane in 0..12 {
             // x = state_before[lane] + sum_pos P_pos * RC[pos][lane]
-            let x_terms: Vec<(usize, F)> = core::iter::once((COL_PERM_STATE0_BEFORE + lane, F::ONE))
+            let x_terms: Vec<(usize, F)> = core::iter::once((COL_PERM_STATE_BEFORE[lane], F::ONE))
                 .chain(
                     full_positions
                         .iter()
-                        .map(|&pos| (POS0 + pos, perm_full_round_constants(pos)[lane])),
+                        .map(|&pos| (PERM_POSITION[pos], perm_full_round_constants(pos)[lane])),
                 )
                 .collect();
-            let t = |i: usize| FULL_T0 + 4 * lane + i;
+            let t = |i: usize| FULL_ROUND_POWERS[4 * lane + i];
             b.push_row(x_terms.clone(), x_terms.clone(), [(t(0), F::ONE)]);
             b.push_row([(t(0), F::ONE)], [(t(0), F::ONE)], [(t(1), F::ONE)]);
             b.push_row([(t(1), F::ONE)], [(t(0), F::ONE)], [(t(2), F::ONE)]);
@@ -1105,12 +1105,12 @@ fn push_full_round_constraints(b: &mut R1csBuilder) {
         // Gated round output: state_after = M_ext · [t3 per lane].
         let gate: Vec<(usize, F)> = full_positions
             .iter()
-            .map(|&pos| (POS0 + pos, F::ONE))
+            .map(|&pos| (PERM_POSITION[pos], F::ONE))
             .collect();
         for lane in 0..12 {
-            let mut terms = vec![(COL_PERM_STATE0_AFTER + lane, F::ONE)];
+            let mut terms = vec![(COL_PERM_STATE_AFTER[lane], F::ONE)];
             for (k, coeff) in me[lane].iter().enumerate() {
-                terms.push((FULL_T0 + 4 * k + 3, -*coeff));
+                terms.push((FULL_ROUND_POWERS[4 * k + 3], -*coeff));
             }
             b.push_row(gate.clone(), terms, []);
         }
@@ -1126,15 +1126,15 @@ fn push_partial_pair_constraints(b: &mut R1csBuilder) {
 
     // Linear forms over [U3, state_before[1..12]] for the state after round
     // a: t'_i = MI[i][0]·U3 + sum_{j>=1} MI[i][j]·SB_j.
-    let u = |i: usize| PARTIAL_U0 + i;
+    let u = |i: usize| PARTIAL_ROUND_POWERS[i];
 
     b.with_tag(always("host event perm partial pair"), |b| {
         // Round a S-box input: x_a = SB_0 + selected RC.
-        let x_a: Vec<(usize, F)> = core::iter::once((COL_PERM_STATE0_BEFORE, F::ONE))
+        let x_a: Vec<(usize, F)> = core::iter::once((COL_PERM_STATE_BEFORE[0], F::ONE))
             .chain(
                 partial_positions
                     .iter()
-                    .map(|&pos| (POS0 + pos, perm_partial_round_constants(pos).0)),
+                    .map(|&pos| (PERM_POSITION[pos], perm_partial_round_constants(pos).0)),
             )
             .collect();
         b.push_row(x_a.clone(), x_a.clone(), [(u(0), F::ONE)]);
@@ -1145,12 +1145,12 @@ fn push_partial_pair_constraints(b: &mut R1csBuilder) {
         // Round b S-box input: x_b = t'_0 + selected RC.
         let mut x_b: Vec<(usize, F)> = vec![(u(3), mi[0][0])];
         for j in 1..12 {
-            x_b.push((COL_PERM_STATE0_BEFORE + j, mi[0][j]));
+            x_b.push((COL_PERM_STATE_BEFORE[j], mi[0][j]));
         }
         x_b.extend(
             partial_positions
                 .iter()
-                .map(|&pos| (POS0 + pos, perm_partial_round_constants(pos).1)),
+                .map(|&pos| (PERM_POSITION[pos], perm_partial_round_constants(pos).1)),
         );
         b.push_row(x_b.clone(), x_b.clone(), [(u(4), F::ONE)]);
         b.push_row([(u(4), F::ONE)], [(u(4), F::ONE)], [(u(5), F::ONE)]);
@@ -1161,7 +1161,7 @@ fn push_partial_pair_constraints(b: &mut R1csBuilder) {
         // over [U3, SB_1..11].
         let gate: Vec<(usize, F)> = partial_positions
             .iter()
-            .map(|&pos| (POS0 + pos, F::ONE))
+            .map(|&pos| (PERM_POSITION[pos], F::ONE))
             .collect();
         for lane in 0..12 {
             let mut coeff_u3 = F::ZERO;
@@ -1173,12 +1173,12 @@ fn push_partial_pair_constraints(b: &mut R1csBuilder) {
                 }
             }
             let mut terms = vec![
-                (COL_PERM_STATE0_AFTER + lane, F::ONE),
+                (COL_PERM_STATE_AFTER[lane], F::ONE),
                 (u(7), -mi[lane][0]),
                 (u(3), -coeff_u3),
             ];
             for (k, coeff) in coeff_sb.iter().enumerate().skip(1) {
-                terms.push((COL_PERM_STATE0_BEFORE + k, -*coeff));
+                terms.push((COL_PERM_STATE_BEFORE[k], -*coeff));
             }
             b.push_row(gate.clone(), terms, []);
         }
@@ -1189,14 +1189,14 @@ fn push_partial_pair_constraints(b: &mut R1csBuilder) {
 /// the raw input lanes (feed-forward) to the permutation output; every
 /// other row in the trace carries the chain unchanged.
 fn push_chain_update_constraints(b: &mut R1csBuilder) {
-    let last = POS0 + COMM_CHAIN_PERM_ROWS - 1;
+    let last = PERM_POSITION[COMM_CHAIN_PERM_ROWS - 1];
     b.with_tag(always("host event chain update"), |b| {
         for limb in 0..4 {
             b.push_row(
                 [(last, F::ONE)],
                 [
                     (COL_COMM_CHAIN0_AFTER + limb, F::ONE),
-                    (COL_PERM_STATE0_AFTER + limb, -F::ONE),
+                    (COL_PERM_STATE_AFTER[limb], -F::ONE),
                     (COL_COMM_CHAIN0_BEFORE + limb, -F::ONE),
                 ],
                 [],
@@ -1221,8 +1221,8 @@ fn push_chain_update_constraints(b: &mut R1csBuilder) {
                     (COL_PERM_PENDING_AFTER, -F::ONE),
                 ],
                 [
-                    (COL_PERM_STATE0_AFTER + lane, F::ONE),
-                    (COL_PERM_STATE0_BEFORE + lane, -F::ONE),
+                    (COL_PERM_STATE_AFTER[lane], F::ONE),
+                    (COL_PERM_STATE_BEFORE[lane], -F::ONE),
                 ],
                 [],
             );
@@ -1263,7 +1263,7 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
         .is_host_event_perm()
         .then_some(usize::from(before.perm_round));
     if let Some(pos) = pos {
-        wit[POS0 + pos] = F::ONE;
+        wit[PERM_POSITION[pos]] = F::ONE;
     }
 
     // Buffer-write masks and pending-update products, from the raw-masked
@@ -1271,8 +1271,8 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     let args_active = wit[super::super::layout::COL_RAW_ARGS_ACTIVE];
     let result_active = wit[super::super::layout::COL_RAW_RESULT_ACTIVE];
     for k in 0..4 {
-        wit[WSA0 + k] = wit[COL_EVBUF_SLOT0_BEFORE + k] * args_active;
-        wit[WSR0 + k] = wit[COL_EVBUF_SLOT0_BEFORE + k] * result_active;
+        wit[RAW_ARG_WRITE_MASK[k]] = wit[COL_EVBUF_SLOT_BEFORE[k]] * args_active;
+        wit[RAW_RESULT_WRITE_MASK[k]] = wit[COL_EVBUF_SLOT_BEFORE[k]] * result_active;
     }
     let stream_done = bool_f(trace.state_after.host_args.remaining == 0 && !trace.state_after.host_result_pending);
     wit[STREAM_DONE] = stream_done;
@@ -1281,7 +1281,7 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     let write_row = wit[super::super::layout::COL_RAW_HOST_CALL] + args_active + result_active;
     let end = write_row * stream_done;
     wit[EVENT_END] = end;
-    wit[EVENT_END_OR] = (wit[WSA0 + 3] + wit[WSR0 + 3]) * end;
+    wit[EVENT_END_OR] = (wit[RAW_ARG_WRITE_MASK[3]] + wit[RAW_RESULT_WRITE_MASK[3]]) * end;
 
     // Full-round S-box powers: x = state_before[lane] + selected RC.
     for lane in 0..12 {
@@ -1290,11 +1290,11 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
             .map(|p| perm_full_round_constants(p)[lane])
             .unwrap_or(F::ZERO);
         let x = sb[lane] + rc;
-        let t = FULL_T0 + 4 * lane;
-        wit[t] = x * x;
-        wit[t + 1] = wit[t] * wit[t];
-        wit[t + 2] = wit[t + 1] * wit[t];
-        wit[t + 3] = wit[t + 2] * x;
+        let t = |power| FULL_ROUND_POWERS[4 * lane + power];
+        wit[t(0)] = x * x;
+        wit[t(1)] = wit[t(0)] * wit[t(0)];
+        wit[t(2)] = wit[t(1)] * wit[t(0)];
+        wit[t(3)] = wit[t(2)] * x;
     }
 
     // Partial-pair S-box powers: round a on lane 0, internal mix, round b.
@@ -1302,28 +1302,27 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
         .filter(|&p| !perm_row_is_full_round(p))
         .map(perm_partial_round_constants)
         .unwrap_or((F::ZERO, F::ZERO));
-    let u = PARTIAL_U0;
     let x_a = sb[0] + rc_a;
-    wit[u] = x_a * x_a;
-    wit[u + 1] = wit[u] * wit[u];
-    wit[u + 2] = wit[u + 1] * wit[u];
-    wit[u + 3] = wit[u + 2] * x_a;
+    wit[PARTIAL_ROUND_POWERS[0]] = x_a * x_a;
+    wit[PARTIAL_ROUND_POWERS[1]] = wit[PARTIAL_ROUND_POWERS[0]] * wit[PARTIAL_ROUND_POWERS[0]];
+    wit[PARTIAL_ROUND_POWERS[2]] = wit[PARTIAL_ROUND_POWERS[1]] * wit[PARTIAL_ROUND_POWERS[0]];
+    wit[PARTIAL_ROUND_POWERS[3]] = wit[PARTIAL_ROUND_POWERS[2]] * x_a;
     let mut mixed = sb;
-    mixed[0] = wit[u + 3];
+    mixed[0] = wit[PARTIAL_ROUND_POWERS[3]];
     perm_internal_linear(&mut mixed);
     let x_b = mixed[0] + rc_b;
-    wit[u + 4] = x_b * x_b;
-    wit[u + 5] = wit[u + 4] * wit[u + 4];
-    wit[u + 6] = wit[u + 5] * wit[u + 4];
-    wit[u + 7] = wit[u + 6] * x_b;
+    wit[PARTIAL_ROUND_POWERS[4]] = x_b * x_b;
+    wit[PARTIAL_ROUND_POWERS[5]] = wit[PARTIAL_ROUND_POWERS[4]] * wit[PARTIAL_ROUND_POWERS[4]];
+    wit[PARTIAL_ROUND_POWERS[6]] = wit[PARTIAL_ROUND_POWERS[5]] * wit[PARTIAL_ROUND_POWERS[4]];
+    wit[PARTIAL_ROUND_POWERS[7]] = wit[PARTIAL_ROUND_POWERS[6]] * x_b;
 
     // Grammar gather one-hots and staged value.
     if trace.row_kind.is_host_event_gather() {
         let cursor = usize::from(trace.state_before.grammar.slot_cursor);
-        wit[GW0 + cursor] = F::ONE;
+        wit[GATHER_WORD_POSITION[cursor]] = F::ONE;
         wit[GSLOT_VALUE] = F::from_u64(trace.state_after.event_absorb.evbuf[cursor]);
         if let Some(rom) = trace.grammar_rom_slot {
-            wit[GK0 + rom.kind.index()] = F::ONE;
+            wit[GATHER_KIND[rom.kind.index()]] = F::ONE;
             wit[GK2_HI] = bool_f(rom.kind == WasmGrammarSlotKind::Result && rom.variant.is_high_limb());
             wit[G_ADVICE] = bool_f(rom.advice);
             wit[GMEM_LOCAL] = bool_f(rom.variant.uses_local_memory_base());

@@ -18,7 +18,7 @@ fn expected_aux_bits() -> usize {
             ColumnWidth::Boolean | ColumnWidth::Field => 0,
             ColumnWidth::Byte => 8,
             ColumnWidth::U32 => 32,
-        })
+        } * spec.len)
         .sum()
 }
 
@@ -86,10 +86,10 @@ fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
         };
 
         if bit_count == 0 {
-            assert_eq!(range_checked_bit_columns(spec.index), None, "{}", spec.name);
+            assert_eq!(range_checked_bit_columns(spec.start), None, "{}", spec.name);
         } else {
             assert_eq!(
-                range_checked_bit_columns(spec.index),
+                range_checked_bit_columns(spec.start),
                 Some(next..next + bit_count),
                 "{}",
                 spec.name

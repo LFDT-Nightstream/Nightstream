@@ -75,14 +75,8 @@ define_column_region! {
             "callee function ref of the most recent host call after this row (event attribution carry)",
         COL_TURN_EXPORT_FREF_BEFORE: U32 => "export function ref owning the current grammar turn before this row",
         COL_TURN_EXPORT_FREF_AFTER: U32 => "export function ref owning the current grammar turn after this row",
-        COL_COMM_CHAIN0_BEFORE: Field => "host-event commitment chain limb 0 before this row",
-        COL_COMM_CHAIN1_BEFORE: Field => "host-event commitment chain limb 1 before this row",
-        COL_COMM_CHAIN2_BEFORE: Field => "host-event commitment chain limb 2 before this row",
-        COL_COMM_CHAIN3_BEFORE: Field => "host-event commitment chain limb 3 before this row",
-        COL_COMM_CHAIN0_AFTER: Field => "host-event commitment chain limb 0 after this row",
-        COL_COMM_CHAIN1_AFTER: Field => "host-event commitment chain limb 1 after this row",
-        COL_COMM_CHAIN2_AFTER: Field => "host-event commitment chain limb 2 after this row",
-        COL_COMM_CHAIN3_AFTER: Field => "host-event commitment chain limb 3 after this row",
+        COL_COMM_CHAIN_BEFORE: [Field; 4] => "host-event commitment chain before this row",
+        COL_COMM_CHAIN_AFTER: [Field; 4] => "host-event commitment chain after this row",
         // Host-event absorb machinery: the 8-word block buffer host-call rows
         // stream event words into, the one-hot pair-slot cursor, the
         // pending-permutation flag, and the perm-row group state (round cursor +

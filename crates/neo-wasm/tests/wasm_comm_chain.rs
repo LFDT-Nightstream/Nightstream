@@ -11,7 +11,7 @@ mod common;
 use neo_wasm::comm_chain::{
     self, commit_event, fold_event_blocks, CommChainState, COMM_CHAIN_EVENT_ARGS, COMM_CHAIN_STATE_LEN,
 };
-use neo_wasm::layout::{COL_COMM_CHAIN0_AFTER, COL_EVBUF_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_STATE_AFTER};
+use neo_wasm::layout::{COL_COMM_CHAIN_AFTER, COL_EVBUF_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_STATE_AFTER};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmVmStep;
 use p3_field::PrimeCharacteristicRing;
@@ -187,7 +187,7 @@ fn ccs_rejects_forged_chain_update() {
         .expect("perm group last row");
     let mut witness = build_witness_vector(last_row);
     common::assert_satisfied(&witness, "untampered chain-update row");
-    witness[COL_COMM_CHAIN0_AFTER] += neo_math::F::ONE;
+    witness[COL_COMM_CHAIN_AFTER[0]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "chain-update row landing a forged chain limb");
 }
 

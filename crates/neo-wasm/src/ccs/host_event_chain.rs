@@ -36,7 +36,7 @@
 
 use super::super::gadgets::push_zero_test_gadget;
 use super::super::layout::{
-    COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_COMM_CHAIN0_AFTER, COL_COMM_CHAIN0_BEFORE, COL_EVBUF_AFTER,
+    COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER,
     COL_EVBUF_BEFORE, COL_EVBUF_SLOT_AFTER, COL_EVBUF_SLOT_BEFORE, COL_FUNCTION_REF, COL_GATHER_ACTIVE,
     COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
     COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER,
@@ -1066,7 +1066,7 @@ fn push_absorb_constraints(b: &mut R1csBuilder) {
             let mut terms = vec![(COL_PERM_STATE_BEFORE[lane], F::ONE)];
             for (k, coeff) in me[lane].iter().enumerate() {
                 let input = if k < 4 {
-                    COL_COMM_CHAIN0_BEFORE + k
+                    COL_COMM_CHAIN_BEFORE[k]
                 } else {
                     COL_EVBUF_BEFORE[k - 4]
                 };
@@ -1195,17 +1195,17 @@ fn push_chain_update_constraints(b: &mut R1csBuilder) {
             b.push_row(
                 [(last, F::ONE)],
                 [
-                    (COL_COMM_CHAIN0_AFTER + limb, F::ONE),
+                    (COL_COMM_CHAIN_AFTER[limb], F::ONE),
                     (COL_PERM_STATE_AFTER[limb], -F::ONE),
-                    (COL_COMM_CHAIN0_BEFORE + limb, -F::ONE),
+                    (COL_COMM_CHAIN_BEFORE[limb], -F::ONE),
                 ],
                 [],
             );
             b.push_row(
                 [(COL_ONE, F::ONE), (last, -F::ONE)],
                 [
-                    (COL_COMM_CHAIN0_AFTER + limb, F::ONE),
-                    (COL_COMM_CHAIN0_BEFORE + limb, -F::ONE),
+                    (COL_COMM_CHAIN_AFTER[limb], F::ONE),
+                    (COL_COMM_CHAIN_BEFORE[limb], -F::ONE),
                 ],
                 [],
             );

@@ -18,15 +18,14 @@ use crate::comm_chain::CommChainState;
 use crate::ir::{WasmCountdownState, WasmEventAbsorbState, WasmGrammarState, WasmOutputState, WasmStepState};
 use crate::layout::Column;
 use crate::layout::{
-    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN0_BEFORE, COL_COMM_CHAIN1_BEFORE, COL_COMM_CHAIN2_BEFORE,
-    COL_COMM_CHAIN3_BEFORE, COL_EVBUF_BEFORE, COL_EVBUF_SLOT_BEFORE, COL_GRAMMAR_ARGS_BASE_BEFORE,
-    COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_MODE_BEFORE, COL_GRAMMAR_SLOT_CURSOR_BEFORE,
-    COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_BEFORE,
-    COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE,
-    COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_BEFORE,
-    COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_EVBUF_SLOT_BEFORE,
+    COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_MODE_BEFORE,
+    COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
+    COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE,
+    COL_PERM_ROUND_BEFORE, COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE,
+    COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
@@ -251,6 +250,12 @@ pub fn grammar_top_level_initial_state_digest(
 }
 
 fn carried_state_field(state: WasmStepState, column: Column) -> F {
+    if let Some(limb) = COL_COMM_CHAIN_BEFORE
+        .iter()
+        .position(|&candidate| candidate == column.0)
+    {
+        return F::from_u64(state.comm_chain[limb]);
+    }
     if let Some(word) = COL_EVBUF_BEFORE
         .iter()
         .position(|&candidate| candidate == column.0)
@@ -290,10 +295,6 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_HOST_RESULT_PENDING_BEFORE => bool_field(state.host_result_pending),
         COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
         COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.grammar.turn_export_fref)),
-        COL_COMM_CHAIN0_BEFORE => F::from_u64(state.comm_chain[0]),
-        COL_COMM_CHAIN1_BEFORE => F::from_u64(state.comm_chain[1]),
-        COL_COMM_CHAIN2_BEFORE => F::from_u64(state.comm_chain[2]),
-        COL_COMM_CHAIN3_BEFORE => F::from_u64(state.comm_chain[3]),
         COL_GRAMMAR_MODE_BEFORE => bool_field(state.grammar_mode),
         COL_GRAMMAR_EVREM_BEFORE => F::from_u64(u64::from(state.grammar.events_remaining)),
         COL_GRAMMAR_EVIDX_BEFORE => F::from_u64(u64::from(state.grammar.event_index)),

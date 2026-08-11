@@ -22,18 +22,9 @@ pub enum ColumnWidth {
     Field,
 }
 
-/// Static metadata for one named witness column.
+/// Static metadata for one contiguous family of witness columns.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WasmColumnSpec {
-    pub index: usize,
-    pub name: &'static str,
-    pub role: &'static str,
-    pub width: ColumnWidth,
-}
-
-/// Static metadata for one contiguous family in a subsystem-owned region.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WasmColumnFamilySpec {
     pub region: &'static str,
     pub start: usize,
     pub len: usize,
@@ -42,7 +33,7 @@ pub struct WasmColumnFamilySpec {
     pub width: ColumnWidth,
 }
 
-impl WasmColumnFamilySpec {
+impl WasmColumnSpec {
     pub const fn end(&self) -> usize {
         self.start + self.len
     }
@@ -57,75 +48,50 @@ pub(crate) const fn f_prime_width(width: ColumnWidth) -> usize {
     }
 }
 
-pub(crate) fn family_f_prime_widths(specs: &'static [WasmColumnFamilySpec]) -> impl Iterator<Item = usize> {
+pub(crate) fn expanded_f_prime_widths(specs: &'static [WasmColumnSpec]) -> impl Iterator<Item = usize> {
     specs
         .iter()
         .flat_map(|spec| core::iter::repeat_n(f_prime_width(spec.width), spec.len))
 }
 
-/// Define the named semantic prefix, starting at column zero.
-macro_rules! define_columns {
-    ($( ( $name:ident, $role:literal $(, $width:expr)? ) ),+ $(,)?) => {
-        define_columns!(@assign 0usize; $($name),+);
-
-        /// Macro-generated table of column metadata.
-        pub const COLUMN_SPECS: &[$crate::column_registry::WasmColumnSpec] = &[
-            $($crate::column_registry::WasmColumnSpec {
-                index: $name,
-                name: stringify!($name),
-                role: $role,
-                width: define_columns!(@maybe_width $($width)?),
-            }),+
-        ];
-    };
-    (@maybe_width $width:expr) => { $width };
-    (@maybe_width) => { $crate::column_registry::ColumnWidth::Field };
-    (@assign $idx:expr; $name:ident, $($rest:ident),+) => {
-        pub const $name: usize = $idx;
-        define_columns!(@assign $idx + 1usize; $($rest),+);
-    };
-    (@assign $idx:expr; $name:ident) => {
-        pub const $name: usize = $idx;
-        /// Number of macro-declared named columns. NOT the final witness
-        /// width. Range constraints may be added, plus the F' transformation,
-        /// lookup/mcc related constraints derived from the specs.
-        pub const NAMED_COLUMN_COUNT: usize = $idx + 1usize;
-    };
-}
-
-pub(crate) use define_columns;
-
 /// Define a contiguous subsystem-owned region at an assigned absolute base.
+///
+/// Each entry uses Rust's `[element; length]` array notation, with a declared
+/// column width in the element position. The generated name is the absolute
+/// index of the family's first column.
 macro_rules! define_column_region {
     (
         region: $region:literal,
         start: $start:expr,
         width: $width_vis:vis $width_name:ident,
         specs: $specs_vis:vis $specs_name:ident,
+        indices: $index_vis:vis,
         columns: [
-            $(($name:ident, $len:expr, $role:literal, $column_width:expr)),+ $(,)?
+            $($name:ident: [$column_width:ident; $len:expr] => $role:literal),+ $(,)?
         ]
     ) => {
-        define_column_region!(@assign $start; $(($name, $len)),+);
+        define_column_region!(@assign $index_vis, $start; $(($name, $len)),+);
 
+        /// Number of witness columns allocated by this region.
         $width_vis const $width_name: usize = 0usize $(+ $len)+;
-        $specs_vis const $specs_name: &[$crate::column_registry::WasmColumnFamilySpec] = &[
-            $($crate::column_registry::WasmColumnFamilySpec {
+        /// Macro-generated metadata for the region's declared column families.
+        $specs_vis const $specs_name: &[$crate::column_registry::WasmColumnSpec] = &[
+            $($crate::column_registry::WasmColumnSpec {
                 region: $region,
                 start: $name,
                 len: $len,
                 name: stringify!($name),
                 role: $role,
-                width: $column_width,
+                width: $crate::column_registry::ColumnWidth::$column_width,
             }),+
         ];
     };
-    (@assign $idx:expr; ($name:ident, $len:expr), $(($rest_name:ident, $rest_len:expr)),+) => {
-        const $name: usize = $idx;
-        define_column_region!(@assign $idx + $len; $(($rest_name, $rest_len)),+);
+    (@assign $index_vis:vis, $idx:expr; ($name:ident, $len:expr), $(($rest_name:ident, $rest_len:expr)),+) => {
+        $index_vis const $name: usize = $idx;
+        define_column_region!(@assign $index_vis, $idx + $len; $(($rest_name, $rest_len)),+);
     };
-    (@assign $idx:expr; ($name:ident, $len:expr)) => {
-        const $name: usize = $idx;
+    (@assign $index_vis:vis, $idx:expr; ($name:ident, $len:expr)) => {
+        $index_vis const $name: usize = $idx;
     };
 }
 

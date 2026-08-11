@@ -8,7 +8,9 @@ fn column_specs_are_dense_and_in_order() {
         "macro must emit one spec per witness column"
     );
     for (i, spec) in COLUMN_SPECS.iter().enumerate() {
-        assert_eq!(spec.index, i, "COLUMN_SPECS must be index-sequential starting at 0");
+        assert_eq!(spec.region, "wasm_named");
+        assert_eq!(spec.start, i, "COLUMN_SPECS must be index-sequential starting at 0");
+        assert_eq!(spec.len, 1, "named base columns must remain scalar families");
     }
 }
 

@@ -106,7 +106,7 @@ pub fn sanity_check_lookup_row(auxiliary: &WasmAuxiliaryRelations, witness: &[F]
     // replaces the old `byte_u8` lookup family — `ColumnWidth::Byte` on the
     // column spec is now the single source of truth for byte-shaped columns.
     for spec in COLUMN_SPECS.iter().filter(|s| s.width == ColumnWidth::Byte) {
-        let value = witness[spec.index].as_canonical_u64();
+        let value = witness[spec.start].as_canonical_u64();
         if value > 0xff {
             return Err(format!(
                 "column `{}` declared ColumnWidth::Byte but witness value is {value} (> 255)",

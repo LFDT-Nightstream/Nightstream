@@ -4,8 +4,8 @@ use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_SPECS, AUX_WIDTH};
 use neo_wasm::layout::{
-    ColumnWidth, COLUMN_SPECS, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_RETURN_PC_VALUE,
-    NAMED_COLUMN_COUNT,
+    column_spec, ColumnWidth, COLUMN_SPECS, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
+    COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT,
 };
 use neo_wasm::range_check::range_checked_bit_columns;
 use neo_wasm::{write_range_check_bits, WasmOpcode, WasmVmSpec, RANGE_CHECKED_WITNESS_WIDTH};
@@ -37,16 +37,16 @@ fn range_checked_width_bookkeeping() {
 #[test]
 fn host_event_auxiliary_registry_preserves_the_existing_layout() {
     let expected = [
-        ("POS0", 19, ColumnWidth::Boolean),
-        ("FULL_T0", 48, ColumnWidth::Field),
-        ("PARTIAL_U0", 8, ColumnWidth::Field),
-        ("WSA0", 4, ColumnWidth::Boolean),
-        ("WSR0", 4, ColumnWidth::Boolean),
+        ("PERM_POSITION", 19, ColumnWidth::Boolean),
+        ("FULL_ROUND_POWERS", 48, ColumnWidth::Field),
+        ("PARTIAL_ROUND_POWERS", 8, ColumnWidth::Field),
+        ("RAW_ARG_WRITE_MASK", 4, ColumnWidth::Boolean),
+        ("RAW_RESULT_WRITE_MASK", 4, ColumnWidth::Boolean),
         ("STREAM_DONE", 1, ColumnWidth::Boolean),
         ("EVENT_END", 1, ColumnWidth::Boolean),
         ("EVENT_END_OR", 1, ColumnWidth::Boolean),
-        ("GW0", 8, ColumnWidth::Boolean),
-        ("GK0", 8, ColumnWidth::Boolean),
+        ("GATHER_WORD_POSITION", 8, ColumnWidth::Boolean),
+        ("GATHER_KIND", 8, ColumnWidth::Boolean),
         ("GARG_VAL", 1, ColumnWidth::Field),
         ("GOUT_VAL", 1, ColumnWidth::Field),
         ("GSLOT_VALUE", 1, ColumnWidth::Field),
@@ -85,16 +85,18 @@ fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
             ColumnWidth::U32 => 32,
         };
 
-        if bit_count == 0 {
-            assert_eq!(range_checked_bit_columns(spec.start), None, "{}", spec.name);
-        } else {
-            assert_eq!(
-                range_checked_bit_columns(spec.start),
-                Some(next..next + bit_count),
-                "{}",
-                spec.name
-            );
-            next += bit_count;
+        for column in spec.start..spec.end() {
+            if bit_count == 0 {
+                assert_eq!(range_checked_bit_columns(column), None, "{}", spec.name);
+            } else {
+                assert_eq!(
+                    range_checked_bit_columns(column),
+                    Some(next..next + bit_count),
+                    "{}",
+                    spec.name
+                );
+                next += bit_count;
+            }
         }
     }
 
@@ -107,8 +109,8 @@ fn packed_function_metadata_counts_are_byte_ranged() {
     // The packed ROM word is unpacked linearly. These byte bounds make that
     // decomposition unique: without them, `param += 256; result -= 1` would
     // preserve the authoritative packed value while changing call semantics.
-    assert_eq!(COLUMN_SPECS[COL_CALL_PARAM_COUNT].width, ColumnWidth::Byte);
-    assert_eq!(COLUMN_SPECS[COL_CALL_RESULT_COUNT].width, ColumnWidth::Byte);
+    assert_eq!(column_spec(COL_CALL_PARAM_COUNT).unwrap().width, ColumnWidth::Byte);
+    assert_eq!(column_spec(COL_CALL_RESULT_COUNT).unwrap().width, ColumnWidth::Byte);
 }
 
 /// An out-of-range value in a column no semantic row pins (the call-stack
@@ -118,7 +120,10 @@ fn packed_function_metadata_counts_are_byte_ranged() {
 #[test]
 fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     // The invariant under attack: the column is declared as a 32-bit value.
-    assert_eq!(COLUMN_SPECS[COL_CALL_STACK_RETURN_PC_VALUE].width, ColumnWidth::U32);
+    assert_eq!(
+        column_spec(COL_CALL_STACK_RETURN_PC_VALUE).unwrap().width,
+        ColumnWidth::U32
+    );
 
     let checked =
         common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);

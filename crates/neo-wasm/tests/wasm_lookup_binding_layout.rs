@@ -2,16 +2,13 @@
 fn column_specs_are_dense_and_in_order() {
     use neo_wasm::layout::{COLUMN_SPECS, NAMED_COLUMN_COUNT};
 
-    assert_eq!(
-        COLUMN_SPECS.len(),
-        NAMED_COLUMN_COUNT,
-        "macro must emit one spec per witness column"
-    );
-    for (i, spec) in COLUMN_SPECS.iter().enumerate() {
+    let mut next = 0;
+    for spec in COLUMN_SPECS {
         assert_eq!(spec.region, "wasm_named");
-        assert_eq!(spec.start, i, "COLUMN_SPECS must be index-sequential starting at 0");
-        assert_eq!(spec.len, 1, "named base columns must remain scalar families");
+        assert_eq!(spec.start, next, "COLUMN_SPECS must be dense and ordered");
+        next = spec.end();
     }
+    assert_eq!(next, NAMED_COLUMN_COUNT);
 }
 
 #[test]
@@ -23,12 +20,12 @@ fn every_selector_column_is_declared_boolean() {
     // annotation, the booleanity row is silently omitted and per-opcode
     // gating becomes unsound (a prover can split a selector's "1" across
     // canceling field values). This test pins that contract.
-    use neo_wasm::layout::{ColumnWidth, COLUMN_SPECS, SELECTOR_COLS};
+    use neo_wasm::layout::{column_spec, ColumnWidth, SELECTOR_COLS};
 
     let undeclared: Vec<&'static str> = SELECTOR_COLS
         .iter()
-        .filter(|&&col| COLUMN_SPECS[col].width != ColumnWidth::Boolean)
-        .map(|&col| COLUMN_SPECS[col].name)
+        .filter(|&&col| column_spec(col).expect("declared selector column").width != ColumnWidth::Boolean)
+        .map(|&col| column_spec(col).expect("declared selector column").name)
         .collect();
     assert!(
         undeclared.is_empty(),

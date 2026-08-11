@@ -1,7 +1,7 @@
 //! Witness-driven debug memory checker over `WasmMemorySpec`.
 
 use super::adapters::wasmtime::WasmProgramArtifacts;
-use super::layout::COLUMN_SPECS;
+use super::layout::column_spec;
 use super::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmMemorySpec, WasmRelationLayout};
 use neo_math::F;
 use p3_field::PrimeField64;
@@ -52,7 +52,7 @@ impl WasmMemoryPreload {
 fn read_u32_column(witness: &[F], col: usize, row_index: usize, role: &str) -> Result<u32, String> {
     let canonical = witness[col].as_canonical_u64();
     u32::try_from(canonical).map_err(|_| {
-        let name = COLUMN_SPECS.get(col).map(|spec| spec.name).unwrap_or("?");
+        let name = column_spec(col).map(|spec| spec.name).unwrap_or("?");
         format!(
             "{role} column `{name}` (col {col}) carried value {canonical} that does not fit in u32 on row {row_index} \
              — missing or broken bit-width constraint upstream",

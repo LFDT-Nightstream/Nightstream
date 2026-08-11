@@ -5,7 +5,7 @@ pub mod grammar_fixture;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
-use neo_wasm::layout::COLUMN_SPECS;
+use neo_wasm::layout::column_spec;
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, opcode_info_from_code,
     preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
@@ -313,7 +313,7 @@ fn format_terms(terms: &[(usize, F)]) -> String {
     terms
         .iter()
         .map(|(col, coeff)| {
-            let name = COLUMN_SPECS.get(*col).map(|spec| spec.name).unwrap_or("?");
+            let name = column_spec(*col).map(|spec| spec.name).unwrap_or("?");
             format!("{coeff:?}*{name}[{col}]")
         })
         .collect::<Vec<_>>()

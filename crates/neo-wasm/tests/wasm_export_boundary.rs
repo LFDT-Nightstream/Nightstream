@@ -204,7 +204,7 @@ fn ccs_rejects_forged_exit_output() {
     let mut witness = build_witness_vector(output_slot_row);
     common::assert_satisfied(&witness, "untampered output slot row");
     let cursor = usize::from(output_slot_row.state_before.grammar.slot_cursor);
-    witness[neo_wasm::layout::COL_EVBUF0_AFTER + cursor] += neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_EVBUF_AFTER[cursor]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "exit gather row staging a forged output word");
 
     let mut witness = build_witness_vector(output_slot_row);
@@ -230,7 +230,7 @@ fn ccs_rejects_forged_input_word() {
     let mut witness = build_witness_vector(input_slot_row);
     common::assert_satisfied(&witness, "untampered input-local slot row");
     let cursor = usize::from(input_slot_row.state_before.grammar.slot_cursor);
-    witness[neo_wasm::layout::COL_EVBUF0_AFTER + cursor] += neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_EVBUF_AFTER[cursor]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "entry gather row staging a word other than the locals write");
 }
 

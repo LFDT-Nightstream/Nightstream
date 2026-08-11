@@ -8,7 +8,7 @@
 //!
 //! Outputs:
 //! - `formal/wasm-zklean/WasmCircuit/Columns.lean` — column index definitions
-//!   derived from `COLUMN_SPECS` (single source of truth: the macro).
+//!   derived from the registered column regions (single source of truth: the macros).
 //! - `formal/wasm-zklean/WasmCircuit/Generated.lean` — a tiny demo circuit
 //!   built by mirroring `push_zero_test_gadget` (see
 //!   `crates/neo-wasm/src/gadgets.rs`). Emits the flat R1CS rows
@@ -16,7 +16,7 @@
 //!   `native_decide`-checked cross-check theorem.
 
 use neo_math::F;
-use neo_wasm::layout::{COLUMN_SPECS, COL_ONE, NAMED_COLUMN_COUNT};
+use neo_wasm::layout::{column_specs, COL_ONE, NAMED_COLUMN_COUNT};
 use neo_wasm::push_zero_test_gadget;
 use neo_wasm::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use p3_field::PrimeField64;
@@ -69,13 +69,13 @@ fn emit_columns() -> String {
     out.push_str("-- DO NOT EDIT BY HAND.\n");
     out.push_str("--\n");
     out.push_str("-- Column index definitions for the wasm zkVM constraint system. The single\n");
-    out.push_str("-- source of truth is `crates/neo-wasm/src/layout.rs::COLUMN_SPECS`,\n");
-    out.push_str("-- itself derived from the `define_column_region!` macro — Lean names here are in\n");
+    out.push_str("-- source of truth is the registered `define_column_region!` declarations in\n");
+    out.push_str("-- `layout.rs` and `host_event_layout.rs`; Lean names here are in\n");
     out.push_str("-- lockstep with the Rust `COL_*` constants by construction.\n");
     out.push('\n');
     out.push_str("namespace WasmCircuit.Columns\n");
     out.push('\n');
-    for spec in COLUMN_SPECS {
+    for spec in column_specs() {
         let snake = strip_col_prefix_lower(spec.name);
         let camel = snake_to_camel(&snake);
         if !spec.role.is_empty() {

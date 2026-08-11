@@ -4,7 +4,7 @@ use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_SPECS, AUX_WIDTH};
 use neo_wasm::layout::{
-    column_spec, ColumnWidth, COLUMN_SPECS, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
+    column_spec, column_specs, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
     COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT,
 };
 use neo_wasm::range_check::range_checked_bit_columns;
@@ -12,8 +12,7 @@ use neo_wasm::{write_range_check_bits, WasmOpcode, WasmVmSpec, RANGE_CHECKED_WIT
 use p3_field::PrimeCharacteristicRing;
 
 fn expected_aux_bits() -> usize {
-    COLUMN_SPECS
-        .iter()
+    column_specs()
         .map(|spec| match spec.width {
             ColumnWidth::Boolean | ColumnWidth::Field => 0,
             ColumnWidth::Byte => 8,
@@ -78,7 +77,7 @@ fn host_event_auxiliary_registry_preserves_the_existing_layout() {
 fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
     let mut next = NAMED_COLUMN_COUNT + AUX_WIDTH;
 
-    for spec in COLUMN_SPECS {
+    for spec in column_specs() {
         let bit_count = match spec.width {
             ColumnWidth::Boolean | ColumnWidth::Field => 0,
             ColumnWidth::Byte => 8,

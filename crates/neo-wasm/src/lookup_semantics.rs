@@ -1,7 +1,7 @@
 //! IMPORTANT: this doesn't prove anything, it's just a sanity checker for now
 
 use super::isa::WasmOpTable;
-use super::layout::{ColumnWidth, COLUMN_SPECS};
+use super::layout::{column_specs, ColumnWidth};
 use super::relation_layout::{
     WasmAuxiliaryRelations, WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec,
 };
@@ -105,7 +105,7 @@ pub fn sanity_check_lookup_row(auxiliary: &WasmAuxiliaryRelations, witness: &[F]
     // Per-row check that every byte column carries a value in [0, 256). This
     // replaces the old `byte_u8` lookup family — `ColumnWidth::Byte` on the
     // column spec is now the single source of truth for byte-shaped columns.
-    for spec in COLUMN_SPECS.iter().filter(|s| s.width == ColumnWidth::Byte) {
+    for spec in column_specs().filter(|s| s.width == ColumnWidth::Byte) {
         for column in spec.start..spec.end() {
             let value = witness[column].as_canonical_u64();
             if value > 0xff {

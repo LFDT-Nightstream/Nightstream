@@ -3,7 +3,7 @@
 //! Constraint families with substantial volume live in child modules
 //! under `ccs/`; see [`linear_memory`] for the linear-memory load/store
 //! row family. This file owns the top-level builder, the constraint
-//! tag helpers (`always`, `shared`, `opcode_tag`), and the small shared
+//! tag helpers (`always`, `host_event`, `shared`, `opcode_tag`), and the small shared
 //! utilities (`idx`, `f_u64`, …) that those submodules consume via
 //! `use super::*`.
 
@@ -112,6 +112,13 @@ fn always(label: &'static str) -> WasmConstraintTag {
     WasmConstraintTag {
         label,
         scope: WasmConstraintScope::Always,
+    }
+}
+
+pub(super) fn host_event(label: &'static str) -> WasmConstraintTag {
+    WasmConstraintTag {
+        label,
+        scope: WasmConstraintScope::HostEvent,
     }
 }
 

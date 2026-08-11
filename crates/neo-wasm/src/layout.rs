@@ -305,24 +305,12 @@ define_column_region! {
         COL_LINEAR_MEM_USE_LANE1: Boolean => "linear-memory second-lane flag for unaligned accesses",
         COL_LINEAR_MEM_USE_LANE2: Boolean => "linear-memory third-lane flag for wide unaligned accesses",
         COL_LINEAR_MEM_USE_LANE0: Boolean => "linear-memory first-lane activity gate",
-        COL_LINEAR_MEM_LANE0_LOAD_ACTIVE: Boolean =>
-            "linear-memory lane0 load gate (use_lane0 AND opcode is a load)",
-        COL_LINEAR_MEM_LANE1_LOAD_ACTIVE: Boolean =>
-            "linear-memory lane1 load gate (use_lane1 AND opcode is a load)",
-        COL_LINEAR_MEM_LANE2_LOAD_ACTIVE: Boolean =>
-            "linear-memory lane2 load gate (use_lane2 AND opcode is a load)",
-        COL_LINEAR_MEM_LANE0_STORE_ACTIVE: Boolean =>
-            "linear-memory lane0 store gate (use_lane0 AND opcode is a store)",
-        COL_LINEAR_MEM_LANE1_STORE_ACTIVE: Boolean =>
-            "linear-memory lane1 store gate (use_lane1 AND opcode is a store)",
-        COL_LINEAR_MEM_LANE2_STORE_ACTIVE: Boolean =>
-            "linear-memory lane2 store gate (use_lane2 AND opcode is a store)",
-        COL_LINEAR_MEM_LANE0_ADDR: U32 => "linear-memory first word-lane address",
-        COL_LINEAR_MEM_LANE0_VALUE: Field => "linear-memory first word-lane accessed value",
-        COL_LINEAR_MEM_LANE1_ADDR: U32 => "linear-memory second word-lane address",
-        COL_LINEAR_MEM_LANE1_VALUE: Field => "linear-memory second word-lane accessed value",
-        COL_LINEAR_MEM_LANE2_ADDR: U32 => "linear-memory third word-lane address",
-        COL_LINEAR_MEM_LANE2_VALUE: Field => "linear-memory third word-lane accessed value",
+        COL_LINEAR_MEM_LANE_LOAD_ACTIVE: [Boolean; 3] =>
+            "linear-memory word-lane load gates (lane is used AND opcode is a load)",
+        COL_LINEAR_MEM_LANE_STORE_ACTIVE: [Boolean; 3] =>
+            "linear-memory word-lane store gates (lane is used AND opcode is a store)",
+        COL_LINEAR_MEM_LANE_ADDR: [U32; 3] => "linear-memory word-lane addresses",
+        COL_LINEAR_MEM_LANE_VALUE: [Field; 3] => "linear-memory word-lane accessed values",
         COL_OP_TABLE_ID: U32 => "lookup table row selector",
         COL_OP_TABLE_VALUE: Field => "lookup payload witness",
         // `COL_SELECT_COND_IS_ZERO` is forced to {0, 1} by the zero-test rows
@@ -414,9 +402,7 @@ define_column_region! {
         COL_LINEAR_MEM_LANE2_BYTE1: Byte => "linear-memory third word lane byte 1",
         COL_LINEAR_MEM_LANE2_BYTE2: Byte => "linear-memory third word lane byte 2",
         COL_LINEAR_MEM_LANE2_BYTE3: Byte => "linear-memory third word lane byte 3",
-        COL_LINEAR_MEM_LANE0_VALUE_BEFORE: Field => "linear-memory first word-lane value before this row",
-        COL_LINEAR_MEM_LANE1_VALUE_BEFORE: Field => "linear-memory second word-lane value before this row",
-        COL_LINEAR_MEM_LANE2_VALUE_BEFORE: Field => "linear-memory third word-lane value before this row",
+        COL_LINEAR_MEM_LANE_VALUE_BEFORE: [Field; 3] => "linear-memory word-lane values before this row",
         COL_LINEAR_MEM_LANE0_BYTE0_BEFORE: Byte => "linear-memory first word lane byte 0 before this row",
         COL_LINEAR_MEM_LANE0_BYTE1_BEFORE: Byte => "linear-memory first word lane byte 1 before this row",
         COL_LINEAR_MEM_LANE0_BYTE2_BEFORE: Byte => "linear-memory first word lane byte 2 before this row",

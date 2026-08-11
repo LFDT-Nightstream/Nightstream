@@ -325,7 +325,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A, COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B,
         COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT as SLOT_VARIANT, COL_HALTED, COL_HALTED_BEFORE,
         COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_BYTE_OFFSET,
-        COL_LINEAR_MEM_LANE0_ADDR, COL_LINEAR_MEM_LANE0_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3,
+        COL_LINEAR_MEM_LANE_ADDR, COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3,
         COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OUTPUT_ENABLED_BEFORE,
         COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ_ADDR_LO,
         COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
@@ -682,7 +682,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
                 (GMEM_LOCAL, -F::ONE),
             ],
             [
-                (COL_LINEAR_MEM_LANE0_ADDR, F::from_u64(4)),
+                (COL_LINEAR_MEM_LANE_ADDR[0], F::from_u64(4)),
                 (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
                 (COL_STACK_READ_VALUE_LO[0], -F::ONE),
                 (CONST_LO, -F::ONE),
@@ -709,7 +709,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         b.push_row(
             [(GMEM_LOCAL, F::ONE)],
             [
-                (COL_LINEAR_MEM_LANE0_ADDR, F::from_u64(4)),
+                (COL_LINEAR_MEM_LANE_ADDR[0], F::from_u64(4)),
                 (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
                 (COL_LOCAL_VALUE, -F::ONE),
                 (CONST_LO, -F::ONE),
@@ -723,7 +723,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
                 (GMEM_BYTE, -F::ONE),
                 (GMEM_HALF, -F::ONE),
             ],
-            [(GSLOT_VALUE, F::ONE), (COL_LINEAR_MEM_LANE0_VALUE, -F::ONE)],
+            [(GSLOT_VALUE, F::ONE), (COL_LINEAR_MEM_LANE_VALUE[0], -F::ONE)],
             [],
         );
         b.push_row(

@@ -6,7 +6,7 @@
 //!
 //! Also provides the function to compute the corresponding witness assignment.
 
-use crate::layout::{ColumnWidth, COLUMN_SPECS, COL_ONE};
+use crate::layout::{column_specs, ColumnWidth, COL_ONE};
 use crate::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmTaggedR1csBuilder};
 use crate::witness_layout::{range_bit_region, RANGE_BITS, RANGE_CHECKED_WITNESS_WIDTH};
 use neo_math::F;
@@ -22,7 +22,7 @@ pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
 /// Emit the range-check rows. Each row is tagged with the column's
 /// `COL_*` name so constraint provenance dumps itemize the cost per column.
 pub(crate) fn push_range_check_rows(b: &mut WasmTaggedR1csBuilder) {
-    for spec in COLUMN_SPECS {
+    for spec in column_specs() {
         for column in spec.start..spec.end() {
             let tag = WasmConstraintTag {
                 label: spec.name,
@@ -71,7 +71,7 @@ pub fn write_range_check_bits(witness: &mut Vec<F>) {
         RANGE_CHECKED_WITNESS_WIDTH,
     );
     witness.resize(RANGE_CHECKED_WITNESS_WIDTH, F::ZERO);
-    for spec in COLUMN_SPECS {
+    for spec in column_specs() {
         for column in spec.start..spec.end() {
             let Some(region) = range_bit_region(column) else {
                 continue;

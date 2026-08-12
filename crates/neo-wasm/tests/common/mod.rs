@@ -83,7 +83,17 @@ pub fn sanity_check_trace(
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
         witnesses.push(witness);
     }
-    let preload = preload_from_program_artifacts(artifacts, initial_locals);
+    let mut preload = preload_from_program_artifacts(artifacts, initial_locals);
+    // Import-free traces run under the canonical single-shot grammar; the
+    // exit latch reads its (biased) export count cells.
+    let export_fref = trace
+        .first()
+        .map(|row| row.state_before.grammar.turn_export_fref)
+        .unwrap_or(0);
+    neo_wasm::memory_semantics::preload_grammar_tables(
+        &mut preload,
+        &neo_wasm::event_grammar::HostEventGrammar::import_free(export_fref),
+    );
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
     neo_wasm::comm_chain::sanity_check_comm_chain(trace)
@@ -126,7 +136,6 @@ pub fn step(
             param_init: WasmCountdownState::ZERO,
             tail_call_pending: false,
             host_callee_fref: 0,
-            event_binding_active: false,
             comm_chain: [0; 4],
             event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
             grammar: neo_wasm::WasmGrammarState::ZERO,
@@ -150,12 +159,13 @@ pub fn step(
         && stack_read0.is_some_and(|lane| lane.value_lo == min_lo && lane.value_hi.unwrap_or(0) == min_hi)
         && stack_read1.is_some_and(|lane| lane.value_lo == u32::MAX && lane.value_hi.unwrap_or(0) == neg1_hi);
     let div_trap = div_zero_trap || div_overflow_trap;
+    let trapped = matches!(opcode, WasmOpcode::Unreachable) || div_trap;
     WasmVmStep {
         cycle,
         row_kind: WasmRowKind::Program,
         state_before: state(pc_before, sp_before, false),
         state_after: WasmStepState {
-            trapped: matches!(opcode, WasmOpcode::Unreachable) || div_trap,
+            trapped,
             ..state(pc_before + 1, sp_after, halted)
         },
         control_choice: 0,
@@ -203,8 +213,11 @@ pub fn step(
         call_stack_push: None,
         call_stack_pop: None,
         grammar_rom_slot: None,
-        grammar_pre_count: None,
-        grammar_post_count: None,
+        // A clean halt fires the exit latch, which re-reads the (biased)
+        // entry-count cell and the exit count; the empty boundary template
+        // of a single-shot row is (1, 0).
+        grammar_pre_count: (halted && !trapped).then_some(1),
+        grammar_post_count: (halted && !trapped).then_some(0),
     }
 }
 
@@ -218,6 +231,7 @@ pub fn assert_satisfied(z: &[F], label: &str) {
     // Keep aux bits consistent with any caller-mutated declared columns.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
+    neo_wasm::write_turn_entry_guard_witness(&mut z);
     let (x, w) = (&z[..m_in], &z[m_in..]);
     check_ccs_rowwise_zero(ccs, x, w).unwrap_or_else(|e| panic!("{label}: expected CCS satisfied, got: {e}"));
 }
@@ -229,6 +243,7 @@ pub fn assert_rejected(z: &[F], label: &str) {
     // Keep aux bits consistent so in-range forgeries exercise semantic rows.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
+    neo_wasm::write_turn_entry_guard_witness(&mut z);
     let (x, w) = (&z[..m_in], &z[m_in..]);
     assert!(
         check_ccs_rowwise_zero(ccs, x, w).is_err(),

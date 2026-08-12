@@ -24,8 +24,11 @@ use crate::ir::{LinearMemoryAccess, LinearMemoryWordLane, WasmBuildError, WasmPc
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeInfo};
 use wasmtime::{FrameHandle, StoreContextMut};
 
-/// Normalize an import-free core-WASM trace without event binding.
-/// Executed host imports require [`traces_from_wasmtime_steps_with_grammar`].
+/// Normalize an import-free core-WASM trace: sugar for
+/// [`traces_from_wasmtime_steps_with_grammar`] with the canonical
+/// import-free grammar (an empty boundary template for the invoked export,
+/// zero commitment chain). Executed host imports have no template under it
+/// and are rejected.
 pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
     trace_build::build_trace(rows, None, Default::default(), None)
 }

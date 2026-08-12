@@ -347,10 +347,14 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     let (a_run_steps, a_shared_steps) = split_after_first_end(trace_a.steps()).expect("A run_a segment");
     let a_run_trace = traces_from_wasmtime_steps(a_run_steps).expect("normalize A run_a");
     let a_shared_trace = traces_from_wasmtime_steps(a_shared_steps).expect("normalize A shared");
-    let b_trace = traces_from_wasmtime_steps(trace_b.steps()).expect("normalize B run_b");
     assert!(!a_run_trace.is_empty());
     assert!(!a_shared_trace.is_empty());
-    assert!(!b_trace.is_empty());
+    // B calls across the instance boundary: from B's perspective the shared
+    // function is a host import, so proving it needs an import template.
+    let b_err = traces_from_wasmtime_steps(trace_b.steps()).expect_err("cross-instance import needs a template");
+    assert!(b_err
+        .to_string()
+        .contains("no grammar template for host import"));
 }
 
 #[test]

@@ -6,8 +6,9 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.Selectiv
 Model-level placement of one decoded thirteen-matrix payload at a stabilized
 selective-relation header.
 
-Assurance tier: model-level. No complete production bundle is exported yet,
-so this module is not artifact-checked, Rust-conformant, or security-reduced.
+Assurance tier: model-level fixed snapshot. No complete bundle for these old
+fixed dimensions is exported, so this module is not artifact-checked,
+Rust-conformant, or security-reduced.
 
 Owns: successful fail-closed bundle decoding; exact row/column agreement with
 the stabilized header; exhaustive role ownership of all thirteen decoded

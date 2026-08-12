@@ -444,6 +444,10 @@ name = "system_preprocessing_cache_hygiene"
 path = "tests/system/preprocessing_cache_hygiene.rs"
 
 [[test]]
+name = "system_relation_artifact"
+path = "tests/system/relation_artifact.rs"
+
+[[test]]
 name = "system_r1cs_ivc_terminal"
 path = "tests/system/r1cs_ivc_terminal.rs"
 

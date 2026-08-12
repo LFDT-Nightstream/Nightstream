@@ -84,12 +84,12 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 #guard_msgs in
 #audit_axioms concreteFullOracleSoundness
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityArtifact.ProductionMatrixRefinement.matrices_eq_compiled' depends on axioms: [propext,
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityArtifact.FixedSnapshotMatrixRefinement.matrices_eq_compiled' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms ProductionMatrixRefinement.matrices_eq_compiled
+#audit_axioms FixedSnapshotMatrixRefinement.matrices_eq_compiled
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityArtifact.ProductionMatrixRefinement.decoder_accepts' depends on axioms: [propext,
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityArtifact.FixedSnapshotMatrixRefinement.decoder_accepts' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms ProductionMatrixRefinement.decoder_accepts
+#audit_axioms FixedSnapshotMatrixRefinement.decoder_accepts

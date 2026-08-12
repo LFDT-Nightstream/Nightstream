@@ -2,7 +2,7 @@
   "schema": 2,
   "milestone": "M5",
   "status": "pass",
-  "scope": "exact plain, stateless, one-slot native step and terminal authority profiles named by the two Rust-origin envelopes",
+  "scope": "exact plain, stateless, one-slot native step and terminal authority profiles, plus bounded exact verifier-key relation artifact validation",
   "proof_rule": "a carried Rust Boolean is never authority; the Python checker recomputes the independent predicate and Lean replays every fresh case",
   "properties": [
     {
@@ -26,12 +26,23 @@
       "producer_test": "rust_origin_native_verifier_evidence_is_emitted_for_independent_checks",
       "independent_checker": "protocol-contract/check_rust_evidence.py terminal",
       "lean_replay": "formal/nightstream-lean/.lake/build/rust-origin/native-terminal-replay.lean"
+    },
+    {
+      "property_id": "RELATION-ARTIFACT-EXACT-BINDING",
+      "evidence_state": "rust-conformant-bounded",
+      "profile_id": "verifier-key-relation-artifact-v1",
+      "positive_cases": ["honest"],
+      "mutation_count": 7,
+      "semantic_predicate": "Nightstream.Assurance.RelationArtifactBinding.ExactValidation",
+      "producer_test": "rust_origin_relation_artifact_evidence_is_emitted_for_independent_checks",
+      "independent_checker": "protocol-contract/check_relation_artifact_evidence.py",
+      "lean_replay": "formal/nightstream-lean/.lake/build/rust-origin/relation-artifact-replay.lean"
     }
   ],
   "drift_gate": "assurance/rust-conformance-manifest.json",
   "excluded_claims": [
     "universal Rust refinement outside the emitted cases",
-    "the selected 13-application-matrix PaddedRowIdentity production relation",
+    "a deployed verifier key and its emitted complete relation artifact",
     "stateful or Nebula execution",
     "terminal Spartan or WHIR soundness",
     "on-chain parsing or verification",
@@ -48,6 +59,6 @@
   },
   "open_property": {
     "property_id": "DEC-SOUND-PRODUCTION",
-    "reason": "the repository has no selected on-chain verifier, concrete backend manifest, selected PaddedRowIdentity circuit payload, or complete numeric security instantiation"
+    "reason": "the repository has no selected deployed verifier key, on-chain verifier, concrete backend manifest, or complete numeric security instantiation"
   }
 }

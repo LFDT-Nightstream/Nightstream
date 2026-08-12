@@ -96,6 +96,7 @@ pub mod frontends;
 mod heap;
 pub mod lifecycle;
 pub mod paper;
+pub mod relation_artifact;
 
 // ── Public lifecycle re-exports. Keep this surface small. ─────────────────
 
@@ -115,7 +116,8 @@ pub use lifecycle::{
 pub use frontends::r1cs_f_prime::{
     finish_with_spartan, verify_spartan, LeanNativeCcsError, LeanNativeCcsManifest, LeanNativeCcsPreprocessing,
     LeanNebulaCombinedError, LeanNebulaCombinedManifest, LeanNebulaCombinedPreprocessing, NebulaCombinedEmission,
-    TerminalR1csError, TerminalSpartanProof, TerminalSpartanStatement,
+    TerminalR1csError, TerminalSpartanProof, TerminalSpartanStatement, R1CS_F_PRIME_COMPILER_ID,
+    R1CS_F_PRIME_CONTRACT_ID, R1CS_F_PRIME_PROFILE_ID,
 };
 pub use lifecycle::{FoldSchedule, ScheduleError};
 pub use paper::construction2::{
@@ -123,3 +125,4 @@ pub use paper::construction2::{
 };
 pub use paper::params::Params;
 pub use paper::relations::{CcsInstance, CcsWitness, CeClaim, DecMixer, RlcMixer, Structure};
+pub use relation_artifact::{RelationArtifactError, RelationArtifactReceipt, VerifierKeyRelationArtifact};

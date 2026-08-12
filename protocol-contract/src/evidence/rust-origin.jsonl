@@ -70,7 +70,7 @@
 {"rule_id":"NS-PIDEC-PROFILE","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
 {"rule_id":"NS-RED-PADDED-RELATIONS","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
 {"rule_id":"NS-RED-COMPOSITION","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
-{"rule_id":"NS-AUTH-STRUCTURE","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
+{"rule_id":"NS-AUTH-STRUCTURE","applicability":"required","level":"none","locations":["crates/neo-fold-clean/tests/system/relation_artifact.rs","protocol-contract/check_relation_artifact_evidence.py"],"declaration_anchors":[]}
 {"rule_id":"NS-AUTH-CLAIM","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
 {"rule_id":"NS-AUTH-DERIVED","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
 {"rule_id":"NS-ENC-BASE","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}

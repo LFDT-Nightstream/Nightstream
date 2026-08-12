@@ -7,6 +7,15 @@ Ajtai setup seed and dimensions. A proof-supplied copy is non-authoritative
 and MUST match or reject. The terminal backend manifest has separate authority
 under NS-DECIDER-PROFILE.
 
+The canonical relation artifact MUST use format
+`nightstream/verifier-key-relation`, schema 1, and payload encoding
+`rust-ccs-structure-serde-json-v1`. It MUST contain the complete thirteen
+application matrices and polynomial. Its validator recomputes the expected
+artifact from the live verifier-owned Structure and rejects unless the
+complete decoded payload is equal. Matching dimensions or digests alone grant
+no authority. This JSON artifact does not replace the canonical sparse
+Structure stream used by NS-ENC-STRUCTURE for verifier-key hashing.
+
 Decision: NSD-AUTHORITY-001 and NSD-ENCODING-001.
 
 ### NS-AUTH-CLAIM — CE claim authority

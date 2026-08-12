@@ -457,7 +457,7 @@ fn active_fixed_point_shape_stabilizes_after_accumulator_ce_compression() {
 }
 
 #[test]
-#[ignore = "materializes the complete 5.3M-row by 9.7M-column production relation; run explicitly after fixed-point width changes"]
+#[ignore = "materializes the complete 7.1M-row by 12.7M-column fixed-point fixture; run explicitly after compiler changes"]
 fn active_fixed_point_materializes_after_accumulator_ce_compression() {
     let app = one_product_r1cs();
     let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
@@ -465,15 +465,15 @@ fn active_fixed_point_materializes_after_accumulator_ce_compression() {
         .expect("materialize SIS-compressed active fixed point");
 
     let structure = relation.structure();
-    assert_eq!(structure.n, 5_285_631);
-    assert_eq!(structure.m, 9_740_898);
+    assert_eq!(structure.n, 7_143_950);
+    assert_eq!(structure.m, 12_678_066);
     assert_eq!(relation.public_input_len(), F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN);
     assert_eq!(structure.t(), 13);
     assert_eq!(structure.matrices.len(), 13);
 
     let audit = relation.compilation_audit();
-    assert_eq!(audit.rounds().len(), 2);
-    assert_eq!(audit.width().total_coordinates, 9_740_860);
+    assert_eq!(audit.rounds().len(), 3);
+    assert_eq!(audit.width().total_coordinates, 12_678_064);
     assert_eq!(audit.layout().total_columns(), structure.m);
     assert_eq!(audit.rows().total_rows(), structure.n);
     let terminal = audit

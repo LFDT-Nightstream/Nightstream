@@ -22,7 +22,7 @@ use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 /// Low-norm encoding of a single F-valued lane as `{0, 1}` bits.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum LowNormEncoding {
     /// Canonical unsigned 64-bit decomposition. Decoded value =
     /// `Σ 2^i · b_i`, in `[0, 2^64)`. Round-trip works for any F.
@@ -118,7 +118,7 @@ fn signed_repr(value: F) -> i64 {
 ///
 /// Plus the CCS constant-one slot at index 0. Total `end =
 /// 1 + D·(rho+c+out) + D²·prod` bits.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct RingActionTraceLayout {
     pub rho_enc: LowNormEncoding,
     pub c_enc: LowNormEncoding,

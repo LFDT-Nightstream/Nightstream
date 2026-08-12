@@ -27,7 +27,7 @@ The package now has:
 
 The normative target is `PaddedRowIdentity`. It uses one padded row cube and
 one reviewed joint PiCCS SumCheck. The first matrix is
-`M_0=[I_11437038;0]`, so the norm terminal is an output evaluation of the same
+`M_0=[I_m;0]`, with `m` from the verifier-key relation artifact, so the norm terminal is an output evaluation of the same
 witness that opens the commitment.
 
 The selected profile removes the earlier rectangular FE/NC split, separate

@@ -137,9 +137,9 @@ It therefore does not define an integer `n_R=n_F/54`, and it cannot directly
 instantiate the common-cube identity construction. The contract records this
 as a paper-profile conflict, not accepted errata.
 
-Nightstream resolves the conflict with an actual ring-aligned full assignment
-`z=x||w` of 11,437,038 fields, or 211,797 Phi81 ring columns. It does not reuse
-`2^30` as the selected assignment width.
+Nightstream resolves the conflict with an artifact-owned ring-aligned full
+assignment `z=x||w`. The exact width comes from the verifier key, is at most
+16,777,206 fields, and is not inferred from `2^30`.
 
 ## 6. Norm-binding decision
 
@@ -151,10 +151,10 @@ from a separate SumCheck alone.
 Nightstream v1 selects the lower-risk closure:
 
 ```text
-logical rows            14,944,219
-logical z=x||w fields  11,437,038
+logical rows            verifier-key relation artifact
+logical z=x||w fields   verifier-key relation artifact, 54-aligned
 padded cube             2^24
-M_0                     [I_11437038;0]
+M_0                     [I_m;0]
 application matrices    13
 total matrices          14
 ```

@@ -166,7 +166,7 @@ fn grammar_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<WasmV
     // The claimed grammar-ROM entries must match the embedder tables.
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
-    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
@@ -268,7 +268,7 @@ fn i64_result_lane_writes() {
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
-    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
@@ -381,7 +381,7 @@ fn advice_import_pushes_without_absorbing() {
 
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
-    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
@@ -605,7 +605,7 @@ fn memory_rows_reject_forged_rom_claim() {
 
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
-    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();

@@ -122,7 +122,7 @@ fn i32_store8_memory_check_rejects_tampered_consistent_prior_state() {
     );
 
     let layout = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let result = sanity_check_memory_rows(layout, &witnesses, &preload);
     assert!(
         result.is_err(),

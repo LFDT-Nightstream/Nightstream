@@ -31,7 +31,7 @@ pub fn checked_wasm_run(wat_src: &str, export: &str, params: &[i32]) -> CheckedW
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, export, params).expect("wasmtime trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize trace");
-    let witnesses = sanity_check_trace(&trace, &artifacts, &run.initial_locals);
+    let witnesses = sanity_check_trace(&trace, &artifacts);
     ccs_check_trace(&trace);
     assert_output_matches_reference(&trace, &run.results);
     CheckedWasmRun {
@@ -70,11 +70,7 @@ fn assert_output_matches_reference(trace: &[WasmVmStep], results: &[String]) {
     );
 }
 
-pub fn sanity_check_trace(
-    trace: &[WasmVmStep],
-    artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
-) -> Vec<Vec<F>> {
+pub fn sanity_check_trace(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts) -> Vec<Vec<F>> {
     let layout = build_wasm_relation_layout();
     let mut witnesses = Vec::with_capacity(trace.len());
     for row in trace {
@@ -83,7 +79,7 @@ pub fn sanity_check_trace(
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
         witnesses.push(witness);
     }
-    let mut preload = preload_from_program_artifacts(artifacts, initial_locals);
+    let mut preload = preload_from_program_artifacts(artifacts);
     // Import-free traces run under the canonical single-shot grammar; the
     // exit latch reads its (biased) export count cells.
     let export_fref = trace

@@ -40,7 +40,6 @@ fn wasm_nebula_proves_a_grammar_template_trace() {
         nebula_test_params(),
         neo_wasm::WasmNebulaProfile::test_profile_with_geometry(geometry),
         &artifacts,
-        &setup.initial_locals,
         entry_pc,
         &setup.grammar,
         setup.run_fref,

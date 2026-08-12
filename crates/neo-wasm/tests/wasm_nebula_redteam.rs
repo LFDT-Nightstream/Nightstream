@@ -127,10 +127,10 @@ fn wasm_nebula_adapter_covers_every_declared_memory_port_exactly() {
 
         for (region_index, declared_memory) in declared.auxiliary.memories.iter().enumerate() {
             let region = &memory.regions()[region_index];
-            assert_eq!(region.name(), declared_memory.name);
+            assert_eq!(region.name(), declared_memory.id.name());
             assert_eq!(
                 region.kind(),
-                if declared_memory.is_rom {
+                if declared_memory.id.is_rom() {
                     neo_fold_clean::frontends::nebula::application::MemoryRegionKind::Rom
                 } else {
                     neo_fold_clean::frontends::nebula::application::MemoryRegionKind::Ram

@@ -31,7 +31,7 @@ use crate::preprocess::{
 };
 use crate::relation_layout::build_wasm_relation_layout;
 use crate::witness_builder::build_witness_vector;
-use crate::{preload_from_program_artifacts, WasmOpcode};
+use crate::{preload_from_program_artifacts, WasmMemoryId, WasmOpcode};
 
 const WASM_NEBULA_PLAN_SEED: [u8; 32] = [0x57; 32];
 const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
@@ -493,43 +493,43 @@ fn build_memory_backend(
         preload_host_event_tables(&mut preload, bindings);
     }
     let entries = preload.entries();
-    let mut by_memory: BTreeMap<&str, Vec<(Vec<u32>, u32)>> = BTreeMap::new();
+    let mut by_memory: BTreeMap<WasmMemoryId, Vec<(Vec<u32>, u32)>> = BTreeMap::new();
     for (memory, address, value) in &entries {
         by_memory
-            .entry(memory)
+            .entry(*memory)
             .or_default()
             .push((address.clone(), *value));
     }
 
     let mut regions = Vec::with_capacity(relation.auxiliary.memories.len());
-    let mut region_by_name = BTreeMap::new();
+    let mut region_by_id = BTreeMap::new();
     let mut rom_cursor = 0u64;
     let mut ram_cursor = 0u64;
     for memory in &relation.auxiliary.memories {
-        let kind = if memory.is_rom {
+        let kind = if memory.id.is_rom() {
             MemoryRegionKind::Rom
         } else {
             MemoryRegionKind::Ram
         };
-        let component_bits = if memory.is_rom {
+        let component_bits = if memory.id.is_rom() {
             rom_component_bits(
-                memory.name,
+                memory.id,
                 memory.columns[0].address_columns.len(),
-                by_memory.get(memory.name),
+                by_memory.get(&memory.id),
             )?
         } else {
-            ram_component_bits(memory.name, profile.limits)?
+            ram_component_bits(memory.id, profile.limits)?
         };
         let base = match kind {
             MemoryRegionKind::Rom => rom_cursor,
             MemoryRegionKind::Ram => ram_cursor,
         };
-        let region = MemoryRegion::new(memory.name, kind, base, component_bits)?;
+        let region = MemoryRegion::new(memory.id.name(), kind, base, component_bits)?;
         match kind {
             MemoryRegionKind::Rom => rom_cursor += region.cells(),
             MemoryRegionKind::Ram => ram_cursor += region.cells(),
         }
-        region_by_name.insert(memory.name, regions.len());
+        region_by_id.insert(memory.id, regions.len());
         regions.push(region);
     }
     if rom_cursor > profile.memory.rom_cells() || ram_cursor > profile.memory.ram_cells() {
@@ -544,8 +544,8 @@ fn build_memory_backend(
     let mut rom_image = vec![0; profile.memory.rom_cells() as usize];
     let mut ram_image = vec![0; profile.memory.ram_cells() as usize];
     for (memory, address, value) in entries {
-        let region = &regions[*region_by_name
-            .get(memory)
+        let region = &regions[*region_by_id
+            .get(&memory)
             .ok_or_else(|| WasmNebulaError::UnknownMemory(memory.to_string()))?];
         let components = address
             .iter()
@@ -567,7 +567,7 @@ fn build_memory_backend(
 }
 
 fn rom_component_bits(
-    memory: &str,
+    memory: WasmMemoryId,
     arity: usize,
     entries: Option<&Vec<(Vec<u32>, u32)>>,
 ) -> Result<Vec<u8>, WasmNebulaError> {
@@ -587,17 +587,17 @@ fn rom_component_bits(
     Ok(maxima.into_iter().map(bits_for_bound).collect())
 }
 
-fn ram_component_bits(memory: &str, limits: WasmNebulaLimits) -> Result<Vec<u8>, WasmNebulaError> {
+fn ram_component_bits(memory: WasmMemoryId, limits: WasmNebulaLimits) -> Result<Vec<u8>, WasmNebulaError> {
     let dimensions = match memory {
-        "stack" => vec![limits.stack_cells],
-        "call_stack_return_pcs" | "call_stack_caller_fbps" | "call_stack_caller_sp_bases" => {
+        WasmMemoryId::Stack => vec![limits.stack_cells],
+        WasmMemoryId::CallStackReturnPc | WasmMemoryId::CallStackCallerFbp | WasmMemoryId::CallStackCallerSpBase => {
             vec![limits.call_stack_cells]
         }
-        "linear_memory" => vec![limits.linear_memory_words],
-        "locals" | "locals_hi" => vec![limits.local_frames, limits.locals_per_frame],
-        "globals" | "globals_hi" => vec![limits.globals],
-        "tables" => vec![limits.tables, limits.table_elements],
-        "table_sizes" => vec![limits.tables],
+        WasmMemoryId::LinearMemory => vec![limits.linear_memory_words],
+        WasmMemoryId::LocalLo | WasmMemoryId::LocalHi => vec![limits.local_frames, limits.locals_per_frame],
+        WasmMemoryId::GlobalLo | WasmMemoryId::GlobalHi => vec![limits.globals],
+        WasmMemoryId::TableElement => vec![limits.tables, limits.table_elements],
+        WasmMemoryId::TableSize => vec![limits.tables],
         other => return Err(WasmNebulaError::UnknownMemory(other.to_string())),
     };
     Ok(dimensions.into_iter().map(bits_for_bound).collect())

@@ -16,6 +16,7 @@ mod ivc_state;
 pub mod layout;
 mod lookup_circuit;
 pub mod lookup_semantics;
+mod memory_id;
 mod memory_routing;
 pub mod memory_semantics;
 pub mod nebula;
@@ -55,6 +56,7 @@ pub use layout::{column_spec, column_specs, Column, ColumnWidth, WasmColumnSpec,
 #[doc(hidden)]
 pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
+pub use memory_id::WasmMemoryId;
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use nebula::{
     preprocess, prove, verify, WasmNebulaError, WasmNebulaLimits, WasmNebulaPreprocessing, WasmNebulaProfile,

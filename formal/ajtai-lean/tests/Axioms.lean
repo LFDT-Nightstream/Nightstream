@@ -1,4 +1,6 @@
 import Ajtai.BorrowChunk
+import Ajtai.NebulaV2
+import Ajtai.RankOneEstimator
 import Ajtai.SecurityBoundary
 import Lean.Elab.Print
 
@@ -76,6 +78,24 @@ def elabPrintAuditedAxioms : CommandElab
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Ajtai.EstimatorModel.computedMaxSourceFields_eq
+
+/-- info: 'Ajtai.EstimatorModel.compact_primary_width_accepted' depends on axioms: [propext,
+ Classical.choice,
+ trustCompiler,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Ajtai.EstimatorModel.compact_primary_width_accepted
+
+/-- info: 'Ajtai.RankOneEstimator.width_accepted' depends on axioms: [propext, Classical.choice, trustCompiler, Quot.sound] -/
+#guard_msgs in
+#audit_axioms Ajtai.RankOneEstimator.width_accepted
+
+/-- info: 'Ajtai.NebulaV2.token_widths_meet_selected_estimator' depends on axioms: [propext,
+ Classical.choice,
+ trustCompiler,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Ajtai.NebulaV2.token_widths_meet_selected_estimator
 
 /-- info: 'Ajtai.SecurityBoundary.collision_implies_msis_break' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

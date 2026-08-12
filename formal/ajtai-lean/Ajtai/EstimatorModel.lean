@@ -6,7 +6,7 @@ import Mathlib.Analysis.Real.Pi.Bounds
 Executable log-domain model for the rank-two protocol-binding SIS estimate.
 
 The selected policy is ADPS16 quantum Core-SVP (`0.265 β`), 128 post-union
-bits, and seven rank-two attack targets conservatively rounded to eight.
+bits, and seven verifier-key setup targets conservatively rounded to eight.
 This proves the arithmetic inside that model; it does not prove Module-SIS
 hardness or the structured-matrix heuristic.
 -/
@@ -126,7 +126,7 @@ theorem ln_delta_bounds {beta : Nat} (betaGtOne : 1 < beta) :
     exact (div_le_div_iff_of_pos_right denominatorPosReal).2 (by linarith)
 
 def targetSecurityBits : Nat := 128
-def rankTwoAttackTargets : Nat := 7
+def setupAttackTargets : Nat := 7
 
 def ceilLogTwo (n : Nat) : Nat :=
   if n ≤ 1 then 0 else (n - 1).log2 + 1
@@ -135,7 +135,7 @@ def quantumCostNumerator : Nat := 265
 def quantumCostDenominator : Nat := 1_000
 
 def requiredRawBits : Nat :=
-  targetSecurityBits + ceilLogTwo rankTwoAttackTargets
+  targetSecurityBits + ceilLogTwo setupAttackTargets
 
 def minimumAcceptedBeta : Nat :=
   (quantumCostDenominator * requiredRawBits +
@@ -150,7 +150,7 @@ def betaMeetsCostTarget (beta : Nat) : Prop :=
     quantumCostNumerator * beta
 
 theorem selected_policy_values :
-    ceilLogTwo rankTwoAttackTargets = 3 ∧
+    ceilLogTwo setupAttackTargets = 3 ∧
       requiredRawBits = 131 ∧
       minimumAcceptedBeta = 495 ∧
       rejectedBeta = 494 := by
@@ -515,6 +515,42 @@ theorem exact_log_length_bound_mono
     Real.log_le_log (by positivity) castOrdered
   unfold exactLogLengthBound
   linarith
+
+/-- Reducing the message width cannot weaken an accepted rank-two instance.
+The rank, modulus, norm model, and attack target remain unchanged. -/
+theorem width_accepted_of_le
+    {smaller larger : Nat}
+    (smallerPositive : 0 < smaller)
+    (ordered : smaller ≤ larger)
+    (accepted : WidthAccepted larger) :
+    WidthAccepted smaller := by
+  have lengthMono :
+      exactLogLengthBound smaller ≤ exactLogLengthBound larger :=
+    exact_log_length_bound_mono smallerPositive ordered
+  constructor
+  · exact smallerPositive
+  · intro dimension dimensionAtLeastTwo
+    have dimensionPositive : (0 : ℝ) < dimension := by positivity
+    have dimensionMinusOnePositive :
+        (0 : ℝ) < (dimension : ℝ) - 1 := by
+      have castLt : (1 : ℝ) < dimension := by
+        exact_mod_cast (show 1 < dimension by omega)
+      linarith
+    have denominatorPositive :
+        (0 : ℝ) < (dimension : ℝ) * ((dimension : ℝ) - 1) :=
+      mul_pos dimensionPositive dimensionMinusOnePositive
+    have requiredMono :
+        requiredLogDelta smaller dimension ≤
+          requiredLogDelta larger dimension := by
+      unfold requiredLogDelta
+      apply (div_le_div_iff_of_pos_right denominatorPositive).2
+      nlinarith
+    exact requiredMono.trans_lt
+      (accepted.2 dimension dimensionAtLeastTwo)
+
+theorem compact_primary_width_accepted :
+    WidthAccepted 738 :=
+  width_accepted_of_le (by decide) (by decide) width_50371_accepted
 
 theorem no_width_above_50371_is_accepted
     {ringColumns : Nat} (above : 50_371 < ringColumns) :

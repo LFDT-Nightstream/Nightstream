@@ -25,6 +25,7 @@ import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ProductionEnc
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ProductionEncodedEqualCallRecipe
 import Nightstream.Implementation.Lowering.Goldilocks.NumericRowBridge
 import Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec
+import Nightstream.Implementation.NebulaV2
 import Nightstream.Implementation.R1CS.Core.Program
 import Nightstream.Implementation.R1CS.Core.CheckedProgram
 import Nightstream.Implementation.R1CS.Core.SeededPhi81
@@ -73,6 +74,10 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeBase.FPrimeBaseState
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeBase.FPrimeBaseProgramSound
 import Nightstream.Implementation.R1CS.Correspondence.PiDecStrict.Necessity
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecAjtaiOpeningCollision
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.TerminalCeProgramSound
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.Phi81DynamicEvaluationRows
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.Phi81SharedTensorRows
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.Phi81SharedEvaluationRows
 import Nightstream.Implementation.R1CS.Correspondence.Sumcheck.SumcheckRoundComplete
 import Nightstream.Implementation.R1CS.Correspondence.Projection.ProjectionSound
 import Nightstream.Implementation.R1CS.Correspondence.Projection.ProjectionComplete

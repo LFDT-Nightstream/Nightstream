@@ -22,7 +22,7 @@ pub(super) fn setup_turn<'g>(
     let fref = first.current_function_ref.unwrap_or(0);
     let template = grammar.exports.get(&fref).ok_or_else(|| {
         WasmBuildError::Trace(format!(
-            "event binding requires an export template for the invoked export (fref {fref})"
+            "event grammar requires an export template for the invoked export (fref {fref})"
         ))
     })?;
     let local_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");
@@ -31,6 +31,11 @@ pub(super) fn setup_turn<'g>(
         .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
     let memory_accesses = apply_export_entry_memory(&template.entry, &entry_blocks, &first.locals_snapshot, memory)?;
     let entry_plans = plan_export_blocks(&template.entry, &entry_blocks, &first.locals_snapshot, &memory_accesses)?;
+    if re_entered && entry_plans.is_empty() {
+        return Err(WasmBuildError::Trace(format!(
+            "re-entered export fref {fref} requires at least one entry event"
+        )));
+    }
 
     let mut expected_locals = vec![(false, 0u32, 0u32); first.locals_snapshot.len()];
     for plan in &entry_plans {
@@ -46,11 +51,16 @@ pub(super) fn setup_turn<'g>(
         }
     }
     for (local, &(lo_written, lo, hi)) in expected_locals.iter().enumerate() {
-        if re_entered && !lo_written {
-            return Err(WasmBuildError::Trace(format!(
-                "re-entered turn must bootstrap-write every local: local {local} has no lo-lane write \
-                 (the locals RAM still holds the previous turn's values)"
-            )));
+        if !lo_written {
+            if re_entered {
+                return Err(WasmBuildError::Trace(format!(
+                    "re-entered turn must bootstrap-write every local: local {local} has no lo-lane write \
+                     (the locals RAM still holds the previous turn's values)"
+                )));
+            }
+            // First-turn locals that the entry template leaves alone are
+            // bound by the locals-RAM preload (the verifier's statement).
+            continue;
         }
         let ran_lo = first.locals_snapshot[local];
         let ran_hi = first.locals_snapshot_hi.get(local).copied().unwrap_or(0);

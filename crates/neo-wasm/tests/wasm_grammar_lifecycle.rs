@@ -51,6 +51,34 @@ fn grammar_trace_satisfies_batched_ccs() {
 }
 
 #[test]
+fn grammar_anchor_rejects_missing_or_mismatched_export() {
+    let setup = grammar_lifecycle_setup();
+    let artifacts =
+        neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
+    let entry_pc = common::entry_pc_for_function_ref(&artifacts, u64::from(setup.run_fref));
+
+    let missing = neo_wasm::grammar_top_level_initial_state(
+        &artifacts.tables,
+        entry_pc,
+        &Default::default(),
+        setup.run_fref,
+        Default::default(),
+    )
+    .expect_err("selected export needs a template");
+    assert!(missing.to_string().contains("no export template"));
+
+    let mismatched = neo_wasm::grammar_top_level_initial_state(
+        &artifacts.tables,
+        entry_pc,
+        &setup.grammar,
+        setup.run_fref.wrapping_add(1),
+        Default::default(),
+    )
+    .expect_err("selected export fref must own the entry pc");
+    assert!(mismatched.to_string().contains("different pc"));
+}
+
+#[test]
 fn grammar_folding_proof_covers_import_and_export_events() {
     let setup = grammar_lifecycle_setup();
     let GrammarLifecycleSetup {
@@ -67,7 +95,8 @@ fn grammar_folding_proof_covers_import_and_export_events() {
     // inputs are NOT anchored; they are bound by the final-chain transcript
     // check below.
     let digest =
-        grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref, Default::default());
+        grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref, Default::default())
+            .expect("grammar anchor");
     // The verifier's constructed initial state must be exactly the trace's
     // opening boundary.
     assert_eq!(
@@ -78,9 +107,11 @@ fn grammar_folding_proof_covers_import_and_export_events() {
     let f = p3_goldilocks::Goldilocks::from_u64;
     let initial_comm_chain = neo_wasm::CommChainState::new([f(11), f(22), f(33), f(44)]);
     let initial_state =
-        neo_wasm::grammar_top_level_initial_state(&artifacts.tables, entry_pc, &grammar, run_fref, initial_comm_chain);
+        neo_wasm::grammar_top_level_initial_state(&artifacts.tables, entry_pc, &grammar, run_fref, initial_comm_chain)
+            .expect("grammar anchor");
     let initial_digest =
-        grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref, initial_comm_chain);
+        grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref, initial_comm_chain)
+            .expect("grammar anchor");
     assert_eq!(initial_state.comm_chain, initial_comm_chain.canonical_u64());
     assert_eq!(initial_digest, neo_wasm::semantic_state_digest(initial_state));
     assert_ne!(initial_digest, digest);

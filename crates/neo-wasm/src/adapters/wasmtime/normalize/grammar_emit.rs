@@ -595,7 +595,6 @@ pub(super) struct GrammarAuxCtx {
     pub(super) max_memory_pages: Option<u32>,
     pub(super) locals_fbp: u64,
     pub(super) host_callee_fref: u32,
-    pub(super) event_binding_active: bool,
     pub(super) current_function_ref: u32,
     pub(super) current_function_num_locals: u32,
     /// The carried halted latch on both sides of these aux rows (true for
@@ -624,7 +623,6 @@ impl GrammarAuxCtx {
             param_init: WasmCountdownState::ZERO,
             tail_call_pending: false,
             host_callee_fref: self.host_callee_fref,
-            event_binding_active: self.event_binding_active,
             comm_chain,
             event_absorb,
             grammar,

@@ -40,6 +40,7 @@ pub use adapters::wasmtime::{
     WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
 };
 pub use application::{WasmApplicationManifestError, WasmApplicationModule};
+pub use ccs::host_event_chain::write_turn_entry_guard_witness;
 pub use ccs::WasmVmSpec;
 pub use comm_chain::CommChainState;
 pub use ir::{

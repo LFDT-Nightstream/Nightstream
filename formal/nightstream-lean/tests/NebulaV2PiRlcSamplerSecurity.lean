@@ -1,0 +1,14 @@
+import Nightstream.Assurance.NebulaV2.PiRlcSamplerSecurity
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2PiRlcSamplerSecurity
+
+open Nightstream.Assurance.NebulaV2.PiRlcSamplerSecurity
+
+#check exact_schedule
+#check lifetimeAbortBound_nonnegative
+#check lifetimeAbortBound_le_166
+#check dyadic_167_lt_lifetimeAbortBound
+
+end tests.NebulaV2PiRlcSamplerSecurity

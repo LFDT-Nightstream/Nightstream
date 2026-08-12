@@ -1,0 +1,7 @@
+import Nightstream.Implementation.NebulaV2.ProductionPaperBaseChallengeAuthorityCountermodels
+
+open Nightstream.Implementation.NebulaV2.ProductionPaperBaseChallengeAuthorityCountermodels
+
+#check authorities_differ
+#check every_authority_is_locally_exact
+#check local_opening_does_not_bind_base_authority

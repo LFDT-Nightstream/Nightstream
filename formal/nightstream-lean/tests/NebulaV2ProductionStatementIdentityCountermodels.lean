@@ -1,0 +1,8 @@
+import Nightstream.Implementation.NebulaV2.ProductionStatementIdentityCountermodels
+
+open Nightstream.Implementation.NebulaV2.ProductionStatementIdentityCountermodels
+
+#check same_verifier_key
+#check identities_differ
+#check challenge_authorities_differ
+#check verifier_key_equality_does_not_bind_challenge_identity

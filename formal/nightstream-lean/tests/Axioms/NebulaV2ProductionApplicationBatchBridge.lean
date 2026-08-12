@@ -1,0 +1,13 @@
+import Nightstream.Implementation.NebulaV2.ProductionApplicationBatchBridge
+
+set_option autoImplicit false
+
+namespace tests.Axioms.NebulaV2ProductionApplicationBatchBridge
+
+open Nightstream.Implementation.NebulaV2.ProductionApplicationBatchBridge
+
+#print axioms memoryNormalizedRows_accesses
+#print axioms stepAccesses_length
+#print axioms Matches.accesses_exact
+
+end tests.Axioms.NebulaV2ProductionApplicationBatchBridge

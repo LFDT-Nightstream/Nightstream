@@ -1,0 +1,15 @@
+import Nightstream.Implementation.NebulaV2.ProductionMemorySegmentContinuationRows
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductionMemorySegmentContinuationRows
+
+open Nightstream.Implementation.NebulaV2.ProductionMemorySegmentContinuationRows
+
+#check carryPairs_length
+#check rows_length_exact
+#check sound
+#check rows_complete_active
+#check rows_complete_closed
+
+end tests.NebulaV2ProductionMemorySegmentContinuationRows

@@ -1,0 +1,13 @@
+import Nightstream.Implementation.NebulaV2.ProductPiRlcAlgebraSoundFor
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductPiRlcAlgebraSoundFor
+
+open Nightstream.Implementation.NebulaV2.ProductPiRlcAlgebraSoundFor
+
+#check decodeInputPublic_eq_reference
+#check decodeInputEvaluations_eq_reference
+#check typedEquations_of_rows
+
+end tests.NebulaV2ProductPiRlcAlgebraSoundFor

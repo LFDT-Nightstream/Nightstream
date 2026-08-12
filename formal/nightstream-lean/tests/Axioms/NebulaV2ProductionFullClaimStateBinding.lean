@@ -1,0 +1,28 @@
+import Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding
+import tests.Axioms.Support
+
+/-! Dependency audit for the field-native full-claim state binding. -/
+
+/-- info: 'Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding.authoritativeFrame_lengthFor' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding.authoritativeFrame_lengthFor
+
+/-- info: 'Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding.bindingState_replays_authoritativeFrame' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding.bindingState_replays_authoritativeFrame
+
+/-- info: 'Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding.equal_bindingState_recovers_claim_or_named_failure' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding.equal_bindingState_recovers_claim_or_named_failure
+
+/-- info: 'Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding.authoritativeFrames_ne_of_candidate_ne' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding.authoritativeFrames_ne_of_candidate_ne

@@ -3,6 +3,7 @@
 use super::adapters::wasmtime::WasmProgramArtifacts;
 use super::layout::column_spec;
 use super::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmMemorySpec, WasmRelationLayout};
+use super::WasmMemoryId;
 use neo_math::F;
 use p3_field::PrimeField64;
 use std::collections::BTreeMap;
@@ -15,23 +16,23 @@ use std::collections::BTreeMap;
 /// happily round-trip a witness value up to `q - 1 ≈ 2^64`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WasmMemoryPreload {
-    cells: BTreeMap<&'static str, BTreeMap<Vec<u32>, u32>>,
+    cells: BTreeMap<WasmMemoryId, BTreeMap<Vec<u32>, u32>>,
 }
 
 impl WasmMemoryPreload {
-    pub fn insert(&mut self, memory: &'static str, address: Vec<u32>, value: u32) {
+    pub fn insert(&mut self, memory: WasmMemoryId, address: Vec<u32>, value: u32) {
         self.cells.entry(memory).or_default().insert(address, value);
     }
 
-    pub fn remove(&mut self, memory: &'static str, address: &[u32]) -> Option<u32> {
-        self.cells.get_mut(memory)?.remove(address)
+    pub fn remove(&mut self, memory: WasmMemoryId, address: &[u32]) -> Option<u32> {
+        self.cells.get_mut(&memory)?.remove(address)
     }
 
-    fn clone_cells(&self) -> BTreeMap<&'static str, BTreeMap<Vec<u32>, u32>> {
+    fn clone_cells(&self) -> BTreeMap<WasmMemoryId, BTreeMap<Vec<u32>, u32>> {
         self.cells.clone()
     }
 
-    pub fn entries(&self) -> Vec<(&'static str, Vec<u32>, u32)> {
+    pub fn entries(&self) -> Vec<(WasmMemoryId, Vec<u32>, u32)> {
         self.cells
             .iter()
             .flat_map(|(&memory, cells)| {
@@ -83,39 +84,39 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
     }
     for entry in &tables.program_decode {
         let pc = narrow(entry.pc, "program_decode.pc");
-        preload.insert("program_opcodes", vec![pc], entry.opcode_code);
-        preload.insert("program_local_indices", vec![pc], entry.local_index);
-        preload.insert("program_global_indices", vec![pc], entry.global_index);
-        preload.insert("program_table_ids", vec![pc], entry.table_id);
-        preload.insert("program_memory_offsets", vec![pc], entry.memory_offset);
+        preload.insert(WasmMemoryId::ProgramOpcode, vec![pc], entry.opcode_code);
+        preload.insert(WasmMemoryId::ProgramLocalIndex, vec![pc], entry.local_index);
+        preload.insert(WasmMemoryId::ProgramGlobalIndex, vec![pc], entry.global_index);
+        preload.insert(WasmMemoryId::ProgramTableId, vec![pc], entry.table_id);
+        preload.insert(WasmMemoryId::ProgramMemoryOffset, vec![pc], entry.memory_offset);
         preload.insert(
-            "program_call_indirect_type_indices",
+            WasmMemoryId::ProgramCallIndirectTypeIndex,
             vec![pc],
             entry.call_indirect_type_index,
         );
         preload.insert(
-            "program_call_indirect_expected_type_ids",
+            WasmMemoryId::ProgramCallIndirectExpectedTypeId,
             vec![pc],
             entry.call_indirect_expected_type_id,
         );
-        preload.insert("program_i32_const_values", vec![pc], entry.i32_const_value);
-        preload.insert("program_i64_const_values_lo", vec![pc], entry.i64_const_value_lo);
-        preload.insert("program_i64_const_values_hi", vec![pc], entry.i64_const_value_hi);
-        preload.insert("program_ref_func_refs", vec![pc], entry.ref_func_ref);
+        preload.insert(WasmMemoryId::ProgramI32ConstValue, vec![pc], entry.i32_const_value);
+        preload.insert(WasmMemoryId::ProgramI64ConstValueLo, vec![pc], entry.i64_const_value_lo);
+        preload.insert(WasmMemoryId::ProgramI64ConstValueHi, vec![pc], entry.i64_const_value_hi);
+        preload.insert(WasmMemoryId::ProgramRefFuncRef, vec![pc], entry.ref_func_ref);
     }
     for &(index, lo, hi) in &tables.globals_init {
-        preload.insert("globals", vec![index], lo);
-        preload.insert("globals_hi", vec![index], hi);
+        preload.insert(WasmMemoryId::GlobalLo, vec![index], lo);
+        preload.insert(WasmMemoryId::GlobalHi, vec![index], hi);
     }
     for &(table_id, size) in &tables.table_sizes_init {
-        preload.insert("table_sizes", vec![table_id], size);
+        preload.insert(WasmMemoryId::TableSize, vec![table_id], size);
     }
     for &(table_id, index, funcref) in &tables.tables_init {
-        preload.insert("tables", vec![table_id, index], funcref);
+        preload.insert(WasmMemoryId::TableElement, vec![table_id, index], funcref);
     }
     for &(pc_before, control_choice, pc_after) in &tables.pc_rom {
         preload.insert(
-            "pc_rom",
+            WasmMemoryId::PcRom,
             vec![
                 narrow(pc_before, "pc_rom.state_before.pc"),
                 narrow(control_choice, "pc_rom.control_choice"),
@@ -125,56 +126,56 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
     }
     for &(pc_before, edge_kind) in &tables.pc_edge_kinds {
         preload.insert(
-            "pc_edge_kinds",
+            WasmMemoryId::PcEdgeKind,
             vec![narrow(pc_before, "pc_edge_kinds.state_before.pc")],
             narrow(edge_kind, "pc_edge_kinds.edge_kind"),
         );
     }
     for &(pc_before, function_ref) in &tables.pc_function_refs {
         preload.insert(
-            "pc_function_refs",
+            WasmMemoryId::PcFunctionRef,
             vec![narrow(pc_before, "pc_function_refs.state_before.pc")],
             narrow(function_ref, "pc_function_refs.function_ref"),
         );
     }
     for &(function_ref, entry_pc) in &tables.function_entries {
         preload.insert(
-            "function_entries",
+            WasmMemoryId::FunctionEntry,
             vec![narrow(function_ref, "function_entries.function_ref")],
             narrow(entry_pc, "function_entries.entry_pc"),
         );
     }
     for &(function_ref, type_id) in &tables.function_types {
         preload.insert(
-            "function_types",
+            WasmMemoryId::FunctionType,
             vec![narrow(function_ref, "function_types.function_ref")],
             narrow(type_id, "function_types.type_id"),
         );
     }
     for &(function_ref, metadata) in &tables.function_call_metadata {
         preload.insert(
-            "function_call_metadata",
+            WasmMemoryId::FunctionCallMetadata,
             vec![narrow(function_ref, "function_call_metadata.function_ref")],
             narrow(metadata, "function_call_metadata.metadata"),
         );
     }
     for &(function_ref, local_count) in &tables.function_local_counts {
         preload.insert(
-            "function_local_counts",
+            WasmMemoryId::FunctionLocalCount,
             vec![narrow(function_ref, "function_local_counts.function_ref")],
             narrow(local_count, "function_local_counts.local_count"),
         );
     }
     for &(pc_before, function_ref) in &tables.call_targets {
         preload.insert(
-            "call_targets",
+            WasmMemoryId::CallTarget,
             vec![narrow(pc_before, "call_targets.state_before.pc")],
             narrow(function_ref, "call_targets.function_ref"),
         );
     }
     for &(raw_type_index, expected_type_id) in &tables.module_types {
         preload.insert(
-            "module_types",
+            WasmMemoryId::ModuleType,
             vec![narrow(raw_type_index, "module_types.raw_type_index")],
             narrow(expected_type_id, "module_types.expected_type_id"),
         );
@@ -196,7 +197,7 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             *word |= u32::from(byte_value) << (byte_index * 8);
         }
         for (word_addr, word_value) in packed {
-            preload.insert("linear_memory", vec![word_addr], word_value);
+            preload.insert(WasmMemoryId::LinearMemory, vec![word_addr], word_value);
         }
     }
     preload
@@ -334,11 +335,11 @@ pub fn preload_host_event_tables(
                 let (kind, arg, variant, const_lo, const_hi) = encode(source);
                 // Bit 3 carries the per-event advice flag.
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
-                preload.insert("host_event_slot_kind", key.clone(), kind);
-                preload.insert("host_event_slot_arg", key.clone(), arg);
-                preload.insert("host_event_slot_variant", key.clone(), variant);
-                preload.insert("host_event_slot_const_lo", key.clone(), const_lo);
-                preload.insert("host_event_slot_const_hi", key, const_hi);
+                preload.insert(WasmMemoryId::HostEventSlotKind, key.clone(), kind);
+                preload.insert(WasmMemoryId::HostEventSlotArg, key.clone(), arg);
+                preload.insert(WasmMemoryId::HostEventSlotVariant, key.clone(), variant);
+                preload.insert(WasmMemoryId::HostEventSlotConstLo, key.clone(), const_lo);
+                preload.insert(WasmMemoryId::HostEventSlotConstHi, key, const_hi);
             }
         }
     };
@@ -350,7 +351,7 @@ pub fn preload_host_event_tables(
     // is bound within an already-entered turn.
     for (&fref, template) in &bindings.imports {
         preload.insert(
-            "host_event_import_schedule_counts",
+            WasmMemoryId::HostEventImportScheduleCount,
             vec![fref],
             template.events.len() as u32 + 1,
         );
@@ -358,12 +359,12 @@ pub fn preload_host_event_tables(
     }
     for (&fref, template) in &bindings.exports {
         preload.insert(
-            "host_event_export_entry_schedule_counts",
+            WasmMemoryId::HostEventExportEntryScheduleCount,
             vec![fref],
             template.entry.len() as u32 + 1,
         );
         preload.insert(
-            "host_event_export_exit_schedule_counts",
+            WasmMemoryId::HostEventExportExitScheduleCount,
             vec![fref],
             template.exit.len() as u32,
         );
@@ -399,11 +400,11 @@ fn apply_memory_row(
     memory: &WasmMemorySpec,
     witness: &[F],
     row_index: usize,
-    state: &mut BTreeMap<&'static str, BTreeMap<Vec<u32>, u32>>,
+    state: &mut BTreeMap<WasmMemoryId, BTreeMap<Vec<u32>, u32>>,
 ) -> Result<(), String> {
-    let cells = state.entry(memory.name).or_default();
+    let cells = state.entry(memory.id).or_default();
     for column in &memory.columns {
-        let active = activation_active(column.activation, witness, row_index, memory.name)?;
+        let active = activation_active(column.activation, witness, row_index, memory.id)?;
         if !active {
             continue;
         }
@@ -413,19 +414,19 @@ fn apply_memory_row(
             .map(|column| read_u32_column(witness, column.0, row_index, "address"))
             .collect::<Result<Vec<_>, _>>()?;
         let value = read_u32_column(witness, column.value_column.0, row_index, "value")?;
-        if memory.is_rom {
+        if memory.id.is_rom() {
             match cells.get(&address).copied() {
                 Some(expected) if expected != value => {
                     return Err(format!(
                         "memory `{}` ROM mismatch at {:?} on row {}: expected {}, got {}",
-                        memory.name, address, row_index, expected, value
+                        memory.id, address, row_index, expected, value
                     ));
                 }
                 Some(_) => {}
                 None => {
                     return Err(format!(
                         "memory `{}` ROM read before initialization at {:?} on row {}",
-                        memory.name, address, row_index
+                        memory.id, address, row_index
                     ));
                 }
             }
@@ -436,22 +437,22 @@ fn apply_memory_row(
                 Some(expected) if expected != value => {
                     return Err(format!(
                         "memory `{}` read mismatch at {:?} on row {}: expected {}, got {}",
-                        memory.name, address, row_index, expected, value
+                        memory.id, address, row_index, expected, value
                     ));
                 }
                 Some(_) => {}
-                None => match init_mode(memory.name) {
+                None => match init_mode(memory.id) {
                     DebugInitMode::Strict => {
                         return Err(format!(
                             "memory `{}` read before initialization at {:?} on row {}",
-                            memory.name, address, row_index
+                            memory.id, address, row_index
                         ));
                     }
                     DebugInitMode::ZeroReadDefault => {
                         if value != 0 {
                             return Err(format!(
                                 "memory `{}` expected zero-default read at {:?} on row {}, got {}",
-                                memory.name, address, row_index, value
+                                memory.id, address, row_index, value
                             ));
                         }
                         cells.insert(address, 0);
@@ -471,22 +472,22 @@ fn apply_memory_row(
                             return Err(format!(
                                 "memory `{}` RMW read mismatch at {:?} on row {}: \
                                  prior write was {}, witness claims {}",
-                                memory.name, address, row_index, expected, before_value
+                                memory.id, address, row_index, expected, before_value
                             ));
                         }
                         Some(_) => {}
-                        None => match init_mode(memory.name) {
+                        None => match init_mode(memory.id) {
                             DebugInitMode::Strict => {
                                 return Err(format!(
                                     "memory `{}` RMW read before initialization at {:?} on row {}",
-                                    memory.name, address, row_index
+                                    memory.id, address, row_index
                                 ));
                             }
                             DebugInitMode::ZeroReadDefault => {
                                 if before_value != 0 {
                                     return Err(format!(
                                         "memory `{}` expected zero-default RMW read at {:?} on row {}, got {}",
-                                        memory.name, address, row_index, before_value
+                                        memory.id, address, row_index, before_value
                                     ));
                                 }
                                 cells.insert(address.clone(), 0);
@@ -505,7 +506,7 @@ fn activation_active(
     activation: WasmMemoryActivation,
     witness: &[F],
     row_index: usize,
-    memory_name: &str,
+    memory: WasmMemoryId,
 ) -> Result<bool, String> {
     match activation {
         WasmMemoryActivation::Always => Ok(true),
@@ -514,61 +515,42 @@ fn activation_active(
             1 => Ok(true),
             other => Err(format!(
                 "memory `{}` has non-boolean gate {} on row {}",
-                memory_name, other, row_index
+                memory, other, row_index
             )),
         },
     }
 }
 
-fn init_mode(memory_name: &str) -> DebugInitMode {
-    memory_init_mode(memory_name)
-        .unwrap_or_else(|| panic!("memory semantics missing init-mode coverage for non-ROM memory `{memory_name}`"))
+fn init_mode(memory: WasmMemoryId) -> DebugInitMode {
+    memory_init_mode(memory)
+        .unwrap_or_else(|| panic!("memory semantics missing init-mode coverage for non-ROM memory `{memory}`"))
 }
 
-fn memory_init_mode(memory_name: &str) -> Option<DebugInitMode> {
-    MEMORY_INIT_MODES
-        .iter()
-        .find_map(|(name, mode)| (*name == memory_name).then_some(*mode))
+fn memory_init_mode(memory: WasmMemoryId) -> Option<DebugInitMode> {
+    match memory {
+        WasmMemoryId::Stack
+        | WasmMemoryId::CallStackReturnPc
+        | WasmMemoryId::CallStackCallerFbp
+        | WasmMemoryId::CallStackCallerSpBase
+        | WasmMemoryId::TableSize => Some(DebugInitMode::Strict),
+        WasmMemoryId::LinearMemory
+        | WasmMemoryId::LocalLo
+        | WasmMemoryId::LocalHi
+        | WasmMemoryId::GlobalLo
+        | WasmMemoryId::GlobalHi
+        | WasmMemoryId::TableElement => Some(DebugInitMode::ZeroReadDefault),
+        _ => None,
+    }
 }
 
 fn assert_all_memory_specs_have_init_modes(layout: &WasmRelationLayout) -> Result<(), String> {
     for memory in &layout.auxiliary.memories {
-        if !memory.is_rom && memory_init_mode(memory.name).is_none() {
+        if !memory.id.is_rom() && memory_init_mode(memory.id).is_none() {
             return Err(format!(
                 "memory semantics missing init-mode coverage for `{}`",
-                memory.name
+                memory.id
             ));
         }
     }
     Ok(())
 }
-
-const MEMORY_INIT_MODES: &[(&str, DebugInitMode)] = &[
-    ("stack", DebugInitMode::Strict),
-    ("call_stack_return_pcs", DebugInitMode::Strict),
-    ("call_stack_caller_fbps", DebugInitMode::Strict),
-    ("call_stack_caller_sp_bases", DebugInitMode::Strict),
-    // linear_memory: ZeroReadDefault. Bytes initialized by active `(data ...)`
-    // segments are preloaded into the cells in `preload_from_program_artifacts`
-    // (via `artifacts.tables.linear_memory_init`), so the RMW Read at data-initialized
-    // addresses sees the actual prior word. Bytes outside any data segment
-    // stay absent from the preload, and the wasm spec guarantees them zero
-    // at instantiation — so a malicious prover claiming a non-zero
-    // `value_before` at an uninitialized byte fails this check.
-    ("linear_memory", DebugInitMode::ZeroReadDefault),
-    // Locals are either preloaded entry-frame slots, call-param writes, or
-    // wasm-zero initialized slots.
-    ("locals", DebugInitMode::ZeroReadDefault),
-    ("locals_hi", DebugInitMode::ZeroReadDefault),
-    // Declared globals are preloaded from their wasm initializer.
-    ("globals", DebugInitMode::ZeroReadDefault),
-    ("globals_hi", DebugInitMode::ZeroReadDefault),
-    // tables: entries covered by an active element segment are preloaded from
-    // `tables_init`; every other in-bounds entry is a null funcref at
-    // instantiation, which normalizes to 0.
-    ("tables", DebugInitMode::ZeroReadDefault),
-    // table_sizes: every declared table's size is preloaded from
-    // `table_sizes_init` and `table.grow` is unsupported, so an unpreloaded
-    // read is always a bug.
-    ("table_sizes", DebugInitMode::Strict),
-];

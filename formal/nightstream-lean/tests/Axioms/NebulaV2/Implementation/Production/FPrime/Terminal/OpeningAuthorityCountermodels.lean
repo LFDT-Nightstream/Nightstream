@@ -1,0 +1,18 @@
+import tests.NebulaV2.Implementation.Production.FPrime.Terminal.OpeningAuthorityCountermodels
+import tests.Axioms.Support
+
+set_option autoImplicit false
+
+namespace tests.Axioms.NebulaV2ProductionTerminalOpeningAuthorityCountermodels
+
+open tests.NebulaV2ProductionTerminalOpeningAuthorityCountermodels
+
+/-- info: 'tests.NebulaV2ProductionTerminalOpeningAuthorityCountermodels.omitted_commitment_alias_accepts_wrong_opening' does not depend on any axioms -/
+#guard_msgs in
+#audit_axioms omitted_commitment_alias_accepts_wrong_opening
+
+/-- info: 'tests.NebulaV2ProductionTerminalOpeningAuthorityCountermodels.separate_assignments_accept_conflicting_shared_column' does not depend on any axioms -/
+#guard_msgs in
+#audit_axioms separate_assignments_accept_conflicting_shared_column
+
+end tests.Axioms.NebulaV2ProductionTerminalOpeningAuthorityCountermodels

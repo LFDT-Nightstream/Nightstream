@@ -1,4 +1,4 @@
-import Nightstream.Implementation.NebulaV2.ProductPiDecLinearCombination
+import Nightstream.Implementation.NebulaV2.NIFS.PiDEC.LinearCombination
 import Nightstream.Implementation.R1CS.Canonical.KBooleanMleSemantics
 import Nightstream.Implementation.R1CS.Canonical.KConcreteBridge
 import Nightstream.SuperNeo.Concrete.Phi81Relation.Evaluation

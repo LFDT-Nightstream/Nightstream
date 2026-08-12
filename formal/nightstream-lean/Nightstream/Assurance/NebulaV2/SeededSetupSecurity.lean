@@ -1,6 +1,6 @@
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Nightstream.Implementation.NebulaV2.SeedSchedule
+import Nightstream.Implementation.NebulaV2.FPrime.State.SeedSchedule
 
 /-!
 Contract: explicit seven-role hybrid budget for the verifier-key-seeded V2

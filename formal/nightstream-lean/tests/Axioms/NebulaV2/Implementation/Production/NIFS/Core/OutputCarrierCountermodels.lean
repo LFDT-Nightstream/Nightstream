@@ -1,0 +1,14 @@
+import tests.NebulaV2.Implementation.Production.NIFS.Core.OutputCarrierCountermodels
+import tests.Axioms.Support
+
+set_option autoImplicit false
+
+namespace tests.Axioms.NebulaV2ProductionNifsOutputCarrierCountermodels
+
+open tests.NebulaV2ProductionNifsOutputCarrierCountermodels
+
+/-- info: 'tests.NebulaV2ProductionNifsOutputCarrierCountermodels.omitted_output_row_allows_wrong_carrier' does not depend on any axioms -/
+#guard_msgs in
+#audit_axioms omitted_output_row_allows_wrong_carrier
+
+end tests.Axioms.NebulaV2ProductionNifsOutputCarrierCountermodels

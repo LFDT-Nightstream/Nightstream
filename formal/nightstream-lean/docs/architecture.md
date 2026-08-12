@@ -50,6 +50,28 @@ generated shards directly. Correspondence modules may consume an exact
 single-file generated artifact or an `Ownership` assembly. A generated module
 contains data, never the semantic conclusion that data is intended to support.
 
+## Nebula V2 implementation ownership
+
+`Nightstream/Implementation/NebulaV2` is organized by the object or protocol
+stage that owns each implementation theorem:
+
+```text
+NebulaV2
+├── Core          reusable field, bit, comparison, and selector rows
+├── Commitment    bundle, compact-token, lane, and terminal-opening rows
+├── Memory        carry, claim, operation, product, snapshot, and transition rows
+├── NIFS          PiCCS, PiRLC, PiDEC, running-value, and terminal correspondence
+├── FPrime        claim, manifest, state, recursive, and terminal correspondence
+├── Application   WASM codecs and physical-port refinement
+└── Production    selected carrier, memory, NIFS, F-prime, and artifact composition
+```
+
+Each directory has a facade that imports its immediate children. The public
+`NebulaV2` facade imports only these seven ownership facades. Tests and axiom
+guards mirror the same ownership paths below `tests/NebulaV2` and
+`tests/Axioms/NebulaV2`. New modules must enter through the narrowest owning
+facade; do not restore a flat list in the public facade.
+
 ## Proof ownership trees
 
 Protocol-critical components mirror the review path in their module tree:

@@ -1,5 +1,5 @@
-import Nightstream.Implementation.NebulaV2.ProductionPaperExactLifetimeSoundness
-import Nightstream.Implementation.NebulaV2.RecursiveSizeClosure
+import Nightstream.Implementation.NebulaV2.Production.FPrime.Lifetime.ExactLifetimeSoundness
+import Nightstream.Implementation.NebulaV2.FPrime.Recursive.SizeClosure
 import Nightstream.Protocol.NebulaV2.WasmPublicStatementEncoding
 
 /-!

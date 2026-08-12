@@ -1,0 +1,16 @@
+import Nightstream.Implementation.NebulaV2.NIFS.PiCCS.TypedBridge
+
+/-! Regression surface for the exact V2 product-PiCCS row bridge. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductPiCcsTypedBridge
+
+#check Nightstream.Implementation.NebulaV2.ProductPiCcsTranscriptSemantics.rows_replay_semantics
+#check Nightstream.Implementation.NebulaV2.ProductPiCcsTranscriptSemantics.absorbPublicInput_rows_semantics
+#check Nightstream.Implementation.NebulaV2.ProductPiCcsTypedBridge.valuePreSumcheck_eq_paper
+#check Nightstream.Implementation.NebulaV2.ProductPiCcsTypedBridge.valueRounds_eq_paper
+#check Nightstream.Implementation.NebulaV2.ProductPiCcsTypedBridge.rows_imply_piCcsCheck_true
+#check Nightstream.Implementation.NebulaV2.ProductPiCcsTypedBridge.rows_imply_outgoingState
+
+end tests.NebulaV2ProductPiCcsTypedBridge

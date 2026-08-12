@@ -1,5 +1,5 @@
 import Nightstream.Assurance.NebulaV2.SeededSetupSecurity
-import Nightstream.Implementation.NebulaV2.ProductPiRlcFirstAcceptedBatchRows
+import Nightstream.Implementation.NebulaV2.NIFS.PiRLC.FirstAcceptedBatchRows
 import Nightstream.Protocol.NebulaV2.Lifecycle
 
 /-!

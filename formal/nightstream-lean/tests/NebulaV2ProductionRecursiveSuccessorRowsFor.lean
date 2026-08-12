@@ -1,8 +1,0 @@
-import Nightstream.Implementation.NebulaV2.ProductionRecursiveSuccessorRowsFor
-
-open Nightstream.Implementation.NebulaV2.ProductionRecursiveSuccessorRowsFor
-
-#check rows_imply_successor_ranges
-#check rows_imply_successorPlaced
-#check rows_imply_exact_successor_and_outputState
-#check rows_length_exact

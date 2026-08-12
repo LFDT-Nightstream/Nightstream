@@ -1145,14 +1145,14 @@ fn call_row_rejects_tampered_current_function_num_locals() {
                 local.get 0
                 i32.const 1
                 i32.add)
-            (func (export "run") (param i32) (result i32)
+            (func (export "run") (result i32)
                 i32.const 5
                 call $add_one))
         "#,
     )
     .expect("wat");
 
-    let trace = collect_wasmtime_steps(&wasm, "run", &[9])
+    let trace = collect_wasmtime_steps(&wasm, "run", &[])
         .and_then(|run| traces_from_wasmtime_steps(&run.steps))
         .expect("normalize");
     let row = trace

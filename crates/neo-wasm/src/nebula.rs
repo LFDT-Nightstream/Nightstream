@@ -238,11 +238,10 @@ pub fn preprocess(
     params: Params,
     profile: WasmNebulaProfile,
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
     entry_pc: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, None, None, None)
+    preprocess_inner(params, profile, artifacts, entry_pc, None, None, None)
 }
 
 /// Preprocess only when the final F′ relation fits the caller's committed-
@@ -251,7 +250,6 @@ pub fn preprocess_with_coordinate_limit(
     params: Params,
     profile: WasmNebulaProfile,
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
     entry_pc: u64,
     max_coordinates: usize,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
@@ -260,7 +258,6 @@ pub fn preprocess_with_coordinate_limit(
         params,
         profile,
         artifacts,
-        initial_locals,
         entry_pc,
         None,
         None,
@@ -273,7 +270,6 @@ pub fn preprocess_seeded(
     params: Params,
     profile: WasmNebulaProfile,
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
     entry_pc: u64,
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
@@ -282,7 +278,6 @@ pub fn preprocess_seeded(
         params,
         profile,
         artifacts,
-        initial_locals,
         entry_pc,
         None,
         Some(seed),
@@ -295,7 +290,6 @@ pub fn preprocess_seeded_with_coordinate_limit(
     params: Params,
     profile: WasmNebulaProfile,
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
     entry_pc: u64,
     seed: u64,
     max_coordinates: usize,
@@ -305,7 +299,6 @@ pub fn preprocess_seeded_with_coordinate_limit(
         params,
         profile,
         artifacts,
-        initial_locals,
         entry_pc,
         None,
         Some(seed),
@@ -320,7 +313,6 @@ pub fn preprocess_seeded_reduced_memory_test_only(
     params: Params,
     profile: WasmNebulaProfile,
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
     entry_pc: u64,
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
@@ -329,7 +321,6 @@ pub fn preprocess_seeded_reduced_memory_test_only(
         params,
         profile,
         artifacts,
-        initial_locals,
         entry_pc,
         None,
         Some(seed),
@@ -344,7 +335,6 @@ pub fn preprocess_seeded_grammar_test_only(
     params: Params,
     profile: WasmNebulaProfile,
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
     entry_pc: u64,
     grammar: &HostEventGrammar,
     export_fref: u32,
@@ -356,7 +346,6 @@ pub fn preprocess_seeded_grammar_test_only(
         params,
         profile,
         artifacts,
-        initial_locals,
         entry_pc,
         Some((grammar, export_fref, initial_comm_chain)),
         Some(seed),
@@ -370,7 +359,6 @@ pub fn preprocess_seeded_unbounded_profile(
     params: Params,
     profile: WasmNebulaProfile,
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
     entry_pc: u64,
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
@@ -379,7 +367,6 @@ pub fn preprocess_seeded_unbounded_profile(
         params,
         profile,
         artifacts,
-        initial_locals,
         entry_pc,
         None,
         Some(seed),
@@ -391,7 +378,6 @@ fn preprocess_inner(
     params: Params,
     profile: WasmNebulaProfile,
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
     entry_pc: u64,
     grammar: Option<(&HostEventGrammar, u32, CommChainState)>,
     seed: Option<u64>,
@@ -417,13 +403,7 @@ fn preprocess_inner(
         initial_comm_chain,
     )?;
     let canonical = canonical_wasm_nebula_shape_batched_with_initial_state_digest(profile.batch_size, initial_state)?;
-    let backend = build_memory_backend(
-        artifacts,
-        initial_locals,
-        Some(grammar_tables),
-        &profile,
-        canonical.single_step_columns,
-    )?;
+    let backend = build_memory_backend(artifacts, Some(grammar_tables), &profile, canonical.single_step_columns)?;
     let plan = NebulaPlan::new_with_initial_ram(
         profile.memory,
         backend.rom_image,
@@ -616,13 +596,12 @@ struct MemoryBackend {
 
 fn build_memory_backend(
     artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
     grammar: Option<&HostEventGrammar>,
     profile: &WasmNebulaProfile,
     single_step_columns: usize,
 ) -> Result<MemoryBackend, WasmNebulaError> {
     let relation = build_wasm_relation_layout();
-    let mut preload = preload_from_program_artifacts(artifacts, initial_locals);
+    let mut preload = preload_from_program_artifacts(artifacts);
     if let Some(grammar) = grammar {
         preload_grammar_tables(&mut preload, grammar);
     }

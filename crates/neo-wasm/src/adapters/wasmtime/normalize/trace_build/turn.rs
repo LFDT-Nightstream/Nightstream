@@ -50,17 +50,17 @@ pub(super) fn setup_turn<'g>(
             }
         }
     }
+    // The locals RAM starts all-zero and re-entered turns inherit the
+    // previous turn's values, so every turn's entry frame must be exactly
+    // reproduced by the bootstrap writes: unwritten locals must have run as
+    // zero (first turn) or be rewritten (re-entry); inputs only ever arrive
+    // through `ClaimLocal` slots.
     for (local, &(lo_written, lo, hi)) in expected_locals.iter().enumerate() {
-        if !lo_written {
-            if re_entered {
-                return Err(WasmBuildError::Trace(format!(
-                    "re-entered turn must bootstrap-write every local: local {local} has no lo-lane write \
-                     (the locals RAM still holds the previous turn's values)"
-                )));
-            }
-            // First-turn locals that the entry template leaves alone are
-            // bound by the locals-RAM preload (the verifier's statement).
-            continue;
+        if re_entered && !lo_written {
+            return Err(WasmBuildError::Trace(format!(
+                "re-entered turn must bootstrap-write every local: local {local} has no lo-lane write \
+                 (the locals RAM still holds the previous turn's values)"
+            )));
         }
         let ran_lo = first.locals_snapshot[local];
         let ran_hi = first.locals_snapshot_hi.get(local).copied().unwrap_or(0);

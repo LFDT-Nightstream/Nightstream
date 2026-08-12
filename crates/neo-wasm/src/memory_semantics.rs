@@ -66,7 +66,11 @@ enum DebugInitMode {
     ZeroReadDefault,
 }
 
-pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_locals: &[u32]) -> WasmMemoryPreload {
+/// The preload is program-derived only: the locals RAM starts all-zero
+/// (`ZeroReadDefault`), so entry-frame inputs must arrive through the export
+/// template's `ClaimLocal` bootstrap; callee params are written by
+/// CallParamInit rows before use.
+pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmMemoryPreload {
     let tables = &artifacts.tables;
     let mut preload = WasmMemoryPreload::default();
     // Program-table fields are typed as u64 in the parse output even
@@ -76,13 +80,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
     fn narrow(value: u64, field: &str) -> u32 {
         u32::try_from(value)
             .unwrap_or_else(|_| panic!("program table field `{field}` value {value} does not fit in u32"))
-    }
-    // Entry-frame locals use `fbp = 0`; callee params are written by
-    // CallParamInit rows before use.
-    for (idx, &value) in initial_locals.iter().enumerate() {
-        let address = vec![0u32, idx as u32];
-        preload.insert("locals", address.clone(), value);
-        preload.insert("locals_hi", address, 0);
     }
     for entry in &tables.program_decode {
         let pc = narrow(entry.pc, "program_decode.pc");

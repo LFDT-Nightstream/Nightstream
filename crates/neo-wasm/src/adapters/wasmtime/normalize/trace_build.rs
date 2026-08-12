@@ -33,13 +33,29 @@ pub(super) fn build_trace(
     initial_comm_chain: CommChainState,
     linear_memory: Option<LinearMemoryImage>,
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
-    let event_binding_active = grammar.is_some();
     let mut supported = Vec::new();
     for row in rows {
         if let Some(normalized) = normalize_step(row)? {
             supported.push(normalized);
         }
     }
+    // Import-free callers get the canonical single-shot grammar: an empty
+    // boundary template for the invoked export, so nothing is absorbed and
+    // host imports have no template to prove against.
+    let import_free_grammar;
+    let import_free_turns;
+    let (grammar_tables, turns) = match grammar {
+        Some((tables, turns)) => (tables, turns),
+        None => {
+            let export_fref = supported
+                .first()
+                .and_then(|first| first.current_function_ref)
+                .unwrap_or(0);
+            import_free_grammar = HostEventGrammar::import_free(export_fref);
+            import_free_turns = [crate::event_grammar::TurnClaims::default()];
+            (&import_free_grammar, &import_free_turns[..])
+        }
+    };
     let tracks_linear_memory = linear_memory.is_some();
     let mut linear_memory = linear_memory.unwrap_or_default();
     let mut out = Vec::with_capacity(supported.len());
@@ -69,7 +85,7 @@ pub(super) fn build_trace(
     // The verifier mirrors the first turn's entry schedule in
     // `grammar_top_level_initial_state`.
     let mut turn_index = 0usize;
-    let mut export_boundary = if let (Some((grammar_tables, turns)), Some(first)) = (grammar, supported.first()) {
+    let mut export_boundary = if let Some(first) = supported.first() {
         let claims = turns.first().ok_or_else(|| {
             WasmBuildError::Trace("event grammar requires claim words for at least the first turn".to_string())
         })?;
@@ -404,7 +420,6 @@ pub(super) fn build_trace(
                     max_memory_pages: current.max_memory_pages,
                     locals_fbp: current_fbp,
                     host_callee_fref,
-                    event_binding_active,
                     current_function_ref: current.current_function_ref.unwrap_or(0),
                     current_function_num_locals: current.num_locals,
                     halted: turn_done,
@@ -503,18 +518,15 @@ pub(super) fn build_trace(
             } else {
                 None
             };
-            let (grammar, _) = grammar.ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "host import fref {host_callee_fref} at cycle {} requires an event grammar",
-                    current.cycle
-                ))
-            })?;
-            let template = grammar.imports.get(&host_callee_fref).ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "no grammar template for host import fref {host_callee_fref} at cycle {}",
-                    current.cycle
-                ))
-            })?;
+            let template = grammar_tables
+                .imports
+                .get(&host_callee_fref)
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "no grammar template for host import fref {host_callee_fref} at cycle {}",
+                        current.cycle
+                    ))
+                })?;
             template.validate(param_count, result_count)?;
             let args_base = sp_before - index_pops as u64 - u64::from(param_count);
             grammar_plan = Some(
@@ -553,7 +565,7 @@ pub(super) fn build_trace(
         let mut exit_plans: Option<Vec<GrammarBlockPlan>> = None;
         let mut exit_counts: Option<(u32, u32)> = None;
         if halted && !trapped {
-            if let (Some(setup), Some((_, turns))) = (&export_boundary, grammar) {
+            if let Some(setup) = &export_boundary {
                 let plans = plan_turn_exit(
                     setup.template,
                     current,
@@ -598,7 +610,6 @@ pub(super) fn build_trace(
                 param_init: param_init_before,
                 tail_call_pending: tail_call_pending_before,
                 host_callee_fref: host_callee_fref_before,
-                event_binding_active,
                 comm_chain: comm_chain_before_row,
                 event_absorb: event_absorb_before_row,
                 grammar: grammar_state_before_row,
@@ -621,7 +632,6 @@ pub(super) fn build_trace(
                 param_init: param_init_after,
                 tail_call_pending: tail_call_pending_after,
                 host_callee_fref,
-                event_binding_active,
                 // The chain only moves on permutation rows.
                 comm_chain,
                 event_absorb,
@@ -783,7 +793,6 @@ pub(super) fn build_trace(
                         param_init: aux_param_init_before,
                         tail_call_pending,
                         host_callee_fref,
-                        event_binding_active,
                         comm_chain,
                         event_absorb,
                         grammar: grammar_state,
@@ -806,7 +815,6 @@ pub(super) fn build_trace(
                         param_init: aux_param_init_after,
                         tail_call_pending,
                         host_callee_fref,
-                        event_binding_active,
                         comm_chain,
                         event_absorb,
                         grammar: grammar_state,
@@ -895,7 +903,6 @@ pub(super) fn build_trace(
                 param_init: WasmCountdownState::ZERO,
                 tail_call_pending: true,
                 host_callee_fref,
-                event_binding_active,
                 comm_chain,
                 event_absorb,
                 grammar: grammar_state,
@@ -926,7 +933,6 @@ pub(super) fn build_trace(
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: fbp,
                 host_callee_fref,
-                event_binding_active,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
                 current_function_num_locals: current.num_locals,
                 halted: turn_done,
@@ -966,7 +972,6 @@ pub(super) fn build_trace(
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: fbp,
                 host_callee_fref,
-                event_binding_active,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
                 current_function_num_locals: current.num_locals,
                 halted: turn_done,
@@ -986,12 +991,6 @@ pub(super) fn build_trace(
         // Bridge to the next export and load its entry attribution and schedule.
         if halted && next.is_some() {
             let next_row = next.expect("checked");
-            let Some((grammar_tables, turns)) = grammar else {
-                return Err(WasmBuildError::Trace(format!(
-                    "trace re-enters an export at cycle {} but multi-turn requires an event grammar",
-                    next_row.cycle
-                )));
-            };
             turn_index += 1;
             let claims = turns.get(turn_index).ok_or_else(|| {
                 WasmBuildError::Trace(format!(
@@ -1023,7 +1022,6 @@ pub(super) fn build_trace(
                     param_init: WasmCountdownState::ZERO,
                     tail_call_pending: false,
                     host_callee_fref: host_fref,
-                    event_binding_active,
                     comm_chain,
                     event_absorb,
                     grammar: gstate,
@@ -1069,7 +1067,6 @@ pub(super) fn build_trace(
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: fbp,
                 host_callee_fref,
-                event_binding_active,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
                 current_function_num_locals: current.num_locals,
                 halted: true,
@@ -1094,14 +1091,12 @@ pub(super) fn build_trace(
             "wasmtime trace did not contain any currently supported wasm rows".to_string(),
         ));
     }
-    if let Some((_, turns)) = grammar {
-        if turn_index + 1 != turns.len() {
-            return Err(WasmBuildError::Trace(format!(
-                "trace ran {} turn(s) but {} turn claim sets were supplied",
-                turn_index + 1,
-                turns.len()
-            )));
-        }
+    if turn_index + 1 != turns.len() {
+        return Err(WasmBuildError::Trace(format!(
+            "trace ran {} turn(s) but {} turn claim sets were supplied",
+            turn_index + 1,
+            turns.len()
+        )));
     }
 
     Ok(out)

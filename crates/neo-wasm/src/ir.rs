@@ -192,7 +192,6 @@ pub struct WasmBoundaryState {
     pub param_init: WasmCountdownState,
     pub tail_call_pending: bool,
     pub host_callee_fref: u32,
-    pub event_binding_active: bool,
     pub comm_chain: [u64; 4],
     pub event_absorb: WasmEventAbsorbState,
     pub grammar: WasmGrammarState,
@@ -259,10 +258,6 @@ pub struct WasmStepState {
     /// (the event absorb) read it only on rows of the event that set it, so
     /// the stale value between events is inert.
     pub host_callee_fref: u32,
-    /// Whether verifier-authored event templates are active for this
-    /// execution. Disabled executions cannot call host imports or emit event
-    /// rows, but remain useful for proving import-free core WASM.
-    pub event_binding_active: bool,
     /// Host-event commitment chain state (canonical Goldilocks limbs; see
     /// [`crate::comm_chain`]). Genesis is all-zero; the last row of each
     /// absorbed block's `HostEventPerm` group folds the block in
@@ -571,7 +566,6 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     param_init: row.state_before.param_init,
                     tail_call_pending: row.state_before.tail_call_pending,
                     host_callee_fref: row.state_before.host_callee_fref,
-                    event_binding_active: row.state_before.event_binding_active,
                     comm_chain: row.state_before.comm_chain,
                     event_absorb: row.state_before.event_absorb,
                     grammar: row.state_before.grammar,
@@ -590,7 +584,6 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     param_init: row.state_after.param_init,
                     tail_call_pending: row.state_after.tail_call_pending,
                     host_callee_fref: row.state_after.host_callee_fref,
-                    event_binding_active: row.state_after.event_binding_active,
                     comm_chain: row.state_after.comm_chain,
                     event_absorb: row.state_after.event_absorb,
                     grammar: row.state_after.grammar,

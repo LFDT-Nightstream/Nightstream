@@ -36,12 +36,12 @@
 
 use super::super::gadgets::push_zero_test_gadget;
 use super::super::layout::{
-    COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_EVENT_BINDING_ACTIVE_AFTER,
-    COL_EVENT_BINDING_ACTIVE_BEFORE, COL_GATHER_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_ONE, COL_PERM_PENDING_AFTER,
-    COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
-    COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE, COL_STACK_READS,
-    COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
-    COL_STACK_WRITES, COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_GATHER_ACTIVE,
+    COL_HOST_CALLEE_FREF_AFTER, COL_ONE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER,
+    COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER,
+    COL_PERM_STATE_BEFORE, COL_STACK_READS, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
+    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::call::host_call_gate_terms;
@@ -53,7 +53,7 @@ use crate::comm_chain::{
 };
 use crate::ir::{WasmGrammarSlotKind, WasmVmStep};
 use neo_math::F;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{Field, PrimeCharacteristicRing};
 
 type R1csBuilder = WasmTaggedR1csBuilder;
 
@@ -82,6 +82,7 @@ define_column_region! {
         GMEM_LOCAL: Boolean => "memory pointer comes from an export local",
         GMEM_BYTE: Boolean => "byte-width grammar memory slot",
         GMEM_HALF: Boolean => "half-width grammar memory slot",
+        PRE_COUNT_MINUS_ONE_INV: Field => "turn-boundary nonempty-entry inverse witness",
     ]
 }
 
@@ -183,22 +184,6 @@ fn push_interface_constraints(b: &mut R1csBuilder) {
                 .into_iter()
                 .chain(host_call_gate_terms().map(|(column, coefficient)| (column, -coefficient))),
         );
-        b.push_linear_zero([
-            (COL_EVENT_BINDING_ACTIVE_AFTER, F::ONE),
-            (COL_EVENT_BINDING_ACTIVE_BEFORE, -F::ONE),
-        ]);
-        for gate in [
-            COL_GATHER_ACTIVE,
-            super::super::layout::COL_HOST_CALL_ACTIVE,
-            COL_TURN_BOUNDARY,
-        ] {
-            b.push_row(
-                [(gate, F::ONE)],
-                [(COL_ONE, F::ONE), (COL_EVENT_BINDING_ACTIVE_BEFORE, -F::ONE)],
-                [],
-            );
-        }
-
         // Disable the pc-to-function lookup on gather, permutation, turn
         // boundary, and padding rows, which do not execute a program
         // instruction.
@@ -337,6 +322,25 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [(COL_TURN_BOUNDARY, F::ONE)],
             [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE), (COL_ONE, F::ONE)],
             [],
+        );
+        // if col_turn_boundary then template_len != 0
+        //
+        // TODO: there may be a cleaner solution to this problem?
+        //
+        // basically this is here to force re-entrancy to leave a trace of how
+        // many times the export was re-entered
+        //
+        // otherwise there would be no way of differentiating a proof of f^n
+        // from a proof of f^m (and the final state may not reflect it either)
+        //
+        // note that if there is no-reentrancy then the template doesn't matter,
+        // so the case of proving a single function is fine
+        b.push_row(
+            // 0 means no template, 1 is empty (template len is x - 1)
+            [(PRE_COUNT, F::ONE), (COL_ONE, -F::ONE)],
+            [(PRE_COUNT_MINUS_ONE_INV, F::ONE)],
+            // if this is 1, PRE_COUNT must have an inverse, so it is non zero
+            [(COL_TURN_BOUNDARY, F::ONE)],
         );
 
         // Event index: the ROM key component walking the template.
@@ -712,22 +716,18 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [],
         );
 
-        // With event binding enabled, a clean halt transition loads
-        // the owning turn's exit schedule and repoints gather attribution
-        // from the last import to that export. This is independent of result
-        // capture, so constant-only exit templates also cover resultless
-        // exports.
-        b.push_row(
-            [(COL_EVENT_BINDING_ACTIVE_BEFORE, F::ONE)],
-            [
-                (COL_HALTED, F::ONE),
-                (COL_HALTED_BEFORE, -F::ONE),
-                (COL_TRAPPED_AFTER, -F::ONE),
-                (COL_TRAPPED_BEFORE, F::ONE),
-                (COL_TURN_BOUNDARY, F::ONE),
-            ],
-            [(COL_GRAMMAR_EXIT_LATCH, F::ONE)],
-        );
+        // A clean halt transition loads the owning turn's exit schedule and
+        // repoints gather attribution from the last import to that export.
+        // This is independent of result capture, so constant-only exit
+        // templates also cover resultless exports.
+        b.push_linear_zero([
+            (COL_HALTED, F::ONE),
+            (COL_HALTED_BEFORE, -F::ONE),
+            (COL_TRAPPED_AFTER, -F::ONE),
+            (COL_TRAPPED_BEFORE, F::ONE),
+            (COL_TURN_BOUNDARY, F::ONE),
+            (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
+        ]);
         b.push_row(
             [(COL_GRAMMAR_EXIT_LATCH, F::ONE)],
             [(EVREM_A, F::ONE), (POST_COUNT, -F::ONE)],
@@ -1034,13 +1034,19 @@ fn push_perm_row_shape_constraints(b: &mut R1csBuilder) {
     });
 }
 
-/// Witness fill of the gadget-internal column block for one row.
-///
-/// Reads the named interface columns (which must already be filled) for its
-/// gates, and the carried absorb state from the trace row. The S-box power
-/// columns are filled on *every* row with the powers of their linear input
-/// expression — on non-perm rows the round-constant selectors are zero, so
-/// the inputs degenerate to the carried permutation lanes.
+/// Recompute the turn-boundary entry-guard inverse from the named columns.
+/// Derived-only (like the range-check bits), so witness-tampering helpers can
+/// keep it consistent with caller-mutated declared columns.
+pub fn write_turn_entry_guard_witness(wit: &mut [F]) {
+    let delta = wit[super::super::layout::COL_GRAMMAR_PRE_COUNT] - F::ONE;
+    wit[PRE_COUNT_MINUS_ONE_INV] = if wit[super::super::layout::COL_TURN_BOUNDARY] == F::ONE {
+        delta.try_inverse().unwrap_or(F::ZERO)
+    } else {
+        F::ZERO
+    };
+}
+
+/// Fill the gadget-internal columns for one row.
 pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
     let before = trace.state_before.event_absorb;
@@ -1103,6 +1109,7 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     }
     // Host-call arg pops: GHC · ROM-bound param count.
     wit[GHC_PARAMS] = wit[super::super::layout::COL_HOST_CALL_ACTIVE] * wit[super::super::layout::COL_CALL_PARAM_COUNT];
+    write_turn_entry_guard_witness(wit);
     // Limb-selected values: filled on every row so the unconditional select
     // rows hold (the limb column is zero off gather rows).
     let read_lo = wit[super::super::layout::COL_STACK_READ_VALUE_LO[0]];

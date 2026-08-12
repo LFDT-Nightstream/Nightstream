@@ -38,10 +38,6 @@ define_column_region! {
         COL_PERM_STATE_AFTER: [Field; 12] => "chain permutation state after this row",
         COL_GATHER_ACTIVE: Boolean => "row staging one expanded event block into the absorb buffer",
         COL_HOST_CALL_ACTIVE: Boolean => "non-trapping host-import call row",
-        COL_EVENT_BINDING_ACTIVE_BEFORE: Boolean =>
-            "event-template binding is enabled for this execution before this row",
-        COL_EVENT_BINDING_ACTIVE_AFTER: Boolean =>
-            "event-template binding is enabled for this execution after this row",
         // Grammar schedule carry and the per-row verifier-owned ROM interface.
         COL_GRAMMAR_EVREM_BEFORE: Field => "grammar events still owed in the current phase, before this row",
         COL_GRAMMAR_EVREM_AFTER: Field => "grammar events still owed in the current phase, after this row",
@@ -70,7 +66,7 @@ define_column_region! {
         COL_GATHER_LOCAL_WRITE_LO: Boolean =>
             "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_variant)",
         COL_GRAMMAR_EXIT_LATCH: Boolean =>
-            "clean export-halt row with event binding enabled: loads the export's exit-event schedule",
+            "clean export-halt row: loads the export's exit-event schedule",
         COL_TURN_BOUNDARY: Boolean =>
             "multi-turn re-entry row: re-arms the output, loads the next export's entry schedule, jumps to its entry pc",
         COL_PC_FREF_ACTIVE: Boolean =>

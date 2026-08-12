@@ -267,7 +267,6 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     );
     debug_assert!(!tail_call_pending, "padding before a tail-enter aux row is unsupported");
     let host_callee_fref = prev.state_after.host_callee_fref;
-    let event_binding_active = prev.state_after.event_binding_active;
     let comm_chain = prev.state_after.comm_chain;
     let event_absorb = prev.state_after.event_absorb;
     let grammar = prev.state_after.grammar;
@@ -292,7 +291,6 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             param_init,
             tail_call_pending,
             host_callee_fref,
-            event_binding_active,
             comm_chain,
             event_absorb,
             grammar,
@@ -311,7 +309,6 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             param_init,
             tail_call_pending,
             host_callee_fref,
-            event_binding_active,
             comm_chain,
             event_absorb,
             grammar,

@@ -134,6 +134,25 @@ fn counter_component_wat() -> &'static str {
     "#
 }
 
+fn zero_local_component_wat() -> &'static str {
+    r#"
+    (component
+      (type $tick-type (func (result s32)))
+      (core module $m
+        (global $counter (mut i32) (i32.const 0))
+        (func (export "tick") (result i32)
+          global.get $counter
+          i32.const 1
+          i32.add
+          global.set $counter
+          global.get $counter))
+      (core instance $i (instantiate $m))
+      (alias core export $i "tick" (core func $tick))
+      (func (export "tick") (type $tick-type)
+        (canon lift (core func $tick))))
+    "#
+}
+
 /// Entry absorbs caller attribution and initializes local 0; exit absorbs the
 /// captured output.
 fn add_template() -> ExportTemplate {
@@ -259,6 +278,35 @@ fn expected_transcript(
 }
 
 #[test]
+fn multi_turn_rejects_an_empty_reentry_template() {
+    let component_bytes = wat::parse_str(zero_local_component_wat()).expect("component wat");
+    let mut runtime = TracedTestComponent::new(&component_bytes);
+    let mut first = [ComponentVal::S32(0)];
+    runtime.call("tick", &[], &mut first);
+    let mut second = [ComponentVal::S32(0)];
+    runtime.call("tick", &[], &mut second);
+    let run = runtime.finish();
+    let fref = run
+        .steps
+        .iter()
+        .find_map(|row| row.current_function_ref)
+        .expect("export fref");
+    let mut grammar = HostEventGrammar::default();
+    grammar.exports.insert(fref, ExportTemplate::default());
+    let error = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &[TurnClaims::default(), TurnClaims::default()],
+        Default::default(),
+    )
+    .expect_err("re-entry without an entry event must be rejected");
+    assert!(error
+        .to_string()
+        .contains("requires at least one entry event"));
+}
+
+#[test]
 fn turn_boundary_row_bridges_the_turns() {
     let setup = multi_turn_setup();
     let boundaries: Vec<&WasmVmStep> = setup
@@ -317,7 +365,8 @@ fn multi_turn_proof_binds_both_turns_inputs() {
         &setup.grammar,
         setup.add_fref,
         Default::default(),
-    );
+    )
+    .expect("grammar anchor");
     assert_eq!(
         digest,
         neo_wasm::semantic_state_digest(setup.trace[0].state_before),
@@ -380,6 +429,14 @@ fn ccs_rejects_forged_turn_boundary() {
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_GRAMMAR_EVREM_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "boundary skipping the next turn's entry schedule");
+
+    // Silent re-entry: a boundary claiming an EMPTY entry template (biased
+    // cell 1, zero events owed) would re-run the export without moving the
+    // transcript. The nonempty-entry guard has no satisfying inverse.
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_GRAMMAR_PRE_COUNT] = neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_GRAMMAR_EVREM_AFTER] = neo_math::F::ZERO;
+    common::assert_rejected(&forged, "boundary re-entering through an empty entry template");
 
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_SP_BEFORE] = neo_math::F::ONE;

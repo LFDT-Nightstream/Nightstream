@@ -15,16 +15,18 @@
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
 use crate::comm_chain::CommChainState;
-use crate::ir::{WasmCountdownState, WasmEventAbsorbState, WasmGrammarState, WasmOutputState, WasmStepState};
+use crate::ir::{
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmGrammarState, WasmOutputState, WasmStepState,
+};
 use crate::layout::Column;
 use crate::layout::{
-    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_EVENT_BINDING_ACTIVE_BEFORE,
-    COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_SLOT_CURSOR_BEFORE,
-    COL_HALTED_BEFORE, COL_HOST_CALLEE_FREF_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
-    COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE,
-    COL_PERM_ROUND_BEFORE, COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE,
-    COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_GRAMMAR_ARGS_BASE_BEFORE,
+    COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_HALTED_BEFORE,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
+    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
+    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE,
+    COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_BEFORE,
+    COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
@@ -158,31 +160,34 @@ pub fn preprocess_seeded_batched(
     )?)
 }
 
-/// Top-level VM state before executing an exported wasm function.
+/// Top-level VM state before executing an exported wasm function of an
+/// import-free program: [`grammar_top_level_initial_state`] specialized to
+/// the canonical import-free grammar (empty boundary template for the
+/// invoked export, zero commitment chain).
 ///
 /// The entry PC is an explicit verifier claim: callers should resolve it from
-/// the export they intend to prove. The remaining state is the canonical empty
-/// top-level call boundary plus the module's static initial memory page count.
+/// the export they intend to prove.
 pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> WasmStepState {
-    WasmStepState {
-        pc: entry_pc,
-        sp: 0,
-        stack_frame_base: 0,
-        output: WasmOutputState::ZERO,
-        call_stack_depth: 0,
-        memory_pages: tables.initial_memory_pages,
-        max_memory_pages: tables.max_memory_pages,
-        locals_fbp: 0,
-        halted: false,
-        trapped: false,
-        param_init: WasmCountdownState::ZERO,
-        tail_call_pending: false,
-        host_callee_fref: 0,
-        event_binding_active: false,
-        comm_chain: [0; 4],
-        event_absorb: WasmEventAbsorbState::ZERO,
-        grammar: WasmGrammarState::ZERO,
-    }
+    let export_fref = export_fref_for_entry_pc(tables, entry_pc);
+    grammar_top_level_initial_state(
+        tables,
+        entry_pc,
+        &crate::event_grammar::HostEventGrammar::import_free(export_fref),
+        export_fref,
+        CommChainState::default(),
+    )
+    .expect("canonical import-free grammar contains the selected export")
+}
+
+/// The function ref whose body starts at `entry_pc`; the verifier-side
+/// counterpart of the normalizer reading the entered export off the trace.
+pub(crate) fn export_fref_for_entry_pc(tables: &WasmProgramTables, entry_pc: u64) -> u32 {
+    tables
+        .function_entries
+        .iter()
+        .find(|&&(_, pc)| pc == entry_pc)
+        .map(|&(fref, _)| u32::try_from(fref).expect("function refs fit in u32"))
+        .unwrap_or_else(|| panic!("entry pc {entry_pc} is not a function entry"))
 }
 
 /// Hash a carried VM state into the IVC semantic-state digest: the
@@ -212,16 +217,45 @@ pub fn grammar_top_level_initial_state(
     grammar: &crate::event_grammar::HostEventGrammar,
     export_fref: u32,
     initial_comm_chain: CommChainState,
-) -> WasmStepState {
-    let mut state = top_level_initial_state(tables, entry_pc);
-    state.event_binding_active = true;
-    state.comm_chain = initial_comm_chain.canonical_u64();
-    if let Some(template) = grammar.exports.get(&export_fref) {
-        state.host_callee_fref = export_fref;
-        state.grammar.turn_export_fref = export_fref;
-        state.grammar.events_remaining = template.entry.len() as u32;
+) -> Result<WasmStepState, WasmBuildError> {
+    let entry_fref = tables
+        .function_entries
+        .iter()
+        .find(|&&(_, pc)| pc == entry_pc)
+        .map(|&(fref, _)| u32::try_from(fref).expect("function refs fit in u32"))
+        .ok_or_else(|| WasmBuildError::Trace(format!("entry pc {entry_pc} is not a function entry")))?;
+    if entry_fref != export_fref {
+        return Err(WasmBuildError::Trace(format!(
+            "export fref {export_fref} enters at a different pc than selected entry pc {entry_pc} (which belongs to fref {entry_fref})"
+        )));
     }
-    state
+    let template = grammar.exports.get(&export_fref).ok_or_else(|| {
+        WasmBuildError::Trace(format!(
+            "event grammar has no export template for selected export fref {export_fref}"
+        ))
+    })?;
+    let mut state = WasmStepState {
+        pc: entry_pc,
+        sp: 0,
+        stack_frame_base: 0,
+        output: WasmOutputState::ZERO,
+        call_stack_depth: 0,
+        memory_pages: tables.initial_memory_pages,
+        max_memory_pages: tables.max_memory_pages,
+        locals_fbp: 0,
+        halted: false,
+        trapped: false,
+        param_init: WasmCountdownState::ZERO,
+        tail_call_pending: false,
+        host_callee_fref: 0,
+        comm_chain: initial_comm_chain.canonical_u64(),
+        event_absorb: WasmEventAbsorbState::ZERO,
+        grammar: WasmGrammarState::ZERO,
+    };
+    state.host_callee_fref = export_fref;
+    state.grammar.turn_export_fref = export_fref;
+    state.grammar.events_remaining = template.entry.len() as u32;
+    Ok(state)
 }
 
 /// Convenience wrapper for the common top-level export-entry boundary.
@@ -236,14 +270,14 @@ pub fn grammar_top_level_initial_state_digest(
     grammar: &crate::event_grammar::HostEventGrammar,
     export_fref: u32,
     initial_comm_chain: CommChainState,
-) -> [u8; 32] {
-    semantic_state_digest(grammar_top_level_initial_state(
+) -> Result<[u8; 32], WasmBuildError> {
+    Ok(semantic_state_digest(grammar_top_level_initial_state(
         tables,
         entry_pc,
         grammar,
         export_fref,
         initial_comm_chain,
-    ))
+    )?))
 }
 
 fn carried_state_field(state: WasmStepState, column: Column) -> F {
@@ -282,7 +316,6 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
         COL_TAIL_CALL_PENDING_BEFORE => bool_field(state.tail_call_pending),
         COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
-        COL_EVENT_BINDING_ACTIVE_BEFORE => bool_field(state.event_binding_active),
         COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.grammar.turn_export_fref)),
         COL_GRAMMAR_EVREM_BEFORE => F::from_u64(u64::from(state.grammar.events_remaining)),
         COL_GRAMMAR_EVIDX_BEFORE => F::from_u64(u64::from(state.grammar.event_index)),

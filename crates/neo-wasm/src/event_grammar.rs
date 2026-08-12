@@ -303,13 +303,26 @@ pub struct TurnClaims {
 /// Per-program grammar: import templates keyed by callee function ref, and
 /// export boundary templates keyed by the exported function's ref.
 ///
-/// Import-free traces may omit the grammar entirely. Once event binding is
-/// enabled, every executed host import and entered export must have a
-/// matching template.
+/// Import-free traces use [`HostEventGrammar::import_free`]. Every executed
+/// host import and entered export must have a matching template.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct HostEventGrammar {
     pub imports: BTreeMap<u32, ImportTemplate>,
     pub exports: BTreeMap<u32, ExportTemplate>,
+}
+
+impl HostEventGrammar {
+    /// The canonical grammar of an import-free single-shot program: no import
+    /// templates (so host calls are unprovable) and an empty boundary
+    /// template for the invoked export (so nothing is absorbed and the
+    /// commitment chain provably stays at its initial value).
+    pub fn import_free(export_fref: u32) -> Self {
+        let mut grammar = Self::default();
+        grammar
+            .exports
+            .insert(export_fref, ExportTemplate::default());
+        grammar
+    }
 }
 
 impl ImportTemplate {

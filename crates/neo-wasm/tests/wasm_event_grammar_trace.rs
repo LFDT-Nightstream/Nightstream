@@ -139,7 +139,7 @@ fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
 
 /// Grammar trace for the two-call component, with claim words `[100]` for mul
 /// and `[]` for sink. The invoked export gets an empty boundary template
-/// (required when event binding is enabled; no boundary events for this test).
+/// (every entered export needs a template; no boundary events for this test).
 fn grammar_trace() -> Vec<WasmVmStep> {
     grammar_trace_from(Default::default())
 }
@@ -175,21 +175,16 @@ fn grammar_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<WasmV
     trace
 }
 
+/// The grammar-less normalizer runs under the canonical import-free grammar,
+/// so an executed host import has no template and is rejected.
 #[test]
 fn host_import_requires_event_grammar() {
     let run = run_component();
     let error = neo_wasm::traces_from_wasmtime_steps(&run.steps)
         .expect_err("host imports must not use an implicit event encoding");
-    assert!(error.to_string().contains("requires an event grammar"));
-}
-
-#[test]
-fn ccs_rejects_event_binding_flip() {
-    let trace = grammar_trace();
-    let mut witness = build_witness_vector(&trace[0]);
-    common::assert_satisfied(&witness, "untampered event-bound row");
-    witness[neo_wasm::layout::COL_EVENT_BINDING_ACTIVE_AFTER] = neo_math::F::ZERO;
-    common::assert_rejected(&witness, "row disabling event binding mid-trace");
+    assert!(error
+        .to_string()
+        .contains("no grammar template for host import"));
 }
 
 /// An i64-returning import: each result lane is written by the slot that
@@ -534,31 +529,6 @@ fn surplus_claim_words_are_rejected() {
         Default::default(),
     )
     .is_err());
-}
-
-/// Event rows require binding even when both carried flags are consistently off.
-#[test]
-fn ccs_rejects_event_rows_with_binding_off() {
-    let trace = grammar_trace();
-    let gather_row = trace
-        .iter()
-        .find(|row| row.row_kind.is_host_event_gather())
-        .expect("gather row");
-    let host_call_row = trace
-        .iter()
-        .find(|row| {
-            row.row_kind.is_program()
-                && matches!(row.opcode, neo_wasm::WasmOpcode::Call)
-                && !row.target_function_is_guest
-        })
-        .expect("host-call row");
-    for (row, label) in [(gather_row, "gather row"), (host_call_row, "host-call row")] {
-        let mut witness = build_witness_vector(row);
-        common::assert_satisfied(&witness, &format!("untampered {label}"));
-        witness[neo_wasm::layout::COL_EVENT_BINDING_ACTIVE_BEFORE] = neo_math::F::ZERO;
-        witness[neo_wasm::layout::COL_EVENT_BINDING_ACTIVE_AFTER] = neo_math::F::ZERO;
-        common::assert_rejected(&witness, &format!("{label} claiming event binding is off"));
-    }
 }
 
 /// A gather row staging a word that contradicts its (honest) ROM entry is

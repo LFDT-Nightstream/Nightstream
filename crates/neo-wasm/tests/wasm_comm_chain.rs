@@ -92,7 +92,7 @@ fn perm_row_checkpoints_match_commit_event() {
     }
 }
 
-/// A grammar trace with committed event blocks. Every row is CCS-checked, so
+/// A host-event trace with committed event blocks. Every row is CCS-checked, so
 /// the permutation rows themselves are exercised against the gadget.
 fn two_event_trace() -> Vec<WasmVmStep> {
     let trace = common::host_event_fixture::host_event_lifecycle_setup().trace;

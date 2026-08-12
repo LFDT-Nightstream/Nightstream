@@ -356,8 +356,8 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         call_stack_push: None,
         call_stack_pop: None,
         host_event_rom_slot: None,
-        host_event_pre_count: None,
-        host_event_post_count: None,
+        host_event_initial_schedule_count: None,
+        host_event_exit_schedule_count: None,
     }
 }
 

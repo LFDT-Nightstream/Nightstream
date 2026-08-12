@@ -1,6 +1,6 @@
 //! Host-event state shared with the WASM relation.
 //!
-//! This region owns the carried transcript, grammar schedule, and row-level
+//! This region owns the carried transcript, event schedule, and row-level
 //! interface columns that the base VM constrains or consumes. Poseidon and
 //! gather scratch advice remains private to `ccs::host_event_chain`.
 
@@ -17,8 +17,8 @@ define_column_region! {
             "callee function ref of the most recent host call before this row (event attribution carry)",
         COL_HOST_CALLEE_FREF_AFTER: U32 =>
             "callee function ref of the most recent host call after this row (event attribution carry)",
-        COL_TURN_EXPORT_FREF_BEFORE: U32 => "export function ref owning the current grammar turn before this row",
-        COL_TURN_EXPORT_FREF_AFTER: U32 => "export function ref owning the current grammar turn after this row",
+        COL_TURN_EXPORT_FREF_BEFORE: U32 => "export function ref owning the current host-event turn before this row",
+        COL_TURN_EXPORT_FREF_AFTER: U32 => "export function ref owning the current host-event turn after this row",
         COL_COMM_CHAIN_BEFORE: [Field; 4] => "host-event commitment chain before this row",
         COL_COMM_CHAIN_AFTER: [Field; 4] => "host-event commitment chain after this row",
         // The block buffer, pending flag, round cursor, and running state
@@ -38,34 +38,35 @@ define_column_region! {
         COL_PERM_STATE_AFTER: [Field; 12] => "chain permutation state after this row",
         COL_GATHER_ACTIVE: Boolean => "row staging one expanded event block into the absorb buffer",
         COL_HOST_CALL_ACTIVE: Boolean => "non-trapping host-import call row",
-        // Grammar schedule carry and the per-row verifier-owned ROM interface.
-        COL_GRAMMAR_EVREM_BEFORE: Field => "grammar events still owed in the current phase, before this row",
-        COL_GRAMMAR_EVREM_AFTER: Field => "grammar events still owed in the current phase, after this row",
-        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO: Boolean => "zero-test flag for the owed grammar events before this row",
-        COL_GRAMMAR_EVREM_BEFORE_INV: Field => "inverse witness for the owed grammar events before this row",
-        COL_GRAMMAR_EVIDX_BEFORE: Field => "current grammar event index within the template, before this row",
-        COL_GRAMMAR_EVIDX_AFTER: Field => "current grammar event index within the template, after this row",
-        COL_GRAMMAR_ARGS_BASE_BEFORE: Field =>
+        // Host-event schedule carry and the per-row verifier-owned ROM interface.
+        COL_HOST_EVENTS_REMAINING_BEFORE: Field => "host events still owed in the current phase, before this row",
+        COL_HOST_EVENTS_REMAINING_AFTER: Field => "host events still owed in the current phase, after this row",
+        COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO: Boolean => "zero-test flag for the owed host events before this row",
+        COL_HOST_EVENTS_REMAINING_BEFORE_INV: Field => "inverse witness for the owed host events before this row",
+        COL_HOST_EVENT_INDEX_BEFORE: Field => "current host-event index within the template, before this row",
+        COL_HOST_EVENT_INDEX_AFTER: Field => "current host-event index within the template, after this row",
+        COL_HOST_EVENT_ARGS_BASE_BEFORE: Field =>
             "stack slot index of the current call's first argument, before this row",
-        COL_GRAMMAR_ARGS_BASE_AFTER: Field =>
+        COL_HOST_EVENT_ARGS_BASE_AFTER: Field =>
             "stack slot index of the current call's first argument, after this row",
-        COL_GRAMMAR_SLOT_CURSOR_BEFORE: Field => "next block word a gather row stages (0..=7), before this row",
-        COL_GRAMMAR_SLOT_CURSOR_AFTER: Field => "next block word a gather row stages (0..=7), after this row",
-        COL_GRAMMAR_SLOT_KIND: Field =>
+        COL_HOST_EVENT_SLOT_CURSOR_BEFORE: Field => "next block word a gather row stages (0..=7), before this row",
+        COL_HOST_EVENT_SLOT_CURSOR_AFTER: Field => "next block word a gather row stages (0..=7), after this row",
+        COL_HOST_EVENT_SLOT_KIND: Field =>
             "host-event ROM slot binding kind (0 const, 1 arg, 2 result, 3 input, 4 input-local, 5 output, 6 memory-read, 7 memory-write)",
-        COL_GRAMMAR_SLOT_ARG: Field => "host-event ROM slot argument or input index",
-        COL_GRAMMAR_SLOT_VARIANT: Field =>
+        COL_HOST_EVENT_SLOT_ARG: Field => "host-event ROM slot argument or input index",
+        COL_HOST_EVENT_SLOT_VARIANT: Field =>
             "encoded host-event ROM slot variant: value kinds use 0 lo / 1 hi; memory kinds use bit 0 for local base, bit 1 for byte width, and bit 2 for half width",
-        COL_GRAMMAR_SLOT_CONST_LO: Field => "host-event ROM slot constant, low 32 bits",
-        COL_GRAMMAR_SLOT_CONST_HI: Field => "host-event ROM slot constant, high 32 bits",
-        COL_GRAMMAR_PRE_COUNT: Field =>
-            "host-event ROM event count for the called import / entered export (biased +1)",
-        COL_GRAMMAR_POST_COUNT: Field => "host-event ROM exit-event count for the halting export",
+        COL_HOST_EVENT_SLOT_CONST_LO: Field => "host-event ROM slot constant, low 32 bits",
+        COL_HOST_EVENT_SLOT_CONST_HI: Field => "host-event ROM slot constant, high 32 bits",
+        COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT: Field =>
+            "host-event ROM initial-schedule count for the called import or entered export (biased +1; reread to offset export-exit indices)",
+        COL_HOST_EVENT_EXIT_SCHEDULE_COUNT: Field =>
+            "host-event ROM exit-schedule count for the halting export",
         COL_GATHER_LOCAL_WRITE: Boolean =>
             "gather row writing an input word into an entry-frame locals lane (slot kind 4); gates the hi-lane write (zero on lo rows)",
         COL_GATHER_LOCAL_WRITE_LO: Boolean =>
             "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_variant)",
-        COL_GRAMMAR_EXIT_LATCH: Boolean =>
+        COL_HOST_EVENT_EXIT_LATCH: Boolean =>
             "clean export-halt row: loads the export's exit-event schedule",
         COL_TURN_BOUNDARY: Boolean =>
             "multi-turn re-entry row: re-arms the output, loads the next export's entry schedule, jumps to its entry pc",

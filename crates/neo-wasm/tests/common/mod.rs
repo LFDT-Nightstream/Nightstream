@@ -80,7 +80,7 @@ pub fn sanity_check_trace(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts
         witnesses.push(witness);
     }
     let mut preload = preload_from_program_artifacts(artifacts);
-    // Import-free traces run under the canonical single-shot grammar; the
+    // Import-free traces run under the canonical single-shot bindings; the
     // exit latch reads its (biased) export count cells.
     let export_fref = trace
         .first()
@@ -212,8 +212,8 @@ pub fn step(
         // A clean halt fires the exit latch, which re-reads the (biased)
         // entry-count cell and the exit count; the empty boundary template
         // of a single-shot row is (1, 0).
-        host_event_pre_count: (halted && !trapped).then_some(1),
-        host_event_post_count: (halted && !trapped).then_some(0),
+        host_event_initial_schedule_count: (halted && !trapped).then_some(1),
+        host_event_exit_schedule_count: (halted && !trapped).then_some(0),
     }
 }
 

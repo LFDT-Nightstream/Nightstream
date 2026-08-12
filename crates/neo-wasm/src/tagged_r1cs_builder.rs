@@ -15,7 +15,7 @@ pub enum WasmConstraintScope {
     /// Relation-wide VM invariant without a narrower semantic owner.
     Always,
     /// Constraint owned by the host-event state machine. The label identifies
-    /// its grammar, buffering, or permutation phase.
+    /// its event-binding, buffering, or permutation phase.
     HostEvent,
     Opcode(WasmOpcode),
     Opcodes(Box<[WasmOpcode]>),

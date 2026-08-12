@@ -7,12 +7,13 @@ use super::layout::{
     COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
     COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE,
     COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
-    COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT,
-    COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_BEFORE,
-    COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER,
-    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_CALL_ACTIVE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
-    COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4,
-    COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
+    COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_CALL_ACTIVE,
+    COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_BEFORE,
+    COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CONST_HI,
+    COL_HOST_EVENT_SLOT_CONST_LO, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_HOST_EVENT_SLOT_KIND,
+    COL_HOST_EVENT_SLOT_VARIANT, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
+    COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
+    COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_3,
     COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_DOUBLE_WIDTH_OFFSET_IS_1,
@@ -960,101 +961,103 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         // Event-template ROMs (see `docs/host-event-grammar-tables.md` §3.4):
         // per-slot source descriptors keyed by (fref, event index, slot
         // cursor) read on gather rows, and per-import event counts read on
-        // grammar call/result rows. Content is generated from the embedder's
+        // host-call/result rows. Content is generated from the embedder's
         // `HostEventBindings` (see `host_event_bindings::preload_host_event_tables`).
         rom_read_spec(
-            "grammar_slot_kind",
+            "host_event_slot_kind",
             vec![
                 Column(COL_HOST_CALLEE_FREF_BEFORE),
-                Column(COL_GRAMMAR_EVIDX_BEFORE),
-                Column(COL_GRAMMAR_SLOT_CURSOR_BEFORE),
+                Column(COL_HOST_EVENT_INDEX_BEFORE),
+                Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_GRAMMAR_SLOT_KIND),
+            Column(COL_HOST_EVENT_SLOT_KIND),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
-            "grammar_slot_arg",
+            "host_event_slot_arg",
             vec![
                 Column(COL_HOST_CALLEE_FREF_BEFORE),
-                Column(COL_GRAMMAR_EVIDX_BEFORE),
-                Column(COL_GRAMMAR_SLOT_CURSOR_BEFORE),
+                Column(COL_HOST_EVENT_INDEX_BEFORE),
+                Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_GRAMMAR_SLOT_ARG),
+            Column(COL_HOST_EVENT_SLOT_ARG),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
-            "grammar_slot_variant",
+            "host_event_slot_variant",
             vec![
                 Column(COL_HOST_CALLEE_FREF_BEFORE),
-                Column(COL_GRAMMAR_EVIDX_BEFORE),
-                Column(COL_GRAMMAR_SLOT_CURSOR_BEFORE),
+                Column(COL_HOST_EVENT_INDEX_BEFORE),
+                Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_GRAMMAR_SLOT_VARIANT),
+            Column(COL_HOST_EVENT_SLOT_VARIANT),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
-            "grammar_slot_const_lo",
+            "host_event_slot_const_lo",
             vec![
                 Column(COL_HOST_CALLEE_FREF_BEFORE),
-                Column(COL_GRAMMAR_EVIDX_BEFORE),
-                Column(COL_GRAMMAR_SLOT_CURSOR_BEFORE),
+                Column(COL_HOST_EVENT_INDEX_BEFORE),
+                Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_GRAMMAR_SLOT_CONST_LO),
+            Column(COL_HOST_EVENT_SLOT_CONST_LO),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
-            "grammar_slot_const_hi",
+            "host_event_slot_const_hi",
             vec![
                 Column(COL_HOST_CALLEE_FREF_BEFORE),
-                Column(COL_GRAMMAR_EVIDX_BEFORE),
-                Column(COL_GRAMMAR_SLOT_CURSOR_BEFORE),
+                Column(COL_HOST_EVENT_INDEX_BEFORE),
+                Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_GRAMMAR_SLOT_CONST_HI),
+            Column(COL_HOST_EVENT_SLOT_CONST_HI),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
-        // Import pre-counts and export entry-counts are SEPARATE families so
-        // a PRE_COUNT read can never land on the other kind's cell: turn
+        // Import schedule counts and export entry-schedule counts are
+        // SEPARATE families so an initial-schedule count read can never land
+        // on the other kind's cell: turn
         // boundaries and exit latches see only export entry cells, while
-        // host-call rows see only import pre-count cells. These cells store
+        // host-call rows see only import schedule cells. These cells store
         // count + 1 ("presence bias"): an undeclared fref
         // reads 0 and the load rows subtract 1, poisoning the schedule to
-        // EVREM = -1 = p-1 (EVREM is field-width; the row itself stays
-        // satisfiable). Each completed event block decrements EVREM and
-        // increments EVIDX. While EVREM is nonzero, program, result, and
-        // boundary rows cannot execute, so EVIDX cannot reset. Every gather
-        // uses EVIDX as an active host-event ROM address component; the Nebula
+        // events_remaining = -1 = p-1 (the countdown is field-width; the row
+        // itself stays satisfiable). Each completed event block decrements
+        // events_remaining and increments event_index. While events_remaining
+        // is nonzero, program, result, and boundary rows cannot execute, so
+        // event_index cannot reset. Every gather uses event_index as an active
+        // host-event ROM address component; the Nebula
         // memory binding range-proves address components to at most 32 bits
         // (and to the family's narrower configured width). Field addition
         // does not wrap at 2^32, so after at most 2^32 blocks the next gather
-        // is unsatisfiable while EVREM remains nonzero. The trace therefore
+        // is unsatisfiable while events_remaining remains nonzero. The trace therefore
         // cannot halt, enforcing template presence in the composed circuit
         // without preprocessing validation.
         WasmMemorySpec {
-            name: "grammar_import_pre_counts",
+            name: "host_event_import_schedule_counts",
             columns: vec![WasmMemoryColumnSpec {
                 address_columns: vec![Column(COL_FUNCTION_REF)],
-                value_column: Column(COL_GRAMMAR_PRE_COUNT),
+                value_column: Column(COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT),
                 kind: WasmMemoryColumnKind::Read,
                 activation: WasmMemoryActivation::BooleanGate(Column(COL_HOST_CALL_ACTIVE)),
             }],
             is_rom: true,
         },
         WasmMemorySpec {
-            name: "grammar_export_entry_counts",
+            name: "host_event_export_entry_schedule_counts",
             columns: vec![
                 // Exit latch: re-reads the export's entry count to continue
                 // the event numbering for exit events.
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_TURN_EXPORT_FREF_BEFORE)],
-                    value_column: Column(COL_GRAMMAR_PRE_COUNT),
+                    value_column: Column(COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT),
                     kind: WasmMemoryColumnKind::Read,
-                    activation: WasmMemoryActivation::BooleanGate(Column(COL_GRAMMAR_EXIT_LATCH)),
+                    activation: WasmMemoryActivation::BooleanGate(Column(COL_HOST_EVENT_EXIT_LATCH)),
                 },
                 // Turn boundary: loads the entered export's entry-event
                 // count as the next turn's owed schedule.
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_HOST_CALLEE_FREF_AFTER)],
-                    value_column: Column(COL_GRAMMAR_PRE_COUNT),
+                    value_column: Column(COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT),
                     kind: WasmMemoryColumnKind::Read,
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_TURN_BOUNDARY)),
                 },
@@ -1064,10 +1067,10 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         // Exit latch: the export's exit-event count. Raw (no presence
         // bias): the turn's export fref was bound at entry.
         rom_read_spec(
-            "grammar_export_exit_counts",
+            "host_event_export_exit_schedule_counts",
             vec![Column(COL_TURN_EXPORT_FREF_BEFORE)],
-            Column(COL_GRAMMAR_POST_COUNT),
-            WasmMemoryActivation::BooleanGate(Column(COL_GRAMMAR_EXIT_LATCH)),
+            Column(COL_HOST_EVENT_EXIT_SCHEDULE_COUNT),
+            WasmMemoryActivation::BooleanGate(Column(COL_HOST_EVENT_EXIT_LATCH)),
         ),
         WasmMemorySpec {
             name: "pc_rom",

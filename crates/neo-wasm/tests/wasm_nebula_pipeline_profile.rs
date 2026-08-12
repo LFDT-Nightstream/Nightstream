@@ -255,7 +255,7 @@ fn wasm_nebula_relation_structure_census() {
             stats.application_columns,
             stats.application_nnz,
         ),
-        (50_592, 23_226, 209_247),
+        (50_575, 23_223, 209_199),
         "application R1CS structure changed; review the structural census",
     );
     assert_eq!(

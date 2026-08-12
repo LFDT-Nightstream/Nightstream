@@ -27,7 +27,7 @@ use crate::memory_routing::{build_batched_memory_slots, build_single_step_memory
 use crate::memory_semantics::preload_grammar_tables;
 use crate::preprocess::{
     canonical_wasm_nebula_shape_batched_with_initial_state_digest, grammar_top_level_initial_state_digest,
-    semantic_state_digest, top_level_initial_state_digest, WasmPreprocessError,
+    semantic_state_digest, WasmPreprocessError,
 };
 use crate::relation_layout::build_wasm_relation_layout;
 use crate::witness_builder::build_witness_vector;
@@ -337,21 +337,30 @@ fn preprocess_inner(
     seed: Option<u64>,
     mode: PreprocessMode,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
-    let initial_state = match grammar {
-        Some((grammar, export_fref, initial_comm_chain)) => grammar_top_level_initial_state_digest(
-            &artifacts.tables,
-            entry_pc,
-            grammar,
-            export_fref,
-            initial_comm_chain,
-        ),
-        None => top_level_initial_state_digest(&artifacts.tables, entry_pc),
+    // Import-free preprocessing uses the canonical single-shot grammar, so
+    // the ROM image and the initial anchor match what the normalizer emits
+    // for plain traces.
+    let import_free_grammar;
+    let (grammar_tables, export_fref, initial_comm_chain) = match grammar {
+        Some((grammar, export_fref, initial_comm_chain)) => (grammar, export_fref, initial_comm_chain),
+        None => {
+            let export_fref = crate::preprocess::export_fref_for_entry_pc(&artifacts.tables, entry_pc);
+            import_free_grammar = HostEventGrammar::import_free(export_fref);
+            (&import_free_grammar, export_fref, CommChainState::default())
+        }
     };
+    let initial_state = grammar_top_level_initial_state_digest(
+        &artifacts.tables,
+        entry_pc,
+        grammar_tables,
+        export_fref,
+        initial_comm_chain,
+    )?;
     let canonical = canonical_wasm_nebula_shape_batched_with_initial_state_digest(profile.batch_size, initial_state)?;
     let backend = build_memory_backend(
         artifacts,
         initial_locals,
-        grammar.map(|(grammar, _, _)| grammar),
+        Some(grammar_tables),
         &profile,
         canonical.single_step_columns,
     )?;
@@ -680,10 +689,15 @@ fn validate_linear_memory_limits(
 }
 
 fn reject_host_trace(trace: &[WasmVmStep]) -> Result<(), WasmNebulaError> {
+    // Import-free preprocessing anchors the canonical single-shot grammar:
+    // nothing absorbed, no re-entry. Any host-call, gather, or turn row means
+    // the trace was normalized against a richer grammar than this prep.
     let has_host_row = trace.iter().any(|row| {
-        matches!(row.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
+        (matches!(row.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
             && row.function_ref.is_some()
-            && !row.target_function_is_guest
+            && !row.target_function_is_guest)
+            || row.row_kind.is_host_event_gather()
+            || row.row_kind.is_turn_boundary()
     });
     if has_host_row {
         return Err(WasmNebulaError::HostImportsUnsupported);
@@ -693,6 +707,8 @@ fn reject_host_trace(trace: &[WasmVmStep]) -> Result<(), WasmNebulaError> {
 
 #[derive(Debug, Error)]
 pub enum WasmNebulaError {
+    #[error(transparent)]
+    WasmBuild(#[from] crate::ir::WasmBuildError),
     #[error(transparent)]
     LookupCircuit(#[from] LookupCircuitError),
     #[error(transparent)]

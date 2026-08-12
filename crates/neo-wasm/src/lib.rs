@@ -37,6 +37,7 @@ pub use adapters::wasmtime::{
     WasmProgramDecodeEntry, WasmProgramTables, WasmTraceSink, WasmtimeTraceHandler, WasmtimeTraceMemoryAccess,
     WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
 };
+pub use ccs::host_event_chain::write_turn_entry_guard_witness;
 pub use ccs::WasmVmSpec;
 pub use comm_chain::CommChainState;
 pub use ir::{

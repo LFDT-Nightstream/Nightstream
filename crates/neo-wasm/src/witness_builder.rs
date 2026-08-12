@@ -117,16 +117,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_PARAM_INIT_REMAINING_AFTER_INV] = remaining_inv;
     wit[COL_HOST_CALLEE_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_callee_fref));
     wit[COL_HOST_CALLEE_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.host_callee_fref));
-    wit[crate::layout::COL_EVENT_BINDING_ACTIVE_BEFORE] = if trace.state_before.event_binding_active {
-        F::ONE
-    } else {
-        F::ZERO
-    };
-    wit[crate::layout::COL_EVENT_BINDING_ACTIVE_AFTER] = if trace.state_after.event_binding_active {
-        F::ONE
-    } else {
-        F::ZERO
-    };
     wit[COL_TURN_EXPORT_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.grammar.turn_export_fref));
     wit[COL_TURN_EXPORT_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.grammar.turn_export_fref));
     for (i, (before_col, after_col)) in COL_COMM_CHAIN_BEFORE
@@ -1049,12 +1039,8 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
             .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant.is_high_limb());
     wit[crate::layout::COL_STACK_WRITE0_HI_ACTIVE] =
         wit[crate::layout::COL_STACK_WRITE0_ACTIVE] + bool_f(result_hi_gather);
-    wit[COL_GRAMMAR_EXIT_LATCH] = bool_f(
-        trace.state_before.event_binding_active
-            && !trace.state_before.halted
-            && trace.state_after.halted
-            && !trace.state_after.trapped,
-    );
+    wit[COL_GRAMMAR_EXIT_LATCH] =
+        bool_f(!trace.state_before.halted && trace.state_after.halted && !trace.state_after.trapped);
     wit[crate::layout::COL_TURN_BOUNDARY] = bool_f(trace.row_kind.is_turn_boundary());
 
     // Grammar gather machinery: carried schedule/cursor/oracle state plus

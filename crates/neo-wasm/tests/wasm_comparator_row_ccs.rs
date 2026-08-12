@@ -42,7 +42,6 @@ fn step(
             param_init: WasmCountdownState::ZERO,
             tail_call_pending: false,
             host_callee_fref: 0,
-            event_binding_active: false,
             comm_chain: [0; 4],
             event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
             grammar: neo_wasm::WasmGrammarState::ZERO,

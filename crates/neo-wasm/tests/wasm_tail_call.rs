@@ -1,11 +1,11 @@
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
-use neo_wasm::event_grammar::{
-    ExportTemplate, GrammarEvent, HostEventGrammar, ImportTemplate, Limb, SlotSource, TurnClaims,
+use neo_wasm::host_event_bindings::{
+    EventBlock, ExportTemplate, HostEventBindings, ImportTemplate, Limb, SlotBinding, TurnInputs,
 };
 use neo_wasm::{
-    collect_wasmtime_component_run_with_linker, traces_from_wasmtime_steps_with_grammar,
+    collect_wasmtime_component_run_with_linker, traces_from_wasmtime_steps_with_host_events,
     witness_builder::build_witness_vector, WasmAuxOpcode, WasmBuildError, WasmOpcode, WasmRowKind,
 };
 
@@ -138,7 +138,7 @@ fn return_call_indirect_trap_does_not_enter_a_frame() {
 }
 
 #[test]
-fn grammar_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call() {
+fn host_event_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call() {
     let component = wat::parse_str(
         r#"(component
             (type $touch-type (func (param "x" s32)))
@@ -184,24 +184,24 @@ fn grammar_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call()
         .expect("import function ref");
     assert_ne!(import_fref, export_fref);
 
-    let mut slots = [SlotSource::Const(0); COMM_CHAIN_EVENT_ARGS];
-    slots[0] = SlotSource::OutputElem { limb: Limb::Lo };
-    let mut grammar = HostEventGrammar::default();
-    grammar
+    let mut slots = [SlotBinding::Const(0); COMM_CHAIN_EVENT_ARGS];
+    slots[0] = SlotBinding::OutputElem { limb: Limb::Lo };
+    let mut bindings = HostEventBindings::default();
+    bindings
         .imports
         .insert(import_fref, ImportTemplate::default());
-    grammar.exports.insert(
+    bindings.exports.insert(
         export_fref,
         ExportTemplate {
-            exit: vec![GrammarEvent::op(17, slots)],
+            exit: vec![EventBlock::op(17, slots)],
             ..Default::default()
         },
     );
-    let trace = traces_from_wasmtime_steps_with_grammar(
+    let trace = traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
-        &grammar,
-        &[TurnClaims::default()],
+        &bindings,
+        &[TurnInputs::default()],
         Default::default(),
     )
     .expect("guest tail call with event binding");
@@ -216,14 +216,14 @@ fn grammar_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call()
         capture.current_function_ref, export_fref,
         "the tail callee halts the turn"
     );
-    assert_eq!(capture.state_before.grammar.turn_export_fref, export_fref);
+    assert_eq!(capture.state_before.host_events.turn_export_fref, export_fref);
     let exit_rows: Vec<_> = trace
         .iter()
         .filter(|row| row.row_kind.is_host_event_gather())
         .collect();
     assert_eq!(exit_rows.len(), 8);
     assert!(exit_rows.iter().all(|row| {
-        row.state_before.host_callee_fref == export_fref && row.state_before.grammar.turn_export_fref == export_fref
+        row.state_before.host_callee_fref == export_fref && row.state_before.host_events.turn_export_fref == export_fref
     }));
     assert_eq!(
         exit_rows
@@ -237,10 +237,10 @@ fn grammar_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call()
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component).expect("program artifacts");
     let mut preload = neo_wasm::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
     let witnesses: Vec<_> = trace.iter().map(build_witness_vector).collect();
     neo_wasm::sanity_check_memory_rows(neo_wasm::build_wasm_relation_layout(), &witnesses, &preload)
-        .expect("memory and grammar ROM bindings");
+        .expect("memory and bindings ROM bindings");
 }
 
 #[test]
@@ -248,11 +248,12 @@ fn return_call_to_an_import_remains_explicitly_unsupported() {
     let component = wat::parse_str(
         r#"(component
             (type $identity-type (func (param "x" s32) (result s32)))
+            (type $run-type (func (result s32)))
             (import "host-identity" (func $host-identity (type $identity-type)))
             (core module $m
                 (import "" "0" (func $identity (param i32) (result i32)))
-                (func (export "run") (param i32) (result i32)
-                    local.get 0
+                (func (export "run") (result i32)
+                    i32.const 7
                     return_call $identity))
             (core func $lowered-identity (canon lower (func $host-identity)))
             (core instance $host
@@ -261,21 +262,16 @@ fn return_call_to_an_import_remains_explicitly_unsupported() {
                 (instantiate $m
                     (with "" (instance $host))))
             (alias core export $i "run" (core func $run))
-            (func (export "run") (type $identity-type)
+            (func (export "run") (type $run-type)
                 (canon lift (core func $run))))"#,
     )
     .expect("valid component");
-    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
-        &component,
-        "run",
-        &[wasmtime::component::Val::S32(7)],
-        |linker| {
-            linker
-                .root()
-                .func_wrap("host-identity", |_store, (x,): (i32,)| Ok((x,)))
-                .map_err(|err| WasmBuildError::Trace(format!("failed to define host-identity: {err}")))
-        },
-    )
+    let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component, "run", &[], |linker| {
+        linker
+            .root()
+            .func_wrap("host-identity", |_store, (x,): (i32,)| Ok((x,)))
+            .map_err(|err| WasmBuildError::Trace(format!("failed to define host-identity: {err}")))
+    })
     .expect("component trace");
     let err = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect_err("import tail call must fail explicitly");
     assert!(matches!(err, WasmBuildError::Unsupported(_)));

@@ -1,5 +1,5 @@
 use super::gadgets::{unsigned_ge_witness, zero_test_witness_field, zero_test_witness_u64};
-use super::ir::{pack_function_call_metadata, WasmGrammarSlotKind, WasmRowKind, WasmVmStep};
+use super::ir::{pack_function_call_metadata, WasmHostEventSlotKind, WasmRowKind, WasmVmStep};
 use super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CALL_INDIRECT_TYPE_INDEX,
     COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE,
@@ -117,8 +117,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_PARAM_INIT_REMAINING_AFTER_INV] = remaining_inv;
     wit[COL_HOST_CALLEE_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_callee_fref));
     wit[COL_HOST_CALLEE_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.host_callee_fref));
-    wit[COL_TURN_EXPORT_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.grammar.turn_export_fref));
-    wit[COL_TURN_EXPORT_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.grammar.turn_export_fref));
+    wit[COL_TURN_EXPORT_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_events.turn_export_fref));
+    wit[COL_TURN_EXPORT_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.host_events.turn_export_fref));
     for (i, (before_col, after_col)) in COL_COMM_CHAIN_BEFORE
         .into_iter()
         .zip(COL_COMM_CHAIN_AFTER)
@@ -237,10 +237,10 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_OP_TABLE_ENABLED] = if trace.info.uses_op_table { F::ONE } else { F::ZERO };
     let is_core_linear_memory = trace.row_kind.is_program() && trace.opcode.uses_linear_memory();
     let is_grammar_byte_memory = trace
-        .grammar_rom_slot
+        .host_event_rom_slot
         .is_some_and(|rom| rom.variant.uses_byte_memory_width());
     let is_grammar_half_memory = trace
-        .grammar_rom_slot
+        .host_event_rom_slot
         .is_some_and(|rom| rom.variant.uses_half_memory_width());
     let is_grammar_subword_memory = is_grammar_byte_memory || is_grammar_half_memory;
     wit[COL_LINEAR_MEM_USE_LANE0] = if is_core_linear_memory { F::ONE } else { F::ZERO };
@@ -705,7 +705,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         trace.opcode,
         super::isa::WasmOpcode::LocalGet | super::isa::WasmOpcode::LocalSet | super::isa::WasmOpcode::LocalTee
     ) || trace.row_kind.is_call_param_init()
-        // Bootstrap gather rows write claim inputs into the locals family.
+        // Bootstrap gather rows write runtime inputs into the locals family.
         || trace.row_kind.is_host_event_gather()
     {
         if let Some(idx) = trace.local_index {
@@ -1015,8 +1015,8 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[crate::layout::COL_HOST_CALL_ACTIVE] = host_call_gate;
     wit[COL_GATHER_LOCAL_WRITE] = if trace.row_kind.is_host_event_gather()
         && trace
-            .grammar_rom_slot
-            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::ClaimLocal)
+            .host_event_rom_slot
+            .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::InputLocal)
     {
         F::ONE
     } else {
@@ -1024,8 +1024,8 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     };
     wit[COL_GATHER_LOCAL_WRITE_LO] = if trace.row_kind.is_host_event_gather()
         && trace
-            .grammar_rom_slot
-            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::ClaimLocal && rom.variant.is_low_limb())
+            .host_event_rom_slot
+            .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::InputLocal && rom.variant.is_low_limb())
     {
         F::ONE
     } else {
@@ -1035,18 +1035,18 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     // result-hi gather rows (which write only the pushed cell's hi lane).
     let result_hi_gather = trace.row_kind.is_host_event_gather()
         && trace
-            .grammar_rom_slot
-            .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Result && rom.variant.is_high_limb());
+            .host_event_rom_slot
+            .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::Result && rom.variant.is_high_limb());
     wit[crate::layout::COL_STACK_WRITE0_HI_ACTIVE] =
         wit[crate::layout::COL_STACK_WRITE0_ACTIVE] + bool_f(result_hi_gather);
     wit[COL_GRAMMAR_EXIT_LATCH] =
         bool_f(!trace.state_before.halted && trace.state_after.halted && !trace.state_after.trapped);
     wit[crate::layout::COL_TURN_BOUNDARY] = bool_f(trace.row_kind.is_turn_boundary());
 
-    // Grammar gather machinery: carried schedule/cursor/oracle state plus
-    // the per-row grammar-ROM interface columns.
-    let g_before = trace.state_before.grammar;
-    let g_after = trace.state_after.grammar;
+    // Host-event gather machinery: carried schedule/cursor state plus
+    // the per-row host-event ROM interface columns.
+    let g_before = trace.state_before.host_events;
+    let g_after = trace.state_after.host_events;
     wit[COL_GRAMMAR_EVREM_BEFORE] = F::from_u64(u64::from(g_before.events_remaining));
     wit[COL_GRAMMAR_EVREM_AFTER] = F::from_u64(u64::from(g_after.events_remaining));
     let (evrem_is_zero, evrem_inv) = zero_test_witness_u64(u64::from(g_before.events_remaining));
@@ -1058,18 +1058,18 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_GRAMMAR_ARGS_BASE_AFTER] = F::from_u64(g_after.args_base);
     wit[COL_GRAMMAR_SLOT_CURSOR_BEFORE] = F::from_u64(u64::from(g_before.slot_cursor));
     wit[COL_GRAMMAR_SLOT_CURSOR_AFTER] = F::from_u64(u64::from(g_after.slot_cursor));
-    if let Some(rom) = trace.grammar_rom_slot {
+    if let Some(rom) = trace.host_event_rom_slot {
         wit[COL_GRAMMAR_SLOT_KIND] =
-            F::from_u64(u64::from(rom.kind.code()) + WasmGrammarSlotKind::COUNT as u64 * u64::from(rom.advice));
+            F::from_u64(u64::from(rom.kind.code()) + WasmHostEventSlotKind::COUNT as u64 * u64::from(rom.advice));
         wit[COL_GRAMMAR_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
         wit[COL_GRAMMAR_SLOT_VARIANT] = F::from_u64(u64::from(rom.variant.encoded()));
         wit[COL_GRAMMAR_SLOT_CONST_LO] = F::from_u64(u64::from(rom.const_lo));
         wit[COL_GRAMMAR_SLOT_CONST_HI] = F::from_u64(u64::from(rom.const_hi));
     }
-    if let Some(pre) = trace.grammar_pre_count {
+    if let Some(pre) = trace.host_event_pre_count {
         wit[COL_GRAMMAR_PRE_COUNT] = F::from_u64(u64::from(pre));
     }
-    if let Some(post) = trace.grammar_post_count {
+    if let Some(post) = trace.host_event_post_count {
         wit[COL_GRAMMAR_POST_COUNT] = F::from_u64(u64::from(post));
     }
 }

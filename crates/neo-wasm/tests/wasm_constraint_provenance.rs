@@ -60,7 +60,7 @@ fn host_event_constraints_have_semantic_scope() {
 
     for label in [
         "host event interface",
-        "grammar gather binding",
+        "host-event gather binding",
         "host event buffer write",
         "host event perm full round",
         "host event chain update",

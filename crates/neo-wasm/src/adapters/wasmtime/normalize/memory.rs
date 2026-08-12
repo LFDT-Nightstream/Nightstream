@@ -1,11 +1,11 @@
-//! Temporal linear-memory state used while expanding grammar rows.
+//! Temporal linear-memory state used while expanding host-event rows.
 //!
 //! Owns the sparse memory-zero image seen by normalization. Program rows and
-//! grammar writes advance it in trace order; grammar reads are derived from it.
+//! host-event writes advance it in trace order; host-event reads derive from it.
 
 use super::NormalizedStep;
 use crate::adapters::wasmtime::WasmProgramTables;
-use crate::event_grammar::{HostEventGrammar, SlotSource};
+use crate::host_event_bindings::{HostEventBindings, SlotBinding};
 use crate::ir::{LinearMemoryAccess, LinearMemoryWordLane, WasmBuildError};
 use crate::isa::WasmMemoryAccessKind;
 use std::collections::BTreeMap;
@@ -16,16 +16,16 @@ pub(super) struct LinearMemoryImage {
 }
 
 impl LinearMemoryImage {
-    pub(super) fn for_grammar(
-        grammar: &HostEventGrammar,
+    pub(super) fn for_host_events(
+        bindings: &HostEventBindings,
         program: &WasmProgramTables,
     ) -> Result<Option<Self>, WasmBuildError> {
-        if !grammar_uses_linear_memory(grammar) {
+        if !host_events_use_linear_memory(bindings) {
             return Ok(None);
         }
         if program.has_imported_memory {
             return Err(WasmBuildError::Unsupported(
-                "grammar memory slots require verifier-known memory-zero initialization; imported memory is unsupported"
+                "host-event memory slots require verifier-known memory-zero initialization; imported memory is unsupported"
                     .to_string(),
             ));
         }
@@ -202,13 +202,13 @@ impl LinearMemoryImage {
     }
 }
 
-fn grammar_uses_linear_memory(grammar: &HostEventGrammar) -> bool {
-    grammar
+fn host_events_use_linear_memory(bindings: &HostEventBindings) -> bool {
+    bindings
         .imports
         .values()
         .flat_map(|template| &template.events)
         .chain(
-            grammar
+            bindings
                 .exports
                 .values()
                 .flat_map(|template| template.entry.iter().chain(&template.exit)),
@@ -217,12 +217,12 @@ fn grammar_uses_linear_memory(grammar: &HostEventGrammar) -> bool {
         .any(|source| {
             matches!(
                 source,
-                SlotSource::MemoryRead32 { .. }
-                    | SlotSource::MemoryRead16 { .. }
-                    | SlotSource::MemoryRead8 { .. }
-                    | SlotSource::MemoryWrite32 { .. }
-                    | SlotSource::MemoryWrite16 { .. }
-                    | SlotSource::MemoryWrite8 { .. }
+                SlotBinding::MemoryRead32 { .. }
+                    | SlotBinding::MemoryRead16 { .. }
+                    | SlotBinding::MemoryRead8 { .. }
+                    | SlotBinding::MemoryWrite32 { .. }
+                    | SlotBinding::MemoryWrite16 { .. }
+                    | SlotBinding::MemoryWrite8 { .. }
             )
         })
 }
@@ -230,7 +230,7 @@ fn grammar_uses_linear_memory(grammar: &HostEventGrammar) -> bool {
 fn effective_byte_address(base: u32, byte_offset: u32) -> Result<u32, WasmBuildError> {
     base.checked_add(byte_offset).ok_or_else(|| {
         WasmBuildError::Trace(format!(
-            "grammar memory address overflows wasm32: {base} + {byte_offset}"
+            "host-event memory address overflows wasm32: {base} + {byte_offset}"
         ))
     })
 }
@@ -240,7 +240,7 @@ fn subword_address(base: u32, byte_offset: u32, alignment: u32) -> Result<(u64, 
 
     if effective % alignment != 0 {
         return Err(WasmBuildError::Trace(format!(
-            "grammar Memory16 address {effective} is not naturally aligned"
+            "host-event Memory16 address {effective} is not naturally aligned"
         )));
     }
 
@@ -251,7 +251,7 @@ fn aligned_word_addr(base: u32, byte_offset: u32) -> Result<u64, WasmBuildError>
     let effective = effective_byte_address(base, byte_offset)?;
     if effective % 4 != 0 {
         return Err(WasmBuildError::Trace(format!(
-            "grammar Memory32 address {effective} is not naturally aligned"
+            "host-event Memory32 address {effective} is not naturally aligned"
         )));
     }
     Ok(u64::from(effective / 4))

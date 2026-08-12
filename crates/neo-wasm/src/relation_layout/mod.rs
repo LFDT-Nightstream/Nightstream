@@ -684,7 +684,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
                 },
                 // Input bootstrap: every input-local row writes the hi
-                // lane — zero on lo rows (total write), the claim word on
+                // lane — zero on lo rows (total write), the input word on
                 // hi rows (the CCS pins the value column either way).
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
@@ -961,7 +961,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         // per-slot source descriptors keyed by (fref, event index, slot
         // cursor) read on gather rows, and per-import event counts read on
         // grammar call/result rows. Content is generated from the embedder's
-        // `HostEventGrammar` (see `event_grammar::preload_grammar_tables`).
+        // `HostEventBindings` (see `host_event_bindings::preload_host_event_tables`).
         rom_read_spec(
             "grammar_slot_kind",
             vec![
@@ -1022,7 +1022,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         // satisfiable). Each completed event block decrements EVREM and
         // increments EVIDX. While EVREM is nonzero, program, result, and
         // boundary rows cannot execute, so EVIDX cannot reset. Every gather
-        // uses EVIDX as an active grammar-ROM address component; the Nebula
+        // uses EVIDX as an active host-event ROM address component; the Nebula
         // memory binding range-proves address components to at most 32 bits
         // (and to the family's narrower configured width). Field addition
         // does not wrap at 2^32, so after at most 2^32 blocks the next gather

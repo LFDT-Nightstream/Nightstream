@@ -52,17 +52,17 @@ define_column_region! {
         COL_GRAMMAR_SLOT_CURSOR_BEFORE: Field => "next block word a gather row stages (0..=7), before this row",
         COL_GRAMMAR_SLOT_CURSOR_AFTER: Field => "next block word a gather row stages (0..=7), after this row",
         COL_GRAMMAR_SLOT_KIND: Field =>
-            "grammar-ROM slot source kind (0 const, 1 arg, 2 result, 3 claim, 4 input-local, 5 output, 6 memory-read, 7 memory-write)",
-        COL_GRAMMAR_SLOT_ARG: Field => "grammar-ROM slot arg/oracle index",
+            "host-event ROM slot binding kind (0 const, 1 arg, 2 result, 3 input, 4 input-local, 5 output, 6 memory-read, 7 memory-write)",
+        COL_GRAMMAR_SLOT_ARG: Field => "host-event ROM slot argument or input index",
         COL_GRAMMAR_SLOT_VARIANT: Field =>
-            "encoded grammar-ROM slot variant: value kinds use 0 lo / 1 hi; memory kinds use bit 0 for local base, bit 1 for byte width, and bit 2 for half width",
-        COL_GRAMMAR_SLOT_CONST_LO: Field => "grammar-ROM slot constant, low 32 bits",
-        COL_GRAMMAR_SLOT_CONST_HI: Field => "grammar-ROM slot constant, high 32 bits",
+            "encoded host-event ROM slot variant: value kinds use 0 lo / 1 hi; memory kinds use bit 0 for local base, bit 1 for byte width, and bit 2 for half width",
+        COL_GRAMMAR_SLOT_CONST_LO: Field => "host-event ROM slot constant, low 32 bits",
+        COL_GRAMMAR_SLOT_CONST_HI: Field => "host-event ROM slot constant, high 32 bits",
         COL_GRAMMAR_PRE_COUNT: Field =>
-            "grammar-ROM event count for the called import / entered export (biased +1)",
-        COL_GRAMMAR_POST_COUNT: Field => "grammar-ROM exit-event count for the halting export",
+            "host-event ROM event count for the called import / entered export (biased +1)",
+        COL_GRAMMAR_POST_COUNT: Field => "host-event ROM exit-event count for the halting export",
         COL_GATHER_LOCAL_WRITE: Boolean =>
-            "gather row writing a claim-input word into an entry-frame locals lane (slot kind 4); gates the hi-lane write (zero on lo rows)",
+            "gather row writing an input word into an entry-frame locals lane (slot kind 4); gates the hi-lane write (zero on lo rows)",
         COL_GATHER_LOCAL_WRITE_LO: Boolean =>
             "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_variant)",
         COL_GRAMMAR_EXIT_LATCH: Boolean =>

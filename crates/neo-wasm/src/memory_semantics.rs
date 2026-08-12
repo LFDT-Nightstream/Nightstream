@@ -68,7 +68,7 @@ enum DebugInitMode {
 
 /// The preload is program-derived only: the locals RAM starts all-zero
 /// (`ZeroReadDefault`), so entry-frame inputs must arrive through the export
-/// template's `ClaimLocal` bootstrap; callee params are written by
+/// template's `InputLocal` bootstrap; callee params are written by
 /// CallParamInit rows before use.
 pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmMemoryPreload {
     let tables = &artifacts.tables;
@@ -202,135 +202,138 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
     preload
 }
 
-/// Preload the event-template ROM families from an embedder grammar: the
+/// Preload the event-template ROM families from verifier-authored bindings:
 /// per-slot source descriptors keyed by `(fref, event_index, slot_cursor)`
 /// (exports number entry events then exit events) and the per-fref event
 /// counts. Call after [`preload_from_program_artifacts`] when checking a
 /// event-bound trace.
-pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::event_grammar::HostEventGrammar) {
-    use crate::event_grammar::{memory_rom_arg_variant, GrammarEvent, Limb, SlotSource};
-    use crate::ir::{WasmGrammarMemoryWidth, WasmGrammarRomVariant, WasmGrammarSlotKind};
+pub fn preload_host_event_tables(
+    preload: &mut WasmMemoryPreload,
+    bindings: &crate::host_event_bindings::HostEventBindings,
+) {
+    use crate::host_event_bindings::{memory_rom_arg_variant, EventBlock, Limb, SlotBinding};
+    use crate::ir::{WasmHostEventMemoryWidth, WasmHostEventRomVariant, WasmHostEventSlotKind};
     let limb_variant = |limb| match limb {
-        Limb::Lo => WasmGrammarRomVariant::LowLimb,
-        Limb::Hi => WasmGrammarRomVariant::HighLimb,
+        Limb::Lo => WasmHostEventRomVariant::LowLimb,
+        Limb::Hi => WasmHostEventRomVariant::HighLimb,
     };
-    let encode = |source: &SlotSource| match *source {
-        SlotSource::Const(value) => (
-            u32::from(WasmGrammarSlotKind::Const.code()),
+    let encode = |source: &SlotBinding| match *source {
+        SlotBinding::Const(value) => (
+            u32::from(WasmHostEventSlotKind::Const.code()),
             0,
             0,
             value as u32,
             (value >> 32) as u32,
         ),
-        SlotSource::ArgElem { arg, limb } => (
-            u32::from(WasmGrammarSlotKind::Arg.code()),
+        SlotBinding::ArgElem { arg, limb } => (
+            u32::from(WasmHostEventSlotKind::Arg.code()),
             u32::from(arg),
             u32::from(limb_variant(limb).encoded()),
             0,
             0,
         ),
-        SlotSource::ResultElem { limb } => (
-            u32::from(WasmGrammarSlotKind::Result.code()),
+        SlotBinding::ResultElem { limb } => (
+            u32::from(WasmHostEventSlotKind::Result.code()),
             0,
             u32::from(limb_variant(limb).encoded()),
             0,
             0,
         ),
-        SlotSource::Claim { idx } => (u32::from(WasmGrammarSlotKind::Claim.code()), u32::from(idx), 0, 0, 0),
-        SlotSource::ClaimLocal { local, limb, .. } => (
-            u32::from(WasmGrammarSlotKind::ClaimLocal.code()),
+        SlotBinding::Input { index: idx } => (u32::from(WasmHostEventSlotKind::Input.code()), u32::from(idx), 0, 0, 0),
+        SlotBinding::InputLocal { local, limb, .. } => (
+            u32::from(WasmHostEventSlotKind::InputLocal.code()),
             u32::from(local),
             u32::from(limb_variant(limb).encoded()),
             0,
             0,
         ),
-        SlotSource::OutputElem { limb } => (
-            u32::from(WasmGrammarSlotKind::Output.code()),
+        SlotBinding::OutputElem { limb } => (
+            u32::from(WasmHostEventSlotKind::Output.code()),
             0,
             u32::from(limb_variant(limb).encoded()),
             0,
             0,
         ),
-        SlotSource::MemoryRead32 { base, byte_offset } => {
-            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Word);
+        SlotBinding::MemoryRead32 { base, byte_offset } => {
+            let (arg, variant) = memory_rom_arg_variant(base, WasmHostEventMemoryWidth::Word);
             (
-                u32::from(WasmGrammarSlotKind::MemoryRead.code()),
+                u32::from(WasmHostEventSlotKind::MemoryRead.code()),
                 u32::from(arg),
                 u32::from(variant.encoded()),
                 byte_offset,
                 0,
             )
         }
-        SlotSource::MemoryRead8 { base, byte_offset } => {
-            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Byte);
+        SlotBinding::MemoryRead8 { base, byte_offset } => {
+            let (arg, variant) = memory_rom_arg_variant(base, WasmHostEventMemoryWidth::Byte);
             (
-                u32::from(WasmGrammarSlotKind::MemoryRead.code()),
+                u32::from(WasmHostEventSlotKind::MemoryRead.code()),
                 u32::from(arg),
                 u32::from(variant.encoded()),
                 byte_offset,
                 0,
             )
         }
-        SlotSource::MemoryRead16 { base, byte_offset } => {
-            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Half);
+        SlotBinding::MemoryRead16 { base, byte_offset } => {
+            let (arg, variant) = memory_rom_arg_variant(base, WasmHostEventMemoryWidth::Half);
             (
-                u32::from(WasmGrammarSlotKind::MemoryRead.code()),
+                u32::from(WasmHostEventSlotKind::MemoryRead.code()),
                 u32::from(arg),
                 u32::from(variant.encoded()),
                 byte_offset,
                 0,
             )
         }
-        SlotSource::MemoryWrite32 {
-            claim,
+        SlotBinding::MemoryWrite32 {
+            input,
             base,
             byte_offset,
         } => {
-            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Word);
+            let (arg, variant) = memory_rom_arg_variant(base, WasmHostEventMemoryWidth::Word);
             (
-                u32::from(WasmGrammarSlotKind::MemoryWrite.code()),
+                u32::from(WasmHostEventSlotKind::MemoryWrite.code()),
                 u32::from(arg),
                 u32::from(variant.encoded()),
                 byte_offset,
-                u32::from(claim),
+                u32::from(input),
             )
         }
-        SlotSource::MemoryWrite8 {
-            claim,
+        SlotBinding::MemoryWrite8 {
+            input,
             base,
             byte_offset,
         } => {
-            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Byte);
+            let (arg, variant) = memory_rom_arg_variant(base, WasmHostEventMemoryWidth::Byte);
             (
-                u32::from(WasmGrammarSlotKind::MemoryWrite.code()),
+                u32::from(WasmHostEventSlotKind::MemoryWrite.code()),
                 u32::from(arg),
                 u32::from(variant.encoded()),
                 byte_offset,
-                u32::from(claim),
+                u32::from(input),
             )
         }
-        SlotSource::MemoryWrite16 {
-            claim,
+        SlotBinding::MemoryWrite16 {
+            input,
             base,
             byte_offset,
         } => {
-            let (arg, variant) = memory_rom_arg_variant(base, WasmGrammarMemoryWidth::Half);
+            let (arg, variant) = memory_rom_arg_variant(base, WasmHostEventMemoryWidth::Half);
             (
-                u32::from(WasmGrammarSlotKind::MemoryWrite.code()),
+                u32::from(WasmHostEventSlotKind::MemoryWrite.code()),
                 u32::from(arg),
                 u32::from(variant.encoded()),
                 byte_offset,
-                u32::from(claim),
+                u32::from(input),
             )
         }
     };
-    let insert_slots = |preload: &mut WasmMemoryPreload, fref: u32, events: Vec<&GrammarEvent>| {
+    let insert_slots = |preload: &mut WasmMemoryPreload, fref: u32, events: Vec<&EventBlock>| {
         for (event_index, event) in events.into_iter().enumerate() {
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![fref, event_index as u32, slot_index as u32];
                 let (kind, arg, variant, const_lo, const_hi) = encode(source);
                 // Bit 3 carries the per-event advice flag.
-                let kind = kind + WasmGrammarSlotKind::COUNT as u32 * u32::from(!event.absorb);
+                let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
                 preload.insert("grammar_slot_kind", key.clone(), kind);
                 preload.insert("grammar_slot_arg", key.clone(), arg);
                 preload.insert("grammar_slot_variant", key.clone(), variant);
@@ -345,7 +348,7 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
     // EVREM = p-1. See the relation-layout family comment for the full
     // non-termination argument. Export exit counts stay raw: their read key
     // is bound within an already-entered turn.
-    for (&fref, template) in &grammar.imports {
+    for (&fref, template) in &bindings.imports {
         preload.insert(
             "grammar_import_pre_counts",
             vec![fref],
@@ -353,7 +356,7 @@ pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::
         );
         insert_slots(preload, fref, template.events.iter().collect());
     }
-    for (&fref, template) in &grammar.exports {
+    for (&fref, template) in &bindings.exports {
         preload.insert(
             "grammar_export_entry_counts",
             vec![fref],

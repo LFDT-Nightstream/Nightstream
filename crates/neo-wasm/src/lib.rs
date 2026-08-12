@@ -5,8 +5,8 @@ pub mod batch;
 pub mod ccs;
 mod column_registry;
 pub mod comm_chain;
-pub mod event_grammar;
 mod gadgets;
+pub mod host_event_bindings;
 mod host_event_layout;
 pub mod witness_builder;
 pub use gadgets::push_zero_test_gadget;
@@ -31,7 +31,7 @@ pub use adapters::wasmtime::{
     collect_wasmtime_component_run_with_linker, collect_wasmtime_component_run_with_linker_and_args,
     collect_wasmtime_steps, extract_first_component_core_program_artifacts, extract_wasm_program_artifacts,
     traces_from_wasmtime_component, traces_from_wasmtime_component_with_linker, traces_from_wasmtime_steps,
-    traces_from_wasmtime_steps_with_grammar, traces_from_wasmtime_wasm_bytes, WasmProgramArtifacts,
+    traces_from_wasmtime_steps_with_host_events, traces_from_wasmtime_wasm_bytes, WasmProgramArtifacts,
     WasmProgramDecodeEntry, WasmProgramTables, WasmTraceSink, WasmtimeTraceHandler, WasmtimeTraceMemoryAccess,
     WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
 };
@@ -40,8 +40,8 @@ pub use ccs::WasmVmSpec;
 pub use comm_chain::CommChainState;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
-    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmGrammarMemoryWidth, WasmGrammarRomEntry,
-    WasmGrammarRomVariant, WasmGrammarSlotKind, WasmGrammarState, WasmOutputState, WasmPcEdgeKind, WasmRowKind,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostEventMemoryWidth, WasmHostEventRomEntry,
+    WasmHostEventRomVariant, WasmHostEventSlotKind, WasmHostEventState, WasmOutputState, WasmPcEdgeKind, WasmRowKind,
     WasmStepState, WasmVmStep,
 };
 pub use isa::{
@@ -55,7 +55,7 @@ pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_comp
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use preprocess::{
-    grammar_top_level_initial_state, grammar_top_level_initial_state_digest, preprocess_seeded_batched,
+    host_event_top_level_initial_state, host_event_top_level_initial_state_digest, preprocess_seeded_batched,
     semantic_state_digest, top_level_initial_state, top_level_initial_state_digest,
 };
 pub use range_check::write_range_check_bits;

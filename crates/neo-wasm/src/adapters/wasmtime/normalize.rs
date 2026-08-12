@@ -9,7 +9,7 @@
 //! through `runtime_read` and opcode/control metadata through `decode`; it
 //! does not run the engine or parse binaries.
 
-mod grammar_emit;
+mod host_event_emit;
 mod memory;
 mod trace_build;
 
@@ -25,27 +25,27 @@ use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode, WasmOpcodeInfo}
 use wasmtime::{FrameHandle, StoreContextMut};
 
 /// Normalize an import-free core-WASM trace: sugar for
-/// [`traces_from_wasmtime_steps_with_grammar`] with the canonical
-/// import-free grammar (an empty boundary template for the invoked export,
+/// [`traces_from_wasmtime_steps_with_host_events`] with the canonical
+/// import-free bindings (an empty boundary template for the invoked export,
 /// zero commitment chain). Executed host imports have no template under it
 /// and are rejected.
 pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
     trace_build::build_trace(rows, None, Default::default(), None)
 }
 
-/// Normalize captured steps with verifier-authored event grammar.
+/// Normalize captured steps with verifier-authored host-event bindings.
 ///
-/// Program tables supply the initial memory image used by grammar memory
+/// Program tables supply the initial memory image used by host-event memory
 /// slots; they must describe the same core module that produced `rows`.
-pub fn traces_from_wasmtime_steps_with_grammar(
+pub fn traces_from_wasmtime_steps_with_host_events(
     rows: &[WasmtimeTraceStep],
     program: &super::WasmProgramTables,
-    grammar: &crate::event_grammar::HostEventGrammar,
-    turns: &[crate::event_grammar::TurnClaims],
+    bindings: &crate::host_event_bindings::HostEventBindings,
+    turn_inputs: &[crate::host_event_bindings::TurnInputs],
     initial_comm_chain: crate::comm_chain::CommChainState,
 ) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
-    let linear_memory = memory::LinearMemoryImage::for_grammar(grammar, program)?;
-    trace_build::build_trace(rows, Some((grammar, turns)), initial_comm_chain, linear_memory)
+    let linear_memory = memory::LinearMemoryImage::for_host_events(bindings, program)?;
+    trace_build::build_trace(rows, Some((bindings, turn_inputs)), initial_comm_chain, linear_memory)
 }
 
 #[derive(Clone, Debug)]
@@ -106,7 +106,7 @@ struct NormalizedStep {
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
     /// Oracle words recorded on this (host-call) row at collection time.
-    host_call_claims: Vec<u64>,
+    host_call_inputs: Vec<u64>,
 }
 
 fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, WasmBuildError> {
@@ -280,7 +280,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         locals_snapshot_hi: row.locals_words_hi.clone(),
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
-        host_call_claims: row.host_call_claims.clone(),
+        host_call_inputs: row.host_call_inputs.clone(),
     }))
 }
 
@@ -534,7 +534,7 @@ pub(crate) fn capture_frame<T>(
         num_locals: num_locals as u32,
         call_return_pc: decoded_opcode.as_ref().and_then(|d| d.call_return_pc),
         pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
-        host_call_claims: Vec::new(),
+        host_call_inputs: Vec::new(),
     })
 }
 

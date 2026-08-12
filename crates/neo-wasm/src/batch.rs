@@ -266,17 +266,11 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         "padding inside a param-init aux sequence is unsupported"
     );
     debug_assert!(!tail_call_pending, "padding before a tail-enter aux row is unsupported");
-    let host_args = prev.state_after.host_args;
-    let host_result_pending = prev.state_after.host_result_pending;
     let host_callee_fref = prev.state_after.host_callee_fref;
+    let event_binding_active = prev.state_after.event_binding_active;
     let comm_chain = prev.state_after.comm_chain;
     let event_absorb = prev.state_after.event_absorb;
-    let grammar_mode = prev.state_after.grammar_mode;
     let grammar = prev.state_after.grammar;
-    debug_assert!(
-        !host_args.active && !host_result_pending,
-        "padding inside a host-call aux sequence is unsupported"
-    );
     debug_assert!(
         !event_absorb.perm_pending && event_absorb.perm_round == 0,
         "padding inside a host-event perm group is unsupported"
@@ -297,12 +291,10 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             trapped: prev.state_after.trapped,
             param_init,
             tail_call_pending,
-            host_args,
-            host_result_pending,
             host_callee_fref,
+            event_binding_active,
             comm_chain,
             event_absorb,
-            grammar_mode,
             grammar,
         },
         state_after: WasmStepState {
@@ -318,12 +310,10 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             trapped: prev.state_after.trapped,
             param_init,
             tail_call_pending,
-            host_args,
-            host_result_pending,
             host_callee_fref,
+            event_binding_active,
             comm_chain,
             event_absorb,
-            grammar_mode,
             grammar,
         },
         control_choice: 0,

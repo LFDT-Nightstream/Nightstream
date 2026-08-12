@@ -363,7 +363,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         (host_event_chain::gather_memory_local_base_col(), F::ONE),
         (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
         // Grammar host calls pop their args on the call row itself.
-        (host_event_chain::grammar_host_call_params_col(), F::ONE),
+        (host_event_chain::host_call_params_col(), F::ONE),
     ]);
     b.with_tag(always("fixed stack arity"), |b| {
         b.push_row(fixed_stack_arity_gate_terms(), fixed_stack_reads_terms(), []);

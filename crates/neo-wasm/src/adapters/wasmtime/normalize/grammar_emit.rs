@@ -37,9 +37,8 @@ pub(super) struct GrammarSlotRow {
     pub(super) linear_memory: Option<LinearMemoryAccess>,
 }
 
-/// One grammar event's gather plan: the staged block plus its 8 slot rows.
+/// One grammar event's eight gather rows and absorb policy.
 pub(super) struct GrammarBlockPlan {
-    pub(super) block: [u64; 8],
     pub(super) rows: Vec<GrammarSlotRow>,
     /// Whether the staged block enters the transcript.
     pub(super) absorb: bool,
@@ -414,7 +413,6 @@ fn plan_grammar_blocks(
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(GrammarBlockPlan {
-                block,
                 rows,
                 absorb: event.absorb,
             })
@@ -580,11 +578,7 @@ pub(super) fn plan_export_blocks(
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(GrammarBlockPlan {
-                block,
-                rows,
-                absorb: true,
-            })
+            Ok(GrammarBlockPlan { rows, absorb: true })
         })
         .collect()
 }
@@ -601,11 +595,9 @@ pub(super) struct GrammarAuxCtx {
     pub(super) max_memory_pages: Option<u32>,
     pub(super) locals_fbp: u64,
     pub(super) host_callee_fref: u32,
-    pub(super) grammar_mode: bool,
+    pub(super) event_binding_active: bool,
     pub(super) current_function_ref: u32,
     pub(super) current_function_num_locals: u32,
-    pub(super) host_args: WasmCountdownState,
-    pub(super) host_result_pending: bool,
     /// The carried halted latch on both sides of these aux rows (true for
     /// post-halt exit gathers, false mid-turn).
     pub(super) halted: bool,
@@ -614,7 +606,6 @@ pub(super) struct GrammarAuxCtx {
 impl GrammarAuxCtx {
     pub(super) fn state(
         &self,
-        host_args: WasmCountdownState,
         comm_chain: [u64; 4],
         event_absorb: WasmEventAbsorbState,
         grammar: crate::ir::WasmGrammarState,
@@ -632,12 +623,10 @@ impl GrammarAuxCtx {
             trapped: false,
             param_init: WasmCountdownState::ZERO,
             tail_call_pending: false,
-            host_args,
-            host_result_pending: self.host_result_pending,
             host_callee_fref: self.host_callee_fref,
+            event_binding_active: self.event_binding_active,
             comm_chain,
             event_absorb,
-            grammar_mode: self.grammar_mode,
             grammar,
         }
     }
@@ -702,8 +691,7 @@ impl GrammarAuxCtx {
 
 /// Emit the perm-row group absorbing the pending block (see
 /// `WasmAuxOpcode::HostEventPerm`): folds the chain forward on the group's
-/// last row, clears the buffer on its first, and hands arg mode back when
-/// arguments remain.
+/// last row and clears the buffer on its first.
 pub(super) fn emit_perm_group(
     out: &mut Vec<WasmVmStep>,
     ctx: &GrammarAuxCtx,
@@ -712,20 +700,14 @@ pub(super) fn emit_perm_group(
     grammar: crate::ir::WasmGrammarState,
 ) {
     debug_assert!(absorb.perm_pending);
-    debug_assert!(!ctx.host_args.active, "arg mode must suspend across a perm group");
     let (checkpoints, updated_chain) = perm_group_plan(*comm_chain, absorb.evbuf);
     debug_assert_eq!(absorb.perm_state, checkpoints[0]);
-    let resumed_args = WasmCountdownState {
-        active: ctx.host_args.remaining > 0,
-        remaining: ctx.host_args.remaining,
-    };
     for pos in 0..COMM_CHAIN_PERM_ROWS {
         let chain_before = *comm_chain;
         let absorb_before = *absorb;
         let last = pos + 1 == COMM_CHAIN_PERM_ROWS;
         if pos == 0 {
             absorb.evbuf = [0; 8];
-            absorb.evbuf_slot = 0;
             absorb.perm_pending = false;
         }
         absorb.perm_round = if last { 0 } else { pos as u8 + 1 };
@@ -736,13 +718,8 @@ pub(super) fn emit_perm_group(
         out.push(ctx.row(
             out.len() as u64,
             WasmAuxOpcode::HostEventPerm,
-            ctx.state(ctx.host_args, chain_before, absorb_before, grammar),
-            ctx.state(
-                if last { resumed_args } else { ctx.host_args },
-                *comm_chain,
-                *absorb,
-                grammar,
-            ),
+            ctx.state(chain_before, absorb_before, grammar),
+            ctx.state(*comm_chain, *absorb, grammar),
         ));
     }
 }
@@ -789,11 +766,11 @@ pub(super) fn emit_block_plan(
         let wide = slot.read.is_some_and(|(_, (_, hi))| hi != 0)
             || slot.write.is_some_and(|(_, (_, hi))| hi != 0)
             || slot.local_write.is_some_and(|(_, limb, _)| limb == 1);
-        let state_before = ctx.state(ctx.host_args, *comm_chain, absorb_before, gstate_before);
+        let state_before = ctx.state(*comm_chain, absorb_before, gstate_before);
         if pushes {
             ctx.sp += 1;
         }
-        let state_after = ctx.state(ctx.host_args, *comm_chain, *absorb, *gstate);
+        let state_after = ctx.state(*comm_chain, *absorb, *gstate);
         out.push(WasmVmStep {
             wide_values_enabled: wide,
             stack_reads_override: Some(u8::from(read0.is_some())),

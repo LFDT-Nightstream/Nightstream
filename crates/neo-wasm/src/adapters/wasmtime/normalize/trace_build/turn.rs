@@ -22,7 +22,7 @@ pub(super) fn setup_turn<'g>(
     let fref = first.current_function_ref.unwrap_or(0);
     let template = grammar.exports.get(&fref).ok_or_else(|| {
         WasmBuildError::Trace(format!(
-            "grammar mode requires an export template for the invoked export (fref {fref})"
+            "event binding requires an export template for the invoked export (fref {fref})"
         ))
     })?;
     let local_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");

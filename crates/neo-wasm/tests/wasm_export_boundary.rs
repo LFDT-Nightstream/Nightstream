@@ -80,12 +80,11 @@ fn export_template() -> ExportTemplate {
     }
 }
 
-fn export_fref(trace: &[WasmVmStep]) -> u32 {
-    trace
+fn export_fref(steps: &[neo_wasm::WasmtimeTraceStep]) -> u32 {
+    steps
         .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row")
-        .current_function_ref
+        .find_map(|row| row.current_function_ref)
+        .expect("export function ref")
 }
 
 fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
@@ -94,8 +93,7 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
     let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, "run", &args, |_| Ok(()))
         .expect("component run");
 
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let fref = export_fref(&raw);
+    let fref = export_fref(&run.steps);
     let mut grammar = HostEventGrammar::default();
     grammar.exports.insert(fref, export_template());
 
@@ -184,7 +182,6 @@ fn export_boundary_folds_entry_and_exit_events() {
         .canonical_u64(),
         "a different input claim must fold to a different chain"
     );
-    assert!(trace[0].state_before.grammar_mode);
 }
 
 /// Forging the exit event's output word is CCS-rejected: the word is bound
@@ -273,8 +270,7 @@ fn i64_param_bootstraps_both_lanes() {
     let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, "run", &args, |_| Ok(()))
         .expect("component run");
 
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let fref = export_fref(&raw);
+    let fref = export_fref(&run.steps);
     let mut grammar = HostEventGrammar::default();
     grammar.exports.insert(
         fref,
@@ -380,8 +376,7 @@ fn export_memory_accesses_use_a_local_pointer_base() {
     let args = [ComponentVal::S32(16)];
     let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, "run", &args, |_| Ok(()))
         .expect("component run");
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let fref = export_fref(&raw);
+    let fref = export_fref(&run.steps);
 
     let mut grammar = HostEventGrammar::default();
     grammar.exports.insert(

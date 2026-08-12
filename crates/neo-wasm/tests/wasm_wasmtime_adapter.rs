@@ -354,7 +354,7 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     let b_err = traces_from_wasmtime_steps(trace_b.steps()).expect_err("cross-instance import needs a template");
     assert!(b_err
         .to_string()
-        .contains("no grammar template for host import"));
+        .contains("no host-event template for host import"));
 }
 
 #[test]

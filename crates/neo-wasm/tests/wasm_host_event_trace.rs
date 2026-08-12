@@ -137,7 +137,7 @@ fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
     (imports, export)
 }
 
-/// Grammar trace for the two-call component, with input words `[100]` for mul
+/// Bound host-event trace for the two-call component, with input words `[100]` for mul
 /// and `[]` for sink. The invoked export gets an empty boundary template
 /// (every entered export needs a template; no boundary events for this test).
 fn host_event_trace() -> Vec<WasmVmStep> {
@@ -435,7 +435,7 @@ fn advice_import_pushes_without_absorbing() {
     forged[neo_wasm::layout::COL_PERM_PENDING_AFTER] = neo_math::F::ONE;
     common::assert_rejected(&forged, "advice row absorbing its block");
     let mut forged = witness.clone();
-    forged[neo_wasm::layout::COL_GRAMMAR_SLOT_KIND] -= neo_math::F::from_u64(8);
+    forged[neo_wasm::layout::COL_HOST_EVENT_SLOT_KIND] -= neo_math::F::from_u64(8);
     common::assert_rejected(&forged, "advice row shedding the advice flag");
 }
 
@@ -627,9 +627,9 @@ fn ccs_rejects_broken_event_schedule() {
         .expect("program row");
     let mut witness = build_witness_vector(program_row);
     common::assert_satisfied(&witness, "untampered program row");
-    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE] = neo_math::F::ONE;
-    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE_IS_ZERO] = neo_math::F::ZERO;
-    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE_INV] = neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE] = neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO] = neo_math::F::ZERO;
+    witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE_INV] = neo_math::F::ONE;
     common::assert_rejected(&witness, "program row with bindings events still owed");
 
     let gather_row = trace
@@ -638,14 +638,14 @@ fn ccs_rejects_broken_event_schedule() {
         .expect("gather row");
     let mut witness = build_witness_vector(gather_row);
     common::assert_satisfied(&witness, "untampered gather row");
-    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE] = neo_math::F::ZERO;
-    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE_IS_ZERO] = neo_math::F::ONE;
-    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE_INV] = neo_math::F::ZERO;
+    witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE] = neo_math::F::ZERO;
+    witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO] = neo_math::F::ONE;
+    witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE_INV] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "gather row with no host events owed");
 }
 
 /// An import with no template reads the zero-filled biased count cell, so the
-/// only row-locally satisfiable assignment loads the poisoned EVREM = -1.
+/// only row-locally satisfiable assignment loads a poisoned event countdown of -1.
 #[test]
 fn ccs_forces_untemplated_import_into_poisoned_schedule() {
     let trace = host_event_trace();
@@ -662,18 +662,18 @@ fn ccs_forces_untemplated_import_into_poisoned_schedule() {
 
     // An undeclared import's cell is 0; a normal schedule can't load from it.
     let mut forged = witness.clone();
-    forged[neo_wasm::layout::COL_GRAMMAR_PRE_COUNT] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "untemplated import call claiming a normal schedule");
 
     // The poisoned schedule satisfies the row itself. The composed circuit's
     // host-event ROM address bound prevents enough blocks from draining it; see
     // the count-family relation-layout comment for the full argument.
     let mut poisoned = forged.clone();
-    poisoned[neo_wasm::layout::COL_GRAMMAR_EVREM_AFTER] = -neo_math::F::ONE;
+    poisoned[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = -neo_math::F::ONE;
     common::assert_satisfied(&poisoned, "untemplated import call loads the poisoned schedule");
 }
 
-/// Import pre-counts and export entry-counts are separate ROM families
+/// Import schedule counts and export entry-schedule counts are separate ROM families
 /// (with the +1 presence bias), so a turn boundary or exit latch can never
 /// read an import's cell and vice versa.
 #[test]
@@ -696,25 +696,25 @@ fn count_families_are_split_and_biased() {
     };
     for (&fref, template) in &bindings.imports {
         assert_eq!(
-            cell("grammar_import_pre_counts", fref),
+            cell("host_event_import_schedule_counts", fref),
             Some(template.events.len() as u32 + 1),
             "import cells live in the import family, biased"
         );
         assert_eq!(
-            cell("grammar_export_entry_counts", fref),
+            cell("host_event_export_entry_schedule_counts", fref),
             None,
             "imports must have no export entry-count cell"
         );
     }
     assert_eq!(
-        cell("grammar_export_entry_counts", export_fref),
+        cell("host_event_export_entry_schedule_counts", export_fref),
         Some(1),
         "the export's zero-event entry template is the biased 1, distinct from the zero-filled 0"
     );
     assert_eq!(
-        cell("grammar_import_pre_counts", export_fref),
+        cell("host_event_import_schedule_counts", export_fref),
         None,
-        "exports must have no import pre-count cell"
+        "exports must have no import-schedule count cell"
     );
 }
 
@@ -744,5 +744,5 @@ fn input_words_are_row_free_and_transcript_bound() {
     common::assert_rejected(&witness, "buffer word diverging from the staged slot value");
     // ... but any divergence between the absorbed words and the claimed
     // transcript is caught by the final-chain fold (see
-    // wasm_grammar_lifecycle's verify_with_transcript rejection).
+    // the transcript-verification rejection).
 }

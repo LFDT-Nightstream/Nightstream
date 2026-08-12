@@ -236,13 +236,13 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_STACK_WRITE0_ACTIVE] = if stack_writes >= 1 { F::ONE } else { F::ZERO };
     wit[COL_OP_TABLE_ENABLED] = if trace.info.uses_op_table { F::ONE } else { F::ZERO };
     let is_core_linear_memory = trace.row_kind.is_program() && trace.opcode.uses_linear_memory();
-    let is_grammar_byte_memory = trace
+    let is_host_event_byte_memory = trace
         .host_event_rom_slot
         .is_some_and(|rom| rom.variant.uses_byte_memory_width());
-    let is_grammar_half_memory = trace
+    let is_host_event_half_memory = trace
         .host_event_rom_slot
         .is_some_and(|rom| rom.variant.uses_half_memory_width());
-    let is_grammar_subword_memory = is_grammar_byte_memory || is_grammar_half_memory;
+    let is_host_event_subword_memory = is_host_event_byte_memory || is_host_event_half_memory;
     wit[COL_LINEAR_MEM_USE_LANE0] = if is_core_linear_memory { F::ONE } else { F::ZERO };
     wit[COL_LOCAL_WRITE_ENABLED] = if matches!(
         trace.opcode,
@@ -382,7 +382,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         if is_core_linear_memory {
             wit[COL_LINEAR_MEM_IMM_OFFSET] = F::from_u64(trace.linear_memory_offset);
         }
-        if is_core_linear_memory || is_grammar_subword_memory {
+        if is_core_linear_memory || is_host_event_subword_memory {
             wit[COL_LINEAR_MEM_BYTE_OFFSET] = F::from_u64(u64::from(access.byte_offset));
             wit[COL_LINEAR_MEM_USE_LANE1] = if access.lane1.is_some() { F::ONE } else { F::ZERO };
             wit[COL_LINEAR_MEM_USE_LANE2] = if access.lane2.is_some() { F::ONE } else { F::ZERO };
@@ -415,7 +415,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         wit[COL_LINEAR_MEM_LANE_STORE_ACTIVE[0]] = store_live;
         wit[COL_LINEAR_MEM_LANE_STORE_ACTIVE[1]] = if access.lane1.is_some() { store_live } else { F::ZERO };
         wit[COL_LINEAR_MEM_LANE_STORE_ACTIVE[2]] = if access.lane2.is_some() { store_live } else { F::ZERO };
-        if is_core_linear_memory || is_grammar_subword_memory {
+        if is_core_linear_memory || is_host_event_subword_memory {
             match access.byte_offset {
                 0 => wit[COL_LINEAR_MEM_OFFSET_IS_0] = F::ONE,
                 1 => wit[COL_LINEAR_MEM_OFFSET_IS_1] = F::ONE,
@@ -620,11 +620,11 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
                     .and_then(|lane| lane.value_hi)
                     .unwrap_or(0),
             ),
-            _ if is_grammar_byte_memory => (
+            _ if is_host_event_byte_memory => (
                 u32::from(access.lane0.value_after.to_le_bytes()[usize::from(access.byte_offset)]),
                 0,
             ),
-            _ if is_grammar_half_memory => {
+            _ if is_host_event_half_memory => {
                 let bytes = access.lane0.value_after.to_le_bytes();
                 let offset = usize::from(access.byte_offset);
                 (u32::from(u16::from_le_bytes([bytes[offset], bytes[offset + 1]])), 0)
@@ -970,13 +970,14 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
 fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     use crate::layout::{
         COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO,
-        COL_GRAMMAR_ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_AFTER, COL_GRAMMAR_EVIDX_BEFORE,
-        COL_GRAMMAR_EVREM_AFTER, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_EVREM_BEFORE_INV,
-        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT,
-        COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER,
-        COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT, COL_PERM_PENDING_AFTER,
-        COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
-        COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
+        COL_HOST_EVENTS_REMAINING_AFTER, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE_INV,
+        COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO, COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_EVENT_ARGS_BASE_BEFORE,
+        COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_AFTER,
+        COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG,
+        COL_HOST_EVENT_SLOT_CONST_HI, COL_HOST_EVENT_SLOT_CONST_LO, COL_HOST_EVENT_SLOT_CURSOR_AFTER,
+        COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_HOST_EVENT_SLOT_KIND, COL_HOST_EVENT_SLOT_VARIANT,
+        COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
+        COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
     };
 
     let bool_f = |flag: bool| if flag { F::ONE } else { F::ZERO };
@@ -1039,7 +1040,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
             .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::Result && rom.variant.is_high_limb());
     wit[crate::layout::COL_STACK_WRITE0_HI_ACTIVE] =
         wit[crate::layout::COL_STACK_WRITE0_ACTIVE] + bool_f(result_hi_gather);
-    wit[COL_GRAMMAR_EXIT_LATCH] =
+    wit[COL_HOST_EVENT_EXIT_LATCH] =
         bool_f(!trace.state_before.halted && trace.state_after.halted && !trace.state_after.trapped);
     wit[crate::layout::COL_TURN_BOUNDARY] = bool_f(trace.row_kind.is_turn_boundary());
 
@@ -1047,30 +1048,30 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     // the per-row host-event ROM interface columns.
     let g_before = trace.state_before.host_events;
     let g_after = trace.state_after.host_events;
-    wit[COL_GRAMMAR_EVREM_BEFORE] = F::from_u64(u64::from(g_before.events_remaining));
-    wit[COL_GRAMMAR_EVREM_AFTER] = F::from_u64(u64::from(g_after.events_remaining));
+    wit[COL_HOST_EVENTS_REMAINING_BEFORE] = F::from_u64(u64::from(g_before.events_remaining));
+    wit[COL_HOST_EVENTS_REMAINING_AFTER] = F::from_u64(u64::from(g_after.events_remaining));
     let (evrem_is_zero, evrem_inv) = zero_test_witness_u64(u64::from(g_before.events_remaining));
-    wit[COL_GRAMMAR_EVREM_BEFORE_IS_ZERO] = evrem_is_zero;
-    wit[COL_GRAMMAR_EVREM_BEFORE_INV] = evrem_inv;
-    wit[COL_GRAMMAR_EVIDX_BEFORE] = F::from_u64(u64::from(g_before.event_index));
-    wit[COL_GRAMMAR_EVIDX_AFTER] = F::from_u64(u64::from(g_after.event_index));
-    wit[COL_GRAMMAR_ARGS_BASE_BEFORE] = F::from_u64(g_before.args_base);
-    wit[COL_GRAMMAR_ARGS_BASE_AFTER] = F::from_u64(g_after.args_base);
-    wit[COL_GRAMMAR_SLOT_CURSOR_BEFORE] = F::from_u64(u64::from(g_before.slot_cursor));
-    wit[COL_GRAMMAR_SLOT_CURSOR_AFTER] = F::from_u64(u64::from(g_after.slot_cursor));
+    wit[COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO] = evrem_is_zero;
+    wit[COL_HOST_EVENTS_REMAINING_BEFORE_INV] = evrem_inv;
+    wit[COL_HOST_EVENT_INDEX_BEFORE] = F::from_u64(u64::from(g_before.event_index));
+    wit[COL_HOST_EVENT_INDEX_AFTER] = F::from_u64(u64::from(g_after.event_index));
+    wit[COL_HOST_EVENT_ARGS_BASE_BEFORE] = F::from_u64(g_before.args_base);
+    wit[COL_HOST_EVENT_ARGS_BASE_AFTER] = F::from_u64(g_after.args_base);
+    wit[COL_HOST_EVENT_SLOT_CURSOR_BEFORE] = F::from_u64(u64::from(g_before.slot_cursor));
+    wit[COL_HOST_EVENT_SLOT_CURSOR_AFTER] = F::from_u64(u64::from(g_after.slot_cursor));
     if let Some(rom) = trace.host_event_rom_slot {
-        wit[COL_GRAMMAR_SLOT_KIND] =
+        wit[COL_HOST_EVENT_SLOT_KIND] =
             F::from_u64(u64::from(rom.kind.code()) + WasmHostEventSlotKind::COUNT as u64 * u64::from(rom.advice));
-        wit[COL_GRAMMAR_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
-        wit[COL_GRAMMAR_SLOT_VARIANT] = F::from_u64(u64::from(rom.variant.encoded()));
-        wit[COL_GRAMMAR_SLOT_CONST_LO] = F::from_u64(u64::from(rom.const_lo));
-        wit[COL_GRAMMAR_SLOT_CONST_HI] = F::from_u64(u64::from(rom.const_hi));
+        wit[COL_HOST_EVENT_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
+        wit[COL_HOST_EVENT_SLOT_VARIANT] = F::from_u64(u64::from(rom.variant.encoded()));
+        wit[COL_HOST_EVENT_SLOT_CONST_LO] = F::from_u64(u64::from(rom.const_lo));
+        wit[COL_HOST_EVENT_SLOT_CONST_HI] = F::from_u64(u64::from(rom.const_hi));
     }
-    if let Some(pre) = trace.host_event_pre_count {
-        wit[COL_GRAMMAR_PRE_COUNT] = F::from_u64(u64::from(pre));
+    if let Some(count) = trace.host_event_initial_schedule_count {
+        wit[COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = F::from_u64(u64::from(count));
     }
-    if let Some(post) = trace.host_event_post_count {
-        wit[COL_GRAMMAR_POST_COUNT] = F::from_u64(u64::from(post));
+    if let Some(count) = trace.host_event_exit_schedule_count {
+        wit[COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = F::from_u64(u64::from(count));
     }
 }
 

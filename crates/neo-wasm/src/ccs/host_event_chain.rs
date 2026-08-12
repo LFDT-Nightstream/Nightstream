@@ -80,9 +80,9 @@ define_column_region! {
         GHC_PARAMS: Field => "host-event host-call and parameter-count product",
         G_ADVICE: Boolean => "advice-event slot flag",
         GMEM_LOCAL: Boolean => "memory pointer comes from an export local",
-        GMEM_BYTE: Boolean => "byte-width grammar memory slot",
-        GMEM_HALF: Boolean => "half-width grammar memory slot",
-        PRE_COUNT_MINUS_ONE_INV: Field => "turn-boundary nonempty-entry inverse witness",
+        GMEM_BYTE: Boolean => "byte-width host-event memory slot",
+        GMEM_HALF: Boolean => "half-width host-event memory slot",
+        INITIAL_SCHEDULE_COUNT_MINUS_ONE_INV: Field => "turn-boundary nonempty-entry inverse witness",
     ]
 }
 
@@ -165,7 +165,7 @@ pub(crate) fn perm_row_gate_terms() -> [(usize, F); 3] {
 
 pub(super) fn push_constraints(b: &mut R1csBuilder) {
     push_interface_constraints(b);
-    push_grammar_gather_constraints(b);
+    push_host_event_gather_constraints(b);
     push_position_onehot_constraints(b);
     push_pending_update_constraints(b);
     push_buffer_write_constraints(b);
@@ -247,68 +247,89 @@ fn push_interface_constraints(b: &mut R1csBuilder) {
 }
 
 /// Host-event gather binding: each gather row stages exactly one block word,
-/// whose value is pinned by the grammar ROM entry at
+/// whose value is pinned by the host-event ROM entry at
 /// `(fref, event_index, slot_cursor)` — a flat value, runtime input, or aligned
 /// linear-memory access — and the per-call
 /// event schedule is forced by ROM-loaded countdowns. This closes the
-/// stage-B gap: with these rows, a grammar chain commits exactly the event
+/// stage-B gap: with these rows, the commitment chain commits exactly the event
 /// sequence obtained by applying the committed tables to the values at the
 /// call site.
-fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
+fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
     use super::super::layout::{
-        COL_CALL_PARAM_COUNT as PARAM_COUNT, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO,
-        COL_GRAMMAR_ARGS_BASE_AFTER as ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE as ARGS_BASE_BEFORE,
-        COL_GRAMMAR_EVIDX_AFTER as EVIDX_A, COL_GRAMMAR_EVIDX_BEFORE as EVIDX_B, COL_GRAMMAR_EVREM_AFTER as EVREM_A,
-        COL_GRAMMAR_EVREM_BEFORE as EVREM_B, COL_GRAMMAR_EVREM_BEFORE_INV as EVREM_INV,
-        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO as EVREM_ISZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_POST_COUNT as POST_COUNT,
-        COL_GRAMMAR_PRE_COUNT as PRE_COUNT, COL_GRAMMAR_SLOT_ARG as SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI as CONST_HI,
-        COL_GRAMMAR_SLOT_CONST_LO as CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A,
-        COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B, COL_GRAMMAR_SLOT_KIND as SLOT_KIND,
-        COL_GRAMMAR_SLOT_VARIANT as SLOT_VARIANT, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_CALL_ACTIVE as GHC,
-        COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_BYTE_OFFSET,
-        COL_LINEAR_MEM_LANE_ADDR, COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3,
-        COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OUTPUT_ENABLED_BEFORE,
-        COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ_ADDR_LO,
-        COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
+        COL_CALL_PARAM_COUNT as PARAM_COUNT, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_HALTED,
+        COL_HALTED_BEFORE, COL_HOST_CALL_ACTIVE as HOST_CALL_ACTIVE,
+        COL_HOST_EVENTS_REMAINING_AFTER as EVENTS_REMAINING_AFTER,
+        COL_HOST_EVENTS_REMAINING_BEFORE as EVENTS_REMAINING_BEFORE,
+        COL_HOST_EVENTS_REMAINING_BEFORE_INV as EVENTS_REMAINING_INV,
+        COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO as EVENTS_REMAINING_IS_ZERO,
+        COL_HOST_EVENT_ARGS_BASE_AFTER as ARGS_BASE_AFTER, COL_HOST_EVENT_ARGS_BASE_BEFORE as ARGS_BASE_BEFORE,
+        COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT as EXIT_SCHEDULE_COUNT,
+        COL_HOST_EVENT_INDEX_AFTER as EVENT_INDEX_AFTER, COL_HOST_EVENT_INDEX_BEFORE as EVENT_INDEX_BEFORE,
+        COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT as INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG as SLOT_ARG,
+        COL_HOST_EVENT_SLOT_CONST_HI as CONST_HI, COL_HOST_EVENT_SLOT_CONST_LO as CONST_LO,
+        COL_HOST_EVENT_SLOT_CURSOR_AFTER as SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE as SLOT_CURSOR_BEFORE,
+        COL_HOST_EVENT_SLOT_KIND as SLOT_KIND, COL_HOST_EVENT_SLOT_VARIANT as SLOT_VARIANT, COL_IS_PROGRAM_ROW,
+        COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_LANE_ADDR,
+        COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3, COL_LOCAL_INDEX,
+        COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE,
+        COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ_ADDR_LO, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+        COL_TURN_BOUNDARY,
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
     b.with_tag(host_event("host-event gather binding"), |b| {
         // Host calls pop their args on the call row itself. The sp identity
         // consumes this product of the host-call gate and ROM-bound arity.
-        b.push_row([(GHC, F::ONE)], [(PARAM_COUNT, F::ONE)], [(GHC_PARAMS, F::ONE)]);
+        b.push_row(
+            [(HOST_CALL_ACTIVE, F::ONE)],
+            [(PARAM_COUNT, F::ONE)],
+            [(GHC_PARAMS, F::ONE)],
+        );
 
         // Event schedule countdown: loaded from the event-count ROMs on the
-        // grammar call row (the whole call, args and result, is one atomic
+        // host-call row (the whole call, args and result, is one atomic
         // event sequence), decremented by each block's last slot row,
         // preserved elsewhere; program rows require it to be spent, and
         // gather rows require it to be live.
-        push_zero_test_gadget(b, EVREM_B, EVREM_INV, EVREM_ISZERO);
-        b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(EVREM_ISZERO, F::ONE)], []);
-        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(EVREM_B, F::ONE)], []);
+        push_zero_test_gadget(
+            b,
+            EVENTS_REMAINING_BEFORE,
+            EVENTS_REMAINING_INV,
+            EVENTS_REMAINING_IS_ZERO,
+        );
+        b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(EVENTS_REMAINING_IS_ZERO, F::ONE)], []);
+        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(EVENTS_REMAINING_BEFORE, F::ONE)], []);
         // Pre-count cells store count + 1 (presence bias): an undeclared
-        // import's zero-filled cell loads the poisoned EVREM = -1 = p-1.
+        // import's zero-filled cell loads the poisoned events_remaining = -1 = p-1.
         // See the count-family relation-layout comment for the full
         // ROM-address non-termination argument.
         b.push_row(
-            [(GHC, F::ONE)],
-            [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE), (COL_ONE, F::ONE)],
+            [(HOST_CALL_ACTIVE, F::ONE)],
+            [
+                (EVENTS_REMAINING_AFTER, F::ONE),
+                (INITIAL_SCHEDULE_COUNT, -F::ONE),
+                (COL_ONE, F::ONE),
+            ],
             [],
         );
         b.push_row(
             [(GATHER_WORD_POSITION[7], F::ONE)],
-            [(EVREM_A, F::ONE), (EVREM_B, -F::ONE), (COL_ONE, F::ONE)],
+            [
+                (EVENTS_REMAINING_AFTER, F::ONE),
+                (EVENTS_REMAINING_BEFORE, -F::ONE),
+                (COL_ONE, F::ONE),
+            ],
             [],
         );
         b.push_row(
             [
                 (COL_ONE, F::ONE),
-                (GHC, -F::ONE),
+                (HOST_CALL_ACTIVE, -F::ONE),
                 (GATHER_WORD_POSITION[7], -F::ONE),
-                (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
+                (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
                 (COL_TURN_BOUNDARY, -F::ONE),
             ],
-            [(EVREM_A, F::ONE), (EVREM_B, -F::ONE)],
+            [(EVENTS_REMAINING_AFTER, F::ONE), (EVENTS_REMAINING_BEFORE, -F::ONE)],
             [],
         );
         // Turn boundary: the previous turn's schedules must be spent, and
@@ -316,11 +337,15 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         // by the repointed attribution, like the exit latch). The presence
         // bias (+1) binds the target to a DECLARED export template: internal
         // functions and imports read the export family's zero-filled 0 and
-        // load the poisoned EVREM = p-1 described above.
-        b.push_row([(COL_TURN_BOUNDARY, F::ONE)], [(EVREM_B, F::ONE)], []);
+        // load the poisoned events_remaining = p-1 described above.
+        b.push_row([(COL_TURN_BOUNDARY, F::ONE)], [(EVENTS_REMAINING_BEFORE, F::ONE)], []);
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE)],
-            [(EVREM_A, F::ONE), (PRE_COUNT, -F::ONE), (COL_ONE, F::ONE)],
+            [
+                (EVENTS_REMAINING_AFTER, F::ONE),
+                (INITIAL_SCHEDULE_COUNT, -F::ONE),
+                (COL_ONE, F::ONE),
+            ],
             [],
         );
         // if col_turn_boundary then template_len != 0
@@ -337,37 +362,41 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         // so the case of proving a single function is fine
         b.push_row(
             // 0 means no template, 1 is empty (template len is x - 1)
-            [(PRE_COUNT, F::ONE), (COL_ONE, -F::ONE)],
-            [(PRE_COUNT_MINUS_ONE_INV, F::ONE)],
-            // if this is 1, PRE_COUNT must have an inverse, so it is non zero
+            [(INITIAL_SCHEDULE_COUNT, F::ONE), (COL_ONE, -F::ONE)],
+            [(INITIAL_SCHEDULE_COUNT_MINUS_ONE_INV, F::ONE)],
+            // if this is 1, INITIAL_SCHEDULE_COUNT must have an inverse, so it is non zero
             [(COL_TURN_BOUNDARY, F::ONE)],
         );
 
         // Event index: the ROM key component walking the template.
-        b.push_row([(GHC, F::ONE)], [(EVIDX_A, F::ONE)], []);
+        b.push_row([(HOST_CALL_ACTIVE, F::ONE)], [(EVENT_INDEX_AFTER, F::ONE)], []);
         b.push_row(
             [(GATHER_WORD_POSITION[7], F::ONE)],
-            [(EVIDX_A, F::ONE), (EVIDX_B, -F::ONE), (COL_ONE, -F::ONE)],
+            [
+                (EVENT_INDEX_AFTER, F::ONE),
+                (EVENT_INDEX_BEFORE, -F::ONE),
+                (COL_ONE, -F::ONE),
+            ],
             [],
         );
         b.push_row(
             [
                 (COL_ONE, F::ONE),
-                (GHC, -F::ONE),
+                (HOST_CALL_ACTIVE, -F::ONE),
                 (GATHER_WORD_POSITION[7], -F::ONE),
-                (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
+                (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
                 (COL_TURN_BOUNDARY, -F::ONE),
             ],
-            [(EVIDX_A, F::ONE), (EVIDX_B, -F::ONE)],
+            [(EVENT_INDEX_AFTER, F::ONE), (EVENT_INDEX_BEFORE, -F::ONE)],
             [],
         );
         // Turn boundary: entry events of the next turn are numbered from 0.
-        b.push_row([(COL_TURN_BOUNDARY, F::ONE)], [(EVIDX_A, F::ONE)], []);
+        b.push_row([(COL_TURN_BOUNDARY, F::ONE)], [(EVENT_INDEX_AFTER, F::ONE)], []);
 
-        // Argument-region base: latched on the grammar call row from bound
+        // Argument-region base: latched on the host-call row from bound
         // quantities (sp, the indirect-index pop, the ROM-bound arity).
         b.push_row(
-            [(GHC, F::ONE)],
+            [(HOST_CALL_ACTIVE, F::ONE)],
             [
                 (ARGS_BASE_AFTER, F::ONE),
                 (COL_SP_BEFORE, -F::ONE),
@@ -377,7 +406,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [],
         );
         b.push_row(
-            [(COL_ONE, F::ONE), (GHC, -F::ONE)],
+            [(COL_ONE, F::ONE), (HOST_CALL_ACTIVE, -F::ONE)],
             [(ARGS_BASE_AFTER, F::ONE), (ARGS_BASE_BEFORE, -F::ONE)],
             [],
         );
@@ -396,16 +425,16 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [(COL_GATHER_ACTIVE, F::ONE)],
             (0..8)
                 .map(|k| (GATHER_WORD_POSITION[k], F::from_u64(k as u64)))
-                .chain([(S_B, -F::ONE)]),
+                .chain([(SLOT_CURSOR_BEFORE, -F::ONE)]),
             [],
         );
         b.push_linear_zero([
-            (S_A, F::ONE),
-            (S_B, -F::ONE),
+            (SLOT_CURSOR_AFTER, F::ONE),
+            (SLOT_CURSOR_BEFORE, -F::ONE),
             (COL_GATHER_ACTIVE, -F::ONE),
             (GATHER_WORD_POSITION[7], F::from_u64(8)),
         ]);
-        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(S_B, F::ONE)], []);
+        b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(SLOT_CURSOR_BEFORE, F::ONE)], []);
 
         // Advice uses the next code range above the raw slot kinds.
         for j in 0..GKINDS {
@@ -728,22 +757,26 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             (COL_TRAPPED_AFTER, -F::ONE),
             (COL_TRAPPED_BEFORE, F::ONE),
             (COL_TURN_BOUNDARY, F::ONE),
-            (COL_GRAMMAR_EXIT_LATCH, -F::ONE),
+            (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
         ]);
         b.push_row(
-            [(COL_GRAMMAR_EXIT_LATCH, F::ONE)],
-            [(EVREM_A, F::ONE), (POST_COUNT, -F::ONE)],
+            [(COL_HOST_EVENT_EXIT_LATCH, F::ONE)],
+            [(EVENTS_REMAINING_AFTER, F::ONE), (EXIT_SCHEDULE_COUNT, -F::ONE)],
             [],
         );
-        // The entry-count re-read carries the presence bias: EVIDX continues
+        // The entry-count re-read carries the presence bias: event_index continues
         // at cell - 1 = the export's true entry count.
         b.push_row(
-            [(COL_GRAMMAR_EXIT_LATCH, F::ONE)],
-            [(EVIDX_A, F::ONE), (PRE_COUNT, -F::ONE), (COL_ONE, F::ONE)],
+            [(COL_HOST_EVENT_EXIT_LATCH, F::ONE)],
+            [
+                (EVENT_INDEX_AFTER, F::ONE),
+                (INITIAL_SCHEDULE_COUNT, -F::ONE),
+                (COL_ONE, F::ONE),
+            ],
             [],
         );
         b.push_row(
-            [(COL_GRAMMAR_EXIT_LATCH, F::ONE)],
+            [(COL_HOST_EVENT_EXIT_LATCH, F::ONE)],
             [
                 (COL_HOST_CALLEE_FREF_AFTER, F::ONE),
                 (COL_TURN_EXPORT_FREF_BEFORE, -F::ONE),
@@ -1040,8 +1073,8 @@ fn push_perm_row_shape_constraints(b: &mut R1csBuilder) {
 /// Derived-only (like the range-check bits), so witness-tampering helpers can
 /// keep it consistent with caller-mutated declared columns.
 pub fn write_turn_entry_guard_witness(wit: &mut [F]) {
-    let delta = wit[super::super::layout::COL_GRAMMAR_PRE_COUNT] - F::ONE;
-    wit[PRE_COUNT_MINUS_ONE_INV] = if wit[super::super::layout::COL_TURN_BOUNDARY] == F::ONE {
+    let delta = wit[super::super::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] - F::ONE;
+    wit[INITIAL_SCHEDULE_COUNT_MINUS_ONE_INV] = if wit[super::super::layout::COL_TURN_BOUNDARY] == F::ONE {
         delta.try_inverse().unwrap_or(F::ZERO)
     } else {
         F::ZERO
@@ -1109,14 +1142,14 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
             wit[GMEM_HALF] = bool_f(rom.variant.uses_half_memory_width());
         }
     }
-    // Host-call arg pops: GHC · ROM-bound param count.
+    // Host-call arg pops: HOST_CALL_ACTIVE · ROM-bound param count.
     wit[GHC_PARAMS] = wit[super::super::layout::COL_HOST_CALL_ACTIVE] * wit[super::super::layout::COL_CALL_PARAM_COUNT];
     write_turn_entry_guard_witness(wit);
     // Limb-selected values: filled on every row so the unconditional select
     // rows hold (the limb column is zero off gather rows).
     let read_lo = wit[super::super::layout::COL_STACK_READ_VALUE_LO[0]];
     let read_hi = wit[COL_STACK_READ_VALUE_HI[0]];
-    let variant = wit[super::super::layout::COL_GRAMMAR_SLOT_VARIANT];
+    let variant = wit[super::super::layout::COL_HOST_EVENT_SLOT_VARIANT];
     wit[GARG_VAL] = read_lo + variant * (read_hi - read_lo);
     let out_lo = wit[super::super::layout::COL_OUTPUT_VALUE_LO_BEFORE];
     let out_hi = wit[super::super::layout::COL_OUTPUT_VALUE_HI_BEFORE];

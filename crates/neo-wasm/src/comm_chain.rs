@@ -3,7 +3,7 @@
 //! verifiers (the Starstream interleaving proof's `LedgerEffectsCommitment`).
 //!
 //! Owns the chain-update permutation and its protocol constants. Does not own
-//! the event grammar (which host import maps to which discriminant/arg slots)
+//! the event bindings (which host import maps to which discriminant/arg slots)
 //! or the circuit gadget enforcing the update in CCS rows.
 //!
 //! Protocol constants (must match `starstream-interleaving-proof`):
@@ -106,7 +106,7 @@ pub struct AbsorbedEventMetadata {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AbsorbedEventBlock {
     /// Exact words absorbed by the event chain. Their interpretation belongs
-    /// to the embedder grammar; position zero is not necessarily a discriminant.
+    /// to the embedder bindings; position zero is not necessarily a discriminant.
     pub words: [u64; COMM_CHAIN_BLOCK_WORDS],
     /// Trace-derived attribution, excluded from the event-chain commitment.
     pub metadata: AbsorbedEventMetadata,
@@ -254,7 +254,7 @@ pub fn sanity_check_comm_chain(trace: &[WasmVmStep]) -> Result<(), WasmBuildErro
         // Each event block is staged by 8 gather rows; the one
         // that completes the block raises `perm_pending`, and the chain must
         // fold exactly the staged blocks in order. The binding of block
-        // contents to the grammar tables is checked against the grammar ROM
+        // contents to the host-event tables is checked against the host-event ROM
         // (see `memory_semantics::preload_host_event_tables`), not here.
         if row.row_kind.is_host_event_gather()
             && row.state_after.event_absorb.perm_pending

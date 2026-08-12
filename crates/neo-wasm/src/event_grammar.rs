@@ -1,7 +1,6 @@
 //! Embedder-injected host-event grammar: per-import templates that expand a
 //! host call into a static sequence of absorb blocks for the commitment
-//! chain, replacing the raw record format (see
-//! `docs/host-event-grammar-tables.md`).
+//! chain (see `docs/host-event-grammar-tables.md`).
 //!
 //! Owns the template schema and its native expansion. Does not own the chain
 //! permutation (`comm_chain`), the circuit gather machinery, or any specific
@@ -304,8 +303,9 @@ pub struct TurnClaims {
 /// Per-program grammar: import templates keyed by callee function ref, and
 /// export boundary templates keyed by the exported function's ref.
 ///
-/// Absence of a grammar (or of a template for a given fref) means the raw
-/// host-call record format applies — the zkVM stays usable with no embedder.
+/// Import-free traces may omit the grammar entirely. Once event binding is
+/// enabled, every executed host import and entered export must have a
+/// matching template.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct HostEventGrammar {
     pub imports: BTreeMap<u32, ImportTemplate>,

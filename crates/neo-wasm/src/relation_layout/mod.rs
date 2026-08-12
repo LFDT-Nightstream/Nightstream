@@ -7,10 +7,10 @@ use super::layout::{
     COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID,
     COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE,
     COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
-    COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL, COL_GRAMMAR_POST_COUNT,
-    COL_GRAMMAR_PRE_COUNT, COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO,
-    COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT, COL_GUEST_ENTRY_ACTIVE,
-    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
+    COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_POST_COUNT, COL_GRAMMAR_PRE_COUNT,
+    COL_GRAMMAR_SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI, COL_GRAMMAR_SLOT_CONST_LO, COL_GRAMMAR_SLOT_CURSOR_BEFORE,
+    COL_GRAMMAR_SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_CALL_ACTIVE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0,
     COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4,
     COL_LINEAR_MEM_ACCESS_BYTE5, COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
     COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_0, COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1,
@@ -957,7 +957,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             Column(COL_PC_EDGE_KIND),
             WasmMemoryActivation::BooleanGate(Column(COL_IS_PROGRAM_ROW)),
         ),
-        // Grammar-mode ROMs (see `docs/host-event-grammar-tables.md` §3.4):
+        // Event-template ROMs (see `docs/host-event-grammar-tables.md` §3.4):
         // per-slot source descriptors keyed by (fref, event index, slot
         // cursor) read on gather rows, and per-import event counts read on
         // grammar call/result rows. Content is generated from the embedder's
@@ -1035,7 +1035,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 address_columns: vec![Column(COL_FUNCTION_REF)],
                 value_column: Column(COL_GRAMMAR_PRE_COUNT),
                 kind: WasmMemoryColumnKind::Read,
-                activation: WasmMemoryActivation::BooleanGate(Column(COL_GRAMMAR_HOST_CALL)),
+                activation: WasmMemoryActivation::BooleanGate(Column(COL_HOST_CALL_ACTIVE)),
             }],
             is_rom: true,
         },

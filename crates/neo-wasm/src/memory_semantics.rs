@@ -205,11 +205,11 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts, initial_
     preload
 }
 
-/// Preload the grammar-mode ROM families from an embedder grammar: the
+/// Preload the event-template ROM families from an embedder grammar: the
 /// per-slot source descriptors keyed by `(fref, event_index, slot_cursor)`
 /// (exports number entry events then exit events) and the per-fref event
 /// counts. Call after [`preload_from_program_artifacts`] when checking a
-/// grammar-mode trace.
+/// event-bound trace.
 pub fn preload_grammar_tables(preload: &mut WasmMemoryPreload, grammar: &crate::event_grammar::HostEventGrammar) {
     use crate::event_grammar::{memory_rom_arg_variant, GrammarEvent, Limb, SlotSource};
     use crate::ir::{WasmGrammarMemoryWidth, WasmGrammarRomVariant, WasmGrammarSlotKind};

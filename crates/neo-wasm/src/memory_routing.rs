@@ -8,23 +8,21 @@ use crate::isa::{opcode_code, opcode_info_from_code, WasmMemoryAccessKind, WasmO
 use crate::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CI_HOST_CALL, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE,
-    COL_GATHER_LOCAL_WRITE_LO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL, COL_GUEST_ENTRY_ACTIVE,
-    COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_RESULT_ACTIVE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_LANE_LOAD_ACTIVE,
-    COL_LINEAR_MEM_LANE_STORE_ACTIVE, COL_LINEAR_MEM_USE_LANE0, COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED,
-    COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE,
-    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
-    COL_PROGRAM_TABLE_ID_ACTIVE, COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_HI_ACTIVE,
-    COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE, COL_TURN_BOUNDARY, SELECTOR_COLS,
+    COL_GATHER_LOCAL_WRITE_LO, COL_GRAMMAR_EXIT_LATCH, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALL_ACTIVE,
+    COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE, COL_LINEAR_MEM_USE_LANE0,
+    COL_LOCAL_WRITE_ENABLED, COL_OUTPUT_CAPTURED, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_FREF_ACTIVE,
+    COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
+    COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE,
+    COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE,
+    COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
 use crate::relation_layout::{WasmMemoryActivation, WasmMemoryColumnKind, WasmRelationLayout};
 
 /// Auxiliary row-kind columns that are pairwise disjoint with each other and
 /// with every opcode selector under the CCS row-kind and opcode one-hots.
-const AUXILIARY_ROW_SUPPORT_ATOMS: [usize; 6] = [
+const AUXILIARY_ROW_SUPPORT_ATOMS: [usize; 4] = [
     COL_PARAM_INIT_ACTIVE_BEFORE,
     COL_TAIL_ENTER_ACTIVE,
-    COL_HOST_ARGS_ACTIVE_BEFORE,
-    COL_HOST_RESULT_ACTIVE,
     COL_GATHER_ACTIVE,
     COL_TURN_BOUNDARY,
 ];
@@ -178,7 +176,7 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     ]);
     for (name, gate) in [
         ("guest entries", COL_GUEST_ENTRY_ACTIVE),
-        ("grammar host calls", COL_GRAMMAR_HOST_CALL),
+        ("host calls", COL_HOST_CALL_ACTIVE),
     ] {
         insert_derived_activation_support(&mut supports, name, gate, call_selectors.iter().copied());
     }
@@ -220,11 +218,10 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         &mut supports,
         "stack read lane 0",
         COL_STACK_READ_ACTIVE[0],
-        read0_selectors.iter().copied().chain([
-            COL_PARAM_INIT_ACTIVE_BEFORE,
-            COL_HOST_ARGS_ACTIVE_BEFORE,
-            COL_GATHER_ACTIVE,
-        ]),
+        read0_selectors
+            .iter()
+            .copied()
+            .chain([COL_PARAM_INIT_ACTIVE_BEFORE, COL_GATHER_ACTIVE]),
     );
     for (name, gate, minimum_reads) in [
         ("stack read lane 1", COL_STACK_READ_ACTIVE[1], 2),
@@ -248,7 +245,7 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             .filter(|opcode| opcode_info_from_code(opcode_code(*opcode)).stack_writes >= 1),
     )
     .into_iter()
-    .chain([COL_HOST_RESULT_ACTIVE, COL_GATHER_ACTIVE])
+    .chain([COL_GATHER_ACTIVE])
     .collect::<Vec<_>>();
     for (name, gate) in [
         ("stack write lane 0", COL_STACK_WRITE0_ACTIVE),
@@ -280,12 +277,10 @@ fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         &mut supports,
         "pc-to-function reads",
         COL_PC_FREF_ACTIVE,
-        program_selectors.iter().copied().chain([
-            COL_PARAM_INIT_ACTIVE_BEFORE,
-            COL_TAIL_ENTER_ACTIVE,
-            COL_HOST_ARGS_ACTIVE_BEFORE,
-            COL_HOST_RESULT_ACTIVE,
-        ]),
+        program_selectors
+            .iter()
+            .copied()
+            .chain([COL_PARAM_INIT_ACTIVE_BEFORE, COL_TAIL_ENTER_ACTIVE]),
     );
     supports
 }

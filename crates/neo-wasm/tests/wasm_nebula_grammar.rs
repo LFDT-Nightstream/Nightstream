@@ -1,4 +1,4 @@
-//! One real Nebula proof over a grammar-mode trace: grammar-anchored
+//! One real Nebula proof over an event-bound trace: grammar-anchored
 //! preprocessing (grammar ROMs preloaded, host calls chain-bound), prove,
 //! verify against the final-state claim, and check the claimed transcript
 //! folds to the digest-bound final chain.

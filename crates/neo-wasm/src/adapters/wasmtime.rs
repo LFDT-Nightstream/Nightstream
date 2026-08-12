@@ -86,8 +86,8 @@ pub struct WasmtimeTraceStep {
     pub pc_after_instruction: Option<u64>,
     /// Per-call grammar claim words recorded by the embedder's host
     /// function while servicing this host-call row (see
-    /// [`WasmtimeTraceState::record_call_claims`]). Consumed by grammar-mode
-    /// normalization; raw-mode normalization ignores it.
+    /// [`WasmtimeTraceState::record_call_claims`]). Consumed by event-bound
+    /// normalization.
     pub host_call_claims: Vec<u64>,
 }
 

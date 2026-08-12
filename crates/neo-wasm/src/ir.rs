@@ -102,8 +102,7 @@ impl Default for WasmCountdownState {
 
 /// Carried state of the in-circuit host-event absorb machinery.
 ///
-/// Host-call rows stream the event's words (header, popped args, result)
-/// into `evbuf`; when the 8-word block fills — or the event's stream ends —
+/// Gather rows stage event words into `evbuf`; when the 8-word block fills,
 /// `perm_pending` is raised and a group of `HostEventPerm` aux rows runs the
 /// width-12 permutation one round-row at a time (`perm_round` is the position
 /// inside that group, 0 when idle). The group's last row folds the block into
@@ -113,8 +112,6 @@ pub struct WasmEventAbsorbState {
     /// The 8-word block currently being filled (already-absorbed slots are
     /// zeroed by the group's first perm row).
     pub evbuf: [u64; 8],
-    /// Next buffer pair slot (0..=3) an event word pair lands in.
-    pub evbuf_slot: u8,
     /// A filled block (or completed event stream) awaits its perm rows.
     pub perm_pending: bool,
     /// Row position inside the current perm group (0 when idle).
@@ -129,7 +126,6 @@ pub struct WasmEventAbsorbState {
 impl WasmEventAbsorbState {
     pub const ZERO: Self = Self {
         evbuf: [0; 8],
-        evbuf_slot: 0,
         perm_pending: false,
         perm_round: 0,
         perm_state: [0; 12],
@@ -142,8 +138,8 @@ impl Default for WasmEventAbsorbState {
     }
 }
 
-/// Carried state of the grammar-mode gather machinery (all zero in raw
-/// mode): the per-call event schedule, the argument-region base for
+/// Carried state of the host-event gather machinery: the per-call event
+/// schedule, the argument-region base for
 /// addressed slot reads, and the slot cursor inside the block being
 /// staged (see [`crate::event_grammar`]).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -195,12 +191,10 @@ pub struct WasmBoundaryState {
     pub trapped: bool,
     pub param_init: WasmCountdownState,
     pub tail_call_pending: bool,
-    pub host_args: WasmCountdownState,
-    pub host_result_pending: bool,
     pub host_callee_fref: u32,
+    pub event_binding_active: bool,
     pub comm_chain: [u64; 4],
     pub event_absorb: WasmEventAbsorbState,
-    pub grammar_mode: bool,
     pub grammar: WasmGrammarState,
 }
 
@@ -259,18 +253,16 @@ pub struct WasmStepState {
     /// A tail call has initialized its replacement frame but still needs to
     /// discard the replaced frame's residual operand stack.
     pub tail_call_pending: bool,
-    /// Host-call argument-pop mode: each `HostCallArg` aux row pops one
-    /// pre-call operand while `remaining` counts down to zero.
-    pub host_args: WasmCountdownState,
-    /// A host call with `result_count = 1` still owes its result push; the
-    /// `HostCallResult` aux row consumes this flag.
-    pub host_result_pending: bool,
     /// Callee attribution for host-call events: set from the call row's
     /// (ROM/table-bound) `COL_FUNCTION_REF` on every host call and preserved
     /// on all other rows until the next host call overwrites it. Consumers
     /// (the event absorb) read it only on rows of the event that set it, so
     /// the stale value between events is inert.
     pub host_callee_fref: u32,
+    /// Whether verifier-authored event templates are active for this
+    /// execution. Disabled executions cannot call host imports or emit event
+    /// rows, but remain useful for proving import-free core WASM.
+    pub event_binding_active: bool,
     /// Host-event commitment chain state (canonical Goldilocks limbs; see
     /// [`crate::comm_chain`]). Genesis is all-zero; the last row of each
     /// absorbed block's `HostEventPerm` group folds the block in
@@ -278,14 +270,7 @@ pub struct WasmStepState {
     pub comm_chain: [u64; 4],
     /// In-circuit host-event absorb machinery (block buffer + perm rows).
     pub event_absorb: WasmEventAbsorbState,
-    /// The chain absorbs embedder grammar events instead of raw host-call
-    /// records (see [`crate::event_grammar`]). A per-program constant
-    /// carried like `max_memory_pages`: verifier-pinned through the initial
-    /// semantic digest, preserved on every row. In grammar mode the raw
-    /// absorb machinery (header/buffer writes, pending formulas) is
-    /// de-gated and `HostEventGather` rows stage each event block instead.
-    pub grammar_mode: bool,
-    /// Grammar-mode gather machinery state (zero in raw mode).
+    /// Host-event gather machinery state.
     pub grammar: WasmGrammarState,
 }
 
@@ -295,21 +280,13 @@ pub enum WasmAuxOpcode {
     /// Drops residual operands from the replaced frame after tail-call
     /// parameters have been copied into the callee's locals.
     TailEnter,
-    /// Pops one host-call argument off the operand stack. The program call row
-    /// pops only the indirect table index; argument arity is handled by these
-    /// aux rows.
-    HostCallArg,
-    /// Pushes the host call's single result at the post-pop stack top.
-    /// Emitted after the `HostCallArg` rows iff `result_count = 1` (the
-    /// canonical ABI caps flat results at 1).
-    HostCallResult,
     /// One row of the host-event chain permutation group: a full-round row or
     /// a partial-pair row of the width-12 Poseidon2 block absorb (see
     /// [`crate::comm_chain::COMM_CHAIN_PERM_ROWS`]). Scheduled whenever
     /// `WasmEventAbsorbState::perm_pending` is raised.
     HostEventPerm,
-    /// Grammar mode only: eight rows stage an expanded event block into the
-    /// absorb buffer, then raise `perm_pending` for its permutation group.
+    /// Eight rows stage an expanded event block into the absorb buffer, then
+    /// raise `perm_pending` for its permutation group.
     HostEventGather,
     /// Re-entry between export invocations. Requires the previous turn to be
     /// halted and drained, then loads the next export's entry PC and schedule.
@@ -337,14 +314,6 @@ impl WasmRowKind {
 
     pub fn is_tail_enter(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::TailEnter))
-    }
-
-    pub fn is_host_call_arg(self) -> bool {
-        matches!(self, Self::Aux(WasmAuxOpcode::HostCallArg))
-    }
-
-    pub fn is_host_call_result(self) -> bool {
-        matches!(self, Self::Aux(WasmAuxOpcode::HostCallResult))
     }
 
     pub fn is_host_event_perm(self) -> bool {
@@ -601,12 +570,10 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     trapped: row.state_before.trapped,
                     param_init: row.state_before.param_init,
                     tail_call_pending: row.state_before.tail_call_pending,
-                    host_args: row.state_before.host_args,
-                    host_result_pending: row.state_before.host_result_pending,
                     host_callee_fref: row.state_before.host_callee_fref,
+                    event_binding_active: row.state_before.event_binding_active,
                     comm_chain: row.state_before.comm_chain,
                     event_absorb: row.state_before.event_absorb,
-                    grammar_mode: row.state_before.grammar_mode,
                     grammar: row.state_before.grammar,
                 },
                 WasmBoundaryState {
@@ -622,12 +589,10 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     trapped: row.state_after.trapped,
                     param_init: row.state_after.param_init,
                     tail_call_pending: row.state_after.tail_call_pending,
-                    host_args: row.state_after.host_args,
-                    host_result_pending: row.state_after.host_result_pending,
                     host_callee_fref: row.state_after.host_callee_fref,
+                    event_binding_active: row.state_after.event_binding_active,
                     comm_chain: row.state_after.comm_chain,
                     event_absorb: row.state_after.event_absorb,
-                    grammar_mode: row.state_after.grammar_mode,
                     grammar: row.state_after.grammar,
                 },
             )

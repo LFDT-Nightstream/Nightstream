@@ -15,7 +15,6 @@
 //!   truncate to 4 lanes, feed-forward add the matching input lanes.
 
 use crate::ir::{WasmBuildError, WasmVmStep};
-use crate::isa::WasmOpcode;
 use once_cell::sync::Lazy;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{
@@ -86,105 +85,8 @@ pub fn commit_event(
     core::array::from_fn(|i| permuted[i] + state[i])
 }
 
-/// Domain tag opening every raw host-call event.
-pub const HOST_CALL_EVENT_TAG: u64 = 1;
-
 /// Words absorbed per chain block (discriminant slot + arg slots).
 pub const COMM_CHAIN_BLOCK_WORDS: usize = 1 + COMM_CHAIN_EVENT_ARGS;
-
-/// Serialize one raw host-call event into its absorb stream: the canonical,
-/// embedder-agnostic record of "this import was called with these arguments
-/// and returned this result".
-///
-/// ```text
-/// [HOST_CALL_EVENT_TAG, callee_fref, param_count, result_count,
-///  arg{n-1}_lo, arg{n-1}_hi, ..., arg0_lo, arg0_hi,
-///  result_lo, result_hi]              // present iff result_count = 1
-/// ```
-///
-/// Args are two 32-bit limbs each regardless of wasm type, in operand-stack
-/// pop order (last declared parameter first) — the order the trace's
-/// `HostCallArg` rows stream them into the in-circuit absorb buffer. The
-/// declared order is recoverable since `param_count` is part of the header,
-/// and the block count is a static function of the callee's arity.
-pub fn host_call_event_stream(
-    callee_fref: u32,
-    param_count: u8,
-    result_count: u8,
-    args: &[(u32, u32)],
-    result: Option<(u32, u32)>,
-) -> Vec<Goldilocks> {
-    assert_eq!(args.len(), usize::from(param_count), "arg limbs must match param_count");
-    assert_eq!(
-        result.is_some(),
-        result_count == 1,
-        "result limbs must match result_count"
-    );
-
-    let f = Goldilocks::from_u64;
-    let mut stream = Vec::with_capacity(4 + 2 * args.len() + 2);
-    stream.extend([
-        f(HOST_CALL_EVENT_TAG),
-        f(u64::from(callee_fref)),
-        f(u64::from(param_count)),
-        f(u64::from(result_count)),
-    ]);
-    for &(lo, hi) in args.iter().rev() {
-        stream.push(f(u64::from(lo)));
-        stream.push(f(u64::from(hi)));
-    }
-    if let Some((lo, hi)) = result {
-        stream.push(f(u64::from(lo)));
-        stream.push(f(u64::from(hi)));
-    }
-    stream
-}
-
-/// Absorb one raw host-call event (see [`host_call_event_stream`] for the
-/// serialization): the stream is absorbed in blocks of
-/// [`COMM_CHAIN_BLOCK_WORDS`] words via [`commit_event`], zero-padding the
-/// final block — unambiguous because the two counts fix the stream length.
-///
-/// `args` are in declared parameter order; the stream absorbs them in pop
-/// order internally.
-pub fn commit_host_call_event(
-    prev: [Goldilocks; COMM_CHAIN_STATE_LEN],
-    callee_fref: u32,
-    param_count: u8,
-    result_count: u8,
-    args: &[(u32, u32)],
-    result: Option<(u32, u32)>,
-) -> [Goldilocks; COMM_CHAIN_STATE_LEN] {
-    let stream = host_call_event_stream(callee_fref, param_count, result_count, args, result);
-    let mut state = prev;
-    for block in stream.chunks(COMM_CHAIN_BLOCK_WORDS) {
-        let mut words = [Goldilocks::ZERO; COMM_CHAIN_BLOCK_WORDS];
-        words[..block.len()].copy_from_slice(block);
-        state = commit_event(state, words[0], words[1..].try_into().unwrap());
-    }
-    state
-}
-
-/// [`commit_host_call_event`] over canonical-u64 chain limbs, as carried in
-/// [`crate::ir::WasmStepState::comm_chain`].
-pub fn commit_host_call_event_u64(
-    prev: [u64; COMM_CHAIN_STATE_LEN],
-    callee_fref: u32,
-    param_count: u8,
-    result_count: u8,
-    args: &[(u32, u32)],
-    result: Option<(u32, u32)>,
-) -> [u64; COMM_CHAIN_STATE_LEN] {
-    commit_host_call_event(
-        prev.map(Goldilocks::from_u64),
-        callee_fref,
-        param_count,
-        result_count,
-        args,
-        result,
-    )
-    .map(|limb| limb.as_canonical_u64())
-}
 
 /// Trace attribution accompanying an absorbed block.
 ///
@@ -199,7 +101,7 @@ pub struct AbsorbedEventMetadata {
     pub turn_export_fref: u32,
 }
 
-/// One committed grammar-mode block, extracted from the gather row that
+/// One committed event block, extracted from the gather row that
 /// completed it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AbsorbedEventBlock {
@@ -210,13 +112,12 @@ pub struct AbsorbedEventBlock {
     pub metadata: AbsorbedEventMetadata,
 }
 
-/// Committed event blocks of a grammar-mode trace, in absorb order: the
+/// Committed event blocks of a trace, in absorb order: the
 /// exact stream the carried chain folds, for external consumers rebuilding
 /// the event sequence (e.g. the Starstream interleaving buffer). A block
 /// commits on the gather row that raises `perm_pending`; advice events stage
-/// `evbuf` without raising it and are excluded by construction. Raw-mode
-/// traces have no gather rows and yield an empty list. This extracts witness
-/// data; it does not validate the supplied trace.
+/// `evbuf` without raising it and are excluded by construction. This extracts
+/// witness data; it does not validate the supplied trace.
 pub fn absorbed_event_blocks(trace: &[WasmVmStep]) -> Vec<AbsorbedEventBlock> {
     trace
         .iter()
@@ -327,15 +228,8 @@ pub fn perm_row_checkpoints(
     checkpoints
 }
 
-/// Recompute the host-event commitment chain from the trace's host-call
-/// events and validate every carried `comm_chain` state against it.
-///
-/// Debug-side stand-in mirroring how `memory_semantics` stands in for the
-/// committed memory argument: events are reconstructed from the call/arg/
-/// result rows' own data, re-serialized, chunked into blocks, and each
-/// perm-group is checked to absorb the right block words and land the chain
-/// on the right value (on the group's last row; every other row must carry
-/// the chain unchanged).
+/// Recompute the host-event commitment chain from gathered event blocks and
+/// validate every carried `comm_chain` state against it.
 pub fn sanity_check_comm_chain(trace: &[WasmVmStep]) -> Result<(), WasmBuildError> {
     use std::collections::VecDeque;
 
@@ -357,7 +251,7 @@ pub fn sanity_check_comm_chain(trace: &[WasmVmStep]) -> Result<(), WasmBuildErro
             ));
         }
 
-        // Grammar mode: each event block is staged by 8 gather rows; the one
+        // Each event block is staged by 8 gather rows; the one
         // that completes the block raises `perm_pending`, and the chain must
         // fold exactly the staged blocks in order. The binding of block
         // contents to the grammar tables is checked against the grammar ROM
@@ -374,62 +268,6 @@ pub fn sanity_check_comm_chain(trace: &[WasmVmStep]) -> Result<(), WasmBuildErro
             );
             owed_chain = updated.map(|limb| limb.as_canonical_u64());
             owed_blocks.push_back((words, owed_chain));
-        }
-
-        let is_host_call = !row.state_before.grammar_mode
-            && row.row_kind.is_program()
-            && matches!(row.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
-            && !row.target_function_is_guest
-            && !row.state_after.trapped;
-        if is_host_call {
-            // Reconstruct the event from its own rows: arg rows stream pop
-            // order (which is also serialization order), then the result.
-            let param_count = row.state_after.host_args.remaining;
-            let result_count = row.state_after.host_result_pending;
-            let mut pop_args: Vec<(u32, u32)> = Vec::new();
-            let mut result: Option<(u32, u32)> = None;
-            for later in &trace[i + 1..] {
-                if later.row_kind.is_host_call_arg() {
-                    let read = later.stack_read0.ok_or_else(|| {
-                        WasmBuildError::StateMismatch(format!("row {i}: host arg row without a stack read"))
-                    })?;
-                    pop_args.push((read.value_lo, read.value_hi.unwrap_or(0)));
-                } else if later.row_kind.is_host_call_result() {
-                    let write = later.stack_write0.ok_or_else(|| {
-                        WasmBuildError::StateMismatch(format!("row {i}: host result row without a stack write"))
-                    })?;
-                    result = Some((write.value_lo, write.value_hi.unwrap_or(0)));
-                    break;
-                } else if !later.row_kind.is_host_event_perm() {
-                    break;
-                }
-                if pop_args.len() == param_count as usize && !result_count {
-                    break;
-                }
-            }
-            if pop_args.len() != param_count as usize || result.is_some() != result_count {
-                return err(format!("row {i}: host-call event rows do not match its declared arity"));
-            }
-            let declared_args: Vec<(u32, u32)> = pop_args.iter().rev().copied().collect();
-            let stream = host_call_event_stream(
-                row.state_after.host_callee_fref,
-                u8::try_from(param_count)
-                    .map_err(|_| WasmBuildError::StateMismatch(format!("row {i}: host call arity exceeds u8")))?,
-                u8::from(result_count),
-                &declared_args,
-                result,
-            );
-            for chunk in stream.chunks(COMM_CHAIN_BLOCK_WORDS) {
-                let mut words = [Goldilocks::ZERO; COMM_CHAIN_BLOCK_WORDS];
-                words[..chunk.len()].copy_from_slice(chunk);
-                let updated = commit_event(
-                    owed_chain.map(Goldilocks::from_u64),
-                    words[0],
-                    words[1..].try_into().unwrap(),
-                );
-                owed_chain = updated.map(|limb| limb.as_canonical_u64());
-                owed_blocks.push_back((words.map(|w| w.as_canonical_u64()), owed_chain));
-            }
         }
 
         let mut want_after = expected;

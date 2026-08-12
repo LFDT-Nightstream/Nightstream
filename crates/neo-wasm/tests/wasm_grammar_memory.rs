@@ -46,13 +46,19 @@ fn component_wat() -> &'static str {
     "#
 }
 
-fn host_call_fref(trace: &[WasmVmStep]) -> u32 {
-    trace
+fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (u32, u32) {
+    let host = run
+        .steps
         .iter()
-        .find(|row| row.row_kind.is_program() && row.opcode == WasmOpcode::Call && !row.target_function_is_guest)
-        .expect("host call row")
-        .state_after
-        .host_callee_fref
+        .find(|row| matches!(row.opcode_decoded, Some(WasmOpcode::Call)) && !row.target_function_is_guest)
+        .and_then(|row| row.function_ref)
+        .expect("host function ref");
+    let export = run
+        .steps
+        .iter()
+        .find_map(|row| row.current_function_ref)
+        .expect("export function ref");
+    (host, export)
 }
 
 fn memory_grammar(host_fref: u32, export_fref: u32) -> HostEventGrammar {
@@ -222,13 +228,7 @@ fn import_memory_fixture() -> ImportMemoryFixture {
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-touch: {err}")))
     })
     .expect("component run");
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let host_fref = host_call_fref(&raw);
-    let export_fref = raw
-        .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row")
-        .current_function_ref;
+    let (host_fref, export_fref) = run_frefs(&run);
     let grammar = memory_grammar(host_fref, export_fref);
     let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
         &run.steps,

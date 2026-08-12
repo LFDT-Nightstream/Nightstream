@@ -27,7 +27,7 @@ fn activation_support_derives_only_known_disjointness() {
                 .map(|support| support.atoms.len())
                 .sum::<usize>(),
         ),
-        (36, 811),
+        (36, 806),
         "derived support-constraint census changed",
     );
 

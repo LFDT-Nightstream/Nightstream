@@ -3,7 +3,7 @@ mod common;
 use neo_wasm::{
     collect_wasmtime_component_run, collect_wasmtime_component_run_with_linker,
     extract_first_component_core_program_artifacts, traces_from_wasmtime_component, traces_from_wasmtime_steps,
-    WasmBuildError, WasmOpcode,
+    traces_from_wasmtime_steps_with_grammar, WasmBuildError, WasmOpcode,
 };
 use wasmtime::{
     component::{Component, Linker},
@@ -124,9 +124,59 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
             .map_err(|err| WasmBuildError::Trace(format!("failed to define component import: {err}")))
     })
     .expect("component trace run");
-    let trace = traces_from_wasmtime_steps(&run.steps).expect("component trace normalization");
+    let import_fref = run
+        .steps
+        .iter()
+        .find(|row| matches!(row.opcode_decoded, Some(WasmOpcode::Call)) && !row.target_function_is_guest)
+        .and_then(|row| row.function_ref)
+        .expect("host import fref");
+    let export_fref = run
+        .steps
+        .iter()
+        .find_map(|row| row.current_function_ref)
+        .expect("export fref");
+    let mut slots = [neo_wasm::event_grammar::SlotSource::Const(0); neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS];
+    slots[0] = neo_wasm::event_grammar::SlotSource::ArgElem {
+        arg: 0,
+        limb: neo_wasm::event_grammar::Limb::Lo,
+    };
+    slots[1] = neo_wasm::event_grammar::SlotSource::ResultElem {
+        limb: neo_wasm::event_grammar::Limb::Lo,
+    };
+    slots[2] = neo_wasm::event_grammar::SlotSource::ResultElem {
+        limb: neo_wasm::event_grammar::Limb::Hi,
+    };
+    let mut grammar = neo_wasm::event_grammar::HostEventGrammar::default();
+    grammar.imports.insert(
+        import_fref,
+        neo_wasm::event_grammar::ImportTemplate {
+            events: vec![neo_wasm::event_grammar::GrammarEvent::op(1, slots)],
+            claim_count: 0,
+        },
+    );
+    grammar.exports.insert(export_fref, Default::default());
+    let trace = traces_from_wasmtime_steps_with_grammar(
+        &run.steps,
+        &run.program_tables,
+        &grammar,
+        &[Default::default()],
+        Default::default(),
+    )
+    .expect("component trace normalization");
     let artifacts = extract_first_component_core_program_artifacts(&component_bytes).expect("program artifacts");
-    check_component_trace(&trace, &artifacts, &run);
+    common::ccs_check_trace(&trace);
+    let witnesses: Vec<_> = trace
+        .iter()
+        .map(neo_wasm::witness_builder::build_witness_vector)
+        .collect();
+    let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
+    for witness in &witnesses {
+        neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness).expect("lookup semantics");
+    }
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witnesses, &preload).expect("memory semantics");
+    neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("commitment chain");
 }
 
 #[test]

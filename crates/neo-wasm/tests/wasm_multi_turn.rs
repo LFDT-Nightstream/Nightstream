@@ -187,8 +187,11 @@ fn multi_turn_setup() -> MultiTurnSetup {
     let component_bytes = wat::parse_str(counter_component_wat()).expect("component wat");
     let run = run_counter_turns(&component_bytes);
 
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps);
-    assert!(raw.is_err(), "a multi-turn trace must not normalize in raw mode");
+    let without_grammar = neo_wasm::traces_from_wasmtime_steps(&run.steps);
+    assert!(
+        without_grammar.is_err(),
+        "a multi-turn trace containing host imports requires an event grammar"
+    );
 
     let component_first = neo_wasm::traces_from_wasmtime_steps_with_grammar(
         &run.steps,
@@ -199,7 +202,7 @@ fn multi_turn_setup() -> MultiTurnSetup {
     );
     assert!(component_first.is_err(), "missing export template must be rejected");
 
-    // Resolve the export fref from a single-call raw run.
+    // Resolve the export fref from a single import-free run.
     let single = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(
         &component_bytes,
         "add",
@@ -208,7 +211,7 @@ fn multi_turn_setup() -> MultiTurnSetup {
     )
     .expect("single run");
     let add_fref = neo_wasm::traces_from_wasmtime_steps(&single.steps)
-        .expect("raw single-turn trace")
+        .expect("single-turn trace")
         .first()
         .expect("rows")
         .current_function_ref;
@@ -510,13 +513,13 @@ fn resultless_turn_can_precede_another_turn() {
     assert_eq!(read_result, [ComponentVal::S32(41)]);
     let run = runtime.finish();
 
-    // Resolve both frefs from single-call raw runs.
+    // Resolve both frefs from single import-free runs.
     let fref_of = |export: &str, args: &[ComponentVal]| {
         let single =
             neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, export, args, |_| Ok(()))
                 .expect("single run");
         neo_wasm::traces_from_wasmtime_steps(&single.steps)
-            .expect("raw trace")
+            .expect("trace")
             .first()
             .expect("rows")
             .current_function_ref

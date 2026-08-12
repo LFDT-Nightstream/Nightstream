@@ -1,4 +1,4 @@
-//! Shared grammar-mode fixture: a component with two grammar-bound host
+//! Shared event-bound fixture: a component with two grammar-bound host
 //! imports (mul with a claim word, sink) and an export boundary template,
 //! traced with grammar tables. Used by the F′ audit lifecycle test and the
 //! Nebula proof test.
@@ -129,16 +129,19 @@ pub fn sink_fref(grammar: &HostEventGrammar) -> u32 {
         .0
 }
 
-fn host_call_frefs(trace: &[WasmVmStep]) -> Vec<u32> {
-    trace
+fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
+    let imports = run
+        .steps
         .iter()
-        .filter(|row| {
-            row.row_kind.is_program()
-                && matches!(row.opcode, neo_wasm::WasmOpcode::Call)
-                && !row.target_function_is_guest
-        })
-        .map(|row| row.state_after.host_callee_fref)
-        .collect()
+        .filter(|row| matches!(row.opcode_decoded, Some(neo_wasm::WasmOpcode::Call)) && !row.target_function_is_guest)
+        .filter_map(|row| row.function_ref)
+        .collect();
+    let export = run
+        .steps
+        .iter()
+        .find_map(|row| row.current_function_ref)
+        .expect("export function ref");
+    (imports, export)
 }
 
 pub struct GrammarLifecycleSetup {
@@ -168,13 +171,7 @@ pub fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
     })
     .expect("component run");
 
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let frefs = host_call_frefs(&raw);
-    let run_fref = raw
-        .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row")
-        .current_function_ref;
+    let (frefs, run_fref) = run_frefs(&run);
     let grammar = test_grammar(frefs[0], frefs[1], run_fref);
 
     let turns = [neo_wasm::event_grammar::TurnClaims {

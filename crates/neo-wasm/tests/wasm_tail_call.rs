@@ -171,18 +171,17 @@ fn grammar_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call()
             .map_err(|err| WasmBuildError::Trace(format!("failed to define host-touch: {err}")))
     })
     .expect("component trace");
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let export_fref = raw
+    let export_fref = run
+        .steps
         .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("export program row")
-        .current_function_ref;
-    let import_fref = raw
+        .find_map(|row| row.current_function_ref)
+        .expect("export function ref");
+    let import_fref = run
+        .steps
         .iter()
-        .find(|row| row.opcode == WasmOpcode::Call && !row.target_function_is_guest)
-        .expect("import call")
-        .state_after
-        .host_callee_fref;
+        .find(|row| matches!(row.opcode_decoded, Some(WasmOpcode::Call)) && !row.target_function_is_guest)
+        .and_then(|row| row.function_ref)
+        .expect("import function ref");
     assert_ne!(import_fref, export_fref);
 
     let mut slots = [SlotSource::Const(0); COMM_CHAIN_EVENT_ARGS];
@@ -205,7 +204,7 @@ fn grammar_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call()
         &[TurnClaims::default()],
         Default::default(),
     )
-    .expect("guest tail call in grammar mode");
+    .expect("guest tail call with event binding");
     common::ccs_check_trace(&trace);
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
 

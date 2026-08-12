@@ -8,7 +8,7 @@ mod common;
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{EventBlock, HostEventBindings, ImportTemplate, Limb, SlotBinding};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{WasmHostEventSlotKind, WasmVmStep};
+use neo_wasm::{WasmHostEventSlotKind, WasmMemoryId, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
@@ -687,7 +687,7 @@ fn count_families_are_split_and_biased() {
 
     let mut preload = neo_wasm::memory_semantics::WasmMemoryPreload::default();
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
-    let cell = |family: &str, fref: u32| {
+    let cell = |family: WasmMemoryId, fref: u32| {
         preload
             .entries()
             .into_iter()
@@ -696,23 +696,23 @@ fn count_families_are_split_and_biased() {
     };
     for (&fref, template) in &bindings.imports {
         assert_eq!(
-            cell("host_event_import_schedule_counts", fref),
+            cell(WasmMemoryId::HostEventImportScheduleCount, fref),
             Some(template.events.len() as u32 + 1),
             "import cells live in the import family, biased"
         );
         assert_eq!(
-            cell("host_event_export_entry_schedule_counts", fref),
+            cell(WasmMemoryId::HostEventExportEntryScheduleCount, fref),
             None,
             "imports must have no export entry-count cell"
         );
     }
     assert_eq!(
-        cell("host_event_export_entry_schedule_counts", export_fref),
+        cell(WasmMemoryId::HostEventExportEntryScheduleCount, export_fref),
         Some(1),
         "the export's zero-event entry template is the biased 1, distinct from the zero-filled 0"
     );
     assert_eq!(
-        cell("host_event_import_schedule_counts", export_fref),
+        cell(WasmMemoryId::HostEventImportScheduleCount, export_fref),
         None,
         "exports must have no import-schedule count cell"
     );

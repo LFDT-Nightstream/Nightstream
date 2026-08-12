@@ -236,7 +236,7 @@ fn routing_preserves_observable_declaration_order() {
                 assert!(
                     earlier_slot < later_slot,
                     "routing reversed observable order in region {:?}: logical ports {earlier_index} and {later_index} use physical slots {earlier_slot} and {later_slot}",
-                    memory.name,
+                    memory.id,
                 );
             }
         }

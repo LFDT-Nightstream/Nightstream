@@ -66,7 +66,7 @@ fn i64_local_get_after_set_rejects_tampered_hi() {
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("locals_hi must reject a tampered i64 local.get hi limb (cells log mismatch)");
     assert!(
-        err.contains("locals_hi"),
+        err.contains("local_hi"),
         "expected locals_hi to fire on the hi-limb tamper, got: {err}",
     );
 }
@@ -116,7 +116,7 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("locals_hi must reject a non-zero hi on a first-read of an uninitialized local");
     assert!(
-        err.contains("locals_hi") && (err.contains("read mismatch") || err.contains("zero-default")),
+        err.contains("local_hi") && (err.contains("read mismatch") || err.contains("zero-default")),
         "expected the locals_hi cells log to reject the hi-limb tamper, got: {err}",
     );
 }
@@ -159,7 +159,7 @@ fn i64_global_get_after_set_rejects_tampered_hi() {
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("globals_hi must reject a tampered i64 global.get hi limb (cells log mismatch)");
     assert!(
-        err.contains("globals_hi"),
+        err.contains("global_hi"),
         "expected globals_hi to fire on the hi-limb tamper, got: {err}",
     );
 }
@@ -200,7 +200,7 @@ fn i64_global_get_first_read_rejects_tampered_initializer() {
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("globals_hi preload must reject a first-read tamper of an initializer hi limb");
     assert!(
-        err.contains("globals_hi") && err.contains("read mismatch"),
+        err.contains("global_hi") && err.contains("read mismatch"),
         "expected the globals_hi preload to drive a cells-log read mismatch, got: {err}",
     );
 }

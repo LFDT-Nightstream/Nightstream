@@ -327,7 +327,7 @@ pub struct PoseidonTransitionEnforcement {
 /// One nifs_payloads NIFS-payload slot's shape. The image config carries a list
 /// of these in fill order; the layout reserves contiguous bits per
 /// payload and tests/decoders index by payload position.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub enum NifsPayloadShape {
     CcsClaim(NifsCcsClaimShape),
     CeClaim(NifsCeClaimShape),

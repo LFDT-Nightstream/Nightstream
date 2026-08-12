@@ -9,11 +9,18 @@ fresh_ccs_source_indices = [0]
 norm_source_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 carried_evaluation_source_indices = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 carried_local_to_global_offset = 1
-logical_rows = 14944219
+shape_authority = "verifier-key-relation-artifact-v1"
+relation_artifact_format = "nightstream/verifier-key-relation"
+relation_artifact_schema = 1
+relation_artifact_payload_encoding = "rust-ccs-structure-serde-json-v1"
+relation_artifact_compiler = "neo-fold-clean/r1cs-fprime-fixed-point-v1"
+logical_rows = "from-verifier-key-relation-artifact"
 padded_rows = 16777216
 row_variables = 24
-logical_assignment_width = 11437038
-assignment_ring_columns = 211797
+logical_assignment_width = "from-verifier-key-relation-artifact"
+maximum_assignment_width = 16777206
+assignment_ring_columns = "logical-assignment-width-divided-by-54"
+maximum_assignment_ring_columns = 310689
 public_ring_columns = 5
 public_field_width = 270
 fresh_logical_width = 257
@@ -25,7 +32,7 @@ sumcheck_degree = 9
 piccs_variant = "PaddedRowIdentity"
 row_domain = "single-little-endian-boolean-cube-24"
 domain_padding_map = "logical-prefix-then-zero"
-identity_matrix = "M_0=[I_11437038;0]"
+identity_matrix = "M_0=[I_m;0]-with-m-from-verifier-key-relation-artifact"
 norm_binding_closure = "padded-row-identity"
 norm_terminal = "constant-term-of-y_ring-source-M_0"
 column_sumcheck = "absent"
@@ -68,7 +75,8 @@ noncanonical_field = "reject"
 [commitment_profile]
 scheme = "Ajtai-Phi81-v1"
 kappa = 18
-message_ring_columns = 211797
+message_ring_columns = "from-verifier-key-relation-artifact"
+maximum_message_ring_columns = 310689
 commitment_ring_elements = 18
 orientation = "left-matrix-vector"
 commitment_equation = "commitment[row]=sum_column(A[row,column]*message[column])"

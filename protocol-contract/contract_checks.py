@@ -571,18 +571,21 @@ def check_security_census(config: dict) -> None:
         "Nightstream fresh public-input padding does not reach the public width",
     )
     require(
-        candidate["logical_assignment_width"]
-        == candidate["assignment_ring_columns"] * paper["phi_degree"],
-        "Nightstream assignment width is not a complete ring width",
+        candidate["shape_authority"] == "verifier-key-relation-artifact-v1"
+        and candidate["logical_rows"] == "from-verifier-key-relation-artifact"
+        and candidate["logical_assignment_width"] == "from-verifier-key-relation-artifact"
+        and candidate["assignment_ring_columns"] == "logical-assignment-width-divided-by-54",
+        "Nightstream logical shape is not verifier-key-owned",
     )
     require(
         candidate["padded_rows"] == 2 ** candidate["row_variables"],
         "Nightstream padded row count does not match the row cube",
     )
     require(
-        candidate["logical_rows"] <= candidate["padded_rows"]
-        and candidate["logical_assignment_width"] <= candidate["padded_rows"],
-        "Nightstream logical shape does not fit the row cube",
+        candidate["maximum_assignment_width"]
+        == candidate["maximum_assignment_ring_columns"] * paper["phi_degree"]
+        == candidate["padded_rows"] // paper["phi_degree"] * paper["phi_degree"],
+        "Nightstream assignment capacity is not the largest complete ring prefix",
     )
     require(
         candidate["matrix_count"] == candidate["application_matrix_count"] + 1,
@@ -612,7 +615,6 @@ def check_security_census(config: dict) -> None:
     require(candidate["norm_binding_closure"] == "padded-row-identity", "Nightstream norm binding is not closed")
     require(candidate["column_sumcheck"] == "absent", "selected profile still has a column SumCheck")
     require(candidate["extra_batch_challenges"] == "absent", "selected profile still has extra batching coins")
-
     extension_size = q ** paper["extension_degree"]
     challenge_size = len(paper["challenge_alphabet"]) ** paper["phi_degree"]
     require(
@@ -843,16 +845,20 @@ def check_profile_consistency(config: dict) -> None:
     duplex_test = config["duplex_test_v1"]
     sampler_profile = config["sampler_profile"]
     q = int(paper["q_decimal"])
-
     declared_literals = [
         (paper, "field", "Goldilocks"),
         (paper, "phi_nonzero_degrees", [0, 27, 54]),
         (candidate, "status", "approved"),
         (candidate, "profile_version", 1),
         (candidate, "source_index_map", "source-0=fresh-0;sources-1-through-14=running-0-through-13"),
+        (candidate, "shape_authority", "verifier-key-relation-artifact-v1"),
+        (candidate, "relation_artifact_format", "nightstream/verifier-key-relation"),
+        (candidate, "relation_artifact_schema", 1),
+        (candidate, "relation_artifact_payload_encoding", "rust-ccs-structure-serde-json-v1"),
+        (candidate, "relation_artifact_compiler", "neo-fold-clean/r1cs-fprime-fixed-point-v1"),
         (candidate, "row_domain", "single-little-endian-boolean-cube-24"),
         (candidate, "domain_padding_map", "logical-prefix-then-zero"),
-        (candidate, "identity_matrix", "M_0=[I_11437038;0]"),
+        (candidate, "identity_matrix", "M_0=[I_m;0]-with-m-from-verifier-key-relation-artifact"),
         (candidate, "norm_terminal", "constant-term-of-y_ring-source-M_0"),
         (candidate, "public_carrier_authority", "x-only"),
         (candidate, "derived_carrier_evaluations", "verifier-recompute-or-discard"),
@@ -913,7 +919,6 @@ def check_profile_consistency(config: dict) -> None:
     ]
     for table, key, expected in declared_literals:
         require(table.get(key) == expected, f"declared profile field differs: {key}")
-
     require(int(algebra["base_field_modulus"]) == q, "encoding field modulus differs")
     require(algebra["base_field_bytes"] == 8, "base-field encoding is not eight bytes")
     require(algebra["base_field_byte_order"] == "little-endian", "base-field byte order differs")
@@ -925,21 +930,24 @@ def check_profile_consistency(config: dict) -> None:
     require(len(algebra["statement_container_magic"].encode()) == 8, "statement magic is not eight bytes")
     require(algebra["proof_container_magic"] != algebra["statement_container_magic"], "container magics collide")
     require(algebra["container_version"] == 1 and algebra["container_variant"] == 1, "container version or variant differs")
-
     commitment_fields = commitment["commitment_ring_elements"] * paper["phi_degree"]
     require(commitment["kappa"] == paper["kappa"], "commitment kappa differs from the paper profile")
-    require(commitment["message_ring_columns"] == candidate["assignment_ring_columns"], "commitment message width differs")
+    require(
+        commitment["message_ring_columns"] == "from-verifier-key-relation-artifact"
+        and commitment["maximum_message_ring_columns"] == candidate["maximum_assignment_ring_columns"],
+        "commitment message width authority differs",
+    )
     require(commitment["commitment_ring_elements"] == commitment["kappa"], "commitment output width differs")
     require(commitment["setup_expander"] == setup["id"], "commitment setup-expander ID differs")
     require(setup["rounds"] == 8 and setup["seed_bytes"] == 32, "Ajtai setup ChaCha8 parameters differ")
     require(setup["stream_id"] == 0 and setup["initial_block_counter"] == 0, "Ajtai setup stream position differs")
     require(setup["selected_output_rows"] == commitment["kappa"], "Ajtai setup row count differs")
-    require(setup["selected_message_columns"] == commitment["message_ring_columns"], "Ajtai setup message width differs")
+    require(
+        setup["message_columns_authority"] == candidate["shape_authority"]
+        and setup["maximum_message_columns"] == commitment["maximum_message_ring_columns"],
+        "Ajtai setup message width authority differs",
+    )
     require(setup["ring_coefficient_count"] == paper["phi_degree"], "Ajtai setup ring width differs")
-    selected_chunk_size = max(1024, min(setup["selected_message_columns"], 32768))
-    selected_chunk_count = (setup["selected_message_columns"] + selected_chunk_size - 1) // selected_chunk_size
-    require(setup["selected_chunk_size"] == selected_chunk_size, "Ajtai selected chunk size differs")
-    require(setup["selected_chunk_count"] == selected_chunk_count, "Ajtai selected chunk count differs")
     require(setup["matrix_order"] == "output-row-then-message-column-then-ring-coefficient", "Ajtai matrix order differs")
     require(setup["coefficient_batch"] == "read-54-consecutive-u64-values-before-any-fallback", "Ajtai coefficient batch differs")
     require(setup["coefficient_accept"] == f"x<{q}", "Ajtai coefficient acceptance differs")

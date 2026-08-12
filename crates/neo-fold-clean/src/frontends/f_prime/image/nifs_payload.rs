@@ -26,7 +26,7 @@ pub struct NifsCcsClaimView {
 /// Shape of one fresh CcsClaim payload — the sizes the encoder/decoder
 /// agree on. Computed from a real `CcsClaim` or set explicitly by the
 /// caller.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct NifsCcsClaimShape {
     pub c_data_entries: usize,
     pub x_entries: usize,
@@ -68,7 +68,7 @@ pub struct NifsCeClaimView {
 }
 
 /// Shape of one CE claim payload.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct NifsCeClaimShape {
     pub c_data_entries: usize,
     pub x_rows: usize,

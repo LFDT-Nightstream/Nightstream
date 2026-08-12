@@ -11,6 +11,7 @@ pub mod lean_nebula_combined_manifest;
 pub mod lowering;
 pub mod native_ccs;
 pub mod nebula_combined_ccs;
+mod relation_artifact;
 mod selective;
 mod selective_audit;
 mod selective_census;
@@ -30,6 +31,7 @@ pub use lowering::{
 };
 pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
 pub use nebula_combined_ccs::{LeanNebulaCombinedError, LeanNebulaCombinedPreprocessing};
+pub use relation_artifact::{R1CS_F_PRIME_COMPILER_ID, R1CS_F_PRIME_CONTRACT_ID, R1CS_F_PRIME_PROFILE_ID};
 #[doc(hidden)]
 pub use selective::is_canonical_selective_low_norm_polynomial;
 pub(crate) use selective::{

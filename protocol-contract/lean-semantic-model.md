@@ -52,9 +52,9 @@ The ambient family is `CE(B_amb,L)^15`. It is not `CE(b,L)^15` or
 
 ### LEAN-PADDED-IDENTITY
 
-For a logical assignment `z` of length 11,437,038, define `pad(z)` as its prefix
-in a vector of length `2^24` followed by zeros. For
-`M_0=[I_11437038;0]`, prove:
+For the artifact-owned assignment width `m`, define `pad(z)` as the length-`m`
+logical assignment followed by zeros in a vector of length `2^24`. For
+`M_0=[I_m;0]`, prove:
 
 ```text
 M_0 z = pad(z)

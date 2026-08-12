@@ -331,7 +331,7 @@ pub fn source_image_emits_nifs_payloads(plan: &RecursiveStepImagePlan) -> bool {
 }
 
 /// Caller-supplied parameters that the recursive plan can't synthesize.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct RecursiveStepImagePlan {
     pub limbs: usize,
     /// Optional app-private variable widths. Empty preserves legacy
@@ -364,7 +364,7 @@ pub struct RecursiveStepImagePlan {
 }
 
 /// Accumulator-enforcement parameters.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct AccumulatorPlanOptions {
     /// Index into `nifs_payload_shapes` of the ce-claim that holds the
     /// `c_data` referenced by this hash's preimage.
@@ -382,7 +382,7 @@ pub struct AccumulatorPlanOptions {
 }
 
 /// `state_x_out` enforcement parameters.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct StateXOutPlanOptions {
     /// Program counter at the step being enforced. Baked as `Constant`
     /// in the source list until a boundary lane source variant lands.

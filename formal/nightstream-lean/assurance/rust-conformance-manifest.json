@@ -55,7 +55,7 @@
     },
     {
       "path": "formal/nightstream-lean/scripts/validate.sh",
-      "sha256": "3a6a09f91f7faf3e50a50d3e8a32da14ed1fa70c5a19ecfde898586a22d12768"
+      "sha256": "ccf99ffd244e486f4024f3979aad3db9599fcb3194b2c1ec90fafdbb1cce1c2d"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Protocol/FPrime/Step.lean",
@@ -88,6 +88,34 @@
     {
       "path": "formal/nightstream-lean/tests/Axioms/DeciderReduction.lean",
       "sha256": "c21bd4c7a282c7fdb9ec4c66709b9825e5e5d2663543d2175f3c8d12383e0c79"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/relation_artifact.rs",
+      "sha256": "9ce7fe88edd74b04c0c02611bd7b2526137c0f9a44bf56bb485d147caffc6797"
+    },
+    {
+      "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/relation_artifact.rs",
+      "sha256": "de2edaec9242b9f9658ff9d778b4532b1041de6559d44c2704b6c147007c0eac"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/system/relation_artifact.rs",
+      "sha256": "ce49925f8a77e6c75c4a2288450c0ccb07d2886b82c1fcca2596989ba2acc773"
+    },
+    {
+      "path": "protocol-contract/check_relation_artifact_evidence.py",
+      "sha256": "2f4262d3c129a2ea35e301982d18885626e5ca664c65f04aa589dfe8b6b2a021"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/RelationArtifactBinding.lean",
+      "sha256": "4432f2befd91bd555fa55524636bf392f42b1a98bccbd7aabf98e30cc759f933"
+    },
+    {
+      "path": "formal/nightstream-lean/tests/Axioms/RelationArtifactBinding.lean",
+      "sha256": "5f70b677a55ec49ba5a085e5137dbf87c77b7093b06f510b556af57960eca42a"
+    },
+    {
+      "path": "formal/nightstream-lean/assurance/m5-conformance.json",
+      "sha256": "68a70612fa012a94f5271328811f4c36d7303da99cb06a30cb78b652fb6cc789"
     }
   ],
   "theorem_anchors": [
@@ -134,6 +162,22 @@
     {
       "path": "formal/nightstream-lean/Nightstream/Assurance/DeciderReduction.lean",
       "name": "theorem verifierReductionTarget"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/RelationArtifactBinding.lean",
+      "name": "theorem accepted_eq_authoritative"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/RelationArtifactBinding.lean",
+      "name": "theorem changed_rejects"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/RelationArtifactBinding.lean",
+      "name": "theorem accepted_selectedProfile"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/system/relation_artifact.rs",
+      "name": "fn rust_origin_relation_artifact_evidence_is_emitted_for_independent_checks"
     }
   ]
 }

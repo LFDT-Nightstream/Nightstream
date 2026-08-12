@@ -70,9 +70,9 @@
 {"rule_id":"NS-PIDEC-PROFILE","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
 {"rule_id":"NS-RED-PADDED-RELATIONS","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
 {"rule_id":"NS-RED-COMPOSITION","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
-{"rule_id":"NS-AUTH-STRUCTURE","applicability":"required","level":"none","locations":["formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/ConcretePhi81/Authority"],"declaration_anchors":[]}
-{"rule_id":"NS-AUTH-CLAIM","applicability":"required","level":"none","locations":["formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/ConcretePhi81/Authority"],"declaration_anchors":[]}
-{"rule_id":"NS-AUTH-DERIVED","applicability":"required","level":"none","locations":["formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/ConcretePhi81/Authority"],"declaration_anchors":[]}
+{"rule_id":"NS-AUTH-STRUCTURE","applicability":"required","level":"none","locations":["formal/nightstream-lean/Nightstream/Assurance/RelationArtifactBinding.lean"],"declaration_anchors":[{"path":"formal/nightstream-lean/Nightstream/Assurance/RelationArtifactBinding.lean","declaration":"accepted_eq_authoritative"},{"path":"formal/nightstream-lean/Nightstream/Assurance/RelationArtifactBinding.lean","declaration":"changed_rejects"}]}
+{"rule_id":"NS-AUTH-CLAIM","applicability":"required","level":"none","locations":["formal/nightstream-lean/Nightstream/Protocol/FPrime/Authority.lean"],"declaration_anchors":[]}
+{"rule_id":"NS-AUTH-DERIVED","applicability":"required","level":"none","locations":["formal/nightstream-lean/Nightstream/Protocol/FPrime/Authority.lean"],"declaration_anchors":[]}
 {"rule_id":"NS-ENC-BASE","applicability":"required","level":"none","locations":["formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Parameters.lean"],"declaration_anchors":[]}
 {"rule_id":"NS-ENC-EXTENSION","applicability":"required","level":"none","locations":["formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Parameters.lean"],"declaration_anchors":[]}
 {"rule_id":"NS-ENC-RING","applicability":"required","level":"none","locations":["formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Parameters.lean"],"declaration_anchors":[]}

@@ -29,7 +29,7 @@ The circuit must implement:
 - the typed v1 statement and proof field layout after canonical outer decoding;
 - the selected verifier-key digest as a fixed circuit constant;
 - the verifier-key-owned 24-variable structure;
-- `M_0=[I_11437038;0]` and the 13 padded application matrices;
+- the artifact-owned `M_0=[I_m;0]` and 13 padded application matrices;
 - one 24-round degree-9 joint PiCCS SumCheck;
 - 15-by-14 ordered terminal ring evaluations;
 - the M0-bound norm terminal;

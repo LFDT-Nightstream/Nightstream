@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 pub mod audit;
-pub mod grammar_fixture;
+pub mod host_event_fixture;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
@@ -84,11 +84,11 @@ pub fn sanity_check_trace(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts
     // exit latch reads its (biased) export count cells.
     let export_fref = trace
         .first()
-        .map(|row| row.state_before.grammar.turn_export_fref)
+        .map(|row| row.state_before.host_events.turn_export_fref)
         .unwrap_or(0);
-    neo_wasm::memory_semantics::preload_grammar_tables(
+    neo_wasm::memory_semantics::preload_host_event_tables(
         &mut preload,
-        &neo_wasm::event_grammar::HostEventGrammar::import_free(export_fref),
+        &neo_wasm::host_event_bindings::HostEventBindings::import_free(export_fref),
     );
     sanity_check_memory_rows(layout, &witnesses, &preload)
         .unwrap_or_else(|err| panic!("memory semantics rejected trace: {err}"));
@@ -134,7 +134,7 @@ pub fn step(
             host_callee_fref: 0,
             comm_chain: [0; 4],
             event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
-            grammar: neo_wasm::WasmGrammarState::ZERO,
+            host_events: neo_wasm::WasmHostEventState::ZERO,
         }
     }
 
@@ -208,12 +208,12 @@ pub fn step(
         call_result_count: None,
         call_stack_push: None,
         call_stack_pop: None,
-        grammar_rom_slot: None,
+        host_event_rom_slot: None,
         // A clean halt fires the exit latch, which re-reads the (biased)
         // entry-count cell and the exit count; the empty boundary template
         // of a single-shot row is (1, 0).
-        grammar_pre_count: (halted && !trapped).then_some(1),
-        grammar_post_count: (halted && !trapped).then_some(0),
+        host_event_pre_count: (halted && !trapped).then_some(1),
+        host_event_post_count: (halted && !trapped).then_some(0),
     }
 }
 

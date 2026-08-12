@@ -141,9 +141,9 @@ impl Default for WasmEventAbsorbState {
 /// Carried state of the host-event gather machinery: the per-call event
 /// schedule, the argument-region base for
 /// addressed slot reads, and the slot cursor inside the block being
-/// staged (see [`crate::event_grammar`]).
+/// staged (see [`crate::host_event_bindings`]).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct WasmGrammarState {
+pub struct WasmHostEventState {
     /// Export whose invocation owns this turn. Stable across import calls
     /// and guest tail calls; changed only by a turn boundary.
     pub turn_export_fref: u32,
@@ -161,7 +161,7 @@ pub struct WasmGrammarState {
     pub slot_cursor: u8,
 }
 
-impl WasmGrammarState {
+impl WasmHostEventState {
     pub const ZERO: Self = Self {
         turn_export_fref: 0,
         events_remaining: 0,
@@ -171,7 +171,7 @@ impl WasmGrammarState {
     };
 }
 
-impl Default for WasmGrammarState {
+impl Default for WasmHostEventState {
     fn default() -> Self {
         Self::ZERO
     }
@@ -194,7 +194,7 @@ pub struct WasmBoundaryState {
     pub host_callee_fref: u32,
     pub comm_chain: [u64; 4],
     pub event_absorb: WasmEventAbsorbState,
-    pub grammar: WasmGrammarState,
+    pub host_events: WasmHostEventState,
 }
 
 /// Carry state for binding the whole execution's claimed output.
@@ -266,7 +266,7 @@ pub struct WasmStepState {
     /// In-circuit host-event absorb machinery (block buffer + perm rows).
     pub event_absorb: WasmEventAbsorbState,
     /// Host-event gather machinery state.
-    pub grammar: WasmGrammarState,
+    pub host_events: WasmHostEventState,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -328,21 +328,21 @@ impl WasmRowKind {
     }
 }
 
-/// The source binding selected by one grammar gather slot.
+/// The source binding selected by one host-event gather slot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u8)]
-pub enum WasmGrammarSlotKind {
+pub enum WasmHostEventSlotKind {
     Const,
     Arg,
     Result,
-    Claim,
-    ClaimLocal,
+    Input,
+    InputLocal,
     Output,
     MemoryRead,
     MemoryWrite,
 }
 
-impl WasmGrammarSlotKind {
+impl WasmHostEventSlotKind {
     pub const COUNT: usize = 8;
 
     pub const fn index(self) -> usize {
@@ -354,30 +354,30 @@ impl WasmGrammarSlotKind {
     }
 }
 
-/// Native meaning of the grammar ROM's kind-dependent variant column.
+/// Native meaning of the host-event ROM's kind-dependent variant column.
 ///
-/// [`WasmGrammarRomVariant::encoded`] is the only conversion to the compact
+/// [`WasmHostEventRomVariant::encoded`] is the only conversion to the compact
 /// field representation used by the ROM and circuit.
-/// Width of a grammar-driven linear-memory access.
+/// Width of a host-event linear-memory access.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WasmGrammarMemoryWidth {
+pub enum WasmHostEventMemoryWidth {
     Byte,
     Half,
     Word,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WasmGrammarRomVariant {
+pub enum WasmHostEventRomVariant {
     None,
     LowLimb,
     HighLimb,
     Memory {
         local_base: bool,
-        width: WasmGrammarMemoryWidth,
+        width: WasmHostEventMemoryWidth,
     },
 }
 
-impl WasmGrammarRomVariant {
+impl WasmHostEventRomVariant {
     pub(crate) const MEMORY_BYTE_ENCODING_FACTOR: u8 = 2;
     pub(crate) const MEMORY_HALF_ENCODING_FACTOR: u8 = 4;
 
@@ -387,9 +387,9 @@ impl WasmGrammarRomVariant {
             Self::HighLimb => 1,
             Self::Memory { local_base, width } => {
                 let width = match width {
-                    WasmGrammarMemoryWidth::Word => 0,
-                    WasmGrammarMemoryWidth::Byte => Self::MEMORY_BYTE_ENCODING_FACTOR,
-                    WasmGrammarMemoryWidth::Half => Self::MEMORY_HALF_ENCODING_FACTOR,
+                    WasmHostEventMemoryWidth::Word => 0,
+                    WasmHostEventMemoryWidth::Byte => Self::MEMORY_BYTE_ENCODING_FACTOR,
+                    WasmHostEventMemoryWidth::Half => Self::MEMORY_HALF_ENCODING_FACTOR,
                 };
                 local_base as u8 + width
             }
@@ -412,7 +412,7 @@ impl WasmGrammarRomVariant {
         matches!(
             self,
             Self::Memory {
-                width: WasmGrammarMemoryWidth::Byte,
+                width: WasmHostEventMemoryWidth::Byte,
                 ..
             }
         )
@@ -422,22 +422,22 @@ impl WasmGrammarRomVariant {
         matches!(
             self,
             Self::Memory {
-                width: WasmGrammarMemoryWidth::Half,
+                width: WasmHostEventMemoryWidth::Half,
                 ..
             }
         )
     }
 }
 
-/// The grammar-ROM entry a gather row claims (bound by the `grammar_slot_*`
+/// The host-event ROM entry expected by a gather row (bound by the internal `grammar_slot_*`
 /// families at key `(fref, event_index, slot_cursor)`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct WasmGrammarRomEntry {
-    pub kind: WasmGrammarSlotKind,
-    /// Argument/local/claim index, depending on `kind`.
+pub struct WasmHostEventRomEntry {
+    pub kind: WasmHostEventSlotKind,
+    /// Argument, local, or runtime-input index, depending on `kind`.
     pub arg: u8,
     /// Kind-dependent native variant; encoded only at the ROM/circuit boundary.
-    pub variant: WasmGrammarRomVariant,
+    pub variant: WasmHostEventRomVariant,
     pub const_lo: u32,
     pub const_hi: u32,
     /// Whether this slot belongs to an unabsorbed event.
@@ -522,12 +522,12 @@ pub struct WasmVmStep {
     pub call_stack_push: Option<(u64, u64, u64)>,
     /// Popped by non-final returns, restoring the same three caller fields.
     pub call_stack_pop: Option<(u64, u64, u64)>,
-    /// Grammar-ROM slot entry for `HostEventGather` rows.
-    pub grammar_rom_slot: Option<WasmGrammarRomEntry>,
-    /// Grammar-ROM pre-result event count, read on grammar host-call rows.
-    pub grammar_pre_count: Option<u32>,
-    /// Grammar-ROM post-result event count, read on grammar result rows.
-    pub grammar_post_count: Option<u32>,
+    /// Host-event ROM slot entry for `HostEventGather` rows.
+    pub host_event_rom_slot: Option<WasmHostEventRomEntry>,
+    /// Host-event ROM pre-result event count, read on host-call rows.
+    pub host_event_pre_count: Option<u32>,
+    /// Host-event ROM post-result event count, read on result rows.
+    pub host_event_post_count: Option<u32>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -568,7 +568,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     host_callee_fref: row.state_before.host_callee_fref,
                     comm_chain: row.state_before.comm_chain,
                     event_absorb: row.state_before.event_absorb,
-                    grammar: row.state_before.grammar,
+                    host_events: row.state_before.host_events,
                 },
                 WasmBoundaryState {
                     pc: row.state_after.pc,
@@ -586,7 +586,7 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     host_callee_fref: row.state_after.host_callee_fref,
                     comm_chain: row.state_after.comm_chain,
                     event_absorb: row.state_after.event_absorb,
-                    grammar: row.state_after.grammar,
+                    host_events: row.state_after.host_events,
                 },
             )
         })

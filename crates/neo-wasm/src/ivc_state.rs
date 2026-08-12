@@ -176,7 +176,7 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
         },
         WasmCrossStepLinkSpec {
             name: "grammar_gather_continuity",
-            description: "row[i].grammar gather machinery (schedule, args base, cursor) must match row[i+1]",
+            description: "row[i].host_events gather machinery (schedule, args base, cursor) must match row[i+1]",
             column_pairs: vec![
                 WasmCrossStepColumnPair {
                     prev_after: Column(COL_GRAMMAR_EVREM_AFTER),

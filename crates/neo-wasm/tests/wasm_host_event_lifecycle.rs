@@ -1,22 +1,24 @@
 //! End-to-end folding proof of an event-bound trace: preprocess with the
-//! grammar initial digest, fold a trace containing export entry events,
+//! bindings initial digest, fold a trace containing export entry events,
 //! import events (multi-block, mid-args groups), and export exit events,
 //! and verify against the final-state claim. This is the capstone showing
-//! the grammar machinery composes with the lifecycle pipeline; per-row
-//! CCS and native-checker coverage lives in the other grammar test files.
+//! the bindings machinery composes with the lifecycle pipeline; per-row
+//! CCS and native-checker coverage lives in the other bindings test files.
 
 mod common;
 
 use common::audit::{prove_batched, verify_with_transcript, AuditProveError};
-use common::grammar_fixture::{expected_transcript, grammar_lifecycle_setup, GrammarLifecycleSetup, ENTRY_CLAIMS};
-use neo_wasm::{grammar_top_level_initial_state_digest, preprocess_seeded_batched};
+use common::host_event_fixture::{
+    expected_transcript, host_event_lifecycle_setup, HostEventLifecycleSetup, ENTRY_INPUTS,
+};
+use neo_wasm::{host_event_top_level_initial_state_digest, preprocess_seeded_batched};
 use p3_field::PrimeCharacteristicRing;
 
-/// Every batch (including the padded tail) of the grammar trace satisfies
+/// Every batch (including the padded tail) of the bindings trace satisfies
 /// the batched R1CS; on failure the diagnostics name the step and tag.
 #[test]
-fn grammar_trace_satisfies_batched_ccs() {
-    let setup = grammar_lifecycle_setup();
+fn host_event_trace_satisfies_batched_ccs() {
+    let setup = host_event_lifecycle_setup();
     let batch_size = 8;
     let batched = neo_wasm::batch::build_batched_wasm_ccs(batch_size).expect("batched CCS");
     let vm = neo_wasm::WasmVmSpec::default();
@@ -51,13 +53,13 @@ fn grammar_trace_satisfies_batched_ccs() {
 }
 
 #[test]
-fn grammar_anchor_rejects_missing_or_mismatched_export() {
-    let setup = grammar_lifecycle_setup();
+fn host_event_anchor_rejects_missing_or_mismatched_export() {
+    let setup = host_event_lifecycle_setup();
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
     let entry_pc = common::entry_pc_for_function_ref(&artifacts, u64::from(setup.run_fref));
 
-    let missing = neo_wasm::grammar_top_level_initial_state(
+    let missing = neo_wasm::host_event_top_level_initial_state(
         &artifacts.tables,
         entry_pc,
         &Default::default(),
@@ -67,10 +69,10 @@ fn grammar_anchor_rejects_missing_or_mismatched_export() {
     .expect_err("selected export needs a template");
     assert!(missing.to_string().contains("no export template"));
 
-    let mismatched = neo_wasm::grammar_top_level_initial_state(
+    let mismatched = neo_wasm::host_event_top_level_initial_state(
         &artifacts.tables,
         entry_pc,
-        &setup.grammar,
+        &setup.bindings,
         setup.run_fref.wrapping_add(1),
         Default::default(),
     )
@@ -79,11 +81,11 @@ fn grammar_anchor_rejects_missing_or_mismatched_export() {
 }
 
 #[test]
-fn grammar_folding_proof_covers_import_and_export_events() {
-    let setup = grammar_lifecycle_setup();
-    let GrammarLifecycleSetup {
+fn host_event_folding_proof_covers_import_and_export_events() {
+    let setup = host_event_lifecycle_setup();
+    let HostEventLifecycleSetup {
         trace,
-        grammar,
+        bindings,
         run_fref,
         component_bytes,
         ..
@@ -95,8 +97,8 @@ fn grammar_folding_proof_covers_import_and_export_events() {
     // inputs are NOT anchored; they are bound by the final-chain transcript
     // check below.
     let digest =
-        grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref, Default::default())
-            .expect("grammar anchor");
+        host_event_top_level_initial_state_digest(&artifacts.tables, entry_pc, &bindings, run_fref, Default::default())
+            .expect("bindings anchor");
     // The verifier's constructed initial state must be exactly the trace's
     // opening boundary.
     assert_eq!(
@@ -106,19 +108,24 @@ fn grammar_folding_proof_covers_import_and_export_events() {
     );
     let f = p3_goldilocks::Goldilocks::from_u64;
     let initial_comm_chain = neo_wasm::CommChainState::new([f(11), f(22), f(33), f(44)]);
-    let initial_state =
-        neo_wasm::grammar_top_level_initial_state(&artifacts.tables, entry_pc, &grammar, run_fref, initial_comm_chain)
-            .expect("grammar anchor");
+    let initial_state = neo_wasm::host_event_top_level_initial_state(
+        &artifacts.tables,
+        entry_pc,
+        &bindings,
+        run_fref,
+        initial_comm_chain,
+    )
+    .expect("bindings anchor");
     let initial_digest =
-        grammar_top_level_initial_state_digest(&artifacts.tables, entry_pc, &grammar, run_fref, initial_comm_chain)
-            .expect("grammar anchor");
+        host_event_top_level_initial_state_digest(&artifacts.tables, entry_pc, &bindings, run_fref, initial_comm_chain)
+            .expect("bindings anchor");
     assert_eq!(initial_state.comm_chain, initial_comm_chain.canonical_u64());
     assert_eq!(initial_digest, neo_wasm::semantic_state_digest(initial_state));
     assert_ne!(initial_digest, digest);
 
     // batch_size 8 forces perm groups, gather runs, and the entry/exit
     // boundaries across batch edges, so the semantic digest must carry the
-    // whole grammar state (chain, absorb, schedule, oracles) correctly.
+    // whole event state (chain, absorb, and schedule) correctly.
     // Check the claim rather than trusting the trace shape: some batch
     // boundary must fall mid-permutation and some must carry live schedule
     // state, otherwise this test lost its cross-batch coverage.
@@ -136,7 +143,7 @@ fn grammar_folding_proof_covers_import_and_export_events() {
     assert!(
         boundary_states
             .iter()
-            .any(|s| s.grammar.events_remaining != 0 || s.grammar.slot_cursor != 0),
+            .any(|s| s.host_events.events_remaining != 0 || s.host_events.slot_cursor != 0),
         "no batch boundary carries live gather/schedule state"
     );
 
@@ -145,7 +152,7 @@ fn grammar_folding_proof_covers_import_and_export_events() {
     let final_state = common::final_state(&trace);
 
     // Transcript binding: verification succeeds only with the claimed
-    // transcript — export entry (with the claim inputs), the two import
+    // transcript — export entry (with the input words), the two import
     // calls, and the export exit — and rejects a transcript claiming
     // different inputs. This is the verifier's input check: per-invocation
     // data never touches preprocessing.
@@ -154,7 +161,7 @@ fn grammar_folding_proof_covers_import_and_export_events() {
         &proof,
         final_state,
         Default::default(),
-        &expected_transcript(&grammar, run_fref, &ENTRY_CLAIMS),
+        &expected_transcript(&bindings, run_fref, &ENTRY_INPUTS),
     )
     .expect("verify with the claimed transcript");
     assert!(
@@ -164,7 +171,7 @@ fn grammar_folding_proof_covers_import_and_export_events() {
                 &proof,
                 final_state,
                 Default::default(),
-                &expected_transcript(&grammar, run_fref, &[500, 999])
+                &expected_transcript(&bindings, run_fref, &[500, 999])
             ),
             Err(AuditProveError::TranscriptMismatch)
         ),

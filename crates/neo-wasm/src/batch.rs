@@ -269,7 +269,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     let host_callee_fref = prev.state_after.host_callee_fref;
     let comm_chain = prev.state_after.comm_chain;
     let event_absorb = prev.state_after.event_absorb;
-    let grammar = prev.state_after.grammar;
+    let host_events = prev.state_after.host_events;
     debug_assert!(
         !event_absorb.perm_pending && event_absorb.perm_round == 0,
         "padding inside a host-event perm group is unsupported"
@@ -293,7 +293,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             host_callee_fref,
             comm_chain,
             event_absorb,
-            grammar,
+            host_events,
         },
         state_after: WasmStepState {
             pc,
@@ -311,7 +311,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             host_callee_fref,
             comm_chain,
             event_absorb,
-            grammar,
+            host_events,
         },
         control_choice: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
@@ -355,9 +355,9 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         call_result_count: None,
         call_stack_push: None,
         call_stack_pop: None,
-        grammar_rom_slot: None,
-        grammar_pre_count: None,
-        grammar_post_count: None,
+        host_event_rom_slot: None,
+        host_event_pre_count: None,
+        host_event_post_count: None,
     }
 }
 

@@ -21,10 +21,10 @@ fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmVmStep>, Vec<Vec<F>>, WasmMe
     let mut preload = preload_from_program_artifacts(&artifacts);
     // Import-free traces run under the canonical single-shot grammar; the
     // exit latch reads its (biased) export count cells.
-    let export_fref = trace[0].state_before.grammar.turn_export_fref;
-    neo_wasm::memory_semantics::preload_grammar_tables(
+    let export_fref = trace[0].state_before.host_events.turn_export_fref;
+    neo_wasm::memory_semantics::preload_host_event_tables(
         &mut preload,
-        &neo_wasm::event_grammar::HostEventGrammar::import_free(export_fref),
+        &neo_wasm::host_event_bindings::HostEventBindings::import_free(export_fref),
     );
     (trace, witnesses, preload)
 }

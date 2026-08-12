@@ -3,7 +3,7 @@ mod common;
 use neo_wasm::{
     collect_wasmtime_component_run, collect_wasmtime_component_run_with_linker,
     extract_first_component_core_program_artifacts, traces_from_wasmtime_component, traces_from_wasmtime_steps,
-    traces_from_wasmtime_steps_with_grammar, WasmBuildError, WasmOpcode,
+    traces_from_wasmtime_steps_with_host_events, WasmBuildError, WasmOpcode,
 };
 use wasmtime::{
     component::{Component, Linker},
@@ -135,30 +135,30 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
         .iter()
         .find_map(|row| row.current_function_ref)
         .expect("export fref");
-    let mut slots = [neo_wasm::event_grammar::SlotSource::Const(0); neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS];
-    slots[0] = neo_wasm::event_grammar::SlotSource::ArgElem {
+    let mut slots = [neo_wasm::host_event_bindings::SlotBinding::Const(0); neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS];
+    slots[0] = neo_wasm::host_event_bindings::SlotBinding::ArgElem {
         arg: 0,
-        limb: neo_wasm::event_grammar::Limb::Lo,
+        limb: neo_wasm::host_event_bindings::Limb::Lo,
     };
-    slots[1] = neo_wasm::event_grammar::SlotSource::ResultElem {
-        limb: neo_wasm::event_grammar::Limb::Lo,
+    slots[1] = neo_wasm::host_event_bindings::SlotBinding::ResultElem {
+        limb: neo_wasm::host_event_bindings::Limb::Lo,
     };
-    slots[2] = neo_wasm::event_grammar::SlotSource::ResultElem {
-        limb: neo_wasm::event_grammar::Limb::Hi,
+    slots[2] = neo_wasm::host_event_bindings::SlotBinding::ResultElem {
+        limb: neo_wasm::host_event_bindings::Limb::Hi,
     };
-    let mut grammar = neo_wasm::event_grammar::HostEventGrammar::default();
-    grammar.imports.insert(
+    let mut bindings = neo_wasm::host_event_bindings::HostEventBindings::default();
+    bindings.imports.insert(
         import_fref,
-        neo_wasm::event_grammar::ImportTemplate {
-            events: vec![neo_wasm::event_grammar::GrammarEvent::op(1, slots)],
-            claim_count: 0,
+        neo_wasm::host_event_bindings::ImportTemplate {
+            events: vec![neo_wasm::host_event_bindings::EventBlock::op(1, slots)],
+            input_count: 0,
         },
     );
-    grammar.exports.insert(export_fref, Default::default());
-    let trace = traces_from_wasmtime_steps_with_grammar(
+    bindings.exports.insert(export_fref, Default::default());
+    let trace = traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
-        &grammar,
+        &bindings,
         &[Default::default()],
         Default::default(),
     )
@@ -174,7 +174,7 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
         neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness).expect("lookup semantics");
     }
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witnesses, &preload).expect("memory semantics");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("commitment chain");
 }

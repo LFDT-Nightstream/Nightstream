@@ -16,11 +16,13 @@ use self::turn::{plan_turn_exit, setup_turn};
 use self::values::{call_indirect_oob, call_indirect_traps, collect_callee_initial_params, write_lane, write_lane_hi};
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
-use super::grammar_emit::{emit_block_plan, plan_import_call, GrammarAuxCtx, GrammarBlockPlan, GrammarCallPlan};
+use super::host_event_emit::{
+    emit_block_plan, plan_import_call, EventBlockPlan, HostCallEventPlan, HostEventRowContext,
+};
 use super::memory::LinearMemoryImage;
 use super::normalize_step;
 use crate::comm_chain::CommChainState;
-use crate::event_grammar::HostEventGrammar;
+use crate::host_event_bindings::HostEventBindings;
 use crate::ir::{
     StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
@@ -29,7 +31,7 @@ use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 
 pub(super) fn build_trace(
     rows: &[WasmtimeTraceStep],
-    grammar: Option<(&HostEventGrammar, &[crate::event_grammar::TurnClaims])>,
+    host_events: Option<(&HostEventBindings, &[crate::host_event_bindings::TurnInputs])>,
     initial_comm_chain: CommChainState,
     linear_memory: Option<LinearMemoryImage>,
 ) -> Result<Vec<WasmVmStep>, WasmBuildError> {
@@ -39,21 +41,21 @@ pub(super) fn build_trace(
             supported.push(normalized);
         }
     }
-    // Import-free callers get the canonical single-shot grammar: an empty
+    // Import-free callers get the canonical single-shot bindings: an empty
     // boundary template for the invoked export, so nothing is absorbed and
     // host imports have no template to prove against.
-    let import_free_grammar;
-    let import_free_turns;
-    let (grammar_tables, turns) = match grammar {
-        Some((tables, turns)) => (tables, turns),
+    let import_free_bindings;
+    let import_free_inputs;
+    let (bindings, turn_inputs) = match host_events {
+        Some((bindings, turn_inputs)) => (bindings, turn_inputs),
         None => {
             let export_fref = supported
                 .first()
                 .and_then(|first| first.current_function_ref)
                 .unwrap_or(0);
-            import_free_grammar = HostEventGrammar::import_free(export_fref);
-            import_free_turns = [crate::event_grammar::TurnClaims::default()];
-            (&import_free_grammar, &import_free_turns[..])
+            import_free_bindings = HostEventBindings::import_free(export_fref);
+            import_free_inputs = [crate::host_event_bindings::TurnInputs::default()];
+            (&import_free_bindings, &import_free_inputs[..])
         }
     };
     let tracks_linear_memory = linear_memory.is_some();
@@ -80,17 +82,17 @@ pub(super) fn build_trace(
     // Host-event absorb machinery (block buffer and perm group
     // state); carried across rows, mutated only by host-call events.
     let mut event_absorb = WasmEventAbsorbState::ZERO;
-    // Grammar gather machinery state (schedule, args base, cursor).
-    let mut grammar_state = crate::ir::WasmGrammarState::ZERO;
+    // Host-event gather state (schedule, args base, cursor).
+    let mut host_event_state = crate::ir::WasmHostEventState::ZERO;
     // The verifier mirrors the first turn's entry schedule in
-    // `grammar_top_level_initial_state`.
+    // `host_event_top_level_initial_state`.
     let mut turn_index = 0usize;
     let mut export_boundary = if let Some(first) = supported.first() {
-        let claims = turns.first().ok_or_else(|| {
-            WasmBuildError::Trace("event grammar requires claim words for at least the first turn".to_string())
+        let inputs = turn_inputs.first().ok_or_else(|| {
+            WasmBuildError::Trace("host-event bindings require inputs for at least the first turn".to_string())
         })?;
-        let setup = setup_turn(grammar_tables, first, claims, false, &mut linear_memory)?;
-        grammar_state = crate::ir::WasmGrammarState {
+        let setup = setup_turn(bindings, first, inputs, false, &mut linear_memory)?;
+        host_event_state = crate::ir::WasmHostEventState {
             turn_export_fref: setup.fref,
             events_remaining: setup.entry_plans.len() as u32,
             event_index: 0,
@@ -235,7 +237,7 @@ pub(super) fn build_trace(
         let output_enabled_after = output_enabled;
         let output_value_lo_after = output_value_lo;
         let output_value_hi_after = output_value_hi;
-        // Model the host consuming a captured result. (Mutable: a grammar
+        // Model the host consuming a captured result. (Mutable: a host-event
         // host call overrides this below to pop its args on the call row.)
         let mut sp_after = sp_after - u64::from(output_captured);
 
@@ -406,7 +408,7 @@ pub(super) fn build_trace(
         if !entry_emitted {
             entry_emitted = true;
             if let Some(setup) = &export_boundary {
-                let mut ctx = GrammarAuxCtx {
+                let mut ctx = HostEventRowContext {
                     pc: pc_before,
                     sp: sp_before,
                     stack_frame_base: current_stack_base,
@@ -430,7 +432,7 @@ pub(super) fn build_trace(
                         &mut ctx,
                         &mut comm_chain,
                         &mut event_absorb,
-                        &mut grammar_state,
+                        &mut host_event_state,
                         plan,
                     );
                 }
@@ -444,8 +446,8 @@ pub(super) fn build_trace(
         let is_host_call = matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
             && !current.target_function_is_guest
             && !ci_trap;
-        let mut grammar_plan: Option<GrammarCallPlan> = None;
-        let grammar_state_before_row = grammar_state;
+        let mut host_event_plan: Option<HostCallEventPlan> = None;
+        let host_event_state_before_row = host_event_state;
         let host_callee_fref_before = host_callee_fref;
         let comm_chain_before_row = comm_chain;
         let event_absorb_before_row = event_absorb;
@@ -518,24 +520,21 @@ pub(super) fn build_trace(
             } else {
                 None
             };
-            let template = grammar_tables
-                .imports
-                .get(&host_callee_fref)
-                .ok_or_else(|| {
-                    WasmBuildError::Trace(format!(
-                        "no grammar template for host import fref {host_callee_fref} at cycle {}",
-                        current.cycle
-                    ))
-                })?;
+            let template = bindings.imports.get(&host_callee_fref).ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "no host-event template for host import fref {host_callee_fref} at cycle {}",
+                    current.cycle
+                ))
+            })?;
             template.validate(param_count, result_count)?;
             let args_base = sp_before - index_pops as u64 - u64::from(param_count);
-            grammar_plan = Some(
+            host_event_plan = Some(
                 plan_import_call(
                     template,
                     args_base,
                     &arg_limbs,
                     result_limbs,
-                    &current.host_call_claims,
+                    &current.host_call_inputs,
                     &mut linear_memory,
                 )
                 .map_err(|err| {
@@ -550,9 +549,9 @@ pub(super) fn build_trace(
             sp_after = args_base;
         }
         // The call row latches the event schedule and argument-region base.
-        if let Some(plan) = &grammar_plan {
-            grammar_state = crate::ir::WasmGrammarState {
-                turn_export_fref: grammar_state.turn_export_fref,
+        if let Some(plan) = &host_event_plan {
+            host_event_state = crate::ir::WasmHostEventState {
+                turn_export_fref: host_event_state.turn_export_fref,
                 events_remaining: plan.blocks.len() as u32,
                 event_index: 0,
                 args_base: plan.args_base,
@@ -562,23 +561,23 @@ pub(super) fn build_trace(
         // A clean export halt loads the exit schedule and attribution. Result
         // publication is optional: constant-only exit events also apply to
         // resultless exports.
-        let mut exit_plans: Option<Vec<GrammarBlockPlan>> = None;
+        let mut exit_plans: Option<Vec<EventBlockPlan>> = None;
         let mut exit_counts: Option<(u32, u32)> = None;
         if halted && !trapped {
             if let Some(setup) = &export_boundary {
                 let plans = plan_turn_exit(
                     setup.template,
                     current,
-                    &turns[turn_index],
+                    &turn_inputs[turn_index],
                     output_captured.then_some((output_value_lo_after, output_value_hi_after)),
                     &linear_memory,
                 )?;
                 host_callee_fref = setup.fref;
-                grammar_state = crate::ir::WasmGrammarState {
-                    turn_export_fref: grammar_state.turn_export_fref,
+                host_event_state = crate::ir::WasmHostEventState {
+                    turn_export_fref: host_event_state.turn_export_fref,
                     events_remaining: plans.len() as u32,
                     event_index: setup.template.entry.len() as u32,
-                    args_base: grammar_state.args_base,
+                    args_base: host_event_state.args_base,
                     slot_cursor: 0,
                 };
                 exit_counts = Some((setup.template.entry.len() as u32, setup.template.exit.len() as u32));
@@ -612,7 +611,7 @@ pub(super) fn build_trace(
                 host_callee_fref: host_callee_fref_before,
                 comm_chain: comm_chain_before_row,
                 event_absorb: event_absorb_before_row,
-                grammar: grammar_state_before_row,
+                host_events: host_event_state_before_row,
             },
             state_after: WasmStepState {
                 pc: pc_after,
@@ -635,7 +634,7 @@ pub(super) fn build_trace(
                 // The chain only moves on permutation rows.
                 comm_chain,
                 event_absorb,
-                grammar: grammar_state,
+                host_events: host_event_state,
             },
             control_choice: current.control_choice,
             pc_edge_kind: current.pc_edge_kind,
@@ -695,13 +694,13 @@ pub(super) fn build_trace(
             call_result_count: current.call_result_count.filter(|_| !ci_trap),
             call_stack_push,
             call_stack_pop,
-            grammar_rom_slot: None,
+            host_event_rom_slot: None,
             // Count cells carry the presence bias (count + 1).
-            grammar_pre_count: grammar_plan
+            host_event_pre_count: host_event_plan
                 .as_ref()
                 .map(|plan| plan.blocks.len() as u32 + 1)
                 .or(exit_counts.map(|(pre, _)| pre + 1)),
-            grammar_post_count: exit_counts.map(|(_, post)| post),
+            host_event_post_count: exit_counts.map(|(_, post)| post),
         });
         turn_done = turn_done || halted;
         param_init_state = param_init_after;
@@ -795,7 +794,7 @@ pub(super) fn build_trace(
                         host_callee_fref,
                         comm_chain,
                         event_absorb,
-                        grammar: grammar_state,
+                        host_events: host_event_state,
                     },
                     state_after: WasmStepState {
                         pc: pc_after,
@@ -817,7 +816,7 @@ pub(super) fn build_trace(
                         host_callee_fref,
                         comm_chain,
                         event_absorb,
-                        grammar: grammar_state,
+                        host_events: host_event_state,
                     },
                     control_choice: 0,
                     pc_edge_kind: WasmPcEdgeKind::Static,
@@ -860,9 +859,9 @@ pub(super) fn build_trace(
                     call_result_count: None,
                     call_stack_push: None,
                     call_stack_pop: None,
-                    grammar_rom_slot: None,
-                    grammar_pre_count: None,
-                    grammar_post_count: None,
+                    host_event_rom_slot: None,
+                    host_event_pre_count: None,
+                    host_event_post_count: None,
                 });
                 debug_assert_eq!(
                     aux_param_init_before.remaining,
@@ -905,7 +904,7 @@ pub(super) fn build_trace(
                 host_callee_fref,
                 comm_chain,
                 event_absorb,
-                grammar: grammar_state,
+                host_events: host_event_state,
             };
             let mut state_after = state_before;
             state_after.sp = stack_base;
@@ -918,8 +917,8 @@ pub(super) fn build_trace(
             ));
             tail_call_pending = false;
         }
-        if let Some(plan) = &grammar_plan {
-            let mut ctx = GrammarAuxCtx {
+        if let Some(plan) = &host_event_plan {
+            let mut ctx = HostEventRowContext {
                 pc: pc_after,
                 sp: sp_after,
                 stack_frame_base: stack_base,
@@ -943,7 +942,7 @@ pub(super) fn build_trace(
                     &mut ctx,
                     &mut comm_chain,
                     &mut event_absorb,
-                    &mut grammar_state,
+                    &mut host_event_state,
                     block_plan,
                 );
             }
@@ -958,7 +957,7 @@ pub(super) fn build_trace(
         // Export boundary: the exit template's blocks absorb after the
         // capture row (its own after-state carries the exit latch).
         if let Some(plans) = exit_plans {
-            let mut ctx = GrammarAuxCtx {
+            let mut ctx = HostEventRowContext {
                 pc: pc_after,
                 sp: sp_after,
                 stack_frame_base: stack_base,
@@ -982,7 +981,7 @@ pub(super) fn build_trace(
                     &mut ctx,
                     &mut comm_chain,
                     &mut event_absorb,
-                    &mut grammar_state,
+                    &mut host_event_state,
                     plan,
                 );
             }
@@ -992,21 +991,21 @@ pub(super) fn build_trace(
         if halted && next.is_some() {
             let next_row = next.expect("checked");
             turn_index += 1;
-            let claims = turns.get(turn_index).ok_or_else(|| {
+            let inputs = turn_inputs.get(turn_index).ok_or_else(|| {
                 WasmBuildError::Trace(format!(
-                    "trace re-enters turn {} but only {} turn claim sets were supplied",
+                    "trace re-enters turn {} but only {} turn input sets were supplied",
                     turn_index + 1,
-                    turns.len()
+                    turn_inputs.len()
                 ))
             })?;
-            let setup = setup_turn(grammar_tables, next_row, claims, true, &mut linear_memory)?;
+            let setup = setup_turn(bindings, next_row, inputs, true, &mut linear_memory)?;
             let entry_count = setup.entry_plans.len() as u32;
             let boundary_state = |pc: u64,
                                   sp: u64,
                                   stack_frame_base: u64,
                                   output: WasmOutputState,
                                   host_fref: u32,
-                                  gstate: crate::ir::WasmGrammarState,
+                                  host_event_state: crate::ir::WasmHostEventState,
                                   done: bool| {
                 WasmStepState {
                     pc,
@@ -1024,7 +1023,7 @@ pub(super) fn build_trace(
                     host_callee_fref: host_fref,
                     comm_chain,
                     event_absorb,
-                    grammar: gstate,
+                    host_events: host_event_state,
                 }
             };
             let state_before = boundary_state(
@@ -1037,15 +1036,15 @@ pub(super) fn build_trace(
                     value_hi: output_value_hi_after,
                 },
                 host_callee_fref,
-                grammar_state,
+                host_event_state,
                 true,
             );
             host_callee_fref = setup.fref;
-            grammar_state = crate::ir::WasmGrammarState {
+            host_event_state = crate::ir::WasmHostEventState {
                 turn_export_fref: setup.fref,
                 events_remaining: entry_count,
                 event_index: 0,
-                args_base: grammar_state.args_base,
+                args_base: host_event_state.args_base,
                 slot_cursor: 0,
             };
             let state_after = boundary_state(
@@ -1054,10 +1053,10 @@ pub(super) fn build_trace(
                 0,
                 WasmOutputState::ZERO,
                 host_callee_fref,
-                grammar_state,
+                host_event_state,
                 false,
             );
-            let helper_ctx = GrammarAuxCtx {
+            let helper_ctx = HostEventRowContext {
                 pc: pc_after,
                 sp: sp_after,
                 stack_frame_base: stack_base,
@@ -1073,7 +1072,7 @@ pub(super) fn build_trace(
             };
             out.push(WasmVmStep {
                 // Export entry-count cell carries the presence bias.
-                grammar_pre_count: Some(entry_count + 1),
+                host_event_pre_count: Some(entry_count + 1),
                 ..helper_ctx.row(out.len() as u64, WasmAuxOpcode::TurnBoundary, state_before, state_after)
             });
             turn_done = false;
@@ -1091,11 +1090,11 @@ pub(super) fn build_trace(
             "wasmtime trace did not contain any currently supported wasm rows".to_string(),
         ));
     }
-    if turn_index + 1 != turns.len() {
+    if turn_index + 1 != turn_inputs.len() {
         return Err(WasmBuildError::Trace(format!(
-            "trace ran {} turn(s) but {} turn claim sets were supplied",
+            "trace ran {} turn(s) but {} turn input sets were supplied",
             turn_index + 1,
-            turns.len()
+            turn_inputs.len()
         )));
     }
 

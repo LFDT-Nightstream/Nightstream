@@ -1,18 +1,18 @@
-//! Shared event-bound fixture: a component with two grammar-bound host
-//! imports (mul with a claim word, sink) and an export boundary template,
-//! traced with grammar tables. Used by the F′ audit lifecycle test and the
+//! Shared event-bound fixture: a component with two template-bound host
+//! imports (mul with a input word, sink) and an export boundary template,
+//! traced with bindings tables. Used by the F′ audit lifecycle test and the
 //! Nebula proof test.
 
 use neo_wasm::comm_chain::{COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_EVENT_ARGS};
-use neo_wasm::event_grammar::{ExportTemplate, GrammarEvent, HostEventGrammar, ImportTemplate, Limb, SlotSource};
+use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, ImportTemplate, Limb, SlotBinding};
 use neo_wasm::WasmVmStep;
 use p3_field::PrimeCharacteristicRing;
 
-pub const ENTRY_CLAIMS: [u64; 2] = [500, 501];
+pub const ENTRY_INPUTS: [u64; 2] = [500, 501];
 
-const ZERO: SlotSource = SlotSource::Const(0);
+const ZERO: SlotBinding = SlotBinding::Const(0);
 
-fn slots(entries: &[(usize, SlotSource)]) -> [SlotSource; COMM_CHAIN_EVENT_ARGS] {
+fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
     let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
     for &(idx, source) in entries {
         out[idx] = source;
@@ -55,64 +55,67 @@ fn mul_sink_component_wat() -> &'static str {
 
 /// Import templates for mul/sink plus an export boundary for `run`:
 /// Enter + Activation at entry, Return-with-output at exit.
-fn test_grammar(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventGrammar {
-    let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
-    let oracle = |idx| SlotSource::Claim { idx };
-    let mut grammar = HostEventGrammar::default();
-    grammar.imports.insert(
+fn test_bindings(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventBindings {
+    let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
+    let input = |idx| SlotBinding::Input { index: idx };
+    let mut bindings = HostEventBindings::default();
+    bindings.imports.insert(
         mul_fref,
         ImportTemplate {
             events: vec![
-                GrammarEvent::op(
+                EventBlock::op(
                     10,
-                    slots(&[(0, oracle(0)), (1, arg(0, Limb::Lo)), (2, arg(1, Limb::Lo))]),
+                    slots(&[(0, input(0)), (1, arg(0, Limb::Lo)), (2, arg(1, Limb::Lo))]),
                 ),
                 // The ResultElem Lo slot pushes the host result (atomic
                 // import events; args gathered above, before the push); the
                 // Hi slot binds the pushed hi lane (0 for the i32 result).
-                GrammarEvent::op(
+                EventBlock::op(
                     12,
                     slots(&[
-                        (0, SlotSource::ResultElem { limb: Limb::Lo }),
-                        (1, oracle(0)),
-                        (2, SlotSource::ResultElem { limb: Limb::Hi }),
+                        (0, SlotBinding::ResultElem { limb: Limb::Lo }),
+                        (1, input(0)),
+                        (2, SlotBinding::ResultElem { limb: Limb::Hi }),
                     ]),
                 ),
             ],
-            claim_count: 1,
+            input_count: 1,
         },
     );
-    grammar.imports.insert(
+    bindings.imports.insert(
         sink_fref,
         ImportTemplate {
-            events: vec![GrammarEvent::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
-            claim_count: 0,
+            events: vec![EventBlock::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
+            input_count: 0,
         },
     );
-    grammar.exports.insert(
+    bindings.exports.insert(
         run_fref,
         ExportTemplate {
             entry: vec![
-                GrammarEvent::op(20, slots(&[(0, SlotSource::Const(55))])),
-                GrammarEvent::op(
+                EventBlock::op(20, slots(&[(0, SlotBinding::Const(55))])),
+                EventBlock::op(
                     8,
-                    slots(&[(1, SlotSource::Claim { idx: 0 }), (3, SlotSource::Claim { idx: 1 })]),
+                    slots(&[
+                        (1, SlotBinding::Input { index: 0 }),
+                        (3, SlotBinding::Input { index: 1 }),
+                    ]),
                 ),
             ],
-            exit: vec![GrammarEvent::op(
+            exit: vec![EventBlock::op(
                 17,
-                slots(&[(1, SlotSource::OutputElem { limb: Limb::Lo })]),
+                slots(&[(1, SlotBinding::OutputElem { limb: Limb::Lo })]),
             )],
-            entry_claim_count: 2,
-            exit_claim_count: 0,
+            entry_input_count: 2,
+            exit_input_count: 0,
         },
     );
-    grammar
+    bindings
 }
 
 /// The mul import is the two-event template; sink has one event.
-pub fn mul_fref(grammar: &HostEventGrammar) -> u32 {
-    *grammar
+pub fn mul_fref(bindings: &HostEventBindings) -> u32 {
+    *bindings
         .imports
         .iter()
         .find(|(_, t)| t.events.len() == 2)
@@ -120,8 +123,8 @@ pub fn mul_fref(grammar: &HostEventGrammar) -> u32 {
         .0
 }
 
-pub fn sink_fref(grammar: &HostEventGrammar) -> u32 {
-    *grammar
+pub fn sink_fref(bindings: &HostEventBindings) -> u32 {
+    *bindings
         .imports
         .iter()
         .find(|(_, t)| t.events.len() == 1)
@@ -144,22 +147,22 @@ fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
     (imports, export)
 }
 
-pub struct GrammarLifecycleSetup {
+pub struct HostEventLifecycleSetup {
     pub trace: Vec<WasmVmStep>,
-    pub grammar: HostEventGrammar,
+    pub bindings: HostEventBindings,
     pub run_fref: u32,
     pub component_bytes: Vec<u8>,
 }
 
-pub fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
+pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, "run", |linker| {
         linker
             .root()
             .func_wrap("host-mul", |mut store, (x, y): (i32, i32)| {
-                // The mul template consumes one oracle word; record it at
-                // call time (the grammar hand-off path).
-                store.data_mut().record_call_claims(&[100])?;
+                // The mul template consumes one input word; record it at
+                // call time (the bindings hand-off path).
+                store.data_mut().record_call_inputs(&[100])?;
                 Ok((x * y,))
             })
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-mul: {err}")))?;
@@ -171,43 +174,43 @@ pub fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
     .expect("component run");
 
     let (frefs, run_fref) = run_frefs(&run);
-    let grammar = test_grammar(frefs[0], frefs[1], run_fref);
+    let bindings = test_bindings(frefs[0], frefs[1], run_fref);
 
-    let turns = [neo_wasm::event_grammar::TurnClaims {
-        entry: ENTRY_CLAIMS.to_vec(),
+    let turns = [neo_wasm::host_event_bindings::TurnInputs {
+        entry: ENTRY_INPUTS.to_vec(),
         exit: vec![],
         ..Default::default()
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
-        &grammar,
+        &bindings,
         &turns,
         Default::default(),
     )
-    .expect("grammar trace");
+    .expect("bindings trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
-    GrammarLifecycleSetup {
+    HostEventLifecycleSetup {
         trace,
-        grammar,
+        bindings,
         run_fref,
         component_bytes,
     }
 }
 
 /// The transcript the verifier expects for `inputs`: export entry (with the
-/// claim inputs), the mul call (claim word 100, result 42), the sink call,
+/// input words), the mul call (input word 100, result 42), the sink call,
 /// and the export exit carrying the output.
 pub fn expected_transcript(
-    grammar: &HostEventGrammar,
+    bindings: &HostEventBindings,
     run_fref: u32,
     inputs: &[u64],
 ) -> Vec<[p3_goldilocks::Goldilocks; COMM_CHAIN_BLOCK_WORDS]> {
-    let template = grammar.exports.get(&run_fref).expect("export template");
-    let mut blocks = neo_wasm::event_grammar::expand_export_entry(template, inputs).expect("entry");
+    let template = bindings.exports.get(&run_fref).expect("export template");
+    let mut blocks = neo_wasm::host_event_bindings::expand_export_entry(template, inputs).expect("entry");
     blocks.extend(
-        neo_wasm::event_grammar::expand_import_events(
-            &grammar.imports[&mul_fref(grammar)],
+        neo_wasm::host_event_bindings::expand_import_events(
+            &bindings.imports[&mul_fref(bindings)],
             &[(7, 0), (6, 0)],
             Some((42, 0)),
             &[100],
@@ -216,8 +219,8 @@ pub fn expected_transcript(
         .expect("mul events"),
     );
     blocks.extend(
-        neo_wasm::event_grammar::expand_import_events(
-            &grammar.imports[&sink_fref(grammar)],
+        neo_wasm::host_event_bindings::expand_import_events(
+            &bindings.imports[&sink_fref(bindings)],
             &[(42, 0)],
             None,
             &[],
@@ -225,7 +228,7 @@ pub fn expected_transcript(
         )
         .expect("sink events"),
     );
-    blocks.extend(neo_wasm::event_grammar::expand_export_exit(template, Some((42, 0)), &[], &[]).expect("exit"));
+    blocks.extend(neo_wasm::host_event_bindings::expand_export_exit(template, Some((42, 0)), &[], &[]).expect("exit"));
     blocks
         .into_iter()
         .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))

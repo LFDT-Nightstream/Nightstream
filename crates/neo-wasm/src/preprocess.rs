@@ -20,13 +20,13 @@ use crate::ir::{
 };
 use crate::layout::Column;
 use crate::layout::{
-    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_GRAMMAR_ARGS_BASE_BEFORE,
-    COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_HALTED_BEFORE,
-    COL_HOST_CALLEE_FREF_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_BEFORE,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE,
-    COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_BEFORE,
-    COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_HALTED_BEFORE,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENT_ARGS_BASE_BEFORE,
+    COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
+    COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE,
+    COL_PERM_ROUND_BEFORE, COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE,
+    COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use crate::lookup_circuit::{extend_relation, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
@@ -317,10 +317,10 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_TAIL_CALL_PENDING_BEFORE => bool_field(state.tail_call_pending),
         COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
         COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.host_events.turn_export_fref)),
-        COL_GRAMMAR_EVREM_BEFORE => F::from_u64(u64::from(state.host_events.events_remaining)),
-        COL_GRAMMAR_EVIDX_BEFORE => F::from_u64(u64::from(state.host_events.event_index)),
-        COL_GRAMMAR_ARGS_BASE_BEFORE => F::from_u64(state.host_events.args_base),
-        COL_GRAMMAR_SLOT_CURSOR_BEFORE => F::from_u64(u64::from(state.host_events.slot_cursor)),
+        COL_HOST_EVENTS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_events.events_remaining)),
+        COL_HOST_EVENT_INDEX_BEFORE => F::from_u64(u64::from(state.host_events.event_index)),
+        COL_HOST_EVENT_ARGS_BASE_BEFORE => F::from_u64(state.host_events.args_base),
+        COL_HOST_EVENT_SLOT_CURSOR_BEFORE => F::from_u64(u64::from(state.host_events.slot_cursor)),
         COL_PERM_PENDING_BEFORE => bool_field(state.event_absorb.perm_pending),
         COL_PERM_ROUND_BEFORE => F::from_u64(u64::from(state.event_absorb.perm_round)),
         COL_TRAPPED_BEFORE => bool_field(state.trapped),

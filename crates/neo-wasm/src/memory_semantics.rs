@@ -334,23 +334,23 @@ pub fn preload_host_event_tables(
                 let (kind, arg, variant, const_lo, const_hi) = encode(source);
                 // Bit 3 carries the per-event advice flag.
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
-                preload.insert("grammar_slot_kind", key.clone(), kind);
-                preload.insert("grammar_slot_arg", key.clone(), arg);
-                preload.insert("grammar_slot_variant", key.clone(), variant);
-                preload.insert("grammar_slot_const_lo", key.clone(), const_lo);
-                preload.insert("grammar_slot_const_hi", key, const_hi);
+                preload.insert("host_event_slot_kind", key.clone(), kind);
+                preload.insert("host_event_slot_arg", key.clone(), arg);
+                preload.insert("host_event_slot_variant", key.clone(), variant);
+                preload.insert("host_event_slot_const_lo", key.clone(), const_lo);
+                preload.insert("host_event_slot_const_hi", key, const_hi);
             }
         }
     };
     // Count cells in the fref-keyed-from-free-state families store
     // count + 1 (presence bias): an undeclared fref reads the zero-filled 0
     // and the CCS load rows subtract 1, poisoning the schedule to
-    // EVREM = p-1. See the relation-layout family comment for the full
+    // events_remaining = p-1. See the relation-layout family comment for the full
     // non-termination argument. Export exit counts stay raw: their read key
     // is bound within an already-entered turn.
     for (&fref, template) in &bindings.imports {
         preload.insert(
-            "grammar_import_pre_counts",
+            "host_event_import_schedule_counts",
             vec![fref],
             template.events.len() as u32 + 1,
         );
@@ -358,11 +358,15 @@ pub fn preload_host_event_tables(
     }
     for (&fref, template) in &bindings.exports {
         preload.insert(
-            "grammar_export_entry_counts",
+            "host_event_export_entry_schedule_counts",
             vec![fref],
             template.entry.len() as u32 + 1,
         );
-        preload.insert("grammar_export_exit_counts", vec![fref], template.exit.len() as u32);
+        preload.insert(
+            "host_event_export_exit_schedule_counts",
+            vec![fref],
+            template.exit.len() as u32,
+        );
         insert_slots(preload, fref, template.entry.iter().chain(&template.exit).collect());
     }
 }

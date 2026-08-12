@@ -189,9 +189,9 @@ fn multi_turn_setup() -> MultiTurnSetup {
     let component_bytes = wat::parse_str(counter_component_wat()).expect("component wat");
     let run = run_counter_turns(&component_bytes);
 
-    let without_grammar = neo_wasm::traces_from_wasmtime_steps(&run.steps);
+    let without_bindings = neo_wasm::traces_from_wasmtime_steps(&run.steps);
     assert!(
-        without_grammar.is_err(),
+        without_bindings.is_err(),
         "a multi-turn trace containing host imports requires an event bindings"
     );
 
@@ -409,15 +409,15 @@ fn ccs_rejects_forged_turn_boundary() {
     common::assert_rejected(&forged, "boundary keeping the previous turn's output armed");
 
     let mut forged = witness.clone();
-    forged[neo_wasm::layout::COL_GRAMMAR_EVREM_AFTER] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "boundary skipping the next turn's entry schedule");
 
     // Silent re-entry: a boundary claiming an EMPTY entry template (biased
     // cell 1, zero events owed) would re-run the export without moving the
     // transcript. The nonempty-entry guard has no satisfying inverse.
     let mut forged = witness.clone();
-    forged[neo_wasm::layout::COL_GRAMMAR_PRE_COUNT] = neo_math::F::ONE;
-    forged[neo_wasm::layout::COL_GRAMMAR_EVREM_AFTER] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "boundary re-entering through an empty entry template");
 
     let mut forged = witness.clone();
@@ -431,7 +431,7 @@ fn ccs_rejects_forged_turn_boundary() {
 
     // A boundary can't fire while the previous turn still owes events.
     let mut forged = witness.clone();
-    forged[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE] = neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE] = neo_math::F::ONE;
     common::assert_rejected(&forged, "boundary before the previous schedule is spent");
 
     // Presence binding: a boundary pointed at a fref with no export
@@ -442,13 +442,13 @@ fn ccs_rejects_forged_turn_boundary() {
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] = undeclared_fref;
     forged[neo_wasm::layout::COL_TURN_EXPORT_FREF_AFTER] = undeclared_fref;
-    forged[neo_wasm::layout::COL_GRAMMAR_PRE_COUNT] = neo_math::F::ZERO;
+    forged[neo_wasm::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "boundary entering an undeclared fref with a normal schedule");
 
     // The only row-locally satisfiable assignment loads the poisoned
-    // schedule EVREM = -1 = p-1 ...
+    // schedule events_remaining = -1 = p-1 ...
     let mut poisoned = forged.clone();
-    poisoned[neo_wasm::layout::COL_GRAMMAR_EVREM_AFTER] = -neo_math::F::ONE;
+    poisoned[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = -neo_math::F::ONE;
     common::assert_satisfied(&poisoned, "undeclared boundary target loads the poisoned schedule");
 
     // ... which the composed circuit's host-event ROM address bound prevents
@@ -459,7 +459,7 @@ fn ccs_rejects_forged_turn_boundary() {
         .find(|row| row.row_kind.is_program())
         .expect("program row");
     let mut wedged = build_witness_vector(program_row);
-    wedged[neo_wasm::layout::COL_GRAMMAR_EVREM_BEFORE] = -neo_math::F::ONE;
+    wedged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE] = -neo_math::F::ONE;
     common::assert_rejected(&wedged, "program row under the poisoned schedule");
 }
 
@@ -665,8 +665,8 @@ fn resultless_turn_can_precede_another_turn() {
     );
 
     // Resultless exits may not reference a captured output.
-    let mut bad_grammar = bindings.clone();
-    bad_grammar.exports.get_mut(&poke_fref).expect("poke").exit = vec![EventBlock::op(
+    let mut bad_bindings = bindings.clone();
+    bad_bindings.exports.get_mut(&poke_fref).expect("poke").exit = vec![EventBlock::op(
         17,
         slots(&[(0, SlotBinding::OutputElem { limb: Limb::Lo })]),
     )];
@@ -674,7 +674,7 @@ fn resultless_turn_can_precede_another_turn() {
         neo_wasm::traces_from_wasmtime_steps_with_host_events(
             &run.steps,
             &run.program_tables,
-            &bad_grammar,
+            &bad_bindings,
             &turns,
             Default::default(),
         )

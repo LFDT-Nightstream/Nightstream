@@ -349,7 +349,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         );
     });
 
-    // Stack balance excludes non-popping grammar reads and treats a captured
+    // Stack balance excludes non-popping host-event reads and treats a captured
     // result as consumed by the host.
     b.push_linear_zero([
         (COL_SP_AFTER, F::ONE),
@@ -362,7 +362,7 @@ fn build_core_ccs_spec() -> Result<(WasmCoreCcs, WasmConstraintCatalog), String>
         (host_event_chain::gather_memory_write_kind_col(), -F::ONE),
         (host_event_chain::gather_memory_local_base_col(), F::ONE),
         (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
-        // Grammar host calls pop their args on the call row itself.
+        // Bound host calls pop their args on the call row itself.
         (host_event_chain::host_call_params_col(), F::ONE),
     ]);
     b.with_tag(always("fixed stack arity"), |b| {

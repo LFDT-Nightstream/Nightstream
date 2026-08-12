@@ -243,7 +243,7 @@ fn ccs_rejects_suppressed_exit_schedule() {
         .expect("capture row");
     let mut witness = build_witness_vector(capture_row);
     common::assert_satisfied(&witness, "untampered capture row");
-    witness[neo_wasm::layout::COL_GRAMMAR_EVREM_AFTER] = neo_math::F::ZERO;
+    witness[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&witness, "capture row suppressing the exit schedule");
 }
 

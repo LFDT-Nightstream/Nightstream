@@ -696,11 +696,11 @@ pub(super) fn build_trace(
             call_stack_pop,
             host_event_rom_slot: None,
             // Count cells carry the presence bias (count + 1).
-            host_event_pre_count: host_event_plan
+            host_event_initial_schedule_count: host_event_plan
                 .as_ref()
                 .map(|plan| plan.blocks.len() as u32 + 1)
                 .or(exit_counts.map(|(pre, _)| pre + 1)),
-            host_event_post_count: exit_counts.map(|(_, post)| post),
+            host_event_exit_schedule_count: exit_counts.map(|(_, exit)| exit),
         });
         turn_done = turn_done || halted;
         param_init_state = param_init_after;
@@ -860,8 +860,8 @@ pub(super) fn build_trace(
                     call_stack_push: None,
                     call_stack_pop: None,
                     host_event_rom_slot: None,
-                    host_event_pre_count: None,
-                    host_event_post_count: None,
+                    host_event_initial_schedule_count: None,
+                    host_event_exit_schedule_count: None,
                 });
                 debug_assert_eq!(
                     aux_param_init_before.remaining,
@@ -1072,7 +1072,7 @@ pub(super) fn build_trace(
             };
             out.push(WasmVmStep {
                 // Export entry-count cell carries the presence bias.
-                host_event_pre_count: Some(entry_count + 1),
+                host_event_initial_schedule_count: Some(entry_count + 1),
                 ..helper_ctx.row(out.len() as u64, WasmAuxOpcode::TurnBoundary, state_before, state_after)
             });
             turn_done = false;

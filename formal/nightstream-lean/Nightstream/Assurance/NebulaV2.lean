@@ -1,5 +1,5 @@
 import Nightstream.Assurance.NebulaV2.AjtaiBinding
-import Nightstream.Implementation.NebulaV2.ConcreteField
+import Nightstream.Implementation.NebulaV2.Core.ConcreteField
 import Nightstream.Assurance.NebulaV2.CompactSequenceSecurity
 import Nightstream.Assurance.NebulaV2.FingerprintSecurity
 import Nightstream.Assurance.NebulaV2.IdealTranscript

@@ -1,0 +1,13 @@
+import Nightstream.Implementation.NebulaV2.Production.NIFS.PiRLC.PostPiCcsBridgeFor
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductionProductPiRlcPostPiCcsBridgeFor
+
+open Nightstream.Implementation.NebulaV2.ProductionProductPiRlcPostPiCcsBridgeFor
+
+#check valueStart_eq_afterFullOutput
+#check valueStart_eq_executionOutgoing
+#check rows_imply_candidate_exact
+
+end tests.NebulaV2ProductionProductPiRlcPostPiCcsBridgeFor

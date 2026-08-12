@@ -1,0 +1,16 @@
+import Nightstream.Implementation.NebulaV2.Production.FPrime.Lifetime.ClaimOpeningCountermodels
+
+/-! Regression surface for incomplete claim-opening authority. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductionPaperClaimOpeningCountermodels
+
+open Nightstream.Implementation.NebulaV2.ProductionPaperClaimOpeningCountermodels
+
+#check detached_authority_exists
+#check detached_authority_has_no_common_witness
+#check source_opening_does_not_open_different_receipt
+#check floating_terminal_program_does_not_imply_fixed_program
+
+end tests.NebulaV2ProductionPaperClaimOpeningCountermodels

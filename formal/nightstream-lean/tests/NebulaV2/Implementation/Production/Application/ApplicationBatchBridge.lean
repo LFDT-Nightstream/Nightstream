@@ -1,0 +1,14 @@
+import Nightstream.Implementation.NebulaV2.Production.Application.ApplicationBatchBridge
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductionApplicationBatchBridge
+
+open Nightstream.Implementation.NebulaV2.ProductionApplicationBatchBridge
+
+#check memoryNormalizedRows_length
+#check memoryNormalizedRows_accesses
+#check stepAccesses_length
+#check Matches.accesses_exact
+
+end tests.NebulaV2ProductionApplicationBatchBridge

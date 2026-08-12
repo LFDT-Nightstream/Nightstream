@@ -1,5 +1,5 @@
 import Mathlib.Algebra.MvPolynomial.SchwartzZippel
-import Nightstream.Implementation.NebulaV2.ConcreteField
+import Nightstream.Implementation.NebulaV2.Core.ConcreteField
 import Nightstream.Protocol.NebulaV2.IdealAcceptance
 import Nightstream.Protocol.NebulaV2.IdealFingerprint
 

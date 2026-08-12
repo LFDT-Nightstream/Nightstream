@@ -1,0 +1,27 @@
+import Nightstream.Implementation.NebulaV2.FPrime.State.HashCountermodels
+
+/-! Regression surface for the F-prime state-hash countermodel. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2FPrimeStateHashCountermodels
+
+open Nightstream.Implementation.NebulaV2.FPrimeStateHashCountermodels
+
+#check not_replayable_of_claim_variation
+#check claimDependentHash_varies_at_same_state
+#check claimDependentHash_not_replayable
+#check stateOnlyHash_replayable
+#check different_initial_executions
+#check hashWithoutInitial_allows_cross_execution_splice
+#check fullStateFrame_separates_the_two_starts
+#check omitting_verifier_keys_aliases_distinct_frames
+#check omitting_iteration_aliases_distinct_frames
+#check omitting_initial_state_aliases_distinct_frames
+#check omitting_current_state_aliases_distinct_frames
+#check omitting_running_aliases_distinct_frames
+#check omitting_program_counter_aliases_distinct_frames
+#check weak_checks_allow_running_substitution
+#check exact_running_alias_rejects_substitution
+
+end tests.NebulaV2FPrimeStateHashCountermodels

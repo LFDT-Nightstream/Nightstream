@@ -1,0 +1,17 @@
+import Nightstream.Implementation.NebulaV2.Production.Carrier.StateBinding
+
+/-! Regression surface for the field-native full-claim state binding. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductionFullClaimStateBinding
+
+open Nightstream.Implementation.NebulaV2.ProductionFullClaimStateBinding
+
+#check authoritativeFrame_length
+#check authoritativeFrame_lengthFor
+#check bindingState_replays_authoritativeFrame
+#check equal_bindingState_recovers_claim_or_named_failure
+#check authoritativeFrames_ne_of_candidate_ne
+
+end tests.NebulaV2ProductionFullClaimStateBinding

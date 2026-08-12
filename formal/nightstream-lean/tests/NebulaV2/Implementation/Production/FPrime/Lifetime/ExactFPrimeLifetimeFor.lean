@@ -1,0 +1,30 @@
+import Nightstream.Implementation.NebulaV2.Production.FPrime.Lifetime.ExactFPrimeLifetimeFor
+
+open Nightstream.Implementation.NebulaV2.ProductionPaperExactFPrimeLifetimeFor
+
+#check BaseNode.invocationIndex_is_one
+#check RecursiveNode.consumes_previous
+#check RecursiveNode.proof_is_exact
+#check RecursiveNode.accepted
+#check TerminalNode.consumes_trailing
+#check TerminalNode.proof_is_exact
+#check TerminalNode.accepted
+#check Schedule.production_exact
+#check Schedule.terminalNode
+#check Schedule.consumerInvocationIndices
+#check Schedule.consumerInvocationIndices_length
+#check Schedule.FullStateContinuous
+#check Schedule.fullStateContinuous_terminal
+#check Schedule.fullStateContinuous_recursive
+#check Lifetime.construct
+#check Lifetime.base_produces_first
+#check Lifetime.consumed_claims_are_exactly_produced_claims
+#check Lifetime.consumed_proofs_are_exact
+#check Lifetime.every_consumed_receipt_accepted
+#check Lifetime.terminal_consumes_trailing
+#check Lifetime.produced_count_eq_consumed_count
+#check Lifetime.augmented_count_eq_claim_count_add_one
+#check Lifetime.complete_index_schedule
+#check Lifetime.exact_schedule
+#check Lifetime.construct_exact_schedule
+#check Lifetime.construct_has_terminal

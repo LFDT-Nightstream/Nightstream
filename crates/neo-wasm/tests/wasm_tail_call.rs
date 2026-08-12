@@ -236,7 +236,7 @@ fn grammar_exit_events_remain_attributed_to_the_export_after_a_guest_tail_call()
     );
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component).expect("program artifacts");
-    let mut preload = neo_wasm::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let mut preload = neo_wasm::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
     let witnesses: Vec<_> = trace.iter().map(build_witness_vector).collect();
     neo_wasm::sanity_check_memory_rows(neo_wasm::build_wasm_relation_layout(), &witnesses, &preload)

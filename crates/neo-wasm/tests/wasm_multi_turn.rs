@@ -30,7 +30,6 @@ struct TracedTestComponent {
 
 struct CollectedTestTrace {
     steps: Vec<neo_wasm::WasmtimeTraceStep>,
-    initial_locals: Vec<u32>,
     program_tables: neo_wasm::WasmProgramTables,
 }
 
@@ -81,24 +80,8 @@ impl TracedTestComponent {
 
     fn finish(self) -> CollectedTestTrace {
         let steps = self.store.data().steps().to_vec();
-        let initial_locals = steps
-            .iter()
-            .find(|step| step.frame_depth == 0 && step.pc.is_some())
-            .map(|step| {
-                step.locals
-                    .iter()
-                    .map(|value| {
-                        value
-                            .parse::<i128>()
-                            .map(|n| (n as i32) as u32)
-                            .unwrap_or(0)
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
         CollectedTestTrace {
             steps,
-            initial_locals,
             program_tables: self.program_tables,
         }
     }
@@ -229,11 +212,11 @@ fn multi_turn_setup() -> MultiTurnSetup {
         |_| Ok(()),
     )
     .expect("single run");
-    let add_fref = neo_wasm::traces_from_wasmtime_steps(&single.steps)
-        .expect("single-turn trace")
-        .first()
-        .expect("rows")
-        .current_function_ref;
+    let add_fref = single
+        .steps
+        .iter()
+        .find_map(|step| step.current_function_ref)
+        .expect("export function ref");
 
     let mut grammar = HostEventGrammar::default();
     grammar.exports.insert(add_fref, add_template());
@@ -398,11 +381,9 @@ fn multi_turn_proof_binds_both_turns_inputs() {
 #[test]
 fn memory_model_carries_state_across_turns() {
     let setup = multi_turn_setup();
-    let run = run_counter_turns(&setup.component_bytes);
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
-    let mut preload =
-        neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &vec![0; run.initial_locals.len()]);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &setup.grammar);
     let witness_rows: Vec<Vec<neo_math::F>> = setup.trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
@@ -487,11 +468,9 @@ fn ccs_rejects_forged_turn_boundary() {
 #[test]
 fn memory_model_rejects_boundary_into_undeclared_fref() {
     let setup = multi_turn_setup();
-    let run = run_counter_turns(&setup.component_bytes);
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
-    let mut preload =
-        neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &vec![0; run.initial_locals.len()]);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &setup.grammar);
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
 
@@ -575,11 +554,11 @@ fn resultless_turn_can_precede_another_turn() {
         let single =
             neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, export, args, |_| Ok(()))
                 .expect("single run");
-        neo_wasm::traces_from_wasmtime_steps(&single.steps)
-            .expect("trace")
-            .first()
-            .expect("rows")
-            .current_function_ref
+        single
+            .steps
+            .iter()
+            .find_map(|step| step.current_function_ref)
+            .expect("export function ref")
     };
     let poke_fref = fref_of("poke", &[ComponentVal::S32(1)]);
     let read_fref = fref_of("read", &[]);

@@ -153,13 +153,11 @@ fn collect_relation_structure_census(
 ) -> RelationStructureStats {
     let wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
     let entry_pc = common::single_function_entry_pc(&artifacts);
     let prep = neo_wasm::nebula::preprocess_seeded_reduced_memory_test_only(
         test_params(),
         profile,
         &artifacts,
-        &run.initial_locals,
         entry_pc,
         seed,
     )
@@ -302,7 +300,7 @@ fn wasm_nebula_pipeline_profile() {
     let normalize_elapsed = started.elapsed();
 
     let started = Instant::now();
-    let _witnesses = common::sanity_check_trace(&trace, &artifacts, &run.initial_locals);
+    let _witnesses = common::sanity_check_trace(&trace, &artifacts);
     common::ccs_check_trace(&trace);
     let trace_check_elapsed = started.elapsed();
 
@@ -333,7 +331,6 @@ fn wasm_nebula_pipeline_profile() {
         params.clone(),
         profile,
         &artifacts,
-        &run.initial_locals,
         entry_pc,
         0x57a5_7001,
     )
@@ -614,7 +611,7 @@ fn wasm_nebula_production_prefix_profile() {
     let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
     assert_eq!(run.results.as_slice(), &["297".to_string()]);
     let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalized trace");
-    let _witnesses = common::sanity_check_trace(&trace, &artifacts, &run.initial_locals);
+    let _witnesses = common::sanity_check_trace(&trace, &artifacts);
     common::ccs_check_trace(&trace);
 
     let profile = neo_wasm::WasmNebulaProfile::production();
@@ -642,7 +639,6 @@ fn wasm_nebula_production_prefix_profile() {
         params.clone(),
         profile,
         &artifacts,
-        &run.initial_locals,
         entry_pc,
         0x57a5_7018,
     )

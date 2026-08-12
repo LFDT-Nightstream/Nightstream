@@ -31,7 +31,6 @@ fn wasm_nebula_relation_stays_within_production_budget() {
         params,
         neo_wasm::WasmNebulaProfile::production(),
         &checked.artifacts,
-        &checked.run.initial_locals,
         entry_pc,
         0x57a5_7000,
     )

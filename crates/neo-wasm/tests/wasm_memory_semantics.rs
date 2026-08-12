@@ -18,7 +18,7 @@ fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmVmStep>, Vec<Vec<F>>, WasmMe
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
     let witnesses = trace.iter().map(build_witness_vector).collect();
-    let mut preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let mut preload = preload_from_program_artifacts(&artifacts);
     // Import-free traces run under the canonical single-shot grammar; the
     // exit latch reads its (biased) export count cells.
     let export_fref = trace[0].state_before.grammar.turn_export_fref;

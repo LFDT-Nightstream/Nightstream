@@ -7,7 +7,7 @@ open Ajtai.Parameters
 open Ajtai.SecurityBoundary
 
 example :
-    ceilLogTwo rankTwoAttackTargets = 3 ∧
+    ceilLogTwo setupAttackTargets = 3 ∧
       requiredRawBits = 131 ∧
       minimumAcceptedBeta = 495 ∧
       rejectedBeta = 494 :=

@@ -351,6 +351,31 @@ def valueRound (round : Round) (values : List Nat)
   Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permute
     (valueInput round.kind values state)
 
+private theorem valueInput_canonical
+    (kind : RoundKind) (values : List Nat) (state : Nat → Nat)
+    (stateCanonical : ∀ lane, state lane < goldilocksP) :
+    ∀ lane, lane < 8 → valueInput kind values state lane < goldilocksP := by
+  intro lane laneLt
+  cases kind with
+  | absorb chunkColumns =>
+      simp only [valueInput]
+      split
+      · exact Nat.mod_lt _ (by decide)
+      · exact stateCanonical lane
+  | pad =>
+      simp only [valueInput]
+      split
+      · exact Nat.mod_lt _ (by decide)
+      · exact stateCanonical lane
+
+theorem valueRound_canonical
+    (round : Round) (values : List Nat) (state : Nat → Nat)
+    (stateCanonical : ∀ lane, state lane < goldilocksP) :
+    ∀ lane, valueRound round values state lane < goldilocksP := by
+  intro lane
+  exact Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permute_lt
+    (valueInput_canonical round.kind values state stateCanonical) lane
+
 private theorem valueCount_eq_of_schedule {left right : Round}
     (same : left.valueSchedule = right.valueSchedule) :
     left.valueCount = right.valueCount := by
@@ -408,6 +433,21 @@ def runValueRounds : List Round → List Nat → (Nat → Nat) → Nat → Nat
   | round :: rest, values, state =>
       runValueRounds rest (values.drop round.valueCount)
         (valueRound round (values.take round.valueCount) state)
+
+/-- Every state in the pure linked sponge execution stays canonical. Absorb
+and padding transitions reduce modulo the field, and the exact permutation
+interpreter preserves canonicality. -/
+theorem runValueRounds_canonical
+    (rounds : List Round) (values : List Nat) (state : Nat → Nat)
+    (stateCanonical : ∀ lane, state lane < goldilocksP) :
+    ∀ lane, runValueRounds rounds values state lane < goldilocksP := by
+  induction rounds generalizing values state with
+  | nil => exact stateCanonical
+  | cons round rest inductionHypothesis =>
+      simp only [runValueRounds]
+      exact inductionHypothesis _ _
+        (valueRound_canonical round (values.take round.valueCount) state
+          stateCanonical)
 
 /-- Generated traces with the same absorb-length/padding schedule compute the
 same pure sponge function, even when every artifact column number differs. -/
@@ -581,6 +621,34 @@ theorem rounds_sound
         exact roundValid later (by simp [laterMember])
       · exact outputMatches
       · exact linked.2
+
+/-- Value-level form of `rounds_sound` for a linked prefix or complete duplex
+program. The caller supplies the exact values in the absorbed columns. This
+theorem does not require a fresh zero state and does not require a terminal
+padding round. -/
+theorem rounds_values_sound
+    (programRows : List Row) {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfies : Satisfies programRows assignment)
+    (rounds : List Round)
+    (roundValid : ∀ round ∈ rounds, round.Valid programRows)
+    (priorColumns : List Nat)
+    (initialState : Nat → Nat)
+    (initialMatches : ∀ lane, lane < 8 →
+      assignment (priorColumns.getD lane 0) = initialState lane)
+    (linked : linkedCheck priorColumns rounds = true)
+    (values : List Nat)
+    (absorbed : (absorbedColumnsOf rounds).map assignment = values) :
+    ∀ lane, lane < 8 →
+      assignment (finalColumns priorColumns rounds |>.getD lane 0) =
+        runValueRounds rounds values initialState lane := by
+  have rowSound := rounds_sound programRows canonical one satisfies rounds
+    roundValid priorColumns initialState initialMatches linked
+  have valueSound := runRounds_eq_runValueRounds assignment rounds values
+    initialState absorbed
+  intro lane laneLt
+  exact (rowSound lane laneLt).trans (congrFun valueSound lane)
 
 structure Trace where
   inputColumns : List Nat

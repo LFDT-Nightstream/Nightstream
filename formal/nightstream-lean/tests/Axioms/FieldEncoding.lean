@@ -21,7 +21,6 @@ import tests.Axioms.Support
 
 /-- info: 'Nightstream.Implementation.R1CS.CenteredTernaryField.decode_encodeDigit' depends on axioms: [propext,
  Classical.choice,
- Lean.trustCompiler,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.CenteredTernaryField.decode_encodeDigit
@@ -262,7 +261,6 @@ import tests.Axioms.Support
 
 /-- info: 'Nightstream.Implementation.R1CS.OrdinaryPrivateFieldRefinement.materializeWord_represents' depends on axioms: [propext,
  Classical.choice,
- Lean.trustCompiler,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.OrdinaryPrivateFieldRefinement.materializeWord_represents

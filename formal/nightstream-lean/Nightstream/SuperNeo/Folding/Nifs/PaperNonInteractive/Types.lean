@@ -366,6 +366,42 @@ def piCcsCertificate
   rounds := fun round => (proof.piCcsRounds round).toMessage
   output := (key.statement running fresh).projectOutput proof.piCcsOutput
 
+@[simp] theorem piCcsCertificate_round
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (round : Fin shape.cubeVariables) :
+    (key.piCcsCertificate running fresh proof).rounds round =
+      (proof.piCcsRounds round).toMessage := by
+  rfl
+
+@[simp] theorem piCcsCertificate_toTranscript_round
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (round : Fin shape.cubeVariables) :
+    ((key.piCcsCertificate running fresh proof).toTranscript).rounds round =
+      (proof.piCcsRounds round).toMessage := by
+  rfl
+
 /-- The same prover data as a ghost-free fixed-width SumCheck certificate. -/
 def piCcsFixedCertificate
     {Extension : Type uExtension}
@@ -405,6 +441,52 @@ def piCcsExecution
   { execution with
     outgoingState :=
       key.absorbPiCcsOutput execution.coins.finalState proof.piCcsOutput }
+
+/-- The PiCCS execution coin record is the transcript derivation from the
+key-owned statement and the proof's round messages. This projection avoids
+unfolding the complete execution record in concrete refinements. -/
+theorem piCcsExecution_coins_eq_derive
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound) :
+    (key.piCcsExecution running fresh proof).coins =
+      FiatShamir.derive key.oracle.transcript
+        ({ priorState := key.publicInputState running fresh
+           input := (key.statement running fresh).verifierInput key.lift } :
+          ProtocolVerifier.Statement Extension State shape)
+        ({ rounds := fun round => (proof.piCcsRounds round).toMessage } :
+          FiatShamir.Certificate Extension shape) := by
+  rfl
+
+/-- The PiCCS outgoing state absorbs the complete prover output after the
+last verifier-derived round state. -/
+theorem piCcsExecution_outgoingState_eq_absorbPiCcsOutput
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound) :
+    (key.piCcsExecution running fresh proof).outgoingState =
+      key.absorbPiCcsOutput
+        (key.piCcsExecution running fresh proof).coins.finalState
+        proof.piCcsOutput := by
+  rfl
 
 /-- The coefficient-complete public-coin probe represented by the one NIFS
 message.  Its coins and finite certificate are verifier-derived projections;
@@ -495,6 +577,23 @@ def parent
     (key.piCcsOutputs running fresh proof)
     (key.piRlcChallenges running fresh proof)
 
+@[simp] theorem parent_point
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound) :
+    (key.parent running fresh proof).point =
+      (key.piCcsExecution running fresh proof).coins.roundPoint := by
+  rfl
+
 /-- Operational `Pi_DEC` message boundary over the verifier-computed parent. -/
 def piDecAttempt
     {Extension : Type uExtension}
@@ -544,6 +643,80 @@ def output
       (children (Fin.cast key.runningCount_eq_outputCount runningIndex)).publicInput
     evaluations := proof.piDecEvaluations
   }
+
+@[simp] theorem output_point
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound) :
+    (key.output running fresh proof).point =
+      (key.parent running fresh proof).point := by
+  rfl
+
+@[simp] theorem output_commitment
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (runningIndex : Fin shape.runningCount) :
+    (key.output running fresh proof).commitments runningIndex =
+      ((key.piDecAttempt running fresh proof).messages
+        (Fin.cast key.runningCount_eq_outputCount runningIndex)).commitment := by
+  rfl
+
+@[simp] theorem output_publicInput
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (runningIndex : Fin shape.runningCount) :
+    (key.output running fresh proof).publicInputs runningIndex =
+      key.piDecPublicInputSplit.split
+        (key.parent running fresh proof).publicInput
+        (Fin.cast key.runningCount_eq_outputCount runningIndex) := by
+  rfl
+
+@[simp] theorem output_evaluation
+    {Extension : Type uExtension}
+    {Commitment : Type uCommitment}
+    {PublicInput : Type uPublicInput}
+    {Scalar : Type uScalar}
+    {State : Type uState}
+    {shape : Shape}
+    {columns blockCount degreeBound : Nat}
+    (key : Key Extension Commitment PublicInput Scalar State shape
+      columns blockCount degreeBound)
+    (running : Running Extension Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof Extension Commitment shape degreeBound)
+    (runningIndex : Fin shape.runningCount) :
+    (key.output running fresh proof).evaluations runningIndex =
+      proof.piDecEvaluations runningIndex := by
+  rfl
 
 end Key
 

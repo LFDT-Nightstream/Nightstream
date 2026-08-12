@@ -195,7 +195,7 @@ theorem lowValue_encodeTrit (source : Nat) : ∀ count,
 
 private theorem targetValue_lt_radix (source : Nat) :
     targetValue source < 3 ^ digitCount := by
-  exact Nat.lt_trans (Nat.mod_lt _ (by native_decide)) (by native_decide)
+  exact Nat.lt_trans (Nat.mod_lt _ (by decide)) (by decide)
 
 theorem lowValue_encodeTrit_full (source : Nat) :
     lowValue (encodeTrit source) digitCount = targetValue source := by
@@ -216,14 +216,14 @@ private theorem shifted_decode_congruence (source : Nat) :
           rw [encodeDigit_add_one_mod]
           exact (Nat.mod_eq_of_lt
             (Nat.lt_trans (encodeTrit_lt_three source index)
-              (by native_decide))).symm
+              (by decide))).symm
     _ = targetValue source % goldilocksP := by
           rw [lowValue_encodeTrit_full]
     _ = targetValue source := Nat.mod_eq_of_lt
-          (Nat.mod_lt _ (by native_decide))
+          (Nat.mod_lt _ (by decide))
 
 private theorem shift_lt_modulus : shift < goldilocksP := by
-  native_decide
+  decide
 
 private theorem add_shift_inverse_mod (value : Nat) :
     ((value + shift) + (goldilocksP - shift)) % goldilocksP =

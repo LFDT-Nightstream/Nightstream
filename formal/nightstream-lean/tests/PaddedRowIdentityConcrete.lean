@@ -35,6 +35,11 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 #check boundedSampler_refines
 #check piDecOutputFields_length
 #check shortfall_requires_three_rejections
+#check idealCandidateTriple_joint_probability
+#check idealThreeRejections_probability
+#check Poseidon2IdealSamplerTransfer
+#check threeRejections_probability_eq
+#check samplerShortfall_probability_le
 #check samplerShortfall_probability_le_182_bits
 #check acceptedCandidate_exactly_balanced
 #check publicWireFields_injective_on_admissible

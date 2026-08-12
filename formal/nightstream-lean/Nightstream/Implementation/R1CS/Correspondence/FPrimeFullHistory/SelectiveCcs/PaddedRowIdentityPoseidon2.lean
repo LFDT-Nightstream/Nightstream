@@ -239,7 +239,7 @@ def polynomialFields
     polynomial.terms.flatMap monomialFields
 
 def pointFields
-    {variables : Nat} (point : CubePoint K variables) : List Nat :=
+    {variableCount : Nat} (point : CubePoint K variableCount) : List Nat :=
   point.coordinates.flatMap kFields
 
 def commitmentFields (commitment : SelectedCommitment) : List Nat :=
@@ -589,14 +589,33 @@ def thirdAttempt : Fin samplerAttemptCount := ⟨2, by decide⟩
 /-- Exact number of coefficients in one Phi81 challenge. -/
 def samplerCoefficientCount : Nat := 54
 
-/-- A candidate frame is Construction 3 verifier-coins event 52, challenge
-block 27, followed by the exact domain-expansion indices. -/
+/-- Exact source-major, coefficient-major, attempt-minor candidate index. -/
+def candidateFlat
+    (source : Fin PaperProfile.arity.total)
+    (coefficient : Fin samplerCoefficientCount)
+    (attempt : Fin samplerAttemptCount) : Nat :=
+  (source.val * samplerCoefficientCount + coefficient.val) *
+      samplerAttemptCount + attempt.val
+
+/-- Exact fixed-width domain frame for one PiRLC candidate fork.
+
+The complete post-PiCCS state already binds the statement, profile, event
+schedule, proof prefix, and PiCCS output. One unique candidate tag plus the
+injective flat candidate index therefore separates every candidate without
+reabsorbing the text-form Construction-3 labels on each of the 2,430 forks.
+The fixed two-field arity and index order are verifier-key data. -/
 def candidateFields
     (source : Fin PaperProfile.arity.total)
     (coefficient : Fin samplerCoefficientCount)
     (attempt : Fin samplerAttemptCount) : List Nat :=
-  verifierChallengeFields 52 27 piRlcCandidateTag
-    [source.val, coefficient.val, attempt.val]
+  [word piRlcCandidateTag, word (candidateFlat source coefficient attempt)]
+
+@[simp] theorem candidateFields_length
+    (source : Fin PaperProfile.arity.total)
+    (coefficient : Fin samplerCoefficientCount)
+    (attempt : Fin samplerAttemptCount) :
+    (candidateFields source coefficient attempt).length = 2 := by
+  rfl
 
 /-- One indexed full-field candidate derived from the fixed post-PiCCS state.
 The candidate is a complete canonical Goldilocks element, not a 16-bit chunk. -/

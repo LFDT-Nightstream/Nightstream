@@ -304,8 +304,8 @@ theorem fieldValue_lt_twoPow64 (value : F) : value.val < 2 ^ 64 := by
 
 theorem fieldWord_toNat (value : F) :
     (fieldWord value).toNat = value.val := by
-  simp [fieldWord, BitVec.toNat_ofNat,
-    Nat.mod_eq_of_lt (fieldValue_lt_twoPow64 value)]
+  simp only [fieldWord, BitVec.toNat_ofNat]
+  exact Nat.mod_eq_of_lt (fieldValue_lt_twoPow64 value)
 
 theorem fieldWord_injective : Function.Injective fieldWord := by
   intro left right equal

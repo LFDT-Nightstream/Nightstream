@@ -62,6 +62,26 @@ theorem permute_congr {left right : Nat → Nat}
       exact equalInputs (column - 1) (by omega)
   · simp [columnLt]
 
+/-- The executable permutation always returns canonical Goldilocks values
+when its eight input lanes are canonical. -/
+theorem permute_lt
+    {lanes : Nat → Nat}
+    (canonical : ∀ lane, lane < 8 → lanes lane < goldilocksP)
+    (lane : Nat) :
+    permute lanes lane < goldilocksP := by
+  rw [permute_eq]
+  unfold permuteState interpret
+  apply run_canonical
+  intro column
+  unfold inputOnly
+  by_cases columnLt : column < 9
+  · simp only [columnLt, ↓reduceIte, permutationAssignment]
+    by_cases columnZero : column = 0
+    · simp [columnZero, goldilocksP]
+    · simp only [columnZero, ↓reduceIte]
+      exact canonical (column - 1) (by omega)
+  · simp [columnLt, goldilocksP]
+
 theorem outputs_known :
     ∀ column ∈ outputColumns, column ∈ knownAfter inputColumns definitions := by
   decide

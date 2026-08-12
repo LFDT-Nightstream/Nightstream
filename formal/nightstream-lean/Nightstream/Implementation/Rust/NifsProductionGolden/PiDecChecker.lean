@@ -28,16 +28,16 @@ local instance {count : Nat} {Value : Type} [DecidableEq Value] :
   finFunctionDecidableEq
 
 private def cubePointDecidableEq
-    {Field : Type} {variables : Nat} [DecidableEq Field] :
-    DecidableEq (CubePoint Field variables) :=
+    {Field : Type} {variableCount : Nat} [DecidableEq Field] :
+    DecidableEq (CubePoint Field variableCount) :=
   fun left right =>
     if equal : left.coordinates = right.coordinates then
       isTrue (by cases left; cases right; simp_all)
     else
       isFalse fun pointEqual => equal (congrArg CubePoint.coordinates pointEqual)
 
-local instance {Field : Type} {variables : Nat} [DecidableEq Field] :
-    DecidableEq (CubePoint Field variables) :=
+local instance {Field : Type} {variableCount : Nat} [DecidableEq Field] :
+    DecidableEq (CubePoint Field variableCount) :=
   cubePointDecidableEq
 
 abbrev ChildIndex := Fin productionGlobalParams.k

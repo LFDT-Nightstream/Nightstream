@@ -212,9 +212,19 @@ presented as established security theorems here.
 #guard_msgs in
 #audit_axioms Nightstream.HyperNova.NonInteractiveMultiFold.accepts_iff_verify
 
+/-- info: 'Nightstream.HyperNova.Construction2.Paper.transition_iff_honestOuterDispatch_and_fixedAugmented' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.HyperNova.Construction2.Paper.transition_iff_honestOuterDispatch_and_fixedAugmented
+
 /-- info: 'Nightstream.HyperNova.Construction2.Paper.holds_iff_transition' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.HyperNova.Construction2.Paper.holds_iff_transition
+
+/-- info: 'Nightstream.HyperNova.Construction2.Paper.holds_iff_honestOuterDispatch_and_fixedAugmented' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.HyperNova.Construction2.Paper.holds_iff_honestOuterDispatch_and_fixedAugmented
 
 /-- info: 'Nightstream.HyperNova.Construction2.Paper.terminalHolds_iff_transition' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in

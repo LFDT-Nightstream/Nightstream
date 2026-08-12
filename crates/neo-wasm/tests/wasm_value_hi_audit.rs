@@ -62,7 +62,7 @@ fn i64_local_get_after_set_rejects_tampered_hi() {
     zero_downstream_hi_reads(&mut witnesses, get_idx, F::ONE);
 
     let layout = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("locals_hi must reject a tampered i64 local.get hi limb (cells log mismatch)");
     assert!(
@@ -112,7 +112,7 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
     }
 
     let layout = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("locals_hi must reject a non-zero hi on a first-read of an uninitialized local");
     assert!(
@@ -155,7 +155,7 @@ fn i64_global_get_after_set_rejects_tampered_hi() {
     zero_downstream_hi_reads(&mut witnesses, get_idx, F::ONE);
 
     let layout = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("globals_hi must reject a tampered i64 global.get hi limb (cells log mismatch)");
     assert!(
@@ -196,7 +196,7 @@ fn i64_global_get_first_read_rejects_tampered_initializer() {
     zero_downstream_hi_reads(&mut witnesses, get_idx, F::ONE);
 
     let layout = build_wasm_relation_layout();
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("globals_hi preload must reject a first-read tamper of an initializer hi limb");
     assert!(

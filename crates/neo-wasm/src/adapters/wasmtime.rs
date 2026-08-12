@@ -129,9 +129,6 @@ pub struct WasmtimeTraceRun {
     /// by `verify` against the prover-disclosed final `WasmStepState`.
     pub results: Vec<String>,
     pub steps: Vec<WasmtimeTraceStep>,
-    /// Values of all locals (params + pure locals) at function entry, indexed by local index.
-    /// Params have the argument values; pure locals are zero. Populated from the first frame step.
-    pub initial_locals: Vec<u32>,
 }
 
 /// Single-step tracing hook for store data that exposes [`WasmtimeTraceState`].
@@ -354,22 +351,11 @@ pub fn collect_wasmtime_steps(
     };
 
     let steps = store.data().steps.clone();
-    let initial_locals = steps
-        .iter()
-        .find(|s| s.frame_depth == 0 && s.pc.is_some())
-        .map(|s| {
-            s.locals
-                .iter()
-                .map(|v| v.parse::<i128>().map(|n| (n as i32) as u32).unwrap_or(0))
-                .collect()
-        })
-        .unwrap_or_default();
 
     Ok(WasmtimeTraceRun {
         program_tables: parsed.tables,
         results,
         steps,
-        initial_locals,
     })
 }
 
@@ -450,16 +436,6 @@ where
         .map_err(|err| WasmBuildError::Trace(format!("failed to execute component export '{export}': {err}")))?;
 
     let steps = store.data().steps.clone();
-    let initial_locals = steps
-        .iter()
-        .find(|s| s.frame_depth == 0 && s.pc.is_some())
-        .map(|s| {
-            s.locals
-                .iter()
-                .map(|v| v.parse::<i128>().map(|n| (n as i32) as u32).unwrap_or(0))
-                .collect()
-        })
-        .unwrap_or_default();
 
     Ok(WasmtimeTraceRun {
         program_tables: parsed.tables,
@@ -468,7 +444,6 @@ where
             .map(component_val_to_string)
             .collect::<Result<_, _>>()?,
         steps,
-        initial_locals,
     })
 }
 

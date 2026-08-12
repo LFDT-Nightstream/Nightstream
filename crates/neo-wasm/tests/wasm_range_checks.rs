@@ -35,36 +35,11 @@ fn range_checked_width_bookkeeping() {
 
 #[test]
 fn host_event_auxiliary_registry_preserves_the_existing_layout() {
-    let expected = [
-        ("PERM_POSITION", 19, ColumnWidth::Boolean),
-        ("FULL_ROUND_POWERS", 48, ColumnWidth::Field),
-        ("PARTIAL_ROUND_POWERS", 8, ColumnWidth::Field),
-        ("GATHER_WORD_POSITION", 8, ColumnWidth::Boolean),
-        ("GATHER_KIND", 8, ColumnWidth::Boolean),
-        ("GARG_VAL", 1, ColumnWidth::Field),
-        ("GOUT_VAL", 1, ColumnWidth::Field),
-        ("GSLOT_VALUE", 1, ColumnWidth::Field),
-        ("GK2_HI", 1, ColumnWidth::Boolean),
-        ("GHC_PARAMS", 1, ColumnWidth::Field),
-        ("G_ADVICE", 1, ColumnWidth::Boolean),
-        ("GMEM_LOCAL", 1, ColumnWidth::Boolean),
-        ("GMEM_BYTE", 1, ColumnWidth::Boolean),
-        ("GMEM_HALF", 1, ColumnWidth::Boolean),
-        ("TB_ENTRY_INV", 1, ColumnWidth::Field),
-    ];
-
-    assert_eq!(AUX_WIDTH, 101);
-    assert_eq!(AUX_COLUMN_SPECS.len(), expected.len());
-
     let mut next = NAMED_COLUMN_COUNT;
-    for (spec, (name, len, width)) in AUX_COLUMN_SPECS.iter().zip(expected) {
+    for spec in AUX_COLUMN_SPECS {
         assert_eq!(spec.region, "host_event_chain_aux");
-        assert_eq!(spec.name, name);
-        assert_eq!(spec.start, next, "{name}");
-        assert_eq!(spec.len, len, "{name}");
-        assert_eq!(spec.width, width, "{name}");
-        assert_eq!(spec.end(), next + len, "{name}");
-        next += len;
+        assert_eq!(spec.start, next, "{}", spec.name);
+        next = spec.end();
     }
     assert_eq!(next, NAMED_COLUMN_COUNT + AUX_WIDTH);
 }

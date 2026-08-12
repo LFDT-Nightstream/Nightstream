@@ -16,7 +16,7 @@ use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
 use crate::comm_chain::CommChainState;
 use crate::ir::{
-    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmGrammarState, WasmOutputState, WasmStepState,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostEventState, WasmOutputState, WasmStepState,
 };
 use crate::layout::Column;
 use crate::layout::{
@@ -161,22 +161,22 @@ pub fn preprocess_seeded_batched(
 }
 
 /// Top-level VM state before executing an exported wasm function of an
-/// import-free program: [`grammar_top_level_initial_state`] specialized to
-/// the canonical import-free grammar (empty boundary template for the
+/// import-free program: [`host_event_top_level_initial_state`] specialized to
+/// the canonical import-free bindings (empty boundary template for the
 /// invoked export, zero commitment chain).
 ///
-/// The entry PC is an explicit verifier claim: callers should resolve it from
+/// The entry PC is an explicit verifier input: callers should resolve it from
 /// the export they intend to prove.
 pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> WasmStepState {
     let export_fref = export_fref_for_entry_pc(tables, entry_pc);
-    grammar_top_level_initial_state(
+    host_event_top_level_initial_state(
         tables,
         entry_pc,
-        &crate::event_grammar::HostEventGrammar::import_free(export_fref),
+        &crate::host_event_bindings::HostEventBindings::import_free(export_fref),
         export_fref,
         CommChainState::default(),
     )
-    .expect("canonical import-free grammar contains the selected export")
+    .expect("canonical import-free bindings contain the selected export")
 }
 
 /// The function ref whose body starts at `entry_pc`; the verifier-side
@@ -208,13 +208,13 @@ pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
 
-/// Grammar initial state: seeds the commitment chain and loads the invoked
+/// Host-event initial state: seeds the commitment chain and loads the invoked
 /// export's entry schedule. Event values remain
 /// bound by the final commitment rather than this per-program anchor.
-pub fn grammar_top_level_initial_state(
+pub fn host_event_top_level_initial_state(
     tables: &WasmProgramTables,
     entry_pc: u64,
-    grammar: &crate::event_grammar::HostEventGrammar,
+    bindings: &crate::host_event_bindings::HostEventBindings,
     export_fref: u32,
     initial_comm_chain: CommChainState,
 ) -> Result<WasmStepState, WasmBuildError> {
@@ -229,9 +229,9 @@ pub fn grammar_top_level_initial_state(
             "export fref {export_fref} enters at a different pc than selected entry pc {entry_pc} (which belongs to fref {entry_fref})"
         )));
     }
-    let template = grammar.exports.get(&export_fref).ok_or_else(|| {
+    let template = bindings.exports.get(&export_fref).ok_or_else(|| {
         WasmBuildError::Trace(format!(
-            "event grammar has no export template for selected export fref {export_fref}"
+            "host-event bindings have no export template for selected export fref {export_fref}"
         ))
     })?;
     let mut state = WasmStepState {
@@ -250,11 +250,11 @@ pub fn grammar_top_level_initial_state(
         host_callee_fref: 0,
         comm_chain: initial_comm_chain.canonical_u64(),
         event_absorb: WasmEventAbsorbState::ZERO,
-        grammar: WasmGrammarState::ZERO,
+        host_events: WasmHostEventState::ZERO,
     };
     state.host_callee_fref = export_fref;
-    state.grammar.turn_export_fref = export_fref;
-    state.grammar.events_remaining = template.entry.len() as u32;
+    state.host_events.turn_export_fref = export_fref;
+    state.host_events.events_remaining = template.entry.len() as u32;
     Ok(state)
 }
 
@@ -264,17 +264,17 @@ pub fn top_level_initial_state_digest(tables: &WasmProgramTables, entry_pc: u64)
 }
 
 /// [`top_level_initial_state_digest`] for an event-bound program.
-pub fn grammar_top_level_initial_state_digest(
+pub fn host_event_top_level_initial_state_digest(
     tables: &WasmProgramTables,
     entry_pc: u64,
-    grammar: &crate::event_grammar::HostEventGrammar,
+    bindings: &crate::host_event_bindings::HostEventBindings,
     export_fref: u32,
     initial_comm_chain: CommChainState,
 ) -> Result<[u8; 32], WasmBuildError> {
-    Ok(semantic_state_digest(grammar_top_level_initial_state(
+    Ok(semantic_state_digest(host_event_top_level_initial_state(
         tables,
         entry_pc,
-        grammar,
+        bindings,
         export_fref,
         initial_comm_chain,
     )?))
@@ -316,11 +316,11 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
         COL_TAIL_CALL_PENDING_BEFORE => bool_field(state.tail_call_pending),
         COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
-        COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.grammar.turn_export_fref)),
-        COL_GRAMMAR_EVREM_BEFORE => F::from_u64(u64::from(state.grammar.events_remaining)),
-        COL_GRAMMAR_EVIDX_BEFORE => F::from_u64(u64::from(state.grammar.event_index)),
-        COL_GRAMMAR_ARGS_BASE_BEFORE => F::from_u64(state.grammar.args_base),
-        COL_GRAMMAR_SLOT_CURSOR_BEFORE => F::from_u64(u64::from(state.grammar.slot_cursor)),
+        COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.host_events.turn_export_fref)),
+        COL_GRAMMAR_EVREM_BEFORE => F::from_u64(u64::from(state.host_events.events_remaining)),
+        COL_GRAMMAR_EVIDX_BEFORE => F::from_u64(u64::from(state.host_events.event_index)),
+        COL_GRAMMAR_ARGS_BASE_BEFORE => F::from_u64(state.host_events.args_base),
+        COL_GRAMMAR_SLOT_CURSOR_BEFORE => F::from_u64(u64::from(state.host_events.slot_cursor)),
         COL_PERM_PENDING_BEFORE => bool_field(state.event_absorb.perm_pending),
         COL_PERM_ROUND_BEFORE => F::from_u64(u64::from(state.event_absorb.perm_round)),
         COL_TRAPPED_BEFORE => bool_field(state.trapped),

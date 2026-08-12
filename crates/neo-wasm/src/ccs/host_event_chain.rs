@@ -1,6 +1,6 @@
 //! In-circuit host-event chain gadget: constrains `HostEventPerm` rows to
 //! advance the width-12 Poseidon2 block absorb one round-row at a time, and
-//! binds the absorb buffer to grammar gather rows. The protocol constants
+//! binds the absorb buffer to host-event gather rows. The protocol constants
 //! and the native round decomposition live
 //! in [`crate::comm_chain`]; every linear map here is probed from those
 //! functions, so the circuit cannot drift from the native chain.
@@ -51,7 +51,7 @@ use crate::comm_chain::{
     perm_external_linear, perm_full_round_constants, perm_internal_linear, perm_partial_round_constants,
     perm_row_is_full_round, COMM_CHAIN_PERM_ROWS, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW,
 };
-use crate::ir::{WasmGrammarSlotKind, WasmVmStep};
+use crate::ir::{WasmHostEventSlotKind, WasmVmStep};
 use neo_math::F;
 use p3_field::{Field, PrimeCharacteristicRing};
 
@@ -60,7 +60,7 @@ type R1csBuilder = WasmTaggedR1csBuilder;
 // Gadget-internal column block, allocated right after the named layout (the
 // range-check bit columns follow it). Indices are private: the interface
 // columns everything else uses are the named carried-state columns above.
-const GKINDS: usize = WasmGrammarSlotKind::COUNT;
+const GKINDS: usize = WasmHostEventSlotKind::COUNT;
 define_column_region! {
     region: "host_event_chain_aux",
     start: crate::witness_layout::HOST_EVENT_AUX_START,
@@ -77,7 +77,7 @@ define_column_region! {
         GOUT_VAL: Field => "limb-selected export output value",
         GSLOT_VALUE: Field => "word staged by the current gather row",
         GK2_HI: Boolean => "result-slot high-limb write flag",
-        GHC_PARAMS: Field => "grammar host-call and parameter-count product",
+        GHC_PARAMS: Field => "host-event host-call and parameter-count product",
         G_ADVICE: Boolean => "advice-event slot flag",
         GMEM_LOCAL: Boolean => "memory pointer comes from an export local",
         GMEM_BYTE: Boolean => "byte-width grammar memory slot",
@@ -86,12 +86,12 @@ define_column_region! {
     ]
 }
 
-const GK_ARG: usize = GATHER_KIND[WasmGrammarSlotKind::Arg.index()];
-const GK_RESULT: usize = GATHER_KIND[WasmGrammarSlotKind::Result.index()];
-const GK_CLAIM_LOCAL: usize = GATHER_KIND[WasmGrammarSlotKind::ClaimLocal.index()];
-const GK_OUTPUT: usize = GATHER_KIND[WasmGrammarSlotKind::Output.index()];
-const GK_MEMORY_READ: usize = GATHER_KIND[WasmGrammarSlotKind::MemoryRead.index()];
-const GK_MEMORY_WRITE: usize = GATHER_KIND[WasmGrammarSlotKind::MemoryWrite.index()];
+const GK_ARG: usize = GATHER_KIND[WasmHostEventSlotKind::Arg.index()];
+const GK_RESULT: usize = GATHER_KIND[WasmHostEventSlotKind::Result.index()];
+const GK_INPUT_LOCAL: usize = GATHER_KIND[WasmHostEventSlotKind::InputLocal.index()];
+const GK_OUTPUT: usize = GATHER_KIND[WasmHostEventSlotKind::Output.index()];
+const GK_MEMORY_READ: usize = GATHER_KIND[WasmHostEventSlotKind::MemoryRead.index()];
+const GK_MEMORY_WRITE: usize = GATHER_KIND[WasmHostEventSlotKind::MemoryWrite.index()];
 
 /// The gather column whose flag pins a non-popping stack read (arg slots).
 /// The `sp' = sp - reads + writes` identity in `ccs.rs` exempts these reads
@@ -246,9 +246,9 @@ fn push_interface_constraints(b: &mut R1csBuilder) {
     });
 }
 
-/// Grammar gather binding: each gather row stages exactly one block word,
+/// Host-event gather binding: each gather row stages exactly one block word,
 /// whose value is pinned by the grammar ROM entry at
-/// `(fref, event_index, slot_cursor)` — a flat value, claim, or aligned
+/// `(fref, event_index, slot_cursor)` — a flat value, runtime input, or aligned
 /// linear-memory access — and the per-call
 /// event schedule is forced by ROM-loaded countdowns. This closes the
 /// stage-B gap: with these rows, a grammar chain commits exactly the event
@@ -273,7 +273,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
-    b.with_tag(host_event("grammar gather binding"), |b| {
+    b.with_tag(host_event("host-event gather binding"), |b| {
         // Host calls pop their args on the call row itself. The sp identity
         // consumes this product of the host-call gate and ROM-bound arity.
         b.push_row([(GHC, F::ONE)], [(PARAM_COUNT, F::ONE)], [(GHC_PARAMS, F::ONE)]);
@@ -422,7 +422,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             (0..GKINDS)
                 .map(|j| (GATHER_KIND[j], F::from_u64(j as u64)))
                 .chain([
-                    (G_ADVICE, F::from_u64(WasmGrammarSlotKind::COUNT as u64)),
+                    (G_ADVICE, F::from_u64(WasmHostEventSlotKind::COUNT as u64)),
                     (SLOT_KIND, -F::ONE),
                 ]),
             [],
@@ -527,28 +527,26 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             (GK2_HI, -F::ONE),
         ]);
 
-        // Claim slots (kind 3): free absorbed claim words. Their values —
-        // and the identity of slots sharing a claim index — are claim-side
-        // structure: expansion resolves every `Claim{idx}` from one claim
-        // entry, and the transcript check (native fold or the interleaving
-        // proof) binds the absorbed words to that claim.
+        // Input slots (kind 3): free absorbed input words. Expansion resolves
+        // every `Input { index }` occurrence with the same index from one
+        // runtime input, while the transcript check binds the absorbed words.
 
-        // Input-local slots (kind 4): the staged claim-input word is written
+        // Input-local slots (kind 4): the staged input word is written
         // into one 32-bit lane of the entry frame's locals at the
         // table-pinned index (ROM limb select: 0 lo, 1 hi). Routing the word
         // through the U32-checked locals value columns range-proves it. Lo
         // rows also write the hi lane to zero, so a lone Lo write is total;
         // a Hi row (validated to follow its local's Lo row) overwrites the
-        // hi lane with the claim word. The word itself is free at the row
+        // hi lane with the input word. The word itself is free at the row
         // level — the final-chain transcript check binds it globally.
-        b.push_linear_zero([(COL_GATHER_LOCAL_WRITE, F::ONE), (GK_CLAIM_LOCAL, -F::ONE)]);
+        b.push_linear_zero([(COL_GATHER_LOCAL_WRITE, F::ONE), (GK_INPUT_LOCAL, -F::ONE)]);
         b.push_row(
-            [(GK_CLAIM_LOCAL, F::ONE)],
+            [(GK_INPUT_LOCAL, F::ONE)],
             [(COL_ONE, F::ONE), (SLOT_VARIANT, -F::ONE)],
             [(COL_GATHER_LOCAL_WRITE_LO, F::ONE)],
         );
         b.push_row(
-            [(GK_CLAIM_LOCAL, F::ONE)],
+            [(GK_INPUT_LOCAL, F::ONE)],
             [(COL_LOCAL_INDEX, F::ONE), (SLOT_ARG, -F::ONE)],
             [],
         );
@@ -580,11 +578,15 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
                 (GMEM_LOCAL, F::ONE),
                 (
                     GMEM_BYTE,
-                    F::from_u64(u64::from(crate::ir::WasmGrammarRomVariant::MEMORY_BYTE_ENCODING_FACTOR)),
+                    F::from_u64(u64::from(
+                        crate::ir::WasmHostEventRomVariant::MEMORY_BYTE_ENCODING_FACTOR,
+                    )),
                 ),
                 (
                     GMEM_HALF,
-                    F::from_u64(u64::from(crate::ir::WasmGrammarRomVariant::MEMORY_HALF_ENCODING_FACTOR)),
+                    F::from_u64(u64::from(
+                        crate::ir::WasmHostEventRomVariant::MEMORY_HALF_ENCODING_FACTOR,
+                    )),
                 ),
             ],
         );
@@ -1093,14 +1095,14 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     wit[PARTIAL_ROUND_POWERS[6]] = wit[PARTIAL_ROUND_POWERS[5]] * wit[PARTIAL_ROUND_POWERS[4]];
     wit[PARTIAL_ROUND_POWERS[7]] = wit[PARTIAL_ROUND_POWERS[6]] * x_b;
 
-    // Grammar gather one-hots and staged value.
+    // Host-event gather one-hots and staged value.
     if trace.row_kind.is_host_event_gather() {
-        let cursor = usize::from(trace.state_before.grammar.slot_cursor);
+        let cursor = usize::from(trace.state_before.host_events.slot_cursor);
         wit[GATHER_WORD_POSITION[cursor]] = F::ONE;
         wit[GSLOT_VALUE] = F::from_u64(trace.state_after.event_absorb.evbuf[cursor]);
-        if let Some(rom) = trace.grammar_rom_slot {
+        if let Some(rom) = trace.host_event_rom_slot {
             wit[GATHER_KIND[rom.kind.index()]] = F::ONE;
-            wit[GK2_HI] = bool_f(rom.kind == WasmGrammarSlotKind::Result && rom.variant.is_high_limb());
+            wit[GK2_HI] = bool_f(rom.kind == WasmHostEventSlotKind::Result && rom.variant.is_high_limb());
             wit[G_ADVICE] = bool_f(rom.advice);
             wit[GMEM_LOCAL] = bool_f(rom.variant.uses_local_memory_base());
             wit[GMEM_BYTE] = bool_f(rom.variant.uses_byte_memory_width());

@@ -429,7 +429,7 @@ impl WasmHostEventRomVariant {
     }
 }
 
-/// The host-event ROM entry expected by a gather row (bound by the internal `grammar_slot_*`
+/// The host-event ROM entry expected by a gather row (bound by the internal `host_event_slot_*`
 /// families at key `(fref, event_index, slot_cursor)`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmHostEventRomEntry {
@@ -524,10 +524,10 @@ pub struct WasmVmStep {
     pub call_stack_pop: Option<(u64, u64, u64)>,
     /// Host-event ROM slot entry for `HostEventGather` rows.
     pub host_event_rom_slot: Option<WasmHostEventRomEntry>,
-    /// Host-event ROM pre-result event count, read on host-call rows.
-    pub host_event_pre_count: Option<u32>,
-    /// Host-event ROM post-result event count, read on result rows.
-    pub host_event_post_count: Option<u32>,
+    /// Biased initial-schedule count read when a host-event schedule starts.
+    pub host_event_initial_schedule_count: Option<u32>,
+    /// Exit-schedule count read when a clean export halt starts its exit events.
+    pub host_event_exit_schedule_count: Option<u32>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

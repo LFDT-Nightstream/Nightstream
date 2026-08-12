@@ -1,0 +1,14 @@
+import Nightstream.Implementation.NebulaV2.ProductionProductNifsPaperRowsSoundFor
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductionProductNifsPaperRowsSoundFor
+
+open Nightstream.Implementation.NebulaV2.ProductionProductNifsPaperRowsSoundFor
+
+#check parentBundle_decode_eq
+#check parentEvaluation_decode_eq
+#check piDecPlacement_of_parentFields
+#check rows_imply_exact_result
+
+end tests.NebulaV2ProductionProductNifsPaperRowsSoundFor

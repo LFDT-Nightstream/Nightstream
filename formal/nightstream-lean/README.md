@@ -35,6 +35,38 @@ verified. M4 does not yet cover stateful mode, Nebula, other schedules, multiple
 recursive invocations, alternate carriers, or a parameterized circuit family.
 The public compact decider remains fail-closed with `Unsupported`.
 
+## Independent Nebula V2 model
+
+`Nightstream/Protocol/NebulaV2/` is a model-level review of
+`PaddedRowIdentityMemoryV2`. It is separate from M4 and does not extend the M4
+artifact claim. It covers exact memory execution, complete snapshots, segment
+composition, fixed physical port positions, fingerprint algebra, product
+commitments, delayed-claim indexes, deterministic F-prime close, completed
+execution, and the top-level named-bad-event theorem shape. The independent
+ideal verifier also ties the actual records to the prechallenge lane
+sequences, ties both fingerprint pairs to the verifier-derived F-prime
+challenge, and uses one verifier-owned prior-claim predicate. Its direct
+soundness theorem derives a completed sequential execution or a named ideal
+failure without an `ExecutionWitness` or `AcceptanceReduction` premise. A
+separate constructive theorem gives conditional ideal completeness from valid
+semantic segments and explicit honest primitive artifacts.
+
+`Nightstream/Implementation/NebulaV2/` adds an exponent-indexed SuperNeo and
+HyperNova F-prime schema. It derives the exact prior-claim verification and
+consumption order, exact produced successors, proof forwarding, closed terminal
+consumption, and one extra augmented invocation. Its constructive lifetime has
+no open-tail case. The top implementation-model theorem derives completed
+application execution and sequential memory execution over the same receipts,
+or a named failure. It does not assume that conclusion.
+
+The model does not prove final generated-circuit or Rust conformance, complete WASM port
+coverage, Poseidon2 or Fiat-Shamir security, the late-preimage reduction,
+Module-SIS binding, the compact terminal backend, or a 96-bit end-to-end
+bound. It also does not prove that generated application rows imply the
+independent application-semantics predicate or that deployed acceptance gives
+the ideal acceptance object. The tests include countermodels for the
+assumptions that must remain in the release theorem.
+
 Consult the protocol contract and evidence ledger for theorem names, hashes,
 assumptions, and current gates; do not treat this summary as normative status.
 

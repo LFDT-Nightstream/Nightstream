@@ -1,0 +1,13 @@
+import Nightstream.Assurance.NebulaV2.ProductionPaperReleaseSecurityCountermodels
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductionPaperReleaseSecurityCountermodels
+
+open Nightstream.Assurance.NebulaV2.ProductionPaperReleaseSecurityCountermodels
+
+#check every_deterministic_event_requires_closure
+#check every_computational_event_is_covered
+#check every_computational_event_can_have_probability_one
+
+end tests.NebulaV2ProductionPaperReleaseSecurityCountermodels

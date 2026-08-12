@@ -1,0 +1,17 @@
+import Nightstream.Implementation.NebulaV2.ProductionRecursiveCoreGeometryFor
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductionRecursiveCoreGeometryFor
+
+open Nightstream.Implementation.NebulaV2.ProductionRecursiveCoreGeometryFor
+
+#check productNifsRows_25
+#check productNifsRows_26
+#check knownCoreRows_25_table
+#check knownCoreRows_26_table
+#check knownCoreRows_26_exceed_25
+#check knownCoreRows_26_fit_26
+#check knownCoreRows_26_power_interval
+
+end tests.NebulaV2ProductionRecursiveCoreGeometryFor

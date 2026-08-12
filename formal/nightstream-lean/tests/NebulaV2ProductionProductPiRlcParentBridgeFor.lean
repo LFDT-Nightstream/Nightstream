@@ -1,0 +1,12 @@
+import Nightstream.Implementation.NebulaV2.ProductionProductPiRlcParentBridgeFor
+
+set_option autoImplicit false
+
+namespace tests.NebulaV2ProductionProductPiRlcParentBridgeFor
+
+open Nightstream.Implementation.NebulaV2.ProductionProductPiRlcParentBridgeFor
+
+#check challenges_eq_selected
+#check parentFields_of_rows
+
+end tests.NebulaV2ProductionProductPiRlcParentBridgeFor

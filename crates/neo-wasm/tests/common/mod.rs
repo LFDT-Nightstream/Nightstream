@@ -125,12 +125,10 @@ pub fn step(
             trapped: false,
             param_init: WasmCountdownState::ZERO,
             tail_call_pending: false,
-            host_args: WasmCountdownState::ZERO,
-            host_result_pending: false,
             host_callee_fref: 0,
+            event_binding_active: false,
             comm_chain: [0; 4],
             event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
-            grammar_mode: false,
             grammar: neo_wasm::WasmGrammarState::ZERO,
         }
     }

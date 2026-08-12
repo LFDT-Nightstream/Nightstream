@@ -59,7 +59,7 @@ fn host_event_constraints_have_semantic_scope() {
         .all(|&row| catalog.row_tags[row].scope == WasmConstraintScope::HostEvent));
 
     for label in [
-        "host event grammar mode",
+        "host event interface",
         "grammar gather binding",
         "host event buffer write",
         "host event perm full round",

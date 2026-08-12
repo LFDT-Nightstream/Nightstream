@@ -5,21 +5,18 @@
 
 use super::layout::{
     Column, COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE,
-    COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_EVBUF_SLOT_AFTER, COL_EVBUF_SLOT_BEFORE, COL_GRAMMAR_ARGS_BASE_AFTER,
-    COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_AFTER, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_AFTER,
-    COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_GRAMMAR_SLOT_CURSOR_AFTER,
-    COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_AFTER,
-    COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_BEFORE,
-    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_PENDING_AFTER,
-    COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_AFTER,
-    COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_AFTER,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
-    COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE,
-    COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_STATE_AFTER,
-    COL_PERM_STATE_BEFORE, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE,
-    COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_EVENT_BINDING_ACTIVE_AFTER, COL_EVENT_BINDING_ACTIVE_BEFORE,
+    COL_GRAMMAR_ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_AFTER, COL_GRAMMAR_EVIDX_BEFORE,
+    COL_GRAMMAR_EVREM_AFTER, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_SLOT_CURSOR_AFTER, COL_GRAMMAR_SLOT_CURSOR_BEFORE,
+    COL_HALTED, COL_HALTED_BEFORE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_LOCALS_FBP_AFTER,
+    COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER,
+    COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER,
+    COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER,
+    COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER,
+    COL_PC_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
+    COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER,
+    COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE, COL_TRAPPED_AFTER,
+    COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -150,26 +147,20 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
             }],
         },
         WasmCrossStepLinkSpec {
-            name: "host_call_continuity",
-            description: "row[i].host-call arg/result state must match row[i+1].host-call arg/result state",
-            column_pairs: vec![
-                WasmCrossStepColumnPair {
-                    prev_after: Column(COL_HOST_ARGS_ACTIVE_AFTER),
-                    next_before: Column(COL_HOST_ARGS_ACTIVE_BEFORE),
-                },
-                WasmCrossStepColumnPair {
-                    prev_after: Column(COL_HOST_ARGS_REMAINING_AFTER),
-                    next_before: Column(COL_HOST_ARGS_REMAINING_BEFORE),
-                },
-                WasmCrossStepColumnPair {
-                    prev_after: Column(COL_HOST_RESULT_PENDING_AFTER),
-                    next_before: Column(COL_HOST_RESULT_PENDING_BEFORE),
-                },
-                WasmCrossStepColumnPair {
-                    prev_after: Column(COL_HOST_CALLEE_FREF_AFTER),
-                    next_before: Column(COL_HOST_CALLEE_FREF_BEFORE),
-                },
-            ],
+            name: "host_call_attribution_continuity",
+            description: "row[i].host callee fref must match row[i+1]",
+            column_pairs: vec![WasmCrossStepColumnPair {
+                prev_after: Column(COL_HOST_CALLEE_FREF_AFTER),
+                next_before: Column(COL_HOST_CALLEE_FREF_BEFORE),
+            }],
+        },
+        WasmCrossStepLinkSpec {
+            name: "event_binding_continuity",
+            description: "row[i].event binding activation must match row[i+1]",
+            column_pairs: vec![WasmCrossStepColumnPair {
+                prev_after: Column(COL_EVENT_BINDING_ACTIVE_AFTER),
+                next_before: Column(COL_EVENT_BINDING_ACTIVE_BEFORE),
+            }],
         },
         WasmCrossStepLinkSpec {
             name: "turn_export_fref_continuity",
@@ -190,14 +181,6 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
                     next_before: Column(before),
                 })
                 .collect(),
-        },
-        WasmCrossStepLinkSpec {
-            name: "grammar_mode_continuity",
-            description: "row[i].grammar_mode (per-program constant) must match row[i+1]",
-            column_pairs: vec![WasmCrossStepColumnPair {
-                prev_after: Column(COL_GRAMMAR_MODE_AFTER),
-                next_before: Column(COL_GRAMMAR_MODE_BEFORE),
-            }],
         },
         WasmCrossStepLinkSpec {
             name: "grammar_gather_continuity",
@@ -223,7 +206,7 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
         },
         WasmCrossStepLinkSpec {
             name: "event_absorb_continuity",
-            description: "row[i].host-event absorb state (block buffer, slot cursor, perm group) must match row[i+1]",
+            description: "row[i].host-event absorb state (block buffer and perm group) must match row[i+1]",
             column_pairs: {
                 let mut pairs = vec![
                     WasmCrossStepColumnPair {
@@ -239,7 +222,6 @@ pub(crate) fn build_ivc_state_continuity_links() -> Vec<WasmCrossStepLinkSpec> {
                     COL_EVBUF_AFTER
                         .into_iter()
                         .zip(COL_EVBUF_BEFORE)
-                        .chain(COL_EVBUF_SLOT_AFTER.into_iter().zip(COL_EVBUF_SLOT_BEFORE))
                         .chain(COL_PERM_STATE_AFTER.into_iter().zip(COL_PERM_STATE_BEFORE))
                         .map(|(after, before)| WasmCrossStepColumnPair {
                             prev_after: Column(after),

@@ -1,7 +1,7 @@
 //! In-circuit host-event chain gadget: constrains `HostEventPerm` rows to
 //! advance the width-12 Poseidon2 block absorb one round-row at a time, and
-//! binds the absorb buffer to the host-call rows that stream event words
-//! into it. The protocol constants and the native round decomposition live
+//! binds the absorb buffer to grammar gather rows. The protocol constants
+//! and the native round decomposition live
 //! in [`crate::comm_chain`]; every linear map here is probed from those
 //! functions, so the circuit cannot drift from the native chain.
 //!
@@ -26,26 +26,22 @@
 //! by the position one-hot.
 //!
 //! Column ownership: the gadget's shared interface lives in
-//! `host_event_layout` — the carried absorb state (buffer, slot cursor, pending flag,
+//! `host_event_layout` — the carried absorb state (buffer, pending flag,
 //! round counter + its zero-test, permutation lanes) that continuity links,
 //! the semantic digest, and `ccs/call.rs` refer to. The gadget-internal
-//! witness columns (position one-hot, S-box powers, write masks, event-end
-//! products) are allocated here in a private block right after
+//! witness columns (position one-hot, S-box powers, and gather decoding) are
+//! allocated here in a private block right after
 //! `NAMED_COLUMN_COUNT`, mirroring how the range-check pass owns its bit
 //! columns; nothing outside this module may address them.
 
 use super::super::gadgets::push_zero_test_gadget;
 use super::super::layout::{
-    COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER,
-    COL_EVBUF_BEFORE, COL_EVBUF_SLOT_AFTER, COL_EVBUF_SLOT_BEFORE, COL_FUNCTION_REF, COL_GATHER_ACTIVE,
-    COL_GRAMMAR_MODE_AFTER, COL_GRAMMAR_MODE_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_AFTER,
-    COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, COL_HOST_ARGS_REMAINING_BEFORE, COL_HOST_CALLEE_FREF_AFTER,
-    COL_HOST_RESULT_ACTIVE, COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE, COL_ONE,
-    COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE,
-    COL_PERM_ROUND_BEFORE_INV, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE,
-    COL_RAW_ARGS_ACTIVE, COL_RAW_HOST_CALL, COL_RAW_RESULT_ACTIVE, COL_STACK_READS, COL_STACK_READ_VALUE_HI,
-    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TURN_BOUNDARY,
-    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
+    COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_EVENT_BINDING_ACTIVE_AFTER,
+    COL_EVENT_BINDING_ACTIVE_BEFORE, COL_GATHER_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_ONE, COL_PERM_PENDING_AFTER,
+    COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE, COL_PERM_ROUND_BEFORE_INV,
+    COL_PERM_ROUND_BEFORE_IS_ZERO, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE, COL_STACK_READS,
+    COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    COL_STACK_WRITES, COL_TURN_BOUNDARY, COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::call::host_call_gate_terms;
@@ -53,7 +49,7 @@ use super::host_event;
 use crate::column_registry::define_column_region;
 use crate::comm_chain::{
     perm_external_linear, perm_full_round_constants, perm_internal_linear, perm_partial_round_constants,
-    perm_row_is_full_round, COMM_CHAIN_PERM_ROWS, HOST_CALL_EVENT_TAG, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW,
+    perm_row_is_full_round, COMM_CHAIN_PERM_ROWS, PERM_PARTIAL_FIRST_ROW, PERM_TERMINAL_FIRST_ROW,
 };
 use crate::ir::{WasmGrammarSlotKind, WasmVmStep};
 use neo_math::F;
@@ -75,11 +71,6 @@ define_column_region! {
         PERM_POSITION: [Boolean; COMM_CHAIN_PERM_ROWS] => "permutation row-position one-hot flags",
         FULL_ROUND_POWERS: [Field; 48] => "full-round S-box power witnesses",
         PARTIAL_ROUND_POWERS: [Field; 8] => "partial-round S-box power witnesses",
-        RAW_ARG_WRITE_MASK: [Boolean; 4] => "raw argument-row event-buffer write masks",
-        RAW_RESULT_WRITE_MASK: [Boolean; 4] => "raw result-row event-buffer write masks",
-        STREAM_DONE: Boolean => "raw event stream completed after this row",
-        EVENT_END: Boolean => "raw row streams the final event word pair",
-        EVENT_END_OR: Boolean => "raw block-filled and event-end product",
         GATHER_WORD_POSITION: [Boolean; 8] => "gather block-word one-hot flags",
         GATHER_KIND: [Boolean; GKINDS] => "gather slot-kind one-hot flags",
         GARG_VAL: Field => "limb-selected stack argument value",
@@ -130,17 +121,10 @@ pub(crate) const fn gather_memory_half_width_col() -> usize {
     GMEM_HALF
 }
 
-/// Product column carrying `grammar_host_call · call_param_count`: the sp
-/// identity in `ccs.rs` pops all host-call args on the call row itself in
-/// grammar mode (there are no HostCallArg aux rows there).
-pub(super) const fn grammar_host_call_params_col() -> usize {
+/// Product column carrying `host_call_active · call_param_count`: the sp
+/// identity in `ccs.rs` pops all host-call args on the call row itself.
+pub(super) const fn host_call_params_col() -> usize {
     GHC_PARAMS
-}
-
-/// The position one-hot flag of the group's last row (position 18), needed
-/// by `ccs/call.rs` to hand arg mode back after a perm group.
-pub(super) const fn perm_last_pos_col() -> usize {
-    PERM_POSITION[COMM_CHAIN_PERM_ROWS - 1]
 }
 
 /// Dense 12×12 matrix of the external (`mds_light`) linear layer, probed
@@ -178,25 +162,12 @@ pub(crate) fn perm_row_gate_terms() -> [(usize, F); 3] {
     ]
 }
 
-/// Gate terms that are 1 exactly on the rows streaming RAW event words into
-/// the absorb buffer: host-call program rows, host-arg rows, host-result
-/// rows — each masked by `1 - grammar_mode` through its product column, so
-/// the whole raw machinery is inert when the chain absorbs grammar events.
-fn event_write_gate_terms() -> [(usize, F); 3] {
-    [
-        (COL_RAW_HOST_CALL, F::ONE),
-        (COL_RAW_ARGS_ACTIVE, F::ONE),
-        (COL_RAW_RESULT_ACTIVE, F::ONE),
-    ]
-}
-
 pub(super) fn push_constraints(b: &mut R1csBuilder) {
-    push_grammar_mode_constraints(b);
+    push_interface_constraints(b);
     push_grammar_gather_constraints(b);
     push_position_onehot_constraints(b);
     push_pending_update_constraints(b);
     push_buffer_write_constraints(b);
-    push_slot_cursor_constraints(b);
     push_absorb_constraints(b);
     push_full_round_constraints(b);
     push_partial_pair_constraints(b);
@@ -204,33 +175,30 @@ pub(super) fn push_constraints(b: &mut R1csBuilder) {
     push_perm_row_shape_constraints(b);
 }
 
-/// Grammar-mode plumbing: the per-program constant flag, the raw-machinery
-/// mask products, and the `HostEventGather` row rules. Gather rows stage one
-/// expanded event block (their buffer writes are free until the stage-C
-/// slot-fill rows bind them to the grammar ROM) and raise `perm_pending`;
-/// they exist only in grammar mode, so raw-mode enforcement is unaffected.
-fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
-    b.with_tag(host_event("host event grammar mode"), |b| {
-        // Per-program constant: preserved on every row; the initial value is
-        // verifier-pinned through the semantic-state digest.
-        b.push_linear_zero([(COL_GRAMMAR_MODE_AFTER, F::ONE), (COL_GRAMMAR_MODE_BEFORE, -F::ONE)]);
-
-        // Raw-machinery masks: raw_x = x · (1 - mode).
-        let not_mode = [(COL_ONE, F::ONE), (COL_GRAMMAR_MODE_BEFORE, -F::ONE)];
-        b.push_row(host_call_gate_terms(), not_mode, [(COL_RAW_HOST_CALL, F::ONE)]);
-        b.push_row(
-            [(COL_HOST_ARGS_ACTIVE_BEFORE, F::ONE)],
-            not_mode,
-            [(COL_RAW_ARGS_ACTIVE, F::ONE)],
+/// Shared host-event row shape and carried-state transitions.
+fn push_interface_constraints(b: &mut R1csBuilder) {
+    b.with_tag(host_event("host event interface"), |b| {
+        b.push_linear_zero(
+            [(super::super::layout::COL_HOST_CALL_ACTIVE, F::ONE)]
+                .into_iter()
+                .chain(host_call_gate_terms().map(|(column, coefficient)| (column, -coefficient))),
         );
-        b.push_row(
-            [(COL_HOST_RESULT_ACTIVE, F::ONE)],
-            not_mode,
-            [(COL_RAW_RESULT_ACTIVE, F::ONE)],
-        );
+        b.push_linear_zero([
+            (COL_EVENT_BINDING_ACTIVE_AFTER, F::ONE),
+            (COL_EVENT_BINDING_ACTIVE_BEFORE, -F::ONE),
+        ]);
+        for gate in [
+            COL_GATHER_ACTIVE,
+            super::super::layout::COL_HOST_CALL_ACTIVE,
+            COL_TURN_BOUNDARY,
+        ] {
+            b.push_row(
+                [(gate, F::ONE)],
+                [(COL_ONE, F::ONE), (COL_EVENT_BINDING_ACTIVE_BEFORE, -F::ONE)],
+                [],
+            );
+        }
 
-        // Gather rows exist only in grammar mode.
-        b.push_row([(COL_GATHER_ACTIVE, F::ONE)], not_mode, []);
         // Disable the pc-to-function lookup on gather, permutation, turn
         // boundary, and padding rows, which do not execute a program
         // instruction.
@@ -242,12 +210,6 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
             (COL_TURN_BOUNDARY, F::ONE),
             (super::super::layout::COL_PADDING_ACTIVE, F::ONE),
         ]);
-        // Turn boundaries only exist in grammar mode.
-        b.push_row(
-            [(COL_TURN_BOUNDARY, F::ONE)],
-            [(COL_ONE, F::ONE), (COL_GRAMMAR_MODE_BEFORE, -F::ONE)],
-            [],
-        );
         b.push_row(
             [(COL_ONE, F::ONE), (COL_TURN_BOUNDARY, -F::ONE)],
             [
@@ -279,7 +241,7 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
         // pointer base is an import argument; result slots
         // WRITE it — the lo slot through the counted port pair (the push),
         // the hi slot through the hi-word port alone (no sp effect). Both
-        // suspend the host-call countdown state like perm rows do.
+        // preserve the rest of the VM state like permutation rows do.
         b.push_row(
             [(COL_GATHER_ACTIVE, F::ONE)],
             [
@@ -296,12 +258,6 @@ fn push_grammar_mode_constraints(b: &mut R1csBuilder) {
             [(COL_STACK_WRITES, F::ONE), (GK_RESULT, -F::ONE), (GK2_HI, F::ONE)],
             [],
         );
-        for (after, before) in [
-            (COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_BEFORE),
-            (COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE),
-        ] {
-            b.push_row([(COL_GATHER_ACTIVE, F::ONE)], [(after, F::ONE), (before, -F::ONE)], []);
-        }
     });
 }
 
@@ -319,11 +275,11 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
         COL_GRAMMAR_ARGS_BASE_AFTER as ARGS_BASE_AFTER, COL_GRAMMAR_ARGS_BASE_BEFORE as ARGS_BASE_BEFORE,
         COL_GRAMMAR_EVIDX_AFTER as EVIDX_A, COL_GRAMMAR_EVIDX_BEFORE as EVIDX_B, COL_GRAMMAR_EVREM_AFTER as EVREM_A,
         COL_GRAMMAR_EVREM_BEFORE as EVREM_B, COL_GRAMMAR_EVREM_BEFORE_INV as EVREM_INV,
-        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO as EVREM_ISZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_HOST_CALL as GHC,
-        COL_GRAMMAR_POST_COUNT as POST_COUNT, COL_GRAMMAR_PRE_COUNT as PRE_COUNT, COL_GRAMMAR_SLOT_ARG as SLOT_ARG,
-        COL_GRAMMAR_SLOT_CONST_HI as CONST_HI, COL_GRAMMAR_SLOT_CONST_LO as CONST_LO,
-        COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A, COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B,
-        COL_GRAMMAR_SLOT_KIND as SLOT_KIND, COL_GRAMMAR_SLOT_VARIANT as SLOT_VARIANT, COL_HALTED, COL_HALTED_BEFORE,
+        COL_GRAMMAR_EVREM_BEFORE_IS_ZERO as EVREM_ISZERO, COL_GRAMMAR_EXIT_LATCH, COL_GRAMMAR_POST_COUNT as POST_COUNT,
+        COL_GRAMMAR_PRE_COUNT as PRE_COUNT, COL_GRAMMAR_SLOT_ARG as SLOT_ARG, COL_GRAMMAR_SLOT_CONST_HI as CONST_HI,
+        COL_GRAMMAR_SLOT_CONST_LO as CONST_LO, COL_GRAMMAR_SLOT_CURSOR_AFTER as S_A,
+        COL_GRAMMAR_SLOT_CURSOR_BEFORE as S_B, COL_GRAMMAR_SLOT_KIND as SLOT_KIND,
+        COL_GRAMMAR_SLOT_VARIANT as SLOT_VARIANT, COL_HALTED, COL_HALTED_BEFORE, COL_HOST_CALL_ACTIVE as GHC,
         COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_BYTE_OFFSET,
         COL_LINEAR_MEM_LANE_ADDR, COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3,
         COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OUTPUT_ENABLED_BEFORE,
@@ -333,15 +289,8 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
     b.with_tag(host_event("grammar gather binding"), |b| {
-        // Grammar-mode row mask: grammar_host_call = gate - raw = gate · mode.
-        b.push_linear_zero(
-            [(GHC, F::ONE), (COL_RAW_HOST_CALL, F::ONE)]
-                .into_iter()
-                .chain(host_call_gate_terms().map(|(column, coefficient)| (column, -coefficient))),
-        );
-        // Grammar host calls pop their args on the call row itself (no
-        // HostCallArg aux rows in grammar mode): the sp identity consumes
-        // this product of the mode-masked gate and the ROM-bound arity.
+        // Host calls pop their args on the call row itself. The sp identity
+        // consumes this product of the host-call gate and ROM-bound arity.
         b.push_row([(GHC, F::ONE)], [(PARAM_COUNT, F::ONE)], [(GHC_PARAMS, F::ONE)]);
 
         // Event schedule countdown: loaded from the event-count ROMs on the
@@ -525,7 +474,7 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
 
         // Result Lo slots (kind 2 with the hi flag low): the gather row
         // WRITES the staged word onto the operand stack — the host result's
-        // push, replacing the raw mode's HostCallResult row. The write ports
+        // push. The write ports
         // make the sp identity move by +1; the address is the post-pop
         // stack top (= the argument base, so arg-0 slots must be gathered
         // earlier — validated template-side). The write is a narrow TOTAL
@@ -763,13 +712,13 @@ fn push_grammar_gather_constraints(b: &mut R1csBuilder) {
             [],
         );
 
-        // Export exit latch: a clean halt transition in grammar mode loads
+        // With event binding enabled, a clean halt transition loads
         // the owning turn's exit schedule and repoints gather attribution
         // from the last import to that export. This is independent of result
         // capture, so constant-only exit templates also cover resultless
         // exports.
         b.push_row(
-            [(COL_GRAMMAR_MODE_BEFORE, F::ONE)],
+            [(COL_EVENT_BINDING_ACTIVE_BEFORE, F::ONE)],
             [
                 (COL_HALTED, F::ONE),
                 (COL_HALTED_BEFORE, -F::ONE),
@@ -861,201 +810,44 @@ fn push_position_onehot_constraints(b: &mut R1csBuilder) {
     });
 }
 
-/// `perm_pending` lifecycle: raised by the gated write-row formula
-/// `WSA3 + WSR3 + E - (WSA3 + WSR3)·E` (block filled or event stream done),
-/// cleared on the absorb row, preserved everywhere else.
+/// `perm_pending` is raised by the final gather row, cleared on the absorb
+/// row, and preserved everywhere else.
 fn push_pending_update_constraints(b: &mut R1csBuilder) {
     b.with_tag(host_event("host event pending update"), |b| {
-        // The product flags are booleans; the rows also let the F' width
-        // audit prove their declared 1-bit width.
-        for col in [STREAM_DONE, EVENT_END, EVENT_END_OR] {
-            b.push_boolean(col);
-        }
-        // stream_done = remaining_is_zero · ¬result_pending (valid on every
-        // row; only write rows consume it).
-        b.push_row(
-            [(COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO, F::ONE)],
-            [(COL_ONE, F::ONE), (COL_HOST_RESULT_PENDING_AFTER, -F::ONE)],
-            [(STREAM_DONE, F::ONE)],
-        );
-        // end = write_row · stream_done.
-        b.push_row(event_write_gate_terms(), [(STREAM_DONE, F::ONE)], [(EVENT_END, F::ONE)]);
-        // end_or = (WSA3 + WSR3) · end, so pending can OR both triggers.
-        b.push_row(
-            [(RAW_ARG_WRITE_MASK[3], F::ONE), (RAW_RESULT_WRITE_MASK[3], F::ONE)],
-            [(EVENT_END, F::ONE)],
-            [(EVENT_END_OR, F::ONE)],
-        );
-        // Write rows: pending' = WSA3 + WSR3 + end - end_or.
-        b.push_row(
-            event_write_gate_terms(),
-            [
-                (COL_PERM_PENDING_AFTER, F::ONE),
-                (RAW_ARG_WRITE_MASK[3], -F::ONE),
-                (RAW_RESULT_WRITE_MASK[3], -F::ONE),
-                (EVENT_END, -F::ONE),
-                (EVENT_END_OR, F::ONE),
-            ],
-            [],
-        );
         // Absorb row consumes the flag.
         b.push_row([(PERM_POSITION[0], F::ONE)], [(COL_PERM_PENDING_AFTER, F::ONE)], []);
-        // Everything else preserves it (gather rows set it themselves).
-        let mut preserve_gate = vec![
-            (COL_ONE, F::ONE),
-            (PERM_POSITION[0], -F::ONE),
-            (COL_GATHER_ACTIVE, -F::ONE),
-        ];
-        preserve_gate.extend(event_write_gate_terms().map(|(col, coeff)| (col, -coeff)));
+        // Everything else preserves it; gather rows set it above.
         b.push_row(
-            preserve_gate,
+            [
+                (COL_ONE, F::ONE),
+                (PERM_POSITION[0], -F::ONE),
+                (COL_GATHER_ACTIVE, -F::ONE),
+            ],
             [(COL_PERM_PENDING_AFTER, F::ONE), (COL_PERM_PENDING_BEFORE, -F::ONE)],
             [],
         );
     });
 }
 
-/// Absorb-buffer writes: the call row stamps the 4-word event header (tag,
-/// ROM-bound callee fref, ROM-bound arity), arg/result rows land their
-/// word pair at the slot cursor, the absorb row clears the buffer, and
-/// every untouched slot is carried.
+/// Absorb-buffer writes: gather rows stage one ROM-described word, the
+/// absorb row clears the buffer, and every untouched slot is carried.
 fn push_buffer_write_constraints(b: &mut R1csBuilder) {
     b.with_tag(host_event("host event buffer write"), |b| {
-        // The write masks are booleans; the rows also let the F' width
-        // audit prove their declared 1-bit width.
-        for k in 0..4 {
-            b.push_boolean(RAW_ARG_WRITE_MASK[k]);
-            b.push_boolean(RAW_RESULT_WRITE_MASK[k]);
-        }
-        // WSA_k / WSR_k: slot-cursor one-hot masked by the raw writing row
-        // kind (inert in grammar mode).
-        for k in 0..4 {
-            b.push_row(
-                [(COL_EVBUF_SLOT_BEFORE[k], F::ONE)],
-                [(COL_RAW_ARGS_ACTIVE, F::ONE)],
-                [(RAW_ARG_WRITE_MASK[k], F::ONE)],
-            );
-            b.push_row(
-                [(COL_EVBUF_SLOT_BEFORE[k], F::ONE)],
-                [(COL_RAW_RESULT_ACTIVE, F::ONE)],
-                [(RAW_RESULT_WRITE_MASK[k], F::ONE)],
-            );
-        }
-
-        // Call-row header: [TAG, fref, param_count, result_count, 0, 0, 0, 0].
-        let header = [
-            vec![
-                (COL_EVBUF_AFTER[0], F::ONE),
-                (COL_ONE, -F::from_u64(HOST_CALL_EVENT_TAG)),
-            ],
-            vec![(COL_EVBUF_AFTER[1], F::ONE), (COL_FUNCTION_REF, -F::ONE)],
-            vec![(COL_EVBUF_AFTER[2], F::ONE), (COL_CALL_PARAM_COUNT, -F::ONE)],
-            vec![(COL_EVBUF_AFTER[3], F::ONE), (COL_CALL_RESULT_COUNT, -F::ONE)],
-            vec![(COL_EVBUF_AFTER[4], F::ONE)],
-            vec![(COL_EVBUF_AFTER[5], F::ONE)],
-            vec![(COL_EVBUF_AFTER[6], F::ONE)],
-            vec![(COL_EVBUF_AFTER[7], F::ONE)],
-        ];
-        for terms in header {
-            b.push_row([(COL_RAW_HOST_CALL, F::ONE)], terms, []);
-        }
-
-        // Arg/result rows write the popped/pushed value's limbs at the slot
-        // cursor; the value columns are bound by the stack argument.
-        for k in 0..4 {
-            b.push_row(
-                [(RAW_ARG_WRITE_MASK[k], F::ONE)],
-                [(COL_EVBUF_AFTER[2 * k], F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
-                [],
-            );
-            b.push_row(
-                [(RAW_ARG_WRITE_MASK[k], F::ONE)],
-                [
-                    (COL_EVBUF_AFTER[2 * k + 1], F::ONE),
-                    (COL_STACK_READ_VALUE_HI[0], -F::ONE),
-                ],
-                [],
-            );
-            b.push_row(
-                [(RAW_RESULT_WRITE_MASK[k], F::ONE)],
-                [(COL_EVBUF_AFTER[2 * k], F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
-                [],
-            );
-            b.push_row(
-                [(RAW_RESULT_WRITE_MASK[k], F::ONE)],
-                [
-                    (COL_EVBUF_AFTER[2 * k + 1], F::ONE),
-                    (COL_STACK_WRITE0_VALUE_HI, -F::ONE),
-                ],
-                [],
-            );
-        }
-
         // The absorb row consumes the block: the buffer resets to zero so
         // the next block's unwritten slots are the zero padding.
         for j in 0..8 {
             b.push_row([(PERM_POSITION[0], F::ONE)], [(COL_EVBUF_AFTER[j], F::ONE)], []);
         }
 
-        // Untouched slots carry: gate out the raw call row (rewrites all 8),
-        // this pair's write flags, the absorb reset, and grammar gather rows
-        // (which stage a whole block).
+        // Untouched slots carry: gate out the absorb reset and the gather
+        // position that stages this word.
         for j in 0..8 {
-            let pair = j / 2;
-            let gate = vec![
+            let gate = [
                 (COL_ONE, F::ONE),
-                (RAW_ARG_WRITE_MASK[pair], -F::ONE),
-                (RAW_RESULT_WRITE_MASK[pair], -F::ONE),
                 (PERM_POSITION[0], -F::ONE),
-                (COL_RAW_HOST_CALL, -F::ONE),
                 (GATHER_WORD_POSITION[j], -F::ONE),
             ];
             b.push_row(gate, [(COL_EVBUF_AFTER[j], F::ONE), (COL_EVBUF_BEFORE[j], -F::ONE)], []);
-        }
-    });
-}
-
-/// Slot-cursor one-hot: the call row points it at pair 2 (past the header),
-/// each word-pair write rotates it, the absorb row resets it to pair 0, and
-/// every other row carries it.
-fn push_slot_cursor_constraints(b: &mut R1csBuilder) {
-    b.with_tag(host_event("host event slot cursor"), |b| {
-        for k in 0..4 {
-            let call_target = if k == 2 {
-                vec![(COL_EVBUF_SLOT_AFTER[k], F::ONE), (COL_ONE, -F::ONE)]
-            } else {
-                vec![(COL_EVBUF_SLOT_AFTER[k], F::ONE)]
-            };
-            b.push_row([(COL_RAW_HOST_CALL, F::ONE)], call_target, []);
-
-            b.push_row(
-                [(COL_RAW_ARGS_ACTIVE, F::ONE), (COL_RAW_RESULT_ACTIVE, F::ONE)],
-                [
-                    (COL_EVBUF_SLOT_AFTER[k], F::ONE),
-                    (COL_EVBUF_SLOT_BEFORE[(k + 3) % 4], -F::ONE),
-                ],
-                [],
-            );
-
-            let absorb_target = if k == 0 {
-                vec![(COL_EVBUF_SLOT_AFTER[k], F::ONE), (COL_ONE, -F::ONE)]
-            } else {
-                vec![(COL_EVBUF_SLOT_AFTER[k], F::ONE)]
-            };
-            b.push_row([(PERM_POSITION[0], F::ONE)], absorb_target, []);
-
-            let gate = vec![
-                (COL_ONE, F::ONE),
-                (COL_RAW_ARGS_ACTIVE, -F::ONE),
-                (COL_RAW_RESULT_ACTIVE, -F::ONE),
-                (PERM_POSITION[0], -F::ONE),
-                (COL_RAW_HOST_CALL, -F::ONE),
-            ];
-            b.push_row(
-                gate,
-                [(COL_EVBUF_SLOT_AFTER[k], F::ONE), (COL_EVBUF_SLOT_BEFORE[k], -F::ONE)],
-                [],
-            );
         }
     });
 }
@@ -1233,19 +1025,12 @@ fn push_chain_update_constraints(b: &mut R1csBuilder) {
     });
 }
 
-/// Perm rows are aux rows: no stack traffic, and the host-call countdown
-/// state suspends across the group (pc/param-init handling lives with the
-/// other aux-row shape rows in `ccs/call.rs`).
+/// Perm rows are aux rows with no stack traffic (pc/param-init handling
+/// lives with the other aux-row shape rows in `ccs/call.rs`).
 fn push_perm_row_shape_constraints(b: &mut R1csBuilder) {
     b.with_tag(host_event("host event perm row shape"), |b| {
         b.push_row(perm_row_gate_terms(), [(COL_STACK_READS, F::ONE)], []);
         b.push_row(perm_row_gate_terms(), [(COL_STACK_WRITES, F::ONE)], []);
-        for (after, before) in [
-            (COL_HOST_ARGS_REMAINING_AFTER, COL_HOST_ARGS_REMAINING_BEFORE),
-            (COL_HOST_RESULT_PENDING_AFTER, COL_HOST_RESULT_PENDING_BEFORE),
-        ] {
-            b.push_row(perm_row_gate_terms(), [(after, F::ONE), (before, -F::ONE)], []);
-        }
     });
 }
 
@@ -1268,23 +1053,6 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     if let Some(pos) = pos {
         wit[PERM_POSITION[pos]] = F::ONE;
     }
-
-    // Buffer-write masks and pending-update products, from the raw-masked
-    // flags (filled by `fill_event_absorb`; inert in grammar mode).
-    let args_active = wit[super::super::layout::COL_RAW_ARGS_ACTIVE];
-    let result_active = wit[super::super::layout::COL_RAW_RESULT_ACTIVE];
-    for k in 0..4 {
-        wit[RAW_ARG_WRITE_MASK[k]] = wit[COL_EVBUF_SLOT_BEFORE[k]] * args_active;
-        wit[RAW_RESULT_WRITE_MASK[k]] = wit[COL_EVBUF_SLOT_BEFORE[k]] * result_active;
-    }
-    let stream_done = bool_f(trace.state_after.host_args.remaining == 0 && !trace.state_after.host_result_pending);
-    wit[STREAM_DONE] = stream_done;
-    // write row = raw host-call program row + raw arg row + raw result row
-    // (each {0,1}, mutually exclusive), mirroring `event_write_gate_terms`.
-    let write_row = wit[super::super::layout::COL_RAW_HOST_CALL] + args_active + result_active;
-    let end = write_row * stream_done;
-    wit[EVENT_END] = end;
-    wit[EVENT_END_OR] = (wit[RAW_ARG_WRITE_MASK[3]] + wit[RAW_RESULT_WRITE_MASK[3]]) * end;
 
     // Full-round S-box powers: x = state_before[lane] + selected RC.
     for lane in 0..12 {
@@ -1333,9 +1101,8 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
             wit[GMEM_HALF] = bool_f(rom.variant.uses_half_memory_width());
         }
     }
-    // Grammar host-call arg pops: GHC · ROM-bound param count.
-    wit[GHC_PARAMS] =
-        wit[super::super::layout::COL_GRAMMAR_HOST_CALL] * wit[super::super::layout::COL_CALL_PARAM_COUNT];
+    // Host-call arg pops: GHC · ROM-bound param count.
+    wit[GHC_PARAMS] = wit[super::super::layout::COL_HOST_CALL_ACTIVE] * wit[super::super::layout::COL_CALL_PARAM_COUNT];
     // Limb-selected values: filled on every row so the unconditional select
     // rows hold (the limb column is zero off gather rows).
     let read_lo = wit[super::super::layout::COL_STACK_READ_VALUE_LO[0]];

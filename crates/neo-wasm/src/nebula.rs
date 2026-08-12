@@ -21,7 +21,7 @@ use crate::adapters::wasmtime::WasmProgramArtifacts;
 use crate::batch::padding_step_after;
 use crate::comm_chain::CommChainState;
 use crate::event_grammar::HostEventGrammar;
-use crate::ir::{WasmAuxOpcode, WasmRowKind, WasmStepState, WasmVmStep};
+use crate::ir::{WasmStepState, WasmVmStep};
 use crate::lookup_circuit::{extend_witness, LookupCircuitError};
 use crate::memory_routing::{build_batched_memory_slots, build_single_step_memory_slots};
 use crate::memory_semantics::preload_grammar_tables;
@@ -169,7 +169,7 @@ pub struct WasmNebulaPreprocessing {
     lookup_auxiliary_columns_per_instruction: usize,
     lookup_auxiliary_columns_total: usize,
     has_linear_memory: bool,
-    // Grammar-mode preprocessing binds host calls through the event chain,
+    // Event-bound preprocessing binds host calls through the event chain,
     // so `prove` accepts host-call rows instead of rejecting them.
     allows_host_calls: bool,
 }
@@ -644,7 +644,7 @@ fn reject_host_imports(artifacts: &WasmProgramArtifacts) -> Result<(), WasmNebul
     Ok(())
 }
 
-/// Grammar mode binds host FUNCTION calls through the event chain; imported
+/// Event templates bind host FUNCTION calls through the event chain; imported
 /// memories and globals are still verifier-unbound state, and the declared
 /// linear-memory limits apply regardless.
 fn validate_grammar_program(artifacts: &WasmProgramArtifacts, limits: WasmNebulaLimits) -> Result<(), WasmNebulaError> {
@@ -681,12 +681,9 @@ fn validate_linear_memory_limits(
 
 fn reject_host_trace(trace: &[WasmVmStep]) -> Result<(), WasmNebulaError> {
     let has_host_row = trace.iter().any(|row| {
-        matches!(
-            row.row_kind,
-            WasmRowKind::Aux(WasmAuxOpcode::HostCallArg | WasmAuxOpcode::HostCallResult)
-        ) || (matches!(row.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
+        matches!(row.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
             && row.function_ref.is_some()
-            && !row.target_function_is_guest)
+            && !row.target_function_is_guest
     });
     if has_host_row {
         return Err(WasmNebulaError::HostImportsUnsupported);

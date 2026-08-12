@@ -1,16 +1,14 @@
-//! Grammar-mode traces: the chain absorbs embedder grammar events staged by
-//! `HostEventGather` slot rows (8 per block, one word each) instead of raw
-//! host-call records. Every row is CCS-checked, the grammar ROM content is
-//! checked by the native memory-rows pass, and the rejection tests cover
-//! mode gating, gather forgery, and the event schedule.
+//! Grammar traces: the chain absorbs embedder events staged by
+//! `HostEventGather` slot rows (8 per block, one word each). Every row is
+//! CCS-checked, the grammar ROM content is checked by the native memory-rows
+//! pass, and rejection tests cover gather forgery and the event schedule.
 
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::event_grammar::{GrammarEvent, HostEventGrammar, ImportTemplate, Limb, SlotSource};
-use neo_wasm::layout::{COL_GATHER_ACTIVE, COL_GRAMMAR_MODE_AFTER, COL_RAW_HOST_CALL};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{WasmGrammarSlotKind, WasmRowKind, WasmVmStep};
+use neo_wasm::{WasmGrammarSlotKind, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 const ZERO: SlotSource = SlotSource::Const(0);
@@ -124,37 +122,33 @@ fn run_component() -> neo_wasm::WasmtimeTraceRun {
     run_component_with_mul_claims(&[100])
 }
 
-fn host_call_frefs(trace: &[WasmVmStep]) -> Vec<u32> {
-    trace
+fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
+    let imports = run
+        .steps
         .iter()
-        .filter(|row| {
-            row.row_kind.is_program()
-                && matches!(row.opcode, neo_wasm::WasmOpcode::Call)
-                && !row.target_function_is_guest
-        })
-        .map(|row| row.state_after.host_callee_fref)
-        .collect()
+        .filter(|row| matches!(row.opcode_decoded, Some(neo_wasm::WasmOpcode::Call)) && !row.target_function_is_guest)
+        .filter_map(|row| row.function_ref)
+        .collect();
+    let export = run
+        .steps
+        .iter()
+        .find_map(|row| row.current_function_ref)
+        .expect("export function ref");
+    (imports, export)
 }
 
 /// Grammar trace for the two-call component, with claim words `[100]` for mul
 /// and `[]` for sink. The invoked export gets an empty boundary template
-/// (required in grammar mode; no boundary events for this test).
+/// (required when event binding is enabled; no boundary events for this test).
 fn grammar_trace() -> Vec<WasmVmStep> {
     grammar_trace_from(Default::default())
 }
 
 fn grammar_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<WasmVmStep> {
     let run = run_component();
-    // Resolve frefs from a raw normalization of the same run.
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let frefs = host_call_frefs(&raw);
+    let (frefs, export_fref) = run_frefs(&run);
     assert_eq!(frefs.len(), 2);
     let mut grammar = test_grammar(frefs[0], frefs[1]);
-    let export_fref = raw
-        .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row")
-        .current_function_ref;
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
@@ -179,6 +173,23 @@ fn grammar_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<WasmV
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("grammar ROM contents match");
     trace
+}
+
+#[test]
+fn host_import_requires_event_grammar() {
+    let run = run_component();
+    let error = neo_wasm::traces_from_wasmtime_steps(&run.steps)
+        .expect_err("host imports must not use an implicit event encoding");
+    assert!(error.to_string().contains("requires an event grammar"));
+}
+
+#[test]
+fn ccs_rejects_event_binding_flip() {
+    let trace = grammar_trace();
+    let mut witness = build_witness_vector(&trace[0]);
+    common::assert_satisfied(&witness, "untampered event-bound row");
+    witness[neo_wasm::layout::COL_EVENT_BINDING_ACTIVE_AFTER] = neo_math::F::ZERO;
+    common::assert_rejected(&witness, "row disabling event binding mid-trace");
 }
 
 /// An i64-returning import: each result lane is written by the slot that
@@ -220,14 +231,8 @@ fn i64_result_lane_writes() {
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-add64: {err}")))
     })
     .expect("component run");
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let frefs = host_call_frefs(&raw);
+    let (frefs, export_fref) = run_frefs(&run);
     assert_eq!(frefs.len(), 1);
-    let export_fref = raw
-        .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row")
-        .current_function_ref;
     let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
     let mut grammar = HostEventGrammar::default();
     grammar.imports.insert(
@@ -343,13 +348,7 @@ fn i64_result_lane_writes() {
 #[test]
 fn advice_import_pushes_without_absorbing() {
     let run = run_component_with_mul_claims(&[]);
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let frefs = host_call_frefs(&raw);
-    let export_fref = raw
-        .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row")
-        .current_function_ref;
+    let (frefs, export_fref) = run_frefs(&run);
     // `mul` is advice; `sink` remains transcript-bound.
     let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
     let mut grammar = HostEventGrammar::default();
@@ -448,8 +447,6 @@ fn advice_import_pushes_without_absorbing() {
 #[test]
 fn grammar_trace_folds_expanded_blocks() {
     let trace = grammar_trace();
-    assert!(trace.iter().all(|row| row.state_before.grammar_mode));
-
     // Three grammar events → three completed blocks (each staged by 8 slot
     // rows; the one raising `pending` holds the full block).
     let staged: Vec<[u64; 8]> = trace
@@ -524,14 +521,8 @@ fn missing_template_is_rejected() {
 #[test]
 fn surplus_claim_words_are_rejected() {
     let run = run_component_with_mul_claims(&[100, 7]);
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let frefs = host_call_frefs(&raw);
+    let (frefs, export_fref) = run_frefs(&run);
     let mut grammar = test_grammar(frefs[0], frefs[1]);
-    let export_fref = raw
-        .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row")
-        .current_function_ref;
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
@@ -545,21 +536,15 @@ fn surplus_claim_words_are_rejected() {
     .is_err());
 }
 
-/// The raw absorb machinery must stay de-gated in grammar mode: grammar
-/// traces have no host arg/result aux rows at all (the call row pops the
-/// args, a gather row pushes the result), and forging the raw host-call
-/// mask back on is CCS-rejected.
+/// Event rows require binding even when both carried flags are consistently off.
 #[test]
-fn ccs_rejects_raw_machinery_in_grammar_mode() {
+fn ccs_rejects_event_rows_with_binding_off() {
     let trace = grammar_trace();
-    assert!(
-        !trace.iter().any(|row| matches!(
-            row.row_kind,
-            WasmRowKind::Aux(neo_wasm::WasmAuxOpcode::HostCallArg | neo_wasm::WasmAuxOpcode::HostCallResult)
-        )),
-        "grammar traces must not contain raw host aux rows"
-    );
-    let call_row = trace
+    let gather_row = trace
+        .iter()
+        .find(|row| row.row_kind.is_host_event_gather())
+        .expect("gather row");
+    let host_call_row = trace
         .iter()
         .find(|row| {
             row.row_kind.is_program()
@@ -567,36 +552,13 @@ fn ccs_rejects_raw_machinery_in_grammar_mode() {
                 && !row.target_function_is_guest
         })
         .expect("host-call row");
-    let mut witness = build_witness_vector(call_row);
-    common::assert_satisfied(&witness, "untampered grammar host-call row");
-    witness[COL_RAW_HOST_CALL] = neo_math::F::ONE;
-    common::assert_rejected(&witness, "grammar host-call row with the raw machinery forged on");
-}
-
-/// Gather rows only exist in grammar mode: claiming one on a raw trace row
-/// is CCS-rejected.
-#[test]
-fn ccs_rejects_gather_row_in_raw_mode() {
-    let run = run_component();
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let arg_row = raw
-        .iter()
-        .find(|row| row.row_kind == WasmRowKind::Aux(neo_wasm::WasmAuxOpcode::HostCallArg))
-        .expect("arg row");
-    let mut witness = build_witness_vector(arg_row);
-    common::assert_satisfied(&witness, "untampered raw arg row");
-    witness[COL_GATHER_ACTIVE] = neo_math::F::ONE;
-    common::assert_rejected(&witness, "raw row claiming the gather kind");
-}
-
-/// The mode flag is a carried constant: flipping it mid-trace is rejected.
-#[test]
-fn ccs_rejects_mode_flip() {
-    let trace = grammar_trace();
-    let mut witness = build_witness_vector(&trace[0]);
-    common::assert_satisfied(&witness, "untampered grammar row");
-    witness[COL_GRAMMAR_MODE_AFTER] = neo_math::F::ZERO;
-    common::assert_rejected(&witness, "row flipping the per-program mode constant");
+    for (row, label) in [(gather_row, "gather row"), (host_call_row, "host-call row")] {
+        let mut witness = build_witness_vector(row);
+        common::assert_satisfied(&witness, &format!("untampered {label}"));
+        witness[neo_wasm::layout::COL_EVENT_BINDING_ACTIVE_BEFORE] = neo_math::F::ZERO;
+        witness[neo_wasm::layout::COL_EVENT_BINDING_ACTIVE_AFTER] = neo_math::F::ZERO;
+        common::assert_rejected(&witness, &format!("{label} claiming event binding is off"));
+    }
 }
 
 /// A gather row staging a word that contradicts its (honest) ROM entry is
@@ -644,14 +606,8 @@ fn ccs_rejects_redirected_gather_read() {
 #[test]
 fn memory_rows_reject_forged_rom_claim() {
     let run = run_component();
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let frefs = host_call_frefs(&raw);
+    let (frefs, export_fref) = run_frefs(&run);
     let mut grammar = test_grammar(frefs[0], frefs[1]);
-    let export_fref = raw
-        .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row")
-        .current_function_ref;
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
@@ -697,7 +653,7 @@ fn ccs_rejects_broken_event_schedule() {
 
     let program_row = trace
         .iter()
-        .find(|row| row.row_kind.is_program() && !row.state_before.grammar_mode == false)
+        .find(|row| row.row_kind.is_program())
         .expect("program row");
     let mut witness = build_witness_vector(program_row);
     common::assert_satisfied(&witness, "untampered program row");
@@ -753,14 +709,8 @@ fn ccs_forces_untemplated_import_into_poisoned_schedule() {
 #[test]
 fn count_families_are_split_and_biased() {
     let run = run_component();
-    let raw = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("raw trace");
-    let frefs = host_call_frefs(&raw);
+    let (frefs, export_fref) = run_frefs(&run);
     let mut grammar = test_grammar(frefs[0], frefs[1]);
-    let export_fref = raw
-        .iter()
-        .find(|row| row.row_kind.is_program())
-        .expect("program row")
-        .current_function_ref;
     grammar
         .exports
         .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());

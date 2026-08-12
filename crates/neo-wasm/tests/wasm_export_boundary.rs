@@ -1,7 +1,7 @@
-//! Export-boundary grammar templates: entry events (receiver-side
+//! Export-boundary bindings templates: entry events (receiver-side
 //! `Enter`/`Activation`/payload publication) absorb before the export's
-//! first instruction — with `ClaimLocal` slots bootstrapping the
-//! zero-initialized entry frame's locals from the claim inputs — and exit
+//! first instruction — with `InputLocal` slots bootstrapping the
+//! zero-initialized entry frame's locals from the runtime inputs — and exit
 //! events (`Return`, optionally with a captured result) absorb after the
 //! halting row. Event values are bound by the final-chain transcript check: the
 //! verifier folds the claimed transcript natively (`fold_event_blocks`)
@@ -11,15 +11,15 @@
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
-use neo_wasm::event_grammar::{ExportTemplate, GrammarEvent, HostEventGrammar, Limb, MemoryBase, SlotSource};
+use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, Limb, MemoryBase, SlotBinding};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{WasmGrammarSlotKind, WasmVmStep};
+use neo_wasm::{WasmHostEventSlotKind, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 use wasmtime::component::Val as ComponentVal;
 
-const ZERO: SlotSource = SlotSource::Const(0);
+const ZERO: SlotBinding = SlotBinding::Const(0);
 
-fn slots(entries: &[(usize, SlotSource)]) -> [SlotSource; COMM_CHAIN_EVENT_ARGS] {
+fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
     let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
     for &(idx, source) in entries {
         out[idx] = source;
@@ -45,38 +45,38 @@ fn add_component_wat() -> &'static str {
 }
 
 /// Entry: Enter(f_id) + one spec-shaped Activation whose payload slots
-/// carry the claim inputs — two absorb-only words and the two param words,
-/// the latter annotated `ClaimLocal` so they also bootstrap the param
+/// carry the runtime inputs — two absorb-only words and the two param words,
+/// the latter annotated `InputLocal` so they also bootstrap the param
 /// locals. The absorbed Activation block is bit-identical to one with
 /// plain `Claim` slots: the write behavior is table data, never
 /// transcript. Exit: Return-ish event carrying the output. Claim-input
 /// words are consumed in slot order:
 /// [activation val, activation caller, param 0, param 1].
 fn export_template() -> ExportTemplate {
-    let write = |idx, local| SlotSource::ClaimLocal {
-        idx,
+    let write = |idx, local| SlotBinding::InputLocal {
+        input: idx,
         local,
         limb: Limb::Lo,
     };
     ExportTemplate {
         entry: vec![
-            GrammarEvent::op(20, slots(&[(0, SlotSource::Const(55))])), // Enter(f_id)
-            GrammarEvent::op(
+            EventBlock::op(20, slots(&[(0, SlotBinding::Const(55))])), // Enter(f_id)
+            EventBlock::op(
                 8,
                 slots(&[
-                    (1, SlotSource::Claim { idx: 0 }),
-                    (3, SlotSource::Claim { idx: 1 }),
+                    (1, SlotBinding::Input { index: 0 }),
+                    (3, SlotBinding::Input { index: 1 }),
                     (4, write(2, 0)),
                     (5, write(3, 1)),
                 ]),
             ), // Activation(val, caller, payload = params)
         ],
-        exit: vec![GrammarEvent::op(
+        exit: vec![EventBlock::op(
             17,
-            slots(&[(1, SlotSource::OutputElem { limb: Limb::Lo })]),
+            slots(&[(1, SlotBinding::OutputElem { limb: Limb::Lo })]),
         )],
-        entry_claim_count: 4,
-        exit_claim_count: 0,
+        entry_input_count: 4,
+        exit_input_count: 0,
     }
 }
 
@@ -87,52 +87,52 @@ fn export_fref(steps: &[neo_wasm::WasmtimeTraceStep]) -> u32 {
         .expect("export function ref")
 }
 
-fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
+fn boundary_trace() -> (Vec<WasmVmStep>, HostEventBindings) {
     let component_bytes = wat::parse_str(add_component_wat()).expect("component wat");
     let args = [ComponentVal::S32(7), ComponentVal::S32(35)];
     let run = neo_wasm::collect_wasmtime_component_run_with_linker_and_args(&component_bytes, "run", &args, |_| Ok(()))
         .expect("component run");
 
     let fref = export_fref(&run.steps);
-    let mut grammar = HostEventGrammar::default();
-    grammar.exports.insert(fref, export_template());
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(fref, export_template());
 
-    let turns = [neo_wasm::event_grammar::TurnClaims {
+    let turns = [neo_wasm::host_event_bindings::TurnInputs {
         entry: vec![500, 501, 7, 35],
         exit: vec![],
         ..Default::default()
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
-        &grammar,
+        &bindings,
         &turns,
         Default::default(),
     )
-    .expect("grammar trace");
+    .expect("bindings trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     // Claim bootstrap: the RAM model's entry locals start all-zero; the
-    // entry gather rows write the claim inputs into them.
+    // entry gather rows write the runtime inputs into them.
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
-        .expect("grammar ROM + locals reads match");
+        .expect("bindings ROM + locals reads match");
 
-    (trace, grammar)
+    (trace, bindings)
 }
 
 #[test]
 fn export_boundary_folds_entry_and_exit_events() {
-    let (trace, grammar) = boundary_trace();
+    let (trace, bindings) = boundary_trace();
 
     // The trace opens with the entry gather rows (before any program row).
     assert!(trace[0].row_kind.is_host_event_gather());
-    assert_eq!(trace[0].state_before.grammar.events_remaining, 2);
+    assert_eq!(trace[0].state_before.host_events.events_remaining, 2);
 
     let staged: Vec<[u64; 8]> = trace
         .iter()
@@ -156,9 +156,10 @@ fn export_boundary_folds_entry_and_exit_events() {
     // the template + claims (entry inputs, captured output) and fold it
     // natively; the proof-carried final chain must equal that fold — and a
     // different input claim must not.
-    let template = grammar.exports.values().next().expect("template");
-    let mut expected = neo_wasm::event_grammar::expand_export_entry(template, &[500, 501, 7, 35]).expect("entry");
-    expected.extend(neo_wasm::event_grammar::expand_export_exit(template, Some((42, 0)), &[], &[]).expect("exit"));
+    let template = bindings.exports.values().next().expect("template");
+    let mut expected = neo_wasm::host_event_bindings::expand_export_entry(template, &[500, 501, 7, 35]).expect("entry");
+    expected
+        .extend(neo_wasm::host_event_bindings::expand_export_exit(template, Some((42, 0)), &[], &[]).expect("exit"));
     assert_eq!(expected, staged, "claimed transcript must match the staged blocks");
     let lift = |blocks: &[[u64; 8]]| -> Vec<[p3_goldilocks::Goldilocks; 8]> {
         blocks
@@ -171,7 +172,8 @@ fn export_boundary_folds_entry_and_exit_events() {
         final_chain,
         neo_wasm::comm_chain::fold_event_blocks(Default::default(), &lift(&expected)).canonical_u64()
     );
-    let wrong_inputs = neo_wasm::event_grammar::expand_export_entry(template, &[500, 501, 7, 36]).expect("wrong entry");
+    let wrong_inputs =
+        neo_wasm::host_event_bindings::expand_export_entry(template, &[500, 501, 7, 36]).expect("wrong entry");
     assert_ne!(
         final_chain,
         neo_wasm::comm_chain::fold_event_blocks(
@@ -193,13 +195,13 @@ fn ccs_rejects_forged_exit_output() {
         .find(|row| {
             row.row_kind.is_host_event_gather()
                 && row
-                    .grammar_rom_slot
-                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Output)
+                    .host_event_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::Output)
         })
         .expect("output slot row");
     let mut witness = build_witness_vector(output_slot_row);
     common::assert_satisfied(&witness, "untampered output slot row");
-    let cursor = usize::from(output_slot_row.state_before.grammar.slot_cursor);
+    let cursor = usize::from(output_slot_row.state_before.host_events.slot_cursor);
     witness[neo_wasm::layout::COL_EVBUF_AFTER[cursor]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "exit gather row staging a forged output word");
 
@@ -219,13 +221,13 @@ fn ccs_rejects_forged_input_word() {
         .find(|row| {
             row.row_kind.is_host_event_gather()
                 && row
-                    .grammar_rom_slot
-                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::ClaimLocal)
+                    .host_event_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::InputLocal)
         })
         .expect("input-local slot row");
     let mut witness = build_witness_vector(input_slot_row);
     common::assert_satisfied(&witness, "untampered input-local slot row");
-    let cursor = usize::from(input_slot_row.state_before.grammar.slot_cursor);
+    let cursor = usize::from(input_slot_row.state_before.host_events.slot_cursor);
     witness[neo_wasm::layout::COL_EVBUF_AFTER[cursor]] += neo_math::F::ONE;
     common::assert_rejected(&witness, "entry gather row staging a word other than the locals write");
 }
@@ -270,56 +272,56 @@ fn i64_param_bootstraps_both_lanes() {
         .expect("component run");
 
     let fref = export_fref(&run.steps);
-    let mut grammar = HostEventGrammar::default();
-    grammar.exports.insert(
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(
         fref,
         ExportTemplate {
-            entry: vec![GrammarEvent::op(
+            entry: vec![EventBlock::op(
                 21,
                 slots(&[
                     (
                         0,
-                        SlotSource::ClaimLocal {
-                            idx: 0,
+                        SlotBinding::InputLocal {
+                            input: 0,
                             local: 0,
                             limb: Limb::Lo,
                         },
                     ),
                     (
                         1,
-                        SlotSource::ClaimLocal {
-                            idx: 1,
+                        SlotBinding::InputLocal {
+                            input: 1,
                             local: 0,
                             limb: Limb::Hi,
                         },
                     ),
                 ]),
             )],
-            exit: vec![GrammarEvent::op(
+            exit: vec![EventBlock::op(
                 18,
                 slots(&[
-                    (0, SlotSource::OutputElem { limb: Limb::Lo }),
-                    (1, SlotSource::OutputElem { limb: Limb::Hi }),
+                    (0, SlotBinding::OutputElem { limb: Limb::Lo }),
+                    (1, SlotBinding::OutputElem { limb: Limb::Hi }),
                 ]),
             )],
-            entry_claim_count: 2,
-            exit_claim_count: 0,
+            entry_input_count: 2,
+            exit_input_count: 0,
         },
     );
 
-    let turns = [neo_wasm::event_grammar::TurnClaims {
+    let turns = [neo_wasm::host_event_bindings::TurnInputs {
         entry: vec![7, 3],
         exit: vec![],
         ..Default::default()
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
-        &grammar,
+        &bindings,
         &turns,
         Default::default(),
     )
-    .expect("grammar trace");
+    .expect("bindings trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
@@ -344,11 +346,11 @@ fn i64_param_bootstraps_both_lanes() {
     // read back out of them.
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
-        .expect("grammar ROM + lane writes match");
+        .expect("bindings ROM + lane writes match");
 
     // The captured output is the full i64 round-tripped through the locals.
     let last = trace.last().expect("rows").state_after;
@@ -376,107 +378,107 @@ fn export_memory_accesses_use_a_local_pointer_base() {
         .expect("component run");
     let fref = export_fref(&run.steps);
 
-    let mut grammar = HostEventGrammar::default();
-    grammar.exports.insert(
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(
         fref,
         ExportTemplate {
-            entry: vec![GrammarEvent::op(
+            entry: vec![EventBlock::op(
                 30,
                 slots(&[
                     (
                         0,
-                        SlotSource::ClaimLocal {
-                            idx: 0,
+                        SlotBinding::InputLocal {
+                            input: 0,
                             local: 0,
                             limb: Limb::Lo,
                         },
                     ),
                     (
                         1,
-                        SlotSource::MemoryWrite32 {
-                            claim: 1,
+                        SlotBinding::MemoryWrite32 {
+                            input: 1,
                             base: MemoryBase::Local(0),
                             byte_offset: 0,
                         },
                     ),
                     (
                         2,
-                        SlotSource::MemoryWrite8 {
-                            claim: 2,
+                        SlotBinding::MemoryWrite8 {
+                            input: 2,
                             base: MemoryBase::Local(0),
                             byte_offset: 1,
                         },
                     ),
                     (
                         3,
-                        SlotSource::MemoryWrite16 {
-                            claim: 3,
+                        SlotBinding::MemoryWrite16 {
+                            input: 3,
                             base: MemoryBase::Local(0),
                             byte_offset: 2,
                         },
                     ),
                 ]),
             )],
-            exit: vec![GrammarEvent::op(
+            exit: vec![EventBlock::op(
                 31,
                 slots(&[
                     (
                         0,
-                        SlotSource::MemoryRead32 {
+                        SlotBinding::MemoryRead32 {
                             base: MemoryBase::Local(0),
                             byte_offset: 0,
                         },
                     ),
                     (
                         1,
-                        SlotSource::MemoryRead8 {
+                        SlotBinding::MemoryRead8 {
                             base: MemoryBase::Local(0),
                             byte_offset: 1,
                         },
                     ),
                     (
                         2,
-                        SlotSource::MemoryRead16 {
+                        SlotBinding::MemoryRead16 {
                             base: MemoryBase::Local(0),
                             byte_offset: 2,
                         },
                     ),
                 ]),
             )],
-            entry_claim_count: 4,
-            exit_claim_count: 0,
+            entry_input_count: 4,
+            exit_input_count: 0,
         },
     );
-    let turns = [neo_wasm::event_grammar::TurnClaims {
+    let turns = [neo_wasm::host_event_bindings::TurnInputs {
         entry: vec![16, 77, 5, 0x1234],
         exit: vec![],
         ..Default::default()
     }];
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
-        &grammar,
+        &bindings,
         &turns,
         Default::default(),
     )
-    .expect("grammar trace");
+    .expect("bindings trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
-        .expect("grammar local base and linear-memory accesses match");
+        .expect("bindings local base and linear-memory accesses match");
 
     let staged_reads: Vec<u64> = trace
         .iter()
         .filter_map(|row| {
-            let rom = row.grammar_rom_slot?;
-            (rom.kind == WasmGrammarSlotKind::MemoryRead)
-                .then(|| row.state_after.event_absorb.evbuf[usize::from(row.state_before.grammar.slot_cursor)])
+            let rom = row.host_event_rom_slot?;
+            (rom.kind == WasmHostEventSlotKind::MemoryRead)
+                .then(|| row.state_after.event_absorb.evbuf[usize::from(row.state_before.host_events.slot_cursor)])
         })
         .collect();
     assert_eq!(staged_reads, [77 | (5 << 8) | (0x1234 << 16), 5, 0x1234]);
@@ -484,8 +486,8 @@ fn export_memory_accesses_use_a_local_pointer_base() {
     let read = trace
         .iter()
         .find(|row| {
-            row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryRead)
         })
         .expect("memory read gather");
     let mut forged = build_witness_vector(read);

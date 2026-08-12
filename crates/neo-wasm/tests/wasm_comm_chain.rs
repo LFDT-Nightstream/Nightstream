@@ -95,7 +95,7 @@ fn perm_row_checkpoints_match_commit_event() {
 /// A grammar trace with committed event blocks. Every row is CCS-checked, so
 /// the permutation rows themselves are exercised against the gadget.
 fn two_event_trace() -> Vec<WasmVmStep> {
-    let trace = common::grammar_fixture::grammar_lifecycle_setup().trace;
+    let trace = common::host_event_fixture::host_event_lifecycle_setup().trace;
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
     trace
@@ -170,13 +170,15 @@ fn ccs_rejects_suppressed_absorb_schedule() {
 /// `absorbed_event_blocks` must reproduce the verifier-expected transcript,
 /// re-fold to the carried chain, and retain separate trace attribution.
 #[test]
-fn absorbed_event_blocks_reconstruct_the_grammar_transcript() {
-    use common::grammar_fixture::{expected_transcript, grammar_lifecycle_setup, mul_fref, sink_fref, ENTRY_CLAIMS};
+fn absorbed_event_blocks_reconstruct_the_host_event_transcript() {
+    use common::host_event_fixture::{
+        expected_transcript, host_event_lifecycle_setup, mul_fref, sink_fref, ENTRY_INPUTS,
+    };
 
-    let setup = grammar_lifecycle_setup();
+    let setup = host_event_lifecycle_setup();
     let events = comm_chain::absorbed_event_blocks(&setup.trace);
 
-    let expected = expected_transcript(&setup.grammar, setup.run_fref, &ENTRY_CLAIMS);
+    let expected = expected_transcript(&setup.bindings, setup.run_fref, &ENTRY_INPUTS);
     assert_eq!(events.len(), expected.len());
     for (event, expected) in events.iter().zip(&expected) {
         assert_eq!(event.words.map(f), *expected);
@@ -199,8 +201,8 @@ fn absorbed_event_blocks_reconstruct_the_grammar_transcript() {
 
     // Entry pair → export, mul's two events → mul, sink's one → sink, exit
     // → back to the export; the whole stream belongs to the export's turn.
-    let mul = mul_fref(&setup.grammar);
-    let sink = sink_fref(&setup.grammar);
+    let mul = mul_fref(&setup.bindings);
+    let sink = sink_fref(&setup.bindings);
     let attributed: Vec<u32> = events
         .iter()
         .map(|event| event.metadata.attributed_fref)

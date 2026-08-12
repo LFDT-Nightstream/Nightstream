@@ -8,14 +8,14 @@
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
-use neo_wasm::event_grammar::{GrammarEvent, HostEventGrammar, ImportTemplate, Limb, SlotSource};
+use neo_wasm::host_event_bindings::{EventBlock, HostEventBindings, ImportTemplate, Limb, SlotBinding};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{WasmBuildError, WasmGrammarSlotKind, WasmOpcode, WasmVmStep, WasmtimeTraceState};
+use neo_wasm::{WasmBuildError, WasmHostEventSlotKind, WasmOpcode, WasmVmStep, WasmtimeTraceState};
 use p3_field::PrimeCharacteristicRing;
 
-const ZERO: SlotSource = SlotSource::Const(0);
+const ZERO: SlotBinding = SlotBinding::Const(0);
 
-fn slots(entries: &[(usize, SlotSource)]) -> [SlotSource; COMM_CHAIN_EVENT_ARGS] {
+fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
     let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
     for &(idx, source) in entries {
         out[idx] = source;
@@ -29,8 +29,8 @@ struct CheckedImportRun {
 }
 
 /// Run a single-import component under `template`, normalize with the
-/// grammar, and put the trace through the full native check stack: per-row
-/// CCS, lookup semantics, comm chain, and memory rows with the grammar ROM
+/// bindings, and put the trace through the full native check stack: per-row
+/// CCS, lookup semantics, comm chain, and memory rows with the bindings ROM
 /// preloaded.
 fn checked_import_run(
     component_wat: &str,
@@ -58,24 +58,24 @@ fn checked_import_run(
         .iter()
         .find_map(|row| row.current_function_ref)
         .expect("export function ref");
-    let mut grammar = HostEventGrammar::default();
-    grammar.imports.insert(import_fref, template);
-    grammar
+    let mut bindings = HostEventBindings::default();
+    bindings.imports.insert(import_fref, template);
+    bindings
         .exports
-        .insert(export_fref, neo_wasm::event_grammar::ExportTemplate::default());
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+        .insert(export_fref, neo_wasm::host_event_bindings::ExportTemplate::default());
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
-        &grammar,
+        &bindings,
         &[Default::default()],
         Default::default(),
     )
-    .expect("grammar trace");
+    .expect("bindings trace");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     for (row, witness) in trace.iter().zip(&witness_rows) {
@@ -83,7 +83,7 @@ fn checked_import_run(
             .unwrap_or_else(|err| panic!("lookup semantics rejected {:?}: {err}", row.opcode));
     }
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
-        .expect("grammar ROM contents match");
+        .expect("bindings ROM contents match");
     CheckedImportRun { trace, import_fref }
 }
 
@@ -104,8 +104,8 @@ fn arg_gather_rows(trace: &[WasmVmStep]) -> Vec<&WasmVmStep> {
         .filter(|row| {
             row.row_kind.is_host_event_gather()
                 && row
-                    .grammar_rom_slot
-                    .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::Arg)
+                    .host_event_rom_slot
+                    .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::Arg)
         })
         .collect()
 }
@@ -141,10 +141,10 @@ fn five_arg_component_wat() -> &'static str {
 }
 
 fn sum5_template() -> ImportTemplate {
-    let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
+    let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
     ImportTemplate {
         events: vec![
-            GrammarEvent::op(
+            EventBlock::op(
                 10,
                 slots(&[
                     (0, arg(0, Limb::Lo)),
@@ -154,15 +154,15 @@ fn sum5_template() -> ImportTemplate {
                     (4, arg(4, Limb::Lo)),
                 ]),
             ),
-            GrammarEvent::op(
+            EventBlock::op(
                 12,
                 slots(&[
-                    (0, SlotSource::ResultElem { limb: Limb::Lo }),
-                    (1, SlotSource::ResultElem { limb: Limb::Hi }),
+                    (0, SlotBinding::ResultElem { limb: Limb::Lo }),
+                    (1, SlotBinding::ResultElem { limb: Limb::Hi }),
                 ]),
             ),
         ],
-        claim_count: 0,
+        input_count: 0,
     }
 }
 
@@ -224,22 +224,22 @@ fn direct_host_call_with_five_scalar_args_is_provable() {
 /// (the `CI_HOST_CALL` path) and falls through to the next instruction.
 #[test]
 fn indirect_host_call_with_three_args_is_provable() {
-    let arg = |arg, limb| SlotSource::ArgElem { arg, limb };
+    let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
     let template = ImportTemplate {
         events: vec![
-            GrammarEvent::op(
+            EventBlock::op(
                 3,
                 slots(&[(0, arg(0, Limb::Lo)), (1, arg(1, Limb::Lo)), (2, arg(2, Limb::Lo))]),
             ),
-            GrammarEvent::op(
+            EventBlock::op(
                 4,
                 slots(&[
-                    (0, SlotSource::ResultElem { limb: Limb::Lo }),
-                    (1, SlotSource::ResultElem { limb: Limb::Hi }),
+                    (0, SlotBinding::ResultElem { limb: Limb::Lo }),
+                    (1, SlotBinding::ResultElem { limb: Limb::Hi }),
                 ]),
             ),
         ],
-        claim_count: 0,
+        input_count: 0,
     };
     let run = checked_import_run(
         r#"

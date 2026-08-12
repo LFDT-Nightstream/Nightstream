@@ -44,7 +44,7 @@ fn step(
             host_callee_fref: 0,
             comm_chain: [0; 4],
             event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
-            grammar: neo_wasm::WasmGrammarState::ZERO,
+            host_events: neo_wasm::WasmHostEventState::ZERO,
         }
     }
 
@@ -97,9 +97,9 @@ fn step(
         call_result_count: None,
         call_stack_push: None,
         call_stack_pop: None,
-        grammar_rom_slot: None,
-        grammar_pre_count: None,
-        grammar_post_count: None,
+        host_event_rom_slot: None,
+        host_event_pre_count: None,
+        host_event_post_count: None,
     }
 }
 

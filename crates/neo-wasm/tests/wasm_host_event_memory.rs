@@ -1,16 +1,18 @@
-//! Grammar-driven linear-memory integration and negative constraint tests.
+//! Host-event linear-memory integration and negative constraint tests.
 
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
-use neo_wasm::event_grammar::{ExportTemplate, GrammarEvent, HostEventGrammar, ImportTemplate, MemoryBase, SlotSource};
+use neo_wasm::host_event_bindings::{
+    EventBlock, ExportTemplate, HostEventBindings, ImportTemplate, MemoryBase, SlotBinding,
+};
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{WasmGrammarSlotKind, WasmOpcode, WasmVmStep};
+use neo_wasm::{WasmHostEventSlotKind, WasmOpcode, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
-const ZERO: SlotSource = SlotSource::Const(0);
+const ZERO: SlotBinding = SlotBinding::Const(0);
 
-fn slots(entries: &[(usize, SlotSource)]) -> [SlotSource; COMM_CHAIN_EVENT_ARGS] {
+fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
     let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
     for &(idx, source) in entries {
         out[idx] = source;
@@ -61,137 +63,137 @@ fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (u32, u32) {
     (host, export)
 }
 
-fn memory_grammar(host_fref: u32, export_fref: u32) -> HostEventGrammar {
+fn memory_bindings(host_fref: u32, export_fref: u32) -> HostEventBindings {
     let arg = MemoryBase::Arg(0);
-    let mut grammar = HostEventGrammar::default();
-    grammar.imports.insert(
+    let mut bindings = HostEventBindings::default();
+    bindings.imports.insert(
         host_fref,
         ImportTemplate {
             events: vec![
-                GrammarEvent::op(
+                EventBlock::op(
                     40,
                     slots(&[
                         (
                             0,
-                            SlotSource::MemoryRead32 {
+                            SlotBinding::MemoryRead32 {
                                 base: arg,
                                 byte_offset: 0,
                             },
                         ),
                         (
                             1,
-                            SlotSource::MemoryRead32 {
+                            SlotBinding::MemoryRead32 {
                                 base: arg,
                                 byte_offset: 4,
                             },
                         ),
                         (
                             2,
-                            SlotSource::MemoryWrite32 {
-                                claim: 0,
+                            SlotBinding::MemoryWrite32 {
+                                input: 0,
                                 base: arg,
                                 byte_offset: 4,
                             },
                         ),
                         (
                             3,
-                            SlotSource::MemoryRead32 {
+                            SlotBinding::MemoryRead32 {
                                 base: arg,
                                 byte_offset: 4,
                             },
                         ),
                         (
                             4,
-                            SlotSource::MemoryRead32 {
+                            SlotBinding::MemoryRead32 {
                                 base: arg,
                                 byte_offset: 8,
                             },
                         ),
                     ]),
                 ),
-                GrammarEvent::op(
+                EventBlock::op(
                     41,
                     slots(&[
                         (
                             0,
-                            SlotSource::MemoryRead8 {
+                            SlotBinding::MemoryRead8 {
                                 base: arg,
                                 byte_offset: 0,
                             },
                         ),
                         (
                             1,
-                            SlotSource::MemoryRead8 {
+                            SlotBinding::MemoryRead8 {
                                 base: arg,
                                 byte_offset: 1,
                             },
                         ),
                         (
                             2,
-                            SlotSource::MemoryRead8 {
+                            SlotBinding::MemoryRead8 {
                                 base: arg,
                                 byte_offset: 2,
                             },
                         ),
                         (
                             3,
-                            SlotSource::MemoryRead8 {
+                            SlotBinding::MemoryRead8 {
                                 base: arg,
                                 byte_offset: 3,
                             },
                         ),
                         (
                             4,
-                            SlotSource::MemoryWrite8 {
-                                claim: 0,
+                            SlotBinding::MemoryWrite8 {
+                                input: 0,
                                 base: arg,
                                 byte_offset: 2,
                             },
                         ),
                         (
                             5,
-                            SlotSource::MemoryRead8 {
+                            SlotBinding::MemoryRead8 {
                                 base: arg,
                                 byte_offset: 2,
                             },
                         ),
                     ]),
                 ),
-                GrammarEvent::op(
+                EventBlock::op(
                     42,
                     slots(&[
                         (
                             0,
-                            SlotSource::MemoryRead16 {
+                            SlotBinding::MemoryRead16 {
                                 base: arg,
                                 byte_offset: 0,
                             },
                         ),
                         (
                             1,
-                            SlotSource::MemoryRead16 {
+                            SlotBinding::MemoryRead16 {
                                 base: arg,
                                 byte_offset: 2,
                             },
                         ),
                         (
                             2,
-                            SlotSource::MemoryWrite16 {
-                                claim: 0,
+                            SlotBinding::MemoryWrite16 {
+                                input: 0,
                                 base: arg,
                                 byte_offset: 2,
                             },
                         ),
                         (
                             3,
-                            SlotSource::MemoryRead16 {
+                            SlotBinding::MemoryRead16 {
                                 base: arg,
                                 byte_offset: 2,
                             },
                         ),
                         (
                             4,
-                            SlotSource::MemoryRead16 {
+                            SlotBinding::MemoryRead16 {
                                 base: arg,
                                 byte_offset: 10,
                             },
@@ -199,20 +201,20 @@ fn memory_grammar(host_fref: u32, export_fref: u32) -> HostEventGrammar {
                     ]),
                 ),
             ],
-            claim_count: 1,
+            input_count: 1,
         },
     );
-    grammar
+    bindings
         .exports
         .insert(export_fref, ExportTemplate::default());
-    grammar
+    bindings
 }
 
 struct ImportMemoryFixture {
     component_bytes: Vec<u8>,
     run: neo_wasm::WasmtimeTraceRun,
     host_fref: u32,
-    grammar: HostEventGrammar,
+    bindings: HostEventBindings,
     trace: Vec<WasmVmStep>,
 }
 
@@ -222,44 +224,44 @@ fn import_memory_fixture() -> ImportMemoryFixture {
         linker
             .root()
             .func_wrap("host-touch", |mut store, (_ptr,): (i32,)| {
-                store.data_mut().record_call_claims(&[77])?;
+                store.data_mut().record_call_inputs(&[77])?;
                 Ok(())
             })
             .map_err(|err| neo_wasm::WasmBuildError::Trace(format!("failed to define host-touch: {err}")))
     })
     .expect("component run");
     let (host_fref, export_fref) = run_frefs(&run);
-    let grammar = memory_grammar(host_fref, export_fref);
-    let trace = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+    let bindings = memory_bindings(host_fref, export_fref);
+    let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
-        &grammar,
+        &bindings,
         &[Default::default()],
         Default::default(),
     )
-    .expect("grammar trace");
+    .expect("bindings trace");
 
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
-    check_memory_rows(&component_bytes, &grammar, &trace);
+    check_memory_rows(&component_bytes, &bindings, &trace);
 
     ImportMemoryFixture {
         component_bytes,
         run,
         host_fref,
-        grammar,
+        bindings,
         trace,
     }
 }
 
-fn check_memory_rows(component_bytes: &[u8], grammar: &HostEventGrammar, trace: &[WasmVmStep]) {
+fn check_memory_rows(component_bytes: &[u8], bindings: &HostEventBindings, trace: &[WasmVmStep]) {
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, grammar);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, bindings);
     let witnesses: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(layout, &witnesses, &preload)
-        .expect("grammar argument base and linear-memory accesses match");
+        .expect("bindings argument base and linear-memory accesses match");
 }
 
 #[test]
@@ -270,7 +272,7 @@ fn import_memory_accesses_use_argument_based_addresses() {
         .trace
         .iter()
         .filter_map(|row| {
-            (row.grammar_rom_slot?.kind == WasmGrammarSlotKind::MemoryRead && row.linear_memory?.width_bytes == 4)
+            (row.host_event_rom_slot?.kind == WasmHostEventSlotKind::MemoryRead && row.linear_memory?.width_bytes == 4)
                 .then_some(row.linear_memory?.lane0.value_before)
         })
         .collect();
@@ -281,7 +283,7 @@ fn import_memory_accesses_use_argument_based_addresses() {
         .iter()
         .filter_map(|row| {
             let access = row.linear_memory?;
-            (row.grammar_rom_slot?.kind == WasmGrammarSlotKind::MemoryRead && access.width_bytes == 1)
+            (row.host_event_rom_slot?.kind == WasmHostEventSlotKind::MemoryRead && access.width_bytes == 1)
                 .then_some(access.lane0.value_before.to_le_bytes()[usize::from(access.byte_offset)])
         })
         .collect();
@@ -292,7 +294,7 @@ fn import_memory_accesses_use_argument_based_addresses() {
         .iter()
         .filter_map(|row| {
             let access = row.linear_memory?;
-            if row.grammar_rom_slot?.kind != WasmGrammarSlotKind::MemoryRead || access.width_bytes != 2 {
+            if row.host_event_rom_slot?.kind != WasmHostEventSlotKind::MemoryRead || access.width_bytes != 2 {
                 return None;
             }
             let bytes = access.lane0.value_before.to_le_bytes();
@@ -307,8 +309,8 @@ fn import_memory_accesses_use_argument_based_addresses() {
 fn import_memory_normalization_rejects_invalid_addresses() {
     let fixture = import_memory_fixture();
 
-    let mut misaligned_grammar = fixture.grammar.clone();
-    let half_read = misaligned_grammar
+    let mut misaligned_bindings = fixture.bindings.clone();
+    let half_read = misaligned_bindings
         .imports
         .get_mut(&fixture.host_fref)
         .expect("host template")
@@ -316,19 +318,19 @@ fn import_memory_normalization_rejects_invalid_addresses() {
         .iter_mut()
         .flat_map(|event| &mut event.block)
         .find_map(|slot| match slot {
-            SlotSource::MemoryRead16 { byte_offset, .. } => Some(byte_offset),
+            SlotBinding::MemoryRead16 { byte_offset, .. } => Some(byte_offset),
             _ => None,
         })
         .expect("half-word read");
     *half_read = 1;
-    let err = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &fixture.run.steps,
         &fixture.run.program_tables,
-        &misaligned_grammar,
+        &misaligned_bindings,
         &[Default::default()],
         Default::default(),
     )
-    .expect_err("misaligned grammar half-word access must be rejected");
+    .expect_err("misaligned bindings half-word access must be rejected");
     assert!(err.to_string().contains("is not naturally aligned"));
 
     let mut high_pointer_steps = fixture.run.steps.clone();
@@ -343,26 +345,26 @@ fn import_memory_normalization_rejects_invalid_addresses() {
         .operand_stack_words_hi
         .last_mut()
         .expect("pointer argument high limb") = 1;
-    let err = neo_wasm::traces_from_wasmtime_steps_with_grammar(
+    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &high_pointer_steps,
         &fixture.run.program_tables,
-        &fixture.grammar,
+        &fixture.bindings,
         &[Default::default()],
         Default::default(),
     )
-    .expect_err("wasm32 grammar pointer with a high limb must be rejected");
+    .expect_err("wasm32 bindings pointer with a high limb must be rejected");
     assert!(err.to_string().contains("not a wasm32 pointer"));
 }
 
 #[test]
-fn grammar_memory_reads_reject_forged_addresses() {
+fn host_event_memory_reads_reject_forged_addresses() {
     let fixture = import_memory_fixture();
     let read = fixture
         .trace
         .iter()
         .find(|row| {
-            row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryRead)
         })
         .expect("memory read gather");
     let baseline = build_witness_vector(read);
@@ -370,7 +372,7 @@ fn grammar_memory_reads_reject_forged_addresses() {
 
     let mut forged = baseline.clone();
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_ADDR[0]] += neo_math::F::ONE;
-    common::assert_rejected(&forged, "grammar memory read redirected to another word");
+    common::assert_rejected(&forged, "bindings memory read redirected to another word");
 
     let mut high_pointer = read.clone();
     high_pointer.wide_values_enabled = true;
@@ -381,7 +383,7 @@ fn grammar_memory_reads_reject_forged_addresses() {
         .value_hi = Some(1);
     common::assert_rejected(
         &build_witness_vector(&high_pointer),
-        "grammar memory read with a nonzero pointer high limb",
+        "bindings memory read with a nonzero pointer high limb",
     );
 
     let mut oob_read = read.clone();
@@ -394,31 +396,31 @@ fn grammar_memory_reads_reject_forged_addresses() {
     oob_read
         .linear_memory
         .as_mut()
-        .expect("grammar memory access")
+        .expect("bindings memory access")
         .lane0
         .word_addr = first_oob_word;
     let forged = build_witness_vector(&oob_read);
     assert_eq!(forged[neo_wasm::layout::COL_CMP_GE], neo_math::F::ONE);
     assert_eq!(forged[neo_wasm::layout::COL_MEM_OOB], neo_math::F::ONE);
-    common::assert_rejected(&forged, "aligned OOB grammar memory read");
+    common::assert_rejected(&forged, "aligned OOB bindings memory read");
 }
 
 #[test]
-fn grammar_subword_routing_rejects_forged_offsets() {
+fn host_event_subword_routing_rejects_forged_offsets() {
     let fixture = import_memory_fixture();
 
     let byte_read = fixture
         .trace
         .iter()
         .find(|row| {
-            row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryRead)
                 && row
                     .linear_memory
                     .is_some_and(|access| access.width_bytes == 1 && access.byte_offset == 3)
         })
         .expect("byte memory read gather");
-    common::assert_satisfied(&build_witness_vector(byte_read), "untampered grammar byte read");
+    common::assert_satisfied(&build_witness_vector(byte_read), "untampered bindings byte read");
     let mut redirected = byte_read.clone();
     redirected
         .linear_memory
@@ -427,43 +429,43 @@ fn grammar_subword_routing_rejects_forged_offsets() {
         .byte_offset = 2;
     common::assert_rejected(
         &build_witness_vector(&redirected),
-        "grammar byte read with a forged intra-word offset",
+        "bindings byte read with a forged intra-word offset",
     );
 
     let equal_neighbor_read = fixture
         .trace
         .iter()
         .find(|row| {
-            row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryRead)
                 && row
                     .linear_memory
                     .is_some_and(|access| access.width_bytes == 1 && access.byte_offset == 1)
         })
         .expect("byte read beside an equal-valued byte");
     let mut forged = build_witness_vector(equal_neighbor_read);
-    common::assert_satisfied(&forged, "untampered grammar byte offset selector");
+    common::assert_satisfied(&forged, "untampered bindings byte offset selector");
     forged[neo_wasm::layout::COL_LINEAR_MEM_OFFSET_IS_1] = neo_math::F::ZERO;
     forged[neo_wasm::layout::COL_LINEAR_MEM_OFFSET_IS_2] = neo_math::F::ONE;
     forged[neo_wasm::layout::COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_1] = neo_math::F::ZERO;
     forged[neo_wasm::layout::COL_LINEAR_MEM_BYTE_WIDTH_OFFSET_IS_2] = neo_math::F::ONE;
     common::assert_rejected(
         &forged,
-        "grammar byte routing selector diverging from the effective address",
+        "bindings byte routing selector diverging from the effective address",
     );
 
     let half_read = fixture
         .trace
         .iter()
         .find(|row| {
-            row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryRead)
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryRead)
                 && row.linear_memory.is_some_and(|access| {
                     access.width_bytes == 2 && access.byte_offset == 2 && access.lane0.word_addr == 6
                 })
         })
         .expect("zero-valued aligned half-word read");
-    common::assert_satisfied(&build_witness_vector(half_read), "untampered grammar half-word read");
+    common::assert_satisfied(&build_witness_vector(half_read), "untampered bindings half-word read");
     let mut misaligned = half_read.clone();
     misaligned
         .stack_read0
@@ -477,74 +479,74 @@ fn grammar_subword_routing_rejects_forged_offsets() {
         .byte_offset = 1;
     common::assert_rejected(
         &build_witness_vector(&misaligned),
-        "grammar half-word read with an odd effective address",
+        "bindings half-word read with an odd effective address",
     );
 }
 
 #[test]
-fn grammar_memory_writes_bind_values_and_preserve_unselected_bytes() {
+fn host_event_memory_writes_bind_values_and_preserve_unselected_bytes() {
     let fixture = import_memory_fixture();
 
     let word_write = fixture
         .trace
         .iter()
         .find(|row| {
-            row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryWrite)
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryWrite)
                 && row
                     .linear_memory
                     .is_some_and(|access| access.width_bytes == 4)
         })
         .expect("word memory write gather");
     let mut forged = build_witness_vector(word_write);
-    common::assert_satisfied(&forged, "untampered grammar word write");
+    common::assert_satisfied(&forged, "untampered bindings word write");
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE[0]] += neo_math::F::ONE;
-    common::assert_rejected(&forged, "grammar memory write diverging from the staged claim");
+    common::assert_rejected(&forged, "bindings memory write diverging from the staged claim");
 
     let byte_write = fixture
         .trace
         .iter()
         .find(|row| {
-            row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryWrite)
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryWrite)
                 && row
                     .linear_memory
                     .is_some_and(|access| access.width_bytes == 1)
         })
         .expect("byte memory write gather");
     let mut forged = build_witness_vector(byte_write);
-    common::assert_satisfied(&forged, "untampered grammar byte write");
+    common::assert_satisfied(&forged, "untampered bindings byte write");
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE[0]] += neo_math::F::ONE;
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE0] += neo_math::F::ONE;
-    common::assert_rejected(&forged, "grammar byte write changing an unselected byte");
+    common::assert_rejected(&forged, "bindings byte write changing an unselected byte");
 
     let half_write = fixture
         .trace
         .iter()
         .find(|row| {
-            row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryWrite)
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryWrite)
                 && row
                     .linear_memory
                     .is_some_and(|access| access.width_bytes == 2)
         })
         .expect("half-word memory write gather");
     let mut forged = build_witness_vector(half_write);
-    common::assert_satisfied(&forged, "untampered grammar half-word write");
+    common::assert_satisfied(&forged, "untampered bindings half-word write");
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE_VALUE[0]] += neo_math::F::ONE;
     forged[neo_wasm::layout::COL_LINEAR_MEM_LANE0_BYTE0] += neo_math::F::ONE;
-    common::assert_rejected(&forged, "grammar half-word write changing an unselected byte");
+    common::assert_rejected(&forged, "bindings half-word write changing an unselected byte");
 }
 
 #[test]
-fn grammar_memory_replay_authenticates_prior_values() {
+fn host_event_memory_replay_authenticates_prior_values() {
     let fixture = import_memory_fixture();
     let byte_write_index = fixture
         .trace
         .iter()
         .position(|row| {
-            row.grammar_rom_slot
-                .is_some_and(|rom| rom.kind == WasmGrammarSlotKind::MemoryWrite)
+            row.host_event_rom_slot
+                .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::MemoryWrite)
                 && row
                     .linear_memory
                     .is_some_and(|access| access.width_bytes == 1)
@@ -558,8 +560,8 @@ fn grammar_memory_replay_authenticates_prior_values() {
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&fixture.component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
-    neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &fixture.grammar);
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &fixture.bindings);
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(layout, &forged_rows, &preload)
-        .expect_err("grammar byte write must authenticate its prior word");
+        .expect_err("bindings byte write must authenticate its prior word");
 }

@@ -175,8 +175,8 @@ fn push_address_normalization(
     linear_memory: &LinearMemoryColumns,
     linear_memory_selectors: &[usize],
 ) {
-    let grammar_byte = super::host_event_chain::gather_memory_byte_width_col();
-    let grammar_half = super::host_event_chain::gather_memory_half_width_col();
+    let host_event_byte = super::host_event_chain::gather_memory_byte_width_col();
+    let host_event_half = super::host_event_chain::gather_memory_half_width_col();
     b.with_tag(
         shared("linear memory address normalization", &linear_memory_ops()),
         |b| {
@@ -185,7 +185,7 @@ fn push_address_normalization(
                 linear_memory_selectors
                     .iter()
                     .map(|&selector| (selector, F::ONE))
-                    .chain([(grammar_byte, F::ONE), (grammar_half, F::ONE)]),
+                    .chain([(host_event_byte, F::ONE), (host_event_half, F::ONE)]),
                 [
                     (idx(linear_memory.offset_is[0]), F::ONE),
                     (idx(linear_memory.offset_is[1]), F::ONE),
@@ -200,7 +200,7 @@ fn push_address_normalization(
                 linear_memory_selectors
                     .iter()
                     .map(|&selector| (selector, F::ONE))
-                    .chain([(grammar_byte, F::ONE), (grammar_half, F::ONE)]),
+                    .chain([(host_event_byte, F::ONE), (host_event_half, F::ONE)]),
                 [
                     (idx(linear_memory.byte_offset), F::ONE),
                     (idx(linear_memory.offset_is[1]), -F::ONE),
@@ -228,7 +228,7 @@ fn push_address_normalization(
                 linear_memory_selectors
                     .iter()
                     .copied()
-                    .chain([grammar_byte, grammar_half]),
+                    .chain([host_event_byte, host_event_half]),
                 idx(linear_memory.lane0_value),
                 linear_memory.lane0_bytes.map(idx),
             );
@@ -253,7 +253,7 @@ fn push_address_normalization(
                 linear_memory_selectors
                     .iter()
                     .copied()
-                    .chain([grammar_byte, grammar_half]),
+                    .chain([host_event_byte, host_event_half]),
                 idx(linear_memory.lane0_value_before),
                 linear_memory.lane0_bytes_before.map(idx),
             );

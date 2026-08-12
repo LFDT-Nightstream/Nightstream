@@ -130,7 +130,7 @@ pub fn absorbed_event_blocks(trace: &[WasmVmStep]) -> Vec<AbsorbedEventBlock> {
             words: row.state_after.event_absorb.evbuf,
             metadata: AbsorbedEventMetadata {
                 attributed_fref: row.state_before.host_callee_fref,
-                turn_export_fref: row.state_before.grammar.turn_export_fref,
+                turn_export_fref: row.state_before.host_events.turn_export_fref,
             },
         })
         .collect()
@@ -255,7 +255,7 @@ pub fn sanity_check_comm_chain(trace: &[WasmVmStep]) -> Result<(), WasmBuildErro
         // that completes the block raises `perm_pending`, and the chain must
         // fold exactly the staged blocks in order. The binding of block
         // contents to the grammar tables is checked against the grammar ROM
-        // (see `memory_semantics::preload_grammar_tables`), not here.
+        // (see `memory_semantics::preload_host_event_tables`), not here.
         if row.row_kind.is_host_event_gather()
             && row.state_after.event_absorb.perm_pending
             && !row.state_before.event_absorb.perm_pending

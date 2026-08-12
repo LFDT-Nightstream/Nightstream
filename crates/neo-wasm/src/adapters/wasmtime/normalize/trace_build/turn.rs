@@ -1,33 +1,33 @@
-use super::super::grammar_emit::{
-    apply_export_entry_memory, plan_export_blocks, read_export_exit_memory, GrammarBlockPlan,
+use super::super::host_event_emit::{
+    apply_export_entry_memory, plan_export_blocks, read_export_exit_memory, EventBlockPlan,
 };
 use super::super::memory::LinearMemoryImage;
 use super::super::NormalizedStep;
-use crate::event_grammar::{HostEventGrammar, TurnClaims};
+use crate::host_event_bindings::{HostEventBindings, TurnInputs};
 use crate::ir::WasmBuildError;
 
 pub(super) struct TurnSetup<'g> {
     pub(super) fref: u32,
-    pub(super) template: &'g crate::event_grammar::ExportTemplate,
-    pub(super) entry_plans: Vec<GrammarBlockPlan>,
+    pub(super) template: &'g crate::host_event_bindings::ExportTemplate,
+    pub(super) entry_plans: Vec<EventBlockPlan>,
 }
 
 pub(super) fn setup_turn<'g>(
-    grammar: &'g HostEventGrammar,
+    bindings: &'g HostEventBindings,
     first: &NormalizedStep,
-    claims: &TurnClaims,
+    inputs: &TurnInputs,
     re_entered: bool,
     memory: &mut LinearMemoryImage,
 ) -> Result<TurnSetup<'g>, WasmBuildError> {
     let fref = first.current_function_ref.unwrap_or(0);
-    let template = grammar.exports.get(&fref).ok_or_else(|| {
+    let template = bindings.exports.get(&fref).ok_or_else(|| {
         WasmBuildError::Trace(format!(
-            "event grammar requires an export template for the invoked export (fref {fref})"
+            "host-event bindings require an export template for the invoked export (fref {fref})"
         ))
     })?;
     let local_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");
     template.validate(local_bound)?;
-    let entry_blocks = crate::event_grammar::expand_export_entry(template, &claims.entry)
+    let entry_blocks = crate::host_event_bindings::expand_export_entry(template, &inputs.entry)
         .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
     let memory_accesses = apply_export_entry_memory(&template.entry, &entry_blocks, &first.locals_snapshot, memory)?;
     let entry_plans = plan_export_blocks(&template.entry, &entry_blocks, &first.locals_snapshot, &memory_accesses)?;
@@ -54,7 +54,7 @@ pub(super) fn setup_turn<'g>(
     // previous turn's values, so every turn's entry frame must be exactly
     // reproduced by the bootstrap writes: unwritten locals must have run as
     // zero (first turn) or be rewritten (re-entry); inputs only ever arrive
-    // through `ClaimLocal` slots.
+    // through `InputLocal` slots.
     for (local, &(lo_written, lo, hi)) in expected_locals.iter().enumerate() {
         if re_entered && !lo_written {
             return Err(WasmBuildError::Trace(format!(
@@ -79,14 +79,14 @@ pub(super) fn setup_turn<'g>(
 }
 
 pub(super) fn plan_turn_exit(
-    template: &crate::event_grammar::ExportTemplate,
+    template: &crate::host_event_bindings::ExportTemplate,
     last: &NormalizedStep,
-    claims: &TurnClaims,
+    inputs: &TurnInputs,
     output: Option<(u32, u32)>,
     memory: &LinearMemoryImage,
-) -> Result<Vec<GrammarBlockPlan>, WasmBuildError> {
+) -> Result<Vec<EventBlockPlan>, WasmBuildError> {
     let resolved_memory = read_export_exit_memory(&template.exit, &last.locals_snapshot, memory)?;
-    let blocks = crate::event_grammar::expand_export_exit(template, output, &claims.exit, &resolved_memory.reads)
+    let blocks = crate::host_event_bindings::expand_export_exit(template, output, &inputs.exit, &resolved_memory.reads)
         .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
     plan_export_blocks(
         &template.exit,

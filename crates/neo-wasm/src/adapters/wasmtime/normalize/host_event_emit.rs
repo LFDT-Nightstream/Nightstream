@@ -1,20 +1,20 @@
-//! Grammar-event emission: how expanded absorb blocks become trace rows.
+//! Host-event emission: how expanded blocks become trace rows.
 //!
 //! Owns the gather/perm aux-row plans and their emission — the per-slot
-//! gather plans (`GrammarSlotRow`/`GrammarBlockPlan`/`GrammarCallPlan`),
+//! gather plans (`EventSlotRow`/`EventBlockPlan`/`HostCallEventPlan`),
 //! the perm-group row plan probed from the native chain, and the shared
-//! row context (`GrammarAuxCtx`) every emitted aux row repeats. Does not
+//! row context (`HostEventRowContext`) every emitted aux row repeats. Does not
 //! own the trace state machine or per-opcode normalization — that is
 //! `trace_build`, which drives these emitters.
 
 use crate::comm_chain::{perm_row_checkpoints, COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_PERM_ROWS};
-use crate::event_grammar::{
-    expand_import_events, memory_rom_arg_variant, GrammarEvent, ImportTemplate, Limb, MemoryBase, SlotSource,
+use crate::host_event_bindings::{
+    expand_import_events, memory_rom_arg_variant, EventBlock, ImportTemplate, Limb, MemoryBase, SlotBinding,
 };
 use crate::ir::{
     LinearMemoryAccess, StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState,
-    WasmGrammarMemoryWidth, WasmGrammarRomVariant, WasmGrammarSlotKind, WasmOutputState, WasmPcEdgeKind, WasmRowKind,
-    WasmStepState, WasmVmStep,
+    WasmHostEventMemoryWidth, WasmHostEventRomVariant, WasmHostEventSlotKind, WasmOutputState, WasmPcEdgeKind,
+    WasmRowKind, WasmStepState, WasmVmStep,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -22,14 +22,14 @@ use p3_goldilocks::Goldilocks;
 
 use super::memory::LinearMemoryImage;
 
-/// One gather row's plan: the staged word, its claimed grammar-ROM entry,
+/// One gather row's plan: the staged word, its expected host-event ROM entry,
 /// and its stack/locals effect — an addressed read `(stack slot, (lo, hi))`
 /// for arg slots, a stack WRITE for result slots (the Lo slot is the push,
 /// the Hi slot writes only the cell's hi word; the inactive lane is zero),
 /// an entry-frame locals access, or one static linear-memory access.
-pub(super) struct GrammarSlotRow {
+pub(super) struct EventSlotRow {
     pub(super) value: u64,
-    pub(super) rom: crate::ir::WasmGrammarRomEntry,
+    pub(super) rom: crate::ir::WasmHostEventRomEntry,
     pub(super) read: Option<(u64, (u32, u32))>,
     pub(super) write: Option<(u64, (u32, u32))>,
     pub(super) local_read: Option<(u32, u32)>,
@@ -37,19 +37,19 @@ pub(super) struct GrammarSlotRow {
     pub(super) linear_memory: Option<LinearMemoryAccess>,
 }
 
-/// One grammar event's eight gather rows and absorb policy.
-pub(super) struct GrammarBlockPlan {
-    pub(super) rows: Vec<GrammarSlotRow>,
+/// One event block's eight gather rows and absorb policy.
+pub(super) struct EventBlockPlan {
+    pub(super) rows: Vec<EventSlotRow>,
     /// Whether the staged block enters the transcript.
     pub(super) absorb: bool,
 }
 
-pub(super) struct GrammarCallPlan {
-    pub(super) blocks: Vec<GrammarBlockPlan>,
+pub(super) struct HostCallEventPlan {
+    pub(super) blocks: Vec<EventBlockPlan>,
     pub(super) args_base: u64,
 }
 
-pub(super) struct ResolvedGrammarMemory {
+pub(super) struct ResolvedEventMemory {
     pub(super) reads: Vec<u32>,
     pub(super) accesses: Vec<LinearMemoryAccess>,
 }
@@ -59,13 +59,13 @@ pub(super) fn plan_import_call(
     args_base: u64,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
-    claims: &[u64],
+    inputs: &[u64],
     memory: &mut LinearMemoryImage,
-) -> Result<GrammarCallPlan, WasmBuildError> {
-    let resolved_memory = resolve_import_memory(template, args, claims, memory)?;
-    let blocks = expand_import_events(template, args, result, claims, &resolved_memory.reads)?;
-    Ok(GrammarCallPlan {
-        blocks: plan_grammar_blocks(
+) -> Result<HostCallEventPlan, WasmBuildError> {
+    let resolved_memory = resolve_import_memory(template, args, inputs, memory)?;
+    let blocks = expand_import_events(template, args, result, inputs, &resolved_memory.reads)?;
+    Ok(HostCallEventPlan {
+        blocks: plan_event_blocks(
             &template.events,
             &blocks,
             args_base,
@@ -80,14 +80,14 @@ pub(super) fn plan_import_call(
 fn resolve_import_memory(
     template: &ImportTemplate,
     import_args: &[(u32, u32)],
-    claims: &[u64],
+    inputs: &[u64],
     memory: &mut LinearMemoryImage,
-) -> Result<ResolvedGrammarMemory, WasmBuildError> {
+) -> Result<ResolvedEventMemory, WasmBuildError> {
     let mut reads = Vec::new();
     let mut accesses = Vec::new();
     for source in template.events.iter().flat_map(|event| &event.block) {
         match *source {
-            SlotSource::MemoryRead32 { base, byte_offset } => {
+            SlotBinding::MemoryRead32 { base, byte_offset } => {
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
@@ -96,7 +96,7 @@ fn resolve_import_memory(
                 reads.push(value);
                 accesses.push(access);
             }
-            SlotSource::MemoryRead8 { base, byte_offset } => {
+            SlotBinding::MemoryRead8 { base, byte_offset } => {
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
@@ -105,7 +105,7 @@ fn resolve_import_memory(
                 reads.push(u32::from(value));
                 accesses.push(access);
             }
-            SlotSource::MemoryRead16 { base, byte_offset } => {
+            SlotBinding::MemoryRead16 { base, byte_offset } => {
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
@@ -114,48 +114,48 @@ fn resolve_import_memory(
                 reads.push(u32::from(value));
                 accesses.push(access);
             }
-            SlotSource::MemoryWrite32 {
-                claim,
+            SlotBinding::MemoryWrite32 {
+                input,
                 base,
                 byte_offset,
             } => {
-                let value = claims.get(usize::from(claim)).copied().ok_or_else(|| {
-                    WasmBuildError::Trace(format!("grammar memory write references missing claim {claim}"))
+                let value = inputs.get(usize::from(input)).copied().ok_or_else(|| {
+                    WasmBuildError::Trace(format!("host-event memory write references missing input {input}"))
                 })?;
                 let value = u32::try_from(value)
-                    .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u32".to_string()))?;
+                    .map_err(|_| WasmBuildError::Trace("host-event memory write value does not fit u32".to_string()))?;
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
                 let pointer = import_memory_pointer(import_args, arg)?;
                 accesses.push(memory.write_aligned_word(pointer, byte_offset, value)?);
             }
-            SlotSource::MemoryWrite8 {
-                claim,
+            SlotBinding::MemoryWrite8 {
+                input,
                 base,
                 byte_offset,
             } => {
-                let value = claims.get(usize::from(claim)).copied().ok_or_else(|| {
-                    WasmBuildError::Trace(format!("grammar memory write references missing claim {claim}"))
+                let value = inputs.get(usize::from(input)).copied().ok_or_else(|| {
+                    WasmBuildError::Trace(format!("host-event memory write references missing input {input}"))
                 })?;
                 let value = u8::try_from(value)
-                    .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u8".to_string()))?;
+                    .map_err(|_| WasmBuildError::Trace("host-event memory write value does not fit u8".to_string()))?;
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
                 let pointer = import_memory_pointer(import_args, arg)?;
                 accesses.push(memory.write_byte(pointer, byte_offset, value)?);
             }
-            SlotSource::MemoryWrite16 {
-                claim,
+            SlotBinding::MemoryWrite16 {
+                input,
                 base,
                 byte_offset,
             } => {
-                let value = claims.get(usize::from(claim)).copied().ok_or_else(|| {
-                    WasmBuildError::Trace(format!("grammar memory write references missing claim {claim}"))
+                let value = inputs.get(usize::from(input)).copied().ok_or_else(|| {
+                    WasmBuildError::Trace(format!("host-event memory write references missing input {input}"))
                 })?;
                 let value = u16::try_from(value)
-                    .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u16".to_string()))?;
+                    .map_err(|_| WasmBuildError::Trace("host-event memory write value does not fit u16".to_string()))?;
                 let MemoryBase::Arg(arg) = base else {
                     unreachable!("validated import memory base")
                 };
@@ -165,30 +165,30 @@ fn resolve_import_memory(
             _ => {}
         }
     }
-    Ok(ResolvedGrammarMemory { reads, accesses })
+    Ok(ResolvedEventMemory { reads, accesses })
 }
 
 fn import_memory_pointer(import_args: &[(u32, u32)], arg: u8) -> Result<u32, WasmBuildError> {
     let (lo, hi) = import_args[usize::from(arg)];
     if hi != 0 {
         return Err(WasmBuildError::Trace(format!(
-            "grammar memory base arg {arg} is not a wasm32 pointer: high limb is {hi}"
+            "host-event memory base arg {arg} is not a wasm32 pointer: high limb is {hi}"
         )));
     }
     Ok(lo)
 }
 
-fn grammar_memory_width(source: SlotSource) -> WasmGrammarMemoryWidth {
+fn event_memory_width(source: SlotBinding) -> WasmHostEventMemoryWidth {
     match source {
-        SlotSource::MemoryRead8 { .. } | SlotSource::MemoryWrite8 { .. } => WasmGrammarMemoryWidth::Byte,
-        SlotSource::MemoryRead16 { .. } | SlotSource::MemoryWrite16 { .. } => WasmGrammarMemoryWidth::Half,
-        SlotSource::MemoryRead32 { .. } | SlotSource::MemoryWrite32 { .. } => WasmGrammarMemoryWidth::Word,
-        _ => unreachable!("non-memory grammar slot"),
+        SlotBinding::MemoryRead8 { .. } | SlotBinding::MemoryWrite8 { .. } => WasmHostEventMemoryWidth::Byte,
+        SlotBinding::MemoryRead16 { .. } | SlotBinding::MemoryWrite16 { .. } => WasmHostEventMemoryWidth::Half,
+        SlotBinding::MemoryRead32 { .. } | SlotBinding::MemoryWrite32 { .. } => WasmHostEventMemoryWidth::Word,
+        _ => unreachable!("non-memory host-event slot"),
     }
 }
 
 pub(super) fn apply_export_entry_memory(
-    events: &[GrammarEvent],
+    events: &[EventBlock],
     blocks: &[[u64; 8]],
     locals: &[u32],
     memory: &mut LinearMemoryImage,
@@ -200,25 +200,25 @@ pub(super) fn apply_export_entry_memory(
         .flat_map(|(event, block)| event.block.iter().zip(block))
     {
         match *source {
-            SlotSource::MemoryWrite32 { base, byte_offset, .. } => {
+            SlotBinding::MemoryWrite32 { base, byte_offset, .. } => {
                 let value = u32::try_from(*value)
-                    .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u32".to_string()))?;
+                    .map_err(|_| WasmBuildError::Trace("host-event memory write value does not fit u32".to_string()))?;
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
                 accesses.push(memory.write_aligned_word(locals[usize::from(local)], byte_offset, value)?);
             }
-            SlotSource::MemoryWrite8 { base, byte_offset, .. } => {
+            SlotBinding::MemoryWrite8 { base, byte_offset, .. } => {
                 let value = u8::try_from(*value)
-                    .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u8".to_string()))?;
+                    .map_err(|_| WasmBuildError::Trace("host-event memory write value does not fit u8".to_string()))?;
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
                 accesses.push(memory.write_byte(locals[usize::from(local)], byte_offset, value)?);
             }
-            SlotSource::MemoryWrite16 { base, byte_offset, .. } => {
+            SlotBinding::MemoryWrite16 { base, byte_offset, .. } => {
                 let value = u16::try_from(*value)
-                    .map_err(|_| WasmBuildError::Trace("grammar memory write value does not fit u16".to_string()))?;
+                    .map_err(|_| WasmBuildError::Trace("host-event memory write value does not fit u16".to_string()))?;
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
@@ -231,29 +231,29 @@ pub(super) fn apply_export_entry_memory(
 }
 
 pub(super) fn read_export_exit_memory(
-    events: &[GrammarEvent],
+    events: &[EventBlock],
     locals: &[u32],
     memory: &LinearMemoryImage,
-) -> Result<ResolvedGrammarMemory, WasmBuildError> {
+) -> Result<ResolvedEventMemory, WasmBuildError> {
     let mut reads = Vec::new();
     let mut accesses = Vec::new();
     for source in events.iter().flat_map(|event| &event.block) {
         let resolved = match *source {
-            SlotSource::MemoryRead32 { base, byte_offset } => {
+            SlotBinding::MemoryRead32 { base, byte_offset } => {
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
                 let (value, access) = memory.read_aligned_word(locals[usize::from(local)], byte_offset)?;
                 Some((value, access))
             }
-            SlotSource::MemoryRead8 { base, byte_offset } => {
+            SlotBinding::MemoryRead8 { base, byte_offset } => {
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
                 let (value, access) = memory.read_byte(locals[usize::from(local)], byte_offset)?;
                 Some((u32::from(value), access))
             }
-            SlotSource::MemoryRead16 { base, byte_offset } => {
+            SlotBinding::MemoryRead16 { base, byte_offset } => {
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
@@ -267,17 +267,17 @@ pub(super) fn read_export_exit_memory(
             accesses.push(access);
         }
     }
-    Ok(ResolvedGrammarMemory { reads, accesses })
+    Ok(ResolvedEventMemory { reads, accesses })
 }
 
-fn plan_grammar_blocks(
-    events: &[GrammarEvent],
+fn plan_event_blocks(
+    events: &[EventBlock],
     blocks: &[[u64; 8]],
     args_base: u64,
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
     memory_accesses: &[LinearMemoryAccess],
-) -> Result<Vec<GrammarBlockPlan>, WasmBuildError> {
+) -> Result<Vec<EventBlockPlan>, WasmBuildError> {
     let mut memory_accesses = memory_accesses.iter();
     events
         .iter()
@@ -289,10 +289,10 @@ fn plan_grammar_blocks(
                 .zip(block)
                 .map(|(source, value)| -> Result<_, WasmBuildError> {
                     let limb_variant = |limb| match limb {
-                        crate::event_grammar::Limb::Lo => WasmGrammarRomVariant::LowLimb,
-                        crate::event_grammar::Limb::Hi => WasmGrammarRomVariant::HighLimb,
+                        crate::host_event_bindings::Limb::Lo => WasmHostEventRomVariant::LowLimb,
+                        crate::host_event_bindings::Limb::Hi => WasmHostEventRomVariant::HighLimb,
                     };
-                    let entry = |kind, arg, variant, const_lo, const_hi| crate::ir::WasmGrammarRomEntry {
+                    let entry = |kind, arg, variant, const_lo, const_hi| crate::ir::WasmHostEventRomEntry {
                         kind,
                         arg,
                         variant,
@@ -300,7 +300,7 @@ fn plan_grammar_blocks(
                         const_hi,
                         advice: !event.absorb,
                     };
-                    let base_slot_row = |rom| GrammarSlotRow {
+                    let base_slot_row = |rom| EventSlotRow {
                         value,
                         rom,
                         read: None,
@@ -310,16 +310,16 @@ fn plan_grammar_blocks(
                         linear_memory: None,
                     };
                     Ok(match *source {
-                        SlotSource::Const(constant) => base_slot_row(entry(
-                            WasmGrammarSlotKind::Const,
+                        SlotBinding::Const(constant) => base_slot_row(entry(
+                            WasmHostEventSlotKind::Const,
                             0,
-                            WasmGrammarRomVariant::None,
+                            WasmHostEventRomVariant::None,
                             constant as u32,
                             (constant >> 32) as u32,
                         )),
-                        SlotSource::ArgElem { arg, limb } => GrammarSlotRow {
+                        SlotBinding::ArgElem { arg, limb } => EventSlotRow {
                             read: Some((args_base + u64::from(arg), args[usize::from(arg)])),
-                            ..base_slot_row(entry(WasmGrammarSlotKind::Arg, arg, limb_variant(limb), 0, 0))
+                            ..base_slot_row(entry(WasmHostEventSlotKind::Arg, arg, limb_variant(limb), 0, 0))
                         },
                         // Each result lane is written by the slot absorbing
                         // it: the Lo slot is the push (a narrow total write,
@@ -327,92 +327,92 @@ fn plan_grammar_blocks(
                         // pushed cell's hi word. The other lane is zero in
                         // both plans — its port is inactive on that row, so
                         // the value column is mechanically inert.
-                        SlotSource::ResultElem { limb: Limb::Lo } => GrammarSlotRow {
+                        SlotBinding::ResultElem { limb: Limb::Lo } => EventSlotRow {
                             write: Some((args_base, (result.expect("validated result").0, 0))),
                             ..base_slot_row(entry(
-                                WasmGrammarSlotKind::Result,
+                                WasmHostEventSlotKind::Result,
                                 0,
-                                WasmGrammarRomVariant::LowLimb,
+                                WasmHostEventRomVariant::LowLimb,
                                 0,
                                 0,
                             ))
                         },
-                        SlotSource::ResultElem { limb: Limb::Hi } => GrammarSlotRow {
+                        SlotBinding::ResultElem { limb: Limb::Hi } => EventSlotRow {
                             write: Some((args_base, (0, result.expect("validated result").1))),
                             ..base_slot_row(entry(
-                                WasmGrammarSlotKind::Result,
+                                WasmHostEventSlotKind::Result,
                                 0,
-                                WasmGrammarRomVariant::HighLimb,
+                                WasmHostEventRomVariant::HighLimb,
                                 0,
                                 0,
                             ))
                         },
-                        SlotSource::Claim { idx } => base_slot_row(entry(
-                            WasmGrammarSlotKind::Claim,
+                        SlotBinding::Input { index: idx } => base_slot_row(entry(
+                            WasmHostEventSlotKind::Input,
                             idx,
-                            WasmGrammarRomVariant::None,
+                            WasmHostEventRomVariant::None,
                             0,
                             0,
                         )),
-                        SlotSource::MemoryRead32 { base, byte_offset }
-                        | SlotSource::MemoryRead16 { base, byte_offset }
-                        | SlotSource::MemoryRead8 { base, byte_offset } => {
-                            let (arg, variant) = memory_rom_arg_variant(base, grammar_memory_width(*source));
+                        SlotBinding::MemoryRead32 { base, byte_offset }
+                        | SlotBinding::MemoryRead16 { base, byte_offset }
+                        | SlotBinding::MemoryRead8 { base, byte_offset } => {
+                            let (arg, variant) = memory_rom_arg_variant(base, event_memory_width(*source));
                             let MemoryBase::Arg(_) = base else {
                                 unreachable!("validated import memory base")
                             };
-                            GrammarSlotRow {
+                            EventSlotRow {
                                 read: Some((args_base + u64::from(arg), args[usize::from(arg)])),
                                 linear_memory: Some(
                                     *memory_accesses
                                         .next()
-                                        .expect("resolved grammar memory access"),
+                                        .expect("resolved host-event memory access"),
                                 ),
-                                ..base_slot_row(entry(WasmGrammarSlotKind::MemoryRead, arg, variant, byte_offset, 0))
+                                ..base_slot_row(entry(WasmHostEventSlotKind::MemoryRead, arg, variant, byte_offset, 0))
                             }
                         }
-                        SlotSource::MemoryWrite32 {
-                            claim,
+                        SlotBinding::MemoryWrite32 {
+                            input,
                             base,
                             byte_offset,
                         }
-                        | SlotSource::MemoryWrite16 {
-                            claim,
+                        | SlotBinding::MemoryWrite16 {
+                            input,
                             base,
                             byte_offset,
                         }
-                        | SlotSource::MemoryWrite8 {
-                            claim,
+                        | SlotBinding::MemoryWrite8 {
+                            input,
                             base,
                             byte_offset,
                         } => {
-                            let (arg, variant) = memory_rom_arg_variant(base, grammar_memory_width(*source));
+                            let (arg, variant) = memory_rom_arg_variant(base, event_memory_width(*source));
                             let MemoryBase::Arg(_) = base else {
                                 unreachable!("validated import memory base")
                             };
-                            GrammarSlotRow {
+                            EventSlotRow {
                                 read: Some((args_base + u64::from(arg), args[usize::from(arg)])),
                                 linear_memory: Some(
                                     *memory_accesses
                                         .next()
-                                        .expect("resolved grammar memory access"),
+                                        .expect("resolved host-event memory access"),
                                 ),
                                 ..base_slot_row(entry(
-                                    WasmGrammarSlotKind::MemoryWrite,
+                                    WasmHostEventSlotKind::MemoryWrite,
                                     arg,
                                     variant,
                                     byte_offset,
-                                    u32::from(claim),
+                                    u32::from(input),
                                 ))
                             }
                         }
-                        SlotSource::ClaimLocal { .. } | SlotSource::OutputElem { .. } => {
+                        SlotBinding::InputLocal { .. } | SlotBinding::OutputElem { .. } => {
                             unreachable!("validated: export sources never appear in import templates")
                         }
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(GrammarBlockPlan {
+            Ok(EventBlockPlan {
                 rows,
                 absorb: event.absorb,
             })
@@ -451,11 +451,11 @@ pub(super) fn perm_group_plan(chain: [u64; 4], evbuf: [u64; 8]) -> ([[u64; 12]; 
 }
 
 pub(super) fn plan_export_blocks(
-    events: &[GrammarEvent],
+    events: &[EventBlock],
     blocks: &[[u64; 8]],
     locals: &[u32],
     memory_accesses: &[LinearMemoryAccess],
-) -> Result<Vec<GrammarBlockPlan>, WasmBuildError> {
+) -> Result<Vec<EventBlockPlan>, WasmBuildError> {
     let mut memory_accesses = memory_accesses.iter();
     events
         .iter()
@@ -467,10 +467,10 @@ pub(super) fn plan_export_blocks(
                 .zip(block)
                 .map(|(source, value)| -> Result<_, WasmBuildError> {
                     let limb_variant = |limb| match limb {
-                        crate::event_grammar::Limb::Lo => WasmGrammarRomVariant::LowLimb,
-                        crate::event_grammar::Limb::Hi => WasmGrammarRomVariant::HighLimb,
+                        crate::host_event_bindings::Limb::Lo => WasmHostEventRomVariant::LowLimb,
+                        crate::host_event_bindings::Limb::Hi => WasmHostEventRomVariant::HighLimb,
                     };
-                    let entry = |kind, arg, variant| crate::ir::WasmGrammarRomEntry {
+                    let entry = |kind, arg, variant| crate::ir::WasmHostEventRomEntry {
                         kind,
                         arg,
                         variant,
@@ -478,7 +478,7 @@ pub(super) fn plan_export_blocks(
                         const_hi: 0,
                         advice: false,
                     };
-                    let base_slot_row = |rom| GrammarSlotRow {
+                    let base_slot_row = |rom| EventSlotRow {
                         value,
                         rom,
                         read: None,
@@ -488,45 +488,45 @@ pub(super) fn plan_export_blocks(
                         linear_memory: None,
                     };
                     Ok(match *source {
-                        SlotSource::Const(constant) => base_slot_row(crate::ir::WasmGrammarRomEntry {
-                            kind: WasmGrammarSlotKind::Const,
+                        SlotBinding::Const(constant) => base_slot_row(crate::ir::WasmHostEventRomEntry {
+                            kind: WasmHostEventSlotKind::Const,
                             arg: 0,
-                            variant: WasmGrammarRomVariant::None,
+                            variant: WasmHostEventRomVariant::None,
                             const_lo: constant as u32,
                             const_hi: (constant >> 32) as u32,
                             advice: false,
                         }),
-                        SlotSource::Claim { idx } => {
-                            base_slot_row(entry(WasmGrammarSlotKind::Claim, idx, WasmGrammarRomVariant::None))
+                        SlotBinding::Input { index: idx } => {
+                            base_slot_row(entry(WasmHostEventSlotKind::Input, idx, WasmHostEventRomVariant::None))
                         }
-                        SlotSource::ClaimLocal { local, limb, .. } => {
+                        SlotBinding::InputLocal { local, limb, .. } => {
                             // expand_export_entry rejects words over 32 bits.
                             let bit = u8::from(matches!(limb, Limb::Hi));
-                            GrammarSlotRow {
+                            EventSlotRow {
                                 local_write: Some((u32::from(local), bit, value as u32)),
-                                ..base_slot_row(entry(WasmGrammarSlotKind::ClaimLocal, local, limb_variant(limb)))
+                                ..base_slot_row(entry(WasmHostEventSlotKind::InputLocal, local, limb_variant(limb)))
                             }
                         }
-                        SlotSource::OutputElem { limb } => {
-                            base_slot_row(entry(WasmGrammarSlotKind::Output, 0, limb_variant(limb)))
+                        SlotBinding::OutputElem { limb } => {
+                            base_slot_row(entry(WasmHostEventSlotKind::Output, 0, limb_variant(limb)))
                         }
-                        SlotSource::MemoryRead32 { base, byte_offset }
-                        | SlotSource::MemoryRead16 { base, byte_offset }
-                        | SlotSource::MemoryRead8 { base, byte_offset } => {
-                            let (local, variant) = memory_rom_arg_variant(base, grammar_memory_width(*source));
+                        SlotBinding::MemoryRead32 { base, byte_offset }
+                        | SlotBinding::MemoryRead16 { base, byte_offset }
+                        | SlotBinding::MemoryRead8 { base, byte_offset } => {
+                            let (local, variant) = memory_rom_arg_variant(base, event_memory_width(*source));
                             let MemoryBase::Local(_) = base else {
                                 unreachable!("validated export memory base")
                             };
                             let base_value = locals[usize::from(local)];
-                            GrammarSlotRow {
+                            EventSlotRow {
                                 local_read: Some((u32::from(local), base_value)),
                                 linear_memory: Some(
                                     *memory_accesses
                                         .next()
-                                        .expect("resolved grammar memory access"),
+                                        .expect("resolved host-event memory access"),
                                 ),
-                                ..base_slot_row(crate::ir::WasmGrammarRomEntry {
-                                    kind: WasmGrammarSlotKind::MemoryRead,
+                                ..base_slot_row(crate::ir::WasmHostEventRomEntry {
+                                    kind: WasmHostEventSlotKind::MemoryRead,
                                     arg: local,
                                     variant,
                                     const_lo: byte_offset,
@@ -535,57 +535,57 @@ pub(super) fn plan_export_blocks(
                                 })
                             }
                         }
-                        SlotSource::MemoryWrite32 {
-                            claim,
+                        SlotBinding::MemoryWrite32 {
+                            input,
                             base,
                             byte_offset,
                         }
-                        | SlotSource::MemoryWrite16 {
-                            claim,
+                        | SlotBinding::MemoryWrite16 {
+                            input,
                             base,
                             byte_offset,
                         }
-                        | SlotSource::MemoryWrite8 {
-                            claim,
+                        | SlotBinding::MemoryWrite8 {
+                            input,
                             base,
                             byte_offset,
                         } => {
-                            let (local, variant) = memory_rom_arg_variant(base, grammar_memory_width(*source));
+                            let (local, variant) = memory_rom_arg_variant(base, event_memory_width(*source));
                             let MemoryBase::Local(_) = base else {
                                 unreachable!("validated export memory base")
                             };
                             let base_value = locals[usize::from(local)];
-                            GrammarSlotRow {
+                            EventSlotRow {
                                 local_read: Some((u32::from(local), base_value)),
                                 linear_memory: Some(
                                     *memory_accesses
                                         .next()
-                                        .expect("resolved grammar memory access"),
+                                        .expect("resolved host-event memory access"),
                                 ),
-                                ..base_slot_row(crate::ir::WasmGrammarRomEntry {
-                                    kind: WasmGrammarSlotKind::MemoryWrite,
+                                ..base_slot_row(crate::ir::WasmHostEventRomEntry {
+                                    kind: WasmHostEventSlotKind::MemoryWrite,
                                     arg: local,
                                     variant,
                                     const_lo: byte_offset,
-                                    const_hi: u32::from(claim),
+                                    const_hi: u32::from(input),
                                     advice: false,
                                 })
                             }
                         }
-                        SlotSource::ArgElem { .. } | SlotSource::ResultElem { .. } => {
+                        SlotBinding::ArgElem { .. } | SlotBinding::ResultElem { .. } => {
                             unreachable!("validated: stack sources never appear in export templates")
                         }
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(GrammarBlockPlan { rows, absorb: true })
+            Ok(EventBlockPlan { rows, absorb: true })
         })
         .collect()
 }
 
-/// Shared shape of the grammar/perm aux rows emitted outside the per-opcode
+/// Shared shape of the gather/permutation rows emitted outside the per-opcode
 /// flow: the carried context every such row repeats.
-pub(super) struct GrammarAuxCtx {
+pub(super) struct HostEventRowContext {
     pub(super) pc: u64,
     pub(super) sp: u64,
     pub(super) stack_frame_base: u64,
@@ -602,12 +602,12 @@ pub(super) struct GrammarAuxCtx {
     pub(super) halted: bool,
 }
 
-impl GrammarAuxCtx {
+impl HostEventRowContext {
     pub(super) fn state(
         &self,
         comm_chain: [u64; 4],
         event_absorb: WasmEventAbsorbState,
-        grammar: crate::ir::WasmGrammarState,
+        host_events: crate::ir::WasmHostEventState,
     ) -> WasmStepState {
         WasmStepState {
             pc: self.pc,
@@ -625,7 +625,7 @@ impl GrammarAuxCtx {
             host_callee_fref: self.host_callee_fref,
             comm_chain,
             event_absorb,
-            grammar,
+            host_events,
         }
     }
 
@@ -680,9 +680,9 @@ impl GrammarAuxCtx {
             call_result_count: None,
             call_stack_push: None,
             call_stack_pop: None,
-            grammar_rom_slot: None,
-            grammar_pre_count: None,
-            grammar_post_count: None,
+            host_event_rom_slot: None,
+            host_event_pre_count: None,
+            host_event_post_count: None,
         }
     }
 }
@@ -692,10 +692,10 @@ impl GrammarAuxCtx {
 /// last row and clears the buffer on its first.
 pub(super) fn emit_perm_group(
     out: &mut Vec<WasmVmStep>,
-    ctx: &GrammarAuxCtx,
+    ctx: &HostEventRowContext,
     comm_chain: &mut [u64; 4],
     absorb: &mut WasmEventAbsorbState,
-    grammar: crate::ir::WasmGrammarState,
+    host_events: crate::ir::WasmHostEventState,
 ) {
     debug_assert!(absorb.perm_pending);
     let (checkpoints, updated_chain) = perm_group_plan(*comm_chain, absorb.evbuf);
@@ -716,38 +716,38 @@ pub(super) fn emit_perm_group(
         out.push(ctx.row(
             out.len() as u64,
             WasmAuxOpcode::HostEventPerm,
-            ctx.state(chain_before, absorb_before, grammar),
-            ctx.state(*comm_chain, *absorb, grammar),
+            ctx.state(chain_before, absorb_before, host_events),
+            ctx.state(*comm_chain, *absorb, host_events),
         ));
     }
 }
 
-/// Emit one grammar event block: 8 gather rows (one word each, with the
+/// Emit one host-event block: eight gather rows (one word each, with the
 /// arg/result stack read, the result-lo stack WRITE that pushes the host
-/// result, or the input-local lane write the slot claims). Absorbing blocks
+/// result, or the input-local lane write the slot inputs). Absorbing blocks
 /// then run their permutation group. A result push bumps `ctx.sp` for every
 /// subsequent row.
 pub(super) fn emit_block_plan(
     out: &mut Vec<WasmVmStep>,
-    ctx: &mut GrammarAuxCtx,
+    ctx: &mut HostEventRowContext,
     comm_chain: &mut [u64; 4],
     absorb: &mut WasmEventAbsorbState,
-    gstate: &mut crate::ir::WasmGrammarState,
-    plan: &GrammarBlockPlan,
+    host_event_state: &mut crate::ir::WasmHostEventState,
+    plan: &EventBlockPlan,
 ) {
     for (word, slot) in plan.rows.iter().enumerate() {
         let absorb_before = *absorb;
-        let gstate_before = *gstate;
+        let host_event_state_before = *host_event_state;
         absorb.evbuf[word] = slot.value;
-        gstate.slot_cursor = ((word + 1) % 8) as u8;
+        host_event_state.slot_cursor = ((word + 1) % 8) as u8;
         if word == 7 {
             // Advice blocks advance the schedule without starting a permutation.
             if plan.absorb {
                 absorb.perm_pending = true;
                 absorb.perm_state = absorb_premix(*comm_chain, absorb.evbuf);
             }
-            gstate.events_remaining -= 1;
-            gstate.event_index += 1;
+            host_event_state.events_remaining -= 1;
+            host_event_state.event_index += 1;
         }
         let read0 = slot.read.map(|(stack_slot, (lo, hi))| {
             StackValueAccess::new(stack_slot.saturating_mul(2), lo).with_optional_hi(Some(hi))
@@ -764,11 +764,11 @@ pub(super) fn emit_block_plan(
         let wide = slot.read.is_some_and(|(_, (_, hi))| hi != 0)
             || slot.write.is_some_and(|(_, (_, hi))| hi != 0)
             || slot.local_write.is_some_and(|(_, limb, _)| limb == 1);
-        let state_before = ctx.state(*comm_chain, absorb_before, gstate_before);
+        let state_before = ctx.state(*comm_chain, absorb_before, host_event_state_before);
         if pushes {
             ctx.sp += 1;
         }
-        let state_after = ctx.state(*comm_chain, *absorb, *gstate);
+        let state_after = ctx.state(*comm_chain, *absorb, *host_event_state);
         out.push(WasmVmStep {
             wide_values_enabled: wide,
             stack_reads_override: Some(u8::from(read0.is_some())),
@@ -788,7 +788,7 @@ pub(super) fn emit_block_plan(
             local_write_value_hi: slot
                 .local_write
                 .map(|(_, limb, value)| if limb == 0 { 0 } else { value }),
-            grammar_rom_slot: Some(slot.rom),
+            host_event_rom_slot: Some(slot.rom),
             ..ctx.row(
                 out.len() as u64,
                 WasmAuxOpcode::HostEventGather,
@@ -798,6 +798,6 @@ pub(super) fn emit_block_plan(
         });
     }
     if plan.absorb {
-        emit_perm_group(out, ctx, comm_chain, absorb, *gstate);
+        emit_perm_group(out, ctx, comm_chain, absorb, *host_event_state);
     }
 }

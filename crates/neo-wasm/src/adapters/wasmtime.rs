@@ -24,7 +24,7 @@ pub use runtime_read::build_debug_function_id_map;
 use runtime_read::{build_single_trace_store_debug_function_id_map, val_to_string};
 // Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
 // (also brings the name into scope for the component wrappers below).
-pub use normalize::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_grammar};
+pub use normalize::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_host_events};
 pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables};
 
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
@@ -84,11 +84,11 @@ pub struct WasmtimeTraceStep {
     /// this is the return PC; for branches it is the linear successor, not
     /// necessarily the runtime next PC.
     pub pc_after_instruction: Option<u64>,
-    /// Per-call grammar claim words recorded by the embedder's host
+    /// Per-call host-event input words recorded by the embedder's host
     /// function while servicing this host-call row (see
-    /// [`WasmtimeTraceState::record_call_claims`]). Consumed by event-bound
+    /// [`WasmtimeTraceState::record_call_inputs`]). Consumed by event-bound
     /// normalization.
-    pub host_call_claims: Vec<u64>,
+    pub host_call_inputs: Vec<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -116,7 +116,7 @@ pub struct WasmtimeTraceMemoryAccess {
 
 #[derive(Clone, Debug)]
 pub struct WasmtimeTraceRun {
-    /// Verifier-owned static program tables used by grammar-aware
+    /// Verifier-owned static program tables used by host-event-aware
     /// normalization and memory preloading.
     pub program_tables: WasmProgramTables,
     /// Normalized string form of the export results, as produced by the
@@ -245,25 +245,25 @@ impl WasmtimeTraceState {
         Arc::make_mut(&mut self.tables).func_ref_ids = func_ref_ids;
     }
 
-    /// Record per-call grammar claim words for the in-flight host call
-    /// (oracle values in Starstream terms: ref ids, callers). Call from
+    /// Record per-call host-event input words for the in-flight host call
+    /// (for example, ref ids or caller identities). Call from
     /// inside a host-function implementation (`store.data_mut()`): the debug
     /// hook captures each instruction before it executes, so the latest
     /// captured step is the host-call row being serviced and the batch
     /// attaches to it — no call-order bookkeeping. Repeated calls append.
-    pub fn record_call_claims(&mut self, words: &[u64]) -> Result<(), WasmBuildError> {
+    pub fn record_call_inputs(&mut self, words: &[u64]) -> Result<(), WasmBuildError> {
         let row = self.steps.last_mut().ok_or_else(|| {
-            WasmBuildError::Trace("record_call_claims: no captured step; not inside a traced host call".to_string())
+            WasmBuildError::Trace("record_call_inputs: no captured step; not inside a traced host call".to_string())
         })?;
         let is_host_call = matches!(row.opcode_decoded, Some(WasmOpcode::Call | WasmOpcode::CallIndirect))
             && !row.target_function_is_guest;
         if !is_host_call {
             return Err(WasmBuildError::Trace(format!(
-                "record_call_claims: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
+                "record_call_inputs: latest captured step (cycle {}, opcode {:?}) is not a host-call row",
                 row.step, row.opcode
             )));
         }
-        row.host_call_claims.extend_from_slice(words);
+        row.host_call_inputs.extend_from_slice(words);
         Ok(())
     }
 }

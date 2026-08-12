@@ -236,7 +236,7 @@ fn call_trace_passes_witness_checks() {
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    common::sanity_check_trace(&trace, &artifacts, &run.initial_locals);
+    common::sanity_check_trace(&trace, &artifacts);
     common::ccs_check_trace(&trace);
 
     assert!(
@@ -416,7 +416,7 @@ fn final_halt_output_low_is_stack_memory_bound() {
     witnesses[final_idx][COL_OUTPUT_VALUE_LO_AFTER] = neo_math::F::from_u64(7);
     witnesses[final_idx][COL_STACK_READ_VALUE_LO[0]] = neo_math::F::from_u64(7);
 
-    let preload = preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .err()
         .expect("must reject output stack memory mismatch");

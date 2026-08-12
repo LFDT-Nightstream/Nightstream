@@ -241,7 +241,7 @@ fn import_memory_fixture() -> ImportMemoryFixture {
 
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("chain checker");
     common::ccs_check_trace(&trace);
-    check_memory_rows(&component_bytes, &run, &grammar, &trace);
+    check_memory_rows(&component_bytes, &grammar, &trace);
 
     ImportMemoryFixture {
         component_bytes,
@@ -252,14 +252,9 @@ fn import_memory_fixture() -> ImportMemoryFixture {
     }
 }
 
-fn check_memory_rows(
-    component_bytes: &[u8],
-    run: &neo_wasm::WasmtimeTraceRun,
-    grammar: &HostEventGrammar,
-    trace: &[WasmVmStep],
-) {
+fn check_memory_rows(component_bytes: &[u8], grammar: &HostEventGrammar, trace: &[WasmVmStep]) {
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(component_bytes).expect("artifacts");
-    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, grammar);
     let witnesses: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
@@ -562,8 +557,7 @@ fn grammar_memory_replay_authenticates_prior_values() {
 
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&fixture.component_bytes).expect("artifacts");
-    let mut preload =
-        neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &fixture.run.initial_locals);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &fixture.grammar);
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(layout, &forged_rows, &preload)

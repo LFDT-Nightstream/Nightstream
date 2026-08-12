@@ -1072,13 +1072,16 @@ fn wasmtime_trace_normalizes_compare_unary_and_rotate_rows() {
 
 #[test]
 fn wasmtime_trace_normalizes_br_table_rows() {
-    let wasm = wat::parse_str(
-        r#"(module
-            (func (export "run") (param i32) (result i32)
+    // One module per selector value: the selector is a baked-in constant
+    // (plain-mode locals start all-zero, so it cannot be an entry param).
+    let wat_for = |selector: i32| {
+        format!(
+            r#"(module
+            (func (export "run") (result i32)
                 (block $default
                     (block $case1
                         (block $case0
-                            local.get 0
+                            i32.const {selector}
                             br_table $case0 $case1 $default
                         )
                         i32.const 10
@@ -1088,13 +1091,14 @@ fn wasmtime_trace_normalizes_br_table_rows() {
                     return
                 )
                 i32.const 30))
-        "#,
-    )
-    .expect("wat");
-    let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+        "#
+        )
+    };
 
     for (param, expected_value, expected_choice) in [(0, 10, 1_u32), (1, 20, 2_u32), (5, 30, 0_u32)] {
-        let run = collect_wasmtime_steps(&wasm, "run", &[param]).expect("trace run");
+        let wasm = wat::parse_str(wat_for(param)).expect("wat");
+        let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+        let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("trace run");
         let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
         let row = trace
             .iter()

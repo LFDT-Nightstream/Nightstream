@@ -173,7 +173,7 @@ fn wasm_component_import_kernel_roundtrip_for_embedded_core_trace() {
     for witness in &witnesses {
         neo_wasm::sanity_check_lookup_row(&layout.auxiliary, witness).expect("lookup semantics");
     }
-    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &run.initial_locals);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witnesses, &preload).expect("memory semantics");
     neo_wasm::comm_chain::sanity_check_comm_chain(&trace).expect("commitment chain");
@@ -185,15 +185,11 @@ fn wasm_component_kernel_roundtrip_for_embedded_core_trace() {
     let run = collect_wasmtime_component_run(&component_bytes, "run").expect("component trace run");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("component trace normalization");
     let artifacts = extract_first_component_core_program_artifacts(&component_bytes).expect("program artifacts");
-    check_component_trace(&trace, &artifacts, &run);
+    check_component_trace(&trace, &artifacts);
 }
 
-fn check_component_trace(
-    trace: &[neo_wasm::WasmVmStep],
-    artifacts: &neo_wasm::WasmProgramArtifacts,
-    run: &neo_wasm::WasmtimeTraceRun,
-) {
-    common::sanity_check_trace(trace, artifacts, &run.initial_locals);
+fn check_component_trace(trace: &[neo_wasm::WasmVmStep], artifacts: &neo_wasm::WasmProgramArtifacts) {
+    common::sanity_check_trace(trace, artifacts);
     common::ccs_check_trace(trace);
 }
 

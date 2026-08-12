@@ -149,7 +149,6 @@ pub struct GrammarLifecycleSetup {
     pub grammar: HostEventGrammar,
     pub run_fref: u32,
     pub component_bytes: Vec<u8>,
-    pub initial_locals: Vec<u32>,
 }
 
 pub fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
@@ -193,7 +192,6 @@ pub fn grammar_lifecycle_setup() -> GrammarLifecycleSetup {
         grammar,
         run_fref,
         component_bytes,
-        initial_locals: run.initial_locals,
     }
 }
 

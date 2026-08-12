@@ -116,8 +116,7 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventGrammar) {
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     // Claim bootstrap: the RAM model's entry locals start all-zero; the
     // entry gather rows write the claim inputs into them.
-    let mut preload =
-        neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &vec![0; run.initial_locals.len()]);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
@@ -344,8 +343,7 @@ fn i64_param_bootstraps_both_lanes() {
     // The locals RAM sees the zero-init + lane writes and the guest's i64
     // read back out of them.
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
-    let mut preload =
-        neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &vec![0; run.initial_locals.len()]);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
@@ -466,8 +464,7 @@ fn export_memory_accesses_use_a_local_pointer_base() {
     common::ccs_check_trace(&trace);
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
-    let mut preload =
-        neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts, &vec![0; run.initial_locals.len()]);
+    let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_grammar_tables(&mut preload, &grammar);
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();

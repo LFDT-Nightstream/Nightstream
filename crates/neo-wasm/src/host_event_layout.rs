@@ -13,16 +13,6 @@ define_column_region! {
     specs: pub HOST_EVENT_COLUMN_SPECS,
     indices: pub,
     columns: [
-        COL_HOST_ARGS_ACTIVE_BEFORE: Boolean => "host-call argument-pop mode before this row",
-        COL_HOST_ARGS_ACTIVE_AFTER: Boolean => "host-call argument-pop mode after this row",
-        COL_HOST_ARGS_REMAINING_BEFORE: U32 => "remaining host-call arguments to pop before this row",
-        COL_HOST_ARGS_REMAINING_AFTER: U32 => "remaining host-call arguments to pop after this row",
-        COL_HOST_ARGS_REMAINING_AFTER_IS_ZERO: Boolean =>
-            "zero-test flag for remaining host-call arguments after this row",
-        COL_HOST_ARGS_REMAINING_AFTER_INV: Field =>
-            "inverse witness for remaining host-call arguments after this row",
-        COL_HOST_RESULT_PENDING_BEFORE: Boolean => "host-call result push still owed before this row",
-        COL_HOST_RESULT_PENDING_AFTER: Boolean => "host-call result push still owed after this row",
         COL_HOST_CALLEE_FREF_BEFORE: U32 =>
             "callee function ref of the most recent host call before this row (event attribution carry)",
         COL_HOST_CALLEE_FREF_AFTER: U32 =>
@@ -31,12 +21,10 @@ define_column_region! {
         COL_TURN_EXPORT_FREF_AFTER: U32 => "export function ref owning the current grammar turn after this row",
         COL_COMM_CHAIN_BEFORE: [Field; 4] => "host-event commitment chain before this row",
         COL_COMM_CHAIN_AFTER: [Field; 4] => "host-event commitment chain after this row",
-        // The block buffer, pair cursor, pending flag, round cursor, and
-        // running state form the carried interface of the permutation rows.
+        // The block buffer, pending flag, round cursor, and running state
+        // form the carried interface of the permutation rows.
         COL_EVBUF_BEFORE: [Field; 8] => "host-event block buffer before this row",
         COL_EVBUF_AFTER: [Field; 8] => "host-event block buffer after this row",
-        COL_EVBUF_SLOT_BEFORE: [Boolean; 4] => "one-hot next event-word pair slot before this row",
-        COL_EVBUF_SLOT_AFTER: [Boolean; 4] => "one-hot next event-word pair slot after this row",
         COL_PERM_PENDING_BEFORE: Boolean => "a filled host-event block awaits its perm rows before this row",
         COL_PERM_PENDING_AFTER: Boolean => "a filled host-event block awaits its perm rows after this row",
         COL_PERM_ROUND_BEFORE: Field =>
@@ -48,17 +36,12 @@ define_column_region! {
         COL_PERM_ROUND_BEFORE_INV: Field => "inverse witness for the perm-group row position before this row",
         COL_PERM_STATE_BEFORE: [Field; 12] => "chain permutation state before this row",
         COL_PERM_STATE_AFTER: [Field; 12] => "chain permutation state after this row",
-        COL_GRAMMAR_MODE_BEFORE: Boolean =>
-            "per-program constant: chain absorbs embedder grammar events (1) or raw host-call records (0)",
-        COL_GRAMMAR_MODE_AFTER: Boolean =>
-            "per-program constant: chain absorbs embedder grammar events (1) or raw host-call records (0)",
-        COL_GATHER_ACTIVE: Boolean => "grammar-mode row staging one expanded event block into the absorb buffer",
-        COL_RAW_HOST_CALL: Boolean =>
-            "host-call program row with the raw absorb machinery active: host_call_gate · (1 - grammar_mode)",
-        COL_RAW_ARGS_ACTIVE: Boolean =>
-            "host-arg row with the raw absorb machinery active: host_args_active · (1 - grammar_mode)",
-        COL_RAW_RESULT_ACTIVE: Boolean =>
-            "host-result row with the raw absorb machinery active: host_result_active · (1 - grammar_mode)",
+        COL_GATHER_ACTIVE: Boolean => "row staging one expanded event block into the absorb buffer",
+        COL_HOST_CALL_ACTIVE: Boolean => "non-trapping host-import call row",
+        COL_EVENT_BINDING_ACTIVE_BEFORE: Boolean =>
+            "event-template binding is enabled for this execution before this row",
+        COL_EVENT_BINDING_ACTIVE_AFTER: Boolean =>
+            "event-template binding is enabled for this execution after this row",
         // Grammar schedule carry and the per-row verifier-owned ROM interface.
         COL_GRAMMAR_EVREM_BEFORE: Field => "grammar events still owed in the current phase, before this row",
         COL_GRAMMAR_EVREM_AFTER: Field => "grammar events still owed in the current phase, after this row",
@@ -82,18 +65,16 @@ define_column_region! {
         COL_GRAMMAR_PRE_COUNT: Field =>
             "grammar-ROM event count for the called import / entered export (biased +1)",
         COL_GRAMMAR_POST_COUNT: Field => "grammar-ROM exit-event count for the halting export",
-        COL_GRAMMAR_HOST_CALL: Field => "host-call program row in grammar mode: host_call_gate · grammar_mode",
         COL_GATHER_LOCAL_WRITE: Boolean =>
             "gather row writing a claim-input word into an entry-frame locals lane (slot kind 4); gates the hi-lane write (zero on lo rows)",
         COL_GATHER_LOCAL_WRITE_LO: Boolean =>
             "input-local gather row targeting the lo lane: gather_local_write · (1 - slot_variant)",
         COL_GRAMMAR_EXIT_LATCH: Boolean =>
-            "clean export-halt row in grammar mode: loads the export's exit-event schedule",
+            "clean export-halt row with event binding enabled: loads the export's exit-event schedule",
         COL_TURN_BOUNDARY: Boolean =>
             "multi-turn re-entry row: re-arms the output, loads the next export's entry schedule, jumps to its entry pc",
         COL_PC_FREF_ACTIVE: Boolean =>
             "pc -> function-ref ROM gate: every row except gather rows (post-halt exit gathers sit past the last pc)",
-        COL_HOST_RESULT_ACTIVE: Boolean => "this row pushes the pending host-call result",
         COL_CI_HOST_CALL: Boolean => "non-trapping call_indirect row targeting a host import",
     ]
 }

@@ -18,10 +18,9 @@ use crate::comm_chain::CommChainState;
 use crate::ir::{WasmCountdownState, WasmEventAbsorbState, WasmGrammarState, WasmOutputState, WasmStepState};
 use crate::layout::Column;
 use crate::layout::{
-    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_EVBUF_SLOT_BEFORE,
-    COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_MODE_BEFORE,
-    COL_GRAMMAR_SLOT_CURSOR_BEFORE, COL_HALTED_BEFORE, COL_HOST_ARGS_ACTIVE_BEFORE, COL_HOST_ARGS_REMAINING_BEFORE,
-    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_RESULT_PENDING_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE, COL_EVENT_BINDING_ACTIVE_BEFORE,
+    COL_GRAMMAR_ARGS_BASE_BEFORE, COL_GRAMMAR_EVIDX_BEFORE, COL_GRAMMAR_EVREM_BEFORE, COL_GRAMMAR_SLOT_CURSOR_BEFORE,
+    COL_HALTED_BEFORE, COL_HOST_CALLEE_FREF_BEFORE, COL_LOCALS_FBP_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
     COL_MEMORY_PAGES_BEFORE, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE,
     COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE,
     COL_PERM_ROUND_BEFORE, COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE,
@@ -178,12 +177,10 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
         trapped: false,
         param_init: WasmCountdownState::ZERO,
         tail_call_pending: false,
-        host_args: WasmCountdownState::ZERO,
-        host_result_pending: false,
         host_callee_fref: 0,
+        event_binding_active: false,
         comm_chain: [0; 4],
         event_absorb: WasmEventAbsorbState::ZERO,
-        grammar_mode: false,
         grammar: WasmGrammarState::ZERO,
     }
 }
@@ -206,8 +203,8 @@ pub fn semantic_state_digest(state: WasmStepState) -> [u8; 32] {
     digest_fields_as_digest32(encode_poseidon_trace(&build_semantic_state_preimage_fields(&fields)).digest_native)
 }
 
-/// Grammar-mode initial state: enables the grammar, seeds the commitment
-/// chain, and loads the invoked export's entry schedule. Event values remain
+/// Grammar initial state: seeds the commitment chain and loads the invoked
+/// export's entry schedule. Event values remain
 /// bound by the final commitment rather than this per-program anchor.
 pub fn grammar_top_level_initial_state(
     tables: &WasmProgramTables,
@@ -217,7 +214,7 @@ pub fn grammar_top_level_initial_state(
     initial_comm_chain: CommChainState,
 ) -> WasmStepState {
     let mut state = top_level_initial_state(tables, entry_pc);
-    state.grammar_mode = true;
+    state.event_binding_active = true;
     state.comm_chain = initial_comm_chain.canonical_u64();
     if let Some(template) = grammar.exports.get(&export_fref) {
         state.host_callee_fref = export_fref;
@@ -232,7 +229,7 @@ pub fn top_level_initial_state_digest(tables: &WasmProgramTables, entry_pc: u64)
     semantic_state_digest(top_level_initial_state(tables, entry_pc))
 }
 
-/// [`top_level_initial_state_digest`] for a grammar-mode program.
+/// [`top_level_initial_state_digest`] for an event-bound program.
 pub fn grammar_top_level_initial_state_digest(
     tables: &WasmProgramTables,
     entry_pc: u64,
@@ -262,12 +259,6 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
     {
         return F::from_u64(state.event_absorb.evbuf[word]);
     }
-    if let Some(slot) = COL_EVBUF_SLOT_BEFORE
-        .iter()
-        .position(|&candidate| candidate == column.0)
-    {
-        return bool_field(usize::from(state.event_absorb.evbuf_slot) == slot);
-    }
     if let Some(lane) = COL_PERM_STATE_BEFORE
         .iter()
         .position(|&candidate| candidate == column.0)
@@ -290,12 +281,9 @@ fn carried_state_field(state: WasmStepState, column: Column) -> F {
         COL_PARAM_INIT_ACTIVE_BEFORE => bool_field(state.param_init.active),
         COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
         COL_TAIL_CALL_PENDING_BEFORE => bool_field(state.tail_call_pending),
-        COL_HOST_ARGS_ACTIVE_BEFORE => bool_field(state.host_args.active),
-        COL_HOST_ARGS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_args.remaining)),
-        COL_HOST_RESULT_PENDING_BEFORE => bool_field(state.host_result_pending),
         COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
+        COL_EVENT_BINDING_ACTIVE_BEFORE => bool_field(state.event_binding_active),
         COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.grammar.turn_export_fref)),
-        COL_GRAMMAR_MODE_BEFORE => bool_field(state.grammar_mode),
         COL_GRAMMAR_EVREM_BEFORE => F::from_u64(u64::from(state.grammar.events_remaining)),
         COL_GRAMMAR_EVIDX_BEFORE => F::from_u64(u64::from(state.grammar.event_index)),
         COL_GRAMMAR_ARGS_BASE_BEFORE => F::from_u64(state.grammar.args_base),

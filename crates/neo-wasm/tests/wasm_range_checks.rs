@@ -39,11 +39,6 @@ fn host_event_auxiliary_registry_preserves_the_existing_layout() {
         ("PERM_POSITION", 19, ColumnWidth::Boolean),
         ("FULL_ROUND_POWERS", 48, ColumnWidth::Field),
         ("PARTIAL_ROUND_POWERS", 8, ColumnWidth::Field),
-        ("RAW_ARG_WRITE_MASK", 4, ColumnWidth::Boolean),
-        ("RAW_RESULT_WRITE_MASK", 4, ColumnWidth::Boolean),
-        ("STREAM_DONE", 1, ColumnWidth::Boolean),
-        ("EVENT_END", 1, ColumnWidth::Boolean),
-        ("EVENT_END_OR", 1, ColumnWidth::Boolean),
         ("GATHER_WORD_POSITION", 8, ColumnWidth::Boolean),
         ("GATHER_KIND", 8, ColumnWidth::Boolean),
         ("GARG_VAL", 1, ColumnWidth::Field),
@@ -57,7 +52,7 @@ fn host_event_auxiliary_registry_preserves_the_existing_layout() {
         ("GMEM_HALF", 1, ColumnWidth::Boolean),
     ];
 
-    assert_eq!(AUX_WIDTH, 111);
+    assert_eq!(AUX_WIDTH, 100);
     assert_eq!(AUX_COLUMN_SPECS.len(), expected.len());
 
     let mut next = NAMED_COLUMN_COUNT;

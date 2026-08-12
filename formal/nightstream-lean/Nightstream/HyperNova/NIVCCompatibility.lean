@@ -929,7 +929,6 @@ def Holds
     {StatementId : Type uStatementId}
     {VerifierInput : Type uVerifierInput}
     {VerifierOutput : Type uVerifierOutput}
-    {RecursivePayload : Type uRecursivePayload}
     (semantics : Semantics Parameters Circuit Input Advice Output
       RunningStructure FreshStructure RunningInstance RunningWitness
       FreshInstance FreshWitness)
@@ -939,7 +938,7 @@ def Holds
       RunningStructure FreshStructure RunningInstance RunningWitness
       FreshInstance FreshWitness)
     (compilerLayout : CompilerLayout semantics encoding)
-    (recursiveSize : RecursiveSizeClosure Word Parameters RecursivePayload)
+    (recursiveSize : RecursiveSizeClosure Word Parameters Advice)
     (default : DefaultAlgorithm Parameters RunningInstance RunningWitness)
     (compactVerifier : CompactVerifierInterface Word Parameters RunningStructure
       FreshStructure VerifierKey VerifierProjection StatementId VerifierInput

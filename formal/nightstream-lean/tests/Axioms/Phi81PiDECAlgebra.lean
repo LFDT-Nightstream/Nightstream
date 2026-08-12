@@ -19,27 +19,33 @@ Fail-closed dependency gate for the first typed Phi81 `PiDEC.Algebra` slice.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.production_parameters
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.magnitudeDigit_lt_two' does not depend on any axioms -/
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.magnitudeDigit_lt_two' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.magnitudeDigit_lt_two
 
-/-! Function extensionality and quotient soundness are the only dependencies
-of the exported relation-level laws. -/
+/-! The exported relation-level laws use only Lean's standard proposition,
+choice, and quotient soundness axioms. -/
 
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.splitScalar_recompose' depends on axioms: [propext,
+ Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.splitScalar_recompose
 
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.split_recompose' depends on axioms: [propext,
+ Classical.choice,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.split_recompose
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.split_norm' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.split_norm' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.split_norm
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.recompose_norm' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.recompose_norm' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix.recompose_norm

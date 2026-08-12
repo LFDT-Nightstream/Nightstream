@@ -174,8 +174,12 @@ import Nightstream.Protocol.FPrime.Frozen
 #check Nightstream.HyperNova.NIVCCompatibility.CompactVerifierInterface.Holds
 #check Nightstream.HyperNova.NIVCCompatibility.CompactVerifierInterface.recursiveKey
 #check Nightstream.HyperNova.NonInteractiveMultiFold.accepts_iff_verify
+#check Nightstream.HyperNova.Construction2.Paper.HonestOuterDispatch
 #check Nightstream.HyperNova.Construction2.Paper.Transition
+#check Nightstream.HyperNova.Construction2.Paper.FixedAugmentedTransition
+#check Nightstream.HyperNova.Construction2.Paper.transition_iff_honestOuterDispatch_and_fixedAugmented
 #check Nightstream.HyperNova.Construction2.Paper.holds_iff_transition
+#check Nightstream.HyperNova.Construction2.Paper.holds_iff_honestOuterDispatch_and_fixedAugmented
 #check Nightstream.HyperNova.Construction2.Paper.TerminalTransition
 #check Nightstream.HyperNova.Construction2.Paper.terminalHolds_iff_transition
 #check Nightstream.HyperNova.Construction2.Paper.OuterTerminalProof.bottom

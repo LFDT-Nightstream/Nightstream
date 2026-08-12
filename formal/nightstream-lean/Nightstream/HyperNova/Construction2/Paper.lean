@@ -7,9 +7,10 @@ Paper-owned HyperNova Construction-2 and augmented-function semantics.
 Source: HyperNova Section 6.3, Construction 2, and Appendix H.3.
 
 Owns: the exact base/recursive split of `F'_j`, the one-based prior program
-counter, deterministic dispatch/application, the prior hash link, one selected
-call to the function-valued `NIFS.V`, unchanged inactive slots, the next hash
-preimage, and the terminal verifier boundary.
+counter, the separation of fixed-index execution from honest outer dispatch,
+the prior hash link, one selected call to the function-valued `NIFS.V`,
+unchanged inactive slots, the next hash preimage, and the terminal verifier
+boundary.
 
 Does not own: SuperNeo, a concrete hash or instance encoder, Fiat--Shamir,
 commitment security, memory optimizations, delayed projection state, Rust,
@@ -167,8 +168,27 @@ def nextHashPreimage
   running := output.runningNext
   pc := oneBased output.pcNext
 
-/-- The selected augmented function is exactly the control result and computes
-the advertised next application state. -/
+/-- Honest outer execution dispatches to the augmented circuit selected by the
+application control function. This relation belongs to the outer NIVC layer,
+not to the fixed circuit `F'_j`. -/
+def HonestOuterDispatch
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount) : Prop :=
+  machine.control input.zi input.witness = functionIndex
+
+/-- The fused application helper used by the executable Construction 2
+relation. `transition_iff_honestOuterDispatch_and_fixedAugmented` below proves
+that its dispatch field belongs to the outer layer. -/
 structure ApplicationHolds
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -293,7 +313,65 @@ def Transition
       forall slot, slot ≠ selectedIndex priorPcValid ->
         output.runningNext slot = input.running slot)
 
-/-- `F'_j` accepts exactly one paper branch. -/
+/-- The complete fixed-index augmented-circuit relation `F'_j`. It contains
+the base and recursive branches but does not select which fixed circuit the
+outer NIVC execution invokes. -/
+def FixedAugmentedTransition
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) : Prop :=
+  output.pcNext = functionIndex /\
+  output.zNext = machine.step functionIndex input.zi input.witness /\
+  output.x = machine.hash (nextHashPreimage setup input output) /\
+  ((input.iteration = 0 /\
+      input.z0 = input.zi /\
+      output.runningNext = fun _ => setup.defaultRunning) \/
+    exists priorPcValid : InRange slotCount input.priorPc,
+      0 < input.iteration /\
+      machine.freshPublic input.fresh =
+        machine.encodeInstance (machine.hash (priorHashPreimage setup input)) /\
+      Accepts setup.nifs
+        (setup.verifierKeys (selectedIndex priorPcValid))
+        (input.running (selectedIndex priorPcValid)) input.fresh input.nifsProof
+        (output.runningNext (selectedIndex priorPcValid)) /\
+      forall slot, slot ≠ selectedIndex priorPcValid ->
+        output.runningNext slot = input.running slot)
+
+/-- The fused transition is exactly honest outer dispatch followed by the
+fixed-index augmented-circuit relation. -/
+theorem transition_iff_honestOuterDispatch_and_fixedAugmented
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) :
+    Transition setup machine functionIndex input output ↔
+      HonestOuterDispatch machine functionIndex input /\
+        FixedAugmentedTransition setup machine functionIndex input output := by
+  rfl
+
+/-- The fused helper accepts exactly one paper branch and includes honest
+outer dispatch. `FixedAugmentedTransition` owns the isolated `F'_j` layer. -/
 inductive Holds
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -398,6 +476,30 @@ theorem holds_iff_transition
         selectedNifs := selectedNifs
         unchanged := unchanged
         outputHash := outputHash }
+
+/-- The helper relation also exposes the two paper layers separately: honest
+outer dispatch and the selected fixed augmented circuit `F'_j`. -/
+theorem holds_iff_honestOuterDispatch_and_fixedAugmented
+    {Key : Type uKey}
+    {Digest : Type uDigest}
+    {State : Type uState}
+    {Witness : Type uWitness}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    {Encoded : Type uEncoded}
+    {slotCount : Nat}
+    (setup : Setup Key Running Fresh Proof slotCount)
+    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
+    (functionIndex : Fin slotCount)
+    (input : Input Key State Witness Running Fresh Proof slotCount)
+    (output : Output Digest State Running slotCount) :
+    Holds setup machine functionIndex input output ↔
+      HonestOuterDispatch machine functionIndex input /\
+        FixedAugmentedTransition setup machine functionIndex input output :=
+  (holds_iff_transition setup machine functionIndex input output).trans
+    (transition_iff_honestOuterDispatch_and_fixedAugmented
+      setup machine functionIndex input output)
 
 /-- Recursive terminal proof payload checked by Construction 2's outer NIVC
 verifier.  This is not the complete proof syntax: the base proof is the

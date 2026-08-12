@@ -276,6 +276,7 @@ instance (value : Nat) : Decidable (CenteredUnit value) := by
 /-- Host-side fixed-shape obligations checked before the compiler indexes the
 wire arrays. They contain no verifier acceptance conclusion. -/
 structure ShapeValid (layout : Layout) : Prop where
+  radixTwo : layout.radix = 2
   ringPositive : 0 < layout.ringDimension
   wholeRing : layout.parent.mIn % layout.ringDimension = 0
   powersCanonical : ∀ coefficient ∈
@@ -283,6 +284,10 @@ structure ShapeValid (layout : Layout) : Prop where
     0 < coefficient ∧ coefficient < goldilocksP
   commitmentLengths : ∀ child ∈ layout.children,
     child.commitment.dataCols.length = layout.parent.commitment.dataCols.length
+  advPresence :
+    match layout.parent.adv with
+    | none => ∀ child ∈ layout.children, child.adv = none
+    | some _ => ∀ child ∈ layout.children, ∃ adv, child.adv = some adv
   xShapes : ∀ child ∈ layout.children,
     child.xRows = layout.parent.xRows ∧
     child.xWidth = layout.parent.xWidth ∧

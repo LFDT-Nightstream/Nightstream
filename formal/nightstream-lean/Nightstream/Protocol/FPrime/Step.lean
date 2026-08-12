@@ -562,6 +562,33 @@ structure AdvanceFacts
     FreshLinked stepSemantics.freshLink proof.xOut input.nextLatest
   pinned : XOut.StatePinned hashSemantics mode context next
 
+/-- Facts produced by one standalone local invocation. They exclude the
+one-step-delayed fresh-public link, which belongs to the next invocation or
+the terminal link. -/
+structure LocalProducerFacts
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Header : Type uHeader}
+    {Digest : Type uDigest}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaDigest : Type uNebulaDigest}
+    {NebulaOpen : Type uNebulaOpen}
+    (hashSemantics : XOut.Semantics
+      Params StructureDigest Header Digest Nebula NebulaDigest)
+    (stepSemantics : Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (mode : XOut.Mode)
+    (context : XOut.Context Params StructureDigest Header Digest)
+    (next : State Digest Running Fresh Nebula)
+    (input : Input Fresh Nebula NebulaOpen)
+    (proof : Proof Digest NifsProof NebulaOpen) : Prop where
+  freshNonempty : input.nextLatest ≠ []
+  installedLatest : ∃ running,
+    next.proof = .active running input.nextLatest
+  recomputedXOut : proof.xOut = XOut.compute hashSemantics mode context next
+
 private instance localHoldsDecidable
     {Params : Type uParams}
     {StructureDigest : Type uStructure}
@@ -999,6 +1026,109 @@ theorem fPrimeRecursiveLocal_sound
   unfold LocalHolds at localProof
   rw [priorActive, proofRecursive] at localProof
   exact localProof
+
+/-- A standalone local invocation fixes the exact batch installed in its
+outgoing state and recomputes the public `x_out`. It does not prove that this
+new batch is linked; the next consumer or terminal link owns that check. -/
+theorem localHolds_producer_facts
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Header : Type uHeader}
+    {Digest : Type uDigest}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaDigest : Type uNebulaDigest}
+    {NebulaOpen : Type uNebulaOpen}
+    (hashSemantics : XOut.Semantics
+      Params StructureDigest Header Digest Nebula NebulaDigest)
+    (stepSemantics : Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (mode : XOut.Mode)
+    (context : XOut.Context Params StructureDigest Header Digest)
+    (prior next : State Digest Running Fresh Nebula)
+    (input : Input Fresh Nebula NebulaOpen)
+    (proof : Proof Digest NifsProof NebulaOpen)
+    (localProof : LocalHolds hashSemantics stepSemantics mode context
+      prior next input proof) :
+    LocalProducerFacts hashSemantics stepSemantics mode context next input
+      proof := by
+  cases priorProof : prior.proof with
+  | initial =>
+      cases foldProof : proof.fold with
+      | noFold =>
+          have base : BaseLocalHolds hashSemantics stepSemantics mode context
+              prior next input proof := by
+            simpa [LocalHolds, priorProof, foldProof] using localProof
+          rcases base with
+            ⟨_, _, freshNonempty, _, _, nextEqual, recomputedXOut⟩
+          subst next
+          exact {
+            freshNonempty := freshNonempty
+            installedLatest := ⟨stepSemantics.emptyRunning, rfl⟩
+            recomputedXOut := recomputedXOut
+          }
+      | recursive nifsProof =>
+          simp [LocalHolds, priorProof, foldProof] at localProof
+  | active running latest =>
+      cases foldProof : proof.fold with
+      | noFold =>
+          simp [LocalHolds, priorProof, foldProof] at localProof
+      | recursive nifsProof =>
+          have recursive : RecursiveLocalHolds hashSemantics stepSemantics mode
+              context prior next input proof running latest nifsProof := by
+            simpa [LocalHolds, priorProof, foldProof] using localProof
+          rcases recursive with ⟨_, _, _, _, verified⟩
+          cases verifierEqual : stepSemantics.nifsVerify
+              (nifsContext stepSemantics prior input) running latest nifsProof with
+          | none => simp [verifierEqual] at verified
+          | some nextRunning =>
+              simp only [verifierEqual] at verified
+              rcases verified with
+                ⟨freshNonempty, _, _, nextEqual, recomputedXOut⟩
+              subst next
+              exact {
+                freshNonempty := freshNonempty
+                installedLatest := ⟨nextRunning, rfl⟩
+                recomputedXOut := recomputedXOut
+              }
+
+/-- A recursive local invocation whose prior state contains an active batch
+checks the fresh-public link for that exact batch and the recomputed prior
+state output. -/
+theorem localHolds_consumes_active_latest
+    {Params : Type uParams}
+    {StructureDigest : Type uStructure}
+    {Header : Type uHeader}
+    {Digest : Type uDigest}
+    {Running : Type uRunning}
+    {Fresh : Type uFresh}
+    {NifsProof : Type uNifsProof}
+    {Nebula : Type}
+    {NebulaDigest : Type uNebulaDigest}
+    {NebulaOpen : Type uNebulaOpen}
+    (hashSemantics : XOut.Semantics
+      Params StructureDigest Header Digest Nebula NebulaDigest)
+    (stepSemantics : Semantics Digest Running Fresh NifsProof Nebula NebulaOpen)
+    (mode : XOut.Mode)
+    (context : XOut.Context Params StructureDigest Header Digest)
+    (prior next : State Digest Running Fresh Nebula)
+    (input : Input Fresh Nebula NebulaOpen)
+    (proof : Proof Digest NifsProof NebulaOpen)
+    (running : Running) (latest : List Fresh)
+    (priorActive : prior.proof = .active running latest)
+    (localProof : LocalHolds hashSemantics stepSemantics mode context
+      prior next input proof) :
+    FreshLinked stepSemantics.freshLink
+      (XOut.compute hashSemantics mode context prior) latest := by
+  cases foldProof : proof.fold with
+  | noFold =>
+      simp [LocalHolds, priorActive, foldProof] at localProof
+  | recursive nifsProof =>
+      have recursive : RecursiveLocalHolds hashSemantics stepSemantics mode
+          context prior next input proof running latest nifsProof := by
+        simpa [LocalHolds, priorActive, foldProof] using localProof
+      exact recursive.2.2.2.1
 
 /-- Consumer/terminal link rows close a locally valid step into the strong
 edge relation used by trace assurance. -/

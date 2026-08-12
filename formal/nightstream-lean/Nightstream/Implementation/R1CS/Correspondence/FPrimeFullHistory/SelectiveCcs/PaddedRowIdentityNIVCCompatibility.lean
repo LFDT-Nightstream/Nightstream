@@ -677,12 +677,12 @@ structure ApplicationCompiler
 circuit. The application compiler remains an explicit, proof-carrying input;
 all SuperNeo-specific obligations are discharged here. -/
 theorem definition12_holds
-    {Circuit Input Advice Output RecursivePayload : Type}
+    {Circuit Input Advice Output : Type}
     (execute : Circuit -> Input -> Advice -> Output)
     (circuitSize : Circuit -> Nat)
     (compiler : ApplicationCompiler Circuit Input Advice Output
       execute circuitSize)
-    (recursiveSize : RecursiveSizeClosure F Parameters RecursivePayload)
+    (recursiveSize : RecursiveSizeClosure F Parameters Advice)
     (recursiveSizeHolds :
       recursiveSize.Holds
         (compilerLayout execute circuitSize compiler.encoding))

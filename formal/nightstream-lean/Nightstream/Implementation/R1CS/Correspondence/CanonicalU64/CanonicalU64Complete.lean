@@ -130,7 +130,7 @@ theorem rows_shape :
     rows = bitRows ++
       [recomposeRow, bitRow 66, highDefinitionRow, inverseRow,
        canonicalityRow] := by
-  native_decide
+  decide
 
 @[simp] theorem interpret_one (field : FieldInverse) (source : Source) :
     interpret field source 0 = 1 := by
@@ -155,6 +155,80 @@ theorem rows_shape :
 @[simp] theorem interpret_inverse (field : FieldInverse) (source : Source) :
     interpret field source 67 = field.inverse (highDifference source) := by
   simp [interpret, varCol]
+
+/-- The 64 canonical bit columns emitted by the interpreter denote the same
+integer as the native source word. This is an integer statement, independent
+of field reduction and row satisfaction. -/
+theorem bitsValue_interpret (field : FieldInverse) (source : Source) :
+    bitsValue (interpret field source) = wordValue source := by
+  simp only [bitsValue, range64_shape, List.foldl_cons, List.foldl_nil,
+    interpret_bit field source (by decide : 0 < 64),
+    interpret_bit field source (by decide : 1 < 64),
+    interpret_bit field source (by decide : 2 < 64),
+    interpret_bit field source (by decide : 3 < 64),
+    interpret_bit field source (by decide : 4 < 64),
+    interpret_bit field source (by decide : 5 < 64),
+    interpret_bit field source (by decide : 6 < 64),
+    interpret_bit field source (by decide : 7 < 64),
+    interpret_bit field source (by decide : 8 < 64),
+    interpret_bit field source (by decide : 9 < 64),
+    interpret_bit field source (by decide : 10 < 64),
+    interpret_bit field source (by decide : 11 < 64),
+    interpret_bit field source (by decide : 12 < 64),
+    interpret_bit field source (by decide : 13 < 64),
+    interpret_bit field source (by decide : 14 < 64),
+    interpret_bit field source (by decide : 15 < 64),
+    interpret_bit field source (by decide : 16 < 64),
+    interpret_bit field source (by decide : 17 < 64),
+    interpret_bit field source (by decide : 18 < 64),
+    interpret_bit field source (by decide : 19 < 64),
+    interpret_bit field source (by decide : 20 < 64),
+    interpret_bit field source (by decide : 21 < 64),
+    interpret_bit field source (by decide : 22 < 64),
+    interpret_bit field source (by decide : 23 < 64),
+    interpret_bit field source (by decide : 24 < 64),
+    interpret_bit field source (by decide : 25 < 64),
+    interpret_bit field source (by decide : 26 < 64),
+    interpret_bit field source (by decide : 27 < 64),
+    interpret_bit field source (by decide : 28 < 64),
+    interpret_bit field source (by decide : 29 < 64),
+    interpret_bit field source (by decide : 30 < 64),
+    interpret_bit field source (by decide : 31 < 64),
+    interpret_bit field source (by decide : 32 < 64),
+    interpret_bit field source (by decide : 33 < 64),
+    interpret_bit field source (by decide : 34 < 64),
+    interpret_bit field source (by decide : 35 < 64),
+    interpret_bit field source (by decide : 36 < 64),
+    interpret_bit field source (by decide : 37 < 64),
+    interpret_bit field source (by decide : 38 < 64),
+    interpret_bit field source (by decide : 39 < 64),
+    interpret_bit field source (by decide : 40 < 64),
+    interpret_bit field source (by decide : 41 < 64),
+    interpret_bit field source (by decide : 42 < 64),
+    interpret_bit field source (by decide : 43 < 64),
+    interpret_bit field source (by decide : 44 < 64),
+    interpret_bit field source (by decide : 45 < 64),
+    interpret_bit field source (by decide : 46 < 64),
+    interpret_bit field source (by decide : 47 < 64),
+    interpret_bit field source (by decide : 48 < 64),
+    interpret_bit field source (by decide : 49 < 64),
+    interpret_bit field source (by decide : 50 < 64),
+    interpret_bit field source (by decide : 51 < 64),
+    interpret_bit field source (by decide : 52 < 64),
+    interpret_bit field source (by decide : 53 < 64),
+    interpret_bit field source (by decide : 54 < 64),
+    interpret_bit field source (by decide : 55 < 64),
+    interpret_bit field source (by decide : 56 < 64),
+    interpret_bit field source (by decide : 57 < 64),
+    interpret_bit field source (by decide : 58 < 64),
+    interpret_bit field source (by decide : 59 < 64),
+    interpret_bit field source (by decide : 60 < 64),
+    interpret_bit field source (by decide : 61 < 64),
+    interpret_bit field source (by decide : 62 < 64),
+    interpret_bit field source (by decide : 63 < 64),
+    wordValue, lowValue, highValue, range32_shape, Nat.zero_add,
+    Nat.add_zero, Nat.reduceAdd]
+  omega
 
 theorem bitValue_le_one (source : Source) (index : Nat) :
     bitValue source index ≤ 1 := by

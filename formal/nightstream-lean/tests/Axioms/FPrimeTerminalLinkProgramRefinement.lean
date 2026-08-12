@@ -5,7 +5,7 @@ import tests.Axioms.Support
 Fail-closed guards for the Rust-emitted terminal-link source program.
 -/
 
-/-- info: 'Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.Program.plain_cost' does not depend on any axioms -/
+/-- info: 'Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.Program.plain_cost' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.Program.plain_cost
 
@@ -28,7 +28,7 @@ Fail-closed guards for the Rust-emitted terminal-link source program.
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.ProgramRefinement.generated_plain_eq_canonical
 
-/-- info: 'Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.ProgramRefinement.generated_plain_cost' does not depend on any axioms -/
+/-- info: 'Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.ProgramRefinement.generated_plain_cost' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.Rust.CanonicalConformance.TerminalLink.ProgramRefinement.generated_plain_cost
 

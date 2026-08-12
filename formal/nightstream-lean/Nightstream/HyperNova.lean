@@ -1,6 +1,7 @@
 import Nightstream.HyperNova.NonInteractiveMultiFold
 import Nightstream.HyperNova.NIVCCompatibility
 import Nightstream.HyperNova.Construction2.Paper
+import Nightstream.HyperNova.Construction2.PaperTrace
 import Nightstream.HyperNova.Construction2.State
 import Nightstream.HyperNova.Construction2.Default
 

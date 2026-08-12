@@ -44,6 +44,18 @@ def decodedBuilder (assignment : Nat → Nat)
   lanes := evalState assignment builder.lanes
   absorbed := builder.absorbed
 
+/-- Builder history is not part of the value state. Equal current lanes and
+cursor are sufficient for equal decoding. This lemma also prevents callers
+from unfolding a large accumulated builder only to prove this fact. -/
+theorem decodedBuilder_eq_of_lanes_absorbed
+    (assignment : Nat -> Nat)
+    {left right : SymbolicDuplex.Builder}
+    (lanes : left.lanes = right.lanes)
+    (absorbed : left.absorbed = right.absorbed) :
+    decodedBuilder assignment left = decodedBuilder assignment right := by
+  rw [Poseidon2Duplex.State.mk.injEq]
+  exact ⟨congrArg (evalState assignment) lanes, absorbed⟩
+
 /-- One emitted entry computes the selected permutation. -/
 def EntryValid (base : Nat) (constants : Constants)
     (assignment : Nat → Nat) (entry : SymbolicDuplex.Entry) : Prop :=

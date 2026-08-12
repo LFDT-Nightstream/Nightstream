@@ -193,6 +193,12 @@ theorem canonical_term_count_exact : canonicalTerms.length = 53 := by decide
 
 theorem term_count_exact : terms.length = 66 := by decide
 
+/-- Exact sum of all sparse monomial degrees. This is the arithmetic cost
+driver for one concrete sparse-polynomial evaluation in `Pi_CCS`. -/
+theorem total_degree_sum_exact :
+    (terms.map Monomial.totalDegree).sum = 280 := by
+  decide
+
 private theorem every_term_degree_checked :
     terms.all (fun term => decide (term.totalDegree < 9)) = true := by
   decide

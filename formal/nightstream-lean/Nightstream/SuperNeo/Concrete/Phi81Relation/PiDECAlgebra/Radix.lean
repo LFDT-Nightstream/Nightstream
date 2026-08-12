@@ -1,3 +1,4 @@
+import Mathlib.Data.Nat.Digits.Lemmas
 import Nightstream.SuperNeo.Concrete.Phi81Relation.EvaluationHomomorphism.PiDEC
 import Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
@@ -38,6 +39,8 @@ That fallback is exact but deliberately carries no shortness claim.
 -/
 
 namespace Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix
+
+set_option maxHeartbeats 1000000
 
 open Nightstream.SuperNeo
 open Nightstream.SuperNeo.Concrete
@@ -187,6 +190,60 @@ private theorem sumBits_reconstruct (count value : Nat)
         inductionHypothesis (value / 2) tailBound]
       exact Nat.mod_add_div value 2
 
+private theorem sumNats_binary_eq_ofDigits {count : Nat}
+    (digits : Fin count -> Nat) :
+    sumNats (fun index => 2 ^ index.val * digits index) =
+      Nat.ofDigits 2 (List.ofFn digits) := by
+  induction count with
+  | zero => rfl
+  | succ count inductionHypothesis =>
+      simp only [sumNats, List.ofFn_succ, Nat.ofDigits, Fin.val_zero,
+        Nat.pow_zero, Nat.one_mul]
+      have tailTerms :
+          (fun index : Fin count =>
+              2 ^ index.succ.val * digits index.succ) =
+            (fun index : Fin count =>
+              2 * (2 ^ index.val * digits index.succ)) := by
+        funext index
+        simp [Nat.pow_succ', Nat.mul_assoc]
+      rw [tailTerms, sumNats_mul,
+        inductionHypothesis (fun index => digits index.succ)]
+      rfl
+
+private theorem natBit_of_binary_ofFn {count : Nat}
+    (digits : Fin count -> Nat)
+    (binary : forall index, digits index < 2)
+    (index : Fin count) :
+    natBit (Nat.ofDigits 2 (List.ofFn digits)) index.val = digits index := by
+  let value := Nat.ofDigits 2 (List.ofFn digits)
+  have valueBound : value < 2 ^ count := by
+    have bounded := Nat.ofDigits_lt_base_pow_length
+      (b := 2) (l := List.ofFn digits) (by decide : 1 < 2) (by
+        intro digit member
+        rcases List.mem_ofFn.mp member with ⟨position, rfl⟩
+        exact binary position)
+    simpa [value] using bounded
+  let canonicalDigits : Fin count -> Nat :=
+    fun position => natBit value position.val
+  have reconstructed :
+      Nat.ofDigits 2 (List.ofFn canonicalDigits) = value := by
+    rw [← sumNats_binary_eq_ofDigits]
+    exact sumBits_reconstruct count value valueBound
+  have original : Nat.ofDigits 2 (List.ofFn digits) = value := rfl
+  have listsEqual : List.ofFn canonicalDigits = List.ofFn digits := by
+    apply Nat.injOn_ofDigits (b := 2) (by decide) count
+    · exact ⟨by simp, by
+        intro digit member
+        rcases List.mem_ofFn.mp member with ⟨position, rfl⟩
+        exact natBit_lt_two _ _⟩
+    · exact ⟨by simp, by
+        intro digit member
+        rcases List.mem_ofFn.mp member with ⟨position, rfl⟩
+        exact binary position⟩
+    · exact reconstructed.trans original.symm
+  have selected := congrArg (fun values => values.getD index.val 0) listsEqual
+  simpa [canonicalDigits, index.isLt] using selected
+
 /-! ## Field recomposition -/
 
 private def combineScalars : {count : Nat} ->
@@ -294,6 +351,11 @@ def boundedDigit (value : F) (index : ChildIndex) : F :=
   else
     -(fieldOfNat (magnitudeDigit value index))
 
+/-- One digit selected by a single common sign bit. This is the exact form
+used by the recursive public-input split rows. -/
+def signedBinaryDigit (negative : Bool) (digit : Nat) : F :=
+  if negative then -(fieldOfNat digit) else fieldOfNat digit
+
 /-- Total outside-bound fallback. Child zero retains the coefficient and all
 other children are zero. It is exact but deliberately not short. -/
 def fallbackDigit (value : F) (index : ChildIndex) : F :=
@@ -390,6 +452,29 @@ private theorem fallbackDigit_recompose (value : F) :
 /-- Scalar form of the verifier-owned production assignment recomposition. -/
 def recomposeScalar (values : ChildIndex -> F) : F :=
   combineScalars EvaluationHomomorphism.PiDEC.radixWeight values
+
+/-- A common-sign binary digit vector recomposes to the signed natural value
+of its fourteen little-endian bits. -/
+theorem recomposeScalar_signedBinary
+    (negative : Bool) (digits : ChildIndex -> Nat) :
+    recomposeScalar (fun index => signedBinaryDigit negative (digits index)) =
+      if negative then
+        -(fieldOfNat (Nat.ofDigits 2 (List.ofFn digits)))
+      else fieldOfNat (Nat.ofDigits 2 (List.ofFn digits)) := by
+  have weights : EvaluationHomomorphism.PiDEC.radixWeight =
+      (fun index : ChildIndex => fieldOfNat (2 ^ index.val)) := by
+    funext index
+    exact radixWeight_eq_fieldOfNat index
+  unfold recomposeScalar
+  rw [weights]
+  cases negative with
+  | false =>
+      simp only [signedBinaryDigit, Bool.false_eq_true, ↓reduceIte]
+      rw [combineScalars_fieldOfNat, sumNats_binary_eq_ofDigits]
+  | true =>
+      simp only [signedBinaryDigit, ↓reduceIte]
+      rw [combineScalars_neg, combineScalars_fieldOfNat,
+        sumNats_binary_eq_ofDigits]
 
 /-- Public list-fold presentation of scalar recomposition. Implementation
 refinement may use this representation without depending on the private
@@ -523,7 +608,6 @@ private theorem centeredMagnitude_fieldOfNat_mul_le
   | zero =>
       rw [fieldOfNat_zero, Fin.zero_mul,
         Centered.centeredMagnitude_zero, Nat.zero_mul]
-      exact Nat.le_refl 0
   | succ factor inductionHypothesis =>
       have expand : fieldOfNat (factor + 1) * value =
           fieldOfNat factor * value + value := by
@@ -583,6 +667,138 @@ theorem recomposeScalar_norm
   exact Nat.lt_of_le_of_lt (Nat.le_trans combinationBound sumBound) (by
     have positive : 0 < productionGlobalParams.bigB := by decide
     omega)
+
+private theorem centeredMagnitude_fieldOfNat_eq_of_combinedBound
+    {value : Nat} (bounded : value < combinedBound) :
+    centeredMagnitude (fieldOfNat value) = value := by
+  have belowModulus : value < goldilocksModulus := by
+    norm_num [combinedBound, productionGlobalParams, GlobalParams.bigB,
+      goldilocksModulus] at bounded ⊢
+    omega
+  have belowHalf : value <= Centered.halfModulus := by
+    norm_num [combinedBound, productionGlobalParams, GlobalParams.bigB,
+      Centered.halfModulus, goldilocksModulus] at bounded ⊢
+    omega
+  rw [Centered.centeredMagnitude_eq_distance]
+  simp [Centered.distance, fieldOfNat, Nat.mod_eq_of_lt belowModulus,
+    belowHalf]
+
+private theorem fieldOfNat_nonnegative_of_combinedBound
+    {value : Nat} (bounded : value < combinedBound) :
+    isNonnegative (fieldOfNat value) := by
+  have belowModulus : value < goldilocksModulus := by
+    norm_num [combinedBound, productionGlobalParams, GlobalParams.bigB,
+      goldilocksModulus] at bounded ⊢
+    omega
+  unfold isNonnegative
+  simp [fieldOfNat, Nat.mod_eq_of_lt belowModulus]
+  norm_num [combinedBound, productionGlobalParams, GlobalParams.bigB,
+    Centered.halfModulus, goldilocksModulus] at bounded ⊢
+  omega
+
+private theorem neg_fieldOfNat_negative_of_positive_combinedBound
+    {value : Nat} (positive : 0 < value)
+    (bounded : value < combinedBound) :
+    ¬ isNonnegative (-(fieldOfNat value)) := by
+  have belowModulus : value < goldilocksModulus := by
+    norm_num [combinedBound, productionGlobalParams, GlobalParams.bigB,
+      goldilocksModulus] at bounded ⊢
+    omega
+  have nonzero : fieldOfNat value ≠ 0 := by
+    intro equal
+    have valuesEqual := congrArg Fin.val equal
+    simp [fieldOfNat, Nat.mod_eq_of_lt belowModulus] at valuesEqual
+    omega
+  unfold isNonnegative
+  rw [Fin.val_neg]
+  simp only [nonzero, ↓reduceIte]
+  simp [fieldOfNat, Nat.mod_eq_of_lt belowModulus]
+  norm_num [combinedBound, productionGlobalParams, GlobalParams.bigB,
+    Centered.halfModulus, goldilocksModulus] at bounded ⊢
+  omega
+
+/-- Common-sign Boolean digits and exact radix recomposition determine the
+verifier's public split uniquely. A caller cannot use a mixed-sign alternate
+decomposition such as `1 = -1 + 2`. -/
+theorem splitScalar_eq_signedBinary_of_recompose
+    (value : F) (negative : Bool) (digits : ChildIndex -> Nat)
+    (binary : forall index, digits index < 2)
+    (recomposes :
+      recomposeScalar
+          (fun index => signedBinaryDigit negative (digits index)) = value) :
+    forall index,
+      splitScalar value index = signedBinaryDigit negative (digits index) := by
+  let magnitude := Nat.ofDigits 2 (List.ofFn digits)
+  have magnitudeBound : magnitude < combinedBound := by
+    have rawBound := Nat.ofDigits_lt_base_pow_length
+      (b := 2) (l := List.ofFn digits) (by decide : 1 < 2) (by
+        intro digit member
+        rcases List.mem_ofFn.mp member with ⟨position, rfl⟩
+        exact binary position)
+    simpa [magnitude, combinedBound, productionGlobalParams,
+      GlobalParams.bigB] using rawBound
+  have valueBound : centeredMagnitude value < combinedBound := by
+    rw [← recomposes]
+    apply recomposeScalar_norm
+    intro index
+    have digitCases : digits index = 0 ∨ digits index = 1 := by
+      have := binary index
+      omega
+    rcases digitCases with digitZero | digitOne
+    · rw [digitZero]
+      cases negative <;> decide
+    · rw [digitOne]
+      cases negative <;> decide
+  have signedRecomposition := recomposeScalar_signedBinary negative digits
+  have magnitudeExact : centeredMagnitude value = magnitude := by
+    cases negative with
+    | false =>
+        have valueExact : fieldOfNat magnitude = value := by
+          simpa [magnitude] using signedRecomposition.symm.trans recomposes
+        rw [← valueExact]
+        exact centeredMagnitude_fieldOfNat_eq_of_combinedBound magnitudeBound
+    | true =>
+        have valueExact : -(fieldOfNat magnitude) = value := by
+          simpa [magnitude] using signedRecomposition.symm.trans recomposes
+        rw [← valueExact, Centered.centeredMagnitude_neg]
+        exact centeredMagnitude_fieldOfNat_eq_of_combinedBound magnitudeBound
+  intro index
+  have digitExact : magnitudeDigit value index = digits index := by
+    unfold magnitudeDigit
+    rw [magnitudeExact]
+    exact natBit_of_binary_ofFn digits binary index
+  rw [splitScalar, if_pos valueBound]
+  cases negative with
+  | false =>
+      have valueExact : fieldOfNat magnitude = value := by
+        simpa [magnitude] using signedRecomposition.symm.trans recomposes
+      have nonnegative : isNonnegative value := by
+        rw [← valueExact]
+        exact fieldOfNat_nonnegative_of_combinedBound magnitudeBound
+      simp [boundedDigit, signedBinaryDigit, nonnegative, digitExact]
+  | true =>
+      by_cases magnitudeZero : magnitude = 0
+      · have digitZero : digits index = 0 := by
+          have bitExact := natBit_of_binary_ofFn digits binary index
+          rw [show Nat.ofDigits 2 (List.ofFn digits) = 0 by
+            simpa [magnitude] using magnitudeZero] at bitExact
+          simpa [natBit] using bitExact.symm
+        have valueExact : value = 0 := by
+          have equation : -(fieldOfNat magnitude) = value := by
+            simpa [magnitude] using signedRecomposition.symm.trans recomposes
+          simpa [magnitudeZero] using equation.symm
+        unfold boundedDigit signedBinaryDigit
+        rw [if_pos (by simp [valueExact, isNonnegative])]
+        rw [digitExact, digitZero]
+        rfl
+      · have magnitudePositive : 0 < magnitude := Nat.pos_of_ne_zero magnitudeZero
+        have valueExact : -(fieldOfNat magnitude) = value := by
+          simpa [magnitude] using signedRecomposition.symm.trans recomposes
+        have negativeValue : ¬ isNonnegative value := by
+          rw [← valueExact]
+          exact neg_fieldOfNat_negative_of_positive_combinedBound
+            magnitudePositive magnitudeBound
+        simp [boundedDigit, signedBinaryDigit, negativeValue, digitExact]
 
 /-- Any fourteen strict-`2` assignments recompose to a strict-`16384`
 assignment, independently of whether they came from `splitAssignment`. -/

@@ -1,4 +1,5 @@
 import Nightstream.Implementation.R1CS.Artifacts.CanonicalU64
+import Mathlib.Tactic.IntervalCases
 
 /-!
 Contract: artifact-level soundness of the canonical-u64 decomposition gadget.
@@ -18,6 +19,20 @@ commitment binding, and any claim about the surrounding F' circuit rows.
 namespace Nightstream.Implementation.R1CS
 
 open CanonicalU64
+
+/-- Every indexed bit wire of a satisfying canonical-u64 block is Boolean.
+This lets a larger compiler construct its typed word from row-derived columns
+instead of accepting that word as parser authority. -/
+theorem canonicalU64_bit_lt_two (hq : EuclidPrime goldilocksP)
+    {z : Nat → Nat}
+    (hcanon : ∀ i, z i < goldilocksP)
+    (hone : z 0 = 1)
+    (hsat : Satisfies rows z)
+    (index : Nat) (bounded : index < 64) :
+    z (bitCol index) < 2 := by
+  interval_cases index <;>
+    exact Nat.lt_succ_iff.mpr
+      (bitRow_le_one hq (hcanon _) hone (hsat _ (by decide)))
 
 /-- Little-endian integer value of the 64 exported bit columns. -/
 def bitsValue (z : Nat → Nat) : Nat :=

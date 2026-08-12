@@ -84,8 +84,13 @@ abbrev StatementId := Poseidon2.StatementId
 
 namespace SamplerSecurity
 export PaddedRowIdentitySamplerSecurity
-  (GoldilocksRandomOracleSamplerContract completeSamplerShortfallBound
-    samplerSecurityTarget shortfall_requires_three_rejections
+  (CandidateTriple IdealThreeRejections Poseidon2IdealSamplerTransfer
+    candidateTriple completeSamplerShortfallBound
+    idealCandidateTripleExperiment idealCandidateTripleSupport
+    idealCandidateTripleSupport_cardinality
+    idealCandidateTriple_joint_probability
+    idealThreeRejections_probability samplerSecurityTarget
+    shortfall_requires_three_rejections threeRejections_probability_eq
     sampleCoefficient_eq_none_iff_threeRejections
     completeSamplerShortfallBound_le_target
     samplerShortfall_probability_le

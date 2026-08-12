@@ -50,9 +50,10 @@ fn host_event_auxiliary_registry_preserves_the_existing_layout() {
         ("GMEM_LOCAL", 1, ColumnWidth::Boolean),
         ("GMEM_BYTE", 1, ColumnWidth::Boolean),
         ("GMEM_HALF", 1, ColumnWidth::Boolean),
+        ("TB_ENTRY_INV", 1, ColumnWidth::Field),
     ];
 
-    assert_eq!(AUX_WIDTH, 100);
+    assert_eq!(AUX_WIDTH, 101);
     assert_eq!(AUX_COLUMN_SPECS.len(), expected.len());
 
     let mut next = NAMED_COLUMN_COUNT;

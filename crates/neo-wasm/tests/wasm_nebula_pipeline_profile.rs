@@ -76,6 +76,15 @@ fn ms(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1_000.0
 }
 
+#[cfg(feature = "perf-timers")]
+fn performance_profile(batch_size: usize) -> neo_wasm::WasmNebulaProfile {
+    // These limits define this benchmark fixture. The library does not select
+    // application limits or an instruction batch for callers.
+    let limits = neo_wasm::nebula::WasmNebulaLimits::new(4096, 256, 256, 16, 32768, 64, 8, 256)
+        .expect("WASM performance fixture limits");
+    neo_wasm::WasmNebulaProfile::production(limits, batch_size).expect("WASM performance fixture profile")
+}
+
 fn matrix_stats(matrix: &CcsMatrix<F>) -> StorageStats {
     match matrix {
         CcsMatrix::Identity { n } => StorageStats {
@@ -584,17 +593,7 @@ fn wasm_nebula_pipeline_profile() {
     let terminal = proof.inner();
     let (running_claims, latest_instances) = match &terminal.state.proof {
         ProofState::Initial => (0, 0),
-        ProofState::Active { running, latest } => {
-            let running_claims = match running.as_materialized() {
-                Some(running) => running.claims.len(),
-                None => running
-                    .materialize()
-                    .expect("materialize final running accumulator")
-                    .claims
-                    .len(),
-            };
-            (running_claims, latest.instances.len())
-        }
+        ProofState::Active { running, latest } => (running.claims.len(), latest.instances.len()),
     };
     assert!(
         terminal.final_fold.is_some(),
@@ -665,21 +664,21 @@ fn wasm_nebula_pipeline_profile() {
 #[cfg(feature = "perf-timers")]
 #[ignore = "production kappa=18 fixed point plus three real folds; run explicitly"]
 fn wasm_nebula_production_prefix_profile() {
-    production_prefix_profile(neo_wasm::WasmNebulaProfile::production());
+    production_prefix_profile(performance_profile(3));
 }
 
 #[test]
 #[cfg(feature = "perf-timers")]
 #[ignore = "production kappa=18 batch-4 fixed point plus three real folds; run explicitly"]
 fn wasm_nebula_production_batch_4_prefix_profile() {
-    production_prefix_profile(neo_wasm::WasmNebulaProfile::production_with_profile_batch_size(4));
+    production_prefix_profile(performance_profile(4));
 }
 
 #[test]
 #[cfg(feature = "perf-timers")]
 #[ignore = "production kappa=18 batch-5 fixed point plus three real folds; run explicitly"]
 fn wasm_nebula_production_batch_5_prefix_profile() {
-    production_prefix_profile(neo_wasm::WasmNebulaProfile::production_with_profile_batch_size(5));
+    production_prefix_profile(performance_profile(5));
 }
 
 #[cfg(feature = "perf-timers")]

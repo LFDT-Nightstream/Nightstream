@@ -1,8 +1,7 @@
 //! Challenge-sharded Lean rendering for the recursive acceptance outer image.
 //!
-//! Owns: lossless normalization of the audited 960-chunk image, exact
-//! row-set reconciliation, one shared 391-coefficient decoder vector, and
-//! deterministic generated Lean shards.
+//! Owns: lossless normalization of the audited 960-chunk direct-decoder image,
+//! exact row-set reconciliation, and deterministic generated Lean shards.
 //!
 //! Does not own: production extraction, semantic proofs, artifact promotion,
 //! or permission to remove constraints.
@@ -11,28 +10,23 @@
 //!
 //! | Generated branch | Records per shard | Exact content |
 //! |---|---:|---|
-//! | shape | 1 | dimensions, gate arity, fixed census, shared decoder coefficients |
-//! | definition shard | 48 × 15 | removed source definition rows and source LCs by challenge |
+//! | shape | 1 | dimensions, gate arity, and fixed census |
 //! | challenge | 64 chunks | source/encoded placement, 16 decoders, Boolean owner rows |
 //! | facade | 15 challenge shards | canonical ordered flattening |
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use neo_fold_clean::frontends::f_prime::gadget_native::{
-    AggregateAcceptanceBooleanRowOwner, AggregateAcceptanceDecodedImage, AggregateAcceptanceLinearDefinitionAudit,
-    AggregateAcceptanceOuterImageAudit, GadgetNativeBooleanFamily,
+    AggregateAcceptanceBooleanRowOwner, AggregateAcceptanceDecodedImage, AggregateAcceptanceOuterImageAudit,
+    GadgetNativeBooleanFamily,
 };
-use neo_math::F;
-use p3_field::PrimeField64;
 
 const CHALLENGES: usize = 15;
 const CHUNKS_PER_CHALLENGE: usize = 64;
 const INPUTS_PER_CHUNK: usize = 16;
 const ACTIVE_ROWS_PER_CHUNK: usize = 9;
 const OUTPUTS_PER_CHUNK: usize = 14;
-const LINEAR_WIDTH: usize = 391;
-const LINEAR_DEFINITIONS: usize = 720;
 const GENERATED_MODULE: &str =
     "Nightstream.Implementation.R1CS.Artifacts.PiRlcChallenge.Generated.AggregateAcceptanceOuterImage";
 pub(super) const GENERATED_ROOT: &str =
@@ -43,28 +37,6 @@ pub(super) const GENERATED_DATA_PATH: &str =
 pub(super) struct RenderedFile {
     pub relative_path: String,
     pub contents: String,
-}
-
-fn signed_canonical(coefficient: u64) -> i128 {
-    let canonical = coefficient as i128;
-    let modulus = F::ORDER_U64 as i128;
-    if canonical > modulus / 2 {
-        canonical - modulus
-    } else {
-        canonical
-    }
-}
-
-fn signed(coefficient: F) -> i128 {
-    signed_canonical(coefficient.as_canonical_u64())
-}
-
-fn sparse_signature(terms: &[(usize, F)]) -> Vec<(usize, u64)> {
-    let base = terms[0].0;
-    terms
-        .iter()
-        .map(|&(column, coefficient)| (column - base, coefficient.as_canonical_u64()))
-        .collect()
 }
 
 fn validate_row_sets(audit: &AggregateAcceptanceOuterImageAudit) {
@@ -78,9 +50,6 @@ fn validate_row_sets(audit: &AggregateAcceptanceOuterImageAudit) {
             expected_physical.insert(bit.boolean_owner.encoded_row());
         }
     }
-    for definition in &audit.linear_definitions {
-        expected_source.insert(definition.source_row);
-    }
     assert_eq!(
         expected_source,
         audit.source_rows.iter().map(|row| row.row).collect(),
@@ -93,55 +62,34 @@ fn validate_row_sets(audit: &AggregateAcceptanceOuterImageAudit) {
     );
 }
 
-fn validate_profile(audit: &AggregateAcceptanceOuterImageAudit) -> Vec<Vec<(usize, u64)>> {
-    assert_eq!(audit.source_row_count, 7_080_332);
-    assert_eq!(audit.source_columns, 7_011_981);
-    assert_eq!(audit.encoded_rows, 7_018_257);
-    assert_eq!(audit.encoded_columns, 9_372_342);
+fn validate_profile(audit: &AggregateAcceptanceOuterImageAudit) {
+    assert_eq!(audit.source_row_count, 7_169_252);
+    assert_eq!(audit.source_columns, 7_100_181);
+    assert_eq!(audit.encoded_rows, 7_253_817);
+    assert_eq!(audit.encoded_columns, 9_820_662);
     assert_eq!(audit.matrix_arity, 56);
     assert_eq!(audit.chunks.len(), CHALLENGES * CHUNKS_PER_CHALLENGE);
-    assert_eq!(audit.linear_definitions.len(), LINEAR_DEFINITIONS);
-    assert_eq!(audit.source_rows.len(), 19_920);
-    assert_eq!(audit.physical_rows.len(), 16_560);
-    let mut definition_widths = BTreeMap::new();
-    for definition in &audit.linear_definitions {
-        *definition_widths
-            .entry(definition.terms.len())
-            .or_insert(0usize) += 1;
-    }
-    assert_eq!(
-        definition_widths,
-        BTreeMap::from([(1usize, 240usize), (8, 240), (64, 240)]),
-        "linear-definition width families",
-    );
+    assert!(audit.linear_definitions.is_empty());
+    assert_eq!(audit.source_rows.len(), 19_200);
+    assert_eq!(audit.physical_rows.len(), 16_320);
     validate_row_sets(audit);
 
-    let mut sparse_patterns = BTreeMap::<Vec<(usize, u64)>, usize>::new();
     let mut singleton = 0usize;
-    let mut linear = 0usize;
     let mut left = 0usize;
     let mut right = 0usize;
-    let mut translated = 0usize;
-    for (chunk_index, chunk) in audit.chunks.iter().enumerate() {
+    for chunk in &audit.chunks {
         assert_eq!(chunk.bits.len(), INPUTS_PER_CHUNK);
         assert_eq!(chunk.source_rows.len(), 4);
         assert_eq!(chunk.encoded_outputs.len(), OUTPUTS_PER_CHUNK);
         assert_eq!(chunk.active_rows.len(), ACTIVE_ROWS_PER_CHUNK);
-        for (bit_index, bit) in chunk.bits.iter().enumerate() {
-            let expected_linear = chunk_index % 4 == 3 && bit_index == 15;
+        for bit in &chunk.bits {
             match &bit.decoded {
                 AggregateAcceptanceDecodedImage::Singleton { .. } => {
-                    assert!(!expected_linear, "recursive sparse-bit position drift");
                     assert!(bit.linear_definition_columns.is_empty());
                     singleton += 1;
                 }
-                AggregateAcceptanceDecodedImage::SparseLinear { terms } => {
-                    assert!(expected_linear, "recursive sparse-bit position drift");
-                    assert_eq!(terms.len(), LINEAR_WIDTH);
-                    assert_eq!(bit.linear_definition_columns.len(), 3);
-                    let signature = sparse_signature(terms);
-                    *sparse_patterns.entry(signature).or_default() += 1;
-                    linear += 1;
+                AggregateAcceptanceDecodedImage::SparseLinear { .. } => {
+                    panic!("fixed recursive profile must use direct singleton decoders")
                 }
             }
             match bit.boolean_owner {
@@ -156,31 +104,15 @@ fn validate_profile(audit: &AggregateAcceptanceOuterImageAudit) -> Vec<Vec<(usiz
                 AggregateAcceptanceBooleanRowOwner::CoordinateTail { .. } => {
                     panic!("fixed recursive acceptance has no Boolean tail owner")
                 }
-                AggregateAcceptanceBooleanRowOwner::TranslatedSource { source_row, .. } => {
-                    assert_eq!(source_row, bit.source_boolean_row);
-                    assert!(expected_linear);
-                    translated += 1;
+                AggregateAcceptanceBooleanRowOwner::TranslatedSource { .. } => {
+                    panic!("fixed recursive profile has no translated Boolean owner")
                 }
             }
         }
     }
-    assert_eq!(singleton, 15_120);
-    assert_eq!(linear, 240);
+    assert_eq!(singleton, 15_360);
     assert_eq!(left, 7_680);
-    assert_eq!(right, 7_440);
-    assert_eq!(translated, 240);
-    assert_eq!(sparse_patterns.len(), 4);
-    assert!(sparse_patterns.values().all(|&count| count == 60));
-    let mut patterns = sparse_patterns.into_keys().collect::<Vec<_>>();
-    patterns.sort_by_key(|pattern| pattern.last().map_or(0, |term| term.0));
-    assert_eq!(
-        patterns
-            .iter()
-            .map(|pattern| pattern.last().map_or(0, |term| term.0))
-            .collect::<Vec<_>>(),
-        [390, 551, 712, 873],
-    );
-    patterns
+    assert_eq!(right, 7_680);
 }
 
 fn header(summary: &str, table: &str) -> String {
@@ -193,48 +125,13 @@ evidence consumed by handwritten refinement proofs.\n\n\
     )
 }
 
-fn render_nat_list(values: &[usize]) -> String {
-    format!(
-        "[{}]",
-        values
-            .iter()
-            .map(usize::to_string)
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
-}
-
-fn render_sparse_patterns(patterns: &[Vec<(usize, u64)>]) -> String {
-    let mut rendered = String::from("[\n");
-    for (pattern_index, pattern) in patterns.iter().enumerate() {
-        let separator = if pattern_index == 0 { "  " } else { ", " };
-        writeln!(rendered, "{separator}[").expect("render pattern start");
-        for (line, terms) in pattern.chunks(12).enumerate() {
-            let term_separator = if line == 0 { "    " } else { "  , " };
-            writeln!(
-                rendered,
-                "{term_separator}{}",
-                terms
-                    .iter()
-                    .map(|&(offset, coefficient)| { format!("⟨{offset}, {}⟩", signed_canonical(coefficient)) })
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-            .expect("render pattern terms");
-        }
-        writeln!(rendered, "  ]").expect("render pattern end");
-    }
-    rendered.push(']');
-    rendered
-}
-
-fn render_shape(audit: &AggregateAcceptanceOuterImageAudit, patterns: &[Vec<(usize, u64)>]) -> String {
+fn render_shape(audit: &AggregateAcceptanceOuterImageAudit) -> String {
     let mut rendered = String::from(
         "import Nightstream.Implementation.R1CS.Artifacts.PiRlcChallenge.AggregateAcceptanceOuterImageSchema\n\n",
     );
     rendered.push_str(&header(
-        "Owns: exact fixed-profile dimensions, row/decoder census, and four\nshared 391-term sparse decoder patterns.",
-        "| Data branch | Exact value |\n|---|---:|\n| challenges/chunks | 15 / 960 |\n| source rows/columns | 7,080,332 / 7,011,981 |\n| encoded rows/columns | 7,018,257 / 9,372,342 |\n| sparse decoders | 4 patterns; 240 images × 391 terms |",
+        "Owns: exact fixed-profile dimensions and direct-decoder/row census.",
+        "| Data branch | Exact value |\n|---|---:|\n| challenges/chunks | 15 / 960 |\n| source rows/columns | 7,169,252 / 7,100,181 |\n| encoded rows/columns | 7,253,817 / 9,820,662 |\n| direct decoders | 15,360 |",
     ));
     writeln!(
         rendered,
@@ -242,7 +139,7 @@ fn render_shape(audit: &AggregateAcceptanceOuterImageAudit, patterns: &[Vec<(usi
     )
     .expect("render shape namespace");
     let constants = [
-        ("schemaVersion", 1usize),
+        ("schemaVersion", 2usize),
         ("challengeCount", CHALLENGES),
         ("chunksPerChallenge", CHUNKS_PER_CHALLENGE),
         ("chunkCount", audit.chunks.len()),
@@ -254,93 +151,17 @@ fn render_shape(audit: &AggregateAcceptanceOuterImageAudit, patterns: &[Vec<(usi
         ("encodedRowCount", audit.encoded_rows),
         ("encodedColumnCount", audit.encoded_columns),
         ("matrixArity", audit.matrix_arity),
-        ("linearDefinitionCount", audit.linear_definitions.len()),
         ("selectedSourceRowCount", audit.source_rows.len()),
         ("selectedPhysicalRowCount", audit.physical_rows.len()),
-        ("singletonDecoderCount", 15_120),
-        ("sparseDecoderCount", 240),
+        ("directDecoderCount", 15_360),
         ("pairLeftOwnerCount", 7_680),
-        ("pairRightOwnerCount", 7_440),
-        ("translatedOwnerCount", 240),
+        ("pairRightOwnerCount", 7_680),
     ];
     for (name, value) in constants {
         writeln!(rendered, "def {name} : Nat := {value}").expect("render shape constant");
     }
-    writeln!(
-        rendered,
-        "\ndef sparseLinearPatterns : List (List SourceLinearTerm) :=\n{}\n\nend {GENERATED_MODULE}.Shape",
-        render_sparse_patterns(patterns),
-    )
-    .expect("render sparse patterns");
+    writeln!(rendered, "\nend {GENERATED_MODULE}.Shape").expect("close shape");
     rendered
-}
-
-fn render_definition(definition: &AggregateAcceptanceLinearDefinitionAudit) -> String {
-    let terms = definition
-        .terms
-        .iter()
-        .map(|&(column, coefficient)| format!("⟨{column}, {}⟩", signed(coefficient)))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!(
-        "{{ sourceColumn := {}, sourceRow := {}, terms := [{terms}] }}",
-        definition.source_column, definition.source_row,
-    )
-}
-
-fn challenge_definition_columns(audit: &AggregateAcceptanceOuterImageAudit, challenge: usize) -> BTreeSet<usize> {
-    let start = challenge * CHUNKS_PER_CHALLENGE;
-    audit.chunks[start..start + CHUNKS_PER_CHALLENGE]
-        .iter()
-        .flat_map(|chunk| &chunk.bits)
-        .flat_map(|bit| bit.linear_definition_columns.iter().copied())
-        .collect()
-}
-
-fn render_definition_shard(audit: &AggregateAcceptanceOuterImageAudit, challenge: usize) -> String {
-    let module = format!("Definitions{challenge:02}");
-    let columns = challenge_definition_columns(audit, challenge);
-    let definitions = audit
-        .linear_definitions
-        .iter()
-        .filter(|definition| columns.contains(&definition.source_column))
-        .collect::<Vec<_>>();
-    assert_eq!(columns.len(), 48, "definition-column census per challenge");
-    assert_eq!(definitions.len(), 48, "definition census per challenge");
-    let mut rendered = format!("import {GENERATED_MODULE}.Shape\n\n");
-    rendered.push_str(&header(
-        &format!(
-            "Owns: the 48 removed generic-linear source definitions reachable from\nPi_RLC challenge {challenge}, including their exact source rows."
-        ),
-        "| Data branch | Records | Terms/record |\n|---|---:|---:|\n| generic-linear provenance | 16 / 16 / 16 | 1 / 8 / 64 |",
-    ));
-    writeln!(
-        rendered,
-        "set_option maxRecDepth 10000\n\nnamespace {GENERATED_MODULE}.{module}\n\nopen Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Acceptance.AggregateAcceptanceOuterImageArtifact\n\ndef linearDefinitions : List LinearDefinition := ["
-    )
-    .expect("render definition import");
-    for (index, definition) in definitions.iter().enumerate() {
-        let separator = if index == 0 { "  " } else { ", " };
-        writeln!(rendered, "{separator}{}", render_definition(definition)).expect("render definition");
-    }
-    writeln!(rendered, "]\n\nend {GENERATED_MODULE}.{module}").expect("close definitions");
-    rendered
-}
-
-fn render_decoded(decoded: &AggregateAcceptanceDecodedImage, patterns: &[Vec<(usize, u64)>]) -> String {
-    match decoded {
-        AggregateAcceptanceDecodedImage::Singleton { encoded_column } => {
-            format!("(.singleton {encoded_column})")
-        }
-        AggregateAcceptanceDecodedImage::SparseLinear { terms } => {
-            let signature = sparse_signature(terms);
-            let pattern = patterns
-                .iter()
-                .position(|candidate| candidate == &signature)
-                .expect("validated sparse pattern");
-            format!("(.sparseLinear {pattern} {})", terms[0].0)
-        }
-    }
 }
 
 fn render_owner(owner: AggregateAcceptanceBooleanRowOwner) -> String {
@@ -358,32 +179,29 @@ fn render_owner(owner: AggregateAcceptanceBooleanRowOwner) -> String {
         AggregateAcceptanceBooleanRowOwner::CoordinateTail { .. } => {
             unreachable!("validated fixed profile excludes tails")
         }
-        AggregateAcceptanceBooleanRowOwner::TranslatedSource {
-            source_row,
-            encoded_row,
-        } => format!("(.translatedSource {source_row} {encoded_row})"),
+        AggregateAcceptanceBooleanRowOwner::TranslatedSource { .. } => {
+            unreachable!("validated fixed profile excludes translated rows")
+        }
     }
 }
 
-fn render_bit(
-    bit: &neo_fold_clean::frontends::f_prime::gadget_native::AggregateAcceptanceBitOuterImage,
-    patterns: &[Vec<(usize, u64)>],
-) -> String {
+fn render_bit(bit: &neo_fold_clean::frontends::f_prime::gadget_native::AggregateAcceptanceBitOuterImage) -> String {
+    let encoded_column = match bit.decoded {
+        AggregateAcceptanceDecodedImage::Singleton { encoded_column } => encoded_column,
+        AggregateAcceptanceDecodedImage::SparseLinear { .. } => {
+            unreachable!("validated fixed profile excludes sparse decoders")
+        }
+    };
     format!(
-        "{{ sourceColumn := {}, sourceBooleanRow := {}, decoded := {}, definitionColumns := {}, owner := {} }}",
+        "{{ sourceColumn := {}, sourceBooleanRow := {}, encodedColumn := {}, owner := {} }}",
         bit.source_column,
         bit.source_boolean_row,
-        render_decoded(&bit.decoded, patterns),
-        render_nat_list(&bit.linear_definition_columns),
+        encoded_column,
         render_owner(bit.boolean_owner),
     )
 }
 
-fn render_challenge(
-    audit: &AggregateAcceptanceOuterImageAudit,
-    patterns: &[Vec<(usize, u64)>],
-    challenge: usize,
-) -> String {
+fn render_challenge(audit: &AggregateAcceptanceOuterImageAudit, challenge: usize) -> String {
     let module = format!("Challenge{challenge:02}");
     let mut rendered = format!("import {GENERATED_MODULE}.Shape\n\n");
     rendered.push_str(&header(
@@ -419,10 +237,7 @@ fn render_challenge(
             writeln!(
                 rendered,
                 "{bit_separator}{}",
-                bits.iter()
-                    .map(|bit| render_bit(bit, patterns))
-                    .collect::<Vec<_>>()
-                    .join(", "),
+                bits.iter().map(render_bit).collect::<Vec<_>>().join(", "),
             )
             .expect("render chunk bits");
         }
@@ -445,9 +260,6 @@ fn render_challenge(
 fn render_data_facade() -> String {
     let mut rendered = String::new();
     for challenge in 0..CHALLENGES {
-        writeln!(rendered, "import {GENERATED_MODULE}.Definitions{challenge:02}").expect("render definition import");
-    }
-    for challenge in 0..CHALLENGES {
         writeln!(rendered, "import {GENERATED_MODULE}.Challenge{challenge:02}").expect("render challenge import");
     }
     rendered.push('\n');
@@ -457,20 +269,9 @@ fn render_data_facade() -> String {
     ));
     writeln!(
         rendered,
-        "namespace Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Acceptance.AggregateAcceptanceOuterImageData\n\nopen Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Acceptance.AggregateAcceptanceOuterImageArtifact\n\nabbrev sparseLinearPatterns := {GENERATED_MODULE}.Shape.sparseLinearPatterns\n\ndef definitionShards : List (List LinearDefinition) := ["
+        "namespace Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Acceptance.AggregateAcceptanceOuterImageData\n\nopen Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Acceptance.AggregateAcceptanceOuterImageArtifact\n\ndef challenges : List (List ChunkOuterImage) := ["
     )
     .expect("render facade namespace");
-    for challenge in 0..CHALLENGES {
-        let separator = if challenge == 0 { "  " } else { ", " };
-        writeln!(
-            rendered,
-            "{separator}{GENERATED_MODULE}.Definitions{challenge:02}.linearDefinitions"
-        )
-        .expect("render definition reference");
-    }
-    rendered.push_str(
-        "]\n\ndef linearDefinitions : List LinearDefinition := definitionShards.flatten\n\ndef challenges : List (List ChunkOuterImage) := [\n",
-    );
     for challenge in 0..CHALLENGES {
         let separator = if challenge == 0 { "  " } else { ", " };
         writeln!(rendered, "{separator}{GENERATED_MODULE}.Challenge{challenge:02}.chunks")
@@ -483,19 +284,15 @@ fn render_data_facade() -> String {
 }
 
 pub(super) fn render(audit: &AggregateAcceptanceOuterImageAudit) -> Vec<RenderedFile> {
-    let patterns = validate_profile(audit);
+    validate_profile(audit);
     let mut files = vec![RenderedFile {
         relative_path: format!("{GENERATED_ROOT}/Shape.lean"),
-        contents: render_shape(audit, &patterns),
+        contents: render_shape(audit),
     }];
     for challenge in 0..CHALLENGES {
         files.push(RenderedFile {
-            relative_path: format!("{GENERATED_ROOT}/Definitions{challenge:02}.lean"),
-            contents: render_definition_shard(audit, challenge),
-        });
-        files.push(RenderedFile {
             relative_path: format!("{GENERATED_ROOT}/Challenge{challenge:02}.lean"),
-            contents: render_challenge(audit, &patterns, challenge),
+            contents: render_challenge(audit, challenge),
         });
     }
     files.push(RenderedFile {

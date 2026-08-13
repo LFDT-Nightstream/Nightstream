@@ -226,9 +226,6 @@ fn tampered_terminal_witness_fails_slice_opening() {
     let neo_fold_clean::paper::construction2::ProofState::Active { running, .. } = &mut audit.proof.state.proof else {
         panic!("finalized chain is Active");
     };
-    let running = running
-        .as_materialized_mut()
-        .expect("CPU Nebula fixture has materialized running state");
     // Flip one lane-column coefficient in one terminal witness.
     let witness = &mut running.witnesses[0];
     let flip = (0, 26); // row 0, first ops-lane column

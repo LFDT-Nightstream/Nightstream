@@ -20,10 +20,10 @@ open Nightstream.Implementation.R1CS.Canonical
 #guard_msgs in
 #audit_axioms PiRlcCanonicalMachine.digestBlock_absorbed_zero
 
-/-- info: 'Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalMachine.successfulExecution_successorState' depends on axioms: [propext,
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalMachine.fixedSchedule_successorState' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms PiRlcCanonicalMachine.successfulExecution_successorState
+#audit_axioms PiRlcCanonicalMachine.fixedSchedule_successorState
 
 /-- info: 'Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalMachine.sampledChallenge_valid' depends on axioms: [propext,
  Classical.choice,

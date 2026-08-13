@@ -12,7 +12,7 @@ use neo_ccs::matrix::Mat as NeoMat;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
-use neo_fold_clean::config::{EXTENSION_SAFETY_MARGIN_BITS, MIN_EFFECTIVE_LAMBDA, R1CS_PROFILE};
+use neo_fold_clean::config::R1CS_PROFILE;
 use neo_fold_clean::engine::decider::synthesize_statement_r1cs;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::{self, FoldProof, ProofState, State};
@@ -439,10 +439,7 @@ fn proof_shape(
             FoldProof::Recursive(nifs) => {
                 shape.recursive_steps += 1;
                 let pms = step_prove_ms.get(idx).copied().unwrap_or(0.0);
-                let nifs = nifs
-                    .materialize()
-                    .expect("recursive NIFS proof materialization");
-                record_nifs(&mut shape, &mut rows, format!("step[{idx}]"), &nifs, pms);
+                record_nifs(&mut shape, &mut rows, format!("step[{idx}]"), nifs, pms);
             }
         }
     }
@@ -757,8 +754,6 @@ fn print_report(
     section("Protocol params");
     kv("profile", R1CS_PROFILE);
     kv("lambda", prep.params.lambda());
-    kv("min lambda", MIN_EFFECTIVE_LAMBDA);
-    kv("safety margin bits", EXTENSION_SAFETY_MARGIN_BITS);
     kv("extension s", prep.params.extension_degree());
     kv("b", prep.params.b());
     kv("k_rho", prep.params.k_rho());

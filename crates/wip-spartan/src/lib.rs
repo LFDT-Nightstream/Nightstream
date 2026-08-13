@@ -1,0 +1,81 @@
+//! Direct sparse-R1CS Spartan backend used by Nightstream.
+//!
+//! This crate is work in progress. It owns the Goldilocks, Poseidon2, and WHIR
+//! path only. It does not own circuit synthesis or folding.
+#![deny(
+  warnings,
+  unused,
+  future_incompatible,
+  nonstandard_style,
+  rust_2018_idioms,
+  missing_docs
+)]
+#![allow(non_snake_case)]
+#![allow(clippy::upper_case_acronyms)]
+#![allow(clippy::type_complexity)]
+#![forbid(unsafe_code)]
+
+// private modules
+mod math;
+mod parallel;
+mod poseidon2_shared;
+mod r1cs;
+mod time;
+
+#[macro_use]
+mod macros;
+
+pub(crate) use time::Instant;
+
+// public modules
+pub mod digest;
+pub mod errors;
+pub mod polys;
+pub mod provider;
+pub mod spartan;
+pub mod sumcheck;
+pub mod traits;
+
+/// Start a span + timer, return `(Span, Instant)`.
+macro_rules! start_span {
+    ($name:expr $(, $($fmt:tt)+)?) => {{
+        let span       = info_span!($name $(, $($fmt)+)?);
+        let span_clone = span.clone();    // lives as long as the guard
+        let _guard      = span_clone.enter();
+        (span, $crate::Instant::now())
+    }};
+}
+pub(crate) use start_span;
+
+use traits::{Engine, pcs::PCSEngineTrait};
+type CommitmentKey<E> = <<E as traits::Engine>::PCS as PCSEngineTrait<E>>::CommitmentKey;
+type VerifierKey<E> = <<E as traits::Engine>::PCS as PCSEngineTrait<E>>::VerifierKey;
+type Commitment<E> = <<E as Engine>::PCS as PCSEngineTrait<E>>::Commitment;
+type PartialCommitment<E> = <<E as Engine>::PCS as PCSEngineTrait<E>>::PartialCommitment;
+type PCS<E> = <E as Engine>::PCS;
+type Blind<E> = <<E as Engine>::PCS as PCSEngineTrait<E>>::Blind;
+
+// ================================================================================================
+// PUBLIC API RE-EXPORTS FOR EXTERNAL PROJECTS
+// ================================================================================================
+
+/// R1CS constraint system shape - defines the structure of your circuit
+pub use r1cs::R1CSShape;
+
+/// R1CS instance - contains the public inputs to your circuit  
+pub use r1cs::R1CSInstance;
+
+/// R1CS witness - contains the private witness (secret inputs) to your circuit
+pub use r1cs::R1CSWitness;
+
+/// Split sparse R1CS shape.
+pub use r1cs::SplitR1CSShape;
+
+/// Sparse matrix backing R1CS shapes.
+pub use r1cs::SparseMatrix;
+
+/// Sparse-matrix debug stats for a split R1CS shape.
+pub use r1cs::SplitR1CSShapeDebugStats;
+
+/// Split sparse R1CS instance.
+pub use r1cs::SplitR1CSInstance;

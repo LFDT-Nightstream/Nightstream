@@ -205,14 +205,10 @@ impl ChainFixture {
         let FoldProof::Recursive(nifs) = &snapshot.step_proof.fold else {
             panic!("step {idx} is not FoldProof::Recursive");
         };
-        let nifs = nifs
-            .materialize()
-            .expect("recursive NIFS proof materialization");
+        let nifs = nifs.clone();
         let (running_claims, running_parent_authority, fresh) = match &snapshot.state_in.proof {
             ProofState::Active { running, latest } => {
-                let running = running
-                    .materialize()
-                    .expect("recursive step running materialization");
+                let running = running.clone();
                 (running.claims, running.parent_authority, latest.claims())
             }
             ProofState::Initial => panic!("step {idx} state-in is Initial; can't be recursive"),
@@ -579,9 +575,7 @@ fn lifecycle_recursive_step_rejects_zero_step_count_even_with_matching_fresh_and
     let ProofState::Active { running, .. } = &snapshot.state_in.proof else {
         panic!("step 2 must enter the recursive branch");
     };
-    let running = running
-        .materialize()
-        .expect("recursive step running materialization");
+    let running = running.clone();
     assert!(
         !running.claims.is_empty(),
         "fixture must carry a non-empty running accumulator"
@@ -1198,43 +1192,6 @@ fn lifecycle_verify_uncompressed_rejects_multi_chunk_f_prime_terminal_only_scope
 
     neo_fold_clean::verify_uncompressed_audit(&chain.prep, &finished)
         .expect("audit verifier accepts the same honest multi-chunk history");
-}
-
-#[test]
-fn lifecycle_compress_uses_audit_path_for_multi_chunk_f_prime_until_decider_lands() {
-    let chain = build_f_prime_honest_chain(2);
-    let audit = UncompressedAudit {
-        proof: Uncompressed {
-            state: chain
-                .snapshots
-                .last()
-                .expect("linked chain has a final state")
-                .state_out
-                .clone(),
-            final_fold: None,
-        },
-        steps: chain
-            .snapshots
-            .iter()
-            .map(|s| s.step_proof.clone())
-            .collect(),
-        public_batches: chain
-            .snapshots
-            .iter()
-            .map(|s| s.public_batch.clone())
-            .collect(),
-    };
-
-    let err = neo_fold_clean::compress(&chain.prep, audit)
-        .err()
-        .expect("compress must fail only at the unsupported decider layer for honest multi-chunk F'");
-    assert!(
-        matches!(
-            err,
-            neo_fold_clean::Error::Decider(neo_fold_clean::paper::decider::Error::Unsupported)
-        ),
-        "compress must use the audit replay path for multi-chunk F' before hitting the decider placeholder; got {err:?}"
-    );
 }
 
 #[test]

@@ -60,8 +60,8 @@ pub use nebula::{
     WasmNebulaProof,
 };
 pub use preprocess::{
-    grammar_top_level_initial_state, grammar_top_level_initial_state_digest, preprocess_seeded_batched,
-    semantic_state_digest, top_level_initial_state, top_level_initial_state_digest,
+    grammar_top_level_initial_state, grammar_top_level_initial_state_digest, semantic_state_digest,
+    top_level_initial_state, top_level_initial_state_digest,
 };
 pub use prover::{WasmProver, WasmProverBackend};
 pub use range_check::write_range_check_bits;

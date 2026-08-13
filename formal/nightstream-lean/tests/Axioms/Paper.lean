@@ -229,20 +229,18 @@ module is not exported by the curated `Nightstream.SuperNeo` facade. -/
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.sample54of64_eq_some_iff_reference_within
 
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.successful_cursor_in_fourth_digest_window' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.successful_cursor_after_sixth_digest' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.successful_cursor_in_fourth_digest_window
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.successful_cursor_after_sixth_digest
 
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.successful_execution_uses_four_blocks' depends on axioms: [propext,
- Quot.sound] -/
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.source_nextState_eq_fixedBlockState' does not depend on any axioms -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.successful_execution_uses_four_blocks
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.source_nextState_eq_fixedBlockState
 
-/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.stateAt_succ_eq_referenceBlockState' depends on axioms: [propext,
- Quot.sound] -/
+/-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.stateAt_succ_eq_fixedBlockState' does not depend on any axioms -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.stateAt_succ_eq_referenceBlockState
+#audit_axioms Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule.stateAt_succ_eq_fixedBlockState
 
 /-- info: 'Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionStrongSet.coefficientDifference_bounds' depends on axioms: [propext,
  Classical.choice,

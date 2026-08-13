@@ -32,7 +32,7 @@ use neo_fold_clean::{
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 use serde_json::{json, Value};
-use toy_spartan::spartan::{RepeatedR1CSSNARK, R1CSSNARK};
+use wip_spartan::spartan::{RepeatedR1CSSNARK, R1CSSNARK};
 
 const TEST_AJTAI_SEED: u64 = 0x5445_524d_494e_414c;
 
@@ -385,9 +385,9 @@ fn valid_manifest() -> Value {
             "public_ring_columns": 5,
             "verifier_rows": 18,
             "cost": {
-                "recurring_rows": 32_780,
+                "recurring_rows": 34_292,
                 "committed_columns": 4_050,
-                "public_columns": 24_679,
+                "public_columns": 26_191,
                 "auxiliary_columns": 4_051,
             },
         },
@@ -432,7 +432,7 @@ fn lifecycle_manifest() -> Value {
     manifest["terminal_r1cs"]["recursive_rows"] = json!(2);
     manifest["terminal_r1cs"]["fresh_relation_rows"] = json!(4);
     manifest["terminal_r1cs"]["fresh_relation_auxiliary_columns"] = json!(2);
-    manifest["terminal_r1cs"]["cost"]["recurring_rows"] = json!(32_782);
+    manifest["terminal_r1cs"]["cost"]["recurring_rows"] = json!(34_294);
     manifest["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(4_052);
     manifest
 }
@@ -552,9 +552,9 @@ fn combined_manifest() -> Value {
             "public_ring_columns": 5,
             "verifier_rows": 18,
             "cost": {
-                "recurring_rows": 57_081,
+                "recurring_rows": 58_593,
                 "committed_columns": 4_860,
-                "public_columns": 47_359,
+                "public_columns": 48_871,
                 "auxiliary_columns": 4_861,
             },
         },
@@ -571,7 +571,7 @@ fn extension_combined_manifest() -> Value {
     row["images"]["pad"] = json!([{ "column": 0, "coefficient": 1 }]);
     manifest["terminal_r1cs"]["fresh_relation_rows"] = json!(8);
     manifest["terminal_r1cs"]["fresh_relation_auxiliary_columns"] = json!(6);
-    manifest["terminal_r1cs"]["cost"]["recurring_rows"] = json!(57_086);
+    manifest["terminal_r1cs"]["cost"]["recurring_rows"] = json!(58_598);
     manifest["terminal_r1cs"]["cost"]["auxiliary_columns"] = json!(4_866);
     manifest
 }
@@ -626,12 +626,19 @@ fn direct_terminal_fixture(
     )
     .expect("honest fresh instance");
     let zero_witness = Mat::zero(D, step.structure().m / D, F::ZERO);
+    let joint_row_variables = step
+        .structure()
+        .n
+        .max(step.structure().m)
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
     let zero_claim = CeClaim {
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
         X: zero_superneo_public_x(manifest.public_carrier_width()),
-        r: Vec::new(),
-        y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; step.structure().t()],
-        ct: vec![K::ZERO; step.structure().t()],
+        r: vec![K::ZERO; joint_row_variables],
+        y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; step.structure().t() + 1],
+        ct: vec![K::ZERO; step.structure().t() + 1],
         m_in: manifest.public_carrier_width(),
         fold_digest: [0; 32],
         adv: None,
@@ -676,8 +683,8 @@ fn direct_combined_terminal_fixture(
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
         X: zero_superneo_public_x(manifest.public_carrier_width()),
         r: vec![K::ZERO; joint_row_variables],
-        y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; emission.structure().t()],
-        ct: vec![K::ZERO; emission.structure().t()],
+        y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; emission.structure().t() + 1],
+        ct: vec![K::ZERO; emission.structure().t() + 1],
         m_in: manifest.public_carrier_width(),
         fold_digest: [0; 32],
         adv: None,
@@ -706,19 +713,26 @@ fn terminal_lifecycle_fixture(manifest: &LeanNativeCcsManifest) -> (neo_fold_cle
     .expect("terminal preprocessing");
 
     let zero_witness = Mat::zero(D, probe.structure().m / D, F::ZERO);
+    let joint_row_variables = probe
+        .structure()
+        .n
+        .max(probe.structure().m)
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
     let zero_claim = CeClaim {
         c: Commitment::zeros(D, manifest.terminal_r1cs().verifier_rows()),
         X: zero_superneo_public_x(manifest.public_carrier_width()),
-        r: Vec::new(),
-        y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; probe.structure().t()],
-        ct: vec![K::ZERO; probe.structure().t()],
+        r: vec![K::ZERO; joint_row_variables],
+        y_ring: vec![vec![K::ZERO; D.next_power_of_two()]; probe.structure().t() + 1],
+        ct: vec![K::ZERO; probe.structure().t() + 1],
         m_in: manifest.public_carrier_width(),
         fold_digest: [0; 32],
         adv: None,
     };
     let running_claims = vec![zero_claim.clone(); manifest.running_claim_count()];
     let running_witnesses = vec![zero_witness; manifest.running_claim_count()];
-    let acc_digest = AccumulatorHandle::from_claims(&running_claims).digest();
+    let acc_digest = AccumulatorHandle::from_running_parts(&running_claims, Some(&zero_claim)).digest();
     let z_0 = initial_boundary_digest(prep.structure_digest(), prep.public_input_len);
 
     let placeholder = CcsClaim {
@@ -877,7 +891,7 @@ fn preprocessing_and_instance_are_derived_from_the_manifest() {
 }
 
 #[test]
-#[ignore = "runs one complete native F-prime fold and the 32,780-row Spartan/WHIR terminal proof"]
+#[ignore = "runs one complete native F-prime fold and the 34,294-row Spartan/WHIR terminal proof"]
 fn manifest_owned_lifecycle_proves_and_verifies() {
     let manifest = parse(&lifecycle_manifest()).expect("valid native lifecycle manifest");
     let setup = LeanNativeCcsPreprocessing::new(manifest).expect("manifest-owned native preprocessing");
@@ -903,7 +917,9 @@ fn manifest_owned_lifecycle_proves_and_verifies() {
         neo_fold_clean::paper::construction2::LaneCommitmentMode::Plain,
     )
     .expect("paper default running accumulator");
-    post_state.acc_digest = AccumulatorHandle::from_claims(&default_running.claims).digest();
+    post_state.acc_digest =
+        AccumulatorHandle::from_running_parts(&default_running.claims, default_running.parent_authority.as_ref())
+            .digest();
     post_state.semantic_state_digest = post_state.acc_digest;
     let state = &post_state;
     let mode = match prep.semantic_state_mode() {
@@ -980,7 +996,7 @@ fn native_step_has_no_residual_row_or_column() {
     assert_eq!(emission.structure().n, 1);
     assert_eq!(manifest.terminal_r1cs().logical_width(), 270);
     assert_eq!(manifest.terminal_r1cs().recursive_rows(), 1);
-    assert_eq!(manifest.terminal_r1cs().cost().recurring_rows(), 32_780);
+    assert_eq!(manifest.terminal_r1cs().cost().recurring_rows(), 34_292);
 }
 
 #[test]
@@ -1121,10 +1137,10 @@ fn terminal_r1cs_compiles_with_the_exact_lean_cost() {
     )
     .expect("honest terminal R1CS");
 
-    assert_eq!(relation.shape().num_constraints_unpadded(), 32_780);
+    assert_eq!(relation.shape().num_constraints_unpadded(), 34_292);
     assert_eq!(relation.shape().num_rest_unpadded(), 8_101);
-    assert_eq!(relation.shape().num_public(), 24_678);
-    assert_eq!(relation.lean_public_columns(), 24_679);
+    assert_eq!(relation.shape().num_public(), 26_190);
+    assert_eq!(relation.lean_public_columns(), 26_191);
 }
 
 #[test]
@@ -1235,10 +1251,10 @@ fn combined_terminal_r1cs_compiles_the_exact_lean_bit_lowering() {
     )
     .expect("combined terminal statement");
 
-    assert_eq!(relation.shape().num_constraints_unpadded(), 57_081);
+    assert_eq!(relation.shape().num_constraints_unpadded(), 58_593);
     assert_eq!(relation.shape().num_rest_unpadded(), 9_721);
-    assert_eq!(relation.shape().num_public(), 47_358);
-    assert_eq!(relation.lean_public_columns(), 47_359);
+    assert_eq!(relation.shape().num_public(), 48_870);
+    assert_eq!(relation.lean_public_columns(), 48_871);
     assert_eq!(statement.shape(), relation.shape());
     assert_eq!(statement.public_values(), relation.public_values());
 }
@@ -1258,10 +1274,10 @@ fn combined_terminal_r1cs_compiles_the_exact_lean_extension_lowering() {
     )
     .expect("honest extension terminal R1CS");
 
-    assert_eq!(relation.shape().num_constraints_unpadded(), 57_086);
+    assert_eq!(relation.shape().num_constraints_unpadded(), 58_598);
     assert_eq!(relation.shape().num_rest_unpadded(), 9_726);
-    assert_eq!(relation.shape().num_public(), 47_358);
-    assert_eq!(relation.lean_public_columns(), 47_359);
+    assert_eq!(relation.shape().num_public(), 48_870);
+    assert_eq!(relation.lean_public_columns(), 48_871);
 }
 
 #[test]

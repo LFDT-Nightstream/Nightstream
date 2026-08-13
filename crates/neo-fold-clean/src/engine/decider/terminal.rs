@@ -35,13 +35,9 @@ use super::*;
 /// rows. A real terminal verifier must not rely on that native replay as
 /// authority; it must either prove the full audit relation, or prove a
 /// compact relation whose public/proof inputs bind the last state and
-/// terminal CE statement in-circuit. Until that proof layer exists,
-/// `crate::lifecycle::compress` remains fail-closed.
+/// terminal CE statement in-circuit. No compact verifier is exported for this
+/// audit-only relation.
 ///
-/// A future "pure accumulator-only" terminal decider would emit just
-/// (b) + (c) and pin the latest F' relation's correctness via in-circuit
-/// verification of a compact proof for the running accumulator. That is out
-/// of scope for this milestone.
 pub struct LastStepTerminalSynthesis {
     pub builder: R1csBuilder,
     /// Count of CE claims carried by the final running accumulator
@@ -172,9 +168,7 @@ fn synthesize_last_step_terminal_r1cs_inner(
         .map_err(|e| decider::Error::WalkFailed(format!("native walk step {idx}: {e}")))?;
         if idx == last_idx {
             if let ProofState::Active { running, .. } = &state.proof {
-                running_pre_final_fold = running.materialize().map_err(|e| {
-                    decider::Error::WalkFailed(format!("materialize last running before final fold: {e}"))
-                })?;
+                running_pre_final_fold = running.clone();
             }
         }
     }
@@ -192,20 +186,15 @@ fn synthesize_last_step_terminal_r1cs_inner(
             enforce_base_state_constants(&mut builder, prep, &statement.public, &out);
             out
         }
-        FoldProof::Recursive(nifs) => {
-            let nifs = nifs
-                .materialize()
-                .map_err(|e| decider::Error::WalkFailed(format!("materialize last recursive step: {e}")))?;
-            emit_recursive_step_r1cs(
-                &mut builder,
-                prep,
-                &last_state_in,
-                &last_state_out,
-                last_public_batch,
-                &nifs,
-            )
-            .map_err(|e| decider::Error::WalkFailed(format!("emit last (recursive) step: {e}")))?
-        }
+        FoldProof::Recursive(nifs) => emit_recursive_step_r1cs(
+            &mut builder,
+            prep,
+            &last_state_in,
+            &last_state_out,
+            last_public_batch,
+            nifs,
+        )
+        .map_err(|e| decider::Error::WalkFailed(format!("emit last (recursive) step: {e}")))?,
     };
 
     // 4. Emit terminal fold NIFS.V + terminal latest link.
@@ -261,9 +250,6 @@ fn synthesize_last_step_terminal_r1cs_inner(
             "statement.witness.final_state must be Active after finalization".into(),
         ));
     };
-    let final_running = final_running
-        .materialize()
-        .map_err(|e| decider::Error::WalkFailed(format!("materialize final running: {e}")))?;
     crate::paper::decider_ce_relation::enforce_final_dec_children_relations(
         &mut builder,
         prep,

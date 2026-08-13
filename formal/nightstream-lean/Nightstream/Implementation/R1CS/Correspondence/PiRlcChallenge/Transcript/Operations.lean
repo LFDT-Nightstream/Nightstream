@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Transcript.
 Handwritten protocol operations for the PiRLC transcript.
 
 Owns: the output-digest binding stream, raw-pair headers, scalar coordinates,
-the four counter values `coordinate + block`, squeeze operations, and exact
+the eight counter values `coordinate + block`, squeeze operations, and exact
 ascending 15-scalar composition; plus their interpretation by the independent
 transcript machine.
 
@@ -23,7 +23,7 @@ label, tags, counters, ordering, or challenge count.
 |---|---|---:|
 | `nifs.pi_rlc.challenge.transcript.output_bind` | label fields, count `4`, four authoritative digest fields | one |
 | `nifs.pi_rlc.challenge.transcript.scalar_domain` | raw pair `[2, 0, coordinate]` | 15 |
-| `nifs.pi_rlc.challenge.transcript.digest_block` | raw pair `[2, 1, coordinate + block]`, then `digest32` | 15 x 4 |
+| `nifs.pi_rlc.challenge.transcript.digest_block` | raw pair `[2, 1, coordinate + block]`, then `digest32` | 15 x 8 |
 -/
 
 namespace Nightstream.Implementation.R1CS.PiRlcChallenge.Transcript.Operations
@@ -31,6 +31,7 @@ namespace Nightstream.Implementation.R1CS.PiRlcChallenge.Transcript.Operations
 open Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachine
 open Nightstream.Implementation.R1CS.PiRlcChallenge.Transcript.ColumnReplay
 open Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler
+open Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet
 open Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionSchedule
 
 /-- Exact physical operations for `append_fields_raw([first, second])`. -/
@@ -46,9 +47,9 @@ def blocks (coordinate : Nat) : Nat → List Operation
   | 0 => []
   | count + 1 => blocks coordinate count ++ digestBlock coordinate count
 
-/-- One complete scalar schedule: domain separation followed by four blocks. -/
+/-- One complete scalar schedule: domain separation followed by eight blocks. -/
 def scalar (coordinate : Nat) : List Operation :=
-  rawPair 0 coordinate ++ blocks coordinate 4
+  rawPair 0 coordinate ++ blocks coordinate digestRounds
 
 /-- First `count` scalar schedules in ascending coordinate order. -/
 def sampler : Nat → List Operation
@@ -123,7 +124,7 @@ theorem semanticExecute_blocks
         semanticExecute_digestBlock]
       rfl
 
-/-- Raw four-lane digest jointly used to derive the 16 candidates of one
+/-- Raw four-lane digest jointly used to derive the eight candidates of one
 independent production block. -/
 def blockDigest (entered : State) (coordinate block : Nat) : Fin 4 → Field :=
   (TranscriptMachine.digest
@@ -193,7 +194,7 @@ theorem semanticBlocks_digests
 
 /-- Value-level execution of one complete scalar schedule. -/
 def semanticScalar (run : SemanticRun) (coordinate : Nat) : SemanticRun :=
-  semanticBlocks coordinate 4
+  semanticBlocks coordinate digestRounds
     { run with state := enterScalar run.state coordinate }
 
 theorem semanticExecute_scalar
@@ -210,21 +211,22 @@ def scalarDigests (initial : State) (coordinate : Nat) :
   blockDigests
     (enterScalar
       (stateAt TranscriptMachine.specification initial coordinate) coordinate)
-    coordinate 4
+    coordinate digestRounds
 
 theorem scalarDigests_length (initial : State) (coordinate : Nat) :
-    (scalarDigests initial coordinate).length = 4 := by
+    (scalarDigests initial coordinate).length = digestRounds := by
   exact blockDigests_length _ _ _
 
 theorem scalarDigests_getElem?
-    (initial : State) (coordinate block : Nat) (bounded : block < 4) :
+    (initial : State) (coordinate block : Nat)
+    (bounded : block < digestRounds) :
     (scalarDigests initial coordinate)[block]? =
       some (blockDigest
         (enterScalar
           (stateAt TranscriptMachine.specification initial coordinate)
           coordinate)
         coordinate block) := by
-  exact blockDigests_getElem? _ _ 4 block bounded
+  exact blockDigests_getElem? _ _ digestRounds block bounded
 
 /-- Ordered raw digest list for the first `count` scalar coordinates. -/
 def batchDigests (initial : State) : Nat → List (Fin 4 → Field)
@@ -233,18 +235,19 @@ def batchDigests (initial : State) : Nat → List (Fin 4 → Field)
       batchDigests initial count ++ scalarDigests initial count
 
 theorem batchDigests_length (initial : State) (count : Nat) :
-    (batchDigests initial count).length = count * 4 := by
+    (batchDigests initial count).length = count * digestRounds := by
   induction count with
   | zero => rfl
   | succ count induction =>
       rw [batchDigests, List.length_append, induction,
         scalarDigests_length]
+      simp only [digestRounds] at *
       omega
 
 theorem batchDigests_getElem?
     (initial : State) (count rho block : Nat)
-    (rhoBounded : rho < count) (blockBounded : block < 4) :
-    (batchDigests initial count)[rho * 4 + block]? =
+    (rhoBounded : rho < count) (blockBounded : block < digestRounds) :
+    (batchDigests initial count)[rho * digestRounds + block]? =
       some (blockDigest
         (enterScalar
           (stateAt TranscriptMachine.specification initial rho) rho)
@@ -257,27 +260,33 @@ theorem batchDigests_getElem?
       · rw [List.getElem?_append_left]
         · exact induction earlier
         · rw [batchDigests_length]
+          simp only [digestRounds] at *
           omega
       · have last : rho = count := by omega
         subst rho
         have afterPrefix :
-            (batchDigests initial count).length ≤ count * 4 + block := by
+            (batchDigests initial count).length ≤
+              count * digestRounds + block := by
           rw [batchDigests_length]
+          simp only [digestRounds]
           omega
         rw [List.getElem?_append_right afterPrefix]
         have localIndex :
-            count * 4 + block - (batchDigests initial count).length =
+            count * digestRounds + block -
+                (batchDigests initial count).length =
               block := by
           rw [batchDigests_length]
+          simp only [digestRounds]
           omega
         rw [localIndex]
         exact scalarDigests_getElem? initial count block blockBounded
 
 theorem batchDigests_getD
     (initial : State) (count rho block : Nat)
-    (rhoBounded : rho < count) (blockBounded : block < 4)
+    (rhoBounded : rho < count) (blockBounded : block < digestRounds)
     (fallback : Fin 4 → Field) :
-    (batchDigests initial count).getD (rho * 4 + block) fallback =
+    (batchDigests initial count).getD
+        (rho * digestRounds + block) fallback =
       blockDigest
         (enterScalar
           (stateAt TranscriptMachine.specification initial rho) rho)

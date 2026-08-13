@@ -156,8 +156,15 @@ fn expected_rows(geometry: &ChunkGeometry, weights: &[F]) -> Vec<Vec<GlobalTerm>
     push(&mut aggregate, SELECTOR, 0, F::ONE);
     for index in 0..outputs.len() {
         let (left, right) = edge_columns(&geometry.encoded_input_columns, outputs, index);
-        push(&mut aggregate, PRODUCT_LEFT + index, left, weights[index]);
-        push(&mut aggregate, PRODUCT_RIGHT + index, right, F::ONE);
+        if matches!(index, 0..=3 | 7..=10) {
+            push(&mut aggregate, PRODUCT_LEFT + index, 0, weights[index]);
+            push(&mut aggregate, PRODUCT_LEFT + index, left, -weights[index]);
+            push(&mut aggregate, PRODUCT_RIGHT + index, 0, F::ONE);
+            push(&mut aggregate, PRODUCT_RIGHT + index, right, -F::ONE);
+        } else {
+            push(&mut aggregate, PRODUCT_LEFT + index, left, weights[index]);
+            push(&mut aggregate, PRODUCT_RIGHT + index, right, F::ONE);
+        }
         push(&mut aggregate, PRODUCT_OUT, outputs[index], weights[index]);
     }
     rows.push(finish_row(aggregate));

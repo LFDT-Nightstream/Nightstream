@@ -1,8 +1,6 @@
 //! Prover lifecycle for the generic implementation R1CS IVC relation.
 
-use neo_ccs::Mat;
 use neo_math::{D, F};
-use p3_field::PrimeCharacteristicRing;
 
 use super::relation::{R1csIvcBranch, R1csIvcRelation};
 use super::shape::{digest_mode, enforce_base_application, enforce_recursive_application, semantic_values};
@@ -13,9 +11,7 @@ use crate::frontends::f_prime::recursive_plan::RecursiveStepImagePlan;
 use crate::frontends::r1cs_f_prime::lowering::normalized_field_assignment;
 use crate::frontends::r1cs_f_prime::R1csShape;
 use crate::lifecycle::{self, Preprocessing, Uncompressed, UncompressedAudit};
-use crate::paper::construction2::{
-    FoldProof, LaneCommitmentMode, LatestInstance, ProofState, SemanticStateMode, State,
-};
+use crate::paper::construction2::{LaneCommitmentMode, SemanticStateAdvance, SemanticStateMode, State};
 use crate::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest_for_uniform_shape,
     initial_boundary_digest, public_trace_seed_digest, state_x_out_digest_with_mode, AccumulatorHandle,
@@ -28,7 +24,7 @@ use crate::paper::f_prime::r1cs::{
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage};
 use crate::paper::nifs::circuit::NifsVCircuitMessages;
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim};
+use crate::paper::relations::CcsInstance;
 
 /// Verifier-owned application, fixed recursive relation, and lifecycle keys.
 pub struct R1csIvcPreprocessing {
@@ -154,69 +150,26 @@ impl<'a> R1csIvc<'a> {
             self.audit = Some(audit);
             return Err(R1csIvcError::SemanticInputMismatch);
         }
-        let (running, running_parent_authority, fresh, placeholder) = match &audit.proof.state.proof {
-            ProofState::Active { running, latest } => {
-                let running = running
-                    .materialize()
-                    .map_err(crate::paper::construction2::Error::from)
-                    .map_err(lifecycle::Error::from)?;
-                let prior = latest
-                    .instances
-                    .first()
-                    .ok_or(R1csIvcError::ExpectedActiveState)?;
-                let placeholder = CcsInstance {
-                    claim: prior.claim.clone(),
-                    witness: CcsWitness {
-                        w: Vec::new(),
-                        Z: Mat::zero(0, 0, F::ZERO),
-                    },
-                };
-                (
-                    running.claims.clone(),
-                    running.parent_authority.clone(),
-                    latest.claims(),
-                    placeholder,
-                )
-            }
-            ProofState::Initial => return Err(R1csIvcError::ExpectedActiveState),
-        };
         let branch = if pre.step_count <= 1 {
             R1csIvcBranch::BootstrapRecursive
         } else {
             R1csIvcBranch::Recursive
         };
-        let pending = if let Some(output) = semantic_output {
-            crate::lifecycle::prove::extend_with_semantic_state(
-                &self.prep.prep,
-                audit,
-                vec![placeholder],
-                digest_fields_as_digest32(output),
-            )?
+        let semantic_advance = if let Some(output) = semantic_output {
+            SemanticStateAdvance::Stateful(digest_fields_as_digest32(output))
         } else {
-            lifecycle::extend(&self.prep.prep, audit, vec![placeholder])?
+            SemanticStateAdvance::Stateless
         };
-        let nifs = match &pending
-            .steps
-            .last()
-            .ok_or(R1csIvcError::ExpectedRecursiveFold)?
-            .fold
-        {
-            FoldProof::Recursive(proof) => proof
-                .materialize()
-                .map_err(crate::paper::construction2::Error::from)
-                .map_err(lifecycle::Error::from)?,
-            FoldProof::NoFold => return Err(R1csIvcError::ExpectedRecursiveFold),
-        };
-        let post = StateCoordinates::from_state(&pending.proof.state);
+        let fold = crate::lifecycle::prove::prepare_recursive_step(&self.prep.prep, audit, semantic_advance)?;
+        let nifs = fold.nifs_proof()?;
+        let pre = StateCoordinates::from_protocol(fold.pre());
+        let post = StateCoordinates::from_protocol(fold.post());
         Ok(PreparedStep::Recursive {
             branch,
             pre,
             post,
-            fresh,
-            running,
-            running_parent_authority,
             nifs,
-            pending,
+            fold,
         })
     }
 
@@ -257,21 +210,14 @@ impl<'a> R1csIvc<'a> {
                     enforce_base_application(&mut builder, &self.prep.app, assignment, &self.prep.plan, &cfg, &inputs)?;
                 (R1csIvcBranch::Base, output)
             }
-            PreparedStep::Recursive {
-                branch,
-                fresh,
-                running,
-                running_parent_authority,
-                nifs,
-                ..
-            } => {
+            PreparedStep::Recursive { branch, nifs, fold, .. } => {
                 let prior_public = source.push_f_prime_public_input(pre.x_out_fields(&self.prep.prep));
                 let prior_x_out_bits = BitRange::new(prior_public.start() + 1, F_PRIME_ENC_INST_BITS);
                 let public_x_out_bits = source.push_enc_inst(post.x_out_fields(&self.prep.prep));
                 let messages = NifsVCircuitMessages {
-                    fresh,
-                    running,
-                    running_parent_authority: running_parent_authority.as_ref(),
+                    fresh: fold.fresh(),
+                    running: fold.running(),
+                    running_parent_authority: fold.running_parent_authority(),
                     pi_ccs: &nifs.pi_ccs,
                     combined: &nifs.pi_rlc.combined,
                     children: &nifs.pi_dec.children,
@@ -355,20 +301,7 @@ impl<'a> R1csIvc<'a> {
                     lifecycle::prove(&self.prep.prep, [vec![instance]])?
                 }
             }
-            PreparedStep::Recursive { mut pending, .. } => {
-                let claim = instance.claim.clone();
-                match &mut pending.proof.state.proof {
-                    ProofState::Active { latest, .. } => {
-                        *latest = LatestInstance::from_instances(vec![instance]);
-                    }
-                    ProofState::Initial => return Err(R1csIvcError::ExpectedActiveState),
-                }
-                *pending
-                    .public_batches
-                    .last_mut()
-                    .ok_or(R1csIvcError::ExpectedActiveState)? = vec![claim];
-                pending
-            }
+            PreparedStep::Recursive { fold, .. } => fold.complete(instance)?,
         });
         Ok(())
     }
@@ -383,11 +316,8 @@ enum PreparedStep {
         branch: R1csIvcBranch,
         pre: StateCoordinates,
         post: StateCoordinates,
-        fresh: Vec<CcsClaim>,
-        running: Vec<CeClaim>,
-        running_parent_authority: Option<CeClaim>,
         nifs: crate::paper::nifs::NifsProof,
-        pending: UncompressedAudit,
+        fold: crate::lifecycle::prove::PreparedRecursiveStep,
     },
 }
 
@@ -434,6 +364,19 @@ impl StateCoordinates {
     }
 
     fn from_state(state: &State) -> Self {
+        Self {
+            chunk_count: state.chunk_count,
+            step_count: state.step_count,
+            z_0: digest32_as_fields(state.z_0),
+            z_i: digest32_as_fields(state.z_i),
+            pc: state.pc,
+            semantic_state_digest: digest32_as_fields(state.semantic_state_digest),
+            acc_digest: digest32_as_fields(state.acc_digest),
+            public_trace: digest32_as_fields(state.public_trace),
+        }
+    }
+
+    fn from_protocol(state: &crate::paper::construction2::StateCoordinates) -> Self {
         Self {
             chunk_count: state.chunk_count,
             step_count: state.step_count,

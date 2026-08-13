@@ -104,12 +104,9 @@ pub enum Error {
 }
 
 pub use backend::{
-    AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, DeferredNifsProofMaterializer,
-    DeferredNifsRunningMaterializer, NifsFPrimeStepContext, NifsFreshImageOverlayRequest, NifsFreshImageRegion,
-    NifsFreshImageRegionKind, NifsFreshInstancesRequest, NifsFreshSemanticStateInOverlay,
-    NifsFreshSemanticStateOutOverlay, NifsFreshSignedUnitAssignment, NifsFreshSignedUnitInstancesRequest,
-    NifsFreshStateXOutOverlay, NifsPostFoldSummary, NifsProofCarrier, NifsProverAdapter, NifsProverOutput,
-    NifsProverRequest, NifsRunningCarrier, OptimizedCpuNifsProver, OptimizedNifsProverAdapter, PaperExactNifsProver,
+    AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, NifsFreshInstancesRequest, NifsFreshSignedUnitAssignment,
+    NifsFreshSignedUnitInstancesRequest, NifsProverAdapter, NifsProverRequest, OptimizedCpuNifsProver,
+    OptimizedNifsProverAdapter, PaperExactNifsProver,
 };
 #[doc(hidden)]
 pub use crosscheck::require_nifs_execution_match;
@@ -119,5 +116,4 @@ pub use proof::NifsProof;
 #[doc(hidden)]
 pub use prover::prove_with_joint_oracle_backend;
 pub use prover::{prove, prove_with_adapter};
-pub(crate) use prover::{prove_terminal_with_adapter_output_from_carrier, prove_with_adapter_output_from_carrier};
 pub use verifier::{verify, verify_paper_exact};

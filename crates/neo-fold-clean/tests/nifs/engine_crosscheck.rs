@@ -6,8 +6,8 @@ use neo_fold_clean::engine::transcript::Transcript;
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
 use neo_fold_clean::paper::construction2::RunningInstance;
 use neo_fold_clean::paper::nifs::{
-    self, AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, NifsProverAdapter, NifsProverOutput,
-    NifsProverRequest, OptimizedCpuNifsProver, OptimizedNifsProverAdapter, PaperExactNifsProver,
+    self, AcceleratorCrosscheckNifsProver, CrosscheckNifsProver, NifsProof, NifsProverAdapter, NifsProverRequest,
+    OptimizedCpuNifsProver, OptimizedNifsProverAdapter, PaperExactNifsProver,
 };
 use neo_fold_clean::paper::relations::{LaneRanges, LaneScheme};
 use neo_math::{D, F, K};
@@ -348,7 +348,7 @@ impl NifsProverAdapter for PassThroughOptimized {
     fn prove(
         &mut self,
         request: NifsProverRequest<'_>,
-    ) -> Result<NifsProverOutput, neo_fold_clean::paper::nifs::Error> {
+    ) -> Result<(RunningInstance, NifsProof), neo_fold_clean::paper::nifs::Error> {
         OptimizedCpuNifsProver.prove(request)
     }
 }
@@ -361,12 +361,10 @@ impl NifsProverAdapter for MutatingOptimized {
     fn prove(
         &mut self,
         request: NifsProverRequest<'_>,
-    ) -> Result<NifsProverOutput, neo_fold_clean::paper::nifs::Error> {
-        let (running, mut proof) = OptimizedCpuNifsProver
-            .prove(request)?
-            .into_materialized_parts()?;
+    ) -> Result<(RunningInstance, NifsProof), neo_fold_clean::paper::nifs::Error> {
+        let (running, mut proof) = OptimizedCpuNifsProver.prove(request)?;
         proof.pi_ccs.sumcheck.sumcheck_rounds[0][0] += K::ONE;
-        Ok(NifsProverOutput::materialized(running, proof))
+        Ok((running, proof))
     }
 }
 
@@ -378,12 +376,10 @@ impl NifsProverAdapter for MutatingWitnessOptimized {
     fn prove(
         &mut self,
         request: NifsProverRequest<'_>,
-    ) -> Result<NifsProverOutput, neo_fold_clean::paper::nifs::Error> {
-        let (mut running, proof) = OptimizedCpuNifsProver
-            .prove(request)?
-            .into_materialized_parts()?;
+    ) -> Result<(RunningInstance, NifsProof), neo_fold_clean::paper::nifs::Error> {
+        let (mut running, proof) = OptimizedCpuNifsProver.prove(request)?;
         running.witnesses[0][(0, 0)] += F::ONE;
-        Ok(NifsProverOutput::materialized(running, proof))
+        Ok((running, proof))
     }
 }
 

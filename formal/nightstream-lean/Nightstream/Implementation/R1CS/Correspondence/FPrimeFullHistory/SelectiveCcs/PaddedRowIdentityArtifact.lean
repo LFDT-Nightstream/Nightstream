@@ -8,15 +8,17 @@ Owns: fail-closed decoding of a complete thirteen-matrix payload; transport
 of that payload to the dimensions owned by `PaddedRowIdentity`; and exact
 equality with the relation produced by the independent Lean row compiler.
 
-Does not own: a concrete production payload, a selected full source program,
-Rust provenance, compiler execution, R1CS circuit correspondence, or a
-release claim. No complete payload exists in the repository at present.
+Does not own: a verifier-key artifact instance, a selected full source
+program, Rust provenance, compiler execution, R1CS circuit correspondence, or
+a release claim. Exact production payloads are verifier-key-owned and are not
+one global fixed snapshot.
 
 Emits constraints: no.
 
-Assurance tier: artifact-ready. The complete matrix bridge is a proposition
-that a future generated payload must inhabit. This file does not claim
-artifact-checked matrix semantics until such an inhabitant exists.
+Assurance tier: artifact-ready reference snapshot. The complete matrix bridge
+is a proposition that a decoded fixed-snapshot payload can inhabit. The
+verifier-key relation artifact and its exact-validation theorem own the active
+per-key production boundary.
 -/
 
 set_option autoImplicit false
@@ -58,13 +60,13 @@ def compiledMatrices
   rw [← rowsExact]
   exact DirectRows.relation one program
 
-/-- Complete matrix-refinement certificate required before a generated
-payload can be called the selected production relation.
+/-- Complete matrix-refinement certificate for one generated fixed-snapshot
+payload.
 
 The certificate connects three authorities: the decoded payload, the selected
 dimension census, and the independent Lean row compiler. Equality is over all
 thirteen matrices, all logical rows, and all assignment columns. -/
-structure ProductionMatrixRefinement where
+structure FixedSnapshotMatrixRefinement where
   rawShape : FixedSnapshot
   rawBundle : PayloadBundle
   payload : Artifact.PayloadRefinement.Refinement rawShape rawBundle
@@ -78,18 +80,18 @@ structure ProductionMatrixRefinement where
     decodedMatrices payload rowsExact columnsExact =
       compiledMatrices one sourceProgram sourceRowsExact
 
-namespace ProductionMatrixRefinement
+namespace FixedSnapshotMatrixRefinement
 
 /-- The sole selected application matrix family decoded from the certified
 payload. -/
-def matrices (refinement : ProductionMatrixRefinement) :
+def matrices (refinement : FixedSnapshotMatrixRefinement) :
     ApplicationMatrices :=
   decodedMatrices refinement.payload refinement.rowsExact
     refinement.columnsExact
 
 /-- Certified payload matrices are exactly the independent Lean compiler
 output. -/
-theorem matrices_eq_compiled (refinement : ProductionMatrixRefinement) :
+theorem matrices_eq_compiled (refinement : FixedSnapshotMatrixRefinement) :
     refinement.matrices =
       compiledMatrices refinement.one refinement.sourceProgram
         refinement.sourceRowsExact :=
@@ -97,18 +99,18 @@ theorem matrices_eq_compiled (refinement : ProductionMatrixRefinement) :
 
 /-- The payload decoder has accepted the exact raw bundle used by the
 certificate. -/
-theorem decoder_accepts (refinement : ProductionMatrixRefinement) :
+theorem decoder_accepts (refinement : FixedSnapshotMatrixRefinement) :
     Artifact.Decoder.decodeProductionBundle refinement.payload.verifierFuel
         refinement.rawBundle = some refinement.payload.decoded :=
   refinement.payload.decodedFromRaw
 
 /-- The certified payload contains exactly the thirteen selected matrices. -/
-theorem matrixCount_exact (refinement : ProductionMatrixRefinement) :
+theorem matrixCount_exact (refinement : FixedSnapshotMatrixRefinement) :
     refinement.payload.decoded.bundle.matrices.length =
       applicationMatrixCount := by
   rw [Artifact.PayloadRefinement.Refinement.decoded_matrixCount_eq_13]
   rfl
 
-end ProductionMatrixRefinement
+end FixedSnapshotMatrixRefinement
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityArtifact

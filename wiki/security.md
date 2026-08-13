@@ -1,73 +1,42 @@
 # Security
 
-> **Research software warning.** No independent audit, no formal verification of the
-> Rust implementation. Do not deploy. This page describes the security *design* and
-> where its current edges are.
+Nightstream is research software. It has no independent audit. Do not deploy
+it as a production verifier.
 
 ## Assumptions
 
-- **Module-SIS computational foundation**: Ajtai commitment binding for openings
-  with ℓ∞ norm < B. Module-SIS is intended to resist quantum attacks. This
-  assumption does not by itself prove knowledge soundness against quantum provers.
-  Norm discipline (Π_DEC every fold, low-norm F′ image) keeps openings inside the
-  stated binding regime.
-- **Classical random-oracle Fiat-Shamir** over Poseidon2: SuperNeo's
-  strong/weak interactive reductions (§6) compose, and HyperNova Appendix B's
-  transform applies, when every challenge binds all preceding public data. The
-  selected binding discipline is specified by
-  [NS-TRANSCRIPT-ORDER](../protocol-contract/src/normative/80-nightstream-verifier.md#ns-transcript-order--fold-transcript-schedule).
-  Security in the quantum random-oracle model is not established.
-- **Sum-check soundness over `K = F_{q²}`** with a per-invocation statistical
-  floor of 100 bits, validated at preprocessing. The protocol contract declares
-  a 96-bit end-to-end target, while the maximum-chain code uses a conservative
-  pre-review target of 64 bits. Neither target is a completed end-to-end security
-  proof. See [Parameters](protocol/parameters.md).
+- Ajtai commitment binding is based on the selected Module-SIS parameters.
+- SuperNeo reductions use the paper's low-norm and decomposition conditions.
+- Fiat-Shamir uses Poseidon2 and the classical random-oracle analysis.
+- Sum-check challenges use the configured Goldilocks extension field.
+- The terminal Spartan path relies on its sum-check and WHIR commitment
+  assumptions.
 
-## Enforced safeguards
+The repository does not claim quantum-prover extraction or security in the
+quantum random-oracle model.
 
-- Parameter validation at construction time (`neo-params`): RLC norm bound, extension
-  policy; invalid parameter bundles are unrepresentable.
-- Poseidon2-only hashing and a static-label namespace in all protocol-binding paths.
-- Digest authority rules (see [Transcript & digests](protocol/transcript-and-digests.md)):
-  digests are compression, never authority; carried digests are recomputed or replayed,
-  and verifiers re-check opened witnesses against claims rather than trusting digest
-  chains.
-- Verifier-owned Ajtai setup via the global PP registry — proof- or prover-supplied
-  setup is rejected by construction.
-- Verifiers recompute rather than trust: Π_RLC's verifier recomputes the combined
-  claim; NIFS.V recomputes next-running claims; `verify_uncompressed` re-checks the
-  final accumulator's openings, projections, norms, and CE relations.
-- Red-team suites asserting specific rejections for tampered proofs, transcripts, and
-  audit trails — see [Testing](development/testing.md).
+## Enforced boundaries
 
-## Current soundness edges (by design, tracked)
+- Verifier-owned preprocessing fixes the relation and Ajtai setup.
+- Protocol-binding paths use Poseidon2 only.
+- A digest compresses data but is not proof authority.
+- Verifiers recompute carried digests or replay them into an authoritative
+  transcript.
+- Final accumulator claims are checked against witness openings, public-input
+  projections, norm bounds, and committed-evaluation relations.
+- Red-team tests mutate proof and transcript fields and require rejection.
 
-1. **The F′-encoding gap.** The chain proof attests instance satisfiability, correct
-   folding, and state-chain binding — but not yet that each folded instance *is* the
-   encoding of "F′ ran". That in-circuit binding is the PR5 decider's job. Until it
-   lands, third-party-verifiable computation is not provided; self-prover use is.
-   (`frontends/mod.rs` documents this boundary; see [Roadmap](roadmap.md).)
-2. **Terminal-only verification is single-chunk.** `verify_uncompressed` rejects
-   multi-chunk histories; they need the linear-time audit replay
-   (`verify_uncompressed_audit`) until compressed verification exists.
-3. **`paper/terminal_ce` is fail-closed but not accepting.** The compact terminal-CE
-   statement exists; the sound direct verifier today is `paper/decider_ce_relation`.
-4. **Side channels not addressed** — norm computations and big-int paths are not
-   constant-time.
-5. **Parameter hardening for production is open** (estimator review, concrete-security
-   margins).
+## Open security work
 
-## Project security rules
+- The direct CCS frontend does not prove the recursive F' induction. Its
+  multi-chunk path requires full-history audit replay.
+- `wip-spartan` is connected to the terminal R1CS path, but it still needs
+  focused cryptographic review and performance analysis.
+- The CUDA backend has no canonical device kernel. It fails explicitly and
+  does not claim CPU work as CUDA work.
+- Side-channel resistance has not been established.
+- Parameter selection and the complete end-to-end security argument need
+  independent review.
 
-The repo-level rules in [CLAUDE.md](../CLAUDE.md) bind all contributions: digest
-authority rules, Poseidon2-only protocol paths, and the expectation that soundness
-fixes come with red-team tests that fail while the gap exists.
-
-### Selected PiCCS authority
-
-The selected protocol is the one-joint padded-row construction in
-[`decisions/padded-row-identity-piccs.md`](../decisions/padded-row-identity-piccs.md).
-It uses one row point, one SumCheck, and full ring-valued matrix evaluations.
-There is no column sidecar or delayed projection authority. Earlier freeze
-notes for the removed split protocol are historical and do not bind the
-selected implementation.
+The contribution rules in [AGENTS.md](../AGENTS.md) are part of this security
+boundary.

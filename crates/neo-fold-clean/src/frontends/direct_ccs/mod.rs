@@ -17,8 +17,8 @@
 //! See the parent module's `Soundness boundary` section. Briefly: this
 //! frontend proves that each supplied instance satisfies its R1CS and
 //! that the IVC chain folded them correctly. It does **not** prove the
-//! instance is the F' encoding of a previous recursive step — that
-//! requires the decider's in-circuit F' R1CS (PR5).
+//! instance is the F' encoding of a previous recursive step. Keep the audit
+//! trail for multi-chunk verification, or use an authoritative F' frontend.
 //!
 //! ## API surface
 //!

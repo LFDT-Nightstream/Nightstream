@@ -6,7 +6,7 @@ import Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionS
 Exact production transcript handoff and bounded `Pi_RLC` scalar sampling.
 
 This module includes the `digest32` query binding words `[0x104, 32]`, the
-framed `pi_rlc/input_claims_digest` label, and the four 16-candidate digest
+framed `pi_rlc/input_claims_digest` label, and the eight 8-candidate digest
 blocks used by Rust. Every permutation is checked by `CertifiedDuplex`.
 -/
 
@@ -240,12 +240,13 @@ theorem handoff?_sound (receipt : ProductionReceipt)
     · contradiction
 
 def laneChunk (lane part : Nat) : Chunk :=
-  ⟨(lane / (2 ^ (16 * part))) % chunkModulus,
+  ⟨((chunkModulus - 1) + chunkModulus -
+      ((lane / (2 ^ (16 * part))) % chunkModulus)) % chunkModulus,
     Nat.mod_lt _ (by decide)⟩
 
 def digestChunks (lanes : List Nat) : List Chunk :=
   (List.range chunksPerDigest).map fun position =>
-    laneChunk (lanes.getD (position / 4) 0) (position % 4)
+    laneChunk (lanes.getD (position / 2) 0) (position % 2)
 
 def referenceBlocks : Nat -> Nat -> TranscriptState ->
     List Chunk × TranscriptState

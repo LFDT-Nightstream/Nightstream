@@ -1,4 +1,4 @@
-use neo_params::{goldilocks_paper_b2, NeoParams, ParamsError};
+use neo_params::{goldilocks_paper_b2, pi_rlc_sampler_completeness_summary, NeoParams, ParamsError};
 
 #[test]
 fn goldilocks_paper_b2_matches_guard_and_b() {
@@ -7,6 +7,18 @@ fn goldilocks_paper_b2_matches_guard_and_b() {
     assert_eq!(p.B, goldilocks_paper_b2::B);
     let lhs = (p.k_rho as u128 + 1) * (p.T as u128) * ((p.b as u128) - 1);
     assert!(lhs < p.B as u128, "guard must hold");
+}
+
+#[test]
+fn pi_rlc_sampler_schedule_meets_appendix_b2_completeness() {
+    let summary = pi_rlc_sampler_completeness_summary();
+
+    assert_eq!(summary.digest_rounds, 8);
+    assert_eq!(summary.field_lanes, 32);
+    assert_eq!(summary.candidates, 64);
+    assert_eq!(summary.required, goldilocks_paper_b2::D);
+    assert_eq!(summary.completeness_bits, 136);
+    assert_eq!(summary.slack_bits, 11);
 }
 
 #[test]
@@ -38,7 +50,7 @@ fn r1cs_auto_params_charge_padded_row_field_and_fork_budget() {
     let p = NeoParams::goldilocks_auto_r1cs_ccs(60).expect("R1CS params");
 
     assert!(p.has_goldilocks_paper_b2_core());
-    assert_eq!(p.lambda, 114);
+    assert_eq!(p.lambda, 116);
 }
 
 #[test]

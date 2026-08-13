@@ -49,3 +49,6 @@ profile-xctrace.txt
 # unanchored "artifacts") silently hiding new generated proof payloads.
 !**/Artifacts/
 !**/Artifacts/**
+
+# Contract checks import local Python modules. Their bytecode is not source.
+protocol-contract/__pycache__/

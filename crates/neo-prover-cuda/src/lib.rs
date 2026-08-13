@@ -1,10 +1,8 @@
-//! CUDA selection for the canonical SuperNeo NIFS prover.
+//! WIP CUDA backend for the canonical SuperNeo NIFS prover.
 //!
-//! The former CUDA kernels implemented an incompatible protocol. The
-//! current adapter checks CUDA availability and then runs the selected
-//! one-joint protocol through the canonical host implementation. A future GPU
-//! kernel must reproduce that protocol exactly before it can replace the host
-//! computation.
+//! The former CUDA kernels implemented an incompatible protocol. This crate
+//! keeps CUDA as a required backend target, but construction fails until a
+//! canonical one-joint device kernel exists. It does not fall back to CPU.
 //!
 //! Build discipline: the `cuda` feature is only built through
 //! `cargo +nightly-2026-04-03 oxide` (custom rustc codegen backend for

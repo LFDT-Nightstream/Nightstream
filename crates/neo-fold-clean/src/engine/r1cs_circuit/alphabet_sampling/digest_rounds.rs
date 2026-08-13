@@ -1,7 +1,7 @@
-//! Fixed transcript rounds and lane decomposition for one rho sample.
+//! Fixed transcript rounds and exact candidate extraction for one rho sample.
 //!
-//! Owns: the four-round counter schedule, Poseidon2 digest requests, canonical
-//! lane decomposition, and 16-bit chunk slicing for one rho.
+//! Owns: the eight-round counter schedule, Poseidon2 digest requests, canonical
+//! lane decomposition, and exact 16-bit candidate extraction for one rho.
 //!
 //! Does not own: the incoming cursor, Poseidon2 permutation equations, or
 //! chunk arithmetic.
@@ -14,8 +14,8 @@
 //! | Stage path | Function | Equation | Multiplicity | Emitted rows/formula | Lowered gate | Lean theorem |
 //! |---|---|---|---:|---|---|---|
 //! | `challenge.sampler.initialize` | `collect_chunks` | prefix count starts at zero | one per rho | one equality | generic R1CS | `rhoDigestTrace` base state |
-//! | `challenge.transcript.digest_rounds` | `collect_chunks` | append `[1,seed+iter]`, squeeze digest | four per rho | transcript/Poseidon2 rows | Poseidon2 | `rhoDigestTrace` |
-//! | `challenge.transcript.lane_bit_decomposition` | `collect_chunks` | lane `= sum 2^i bit_i` canonically | 16 lanes per rho | 64 bit rows plus recomposition | generic R1CS | `rhoDigestTrace` |
+//! | `challenge.transcript.digest_rounds` | `collect_chunks` | append `[1,seed+iter]`, squeeze digest | eight per rho | transcript/Poseidon2 rows | Poseidon2 | `rhoDigestTrace` |
+//! | `challenge.transcript.lane_bit_decomposition` | `collect_chunks` | lane `= sum 2^i bit_i` canonically; candidate `= 65535 - low16` | 32 lanes, 64 candidates per rho | canonical bit rows and complemented candidate expression | generic R1CS | `rhoDigestTrace` |
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -46,9 +46,8 @@ pub(super) fn collect_chunks(
         for lane in digest {
             builder.begin_encoding_stage(pi_rlc_challenge_stage::LANE_BIT_DECOMPOSITION);
             let bits = decompose_var_to_u64_bits(builder, lane);
-            for chunk_index in 0..4 {
-                let chunk_bits = &bits[chunk_index * 16..(chunk_index + 1) * 16];
-                let chunk = process_chunk(builder, chunk_bits, cumulative);
+            for raw_bits in bits[..32].chunks_exact(16) {
+                let chunk = process_chunk(builder, raw_bits, cumulative);
                 cumulative = chunk.cumulative;
                 chunks.push(chunk);
             }

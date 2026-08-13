@@ -5,7 +5,7 @@
 
 use super::{emit_terminal_fold, Preprocessing};
 use crate::engine::r1cs_circuit::field_ext::KVar;
-use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::{R1csBuilder, Var};
 use crate::paper::construction2::EncInst;
 use crate::paper::decider::PublicImage;
 use crate::paper::decider_ce_relation::{enforce_final_ce_relations, enforce_final_dec_children_relations};
@@ -15,10 +15,6 @@ use crate::paper::reductions::pi_ccs_circuit::PiCcsOutputWires;
 use crate::paper::reductions::pi_dec_circuit::alloc_ce_claim;
 use crate::paper::relations::product_commitment_circuit::alloc_adv;
 use crate::paper::relations::{CcsClaim, CeClaim, WitnessMat};
-use crate::paper::terminal_ce::circuit::{
-    enforce_public_from_children, enforce_verify_from_children, TerminalCeVerifierContext,
-};
-use crate::paper::terminal_ce::{TerminalCeProof, TerminalCePublic, TerminalCeVerifyError};
 use crate::paper::{construction2::RunningInstance, nifs::NifsProof};
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -68,179 +64,6 @@ pub fn enforce_ce_relations_many_against(
         .collect::<Vec<_>>();
     enforce_final_ce_relations(&mut builder, prep, &claim_wires, witnesses).map_err(|e| e.to_string())?;
     Ok(builder)
-}
-
-/// Emit all terminal CE rows over one shared ordered raw-witness allocation family.
-pub struct TerminalCePublicIsolationOutput {
-    pub builder: R1csBuilder,
-    pub relation_digest: [F; 4],
-    pub structure_digest: [F; 4],
-    pub params_digest: [F; 4],
-    pub terminal_children_digest: [F; 4],
-    pub public_digest: [F; 4],
-    pub claim_count: usize,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct TerminalCePublicTamperProbes {
-    pub c_data: usize,
-    pub x: usize,
-    pub r_c0: usize,
-    pub r_c1: usize,
-    pub y_ring_limb: usize,
-    pub y_ring_c1: usize,
-    pub ct_c0: usize,
-    pub ct_c1: usize,
-    pub fold_digest_field: usize,
-}
-
-pub struct TerminalCePinnedPublicIsolationOutput {
-    pub builder: R1csBuilder,
-    pub probes: TerminalCePublicTamperProbes,
-}
-
-/// Emit only the compact terminal-CE public-statement constructor from real
-/// CE-claim wires. This keeps integration tests from depending on
-/// `pi_dec_circuit::alloc_ce_claim`, which is intentionally crate-private.
-pub fn enforce_terminal_ce_public_from_children_against(
-    prep: &Preprocessing,
-    claims: &[CeClaim],
-) -> Result<TerminalCePublicIsolationOutput, String> {
-    let mut builder = R1csBuilder::new();
-    let claim_wires = claims
-        .iter()
-        .map(|claim| alloc_ce_claim(&mut builder, claim))
-        .collect::<Vec<_>>();
-    let context = TerminalCeVerifierContext::from_preprocessing(prep);
-    let public = enforce_public_from_children(&mut builder, &context, &claim_wires).map_err(|e| e.to_string())?;
-    let relation_digest = eval_digest(&builder, public.relation_digest);
-    let structure_digest = eval_digest(&builder, public.structure_digest);
-    let params_digest = eval_digest(&builder, public.params_digest);
-    let terminal_children_digest = eval_digest(&builder, public.terminal_children_digest);
-    let public_digest = eval_digest(&builder, public.public_digest);
-    Ok(TerminalCePublicIsolationOutput {
-        builder,
-        relation_digest,
-        structure_digest,
-        params_digest,
-        terminal_children_digest,
-        public_digest,
-        claim_count: public.claim_count,
-    })
-}
-
-/// Emit the compact terminal-CE public-statement constructor and pin its
-/// outputs to the caller's expected public statement.
-pub fn enforce_terminal_ce_public_pinned_against(
-    prep: &Preprocessing,
-    claims: &[CeClaim],
-    expected: &TerminalCePublic,
-) -> Result<TerminalCePinnedPublicIsolationOutput, String> {
-    let mut builder = R1csBuilder::new();
-    let claim_wires = claims
-        .iter()
-        .map(|claim| alloc_ce_claim(&mut builder, claim))
-        .collect::<Vec<_>>();
-    let probes = terminal_ce_tamper_probes(
-        claim_wires
-            .first()
-            .ok_or_else(|| "terminal CE pinned-public isolation requires at least one child".to_string())?,
-    )?;
-    let context = TerminalCeVerifierContext::from_preprocessing(prep);
-    let public = enforce_public_from_children(&mut builder, &context, &claim_wires).map_err(|e| e.to_string())?;
-    if public.claim_count != expected.claim_count {
-        return Err(format!(
-            "terminal CE public claim_count mismatch (computed {}, expected {})",
-            public.claim_count, expected.claim_count
-        ));
-    }
-    enforce_digest_eq_const(&mut builder, public.relation_digest, expected.relation_digest);
-    enforce_digest_eq_const(&mut builder, public.structure_digest, expected.structure_digest);
-    enforce_digest_eq_const(&mut builder, public.params_digest, expected.params_digest);
-    enforce_digest_eq_const(
-        &mut builder,
-        public.terminal_children_digest,
-        expected.terminal_children_digest,
-    );
-    Ok(TerminalCePinnedPublicIsolationOutput { builder, probes })
-}
-
-/// Emit the future compact terminal-CE verifier entrypoint from actual
-/// terminal-child wires. The verifier still fails closed, but this exercises
-/// the production-shaped data flow: children -> public statement -> verifier.
-pub fn enforce_terminal_ce_verify_from_children_against(
-    prep: &Preprocessing,
-    claims: &[CeClaim],
-    proof: &TerminalCeProof,
-) -> (R1csBuilder, Result<(), TerminalCeVerifyError>) {
-    let mut builder = R1csBuilder::new();
-    let claim_wires = claims
-        .iter()
-        .map(|claim| alloc_ce_claim(&mut builder, claim))
-        .collect::<Vec<_>>();
-    let context = TerminalCeVerifierContext::from_preprocessing(prep);
-    let result = enforce_verify_from_children(&mut builder, &context, &claim_wires, proof).map(|_| ());
-    (builder, result)
-}
-
-fn terminal_ce_tamper_probes(
-    claim: &crate::paper::reductions::pi_dec_circuit::CeClaimWires,
-) -> Result<TerminalCePublicTamperProbes, String> {
-    Ok(TerminalCePublicTamperProbes {
-        c_data: claim
-            .c_data
-            .first()
-            .ok_or_else(|| "terminal CE probe requires non-empty c_data".to_string())?
-            .col(),
-        x: claim
-            .x
-            .first()
-            .ok_or_else(|| "terminal CE probe requires non-empty X".to_string())?
-            .col(),
-        r_c0: claim
-            .r
-            .first()
-            .ok_or_else(|| "terminal CE probe requires non-empty r".to_string())?
-            .c0
-            .col(),
-        r_c1: claim
-            .r
-            .first()
-            .ok_or_else(|| "terminal CE probe requires non-empty r".to_string())?
-            .c1
-            .col(),
-        y_ring_limb: claim
-            .y_ring
-            .first()
-            .and_then(|row| row.first())
-            .ok_or_else(|| "terminal CE probe requires non-empty y_ring".to_string())?
-            .col(),
-        y_ring_c1: claim
-            .y_ring
-            .first()
-            .and_then(|row| row.get(1))
-            .ok_or_else(|| "terminal CE probe requires y_ring c1 limb".to_string())?
-            .col(),
-        ct_c0: claim
-            .ct
-            .first()
-            .ok_or_else(|| "terminal CE probe requires non-empty ct".to_string())?
-            .c0
-            .col(),
-        ct_c1: claim
-            .ct
-            .first()
-            .ok_or_else(|| "terminal CE probe requires non-empty ct".to_string())?
-            .c1
-            .col(),
-        fold_digest_field: claim.fold_digest_fields[0].col(),
-    })
-}
-
-fn enforce_digest_eq_const(builder: &mut R1csBuilder, digest: [Var; 4], expected: [F; 4]) {
-    for (wire, value) in digest.into_iter().zip(expected) {
-        builder.enforce_eq(&Lc::from_var(wire), &Lc::from_const(value));
-    }
 }
 
 fn logical_fresh_bits<'a>(latest: &'a CcsClaim, owner: &str) -> Result<&'a [F], String> {
@@ -729,10 +552,6 @@ pub fn enforce_state_link_against_self() -> (R1csBuilder, StateLinkProbeWires) {
 
 fn alloc_digest_fields(builder: &mut R1csBuilder, digest: [F; 4]) -> [Var; 4] {
     digest.map(|lane| builder.alloc(lane))
-}
-
-fn eval_digest(builder: &R1csBuilder, digest: [Var; 4]) -> [F; 4] {
-    digest.map(|lane| builder.witness()[lane.col()])
 }
 
 fn alloc_digest32(builder: &mut R1csBuilder, digest: [u8; 32]) -> [Var; 4] {

@@ -6,10 +6,12 @@
 //! inside `paper::construction2::prove_final_fold`.
 
 use crate::lifecycle::{Error, Preprocessing, Uncompressed, UncompressedAudit};
-use crate::paper::construction2::{self, NebulaAdvance, NebulaLane, SemanticStateAdvance, State};
-use crate::paper::nifs::{NifsPostFoldSummary, NifsProverAdapter};
-use crate::paper::relations::{CcsClaim, CcsInstance};
-use neo_math::F;
+use crate::paper::construction2::{
+    self, FoldProof, NebulaAdvance, NebulaLane, ProofState, SemanticStateAdvance, State, StateCoordinates,
+};
+use crate::paper::nifs::NifsProverAdapter;
+use crate::paper::relations::{CcsClaim, CcsInstance, CeClaim};
+use neo_math::{D, F};
 
 /// Drive the IVC over a sequence of batches, top-down. Each batch is
 /// `Vec<CcsInstance>` — typically produced by
@@ -194,31 +196,151 @@ pub fn extend_with_semantic_state_and_nifs_adapter(
     )
 }
 
-pub(crate) fn extend_in_place_with_nifs_adapter_output(
-    prep: &Preprocessing,
-    adapter: &mut dyn NifsProverAdapter,
-    audit: &mut UncompressedAudit,
-    batch: Vec<CcsInstance>,
-) -> Result<Option<NifsPostFoldSummary>, Error> {
-    extend_in_place_inner_with_nifs_prover(prep, Some(adapter), audit, batch, SemanticStateAdvance::Stateless, None)
+/// Fold the current `latest` and derive the next public coordinates before
+/// the recursive relation synthesizes its real next instance.
+pub(crate) struct PreparedRecursiveStep {
+    audit: UncompressedAudit,
+    prepared: crate::paper::f_prime::PreparedFPrimeStep,
+    pre: StateCoordinates,
+    fresh: Vec<CcsClaim>,
+    running: Vec<CeClaim>,
+    running_parent_authority: Option<CeClaim>,
 }
 
-pub(crate) fn extend_in_place_with_semantic_state_and_nifs_adapter_output(
+impl PreparedRecursiveStep {
+    pub(crate) fn pre(&self) -> &StateCoordinates {
+        &self.pre
+    }
+
+    pub(crate) fn post(&self) -> &StateCoordinates {
+        self.prepared.coordinates()
+    }
+
+    pub(crate) fn fresh(&self) -> &[CcsClaim] {
+        &self.fresh
+    }
+
+    pub(crate) fn running(&self) -> &[CeClaim] {
+        &self.running
+    }
+
+    pub(crate) fn running_parent_authority(&self) -> Option<&CeClaim> {
+        self.running_parent_authority.as_ref()
+    }
+
+    pub(crate) fn nifs_proof(&self) -> Result<crate::paper::nifs::NifsProof, Error> {
+        match &self.prepared.proof().fold {
+            FoldProof::Recursive(proof) => Ok(proof.clone()),
+            FoldProof::NoFold => Err(Error::RecursivePreparationRequiresActiveState),
+        }
+    }
+
+    pub(crate) fn complete(mut self, instance: CcsInstance) -> Result<UncompressedAudit, Error> {
+        let claim = instance.claim.clone();
+        let (state, proof) = self.prepared.complete(vec![instance])?;
+        self.audit.proof.state = state;
+        self.audit.steps.push(proof);
+        self.audit.public_batches.push(vec![claim]);
+        Ok(self.audit)
+    }
+}
+
+pub(crate) fn prepare_recursive_step(
+    prep: &Preprocessing,
+    audit: UncompressedAudit,
+    semantic_advance: SemanticStateAdvance,
+) -> Result<PreparedRecursiveStep, Error> {
+    prepare_recursive_step_inner(prep, None, audit, semantic_advance)
+}
+
+pub(crate) fn prepare_recursive_step_with_nifs_adapter(
     prep: &Preprocessing,
     adapter: &mut dyn NifsProverAdapter,
-    audit: &mut UncompressedAudit,
-    batch: Vec<CcsInstance>,
-    semantic_state_digest_next: [u8; 32],
-) -> Result<Option<NifsPostFoldSummary>, Error> {
-    super::validate_semantic_state_digest_canonical("semantic_state_digest_next", semantic_state_digest_next)?;
-    extend_in_place_inner_with_nifs_prover(
-        prep,
-        Some(adapter),
+    audit: UncompressedAudit,
+    semantic_advance: SemanticStateAdvance,
+) -> Result<PreparedRecursiveStep, Error> {
+    prepare_recursive_step_inner(prep, Some(adapter), audit, semantic_advance)
+}
+
+fn prepare_recursive_step_inner(
+    prep: &Preprocessing,
+    adapter: Option<&mut dyn NifsProverAdapter>,
+    audit: UncompressedAudit,
+    semantic_advance: SemanticStateAdvance,
+) -> Result<PreparedRecursiveStep, Error> {
+    prep.validate_verifier_key_binding()?;
+    if audit.proof.final_fold.is_some() {
+        return Err(Error::AlreadyFinalized);
+    }
+    if let SemanticStateAdvance::Stateful(digest) = semantic_advance {
+        super::validate_semantic_state_digest_canonical("semantic_state_digest_next", digest)?;
+    }
+    if prep.params.max_fresh_count() < 1 {
+        return Err(Error::BatchTooLarge {
+            got: 1,
+            max: prep.params.max_fresh_count(),
+        });
+    }
+
+    let current_state = &audit.proof.state;
+    let (fresh, running, running_parent_authority) = match &current_state.proof {
+        ProofState::Active { running, latest } => (
+            latest.claims(),
+            running.claims.clone(),
+            running.parent_authority.clone(),
+        ),
+        ProofState::Initial => return Err(Error::RecursivePreparationRequiresActiveState),
+    };
+    let pre = StateCoordinates::from(current_state);
+    let nebula_advance = delayed_nebula_advance(prep, current_state, None)?;
+    let fresh_shape = crate::paper::f_prime::FreshClaimShape {
+        d: D,
+        kappa: prep.params.kappa() as usize,
+        m_in: prep
+            .public_input_len
+            .expect("authoritative recursive F' preprocessing fixes public input length"),
+    };
+    let prepared = match adapter {
+        Some(adapter) => crate::paper::f_prime::prepare_single_with_adapter_and_semantic_state(
+            adapter,
+            &prep.params,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
+            &prep.log,
+            prep.mix_rhos_commits,
+            prep.combine_b_pows,
+            &prep.vk,
+            current_state.clone(),
+            fresh_shape,
+            semantic_advance,
+            prep.nebula().map(|cfg| &cfg.scheme),
+            nebula_advance,
+        )?,
+        None => crate::paper::f_prime::prepare_single_with_semantic_state(
+            &prep.params,
+            prep.structure(),
+            prep.optimized_cache(),
+            prep.structure_digest(),
+            &prep.log,
+            prep.mix_rhos_commits,
+            prep.combine_b_pows,
+            &prep.vk,
+            current_state.clone(),
+            fresh_shape,
+            semantic_advance,
+            prep.nebula().map(|cfg| &cfg.scheme),
+            nebula_advance,
+        )?,
+    };
+    Ok(PreparedRecursiveStep {
         audit,
-        batch,
-        SemanticStateAdvance::Stateful(semantic_state_digest_next),
-        None,
-    )
+        prepared,
+        pre,
+        fresh,
+        running,
+        running_parent_authority,
+    })
 }
 
 fn extend_inner(
@@ -250,7 +372,7 @@ fn extend_inner_with_nifs_prover(
     semantic_advance: SemanticStateAdvance,
     nebula_open: Option<[[F; 4]; 3]>,
 ) -> Result<UncompressedAudit, Error> {
-    let _ = extend_in_place_inner_with_nifs_prover(prep, adapter, &mut audit, batch, semantic_advance, nebula_open)?;
+    extend_in_place_inner_with_nifs_prover(prep, adapter, &mut audit, batch, semantic_advance, nebula_open)?;
     Ok(audit)
 }
 
@@ -261,7 +383,7 @@ fn extend_in_place_inner_with_nifs_prover(
     batch: Vec<CcsInstance>,
     semantic_advance: SemanticStateAdvance,
     nebula_open: Option<[[F; 4]; 3]>,
-) -> Result<Option<NifsPostFoldSummary>, Error> {
+) -> Result<(), Error> {
     prep.validate_verifier_key_binding()?;
     if audit.proof.final_fold.is_some() {
         return Err(Error::AlreadyFinalized);
@@ -313,8 +435,8 @@ fn extend_in_place_inner_with_nifs_prover(
             _ => return Err(Error::NebulaLanePresenceMismatch),
         }
     };
-    let (next_state, step_proof, post_summary) = if let Some(adapter) = adapter {
-        construction2::step_with_adapter_output_and_semantic_state(
+    let (next_state, step_proof) = if let Some(adapter) = adapter {
+        construction2::step_with_adapter_and_semantic_state(
             adapter,
             &prep.params,
             prep.structure(),
@@ -331,7 +453,7 @@ fn extend_in_place_inner_with_nifs_prover(
             nebula_advance,
         )?
     } else {
-        let (next_state, step_proof) = construction2::step_with_semantic_state(
+        construction2::step_with_semantic_state(
             &prep.params,
             prep.structure(),
             prep.optimized_cache(),
@@ -345,13 +467,12 @@ fn extend_in_place_inner_with_nifs_prover(
             semantic_advance,
             prep.nebula().map(|cfg| &cfg.scheme),
             nebula_advance,
-        )?;
-        (next_state, step_proof, None)
+        )?
     };
     audit.proof.state = next_state;
     audit.steps.push(step_proof);
     audit.public_batches.push(public_batch);
-    Ok(post_summary)
+    Ok(())
 }
 
 fn delayed_nebula_advance(

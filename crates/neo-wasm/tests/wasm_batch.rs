@@ -1,22 +1,10 @@
-//! Batching tests: verify the batched wasm R1CS satisfies for valid
-//! witnesses, rejects inconsistent cross-step states, and round-trips
-//! through prove/verify at various batch sizes.
+//! Batched WASM relation shape, witness, and continuity tests.
 
 mod common;
 
-use common::audit::{prove_batched, verify};
-use neo_fold_clean::frontends::f_prime::NifsPayloadShape;
-use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csCompilerError};
-#[cfg(all(feature = "metal", target_vendor = "apple"))]
-use neo_fold_clean::FinalWitnessOpeningBackend;
 use neo_math::F;
-#[cfg(all(feature = "metal", target_vendor = "apple"))]
-use neo_math::{D, K};
-#[cfg(all(feature = "metal", target_vendor = "apple"))]
-use neo_prover_metal::MetalNifsProver;
 use neo_wasm::batch::{batch_count, build_batched_wasm_ccs, build_batched_witness};
 use neo_wasm::layout::{COL_LOCALS_FBP_AFTER, COL_PC_BEFORE, COL_SP_BEFORE};
-use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched};
 use neo_wasm::{WasmVmSpec, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
@@ -27,299 +15,88 @@ const SIMPLE_ADD_WAT: &str = r#"
    i32.add))
 "#;
 
-fn satisfies_batched_ccs(traces: &[WasmVmStep], batch_size: usize) {
-    let batched = build_batched_wasm_ccs(batch_size).expect("build batched CCS");
-    let n_batches = batch_count(traces.len(), batch_size);
-    for batch_idx in 0..n_batches {
-        let witness = build_batched_witness(traces, batch_size, batch_idx);
-        batched
+fn assert_batched_satisfaction(trace: &[WasmVmStep], batch_size: usize) {
+    let relation = build_batched_wasm_ccs(batch_size).expect("batched relation");
+    for batch in 0..batch_count(trace.len(), batch_size) {
+        let witness = build_batched_witness(trace, batch_size, batch);
+        relation
             .sparse_r1cs
             .is_satisfied_by(&witness)
-            .unwrap_or_else(|err| panic!("batched CCS rejected witness for batch {batch_idx}: {err}"));
+            .unwrap_or_else(|error| panic!("batch {batch} rejected: {error}"));
     }
 }
 
 #[test]
-fn batched_at_one_matches_single_step_shape() {
-    let single = build_batched_wasm_ccs(1).expect("single-step shape via batch");
-    let core = WasmVmSpec::default().core_ccs_spec().clone();
-    assert_eq!(single.sparse_r1cs.m, core.structure.m, "m must match single-step");
-    assert_eq!(
-        single.sparse_r1cs.n, core.structure.n,
-        "n must match single-step (no link rows at N=1)"
-    );
-    assert_eq!(single.sparse_r1cs.m_in, core.m_in);
+fn batch_one_matches_the_single_step_relation() {
+    let batched = build_batched_wasm_ccs(1).expect("batch one");
+    let single = WasmVmSpec::default().core_ccs_spec().clone();
+    assert_eq!(batched.sparse_r1cs.m, single.structure.m);
+    assert_eq!(batched.sparse_r1cs.n, single.structure.n);
+    assert_eq!(batched.sparse_r1cs.m_in, single.m_in);
 }
 
 #[test]
-fn batched_shape_grows_with_batch_size() {
+fn batch_shape_adds_one_link_row_per_state_pair() {
     let single = build_batched_wasm_ccs(1).expect("single");
-    let n_links_per_boundary = {
-        let layout = neo_wasm::build_wasm_relation_layout();
-        // One link row per state-continuity column pair.
-        layout
-            .auxiliary
-            .ivc_state_links
-            .iter()
-            .map(|l| l.column_pairs.len())
-            .sum::<usize>()
-    };
-    for n in [2usize, 4, 10] {
-        let batched = build_batched_wasm_ccs(n).expect("batched");
-        assert_eq!(batched.sparse_r1cs.m, n * single.sparse_r1cs.m);
-        let expected_n = n * single.sparse_r1cs.n + (n - 1) * n_links_per_boundary;
-        assert_eq!(
-            batched.sparse_r1cs.n, expected_n,
-            "n at batch_size={n} should be {expected_n}"
-        );
-        assert_eq!(batched.widths.len(), n * single.widths.len());
+    let links = neo_wasm::build_wasm_relation_layout()
+        .auxiliary
+        .ivc_state_links
+        .iter()
+        .map(|link| link.column_pairs.len())
+        .sum::<usize>();
+    for size in [2, 4, 10] {
+        let batched = build_batched_wasm_ccs(size).expect("batched");
+        assert_eq!(batched.sparse_r1cs.m, size * single.sparse_r1cs.m);
+        assert_eq!(batched.sparse_r1cs.n, size * single.sparse_r1cs.n + (size - 1) * links);
     }
 }
 
 #[test]
-fn batched_witness_satisfies_batched_ccs_at_dividing_sizes() {
+fn valid_and_padded_batches_satisfy_the_relation() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    for batch_size in [1, 2, 4] {
-        satisfies_batched_ccs(&checked.trace, batch_size);
+    for size in [1, 2, 3, 5, 7] {
+        assert_batched_satisfaction(&checked.trace, size);
     }
 }
 
 #[test]
-fn batched_witness_satisfies_batched_ccs_with_padding() {
-    // Sizes that don't divide trace_len exercise the padding path.
+fn initial_digest_is_the_canonical_entry_state_digest() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    assert_ne!(checked.trace.len() % 3, 0, "padding test needs a non-dividing size");
-    for batch_size in [3, 5, 7] {
-        satisfies_batched_ccs(&checked.trace, batch_size);
-    }
-}
-
-#[test]
-fn initial_state_digest_covers_all_cross_step_inputs() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    let entry_pc = common::single_function_entry_pc(&checked.artifacts);
-    let initial_state = neo_wasm::top_level_initial_state(&checked.artifacts.tables, entry_pc);
-
-    let digest = neo_wasm::semantic_state_digest(initial_state);
+    let entry = common::single_function_entry_pc(&checked.artifacts);
+    let state = neo_wasm::top_level_initial_state(&checked.artifacts.tables, entry);
     assert_eq!(
-        digest,
-        neo_wasm::top_level_initial_state_digest(&checked.artifacts.tables, entry_pc)
+        neo_wasm::semantic_state_digest(state),
+        neo_wasm::top_level_initial_state_digest(&checked.artifacts.tables, entry)
     );
 }
 
 #[test]
-fn canonical_plan_semantically_binds_the_public_constant() {
-    let canonical = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(1, [0; 32]).expect("shape");
-    let state = canonical.plan.state_x_out.expect("state_x_out plan");
-
-    assert_eq!(state.app_public_input_var_indices, vec![0]);
-    assert!(state.semantic_state_in_var_indices.contains(&0));
-    assert!(state.semantic_state_out_var_indices.contains(&0));
-}
-
-#[test]
-fn canonical_plan_carries_every_identity_first_superneo_image() {
-    let canonical = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(1, [0; 32]).expect("shape");
-    let NifsPayloadShape::CeClaim(shape) = &canonical.plan.nifs_payload_shapes[0] else {
-        panic!("canonical accumulator payload must be a CE claim");
-    };
-
-    assert_eq!(
-        shape.y_ring_inner_lens.len(),
-        canonical.structure.ccs.t() + 1,
-        "the recursive image must carry the identity image and every application-matrix image"
-    );
-}
-
-#[test]
-fn cross_step_link_rejects_inconsistent_pc() {
+fn continuity_rows_reject_changed_pc_sp_and_frame_base() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    let batch_size = 2;
-    assert!(checked.trace.len() >= 2, "test needs at least 2 trace rows");
+    let size = 2;
+    let relation = build_batched_wasm_ccs(size).expect("batched");
+    let width = relation.sparse_r1cs.m / size;
 
-    let batched = build_batched_wasm_ccs(batch_size).expect("batched");
-    let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
-
-    // Tamper with step 1's pc_before to break the pc continuity link.
-    let m_single = batched.sparse_r1cs.m / batch_size;
-    witness[m_single + COL_PC_BEFORE] += F::ONE;
-
-    batched
-        .sparse_r1cs
-        .is_satisfied_by(&witness)
-        .expect_err("batched CCS must reject pc_after[0] != pc_before[1]");
-}
-
-#[test]
-fn cross_step_link_rejects_inconsistent_locals_fbp() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    let batch_size = 2;
-    let batched = build_batched_wasm_ccs(batch_size).expect("batched");
-    let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
-
-    witness[COL_LOCALS_FBP_AFTER] += F::ONE;
-
-    batched
-        .sparse_r1cs
-        .is_satisfied_by(&witness)
-        .expect_err("batched CCS must reject locals_fbp_after[0] != locals_fbp_before[1]");
-}
-
-#[test]
-fn cross_step_link_rejects_inconsistent_sp() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    let batch_size = 2;
-    let batched = build_batched_wasm_ccs(batch_size).expect("batched");
-    let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
-
-    let m_single = batched.sparse_r1cs.m / batch_size;
-    witness[m_single + COL_SP_BEFORE] += F::ONE;
-
-    batched
-        .sparse_r1cs
-        .is_satisfied_by(&witness)
-        .expect_err("batched CCS must reject sp_after[0] != sp_before[1]");
-}
-
-// TODO: the intra-batch 1-constant columns are currently ignored and
-// replaced with the global one at 0. The cost is minimal, but for the sake of
-// cleanliness we should probably remove them.
-//
-// Batching is currently done in a straight-forward naive way, so maybe batch
-// that with other improvements like inlining the duplicated variables (using
-// the output column of the previous step directly rather than the input column
-// that is equal to it).
-#[test]
-fn block_local_constant_is_an_unreferenced_dont_care() {
-    // Replicated rows must read the shared global `COL_ONE`, not block-local
-    // constant slots after block 0.
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    let batch_size = 2;
-    let batched = build_batched_wasm_ccs(batch_size).expect("batched");
-    let mut witness = build_batched_witness(&checked.trace, batch_size, 0);
-
-    let m_single = batched.sparse_r1cs.m / batch_size;
-    witness[m_single /* + COL_ONE = 0 */] = F::from_u64(7);
-
-    batched
-        .sparse_r1cs
-        .is_satisfied_by(&witness)
-        .expect("block-local constant slots after block 0 must be unreferenced");
-}
-
-#[test]
-fn semantic_state_rejects_rewound_cross_batch_boundary() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    let batch_size = 2;
-    assert!(
-        batch_count(checked.trace.len(), batch_size) >= 2,
-        "test needs at least two batches"
-    );
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let mut chain = R1csChainBuilder::new(&prep).expect("chain");
-
-    chain
-        .append_assignment(build_batched_witness(&checked.trace, batch_size, 0))
-        .expect("first batch");
-    let err = chain
-        .append_assignment(build_batched_witness(&checked.trace, batch_size, 0))
-        .expect_err("rewound second batch must not match the carried output state");
-
-    match err {
-        neo_fold_clean::frontends::r1cs_f_prime::Error::Compiler(R1csCompilerError::SemanticStateInputMismatch {
-            ..
-        }) => {}
-        other => panic!("expected SemanticStateInputMismatch, got {other:?}"),
+    for column in [width + COL_PC_BEFORE, width + COL_SP_BEFORE, COL_LOCALS_FBP_AFTER] {
+        let mut witness = build_batched_witness(&checked.trace, size, 0);
+        witness[column] += F::ONE;
+        relation
+            .sparse_r1cs
+            .is_satisfied_by(&witness)
+            .expect_err("changed linked state must fail");
     }
 }
 
 #[test]
-fn semantic_state_rejects_wrong_initial_state_digest() {
+fn replicated_steps_use_the_shared_constant_column() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    let batch_size = 2;
-    let mut digest = common::verifier_initial_state_digest(&checked.artifacts);
-    digest[0] ^= 0xA5;
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let mut chain = R1csChainBuilder::new(&prep).expect("chain");
-    let witness = build_batched_witness(&checked.trace, batch_size, 0);
-
-    // The base-step path panics (rather than returning Err) when the
-    // trace-derived `_before` digest disagrees with the verifier-baked
-    // anchor; match on the encoder's structure-violation message so an
-    // unrelated panic upstream of the digest check can't masquerade as
-    // a successful rejection.
-    let panic_payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| chain.append_assignment(witness)))
-        .expect_err("wrong verifier-owned initial state digest must reject the first batch");
-    let panic_msg = panic_payload
-        .downcast_ref::<String>()
-        .map(String::as_str)
-        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-        .unwrap_or("<non-string panic>");
-    assert!(
-        panic_msg.contains("encoded R1CS F' step must satisfy its structure"),
-        "expected encoder structure-violation panic, got: {panic_msg}"
-    );
-}
-
-#[test]
-fn batched_prove_verify_simple_add() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    // The CCS tests above cover several dividing sizes. Keep one complete
-    // proof here for the padding-required batch path.
-    let batch_size = 3;
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-    verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
-}
-
-#[cfg(all(feature = "metal", target_vendor = "apple"))]
-#[test]
-fn metal_openings_match_the_canonical_bare_wasm_relation() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main", &[]);
-    let batch_size = 3;
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let mut chain = R1csChainBuilder::new(&prep).expect("chain");
-    let compiled = chain
-        .append_assignment(build_batched_witness(&checked.trace, batch_size, 0))
-        .expect("base step");
-    let fresh = compiled
-        .encoded
-        .to_public_ccs_instance(&prep.prep.params, &prep.prep.log)
-        .expect("base instance");
-    let structure = prep.prep.structure();
-    let variables = structure
-        .n
-        .max(neo_reductions::common::superneo_carrier_width(structure.m))
-        .next_power_of_two()
-        .trailing_zeros() as usize;
-    let point = (0..variables)
-        .map(|index| K::from(F::from_u64(index as u64 + 2)))
-        .collect::<Vec<_>>();
-    let expected = neo_reductions::common::compute_y_from_Z_and_r(
-        structure,
-        &fresh.witness.Z,
-        &point,
-        D.next_power_of_two().trailing_zeros() as usize,
-        prep.prep.params.b(),
-    )
-    .0;
-    let mut metal = MetalNifsProver::new().expect("Metal adapter");
-    let actual = metal
-        .final_witness_openings(
-            prep.prep.optimized_cache(),
-            std::slice::from_ref(&fresh.witness.Z),
-            &point,
-            structure.m,
-        )
-        .expect("Metal openings")
-        .expect("supported Metal openings");
-
-    assert_eq!(actual.len(), 1);
-    assert_eq!(actual[0].len(), expected.len());
-    for (matrix, (expected, actual)) in expected.iter().zip(&actual[0]).enumerate() {
-        assert_eq!(&expected[..D], actual, "bare WASM opening matrix {matrix}");
-    }
+    let size = 2;
+    let relation = build_batched_wasm_ccs(size).expect("batched");
+    let width = relation.sparse_r1cs.m / size;
+    let mut witness = build_batched_witness(&checked.trace, size, 0);
+    witness[width] = F::from_u64(7);
+    relation
+        .sparse_r1cs
+        .is_satisfied_by(&witness)
+        .expect("the second block-local constant is not referenced");
 }

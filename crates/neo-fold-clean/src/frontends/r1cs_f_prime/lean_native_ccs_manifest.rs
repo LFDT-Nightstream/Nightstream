@@ -787,7 +787,11 @@ fn terminal_r1cs_cost(
     let carrier = phi81_carrier_width(descriptor.logical_width)?;
     let public_width = checked_mul("terminal_r1cs.cost", descriptor.public_ring_columns, PHI81_RING_DEGREE)?;
     let verifier_width = checked_mul("terminal_r1cs.cost", descriptor.verifier_rows, PHI81_RING_DEGREE)?;
-    let evaluations = checked_mul("terminal_r1cs.cost", descriptor.matrix_count, PHI81_RING_DEGREE)?;
+    let evaluations = checked_mul(
+        "terminal_r1cs.cost",
+        checked_add("terminal_r1cs.cost", descriptor.matrix_count, 1)?,
+        PHI81_RING_DEGREE,
+    )?;
     let two_carriers = checked_mul("terminal_r1cs.cost", 2, carrier)?;
     let two_evaluations = checked_mul("terminal_r1cs.cost", 2, evaluations)?;
     let running_statement = checked_add(

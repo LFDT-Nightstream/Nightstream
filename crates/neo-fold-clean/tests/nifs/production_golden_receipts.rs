@@ -274,13 +274,17 @@ fn replay_transcript_witness(run: &GoldenRun) -> TranscriptWitness {
 
     transcript.append_fields_raw(&[F::ZERO, F::ZERO]);
     let mut sampled_symbols = Vec::with_capacity(64);
-    for counter in 0..4 {
-        transcript.append_fields_raw(&[F::ONE, F::from_u64(counter)]);
+    for counter in 0..neo_params::goldilocks_paper_b2::PI_RLC_SAMPLER_DIGEST_ROUNDS {
+        transcript.append_fields_raw(&[F::ONE, F::from_usize(counter)]);
         let digest = transcript.digest32();
-        for bytes in digest.chunks_exact(2) {
-            let candidate = u16::from_le_bytes([bytes[0], bytes[1]]) as u64;
-            if candidate < 65535 {
-                sampled_symbols.push(candidate % 5);
+        for lane in digest.chunks_exact(8) {
+            let value = u64::from_le_bytes(lane.try_into().expect("digest lane is eight bytes"));
+            for offset in [0, 16] {
+                let raw = ((value >> offset) & 0xffff) as u16;
+                let candidate = (!raw) as u64;
+                if candidate < 65535 {
+                    sampled_symbols.push(candidate % 5);
+                }
             }
         }
     }

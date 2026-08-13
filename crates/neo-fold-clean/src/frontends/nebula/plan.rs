@@ -18,8 +18,6 @@ use crate::paper::relations::{LaneScheme, LaneSchemeError};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
-use crate::config::{NEBULA_END_TO_END_SECURITY_BITS, NEBULA_MAX_FS_QUERY_BITS};
-
 /// Version string bound into the plan digest.
 pub const PLAN_VERSION: &[u8] = b"nebula-superneo/v3.1";
 /// Domain label for deriving the `A_ops` seed from the plan seed.
@@ -152,11 +150,11 @@ impl NebulaPlan {
         self.plan_digest
     }
 
-    /// The evaluated fingerprint error budget:
+    /// The evaluated per-attempt fingerprint error bound:
     /// per Fiat–Shamir attempt, a false-but-balancing segment survives
     /// with probability `m_seg / |K|`, `m_seg = |IS|+|WS|+|RS|+|FS|`.
-    /// The geometry is derived from plan-bound constants; the global target
-    /// and query cap are verifier-owned production-profile constants.
+    /// The geometry is derived from plan-bound constants. This reports
+    /// evidence and does not manufacture a global target or query cap.
     pub fn error_budget(&self) -> ErrorBudget {
         let p = &self.params;
         let m_seg = 2 * (p.steps_per_segment() as u64 * p.b_ops as u64 + p.scanned_cells());
@@ -164,8 +162,6 @@ impl NebulaPlan {
             m_seg,
             // |K| = q² ≈ 2^128 for Goldilocks².
             log2_bound_per_attempt: (m_seg as f64).log2() - 128.0,
-            end_to_end_target_bits: NEBULA_END_TO_END_SECURITY_BITS,
-            max_fs_query_bits: NEBULA_MAX_FS_QUERY_BITS,
         }
     }
 }
@@ -177,10 +173,6 @@ pub struct ErrorBudget {
     pub m_seg: u64,
     /// `log2(m_seg / |K|)` — the Lemma-3 term per Fiat–Shamir attempt.
     pub log2_bound_per_attempt: f64,
-    /// Declared maximum-chain security target for the production profile.
-    pub end_to_end_target_bits: u32,
-    /// Allowed `log2(q_H)` adversarial random-oracle queries in the global bound.
-    pub max_fs_query_bits: u32,
 }
 
 /// Chain the initial memory's per-step IS-lane commitments with the

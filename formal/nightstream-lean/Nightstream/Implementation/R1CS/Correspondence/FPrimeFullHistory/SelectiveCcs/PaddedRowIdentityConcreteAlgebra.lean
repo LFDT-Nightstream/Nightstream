@@ -5,9 +5,9 @@ import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongReduction
 import Nightstream.SuperNeo.Folding.PiRLC.PaperCorrections
 
 /-!
-Concrete Phi81 algebra for the selected padded one-joint protocol.
+Concrete Phi81 algebra for the fixed padded one-joint reference snapshot.
 
-Owns: the exact 24-row-variable, 11,437,038-coordinate, 14-matrix Phi81
+Owns: one exact 24-row-variable, 11,437,038-coordinate, 14-matrix Phi81
 relation shape; the 18-row Ajtai commitment carrier; the 270-coordinate public
 carrier; canonicalization of an untrusted `MatrixSource` layout and kernel;
 the one-entry complete evaluation-family carrier used by paper `Pi_CCS`; and
@@ -40,7 +40,7 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongReduction
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentity
 
-/-- The exact production relation carrier. Five public ring columns contain
+/-- The exact reference-snapshot relation carrier. Five public ring columns contain
 the complete 270-coordinate public prefix. -/
 def relationShape : Phi81Relation.Shape where
   rowVariables := rowVariables

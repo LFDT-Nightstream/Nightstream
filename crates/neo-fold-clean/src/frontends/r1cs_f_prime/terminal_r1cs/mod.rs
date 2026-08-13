@@ -11,7 +11,7 @@ mod lifecycle;
 
 use neo_ajtai::AjtaiSModule;
 use thiserror::Error;
-use toy_spartan::{
+use wip_spartan::{
     provider::{goldi::F as SpartanF, GoldilocksWhirEngine},
     SplitR1CSShape,
 };
@@ -111,8 +111,6 @@ pub enum TerminalR1csError {
     },
     #[error("terminal R1CS does not support {0}")]
     Unsupported(&'static str),
-    #[error("terminal R1CS relation has {rows} rows; direct reference cap is {cap}")]
-    ResourceLimit { rows: usize, cap: usize },
     #[error("terminal R1CS coefficient construction failed: {0}")]
     Coefficients(String),
     #[error("terminal R1CS assignment is unsatisfied at row {0}")]

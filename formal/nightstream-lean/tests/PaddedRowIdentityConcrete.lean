@@ -44,7 +44,7 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIden
 #check acceptedCandidate_exactly_balanced
 #check publicWireFields_injective_on_admissible
 #check proofWireFields_injective
-#check ProductionMatrixRefinement
+#check FixedSnapshotMatrixRefinement
 
 example : rowVariables = 24 := rfl
 example : logicalRows = 14944219 := rfl

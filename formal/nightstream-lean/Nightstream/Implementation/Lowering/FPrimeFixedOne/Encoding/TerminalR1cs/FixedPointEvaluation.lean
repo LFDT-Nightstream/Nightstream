@@ -8,14 +8,15 @@ fixed point.
 Assurance tier: model-level.
 
 Owns: canonical basis decomposition of the complete assignment, exact
-linearization of every matrix/lane evaluation at a verifier-fixed point, two
-physical rows per claimed `K` value, support, ownership, soundness, honest
-completeness, and cost.
+linearization of every application-matrix/lane evaluation at a verifier-fixed
+point, two physical rows per claimed `K` value, support, ownership, soundness,
+honest completeness, and cost.
 
-Does not own: a run-time evaluation point, witness or claim allocation,
-transcript derivation, Ajtai commitments, norm checks, fresh CCS
-satisfaction, terminal composition, Rust, or artifacts. A uniform terminal
-relation must not compile a witness-supplied point into these coefficients.
+Does not own: the separate padded-identity evaluation, a run-time evaluation
+point, witness or claim allocation, transcript derivation, Ajtai commitments,
+norm checks, fresh CCS satisfaction, terminal composition, Rust, or artifacts.
+A uniform terminal relation must not compile a witness-supplied point into
+these coefficients.
 
 Emits constraints: `2 * shape.matrixCount * ringDegree` dense linear rows and
 no auxiliary columns.

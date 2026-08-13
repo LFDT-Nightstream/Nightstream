@@ -30,9 +30,9 @@ the meaning or correctness of the data.
 Nightstream v1 uses `PaddedRowIdentity`:
 
 - one 24-variable row cube;
-- 14,944,219 logical rows, padded to `2^24`;
-- 11,437,038 fields in the full committed assignment `z=x||w`, padded in the same cube;
-- `M_0=[I_11437038;0]` followed by 13 application matrices;
+- exact positive logical dimensions from the verifier-key relation artifact;
+- a 54-aligned full committed assignment `z=x||w` of at most 16,777,206 fields;
+- the implicit `M_0=[I_m;0]` followed by 13 artifact-owned application matrices;
 - one reviewed joint PiCCS SumCheck with 24 rounds;
 - the norm terminal from `ct(y_(i,0))` for the same committed assignment;
 - no FE/NC split, column proof, column carrier, or extra beta challenge;

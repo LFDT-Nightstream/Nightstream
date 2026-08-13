@@ -22,9 +22,6 @@ use crate::engine::r1cs_circuit::{enforce_poseidon2_hash, Lc, R1csBuilder, Var};
 use crate::frontends::f_prime::recursive_plan::{
     semantic_state_app_public_header, semantic_state_field_header, RecursiveStepImagePlan,
 };
-use crate::frontends::r1cs_f_prime::compiler::{
-    app_public_semantic_preimage_for_assignment, semantic_state_digest_for_assignment,
-};
 use crate::frontends::r1cs_f_prime::{lower_field_r1cs, R1csShape, SparseR1cs};
 use crate::paper::construction2::SemanticStateMode;
 use crate::paper::digest::{digest32_as_fields, AccumulatorHandle, StateXOutDigestMode};
@@ -323,6 +320,50 @@ pub(crate) fn semantic_values(plan: &RecursiveStepImagePlan, assignment: &[F]) -
         None
     };
     Ok(SemanticValues { input, output })
+}
+
+fn semantic_state_digest_for_assignment(assignment: &[F], indices: &[usize]) -> [F; 4] {
+    let values = indices
+        .iter()
+        .map(|&index| assignment[index])
+        .collect::<Vec<_>>();
+    encode_poseidon_trace(&crate::frontends::f_prime::recursive_plan::build_semantic_state_preimage_fields(&values))
+        .digest_native
+}
+
+fn app_public_semantic_preimage_for_assignment(
+    plan: &RecursiveStepImagePlan,
+    assignment: &[F],
+) -> Result<Vec<F>, R1csIvcError> {
+    let Some(state) = plan.state_x_out.as_ref() else {
+        return Ok(Vec::new());
+    };
+    let mut preimage = semantic_state_app_public_header(
+        state.app_public_input_var_indices.len(),
+        state.app_public_input_bit_var_indices.len(),
+    );
+    preimage.extend(
+        state
+            .app_public_input_var_indices
+            .iter()
+            .map(|&index| assignment[index]),
+    );
+    for chunk in state.app_public_input_bit_var_indices.chunks(64) {
+        let mut packed = 0u64;
+        for (bit, &index) in chunk.iter().enumerate() {
+            let value = assignment[index];
+            if value == F::ZERO {
+                continue;
+            }
+            if value == F::ONE {
+                packed |= 1 << bit;
+                continue;
+            }
+            return Err(R1csIvcError::PackedPublicInputNotBit { index, value });
+        }
+        preimage.push(F::from_u64(packed));
+    }
+    Ok(preimage)
 }
 
 pub(crate) fn digest_mode(plan: &RecursiveStepImagePlan) -> StateXOutDigestMode {

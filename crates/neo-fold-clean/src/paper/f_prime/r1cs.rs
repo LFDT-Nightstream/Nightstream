@@ -3,8 +3,8 @@
 //!
 //! Two internal branch emitters mirror the paper's case split. They are not
 //! independently foldable public relations; the production caller combines
-//! them into one selector-controlled implementation language in
-//! `frontends::r1cs_f_prime::full_relation`.
+//! them into one selector-controlled implementation language in the
+//! authoritative `frontends::r1cs_f_prime::ivc` relation.
 //!
 //! Owns: the base and recursive Construction-2 branch emitters and their
 //! state/accumulator/public-link outputs.
@@ -87,8 +87,7 @@ use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Ima
 use crate::paper::f_prime::source_image_circuit::{enforce_goldilocks_word_canonical, SourceImageWires};
 use crate::paper::f_prime::stage;
 use crate::paper::nifs::circuit::{
-    enforce_nifs_v_circuit_with_transcript_and_header_bundle,
-    enforce_nifs_v_circuit_with_transcript_and_header_bundle_wires, NifsVCircuitConfig, NifsVCircuitMessages,
+    enforce_nifs_v_circuit_with_transcript_and_header_bundle, NifsVCircuitConfig, NifsVCircuitMessages,
 };
 use crate::paper::params::Params;
 
@@ -174,7 +173,7 @@ pub fn enforce_public_bits_encode_digest(
 /// [`Word64Image`]: enforces the source-image word is canonical Goldilocks
 /// (`< p`) AND that `var == Σ 2^i · bit_i` of those source-image bits.
 ///
-/// Used by Phase 7-pre Step 4 to route F' u64 counters (`chunk_count_in`,
+/// Routes F' u64 counters (`chunk_count_in`,
 /// `step_count_in`, `pc`) through the source image, so the authoritative
 /// low-norm witness for each counter is a 64-bit slice of bits — not a
 /// freely-allocated field var.
@@ -427,14 +426,14 @@ pub struct FPrimeRecursiveInputs<'a> {
     /// differ and using `nifs_msg.fresh.len()` would advance
     /// `step_count` by the wrong amount.
     pub rows_in_chunk: u64,
-    /// Low-norm-native witness image (Phase 7-pre); see
+    /// Low-norm-native witness image; see
     /// [`FPrimeBaseInputs::source_image`].
     pub source_image: &'a FPrimeSourceImage,
-    /// Source-image word for `state.chunk_count_in` (Step 4).
+    /// Source-image word for `state.chunk_count_in`.
     pub chunk_count_in_word: Word64Image,
-    /// Source-image word for `state.step_count_in` (Step 4).
+    /// Source-image word for `state.step_count_in`.
     pub step_count_in_word: Word64Image,
-    /// Source-image word for `state.pc` (Step 4).
+    /// Source-image word for `state.pc`.
     pub pc_word: Word64Image,
     /// Slice inside `source_image` for `enc_inst(prior_x_out)` — the body
     /// of the **input** recursive link. F' constrains both
@@ -899,26 +898,13 @@ pub fn enforce_f_prime_recursive_step_circuit(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeRecursiveInputs<'_>,
 ) -> Result<FPrimeStepOutput, Error> {
-    enforce_f_prime_recursive_step_circuit_impl(builder, pp, cfg, None, inputs)
-}
-
-/// Fixed-relation recursive branch. The Π_CCS header is verifier-key witness
-/// data shared with the surrounding `vk_fs` digest constraint.
-pub(crate) fn enforce_f_prime_recursive_step_circuit_with_header_bundle_wires(
-    builder: &mut R1csBuilder,
-    pp: &Params,
-    cfg: &FPrimeStepConfig<'_>,
-    header_bundle_wires: [Var; DIGEST_LEN],
-    inputs: &FPrimeRecursiveInputs<'_>,
-) -> Result<FPrimeStepOutput, Error> {
-    enforce_f_prime_recursive_step_circuit_impl(builder, pp, cfg, Some(header_bundle_wires), inputs)
+    enforce_f_prime_recursive_step_circuit_impl(builder, pp, cfg, inputs)
 }
 
 fn enforce_f_prime_recursive_step_circuit_impl(
     builder: &mut R1csBuilder,
     pp: &Params,
     cfg: &FPrimeStepConfig<'_>,
-    header_bundle_wires: Option<[Var; DIGEST_LEN]>,
     inputs: &FPrimeRecursiveInputs<'_>,
 ) -> Result<FPrimeStepOutput, Error> {
     let recursive_start = builder.rows();
@@ -1051,25 +1037,14 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     builder.record_row_family("fprime.recursive.transcript", transcript_start);
     let nifs_start = builder.rows();
     builder.begin_encoding_stage(stage::RECURSIVE_NIFS);
-    let nifs_outputs = if let Some(header_bundle_wires) = header_bundle_wires {
-        enforce_nifs_v_circuit_with_transcript_and_header_bundle_wires(
-            builder,
-            pp,
-            &cfg.nifs,
-            &mut transcript,
-            header_bundle_wires,
-            &inputs.nifs_msg,
-        )?
-    } else {
-        enforce_nifs_v_circuit_with_transcript_and_header_bundle(
-            builder,
-            pp,
-            &cfg.nifs,
-            &mut transcript,
-            &inputs.nifs_msg,
-            sw.pi_ccs_header_bundle,
-        )?
-    };
+    let nifs_outputs = enforce_nifs_v_circuit_with_transcript_and_header_bundle(
+        builder,
+        pp,
+        &cfg.nifs,
+        &mut transcript,
+        &inputs.nifs_msg,
+        sw.pi_ccs_header_bundle,
+    )?;
     builder.record_row_family("fprime.recursive.nifs", nifs_start);
     let prior_link_start = builder.rows();
     let prior_link_first_column = builder.cols();

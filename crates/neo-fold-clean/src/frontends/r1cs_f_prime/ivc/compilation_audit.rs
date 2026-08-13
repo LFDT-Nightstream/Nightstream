@@ -5,7 +5,7 @@
 //! shapes, final public-carrier/selector/private-alignment layout, the final
 //! source arms' caller-labeled physical row intervals, and the recovered
 //! steady-recursive PiCCS output-message dimensions. Shape discovery and
-//! emitted-relation evidence are different types.
+//! emitted-relation evidence are different views.
 //!
 //! Does not own: relation acceptance, witness validity, semantic refinement,
 //! row-removal authority, stage-label semantics, expected-tree membership, or
@@ -26,7 +26,7 @@
 //! | `SelectiveCompilerAudit` | exact planned coordinate layout, width census, and source-row intervals | no |
 //! | `PiCcsOutputDigestAudit` | steady-recursive output dimensions and final Poseidon2 schedule recovered from retained physical traces | no |
 //! | `R1csIvcFixedPointShapeAudit` | stabilized shape before the materialization budget gate | no |
-//! | `R1csIvcCompilationAudit` | stabilized shape after equality with emitted matrices | no |
+//! | `R1csIvcCompilationAudit` | borrowed view of the audit owned by the emitted relation | no |
 
 use neo_ccs::SparsePoly;
 use neo_math::F;
@@ -116,20 +116,23 @@ impl R1csIvcFixedPointShapeAudit {
     }
 }
 
-/// Stabilized fixed-point audit after the materialized selective relation was
-/// checked equal to the planned shape and compiler ledger.
-#[derive(Clone, Debug)]
-pub struct R1csIvcCompilationAudit {
-    rounds: Vec<FixedPointRoundAudit>,
-    selective: SelectiveCompilerAudit,
-    pi_ccs_output_digest: PiCcsOutputDigestAudit,
+/// Borrowed audit view after the materialized selective relation was checked
+/// equal to the planned shape and compiler ledger.
+///
+/// The emitted relation owns `SelectiveCompilerAudit`. This view does not copy
+/// that large ledger into a second owner.
+#[derive(Clone, Copy, Debug)]
+pub struct R1csIvcCompilationAudit<'a> {
+    rounds: &'a [FixedPointRoundAudit],
+    selective: &'a SelectiveCompilerAudit,
+    pi_ccs_output_digest: &'a PiCcsOutputDigestAudit,
 }
 
-impl R1csIvcCompilationAudit {
+impl<'a> R1csIvcCompilationAudit<'a> {
     pub(super) fn new(
-        rounds: Vec<FixedPointRoundAudit>,
-        selective: SelectiveCompilerAudit,
-        pi_ccs_output_digest: PiCcsOutputDigestAudit,
+        rounds: &'a [FixedPointRoundAudit],
+        selective: &'a SelectiveCompilerAudit,
+        pi_ccs_output_digest: &'a PiCcsOutputDigestAudit,
     ) -> Self {
         Self {
             rounds,
@@ -139,7 +142,7 @@ impl R1csIvcCompilationAudit {
     }
 
     pub fn rounds(&self) -> &[FixedPointRoundAudit] {
-        &self.rounds
+        self.rounds
     }
 
     pub fn layout(&self) -> &SelectiveLayoutAudit {
@@ -159,7 +162,7 @@ impl R1csIvcCompilationAudit {
     /// Profile and final sponge schedule recovered from the emitted recursive
     /// arm before the selective relation was checked against its plan.
     pub fn pi_ccs_output_digest(&self) -> &PiCcsOutputDigestAudit {
-        &self.pi_ccs_output_digest
+        self.pi_ccs_output_digest
     }
 
     /// Caller-labeled source-row intervals for the final base and recursive

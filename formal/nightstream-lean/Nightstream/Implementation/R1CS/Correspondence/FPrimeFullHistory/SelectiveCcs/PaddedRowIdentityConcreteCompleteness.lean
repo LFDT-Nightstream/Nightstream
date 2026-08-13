@@ -13,8 +13,8 @@ conditional successful execution of the concrete
 Does not own: a production matrix artifact, Rust, generated R1CS rows,
 Poseidon2 collision security, Module-SIS hardness, or extraction soundness.
 
-Assurance tier: model-level honest completeness. The theorem is for every
-typed application matrix family with the selected production dimensions.
+Assurance tier: model-level honest completeness for the fixed reference
+dimensions. The theorem does not select a verifier-key relation artifact.
 -/
 
 set_option autoImplicit false

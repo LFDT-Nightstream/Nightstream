@@ -47,7 +47,6 @@ pub use s_module::{
 
 #[doc(hidden)]
 pub use commit::{
-    audit_commit_row_major_seeded_binary_cols_with_chunk_seeds, commit_row_major_seeded,
-    commit_row_major_seeded_binary_cols, commit_row_major_seeded_binary_cols_with_chunk_seeds,
-    commit_row_major_seeded_many, sample_uniform_rq, seeded_pp_chunk_seeds, SeededBinaryColsCommitAudit,
+    commit_row_major_seeded, commit_row_major_seeded_binary_cols, commit_row_major_seeded_binary_cols_with_chunk_seeds,
+    commit_row_major_seeded_many, sample_uniform_rq, seeded_pp_chunk_seeds,
 };

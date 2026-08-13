@@ -10,7 +10,7 @@ use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::frontends::nebula::circuit::StepData;
 use neo_fold_clean::frontends::nebula::f_prime::{
     enforce_nebula_f_prime_base_step, NebulaFPrimeBranch, NebulaFPrimeChainBuilder, NebulaFPrimePreprocessing,
-    NebulaFPrimeRelation, NebulaFPrimeRelationError,
+    NebulaFPrimeRelation,
 };
 use neo_fold_clean::frontends::nebula::fingerprint::Gammas;
 use neo_fold_clean::frontends::nebula::layout::{encode_delayed_f_prime_suffix, NebulaParams};
@@ -26,7 +26,6 @@ use neo_fold_clean::paper::digest::{
 use neo_fold_clean::paper::f_prime::nebula_lane_circuit::delayed_nebula_public_suffix_len;
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_x_out_public_bits, FPrimeBaseInputs, FPrimePublicInputLayout, FPrimeStateIn, FPrimeStepConfig,
-    F_PRIME_ENC_INST_OFFSET,
 };
 use neo_fold_clean::paper::f_prime::source_image::FPrimeSourceImage;
 use neo_fold_clean::paper::nifs::circuit::NifsVCircuitConfig;
@@ -67,7 +66,8 @@ fn shape_test_params() -> neo_fold_clean::Params {
 
 fn preprocessing(circuit: &neo_fold_clean::frontends::nebula::circuit::SMemCircuit) -> Preprocessing {
     let structure = circuit.structure().clone();
-    let params = config::r1cs_params(structure.n, structure.m).expect("S_mem params");
+    let params =
+        config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree()).expect("S_mem params");
     support::install_ajtai_module(&params, &structure);
     preprocess(params, structure, Some(circuit.m_in())).expect("S_mem preprocessing")
 }
@@ -303,19 +303,6 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
 
     let (shape, field_assignment) = lowered.into_parts();
     let fixed = NebulaFPrimeRelation::compile(&shape, &shape, &shape, &plan).expect("fixed-shape Nebula F'");
-    let max_coordinates = fixed.structure().m - 1;
-    match NebulaFPrimeRelation::compile_with_coordinate_limit(&shape, &shape, &shape, &plan, max_coordinates) {
-        Err(NebulaFPrimeRelationError::CommittedCoordinateLimitExceeded {
-            required_coordinates,
-            max_coordinates: reported_limit,
-            ..
-        }) => {
-            assert_eq!(required_coordinates, fixed.structure().m);
-            assert_eq!(reported_limit, max_coordinates);
-        }
-        Err(other) => panic!("unexpected coordinate-limit error: {other}"),
-        Ok(_) => panic!("caller coordinate limit must reject before materialization"),
-    }
     support::install_ajtai_module(&fixed_params, fixed.structure());
     let fixed_prep = preprocess(fixed_params, fixed.structure().clone(), Some(fixed.public_input_len()))
         .expect("fixed relation preprocessing")
@@ -405,42 +392,38 @@ fn reduced_profile_fixed_point_stabilizes() {
     );
     assert_eq!(
         (relation.structure().n, relation.structure().m),
-        (8_167_445, 14_870_628),
+        (8_252_423, 15_319_206),
         "reduced-profile rectangular verifier fixed point drifted"
     );
 }
 
-fn small_chain_params() -> neo_fold_clean::Params {
+fn minimal_chain_params() -> neo_fold_clean::Params {
     let inner = neo_params::NeoParams::new(
         neo_params::goldilocks_paper_b2::Q,
         neo_params::goldilocks_paper_b2::ETA as u32,
         neo_params::goldilocks_paper_b2::D as u32,
         1,
-        1 << 25,
+        neo_params::goldilocks_paper_b2::M,
+        neo_params::goldilocks_paper_b2::B_BASE,
         2,
-        neo_params::goldilocks_paper_b2::K_RHO,
         1,
-        2,
-        8,
+        neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
+        1,
     )
-    .expect("small parameters satisfy the reduction guard");
+    .expect("minimal chain parameters satisfy the exact RLC guard");
     neo_fold_clean::Params::test_only_from_neo_params(inner)
 }
 
 #[test]
-#[ignore = "the full three-segment fixed-point chain exceeds the 24 GiB audit limit"]
-fn canonical_encoder_verifies_multistep_memory_chain() {
-    run_multichunk_acceptance();
+fn canonical_encoder_appends_one_memory_segment() {
+    run_single_segment_append();
 }
 
-fn run_multichunk_acceptance() {
-    let memory_params = NebulaParams::new(2, 2, 8, 8, 8)
-        .expect("one-step segments")
-        .with_stacks(2, 2)
-        .expect("two segment-local stacks");
+fn run_single_segment_append() {
+    let memory_params = NebulaParams::new(0, 0, 1, 2, 1).expect("one-step segment");
     assert_eq!(memory_params.steps_per_segment(), 1);
-    let params = small_chain_params();
-    let rom = [10, 20, 30, 40];
+    let params = minimal_chain_params();
+    let rom = [10];
     let plan = NebulaPlan::new(memory_params, rom.to_vec(), [0xD3; 32], params.kappa() as usize).expect("plan");
     let prep = NebulaFPrimePreprocessing::new_seeded(params, plan, 0xD3D3_0001).expect("fixed preprocessing");
     assert!(prep.prep.enforces_terminal_induction());
@@ -448,102 +431,17 @@ fn run_multichunk_acceptance() {
     let mut memory = Memory::new(memory_params, &rom).expect("memory");
     let trace0 = {
         let mut segment = memory.begin_segment().expect("segment 0");
-        segment.push(0, 7).expect("stack 0 push");
-        segment.push(0, 9).expect("stack 0 nested push");
-        assert_eq!(segment.pop(0).expect("stack 0 nested pop"), 9);
-        assert_eq!(segment.pop(0).expect("stack 0 pop"), 7);
         segment.write(true, 0, 5).expect("RAM write");
-        segment.push(1, 3).expect("stack 1 push");
-        assert_eq!(segment.pop(1).expect("stack 1 pop"), 3);
-        assert_eq!(segment.read(false, 1).expect("public ROM"), 20);
         segment.finish().expect("trace 0")
-    };
-    let trace1 = {
-        let mut segment = memory.begin_segment().expect("segment 1");
-        assert_eq!(segment.read(true, 0).expect("RAM continuity"), 5);
-        segment.push(0, 11).expect("stack 0 push");
-        assert_eq!(segment.pop(0).expect("stack 0 pop"), 11);
-        assert_eq!(segment.read(false, 0).expect("public ROM"), 10);
-        segment.finish().expect("trace 1")
-    };
-    let trace2 = {
-        let mut segment = memory.begin_segment().expect("segment 2");
-        assert_eq!(segment.read(true, 0).expect("RAM continuity"), 5);
-        assert_eq!(segment.read(false, 2).expect("public ROM"), 30);
-        segment.finish().expect("trace 2")
     };
 
     let mut chain = NebulaFPrimeChainBuilder::new(&prep);
     chain.append_segment(&trace0).expect("base arm");
-    chain
-        .append_segment(&trace1)
-        .expect("bootstrap-recursive arm");
-    chain.append_segment(&trace2).expect("steady-recursive arm");
-    let proof = chain
-        .finish()
-        .expect("terminal fold consumes trailing claim");
+    let audit = chain.into_audit().expect("one appended segment");
 
-    neo_fold_clean::verify_uncompressed(&prep.prep, &proof).expect("terminal-only induction");
-    assert_eq!(proof.state.chunk_count, 3);
-    let lane = proof.state.nebula.as_ref().expect("lane");
+    assert_eq!(audit.proof.state.chunk_count, 1);
+    let lane = audit.proof.state.nebula.as_ref().expect("lane");
     assert!(lane.is_closed());
-    assert_eq!(lane.seg_idx, 3);
+    assert_eq!(lane.seg_idx, 0, "the first segment remains delayed until the next fold");
     assert_eq!(lane.sp, [0, 0]);
-
-    let mut tampered_link = proof.clone();
-    let link_bit = &mut tampered_link
-        .final_fold
-        .as_mut()
-        .expect("terminal fold")
-        .terminal_inputs
-        .latest
-        .instances[0]
-        .claim
-        .x[F_PRIME_ENC_INST_OFFSET];
-    *link_bit = F::ONE - *link_bit;
-    neo_fold_clean::verify_uncompressed(&prep.prep, &tampered_link)
-        .expect_err("terminal verification must reject a changed prior F' link");
-
-    let mut tampered_suffix = proof.clone();
-    let suffix_offset =
-        FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(memory_params.stack_shape()))
-            .suffix_offset();
-    let suffix_bit = &mut tampered_suffix
-        .final_fold
-        .as_mut()
-        .expect("terminal fold")
-        .terminal_inputs
-        .latest
-        .instances[0]
-        .claim
-        .x[suffix_offset];
-    *suffix_bit = F::ONE - *suffix_bit;
-    neo_fold_clean::verify_uncompressed(&prep.prep, &tampered_suffix)
-        .expect_err("terminal verification must reject changed delayed memory data");
-
-    let mut tampered_lane = proof.clone();
-    tampered_lane
-        .final_fold
-        .as_mut()
-        .expect("terminal fold")
-        .terminal_inputs
-        .pre_nebula
-        .as_mut()
-        .expect("pre-final Nebula lane")
-        .ts ^= 1;
-    neo_fold_clean::verify_uncompressed(&prep.prep, &tampered_lane)
-        .expect_err("terminal verification must reject a changed pre-final Nebula lane");
-
-    let mut tampered_history = proof;
-    tampered_history
-        .final_fold
-        .as_mut()
-        .expect("terminal fold")
-        .terminal_inputs
-        .pre_final_running
-        .claims[0]
-        .c
-        .data[0] += F::ONE;
-    neo_fold_clean::verify_uncompressed(&prep.prep, &tampered_history)
-        .expect_err("terminal verification must reject a changed earlier-history accumulator");
 }

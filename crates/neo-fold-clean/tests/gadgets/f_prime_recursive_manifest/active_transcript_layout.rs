@@ -1,4 +1,4 @@
-//! Three-matrix diagnostic PiRLC transcript physical-layout artifact.
+//! Fixed-recursive PiRLC transcript physical-layout artifact.
 //!
 //! Owns: exact source locations for the PiRLC transcript's constant pins,
 //! Poseidon2 calls, emission order, state-column aliases, and digest-output
@@ -29,21 +29,22 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{build_recursive_program, repo_root};
 
-const LEAN_DATA_PATH: &str = "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeRecursive/PiRlcChallenge/Generated/TranscriptLayoutData.lean";
-const PIN_COUNT: usize = 412;
-const CALL_COUNT: usize = 137;
+const LEAN_FACADE_PATH: &str = "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeRecursive/PiRlcChallenge/Generated/TranscriptLayoutData.lean";
+const LEAN_SHARD_ROOT: &str = "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeRecursive/PiRlcChallenge/Generated/TranscriptLayoutData";
+const LEAN_MODULE_ROOT: &str =
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeRecursive.PiRlcChallenge.Generated.TranscriptLayoutData";
+const LEAN_NAMESPACE_ROOT: &str = "Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallengeTranscriptLayoutData";
 const CALL_ROWS: usize = 600;
 const CALL_COLUMNS: usize = 600;
 const CALL_OUTPUT_OFFSET: usize = 592;
 const GROUP_COUNT: usize = 15;
-const BLOCKS_PER_GROUP: usize = 4;
+const BLOCKS_PER_GROUP: usize = neo_params::goldilocks_paper_b2::PI_RLC_SAMPLER_DIGEST_ROUNDS;
 const LANES_PER_BLOCK: usize = 4;
 const FIELD_OUTPUT_ALIAS_COUNT: usize = GROUP_COUNT * BLOCKS_PER_GROUP * LANES_PER_BLOCK;
 const CANONICAL_U64_ROWS: usize = 69;
 const BIND_INPUT_COUNT: usize = 4;
 const BIND_FRAMING_COLUMN_COUNT: usize = 2;
 const OWNED_RANGE_COUNT: usize = 1 + GROUP_COUNT + GROUP_COUNT * BLOCKS_PER_GROUP;
-const OWNED_ROW_COUNT: usize = PIN_COUNT + CALL_COUNT * CALL_ROWS;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct OwnedRange {
@@ -300,9 +301,9 @@ fn partition_owned_rows(
     );
 
     let mut ranges = Vec::with_capacity(selected.len());
-    let mut pins = Vec::with_capacity(PIN_COUNT);
-    let mut calls = Vec::with_capacity(CALL_COUNT);
-    let mut emission_order = Vec::with_capacity(PIN_COUNT + CALL_COUNT);
+    let mut pins = Vec::new();
+    let mut calls = Vec::new();
+    let mut emission_order = Vec::new();
     let mut expected_rows = BTreeSet::new();
     let mut owned_rows = BTreeSet::new();
 
@@ -348,10 +349,7 @@ fn partition_owned_rows(
         });
     }
 
-    assert_eq!(pins.len(), PIN_COUNT, "constant-pin count");
-    assert_eq!(calls.len(), CALL_COUNT, "Poseidon2 call count");
     assert_eq!(expected_rows, owned_rows, "exact selected-source-row coverage");
-    assert_eq!(owned_rows.len(), OWNED_ROW_COUNT, "owned transcript source-row count");
     assert!(
         pins.iter().map(|pin| pin.row).collect::<HashSet<_>>().len() == pins.len(),
         "constant-pin rows are unique"
@@ -649,7 +647,6 @@ fn extract() -> Artifact {
     );
 
     let state_continuity = state_continuity(&calls);
-    assert_eq!(state_continuity.len(), CALL_COUNT - 1, "adjacent-call continuity count");
     let field_output_aliases = field_output_aliases(trace, &calls, &constant_pins);
 
     Artifact {
@@ -688,22 +685,251 @@ fn lean_nat_list(values: impl IntoIterator<Item = usize>) -> String {
     )
 }
 
-fn render(artifact: &Artifact) -> String {
-    assert_eq!(artifact.owned_row_count, OWNED_ROW_COUNT, "owned row total");
-    let mut out = String::from(
-        "import Nightstream.Implementation.R1CS.Artifacts.FPrimeRecursive.PiRlcChallenge.TranscriptLayoutSchema\n\n\
+struct Phase<'a> {
+    module_name: String,
+    previous_module_name: Option<String>,
+    label: String,
+    pin_start: usize,
+    call_start: usize,
+    emission_start: usize,
+    continuity_start: usize,
+    alias_start: usize,
+    owned_row_start: usize,
+    owned_ranges: &'a [OwnedRange],
+    constant_pins: Vec<&'a ConstantPin>,
+    calls: Vec<&'a CompactCall>,
+    emission_order: &'a [EmissionRef],
+    state_continuity: Vec<&'a StateContinuity>,
+    field_output_aliases: Vec<&'a FieldOutputAlias>,
+}
+
+struct RenderedFile {
+    relative_path: String,
+    contents: String,
+}
+
+fn span_is_in_ranges(row_start: usize, row_end: usize, ranges: &[OwnedRange]) -> bool {
+    ranges
+        .iter()
+        .any(|range| range.row_start <= row_start && row_end <= range.row_end)
+}
+
+fn phase<'a>(
+    artifact: &'a Artifact,
+    module_name: String,
+    previous_module_name: Option<String>,
+    label: String,
+    ranges: &'a [OwnedRange],
+    group_index: Option<usize>,
+    pin_start: usize,
+    call_start: usize,
+    emission_start: usize,
+    continuity_start: usize,
+    alias_start: usize,
+    owned_row_start: usize,
+) -> Phase<'a> {
+    let first = ranges.first().expect("transcript phase owns a range");
+    let last = ranges.last().expect("transcript phase owns a range");
+    let constant_pins = artifact
+        .constant_pins
+        .iter()
+        .filter(|pin| span_is_in_ranges(pin.row, pin.row + 1, ranges))
+        .collect();
+    let calls = artifact
+        .calls
+        .iter()
+        .filter(|call| span_is_in_ranges(call.row_start, call.row_end, ranges))
+        .collect();
+    let state_continuity = artifact
+        .state_continuity
+        .iter()
+        .filter(|edge| {
+            let target = &artifact.calls[edge.to_call];
+            span_is_in_ranges(target.row_start, target.row_end, ranges)
+        })
+        .collect();
+    let field_output_aliases = artifact
+        .field_output_aliases
+        .iter()
+        .filter(|alias| Some(alias.group_index) == group_index)
+        .collect();
+    Phase {
+        module_name,
+        previous_module_name,
+        label,
+        pin_start,
+        call_start,
+        emission_start,
+        continuity_start,
+        alias_start,
+        owned_row_start,
+        owned_ranges: ranges,
+        constant_pins,
+        calls,
+        emission_order: &artifact.emission_order[first.emission_start..last.emission_end],
+        state_continuity,
+        field_output_aliases,
+    }
+}
+
+fn phases(artifact: &Artifact) -> Vec<Phase<'_>> {
+    let ranges_per_group = 1 + BLOCKS_PER_GROUP;
+    assert_eq!(
+        artifact.owned_ranges.len(),
+        1 + GROUP_COUNT * ranges_per_group,
+        "one transcript prelude range plus one sampler and eight digest ranges per group",
+    );
+    let mut phases = Vec::with_capacity(1 + GROUP_COUNT);
+    let mut pin_start = 0;
+    let mut call_start = 0;
+    let mut emission_start = 0;
+    let mut continuity_start = 0;
+    let mut alias_start = 0;
+    let mut owned_row_start = 0;
+
+    let prelude = phase(
+        artifact,
+        "Prelude".into(),
+        None,
+        "the transcript bind prelude".into(),
+        &artifact.owned_ranges[..1],
+        None,
+        pin_start,
+        call_start,
+        emission_start,
+        continuity_start,
+        alias_start,
+        owned_row_start,
+    );
+    pin_start += prelude.constant_pins.len();
+    call_start += prelude.calls.len();
+    emission_start += prelude.emission_order.len();
+    continuity_start += prelude.state_continuity.len();
+    alias_start += prelude.field_output_aliases.len();
+    owned_row_start += prelude
+        .owned_ranges
+        .iter()
+        .map(|range| range.row_end - range.row_start)
+        .sum::<usize>();
+    phases.push(prelude);
+
+    for group_index in 0..GROUP_COUNT {
+        let start = 1 + group_index * ranges_per_group;
+        let current = phase(
+            artifact,
+            format!("Group{group_index:02}"),
+            Some(if group_index == 0 {
+                "Prelude".into()
+            } else {
+                format!("Group{:02}", group_index - 1)
+            }),
+            format!("PiRLC sampler group {group_index}"),
+            &artifact.owned_ranges[start..start + ranges_per_group],
+            Some(group_index),
+            pin_start,
+            call_start,
+            emission_start,
+            continuity_start,
+            alias_start,
+            owned_row_start,
+        );
+        pin_start += current.constant_pins.len();
+        call_start += current.calls.len();
+        emission_start += current.emission_order.len();
+        continuity_start += current.state_continuity.len();
+        alias_start += current.field_output_aliases.len();
+        owned_row_start += current
+            .owned_ranges
+            .iter()
+            .map(|range| range.row_end - range.row_start)
+            .sum::<usize>();
+        phases.push(current);
+    }
+
+    assert_eq!(pin_start, artifact.constant_pins.len(), "phase pin cursor");
+    assert_eq!(call_start, artifact.calls.len(), "phase call cursor");
+    assert_eq!(emission_start, artifact.emission_order.len(), "phase emission cursor",);
+    assert_eq!(
+        continuity_start,
+        artifact.state_continuity.len(),
+        "phase continuity cursor",
+    );
+    assert_eq!(alias_start, artifact.field_output_aliases.len(), "phase alias cursor",);
+    assert_eq!(owned_row_start, artifact.owned_row_count, "phase owned-row cursor",);
+
+    assert_eq!(
+        phases
+            .iter()
+            .flat_map(|phase| phase.owned_ranges.iter())
+            .collect::<Vec<_>>(),
+        artifact.owned_ranges.iter().collect::<Vec<_>>(),
+        "phase ranges recompose the exact owned-range sequence",
+    );
+    assert_eq!(
+        phases
+            .iter()
+            .flat_map(|phase| phase.constant_pins.iter().copied())
+            .collect::<Vec<_>>(),
+        artifact.constant_pins.iter().collect::<Vec<_>>(),
+        "phase pins recompose the exact constant-pin sequence",
+    );
+    assert_eq!(
+        phases
+            .iter()
+            .flat_map(|phase| phase.calls.iter().copied())
+            .collect::<Vec<_>>(),
+        artifact.calls.iter().collect::<Vec<_>>(),
+        "phase calls recompose the exact Poseidon2-call sequence",
+    );
+    assert_eq!(
+        phases
+            .iter()
+            .flat_map(|phase| phase.emission_order.iter())
+            .collect::<Vec<_>>(),
+        artifact.emission_order.iter().collect::<Vec<_>>(),
+        "phase emissions recompose the exact emission sequence",
+    );
+    assert_eq!(
+        phases
+            .iter()
+            .flat_map(|phase| phase.state_continuity.iter().copied())
+            .collect::<Vec<_>>(),
+        artifact.state_continuity.iter().collect::<Vec<_>>(),
+        "phase continuity edges recompose the exact edge sequence",
+    );
+    assert_eq!(
+        phases
+            .iter()
+            .flat_map(|phase| phase.field_output_aliases.iter().copied())
+            .collect::<Vec<_>>(),
+        artifact.field_output_aliases.iter().collect::<Vec<_>>(),
+        "phase aliases recompose the exact field-output sequence",
+    );
+    phases
+}
+
+fn render_phase(artifact: &Artifact, phase: &Phase<'_>) -> String {
+    let previous_import = phase
+        .previous_module_name
+        .as_ref()
+        .map_or_else(String::new, |previous| {
+            format!("import {LEAN_MODULE_ROOT}.{previous}\n")
+        });
+    let mut out = format!(
+        "import Nightstream.Implementation.R1CS.Artifacts.FPrimeRecursive.PiRlcChallenge.TranscriptLayoutSchema\n{previous_import}\n\
 /-! Generated by `active_pi_rlc_transcript_layout_matches_production_trace`; do not hand-edit.\n\n\
-Owns: exact physical row/column locations for the active fixed recursive PiRLC\n\
-transcript layout. Does not own message meaning, cursor semantics, Poseidon2\n\
-correctness, sampler correctness, or authority for any digest.\n\n\
+Owns: exact physical transcript-layout records for {}.\n\
+Does not own message meaning, cursor semantics, Poseidon2 correctness, sampler\n\
+correctness, or authority for any digest.\n\n\
 Assurance tier: artifact-checked layout after exact Rust source-row partitioning.\n\
-The stage labels used for extraction are diagnostic provenance only.\n-/\n\n\
-namespace Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallengeTranscriptLayoutData\n\n\
+-/\n\n\
+namespace {LEAN_NAMESPACE_ROOT}.{}\n\n\
 open Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallengeTranscriptLayoutSchema\n\n",
+        phase.label, phase.module_name,
     );
 
     out.push_str("def ownedRanges : List OwnedRange :=\n  [ ");
-    for (index, range) in artifact.owned_ranges.iter().enumerate() {
+    for (index, range) in phase.owned_ranges.iter().enumerate() {
         if index != 0 {
             out.push_str("  , ");
         }
@@ -716,91 +942,263 @@ open Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallengeTranscriptLayo
     }
     out.push_str("  ]\n\n");
 
-    out.push_str("def constantPins : List ConstantPin :=\n  [ ");
-    for (index, pin) in artifact.constant_pins.iter().enumerate() {
-        if index != 0 {
-            out.push_str("  , ");
+    if phase.constant_pins.is_empty() {
+        out.push_str("def constantPins : List ConstantPin := []\n\n");
+    } else {
+        out.push_str("def constantPins : List ConstantPin :=\n  [ ");
+        for (index, pin) in phase.constant_pins.iter().enumerate() {
+            if index != 0 {
+                if index % 3 == 0 {
+                    out.push_str("\n  , ");
+                } else {
+                    out.push_str(", ");
+                }
+            }
+            write!(
+                out,
+                "{{ row := {}, column := {}, value := {} }}",
+                pin.row, pin.column, pin.value,
+            )
+            .unwrap();
         }
-        writeln!(
-            out,
-            "{{ row := {}, column := {}, value := {} }}",
-            pin.row, pin.column, pin.value,
-        )
-        .unwrap();
+        out.push_str("\n  ]\n\n");
     }
-    out.push_str("  ]\n\n");
 
-    out.push_str("def calls : List CompactCall :=\n  [ ");
-    for (index, call) in artifact.calls.iter().enumerate() {
-        if index != 0 {
-            out.push_str("  , ");
+    if phase.calls.is_empty() {
+        out.push_str("def calls : List CompactCall := []\n\n");
+    } else {
+        out.push_str("def calls : List CompactCall :=\n  [ ");
+        for (index, call) in phase.calls.iter().enumerate() {
+            if index != 0 {
+                out.push_str("  , ");
+            }
+            writeln!(
+                out,
+                "{{ traceIndex := {}, rowStart := {}, rowEnd := {}, inputColumns := {}, firstAllocatedColumn := {} }}",
+                call.trace_index,
+                call.row_start,
+                call.row_end,
+                lean_nat_list(call.input_columns),
+                call.first_allocated_column,
+            )
+            .unwrap();
         }
-        writeln!(
-            out,
-            "{{ traceIndex := {}, rowStart := {}, rowEnd := {}, inputColumns := {}, firstAllocatedColumn := {} }}",
-            call.trace_index,
-            call.row_start,
-            call.row_end,
-            lean_nat_list(call.input_columns),
-            call.first_allocated_column,
-        )
-        .unwrap();
+        out.push_str("  ]\n\n");
     }
-    out.push_str("  ]\n\n");
 
-    out.push_str("def emissionOrder : List EmissionRef :=\n  [ ");
-    for (index, emission) in artifact.emission_order.iter().enumerate() {
-        if index != 0 {
-            if index % 8 == 0 {
-                out.push_str(",\n    ");
-            } else {
-                out.push_str(", ");
+    if phase.emission_order.is_empty() {
+        out.push_str("def emissionOrder : List EmissionRef := []\n\n");
+    } else {
+        out.push_str("def emissionOrder : List EmissionRef :=\n  [ ");
+        for (index, emission) in phase.emission_order.iter().enumerate() {
+            if index != 0 {
+                if index % 8 == 0 {
+                    out.push_str(",\n    ");
+                } else {
+                    out.push_str(", ");
+                }
+            }
+            match emission {
+                EmissionRef::Pin(pin) => write!(out, ".pin {pin}").unwrap(),
+                EmissionRef::Call(call) => write!(out, ".call {call}").unwrap(),
             }
         }
-        match emission {
-            EmissionRef::Pin(pin) => write!(out, ".pin {pin}").unwrap(),
-            EmissionRef::Call(call) => write!(out, ".call {call}").unwrap(),
-        }
+        out.push_str(" ]\n\n");
     }
-    out.push_str(" ]\n\n");
 
-    out.push_str("def stateContinuity : List StateContinuity :=\n  [ ");
-    for (index, continuity) in artifact.state_continuity.iter().enumerate() {
-        if index != 0 {
-            out.push_str("  , ");
+    if phase.state_continuity.is_empty() {
+        out.push_str("def stateContinuity : List StateContinuity := []\n\n");
+    } else {
+        out.push_str("def stateContinuity : List StateContinuity :=\n  [ ");
+        for (index, continuity) in phase.state_continuity.iter().enumerate() {
+            if index != 0 {
+                if index % 2 == 0 {
+                    out.push_str("\n  , ");
+                } else {
+                    out.push_str(", ");
+                }
+            }
+            write!(
+                out,
+                "{{ fromCall := {}, toCall := {}, lanes := {} }}",
+                continuity.from_call,
+                continuity.to_call,
+                lean_nat_list(continuity.lanes.iter().copied()),
+            )
+            .unwrap();
         }
+        out.push_str("\n  ]\n\n");
+    }
+
+    if phase.field_output_aliases.is_empty() {
+        out.push_str("def fieldOutputAliases : List FieldOutputAlias := []\n\n");
+    } else {
+        out.push_str("def fieldOutputAliases : List FieldOutputAlias :=\n  [ ");
+        for (index, alias) in phase.field_output_aliases.iter().enumerate() {
+            if index != 0 {
+                out.push_str("  , ");
+            }
+            writeln!(
+                out,
+                "{{ ordinal := {}, groupIndex := {}, blockIndex := {}, laneIndex := {}, callIndex := {}, outputLane := {}, fieldColumn := {}, canonicalRowStart := {}, canonicalRowEnd := {} }}",
+                alias.ordinal,
+                alias.group_index,
+                alias.block_index,
+                alias.lane_index,
+                alias.call_index,
+                alias.output_lane,
+                alias.field_column,
+                alias.canonical_row_start,
+                alias.canonical_row_end,
+            )
+            .unwrap();
+        }
+        out.push_str("  ]\n\n");
+    }
+
+    writeln!(out, "def phase : Phase :=").unwrap();
+    writeln!(out, "  {{ pinStart := {}", phase.pin_start).unwrap();
+    writeln!(out, "    callStart := {}", phase.call_start).unwrap();
+    writeln!(out, "    emissionStart := {}", phase.emission_start).unwrap();
+    writeln!(out, "    continuityStart := {}", phase.continuity_start).unwrap();
+    writeln!(out, "    aliasStart := {}", phase.alias_start).unwrap();
+    writeln!(out, "    ownedRowStart := {}", phase.owned_row_start).unwrap();
+    out.push_str("    ownedRanges := ownedRanges\n");
+    out.push_str("    constantPins := constantPins\n");
+    out.push_str("    calls := calls\n");
+    out.push_str("    emissionOrder := emissionOrder\n");
+    out.push_str("    stateContinuity := stateContinuity\n");
+    out.push_str("    fieldOutputAliases := fieldOutputAliases }\n\n");
+
+    let previous = phase
+        .previous_module_name
+        .as_ref()
+        .map_or_else(|| "none".to_owned(), |name| format!("(some {name}.phase)"));
+    writeln!(
+        out,
+        "theorem valid : Phase.ValidAfter {} {} {} phase := by\n  constructor <;> decide\n",
+        artifact.source_rows, artifact.source_columns, previous,
+    )
+    .unwrap();
+    for (name, count) in [
+        ("ownedRanges", phase.owned_ranges.len()),
+        ("constantPins", phase.constant_pins.len()),
+        ("calls", phase.calls.len()),
+        ("emissionOrder", phase.emission_order.len()),
+        ("stateContinuity", phase.state_continuity.len()),
+        ("fieldOutputAliases", phase.field_output_aliases.len()),
+    ] {
         writeln!(
             out,
-            "{{ fromCall := {}, toCall := {}, lanes := {} }}",
-            continuity.from_call,
-            continuity.to_call,
-            lean_nat_list(continuity.lanes.iter().copied()),
+            "theorem {name}_length : phase.{name}.length = {count} := by decide",
         )
         .unwrap();
     }
-    out.push_str("  ]\n\n");
+    out.push_str("\ntheorem pinValuesCanonical :\n");
+    out.push_str("    phase.constantPins.all\n");
+    out.push_str("      (fun pin => decide (pin.value < 18446744069414584321)) = true := by\n");
+    out.push_str("  simp only [List.all_eq_true, decide_eq_true_eq]\n");
+    out.push_str("  intro pin member\n");
+    out.push_str("  exact phase.pinValueCanonical valid.pinsValid member\n");
+    writeln!(
+        out,
+        "\ntheorem pinEmissionIndices_eq :\n    pinEmissionIndices phase.emissionOrder = List.range' {} {} := by\n  simpa [phase] using valid.pinIndicesExact",
+        phase.pin_start,
+        phase.constant_pins.len(),
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "\ntheorem callEmissionIndices_eq :\n    callEmissionIndices phase.emissionOrder = List.range' {} {} := by\n  simpa [phase] using valid.callIndicesExact\n",
+        phase.call_start,
+        phase.calls.len(),
+    )
+    .unwrap();
 
-    out.push_str("def fieldOutputAliases : List FieldOutputAlias :=\n  [ ");
-    for (index, alias) in artifact.field_output_aliases.iter().enumerate() {
+    writeln!(out, "end {LEAN_NAMESPACE_ROOT}.{}", phase.module_name).unwrap();
+    out
+}
+
+fn render_joined_definition(out: &mut String, name: &str, lean_type: &str, phases: &[Phase<'_>]) {
+    writeln!(out, "def {name} : List {lean_type} :=").unwrap();
+    for (index, phase) in phases.iter().enumerate() {
+        let suffix = if index + 1 == phases.len() { "" } else { " ++" };
+        writeln!(out, "  {}.phase.{}{suffix}", phase.module_name, name).unwrap();
+    }
+    out.push('\n');
+}
+
+fn render_facade(artifact: &Artifact, phases: &[Phase<'_>]) -> String {
+    let mut out = String::new();
+    for phase in phases {
+        writeln!(out, "import {LEAN_MODULE_ROOT}.{}", phase.module_name).unwrap();
+    }
+    out.push_str(
+        "\n/-! Generated by `active_pi_rlc_transcript_layout_matches_production_trace`; do not hand-edit.\n\n\
+Owns: exact recomposition of the transcript prelude and 15 sampler-group\n\
+layout shards. Does not own message meaning, cursor semantics, Poseidon2\n\
+correctness, sampler correctness, or authority for any digest.\n\n\
+Assurance tier: artifact-checked layout after exact Rust source-row partitioning.\n\
+The shard boundary is the protocol's prelude/group ownership boundary.\n\
+-/\n\n",
+    );
+    writeln!(out, "namespace {LEAN_NAMESPACE_ROOT}\n").unwrap();
+    out.push_str("open Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallengeTranscriptLayoutSchema\n\n");
+
+    render_joined_definition(&mut out, "ownedRanges", "OwnedRange", phases);
+    render_joined_definition(&mut out, "constantPins", "ConstantPin", phases);
+    render_joined_definition(&mut out, "calls", "CompactCall", phases);
+    render_joined_definition(&mut out, "emissionOrder", "EmissionRef", phases);
+    render_joined_definition(&mut out, "stateContinuity", "StateContinuity", phases);
+    render_joined_definition(&mut out, "fieldOutputAliases", "FieldOutputAlias", phases);
+
+    out.push_str("def phaseSequence : List Phase :=\n  [");
+    for (index, phase) in phases.iter().enumerate() {
         if index != 0 {
-            out.push_str("  , ");
+            out.push_str(", ");
         }
+        write!(out, "{}.phase", phase.module_name).unwrap();
+    }
+    out.push_str("]\n\n");
+
+    for (name, expected) in [
+        ("ownedRanges", artifact.owned_ranges.len()),
+        ("constantPins", artifact.constant_pins.len()),
+        ("calls", artifact.calls.len()),
+        ("emissionOrder", artifact.emission_order.len()),
+        ("stateContinuity", artifact.state_continuity.len()),
+        ("fieldOutputAliases", artifact.field_output_aliases.len()),
+    ] {
+        writeln!(out, "theorem {name}_length : {name}.length = {expected} := by").unwrap();
+        write!(out, "  simp only [{name}, List.length_append").unwrap();
+        for phase in phases {
+            write!(out, ", {}.{name}_length", phase.module_name).unwrap();
+        }
+        out.push_str("]\n\n");
+    }
+
+    out.push_str("theorem constantPinValuesCanonical :\n");
+    out.push_str("    constantPins.all\n");
+    out.push_str("      (fun pin => decide (pin.value < 18446744069414584321)) = true := by\n");
+    out.push_str("  simp only [constantPins, List.all_append");
+    for phase in phases {
+        write!(out, ", {}.pinValuesCanonical", phase.module_name).unwrap();
+    }
+    out.push_str(", Bool.true_and]\n\n");
+
+    for (kind, total) in [("pin", artifact.constant_pins.len()), ("call", artifact.calls.len())] {
+        let function = format!("{kind}EmissionIndices");
         writeln!(
             out,
-            "{{ ordinal := {}, groupIndex := {}, blockIndex := {}, laneIndex := {}, callIndex := {}, outputLane := {}, fieldColumn := {}, canonicalRowStart := {}, canonicalRowEnd := {} }}",
-            alias.ordinal,
-            alias.group_index,
-            alias.block_index,
-            alias.lane_index,
-            alias.call_index,
-            alias.output_lane,
-            alias.field_column,
-            alias.canonical_row_start,
-            alias.canonical_row_end,
+            "theorem {function}_eq :\n    {function} emissionOrder = List.range {total} := by",
         )
         .unwrap();
+        write!(out, "  simp only [emissionOrder, {function}_append").unwrap();
+        for phase in phases {
+            write!(out, ", {}.{function}_eq", phase.module_name).unwrap();
+        }
+        out.push_str("]\n  repeat rw [List.range'_append]\n  rw [List.range_eq_range']\n\n");
     }
-    out.push_str("  ]\n\n");
 
     writeln!(out, "def layout : TranscriptLayout :=").unwrap();
     writeln!(out, "  {{ sourceRows := {}", artifact.source_rows).unwrap();
@@ -856,21 +1254,74 @@ open Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallengeTranscriptLayo
         lean_nat_list(artifact.bind_input_columns.iter().copied()),
     )
     .unwrap();
-    out.push_str("\nend Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallengeTranscriptLayoutData\n");
+    writeln!(out, "\nend {LEAN_NAMESPACE_ROOT}").unwrap();
     out
+}
+
+fn render(artifact: &Artifact) -> Vec<RenderedFile> {
+    let phases = phases(artifact);
+    let mut files = vec![RenderedFile {
+        relative_path: LEAN_FACADE_PATH.into(),
+        contents: render_facade(artifact, &phases),
+    }];
+    files.extend(phases.iter().map(|phase| RenderedFile {
+        relative_path: format!("{LEAN_SHARD_ROOT}/{}.lean", phase.module_name),
+        contents: render_phase(artifact, phase),
+    }));
+    files
 }
 
 #[test]
 fn active_pi_rlc_transcript_layout_matches_production_trace() {
     let artifact = extract();
     let rendered = render(&artifact);
-    let path = repo_root().join(LEAN_DATA_PATH);
-    let committed = fs::read_to_string(&path).unwrap_or_default();
-    if committed != rendered {
+    let root = repo_root();
+    let mut drifted = Vec::new();
+    for file in &rendered {
+        let path = root.join(&file.relative_path);
+        if fs::read_to_string(&path).unwrap_or_default() == file.contents {
+            continue;
+        }
         let expected = path.with_extension("lean.expected");
         fs::create_dir_all(expected.parent().expect("transcript artifact parent"))
             .expect("create transcript artifact directory");
-        fs::write(&expected, &rendered).expect("write expected transcript artifact");
-        panic!("active PiRLC transcript layout drifted; review {}", expected.display(),);
+        fs::write(&expected, &file.contents).expect("write expected transcript artifact");
+        drifted.push(expected);
     }
+    if !drifted.is_empty() {
+        panic!(
+            "active PiRLC transcript layout drifted; review {}",
+            drifted
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+    }
+
+    let shard_prefix = format!("{LEAN_SHARD_ROOT}/");
+    let expected_shards = rendered
+        .iter()
+        .filter(|file| file.relative_path.starts_with(&shard_prefix))
+        .map(|file| {
+            std::path::Path::new(&file.relative_path)
+                .file_name()
+                .expect("generated shard file name")
+                .to_owned()
+        })
+        .collect::<BTreeSet<_>>();
+    let committed_shards = fs::read_dir(root.join(LEAN_SHARD_ROOT))
+        .expect("read committed transcript shard directory")
+        .map(|entry| entry.expect("transcript shard directory entry").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "lean")
+        })
+        .map(|path| {
+            path.file_name()
+                .expect("committed shard file name")
+                .to_owned()
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(committed_shards, expected_shards, "committed transcript shard set");
 }

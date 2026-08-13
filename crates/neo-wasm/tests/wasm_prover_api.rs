@@ -3,10 +3,18 @@
 use neo_wasm::{WasmProver, WasmProverBackend};
 
 #[test]
-fn explicit_cpu_prover_reports_cpu_without_fallback() {
-    let prover = WasmProver::cpu();
-    assert_eq!(prover.backend(), WasmProverBackend::Cpu);
-    assert_eq!(prover.backend().as_str(), "cpu");
+fn explicit_optimized_cpu_prover_reports_its_backend() {
+    let prover = WasmProver::cpu_optimized();
+    assert_eq!(prover.backend(), WasmProverBackend::CpuOptimized);
+    assert_eq!(prover.backend().as_str(), "cpu-optimized");
+    assert_eq!(prover.fallback_reason(), None);
+}
+
+#[test]
+fn explicit_paper_exact_prover_reports_its_backend() {
+    let prover = WasmProver::paper_exact();
+    assert_eq!(prover.backend(), WasmProverBackend::PaperExact);
+    assert_eq!(prover.backend().as_str(), "paper-exact");
     assert_eq!(prover.fallback_reason(), None);
 }
 
@@ -15,20 +23,19 @@ fn automatic_prover_reports_a_concrete_backend() {
     let prover = WasmProver::auto();
     assert!(matches!(
         prover.backend(),
-        WasmProverBackend::Cpu | WasmProverBackend::Metal | WasmProverBackend::Cuda
+        WasmProverBackend::CpuOptimized | WasmProverBackend::Metal | WasmProverBackend::Cuda
     ));
     #[cfg(all(feature = "metal", target_vendor = "apple", not(feature = "cuda")))]
     assert_eq!(prover.backend(), WasmProverBackend::Metal);
     #[cfg(all(not(feature = "cuda"), not(all(feature = "metal", target_vendor = "apple"))))]
-    assert_eq!(prover.backend(), WasmProverBackend::Cpu);
-    if prover.backend() != WasmProverBackend::Cpu {
+    assert_eq!(prover.backend(), WasmProverBackend::CpuOptimized);
+    if prover.backend() != WasmProverBackend::CpuOptimized {
         assert_eq!(prover.fallback_reason(), None);
     }
 }
 
-#[cfg(not(feature = "cuda"))]
 #[test]
-fn explicit_cuda_request_fails_when_cuda_is_not_built() {
+fn explicit_cuda_request_fails_until_the_kernel_is_available() {
     assert!(matches!(
         WasmProver::cuda(),
         Err(neo_wasm::WasmNebulaError::ProverBackendUnavailable { backend: "cuda", .. })

@@ -14,7 +14,7 @@
 //!
 //! | Child | Mathematical obligation | Rust owner | Lean owner |
 //! |---|---|---|---|
-//! | `transcript` | bind Π_CCS output, domain-separate each rho, run four digests, decompose lanes | `digest_rounds` and NIFS orchestration | `PiRlcChallenge.Transcript` |
+//! | `transcript` | bind Π_CCS output, domain-separate each rho, run eight digests, and derive exact candidates | `digest_rounds` and NIFS orchestration | `PiRlcChallenge.Transcript` |
 //! | `sampler.chunk.accept.packed` | classify the rejected 65535 candidate | `gadget_native::acceptance` | `Sampler.Chunk.Acceptance.Aggregate` |
 //! | `sampler.chunk.mod5.packed` | map accepted 16-bit candidates to centered Mod-5 symbols | `gadget_native::mod5` | `Sampler.Chunk.Mod5` |
 //! | `sampler.acceptance_bound` | prove at least 54 of 64 candidates accept | `acceptance` | `Sampler.Selection.Acceptance` |

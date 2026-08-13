@@ -4,7 +4,7 @@ contract_id = "nightstream-superneo-v1"
 profile_id = "nightstream-superneo-fprime-v1"
 status = "candidate-draft"
 current_gate = "G0-MECHANICAL-SOURCE"
-profile_semantic_sha256 = "54c7769a62d12e12e9474b70f4f49ee48df9ef28c97fa1da69078bfec688cd64"
+profile_semantic_sha256 = "f2d6175226eeadfcc47de36092913ccb0af190575927685c2bba15ccfcfd0b18"
 
 [documents]
 profile = "protocol-contract/superneo-v1.toml"
@@ -219,11 +219,18 @@ fresh_ccs_source_indices = [0]
 norm_source_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 carried_evaluation_source_indices = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 carried_local_to_global_offset = 1
-logical_rows = 14944219
+shape_authority = "verifier-key-relation-artifact-v1"
+relation_artifact_format = "nightstream/verifier-key-relation"
+relation_artifact_schema = 1
+relation_artifact_payload_encoding = "rust-ccs-structure-serde-json-v1"
+relation_artifact_compiler = "neo-fold-clean/r1cs-fprime-fixed-point-v1"
+logical_rows = "from-verifier-key-relation-artifact"
 padded_rows = 16777216
 row_variables = 24
-logical_assignment_width = 11437038
-assignment_ring_columns = 211797
+logical_assignment_width = "from-verifier-key-relation-artifact"
+maximum_assignment_width = 16777206
+assignment_ring_columns = "logical-assignment-width-divided-by-54"
+maximum_assignment_ring_columns = 310689
 public_ring_columns = 5
 public_field_width = 270
 fresh_logical_width = 257
@@ -235,7 +242,7 @@ sumcheck_degree = 9
 piccs_variant = "PaddedRowIdentity"
 row_domain = "single-little-endian-boolean-cube-24"
 domain_padding_map = "logical-prefix-then-zero"
-identity_matrix = "M_0=[I_11437038;0]"
+identity_matrix = "M_0=[I_m;0]-with-m-from-verifier-key-relation-artifact"
 norm_binding_closure = "padded-row-identity"
 norm_terminal = "constant-term-of-y_ring-source-M_0"
 column_sumcheck = "absent"
@@ -278,7 +285,8 @@ noncanonical_field = "reject"
 [commitment_profile]
 scheme = "Ajtai-Phi81-v1"
 kappa = 18
-message_ring_columns = 211797
+message_ring_columns = "from-verifier-key-relation-artifact"
+maximum_message_ring_columns = 310689
 commitment_ring_elements = 18
 orientation = "left-matrix-vector"
 commitment_equation = "commitment[row]=sum_column(A[row,column]*message[column])"
@@ -499,8 +507,8 @@ next_u64_encoding = "low-u32-then-high-u32"
 matrix_order = "output-row-then-message-column-then-ring-coefficient"
 row_seed_derivation = "first-18-consecutive-32-byte-blocks-from-master-stream"
 chunk_size_formula = "max(1024,min(message_columns,32768))"
-selected_chunk_size = 32768
-selected_chunk_count = 7
+message_columns_authority = "verifier-key-relation-artifact-v1"
+maximum_message_columns = 310689
 chunk_seed_derivation = "consecutive-32-byte-blocks-from-each-row-seed-stream"
 column_to_chunk = "chunk=floor(column/chunk_size);local-column=column-mod-chunk-size"
 chunk_stream_order = "local-column-then-ring-coefficient"
@@ -510,7 +518,6 @@ coefficient_batch = "read-54-consecutive-u64-values-before-any-fallback"
 coefficient_accept = "x<18446744069414584321"
 coefficient_fallback = "replace-rejected-slots-in-index-order-with-next-accepted-u64"
 selected_output_rows = 18
-selected_message_columns = 211797
 
 test_seed = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
 test_first_64_u32 = [

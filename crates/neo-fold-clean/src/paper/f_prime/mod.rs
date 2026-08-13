@@ -5,7 +5,7 @@
 //! - **`native`**: prover-/verifier-side native F' execution (NIFS step,
 //!   state advance, `x_out` hash).
 //! - **`digest_circuit`**: in-circuit Poseidon2 digest mirrors —
-//!   canonical `state_x_out` plus legacy/helper mirrors such as
+//!   canonical `state_x_out` plus helper mirrors such as
 //!   `boundary_update`, `public_trace_update`, and the accumulator digest
 //!   variants.
 //!   Each is byte-for-byte parity-tested against the native `paper::digest::*`.
@@ -24,11 +24,9 @@
 //! ## Boundary rule
 //!
 //! `paper::f_prime` **does not know about any app frontend**. The
-//! generic F' image / structure / encoder / recursive-step plan live
-//! under [`crate::frontends::f_prime`] (the engine) and the app
-//! adapters (`frontends::r1cs_f_prime` for production; the Fibonacci
-//! test fixture lives under `tests/support/fibonacci_f_prime`) build
-//! on top of that. The dependency direction is one-way:
+//! generic F' image, structure, and recursive-step plan live under
+//! [`crate::frontends::f_prime`]. The R1CS and Nebula frontends build their
+//! application relations on that shell. The dependency direction is one-way:
 //! `frontends::* → paper::f_prime`.
 
 pub mod digest_circuit;
@@ -43,13 +41,15 @@ pub mod source_image;
 pub mod source_image_circuit;
 pub mod stage;
 
-// Public surface — paper-named entry points kept stable so call sites
-// (mostly `paper::construction2`) don't churn when PR5 adds the R1CS
-// siblings.
-pub(crate) use native::prove_with_adapter_output_and_semantic_state;
+// The lifecycle uses preparation to fold first and install the real encoded
+// next instance after the frontend synthesizes it.
+pub(crate) use native::{
+    prepare_single_with_adapter_and_semantic_state, prepare_single_with_semantic_state, FreshClaimShape,
+    PreparedFPrimeStep,
+};
 pub use native::{
     prove, prove_with_adapter_and_semantic_state, prove_with_semantic_state, verify, verify_with_execution_receipt,
     Error, NifsVerifyExecutionOutcome, VerifyStepDispatch, VerifyStepExecutionEvent, VerifyStepExecutionFoldProof,
     VerifyStepExecutionInput, VerifyStepExecutionProof, VerifyStepExecutionProofState, VerifyStepExecutionReceipt,
-    VerifyStepExecutionReceiptError, VerifyStepExecutionStage, VerifyStepExecutionState,
+    VerifyStepExecutionStage, VerifyStepExecutionState,
 };

@@ -7,7 +7,7 @@ classification.
 
 Satisfaction refines the independent production verifier:
 
-* the source bits determine one canonical 16-bit candidate;
+* the complemented source bits determine one canonical 16-bit candidate;
 * the accept wire is exactly the verifier's rejection decision;
 * the residue is exactly the verifier's modulo-five symbol; and
 * the cumulative wire advances by that accept decision.
@@ -40,10 +40,13 @@ private theorem range14 :
       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] := by
   decide
 
-def chunkValue (assignment : Nat → Nat) (layout : Layout) : Nat :=
+def rawValue (assignment : Nat → Nat) (layout : Layout) : Nat :=
   (List.finRange sourceBitCount).foldl
     (fun value index =>
       value + 2 ^ index.val * assignment (layout.sourceBit index)) 0
+
+def chunkValue (assignment : Nat → Nat) (layout : Layout) : Nat :=
+  ProductionAlphabet.rejectionBucket - rawValue assignment layout
 
 def SourceBitsBoolean (assignment : Nat → Nat) (layout : Layout) : Prop :=
   ∀ index, assignment (layout.sourceBit index) ≤ 1
@@ -103,9 +106,10 @@ theorem chunkValue_lt_bound
     decide
   have p15 : 2 ^ ((15 : Fin 16) : Nat) = 32768 := by
     decide
-  unfold chunkValue
+  unfold chunkValue rawValue
   rw [finRange16]
   simp [sourceBitCount, ProductionAlphabet.chunkModulus,
+    ProductionAlphabet.rejectionBucket,
     p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15] at *
   omega
 
@@ -140,6 +144,7 @@ def candidate
 
 theorem chunkTerms_eval
     {assignment : Nat → Nat} {layout : Layout}
+    (constantWire : assignment 0 = 1)
     (bits : SourceBitsBoolean assignment layout) :
     lcEval assignment (chunkTerms layout) =
       chunkValue assignment layout := by
@@ -149,12 +154,54 @@ theorem chunkTerms_eval
       simpa [ProductionAlphabet.chunkModulus] using valueLt
     exact Nat.lt_trans value16 (by decide)
   unfold lcEval
+  let oneCount : Nat :=
+    (List.finRange sourceBitCount).foldl
+      (fun value index => value + assignment (layout.sourceBit index)) 0
   have raw :
       (chunkTerms layout).foldl
           (fun value term => value + term.2 * assignment term.1) 0 =
-        chunkValue assignment layout := by
-    simp [chunkTerms, chunkValue, List.foldl_map]
-  rw [raw, Nat.mod_eq_of_lt valueGoldilocks]
+        chunkValue assignment layout + goldilocksP * oneCount := by
+    have b0 := bits ⟨0, by decide⟩
+    have b1 := bits ⟨1, by decide⟩
+    have b2 := bits ⟨2, by decide⟩
+    have b3 := bits ⟨3, by decide⟩
+    have b4 := bits ⟨4, by decide⟩
+    have b5 := bits ⟨5, by decide⟩
+    have b6 := bits ⟨6, by decide⟩
+    have b7 := bits ⟨7, by decide⟩
+    have b8 := bits ⟨8, by decide⟩
+    have b9 := bits ⟨9, by decide⟩
+    have b10 := bits ⟨10, by decide⟩
+    have b11 := bits ⟨11, by decide⟩
+    have b12 := bits ⟨12, by decide⟩
+    have b13 := bits ⟨13, by decide⟩
+    have b14 := bits ⟨14, by decide⟩
+    have b15 := bits ⟨15, by decide⟩
+    have p3 : 2 ^ ((3 : Fin 16) : Nat) = 8 := by decide
+    have p4 : 2 ^ ((4 : Fin 16) : Nat) = 16 := by decide
+    have p5 : 2 ^ ((5 : Fin 16) : Nat) = 32 := by decide
+    have p6 : 2 ^ ((6 : Fin 16) : Nat) = 64 := by decide
+    have p7 : 2 ^ ((7 : Fin 16) : Nat) = 128 := by decide
+    have p8 : 2 ^ ((8 : Fin 16) : Nat) = 256 := by decide
+    have p9 : 2 ^ ((9 : Fin 16) : Nat) = 512 := by decide
+    have p10 : 2 ^ ((10 : Fin 16) : Nat) = 1024 := by decide
+    have p11 : 2 ^ ((11 : Fin 16) : Nat) = 2048 := by decide
+    have p12 : 2 ^ ((12 : Fin 16) : Nat) = 4096 := by decide
+    have p13 : 2 ^ ((13 : Fin 16) : Nat) = 8192 := by decide
+    have p14 : 2 ^ ((14 : Fin 16) : Nat) = 16384 := by decide
+    have p15 : 2 ^ ((15 : Fin 16) : Nat) = 32768 := by decide
+    dsimp only [chunkTerms, chunkValue, rawValue, oneCount]
+    rw [finRange16]
+    simp [constantWire, sourceBitCount,
+      ProductionAlphabet.rejectionBucket, goldilocksP,
+      p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15] at *
+    omega
+  rw [raw]
+  have multipleZero : goldilocksP * oneCount % goldilocksP = 0 := by
+    rw [Nat.mul_comm]
+    exact Nat.mul_mod_left _ _
+  rw [Nat.add_mod, Nat.mod_eq_of_lt valueGoldilocks, multipleZero]
+  simp [Nat.mod_eq_of_lt valueGoldilocks]
 
 theorem quotientTerms_eval
     {assignment : Nat → Nat} {layout : Layout}
@@ -191,7 +238,7 @@ theorem differenceTerms_eval
       (chunkValue assignment layout + goldilocksP -
         ProductionAlphabet.rejectionBucket) % goldilocksP := by
   rw [differenceTerms, KHorner.lcEval_append,
-    chunkTerms_eval bits]
+    chunkTerms_eval constantWire bits]
   have shifted :
       chunkValue assignment layout +
           (goldilocksP - ProductionAlphabet.rejectionBucket) =
@@ -415,7 +462,7 @@ theorem decomposition_sound
       5 * quotientValue assignment layout +
         assignment (residueColumn layout) := by
   have holds := satisfied (decompositionRow layout) (by simp [rows])
-  have chunkEval := chunkTerms_eval sourceBits
+  have chunkEval := chunkTerms_eval constantWire sourceBits
   have quotientEq :=
     quotientRecomposition_sound prime canonical constantWire satisfied
   have residueLt :=

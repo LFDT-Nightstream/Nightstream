@@ -6,7 +6,7 @@
 
 use crate::paper::construction2::enc_inst::EncInst;
 use crate::paper::construction2::{LatestInstance, RunningInstance};
-use crate::paper::nifs::{NifsProof, NifsProofCarrier};
+use crate::paper::nifs::NifsProof;
 
 /// What kind of fold this step produced.
 ///
@@ -18,24 +18,7 @@ pub enum FoldProof {
     /// i = 0 initialization step: no NIFS.P ran, so there's nothing to replay.
     NoFold,
     /// i ≥ 1: NIFS.P folded the previous latest into running.
-    Recursive(NifsProofCarrier),
-}
-
-impl FoldProof {
-    pub fn recursive_materialized(proof: NifsProof) -> Self {
-        Self::Recursive(NifsProofCarrier::materialized(proof))
-    }
-
-    pub fn recursive_carrier(proof: NifsProofCarrier) -> Self {
-        Self::Recursive(proof)
-    }
-
-    pub fn materialized_recursive(&self) -> Result<Option<NifsProof>, crate::paper::nifs::Error> {
-        match self {
-            Self::NoFold => Ok(None),
-            Self::Recursive(proof) => Ok(Some(proof.materialize()?)),
-        }
-    }
+    Recursive(NifsProof),
 }
 
 /// One IVC step's output: the fold proof + the F' hash-chain output.
@@ -54,7 +37,7 @@ pub struct StepProof {
     pub nebula_open: Option<[[neo_math::F; 4]; 3]>,
     /// Outgoing semantic state digest for this F' step. Stateless
     /// frontends set this equal to the outgoing accumulator digest,
-    /// preserving the legacy `semantic_acc == construction2_acc` path.
+    /// which makes the semantic and accumulator lanes equal.
     pub semantic_state_digest: [u8; 32],
     pub x_out: EncInst,
 }
@@ -66,9 +49,7 @@ pub struct StepProof {
 /// the chain through the **terminal** NIFS.V (HyperNova §6.3 Construction 2;
 /// SuperNeo §7). Without storing these inputs explicitly the verifier
 /// cannot rederive the verifier-driven `r` for the post-fold running, so
-/// the running's CE relation check would be sound only at a prover-chosen
-/// point — the soundness gap the council flagged on Phase 1.7's first
-/// attempt.
+/// the running's CE relation check would use only a prover-chosen point.
 ///
 /// **Witnesses are stripped.** Both `pre_final_running` and `latest` carry
 /// claims only; the prover-private witness matrices never cross the

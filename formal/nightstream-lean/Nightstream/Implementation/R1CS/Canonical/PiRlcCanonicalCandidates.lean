@@ -8,7 +8,7 @@ every `Pi_RLC` scalar.
 The source order is fixed here, independently of Rust:
 
 ```
-candidate = 16 * block + 4 * lane + part
+candidate = 8 * block + 2 * lane + part
 ```
 
 Each source is the exact 16-bit slice of the corresponding canonical-u64
@@ -31,30 +31,30 @@ open Nightstream.Implementation.R1CS.Canonical.LinCombNormal
 def candidatesPerScalar : Nat := 64
 
 structure Address where
-  block : Fin 4
+  block : Fin 8
   lane : Fin 4
-  part : Fin 4
+  part : Fin 2
 
 def address (candidate : Fin candidatesPerScalar) : Address where
   block :=
-    ⟨candidate.val / 16, by
+    ⟨candidate.val / 8, by
       have bounded := candidate.isLt
       simp only [candidatesPerScalar] at bounded
       omega⟩
   lane :=
-    ⟨(candidate.val % 16) / 4, by
-      have remainder := Nat.mod_lt candidate.val (by decide : 0 < 16)
+    ⟨(candidate.val % 8) / 2, by
+      have remainder := Nat.mod_lt candidate.val (by decide : 0 < 8)
       omega⟩
   part :=
-    ⟨candidate.val % 4, Nat.mod_lt _ (by decide)⟩
+    ⟨candidate.val % 2, Nat.mod_lt _ (by decide)⟩
 
 theorem address_recomposes (candidate : Fin candidatesPerScalar) :
-    16 * (address candidate).block.val +
-        4 * (address candidate).lane.val +
+    8 * (address candidate).block.val +
+        2 * (address candidate).lane.val +
         (address candidate).part.val =
       candidate.val := by
-  have outer := Nat.div_add_mod candidate.val 16
-  have inner := Nat.div_add_mod (candidate.val % 16) 4
+  have outer := Nat.div_add_mod candidate.val 8
+  have inner := Nat.div_add_mod (candidate.val % 8) 2
   simp only [address]
   omega
 
@@ -71,15 +71,21 @@ def sourceBitIndex
     (bit : Fin PiRlcCanonicalCandidate.sourceBitCount) : Nat :=
   (address candidate).part.val * 16 + bit.val
 
-theorem sourceBitIndex_lt
+theorem sourceBitIndex_lt32
     (candidate : Fin candidatesPerScalar)
     (bit : Fin PiRlcCanonicalCandidate.sourceBitCount) :
-    sourceBitIndex candidate bit < 64 := by
+    sourceBitIndex candidate bit < 32 := by
   have partLt := (address candidate).part.isLt
   have bitLt := bit.isLt
   simp only [sourceBitIndex,
     PiRlcCanonicalCandidate.sourceBitCount] at bitLt ⊢
   omega
+
+theorem sourceBitIndex_lt
+    (candidate : Fin candidatesPerScalar)
+    (bit : Fin PiRlcCanonicalCandidate.sourceBitCount) :
+    sourceBitIndex candidate bit < 64 :=
+  Nat.lt_trans (sourceBitIndex_lt32 candidate bit) (by decide)
 
 def occurrenceIndex
     {count : Nat} (coordinate : Fin count)

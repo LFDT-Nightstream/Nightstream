@@ -45,15 +45,12 @@ impl Params {
         Self::production()
     }
 
-    /// Appendix B.2 Goldilocks core with shape-specific effective λ for
-    /// an R1CS-derived CCS with the supplied row and column dimensions.
-    ///
-    /// Production policy: q, eta, d, kappa,
-    /// m, b, k_rho, B, T, and s remain the Appendix B.2 values; λ is
-    /// lowered only when the concrete sumcheck shape cannot satisfy the
-    /// current `s = 2` extension policy at λ = 125.
+    /// Appendix B.2 core with the strongest lambda supported by the exact
+    /// census for this R1CS shape.
     pub fn for_r1cs_shape(rows: usize, columns: usize) -> Result<Self, neo_params::ParamsError> {
-        Self::for_r1cs_shape_with(rows, columns, 96, 2)
+        Ok(Self {
+            inner: NeoParams::goldilocks_auto_rectangular_r1cs_ccs(rows, columns)?,
+        })
     }
 
     /// Same as [`Params::for_r1cs_shape`], with an explicit minimum
@@ -92,15 +89,17 @@ impl Params {
         })
     }
 
-    /// Same as [`Params::for_ccs_shape_with`], with the default effective-λ
-    /// floor and safety margin used by [`Params::for_r1cs_shape`].
+    /// Appendix B.2 core with the strongest lambda supported by the exact
+    /// census for this CCS shape.
     pub fn for_ccs_shape(
         rows: usize,
         columns: usize,
         matrix_count: usize,
         poly_degree: u32,
     ) -> Result<Self, neo_params::ParamsError> {
-        Self::for_ccs_shape_with(rows, columns, matrix_count, poly_degree, 96, 2)
+        Ok(Self {
+            inner: NeoParams::goldilocks_auto_rectangular_ccs(rows, columns, matrix_count, poly_degree)?,
+        })
     }
 
     /// Test/probe escape hatch for wrapping a caller-built [`NeoParams`].

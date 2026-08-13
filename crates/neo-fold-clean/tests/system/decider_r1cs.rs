@@ -63,7 +63,6 @@ use neo_fold_clean::paper::digest::{
 use neo_fold_clean::paper::f_prime::r1cs::{
     encode_f_prime_superneo_public_input, F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN,
 };
-use neo_fold_clean::paper::terminal_ce::{TerminalCeProof, TerminalCePublic};
 use neo_fold_clean::CcsInstance;
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -386,7 +385,6 @@ fn decider_r1cs_honors_explicit_verifier_owned_ajtai_setup() {
         latest.instances.is_empty(),
         "finished audit must have no pending latest"
     );
-    let running = running.materialize().expect("materialized final running");
     assert!(
         running
             .claims
@@ -454,11 +452,7 @@ fn decider_r1cs_synthesis_rejects_tampered_step_proof() {
     if let neo_fold_clean::paper::construction2::FoldProof::Recursive(ref mut nifs) =
         statement.witness.steps[recursive_idx].fold
     {
-        let mut proof = nifs
-            .materialize()
-            .expect("recursive NIFS proof materialization");
-        proof.pi_dec.children[0].c.data[0] += F::ONE;
-        *nifs = neo_fold_clean::paper::nifs::NifsProofCarrier::materialized(proof);
+        nifs.pi_dec.children[0].c.data[0] += F::ONE;
     }
 
     let result = synthesize_statement_r1cs(&prep, &statement);
@@ -791,50 +785,6 @@ fn decider_r1cs_synthesis_is_self_sufficient_full_history_audit_relation() {
     assert!(
         !synth.is_self_sufficient_relation(),
         "self-sufficient full-history audit relation must require parent-authority continuity links"
-    );
-}
-
-#[test]
-fn decider_r1cs_synthesis_rejects_unsupported_terminal_ce_proof_material() {
-    let (prep, finished) = build_honest_finished_proof(2);
-    let mut statement = neo_fold_clean::build_decider_statement(&prep, &finished);
-    statement.witness.terminal_ce_proof = Some(TerminalCeProof::new_unchecked([F::ZERO; 4], vec![0xA5, 0xCE]));
-
-    let err = synthesize_statement_r1cs(&prep, &statement)
-        .err()
-        .expect("compact terminal CE proof bytes must fail closed until a real verifier is wired");
-    assert!(
-        matches!(err, decider::Error::TerminalCeProofUnsupported),
-        "expected TerminalCeProofUnsupported, got {err:?}"
-    );
-}
-
-#[test]
-fn decider_r1cs_synthesis_rejects_matching_terminal_ce_proof_until_backend_exists() {
-    let (prep, finished) = build_honest_finished_proof(2);
-    let mut statement = neo_fold_clean::build_decider_statement(&prep, &finished);
-    let terminal_children = statement
-        .witness
-        .final_fold
-        .as_ref()
-        .expect("finished proof carries terminal fold")
-        .nifs
-        .pi_dec
-        .children
-        .clone();
-    let terminal_public = TerminalCePublic::from_terminal_children(&prep.params, prep.structure(), &terminal_children)
-        .expect("honest terminal children form compact terminal CE public statement");
-    statement.witness.terminal_ce_proof = Some(TerminalCeProof::new_unchecked(
-        terminal_public.digest(),
-        vec![0xA5, 0xCE],
-    ));
-
-    let err = synthesize_statement_r1cs(&prep, &statement)
-        .err()
-        .expect("well-bound compact terminal CE proof material must still fail closed");
-    assert!(
-        matches!(err, decider::Error::TerminalCeProofUnsupported),
-        "expected TerminalCeProofUnsupported, got {err:?}"
     );
 }
 

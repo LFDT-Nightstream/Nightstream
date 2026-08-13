@@ -6,8 +6,8 @@ Contract: structural placement and honest completeness for the exact
 fixed-active `Pi_RLC` symbolic transcript schedule.
 
 Owns: proof that every raw-pair word and gate marker stays in the authoritative
-prefix, closure of `WellPlaced` through the four-block/fifteen-coordinate
-recurrence, and the explicit satisfying assignment for its 75 emitted
+prefix, closure of `WellPlaced` through the eight-block/fifteen-coordinate
+recurrence, and the explicit satisfying assignment for its 135 emitted
 permutations.
 
 Does not own: canonical-u64 decomposition, rejection candidates, or selection;
@@ -17,7 +17,6 @@ Assurance tier: model-level canonical encoding.
 -/
 
 set_option autoImplicit false
-set_option maxRecDepth 100000
 
 namespace Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSymbolicMachineHonest
 
@@ -217,6 +216,9 @@ def initialBuilder (lanes : State) : SymbolicDuplex.Builder :=
 @[simp] theorem initialBuilder_absorbed (lanes : State) :
     (initialBuilder lanes).absorbed = 1 := rfl
 
+@[simp] theorem initialBuilder_entries_length (lanes : State) :
+    (initialBuilder lanes).entries.length = 0 := rfl
+
 theorem initialBuilder_wellPlaced
     (base : Nat) (lanes : State)
     (lanesBefore :
@@ -255,7 +257,7 @@ theorem fixedBuilder_wellOwned
     (initialBuilder_wellOwned base lanes lanesInPrefix) 15
 
 theorem fixedBuilder_entries_length (base : Nat) (lanes : State) :
-    (fixedBuilder base lanes).entries.length = 75 := by
+    (fixedBuilder base lanes).entries.length = 135 := by
   unfold fixedBuilder initialBuilder
   simpa using
     PiRlcCanonicalSymbolicMachine.fixedActive_entries_length_of_one
@@ -264,21 +266,21 @@ theorem fixedBuilder_entries_length (base : Nat) (lanes : State) :
 theorem fixedRows_length
     (base : Nat) (constants : Constants) (lanes : State) :
     (SymbolicDuplex.rows base constants (fixedBuilder base lanes)).length =
-      26400 := by
+      47520 := by
   rw [SymbolicDuplex.rows_length, fixedBuilder_entries_length]
 
 def fixedAllocation (base : Nat) : List Nat :=
-  temporaryColumns base 75
+  temporaryColumns base 135
 
 theorem fixedAllocation_length (base : Nat) :
-    (fixedAllocation base).length = 26400 := by
+    (fixedAllocation base).length = 47520 := by
   unfold fixedAllocation
   rw [temporaryColumns_length]
   rfl
 
 theorem fixedAllocation_nodup (base : Nat) :
     (fixedAllocation base).Nodup :=
-  temporaryColumns_nodup base 75
+  temporaryColumns_nodup base 135
 
 theorem fixedRows_ownership
     (base : Nat) (constants : Constants) (lanes : State) :
@@ -323,7 +325,7 @@ theorem fixedRows_conservation
   rw [fixedBuilder_entries_length] at conserved
   exact conserved
 
-/-- The explicit final assignment for the exact 75-call transcript. -/
+/-- The explicit final assignment for the exact 135-call transcript. -/
 def fixedWitness
     (base : Nat) (constants : Constants) (lanes : State)
     (initial : Nat → Nat) : Nat → Nat :=
@@ -346,7 +348,7 @@ theorem fixedWitness_constantWire
   SymbolicDuplexHonest.witnesses_constantWire base constants basePositive
     (fixedBuilder base lanes).entries initial
 
-/-- Honest completeness of the exact 26,400-row symbolic transcript.  No
+/-- Honest completeness of the exact 47,520-row symbolic transcript.  No
 already-satisfied transcript or caller-supplied permutation result appears as
 a premise. -/
 theorem fixedRows_honest

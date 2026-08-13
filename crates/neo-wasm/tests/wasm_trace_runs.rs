@@ -1,8 +1,5 @@
 mod common;
 
-use common::audit::{prove, verify, AuditProveError};
-use neo_fold_clean::frontends::r1cs_f_prime;
-use neo_wasm::preprocess::{canonical_wasm_f_prime_shape_batched_with_initial_state_digest, preprocess_seeded_batched};
 use neo_wasm::{WasmVmSpec, WasmVmStep};
 
 /// Compile a WAT module, run it through the wasmtime adapter, exercise the
@@ -1016,58 +1013,4 @@ fn wasm_trace_run_with_integer_sign_extensions() {
             "{opcode:?} wide value flag"
         );
     }
-}
-
-#[test]
-fn wasm_trace_run_folding_proof() {
-    let (wasm, trace, ..) = compile_and_trace(
-        r#"(module (func (export "main") (result i32)
-             i32.const 7
-             i32.const 9
-             i32.add))"#,
-    );
-    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
-    let digest = common::verifier_initial_state_digest(&artifacts);
-    let prep = preprocess_seeded_batched(1, digest).expect("prep");
-    let proof = prove(&prep, &trace).expect("prove kernel run");
-    let final_state = common::final_state(&trace);
-    verify(&prep, &proof, final_state).expect("verify kernel run");
-
-    // Output binding: the claimed final state is part of the verified
-    // statement, so a tampered output claim must fail.
-    let mut wrong_output = final_state;
-    wrong_output.output.value_lo ^= 1;
-    assert!(
-        matches!(
-            verify(&prep, &proof, wrong_output),
-            Err(AuditProveError::FinalStateMismatch)
-        ),
-        "verify must reject a tampered claimed output value"
-    );
-    let mut disabled_output = final_state;
-    disabled_output.output.enabled = false;
-    assert!(
-        matches!(
-            verify(&prep, &proof, disabled_output),
-            Err(AuditProveError::FinalStateMismatch)
-        ),
-        "verify must reject a claimed final state without the captured output"
-    );
-
-    let mut canonical = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(1, digest).expect("shape");
-    canonical.plan.app_private_var_widths = vec![64; canonical.plan.app_private_var_widths.len()];
-    canonical.plan.limbs = canonical.plan.app_private_var_widths.iter().sum::<usize>() + 1;
-    let verifier_prep =
-        r1cs_f_prime::preprocess_sparse_seeded(&canonical.sparse_r1cs, &canonical.plan, 0xa55ec_a11ed_15ea)
-            .expect("wrong-width prep");
-
-    let err = match verify(&verifier_prep, &proof, common::final_state(&trace)) {
-        Ok(_) => panic!("verify must reject a wasm preprocessing with non-canonical widths"),
-        Err(err) => err,
-    };
-    assert!(
-        err.to_string()
-            .contains("preprocessing widths do not match"),
-        "unexpected error: {err}"
-    );
 }

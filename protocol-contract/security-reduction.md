@@ -134,8 +134,8 @@ T <= 2*phi(81)*2 = 216
 15*T*(b-1) = 3240 < B.
 ```
 
-The commitment reduction must use `kappa=18`, message width 211,797 ring
-elements, and infinity bound `8*T*B=28,311,552`. It must state whether the
+The commitment reduction must use `kappa=18`, the verifier-key artifact's
+exact message width `m/54`, and infinity bound `8*T*B=28,311,552`. It must state whether the
 Ajtai matrix is uniform or reduce the 32-byte seeded generation procedure to
 an explicit PRG assumption. The exact ChaCha8 row, chunk, coefficient, and
 rejection schedule is fixed in `src/profile/ajtai-setup-v1.toml`. A seed digest

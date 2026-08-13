@@ -70,7 +70,7 @@
 {"rule_id":"NS-PIDEC-PROFILE","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
 {"rule_id":"NS-RED-PADDED-RELATIONS","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
 {"rule_id":"NS-RED-COMPOSITION","applicability":"required","level":"none","locations":[],"declaration_anchors":[]}
-{"rule_id":"NS-AUTH-STRUCTURE","applicability":"required","level":"none","locations":["crates/neo-ccs/src/relations.rs"],"declaration_anchors":[]}
+{"rule_id":"NS-AUTH-STRUCTURE","applicability":"required","level":"none","locations":["crates/neo-fold-clean/src/relation_artifact.rs","crates/neo-fold-clean/src/frontends/r1cs_f_prime/relation_artifact.rs"],"declaration_anchors":[{"path":"crates/neo-fold-clean/src/relation_artifact.rs","declaration":"VerifierKeyRelationArtifact"},{"path":"crates/neo-fold-clean/src/frontends/r1cs_f_prime/relation_artifact.rs","declaration":"validate_relation_artifact_json"}]}
 {"rule_id":"NS-AUTH-CLAIM","applicability":"required","level":"none","locations":["crates/neo-ccs/src/relations.rs"],"declaration_anchors":[]}
 {"rule_id":"NS-AUTH-DERIVED","applicability":"required","level":"none","locations":["crates/neo-ccs/src/relations.rs"],"declaration_anchors":[]}
 {"rule_id":"NS-ENC-BASE","applicability":"required","level":"none","locations":["crates/neo-math","crates/neo-transcript"],"declaration_anchors":[]}

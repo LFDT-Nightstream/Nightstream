@@ -16,13 +16,14 @@ namespace Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSamplerAllocat
 open Nightstream.Implementation.R1CS.Canonical
 
 private theorem u64Base_eq (base : Nat) :
-    PiRlcCanonicalSamplerProgram.u64Base base = base + 26400 := by
+    PiRlcCanonicalSamplerProgram.u64Base base = base + 47520 := by
   simp [PiRlcCanonicalSamplerProgram.u64Base,
     PiRlcCanonicalSamplerProgram.transcriptCalls,
+    PiRlcCanonicalSamplerProgram.coordinateCount,
     SymbolicDuplex.stride]
 
 private theorem candidateBase_eq (base : Nat) :
-    PiRlcCanonicalSamplerProgram.candidateBase base = base + 42240 := by
+    PiRlcCanonicalSamplerProgram.candidateBase base = base + 79200 := by
   simp [PiRlcCanonicalSamplerProgram.candidateBase,
     PiRlcCanonicalCandidatesBatchHonest.u64End,
     u64Base_eq, PiRlcCanonicalSamplerProgram.coordinateCount,
@@ -30,7 +31,7 @@ private theorem candidateBase_eq (base : Nat) :
     CanonicalU64Recipe.auxiliaryCount]
 
 private theorem selectorBase_eq (base : Nat) :
-    PiRlcCanonicalSamplerProgram.selectorBase base = base + 63360 := by
+    PiRlcCanonicalSamplerProgram.selectorBase base = base + 100320 := by
   simp [PiRlcCanonicalSamplerProgram.selectorBase,
     PiRlcCanonicalSelectorBatchHonest.candidateEnd,
     candidateBase_eq, PiRlcCanonicalSamplerProgram.coordinateCount,
@@ -45,18 +46,18 @@ theorem allocation_mem_iff (base column : Nat) :
           base + PiRlcCanonicalSamplerProgram.cost.auxiliaryColumns := by
   rw [PiRlcCanonicalSamplerProgram.allocation]
   simp only [List.mem_append]
+  rw [PiRlcCanonicalSamplerProgram.cost_auxiliaryColumns]
   constructor
   · intro member
     rcases member with inTranscript | inSuffix
-    · have bounds :=
-        (SymbolicDuplexPhysical.temporaryColumns_mem_iff base 75 column).1
-          (by
-            simpa [PiRlcCanonicalSamplerProgram.transcriptAllocation,
-              PiRlcCanonicalSymbolicMachineHonest.fixedAllocation] using
-              inTranscript)
-      rw [SymbolicDuplex.stride_eq] at bounds
-      simpa [PiRlcCanonicalSamplerProgram.cost] using
-        ⟨bounds.1, by omega⟩
+    · rw [PiRlcCanonicalSamplerProgram.transcriptAllocation_eq] at inTranscript
+      have bounds :=
+        (SymbolicDuplexPhysical.temporaryColumns_mem_iff base
+          PiRlcCanonicalSamplerProgram.transcriptCalls column).1 inTranscript
+      simp only [PiRlcCanonicalSamplerProgram.transcriptCalls,
+        PiRlcCanonicalSamplerProgram.coordinateCount,
+        SymbolicDuplex.stride] at bounds
+      exact ⟨bounds.1, by omega⟩
     · unfold PiRlcCanonicalSamplerProgram.suffixAllocation
         PiRlcCanonicalSamplerHonest.suffixAllocation at inSuffix
       simp only [List.mem_append] at inSuffix
@@ -69,8 +70,7 @@ theorem allocation_mem_iff (base column : Nat) :
           PiRlcCanonicalSamplerProgram.coordinateCount,
           PiRlcCanonicalU64.lanesPerScalar,
           CanonicalU64Recipe.auxiliaryCount] at bounds
-        simpa [PiRlcCanonicalSamplerProgram.cost] using
-          ⟨by omega, by omega⟩
+        exact ⟨by omega, by omega⟩
       · have bounds :=
           (PiRlcCanonicalCandidates.allocation_mem_iff
             (PiRlcCanonicalSamplerProgram.candidateBase base)
@@ -80,8 +80,7 @@ theorem allocation_mem_iff (base column : Nat) :
           PiRlcCanonicalSamplerProgram.coordinateCount,
           PiRlcCanonicalCandidates.candidatesPerScalar,
           PiRlcCanonicalCandidate.auxiliaryCount] at bounds
-        simpa [PiRlcCanonicalSamplerProgram.cost] using
-          ⟨by omega, by omega⟩
+        exact ⟨by omega, by omega⟩
       · have bounds :=
           (PiRlcCanonicalSelector.allocation_mem_iff
             (PiRlcCanonicalSamplerProgram.selectorBase base)
@@ -92,19 +91,19 @@ theorem allocation_mem_iff (base column : Nat) :
           PiRlcCanonicalSelector.scalarAuxiliaryCount,
           PiRlcCanonicalSelector.outputCount,
           PiRlcCanonicalSelector.positionAuxiliaryCount] at bounds
-        simpa [PiRlcCanonicalSamplerProgram.cost] using
-          ⟨by omega, by omega⟩
+        exact ⟨by omega, by omega⟩
   · intro bounds
     by_cases beforeU64 :
         column < PiRlcCanonicalSamplerProgram.u64Base base
     · left
       have transcriptMember :
-          column ∈ SymbolicDuplexPhysical.temporaryColumns base 75 :=
-        (SymbolicDuplexPhysical.temporaryColumns_mem_iff base 75 column).2
-          ⟨bounds.1, by simpa [u64Base_eq] using beforeU64⟩
-      simpa [PiRlcCanonicalSamplerProgram.transcriptAllocation,
-        PiRlcCanonicalSymbolicMachineHonest.fixedAllocation] using
-        transcriptMember
+          column ∈ SymbolicDuplexPhysical.temporaryColumns base
+            PiRlcCanonicalSamplerProgram.transcriptCalls :=
+        (SymbolicDuplexPhysical.temporaryColumns_mem_iff base
+          PiRlcCanonicalSamplerProgram.transcriptCalls column).2
+          ⟨bounds.1, beforeU64⟩
+      rw [PiRlcCanonicalSamplerProgram.transcriptAllocation_eq]
+      exact transcriptMember
     · right
       unfold PiRlcCanonicalSamplerProgram.suffixAllocation
         PiRlcCanonicalSamplerHonest.suffixAllocation
@@ -144,8 +143,7 @@ theorem allocation_mem_iff (base column : Nat) :
             PiRlcCanonicalSamplerProgram.coordinateCount,
             PiRlcCanonicalSelector.scalarAuxiliaryCount,
             PiRlcCanonicalSelector.outputCount,
-            PiRlcCanonicalSelector.positionAuxiliaryCount,
-            PiRlcCanonicalSamplerProgram.cost] at beforeSelector bounds ⊢
+            PiRlcCanonicalSelector.positionAuxiliaryCount] at beforeSelector bounds ⊢
           omega
 
 end Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSamplerAllocation

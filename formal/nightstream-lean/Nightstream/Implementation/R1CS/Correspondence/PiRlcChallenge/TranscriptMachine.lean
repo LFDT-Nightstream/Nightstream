@@ -5,7 +5,7 @@ import Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionS
 Pure production-shaped transcript machine for `Pi_RLC` coefficient blocks.
 
 Protocol: noninteractive SuperNeo `Pi_RLC` inside the recursive NIFS.
-Phase: one scalar domain separator followed by four rejection-sampler digests.
+Phase: one scalar domain separator followed by eight rejection-sampler digests.
 Constraint family: transcript overwrite/permute schedule and little-endian
 16-bit candidate extraction.
 
@@ -33,9 +33,9 @@ exact 600-row Poseidon2 SSA artifact, not a carried digest value.
 | `Pi_RLC` | raw absorb | `appendRawPair` | absorb length `2`, then both fields, with overwrite semantics |
 | `Pi_RLC` | scalar domain | `enterScalar` | append `[0, coordinate mod 2^64]` |
 | `Pi_RLC` | digest domain | `digestBlock` | append `[1, counter mod 2^64]`, absorb one, permute |
-| `Pi_RLC` | candidate bytes | `digestChunks` | four little-endian 16-bit chunks from each of four canonical lanes |
+| `Pi_RLC` | candidate bytes | `digestChunks` | two complemented low-word candidates from each of four canonical lanes |
 | `Pi_RLC` | joint source | `machine` | expose chunks and successor state from that same digest execution |
-| `Pi_RLC` | bounded success | `successfulExecution_successorState` | successful 54-of-64 sampling reaches the same four-block state |
+| `Pi_RLC` | fixed schedule | `fixedSchedule_successorState` | 54-of-64 sampling advances through the same eight-block state |
 -/
 
 namespace Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachine
@@ -119,27 +119,28 @@ def digest (state : State) : State × (Fin 4 -> Field) :=
     change lane.val < 8
     omega⟩)
 
-/-- The `part`th little-endian 16-bit chunk of one canonical lane. -/
-def laneChunk (lane : Field) (part : Fin 4) : Chunk :=
-  ⟨(lane.val / (2 ^ (16 * part.val))) % chunkModulus,
+/-- The bitwise complement of the `part`th low 16-bit word. -/
+def laneChunk (lane : Field) (part : Fin 2) : Chunk :=
+  ⟨((chunkModulus - 1) + chunkModulus -
+      ((lane.val / (2 ^ (16 * part.val))) % chunkModulus)) % chunkModulus,
     Nat.mod_lt _ (by decide)⟩
 
-/-- Four chunks per lane, four lanes per digest, in Rust's lane-major order. -/
+/-- Two candidates per lane, four lanes per digest, in Rust's lane-major order. -/
 def digestChunks (lanes : Fin 4 -> Field) :
     Fin chunksPerDigest -> Chunk :=
   fun position =>
-    let laneIndex : Fin 4 := ⟨position.val / 4, by
-      have positionLt : position.val < 16 := by
+    let laneIndex : Fin 4 := ⟨position.val / 2, by
+      have positionLt : position.val < 8 := by
         simpa [chunksPerDigest] using position.isLt
       omega⟩
-    let part : Fin 4 := ⟨position.val % 4, Nat.mod_lt _ (by decide)⟩
+    let part : Fin 2 := ⟨position.val % 2, Nat.mod_lt _ (by decide)⟩
     laneChunk (lanes laneIndex) part
 
 /-- Per-scalar domain separation. -/
 def enterScalar (state : State) (coordinate : Nat) : State :=
   appendRawPair state 0 coordinate
 
-/-- One counter block jointly returns its successor state and all 16 chunks. -/
+/-- One counter block jointly returns its successor state and all eight candidates. -/
 def digestBlock (state : State) (counter : Nat) :
     State × (Fin chunksPerDigest -> Chunk) :=
   let result := digest (appendRawPair state 1 counter)
@@ -167,35 +168,35 @@ def specification :
 /-- The implementation model fixes the exact lane/part quotient-remainder
 ordering; no caller supplies a byte permutation. -/
 theorem digestChunks_lane_part
-    (lanes : Fin 4 -> Field) (lane part : Fin 4) :
+    (lanes : Fin 4 -> Field) (lane : Fin 4) (part : Fin 2) :
     digestChunks lanes
-      ⟨lane.val * 4 + part.val, by
+      ⟨lane.val * 2 + part.val, by
         have laneLt := lane.isLt
         have partLt := part.isLt
-        change lane.val * 4 + part.val < chunksPerDigest
+        change lane.val * 2 + part.val < chunksPerDigest
         simp only [chunksPerDigest]
         omega⟩ =
       laneChunk (lanes lane) part := by
   unfold digestChunks
   dsimp only
   have laneIndexEq :
-      (⟨(lane.val * 4 + part.val) / 4, by
+      (⟨(lane.val * 2 + part.val) / 2, by
         have laneLt := lane.isLt
         have partLt := part.isLt
         omega⟩ : Fin 4) = lane := by
     apply Fin.ext
-    change (lane.val * 4 + part.val) / 4 = lane.val
-    have decomposition := Nat.div_add_mod (lane.val * 4 + part.val) 4
-    have remainderLt := Nat.mod_lt (lane.val * 4 + part.val) (by decide : 0 < 4)
+    change (lane.val * 2 + part.val) / 2 = lane.val
+    have decomposition := Nat.div_add_mod (lane.val * 2 + part.val) 2
+    have remainderLt := Nat.mod_lt (lane.val * 2 + part.val) (by decide : 0 < 2)
     have partLt := part.isLt
     omega
   have partEq :
-      (⟨(lane.val * 4 + part.val) % 4, Nat.mod_lt _ (by decide)⟩ :
-        Fin 4) = part := by
+      (⟨(lane.val * 2 + part.val) % 2, Nat.mod_lt _ (by decide)⟩ :
+        Fin 2) = part := by
     apply Fin.ext
-    change (lane.val * 4 + part.val) % 4 = part.val
-    have decomposition := Nat.div_add_mod (lane.val * 4 + part.val) 4
-    have remainderLt := Nat.mod_lt (lane.val * 4 + part.val) (by decide : 0 < 4)
+    change (lane.val * 2 + part.val) % 2 = part.val
+    have decomposition := Nat.div_add_mod (lane.val * 2 + part.val) 2
+    have remainderLt := Nat.mod_lt (lane.val * 2 + part.val) (by decide : 0 < 2)
     have partLt := part.isLt
     omega
   rw [laneIndexEq, partEq]
@@ -204,19 +205,15 @@ theorem digestChunks_lane_part
     (digestBlock state counter).1.absorbed.val = 0 := by
   rfl
 
-/-- Conditional state/candidate agreement inherited from the independent
-first-accepted semantics: if the fixed sampler succeeds, its successor is
-exactly the state after the same four concrete digest blocks. -/
-theorem successfulExecution_successorState
+/-- State/candidate agreement for the fixed eight-block sampler schedule. -/
+theorem fixedSchedule_successorState
     (initial : State)
-    (coordinate : Nat)
-    (execution : CoefficientExecution specification candidateBound
-      initial coordinate) :
+    (coordinate : Nat) :
     (sourceAt specification initial coordinate).nextState =
       stateBeforeBlock machine
         (enterScalar (stateAt specification initial coordinate) coordinate)
-        coordinate (blocksUsed execution.consumed) := by
-  exact source_nextState_eq_referenceBlockState machine
-    assembleCoefficients initial coordinate execution
+        coordinate digestRounds := by
+  exact source_nextState_eq_fixedBlockState machine
+    assembleCoefficients initial coordinate
 
 end Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachine

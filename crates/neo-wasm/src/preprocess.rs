@@ -8,9 +8,8 @@
 //! `Σ 2^i · bit_i` and enforce `(A_i·z)(B_i·z) = (C_i·z)`. The committed
 //! witness entries are 0/1, so `‖z‖_∞ < b = 2` holds soundly.
 //!
-//! The R1CS-F' plan constants below were tuned by running the recursive
-//! compile and reading the `PostParentShapeMismatch` error — same fixed-point
-//! discovery used by the SHA-256 R1CS-F' plan.
+//! Recursive image dimensions are derived to a fixed point from the compiled
+//! relation and selected protocol parameters.
 
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
@@ -42,45 +41,22 @@ use neo_fold_clean::frontends::f_prime::recursive_plan::{
 };
 use neo_fold_clean::frontends::f_prime::structure::FPrimeStructure;
 use neo_fold_clean::frontends::f_prime::NifsCeClaimShape;
-use neo_fold_clean::frontends::r1cs_f_prime::{
-    self, build_r1cs_f_prime_structure, R1csFPrimePreprocessing, SparseR1cs,
-};
+use neo_fold_clean::frontends::r1cs_f_prime::{build_r1cs_f_prime_structure, SparseR1cs};
 use neo_fold_clean::paper::digest::digest_fields_as_digest32;
 use neo_fold_clean::paper::f_prime::poseidon_trace::encode_poseidon_trace;
 use neo_fold_clean::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
 use neo_fold_clean::paper::params::Params;
 use neo_math::F;
-use neo_params::{goldilocks_paper_b2, NeoParams, ParamsError};
 use p3_field::PrimeCharacteristicRing;
-
-/// Test/demo Ajtai SRS seed. The Ajtai PP is shape-keyed in the global
-/// registry, so any consistent value across prover + verifier in the same
-/// test session is fine.
-const WASM_AJTAI_SEED: u64 = 0xa55ec_a11ed_15ea;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WasmPreprocessError {
     #[error(transparent)]
-    Params(#[from] neo_params::ParamsError),
-    #[error(transparent)]
     Frontend(#[from] neo_fold_clean::frontends::direct_ccs::FrontendError),
-    #[error(transparent)]
-    R1csFPrime(#[from] neo_fold_clean::frontends::r1cs_f_prime::Error),
     #[error(transparent)]
     Batch(#[from] BatchError),
     #[error(transparent)]
     Lookup(#[from] LookupCircuitError),
-}
-
-/// Canonical structural inputs for the wasm R1CS-F' frontend.
-///
-/// This deliberately stops before lifecycle/Ajtai preprocessing. It is the
-/// cheap verifier-side shape surface: the wasm R1CS, recursive image plan,
-/// and resulting F' CCS structure.
-pub struct WasmCanonicalFPrimeShape {
-    pub sparse_r1cs: SparseR1cs,
-    pub plan: RecursiveStepImagePlan,
-    pub structure: FPrimeStructure,
 }
 
 pub(crate) struct WasmNebulaCanonicalShape {
@@ -91,28 +67,8 @@ pub(crate) struct WasmNebulaCanonicalShape {
     pub(crate) single_step_columns: usize,
 }
 
-pub fn canonical_wasm_f_prime_shape_batched_with_initial_state_digest(
-    batch_size: usize,
-    initial_semantic_state_digest: [u8; 32],
-) -> Result<WasmCanonicalFPrimeShape, WasmPreprocessError> {
-    let batched = batch::build_batched_wasm_ccs(batch_size)?;
-    let mut sparse_r1cs = batched.sparse_r1cs;
-    sparse_r1cs.m_in = 1;
-    let (plan, structure) = wasm_recursive_plan_and_structure(
-        &sparse_r1cs,
-        &batched.widths,
-        batched.batch_size,
-        sparse_r1cs.m_in,
-        initial_semantic_state_digest,
-    );
-    Ok(WasmCanonicalFPrimeShape {
-        sparse_r1cs,
-        plan,
-        structure,
-    })
-}
-
 pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
+    params: &Params,
     batch_size: usize,
     initial_semantic_state_digest: [u8; 32],
 ) -> Result<WasmNebulaCanonicalShape, WasmPreprocessError> {
@@ -123,6 +79,7 @@ pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
     let lookup_auxiliary_columns_per_instruction = compact.auxiliary_column_count;
     let batched = batch::batch_wasm_relation(&compact.relation, &compact.widths, batch_size)?;
     let (plan, _) = wasm_recursive_plan_and_structure(
+        params,
         &batched.sparse_r1cs,
         &batched.widths,
         batch_size,
@@ -136,32 +93,6 @@ pub(crate) fn canonical_wasm_nebula_shape_batched_with_initial_state_digest(
         lookup_auxiliary_columns_total: lookup_auxiliary_columns_per_instruction * batch_size,
         single_step_columns,
     })
-}
-
-/// Build preprocessing with cross-batch VM-state continuity enabled.
-///
-/// The carried columns are derived from
-/// `WasmRelationLayout::auxiliary.ivc_state_links`: the first block's
-/// `*_before` columns are hashed as semantic input, and the last block's
-/// `*_after` columns are hashed as semantic output. `initial_state_digest`
-/// is verifier-owned: callers must derive or otherwise agree on it from
-/// authoritative initial VM state, not from prover-supplied proof material.
-pub fn preprocess_seeded_batched(
-    batch_size: usize,
-    initial_state_digest: [u8; 32],
-) -> Result<R1csFPrimePreprocessing, WasmPreprocessError> {
-    let WasmCanonicalFPrimeShape {
-        sparse_r1cs,
-        plan,
-        structure,
-    } = canonical_wasm_f_prime_shape_batched_with_initial_state_digest(batch_size, initial_state_digest)?;
-    let params = wasm_tiny_params_for_shape(structure.ccs.n, structure.ccs.m)?;
-    Ok(r1cs_f_prime::preprocess_sparse_seeded_with_params(
-        &sparse_r1cs,
-        &plan,
-        Params::test_only_from_neo_params(params),
-        WASM_AJTAI_SEED,
-    )?)
 }
 
 /// Top-level VM state before executing an exported wasm function.
@@ -194,8 +125,8 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Was
 }
 
 /// Hash a carried VM state into the IVC semantic-state digest: the
-/// verifier-owned initial anchor expected by [`preprocess_seeded_batched`],
-/// and the final-state claim checked by [`crate::verify`].
+/// verifier-owned initial anchor used by Nebula preprocessing and the
+/// final-state claim checked by [`crate::verify`].
 ///
 /// `halted` is carried explicitly, so the terminal claim cannot be changed
 /// independently of the folded semantic-state digest.
@@ -326,33 +257,6 @@ fn bool_field(value: bool) -> F {
     }
 }
 
-/// Test-only `NeoParams` profile, mirroring `sha256_tiny_neo_params`.
-/// Production Goldilocks ring (Q, ETA, D, B_BASE, K_RHO, T) is preserved;
-/// only `kappa`, `m`, `lambda` are shrunk so the lifecycle fits under the
-/// 5-minute test cap. Π_RLC / Π_DEC algebraic identities hold bit-for-bit;
-/// only the Ajtai-SIS security parameter is reduced.
-fn wasm_tiny_params_for_shape(row_count: usize, column_count: usize) -> Result<NeoParams, ParamsError> {
-    let ring_degree = goldilocks_paper_b2::D;
-    let packed_column_bound = column_count
-        .div_ceil(ring_degree)
-        .checked_mul(ring_degree)
-        .ok_or(ParamsError::ArithmeticOverflow("WASM test parameter m"))?;
-    let m = u64::try_from(row_count.max(packed_column_bound))
-        .map_err(|_| ParamsError::ArithmeticOverflow("WASM test parameter m"))?;
-    NeoParams::new(
-        goldilocks_paper_b2::Q,
-        goldilocks_paper_b2::ETA as u32,
-        goldilocks_paper_b2::D as u32,
-        /* kappa  */ 2,
-        /* m      */ m,
-        goldilocks_paper_b2::B_BASE,
-        goldilocks_paper_b2::K_RHO,
-        goldilocks_paper_b2::T,
-        goldilocks_paper_b2::EXTENSION_DEGREE,
-        /* lambda */ 40,
-    )
-}
-
 /// Build the recursive `RecursiveStepImagePlan` for the wasm R1CS shape
 /// at the requested batch size, together with the F' structure that
 /// matches it.
@@ -363,21 +267,15 @@ fn wasm_tiny_params_for_shape(row_count: usize, column_count: usize) -> Result<N
 /// `r_len` feeds back into the F' structure, so the point length and the
 /// structure are mutually constrained. Iterate until the value is stable.
 pub(crate) fn wasm_recursive_plan_and_structure(
+    params: &Params,
     sparse_r1cs: &SparseR1cs,
     app_private_var_widths: &[usize],
     batch_size: usize,
     m_in: usize,
     initial_semantic_state_digest: [u8; 32],
 ) -> (RecursiveStepImagePlan, FPrimeStructure) {
-    // kappa * D for `wasm_tiny_params` = 2 * 54 = 108.
-    const C_DATA_ENTRIES: usize = 108;
-    // = K_RHO.
-    const CHILD_COUNT: u64 = 14;
-    // Safety bound: the sumcheck length contributes linearly to F' structure
-    // rows, so log2(rows) grows by at most about one per added round. Eight
-    // iterations are more than needed; the bound guards
-    // against an unexpected non-monotone iteration.
-    const MAX_ITERATIONS: usize = 8;
+    let c_data_entries = params.kappa() as usize * neo_math::D;
+    let child_count = u64::from(params.k_rho());
 
     let limbs = app_private_var_widths.iter().sum::<usize>() + 1;
     let mut r_len = 8usize;
@@ -390,9 +288,16 @@ pub(crate) fn wasm_recursive_plan_and_structure(
     let single_width = sparse_r1cs.m / batch_size;
     let semantic_state_indices = wasm_batch_semantic_state_indices(batch_size, single_width);
 
-    for _ in 0..MAX_ITERATIONS {
+    let mut seen = Vec::new();
+    loop {
+        if seen.contains(&(r_len, y_ring_count)) {
+            panic!(
+                "wasm_recursive_plan_and_structure entered a shape cycle at r_len={r_len}, y_ring_count={y_ring_count}"
+            );
+        }
+        seen.push((r_len, y_ring_count));
         let ce_shape = NifsCeClaimShape {
-            c_data_entries: C_DATA_ENTRIES,
+            c_data_entries,
             x_rows: 54,
             x_active_cols: 5,
             r_len,
@@ -415,8 +320,8 @@ pub(crate) fn wasm_recursive_plan_and_structure(
             nifs_payload_shapes: vec![NifsPayloadShape::CeClaim(ce_shape)],
             accumulator: Some(AccumulatorPlanOptions {
                 ce_claim_payload_index: 0,
-                c_data_entries: C_DATA_ENTRIES,
-                child_count: CHILD_COUNT,
+                c_data_entries,
+                child_count,
                 unified: true,
             }),
             state_x_out: None,
@@ -446,12 +351,6 @@ pub(crate) fn wasm_recursive_plan_and_structure(
         r_len = required_r;
         y_ring_count = required_y_ring_count;
     }
-
-    panic!(
-        "wasm_recursive_plan_and_structure did not converge within {MAX_ITERATIONS} iterations \
-         (last r_len = {r_len}, last y_ring_count = {y_ring_count}); the dependency should be logarithmic, \
-         so non-convergence indicates a deeper protocol mismatch"
-    );
 }
 
 fn ceil_log2(n: usize) -> usize {

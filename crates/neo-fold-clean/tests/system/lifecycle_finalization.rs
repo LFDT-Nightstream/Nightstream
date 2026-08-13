@@ -6,8 +6,8 @@ use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use neo_fold_clean::frontends::direct_ccs::{self, R1cs};
-use neo_fold_clean::paper::construction2::ProofState;
-use neo_fold_clean::paper::nifs::{self, NifsProverAdapter, NifsProverOutput, NifsProverRequest};
+use neo_fold_clean::paper::construction2::{ProofState, RunningInstance};
+use neo_fold_clean::paper::nifs::{self, NifsProof, NifsProverAdapter, NifsProverRequest};
 use neo_fold_clean::CcsInstance;
 
 /// Toy instance whose complete public ring contains one specified low-norm
@@ -48,28 +48,16 @@ fn invalid_bitness_instance_with_valid_shape(prep: &neo_fold_clean::Preprocessin
 
 fn final_running(proof: &neo_fold_clean::Uncompressed) -> neo_fold_clean::RunningInstance {
     match &proof.state.proof {
-        ProofState::Active { running, .. } => running
-            .materialize()
-            .expect("test fixture expects materialized final running"),
+        ProofState::Active { running, .. } => running.clone(),
         ProofState::Initial => panic!("finalized proof must be Active"),
     }
 }
 
 fn final_running_mut(proof: &mut neo_fold_clean::Uncompressed) -> &mut neo_fold_clean::RunningInstance {
     match &mut proof.state.proof {
-        ProofState::Active { running, .. } => running
-            .as_materialized_mut()
-            .expect("test fixture expects materialized final running"),
+        ProofState::Active { running, .. } => running,
         ProofState::Initial => panic!("finalized proof must be Active"),
     }
-}
-
-fn carrier_running_mut(
-    running: &mut neo_fold_clean::paper::nifs::NifsRunningCarrier,
-) -> &mut neo_fold_clean::RunningInstance {
-    running
-        .as_materialized_mut()
-        .expect("test fixture expects materialized running carrier")
 }
 
 #[derive(Default)]
@@ -78,7 +66,7 @@ struct CountingCpuNifsAdapter {
 }
 
 impl NifsProverAdapter for CountingCpuNifsAdapter {
-    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<NifsProverOutput, nifs::Error> {
+    fn prove(&mut self, request: NifsProverRequest<'_>) -> Result<(RunningInstance, NifsProof), nifs::Error> {
         self.calls += 1;
         let NifsProverRequest {
             tr,
@@ -105,7 +93,7 @@ impl NifsProverAdapter for CountingCpuNifsAdapter {
             fresh,
             running,
         )?;
-        Ok(NifsProverOutput::materialized(running, proof))
+        Ok((running, proof))
     }
 }
 
@@ -756,7 +744,7 @@ fn decider_validate_witness_rejects_final_state_claims_not_matching_walk() {
     // final_fold) still holds the original commitment, so the binding
     // check must reject.
     let final_running = match &mut statement.witness.final_state.proof {
-        neo_fold_clean::ProofState::Active { running, .. } => carrier_running_mut(running),
+        neo_fold_clean::ProofState::Active { running, .. } => running,
         neo_fold_clean::ProofState::Initial => panic!("test setup: state must be Active"),
     };
     support::mutate_ce_claim(&mut final_running.claims[0]);

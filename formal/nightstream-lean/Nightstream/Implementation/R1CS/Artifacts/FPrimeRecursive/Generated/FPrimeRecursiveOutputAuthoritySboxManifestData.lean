@@ -30,11 +30,11 @@ open Nightstream.Implementation.R1CS.OutputAuthoritySboxManifest
 set_option maxRecDepth 1048576
 
 def calls : List CallGeometry :=
-  [ { traceIndex := 358, rowStart := 7072025, rowEnd := 7072625, inputColumns := [7004140, 7004141, 7004142, 7004143, 7004139, 7004139, 7004139, 7004139], firstAllocatedColumn := 7004144, allocatedColumnCount := 600, outputColumns := [7004736, 7004737, 7004738, 7004739, 7004740, 7004741, 7004742, 7004743] }
-  , { traceIndex := 359, rowStart := 7072629, rowEnd := 7073229, inputColumns := [7004744, 7004745, 7004746, 7004747, 7004740, 7004741, 7004742, 7004743], firstAllocatedColumn := 7004748, allocatedColumnCount := 600, outputColumns := [7005340, 7005341, 7005342, 7005343, 7005344, 7005345, 7005346, 7005347] }
-  , { traceIndex := 360, rowStart := 7073233, rowEnd := 7073833, inputColumns := [7005348, 7005349, 7005350, 7005351, 7005344, 7005345, 7005346, 7005347], firstAllocatedColumn := 7005352, allocatedColumnCount := 600, outputColumns := [7005944, 7005945, 7005946, 7005947, 7005948, 7005949, 7005950, 7005951] }
-  , { traceIndex := 361, rowStart := 7073837, rowEnd := 7074437, inputColumns := [7005952, 7005953, 7005954, 7005955, 7005948, 7005949, 7005950, 7005951], firstAllocatedColumn := 7005956, allocatedColumnCount := 600, outputColumns := [7006548, 7006549, 7006550, 7006551, 7006552, 7006553, 7006554, 7006555] }
-  , { traceIndex := 362, rowStart := 7074438, rowEnd := 7075038, inputColumns := [7006556, 7006549, 7006550, 7006551, 7006552, 7006553, 7006554, 7006555], firstAllocatedColumn := 7006557, allocatedColumnCount := 600, outputColumns := [7007149, 7007150, 7007151, 7007152, 7007153, 7007154, 7007155, 7007156] }
+  [ { traceIndex := 478, rowStart := 7160945, rowEnd := 7161545, inputColumns := [7092340, 7092341, 7092342, 7092343, 7092339, 7092339, 7092339, 7092339], firstAllocatedColumn := 7092344, allocatedColumnCount := 600, outputColumns := [7092936, 7092937, 7092938, 7092939, 7092940, 7092941, 7092942, 7092943] }
+  , { traceIndex := 479, rowStart := 7161549, rowEnd := 7162149, inputColumns := [7092944, 7092945, 7092946, 7092947, 7092940, 7092941, 7092942, 7092943], firstAllocatedColumn := 7092948, allocatedColumnCount := 600, outputColumns := [7093540, 7093541, 7093542, 7093543, 7093544, 7093545, 7093546, 7093547] }
+  , { traceIndex := 480, rowStart := 7162153, rowEnd := 7162753, inputColumns := [7093548, 7093549, 7093550, 7093551, 7093544, 7093545, 7093546, 7093547], firstAllocatedColumn := 7093552, allocatedColumnCount := 600, outputColumns := [7094144, 7094145, 7094146, 7094147, 7094148, 7094149, 7094150, 7094151] }
+  , { traceIndex := 481, rowStart := 7162757, rowEnd := 7163357, inputColumns := [7094152, 7094153, 7094154, 7094155, 7094148, 7094149, 7094150, 7094151], firstAllocatedColumn := 7094156, allocatedColumnCount := 600, outputColumns := [7094748, 7094749, 7094750, 7094751, 7094752, 7094753, 7094754, 7094755] }
+  , { traceIndex := 482, rowStart := 7163358, rowEnd := 7163958, inputColumns := [7094756, 7094749, 7094750, 7094751, 7094752, 7094753, 7094754, 7094755], firstAllocatedColumn := 7094757, allocatedColumnCount := 600, outputColumns := [7095349, 7095350, 7095351, 7095352, 7095353, 7095354, 7095355, 7095356] }
   ]
 
 def isolatedOutputOffsets : List Nat := [11, 15, 19, 23, 27, 31, 35, 39, 51, 55, 59, 63, 67, 71, 75, 79, 91, 95, 99, 103, 107, 111, 115, 119, 131, 135, 139, 143, 147, 151, 155, 159, 171, 183, 195, 207, 219, 231, 243, 255, 267, 279, 291, 303, 315, 327, 339, 351, 363, 375, 387, 399, 411, 423, 435, 439, 443, 447, 451, 455, 459, 463, 475, 479, 483, 487, 491, 495, 499, 503, 515, 519, 523, 527, 531, 535, 539, 543, 555, 559, 563, 567, 571, 575, 579, 583]
@@ -42,22 +42,22 @@ def isolatedOutputOffsets : List Nat := [11, 15, 19, 23, 27, 31, 35, 39, 51, 55,
 def manifest : Manifest :=
   { schemaVersion := 1
     boundaries :=
-      { stageRows := { start := 7072008, finish := 7075042 }
-        stageColumns := { start := 7004127, finish := 7007161 }
-        prehashRows := { start := 7072008, finish := 7072020 }
-        prehashColumns := { start := 7004127, finish := 7004139 }
-        hashRows := { start := 7072020, finish := 7075038 }
-        hashZeroColumn := 7004139
-        hashOutputColumns := [7007149, 7007150, 7007151, 7007152]
-        claimedDigestColumns := [4575484, 4575485, 4575486, 4575487]
-        semanticStateOutputColumns := [7007157, 7007158, 7007159, 7007160]
-        permutationTraceRange := { start := 358, finish := 363 } }
+      { stageRows := { start := 7160928, finish := 7163962 }
+        stageColumns := { start := 7092327, finish := 7095361 }
+        prehashRows := { start := 7160928, finish := 7160940 }
+        prehashColumns := { start := 7092327, finish := 7092339 }
+        hashRows := { start := 7160940, finish := 7163958 }
+        hashZeroColumn := 7092339
+        hashOutputColumns := [7095349, 7095350, 7095351, 7095352]
+        claimedDigestColumns := [4663684, 4663685, 4663686, 4663687]
+        semanticStateOutputColumns := [7095357, 7095358, 7095359, 7095360]
+        permutationTraceRange := { start := 478, finish := 483 } }
     calls := calls
     isolatedOutputOffsets := isolatedOutputOffsets
     families := { initialExternal := { start := 0, finish := 32 }, partialRounds := { start := 32, finish := 54 }, terminalExternal := { start := 54, finish := 86 } }
     census :=
-      { scannedSourceRows := 7080332
-        scannedSourceColumns := 7011981
+      { scannedSourceRows := 7169252
+        scannedSourceColumns := 7100181
         prehashBindingRows := 12
         prehashFreshColumns := 12
         hashInputFields := 16

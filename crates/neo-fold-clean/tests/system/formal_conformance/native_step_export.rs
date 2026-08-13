@@ -708,9 +708,8 @@ impl<'a> CorpusBuilder<'a> {
         let branch = match &state.proof {
             ProofState::Initial => StateBranch::Initial,
             ProofState::Active { running, latest } => {
-                let running = running.materialize().expect("materialize running receipt");
                 let claims = latest.claims();
-                let running_id = self.intern_running(&running);
+                let running_id = self.intern_running(running);
                 let latest_id = self.intern_latest(&claims);
                 StateBranch::Active {
                     running: running_id,
@@ -791,8 +790,7 @@ impl<'a> CorpusBuilder<'a> {
             &proof,
             mode,
             None,
-        )
-        .expect("fixed native-step receipt profile has materialized public inputs");
+        );
         let construction2::VerifyStepExecutionReceipt {
             input,
             events,
@@ -1124,13 +1122,10 @@ fn build_native_step_corpus() -> NativeStepCorpus {
     );
 
     let mut bad_nifs = recursive_proof.clone();
-    let mut nifs_proof = bad_nifs
-        .fold
-        .materialized_recursive()
-        .expect("materialize recursive mutation proof")
-        .expect("recursive fixture");
+    let FoldProof::Recursive(nifs_proof) = &mut bad_nifs.fold else {
+        panic!("recursive fixture")
+    };
     nifs_proof.pi_dec.children[0].c.data[0] += F::ONE;
-    bad_nifs.fold = FoldProof::recursive_materialized(nifs_proof);
     builder.push_case(
         "nifs_pi_dec_child_mutation",
         recursive_input.clone(),
@@ -1144,9 +1139,6 @@ fn build_native_step_corpus() -> NativeStepCorpus {
     let ProofState::Active { running, .. } = &bad_accumulator_handle.proof else {
         panic!("incoming-handle mutation fixture must be active")
     };
-    let running = running
-        .as_materialized()
-        .expect("incoming-handle mutation fixture is materialized");
     assert_ne!(
         bad_accumulator_handle.acc_digest,
         AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest(),

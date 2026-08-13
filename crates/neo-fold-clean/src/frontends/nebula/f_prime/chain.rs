@@ -6,7 +6,7 @@
 //! finalization consumes the trailing claim.
 
 use neo_ajtai::Commitment;
-use neo_ccs::{LaneCommitments, Mat};
+use neo_ccs::LaneCommitments;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
@@ -29,7 +29,7 @@ use crate::frontends::r1cs_f_prime::lowering::{
 };
 use crate::lifecycle::{self, Preprocessing, Uncompressed, UncompressedAudit};
 use crate::paper::construction2::{
-    FoldProof, LaneCommitmentMode, NebulaError, NebulaLane, ProofState, SemanticStateMode, State,
+    LaneCommitmentMode, NebulaError, NebulaLane, SemanticStateAdvance, SemanticStateMode, State,
 };
 use crate::paper::digest::{
     digest32_as_fields, digest_fields_as_digest32, f_prime_chunk_public_digest_for_uniform_shape,
@@ -48,7 +48,7 @@ use crate::paper::nifs::{
     NifsFreshInstancesRequest, NifsFreshSignedUnitInstancesRequest, NifsProof, NifsProverAdapter,
 };
 use crate::paper::params::Params;
-use crate::paper::relations::{CcsClaim, CcsInstance, CcsWitness, CeClaim, LaneSchemeError, RelationError};
+use crate::paper::relations::{CcsInstance, LaneSchemeError, RelationError};
 
 #[derive(Debug, Error)]
 pub enum NebulaFPrimeChainError {
@@ -140,41 +140,12 @@ impl NebulaFPrimePreprocessing {
         Self::from_relation(params, plan, relation, None)
     }
 
-    /// Compile and preprocess only when the final relation fits the caller's
-    /// committed-coordinate limit.
-    pub fn new_with_coordinate_limit(
-        params: Params,
-        plan: NebulaPlan,
-        max_coordinates: usize,
-    ) -> Result<Self, NebulaFPrimeChainError> {
-        let relation =
-            NebulaFPrimeRelation::compile_fixed_point_with_coordinate_limit(&params, &plan, max_coordinates)?;
-        Self::from_relation(params, plan, relation, None)
-    }
-
     pub fn new_with_application(
         params: Params,
         plan: NebulaPlan,
         application: NebulaApplication,
     ) -> Result<Self, NebulaFPrimeChainError> {
         let relation = NebulaFPrimeRelation::compile_application_fixed_point(&params, &plan, application)?;
-        Self::from_relation(params, plan, relation, None)
-    }
-
-    /// Compile and preprocess an application relation only when its final
-    /// committed width fits the caller's limit.
-    pub fn new_with_application_and_coordinate_limit(
-        params: Params,
-        plan: NebulaPlan,
-        application: NebulaApplication,
-        max_coordinates: usize,
-    ) -> Result<Self, NebulaFPrimeChainError> {
-        let relation = NebulaFPrimeRelation::compile_application_fixed_point_with_coordinate_limit(
-            &params,
-            &plan,
-            application,
-            max_coordinates,
-        )?;
         Self::from_relation(params, plan, relation, None)
     }
 
@@ -194,24 +165,6 @@ impl NebulaFPrimePreprocessing {
         seed: u64,
     ) -> Result<Self, NebulaFPrimeChainError> {
         let relation = NebulaFPrimeRelation::compile_application_fixed_point(&params, &plan, application)?;
-        let log = ajtai::setup_seeded(&params, relation.structure(), seed);
-        Self::from_relation(params, plan, relation, Some(log))
-    }
-
-    #[doc(hidden)]
-    pub fn new_seeded_with_application_and_coordinate_limit(
-        params: Params,
-        plan: NebulaPlan,
-        application: NebulaApplication,
-        seed: u64,
-        max_coordinates: usize,
-    ) -> Result<Self, NebulaFPrimeChainError> {
-        let relation = NebulaFPrimeRelation::compile_application_fixed_point_with_coordinate_limit(
-            &params,
-            &plan,
-            application,
-            max_coordinates,
-        )?;
         let log = ajtai::setup_seeded(&params, relation.structure(), seed);
         Self::from_relation(params, plan, relation, Some(log))
     }
@@ -644,77 +597,34 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             self.audit = Some(audit);
             return Err(NebulaFPrimeChainError::SemanticInputMismatch);
         }
-        let (running, running_parent_authority, fresh, placeholder) = match &audit.proof.state.proof {
-            ProofState::Active { running, latest } => {
-                let running = running
-                    .materialize_prover_input()
-                    .map_err(crate::paper::construction2::Error::from)
-                    .map_err(lifecycle::Error::from)?;
-                let prior = latest
-                    .instances
-                    .first()
-                    .ok_or(NebulaFPrimeChainError::ExpectedActiveState)?;
-                let placeholder = CcsInstance {
-                    claim: prior.claim.clone(),
-                    witness: CcsWitness {
-                        w: Vec::new(),
-                        Z: Mat::zero(0, 0, F::ZERO),
-                    },
-                };
-                (
-                    running.claims.clone(),
-                    running.parent_authority.clone(),
-                    latest.claims(),
-                    placeholder,
-                )
-            }
-            ProofState::Initial => return Err(NebulaFPrimeChainError::ExpectedActiveState),
-        };
         let branch = if pre.step_count <= 1 {
             NebulaFPrimeBranch::BootstrapRecursive
         } else {
             NebulaFPrimeBranch::Recursive
         };
         let semantic_output = semantic.and_then(|values| values.output);
-        let pending = match (semantic_output, adapter) {
-            (Some(output), Some(adapter)) => crate::lifecycle::prove::extend_with_semantic_state_and_nifs_adapter(
+        let semantic_advance = match semantic_output {
+            Some(output) => SemanticStateAdvance::Stateful(digest_fields_as_digest32(output)),
+            None => SemanticStateAdvance::Stateless,
+        };
+        let fold = match adapter {
+            Some(adapter) => crate::lifecycle::prove::prepare_recursive_step_with_nifs_adapter(
                 &self.prep.prep,
                 adapter,
                 audit,
-                vec![placeholder],
-                digest_fields_as_digest32(output),
+                semantic_advance,
             )?,
-            (Some(output), None) => crate::lifecycle::prove::extend_with_semantic_state(
-                &self.prep.prep,
-                audit,
-                vec![placeholder],
-                digest_fields_as_digest32(output),
-            )?,
-            (None, Some(adapter)) => {
-                lifecycle::extend_with_nifs_adapter(&self.prep.prep, adapter, audit, vec![placeholder])?
-            }
-            (None, None) => lifecycle::extend(&self.prep.prep, audit, vec![placeholder])?,
+            None => crate::lifecycle::prove::prepare_recursive_step(&self.prep.prep, audit, semantic_advance)?,
         };
-        let nifs = match &pending
-            .steps
-            .last()
-            .ok_or(NebulaFPrimeChainError::ExpectedRecursiveFold)?
-            .fold
-        {
-            FoldProof::Recursive(proof) => proof
-                .materialize()
-                .map_err(crate::paper::construction2::Error::from)
-                .map_err(lifecycle::Error::from)?,
-            FoldProof::NoFold => return Err(NebulaFPrimeChainError::ExpectedRecursiveFold),
-        };
+        let nifs = fold.nifs_proof()?;
         #[cfg(feature = "perf-timers")]
         {
             let combined = &nifs.pi_rlc.combined;
             let child = nifs.pi_dec.children.first();
             eprintln!(
                 "[folded-f-prime] fresh={} running={} outputs={} children={} sumcheck={}x{} combined=(adv={}, c={}, X={}x{}, r={}, y_rows={}) child={:?}",
-                fresh.len(),
-                running.len(),
+                fold.fresh().len(),
+                fold.running().len(),
                 nifs.pi_ccs.outputs.len(),
                 nifs.pi_dec.children.len(),
                 nifs.pi_ccs.sumcheck.sumcheck_rounds.len(),
@@ -735,16 +645,14 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 )),
             );
         }
-        let post = StateCoordinates::from_state(&pending.proof.state);
+        let pre = StateCoordinates::from_protocol(fold.pre());
+        let post = StateCoordinates::from_protocol(fold.post());
         Ok(PreparedStep::Recursive {
             branch,
             pre,
             post,
-            fresh,
-            running,
-            running_parent_authority,
             nifs,
-            pending,
+            fold,
         })
     }
 
@@ -831,21 +739,14 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 };
                 (NebulaFPrimeBranch::Base, output)
             }
-            PreparedStep::Recursive {
-                branch,
-                fresh,
-                running,
-                running_parent_authority,
-                nifs,
-                ..
-            } => {
+            PreparedStep::Recursive { branch, nifs, fold, .. } => {
                 let prior_public = source.push_f_prime_public_input(pre.x_out_fields(&self.prep.prep));
                 let prior_x_out_bits = BitRange::new(prior_public.start() + 1, F_PRIME_ENC_INST_BITS);
                 let public_x_out_bits = source.push_enc_inst(post.x_out_fields(&self.prep.prep));
                 let messages = NifsVCircuitMessages {
-                    fresh,
-                    running,
-                    running_parent_authority: running_parent_authority.as_ref(),
+                    fresh: fold.fresh(),
+                    running: fold.running(),
+                    running_parent_authority: fold.running_parent_authority(),
                     pi_ccs: &nifs.pi_ccs,
                     combined: &nifs.pi_rlc.combined,
                     children: &nifs.pi_dec.children,
@@ -953,7 +854,6 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                         log: &self.prep.prep.log,
                         m_in: self.prep.relation.public_input_len(),
                         assignments: &dense_assignments,
-                        image_overlay: None,
                         lane_scheme: Some(&self.prep.relation.nebula_config().scheme),
                     })
                     .map_err(crate::paper::construction2::Error::from)
@@ -1060,20 +960,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 (_, Some(adapter)) => lifecycle::prove_with_nifs_adapter(&self.prep.prep, adapter, [vec![instance]])?,
                 (_, None) => lifecycle::prove(&self.prep.prep, [vec![instance]])?,
             },
-            PreparedStep::Recursive { mut pending, .. } => {
-                let claim = instance.claim.clone();
-                match &mut pending.proof.state.proof {
-                    ProofState::Active { latest, .. } => {
-                        *latest = crate::paper::construction2::LatestInstance::from_instances(vec![instance]);
-                    }
-                    ProofState::Initial => return Err(NebulaFPrimeChainError::ExpectedActiveState),
-                }
-                *pending
-                    .public_batches
-                    .last_mut()
-                    .ok_or(NebulaFPrimeChainError::ExpectedActiveState)? = vec![claim];
-                pending
-            }
+            PreparedStep::Recursive { fold, .. } => fold.complete(instance)?,
         });
         Ok(())
     }
@@ -1088,11 +975,8 @@ enum PreparedStep {
         branch: NebulaFPrimeBranch,
         pre: StateCoordinates,
         post: StateCoordinates,
-        fresh: Vec<CcsClaim>,
-        running: Vec<CeClaim>,
-        running_parent_authority: Option<CeClaim>,
         nifs: NifsProof,
-        pending: UncompressedAudit,
+        fold: crate::lifecycle::prove::PreparedRecursiveStep,
     },
 }
 
@@ -1149,6 +1033,20 @@ impl StateCoordinates {
     }
 
     fn from_state(state: &State) -> Self {
+        Self {
+            chunk_count: state.chunk_count,
+            step_count: state.step_count,
+            z_0: digest32_as_fields(state.z_0),
+            z_i: digest32_as_fields(state.z_i),
+            pc: state.pc,
+            semantic_state_digest: digest32_as_fields(state.semantic_state_digest),
+            acc_digest: digest32_as_fields(state.acc_digest),
+            public_trace: digest32_as_fields(state.public_trace),
+            nebula: state.nebula.clone(),
+        }
+    }
+
+    fn from_protocol(state: &crate::paper::construction2::StateCoordinates) -> Self {
         Self {
             chunk_count: state.chunk_count,
             step_count: state.step_count,

@@ -58,10 +58,12 @@ pub(super) fn process_chunk(builder: &mut R1csBuilder, bits: &[Var], cumulative:
 }
 
 fn chunk_linear_combination(bits: &[Var]) -> Lc {
-    let mut chunk = Lc::zero();
+    // The low-word distribution has one extra raw zero. Complement maps that
+    // value to the existing rejected candidate 65535 without extra wires.
+    let mut chunk = Lc::from_const(F::from_u64(BUCKET));
     let mut power = F::ONE;
     for &bit in bits {
-        chunk.add_term(bit, power);
+        chunk.add_term(bit, -power);
         power += power;
     }
     chunk

@@ -5,22 +5,23 @@ Stable facade for the active fixed-recursive PiRLC transcript layout.
 
 Owns: the exact physical source-row partition, constant pins, compact
 Poseidon2-call locations, emission order, state-column continuity, boundary
-state columns/cursors, 240 field-output aliases, and four external bind-input
+state columns/cursors, 480 field-output aliases, and four external bind-input
 columns exported by the Rust trace drift gate.
 
 Does not own: row satisfaction, message or cursor semantics, Poseidon2
 correctness, transcript replay, Fiat-Shamir authority, sampler correctness, or
 permission to remove rows.
 
-Assurance tier: artifact-checked physical layout. Stage labels are extraction
+Assurance tier: artifact-checked physical layout. Each proof certificate stays
+inside one protocol prelude or sampler-group phase. Stage labels are extraction
 provenance only; digests remain non-authoritative until replayed by a verifier.
 
 | Surface | Fixed profile | Structural boundary |
 |---|---:|---|
-| source partition | 76 ranges / 82,612 rows | 412 pins plus 137 compact 600-row calls |
-| ordered emissions | 549 | every pin and call occurs exactly once |
-| state continuity | 136 adjacent call edges | exact same-lane column aliases only |
-| field outputs | 15 x 4 x 4 = 240 | compact-call output to canonical-u64 input aliases |
+| source partition | 136 ranges / 154,972 rows | 772 pins plus 257 compact 600-row calls |
+| ordered emissions | 1,029 | every pin and call occurs exactly once |
+| state continuity | 256 adjacent call edges | exact same-lane column aliases only |
+| field outputs | 15 x 8 x 4 = 480 | compact-call output to canonical-u64 input aliases |
 | external bind inputs | 4 columns | physical locations only |
 -/
 
@@ -32,8 +33,109 @@ namespace Generated
 
 open Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallengeTranscriptLayoutData
 
-abbrev artifact : TranscriptLayout :=
-  FPrimeRecursivePiRlcChallengeTranscriptLayoutData.layout
+abbrev artifact : TranscriptLayout := layout
+abbrev phases : List Phase := phaseSequence
+
+abbrev preludePhase : Phase := Prelude.phase
+abbrev group00Phase : Phase := Group00.phase
+abbrev group01Phase : Phase := Group01.phase
+abbrev group02Phase : Phase := Group02.phase
+abbrev group03Phase : Phase := Group03.phase
+abbrev group04Phase : Phase := Group04.phase
+abbrev group05Phase : Phase := Group05.phase
+abbrev group06Phase : Phase := Group06.phase
+abbrev group07Phase : Phase := Group07.phase
+abbrev group08Phase : Phase := Group08.phase
+abbrev group09Phase : Phase := Group09.phase
+abbrev group10Phase : Phase := Group10.phase
+abbrev group11Phase : Phase := Group11.phase
+abbrev group12Phase : Phase := Group12.phase
+abbrev group13Phase : Phase := Group13.phase
+abbrev group14Phase : Phase := Group14.phase
+
+/-- Kernel-checked evidence at every protocol-owned phase boundary. -/
+structure Certificates : Prop where
+  prelude : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns none
+    preludePhase
+  group00 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some preludePhase) group00Phase
+  group01 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group00Phase) group01Phase
+  group02 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group01Phase) group02Phase
+  group03 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group02Phase) group03Phase
+  group04 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group03Phase) group04Phase
+  group05 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group04Phase) group05Phase
+  group06 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group05Phase) group06Phase
+  group07 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group06Phase) group07Phase
+  group08 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group07Phase) group08Phase
+  group09 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group08Phase) group09Phase
+  group10 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group09Phase) group10Phase
+  group11 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group10Phase) group11Phase
+  group12 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group11Phase) group12Phase
+  group13 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group12Phase) group13Phase
+  group14 : Phase.ValidAfter artifact.sourceRows artifact.sourceColumns
+    (some group13Phase) group14Phase
+
+theorem certificates : Certificates where
+  prelude := Prelude.valid
+  group00 := Group00.valid
+  group01 := Group01.valid
+  group02 := Group02.valid
+  group03 := Group03.valid
+  group04 := Group04.valid
+  group05 := Group05.valid
+  group06 := Group06.valid
+  group07 := Group07.valid
+  group08 := Group08.valid
+  group09 := Group09.valid
+  group10 := Group10.valid
+  group11 := Group11.valid
+  group12 := Group12.valid
+  group13 := Group13.valid
+  group14 := Group14.valid
+
+theorem pinCount : artifact.constantPins.length = 772 :=
+  constantPins_length
+
+theorem callCount : artifact.calls.length = 257 :=
+  calls_length
+
+theorem emissionCount : artifact.emissionOrder.length = 1029 :=
+  emissionOrder_length
+
+theorem ownedRangeCount : artifact.ownedRanges.length = 136 :=
+  ownedRanges_length
+
+theorem continuityCount : artifact.stateContinuity.length = 256 :=
+  stateContinuity_length
+
+theorem aliasCount : artifact.fieldOutputAliases.length = 480 :=
+  fieldOutputAliases_length
+
+theorem pinIndices :
+    pinEmissionIndices artifact.emissionOrder = List.range 772 :=
+  pinEmissionIndices_eq
+
+theorem callIndices :
+    callEmissionIndices artifact.emissionOrder = List.range 257 :=
+  callEmissionIndices_eq
+
+theorem pinValuesCanonical :
+    artifact.constantPins.all
+      (fun pin => decide (pin.value < 18446744069414584321)) = true :=
+  constantPinValuesCanonical
 
 end Generated
 
@@ -47,7 +149,7 @@ abbrev stateContinuity : List StateContinuity := artifact.stateContinuity
 abbrev fieldOutputAliases : List FieldOutputAlias := artifact.fieldOutputAliases
 
 def groupCount : Nat := 15
-def digestBlockCount : Nat := 4
+def digestBlockCount : Nat := 8
 def lanesPerBlock : Nat := 4
 
 def constantPinAt (index : Fin constantPins.length) : ConstantPin :=
@@ -75,87 +177,46 @@ abbrev finalStateColumns : List Nat := artifact.finalBoundary.stateColumns
 abbrev finalCursor : Nat := artifact.finalBoundary.cursor
 abbrev piCcsOutputDigestInputColumns : List Nat := artifact.bindInputColumns
 
-private def emissionSpan : EmissionRef → Nat × Nat
-  | .pin index =>
-      let pin := constantPins.getD index default
-      (pin.row, pin.row + 1)
-  | .call index =>
-      let call := calls.getD index default
-      (call.rowStart, call.rowEnd)
+/-- One property stated uniformly for every generated protocol phase. -/
+structure PhaseChecks (property : Phase → Prop) : Prop where
+  prelude : property Generated.preludePhase
+  group00 : property Generated.group00Phase
+  group01 : property Generated.group01Phase
+  group02 : property Generated.group02Phase
+  group03 : property Generated.group03Phase
+  group04 : property Generated.group04Phase
+  group05 : property Generated.group05Phase
+  group06 : property Generated.group06Phase
+  group07 : property Generated.group07Phase
+  group08 : property Generated.group08Phase
+  group09 : property Generated.group09Phase
+  group10 : property Generated.group10Phase
+  group11 : property Generated.group11Phase
+  group12 : property Generated.group12Phase
+  group13 : property Generated.group13Phase
+  group14 : property Generated.group14Phase
 
-private def spansCover (cursor finish : Nat) : List (Nat × Nat) → Bool
-  | [] => decide (cursor = finish)
-  | (start, stop) :: rest =>
-      decide (start = cursor) && decide (start < stop) &&
-        spansCover stop finish rest
-
-private def rangeCovered (owned : OwnedRange) : Bool :=
-  let scheduled :=
-    (emissionOrder.drop owned.emissionStart).take
-      (owned.emissionEnd - owned.emissionStart)
-  decide (owned.emissionStart < owned.emissionEnd) &&
-    decide (owned.emissionEnd ≤ emissionOrder.length) &&
-    spansCover owned.rowStart owned.rowEnd (scheduled.map emissionSpan)
-
-private def rangesCoverEmissionsFrom : Nat → List OwnedRange → Bool
-  | cursor, [] => decide (cursor = emissionOrder.length)
-  | cursor, owned :: rest =>
-      decide (owned.emissionStart = cursor) && rangeCovered owned &&
-        rangesCoverEmissionsFrom owned.emissionEnd rest
-
-private def sourceRangesOrdered : List OwnedRange → Bool
-  | [] => true
-  | [_] => true
-  | first :: second :: rest =>
-      decide (first.rowEnd ≤ second.rowStart) &&
-        sourceRangesOrdered (second :: rest)
-
-private def ownedRowTotal : Nat :=
-  ownedRanges.foldl
-    (fun total owned => total + (owned.rowEnd - owned.rowStart)) 0
-
-private def emissionRefValid : EmissionRef → Bool
-  | .pin index => decide (index < constantPins.length)
-  | .call index => decide (index < calls.length)
-
-private def emissionSpansStrictlyOrdered : List (Nat × Nat) → Bool
-  | [] => true
-  | [_] => true
-  | first :: second :: rest =>
-      decide (first.2 ≤ second.1) &&
-        emissionSpansStrictlyOrdered (second :: rest)
-
-private def emissionMultiplicityValid : Bool :=
-  emissionOrder.all emissionRefValid &&
-    emissionSpansStrictlyOrdered (emissionOrder.map emissionSpan) &&
-    decide (emissionOrder.length = constantPins.length + calls.length)
-
-private def pinValid (pin : ConstantPin) : Bool :=
-  decide (pin.row < artifact.sourceRows) &&
-    decide (pin.column < artifact.sourceColumns) &&
-    decide (pin.value < 18446744069414584321)
-
-private def callValidAt (index : Nat) : Bool :=
-  let call := calls.getD index default
-  decide (call.traceIndex = 174 + index) &&
-    decide (call.rowStart < call.rowEnd) &&
-    decide (call.rowEnd - call.rowStart = 600) &&
-    decide (call.rowEnd ≤ artifact.sourceRows) &&
-    decide (call.inputColumns.length = 8) &&
-    call.inputColumns.all (fun column => decide (column < artifact.sourceColumns)) &&
-    decide (call.firstAllocatedColumn + 600 ≤ artifact.sourceColumns)
-
-private def matchingLanes (fromCall toCall : CompactCall) : List Nat :=
-  (List.range 8).filter fun lane =>
-    decide (fromCall.outputColumn lane = toCall.inputColumns.getD lane 0)
-
-private def continuityValidAt (index : Nat) : Bool :=
-  let continuity := stateContinuity.getD index default
-  let fromCall := calls.getD index default
-  let toCall := calls.getD (index + 1) default
-  decide (continuity.fromCall = index) &&
-    decide (continuity.toCall = index + 1) &&
-    decide (continuity.lanes = matchingLanes fromCall toCall)
+def Generated.Certificates.map
+    {property : Phase → Prop} (certificate : Generated.Certificates)
+    (ofValid : ∀ {previous phase},
+      Phase.ValidAfter artifact.sourceRows artifact.sourceColumns previous phase →
+        property phase) : PhaseChecks property where
+  prelude := ofValid certificate.prelude
+  group00 := ofValid certificate.group00
+  group01 := ofValid certificate.group01
+  group02 := ofValid certificate.group02
+  group03 := ofValid certificate.group03
+  group04 := ofValid certificate.group04
+  group05 := ofValid certificate.group05
+  group06 := ofValid certificate.group06
+  group07 := ofValid certificate.group07
+  group08 := ofValid certificate.group08
+  group09 := ofValid certificate.group09
+  group10 := ofValid certificate.group10
+  group11 := ofValid certificate.group11
+  group12 := ofValid certificate.group12
+  group13 := ofValid certificate.group13
+  group14 := ofValid certificate.group14
 
 private def matchingBoundaryLanes
     (boundary : Boundary) (call : CompactCall) : List Nat :=
@@ -164,9 +225,10 @@ private def matchingBoundaryLanes
       call.inputColumns.getD lane 0)
 
 private def boundaryValid : Bool :=
-  let firstCall := calls.getD 0 default
-  let firstRhoCall := calls.getD artifact.firstRhoCallIndex default
-  let lastCall := calls.getD (calls.length - 1) default
+  let firstCall := Generated.preludePhase.calls.getD 0 default
+  let firstRhoCall := Generated.group00Phase.calls.getD 0 default
+  let lastCalls := Generated.group14Phase.calls
+  let lastCall := lastCalls.getD (lastCalls.length - 1) default
   decide (artifact.entryProducerTraceIndex = 156) &&
     decide (initialStateColumns.length = 8) &&
     decide (initialCursor = 0) &&
@@ -182,106 +244,133 @@ private def boundaryValid : Bool :=
     decide (artifact.postBindToFirstRhoCallLanes = [0, 4, 5, 6, 7]) &&
     decide (finalStateColumns = lastCall.outputColumns)
 
-private def fieldOutputAliasValidAt (index : Nat) : Bool :=
-  let alias := fieldOutputAliases.getD index default
-  let call := calls.getD alias.callIndex default
-  decide (alias.ordinal = index) &&
-    decide (alias.groupIndex = index / 16) &&
-    decide (alias.blockIndex = (index / 4) % 4) &&
-    decide (alias.laneIndex = index % 4) &&
-    decide (alias.groupIndex < groupCount) &&
-    decide (alias.blockIndex < digestBlockCount) &&
-    decide (alias.laneIndex < lanesPerBlock) &&
-    decide (alias.callIndex = 4 + 9 * alias.groupIndex + 2 * alias.blockIndex) &&
-    decide (alias.outputLane = alias.laneIndex) &&
-    decide (alias.fieldColumn = call.outputColumn alias.outputLane) &&
-    decide (alias.canonicalRowEnd - alias.canonicalRowStart = 69) &&
-    decide (call.rowEnd ≤ alias.canonicalRowStart) &&
-    decide (alias.canonicalRowEnd ≤ artifact.sourceRows)
+/-- Complete physical-layout contract. Large data is proved only through the
+kernel-sized phase certificates. -/
+structure StructureValid : Prop where
+  sourceRows : artifact.sourceRows = 7169252
+  sourceColumns : artifact.sourceColumns = 7100181
+  ownedRows : artifact.ownedRowCount = 154972
+  ownedRangeCount : ownedRanges.length = 136
+  pinCount : constantPins.length = 772
+  callCount : calls.length = 257
+  emissionCount : emissionOrder.length = 1029
+  continuityCount : stateContinuity.length = 256
+  aliasCount : fieldOutputAliases.length = 480
+  bindCallIndices : artifact.bindCallIndices = [0, 1, 2]
+  firstRhoCall : artifact.firstRhoCallIndex = 3
+  bindInputCount : piCcsOutputDigestInputColumns.length = 4
+  finalOwnedRowCount :
+    Generated.group14Phase.ownedRowEnd = artifact.ownedRowCount
+  pinIndicesExact :
+    pinEmissionIndices emissionOrder = List.range constantPins.length
+  callIndicesExact :
+    callEmissionIndices emissionOrder = List.range calls.length
+  phasesValid : Generated.Certificates
+  boundaryValid : boundaryValid = true
 
-def StructureValid : Prop :=
-  artifact.sourceRows = 7080332 ∧
-    artifact.sourceColumns = 7011981 ∧
-    artifact.ownedRowCount = 82612 ∧
-    ownedRanges.length = 76 ∧
-    constantPins.length = 412 ∧
-    calls.length = 137 ∧
-    emissionOrder.length = 549 ∧
-    stateContinuity.length = 136 ∧
-    fieldOutputAliases.length = 240 ∧
-    artifact.bindCallIndices = [0, 1, 2] ∧
-    artifact.firstRhoCallIndex = 3 ∧
-    piCcsOutputDigestInputColumns.length = 4 ∧
-    ownedRowTotal = artifact.ownedRowCount ∧
-    rangesCoverEmissionsFrom 0 ownedRanges = true ∧
-    sourceRangesOrdered ownedRanges = true ∧
-    emissionMultiplicityValid = true ∧
-    constantPins.all pinValid = true ∧
-    (List.range calls.length).all callValidAt = true ∧
-    (List.range stateContinuity.length).all continuityValidAt = true ∧
-    boundaryValid = true ∧
-    (List.range fieldOutputAliases.length).all fieldOutputAliasValidAt = true
-
-instance : Decidable StructureValid := by
-  unfold StructureValid
-  infer_instance
-
-theorem structure_check : StructureValid := by
-  set_option maxRecDepth 100000 in
-    decide
-
-theorem exact_pin_count : constantPins.length = 412 := by
-  set_option maxRecDepth 100000 in
-    decide
-
-theorem exact_call_count : calls.length = 137 := by
-  set_option maxRecDepth 100000 in
-    decide
-
-theorem exact_emission_count : emissionOrder.length = 549 := by
-  set_option maxRecDepth 100000 in
-    decide
-
-theorem exact_field_output_alias_count : fieldOutputAliases.length = 240 :=
-  structure_check.2.2.2.2.2.2.2.2.1
+theorem exact_pin_count : constantPins.length = 772 := Generated.pinCount
+theorem exact_call_count : calls.length = 257 := Generated.callCount
+theorem exact_emission_count : emissionOrder.length = 1029 :=
+  Generated.emissionCount
+theorem exact_field_output_alias_count : fieldOutputAliases.length = 480 :=
+  Generated.aliasCount
 
 theorem exact_external_bind_input_count :
-    piCcsOutputDigestInputColumns.length = 4 :=
-  structure_check.2.2.2.2.2.2.2.2.2.2.2.1
+    piCcsOutputDigestInputColumns.length = 4 := by
+  rfl
+
+private theorem pin_indices_exact :
+    pinEmissionIndices emissionOrder = List.range constantPins.length := by
+  rw [exact_pin_count]
+  exact Generated.pinIndices
+
+private theorem call_indices_exact :
+    callEmissionIndices emissionOrder = List.range calls.length := by
+  rw [exact_call_count]
+  exact Generated.callIndices
+
+theorem structure_check : StructureValid where
+  sourceRows := rfl
+  sourceColumns := rfl
+  ownedRows := rfl
+  ownedRangeCount := Generated.ownedRangeCount
+  pinCount := exact_pin_count
+  callCount := exact_call_count
+  emissionCount := exact_emission_count
+  continuityCount := Generated.continuityCount
+  aliasCount := exact_field_output_alias_count
+  bindCallIndices := rfl
+  firstRhoCall := rfl
+  bindInputCount := exact_external_bind_input_count
+  finalOwnedRowCount := by decide
+  pinIndicesExact := pin_indices_exact
+  callIndicesExact := call_indices_exact
+  phasesValid := Generated.certificates
+  boundaryValid := by decide
 
 theorem ordered_emissions_cover_owned_ranges :
-    rangesCoverEmissionsFrom 0 ownedRanges = true := by
-  set_option maxRecDepth 100000 in
-    decide
+    PhaseChecks (fun phase => phase.ownedRangesCovered = true) :=
+  Generated.certificates.map (fun valid => valid.rangesCoverEmissions)
 
 theorem emissions_are_unique_and_in_bounds :
-    emissionMultiplicityValid = true := by
-  set_option maxRecDepth 100000 in
-    decide
+    PhaseChecks (fun phase =>
+      phase.emissionOrder.length =
+          phase.constantPins.length + phase.calls.length ∧
+        pinEmissionIndices phase.emissionOrder =
+          List.range' phase.pinStart phase.constantPins.length ∧
+        callEmissionIndices phase.emissionOrder =
+          List.range' phase.callStart phase.calls.length) :=
+  Generated.certificates.map fun valid =>
+    ⟨valid.emissionCount, valid.pinIndicesExact, valid.callIndicesExact⟩
 
 theorem pins_are_canonical_and_in_bounds :
-    constantPins.all pinValid = true := by
-  set_option maxRecDepth 100000 in
-    decide
+    PhaseChecks (fun phase =>
+      phase.constantPinsValid artifact.sourceRows artifact.sourceColumns = true) :=
+  Generated.certificates.map (fun valid => valid.pinsValid)
 
 theorem calls_have_exact_compact_abi :
-    (List.range calls.length).all callValidAt = true := by
-  set_option maxRecDepth 100000 in
-    decide
+    PhaseChecks (fun phase =>
+      phase.compactCallsValid artifact.sourceRows artifact.sourceColumns = true) :=
+  Generated.certificates.map (fun valid => valid.callsValid)
 
-theorem adjacent_call_state_columns_match :
-    (List.range stateContinuity.length).all continuityValidAt = true := by
-  set_option maxRecDepth 100000 in
-    decide
+theorem adjacent_call_state_columns_match : Generated.Certificates :=
+  Generated.certificates
 
-theorem boundary_columns_and_cursors_match : boundaryValid = true := by
-  set_option maxRecDepth 100000 in
-    decide
+theorem boundary_columns_and_cursors_match : boundaryValid = true :=
+  structure_check.boundaryValid
 
 theorem field_output_aliases_match_calls :
-    (List.range fieldOutputAliases.length).all fieldOutputAliasValidAt = true := by
-  set_option maxRecDepth 100000 in
-    decide
+    PhaseChecks (fun phase =>
+      phase.fieldOutputAliasesMatch artifact.sourceRows = true) :=
+  Generated.certificates.map (fun valid => valid.aliasesValid)
+
+private theorem pin_mem_indices_iff (index : Nat) (refs : List EmissionRef) :
+    .pin index ∈ refs ↔ index ∈ pinEmissionIndices refs := by
+  induction refs with
+  | nil => simp [pinEmissionIndices]
+  | cons head tail ih =>
+      cases head <;> simp [pinEmissionIndices, ih]
+
+private theorem call_mem_indices_iff (index : Nat) (refs : List EmissionRef) :
+    .call index ∈ refs ↔ index ∈ callEmissionIndices refs := by
+  induction refs with
+  | nil => simp [callEmissionIndices]
+  | cons head tail ih =>
+      cases head <;> simp [callEmissionIndices, ih]
+
+theorem pin_mem_emissionOrder_iff (index : Nat) :
+    .pin index ∈ emissionOrder ↔ index < constantPins.length := by
+  rw [pin_mem_indices_iff, pin_indices_exact, List.mem_range]
+
+theorem call_mem_emissionOrder_iff (index : Nat) :
+    .call index ∈ emissionOrder ↔ index < calls.length := by
+  rw [call_mem_indices_iff, call_indices_exact, List.mem_range]
+
+theorem constant_pin_value_canonical
+    (pin : ConstantPin) (member : pin ∈ constantPins) :
+    pin.value < 18446744069414584321 := by
+  exact of_decide_eq_true
+    ((List.all_eq_true.mp Generated.pinValuesCanonical) pin member)
 
 theorem initial_state_columns_eq :
     initialStateColumns =
@@ -303,8 +392,8 @@ theorem post_bind_cursor_eq : postBindCursor = 1 := by
 
 theorem final_state_columns_eq :
     finalStateColumns =
-      [4008779, 4008780, 4008781, 4008782,
-        4008783, 4008784, 4008785, 4008786] := by
+      [4097163, 4097164, 4097165, 4097166,
+        4097167, 4097168, 4097169, 4097170] := by
   rfl
 
 theorem final_cursor_eq : finalCursor = 0 := by
@@ -315,42 +404,18 @@ theorem pi_ccs_output_digest_input_columns_eq :
   rfl
 
 theorem constant_pin_profile :
-    ∀ index : Fin constantPins.length,
-      let pin := constantPinAt index
-      pin.row < artifact.sourceRows ∧
-        pin.column < artifact.sourceColumns ∧
-        pin.value < 18446744069414584321 := by
-  set_option maxRecDepth 100000 in
-    decide
+    PhaseChecks (fun phase =>
+      phase.constantPinsValid artifact.sourceRows artifact.sourceColumns = true) :=
+  pins_are_canonical_and_in_bounds
 
 theorem compact_call_profile :
-    ∀ index : Fin calls.length,
-      let call := compactCallAt index
-      call.traceIndex = 174 + index.val ∧
-        call.rowStart < call.rowEnd ∧
-        call.rowEnd - call.rowStart = 600 ∧
-        call.inputColumns.length = 8 ∧
-        call.outputColumns.length = 8 ∧
-        call.rowEnd ≤ artifact.sourceRows ∧
-        call.firstAllocatedColumn + 600 ≤ artifact.sourceColumns := by
-  set_option maxRecDepth 100000 in
-    decide
+    PhaseChecks (fun phase =>
+      phase.compactCallsValid artifact.sourceRows artifact.sourceColumns = true) :=
+  calls_have_exact_compact_abi
 
 theorem field_output_alias_at_formula :
-    ∀ group : Fin groupCount,
-      ∀ block : Fin digestBlockCount,
-        ∀ lane : Fin lanesPerBlock,
-          let alias := fieldOutputAliasAt group block lane
-          let call := calls.getD alias.callIndex default
-          alias.ordinal = group.val * 16 + block.val * 4 + lane.val ∧
-            alias.groupIndex = group.val ∧
-            alias.blockIndex = block.val ∧
-            alias.laneIndex = lane.val ∧
-            alias.callIndex = 4 + 9 * group.val + 2 * block.val ∧
-            alias.outputLane = lane.val ∧
-            alias.fieldColumn = call.outputColumn lane.val ∧
-            alias.canonicalRowEnd - alias.canonicalRowStart = 69 := by
-  set_option maxRecDepth 100000 in
-    decide
+    PhaseChecks (fun phase =>
+      phase.fieldOutputAliasesMatch artifact.sourceRows = true) :=
+  field_output_aliases_match_calls
 
 end Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallenge.TranscriptLayout

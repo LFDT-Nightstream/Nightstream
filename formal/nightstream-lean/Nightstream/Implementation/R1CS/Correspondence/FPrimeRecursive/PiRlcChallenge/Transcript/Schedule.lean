@@ -24,7 +24,7 @@ production decoder proves these normalized rows are the active F-prime rows.
 |---|---|---|
 | `nifs.pi_rlc.challenge.transcript.pins` | every emitted constant row fixes its listed canonical value | exact pin row plus full-row satisfaction |
 | `nifs.pi_rlc.challenge.transcript.poseidon2` | every 600-row call satisfies the independent fixed SSA program | exact call slice plus full-row satisfaction |
-| `nifs.pi_rlc.challenge.transcript.order` | all 291 pins and 78 calls occur exactly once in 369 emissions | kernel-reduced compact schedule check |
+| `nifs.pi_rlc.challenge.transcript.order` | all 772 pins and 257 calls occur exactly once in 1,029 emissions | phase-composed kernel certificate |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallenge.Transcript.Schedule
@@ -83,69 +83,73 @@ def RowsEmbedded (fullRows : List Row) : Prop :=
     ActiveIndexedRows.RowsEmbeddedAt fullRows (globalRowStart piece)
       (piece.rows trace)
 
-private def scheduledRefsBoundedCheck : Bool :=
-  schedule.all fun
-    | .pin index => decide (index < trace.pins.length)
-    | .call index => decide (index < trace.calls.length)
-
-private def everyPinScheduledCheck : Bool :=
-  (List.range trace.pins.length).all fun index =>
-    decide (.pin index ∈ schedule)
-
-private def everyCallScheduledCheck : Bool :=
-  (List.range trace.calls.length).all fun index =>
-    decide (.call index ∈ schedule)
-
-private theorem scheduledRefsBoundedCheck_true :
-    scheduledRefsBoundedCheck = true := by
-  set_option maxRecDepth 100000 in
-    decide
-
-private theorem everyPinScheduledCheck_true :
-    everyPinScheduledCheck = true := by
-  set_option maxRecDepth 100000 in
-    decide
-
-private theorem everyCallScheduledCheck_true :
-    everyCallScheduledCheck = true := by
-  set_option maxRecDepth 100000 in
-    decide
-
 theorem pinValuesCanonical : ConstantPins.ValuesCanonical trace.pins := by
-  set_option maxRecDepth 100000 in
-    decide
+  intro pin member
+  rcases List.mem_map.mp member with ⟨source, sourceMember, rfl⟩
+  exact FPrimeRecursivePiRlcChallenge.TranscriptLayout.constant_pin_value_canonical
+    source sourceMember
+
+private theorem pin_mem_schedule_iff (index : Nat) :
+    TranscriptCertificate.PieceRef.pin index ∈ schedule ↔
+      EmissionRef.pin index ∈ Layout.emissionOrder := by
+  constructor
+  · intro member
+    rcases List.mem_map.mp member with ⟨ref, refMember, mapped⟩
+    cases ref with
+    | pin sourceIndex =>
+        simp only [pieceRef, TranscriptCertificate.PieceRef.pin.injEq] at mapped
+        subst sourceIndex
+        exact refMember
+    | call sourceIndex =>
+        simp [pieceRef] at mapped
+  · intro member
+    exact List.mem_map.mpr ⟨.pin index, member, rfl⟩
+
+private theorem call_mem_schedule_iff (index : Nat) :
+    TranscriptCertificate.PieceRef.call index ∈ schedule ↔
+      EmissionRef.call index ∈ Layout.emissionOrder := by
+  constructor
+  · intro member
+    rcases List.mem_map.mp member with ⟨ref, refMember, mapped⟩
+    cases ref with
+    | pin sourceIndex =>
+        simp [pieceRef] at mapped
+    | call sourceIndex =>
+        simp only [pieceRef, TranscriptCertificate.PieceRef.call.injEq] at mapped
+        subst sourceIndex
+        exact refMember
+  · intro member
+    exact List.mem_map.mpr ⟨.call index, member, rfl⟩
 
 private theorem scheduled_pin_bounded
     (index : Nat) (member : .pin index ∈ schedule) :
     index < trace.pins.length := by
-  have checked := (List.all_eq_true.mp scheduledRefsBoundedCheck_true)
-    (.pin index) member
-  exact of_decide_eq_true checked
+  rw [pin_mem_schedule_iff,
+    FPrimeRecursivePiRlcChallenge.TranscriptLayout.pin_mem_emissionOrder_iff]
+    at member
+  simpa [trace, Layout.constantPins] using member
 
 private theorem scheduled_call_bounded
     (index : Nat) (member : .call index ∈ schedule) :
     index < trace.calls.length := by
-  have checked := (List.all_eq_true.mp scheduledRefsBoundedCheck_true)
-    (.call index) member
-  exact of_decide_eq_true checked
+  rw [call_mem_schedule_iff,
+    FPrimeRecursivePiRlcChallenge.TranscriptLayout.call_mem_emissionOrder_iff]
+    at member
+  simpa [trace, Layout.calls] using member
 
 private theorem every_pin_scheduled
     (index : Nat) (bounded : index < trace.pins.length) :
     .pin index ∈ schedule := by
-  have inRange : index ∈ List.range trace.pins.length :=
-    List.mem_range.mpr bounded
-  have checked := (List.all_eq_true.mp everyPinScheduledCheck_true)
-    index inRange
-  exact of_decide_eq_true checked
+  rw [pin_mem_schedule_iff,
+    FPrimeRecursivePiRlcChallenge.TranscriptLayout.pin_mem_emissionOrder_iff]
+  simpa [trace, Layout.constantPins] using bounded
 
 private theorem every_call_scheduled
     (index : Nat) (bounded : index < trace.calls.length) :
     .call index ∈ schedule := by
-  have inRange : index ∈ List.range trace.calls.length :=
-    List.mem_range.mpr bounded
-  have checked := (List.all_eq_true.mp everyCallScheduledCheck_true)
-    index inRange
-  exact of_decide_eq_true checked
+  rw [call_mem_schedule_iff,
+    FPrimeRecursivePiRlcChallenge.TranscriptLayout.call_mem_emissionOrder_iff]
+  simpa [trace, Layout.calls] using bounded
 
 /-- Kernel-clean exact schedule certificate for the active compact trace. -/
 theorem orderedValid : trace.OrderedValid schedule ownerRows :=

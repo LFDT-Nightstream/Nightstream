@@ -8,9 +8,8 @@ use crate::paper::params::Params;
 
 /// Human-readable identifier for the strict production profile.
 pub const PRODUCTION_PROFILE: &str = "superneo-appendix-b2-goldilocks-b2";
-/// Identifier for R1CS tests/frontends that use the production core with a
-/// shape-specific effective lambda.
-pub const R1CS_PROFILE: &str = "superneo-appendix-b2-goldilocks-b2-r1cs-effective-lambda";
+/// Identifier for the production core with an exact shape-derived lambda.
+pub const R1CS_PROFILE: &str = "superneo-appendix-b2-goldilocks-b2-shape-derived-lambda";
 
 /// Base field modulus q = 2^64 - 2^32 + 1.
 pub const Q: u64 = neo_params::goldilocks_paper_b2::Q;
@@ -37,22 +36,6 @@ pub const EXTENSION_DEGREE: u32 = neo_params::goldilocks_paper_b2::EXTENSION_DEG
 /// This value is not the executable profile's combined statistical security.
 /// Shape-specific constructors select the header-bound value below it.
 pub const LAMBDA: u32 = neo_params::goldilocks_paper_b2::LAMBDA;
-/// Minimum combined statistical security accepted by the executable
-/// padded-row `s = 2` profile.
-///
-/// The census adds the joint SumCheck error, the paper mixing error, and
-/// Appendix D.5's conservative coordinate-fork error. This is a per-protocol
-/// invocation floor; it is not a lifetime or computational-hardness claim.
-pub const MIN_EFFECTIVE_LAMBDA: u32 = 100;
-/// Extra slack required by the extension-field policy.
-pub const EXTENSION_SAFETY_MARGIN_BITS: u32 = 2;
-/// Declared end-to-end target for a maximum-geometry Nebula chain under the
-/// conservative, pre-review projection census.
-pub const NEBULA_END_TO_END_SECURITY_BITS: u32 = 64;
-/// `log2(q_H)` bound on adversarial random-oracle queries used by the
-/// Fiat-Shamir reduction for the maximum-chain security statement.
-pub const NEBULA_MAX_FS_QUERY_BITS: u32 = 16;
-
 /// Return the unmodified SuperNeo Appendix B.2 reference parameters.
 ///
 /// This constructor is for table and serialization comparisons. Executable
@@ -65,16 +48,14 @@ pub fn production_params() -> Params {
 /// Return the Appendix B.2 core parameters for an R1CS-derived CCS shape.
 ///
 /// This keeps q, eta, d, kappa, m, b, k_rho, B, T, and s fixed to the
-/// production profile. The effective lambda may be lower than 125 when
-/// the concrete CCS shape needs more room under the current `s = 2`
-/// optimized-engine extension policy, with a hard floor at
-/// [`MIN_EFFECTIVE_LAMBDA`].
+/// production profile. The effective lambda can be lower than 125 when the
+/// concrete CCS shape has a larger exact error census.
 ///
 /// The joint row cube covers the larger of the padded relation rows and the
 /// padded assignment width. Keep both dimensions so parameter selection uses
 /// the actual rectangular shape.
 pub fn r1cs_params(ccs_rows: usize, ccs_vars: usize) -> Result<Params, neo_params::ParamsError> {
-    Params::for_r1cs_shape_with(ccs_rows, ccs_vars, MIN_EFFECTIVE_LAMBDA, EXTENSION_SAFETY_MARGIN_BITS)
+    Params::for_r1cs_shape(ccs_rows, ccs_vars)
 }
 
 /// Return Appendix B.2 core params for a concrete CCS shape.
@@ -89,12 +70,5 @@ pub fn ccs_params(
     matrix_count: usize,
     poly_degree: u32,
 ) -> Result<Params, neo_params::ParamsError> {
-    Params::for_ccs_shape_with(
-        ccs_rows,
-        ccs_vars,
-        matrix_count,
-        poly_degree,
-        MIN_EFFECTIVE_LAMBDA,
-        EXTENSION_SAFETY_MARGIN_BITS,
-    )
+    Params::for_ccs_shape(ccs_rows, ccs_vars, matrix_count, poly_degree)
 }

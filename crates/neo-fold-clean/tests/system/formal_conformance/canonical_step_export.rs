@@ -628,9 +628,6 @@ impl Builder {
                 (RustProofState::Initial, running, fresh)
             }
             ProofState::Active { running, latest } => {
-                let running = running
-                    .as_materialized()
-                    .expect("linked differential running is materialized");
                 let latest = latest.claims();
                 let running_id = self.running(running);
                 let fresh_id = self.fresh(&latest);
@@ -668,11 +665,8 @@ impl Builder {
                 let id = self.nifs(None);
                 (RustFold::NoFold, id)
             }
-            FoldProof::Recursive(carrier) => {
-                let proof = carrier
-                    .materialize()
-                    .expect("linked differential NIFS proof is materialized");
-                let id = self.nifs(Some(&proof));
+            FoldProof::Recursive(proof) => {
+                let id = self.nifs(Some(proof));
                 (RustFold::Recursive { proof: id }, id)
             }
         }
@@ -719,8 +713,7 @@ fn execution_facts(prep: &Preprocessing, state: State, next_latest: &[CcsClaim],
         proof,
         SemanticStateMode::Stateless,
         None,
-    )
-    .expect("linked differential inputs are materialized");
+    );
     let mut event_order = Vec::with_capacity(receipt.events.len());
     let mut dispatch = None;
     let mut nifs = None;
@@ -793,12 +786,7 @@ fn active_parts(state: &State) -> (&RunningInstance, Vec<CcsClaim>) {
     let ProofState::Active { running, latest } = &state.proof else {
         panic!("expected active linked state")
     };
-    (
-        running
-            .as_materialized()
-            .expect("linked differential running is materialized"),
-        latest.claims(),
-    )
+    (running, latest.claims())
 }
 
 fn mapped_output(builder: &mut Builder, state: &State, x: [u8; 32]) -> MappedOutput {
@@ -1111,13 +1099,10 @@ fn build_corpus() -> Corpus {
     });
 
     let mut bad_nifs = recursive.proof.clone();
-    let mut nifs = bad_nifs
-        .fold
-        .materialized_recursive()
-        .expect("materialize NIFS mutation")
-        .expect("recursive proof");
+    let FoldProof::Recursive(nifs) = &mut bad_nifs.fold else {
+        panic!("recursive proof")
+    };
     nifs.pi_dec.children[0].c.data[0] += F::ONE;
-    bad_nifs.fold = FoldProof::recursive_materialized(nifs);
     sources.push(SourceCase {
         name: "recursive_nifs_proof_mutation",
         mutation: "proof.nifs.pi_dec.children[0].commitment[0] += 1",

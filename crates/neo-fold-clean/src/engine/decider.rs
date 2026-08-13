@@ -4,17 +4,11 @@
 //!
 //! This module packages a validated `decider::Statement` into a
 //! self-contained R1CS that **replays every lifecycle/F' step** and the
-//! terminal fold. It is useful for auditing the direct-CCS interim path,
-//! but it is not the asymptotic IVC decider from HyperNova Construction 2:
-//! its size is linear in the number of historical steps because the
-//! lifecycle is currently folding application CCS instances, not encoded
-//! `F'` instances.
+//! terminal fold. Its size is linear in the number of historical steps, so it
+//! is an audit relation, not HyperNova's constant-size terminal verifier.
 //!
 //! This module does **not** create, verify, or serialize a compact proof.
-//! Do not use this full-history builder for production compression sizing.
-//! The constant-size terminal decider belongs to the future `F'` frontend
-//! path, where each online step folds `enc(F')` and the final SNARK proves
-//! only the terminal folded accumulator.
+//! Do not use this full-history builder for terminal proof sizing.
 //!
 //! The R1CS itself, not native preflight, enforces canonical base-state
 //! pins, every base/recursive F' step, adjacent state links, full CE
@@ -170,13 +164,13 @@ impl DeciderR1csSynthesis {
 }
 
 /// Run the non-SNARK preflight on `statement`, then synthesize the
-/// full-history audit R1CS for the direct-CCS interim path. This module
+/// full-history audit R1CS. This module
 /// stops here: no compact proof is created, verified, or serialized.
 ///
 /// Errors propagate from [`crate::paper::decider::validate_witness`] and
 /// from in-circuit emission (wrapped in [`decider::Error::WalkFailed`]).
 /// This relation grows linearly with the number of steps and should not
-/// be used to size the future constant-size IVC terminal decider.
+/// be used to size a constant-size IVC terminal verifier.
 pub fn synthesize_statement_r1cs(
     prep: &Preprocessing,
     statement: &Statement,
@@ -273,10 +267,7 @@ fn synthesize_statement_r1cs_inner(
             }
             FoldProof::Recursive(nifs) => {
                 recursive_step_count += 1;
-                let nifs = nifs
-                    .materialize()
-                    .map_err(|e| decider::Error::WalkFailed(format!("materialize F' recursive step {idx}: {e}")))?;
-                let out = emit_recursive_step_r1cs(&mut builder, prep, &state_in, &state, public_batch, &nifs)
+                let out = emit_recursive_step_r1cs(&mut builder, prep, &state_in, &state, public_batch, nifs)
                     .map_err(|e| decider::Error::WalkFailed(format!("emit F' recursive step {idx}: {e}")))?;
                 (out, "decider.step.recursive", false)
             }
@@ -354,9 +345,7 @@ fn synthesize_statement_r1cs_inner(
         // Snapshot the post-step running so the terminal fold can use it.
         // (Empty after a NoFold step, K-claim vector after Recursive.)
         if let ProofState::Active { running, .. } = &state.proof {
-            running_pre_final_fold = running
-                .materialize()
-                .map_err(|e| decider::Error::WalkFailed(format!("materialize running before final fold: {e}")))?;
+            running_pre_final_fold = running.clone();
         }
         last_output = Some(output);
     }
@@ -437,9 +426,6 @@ fn synthesize_statement_r1cs_inner(
         ));
     };
     let terminal_ce_start = builder.rows();
-    let final_running = final_running
-        .materialize()
-        .map_err(|e| decider::Error::WalkFailed(format!("materialize final running: {e}")))?;
     crate::paper::decider_ce_relation::enforce_final_dec_children_relations(
         &mut builder,
         prep,
@@ -589,12 +575,7 @@ fn emit_recursive_step_r1cs(
     nifs: &NifsProof,
 ) -> Result<FPrimeStepOutput, String> {
     let (running, latest) = match &state_in.proof {
-        ProofState::Active { running, latest } => (
-            running
-                .materialize()
-                .map_err(|e| format!("materialize recursive step running: {e}"))?,
-            latest,
-        ),
+        ProofState::Active { running, latest } => (running.clone(), latest),
         ProofState::Initial => return Err("recursive step requires Active state-in".into()),
     };
     let running_claims = running.claims.as_slice();

@@ -73,7 +73,7 @@ fn nebula_test_params() -> Params {
         neo_params::goldilocks_paper_b2::ETA as u32,
         neo_params::goldilocks_paper_b2::D as u32,
         1,
-        1 << 24,
+        neo_params::goldilocks_paper_b2::M,
         neo_params::goldilocks_paper_b2::B_BASE,
         neo_params::goldilocks_paper_b2::K_RHO,
         neo_params::goldilocks_paper_b2::T,
@@ -82,6 +82,14 @@ fn nebula_test_params() -> Params {
     )
     .expect("test SuperNeo parameters");
     Params::test_only_from_neo_params(raw)
+}
+
+fn two_page_profile() -> neo_wasm::nebula::WasmNebulaProfile {
+    const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
+
+    let limits = neo_wasm::nebula::WasmNebulaLimits::new(2, 2, 2, 2, 2 * WASM32_PAGE_WORDS, 2, 2, 2)
+        .expect("two-page WASM test limits");
+    neo_wasm::nebula::WasmNebulaProfile::production(limits, 3).expect("two-page WASM test profile")
 }
 
 #[test]
@@ -394,7 +402,7 @@ fn wasm_nebula_sound_preprocess_rejects_declared_memory_outside_dense_domain() {
         matches!(
             neo_wasm::nebula::preprocess_seeded(
                 nebula_test_params(),
-                neo_wasm::nebula::WasmNebulaProfile::production(),
+                two_page_profile(),
                 &artifacts,
                 &[],
                 entry_pc,

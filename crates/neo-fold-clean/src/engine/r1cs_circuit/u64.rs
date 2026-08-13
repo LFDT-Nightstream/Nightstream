@@ -155,9 +155,6 @@ pub fn enforce_u64_increment(builder: &mut R1csBuilder, in_bits: &[Var; U64_BITS
     let mut carry_in = Lc::from_var(Var::ONE); // +1
     for i in 0..U64_BITS {
         let sum_value = builder.eval(&Lc::from_var(in_bits[i])) + builder.eval(&carry_in);
-        // out[i] = sum mod 2, carry_out = sum / 2
-        let carry_out_val = sum_value.as_canonical_u64_field() / F::from_u64(2);
-        let _ = carry_out_val; // placeholder; we compute below
 
         // Allocate carry_out (except for the last bit where we drop it).
         let carry_out = if i + 1 < U64_BITS {
@@ -246,17 +243,4 @@ pub fn enforce_u64_constant(builder: &mut R1csBuilder, bits: &[Var; U64_BITS], e
 fn sum_value_to_int(v: F) -> u64 {
     use p3_field::PrimeField64;
     v.as_canonical_u64()
-}
-
-// Bring `as_canonical_u64_field` shim into scope. The trait bound on F here
-// means we need PrimeField64 which is imported transitively by neo_math's F.
-trait AsCanonicalU64Field {
-    fn as_canonical_u64_field(self) -> Self;
-}
-
-impl AsCanonicalU64Field for F {
-    fn as_canonical_u64_field(self) -> Self {
-        // For arithmetic in the gadget builder, the F is already canonical.
-        self
-    }
 }

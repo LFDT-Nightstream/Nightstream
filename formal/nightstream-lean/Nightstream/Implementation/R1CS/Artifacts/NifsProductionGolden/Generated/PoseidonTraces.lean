@@ -5,6 +5,7 @@ import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.
 import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.PoseidonTraces4
 import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.PoseidonTraces5
 import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.PoseidonTraces6
+import Nightstream.Implementation.R1CS.Artifacts.NifsProductionGolden.Generated.PoseidonTraces7
 
 /-! GENERATED FILE - assembled Poseidon2 permutation witnesses. -/
 
@@ -19,7 +20,8 @@ def poseidonPermutationTraces : List RawPermutationTrace :=
     poseidonPermutationTraces3 ++
     poseidonPermutationTraces4 ++
     poseidonPermutationTraces5 ++
-    poseidonPermutationTraces6
+    poseidonPermutationTraces6 ++
+    poseidonPermutationTraces7
 
 def piCcsPermutationCount : Nat := 44
 

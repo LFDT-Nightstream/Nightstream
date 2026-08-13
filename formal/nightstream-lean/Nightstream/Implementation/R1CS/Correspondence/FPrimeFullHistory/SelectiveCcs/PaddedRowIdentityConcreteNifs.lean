@@ -8,7 +8,7 @@ import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.Verifier
 Contract: concrete noninteractive key and named security boundaries for
 `PaddedRowIdentity`.
 
-Owns: the exact production Phi81 relation, the selected width-8 Poseidon2
+Owns: the exact fixed-snapshot Phi81 relation, the selected width-8 Poseidon2
 transcript, the fixed bounded `Pi_RLC` response, the one-joint NIFS key, and
 the definitional bridge to the selected interactive composition.
 

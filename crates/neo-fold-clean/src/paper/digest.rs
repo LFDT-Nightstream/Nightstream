@@ -8,7 +8,7 @@
 //! Each absorb is part of a Soundness Invariant: the order of fields, the
 //! domain tag, and the field/byte conversions are all part of the protocol
 //! binding. Any change here must move in lockstep with the in-circuit
-//! gadget that recomputes the same digest in PR5's `engine::decider`.
+//! gadget that recomputes the same digest in the F' and decider relations.
 
 use crate::paper::reductions::accumulator_sis_circuit::{
     accumulator_digest as sis_accumulator_digest, ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG,
@@ -201,22 +201,6 @@ pub fn ajtai_public_parameters_digest(log: &AjtaiSModule) -> Result<[F; 4], Ajta
         matrix_preimage.extend_from_slice(&poseidon_digest_fields(&row_preimage));
     }
     Ok(poseidon_digest_fields(&matrix_preimage))
-}
-
-/// Digest of the terminal-CE relation contract a compact proof must prove.
-///
-/// This is not proof material and not a backend choice. It is a public
-/// statement guard against replaying a proof for a weaker relation against the
-/// same terminal children. The direct reference rows enforce the same
-/// obligation set in `paper::decider_ce_relation`.
-pub fn terminal_ce_relation_digest() -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_relation/v2");
-    preimage.push(F::from_u64(1)); // Ajtai opening: commit(Z) == c.
-    preimage.push(F::from_u64(1)); // Public projection: X == L_in(Z).
-    preimage.push(F::from_u64(1)); // Low norm: ||Z||_infinity < b.
-    preimage.push(F::from_u64(1)); // Evaluation: y_ring[j] == M_j · Z(r).
-    preimage.push(F::from_u64(1)); // ct is lane zero of y_ring.
-    poseidon_digest_fields(&preimage)
 }
 
 /// Same digest as [`structure_digest`], using a caller-supplied matrix digest.
@@ -417,7 +401,7 @@ fn append_adv_leaves(preimage: &mut Vec<F>, adv: &Option<LaneCommitments<Commitm
 /// Rationale: in F', a fresh CCS instance's `x` is the recursive link
 /// (`x = enc_inst(prior_x_out)`, where `prior_x_out` is computed from
 /// state-in, which itself depends on the previous step's `chunk_digest`).
-/// In neo-fold-clean's direct-CCS interim, the Ajtai log commitment binds
+/// The Ajtai log commitment binds
 /// the **full** assignment `z = [x | w]`, so `claim.c.data` also depends
 /// on `x`. Folding either `x` or `c.data` into the chunk digest creates
 /// a hash fixed point
@@ -753,21 +737,6 @@ fn adv_has_shape(adv: &Option<LaneCommitments<Commitment>>, d: usize, kappa: usi
         .all(|commitment| commitment.d == d && commitment.kappa == kappa && commitment.data.len() == d * kappa)
 }
 
-/// Digest the terminal NIFS children for a compact terminal-CE proof statement.
-///
-/// Unlike [`ce_claim_digest`] and [`accumulator_ce_claim_digest`], this absorbs
-/// every public CE field carried at the terminal boundary. The digest is never
-/// authority by itself; the compact proof must still prove the terminal CE
-/// relation against the children it binds.
-pub fn terminal_children_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_children_digest/v2");
-    preimage.push(F::from_u64(claims.len() as u64));
-    for claim in claims {
-        preimage.extend_from_slice(&terminal_ce_claim_digest(claim));
-    }
-    poseidon_digest_fields(&preimage)
-}
-
 /// Serialize the prover-chosen Π_CCS output message before Π_RLC samples `ρ`.
 ///
 /// SuperNeo's interactive order is "Π_CCS sends output CE claims, then Π_RLC
@@ -793,33 +762,6 @@ pub fn pi_ccs_outputs_preimage(claims: &[CeClaim<Commitment, F, K>]) -> Vec<F> {
 pub fn pi_ccs_outputs_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4] {
     let preimage = pi_ccs_outputs_preimage(claims);
     sis_accumulator_digest(PI_CCS_OUTPUTS_SIS_CONFIG, &preimage).expect("nonempty PiCCS-output SIS preimage")
-}
-
-/// Digest of the compact terminal-CE proof's public statement.
-///
-/// This is the single backend-neutral public input a future compact proof
-/// verifier should bind. It is still only binding material: the proof must
-/// prove the terminal CE relation behind `terminal_children_digest`.
-pub fn terminal_ce_public_digest(
-    relation_digest: [F; 4],
-    structure_digest: [F; 4],
-    params_digest: [F; 4],
-    terminal_children_digest: [F; 4],
-    claim_count: usize,
-) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_public/v2");
-    preimage.extend_from_slice(&relation_digest);
-    preimage.extend_from_slice(&structure_digest);
-    preimage.extend_from_slice(&params_digest);
-    preimage.extend_from_slice(&terminal_children_digest);
-    preimage.extend(u64_halves(claim_count as u64));
-    poseidon_digest_fields(&preimage)
-}
-
-fn terminal_ce_claim_digest(claim: &CeClaim<Commitment, F, K>) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/terminal_ce_claim_digest/v2");
-    append_terminal_ce_claim_public_fields(&mut preimage, claim);
-    poseidon_digest_fields(&preimage)
 }
 
 fn append_active_k_rows(preimage: &mut Vec<F>, rows: &[Vec<K>]) {
@@ -871,10 +813,6 @@ fn append_k_rows(preimage: &mut Vec<F>, rows: &[Vec<K>]) {
     for row in rows {
         append_k_slice(preimage, row);
     }
-}
-
-fn append_terminal_ce_claim_public_fields(preimage: &mut Vec<F>, claim: &CeClaim<Commitment, F, K>) {
-    append_ce_claim_public_fields(preimage, claim);
 }
 
 /// Public-instance digest absorbed by Π_CCS prove and verify so the two

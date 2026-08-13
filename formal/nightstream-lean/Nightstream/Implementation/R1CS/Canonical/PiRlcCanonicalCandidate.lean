@@ -6,8 +6,8 @@ import Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionA
 Contract: Lean-owned physical classification of one 16-bit `Pi_RLC`
 rejection-sampling candidate.
 
-The source bits and prior accepted count are caller-owned reads.  This recipe
-allocates and constrains:
+The raw source bits and prior accepted count are caller-owned reads.  Their
+bitwise complement is the candidate.  This recipe allocates and constrains:
 
 * the exact accept bit for the unique rejected value `65535`;
 * the quotient/remainder decomposition `chunk = 5 * quotient + residue`;
@@ -80,8 +80,9 @@ theorem allocation_nonzero
   omega
 
 def chunkTerms (layout : Layout) : LinComb :=
-  (List.finRange sourceBitCount).map fun offset =>
-    (layout.sourceBit offset, 2 ^ offset.val)
+  [(0, rejectionBucket)] ++
+    (List.finRange sourceBitCount).map fun offset =>
+      (layout.sourceBit offset, goldilocksP - 2 ^ offset.val)
 
 def quotientTerms (layout : Layout) : LinComb :=
   (List.range quotientBitCount).map fun offset =>

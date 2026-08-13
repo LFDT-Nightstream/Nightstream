@@ -2,7 +2,7 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.Selectiv
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongExecution.HonestCompleteness
 
 /-!
-Contract: honest completeness for the selected `PaddedRowIdentity`
+Contract: honest completeness for the fixed-reference `PaddedRowIdentity`
 interactive `Pi_CCS` profile.
 
 Owns: specialization of the paper-joint uniform honest prover to the exact
@@ -16,9 +16,9 @@ artifacts, Rust, R1CS, or circuit correspondence.
 
 Emits constraints: no.
 
-Assurance tier: model-level. The result is honest completeness for every
-typed matrix family of the selected dimensions. A separate artifact bridge
-must identify the production matrix family.
+Assurance tier: model-level reference snapshot. The result is honest
+completeness for every typed matrix family of these fixed dimensions. It does
+not select a verifier-key relation artifact.
 -/
 
 set_option autoImplicit false

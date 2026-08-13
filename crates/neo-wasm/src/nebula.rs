@@ -38,9 +38,6 @@ use crate::{preload_from_program_artifacts, WasmOpcode};
 
 const WASM_NEBULA_PLAN_SEED: [u8; 32] = [0x57; 32];
 const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
-// Fixed instruction batch used by the WASM/Nebula profiles. Performance tests
-// apply their committed-coordinate targets separately.
-const WASM_NEBULA_BATCH_SIZE: usize = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WasmNebulaLimits {
@@ -84,10 +81,6 @@ impl WasmNebulaLimits {
         Ok(out)
     }
 
-    pub fn production() -> Self {
-        Self::new(4096, 256, 256, 16, 32768, 64, 8, 256).expect("production WASM Nebula limits")
-    }
-
     #[doc(hidden)]
     pub fn test_profile() -> Self {
         Self::new(16, 8, 8, 4, 64, 4, 2, 4).expect("test WASM Nebula limits")
@@ -115,44 +108,30 @@ pub struct WasmNebulaProfile {
 }
 
 impl WasmNebulaProfile {
-    pub fn production() -> Self {
-        Self::production_with_batch_size(WASM_NEBULA_BATCH_SIZE)
-    }
-
-    #[cfg(feature = "perf-timers")]
-    #[doc(hidden)]
-    /// Build an unbounded production-parameter timing profile with an explicit
-    /// instruction batch. This does not change the production default or imply
-    /// compatibility with the fixed-shape low-norm width budget.
-    pub fn production_with_profile_batch_size(batch_size: usize) -> Self {
-        assert!(batch_size > 0, "WASM Nebula profile batch size must be nonzero");
-        Self::production_with_batch_size(batch_size)
-    }
-
-    fn production_with_batch_size(batch_size: usize) -> Self {
-        let memory = batched_memory_geometry(NebulaParams::v3_targets(), batch_size);
-        Self {
-            memory,
-            limits: WasmNebulaLimits::production(),
-            batch_size,
+    /// Build the paper-parameter profile with caller-owned application limits
+    /// and instruction batch size.
+    pub fn production(limits: WasmNebulaLimits, batch_size: usize) -> Result<Self, WasmNebulaError> {
+        if batch_size == 0 {
+            return Err(WasmNebulaError::ZeroBatchSize);
         }
+        Ok(Self {
+            memory: batched_memory_geometry(NebulaParams::v3_targets(), batch_size),
+            limits,
+            batch_size,
+        })
     }
 
     #[doc(hidden)]
     pub fn test_profile() -> Self {
         let memory = NebulaParams::new(10, 10, 64, 1024, 16).expect("test WASM Nebula geometry");
-        Self::test_profile_with_geometry(memory)
+        Self::test_profile_with_schedule(memory, 3)
     }
 
     /// Test profile over a caller-chosen memory geometry, for fixtures whose
     /// ROM plan (pc space, grammar tables) outgrows the default `r = 10`.
     #[doc(hidden)]
     pub fn test_profile_with_geometry(memory: NebulaParams) -> Self {
-        Self {
-            memory: batched_memory_geometry(memory, WASM_NEBULA_BATCH_SIZE),
-            limits: WasmNebulaLimits::test_profile(),
-            batch_size: WASM_NEBULA_BATCH_SIZE,
-        }
+        Self::test_profile_with_schedule(memory, 3)
     }
 
     /// Build a reduced test profile with an explicit instruction batch.
@@ -241,30 +220,7 @@ pub fn preprocess(
     entry_pc: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, None, None, None)
-}
-
-/// Preprocess only when the final F′ relation fits the caller's committed-
-/// coordinate limit.
-pub fn preprocess_with_coordinate_limit(
-    params: Params,
-    profile: WasmNebulaProfile,
-    artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
-    entry_pc: u64,
-    max_coordinates: usize,
-) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
-    validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(
-        params,
-        profile,
-        artifacts,
-        initial_locals,
-        entry_pc,
-        None,
-        None,
-        Some(max_coordinates),
-    )
+    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, None, None)
 }
 
 #[doc(hidden)]
@@ -277,39 +233,7 @@ pub fn preprocess_seeded(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(
-        params,
-        profile,
-        artifacts,
-        initial_locals,
-        entry_pc,
-        None,
-        Some(seed),
-        None,
-    )
-}
-
-#[doc(hidden)]
-pub fn preprocess_seeded_with_coordinate_limit(
-    params: Params,
-    profile: WasmNebulaProfile,
-    artifacts: &WasmProgramArtifacts,
-    initial_locals: &[u32],
-    entry_pc: u64,
-    seed: u64,
-    max_coordinates: usize,
-) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
-    validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(
-        params,
-        profile,
-        artifacts,
-        initial_locals,
-        entry_pc,
-        None,
-        Some(seed),
-        Some(max_coordinates),
-    )
+    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, None, Some(seed))
 }
 
 /// Builds a structurally faithful tiny fixture without claiming that its
@@ -324,16 +248,7 @@ pub fn preprocess_seeded_reduced_memory_test_only(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     reject_host_imports(artifacts)?;
-    preprocess_inner(
-        params,
-        profile,
-        artifacts,
-        initial_locals,
-        entry_pc,
-        None,
-        Some(seed),
-        None,
-    )
+    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, None, Some(seed))
 }
 
 /// Grammar preprocessing with an explicit initial commitment state.
@@ -359,7 +274,6 @@ pub fn preprocess_seeded_grammar_test_only(
         entry_pc,
         Some((grammar, export_fref, initial_comm_chain)),
         Some(seed),
-        None,
     )
 }
 
@@ -374,16 +288,7 @@ pub fn preprocess_seeded_unbounded_profile(
     seed: u64,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     validate_sound_program(artifacts, profile.limits)?;
-    preprocess_inner(
-        params,
-        profile,
-        artifacts,
-        initial_locals,
-        entry_pc,
-        None,
-        Some(seed),
-        None,
-    )
+    preprocess_inner(params, profile, artifacts, initial_locals, entry_pc, None, Some(seed))
 }
 
 fn preprocess_inner(
@@ -394,7 +299,6 @@ fn preprocess_inner(
     entry_pc: u64,
     grammar: Option<(&HostEventGrammar, u32, CommChainState)>,
     seed: Option<u64>,
-    max_coordinates: Option<usize>,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
     let initial_state = match grammar {
         Some((grammar, export_fref, initial_comm_chain)) => grammar_top_level_initial_state_digest(
@@ -406,7 +310,8 @@ fn preprocess_inner(
         ),
         None => top_level_initial_state_digest(&artifacts.tables, entry_pc),
     };
-    let canonical = canonical_wasm_nebula_shape_batched_with_initial_state_digest(profile.batch_size, initial_state)?;
+    let canonical =
+        canonical_wasm_nebula_shape_batched_with_initial_state_digest(&params, profile.batch_size, initial_state)?;
     let backend = build_memory_backend(
         artifacts,
         initial_locals,
@@ -424,24 +329,9 @@ fn preprocess_inner(
     let lookup_auxiliary_columns_per_instruction = canonical.lookup_auxiliary_columns_per_instruction;
     let lookup_auxiliary_columns_total = canonical.lookup_auxiliary_columns_total;
     let application = NebulaApplication::new(canonical.sparse_r1cs, canonical.plan, backend.layout)?;
-    let inner = match (seed, max_coordinates) {
-        (Some(seed), Some(max_coordinates)) => {
-            NebulaFPrimePreprocessing::new_seeded_with_application_and_coordinate_limit(
-                params,
-                plan,
-                application,
-                seed,
-                max_coordinates,
-            )?
-        }
-        (Some(seed), None) => NebulaFPrimePreprocessing::new_seeded_with_application(params, plan, application, seed)?,
-        (None, Some(max_coordinates)) => NebulaFPrimePreprocessing::new_with_application_and_coordinate_limit(
-            params,
-            plan,
-            application,
-            max_coordinates,
-        )?,
-        (None, None) => NebulaFPrimePreprocessing::new_with_application(params, plan, application)?,
+    let inner = match seed {
+        Some(seed) => NebulaFPrimePreprocessing::new_seeded_with_application(params, plan, application, seed)?,
+        None => NebulaFPrimePreprocessing::new_with_application(params, plan, application)?,
     };
     Ok(WasmNebulaPreprocessing {
         inner,
@@ -483,7 +373,7 @@ pub fn build_application_segment_for_profile(
     Ok(application.trace_segment(&mut memory, assignments)?)
 }
 
-/// Prove a WASM execution with automatic CUDA, Metal, or CPU selection.
+/// Prove a WASM execution with automatic CUDA, Metal, or optimized CPU selection.
 ///
 /// The proof format and verifier do not depend on the selected prover.
 pub fn prove(prep: &WasmNebulaPreprocessing, trace: &[WasmVmStep]) -> Result<WasmNebulaProof, WasmNebulaError> {
@@ -824,6 +714,8 @@ pub enum WasmNebulaError {
     Trace(#[from] neo_fold_clean::frontends::nebula::trace::TraceError),
     #[error("WASM Nebula limit `{name}` must be a power of two >= 2, got {value}")]
     NonPowerOfTwoLimit { name: &'static str, value: u64 },
+    #[error("WASM Nebula instruction batch size must be nonzero")]
+    ZeroBatchSize,
     #[error("WASM memory plan needs ROM {rom}/{rom_capacity} and RAM {ram}/{ram_capacity} cells")]
     MemoryPlanTooLarge {
         rom: u64,

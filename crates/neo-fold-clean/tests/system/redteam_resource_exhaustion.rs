@@ -55,7 +55,6 @@ static ALLOCATOR: TrackingAllocator = TrackingAllocator;
 #[test]
 fn final_witness_authority_rejects_commitment_shape_before_attacker_sized_allocation() {
     const ATTACKER_D: usize = 1 << 14;
-    const MAX_REASONABLE_REJECTION_ALLOCATION: usize = 256 * 1024;
 
     let prep = support::toy_preprocessing();
     let proof = neo_fold_clean::prove(&prep, vec![vec![support::toy_instance(&prep, 0)]]).expect("one-step proof");
@@ -63,7 +62,7 @@ fn final_witness_authority_rejects_commitment_shape_before_attacker_sized_alloca
     let ProofState::Active { running, .. } = &finished.state.proof else {
         panic!("finalized proof must be active");
     };
-    let mut running = running.materialize().expect("materialized final running");
+    let mut running = running.clone();
     assert!(
         running.witnesses[0]
             .to_dense_vec()
@@ -80,8 +79,9 @@ fn final_witness_authority_rejects_commitment_shape_before_attacker_sized_alloca
 
     assert!(result.is_err(), "malformed commitment dimensions must reject");
     let largest = MAX_TRACKED_ALLOCATION.load(Ordering::Relaxed);
+    let attacker_sized_allocation = ATTACKER_D * size_of::<F>();
     assert!(
-        largest <= MAX_REASONABLE_REJECTION_ALLOCATION,
+        largest < attacker_sized_allocation,
         "verifier resource-exhaustion failure: malformed d={ATTACKER_D} caused a {largest}-byte allocation before the shape check"
     );
 }

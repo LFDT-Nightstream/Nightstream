@@ -84,7 +84,6 @@ profile_neutral_roots=(
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/IndexedRows.lean
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/ArtifactProgram.lean
   formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/Projection/Phi81
-  formal/nightstream-lean/Nightstream/Implementation/R1CS/Correspondence/PiCcsOutputDigest/ActiveSourceLayout
 )
 diagnostic_import_pattern='^import Nightstream\.Implementation\.R1CS\.(Artifacts\.FPrimeRecursive|Ownership\.FPrime(FullHistory|Recursive)|Correspondence\.FPrime(FullHistory|Recursive))'
 if diagnostic_hits="$(cd "$REPO_ROOT" && rg -n \

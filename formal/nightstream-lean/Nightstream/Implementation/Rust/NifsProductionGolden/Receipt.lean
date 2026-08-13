@@ -120,7 +120,7 @@ def permutationTraceShapeCheck (trace : RawPermutationTrace) : Bool :=
       decide (state.length = 8) && canonicalFields state
 
 def poseidonTraceShapeCheck (receipt : ProductionReceipt) : Bool :=
-  decide (receipt.poseidonPermutationTraces.length = 56) &&
+  decide (receipt.poseidonPermutationTraces.length = 64) &&
     decide (receipt.piCcsPermutationCount = 44) &&
     decide (receipt.rhoStartPermutationCount = 48) &&
     receipt.poseidonPermutationTraces.all permutationTraceShapeCheck

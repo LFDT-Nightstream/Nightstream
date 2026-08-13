@@ -55,7 +55,6 @@ open Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5
 #audit_axioms generatedHighDecoder_fieldTerms_exact
 
 /-- info: 'Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5.generatedHighDecoder_output_eq_derived' depends on axioms: [propext,
- Classical.choice,
  Lean.trustCompiler,
  Quot.sound] -/
 #guard_msgs in

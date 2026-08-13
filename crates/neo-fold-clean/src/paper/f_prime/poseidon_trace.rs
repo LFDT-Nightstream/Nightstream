@@ -82,15 +82,15 @@ impl PoseidonTraceLayout {
 }
 
 /// Bit-backed witness for one Poseidon2 hash invocation, packaged with
-/// its layout and the digest the builder computed natively. Phase 1
-/// callers use `values` as a contiguous slice in the larger F' source
+/// its layout and the digest the builder computed natively. Callers use
+/// `values` as a contiguous slice in the larger F' source
 /// image and `digest_native` as the parity-test reference.
 ///
 /// `Clone` so a chunk-shared trace (one that does not depend on a
 /// step's app public input) can be computed once per SuperNeo chunk and
 /// cloned into each step's encoder input — cheaper than recomputing the
 /// Poseidon permutations K times. See
-/// `frontends::f_prime::compiler::assemble_shared_chunk_traces`.
+/// the F-prime circuit compiler.
 #[derive(Clone)]
 pub struct PoseidonTraceImage {
     pub layout: PoseidonTraceLayout,

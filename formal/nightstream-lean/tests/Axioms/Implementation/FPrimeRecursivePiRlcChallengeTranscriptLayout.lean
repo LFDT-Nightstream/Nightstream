@@ -25,7 +25,7 @@ open Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallenge.TranscriptLay
 #guard_msgs in
 #audit_axioms pi_ccs_output_digest_input_columns_eq
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallenge.TranscriptLayout.compact_call_profile' does not depend on any axioms -/
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeRecursivePiRlcChallenge.TranscriptLayout.compact_call_profile' depends on axioms: [propext] -/
 #guard_msgs in
 #audit_axioms compact_call_profile
 

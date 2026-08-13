@@ -1007,7 +1007,11 @@ fn terminal_cost_values(
     let carrier = phi81_carrier_width(logical_width)?;
     let public_width = checked_mul("terminal_cost", public_ring_columns, PHI81_RING_DEGREE)?;
     let verifier_width = checked_mul("terminal_cost", TERMINAL_COMMITMENT_ROWS, PHI81_RING_DEGREE)?;
-    let evaluations = checked_mul("terminal_cost", matrix_count, PHI81_RING_DEGREE)?;
+    let evaluations = checked_mul(
+        "terminal_cost",
+        checked_add("terminal_cost", matrix_count, 1)?,
+        PHI81_RING_DEGREE,
+    )?;
     let two_carriers = checked_mul("terminal_cost", 2, carrier)?;
     let running_statement = checked_add(
         "terminal_cost",

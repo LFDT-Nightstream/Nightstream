@@ -490,11 +490,12 @@ Decision: NSD-DOMAIN-001 and NSD-ENCODING-001.
 
 ### NS-SHAPE-LOGICAL — Selected logical shape
 
-The selected structure MUST have 14,944,219 logical rows and a full committed
-assignment `z=x||w` of 11,437,038 fields. The first 270 fields are `x`. The
-profile has one fresh claim and 14 running claims. The assignment width MUST
-equal 211,797 complete Phi81 ring columns. Global source 0 MUST be the fresh
-claim, and global sources 1 through 14 MUST be running claims 0 through 13.
+The verifier-key relation artifact MUST supply the exact positive logical row
+count and the exact full committed assignment width `m` for `z=x||w`, with
+`m` a multiple of 54 and at most 16,777,206 fields, or 310,689 complete Phi81
+ring columns. The first 270 fields are `x`. The profile has one fresh claim
+and 14 running claims. Source order MUST be fresh claim 0 followed by running
+claims 0 through 13. A proof-supplied shape MUST NOT select these values.
 
 Decision: NSD-DOMAIN-001 and NSD-CARRIER-001.
 
@@ -509,8 +510,9 @@ Decision: NSD-DOMAIN-001 and NSD-DOMAIN-MAP-001.
 
 ### NS-SHAPE-IDENTITY — Padded identity matrix
 
-The structure MUST prepend `M_0=[I_11437038;0]` to the 13 application
-matrices. A verifier key with another first matrix or matrix count MUST reject.
+For the artifact-owned assignment width `m`, the protocol MUST prepend the
+implicit padded matrix `M_0=[I_m;0]` to the 13 application matrices. A
+verifier key with another identity width or matrix count MUST reject.
 
 Decision: NSD-DOMAIN-MAP-001 and NSD-NORM-BINDING-001.
 
@@ -544,9 +546,10 @@ Decision: NSD-SPLIT-001.
 
 ### NS-COMMITMENT-PROFILE — Ajtai commitment key
 
-The v1 commitment MUST have `kappa=18` rows and 211,797 message columns in
-`R_F`, with `c_a=sum_j A_(a,j)z_j` as a left matrix-vector product. Setup MUST
-use `nightstream-ajtai-chacha8-setup-par-v1` from
+The v1 commitment MUST have `kappa=18` rows and exactly `m/54` message columns
+in `R_F`, where `m` comes from the verifier-key relation artifact. It MUST use
+`c_a=sum_j A_(a,j)z_j` as a left matrix-vector product. Setup MUST use
+`nightstream-ajtai-chacha8-setup-par-v1` from
 `src/profile/ajtai-setup-v1.toml`: derive row and fixed-size chunk seeds in
 order, then fill matrix entries in row, column, coefficient order. For each
 ring entry, read 54 little-endian `u64` values before replacement sampling;
@@ -689,6 +692,15 @@ The fold verifier key MUST own the selected profile ID, exact Structure, and
 Ajtai setup seed and dimensions. A proof-supplied copy is non-authoritative
 and MUST match or reject. The terminal backend manifest has separate authority
 under NS-DECIDER-PROFILE.
+
+The canonical relation artifact MUST use format
+`nightstream/verifier-key-relation`, schema 1, and payload encoding
+`rust-ccs-structure-serde-json-v1`. It MUST contain the complete thirteen
+application matrices and polynomial. Its validator recomputes the expected
+artifact from the live verifier-owned Structure and rejects unless the
+complete decoded payload is equal. Matching dimensions or digests alone grant
+no authority. This JSON artifact does not replace the canonical sparse
+Structure stream used by NS-ENC-STRUCTURE for verifier-key hashing.
 
 Decision: NSD-AUTHORITY-001 and NSD-ENCODING-001.
 

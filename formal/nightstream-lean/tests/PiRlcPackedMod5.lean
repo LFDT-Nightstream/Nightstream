@@ -20,7 +20,7 @@ open Nightstream.Implementation.R1CS.PiRlcChallenge.Sampler.Chunk.Mod5
 #check witnessOfCoordinates_low_eq_source
 #check generatedHighDecoder_shape
 #check generatedHighDecoder_fieldTerms_exact
-#check highFormulaFieldTerms_perm_derived
+#check highFormulaFieldTerms_eval_derived
 #check generatedHighDecoderRhs_eq_derived
 #check generatedHighDecoder_output_eq_derived
 

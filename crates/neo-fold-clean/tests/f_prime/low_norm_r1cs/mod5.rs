@@ -82,13 +82,14 @@ fn packed_mod5_is_exactly_eight_rows_and_fifteen_coordinates_per_chunk() {
             "canonical centered encoding for residue {residue}"
         );
 
-        let chunk_value = chunk
+        let raw_value = chunk
             .chunk_bits
             .iter()
             .enumerate()
             .fold(0u64, |value, (bit, variable)| {
                 value + (source.witness()[variable.col()].as_canonical_u64() << bit)
             });
+        let chunk_value = 65_535 - raw_value;
         let low = chunk.quotient_bits[..13]
             .iter()
             .enumerate()

@@ -338,6 +338,8 @@ theorem witness_chunkValue
     chunkValue (witness field layout initial) layout =
       sourceValue initial layout := by
   unfold chunkValue sourceValue
+  congr 1
+  unfold rawValue
   have go :
       ∀ (indices : List (Fin sourceBitCount)) (accumulator : Nat),
         indices.foldl
@@ -418,11 +420,14 @@ private theorem quotientBitRows_complete
 
 private theorem chunkTerms_witness_eval
     (field : FieldInverse) (layout : Layout) (initial : Nat → Nat)
+    (positive : 0 < layout.base) (constantWire : initial 0 = 1)
     (below : InputsBelowBase layout)
     (sourceBits : SourceBitsBoolean initial layout) :
     lcEval (witness field layout initial) (chunkTerms layout) =
       sourceValue initial layout := by
-  rw [chunkTerms_eval (witness_sourceBits field layout initial below sourceBits)]
+  rw [chunkTerms_eval
+    (witness_constant field layout initial positive constantWire)
+    (witness_sourceBits field layout initial below sourceBits)]
   exact witness_chunkValue field layout initial below
 
 private theorem quotientTerms_witness_eval
@@ -588,7 +593,8 @@ private theorem decomposition_complete
   have one :=
     witness_constant field layout initial positive constantWire
   have sourceEval :=
-    chunkTerms_witness_eval field layout initial below sourceBits
+    chunkTerms_witness_eval field layout initial positive constantWire below
+      sourceBits
   have sourceBound := chunkValue_lt_bound sourceBits
   have sourceGoldilocks :
       sourceValue initial layout < goldilocksP :=

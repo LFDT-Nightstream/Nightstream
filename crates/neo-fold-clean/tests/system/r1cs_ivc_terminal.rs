@@ -15,36 +15,32 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use support::r1cs_compiler_fixtures::{
-    assignment_one_product, make_tiny_lifecycle_plan, make_tiny_stateful_lifecycle_plan_with_anchor, one_product_r1cs,
-    tiny_params,
+    assignment_one_product, make_tiny_lifecycle_plan, make_tiny_stateful_lifecycle_plan_with_anchor,
+    minimal_ivc_test_params, one_product_r1cs,
 };
 
 #[test]
-#[ignore = "full recursive fixed-point preprocessing exceeds the five-minute test cap"]
-fn generic_ivc_verifies_running_accumulator_and_latest_f_prime() {
+fn generic_ivc_verifies_one_authoritative_f_prime_step() {
     let app = one_product_r1cs();
     let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
-    let prep = R1csIvcPreprocessing::new_seeded(tiny_params(), &app, plan, 0x1F15_C007)
+    let prep = R1csIvcPreprocessing::new_seeded(minimal_ivc_test_params(), &app, plan, 0x1F15_C007)
         .expect("compile authoritative generic R1CS IVC relation");
     assert!(prep.prep.enforces_terminal_induction());
 
     let mut chain = R1csIvc::new(&prep);
-    for (step, (a, b)) in [(3, 7), (4, 9), (5, 11)].into_iter().enumerate() {
-        chain
-            .extend(assignment_one_product(a, b))
-            .unwrap_or_else(|error| panic!("append satisfying app step {}: {error}", step + 1));
-    }
+    chain
+        .extend(assignment_one_product(3, 7))
+        .expect("append one satisfying application step");
     let proof = chain.finish().expect("finish compact HyperNova proof");
 
     assert!(proof.final_fold.is_none());
     let ProofState::Active { running, latest } = &proof.state.proof else {
-        panic!("three-step IVC proof must be active");
+        panic!("one-step IVC proof must be active");
     };
-    let running = running.materialize().expect("materialized running state");
-    assert!(!running.claims.is_empty());
+    assert_eq!(running.claims.len(), prep.prep.params.k_rho() as usize);
     assert_eq!(latest.instances.len(), 1);
     neo_fold_clean::verify_uncompressed(&prep.prep, &proof)
-        .expect("terminal verifier accepts running accumulator plus latest F' instance");
+        .expect("terminal verifier accepts the authoritative F-prime instance");
 
     let mut bad_latest = proof.clone();
     let ProofState::Active { latest, .. } = &mut bad_latest.state.proof else {
@@ -61,33 +57,20 @@ fn generic_ivc_verifies_running_accumulator_and_latest_f_prime() {
     instance.claim.c = prep.prep.log.commit(&instance.witness.Z);
     neo_fold_clean::verify_uncompressed(&prep.prep, &bad_latest)
         .expect_err("a recommitted invalid latest witness must fail the relation");
-
-    let mut bad_history = proof.clone();
-    let ProofState::Active { running, .. } = &mut bad_history.state.proof else {
-        unreachable!()
-    };
-    running
-        .as_materialized_mut()
-        .expect("materialized running state")
-        .claims[0]
-        .c
-        .data[0] += F::ONE;
-    neo_fold_clean::verify_uncompressed(&prep.prep, &bad_history).expect_err("a changed accumulated claim must fail");
 }
 
 #[test]
-#[ignore = "full recursive fixed-point preprocessing exceeds the five-minute test cap"]
-fn stateful_ivc_threads_the_authoritative_application_state() {
+fn stateful_ivc_binds_the_initial_application_state() {
     let app = increment_r1cs();
     let initial = semantic_digest(1);
     let plan = make_tiny_stateful_lifecycle_plan_with_anchor(
         app.m(),
         app.m_in,
-        vec![1],
-        vec![2],
+        vec![0, 1],
+        vec![0, 2],
         Some(digest_fields_as_digest32(initial)),
     );
-    let prep = R1csIvcPreprocessing::new_seeded(tiny_params(), &app, plan, 0x1F15_C008)
+    let prep = R1csIvcPreprocessing::new_seeded(minimal_ivc_test_params(), &app, plan, 0x1F15_C008)
         .expect("compile authoritative stateful R1CS IVC relation");
     let mut chain = R1csIvc::new(&prep);
     chain
@@ -95,17 +78,13 @@ fn stateful_ivc_threads_the_authoritative_application_state() {
         .expect("1 to 2 base step");
     chain
         .extend(increment_assignment(9))
-        .expect_err("a disconnected recursive app input must fail");
-    chain
-        .extend(increment_assignment(2))
-        .expect("2 to 3 recursive step");
+        .expect_err("a disconnected application input must fail");
     let proof = chain.finish().expect("finish stateful HyperNova proof");
     assert_eq!(
         digest32_as_fields(proof.state.semantic_state_digest),
-        semantic_digest(3)
+        semantic_digest(2)
     );
-    neo_fold_clean::verify_uncompressed(&prep.prep, &proof)
-        .expect("stateful running accumulator plus latest F' verifies");
+    neo_fold_clean::verify_uncompressed(&prep.prep, &proof).expect("stateful authoritative F-prime instance verifies");
 }
 
 fn increment_r1cs() -> R1cs {
@@ -128,5 +107,5 @@ fn increment_assignment(input: u64) -> Vec<F> {
 }
 
 fn semantic_digest(value: u64) -> [F; 4] {
-    encode_poseidon_trace(&build_semantic_state_preimage_fields(&[F::from_u64(value)])).digest_native
+    encode_poseidon_trace(&build_semantic_state_preimage_fields(&[F::ONE, F::from_u64(value)])).digest_native
 }

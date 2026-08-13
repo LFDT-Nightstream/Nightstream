@@ -9,7 +9,7 @@ Contract: model-level validation of the Nightstream `PaddedRowIdentity`
 relation.
 
 Owns:
-- the selected 24-variable row cube, 14,944,219-row logical prefix, and
+- one fixed reference 24-variable row cube, 14,944,219-row logical prefix, and
   11,437,038-coordinate assignment prefix;
 - zero-row padding of the exact thirteen-port, degree-eight selective CCS
   polynomial;
@@ -25,11 +25,11 @@ an end-to-end release claim.
 
 Emits constraints: no.
 
-Assurance tier: model-level. The polynomial is the independent 66-term
-production selective polynomial, but the matrix family remains an explicit
-typed input. Therefore these theorems validate the construction for every
-matrix family of the selected dimensions; they do not claim that Rust emits a
-particular family.
+Assurance tier: model-level reference snapshot. The polynomial is the
+independent 66-term selective polynomial, but the matrix family remains an
+explicit typed input. Therefore these theorems validate the construction for
+every matrix family of these fixed dimensions; they do not select the active
+verifier-key dimensions or claim that Rust emits a particular family.
 
 The key theorem is an equivalence, not a one-way completeness result:
 `identityFirstConstraintSatisfied_iff_logical`. If padding or the ignored
@@ -61,13 +61,13 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.LeanCompiler
 
-/-- Selected production row-cube dimension. -/
+/-- Fixed reference-snapshot row-cube dimension. -/
 def rowVariables : Nat := 24
 
-/-- Selected logical relation row count. -/
+/-- Fixed reference-snapshot logical relation row count. -/
 def logicalRows : Nat := 14944219
 
-/-- Selected complete assignment width. This value is exactly 211,797 Phi81
+/-- Fixed reference-snapshot assignment width. This is 211,797 Phi81
 ring columns. -/
 def assignmentColumns : Nat := 11437038
 
@@ -101,7 +101,7 @@ theorem assignmentColumns_eq_ringBlocks :
       Phi81ColumnLayout.blockCount assignmentColumns * ringDegree := by
   decide
 
-/-- Exact joint paper shape selected by the profile. -/
+/-- Exact joint paper shape for the fixed reference snapshot. -/
 def shape : Shape where
   cubeVariables := rowVariables
   freshCount := 1

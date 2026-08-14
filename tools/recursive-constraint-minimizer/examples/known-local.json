@@ -1,0 +1,53 @@
+{
+  "schema": "nightstream/r1cs-redundancy-problem/v3",
+  "source": {
+    "profile": "known-local-control",
+    "artifact_digest": "test-only-not-authoritative",
+    "scope": "local",
+    "total_rows": 3
+  },
+  "field_modulus": "18446744069414584321",
+  "column_count": 2,
+  "constant_one_column": 0,
+  "public_input_count": 1,
+  "complete_families": ["domain", "zero"],
+  "rows": [
+    {
+      "id": "bitness",
+      "source_index": 0,
+      "family": "domain",
+      "a": [
+        { "column": 1, "coefficient": "1" }
+      ],
+      "b": [
+        { "column": 0, "coefficient": "18446744069414584320" },
+        { "column": 1, "coefficient": "1" }
+      ],
+      "c": []
+    },
+    {
+      "id": "zero",
+      "source_index": 1,
+      "family": "zero",
+      "a": [
+        { "column": 1, "coefficient": "1" }
+      ],
+      "b": [
+        { "column": 0, "coefficient": "1" }
+      ],
+      "c": []
+    },
+    {
+      "id": "zero_copy",
+      "source_index": 2,
+      "family": "zero",
+      "a": [
+        { "column": 1, "coefficient": "1" }
+      ],
+      "b": [
+        { "column": 0, "coefficient": "1" }
+      ],
+      "c": []
+    }
+  ]
+}

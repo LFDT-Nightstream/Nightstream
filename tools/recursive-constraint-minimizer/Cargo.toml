@@ -1,0 +1,16 @@
+[package]
+name = "recursive-constraint-minimizer"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0"
+
+# Keep this tool outside the protocol workspace. It calls cvc5 as an external,
+# non-authoritative process and must not enter the prover dependency graph.
+[workspace]
+members = [".", "bridge"]

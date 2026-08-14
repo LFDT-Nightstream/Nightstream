@@ -9,7 +9,7 @@ use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeComm
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
-use super::{Buffer, DeviceSeededRows, MetalSession, MetalWitnessMasks};
+use super::{Buffer, DeviceSeededRows, MetalCompactMatrix, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
 
 const FORM_REDUCTION_THREADS: usize = 256;
@@ -35,6 +35,7 @@ pub(super) struct MetalJointOpeningPlan {
     tiled_form_tiles: Buffer,
     tiled_form_partials: Buffer,
     seeded: Option<DeviceSeededOpeningPlan>,
+    geometric: Vec<DeviceGeometricOpeningPlan>,
     active_block_count: usize,
     active_chunk_count: usize,
     parallel_form_list_count: usize,
@@ -55,6 +56,13 @@ struct DeviceSeededOpeningPlan {
     group_count: usize,
 }
 
+struct DeviceGeometricOpeningPlan {
+    groups: Buffer,
+    segments: Buffer,
+    runs: Buffer,
+    group_count: usize,
+}
+
 struct MatrixLayout {
     offsets: Vec<u32>,
     active: Vec<bool>,
@@ -66,6 +74,7 @@ impl MetalSession {
     pub(super) fn prepare_joint_opening_plan(
         &self,
         matrices: &[SuperneoMatrixCache],
+        device_matrices: &[MetalCompactMatrix],
         scalar_columns: usize,
         seeded_rows: Option<&DeviceSeededRows>,
     ) -> Result<MetalJointOpeningPlan, MetalError> {
@@ -100,6 +109,21 @@ impl MetalSession {
                         return Err(MetalError::Shape("one-joint seeded opening block is out of range"));
                     }
                     active[block] = true;
+                }
+                let mut geometric_invalid = false;
+                matrix.for_each_compact_geometric_run(|_, _, start, len, _, _| {
+                    let Some(end) = start.checked_add(len) else {
+                        geometric_invalid = true;
+                        return;
+                    };
+                    if end > scalar_columns {
+                        geometric_invalid = true;
+                        return;
+                    }
+                    active[start / D..end.div_ceil(D)].fill(true);
+                });
+                if geometric_invalid {
+                    return Err(MetalError::Shape("one-joint geometric opening range is invalid"));
                 }
                 if identity {
                     active[..rows.div_ceil(D)].fill(true);
@@ -342,6 +366,7 @@ impl MetalSession {
         }
         let active_chunk_count = active_chunk_bases.len();
         let seeded = self.prepare_seeded_opening_plan(matrices, seeded_rows, &active_blocks_host, blocks)?;
+        let geometric = self.prepare_geometric_opening_plans(matrices, device_matrices, &active_blocks_host, blocks)?;
 
         Ok(MetalJointOpeningPlan {
             active_local_offsets: self.buffer_from_slice(&active_local_offsets)?,
@@ -360,6 +385,7 @@ impl MetalSession {
             tiled_form_tiles: self.buffer_from_slice(&tiled_form_tiles)?,
             tiled_form_partials: self.buffer(tiled_form_tile_count.max(1) * 2 * size_of::<u64>())?,
             seeded,
+            geometric,
             active_block_count,
             active_chunk_count,
             parallel_form_list_count,
@@ -369,6 +395,106 @@ impl MetalSession {
             rows: scalar_rows,
             blocks,
         })
+    }
+
+    fn prepare_geometric_opening_plans(
+        &self,
+        matrices: &[SuperneoMatrixCache],
+        device_matrices: &[MetalCompactMatrix],
+        active_blocks: &[u32],
+        blocks: usize,
+    ) -> Result<Vec<DeviceGeometricOpeningPlan>, MetalError> {
+        if matrices.len() != device_matrices.len() {
+            return Err(MetalError::Shape("one-joint geometric device matrix count mismatch"));
+        }
+        let mut plans = Vec::new();
+        for (application, (matrix, device)) in matrices.iter().zip(device_matrices).enumerate() {
+            if matrix.compact_geometric_run_count() == 0 {
+                continue;
+            }
+            let mut counts = vec![0u32; blocks];
+            let mut invalid = false;
+            matrix.for_each_compact_geometric_run(|index, row, start, len, _, _| {
+                if u32::try_from(index).is_err() || u32::try_from(row).is_err() {
+                    invalid = true;
+                    return;
+                }
+                let Some(end) = start.checked_add(len) else {
+                    invalid = true;
+                    return;
+                };
+                if end > blocks * D {
+                    invalid = true;
+                    return;
+                }
+                for block in start / D..end.div_ceil(D) {
+                    counts[block] = match counts[block].checked_add(1) {
+                        Some(count) => count,
+                        None => {
+                            invalid = true;
+                            return;
+                        }
+                    };
+                }
+            });
+            if invalid {
+                return Err(MetalError::Shape(
+                    "one-joint geometric opening metadata exceeds device limits",
+                ));
+            }
+
+            let mut offsets = Vec::with_capacity(blocks + 1);
+            offsets.push(0u32);
+            for &count in &counts {
+                offsets.push(
+                    offsets
+                        .last()
+                        .copied()
+                        .expect("geometric opening offset")
+                        .checked_add(count)
+                        .ok_or(MetalError::Shape(
+                            "one-joint geometric opening segment count exceeds u32",
+                        ))?,
+                );
+            }
+            let mut segments = vec![[0u32; 2]; offsets[blocks] as usize];
+            let mut cursor = offsets[..blocks].to_vec();
+            matrix.for_each_compact_geometric_run(|index, row, start, len, _, _| {
+                let end = start + len;
+                for block in start / D..end.div_ceil(D) {
+                    let destination = cursor[block] as usize;
+                    cursor[block] += 1;
+                    segments[destination] = [row as u32, index as u32];
+                }
+            });
+
+            let mut groups = Vec::<[u32; 4]>::new();
+            for block in 0..blocks {
+                if offsets[block] == offsets[block + 1] {
+                    continue;
+                }
+                let encoded = encoded_block(application + 1, blocks, block)?;
+                let active = active_blocks
+                    .binary_search(&encoded)
+                    .map_err(|_| MetalError::Shape("one-joint geometric block is absent from the transpose"))?;
+                groups.push([
+                    u32::try_from(active)
+                        .map_err(|_| MetalError::Shape("one-joint geometric active block exceeds u32"))?,
+                    u32::try_from(block)
+                        .map_err(|_| MetalError::Shape("one-joint geometric column block exceeds u32"))?,
+                    offsets[block],
+                    offsets[block + 1],
+                ]);
+            }
+            let group_count = groups.len();
+            plans.push(DeviceGeometricOpeningPlan {
+                groups: self.buffer_from_slice(&groups)?,
+                segments: self.buffer_from_slice(&segments)?,
+                runs: device.geometric_runs.clone(),
+                group_count,
+            });
+        }
+        Ok(plans)
     }
 
     fn prepare_seeded_opening_plan(
@@ -471,7 +597,7 @@ impl MetalSession {
             || witness_count == 0
             || assignment_width > carrier_width
             || carrier_width > chi_len
-            || !masks.matches(witness_count, plan.blocks)
+            || !masks.matches_joint(witness_count, plan.blocks)
         {
             return Err(MetalError::Shape("one-joint opening dimensions are invalid"));
         }
@@ -514,6 +640,7 @@ impl MetalSession {
             plan.blocks as u64,
             plan.active_chunk_count as u64,
             0,
+            masks.magnitudes() as u64,
         ])?;
 
         let command = self.command_buffer("nightstream.pi_ccs.joint.openings")?;
@@ -592,6 +719,25 @@ impl MetalSession {
                 &self.dec_reduce_parallel_original_form_tiles,
                 2 * plan.tiled_form_list_count,
                 FORM_REDUCTION_THREADS,
+            );
+            encoder.endEncoding();
+        }
+
+        for geometric in &plan.geometric {
+            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            encoder.setComputePipelineState(&self.dec_add_geometric_ring_forms);
+            unsafe {
+                encoder.setBuffer_offset_atIndex(Some(&geometric.groups), 0, 0);
+                encoder.setBuffer_offset_atIndex(Some(&geometric.segments), 0, 1);
+                encoder.setBuffer_offset_atIndex(Some(&geometric.runs), 0, 2);
+                encoder.setBuffer_offset_atIndex(Some(&chi), 0, 3);
+                encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 4);
+                encoder.setBuffer_offset_atIndex(Some(&forms), 0, 5);
+            }
+            self.dispatch(
+                &encoder,
+                &self.dec_add_geometric_ring_forms,
+                geometric.group_count * 2 * D,
             );
             encoder.endEncoding();
         }

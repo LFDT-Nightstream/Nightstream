@@ -15,18 +15,19 @@ impl SuperneoMatrixCache {
 
         let mut acc = K::ZERO;
         for block in self.row_blocks_for(row).iter().copied() {
-            if let Some((local, coefficient)) = block.single_parts() {
-                let projected = identity_projection[block.block() * D + local];
+            if let Some((block, local, coefficient)) = block.single_parts() {
+                let projected = identity_projection[block * D + local];
                 acc += if coefficient == F::ONE {
                     projected
                 } else {
                     projected.scale_base(coefficient)
                 };
             } else {
-                let orig = self.dense_block(block.dense_index().expect("dense compact block"));
-                acc += projected_linear_form(&orig, block.block(), identity_projection);
+                let orig = self.dense_block(self.dense_pattern_index(block));
+                acc += projected_linear_form(&orig, self.row_block_index(block), identity_projection);
             }
         }
+        acc += self.geometric_weighted_projection(row, identity_projection);
         acc
     }
 }

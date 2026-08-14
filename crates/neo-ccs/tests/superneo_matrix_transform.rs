@@ -53,6 +53,7 @@ fn ring_row_eval(matrix: &CcsMatrix<F>, row: usize, z_ring: &[Rq], ncols: usize)
                 }
             }
         }
+        CcsMatrix::VerifierArtifact { .. } => panic!("test requires materialized matrix content"),
     }
 
     let mut acc = Rq::zero();

@@ -831,6 +831,7 @@ kernel void fe_carried_mask_lin_comb(
     uint index [[thread_position_in_grid]]) {
     ulong child_count = shape[0];
     ulong blocks = shape[1];
+    ulong magnitudes = shape[6];
     ulong plane_len = blocks * RING_DEGREE;
     if (index >= plane_len) {
         return;
@@ -841,15 +842,19 @@ kernel void fe_carried_mask_lin_comb(
     ulong re = 0;
     ulong im = 0;
     for (ulong child = 0; child < child_count; ++child) {
-        ulong mask_base = 2 * (child * blocks + block);
         ulong cr = gl_from_word(coeffs[2 * child]);
         ulong ci = gl_from_word(coeffs[2 * child + 1]);
-        if ((masks[mask_base] & bit) != 0) {
-            re = gl_add(re, cr);
-            im = gl_add(im, ci);
-        } else if ((masks[mask_base + 1] & bit) != 0) {
-            re = gl_sub(re, cr);
-            im = gl_sub(im, ci);
+        ulong mask_base = 2 * magnitudes * (child * blocks + block);
+        for (ulong magnitude = 1; magnitude <= magnitudes; ++magnitude) {
+            ulong scaled_cr = gl_mul(cr, magnitude);
+            ulong scaled_ci = gl_mul(ci, magnitude);
+            if ((masks[mask_base + 2 * (magnitude - 1)] & bit) != 0) {
+                re = gl_add(re, scaled_cr);
+                im = gl_add(im, scaled_ci);
+            } else if ((masks[mask_base + 2 * (magnitude - 1) + 1] & bit) != 0) {
+                re = gl_sub(re, scaled_cr);
+                im = gl_sub(im, scaled_ci);
+            }
         }
     }
     z_re[index] = re;
@@ -898,24 +903,31 @@ inline ulong compact_row_offset(device const uchar *offsets, ulong row, ulong wi
 
 constant uint COMPACT_DENSE_BLOCK_TAG = 1u << 31;
 constant uint COMPACT_NEGATIVE_BLOCK_TAG = 1u << 30;
-constant uint COMPACT_BLOCK_PAYLOAD_MASK = COMPACT_NEGATIVE_BLOCK_TAG - 1;
+constant uint COMPACT_SINGLE_LOCAL_SHIFT = 24;
+constant uint COMPACT_SINGLE_LOCAL_MASK = 0x3fu;
+constant uint COMPACT_SINGLE_BLOCK_MASK = (1u << COMPACT_SINGLE_LOCAL_SHIFT) - 1;
+constant uint COMPACT_DENSE_INDEX_MASK = COMPACT_DENSE_BLOCK_TAG - 1;
 
 kernel void fe_weighted_row_table(
     device const uchar *row_offsets [[buffer(0)]],
-    device const uint2 *row_blocks [[buffer(1)]],
+    device const uint *row_blocks [[buffer(1)]],
     device const uint *dense_offsets [[buffer(2)]],
     device const uchar *dense_locals [[buffer(3)]],
     device const ulong *dense_coefficients [[buffer(4)]],
-    device const ulong *qk [[buffer(5)]],
-    device const ulong *matrix_coefficient [[buffer(6)]],
-    device const ulong *shape [[buffer(7)]],
-    device ulong *output [[buffer(8)]],
+    device const uchar *geometric_row_offsets [[buffer(5)]],
+    device const ulong *geometric_runs [[buffer(6)]],
+    device const ulong *qk [[buffer(7)]],
+    device const ulong *matrix_coefficient [[buffer(8)]],
+    device const ulong *shape [[buffer(9)]],
+    device ulong *output [[buffer(10)]],
+    device const uint2 *dense_row_blocks [[buffer(11)]],
     uint row [[thread_position_in_grid]]) {
     ulong rows = shape[0];
     ulong n_eff = shape[1];
     ulong n_pad = shape[2];
     ulong offset_width = shape[3];
     bool identity = shape[4] != 0;
+    ulong geometric_offset_width = shape[5];
     if (row >= n_pad) {
         return;
     }
@@ -927,21 +939,40 @@ kernel void fe_weighted_row_table(
             ulong start = compact_row_offset(row_offsets, row, offset_width);
             ulong end = compact_row_offset(row_offsets, row + 1, offset_width);
             for (ulong entry = start; entry < end; ++entry) {
-                uint2 block = row_blocks[entry];
-                uint payload = block.y;
-                if ((payload & COMPACT_DENSE_BLOCK_TAG) == 0) {
-                    ulong column = (ulong)block.x * RING_DEGREE + (ulong)(payload & COMPACT_BLOCK_PAYLOAD_MASK);
+                uint reference = row_blocks[entry];
+                if ((reference & COMPACT_DENSE_BLOCK_TAG) == 0) {
+                    ulong block = (ulong)(reference & COMPACT_SINGLE_BLOCK_MASK);
+                    ulong local = (ulong)((reference >> COMPACT_SINGLE_LOCAL_SHIFT) & COMPACT_SINGLE_LOCAL_MASK);
+                    ulong column = block * RING_DEGREE + local;
                     Kx input = load_k(qk, column);
-                    value = (payload & COMPACT_NEGATIVE_BLOCK_TAG) == 0
+                    value = (reference & COMPACT_NEGATIVE_BLOCK_TAG) == 0
                         ? kx_add(value, input)
                         : kx_sub(value, input);
                 } else {
-                    uint dense = payload & COMPACT_BLOCK_PAYLOAD_MASK;
+                    uint2 block = dense_row_blocks[reference & COMPACT_DENSE_INDEX_MASK];
+                    uint dense = block.y;
                     for (uint coefficient = dense_offsets[dense]; coefficient < dense_offsets[dense + 1]; ++coefficient) {
                         ulong column = (ulong)block.x * RING_DEGREE + (ulong)dense_locals[coefficient];
                         ulong scalar = gl_from_word(dense_coefficients[coefficient]);
                         value.c0 = gl_add(value.c0, gl_mul(scalar, gl_from_word(qk[2 * column])));
                         value.c1 = gl_add(value.c1, gl_mul(scalar, gl_from_word(qk[2 * column + 1])));
+                    }
+                }
+            }
+            if (geometric_offset_width != 0) {
+                ulong geometric_start = compact_row_offset(geometric_row_offsets, row, geometric_offset_width);
+                ulong geometric_end = compact_row_offset(geometric_row_offsets, row + 1, geometric_offset_width);
+                for (ulong run = geometric_start; run < geometric_end; ++run) {
+                    ulong packed = geometric_runs[3 * run];
+                    ulong column = packed & 0xfffffffful;
+                    ulong run_end = column + (packed >> 32);
+                    ulong scalar = gl_from_word(geometric_runs[3 * run + 1]);
+                    ulong ratio = gl_from_word(geometric_runs[3 * run + 2]);
+                    for (; column < run_end; ++column) {
+                        Kx input = load_k(qk, column);
+                        value.c0 = gl_add(value.c0, gl_mul(scalar, input.c0));
+                        value.c1 = gl_add(value.c1, gl_mul(scalar, input.c1));
+                        scalar = gl_mul(scalar, ratio);
                     }
                 }
             }
@@ -1206,6 +1237,7 @@ kernel void dec_sparse_ring_partials(
     ulong form_rows = shape[2];
     ulong blocks = shape[3];
     ulong chunk_count = shape[4];
+    ulong magnitudes = shape[6];
     ulong coefficient = index % RING_PRODUCT_COEFFICIENTS;
     ulong rest = index / RING_PRODUCT_COEFFICIENTS;
     ulong component = rest % 2;
@@ -1235,24 +1267,28 @@ kernel void dec_sparse_ring_partials(
     ulong negative_hi = 0;
     for (ulong active = start; active < end; ++active) {
         ulong block = (ulong)active_blocks[active] % blocks;
-        ulong mask_base = 2 * (child * blocks + block);
-        ulong positive = masks[mask_base] & valid;
-        while (positive != 0) {
-            uint term = (uint)ctz(positive);
-            positive &= positive - 1;
-            ulong value = forms[(active * 2 + component) * RING_DEGREE + coefficient - term];
-            ulong next = positive_lo + value;
-            positive_hi += next < positive_lo;
-            positive_lo = next;
-        }
-        ulong negative = masks[mask_base + 1] & valid;
-        while (negative != 0) {
-            uint term = (uint)ctz(negative);
-            negative &= negative - 1;
-            ulong value = forms[(active * 2 + component) * RING_DEGREE + coefficient - term];
-            ulong next = negative_lo + value;
-            negative_hi += next < negative_lo;
-            negative_lo = next;
+        ulong mask_base = 2 * magnitudes * (child * blocks + block);
+        for (ulong magnitude = 1; magnitude <= magnitudes; ++magnitude) {
+            ulong positive = masks[mask_base + 2 * (magnitude - 1)] & valid;
+            while (positive != 0) {
+                uint term = (uint)ctz(positive);
+                positive &= positive - 1;
+                ulong value = forms[(active * 2 + component) * RING_DEGREE + coefficient - term];
+                value = gl_mul(value, magnitude);
+                ulong next = positive_lo + value;
+                positive_hi += next < positive_lo;
+                positive_lo = next;
+            }
+            ulong negative = masks[mask_base + 2 * (magnitude - 1) + 1] & valid;
+            while (negative != 0) {
+                uint term = (uint)ctz(negative);
+                negative &= negative - 1;
+                ulong value = forms[(active * 2 + component) * RING_DEGREE + coefficient - term];
+                value = gl_mul(value, magnitude);
+                ulong next = negative_lo + value;
+                negative_hi += next < negative_lo;
+                negative_lo = next;
+            }
         }
     }
     partials[index] = gl_sub(gl_reduce_sum(positive_lo, positive_hi), gl_reduce_sum(negative_lo, negative_hi));

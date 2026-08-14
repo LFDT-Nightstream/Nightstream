@@ -3,6 +3,18 @@
 constant ulong DEC_PARALLEL_FORM_LIST_THRESHOLD = 128;
 constant uint DEC_FORM_REDUCTION_THREADS = 256;
 
+inline ulong dec_pow(ulong base, ulong exponent) {
+    ulong value = 1;
+    while (exponent != 0) {
+        if ((exponent & 1) != 0) {
+            value = gl_mul(value, base);
+        }
+        base = gl_mul(base, base);
+        exponent >>= 1;
+    }
+    return value;
+}
+
 inline ulong dec_compact_original_form(
     device const uint *active_local_offsets,
     device const ulong *active_entry_bases,
@@ -206,6 +218,41 @@ kernel void dec_reduce_parallel_original_form_tiles(
         ulong local = encoded % RING_DEGREE;
         forms[(active * 2 + component) * RING_DEGREE + local] = partials[0];
     }
+}
+
+kernel void dec_add_geometric_ring_forms(
+    device const uint4 *groups [[buffer(0)]],
+    device const uint2 *segments [[buffer(1)]],
+    device const ulong *runs [[buffer(2)]],
+    device const ulong *chi [[buffer(3)]],
+    device const ulong *shape [[buffer(4)]],
+    device ulong *forms [[buffer(5)]],
+    uint index [[thread_position_in_grid]]) {
+    ulong local = index % RING_DEGREE;
+    ulong rest = index / RING_DEGREE;
+    ulong component = rest % 2;
+    uint4 group = groups[rest / 2];
+    ulong column = (ulong)group.y * RING_DEGREE + local;
+    ulong value = 0;
+    for (ulong segment = group.z; segment < group.w; ++segment) {
+        uint2 entry = segments[segment];
+        ulong row = entry.x;
+        if (row >= shape[2] || row >= shape[3]) {
+            continue;
+        }
+        ulong packed = runs[3 * (ulong)entry.y];
+        ulong start = packed & 0xfffffffful;
+        ulong length = packed >> 32;
+        if (column < start || column >= start + length) {
+            continue;
+        }
+        ulong coefficient = gl_mul(
+            gl_from_word(runs[3 * (ulong)entry.y + 1]),
+            dec_pow(gl_from_word(runs[3 * (ulong)entry.y + 2]), column - start));
+        value = gl_add(value, gl_mul(gl_from_word(chi[2 * row + component]), coefficient));
+    }
+    ulong output = ((ulong)group.x * 2 + component) * RING_DEGREE + local;
+    forms[output] = gl_add(gl_from_word(forms[output]), value);
 }
 
 kernel void dec_bar_ring_forms_in_place(

@@ -7,16 +7,19 @@ inline ulong joint_mask_value(
     device const ulong *masks,
     ulong blocks,
     ulong witness,
-    ulong column) {
+    ulong column,
+    ulong magnitudes) {
     ulong block = column / RING_DEGREE;
     ulong lane = column % RING_DEGREE;
     ulong bit = 1ul << lane;
-    ulong base = 2 * (witness * blocks + block);
-    if ((masks[base] & bit) != 0) {
-        return 1;
-    }
-    if ((masks[base + 1] & bit) != 0) {
-        return GOLDILOCKS_MODULUS - 1;
+    ulong base = 2 * magnitudes * (witness * blocks + block);
+    for (ulong magnitude = 1; magnitude <= magnitudes; ++magnitude) {
+        if ((masks[base + 2 * (magnitude - 1)] & bit) != 0) {
+            return magnitude;
+        }
+        if ((masks[base + 2 * (magnitude - 1) + 1] & bit) != 0) {
+            return gl_sub(0, magnitude);
+        }
     }
     return 0;
 }
@@ -34,18 +37,21 @@ kernel void joint_expand_mask_assignments_f(
     }
     ulong source = (ulong)index / width;
     ulong column = (ulong)index % width;
-    output[index] = joint_mask_value(masks, blocks, source, column);
+    output[index] = joint_mask_value(masks, blocks, source, column, shape[3]);
 }
 
 kernel void joint_build_application_tables(
     device const uchar *row_offsets [[buffer(0)]],
-    device const uint2 *row_blocks [[buffer(1)]],
+    device const uint *row_blocks [[buffer(1)]],
     device const uint *dense_offsets [[buffer(2)]],
     device const uchar *dense_locals [[buffer(3)]],
     device const ulong *dense_coefficients [[buffer(4)]],
-    device const ulong *assignments [[buffer(5)]],
-    device const ulong *shape [[buffer(6)]],
-    device ulong *output [[buffer(7)]],
+    device const uchar *geometric_row_offsets [[buffer(5)]],
+    device const ulong *geometric_runs [[buffer(6)]],
+    device const ulong *assignments [[buffer(7)]],
+    device const ulong *shape [[buffer(8)]],
+    device ulong *output [[buffer(9)]],
+    device const uint2 *dense_row_blocks [[buffer(10)]],
     uint row [[thread_position_in_grid]]) {
     ulong rows = shape[0];
     ulong blocks = shape[1];
@@ -56,6 +62,7 @@ kernel void joint_build_application_tables(
     ulong offset_width = shape[6];
     bool identity = shape[7] != 0;
     ulong assignment_width = shape[8];
+    ulong geometric_offset_width = shape[9];
     if ((ulong)row >= table_len) {
         return;
     }
@@ -67,16 +74,18 @@ kernel void joint_build_application_tables(
             ulong start = compact_row_offset(row_offsets, row, offset_width);
             ulong end = compact_row_offset(row_offsets, row + 1, offset_width);
             for (ulong entry = start; entry < end; ++entry) {
-                uint2 block = row_blocks[entry];
-                uint payload = block.y;
-                if ((payload & COMPACT_DENSE_BLOCK_TAG) == 0) {
-                    ulong column = (ulong)block.x * RING_DEGREE + (ulong)(payload & COMPACT_BLOCK_PAYLOAD_MASK);
+                uint reference = row_blocks[entry];
+                if ((reference & COMPACT_DENSE_BLOCK_TAG) == 0) {
+                    ulong block = (ulong)(reference & COMPACT_SINGLE_BLOCK_MASK);
+                    ulong local = (ulong)((reference >> COMPACT_SINGLE_LOCAL_SHIFT) & COMPACT_SINGLE_LOCAL_MASK);
+                    ulong column = block * RING_DEGREE + local;
                     ulong input = assignments[witness * assignment_width + column];
-                    value = (payload & COMPACT_NEGATIVE_BLOCK_TAG) == 0
+                    value = (reference & COMPACT_NEGATIVE_BLOCK_TAG) == 0
                         ? gl_add(value, input)
                         : gl_sub(value, input);
                 } else {
-                    uint dense = payload & COMPACT_BLOCK_PAYLOAD_MASK;
+                    uint2 block = dense_row_blocks[reference & COMPACT_DENSE_INDEX_MASK];
+                    uint dense = block.y;
                     for (uint coefficient = dense_offsets[dense]; coefficient < dense_offsets[dense + 1]; ++coefficient) {
                         ulong column = (ulong)block.x * RING_DEGREE + (ulong)dense_locals[coefficient];
                         ulong input = assignments[witness * assignment_width + column];
@@ -85,6 +94,24 @@ kernel void joint_build_application_tables(
                                 value,
                                 gl_mul(gl_from_word(dense_coefficients[coefficient]), input));
                         }
+                    }
+                }
+            }
+            if (geometric_offset_width != 0) {
+                ulong geometric_start = compact_row_offset(geometric_row_offsets, row, geometric_offset_width);
+                ulong geometric_end = compact_row_offset(geometric_row_offsets, row + 1, geometric_offset_width);
+                for (ulong run = geometric_start; run < geometric_end; ++run) {
+                    ulong packed = geometric_runs[3 * run];
+                    ulong column = packed & 0xfffffffful;
+                    ulong run_end = column + (packed >> 32);
+                    ulong coefficient = gl_from_word(geometric_runs[3 * run + 1]);
+                    ulong ratio = gl_from_word(geometric_runs[3 * run + 2]);
+                    for (; column < run_end; ++column) {
+                        ulong input = assignments[witness * assignment_width + column];
+                        if (input != 0 && coefficient != 0) {
+                            value = gl_add(value, gl_mul(coefficient, input));
+                        }
+                        coefficient = gl_mul(coefficient, ratio);
                     }
                 }
             }
@@ -182,6 +209,7 @@ kernel void joint_fold_mask_assignments(
     ulong source_count = shape[1];
     ulong blocks = shape[2];
     ulong assignment_width = shape[3];
+    ulong magnitudes = shape[4];
     ulong folded_len = (table_len + 1) / 2;
     if ((ulong)index >= source_count * folded_len) {
         return;
@@ -192,10 +220,10 @@ kernel void joint_fold_mask_assignments(
     ulong low_index = 2 * pair;
     ulong high_index = low_index + 1;
     Kx left = Kx{
-        low_index < assignment_width ? joint_mask_value(masks, blocks, mask_source, low_index) : 0,
+        low_index < assignment_width ? joint_mask_value(masks, blocks, mask_source, low_index, magnitudes) : 0,
         0};
     Kx right = Kx{
-        high_index < assignment_width ? joint_mask_value(masks, blocks, mask_source, high_index) : 0,
+        high_index < assignment_width ? joint_mask_value(masks, blocks, mask_source, high_index, magnitudes) : 0,
         0};
     Kx challenge = Kx{gl_from_word(challenge_words[0]), gl_from_word(challenge_words[1])};
     Kx folded = kx_add(left, kx_mul(challenge, kx_sub(right, left)));
@@ -224,12 +252,13 @@ inline Kx joint_assignment_value(
     ulong index,
     bool base_round,
     ulong blocks,
+    ulong magnitudes,
     ulong assignment_width,
     ulong assignment_len) {
     if (base_round) {
         ulong mask_source = assignment_sources[source];
         return Kx{
-            index < assignment_width ? joint_mask_value(assignments, blocks, mask_source, index) : 0,
+            index < assignment_width ? joint_mask_value(assignments, blocks, mask_source, index, magnitudes) : 0,
             0};
     }
     return index < assignment_len ? load_k(assignments, source * assignment_len + index) : Kx{0, 0};
@@ -241,6 +270,32 @@ inline ulong joint_half_f(ulong value) {
 
 inline Kx joint_mul_f(Kx value, ulong scalar) {
     return Kx{gl_mul(value.c0, scalar), gl_mul(value.c1, scalar)};
+}
+
+inline ulong joint_signed_root_f(int root) {
+    return root < 0 ? gl_sub(0, (ulong)(-root)) : (ulong)root;
+}
+
+inline Kx joint_signed_root_k(int root) {
+    return Kx{joint_signed_root_f(root), 0};
+}
+
+inline ulong joint_range_product_f(ulong value, uint base) {
+    ulong product = 1;
+    int bound = (int)base - 1;
+    for (int root = -bound; root <= bound; ++root) {
+        product = gl_mul(product, gl_sub(value, joint_signed_root_f(root)));
+    }
+    return product;
+}
+
+inline Kx joint_range_product_k(Kx value, uint base) {
+    Kx product = Kx{1, 0};
+    int bound = (int)base - 1;
+    for (int root = -bound; root <= bound; ++root) {
+        product = kx_mul(product, kx_sub(value, joint_signed_root_k(root)));
+    }
+    return product;
 }
 
 inline Kx joint_half_k(Kx value) {
@@ -286,6 +341,17 @@ inline ulong joint_selective_polynomial_f(thread const ulong *x) {
     general = gl_sub(general, x[6]);
     ulong result = gl_mul(x[1], general);
 
+    ulong centered_delta = gl_sub(centered_square, 1);
+    ulong correction = gl_mul(
+        centered_delta,
+        gl_sub(gl_mul(centered_square, centered_delta), x[6]));
+    ulong a_square = gl_mul(x[2], x[2]);
+    ulong a_delta = gl_sub(a_square, 1);
+    correction = gl_sub(
+        correction,
+        gl_mul(7, gl_mul(a_square, gl_mul(a_delta, a_delta))));
+    result = gl_add(result, gl_mul(gl_mul(x[1], x[7]), correction));
+
     ulong evaluation = gl_sub(0, x[4]);
     evaluation = gl_add(evaluation, gl_mul(x[0], x[2]));
     evaluation = gl_add(evaluation, gl_mul(x[3], x[5]));
@@ -316,6 +382,18 @@ inline Kx joint_selective_polynomial_k(thread const Kx *x) {
     general = kx_add(general, kx_mul(centered_square, x[6]));
     general = kx_sub(general, x[6]);
     Kx result = kx_mul(x[1], general);
+
+    Kx one = Kx{1, 0};
+    Kx centered_delta = kx_sub(centered_square, one);
+    Kx correction = kx_mul(
+        centered_delta,
+        kx_sub(kx_mul(centered_square, centered_delta), x[6]));
+    Kx a_square = kx_mul(x[2], x[2]);
+    Kx a_delta = kx_sub(a_square, one);
+    correction = kx_sub(
+        correction,
+        joint_mul_f(kx_mul(a_square, kx_mul(a_delta, a_delta)), 7));
+    result = kx_add(result, kx_mul(kx_mul(x[1], x[7]), correction));
 
     Kx evaluation = kx_sub(Kx{0, 0}, x[4]);
     evaluation = kx_add(evaluation, kx_mul(x[0], x[2]));
@@ -383,6 +461,7 @@ kernel void joint_selective_round_partials(
     Kx alpha_slope_factor = Kx{gl_from_word(shape[18]), gl_from_word(shape[19])};
     Kx prior_low_factor = Kx{gl_from_word(shape[20]), gl_from_word(shape[21])};
     Kx prior_slope_factor = Kx{gl_from_word(shape[22]), gl_from_word(shape[23])};
+    uint range_base = (uint)shape[24];
     threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
     Kx values[SUMCHECK_MAX_COEFFS];
     for (uint point = 0; point < SUMCHECK_MAX_COEFFS; ++point) {
@@ -446,14 +525,14 @@ kernel void joint_selective_round_partials(
             if (base_round) {
                 ulong mask_source = assignment_sources[source];
                 ulong value = low_index < assignment_len
-                    ? joint_mask_value(assignments_or_masks, blocks, mask_source, low_index)
+                    ? joint_mask_value(assignments_or_masks, blocks, mask_source, low_index, range_base - 1)
                     : 0;
                 ulong high = high_index < assignment_len
-                    ? joint_mask_value(assignments_or_masks, blocks, mask_source, high_index)
+                    ? joint_mask_value(assignments_or_masks, blocks, mask_source, high_index, range_base - 1)
                     : 0;
                 ulong slope = gl_sub(high, value);
                 for (uint point = 0; point < coefficient_count; ++point) {
-                    ulong norm = gl_mul(gl_mul(gl_add(value, 1), value), gl_sub(value, 1));
+                    ulong norm = joint_range_product_f(value, range_base);
                     values[point] = kx_add(values[point], joint_mul_f(source_weight, norm));
                     value = gl_add(value, slope);
                 }
@@ -466,7 +545,7 @@ kernel void joint_selective_round_partials(
                     : Kx{0, 0};
                 Kx slope = kx_sub(high, value);
                 for (uint point = 0; point < coefficient_count; ++point) {
-                    Kx norm = kx_mul(kx_mul(kx_add(value, Kx{1, 0}), value), kx_sub(value, Kx{1, 0}));
+                    Kx norm = joint_range_product_k(value, range_base);
                     values[point] = kx_add(values[point], kx_mul(source_weight, norm));
                     value = kx_add(value, slope);
                 }
@@ -568,6 +647,7 @@ kernel void joint_round_partials(
     Kx alpha_slope_factor = Kx{gl_from_word(shape[18]), gl_from_word(shape[19])};
     Kx prior_low_factor = Kx{gl_from_word(shape[20]), gl_from_word(shape[21])};
     Kx prior_slope_factor = Kx{gl_from_word(shape[22]), gl_from_word(shape[23])};
+    uint range_base = (uint)shape[24];
     threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
     Kx local[SUMCHECK_MAX_COEFFS];
     for (uint coefficient = 0; coefficient < SUMCHECK_MAX_COEFFS; ++coefficient) {
@@ -624,6 +704,7 @@ kernel void joint_round_partials(
                 low_index,
                 base_round,
                 blocks,
+                range_base - 1,
                 assignment_width,
                 assignment_len);
             Kx high = joint_assignment_value(
@@ -634,6 +715,7 @@ kernel void joint_round_partials(
                 high_index,
                 base_round,
                 blocks,
+                range_base - 1,
                 assignment_width,
                 assignment_len);
             Kx slope = kx_sub(high, low);
@@ -643,9 +725,10 @@ kernel void joint_round_partials(
             }
             polynomial[0] = load_k(weights, fresh_count + source);
             uint degree = 0;
-            joint_poly_mul_affine(polynomial, kx_add(low, Kx{1, 0}), slope, degree);
-            joint_poly_mul_affine(polynomial, low, slope, degree);
-            joint_poly_mul_affine(polynomial, kx_sub(low, Kx{1, 0}), slope, degree);
+            int bound = (int)range_base - 1;
+            for (int root = -bound; root <= bound; ++root) {
+                joint_poly_mul_affine(polynomial, kx_sub(low, joint_signed_root_k(root)), slope, degree);
+            }
             for (uint coefficient = 0; coefficient <= degree; ++coefficient) {
                 inner[coefficient] = kx_add(inner[coefficient], polynomial[coefficient]);
             }
@@ -762,7 +845,7 @@ kernel void joint_seeded_base_partials(
             if (column == ~0ul || column >= shape[0] * RING_DEGREE) {
                 continue;
             }
-            ulong input = joint_mask_value(masks, shape[0], shape[1], column);
+            ulong input = joint_mask_value(masks, shape[0], shape[1], column, shape[5]);
             if (input != 0) {
                 ulong rotation = gl_from_word(
                     rotations[header[6] + message_col * RING_DEGREE + coefficient - message_row]);

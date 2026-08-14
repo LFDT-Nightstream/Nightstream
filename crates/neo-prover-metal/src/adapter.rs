@@ -448,7 +448,6 @@ impl PaperJointOracleBackend for MetalNifsProver {
             .expect("one-joint matrix plan installed above");
         self.session
             .eval_joint_dec_openings(plan, witnesses, point, assignment_width)
-            .map(Some)
             .map_err(|error| {
                 neo_reductions::PiCcsError::ProtocolError(format!("Metal one-joint PiDEC openings: {error}"))
             })
@@ -472,7 +471,6 @@ impl FinalWitnessOpeningBackend for MetalNifsProver {
             .expect("one-joint matrix plan installed above");
         self.session
             .eval_joint_dec_openings(plan, witnesses, point, assignment_width)
-            .map(Some)
             .map_err(|error| format!("Metal final witness openings: {error}"))
     }
 }

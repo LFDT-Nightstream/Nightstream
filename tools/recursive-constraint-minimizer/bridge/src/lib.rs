@@ -20,8 +20,12 @@ use recursive_constraint_minimizer::{Problem, Row, Scope, Source, Term, GOLDILOC
 use sha2::{Digest, Sha256};
 
 mod refinement;
+mod selective_binding;
 
 pub use refinement::{refine_with_cvc5, RefinementError, RefinementReport, MAX_REFINEMENT_ITERATIONS};
+pub use selective_binding::{
+    FixedPointProblemExport, SelectiveRetainedRowBinding, SelectiveRewriteBinding, SelectiveSliceBinding,
+};
 
 const DIGEST_DOMAIN: &[u8] = b"nightstream/r1cs-source-artifact/v1";
 const SPARSE_DIGEST_DOMAIN: &[u8] = b"nightstream/sparse-r1cs-source-artifact/v2";
@@ -304,10 +308,11 @@ pub fn export_fixed_point_problem(
     audit: &R1csIvcConstraintSourceAudit,
     branch: R1csIvcBranch,
     request: ExportRequest,
-) -> Result<Problem, ExportError> {
+) -> Result<FixedPointProblemExport, ExportError> {
     let arm = audit.arm(branch);
     validate_fixed_point_stage_vocabulary(arm, branch)?;
-    export_sparse_problem(arm, request)
+    let problem = export_sparse_problem(arm, request)?;
+    selective_binding::bind_fixed_point_problem(audit, branch, problem)
 }
 
 fn stage_owners(row_count: usize, stages: &[PhysicalStageRange]) -> Vec<Option<&'static str>> {

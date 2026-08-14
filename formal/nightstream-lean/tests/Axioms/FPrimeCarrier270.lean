@@ -53,50 +53,49 @@ Fail-closed dependency gate for the model-level five-ring F' carrier.
 #guard_msgs in
 #audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.omittingFixedPadding_enlargesFreshBoundary
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.rowIndex_lt_twoPow' depends on axioms: [propext,
- Quot.sound] -/
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.rowIndex_lt_twoPow' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.rowIndex_lt_twoPow
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.rowIndex_lt_twoPow
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.rowIndex_rowVertex' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.rowIndex_rowVertex' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.rowIndex_rowVertex
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.rowIndex_rowVertex
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.rowVertex_rowIndex' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.rowVertex_rowIndex' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.rowVertex_rowIndex
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.rowVertex_rowIndex
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.productionTensorWeight_eq_equalityWeight' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.productionTensorWeight_eq_equalityWeight' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.productionTensorWeight_eq_equalityWeight
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.productionTensorWeight_eq_equalityWeight
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_at_numericRow' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows_at_numericRow' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_at_numericRow
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows_at_numericRow
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_atPadding' depends on axioms: [propext] -/
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows_atPadding' depends on axioms: [propext] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_atPadding
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows_atPadding
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_oneRow_actual' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows_oneRow_actual' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_oneRow_actual
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows_oneRow_actual
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_oneRow_padding' depends on axioms: [propext,
+/-- info: 'Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows_oneRow_padding' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_oneRow_padding
+#audit_axioms Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows_oneRow_padding
 
 /-- info: 'Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.ColumnMap.legacyIndex?_alignedIndex' depends on axioms: [propext,
  Quot.sound] -/

@@ -1,0 +1,13 @@
+import Nightstream.Protocol.Nebula.WasmIdealCompleteness
+
+set_option autoImplicit false
+
+namespace tests.NebulaWasmIdealCompleteness
+
+open Nightstream.Protocol.Nebula.WasmIdealCompleteness
+
+#check WasmCompletenessInput
+#check valid_fixed_wasm_execution_with_honest_artifacts_is_accepted
+#check completeness_input_final_state_terminal
+
+end tests.NebulaWasmIdealCompleteness

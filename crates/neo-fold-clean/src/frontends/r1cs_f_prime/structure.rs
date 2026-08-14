@@ -30,7 +30,7 @@ use crate::frontends::f_prime::structure::{
 use crate::paper::relations::Structure;
 
 /// Sparse R1CS shape for large app circuits.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SparseR1cs {
     pub a: CcsMatrix<F>,
     pub b: CcsMatrix<F>,
@@ -290,7 +290,7 @@ impl SparseR1cs {
 }
 
 /// R1CS representation accepted by the R1CS-F' compiler.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum R1csShape {
     Dense(R1cs),
     Sparse(SparseR1cs),
@@ -507,6 +507,9 @@ fn sparse_matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Ve
                     }
                 });
             }
+        }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("R1CS matrix row expansion requires materialized content")
         }
     }
     out
@@ -746,6 +749,9 @@ fn sparse_coeff_rows(m: &CcsMatrix<F>, rows: usize) -> Vec<Vec<(usize, F)>> {
                     }
                 });
             }
+        }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("R1CS coefficient extraction requires materialized content")
         }
     }
     out
@@ -1199,6 +1205,9 @@ fn sparse_matrix_row_terms(m: &CcsMatrix<F>, app_var_slots: &[AppVariableSlot], 
                     }
                 });
             }
+        }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("application matrix lowering requires materialized content")
         }
     }
     out

@@ -331,7 +331,7 @@ pub fn source_image_emits_nifs_payloads(plan: &RecursiveStepImagePlan) -> bool {
 }
 
 /// Caller-supplied parameters that the recursive plan can't synthesize.
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct RecursiveStepImagePlan {
     pub limbs: usize,
     /// Optional app-private variable widths. Empty preserves legacy
@@ -364,7 +364,7 @@ pub struct RecursiveStepImagePlan {
 }
 
 /// Accumulator-enforcement parameters.
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct AccumulatorPlanOptions {
     /// Index into `nifs_payload_shapes` of the ce-claim that holds the
     /// `c_data` referenced by this hash's preimage.
@@ -382,7 +382,7 @@ pub struct AccumulatorPlanOptions {
 }
 
 /// `state_x_out` enforcement parameters.
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct StateXOutPlanOptions {
     /// Program counter at the step being enforced. Baked as `Constant`
     /// in the source list until a boundary lane source variant lands.
@@ -427,6 +427,26 @@ pub struct StateXOutPlanOptions {
     /// `None` (the default) means stateless seed semantics — no
     /// anchor constraint is emitted.
     pub initial_semantic_state_digest_anchor: Option<[u8; 32]>,
+}
+
+impl RecursiveStepImagePlan {
+    /// Exact relation-profile equality for the Nebula composition.
+    ///
+    /// Nebula binds the initial semantic digest through its program-binding
+    /// witness, so that one value is not a matrix coefficient in the composed
+    /// relation. Every other plan field still controls allocation or rows and
+    /// must match exactly before compiled encoder data can be reused.
+    pub(crate) fn same_nebula_relation_profile_as(&self, other: &Self) -> bool {
+        let mut left = self.clone();
+        let mut right = other.clone();
+        if let Some(state) = left.state_x_out.as_mut() {
+            state.initial_semantic_state_digest_anchor = None;
+        }
+        if let Some(state) = right.state_x_out.as_mut() {
+            state.initial_semantic_state_digest_anchor = None;
+        }
+        left == right
+    }
 }
 
 /// Assemble the recursive-step `FPrimeImageConfig` from the plan.

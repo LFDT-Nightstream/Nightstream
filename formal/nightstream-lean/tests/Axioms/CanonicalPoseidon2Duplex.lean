@@ -33,6 +33,15 @@ open Nightstream.Implementation.R1CS.Canonical
 #guard_msgs in
 #audit_axioms Poseidon2Duplex.cursor_le_rate_list
 
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Duplex.absorbSlice_append' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#audit_axioms Poseidon2Duplex.absorbSlice_append
+
+/-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Duplex.absorbSlice_eq_absorbList_of_absorbed_lt' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Poseidon2Duplex.absorbSlice_eq_absorbList_of_absorbed_lt
+
 /-- info: 'Nightstream.Implementation.R1CS.Canonical.Poseidon2Duplex.empty_cursor' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms Poseidon2Duplex.empty_cursor

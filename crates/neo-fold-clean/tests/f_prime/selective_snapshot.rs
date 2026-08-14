@@ -16,53 +16,36 @@
 //! | `f_prime.selective_ccs.branch.gate[*]` | every fixture row has exactly one final selector port and column | compact physical-coverage audit |
 //! | `f_prime.selective_ccs.padding.public` | all thirteen zero-pin rows | Lean carrier refinement |
 
-use std::collections::BTreeMap;
+#[path = "../support/selective_selector_coverage_lean.rs"]
+mod selector_coverage_lean;
+
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
+use neo_ccs::{CcsMatrix, CscMat};
 use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::field_ext::{enforce_k_dot_product, KVar};
 use neo_fold_clean::engine::r1cs_circuit::u64_arith::decompose_var_to_u64_bits;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder};
 use neo_fold_clean::frontends::r1cs_f_prime::lowering::{LowNormR1csError, SelectiveSnapshotError};
 use neo_fold_clean::frontends::r1cs_f_prime::{
-    audit_multi_branch_selective_rows_with_alignment, build_multi_branch_low_norm_r1cs,
+    audit_multi_branch_selective_rows_with_alignment,
+    audit_multi_branch_selective_rows_with_complete_source_provenance_with_alignment, build_multi_branch_low_norm_r1cs,
     build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs, SelectiveEmittedRowFamily,
-    SelectiveGatePort, SelectiveProjectedPort, SelectiveRowArtifact, SelectiveSelectorGateCoverage,
-    SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION,
+    SelectiveGatePort, SelectiveProjectedPort, SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep,
+    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceTerm, SelectiveRewriteKind, SelectiveRowArtifact,
+    SelectiveSelectorGateCoverage,
 };
 use neo_fold_clean::paper::f_prime::r1cs::{F_PRIME_PUBLIC_INPUT_LEN, F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN};
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{enforce_commit_fields, CCS_CLAIM_SIS_CONFIG};
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use selector_coverage_lean::{lean_family, write_raw_coverage};
 
 const SELECTOR_ROW_ARTIFACT_PATH: &str = "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistorySelectiveCcsSelectorDomainRow.lean";
 const CARRIER_270_ARTIFACT_PATH: &str = "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistorySelectiveCarrier270.lean";
 const SELECTOR_COVERAGE_ARTIFACT_PATH: &str = "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistorySelectiveSelectorCoverageFixture.lean";
-
-fn lean_family(family: SelectiveEmittedRowFamily) -> &'static str {
-    match family {
-        SelectiveEmittedRowFamily::SelectorDomain => "selectorDomain",
-        SelectiveEmittedRowFamily::SharedDomain => "sharedDomain",
-        SelectiveEmittedRowFamily::ArmDomain => "armDomain",
-        SelectiveEmittedRowFamily::OneHot => "oneHot",
-        SelectiveEmittedRowFamily::PublicPadding => "publicPadding",
-        SelectiveEmittedRowFamily::PrivatePadding => "privatePadding",
-        SelectiveEmittedRowFamily::Retained => "retained",
-        SelectiveEmittedRowFamily::Poseidon2 => "poseidon2",
-        SelectiveEmittedRowFamily::CenteredUnit => "centeredUnit",
-        SelectiveEmittedRowFamily::ShiftedTernaryCanonical => "shiftedTernaryCanonical",
-        SelectiveEmittedRowFamily::PolynomialEvaluation => "polynomialEvaluation",
-        SelectiveEmittedRowFamily::ProductSum => "productSum",
-        SelectiveEmittedRowFamily::RingPadding => "ringPadding",
-    }
-}
-
-fn lean_gate_port(port: SelectiveGatePort) -> &'static str {
-    match port {
-        SelectiveGatePort::General => "general",
-        SelectiveGatePort::Evaluation => "evaluation",
-    }
-}
+const GROUPED_PRODUCT_REWRITE_ARTIFACT_PATH: &str = "/../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeFullHistory/Generated/FPrimeFullHistorySelectiveGroupedProductRewriteFixture.lean";
 
 fn render_selector_coverage_artifact(coverage: &SelectiveSelectorGateCoverage) -> String {
     let mut rendered = String::new();
@@ -85,58 +68,13 @@ split at owner boundaries and never expanded to one record per row.\n\n\
 | polynomial | final ordered sparse terms | compared to independent Lean syntax |\n\
 -/\n\n\
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySelectiveSelectorCoverageFixture\n\n\
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage.Wire\n\n\
-def rawCoverage : RawCoverage where\n  schemaVersion := {}\n  rows := {}\n  columns := {}\n  selectorColumns := {:?}\n  polynomialArity := {}\n  polynomialTerms := [",
-        SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION,
-        coverage.rows(),
-        coverage.columns(),
-        coverage.selector_columns(),
-        coverage.polynomial_arity(),
+open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage.Wire",
     )
     .expect("render selector coverage header");
-    for (index, term) in coverage.polynomial_terms().iter().enumerate() {
-        let separator = if index == 0 { "    " } else { "  , " };
-        writeln!(
-            rendered,
-            "{separator}{{ coefficient := {}, exponents := {:?} }}",
-            term.coefficient().as_canonical_u64(),
-            term.exponents(),
-        )
-        .expect("render selector polynomial term");
-    }
-    writeln!(rendered, "  ]\n  ownerRuns := [").expect("render selector owner header");
-    for (index, run) in coverage.owner_runs().iter().enumerate() {
-        let rows = run.emitted_rows();
-        let separator = if index == 0 { "    " } else { "  , " };
-        writeln!(
-            rendered,
-            "{separator}{{ start := {}, stop := {}, family := .{}, arm := {} }}",
-            rows.start,
-            rows.end,
-            lean_family(run.family()),
-            run.arm()
-                .map_or_else(|| "none".to_owned(), |arm| format!("some {arm}")),
-        )
-        .expect("render selector owner run");
-    }
-    writeln!(rendered, "  ]\n  gateRuns := [").expect("render selector gate header");
-    for (index, run) in coverage.gate_runs().iter().enumerate() {
-        let rows = run.emitted_rows();
-        let separator = if index == 0 { "    " } else { "  , " };
-        writeln!(
-            rendered,
-            "{separator}{{ start := {}, stop := {}, port := .{}, column := {}, coefficient := {} }}",
-            rows.start,
-            rows.end,
-            lean_gate_port(run.port()),
-            run.column(),
-            run.coefficient().as_canonical_u64(),
-        )
-        .expect("render selector gate run");
-    }
+    write_raw_coverage(&mut rendered, "rawCoverage", coverage).expect("render selector coverage");
     writeln!(
         rendered,
-        "  ]\n\nend Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySelectiveSelectorCoverageFixture"
+        "\nend Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySelectiveSelectorCoverageFixture"
     )
     .expect("render selector coverage footer");
     rendered
@@ -182,6 +120,336 @@ fn write_raw_row(rendered: &mut String, name: &str, artifact: &SelectiveRowArtif
         writeln!(rendered, "{separator}{{ terms := [{terms}] }}")?;
     }
     writeln!(rendered, "]")
+}
+
+fn lean_source_terms(terms: &[SelectiveProjectedSourceTerm]) -> String {
+    terms
+        .iter()
+        .map(|term| {
+            format!(
+                "{{ column := {}, coefficient := {} }}",
+                term.column(),
+                term.coefficient().as_canonical_u64()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn lean_source_lc(constant: F, terms: &[SelectiveProjectedSourceTerm]) -> String {
+    format!(
+        "{{ constant := {}, terms := [{}] }}",
+        constant.as_canonical_u64(),
+        lean_source_terms(terms)
+    )
+}
+
+fn csc_row(matrix: &CscMat<F>, row: usize) -> Vec<(usize, F)> {
+    let mut terms = Vec::new();
+    for column in 0..matrix.ncols {
+        for entry in matrix.column_range(column) {
+            if matrix.row_index(entry) == row {
+                terms.push((column, matrix.vals[entry]));
+            }
+        }
+    }
+    terms
+}
+
+fn source_matrix_row(matrix: &CcsMatrix<F>, row: usize) -> Vec<(usize, F)> {
+    match matrix {
+        CcsMatrix::Csc(matrix) => csc_row(matrix, row),
+        CcsMatrix::CscWithSeededPhi81 {
+            csc,
+            blocks,
+            geometric_runs,
+        } => {
+            assert!(
+                blocks.is_empty() && geometric_runs.is_empty(),
+                "grouped-product fixture source rows must be ordinary CSC"
+            );
+            csc_row(csc, row)
+        }
+        CcsMatrix::Identity { .. } | CcsMatrix::VerifierArtifact { .. } => {
+            panic!("grouped-product fixture source rows must use explicit CSC matrices")
+        }
+    }
+}
+
+fn lean_source_matrix_lc(terms: &[(usize, F)]) -> String {
+    let mut constant = F::ZERO;
+    let mut nonconstant = Vec::new();
+    for &(column, coefficient) in terms {
+        if column == 0 {
+            constant += coefficient;
+        } else {
+            nonconstant.push(format!(
+                "{{ column := {column}, coefficient := {} }}",
+                coefficient.as_canonical_u64()
+            ));
+        }
+    }
+    format!(
+        "{{ constant := {}, terms := [{}] }}",
+        constant.as_canonical_u64(),
+        nonconstant.join(", ")
+    )
+}
+
+fn write_raw_source_rows(
+    rendered: &mut String,
+    source_arm: &neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs,
+    source: &SelectiveProjectedSourceProvenance,
+) -> std::fmt::Result {
+    let source_rows = source
+        .rewrite_steps()
+        .iter()
+        .flat_map(|step| {
+            step.source_rows()
+                .iter()
+                .flat_map(|&(start, stop)| start..stop)
+        })
+        .collect::<BTreeSet<_>>();
+    writeln!(rendered, "\ndef rawSourceRows : List RawSourceR1csRow := [")?;
+    for (index, row) in source_rows.into_iter().enumerate() {
+        let separator = if index == 0 { "  " } else { ", " };
+        writeln!(
+            rendered,
+            "{separator}{{ row := {row}, a := {}, b := {}, c := {} }}",
+            lean_source_matrix_lc(&source_matrix_row(&source_arm.a, row)),
+            lean_source_matrix_lc(&source_matrix_row(&source_arm.b, row)),
+            lean_source_matrix_lc(&source_matrix_row(&source_arm.c, row)),
+        )?;
+    }
+    writeln!(rendered, "]")
+}
+
+fn write_raw_source_layout(rendered: &mut String, source: &SelectiveProjectedSourceProvenance) -> std::fmt::Result {
+    let mut source_columns = BTreeSet::new();
+    let mut derived_indices = BTreeSet::new();
+    for step in source.rewrite_steps() {
+        match step.output() {
+            SelectiveProjectedRewriteOutput::Source { terms, .. } => {
+                source_columns.extend(terms.iter().map(|term| term.column()));
+            }
+            SelectiveProjectedRewriteOutput::DerivedProductSum { compiler_index } => {
+                derived_indices.insert(*compiler_index);
+            }
+        }
+        source_columns.extend(step.base_terms().iter().map(|term| term.column()));
+        if let Some(previous) = step.previous() {
+            derived_indices.insert(previous);
+        }
+        for factor in step.factors() {
+            source_columns.extend(factor.left_terms().iter().map(|term| term.column()));
+            source_columns.extend(factor.right_terms().iter().map(|term| term.column()));
+        }
+    }
+    loop {
+        let before = source_columns.len();
+        for definition in source.linear_definitions() {
+            if source_columns.contains(&definition.target()) {
+                source_columns.extend(definition.terms().iter().map(|term| term.column()));
+            }
+        }
+        if source_columns.len() == before {
+            break;
+        }
+    }
+
+    writeln!(rendered, "\ndef rawSourceSlots : List RawSourceSlot := [")?;
+    for (index, slot) in source
+        .retained_slots()
+        .iter()
+        .filter(|slot| source_columns.contains(&slot.column()))
+        .enumerate()
+    {
+        let separator = if index == 0 { "  " } else { ", " };
+        writeln!(
+            rendered,
+            "{separator}{{ column := {}, start := {}, width := {} }}",
+            slot.column(),
+            slot.start(),
+            slot.width(),
+        )?;
+    }
+    writeln!(rendered, "]")?;
+
+    writeln!(rendered, "\ndef rawSourceDefinitions : List RawSourceDefinition := [")?;
+    for (index, definition) in source
+        .linear_definitions()
+        .iter()
+        .filter(|definition| source_columns.contains(&definition.target()))
+        .enumerate()
+    {
+        let separator = if index == 0 { "  " } else { ", " };
+        writeln!(
+            rendered,
+            "{separator}{{ target := {}, value := {} }}",
+            definition.target(),
+            lean_source_lc(definition.constant(), definition.terms()),
+        )?;
+    }
+    writeln!(rendered, "]")?;
+
+    writeln!(rendered, "\ndef rawDerivedSlots : List RawDerivedSlot := [")?;
+    for (index, derived) in source
+        .derived_product_sums()
+        .iter()
+        .filter(|derived| derived_indices.contains(&derived.compiler_index()))
+        .enumerate()
+    {
+        let separator = if index == 0 { "  " } else { ", " };
+        writeln!(
+            rendered,
+            "{separator}{{ compilerIndex := {}, start := {}, width := {} }}",
+            derived.compiler_index(),
+            derived.start(),
+            derived.width(),
+        )?;
+    }
+    writeln!(rendered, "]")
+}
+
+fn write_raw_rewrite_step(rendered: &mut String, name: &str, step: &SelectiveProjectedRewriteStep) -> std::fmt::Result {
+    let kind = match step.kind() {
+        SelectiveRewriteKind::PolynomialEvaluation => "polynomialEvaluation",
+        SelectiveRewriteKind::ProductSum => "productSum",
+        other => panic!("unsupported grouped-product rewrite kind {other:?}"),
+    };
+    let source_rows = step
+        .source_rows()
+        .iter()
+        .map(|&(start, stop)| format!("{{ start := {start}, stop := {stop} }}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let output = match step.output() {
+        SelectiveProjectedRewriteOutput::Source { constant, terms } => {
+            format!(".source {}", lean_source_lc(*constant, terms))
+        }
+        SelectiveProjectedRewriteOutput::DerivedProductSum { compiler_index } => {
+            format!(".derivedProductSum {compiler_index}")
+        }
+    };
+    let previous = step
+        .previous()
+        .map_or_else(|| "none".to_owned(), |index| format!("some {index}"));
+
+    writeln!(
+        rendered,
+        "\ndef {name} : RawStep where\n  emittedRow := {}\n  rewriteId := {}\n  kind := .{kind}\n  sourceRows := [{source_rows}]\n  output := {output}\n  base := {}\n  previous := {previous}\n  factors := [",
+        step.emitted_row(),
+        step.rewrite_id(),
+        lean_source_lc(step.base_constant(), step.base_terms()),
+    )?;
+    for (index, factor) in step.factors().iter().enumerate() {
+        let separator = if index == 0 { "    " } else { "  , " };
+        writeln!(
+            rendered,
+            "{separator}{{ left := {}, right := {}, coefficient := {} }}",
+            lean_source_lc(factor.left_constant(), factor.left_terms()),
+            lean_source_lc(factor.right_constant(), factor.right_terms()),
+            factor.coefficient().as_canonical_u64(),
+        )?;
+    }
+    writeln!(rendered, "  ]")
+}
+
+fn render_grouped_product_rewrite_artifact(
+    source_rows: usize,
+    source_columns: usize,
+    source_arm: &neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs,
+    source: &SelectiveProjectedSourceProvenance,
+    rows: &[SelectiveRowArtifact],
+) -> String {
+    assert_eq!(source.rewrite_steps().len(), rows.len());
+    let final_columns = rows
+        .first()
+        .expect("grouped-product fixture has final rows")
+        .matrix_row()
+        .columns();
+    assert!(rows
+        .iter()
+        .all(|row| row.matrix_row().columns() == final_columns));
+    let mut rendered = String::new();
+    writeln!(
+        rendered,
+        "import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.SelectiveGroupedProductRewriteSchema\n\n\
+/-! Generated file: exact grouped-product rewrite data for one deterministic\n\
+two-arm selective-compiler fixture.\n\n\
+Owns: the complete Rust-projected source recurrence and every final materialized\n\
+row for one nonempty product-sum rewrite.\n\n\
+Does not own: production-family coverage, source-to-final assignment\n\
+refinement, recursive or terminal conformance, constraint necessity, or\n\
+permission to remove a production row or coordinate.\n\n\
+Emits constraints: no. Rust emits this file only after its exact provenance\n\
+audit reproduces every final row from the executable rewrite steps.\n\n\
+| Artifact branch | Exact Rust source | Semantic status |\n\
+|---|---|---|\n\
+| source expressions and slots | checked executable rewrite plan | untrusted wire data |\n\
+| row coefficients | final materialized selective matrices | untrusted wire data |\n\
+| row/rewrite join | emitted-row ownership ledger | checked again in Lean |\n\
+-/\n\n\
+namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySelectiveGroupedProductRewriteFixture\n\n\
+open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Wire\n\
+open Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.Wire\n\n\
+def sourceRowCount : Nat := {source_rows}\n\
+def sourceColumnCount : Nat := {source_columns}\n\
+def finalColumnCount : Nat := {final_columns}\n\
+def arm : Nat := {}\n",
+        source.arm(),
+    )
+    .expect("render grouped-product artifact header");
+
+    write_raw_source_layout(&mut rendered, source).expect("render grouped-product source layout");
+    write_raw_source_rows(&mut rendered, source_arm, source).expect("render grouped-product source rows");
+
+    for (index, step) in source.rewrite_steps().iter().enumerate() {
+        write_raw_rewrite_step(&mut rendered, &format!("rawStep{index:02}"), step)
+            .expect("render grouped-product rewrite step");
+    }
+    writeln!(rendered, "\ndef rawSteps : List RawStep := [").expect("render grouped-product step list");
+    for index in 0..source.rewrite_steps().len() {
+        let separator = if index == 0 { "  " } else { ", " };
+        writeln!(rendered, "{separator}rawStep{index:02}").expect("render grouped-product step item");
+    }
+    writeln!(rendered, "]").expect("render grouped-product step list footer");
+
+    for (index, row) in rows.iter().enumerate() {
+        write_raw_row(&mut rendered, &format!("rawRow{index:02}"), row).expect("render grouped-product final row");
+    }
+    writeln!(rendered, "\ndef rawRows : List RawRow := [").expect("render grouped-product row list");
+    for index in 0..rows.len() {
+        let separator = if index == 0 { "  " } else { ", " };
+        writeln!(rendered, "{separator}rawRow{index:02}").expect("render grouped-product row item");
+    }
+    writeln!(
+        rendered,
+        "]\n\nend Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistorySelectiveGroupedProductRewriteFixture"
+    )
+    .expect("render grouped-product artifact footer");
+    rendered
+}
+
+fn assert_grouped_product_rewrite_artifact_matches_committed(
+    source_rows: usize,
+    source_columns: usize,
+    source_arm: &neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs,
+    source: &SelectiveProjectedSourceProvenance,
+    rows: &[SelectiveRowArtifact],
+) {
+    let rendered = render_grouped_product_rewrite_artifact(source_rows, source_columns, source_arm, source, rows);
+    let path = format!(
+        "{}{}",
+        env!("CARGO_MANIFEST_DIR"),
+        GROUPED_PRODUCT_REWRITE_ARTIFACT_PATH
+    );
+    let committed = std::fs::read_to_string(&path).unwrap_or_default();
+    if rendered != committed {
+        let expected = format!("{path}.expected");
+        std::fs::write(&expected, rendered).expect("write reviewed grouped-product artifact");
+        panic!("grouped-product Lean fixture drifted; wrote {expected}. Inspect it and promote it explicitly");
+    }
 }
 
 fn render_selector_row_artifact(artifact: &SelectiveRowArtifact) -> String {
@@ -360,7 +628,7 @@ fn snapshot_arm(seed: u64) -> (neo_fold_clean::frontends::r1cs_f_prime::SparseR1
     let public_copy = builder.alloc(F::ONE);
     enforce_bit(&mut builder, public_copy);
     builder.enforce_eq(&Lc::from_var(public), &Lc::from_var(public_copy));
-    let lhs = (0..6)
+    let mut lhs = (0..6)
         .map(|index| {
             KVar::alloc(
                 &mut builder,
@@ -369,6 +637,13 @@ fn snapshot_arm(seed: u64) -> (neo_fold_clean::frontends::r1cs_f_prime::SparseR1
             )
         })
         .collect::<Vec<_>>();
+    let affine_source = lhs[0].c0;
+    let affine_value = builder.witness()[affine_source.col()] + F::from_u64(3);
+    let affine = builder.alloc(affine_value);
+    let mut affine_rhs = Lc::from_var(affine_source);
+    affine_rhs.add_constant(F::from_u64(3));
+    builder.enforce_eq(&Lc::from_var(affine), &affine_rhs);
+    lhs[0].c0 = affine;
     let rhs = (0..6)
         .map(|index| {
             KVar::alloc(
@@ -433,7 +708,6 @@ fn expected_gate_for_owner(
     use SelectiveEmittedRowFamily as Family;
     match family {
         Family::SelectorDomain
-        | Family::SharedDomain
         | Family::OneHot
         | Family::PublicPadding
         | Family::PrivatePadding
@@ -441,11 +715,15 @@ fn expected_gate_for_owner(
             assert_eq!(arm, None, "common family {family:?} must not carry an arm");
             (SelectiveGatePort::General, 0)
         }
-        Family::ArmDomain
-        | Family::Retained
-        | Family::Poseidon2
-        | Family::CenteredUnit
-        | Family::ShiftedTernaryCanonical => {
+        Family::SharedDomain => {
+            assert_eq!(arm, None, "shared domain must not carry an arm");
+            (SelectiveGatePort::GeneralEvaluation, 0)
+        }
+        Family::ArmDomain => {
+            let arm = arm.expect("combined-gated arm domain");
+            (SelectiveGatePort::GeneralEvaluation, selector_columns[arm])
+        }
+        Family::Retained | Family::Poseidon2 | Family::CenteredUnit | Family::ShiftedTernaryCanonical => {
             let arm = arm.expect("general-gated arm family");
             (SelectiveGatePort::General, selector_columns[arm])
         }
@@ -505,6 +783,77 @@ fn projected_emitter_rows_expand_to_materialized_rows() {
             );
         }
     }
+}
+
+#[test]
+fn projected_product_sum_rows_include_exact_executable_rewrite_steps() {
+    let fixtures = [snapshot_arm(7), snapshot_arm(19)];
+    let shapes = fixtures
+        .iter()
+        .map(|(shape, _)| shape.clone())
+        .collect::<Vec<_>>();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&shapes, 0, D, 0)
+        .expect("compile product-sum provenance fixture");
+    let rewrite = relation
+        .selective_compiler_audit()
+        .expect("selective compiler audit")
+        .rows()
+        .rewrites()
+        .iter()
+        .find(|rewrite| {
+            rewrite.arm() == 0
+                && rewrite.kind() == SelectiveRewriteKind::ProductSum
+                && !rewrite.emitted_rows().is_empty()
+        })
+        .expect("nonempty product-sum rewrite");
+    let selected_rows = rewrite.emitted_rows().collect::<Vec<_>>();
+    let source_columns = (0..shapes[0].m).collect::<Vec<_>>();
+    let projected = audit_multi_branch_selective_rows_with_complete_source_provenance_with_alignment(
+        &shapes,
+        0,
+        D,
+        0,
+        &selected_rows,
+        0,
+        &source_columns,
+        &[],
+    )
+    .expect("project exact product-sum rewrite provenance");
+    let source = projected
+        .source_provenance()
+        .expect("complete source provenance");
+
+    assert_eq!(source.arm(), 0);
+    assert_eq!(source.rewrite_steps().len(), selected_rows.len());
+    assert!(source
+        .rewrite_steps()
+        .iter()
+        .zip(&selected_rows)
+        .all(|(step, row)| {
+            step.emitted_row() == *row
+                && step.rewrite_id() == rewrite.id().index()
+                && step.kind() == SelectiveRewriteKind::ProductSum
+                && step.factors().len() <= 5
+        }));
+
+    let snapshot = relation
+        .selective_snapshot()
+        .expect("checked grouped-product snapshot");
+    let materialized_rows = selected_rows
+        .iter()
+        .map(|&row| {
+            snapshot
+                .materialize_row(row)
+                .expect("materialize grouped-product row")
+        })
+        .collect::<Vec<_>>();
+    assert_grouped_product_rewrite_artifact_matches_committed(
+        shapes[0].n,
+        shapes[0].m,
+        &shapes[0],
+        source,
+        &materialized_rows,
+    );
 }
 
 #[test]
@@ -733,8 +1082,14 @@ fn selective_snapshot_selector_gate_coverage_matches_final_matrices() {
         assert_eq!((gate.port(), gate.column()), expected);
         assert_eq!(gate.coefficient(), F::ONE);
         if owner.arm().is_some() {
-            saw_general_arm |= expected.0 == SelectiveGatePort::General;
-            saw_evaluation_arm |= expected.0 == SelectiveGatePort::Evaluation;
+            saw_general_arm |= matches!(
+                expected.0,
+                SelectiveGatePort::General | SelectiveGatePort::GeneralEvaluation
+            );
+            saw_evaluation_arm |= matches!(
+                expected.0,
+                SelectiveGatePort::Evaluation | SelectiveGatePort::GeneralEvaluation
+            );
         }
         if !nonempty_families.contains(&owner.family()) {
             nonempty_families.push(owner.family());
@@ -766,8 +1121,48 @@ fn selective_snapshot_selector_gate_coverage_matches_final_matrices() {
             "fixture unexpectedly gained {family:?}; add explicit review coverage"
         );
     }
+
+    let coalesced = coverage.coalesced_owner_gate_runs();
+    assert!(!coalesced.is_empty());
+    assert!(coalesced.len() <= coverage.gate_runs().len());
+    let mut cursor = 0usize;
+    for run in &coalesced {
+        let rows = run.emitted_rows();
+        assert_eq!(rows.start, cursor, "coalesced coverage must have no gap");
+        assert!(rows.start < rows.end, "coalesced runs must be nonempty");
+        cursor = rows.end;
+    }
+    assert_eq!(cursor, coverage.rows());
+    for (owner, gate) in coverage
+        .owner_runs()
+        .iter()
+        .filter(|owner| !owner.emitted_rows().is_empty())
+        .zip(coverage.gate_runs())
+    {
+        let owner_rows = owner.emitted_rows();
+        let run = coalesced
+            .iter()
+            .find(|run| {
+                let rows = run.emitted_rows();
+                rows.start <= owner_rows.start && owner_rows.end <= rows.end
+            })
+            .expect("each exact owner run has one coalesced owner/gate run");
+        assert_eq!((run.family(), run.arm()), (owner.family(), owner.arm()));
+        assert_eq!((run.port(), run.column()), (gate.port(), gate.column()));
+        assert_eq!(run.coefficient(), gate.coefficient());
+    }
+    for adjacent in coalesced.windows(2) {
+        assert!(
+            adjacent[0].family() != adjacent[1].family()
+                || adjacent[0].arm() != adjacent[1].arm()
+                || adjacent[0].port() != adjacent[1].port()
+                || adjacent[0].column() != adjacent[1].column()
+                || adjacent[0].coefficient() != adjacent[1].coefficient(),
+            "coalesced coverage must be maximal"
+        );
+    }
     assert_eq!(coverage.polynomial_arity(), 13);
-    assert_eq!(coverage.polynomial_terms().len(), 66);
+    assert_eq!(coverage.polynomial_terms().len(), 74);
     assert_selector_coverage_artifact_matches_committed(&coverage);
 }
 

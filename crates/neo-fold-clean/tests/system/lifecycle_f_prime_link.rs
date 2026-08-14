@@ -611,7 +611,7 @@ fn lifecycle_recursive_step_rejects_zero_step_count_even_with_matching_fresh_and
         .as_ref()
         .expect("recursive output must carry parent authority");
     let forged_acc_digest =
-        AccumulatorHandle::from_running_parts(&forged_running_out.claims, Some(forged_parent)).digest();
+        AccumulatorHandle::from_running_parts(2, &forged_running_out.claims, Some(forged_parent)).digest();
 
     let mut forged_state_out = forged_state_in.clone();
     forged_state_out.chunk_count += 1;
@@ -763,7 +763,7 @@ fn lifecycle_recursive_step_rejects_running_child_field_tamper_even_if_handle_an
     let parent_authority = view.running_parent_authority.clone();
     running_claims[0].y_ring[0][0] += k_c1_one();
     let forged_acc_digest =
-        AccumulatorHandle::from_running_parts(&running_claims, parent_authority.as_ref()).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &running_claims, parent_authority.as_ref()).digest_fields();
     let mut f_state = f_prime_state_in(view.state_in, view.prep);
     f_state.acc_digest_in = forged_acc_digest;
     f_state.semantic_state_digest_in = forged_acc_digest;
@@ -814,7 +814,7 @@ fn lifecycle_recursive_step_rejects_running_child_fold_digest_tamper_even_if_han
     running_claims[0].fold_digest[0] ^= 0x80;
     let parent_authority = view.running_parent_authority.clone();
     let forged_acc_digest =
-        AccumulatorHandle::from_running_parts(&running_claims, parent_authority.as_ref()).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &running_claims, parent_authority.as_ref()).digest_fields();
     let mut f_state = f_prime_state_in(view.state_in, view.prep);
     f_state.acc_digest_in = forged_acc_digest;
     f_state.semantic_state_digest_in = forged_acc_digest;
@@ -867,7 +867,8 @@ fn lifecycle_recursive_step_rejects_running_parent_field_tamper_even_if_handle_a
         .expect("test setup needs running parent authority");
     parent_authority.y_ring[0][0] += k_c1_one();
     let forged_acc_digest =
-        AccumulatorHandle::from_running_parts(view.running_claims.as_slice(), Some(&parent_authority)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, view.running_claims.as_slice(), Some(&parent_authority))
+            .digest_fields();
     let mut f_state = f_prime_state_in(view.state_in, view.prep);
     f_state.acc_digest_in = forged_acc_digest;
     f_state.semantic_state_digest_in = forged_acc_digest;
@@ -953,7 +954,7 @@ fn lifecycle_recursive_step_rejects_output_child_field_tamper_even_if_handle_and
     );
     children[0].y_ring[0][0] += k_c1_one();
     let combined = view.nifs.pi_rlc.combined.clone();
-    let forged_acc_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
+    let forged_acc_digest = AccumulatorHandle::from_running_parts(2, &children, Some(&combined)).digest_fields();
     let mut source = build_source_image(&view, &f_prime_state_in(view.state_in, view.prep));
     let mut forged_state_out = view.state_out.clone();
     forged_state_out.acc_digest = digest_fields_as_digest32(forged_acc_digest);
@@ -983,7 +984,7 @@ fn lifecycle_recursive_step_rejects_output_child_fold_digest_tamper_even_if_hand
     let mut children = view.nifs.pi_dec.children.clone();
     children[0].fold_digest[0] ^= 0x80;
     let combined = view.nifs.pi_rlc.combined.clone();
-    let forged_acc_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
+    let forged_acc_digest = AccumulatorHandle::from_running_parts(2, &children, Some(&combined)).digest_fields();
     let mut source = build_source_image(&view, &f_prime_state_in(view.state_in, view.prep));
     let mut forged_state_out = view.state_out.clone();
     forged_state_out.acc_digest = digest_fields_as_digest32(forged_acc_digest);
@@ -1013,7 +1014,7 @@ fn lifecycle_recursive_step_rejects_output_parent_field_tamper_even_if_handle_an
     let children = view.nifs.pi_dec.children.clone();
     let mut combined = view.nifs.pi_rlc.combined.clone();
     combined.y_ring[0][0] += k_c1_one();
-    let forged_acc_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
+    let forged_acc_digest = AccumulatorHandle::from_running_parts(2, &children, Some(&combined)).digest_fields();
     let mut source = build_source_image(&view, &f_prime_state_in(view.state_in, view.prep));
     let mut forged_state_out = view.state_out.clone();
     forged_state_out.acc_digest = digest_fields_as_digest32(forged_acc_digest);

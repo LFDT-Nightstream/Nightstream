@@ -25,9 +25,8 @@ use p3_field::{Field, PrimeCharacteristicRing};
 
 use super::super::lowering::LowNormR1csError;
 use super::{
-    prepare_selective_layout, prepare_selective_layout_summary, SelectiveCompilerAudit, SparseR1cs, A, B, BIT, C,
-    CANON_CHUNK_CLASS_SELECTORS, CENTERED_UNIT, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT,
-    SELECTIVE_ARITY,
+    prepare_selective_layout, SelectiveCompilerAudit, SparseR1cs, A, B, BIT, C, CANON_CHUNK_CLASS_SELECTORS,
+    CENTERED_UNIT, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT, SELECTIVE_ARITY,
 };
 
 type BorrowMonomial = [u32; 4];
@@ -184,24 +183,6 @@ pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix
     })
 }
 
-pub(crate) fn prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix(
-    arms: &[SparseR1cs],
-    shared_private_fields: usize,
-    shared_private_bit_fields: usize,
-    modulus: usize,
-    residue: usize,
-) -> Result<SelectiveLowNormShapeSummary, LowNormR1csError> {
-    let layout =
-        prepare_selective_layout_summary(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
-    Ok(SelectiveLowNormShapeSummary {
-        rows: layout.rows,
-        columns: layout.columns,
-        public_input_len: layout.public_input_len,
-        polynomial: selective_polynomial(),
-        total_coordinates: layout.total_coordinates,
-    })
-}
-
 pub(crate) fn selective_polynomial() -> SparsePoly<F> {
     let term = |coefficient: F, powers: &[(usize, u32)]| {
         let mut exps = vec![0u32; SELECTIVE_ARITY];
@@ -221,6 +202,20 @@ pub(crate) fn selective_polynomial() -> SparsePoly<F> {
         term(F::ONE, &[(GENERAL_SELECTOR, 1), (SBOX_INPUT, 7)]),
         term(F::ONE, &[(GENERAL_SELECTOR, 1), (CENTERED_UNIT, 3)]),
         term(-F::ONE, &[(GENERAL_SELECTOR, 1), (CENTERED_UNIT, 1)]),
+        term(
+            -F::ONE,
+            &[(GENERAL_SELECTOR, 1), (EVAL_SELECTOR, 1), (CENTERED_UNIT, 3)],
+        ),
+        term(F::ONE, &[(GENERAL_SELECTOR, 1), (EVAL_SELECTOR, 1), (CENTERED_UNIT, 1)]),
+        term(F::ONE, &[(GENERAL_SELECTOR, 1), (EVAL_SELECTOR, 1), (CENTERED_UNIT, 6)]),
+        term(
+            -F::from_u64(2),
+            &[(GENERAL_SELECTOR, 1), (EVAL_SELECTOR, 1), (CENTERED_UNIT, 4)],
+        ),
+        term(F::ONE, &[(GENERAL_SELECTOR, 1), (EVAL_SELECTOR, 1), (CENTERED_UNIT, 2)]),
+        term(-F::from_u64(7), &[(GENERAL_SELECTOR, 1), (EVAL_SELECTOR, 1), (A, 6)]),
+        term(F::from_u64(14), &[(GENERAL_SELECTOR, 1), (EVAL_SELECTOR, 1), (A, 4)]),
+        term(-F::from_u64(7), &[(GENERAL_SELECTOR, 1), (EVAL_SELECTOR, 1), (A, 2)]),
         term(-F::ONE, &[(EVAL_SELECTOR, 1), (C, 1)]),
     ];
     for &(left, right) in &EVAL_PAIRS {

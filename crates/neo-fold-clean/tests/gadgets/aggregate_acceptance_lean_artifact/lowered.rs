@@ -66,7 +66,7 @@ fn index_rows(structure: &CcsStructure<F>) -> Vec<Vec<GlobalTerm>> {
     for (matrix_index, matrix) in structure.matrices.iter().enumerate() {
         match matrix {
             CcsMatrix::Csc(matrix) => csc_rows(matrix, matrix_index, &mut rows),
-            CcsMatrix::Identity { .. } | CcsMatrix::CscWithSeededPhi81 { .. } => {
+            CcsMatrix::Identity { .. } | CcsMatrix::CscWithSeededPhi81 { .. } | CcsMatrix::VerifierArtifact { .. } => {
                 panic!("aggregate-acceptance gate matrices must be ordinary CSC")
             }
         }

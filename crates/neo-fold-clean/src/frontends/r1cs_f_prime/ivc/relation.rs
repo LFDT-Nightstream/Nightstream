@@ -1,8 +1,10 @@
 //! Fixed, selectively lowered relation used by the generic R1CS IVC path.
 
+mod constraint_source_audit;
 mod pi_dec_audit;
 mod source_audit;
 
+pub use constraint_source_audit::R1csIvcConstraintSourceAudit;
 pub use pi_dec_audit::{
     R1csIvcPiDecCanonicalXSelectiveRowsAudit, R1csIvcPiDecSelectiveRowsAudit, R1csIvcPiDecSourceRowAudit,
     R1csIvcPiDecSourceRowsAudit,

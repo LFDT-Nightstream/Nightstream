@@ -156,7 +156,7 @@ fn recompute_active_running_acc_digest(proof: &neo_fold_clean::Uncompressed) -> 
             .parent_authority
             .as_ref()
             .expect("non-empty running must carry parent authority");
-        neo_fold_clean::paper::digest::AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
+        neo_fold_clean::paper::digest::AccumulatorHandle::from_running_parts(2, &running.claims, Some(parent)).digest()
     }
 }
 
@@ -168,7 +168,7 @@ fn running_acc_digest(running: &neo_fold_clean::RunningInstance) -> [u8; 32] {
             .parent_authority
             .as_ref()
             .expect("non-empty running must carry parent authority");
-        neo_fold_clean::paper::digest::AccumulatorHandle::from_running_parts(&running.claims, Some(parent)).digest()
+        neo_fold_clean::paper::digest::AccumulatorHandle::from_running_parts(2, &running.claims, Some(parent)).digest()
     }
 }
 

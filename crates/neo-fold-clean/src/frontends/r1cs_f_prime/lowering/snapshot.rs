@@ -644,6 +644,9 @@ fn replay_write_encoded_value(
     if width == super::BALANCED_TERNARY_FIELD_WIDTH {
         return replay_write_balanced_ternary(assignment, start, value, field_col);
     }
+    if width == super::BALANCED_SEPTENARY_FIELD_WIDTH {
+        return replay_write_balanced_septenary(assignment, start, value, field_col);
+    }
     let canonical = value.as_canonical_u64();
     if width < BINARY_FIELD_WIDTH && canonical >= (1u64 << width) {
         return Err(LowNormR1csError::InferredWidthViolation {
@@ -694,6 +697,21 @@ fn replay_write_balanced_ternary(
     }
     if remaining != 0 {
         return Err(LowNormR1csError::BalancedTernaryOverflow { col: field_col });
+    }
+    Ok(())
+}
+
+fn replay_write_balanced_septenary(
+    assignment: &mut [F],
+    start: usize,
+    value: F,
+    field_col: usize,
+) -> Result<(), LowNormR1csError> {
+    for (digit_index, digit) in super::balanced_septenary_digits(value, field_col)?
+        .into_iter()
+        .enumerate()
+    {
+        assignment[start + digit_index] = F::from_i64(i64::from(digit));
     }
     Ok(())
 }
@@ -1014,7 +1032,10 @@ fn validate_arm(
 
     for (derived_index, derived) in relation.arm_derived_product_sums[arm].iter().enumerate() {
         validate_slot(arm, derived_index, "derived", derived.slot.0, derived.slot.1, columns)?;
-        if derived.slot.1 != super::BALANCED_TERNARY_FIELD_WIDTH {
+        if !matches!(
+            derived.slot.1,
+            super::BALANCED_TERNARY_FIELD_WIDTH | super::BALANCED_SEPTENARY_FIELD_WIDTH
+        ) {
             return Err(SelectiveSnapshotError::FieldInvariant {
                 arm,
                 field: derived_index,
@@ -1085,7 +1106,10 @@ fn validate_shared_source_plan(
 }
 
 fn is_supported_source_width(width: usize) -> bool {
-    matches!(width, 1 | super::BALANCED_TERNARY_FIELD_WIDTH | BINARY_FIELD_WIDTH)
+    matches!(
+        width,
+        1 | super::BALANCED_TERNARY_FIELD_WIDTH | super::BALANCED_SEPTENARY_FIELD_WIDTH | BINARY_FIELD_WIDTH
+    )
 }
 
 fn validate_slot(

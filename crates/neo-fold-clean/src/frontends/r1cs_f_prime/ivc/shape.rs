@@ -184,8 +184,10 @@ fn synthesize_recursive(context: &ShapeContext<'_>) -> Result<SparseR1cs, R1csIv
         children: &children,
     };
 
-    let running_digest = AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields();
-    let output_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
+    let running_digest =
+        AccumulatorHandle::from_running_parts(context.params.b(), &running, running_parent.as_ref()).digest_fields();
+    let output_digest =
+        AccumulatorHandle::from_running_parts(context.params.b(), &children, Some(&combined)).digest_fields();
     let mut source = FPrimeSourceImage::new();
     let chunk_count_in_word = source.push_u64_le(1);
     let step_count_in_word = source.push_u64_le(1);
@@ -519,6 +521,12 @@ pub(crate) fn bind_semantic_state(
         bind_digest(builder, &output.state_out.semantic_state_digest, &out);
     }
     if base {
+        if output.state_in.nebula.is_some() {
+            // The Nebula base circuit binds this state lane to the raw
+            // initial semantic digest inside its verifier-owned program
+            // binding, then carries the recomputed binding digest.
+            return;
+        }
         let anchor = plan
             .state_x_out
             .as_ref()

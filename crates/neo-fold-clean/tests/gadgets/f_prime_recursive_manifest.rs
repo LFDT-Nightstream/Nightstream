@@ -203,7 +203,7 @@ fn append_step_context(transcript: &mut Transcript, state: &FPrimeStateIn, chunk
 }
 
 fn running_digest(running: &RunningInstance) -> [F; 4] {
-    AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields()
+    AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest_fields()
 }
 
 fn prior_x_out(state: &FPrimeStateIn) -> [F; 4] {
@@ -313,7 +313,7 @@ fn build_fixture() -> Fixture {
 }
 
 fn recursive_acc_digest(fixture: &Fixture) -> [F; 4] {
-    AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields()
+    AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields()
 }
 
 fn recursive_x_out(fixture: &Fixture) -> [F; 4] {

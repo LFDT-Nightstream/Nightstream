@@ -1,4 +1,4 @@
-//! Deterministic shape synthesis for the three authoritative Nebula F' arms.
+//! Deterministic shape synthesis for the two distinct Nebula F' relations.
 //!
 //! Placeholder messages carry exact protocol dimensions but no authority.
 //! They are used only to emit verifier matrices during preprocessing.
@@ -34,16 +34,11 @@ use crate::paper::relations::{CcsClaim, CeClaim, Structure};
 
 pub(super) struct ArmShapes {
     pub base: SparseR1cs,
-    pub bootstrap_recursive: SparseR1cs,
     pub recursive: SparseR1cs,
-    pub shared_private_fields: usize,
-    pub shared_private_candidates: Vec<usize>,
 }
 
 struct SynthesizedArm {
     shape: SparseR1cs,
-    shared_private_fields: usize,
-    shared_private_candidates: Vec<usize>,
 }
 
 struct ShapeContext<'a> {
@@ -85,19 +80,9 @@ pub(super) fn synthesize_arm_shapes(
         recursive.shape.m,
         arm_started.elapsed().as_secs_f64(),
     );
-    if base.shared_private_fields != recursive.shared_private_fields
-        || base.shared_private_candidates != recursive.shared_private_candidates
-    {
-        return Err(NebulaFPrimeRelationError::Geometry(
-            "current-application private prefix differs across F' arms".into(),
-        ));
-    }
     Ok(ArmShapes {
         base: base.shape,
-        bootstrap_recursive: recursive.shape.clone(),
         recursive: recursive.shape,
-        shared_private_fields: base.shared_private_fields,
-        shared_private_candidates: base.shared_private_candidates,
     })
 }
 
@@ -139,7 +124,7 @@ fn shape_context<'a>(
     Ok(ShapeContext {
         params,
         plan,
-        config: plan.config(),
+        config: super::relation_config(plan, application),
         matrix_digest: [F::ZERO; 4],
         folded,
         application,
@@ -204,8 +189,6 @@ fn synthesize_base(context: &ShapeContext<'_>) -> Result<SynthesizedArm, NebulaF
         shape: lower_field_r1cs(builder, &output.public_outputs())?
             .into_parts()
             .0,
-        shared_private_fields: output.shared_private_fields,
-        shared_private_candidates: output.shared_private_candidates,
     })
 }
 
@@ -237,8 +220,10 @@ fn synthesize_recursive(context: &ShapeContext<'_>) -> Result<SynthesizedArm, Ne
         children: &children,
     };
 
-    let running_digest = AccumulatorHandle::from_running_parts(&running, running_parent.as_ref()).digest_fields();
-    let output_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
+    let running_digest =
+        AccumulatorHandle::from_running_parts(context.params.b(), &running, running_parent.as_ref()).digest_fields();
+    let output_digest =
+        AccumulatorHandle::from_running_parts(context.params.b(), &children, Some(&combined)).digest_fields();
     let mut source = FPrimeSourceImage::new();
     let chunk_count_in_word = source.push_u64_le(1);
     let step_count_in_word = source.push_u64_le(1);
@@ -287,8 +272,6 @@ fn synthesize_recursive(context: &ShapeContext<'_>) -> Result<SynthesizedArm, Ne
         shape: lower_field_r1cs(builder, &output.public_outputs())?
             .into_parts()
             .0,
-        shared_private_fields: output.shared_private_fields,
-        shared_private_candidates: output.shared_private_candidates,
     })
 }
 

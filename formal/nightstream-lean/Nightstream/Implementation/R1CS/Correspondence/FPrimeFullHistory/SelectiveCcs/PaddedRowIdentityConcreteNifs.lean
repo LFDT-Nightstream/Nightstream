@@ -43,7 +43,7 @@ open Nightstream.SuperNeo.Folding.PiRLC.PaperForkExtraction
 open Nightstream.SuperNeo.InteractiveReduction.FiniteUniform
 open Nightstream.SuperNeo.InteractiveReduction.Paper
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentity
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentitySecurity
 open MatrixCoefficientSource
 open PaperLinearAlgebra

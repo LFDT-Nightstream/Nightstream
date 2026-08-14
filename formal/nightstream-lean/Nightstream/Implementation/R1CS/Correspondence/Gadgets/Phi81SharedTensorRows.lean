@@ -1,5 +1,5 @@
 import Mathlib.Tactic.Ring
-import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.TerminalR1cs.Extension
+import Nightstream.Implementation.R1CS.Correspondence.TerminalR1cs.Extension
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.BooleanReproduction
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 
@@ -31,7 +31,7 @@ set_option maxRecDepth 100000
 
 namespace Nightstream.Implementation.R1CS.Phi81SharedTensorRows
 
-open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.TerminalR1cs
+open Nightstream.Implementation.R1CS.TerminalR1cs
 open Nightstream.Implementation.Lowering.Goldilocks
 open Nightstream.Implementation.Lowering.Typed
 open Nightstream.SuperNeo.Concrete

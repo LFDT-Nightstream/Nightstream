@@ -1,4 +1,4 @@
-import Nightstream.Implementation.NebulaV2.NIFS.PiDEC.LinearCombination
+import Nightstream.Implementation.Nebula.NIFS.PiDEC.LinearCombination
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.Phi81SharedTensorRows
 import Nightstream.SuperNeo.Concrete.Phi81Relation.Evaluation
 
@@ -29,10 +29,10 @@ set_option maxRecDepth 100000
 
 namespace Nightstream.Implementation.R1CS.Phi81SharedEvaluationRows
 
-open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.TerminalR1cs
+open Nightstream.Implementation.R1CS.TerminalR1cs
 open Nightstream.Implementation.Lowering.Goldilocks
 open Nightstream.Implementation.Lowering.Typed
-open Nightstream.Implementation.NebulaV2.ProductPiDecLinearCombination
+open Nightstream.Implementation.Nebula.ProductPiDecLinearCombination
 open Nightstream.Implementation.R1CS.Phi81SharedTensorRows
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation

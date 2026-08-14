@@ -1,0 +1,28 @@
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingStateBinding
+
+/-! Regression surface for bounded-chunk full-claim state binding. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductionFullClaimStreaming
+
+open Nightstream.Implementation.Nebula.ProductionFullClaimStreaming
+
+#check ChunkSchedule.exact_cover_and_bound
+#check ChunkSchedule.values_length_le_chunk_capacity
+#check ChunkSchedule.chunk_capacity_lt_values_plus_width
+#check ChunkSchedule.production_chunk_count_exact
+#check absorbChunks_eq_absorbSlice_flatten
+#check replayChunks_transcript
+#check replayChunks_cursor
+#check Ready.squeeze_eq_expected
+#check persistentFields_length
+#check ready_replay_recovers_frame_or_collision
+#check ready_replay_recovers_frame_of_no_collision
+#check scheduled_streamedBindingState_eq
+#check scheduledReady_squeeze_eq
+#check equal_streamed_states_recovers_claim_or_named_failure
+#check authoritativeFrame_length_r26
+#check production_1024_chunk_geometry
+
+end tests.NebulaProductionFullClaimStreaming

@@ -1,0 +1,12 @@
+import Nightstream.Assurance.ConstraintMinimization
+import tests.Axioms.Support
+
+namespace tests.Axioms.ConstraintMinimization
+
+open Nightstream.Assurance.ConstraintMinimization
+
+#audit_axioms ScalarCertificate.candidate_holds_of_valid
+#audit_axioms FamilyCertificate.redundant_of_valid
+#audit_axioms RemovalCounterexample.necessary_of_valid
+
+end tests.Axioms.ConstraintMinimization

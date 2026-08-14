@@ -38,15 +38,14 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRo
 open Nightstream.HyperNova.NIVCCompatibility
 open Nightstream.Implementation.Lowering.Goldilocks
 open Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec
-open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding
-open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsCanonicalCodecCore
+open Nightstream.Implementation.Encoding.NifsCanonicalCodec
 open Nightstream.Implementation.R1CS.Canonical
 open Nightstream.SuperNeo
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation
 open Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentity
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityCompilerDescription
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityHyperNova
@@ -230,7 +229,7 @@ each of the thirteen matrices used by CCS. -/
 def CanonicalZeroPadding (system : Structure) : Prop :=
   forall matrix vertex column,
     logicalRows <=
-        Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.rowIndex
+        Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.rowIndex
           vertex ->
       (PaddedRowIdentity.applicationSystem
           (PaddedRowIdentityCompilerDescription.matrices system)).matrices
@@ -240,11 +239,11 @@ theorem canonicalZeroPadding (system : Structure) :
     CanonicalZeroPadding system := by
   intro matrix vertex column padding
   change
-    Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows
+    Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows
         ((PaddedRowIdentityCompilerDescription.matrices system).matrixAt matrix)
         vertex column = 0
   exact
-    Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows_atPadding
+    Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows_atPadding
       _ vertex column padding
 
 /-- The deterministic committed-zero pair from HyperNova's base case. -/
@@ -426,8 +425,8 @@ theorem statementCodec_encode_exact (statement : FullStatement) :
 theorem statementCodec_encode_length (statement : FullStatement) :
     (statementCodec.encode statement).length =
       353 + parametersGoldCodec.width +
-        (962 + 3 * statement.runningStructure.entryCount) +
-        (962 + 3 * statement.freshStructure.entryCount) := by
+        (1074 + 3 * statement.runningStructure.entryCount) +
+        (1074 + 3 * statement.freshStructure.entryCount) := by
   rw [statementCodec_encode_exact]
   simp [parametersGoldCodec.encode_length,
     PaddedRowIdentityCompilerDescription.fields_length]

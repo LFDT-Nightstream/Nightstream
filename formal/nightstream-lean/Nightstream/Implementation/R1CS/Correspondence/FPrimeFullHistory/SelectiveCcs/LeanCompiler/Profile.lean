@@ -1,5 +1,6 @@
 import Mathlib.Data.Nat.Log
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.LeanCompiler.EncodingRows
+import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.Assignment
 
 /-!
 Contract: derive the selective-CCS row-domain profile from the exact
@@ -24,6 +25,7 @@ open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 open Nightstream.Implementation.Lowering.Typed
 open Nightstream.Implementation.Lowering.Goldilocks
+open Nightstream.Implementation.R1CS.SelectiveCcs
 
 universe u
 
@@ -67,6 +69,7 @@ def ofEncoding
       encoding.columnIds.length where
   rowVariables := rowVariables (EncodingRows.program encoding).length
   rowDomain := exactRowDomain (EncodingRows.program encoding).length
+  publicRingColumns := publicRingColumns
   publicFits := publicFits_of_alignedWidth publicWidth
 
 @[simp] theorem ofEncoding_rowVariables

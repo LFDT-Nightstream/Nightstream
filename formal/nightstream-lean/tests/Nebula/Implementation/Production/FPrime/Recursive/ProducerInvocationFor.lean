@@ -1,0 +1,12 @@
+import Nightstream.Implementation.Nebula.Production.FPrime.Recursive.ProducerInvocationFor
+
+open Nightstream.Implementation.Nebula.ProductionPaperRecursiveProducerInvocationFor
+
+#check Evidence.outgoingValue_eq_firstBoundary
+#check Evidence.currentMemoryStartsAt
+#check ExactInvocation.previousConsumed
+#check ExactInvocation.currentMemoryStartsAfterContinuation
+#check ExactInvocation.nextStateExact
+#check ExactInvocation.nextMemoryExact
+#check ExactInvocation.nextFreshRelationHolds
+#check exact

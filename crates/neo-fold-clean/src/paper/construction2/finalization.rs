@@ -225,7 +225,7 @@ fn prove_final_fold_with_nifs_prover(
         }
     };
 
-    let post_acc_digest = post_running.accumulator_digest(s)?;
+    let post_acc_digest = post_running.accumulator_digest(pp.b(), s)?;
 
     let state_after = State {
         chunk_count,
@@ -364,7 +364,7 @@ pub(crate) fn verify_final_fold(
         }
     };
 
-    let post_acc_digest = post_running.accumulator_digest(s)?;
+    let post_acc_digest = post_running.accumulator_digest(pp.b(), s)?;
     let state_after = State {
         chunk_count,
         step_count,

@@ -411,7 +411,7 @@ impl StateCoordinates {
         .map_err(lifecycle::Error::from)?;
         let acc_digest = digest32_as_fields(
             running
-                .accumulator_digest(prep.structure())
+                .accumulator_digest(prep.params.b(), prep.structure())
                 .map_err(crate::paper::construction2::Error::from)
                 .map_err(lifecycle::Error::from)?,
         );

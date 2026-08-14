@@ -63,6 +63,8 @@ pub enum BatchError {
     WidthCount { actual: usize, expected: usize },
     #[error("wasm batching requires ordinary R1CS matrices; compact seeded Phi81 blocks are unsupported")]
     CompactSeededMatrixUnsupported,
+    #[error("wasm batching requires materialized R1CS matrices")]
+    VerifierArtifactMatrixUnsupported,
     #[error(transparent)]
     Frontend(#[from] FrontendError),
 }
@@ -386,6 +388,7 @@ fn matrix_triplets(m: &CcsMatrix<F>) -> Result<Vec<(usize, usize, F)>, BatchErro
             out
         }
         CcsMatrix::CscWithSeededPhi81 { .. } => return Err(BatchError::CompactSeededMatrixUnsupported),
+        CcsMatrix::VerifierArtifact { .. } => return Err(BatchError::VerifierArtifactMatrixUnsupported),
     };
     Ok(triplets)
 }

@@ -710,6 +710,11 @@ fn source_row_lc(
                 }
             }
         }
+        CcsMatrix::VerifierArtifact { .. } => {
+            return Err(trace_error(
+                "projected source-row audit requires materialized matrix content",
+            ));
+        }
     }
     canonical.retain(|_, coefficient| *coefficient != F::ZERO);
     let constant = canonical.remove(&0).unwrap_or(F::ZERO);
@@ -1121,6 +1126,7 @@ fn project_rows_inner(
     let public_coordinates = public_coordinate_decoder(arms, &layout)?;
     let emitted = structure::emit_structure_terms(
         arms,
+        layout.encoding,
         &layout.plans,
         &layout.slots,
         &layout.aliases,

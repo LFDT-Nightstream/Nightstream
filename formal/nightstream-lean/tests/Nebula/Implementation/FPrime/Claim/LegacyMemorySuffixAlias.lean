@@ -1,0 +1,11 @@
+import Nightstream.Implementation.Nebula.FPrime.Claim.LegacyMemorySuffixAlias
+
+set_option autoImplicit false
+
+namespace tests.NebulaLegacyMemorySuffixAlias
+
+open Nightstream.Implementation.Nebula.LegacyMemorySuffixAlias
+
+#check distinct_blocks_same_legacy_paper_input
+
+end tests.NebulaLegacyMemorySuffixAlias

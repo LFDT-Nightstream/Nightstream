@@ -16,6 +16,7 @@ mod selective;
 mod selective_audit;
 mod selective_census;
 mod selective_row_artifact;
+mod selective_selection_audit;
 mod selective_selector_coverage;
 pub mod structure;
 pub mod terminal_r1cs;
@@ -26,8 +27,9 @@ pub use lean_nebula_combined_manifest::{LeanNebulaCombinedManifest, NebulaCombin
 pub use lowering::{
     build_fixed_shape_low_norm_r1cs, build_fixed_shape_low_norm_r1cs_with_shared_private_prefix,
     build_multi_branch_low_norm_r1cs, build_multi_branch_low_norm_r1cs_with_alignment, lower_field_r1cs,
-    lower_sparse_r1cs_to_low_norm, FieldR1csLoweringError, FixedR1csBranch, FixedShapeLowNormR1cs, LowNormR1cs,
-    LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs,
+    lower_sparse_r1cs_to_low_norm, FieldR1csLoweringError, FixedR1csBranch, FixedShapeLowNormR1cs,
+    LowNormEncoderArtifactError, LowNormEncoderArtifactLimits, LowNormEncoderArtifactReceipt, LowNormR1cs,
+    LowNormR1csError, LoweredFieldR1cs, MultiBranchLowNormR1cs, VerifiedLowNormEncoderArtifact,
 };
 pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
 pub use nebula_combined_ccs::{LeanNebulaCombinedError, LeanNebulaCombinedPreprocessing};
@@ -36,13 +38,16 @@ pub use relation_artifact::{R1CS_F_PRIME_COMPILER_ID, R1CS_F_PRIME_CONTRACT_ID, 
 pub use selective::is_canonical_selective_low_norm_polynomial;
 pub(crate) use selective::{
     audit_multi_branch_selective_low_norm_shape_with_alignment,
-    prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, SelectiveLowNormShape,
-    SelectiveLowNormShapeSummary,
+    audit_multi_branch_selective_low_norm_width_for_norm_base_with_alignment,
+    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, selective_polynomial,
+    PreparedSelectiveLowNormR1cs, SelectiveLowNormShape, SelectiveLowNormShapeSummary,
 };
 pub use selective::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
     audit_multi_branch_selective_low_norm_width_with_shared_bit_prefix,
-    audit_multi_branch_selective_rows_with_alignment, build_multi_branch_selective_low_norm_r1cs_with_alignment,
+    audit_multi_branch_selective_rows_with_alignment,
+    audit_multi_branch_selective_rows_with_complete_source_provenance_with_alignment,
+    build_multi_branch_selective_low_norm_r1cs_with_alignment,
     build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, SelectiveProjectedDecoderProvenance,
     SelectiveProjectedDecoderRunProvenance, SelectiveProjectedDerivedProductSum, SelectiveProjectedGeometricRun,
     SelectiveProjectedPort, SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate,
@@ -56,7 +61,8 @@ pub use selective::{
 pub use selective_audit::{
     SelectiveArmRowMappingAudit, SelectiveArmWidthAudit, SelectiveCanonicalOpeningAudit, SelectiveCompilerAudit,
     SelectiveEmittedRowFamily, SelectiveEmittedRowRunAudit, SelectiveFamilyWidthAudit, SelectiveLayoutAudit,
-    SelectiveLowNormWidthAudit, SelectiveRewriteAudit, SelectiveRewriteId, SelectiveRewriteKind,
+    SelectiveLinearDefinitionAudit, SelectiveLinearDefinitionTermAudit, SelectiveLowNormWidthAudit,
+    SelectivePhysicalStageWidthAudit, SelectiveRewriteAudit, SelectiveRewriteId, SelectiveRewriteKind,
     SelectiveRowMappingAudit, SelectiveSourceRowDisposition, SelectiveSourceRowRunAudit, SelectiveTraceWidthAudit,
 };
 pub use selective_census::{
@@ -66,9 +72,10 @@ pub use selective_row_artifact::{
     SelectiveMatrixRow, SelectiveRowArtifact, SelectiveRowArtifactError, SelectiveRowTerm,
     SELECTIVE_ROW_ARTIFACT_SCHEMA_VERSION,
 };
+pub use selective_selection_audit::SelectiveFirstAcceptedSelectionAudit;
 pub use selective_selector_coverage::{
     SelectiveGatePort, SelectiveSelectorGateCoverage, SelectiveSelectorGateCoverageError, SelectiveSelectorGateRun,
-    SelectiveSelectorPolynomialTerm, SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION,
+    SelectiveSelectorOwnerGateRun, SelectiveSelectorPolynomialTerm, SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION,
 };
 pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
 pub use terminal_r1cs::{

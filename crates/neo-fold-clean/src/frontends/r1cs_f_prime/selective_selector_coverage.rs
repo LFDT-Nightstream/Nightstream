@@ -11,14 +11,15 @@
 //!
 //! Emits constraints: no. This is a read-only refinement audit over an already
 //! compiled relation. Runtime work is linear in the two selector-port column
-//! pointer arrays, their nonzero entries, the owner runs, and 66 polynomial
-//! terms; it never scans the other eleven matrices or materializes one item per
-//! constraint row.
+//! pointer arrays, their nonzero entries, the owner runs, and 74 polynomial
+//! terms. It never scans the other eleven matrices or materializes one item per
+//! constraint row. Domain rows activate both selector ports on the same
+//! selector column; all other rows activate one port.
 //!
 //! Authority boundary: family labels determine only the expected support. The
 //! certificate is returned only after the two final matrix ports match that
 //! expectation coefficient-for-coefficient and every actual polynomial term
-//! contains exactly one selector linearly. The exact small polynomial syntax
+//! contains one or both selectors linearly. The exact small polynomial syntax
 //! is retained for an independent Lean comparison. Compact selector-port
 //! matrices, malformed arm labels, unexpected columns, gaps, and overlaps fail
 //! closed.
@@ -26,7 +27,8 @@
 //! | Stage path | Expected final port | Expected column |
 //! |---|---|---|
 //! | `f_prime.selective_ccs.common.*` | general selector | constant-one column 0 |
-//! | `f_prime.selective_ccs.arm.{domain,retained,poseidon2,centered,canonical}` | general selector | arm selector |
+//! | `f_prime.selective_ccs.{shared,arm}.domain` | both selectors | common/arm selector |
+//! | `f_prime.selective_ccs.arm.{retained,poseidon2,centered,canonical}` | general selector | arm selector |
 //! | `f_prime.selective_ccs.arm.{evaluation,product_sum}` | evaluation selector | arm selector |
 
 use core::ops::Range;
@@ -42,18 +44,19 @@ use super::selective_audit::{SelectiveEmittedRowFamily, SelectiveEmittedRowRunAu
 use super::selective_census::SelectiveMatrixTag;
 
 const SELECTIVE_PORT_COUNT: usize = 13;
-const SELECTIVE_POLYNOMIAL_TERM_COUNT: usize = 66;
+const SELECTIVE_POLYNOMIAL_TERM_COUNT: usize = 74;
 const GENERAL_SELECTOR_PORT: usize = 1;
 const EVALUATION_SELECTOR_PORT: usize = 7;
 
 /// Version of the run-compressed Rust-to-Lean selector-coverage wire format.
-pub const SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION: usize = 2;
+pub const SELECTIVE_SELECTOR_GATE_COVERAGE_SCHEMA_VERSION: usize = 3;
 
 /// The only two polynomial ports allowed to activate an emitted row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SelectiveGatePort {
     General,
     Evaluation,
+    GeneralEvaluation,
 }
 
 impl SelectiveGatePort {
@@ -61,7 +64,12 @@ impl SelectiveGatePort {
         match self {
             Self::General => GENERAL_SELECTOR_PORT,
             Self::Evaluation => EVALUATION_SELECTOR_PORT,
+            Self::GeneralEvaluation => unreachable!("combined gate mode is not one physical matrix"),
         }
+    }
+
+    fn includes(self, physical: Self) -> bool {
+        self == physical || self == Self::GeneralEvaluation
     }
 }
 
@@ -69,6 +77,19 @@ impl SelectiveGatePort {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SelectiveSelectorGateRun {
     emitted_rows: Range<usize>,
+    port: SelectiveGatePort,
+    column: usize,
+    coefficient: F,
+}
+
+/// One maximal row interval with one owner label and one exact selector gate.
+/// Internal compiler-stage boundaries are omitted only when all properties
+/// used by selector-coverage refinement are identical on both sides.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SelectiveSelectorOwnerGateRun {
+    emitted_rows: Range<usize>,
+    family: SelectiveEmittedRowFamily,
+    arm: Option<usize>,
     port: SelectiveGatePort,
     column: usize,
     coefficient: F,
@@ -94,6 +115,32 @@ impl SelectiveSelectorPolynomialTerm {
 impl SelectiveSelectorGateRun {
     pub fn emitted_rows(&self) -> Range<usize> {
         self.emitted_rows.clone()
+    }
+
+    pub fn port(&self) -> SelectiveGatePort {
+        self.port
+    }
+
+    pub fn column(&self) -> usize {
+        self.column
+    }
+
+    pub fn coefficient(&self) -> F {
+        self.coefficient
+    }
+}
+
+impl SelectiveSelectorOwnerGateRun {
+    pub fn emitted_rows(&self) -> Range<usize> {
+        self.emitted_rows.clone()
+    }
+
+    pub fn family(&self) -> SelectiveEmittedRowFamily {
+        self.family
+    }
+
+    pub fn arm(&self) -> Option<usize> {
+        self.arm
     }
 
     pub fn port(&self) -> SelectiveGatePort {
@@ -152,6 +199,43 @@ impl SelectiveSelectorGateCoverage {
     pub fn polynomial_arity(&self) -> usize {
         self.polynomial_arity
     }
+
+    /// Coalesce the exact aligned owner/gate ledger for compact formal export.
+    /// Zero-length organizational runs cover no row and are omitted. Nonempty
+    /// runs merge only when every selector-refinement property is identical.
+    pub fn coalesced_owner_gate_runs(&self) -> Vec<SelectiveSelectorOwnerGateRun> {
+        let mut out = Vec::<SelectiveSelectorOwnerGateRun>::new();
+        for (owner, gate) in self
+            .owner_runs
+            .iter()
+            .filter(|owner| !owner.emitted_rows().is_empty())
+            .zip(&self.gate_runs)
+        {
+            debug_assert_eq!(owner.emitted_rows(), gate.emitted_rows);
+            let rows = owner.emitted_rows();
+            if let Some(previous) = out.last_mut() {
+                if previous.emitted_rows.end == rows.start
+                    && previous.family == owner.family()
+                    && previous.arm == owner.arm()
+                    && previous.port == gate.port
+                    && previous.column == gate.column
+                    && previous.coefficient == gate.coefficient
+                {
+                    previous.emitted_rows.end = rows.end;
+                    continue;
+                }
+            }
+            out.push(SelectiveSelectorOwnerGateRun {
+                emitted_rows: rows,
+                family: owner.family(),
+                arm: owner.arm(),
+                port: gate.port,
+                column: gate.column,
+                coefficient: gate.coefficient,
+            });
+        }
+        out
+    }
 }
 
 /// A selector-support claim that cannot be reconciled with the final relation.
@@ -164,7 +248,7 @@ pub enum SelectiveSelectorGateCoverageError {
     },
     #[error("selective relation dimensions must be nonzero, got {rows} rows and {columns} columns")]
     EmptyDimensions { rows: usize, columns: usize },
-    #[error("selective polynomial has {terms} terms; expected 66")]
+    #[error("selective polynomial has {terms} terms; expected 74")]
     PolynomialTermCount { terms: usize },
     #[error("selective polynomial term {term} has {exponents} exponents; expected 13")]
     PolynomialExponentCount { term: usize, exponents: usize },
@@ -353,7 +437,7 @@ fn validate_polynomial(
             }
             let general = term.exps[GENERAL_SELECTOR_PORT];
             let evaluation = term.exps[EVALUATION_SELECTOR_PORT];
-            if !((general == 1 && evaluation == 0) || (general == 0 && evaluation == 1)) {
+            if !matches!((general, evaluation), (1, 0) | (0, 1) | (1, 1)) {
                 return Err(SelectiveSelectorGateCoverageError::PolynomialSelectorHomogeneity {
                     term: term_index,
                     general,
@@ -413,22 +497,9 @@ impl SelectiveLowNormSnapshot<'_> {
 
         validate_owner_partition(row_audit.emitted_runs(), self.structure().n)?;
         let expected = expected_support(row_audit.emitted_runs(), self.selector_cols())?;
-        let mut matrix_gate_runs = Vec::new();
-        validate_selector_matrix(
-            self.structure(),
-            SelectiveGatePort::General,
-            &expected,
-            &mut matrix_gate_runs,
-        )?;
-        validate_selector_matrix(
-            self.structure(),
-            SelectiveGatePort::Evaluation,
-            &expected,
-            &mut matrix_gate_runs,
-        )?;
-        matrix_gate_runs.sort_unstable_by_key(|run| run.emitted_rows.start);
-        validate_gate_partition(&matrix_gate_runs, self.structure().n)?;
-        let gate_runs = split_at_owner_boundaries(row_audit.emitted_runs(), &matrix_gate_runs)?;
+        validate_selector_matrix(self.structure(), SelectiveGatePort::General, &expected)?;
+        validate_selector_matrix(self.structure(), SelectiveGatePort::Evaluation, &expected)?;
+        let gate_runs = expected_gate_runs(row_audit.emitted_runs(), self.selector_cols())?;
         validate_gate_partition(&gate_runs, self.structure().n)?;
 
         Ok(SelectiveSelectorGateCoverage {
@@ -451,10 +522,14 @@ fn expected_support(
     for run in runs {
         let (port, column) = expected_gate(run.family(), run.arm(), selector_columns)?;
         if !run.emitted_rows().is_empty() {
-            expected
-                .entry((port, column))
-                .or_default()
-                .push(run.emitted_rows());
+            for physical in [SelectiveGatePort::General, SelectiveGatePort::Evaluation] {
+                if port.includes(physical) {
+                    expected
+                        .entry((physical, column))
+                        .or_default()
+                        .push(run.emitted_rows());
+                }
+            }
         }
     }
     Ok(expected)
@@ -468,18 +543,19 @@ fn expected_gate(
     use SelectiveEmittedRowFamily as Family;
     let common = matches!(
         family,
-        Family::SelectorDomain
-            | Family::SharedDomain
-            | Family::OneHot
-            | Family::PublicPadding
-            | Family::PrivatePadding
-            | Family::RingPadding
+        Family::SelectorDomain | Family::OneHot | Family::PublicPadding | Family::PrivatePadding | Family::RingPadding
     );
     if common {
         if let Some(arm) = arm {
             return Err(SelectiveSelectorGateCoverageError::UnexpectedArm { family, arm });
         }
         return Ok((SelectiveGatePort::General, 0));
+    }
+    if family == Family::SharedDomain {
+        if let Some(arm) = arm {
+            return Err(SelectiveSelectorGateCoverageError::UnexpectedArm { family, arm });
+        }
+        return Ok((SelectiveGatePort::GeneralEvaluation, 0));
     }
     let arm = arm.ok_or(SelectiveSelectorGateCoverageError::MissingArm { family })?;
     let column = *selector_columns
@@ -490,11 +566,10 @@ fn expected_gate(
             arms: selector_columns.len(),
         })?;
     let port = match family {
-        Family::ArmDomain
-        | Family::Retained
-        | Family::Poseidon2
-        | Family::CenteredUnit
-        | Family::ShiftedTernaryCanonical => SelectiveGatePort::General,
+        Family::ArmDomain => SelectiveGatePort::GeneralEvaluation,
+        Family::Retained | Family::Poseidon2 | Family::CenteredUnit | Family::ShiftedTernaryCanonical => {
+            SelectiveGatePort::General
+        }
         Family::PolynomialEvaluation | Family::ProductSum => SelectiveGatePort::Evaluation,
         Family::SelectorDomain
         | Family::SharedDomain
@@ -504,6 +579,24 @@ fn expected_gate(
         | Family::RingPadding => unreachable!("common families returned above"),
     };
     Ok((port, column))
+}
+
+fn expected_gate_runs(
+    runs: &[SelectiveEmittedRowRunAudit],
+    selector_columns: &[usize],
+) -> Result<Vec<SelectiveSelectorGateRun>, SelectiveSelectorGateCoverageError> {
+    runs.iter()
+        .filter(|run| !run.emitted_rows().is_empty())
+        .map(|run| {
+            let (port, column) = expected_gate(run.family(), run.arm(), selector_columns)?;
+            Ok(SelectiveSelectorGateRun {
+                emitted_rows: run.emitted_rows(),
+                port,
+                column,
+                coefficient: F::ONE,
+            })
+        })
+        .collect()
 }
 
 fn validate_owner_partition(
@@ -546,7 +639,6 @@ fn validate_selector_matrix(
     structure: &crate::paper::relations::Structure,
     port: SelectiveGatePort,
     expected: &ExpectedSupport,
-    gate_runs: &mut Vec<SelectiveSelectorGateRun>,
 ) -> Result<(), SelectiveSelectorGateCoverageError> {
     let csc = plain_csc(&structure.matrices[port.matrix_index()], port)?;
     if csc.nrows != structure.n || csc.ncols != structure.m {
@@ -626,8 +718,6 @@ fn validate_selector_matrix(
             });
         }
         let mut expected_rows = expected_ranges.iter().flat_map(|range| range.clone());
-        let mut run_start = None;
-        let mut previous_row = None;
         for entry in entry_range.clone() {
             let row = csc.row_index(entry);
             let coefficient = csc.vals[entry];
@@ -648,20 +738,6 @@ fn validate_selector_matrix(
                     actual: Some(row),
                 });
             }
-            match previous_row {
-                Some(previous) if previous + 1 == row => {}
-                Some(previous) => {
-                    gate_runs.push(SelectiveSelectorGateRun {
-                        emitted_rows: run_start.expect("previous row establishes run start")..previous + 1,
-                        port,
-                        column: *column,
-                        coefficient,
-                    });
-                    run_start = Some(row);
-                }
-                None => run_start = Some(row),
-            }
-            previous_row = Some(row);
         }
         if let Some(expected_row) = expected_rows.next() {
             return Err(SelectiveSelectorGateCoverageError::SupportMismatch {
@@ -669,14 +745,6 @@ fn validate_selector_matrix(
                 column: *column,
                 expected: Some(expected_row),
                 actual: None,
-            });
-        }
-        if let Some(previous) = previous_row {
-            gate_runs.push(SelectiveSelectorGateRun {
-                emitted_rows: run_start.expect("previous row establishes run start")..previous + 1,
-                port,
-                column: *column,
-                coefficient: F::ONE,
             });
         }
         entry_cursor = entry_range.end;
@@ -717,44 +785,4 @@ fn validate_gate_partition(
         });
     }
     Ok(())
-}
-
-fn split_at_owner_boundaries(
-    owners: &[SelectiveEmittedRowRunAudit],
-    matrix_runs: &[SelectiveSelectorGateRun],
-) -> Result<Vec<SelectiveSelectorGateRun>, SelectiveSelectorGateCoverageError> {
-    let mut gate_index = 0usize;
-    let mut aligned = Vec::with_capacity(owners.len());
-    for owner in owners {
-        let owner_rows = owner.emitted_rows();
-        if owner_rows.is_empty() {
-            continue;
-        }
-        while gate_index < matrix_runs.len() && matrix_runs[gate_index].emitted_rows.end <= owner_rows.start {
-            gate_index += 1;
-        }
-        let gate = matrix_runs
-            .get(gate_index)
-            .ok_or(SelectiveSelectorGateCoverageError::OwnerGateBoundary {
-                owner_start: owner_rows.start,
-                owner_end: owner_rows.end,
-                gate_start: owner_rows.end,
-                gate_end: owner_rows.end,
-            })?;
-        if gate.emitted_rows.start > owner_rows.start || gate.emitted_rows.end < owner_rows.end {
-            return Err(SelectiveSelectorGateCoverageError::OwnerGateBoundary {
-                owner_start: owner_rows.start,
-                owner_end: owner_rows.end,
-                gate_start: gate.emitted_rows.start,
-                gate_end: gate.emitted_rows.end,
-            });
-        }
-        aligned.push(SelectiveSelectorGateRun {
-            emitted_rows: owner_rows,
-            port: gate.port,
-            column: gate.column,
-            coefficient: gate.coefficient,
-        });
-    }
-    Ok(aligned)
 }

@@ -1,6 +1,0 @@
-import Nightstream.Implementation.NebulaV2.Production.FPrime.Recursive.InvocationRowsSoundFor
-
-open Nightstream.Implementation.NebulaV2.ProductionPaperRecursiveInvocationRowsSoundFor
-
-#check exact_of_supplement
-#check rows_imply_exact_core

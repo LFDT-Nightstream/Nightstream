@@ -1,4 +1,4 @@
-import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.TerminalR1cs.Atoms
+import Nightstream.Implementation.R1CS.Correspondence.TerminalR1cs.Atoms
 import Nightstream.SuperNeo.Concrete.Phi81Relation.Types
 
 /-!
@@ -23,6 +23,7 @@ namespace Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.TerminalR1
 
 open Nightstream.Implementation.Lowering.Goldilocks
 open Nightstream.Implementation.Lowering.Typed
+open Nightstream.Implementation.R1CS.TerminalR1cs
 open Nightstream.SuperNeo.Concrete
 
 /-- Physical locations read by one public-projection check. The caller owns

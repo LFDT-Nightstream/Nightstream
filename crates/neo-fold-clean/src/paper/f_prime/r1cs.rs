@@ -80,7 +80,7 @@ use crate::paper::f_prime::digest_circuit::{
 };
 use crate::paper::f_prime::nebula_lane_circuit::{
     alloc_nebula_lane_wires, decode_delayed_nebula_public_suffix_circuit, delayed_nebula_public_suffix_len,
-    enforce_delayed_nebula_claim_circuit, enforce_nebula_lane_constant_circuit,
+    enforce_delayed_nebula_claim_circuit, enforce_nebula_lane_base_circuit,
     enforce_nebula_lane_digest_selected_circuit, NebulaLaneWires, NebulaOpenContextWires,
 };
 use crate::paper::f_prime::source_image::{BitRange, FPrimeSourceImage, Word64Image};
@@ -722,7 +722,7 @@ pub fn enforce_f_prime_base_step_circuit(
     )
     .map_err(|error| Error::Inner(format!("canonical Construction-2 accumulator: {error}")))?;
     let zero_digest = crate::paper::digest::digest32_as_fields(
-        zero.accumulator_digest_for_relation_shape(relation.n(), relation.m(), relation.t())
+        zero.accumulator_digest_for_relation_shape(cfg.b, relation.n(), relation.m(), relation.t())
             .map_err(|error| Error::Inner(format!("canonical Construction-2 accumulator digest: {error}")))?,
     );
     enforce_f_prime_base_step_with_output_acc(builder, cfg, inputs, zero_digest)
@@ -765,7 +765,7 @@ fn enforce_f_prime_base_step_with_output_acc(
     );
     enforce_digest_eq(builder, &chunk_digest, &expected_chunk_digest);
     if let (Some(nebula_cfg), Some(lane)) = (cfg.nebula, sw.nebula.as_ref()) {
-        enforce_nebula_lane_constant_circuit(builder, lane, &NebulaLane::base(nebula_cfg));
+        enforce_nebula_lane_base_circuit(builder, lane, nebula_cfg, &sw.semantic_state_digest_in);
     }
     builder.record_row_family("fprime.base.prelude", base_start);
 
@@ -1150,12 +1150,10 @@ fn enforce_f_prime_recursive_step_circuit_impl(
             let adv = nifs_outputs.fresh_adv[0]
                 .as_ref()
                 .ok_or_else(|| Error::Inner("delayed Nebula fresh claim is missing adv".into()))?;
-            let plan_digest = alloc_4_const(builder, nebula_cfg.plan_digest);
             let context = NebulaOpenContextWires {
                 vk_fs: sw.vk_fs,
                 z_i: sw.z_i_in,
                 acc_digest: sw.acc_digest_in,
-                plan_digest,
             };
             let transition = enforce_delayed_nebula_claim_circuit(
                 builder,
@@ -1204,7 +1202,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     builder.begin_encoding_stage(stage::RECURSIVE_ACCUMULATOR_OUTPUT_CLAIM);
     let claimed_acc_digest = alloc_4(builder, inputs.acc_digest_out);
     let new_acc_digest =
-        accumulator::enforce_nifs_output_acc_digest(builder, &nifs_outputs.parent, &nifs_outputs.children)?;
+        accumulator::enforce_nifs_output_acc_digest(builder, cfg.b, &nifs_outputs.parent, &nifs_outputs.children)?;
     enforce_digest_eq(builder, &claimed_acc_digest, &new_acc_digest);
     let new_semantic_state_digest = alloc_4(builder, inputs.semantic_state_digest_out);
     builder.record_row_family("fprime.recursive.accumulator", accumulator_start);

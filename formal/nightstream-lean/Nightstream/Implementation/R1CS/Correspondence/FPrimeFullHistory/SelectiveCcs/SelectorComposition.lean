@@ -5,6 +5,7 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.Selectiv
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.SelectorComposition.Necessity
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.SelectorComposition.ArtifactRefinement
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.SelectorComposition.SelectorCoverageArtifact
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.SelectorComposition.RadixFourSelectorCoverageArtifact
 
 /-!
 Curated selector-composition surface for the executable selective CCS
@@ -19,6 +20,7 @@ compiler and the fixed two-arm complement compiler.
 | `Necessity` | omission countermodels and canonicalization classification | no | model-level |
 | `ArtifactRefinement` | exact three selector rows, total row, and representative gated row | no | artifact-checked fixture |
 | `SelectorCoverageArtifact` | compact all-row ledger/gate-class reconciliation and exact polynomial syntax for one fixture | no | artifact-checked fixture |
+| `RadixFourSelectorCoverageArtifact` | complete selector-port reconciliation and exact polynomial syntax for the production-width radix-four candidate | no | Rust-conformant for `FPRIME-R4-SELECTOR-COVERAGE` |
 
 This component deliberately does not import paper F' semantics into its
 algebra. A later refinement supplies exact residual-to-branch theorems for the

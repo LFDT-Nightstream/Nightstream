@@ -184,7 +184,7 @@ fn build_fixture_with_public_suffix(public_suffix: &[F]) -> Fixture {
     .expect("first NIFS.P");
 
     let acc_digest_in =
-        AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest_fields();
     let state = FPrimeStateIn {
         vk_fs_digest: rand_digest(0x10),
         pi_ccs_header_bundle: prep.pi_ccs_header_bundle(),
@@ -337,7 +337,7 @@ fn recursive_x_out(fixture: &Fixture) -> [F; 4] {
 }
 
 fn recursive_acc_digest(fixture: &Fixture) -> [F; 4] {
-    AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields()
+    AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields()
 }
 
 fn recursive_source_image(fixture: &Fixture) -> RecursiveSourceFixture {
@@ -696,12 +696,13 @@ fn authoritative_recursive_f_prime_enforces_delayed_nebula_transition() {
         steps_per_segment: 1,
         seg_max: 1,
         stacks,
+        initial_semantic_state_digest: rand_digest(0xD7F0),
         plan_digest: rand_digest(0xD800),
         d_init: d_pre[1],
     };
 
     let acc_digest_in =
-        AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest_fields();
     let lane_in = NebulaLane::base(&nebula_cfg);
     let state = FPrimeStateIn {
         vk_fs_digest: rand_digest(0xD810),
@@ -788,7 +789,7 @@ fn authoritative_recursive_f_prime_enforces_delayed_nebula_transition() {
     .expect("delayed Nebula fold");
     let combined = proof.pi_rlc.combined.clone();
     let children = next_running.claims.clone();
-    let new_acc_digest = AccumulatorHandle::from_running_parts(&children, Some(&combined)).digest_fields();
+    let new_acc_digest = AccumulatorHandle::from_running_parts(2, &children, Some(&combined)).digest_fields();
 
     let mut lane_out = lane_in.clone();
     lane_out

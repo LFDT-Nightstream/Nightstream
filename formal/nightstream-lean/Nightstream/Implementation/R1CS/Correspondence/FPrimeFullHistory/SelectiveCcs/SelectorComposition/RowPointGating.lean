@@ -7,7 +7,7 @@ interpreted selective-CCS row residual.
 
 Owns: the exact composition from the two physical selector matrix images,
 through the relation-owned thirteen-port row point, to the independent
-66-term selector-factorization theorem.
+74-term selector-factorization theorem.
 
 Does not own: a concrete matrix artifact, proof that an emitted row has the
 required selector images, arithmetic-family classification, branch
@@ -32,8 +32,8 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Interpreter
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.RowAction
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.PolynomialGating
 
 /-- A row whose general selector matrix evaluates to `weight` and whose

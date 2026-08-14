@@ -871,7 +871,7 @@ fn decider_terminal_fold_rejects_tampered_last_acc_digest() {
             .parent_authority
             .as_ref()
             .expect("non-empty pre-final running has parent authority");
-        AccumulatorHandle::from_running_parts(&pre_running.claims, Some(parent)).digest()
+        AccumulatorHandle::from_running_parts(2, &pre_running.claims, Some(parent)).digest()
     };
 
     let honest = enforce_terminal_fold_against_last_acc_digest(
@@ -913,7 +913,7 @@ fn decider_terminal_fold_rejects_tampered_last_parent_authority_wire() {
         .parent_authority
         .as_ref()
         .expect("pre-final running has parent authority");
-    let honest_last_acc_digest = AccumulatorHandle::from_running_parts(&pre_running.claims, Some(parent)).digest();
+    let honest_last_acc_digest = AccumulatorHandle::from_running_parts(2, &pre_running.claims, Some(parent)).digest();
 
     let (mut builder, probes) = enforce_terminal_fold_parent_authority_against_self(
         &prep,
@@ -951,7 +951,7 @@ fn decider_terminal_fold_rejects_tampered_last_child_wire() {
         .parent_authority
         .as_ref()
         .expect("pre-final running has parent authority");
-    let honest_last_acc_digest = AccumulatorHandle::from_running_parts(&pre_running.claims, Some(parent)).digest();
+    let honest_last_acc_digest = AccumulatorHandle::from_running_parts(2, &pre_running.claims, Some(parent)).digest();
 
     let (mut builder, probes) = enforce_terminal_fold_children_continuity_against_self(
         &prep,

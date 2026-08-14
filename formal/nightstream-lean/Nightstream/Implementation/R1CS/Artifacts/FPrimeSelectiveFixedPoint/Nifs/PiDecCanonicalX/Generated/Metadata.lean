@@ -1,8 +1,9 @@
-/-! Generated production-shaped strict-PiDEC canonical-X metadata. Do not hand-edit. -/
+/-! Generated exact strict-PiDEC canonical-X metadata. Do not hand-edit. -/
 
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Metadata
 
 def schemaVersion : Nat := 1
+def radix : Nat := 2
 def xRows : Nat := 54
 def activeColumns : Nat := 5
 def childCount : Nat := 14

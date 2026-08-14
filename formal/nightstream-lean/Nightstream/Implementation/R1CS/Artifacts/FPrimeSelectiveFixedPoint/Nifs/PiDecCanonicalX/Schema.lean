@@ -4,8 +4,8 @@ import Nightstream.Implementation.R1CS.Core.Semantics
 Proof-free schema for the production-shaped strict-`PiDEC` canonical-X
 receipt.
 
-Owns: the compact canonical-to-actual coordinate map, exact physical sparse
-rows, and one unique semantic owner label per exported row.
+Owns: the compact canonical-to-actual coordinate map for radix two and four,
+exact physical sparse rows, and one unique owner label per exported row.
 
 Does not own: compiler semantics, row satisfaction, protocol acceptance,
 commitment authority, or permission to remove constraints.
@@ -14,7 +14,7 @@ Emits constraints: no.
 
 | Record | Payload | Authority before correspondence checking |
 |---|---|---|
-| `CoordinateColumns` | parent, fourteen children, sign, product | untrusted generated data |
+| `CoordinateColumns` | parent, children, sign, product, optional radix-four limbs | untrusted generated data |
 | `RowOwner` | indexed equation owner | untrusted generated data |
 | `PhysicalRow` | relative/physical index plus exact A/B/C row | untrusted generated data |
 -/
@@ -28,6 +28,7 @@ structure CoordinateColumns where
   children : List Nat
   sign : Nat
   product : Nat
+  limbs : List (List Nat)
 deriving DecidableEq, Repr
 
 inductive RowOwner where
@@ -35,6 +36,8 @@ inductive RowOwner where
   | signProduct (activeIndex : Nat)
   | signZero (activeIndex : Nat)
   | childDigit (activeIndex child : Nat)
+  | radixFourLimb (activeIndex child limb : Nat)
+  | radixFourReconstruction (activeIndex child : Nat)
 deriving DecidableEq, Repr
 
 structure PhysicalRow where

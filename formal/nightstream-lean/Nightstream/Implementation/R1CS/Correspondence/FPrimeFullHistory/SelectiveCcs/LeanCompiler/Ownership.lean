@@ -20,6 +20,8 @@ Emits constraints: no new rows.
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.LeanCompiler.Ownership
 
+open Nightstream.Implementation.R1CS.SelectiveCcs.LeanCompiler
+
 open Nightstream.Implementation.Lowering.Typed
 open Nightstream.Implementation.Lowering.Goldilocks
 

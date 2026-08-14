@@ -308,8 +308,8 @@ pub struct NebulaAdvance {
     pub open: Option<[[F; 4]; 3]>,
 }
 
-/// Plan-derived constants the transition needs — set once on
-/// `Preprocessing`; `plan_digest` binds them.
+/// Program-specific values the transition needs. `Preprocessing` owns
+/// the exact values, while one Poseidon2 digest carries their binding.
 #[derive(Clone, Debug)]
 pub struct NebulaConfig {
     /// The lane-commitment context, also threaded to Π_DEC.
@@ -321,6 +321,9 @@ pub struct NebulaConfig {
     /// Stack geometry; fixes the public-input decode width and the
     /// `sp` carry. [`StackShape::NONE`] for stack-less plans.
     pub stacks: StackShape,
+    /// Verifier-owned initial application-state digest. The carried lane
+    /// binds this value without baking it into the reusable relation.
+    pub initial_semantic_state_digest: [F; 4],
     /// Poseidon2 digest of the canonical plan serialization.
     pub plan_digest: [F; 4],
     /// The verifier's ROM handle: mem-domain chain over the initial
@@ -328,9 +331,17 @@ pub struct NebulaConfig {
     pub d_init: [F; 4],
 }
 
+impl NebulaConfig {
+    pub fn program_binding_digest(&self) -> [F; 4] {
+        digest::nebula_program_binding_digest(&self.initial_semantic_state_digest, &self.plan_digest, &self.d_init)
+    }
+}
+
 /// One lane-transition check per variant; rejection tests target these by name.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum NebulaError {
+    #[error("nebula: carried program binding does not match verifier preprocessing")]
+    ProgramBindingMismatch,
     #[error("nebula: open_segment requires idx == 0 and no open γ (segment already open or mid-segment)")]
     SegmentAlreadyOpen,
     #[error("nebula: segment index {seg_idx} reached plan limit {seg_max}")]
@@ -369,6 +380,10 @@ pub enum NebulaError {
 /// and the F′ step transcript every step.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NebulaLane {
+    /// Poseidon2 compression of the verifier-owned initial semantic state,
+    /// plan digest, and initial-memory handle. The verifier recomputes it
+    /// from those authoritative values.
+    pub program_binding_digest: [F; 4],
     /// Current segment `k`.
     pub seg_idx: u64,
     /// Step within the segment; `0` between segments.
@@ -412,6 +427,7 @@ impl NebulaLane {
     /// `D_init`.
     pub fn base(cfg: &NebulaConfig) -> Self {
         Self {
+            program_binding_digest: cfg.program_binding_digest(),
             seg_idx: 0,
             idx: 0,
             ts: 0,
@@ -430,7 +446,7 @@ impl NebulaLane {
     /// lane-leaf chains; its authority is retroactive via the
     /// close equality. γ is squeezed from a fresh Poseidon2 transcript
     /// seeded by the F′ carried state at open (`vk_fs`, `z_i`,
-    /// `acc_digest`, this lane) and absorbing the plan digest, the
+    /// `acc_digest`, this lane) and absorbing the program binding, the
     /// segment counters, and the three `D_pre` digests — never the raw
     /// commitment list (constant-size replay in the eventual F′ R1CS).
     pub fn open_segment(
@@ -441,6 +457,7 @@ impl NebulaLane {
         acc_digest: [u8; 32],
         d_pre: [[F; 4]; 3],
     ) -> Result<(), NebulaError> {
+        self.validate_program_binding(cfg)?;
         if self.idx != 0 || self.gamma.is_some() {
             return Err(NebulaError::SegmentAlreadyOpen);
         }
@@ -456,7 +473,7 @@ impl NebulaLane {
         tr.append_fields(b"nebula/z_i", &digest::digest32_as_fields(z_i));
         tr.append_fields(b"nebula/acc_digest", &digest::digest32_as_fields(acc_digest));
         tr.append_fields(b"nebula/lane", &self.digest());
-        tr.append_fields(b"nebula/plan", &cfg.plan_digest);
+        tr.append_fields(b"nebula/program_binding", &self.program_binding_digest);
         tr.append_fields(b"nebula/seg_idx", &[F::from_u64(self.seg_idx)]);
         tr.append_fields(b"nebula/ts", &[F::from_u64(self.ts)]);
         tr.append_fields(b"nebula/d_pre_ops", &d_pre[0]);
@@ -483,6 +500,7 @@ impl NebulaLane {
         x: &NebulaStepX,
         adv: Option<&LaneCommitments<Commitment>>,
     ) -> Result<(), NebulaError> {
+        self.validate_program_binding(cfg)?;
         let Some(gamma) = self.gamma else {
             return Err(NebulaError::SegmentNotOpen);
         };
@@ -568,6 +586,18 @@ impl NebulaLane {
         self.idx == 0 && self.gamma.is_none() && self.d_pre == chain_headers() && self.d_seen == chain_headers()
     }
 
+    pub fn matches_program_binding(&self, cfg: &NebulaConfig) -> bool {
+        self.program_binding_digest == cfg.program_binding_digest()
+    }
+
+    fn validate_program_binding(&self, cfg: &NebulaConfig) -> Result<(), NebulaError> {
+        if self.matches_program_binding(cfg) {
+            Ok(())
+        } else {
+            Err(NebulaError::ProgramBindingMismatch)
+        }
+    }
+
     /// Advance over one deposited batch through the shared prove/verify
     /// transition: an optional segment open followed by one advance per
     /// deposited claim, in order. Both sides
@@ -631,6 +661,7 @@ impl NebulaLane {
     /// transcript in constant space.
     pub fn digest(&self) -> [F; 4] {
         digest::nebula_lane_digest(
+            &self.program_binding_digest,
             self.seg_idx,
             self.idx,
             self.ts,

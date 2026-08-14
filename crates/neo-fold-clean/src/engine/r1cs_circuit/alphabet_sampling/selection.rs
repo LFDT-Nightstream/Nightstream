@@ -26,8 +26,11 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::r1cs_circuit::boolean::enforce_bit;
-use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::builder::{
+    Lc, ProductFactorTrace, ProductSumBatchTrace, ProductSumIdentityTrace, R1csBuilder, Var,
+};
 use crate::engine::r1cs_circuit::encoding_trace::{FirstAcceptedSelectionProducts, FirstAcceptedSelectionTraceEntry};
+use crate::engine::r1cs_circuit::row_formula::{equality_constraint_row, multiplication_constraint_row};
 
 use super::chunk::ChunkRecord;
 use super::{pi_rlc_challenge_stage, SELECTION_WINDOW};
@@ -63,9 +66,21 @@ pub(super) fn select_first_n_accepts(builder: &mut R1csBuilder, chunks: &[ChunkR
             let first_one_hot_row = builder.rows();
             let one_hot = allocate_one_hot(builder, chunks, &prefixes, position);
             let first_product_row = builder.rows();
+            let first_product_column = builder.cols();
             let products = allocate_products(builder, chunks, &prefixes, &one_hot);
             let first_bind_row = builder.rows();
             let output = bind_selection(builder, &products, position);
+            record_selective_product_sum_batch(
+                builder,
+                chunks,
+                &prefixes,
+                &one_hot,
+                &products,
+                position,
+                output,
+                first_product_row,
+                first_product_column,
+            );
             builder.record_first_accepted_selection_encoding(FirstAcceptedSelectionTraceEntry {
                 one_hot: one_hot.selectors,
                 symbols: chunks[one_hot.start..one_hot.start + SELECTION_WINDOW]
@@ -160,13 +175,104 @@ fn allocate_products(
 }
 
 fn bind_selection(builder: &mut R1csBuilder, products: &SelectionProducts, position: usize) -> Var {
-    builder.begin_encoding_stage(pi_rlc_challenge_stage::SELECT_BIND);
-    builder.begin_encoding_stage(pi_rlc_challenge_stage::SELECT_BIND_ACCEPT);
+    builder.begin_nested_encoding_stage(pi_rlc_challenge_stage::SELECT_BIND);
+    builder.begin_nested_encoding_stage(pi_rlc_challenge_stage::SELECT_BIND_ACCEPT);
     builder.enforce_eq(&products.accepted, &Lc::from_const(F::ONE));
-    builder.begin_encoding_stage(pi_rlc_challenge_stage::SELECT_BIND_PREFIX);
+    builder.begin_nested_encoding_stage(pi_rlc_challenge_stage::SELECT_BIND_PREFIX);
     builder.enforce_eq(&products.prefix, &Lc::from_const(F::from_u64(position as u64)));
-    builder.begin_encoding_stage(pi_rlc_challenge_stage::SELECT_BIND_SYMBOL);
+    builder.begin_nested_encoding_stage(pi_rlc_challenge_stage::SELECT_BIND_SYMBOL);
     let symbol = builder.alloc(builder.eval(&products.symbol));
     builder.enforce_eq(&Lc::from_var(symbol), &products.symbol);
     symbol
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_selective_product_sum_batch(
+    builder: &mut R1csBuilder,
+    chunks: &[ChunkRecord],
+    prefixes: &[Var],
+    one_hot: &OneHotWindow,
+    products: &SelectionProducts,
+    position: usize,
+    output: Var,
+    row_start: usize,
+    column_start: usize,
+) {
+    let mut source_rows = Vec::with_capacity(SELECTION_WINDOW * 3 + 3);
+    for (offset, &selector) in one_hot.selectors.iter().enumerate() {
+        let index = one_hot.start + offset;
+        source_rows.push(multiplication_constraint_row(
+            &Lc::from_var(selector),
+            &Lc::from_var(chunks[index].symbol),
+            products.trace[offset].symbol,
+        ));
+        source_rows.push(multiplication_constraint_row(
+            &Lc::from_var(selector),
+            &Lc::from_var(chunks[index].accept),
+            products.trace[offset].accepted,
+        ));
+        source_rows.push(multiplication_constraint_row(
+            &Lc::from_var(selector),
+            &Lc::from_var(prefixes[index]),
+            products.trace[offset].prefix,
+        ));
+    }
+    source_rows.push(equality_constraint_row(&products.accepted, &Lc::from_const(F::ONE)));
+    source_rows.push(equality_constraint_row(
+        &products.prefix,
+        &Lc::from_const(F::from_u64(position as u64)),
+    ));
+    source_rows.push(equality_constraint_row(&Lc::from_var(output), &products.symbol));
+    builder.assert_recent_rows_equal(row_start, &source_rows);
+
+    let accepted = one_hot
+        .selectors
+        .iter()
+        .enumerate()
+        .map(|(offset, &selector)| ProductFactorTrace {
+            left: Lc::from_var(selector),
+            right: Lc::from_var(chunks[one_hot.start + offset].accept),
+            coefficient: F::ONE,
+        })
+        .collect();
+    let prefix = one_hot
+        .selectors
+        .iter()
+        .enumerate()
+        .map(|(offset, &selector)| ProductFactorTrace {
+            left: Lc::from_var(selector),
+            right: Lc::from_var(prefixes[one_hot.start + offset]),
+            coefficient: F::ONE,
+        })
+        .collect();
+    let symbol = one_hot
+        .selectors
+        .iter()
+        .enumerate()
+        .map(|(offset, &selector)| ProductFactorTrace {
+            left: Lc::from_var(selector),
+            right: Lc::from_var(chunks[one_hot.start + offset].symbol),
+            coefficient: F::ONE,
+        })
+        .collect();
+    builder.record_selective_product_sum_batch(ProductSumBatchTrace {
+        row_start,
+        row_end: builder.rows(),
+        allocated_columns: (column_start..builder.cols()).collect(),
+        retained_columns: vec![output.col()],
+        identities: vec![
+            ProductSumIdentityTrace {
+                factors: accepted,
+                result: Lc::from_const(F::ONE),
+            },
+            ProductSumIdentityTrace {
+                factors: prefix,
+                result: Lc::from_const(F::from_u64(position as u64)),
+            },
+            ProductSumIdentityTrace {
+                factors: symbol,
+                result: Lc::from_var(output),
+            },
+        ],
+    });
 }

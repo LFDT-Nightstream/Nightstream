@@ -136,6 +136,16 @@ impl LaneScheme {
     /// Commit one mem-domain lane (IS or FS layout) from its bits. The initial-memory
     /// scan lanes are committed under `A_mem` with no witness in sight.
     pub fn commit_mem_lane_bits(&self, bits: &[F]) -> Result<Commitment, LaneSchemeError> {
+        let expected = self.ranges.is.len() * D;
+        if bits.len() != expected {
+            return Err(LaneSchemeError::WitnessWidth {
+                need: expected,
+                got: bits.len(),
+            });
+        }
+        if bits.iter().all(|value| *value == F::ZERO) {
+            return Ok(Commitment::zeros(D, self.a_mem.kappa()));
+        }
         Ok(self
             .a_mem
             .commit(&pack_lane_bits(bits, self.ranges.is.len())?))
@@ -237,11 +247,15 @@ fn pack_lane_bits(bits: &[F], cols: usize) -> Result<Mat<F>, LaneSchemeError> {
             got: bits.len(),
         });
     }
-    let mut out = Mat::zero(D, cols, F::ZERO);
+    let mut positive = vec![0u64; cols];
     for (k, &bit) in bits.iter().enumerate() {
-        out[(k % D, k / D)] = bit;
+        if bit == F::ONE {
+            positive[k / D] |= 1u64 << (k % D);
+        } else if bit != F::ZERO {
+            return Err(LaneSchemeError::Invalid("lane bits must be zero or one"));
+        }
     }
-    Ok(out)
+    Mat::compact_signed_unit_from_column_masks(D, cols, &positive, &vec![0; cols]).map_err(LaneSchemeError::Invalid)
 }
 
 /// Row-major copy of `z[.., cols]`; lanes are whole ring columns, so the

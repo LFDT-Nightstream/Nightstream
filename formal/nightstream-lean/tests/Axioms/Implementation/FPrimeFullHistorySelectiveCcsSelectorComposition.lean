@@ -85,3 +85,14 @@ and inclusion-minimality.
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.SelectorCoverageArtifact.fixture_every_row_reconciles
+
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.RadixFourSelectorCoverageArtifact.candidate_coverage_valid' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.RadixFourSelectorCoverageArtifact.candidate_coverage_valid
+
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.RadixFourSelectorCoverageArtifact.candidate_every_row_reconciles' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.RadixFourSelectorCoverageArtifact.candidate_every_row_reconciles

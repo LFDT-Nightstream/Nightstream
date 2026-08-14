@@ -27,6 +27,9 @@ use neo_fold_clean::frontends::f_prime::gadget_native::{
 use neo_fold_clean::frontends::f_prime::low_norm_r1cs::{
     encode_r1cs_derived, encode_r1cs_oracle, estimate_r1cs_encoding, LowNormR1csEncodingKind, LowNormR1csError,
 };
+use neo_fold_clean::frontends::r1cs_f_prime::{
+    build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs,
+};
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{enforce_commit_fields, SisAccumulatorConfig};
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -847,6 +850,29 @@ fn first_accepted_selection_lowering_projects_products_and_reconstructs_the_sour
         .start;
     tampered.assignment[output_bit] = F::ONE - tampered.assignment[output_bit];
     assert!(tampered.first_unsatisfied_row().is_some());
+
+    let lowered = lower_field_r1cs(builder, &outputs).expect("normalize selection source R1CS");
+    let (shape, _) = lowered.into_parts();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&[shape.clone(), shape], 0, D, 0)
+        .expect("compile production selection rewrite");
+    let snapshot = relation
+        .selective_snapshot()
+        .expect("selection compiler snapshot");
+    let audits = snapshot.compiler_audit().first_accepted_selections();
+    assert_eq!(audits.len(), 2 * D);
+    for (index, audit) in audits.iter().enumerate() {
+        assert_eq!(audit.arm(), index / D);
+        assert_eq!(audit.position(), index % D);
+        assert_eq!(audit.source_rows().len(), 36);
+        assert_eq!(audit.emitted_rows().len(), 9);
+        assert_eq!(audit.selectors().len(), 11);
+        assert_eq!(audit.accepts().len(), 11);
+        assert_eq!(audit.prefixes().len(), 11);
+        assert_eq!(audit.symbols().len(), 11);
+        assert_eq!(audit.accepted_products().len(), 11);
+        assert_eq!(audit.prefix_products().len(), 11);
+        assert_eq!(audit.symbol_products().len(), 11);
+    }
 }
 
 #[test]

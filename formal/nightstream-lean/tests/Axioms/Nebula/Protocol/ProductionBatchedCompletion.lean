@@ -1,0 +1,12 @@
+import Nightstream.Protocol.Nebula.ProductionBatchedCompletion
+
+set_option autoImplicit false
+
+namespace tests.Axioms.NebulaProductionBatchedCompletion
+
+open Nightstream.Protocol.Nebula.ProductionBatchedCompletion
+
+#print axioms ExactCompletedRows.completedExecution
+#print axioms ExactCompletedRows.completedExecution_and_delayedSchedule
+
+end tests.Axioms.NebulaProductionBatchedCompletion

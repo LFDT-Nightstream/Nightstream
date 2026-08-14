@@ -1,5 +1,5 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.Interpreter
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Polynomial.Rows
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Polynomial.Rows
 
 /-!
 Contract: semantic action of one decoded selective-CCS matrix row.
@@ -19,7 +19,7 @@ Emits constraints: no.
 |---|---|---|---|
 | `f_prime.selective_ccs.artifact.row.matrix_action` | one exact finite dot product per port | decoded matrix plus typed assignment | `matrixImageAt` |
 | `f_prime.selective_ccs.artifact.row.paper_bridge` | numeric row action equals the paper's padded Boolean row action | row-domain coverage | `matrixImageAt_eq_paddedMatrixVectorAt` |
-| `f_prime.selective_ccs.artifact.row.residual` | evaluate the relation-owned 66-term polynomial | thirteen matrix images | `residualAt_eq_evaluate` |
+| `f_prime.selective_ccs.artifact.row.residual` | evaluate the relation-owned 74-term polynomial | thirteen matrix images | `residualAt_eq_evaluate` |
 | `f_prime.selective_ccs.artifact.row.shape.*` | exact port image activates only the stated residual components | extensional equality with a `Polynomial.Rows` point | six `residualAt_*Point` theorems |
 
 The shape hypotheses are deliberately extensional matrix-image equalities.
@@ -32,12 +32,11 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
-open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Interpreter
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Rows
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Components
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Rows
+open Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile
 
 /-- One decoded numeric matrix row applied to a typed assignment. The dummy
 zero-dimensional Boolean vertex lets this definition reuse the paper's sole

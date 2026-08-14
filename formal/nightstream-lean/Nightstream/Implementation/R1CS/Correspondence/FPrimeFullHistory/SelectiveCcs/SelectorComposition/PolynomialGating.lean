@@ -1,13 +1,15 @@
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Polynomial.Components
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Polynomial.Components
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.SelectorComposition.Semantics
 
 /-!
-Contract: generic selector factorization of the exact 66-term selective CCS
+Contract: generic single-selector factorization of the exact 74-term selective CCS
 polynomial.
 
 Owns: the two selector-port classes, selector normalization of an arbitrary
 13-port row image, and one homogeneity theorem for each class. The theorems
-cover every arm-local physical row without naming its arithmetic family.
+cover every arm-local single-selector row without naming its arithmetic family.
+Rows that activate both selectors use the packed-domain specialization in
+`Polynomial.Rows` and are not covered by these two theorems.
 
 Does not own: final matrix support, emitted-run ownership, selector columns,
 branch residual semantics, constant-one connectivity, or row removal.
@@ -16,7 +18,7 @@ Emits constraints: no.
 
 | Gate port | Required row image | Exact result | Rust families covered |
 |---|---|---|---|
-| general | `G = weight`, `E = 0` | `evaluate point = weight * evaluate (ungate general point)` | arm-domain, retained, Poseidon2, centered, canonical |
+| general | `G = weight`, `E = 0` | `evaluate point = weight * evaluate (ungate general point)` | retained, Poseidon2, centered, canonical |
 | evaluation | `G = 0`, `E = weight` | `evaluate point = weight * evaluate (ungate evaluation point)` | polynomial evaluation, product sum |
 -/
 
@@ -25,9 +27,9 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Selector
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Components
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics
 
 set_option maxRecDepth 10000
 set_option maxHeartbeats 1000000
@@ -194,7 +196,7 @@ theorem evaluate_general_gated
   rw [canonical]
   generalize canonicalResidual (ungate .general point) = canonicalValue
   simp only [booleanResidual, productResidual,
-    sboxResidual, centeredResidual, evaluationResidual,
+    sboxResidual, centeredResidual, centeredResidualAt, evaluationResidual,
     ungate_general_generalSelector, ungate_general_evalSelector,
     general, evaluation, Fin.zero_mul, Fin.mul_zero, Fin.add_zero,
     Fin.one_mul, fmul_add, fmul_neg]
@@ -217,7 +219,7 @@ theorem evaluate_evaluation_gated
   simp only [combinedResidual]
   rw [canonicalPoint, canonicalUngated]
   simp only [booleanResidual, productResidual,
-    sboxResidual, centeredResidual, evaluationResidual,
+    sboxResidual, centeredResidual, centeredResidualAt, evaluationResidual,
     ungate_evaluation_generalSelector, ungate_evaluation_evalSelector,
     general, evaluation, Fin.zero_mul, Fin.mul_zero, Fin.zero_add,
     Fin.add_zero, Fin.one_mul, fmul_add, fmul_neg]

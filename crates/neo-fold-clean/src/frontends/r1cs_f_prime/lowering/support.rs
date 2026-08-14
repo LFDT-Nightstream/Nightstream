@@ -147,6 +147,9 @@ pub(super) fn encoded_matrix_rows(
                 });
             }
         }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("encoded source rows require materialized matrix content")
+        }
     }
     out
 }

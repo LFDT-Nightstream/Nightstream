@@ -3,7 +3,7 @@ import Nightstream.Implementation.R1CS.Core.Semantics
 /-! Generated exact selective shifted-ternary row artifact. Do not hand-edit.
 
 Owns: one final 61-coordinate opening, its 21 physical rows, and the exact
-13-port/66-term polynomial read from the compiled selective structure.
+13-port/74-term polynomial read from the compiled selective structure.
 
 Does not own: row semantics, PiCCS truth, or production-profile multiplicity.
 
@@ -13,7 +13,7 @@ Emits constraints: no. Rust validates the checked compiler snapshot before rende
 namespace Nightstream.Implementation.R1CS.ShiftedTernarySelectiveArtifact
 
 def schemaVersion : Nat := 1
-def payloadSha256 : String := "53177b31bc6d84f6793d03a269a74f67e7ff3d2088310258d74dc53c36b5cf19"
+def payloadSha256 : String := "9d3b84e1c274c9075debb620f9deafff4b2d474d93b100e060517a13fd789b20"
 def structureRowCount : Nat := 345
 def structureColumnCount : Nat := 2430
 def selectorColumn : Nat := 54
@@ -29,6 +29,14 @@ def polynomialTerms : List (Nat × List Nat) :=
    (1, [0, 1, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0]),
    (1, [0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0]),
    (18446744069414584320, [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]),
+   (18446744069414584320, [0, 1, 0, 0, 0, 0, 3, 1, 0, 0, 0, 0, 0]),
+   (1, [0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0]),
+   (1, [0, 1, 0, 0, 0, 0, 6, 1, 0, 0, 0, 0, 0]),
+   (18446744069414584319, [0, 1, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 0]),
+   (1, [0, 1, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0]),
+   (18446744069414584314, [0, 1, 6, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]),
+   (14, [0, 1, 4, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]),
+   (18446744069414584314, [0, 1, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]),
    (18446744069414584320, [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0]),
    (1, [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]),
    (1, [0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0]),

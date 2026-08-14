@@ -296,6 +296,9 @@ fn matrix_row(matrix: &CcsMatrix<F>, row: usize) -> Vec<(usize, F)> {
             );
             csc_row(csc, row)
         }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("Mod-5 gate matrices cannot use a verifier artifact")
+        }
     }
 }
 

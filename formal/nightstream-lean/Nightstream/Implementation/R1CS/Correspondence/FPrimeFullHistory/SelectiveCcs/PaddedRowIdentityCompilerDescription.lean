@@ -9,7 +9,7 @@ Contract: `nightstream-sparse-structure-v1` for the selected rectangular
 thirteen-matrix relation.
 
 Owns: the exact ten-field profile header; thirteen indexed, row-major sparse
-matrix sections; the fixed 66-term polynomial section in strict exponent-
+matrix sections; the fixed 74-term polynomial section in strict exponent-
 tuple order; the outer stream-field count used by the verifier-key preimage;
 deterministic expansion to the exact dense matrices used by
 `PaddedRowIdentity`; and the proof that an equal canonical stream determines
@@ -21,8 +21,8 @@ matrix payload, or a cryptographic collision assumption.
 Emits constraints: no.
 
 Assurance tier: model-level compiler-description boundary. The raw structure
-stream has `961 + 3N` fields for `N` nonzero matrix entries. Its counted
-verifier-key form has `962 + 3N` fields. It never serializes the dense
+stream has `1073 + 3N` fields for `N` nonzero matrix entries. Its counted
+verifier-key form has `1074 + 3N` fields. It never serializes the dense
 `13 * logicalRows * assignmentColumns` table.
 -/
 
@@ -34,7 +34,8 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRo
 open Nightstream.HyperNova.NIVCCompatibility
 open Nightstream.Implementation.Lowering.Goldilocks
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentity
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
@@ -105,7 +106,7 @@ def totalEntries (sections : Fin applicationMatrixCount -> MatrixDescription) : 
 `structure_stream_field_count` fail closed in the base field. -/
 structure Description where
   sections : Fin applicationMatrixCount -> MatrixDescription
-  streamFits : 961 + 3 * totalEntries sections < goldilocksModulus
+  streamFits : 1073 + 3 * totalEntries sections < goldilocksModulus
 
 namespace Description
 
@@ -372,7 +373,7 @@ theorem polynomialTerms_perm :
     polynomialTerms.Perm Polynomial.Semantics.terms := by
   exact List.perm_insertionSort exponentTupleLess _
 
-theorem polynomialTerms_count_exact : polynomialTerms.length = 66 := by
+theorem polynomialTerms_count_exact : polynomialTerms.length = 74 := by
   simpa [polynomialTerms, List.length_insertionSort] using
     Polynomial.Semantics.term_count_exact
 
@@ -406,7 +407,7 @@ def polynomialFields : List F :=
   boundedNatCodec.encode polynomialTerms.length ++
     polynomialTerms.flatMap polynomialTermFields
 
-@[simp] theorem polynomialFields_length : polynomialFields.length = 925 := by
+@[simp] theorem polynomialFields_length : polynomialFields.length = 1037 := by
   simp [polynomialFields, boundedNatCodec.encode_length,
     polynomialTerms_count_exact, polynomialTermFields_length]
 
@@ -441,7 +442,7 @@ noncomputable def structureFields (description : Description) : List F :=
 
 @[simp] theorem structureFields_length (description : Description) :
     (structureFields description).length =
-      961 + 3 * description.entryCount := by
+      1073 + 3 * description.entryCount := by
   simp [structureFields, encodeMatrixSectionsFrom_length,
     sectionList_entry_sum, applicationMatrixCount]
   omega
@@ -473,7 +474,7 @@ noncomputable def fields (description : Description) : List F :=
     structureFields description
 
 @[simp] theorem fields_length (description : Description) :
-    (fields description).length = 962 + 3 * description.entryCount := by
+    (fields description).length = 1074 + 3 * description.entryCount := by
   simp [fields, boundedNatCodec.encode_length, structureFields_length]
   omega
 

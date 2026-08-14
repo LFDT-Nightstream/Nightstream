@@ -11,8 +11,8 @@ use neo_ccs::{CcsStructure, Mat, SparsePoly};
 use neo_fold_clean::config;
 use neo_fold_clean::frontends::nebula::layout::StepPublicInput;
 use neo_fold_clean::lifecycle::{
-    self, extend, extend_nebula_open, finish_uncompressed_with_audit, preprocess, verify_uncompressed_audit, Error,
-    Preprocessing, UncompressedAudit,
+    self, extend, extend_nebula_open, finish_uncompressed_with_audit, preprocess, verify_uncompressed,
+    verify_uncompressed_audit, Error, Preprocessing, UncompressedAudit,
 };
 use neo_fold_clean::paper::construction2::{NebulaConfig, StackShape};
 use neo_fold_clean::paper::digest;
@@ -104,6 +104,7 @@ fn nebula_preprocessing() -> (Preprocessing, Vec<LaneCommitments<Commitment>>, [
         steps_per_segment: N,
         seg_max: 1,
         stacks: StackShape::NONE,
+        initial_semantic_state_digest: [F::from_u64(10); 4],
         plan_digest: [F::from_u64(11); 4],
         d_init: d_pre[1],
     };
@@ -177,6 +178,22 @@ fn honest_chain() -> (Preprocessing, UncompressedAudit) {
 fn nebula_chain_proves_and_verifies_end_to_end() {
     let (prep, audit) = honest_chain();
     verify_uncompressed_audit(&prep, &audit).expect("audit verification");
+}
+
+#[test]
+fn terminal_verifier_rejects_another_program_binding() {
+    let (prep, mut audit) = honest_chain();
+    audit
+        .proof
+        .state
+        .nebula
+        .as_mut()
+        .expect("Nebula lane")
+        .program_binding_digest[0] += F::ONE;
+    assert!(matches!(
+        verify_uncompressed(&prep, &audit.proof),
+        Err(Error::NebulaProgramBindingMismatch)
+    ));
 }
 
 /// A chain that stops mid-segment is

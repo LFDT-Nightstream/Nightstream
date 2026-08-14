@@ -31,8 +31,8 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.SelectiveCarrie
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Decoder
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Boolean
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.SelectorComposition
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Rows
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Components
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Rows
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.Semantics
 
 def decodedSelectorRows : List DecodedRow :=
@@ -193,14 +193,14 @@ theorem generated_gated_row_shape :
     decodedGatedRow.arm = some 0 ∧
     IsProductGateAt decodedGatedRow gatedSelectorColumn ∧
     (decodedGatedRow.port
-      Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports.Role.a.index).terms =
+      Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports.Role.a.index).terms =
         [{ column := gatedBitColumn, coefficient := 1 }] ∧
     (decodedGatedRow.port
-      Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports.Role.b.index).terms =
+      Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports.Role.b.index).terms =
         [{ column := gatedConstantColumn, coefficient := -1 },
           { column := gatedBitColumn, coefficient := 1 }] ∧
     (decodedGatedRow.port
-      Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports.Role.c.index).terms = [] := by
+      Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports.Role.c.index).terms = [] := by
   decide
 
 def validatedGatedRow : ValidatedProductGateRow decodedGatedRow where

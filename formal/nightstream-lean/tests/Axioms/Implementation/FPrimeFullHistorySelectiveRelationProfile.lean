@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.RelationProfile
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.RelationProfile
 import tests.Axioms.Support
 
 /-!
@@ -11,21 +11,21 @@ Fail-closed dependency guards for the active selective relation profile.
 | Polynomial authority | the typed structure uses the independent selective polynomial |
 -/
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.Profile.shape_matrixCount_ne_three' does not depend on any axioms -/
+/-- info: 'Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile.Profile.shape_matrixCount_ne_three' does not depend on any axioms -/
 #guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.Profile.shape_matrixCount_ne_three
+#audit_axioms Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile.Profile.shape_matrixCount_ne_three
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation.toStructure_matrix' depends on axioms: [propext,
+/-- info: 'Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile.FiniteRelation.toStructure_matrix' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation.toStructure_matrix
+#audit_axioms Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile.FiniteRelation.toStructure_matrix
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation.toStructure_roleMatrix' depends on axioms: [propext,
+/-- info: 'Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile.FiniteRelation.toStructure_roleMatrix' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation.toStructure_roleMatrix
+#audit_axioms Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile.FiniteRelation.toStructure_roleMatrix
 
-/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation.toStructure_constraintPolynomial' depends on axioms: [propext,
+/-- info: 'Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile.FiniteRelation.toStructure_constraintPolynomial' depends on axioms: [propext,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation.toStructure_constraintPolynomial
+#audit_axioms Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile.FiniteRelation.toStructure_constraintPolynomial

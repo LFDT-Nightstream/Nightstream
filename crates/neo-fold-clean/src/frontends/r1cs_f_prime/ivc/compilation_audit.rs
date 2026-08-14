@@ -114,6 +114,10 @@ impl R1csIvcFixedPointShapeAudit {
     pub fn source_arm_physical_stages(&self) -> &[Vec<PhysicalStageRange>] {
         self.selective.source_arm_physical_stages()
     }
+
+    pub(crate) fn selective_compiler_audit(&self) -> &SelectiveCompilerAudit {
+        &self.selective
+    }
 }
 
 /// Borrowed audit view after the materialized selective relation was checked

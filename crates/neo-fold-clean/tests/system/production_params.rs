@@ -1,6 +1,7 @@
 //! Audit checks for the single production parameter profile.
 
 use neo_fold_clean::{config, Params};
+use neo_params::{goldilocks_paper_b2, NeoParams};
 
 #[test]
 fn production_params_match_superneo_goldilocks_b2() {
@@ -33,6 +34,33 @@ fn production_params_satisfy_superneo_rlc_guard() {
     let pp = Params::production();
     let lhs = (pp.k_rho() as u128 + 1) * (pp.T() as u128) * ((pp.b() - 1) as u128);
     assert!(lhs < pp.big_b() as u128, "(k_rho + 1) * T * (b - 1) must be < B");
+}
+
+#[test]
+fn radix_four_width_candidate_keeps_the_production_security_bounds() {
+    let candidate = NeoParams::new(
+        goldilocks_paper_b2::Q,
+        goldilocks_paper_b2::ETA as u32,
+        goldilocks_paper_b2::D as u32,
+        goldilocks_paper_b2::KAPPA,
+        goldilocks_paper_b2::M,
+        4,
+        7,
+        goldilocks_paper_b2::T,
+        goldilocks_paper_b2::EXTENSION_DEGREE,
+        114,
+    )
+    .expect("radix-four candidate parameters");
+
+    assert_eq!(candidate.B, goldilocks_paper_b2::B);
+    assert_eq!(candidate.max_fresh_count_from_rlc_guard().unwrap(), 18);
+
+    let census = candidate
+        .padded_row_security_summary_for_shape(9_304_520, 25_870_482, 13, 8, 5)
+        .expect("radix-four candidate security census");
+    assert_eq!(census.verifier_degree, 9);
+    assert_eq!(census.fork_factor, 26);
+    assert!(census.security_bits >= candidate.lambda);
 }
 
 /// Golden vector shared with

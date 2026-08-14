@@ -24,7 +24,7 @@ use super::stage;
 use super::{
     alloc_constant_var, enforce_accumulator_ce_claim_digest, enforce_ccs_claim_digest,
     enforce_pi_ccs_instance_digest_parent_authority, enforce_pi_ccs_outputs_digest,
-    enforce_strict_binary_accumulator_family_digest, AccumulatorCeClaimDigestInputs, Error,
+    enforce_strict_radix_accumulator_family_digest, AccumulatorCeClaimDigestInputs, Error,
     PiCcsOutputMessageDigestInputs, PiCcsOutputsPreimage,
 };
 use crate::engine::r1cs_circuit::builder::{Lc, Var};

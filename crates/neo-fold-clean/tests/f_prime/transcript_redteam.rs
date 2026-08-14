@@ -205,7 +205,7 @@ fn append_f_prime_step_context_with_omission(
 }
 
 fn running_acc_digest(running: &RunningInstance) -> [F; 4] {
-    AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields()
+    AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest_fields()
 }
 
 fn native_prior_x_out(mode: StateXOutDigestMode, state: &FPrimeStateIn) -> [F; 4] {
@@ -293,7 +293,7 @@ fn semantic_state_digest_out_for(fixture: &RedteamFixture, new_acc_digest: [F; 4
 
 fn source_image_for(fixture: &RedteamFixture) -> SourceFixture {
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let new_semantic_state_digest = semantic_state_digest_out_for(fixture, new_acc_digest);
     let public_x_out = recursive_step_x_out(
         fixture.state_x_out_digest_mode,
@@ -330,7 +330,7 @@ fn source_image_for_public_x_out(fixture: &RedteamFixture, public_x_out: [F; 4])
 #[test]
 fn malformed_extra_y_lane_cannot_alias_compact_accumulator_handle() {
     let fixture = build_honest_fixture();
-    let canonical = AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined));
+    let canonical = AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined));
     let mut malformed = fixture.children.clone();
     for claim in &mut malformed {
         for row in &mut claim.y_ring {
@@ -339,7 +339,7 @@ fn malformed_extra_y_lane_cannot_alias_compact_accumulator_handle() {
     }
 
     assert_ne!(
-        AccumulatorHandle::from_running_parts(&malformed, Some(&fixture.combined)),
+        AccumulatorHandle::from_running_parts(2, &malformed, Some(&fixture.combined)),
         canonical,
         "a noncanonical extra evaluation lane must not use the compact accumulator codec"
     );
@@ -609,7 +609,7 @@ fn assert_replay_fixture_rejected(fixture: RedteamFixture, message: &str) {
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -637,7 +637,7 @@ fn f_prime_recursive_rejects_nifs_proof_bound_to_different_vk_fs() {
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -669,7 +669,7 @@ fn f_prime_recursive_rejects_nifs_proof_bound_to_different_pi_ccs_header() {
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -746,7 +746,7 @@ fn f_prime_recursive_rejects_nifs_proof_bound_to_different_semantic_state() {
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -778,7 +778,7 @@ fn f_prime_recursive_stateful_rejects_nifs_proof_bound_to_different_semantic_sta
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -810,7 +810,7 @@ fn f_prime_recursive_stateful_rejects_nifs_proof_that_omits_semantic_state_from_
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -842,7 +842,7 @@ fn f_prime_recursive_stateful_rejects_nifs_proof_that_omits_z_0_from_transcript(
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -882,7 +882,7 @@ fn f_prime_recursive_stateful_rejects_nifs_proof_that_omits_remaining_context_fi
         let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
         let source = source_image_for(&fixture);
         let new_acc_digest =
-            AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+            AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
         let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
         let inputs = FPrimeRecursiveInputs {
             state: fixture.forged_state.clone(),
@@ -916,7 +916,7 @@ fn f_prime_recursive_stateful_rejects_nifs_proof_that_omits_acc_digest_from_tran
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -948,7 +948,7 @@ fn f_prime_recursive_stateful_rejects_nifs_proof_that_omits_public_trace_from_tr
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -980,7 +980,7 @@ fn f_prime_recursive_stateful_rejects_nifs_proof_that_omits_chunk_digest_from_tr
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -1012,7 +1012,7 @@ fn f_prime_recursive_rejects_nifs_proof_bound_to_different_step_count() {
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),
@@ -1043,7 +1043,7 @@ fn f_prime_recursive_rejects_coherent_wrong_acc_digest_out() {
     let fixture = build_honest_fixture();
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let mut forged_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     forged_acc_digest[0] += F::ONE;
     let forged_x_out = recursive_step_x_out(
         fixture.state_x_out_digest_mode,
@@ -1085,7 +1085,7 @@ fn f_prime_recursive_rejects_pc_not_trivial_even_if_source_word_matches() {
     let cfg = make_step_config(&fixture.prep, fixture.state_x_out_digest_mode);
     let source = source_image_for(&fixture);
     let new_acc_digest =
-        AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields();
+        AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields();
     let semantic_state_digest_out = semantic_state_digest_out_for(&fixture, new_acc_digest);
     let inputs = FPrimeRecursiveInputs {
         state: fixture.forged_state.clone(),

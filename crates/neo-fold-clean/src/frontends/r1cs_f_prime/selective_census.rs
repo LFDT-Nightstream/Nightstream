@@ -41,6 +41,7 @@ pub enum SelectiveMatrixTag {
     Identity,
     Csc,
     CscWithSeededPhi81,
+    VerifierArtifact,
 }
 
 impl SelectiveMatrixTag {
@@ -50,6 +51,7 @@ impl SelectiveMatrixTag {
             CcsMatrix::Identity { .. } => Self::Identity,
             CcsMatrix::Csc(_) => Self::Csc,
             CcsMatrix::CscWithSeededPhi81 { .. } => Self::CscWithSeededPhi81,
+            CcsMatrix::VerifierArtifact { .. } => Self::VerifierArtifact,
         }
     }
 }
@@ -131,6 +133,8 @@ pub enum SelectiveStructureCensusError {
     EmptyDimensions { rows: usize, columns: usize },
     #[error("selective census rejects identity matrix representation at port {port}")]
     IdentityPort { port: usize },
+    #[error("selective raw-matrix census rejects verifier-artifact representation at port {port}")]
+    VerifierArtifactPort { port: usize },
     #[error(
         "selective census port {port} has dimensions {rows}x{columns}, expected {expected_rows}x{expected_columns}"
     )]
@@ -271,6 +275,9 @@ fn validate_port(
             blocks,
             geometric_runs,
         } => (csc, blocks.as_slice(), geometric_runs.as_slice()),
+        CcsMatrix::VerifierArtifact { .. } => {
+            return Err(SelectiveStructureCensusError::VerifierArtifactPort { port });
+        }
     };
     validate_csc(structure, port, csc)?;
     for (block, value) in blocks.iter().enumerate() {
@@ -383,6 +390,9 @@ fn census_port(port: usize, matrix: &CcsMatrix<neo_math::F>) -> SelectivePortCen
             blocks.as_slice(),
             geometric_runs.as_slice(),
         ),
+        CcsMatrix::VerifierArtifact { .. } => {
+            unreachable!("validated raw-matrix census excludes verifier-artifact ports")
+        }
     };
     let seeded_metadata_bytes = blocks.iter().map(seeded_block_metadata_bytes).sum::<u128>();
     let csc_wire_bytes = 6 * WIRE_WORD_BYTES

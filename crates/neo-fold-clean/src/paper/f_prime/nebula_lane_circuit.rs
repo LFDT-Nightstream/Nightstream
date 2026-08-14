@@ -32,10 +32,10 @@ use crate::engine::r1cs_circuit::poseidon2::{enforce_poseidon2_hash, DIGEST_LEN}
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 use crate::paper::construction2::nebula_lane::{DelayedNebulaStepX, NebulaLane, NEBULA_GAMMA_TRANSCRIPT_LABEL};
 use crate::paper::construction2::nebula_lane::{K_LIMB_BITS, MAX_STACKS, SEG_IDX_BITS, STEP_IDX_BITS, TS_BITS};
-use crate::paper::construction2::StackShape;
+use crate::paper::construction2::{NebulaConfig, StackShape};
 use crate::paper::digest::{
     nebula_chain_mem_header, nebula_chain_ops_header, NEBULA_CHAIN_MEM_TAG, NEBULA_CHAIN_OPS_TAG, NEBULA_LEAF_MEM_TAG,
-    NEBULA_LEAF_OPS_TAG,
+    NEBULA_LEAF_OPS_TAG, NEBULA_PROGRAM_BINDING_TAG,
 };
 use crate::paper::f_prime::digest_circuit::{alloc_const_tag, alloc_constant};
 use crate::paper::reductions::accumulator_sis_circuit::{
@@ -45,13 +45,14 @@ use crate::paper::relations::product_commitment_circuit::{validate_adv_shape, Ad
 
 /// Mirror of the native lane-digest domain tag (private in
 /// `paper::digest`; the parity test is the lockstep guard).
-const NEBULA_LANE_DIGEST_TAG: &[u8] = b"neo.fold.clean/nebula/lane_digest/v3";
+const NEBULA_LANE_DIGEST_TAG: &[u8] = b"neo.fold.clean/nebula/lane_digest/v4";
 
 /// Wire view of the carried [`crate::paper::construction2::NebulaLane`].
 /// `gamma` is meaningful only while a segment is open —
 /// a closed lane's digest uses [`GammaWires::Absent`].
 #[derive(Clone, Copy)]
 pub struct NebulaLaneWires {
+    pub program_binding_digest: [Var; DIGEST_LEN],
     /// `1` exactly while a segment is open (`gamma = Some`).
     pub open: Var,
     pub seg_idx: Var,
@@ -82,6 +83,7 @@ pub fn alloc_nebula_lane_wires(builder: &mut R1csBuilder, lane: &NebulaLane) -> 
     let alloc_digest = |builder: &mut R1csBuilder, digest: [F; DIGEST_LEN]| digest.map(|value| builder.alloc(value));
     let gamma = lane.gamma.unwrap_or([K::ONE; 2]);
     NebulaLaneWires {
+        program_binding_digest: alloc_digest(builder, lane.program_binding_digest),
         open: builder.alloc(if lane.gamma.is_some() { F::ONE } else { F::ZERO }),
         seg_idx: builder.alloc(F::from_u64(lane.seg_idx)),
         idx: builder.alloc(F::from_u64(lane.idx)),
@@ -98,6 +100,13 @@ pub fn alloc_nebula_lane_wires(builder: &mut R1csBuilder, lane: &NebulaLane) -> 
 /// Enforce equality of two carried lane bundles, including closed-state dead
 /// gamma slots. This is the state-link relation used between adjacent F' steps.
 pub fn enforce_nebula_lane_equality_circuit(builder: &mut R1csBuilder, lhs: &NebulaLaneWires, rhs: &NebulaLaneWires) {
+    for (lhs, rhs) in lhs
+        .program_binding_digest
+        .iter()
+        .zip(rhs.program_binding_digest.iter())
+    {
+        enforce_var_eq(builder, *lhs, *rhs);
+    }
     enforce_var_eq(builder, lhs.open, rhs.open);
     enforce_var_eq(builder, lhs.seg_idx, rhs.seg_idx);
     enforce_var_eq(builder, lhs.idx, rhs.idx);
@@ -124,6 +133,13 @@ pub fn enforce_nebula_lane_equality_circuit(builder: &mut R1csBuilder, lhs: &Neb
 
 /// Pin a carried lane bundle to one verifier-known native value.
 pub fn enforce_nebula_lane_constant_circuit(builder: &mut R1csBuilder, wires: &NebulaLaneWires, expected: &NebulaLane) {
+    for (wire, value) in wires
+        .program_binding_digest
+        .iter()
+        .zip(expected.program_binding_digest.iter())
+    {
+        builder.enforce_eq(&Lc::from_var(*wire), &Lc::from_const(*value));
+    }
     let gamma = expected.gamma.unwrap_or([K::ONE; 2]);
     builder.enforce_eq(
         &Lc::from_var(wires.open),
@@ -162,6 +178,82 @@ pub fn enforce_nebula_lane_constant_circuit(builder: &mut R1csBuilder, wires: &N
     }
     for (wire, value) in wires.d_mem.iter().zip(expected.d_mem) {
         builder.enforce_eq(&Lc::from_var(*wire), &Lc::from_const(value));
+    }
+}
+
+/// Pin the structural base state while leaving program bindings as witness
+/// inputs. The lane digest carries those bindings to the terminal verifier.
+#[derive(Clone, Copy, Debug)]
+pub struct NebulaBaseBindingWires {
+    pub initial_semantic_state_digest: [Var; DIGEST_LEN],
+    pub plan_digest: [Var; DIGEST_LEN],
+    pub d_init: [Var; DIGEST_LEN],
+    pub computed_program_binding_digest: [Var; DIGEST_LEN],
+}
+
+pub fn enforce_nebula_lane_base_circuit(
+    builder: &mut R1csBuilder,
+    wires: &NebulaLaneWires,
+    cfg: &NebulaConfig,
+    semantic_state_digest: &[Var; DIGEST_LEN],
+) -> NebulaBaseBindingWires {
+    let initial_semantic_state_digest = cfg
+        .initial_semantic_state_digest
+        .map(|value| builder.alloc(value));
+    let plan_digest = cfg.plan_digest.map(|value| builder.alloc(value));
+    let d_init = cfg.d_init.map(|value| builder.alloc(value));
+    let mut binding_preimage = alloc_const_tag(builder, NEBULA_PROGRAM_BINDING_TAG);
+    binding_preimage.extend_from_slice(&initial_semantic_state_digest);
+    binding_preimage.extend_from_slice(&plan_digest);
+    binding_preimage.extend_from_slice(&d_init);
+    let binding_digest = enforce_poseidon2_hash(builder, &binding_preimage);
+    for (actual, expected) in binding_digest
+        .iter()
+        .zip(wires.program_binding_digest.iter())
+    {
+        enforce_var_eq(builder, *actual, *expected);
+    }
+    for (actual, expected) in semantic_state_digest
+        .iter()
+        .zip(initial_semantic_state_digest.iter())
+    {
+        enforce_var_eq(builder, *actual, *expected);
+    }
+    builder.enforce_eq(&Lc::from_var(wires.open), &Lc::zero());
+    builder.enforce_eq(&Lc::from_var(wires.seg_idx), &Lc::zero());
+    builder.enforce_eq(&Lc::from_var(wires.idx), &Lc::zero());
+    builder.enforce_eq(&Lc::from_var(wires.ts), &Lc::zero());
+    for gamma in &wires.gamma {
+        enforce_k_constant(builder, gamma, K::ONE);
+    }
+    for h in &wires.h {
+        enforce_k_constant(builder, h, K::ONE);
+    }
+    for sp in &wires.sp {
+        builder.enforce_eq(&Lc::from_var(*sp), &Lc::zero());
+    }
+    let headers = [
+        nebula_chain_ops_header(),
+        nebula_chain_mem_header(),
+        nebula_chain_mem_header(),
+    ];
+    for (wire, value) in wires
+        .d_pre
+        .iter()
+        .chain(wires.d_seen.iter())
+        .flatten()
+        .zip(headers.iter().chain(headers.iter()).flatten())
+    {
+        builder.enforce_eq(&Lc::from_var(*wire), &Lc::from_const(*value));
+    }
+    for (memory, initial) in wires.d_mem.iter().zip(d_init.iter()) {
+        enforce_var_eq(builder, *memory, *initial);
+    }
+    NebulaBaseBindingWires {
+        initial_semantic_state_digest,
+        plan_digest,
+        d_init,
+        computed_program_binding_digest: binding_digest,
     }
 }
 
@@ -210,7 +302,6 @@ pub struct NebulaOpenContextWires {
     pub vk_fs: [Var; DIGEST_LEN],
     pub z_i: [Var; DIGEST_LEN],
     pub acc_digest: [Var; DIGEST_LEN],
-    pub plan_digest: [Var; DIGEST_LEN],
 }
 
 /// Decode the canonical `NebulaStepX` bit suffix into typed field wires.
@@ -400,6 +491,7 @@ pub fn enforce_nebula_lane_digest_circuit(
     gamma: GammaWires,
 ) -> [Var; DIGEST_LEN] {
     let mut preimage = alloc_const_tag(builder, NEBULA_LANE_DIGEST_TAG);
+    preimage.extend_from_slice(&lane.program_binding_digest);
     preimage.push(lane.seg_idx);
     preimage.push(lane.idx);
     preimage.push(lane.ts);
@@ -480,7 +572,7 @@ pub fn enforce_nebula_maybe_open_circuit(
     transcript.append_fields(builder, b"nebula/z_i", &context.z_i);
     transcript.append_fields(builder, b"nebula/acc_digest", &context.acc_digest);
     transcript.append_fields(builder, b"nebula/lane", &staged_digest);
-    transcript.append_fields(builder, b"nebula/plan", &context.plan_digest);
+    transcript.append_fields(builder, b"nebula/program_binding", &lane.program_binding_digest);
     transcript.append_fields(builder, b"nebula/seg_idx", &[lane.seg_idx]);
     transcript.append_fields(builder, b"nebula/ts", &[lane.ts]);
     transcript.append_fields(builder, b"nebula/d_pre_ops", &input.d_pre[0]);
@@ -504,6 +596,7 @@ pub fn enforce_nebula_maybe_open_circuit(
     });
 
     NebulaLaneWires {
+        program_binding_digest: lane.program_binding_digest,
         open: Var::ONE,
         seg_idx: lane.seg_idx,
         idx: lane.idx,
@@ -569,6 +662,7 @@ pub fn enforce_nebula_advance_circuit(
     };
 
     NebulaLaneWires {
+        program_binding_digest: lane.program_binding_digest,
         open: lane.open,
         seg_idx: lane.seg_idx,
         idx: idx_out,
@@ -627,6 +721,7 @@ pub fn enforce_nebula_close_circuit(builder: &mut R1csBuilder, lane: &NebulaLane
     let mem_header = alloc_const_digest(builder, nebula_chain_mem_header());
 
     NebulaLaneWires {
+        program_binding_digest: lane.program_binding_digest,
         open: zero,
         seg_idx: seg_idx_out,
         idx: zero,
@@ -785,6 +880,7 @@ pub fn enforce_nebula_maybe_close_circuit(
     };
 
     let out = NebulaLaneWires {
+        program_binding_digest: lane.program_binding_digest,
         open: select(builder, zero, lane.open),
         seg_idx: select(builder, seg_idx_reset, lane.seg_idx),
         idx: select(builder, zero, lane.idx),

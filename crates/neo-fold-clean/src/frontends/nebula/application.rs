@@ -391,7 +391,7 @@ impl MemoryPortLayout {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NebulaApplication {
     shape: R1csShape,
     recursive_plan: RecursiveStepImagePlan,
@@ -424,6 +424,33 @@ impl NebulaApplication {
 
     pub fn memory(&self) -> &MemoryPortLayout {
         &self.memory
+    }
+
+    pub(crate) fn same_relation_profile_as(&self, other: &Self) -> bool {
+        self.shape == other.shape
+            && self.memory == other.memory
+            && self
+                .recursive_plan
+                .same_nebula_relation_profile_as(&other.recursive_plan)
+    }
+
+    /// Reuse a prepared application relation while replacing the one
+    /// program-specific semantic anchor and its memory-routing instance.
+    /// The exact profile check at bind time remains authoritative for every
+    /// other field.
+    #[doc(hidden)]
+    pub fn bind_program_profile(
+        &self,
+        initial_semantic_state_digest: [u8; 32],
+        memory: MemoryPortLayout,
+    ) -> Result<Self, ApplicationError> {
+        let mut recursive_plan = self.recursive_plan.clone();
+        let state = recursive_plan
+            .state_x_out
+            .as_mut()
+            .ok_or(ApplicationError::MissingSemanticStateBinding)?;
+        state.initial_semantic_state_digest_anchor = Some(initial_semantic_state_digest);
+        Self::new(self.shape.clone(), recursive_plan, memory)
     }
 
     pub fn validate_for(&self, plan: &NebulaPlan) -> Result<(), ApplicationError> {
@@ -588,6 +615,8 @@ pub enum ApplicationError {
     },
     #[error("application memory requires a stackless Nebula plan")]
     ApplicationRequiresStacklessNebula,
+    #[error("prepared application has no semantic-state binding")]
+    MissingSemanticStateBinding,
     #[error("application declares {declared} physical memory slots but S_mem has {available}")]
     TooManySlots { declared: usize, available: usize },
     #[error("memory region `{region}` ends at {end}, beyond its namespace capacity {capacity}")]

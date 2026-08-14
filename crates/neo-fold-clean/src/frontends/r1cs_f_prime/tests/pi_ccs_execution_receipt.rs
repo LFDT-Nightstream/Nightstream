@@ -38,9 +38,9 @@ fn selected_statement_fields() -> Vec<u64> {
     let polynomial = selective_polynomial();
     assert_eq!(polynomial.arity(), 13);
     assert_eq!(polynomial.max_degree(), 8);
-    assert_eq!(polynomial.terms().len(), 66);
+    assert_eq!(polynomial.terms().len(), 74);
 
-    let mut fields = vec![41, 24, 1, 14, 14, D as u64, 8, 66];
+    let mut fields = vec![41, 24, 1, 14, 14, D as u64, 8, 74];
     for term in polynomial.terms() {
         fields.push(term.coeff.as_canonical_u64());
         fields.push(0);
@@ -181,7 +181,7 @@ GENERATED FILE - do not edit by hand.\n\n\
 Selected-profile Rust transcript receipt for the independent Lean checker.\n\
 Regenerated and drift-checked by\n\
 `cargo test -p neo-fold-clean --lib --release pi_ccs_execution_receipt`.\n\n\
-This fixture uses the exact 24-variable, 14-matrix, 66-term relation profile.\n\
+This fixture uses the exact 24-variable, 14-matrix, 74-term relation profile.\n\
 Its relation ID names the test fixture, not the production matrix artifact.\n\
 -/\n\n\
 namespace Nightstream.Implementation.R1CS.Artifacts.PiCcsExecution.Generated.SelectedReceipt\n\n\

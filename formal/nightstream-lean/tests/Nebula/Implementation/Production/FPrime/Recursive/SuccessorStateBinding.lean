@@ -1,0 +1,24 @@
+import Nightstream.Implementation.Nebula.Production.FPrime.Recursive.SuccessorStateBinding
+
+/-! Regression surface for the field-native production successor binding. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductionSuccessorStateBinding
+
+open Nightstream.Implementation.Nebula.ProductionSuccessorStateBinding
+
+#check runningNativeFields_injective
+#check successorFrame_length
+#check successorFrame_injective
+#check successorFrame_ne_of_initialApplicationState_ne
+#check successorFrame_ne_of_initialMemoryCarry_ne
+#check successorFrame_fields_canonical
+#check stateFrame_length
+#check stateFrame_injective
+#check outputState_replays_stateFrame
+#check outputState_canonical
+#check equal_outputDigest_recovers_state_or_named_failure
+#check stateFrames_ne_of_candidate_ne
+
+end tests.NebulaProductionSuccessorStateBinding

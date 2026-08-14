@@ -1,4 +1,4 @@
-//! Prover lifecycle for the authoritative three-arm Nebula F' relation.
+//! Prover lifecycle for the authoritative Nebula F' relation.
 //!
 //! Each append first folds the previous claim, then synthesizes the current
 //! field-native verifier execution and encodes it into the fixed low-norm
@@ -8,20 +8,22 @@
 use neo_ajtai::Commitment;
 use neo_ccs::LaneCommitments;
 use neo_math::{D, F, K};
+use neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact;
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use super::{
     enforce_nebula_application_f_prime_base_step, enforce_nebula_application_f_prime_recursive_step,
-    enforce_nebula_f_prime_base_step, enforce_nebula_f_prime_recursive_step, NebulaFPrimeBranch, NebulaFPrimeError,
-    NebulaFPrimeRelation, NebulaFPrimeRelationError,
+    enforce_nebula_f_prime_base_step, enforce_nebula_f_prime_recursive_step, NebulaFPrimeBranch,
+    NebulaFPrimeEncoderArtifactReceipt, NebulaFPrimeError, NebulaFPrimeRelation, NebulaFPrimeRelationError,
+    VerifiedNebulaFPrimeEncoderArtifact,
 };
 use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::frontends::direct_ccs::ajtai;
 use crate::frontends::nebula::application::{ApplicationSegmentTrace, NebulaApplication};
 use crate::frontends::nebula::circuit::StepData;
 use crate::frontends::nebula::fingerprint::Gammas;
-use crate::frontends::nebula::layout::LayoutError;
+use crate::frontends::nebula::layout::{LayoutError, NebulaParams};
 use crate::frontends::nebula::plan::NebulaPlan;
 use crate::frontends::nebula::trace::SegmentTrace;
 use crate::frontends::r1cs_f_prime::lowering::{
@@ -132,58 +134,169 @@ pub struct NebulaFPrimePreprocessing {
     plan: NebulaPlan,
 }
 
-impl NebulaFPrimePreprocessing {
-    /// Compile and preprocess the authoritative fixed point using the global
-    /// verifier-owned Ajtai setup.
-    pub fn new(params: Params, plan: NebulaPlan) -> Result<Self, NebulaFPrimeChainError> {
-        let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)?;
-        Self::from_relation(params, plan, relation, None)
+/// One in-process, profile-owned compiled relation and evaluator cache.
+///
+/// Build this once, then bind each program with [`Self::bind`] or
+/// [`Self::bind_application`]. Program values never enter the shared matrices
+/// or cache. Binding recomputes verifier policy and checks the exact source
+/// relation profile before it shares any compiled data.
+pub struct NebulaFPrimePreparedProfile {
+    params: Params,
+    memory_params: NebulaParams,
+    prep: Preprocessing,
+    relation: NebulaFPrimeRelation,
+}
+
+impl NebulaFPrimePreparedProfile {
+    pub fn new(params: Params, reference_plan: &NebulaPlan) -> Result<Self, NebulaFPrimeChainError> {
+        let relation = NebulaFPrimeRelation::compile_fixed_point(&params, reference_plan)?;
+        Self::from_relation(params, reference_plan, relation, None, None)
     }
 
     pub fn new_with_application(
         params: Params,
-        plan: NebulaPlan,
-        application: NebulaApplication,
+        reference_plan: &NebulaPlan,
+        reference_application: &NebulaApplication,
     ) -> Result<Self, NebulaFPrimeChainError> {
-        let relation = NebulaFPrimeRelation::compile_application_fixed_point(&params, &plan, application)?;
-        Self::from_relation(params, plan, relation, None)
+        let relation = NebulaFPrimeRelation::compile_application_fixed_point(
+            &params,
+            reference_plan,
+            reference_application.clone(),
+        )?;
+        Self::from_relation(params, reference_plan, relation, None, None)
     }
 
-    /// Deterministic test/demo constructor. Production callers use [`Self::new`].
+    /// Restore the exact relation encoder and evaluator from checked artifacts.
+    pub fn new_with_application_artifacts(
+        params: Params,
+        reference_plan: &NebulaPlan,
+        reference_application: &NebulaApplication,
+        cache_artifact: VerifiedSuperneoCacheArtifact,
+        encoder_artifact: VerifiedNebulaFPrimeEncoderArtifact,
+    ) -> Result<Self, NebulaFPrimeChainError> {
+        let shape = cache_artifact.cache().relation_shape().ok_or_else(|| {
+            NebulaFPrimeRelationError::Geometry("cache artifact contains no relation matrices".into())
+        })?;
+        let relation = NebulaFPrimeRelation::from_verified_encoder_artifact(
+            reference_plan,
+            reference_application.clone(),
+            shape,
+            cache_artifact.receipt().matrix_digest(),
+            encoder_artifact,
+        )?;
+        Self::from_relation(params, reference_plan, relation, None, Some(cache_artifact))
+    }
+
     #[doc(hidden)]
-    pub fn new_seeded(params: Params, plan: NebulaPlan, seed: u64) -> Result<Self, NebulaFPrimeChainError> {
-        let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)?;
+    pub fn new_seeded(params: Params, reference_plan: &NebulaPlan, seed: u64) -> Result<Self, NebulaFPrimeChainError> {
+        let relation = NebulaFPrimeRelation::compile_fixed_point(&params, reference_plan)?;
         let log = ajtai::setup_seeded(&params, relation.structure(), seed);
-        Self::from_relation(params, plan, relation, Some(log))
+        Self::from_relation(params, reference_plan, relation, Some(log), None)
     }
 
     #[doc(hidden)]
     pub fn new_seeded_with_application(
         params: Params,
-        plan: NebulaPlan,
-        application: NebulaApplication,
+        reference_plan: &NebulaPlan,
+        reference_application: &NebulaApplication,
         seed: u64,
     ) -> Result<Self, NebulaFPrimeChainError> {
-        let relation = NebulaFPrimeRelation::compile_application_fixed_point(&params, &plan, application)?;
+        let relation = NebulaFPrimeRelation::compile_application_fixed_point(
+            &params,
+            reference_plan,
+            reference_application.clone(),
+        )?;
         let log = ajtai::setup_seeded(&params, relation.structure(), seed);
-        Self::from_relation(params, plan, relation, Some(log))
+        Self::from_relation(params, reference_plan, relation, Some(log), None)
+    }
+
+    #[doc(hidden)]
+    pub fn new_seeded_with_application_artifacts(
+        params: Params,
+        reference_plan: &NebulaPlan,
+        reference_application: &NebulaApplication,
+        seed: u64,
+        cache_artifact: VerifiedSuperneoCacheArtifact,
+        encoder_artifact: VerifiedNebulaFPrimeEncoderArtifact,
+    ) -> Result<Self, NebulaFPrimeChainError> {
+        let shape = cache_artifact.cache().relation_shape().ok_or_else(|| {
+            NebulaFPrimeRelationError::Geometry("cache artifact contains no relation matrices".into())
+        })?;
+        let relation = NebulaFPrimeRelation::from_verified_encoder_artifact(
+            reference_plan,
+            reference_application.clone(),
+            shape,
+            cache_artifact.receipt().matrix_digest(),
+            encoder_artifact,
+        )?;
+        let log = ajtai::setup_seeded(&params, relation.structure(), seed);
+        Self::from_relation(params, reference_plan, relation, Some(log), Some(cache_artifact))
     }
 
     fn from_relation(
         params: Params,
-        plan: NebulaPlan,
-        mut relation: NebulaFPrimeRelation,
+        reference_plan: &NebulaPlan,
+        relation: NebulaFPrimeRelation,
         test_log: Option<neo_ajtai::AjtaiSModule>,
+        artifact: Option<VerifiedSuperneoCacheArtifact>,
     ) -> Result<Self, NebulaFPrimeChainError> {
         let public_input_len = Some(relation.public_input_len());
-        let mut prep = match test_log {
-            Some(log) => {
-                lifecycle::preprocess_shared_with_test_log(params, relation.structure_arc(), log, public_input_len)
-            }
-            None => lifecycle::preprocess_shared(params, relation.structure_arc(), public_input_len),
-        }?
-        .with_nebula(relation.nebula_config().clone())
-        .with_terminal_induction();
+        let prep = match (test_log, artifact) {
+            (Some(log), Some(artifact)) => lifecycle::preprocess_shared_with_test_log_and_cache_artifact(
+                params.clone(),
+                relation.structure_arc(),
+                log,
+                public_input_len,
+                artifact,
+            ),
+            (None, Some(artifact)) => lifecycle::preprocess_shared_with_cache_artifact(
+                params.clone(),
+                relation.structure_arc(),
+                public_input_len,
+                artifact,
+            ),
+            (Some(log), None) => lifecycle::preprocess_shared_with_test_log(
+                params.clone(),
+                relation.structure_arc(),
+                log,
+                public_input_len,
+            ),
+            (None, None) => lifecycle::preprocess_shared(params.clone(), relation.structure_arc(), public_input_len),
+        }?;
+        Ok(Self {
+            params,
+            memory_params: *reference_plan.params(),
+            prep,
+            relation,
+        })
+    }
+
+    pub fn bind(&self, plan: NebulaPlan) -> Result<NebulaFPrimePreprocessing, NebulaFPrimeChainError> {
+        self.bind_inner(plan, None)
+    }
+
+    pub fn bind_application(
+        &self,
+        plan: NebulaPlan,
+        application: NebulaApplication,
+    ) -> Result<NebulaFPrimePreprocessing, NebulaFPrimeChainError> {
+        self.bind_inner(plan, Some(application))
+    }
+
+    fn bind_inner(
+        &self,
+        plan: NebulaPlan,
+        application: Option<NebulaApplication>,
+    ) -> Result<NebulaFPrimePreprocessing, NebulaFPrimeChainError> {
+        if *plan.params() != self.memory_params {
+            return Err(NebulaFPrimeRelationError::PreparedProfileMismatch("Nebula memory parameters differ").into());
+        }
+        let mut relation = self.relation.bind_program_profile(&plan, application)?;
+        let mut prep = self
+            .prep
+            .clone()
+            .with_nebula(relation.nebula_config().clone())
+            .with_terminal_induction();
         if let Some(application) = relation.application() {
             let mode = crate::frontends::r1cs_f_prime::semantic_state_mode_for_plan(application.recursive_plan());
             let initial =
@@ -193,15 +306,76 @@ impl NebulaFPrimePreprocessing {
                 .with_initial_semantic_state_digest(initial)?;
         }
         relation.bind_preprocessing(&prep)?;
-        Ok(Self { prep, relation, plan })
+        Ok(NebulaFPrimePreprocessing { prep, relation, plan })
+    }
+
+    pub fn params(&self) -> &Params {
+        &self.params
+    }
+
+    #[doc(hidden)]
+    pub fn relation(&self) -> &NebulaFPrimeRelation {
+        &self.relation
+    }
+}
+
+impl NebulaFPrimePreprocessing {
+    /// Compile and preprocess the authoritative fixed point using the global
+    /// verifier-owned Ajtai setup.
+    pub fn new(params: Params, plan: NebulaPlan) -> Result<Self, NebulaFPrimeChainError> {
+        let profile = NebulaFPrimePreparedProfile::new(params, &plan)?;
+        profile.bind(plan)
+    }
+
+    pub fn new_with_application(
+        params: Params,
+        plan: NebulaPlan,
+        application: NebulaApplication,
+    ) -> Result<Self, NebulaFPrimeChainError> {
+        let profile = NebulaFPrimePreparedProfile::new_with_application(params, &plan, &application)?;
+        profile.bind_application(plan, application)
+    }
+
+    /// Deterministic test/demo constructor. Production callers use [`Self::new`].
+    #[doc(hidden)]
+    pub fn new_seeded(params: Params, plan: NebulaPlan, seed: u64) -> Result<Self, NebulaFPrimeChainError> {
+        let profile = NebulaFPrimePreparedProfile::new_seeded(params, &plan, seed)?;
+        profile.bind(plan)
+    }
+
+    #[doc(hidden)]
+    pub fn new_seeded_with_application(
+        params: Params,
+        plan: NebulaPlan,
+        application: NebulaApplication,
+        seed: u64,
+    ) -> Result<Self, NebulaFPrimeChainError> {
+        let profile = NebulaFPrimePreparedProfile::new_seeded_with_application(params, &plan, &application, seed)?;
+        profile.bind_application(plan, application)
     }
 
     pub fn relation(&self) -> &NebulaFPrimeRelation {
         &self.relation
     }
 
+    /// Write the exact assignment encoder for this verifier-owned relation.
+    pub fn write_encoder_artifact(
+        &self,
+        writer: impl std::io::Write,
+    ) -> Result<NebulaFPrimeEncoderArtifactReceipt, NebulaFPrimeChainError> {
+        Ok(self
+            .relation
+            .write_encoder_artifact(writer, self.prep.pi_ccs_header_bundle())?)
+    }
+
     pub fn plan(&self) -> &NebulaPlan {
         &self.plan
+    }
+
+    #[doc(hidden)]
+    pub fn shares_prepared_storage_with(&self, other: &Self) -> bool {
+        self.relation.shares_compiled_relation_with(&other.relation)
+            && self.prep.shares_cached_structure_with(&other.prep)
     }
 }
 
@@ -667,13 +841,13 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         #[cfg(feature = "perf-timers")]
         let total_started = std::time::Instant::now();
         let nifs = self.prep.prep.nifs_v_circuit_config()?;
-        let nebula = self.prep.plan.config();
+        let nebula = self.prep.relation.nebula_config();
         let cfg = FPrimeStepConfig {
             nifs,
             b: self.prep.prep.params.b(),
             transcript_label: F_PRIME_STEP_TRANSCRIPT_LABEL,
             public_input_layout: FPrimePublicInputLayout::with_suffix(delayed_nebula_public_suffix_len(nebula.stacks)),
-            nebula: Some(&nebula),
+            nebula: Some(nebula),
             state_x_out_digest_mode: self
                 .prep
                 .relation
@@ -822,42 +996,78 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         let instance: Result<CcsInstance, NebulaFPrimeChainError> = if let Some(adapter) = adapter {
             #[cfg(feature = "perf-timers")]
             let encode_started = std::time::Instant::now();
-            let assignment = self
-                .prep
-                .relation
-                .encode_signed_unit_for_deferred_nifs(branch, &field_assignment)?;
+            let (signed_assignment, mut dense_assignment) = if self.prep.prep.params.b() == 2 {
+                (
+                    Some(
+                        self.prep
+                            .relation
+                            .encode_signed_unit_for_deferred_nifs(branch, &field_assignment)?,
+                    ),
+                    None,
+                )
+            } else {
+                (
+                    None,
+                    Some(
+                        self.prep
+                            .relation
+                            .encode_for_deferred_nifs(branch, &field_assignment)?,
+                    ),
+                )
+            };
             #[cfg(feature = "perf-timers")]
             let encode_elapsed = encode_started.elapsed();
-            let assignments = [assignment];
             #[cfg(feature = "perf-timers")]
             let adapter_started = std::time::Instant::now();
-            let mut accelerated = adapter
-                .build_fresh_signed_unit_instances(NifsFreshSignedUnitInstancesRequest {
-                    pp: &self.prep.prep.params,
-                    s: self.prep.prep.structure(),
-                    cache: self.prep.prep.optimized_cache(),
-                    log: &self.prep.prep.log,
-                    m_in: self.prep.relation.public_input_len(),
-                    assignments: &assignments,
-                    lane_scheme: Some(&self.prep.relation.nebula_config().scheme),
-                })
-                .map_err(crate::paper::construction2::Error::from)
-                .map_err(lifecycle::Error::from)?;
-            if accelerated.is_none() {
-                let dense = assignments[0].to_dense();
-                let dense_assignments = [dense.as_slice()];
-                accelerated = adapter
+            let mut accelerated = if let Some(assignment) = &signed_assignment {
+                adapter
+                    .build_fresh_signed_unit_instances(NifsFreshSignedUnitInstancesRequest {
+                        pp: &self.prep.prep.params,
+                        s: self.prep.prep.structure(),
+                        cache: self.prep.prep.optimized_cache(),
+                        log: &self.prep.prep.log,
+                        m_in: self.prep.relation.public_input_len(),
+                        assignments: std::slice::from_ref(assignment),
+                        lane_scheme: Some(&self.prep.relation.nebula_config().scheme),
+                    })
+                    .map_err(crate::paper::construction2::Error::from)
+                    .map_err(lifecycle::Error::from)?
+            } else {
+                let assignments = [dense_assignment
+                    .as_deref()
+                    .expect("radix-four dense assignment")];
+                adapter
                     .build_fresh_instances(NifsFreshInstancesRequest {
                         pp: &self.prep.prep.params,
                         s: self.prep.prep.structure(),
                         cache: self.prep.prep.optimized_cache(),
                         log: &self.prep.prep.log,
                         m_in: self.prep.relation.public_input_len(),
-                        assignments: &dense_assignments,
+                        assignments: &assignments,
                         lane_scheme: Some(&self.prep.relation.nebula_config().scheme),
                     })
                     .map_err(crate::paper::construction2::Error::from)
-                    .map_err(lifecycle::Error::from)?;
+                    .map_err(lifecycle::Error::from)?
+            };
+            if accelerated.is_none() {
+                if let Some(assignment) = &signed_assignment {
+                    dense_assignment = Some(assignment.to_dense());
+                    let assignments = [dense_assignment
+                        .as_deref()
+                        .expect("signed-unit dense fallback")];
+                    accelerated = adapter
+                        .build_fresh_instances(NifsFreshInstancesRequest {
+                            pp: &self.prep.prep.params,
+                            s: self.prep.prep.structure(),
+                            cache: self.prep.prep.optimized_cache(),
+                            log: &self.prep.prep.log,
+                            m_in: self.prep.relation.public_input_len(),
+                            assignments: &assignments,
+                            lane_scheme: Some(&self.prep.relation.nebula_config().scheme),
+                        })
+                        .map_err(crate::paper::construction2::Error::from)
+                        .map_err(lifecycle::Error::from)?;
+                }
             }
             #[cfg(feature = "perf-timers")]
             eprintln!(
@@ -885,7 +1095,12 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 None => self
                     .prep
                     .relation
-                    .build_instance(&self.prep.prep, branch, &field_assignment)
+                    .build_instance_from_encoded(
+                        &self.prep.prep,
+                        dense_assignment
+                            .as_deref()
+                            .expect("adapter fallback has a dense assignment"),
+                    )
                     .map_err(NebulaFPrimeChainError::from),
             }
         } else {
@@ -1086,7 +1301,7 @@ impl StateCoordinates {
         .map_err(lifecycle::Error::from)?;
         let acc_digest = digest32_as_fields(
             running
-                .accumulator_digest(prep.structure())
+                .accumulator_digest(prep.params.b(), prep.structure())
                 .map_err(crate::paper::construction2::Error::from)
                 .map_err(lifecycle::Error::from)?,
         );

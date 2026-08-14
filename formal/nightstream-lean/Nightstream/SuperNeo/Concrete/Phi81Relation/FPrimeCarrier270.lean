@@ -2,8 +2,8 @@ import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.Assignment
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.CcsRefinement
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.ColumnMap
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.Necessity
-import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowMap
-import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.NumericRowMap
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.NumericRowPadding
 
 /-!
 Curated model-level surface for the typed five-ring F' public carrier.

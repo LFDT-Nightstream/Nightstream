@@ -5,13 +5,22 @@
 //!   --features perf-timers -- --ignored --nocapture
 //! ```
 
+#[cfg(feature = "perf-timers")]
+#[path = "wasm_nebula_pipeline_profile/centered_domain_artifact.rs"]
+mod centered_domain_artifact;
 mod common;
+#[cfg(feature = "perf-timers")]
+#[path = "wasm_nebula_pipeline_profile/radix_four.rs"]
+mod radix_four;
 
 #[cfg(feature = "perf-timers")]
 use std::cmp::Reverse;
 #[cfg(feature = "perf-timers")]
 use std::collections::BTreeMap;
 #[cfg(feature = "perf-timers")]
+use std::fs::File;
+#[cfg(feature = "perf-timers")]
+use std::io::{BufReader, BufWriter, Write};
 use std::time::{Duration, Instant};
 
 use neo_ccs::{CcsMatrix, CcsStructure};
@@ -43,6 +52,13 @@ const PROFILE_WAT: &str = r#"
     i32.add))
 "#;
 
+const PROFILE_WAT_VARIANT: &str = r#"
+(module
+  (memory 0 1)
+  (func (export "main") (result i32)
+    i32.const 42))
+"#;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct StorageStats {
     explicit_nnz: usize,
@@ -71,6 +87,18 @@ struct RelationStructureStats {
     final_explicit_nnz: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ReusableRelationReceipt {
+    signature: (usize, usize, usize, u32),
+    structure_digest: [F; 4],
+    pi_ccs_header_bundle: [F; 4],
+    ajtai_pp_digest: [F; 4],
+    initial_semantic_state_digest: [F; 4],
+    program_binding_digest: [F; 4],
+    plan_digest: [F; 4],
+    d_init: [F; 4],
+}
+
 #[cfg(feature = "perf-timers")]
 fn ms(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1_000.0
@@ -80,7 +108,8 @@ fn ms(duration: Duration) -> f64 {
 fn performance_profile(batch_size: usize) -> neo_wasm::WasmNebulaProfile {
     // These limits define this benchmark fixture. The library does not select
     // application limits or an instruction batch for callers.
-    let limits = neo_wasm::nebula::WasmNebulaLimits::new(4096, 256, 256, 16, 32768, 64, 8, 256)
+    let rom = neo_wasm::WasmNebulaRomLimits::new(64, 2, 2, 2, 2, 2).expect("WASM performance fixture ROM limits");
+    let limits = neo_wasm::nebula::WasmNebulaLimits::new(4096, 256, 256, 16, 32768, 64, 8, 256, rom)
         .expect("WASM performance fixture limits");
     neo_wasm::WasmNebulaProfile::production(limits, batch_size).expect("WASM performance fixture profile")
 }
@@ -109,6 +138,7 @@ fn matrix_stats(matrix: &CcsMatrix<F>) -> StorageStats {
             geometric_runs: geometric_runs.len(),
             geometric_slots: geometric_runs.iter().map(|run| run.len()).sum(),
         },
+        CcsMatrix::VerifierArtifact { .. } => StorageStats::default(),
     }
 }
 
@@ -163,6 +193,28 @@ fn test_params() -> Params {
     Params::test_only_from_neo_params(raw)
 }
 
+fn reusable_relation_receipt(prep: &neo_wasm::WasmNebulaPreprocessing) -> ReusableRelationReceipt {
+    let structure = prep.inner().relation().structure();
+    ReusableRelationReceipt {
+        signature: (structure.n, structure.m, structure.t(), structure.max_degree()),
+        structure_digest: *prep.inner().prep.structure_digest(),
+        pi_ccs_header_bundle: prep.inner().prep.pi_ccs_header_bundle(),
+        ajtai_pp_digest: prep.inner().prep.ajtai_pp_digest(),
+        initial_semantic_state_digest: prep
+            .inner()
+            .relation()
+            .nebula_config()
+            .initial_semantic_state_digest,
+        program_binding_digest: prep
+            .inner()
+            .relation()
+            .nebula_config()
+            .program_binding_digest(),
+        plan_digest: prep.inner().plan().plan_digest(),
+        d_init: prep.inner().plan().d_init(),
+    }
+}
+
 fn collect_relation_structure_census(
     profile: neo_wasm::WasmNebulaProfile,
     seed: u64,
@@ -187,7 +239,9 @@ fn collect_relation_structure_census(
     let application = relation.application().expect("WASM application relation");
     let app_shape = application.shape();
     let s_mem = prep.inner().plan().circuit();
-    let width = relation.low_norm_width_audit();
+    let width = relation
+        .low_norm_width_audit()
+        .expect("live relation has a width audit");
     let storage = structure_stats(structure);
     let final_committed_coordinates = structure.m - width.constant_coordinate;
     let s_mem_assignment_bits = s_mem.cols() - 1;
@@ -235,7 +289,7 @@ fn collect_relation_structure_census(
         storage.seeded_blocks, storage.seeded_slots, storage.geometric_runs, storage.geometric_slots,
     );
     println!("memory-related recursive-arm families (inclusive; ranges may overlap):");
-    for family in width.arms[2].row_families.iter().filter(|family| {
+    for family in width.arms[1].row_families.iter().filter(|family| {
         family.name.starts_with("nebula.application.s_mem")
             || family.name.starts_with("nebula.application.memory_ports")
     }) {
@@ -283,7 +337,7 @@ fn wasm_nebula_relation_structure_census() {
             stats.s_mem_private_bits,
             stats.s_mem_nnz,
         ),
-        (449_816, 446_229, 1_403, 444_826, 2_824_355),
+        (449_870, 446_283, 1_403, 444_880, 2_824_724),
         "reduced-profile S_mem structure changed; review the memory-overhead census",
     );
     assert!(
@@ -294,6 +348,107 @@ fn wasm_nebula_relation_structure_census() {
         stats.final_committed_coordinates < 29_662_631,
         "21-slot routing should commit fewer coordinates than the previous 58-slot route",
     );
+}
+
+#[test]
+#[ignore = "compiles one full F-prime profile and times two cheap program bindings"]
+fn same_profile_programs_reuse_relation_but_not_program_binding() {
+    let profile = neo_wasm::WasmNebulaProfile::test_profile();
+    let first_wasm = wat::parse_str(PROFILE_WAT).expect("valid first profile WAT");
+    let first_artifacts = neo_wasm::extract_wasm_program_artifacts(&first_wasm).expect("first program artifacts");
+    let first_run = neo_wasm::collect_wasmtime_steps(&first_wasm, "main", &[]).expect("first wasmtime trace");
+    let first_entry_pc = common::single_function_entry_pc(&first_artifacts);
+    let second_wasm = wat::parse_str(PROFILE_WAT_VARIANT).expect("valid second profile WAT");
+    let second_artifacts = neo_wasm::extract_wasm_program_artifacts(&second_wasm).expect("second program artifacts");
+    let second_run = neo_wasm::collect_wasmtime_steps(&second_wasm, "main", &[]).expect("second wasmtime trace");
+    let second_entry_pc = common::single_function_entry_pc(&second_artifacts);
+
+    let compile_started = Instant::now();
+    let prepared = neo_wasm::nebula::prepare_profile_seeded_reduced_memory_test_only(
+        test_params(),
+        profile,
+        &first_artifacts,
+        &first_run.initial_locals,
+        first_entry_pc,
+        0x57a5_7019,
+    )
+    .expect("prepared WASM Nebula profile");
+    let compile_elapsed = compile_started.elapsed();
+
+    let first_bind_started = Instant::now();
+    let first_prep = prepared
+        .bind_program_reduced_memory_test_only(&first_artifacts, &first_run.initial_locals, first_entry_pc)
+        .expect("first program binding");
+    let first_bind_elapsed = first_bind_started.elapsed();
+    let second_bind_started = Instant::now();
+    let second_prep = prepared
+        .bind_program_reduced_memory_test_only(&second_artifacts, &second_run.initial_locals, second_entry_pc)
+        .expect("second program binding");
+    let second_bind_elapsed = second_bind_started.elapsed();
+
+    assert!(
+        first_prep
+            .inner()
+            .shares_prepared_storage_with(second_prep.inner()),
+        "program bindings must share relation matrices and evaluator storage",
+    );
+    assert!(
+        first_bind_elapsed < Duration::from_millis(500),
+        "first program binding took {first_bind_elapsed:?}",
+    );
+    assert!(
+        second_bind_elapsed < Duration::from_millis(500),
+        "second program binding took {second_bind_elapsed:?}",
+    );
+
+    let first = reusable_relation_receipt(&first_prep);
+    let second = reusable_relation_receipt(&second_prep);
+
+    assert_eq!(first.signature, second.signature);
+    assert_eq!(first.structure_digest, second.structure_digest);
+    assert_eq!(first.pi_ccs_header_bundle, second.pi_ccs_header_bundle);
+    assert_eq!(first.ajtai_pp_digest, second.ajtai_pp_digest);
+    assert_ne!(
+        first.initial_semantic_state_digest,
+        second.initial_semantic_state_digest
+    );
+    assert_ne!(first.plan_digest, second.plan_digest);
+    assert_ne!(first.d_init, second.d_init);
+    assert_ne!(first.program_binding_digest, second.program_binding_digest);
+    println!(
+        "PREPARED_PROFILE_JSON={{\"compile_ms\":{:.3},\"first_bind_ms\":{:.3},\"second_bind_ms\":{:.3}}}",
+        compile_elapsed.as_secs_f64() * 1_000.0,
+        first_bind_elapsed.as_secs_f64() * 1_000.0,
+        second_bind_elapsed.as_secs_f64() * 1_000.0,
+    );
+
+    #[cfg(all(feature = "perf-timers", feature = "metal", target_vendor = "apple"))]
+    {
+        let trace = neo_wasm::traces_from_wasmtime_steps(&first_run.steps).expect("first normalized trace");
+        let final_state = trace.last().expect("nonempty first trace").state_after;
+        let mut prover = MetalNifsProver::new().expect("Metal prover");
+        prover
+            .prepare_static(
+                &first_prep.inner().prep.log,
+                first_prep.inner().relation().structure(),
+                first_prep.inner().prep.optimized_cache(),
+                first_prep
+                    .inner()
+                    .prep
+                    .nebula()
+                    .map(|config| &config.scheme),
+            )
+            .expect("prepare shared Metal profile");
+        let proof =
+            neo_wasm::nebula::prove_with_nifs_adapter(&first_prep, &mut prover, &trace).expect("first program proof");
+        neo_wasm::nebula::verify_with_witness_opening_backend(&first_prep, &proof, final_state, &mut prover)
+            .expect("first program verification");
+        assert!(
+            neo_wasm::nebula::verify_with_witness_opening_backend(&second_prep, &proof, final_state, &mut prover,)
+                .is_err(),
+            "a proof bound to the first program must fail under the second program",
+        );
+    }
 }
 
 #[test]
@@ -327,7 +482,7 @@ fn wasm_nebula_pipeline_profile() {
     // One application step owns the complete ten-instruction trace and the
     // complete reduced-memory scan. The proof still performs its required
     // delayed terminal NIFS fold.
-    let memory = neo_fold_clean::frontends::nebula::layout::NebulaParams::new(10, 10, 64, 2048, 16)
+    let memory = neo_fold_clean::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 2048, 16)
         .expect("one-step reduced Nebula scan");
     let profile = neo_wasm::WasmNebulaProfile::test_profile_with_schedule(memory, trace.len());
     let batch_size = profile.batch_size();
@@ -369,7 +524,9 @@ fn wasm_nebula_pipeline_profile() {
     let app_shape = application.shape();
     let plan = prep.inner().plan();
     let s_mem = plan.circuit();
-    let width = relation.low_norm_width_audit();
+    let width = relation
+        .low_norm_width_audit()
+        .expect("live relation has a width audit");
     let arms = relation.field_arm_shapes();
     let padded_rows = structure.n.max(structure.m).next_power_of_two();
     let ell = padded_rows.ilog2();
@@ -493,10 +650,7 @@ fn wasm_nebula_pipeline_profile() {
         width.total_coordinates,
         structure.m - width.total_coordinates,
     );
-    for (name, arm) in ["base", "bootstrap", "recursive"]
-        .into_iter()
-        .zip(&width.arms)
-    {
+    for (name, arm) in ["base", "recursive"].into_iter().zip(&width.arms) {
         println!(
             "{name:<10} source_fields={:>8} eliminated={:>8} unit={:>8} balanced={:>8} binary={:>8} aliases={:>8} branch_coords={:>10} derived={:>10} total={:>10}",
             arm.branch_source_columns,
@@ -512,7 +666,7 @@ fn wasm_nebula_pipeline_profile() {
     }
 
     println!("\n-- recursive F' family touches (inclusive; nested families overlap) --");
-    let mut families = width.arms[2].row_families.iter().collect::<Vec<_>>();
+    let mut families = width.arms[1].row_families.iter().collect::<Vec<_>>();
     families.sort_by_key(|family| Reverse(family.coordinates_before_aliases + family.poseidon2_coordinates));
     println!(
         "family                                    rows  source-coords  unit  balanced binary  p2-perms    p2-coords"
@@ -656,6 +810,313 @@ fn wasm_nebula_pipeline_profile() {
     );
 }
 
+#[test]
+#[cfg(feature = "perf-timers")]
+#[ignore = "builds, writes, and reloads the full compact evaluator cache"]
+fn wasm_nebula_compact_cache_artifact_profile() {
+    let wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalized trace");
+    let second_wasm = wat::parse_str(PROFILE_WAT_VARIANT).expect("valid second profile WAT");
+    let second_artifacts = neo_wasm::extract_wasm_program_artifacts(&second_wasm).expect("second program artifacts");
+    let second_run = neo_wasm::collect_wasmtime_steps(&second_wasm, "main", &[]).expect("second wasmtime trace");
+    let memory = neo_fold_clean::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 2048, 16)
+        .expect("one-step reduced Nebula scan");
+    let profile = neo_wasm::WasmNebulaProfile::test_profile_with_schedule(memory, trace.len());
+    let entry_pc = common::single_function_entry_pc(&artifacts);
+
+    let started = Instant::now();
+    let prep = neo_wasm::nebula::preprocess_seeded_reduced_memory_test_only(
+        test_params(),
+        profile,
+        &artifacts,
+        &run.initial_locals,
+        entry_pc,
+        0x57a5_7001,
+    )
+    .expect("WASM Nebula preprocessing");
+    let preprocess_elapsed = started.elapsed();
+    let structure = prep.inner().relation().structure();
+    let cache = prep.inner().prep.optimized_cache().superneo();
+    let matrix_digest = prep.inner().prep.pi_ccs_header_bundle();
+
+    let cache_artifact_path =
+        std::env::temp_dir().join(format!("nightstream-superneo-cache-{}.bin", std::process::id()));
+    let started = Instant::now();
+    let file = File::create(&cache_artifact_path).expect("create compact cache artifact");
+    let mut writer = BufWriter::new(file);
+    let cache_receipt = cache
+        .write_artifact(&mut writer, matrix_digest)
+        .expect("write compact cache artifact");
+    writer.flush().expect("flush compact cache artifact");
+    drop(writer);
+    let cache_write_elapsed = started.elapsed();
+
+    let encoder_artifact_path =
+        std::env::temp_dir().join(format!("nightstream-fprime-encoder-{}.bin", std::process::id()));
+    let started = Instant::now();
+    let file = File::create(&encoder_artifact_path).expect("create encoder artifact");
+    let mut writer = BufWriter::new(file);
+    let encoder_receipt = prep
+        .inner()
+        .write_encoder_artifact(&mut writer)
+        .expect("write encoder artifact");
+    writer.flush().expect("flush encoder artifact");
+    drop(writer);
+    let encoder_write_elapsed = started.elapsed();
+
+    let limits = neo_reductions::superneo_eval::SuperneoCacheArtifactLimits::new(
+        cache_receipt.artifact_bytes(),
+        structure.n,
+        structure.m.div_ceil(D) * D,
+        structure.t(),
+    );
+    let encoder_limits = neo_fold_clean::frontends::r1cs_f_prime::LowNormEncoderArtifactLimits::new(
+        encoder_receipt.encoder().artifact_bytes(),
+        structure.n,
+        structure.m,
+        structure.t(),
+        2,
+        encoder_receipt
+            .encoder()
+            .arm_field_counts()
+            .iter()
+            .copied()
+            .max()
+            .expect("encoder arm fields") as usize,
+        encoder_receipt
+            .encoder()
+            .arm_derived_counts()
+            .iter()
+            .copied()
+            .max()
+            .expect("encoder derived counts") as usize,
+    );
+    let started = Instant::now();
+    let ((loaded, cache_load_elapsed), (loaded_encoder, encoder_load_elapsed)) = std::thread::scope(|scope| {
+        let cache = scope.spawn(|| {
+            let started = Instant::now();
+            let file = File::open(&cache_artifact_path).expect("open compact cache artifact");
+            let loaded = neo_reductions::superneo_eval::SuperneoEvalCache::read_verified_artifact(
+                BufReader::new(file),
+                &cache_receipt,
+                limits,
+            )
+            .expect("load compact cache artifact");
+            (loaded, started.elapsed())
+        });
+        let encoder = scope.spawn(|| {
+            let started = Instant::now();
+            let file = File::open(&encoder_artifact_path).expect("open encoder artifact");
+            let loaded = neo_fold_clean::frontends::nebula::f_prime::VerifiedNebulaFPrimeEncoderArtifact::read(
+                BufReader::new(file),
+                &encoder_receipt,
+                encoder_limits,
+            )
+            .expect("load encoder artifact");
+            (loaded, started.elapsed())
+        });
+        (
+            cache.join().expect("cache artifact loader"),
+            encoder.join().expect("encoder artifact loader"),
+        )
+    });
+    let parallel_load_elapsed = started.elapsed();
+    assert_eq!(loaded.cache().matrix_caches().len(), structure.t());
+    std::fs::remove_file(&cache_artifact_path).expect("remove compact cache artifact");
+    std::fs::remove_file(&encoder_artifact_path).expect("remove encoder artifact");
+
+    let started = Instant::now();
+    let prepared = neo_wasm::nebula::prepare_profile_seeded_reduced_memory_with_artifacts_test_only(
+        test_params(),
+        profile,
+        &artifacts,
+        &run.initial_locals,
+        entry_pc,
+        0x57a5_7001,
+        loaded,
+        loaded_encoder,
+    )
+    .expect("prepare WASM Nebula profile from persistent artifacts");
+    let artifact_prepare_elapsed = started.elapsed();
+    assert!(
+        prepared
+            .inner()
+            .relation()
+            .structure()
+            .is_verifier_artifact_header(),
+        "artifact-backed profile must not rebuild raw matrices",
+    );
+    let started = Instant::now();
+    let rebound = prepared
+        .bind_program_reduced_memory_test_only(&artifacts, &run.initial_locals, entry_pc)
+        .expect("bind program to artifact-backed profile");
+    let bind_elapsed = started.elapsed();
+    let second_entry_pc = common::single_function_entry_pc(&second_artifacts);
+    let started = Instant::now();
+    let second_rebound = prepared
+        .bind_program_reduced_memory_test_only(&second_artifacts, &second_run.initial_locals, second_entry_pc)
+        .expect("bind second program to artifact-backed profile");
+    let second_bind_elapsed = started.elapsed();
+    assert!(
+        rebound
+            .inner()
+            .shares_prepared_storage_with(second_rebound.inner()),
+        "artifact-backed program bindings must share relation and cache storage",
+    );
+    assert_eq!(
+        rebound.inner().prep.pi_ccs_header_bundle(),
+        prep.inner().prep.pi_ccs_header_bundle(),
+        "artifact-backed profile matrix authority",
+    );
+    assert_eq!(
+        rebound.inner().relation().structure().n,
+        structure.n,
+        "artifact-backed relation rows",
+    );
+    assert_eq!(
+        rebound.inner().relation().structure().m,
+        structure.m,
+        "artifact-backed relation columns",
+    );
+
+    #[cfg(all(feature = "metal", target_vendor = "apple"))]
+    {
+        let mut prover = MetalNifsProver::new().expect("Metal prover");
+        let started = Instant::now();
+        prover
+            .prepare_static(
+                &rebound.inner().prep.log,
+                rebound.inner().relation().structure(),
+                rebound.inner().prep.optimized_cache(),
+                rebound.inner().prep.nebula().map(|config| &config.scheme),
+            )
+            .expect("prepare artifact-backed Metal proof state");
+        let metal_prepare_elapsed = started.elapsed();
+        prover.session().reset_activity();
+
+        let started = Instant::now();
+        let proof = neo_wasm::nebula::prove_with_nifs_adapter(&rebound, &mut prover, &trace)
+            .expect("artifact-backed Metal proof");
+        let prove_elapsed = started.elapsed();
+        assert!(prover.session().activity().dispatches > 0);
+
+        let started = Instant::now();
+        neo_wasm::nebula::verify_with_witness_opening_backend(
+            &rebound,
+            &proof,
+            common::final_state(&trace),
+            &mut prover,
+        )
+        .expect("artifact-backed Metal verification");
+        let verify_elapsed = started.elapsed();
+        assert!(
+            neo_wasm::nebula::verify_with_witness_opening_backend(
+                &second_rebound,
+                &proof,
+                common::final_state(&trace),
+                &mut prover,
+            )
+            .is_err(),
+            "an artifact-backed proof must fail under another program binding",
+        );
+        println!(
+            "CACHE_ARTIFACT_METAL_JSON={{\"metal_prepare_ms\":{:.3},\"prove_ms\":{:.3},\"verify_ms\":{:.3}}}",
+            ms(metal_prepare_elapsed),
+            ms(prove_elapsed),
+            ms(verify_elapsed),
+        );
+    }
+
+    println!(
+        "CACHE_ARTIFACT_JSON={{\"rows\":{},\"columns\":{},\"matrices\":{},\"cache_bytes\":{},\"cache_mib\":{:.3},\"encoder_bytes\":{},\"encoder_mib\":{:.3},\"preprocess_ms\":{:.3},\"cache_write_ms\":{:.3},\"cache_load_ms\":{:.3},\"encoder_write_ms\":{:.3},\"encoder_load_ms\":{:.3},\"parallel_load_ms\":{:.3},\"artifact_prepare_ms\":{:.3},\"cold_profile_ms\":{:.3},\"bind_ms\":{:.3},\"second_bind_ms\":{:.3}}}",
+        structure.n,
+        structure.m,
+        structure.t(),
+        cache_receipt.artifact_bytes(),
+        cache_receipt.artifact_bytes() as f64 / (1u64 << 20) as f64,
+        encoder_receipt.encoder().artifact_bytes(),
+        encoder_receipt.encoder().artifact_bytes() as f64 / (1u64 << 20) as f64,
+        ms(preprocess_elapsed),
+        ms(cache_write_elapsed),
+        ms(cache_load_elapsed),
+        ms(encoder_write_elapsed),
+        ms(encoder_load_elapsed),
+        ms(parallel_load_elapsed),
+        ms(artifact_prepare_elapsed),
+        ms(parallel_load_elapsed + artifact_prepare_elapsed),
+        ms(bind_elapsed),
+        ms(second_bind_elapsed),
+    );
+}
+
+#[test]
+#[cfg(all(feature = "perf-timers", feature = "metal", target_vendor = "apple"))]
+#[ignore = "full Metal proof covering base, bootstrap, steady recursion, and terminal finalization"]
+fn wasm_nebula_all_branch_metal_profile() {
+    let wall_started = Instant::now();
+    let wasm = wat::parse_str(PROFILE_WAT).expect("valid profile WAT");
+    let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm).expect("program artifacts");
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, "main", &[]).expect("wasmtime trace");
+    let trace = neo_wasm::traces_from_wasmtime_steps(&run.steps).expect("normalized trace");
+
+    // Four application folds force the deterministic branch schedule:
+    // base, bootstrap-recursive, steady-recursive, steady-recursive.
+    let memory = neo_fold_clean::frontends::nebula::layout::NebulaParams::new(11, 11, 64, 1024, 16)
+        .expect("four-fold reduced Nebula scan");
+    let profile = neo_wasm::WasmNebulaProfile::test_profile_with_schedule(memory, trace.len());
+    assert_eq!(profile.memory().steps_per_segment(), 4);
+
+    let entry_pc = common::single_function_entry_pc(&artifacts);
+    let started = Instant::now();
+    let prep = neo_wasm::nebula::preprocess_seeded_reduced_memory_test_only(
+        test_params(),
+        profile,
+        &artifacts,
+        &run.initial_locals,
+        entry_pc,
+        0x57a5_7021,
+    )
+    .expect("all-branch WASM Nebula preprocessing");
+    let preprocess_elapsed = started.elapsed();
+
+    let mut prover = MetalNifsProver::new().expect("Metal prover");
+    let started = Instant::now();
+    prover
+        .prepare_static(
+            &prep.inner().prep.log,
+            prep.inner().relation().structure(),
+            prep.inner().prep.optimized_cache(),
+            prep.inner().prep.nebula().map(|config| &config.scheme),
+        )
+        .expect("prepare static Metal proof state");
+    let metal_prepare_elapsed = started.elapsed();
+    prover.session().reset_activity();
+
+    let started = Instant::now();
+    let proof = neo_wasm::nebula::prove_with_nifs_adapter(&prep, &mut prover, &trace).expect("all-branch Metal proof");
+    let prove_elapsed = started.elapsed();
+    assert_eq!(proof.inner().state.step_count, 4);
+    assert_eq!(proof.inner().state.chunk_count, 4);
+    assert!(proof.inner().final_fold.is_some());
+    assert!(prover.session().activity().dispatches > 0);
+
+    let started = Instant::now();
+    neo_wasm::nebula::verify_with_witness_opening_backend(&prep, &proof, common::final_state(&trace), &mut prover)
+        .expect("all-branch Metal verification");
+    let verify_elapsed = started.elapsed();
+
+    println!(
+        "ALL_BRANCH_PROFILE_JSON={{\"folds\":4,\"preprocess_ms\":{:.3},\"metal_prepare_ms\":{:.3},\"prove_ms\":{:.3},\"verify_ms\":{:.3},\"total_ms\":{:.3}}}",
+        ms(preprocess_elapsed),
+        ms(metal_prepare_elapsed),
+        ms(prove_elapsed),
+        ms(verify_elapsed),
+        ms(wall_started.elapsed()),
+    );
+}
+
 /// Builds the production-parameter relation without enforcing the fixed-shape width
 /// budget and executes the first occurrence of every F' branch. The prefix is
 /// intentionally left open: a complete production memory segment contains
@@ -721,7 +1182,9 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
 
     let relation = prep.inner().relation();
     let structure = relation.structure();
-    let width = relation.low_norm_width_audit();
+    let width = relation
+        .low_norm_width_audit()
+        .expect("live relation has a width audit");
     let arms = relation.field_arm_shapes();
     let storage = structure_stats(structure);
     let padded_rows = structure.n.max(structure.m).next_power_of_two();
@@ -784,10 +1247,7 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
         width.total_coordinates,
         structure.m - width.total_coordinates,
     );
-    for (name, arm) in ["base", "bootstrap", "recursive"]
-        .into_iter()
-        .zip(&width.arms)
-    {
+    for (name, arm) in ["base", "recursive"].into_iter().zip(&width.arms) {
         println!(
             "{name:<24} source_fields={} eliminated={} unit={} balanced={} binary={} aliases={} branch_coords={} derived={} total={}",
             arm.branch_source_columns,
@@ -811,7 +1271,74 @@ fn production_prefix_profile(profile: neo_wasm::WasmNebulaProfile) {
         );
     }
 
-    let mut families = width.arms[2].row_families.iter().collect::<Vec<_>>();
+    let stages = &width.arms[1].physical_stages;
+    assert!(
+        !stages.is_empty(),
+        "production recursive F' must have complete physical-stage provenance"
+    );
+    assert_eq!(
+        stages
+            .iter()
+            .map(|stage| stage.allocated_coordinates)
+            .sum::<usize>(),
+        width.arms[1].branch_coordinates,
+        "exclusive stages must own the complete recursive branch"
+    );
+    let mut stage_totals = BTreeMap::<&str, [usize; 5]>::new();
+    let mut phase_totals = BTreeMap::<&str, usize>::new();
+    for stage in stages {
+        let totals = stage_totals.entry(stage.path).or_default();
+        totals[0] += 1;
+        totals[1] += stage.source_column_count;
+        totals[2] += stage.retained_coordinates_before_aliases;
+        totals[3] += stage.decomposition_alias_coordinates + stage.equality_alias_coordinates;
+        totals[4] += stage.allocated_coordinates;
+        let phase = if stage.path.starts_with("nifs.pi_ccs") {
+            "PiCCS"
+        } else if stage.path.starts_with("nifs.pi_rlc") {
+            "PiRLC"
+        } else if stage.path.starts_with("nifs.pi_dec")
+            || stage.path.starts_with("nifs.running_parent_pi_dec")
+            || stage.path.starts_with("nifs.point_binding")
+        {
+            "PiDEC and point binding"
+        } else if stage.path.starts_with("fprime.recursive.step.accumulator") {
+            "accumulator authority"
+        } else if stage.path.starts_with("fprime.recursive.step.nebula") {
+            "delayed Nebula transition"
+        } else if stage.path.starts_with("fprime.recursive.finalize") {
+            "application and final links"
+        } else {
+            "outer F' state and transcript"
+        };
+        *phase_totals.entry(phase).or_default() += stage.allocated_coordinates;
+    }
+    assert_eq!(
+        phase_totals.values().sum::<usize>(),
+        width.arms[1].branch_coordinates,
+        "exclusive phase groups must own the complete recursive branch"
+    );
+    let mut phase_totals = phase_totals.into_iter().collect::<Vec<_>>();
+    phase_totals.sort_by_key(|(_, coordinates)| Reverse(*coordinates));
+    println!("\n-- recursive F' exclusive phase width --");
+    for (phase, coordinates) in phase_totals {
+        println!("{phase:<32} {coordinates:>10}");
+    }
+    let mut stage_totals = stage_totals.into_iter().collect::<Vec<_>>();
+    stage_totals.sort_by_key(|(_, totals)| Reverse(totals[4]));
+    println!("\n-- recursive F' exclusive stage width --");
+    println!("stage                                                   occurrences  source-cols  before-alias  aliases  allocated");
+    for (path, totals) in stage_totals
+        .into_iter()
+        .filter(|(_, totals)| totals[4] != 0)
+    {
+        println!(
+            "{path:<55} {:>11} {:>11} {:>13} {:>8} {:>10}",
+            totals[0], totals[1], totals[2], totals[3], totals[4],
+        );
+    }
+
+    let mut families = width.arms[1].row_families.iter().collect::<Vec<_>>();
     families.sort_by_key(|family| Reverse(family.coordinates_before_aliases + family.poseidon2_coordinates));
     println!("\n-- recursive F' family touches (inclusive; overlaps expected) --");
     println!(

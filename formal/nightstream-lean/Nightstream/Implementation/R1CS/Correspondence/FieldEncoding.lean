@@ -1,4 +1,9 @@
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.LayoutManifest
+import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.CenteredSeptenary
+import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.CenteredSeptenaryNormDischarged
+import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.CenteredSeptenaryLayout
+import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.CenteredSeptenaryFreshCcsAuthority
+import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.CenteredSeptenaryLinearCompiler
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.LayoutWidthFloor
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.SourceCensus
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.PackedSourceCensus
@@ -23,13 +28,18 @@ and the artifact interface consumed by a future production materializer.
 
 Authority boundary: the complete encoded vector must be the same assignment
 committed and norm-checked by the outer fresh CCS relation. Decoded source
-residues are semantic inputs only; candidate row removals require the
-verifier-owned `b = 2` norm and concrete Rust/artifact refinement in addition
-to the model theorems exported here.
+residues are semantic inputs only. Candidate row removals require the
+verifier-owned norm for the selected radix and concrete Rust/artifact
+refinement in addition to the model theorems exported here.
 
 | Child path | Mathematical obligation | Emits constraints? | Main owner |
 |---|---|---|---|
 | `CenteredTernary` | Exact 41-coordinate parser, encoder, width floor, and representation choice | no | encoding semantics |
+| `CenteredSeptenary` | Model-level 23-coordinate radix-four parser, encoder, width boundary, and source-witness reconstruction | no | candidate encoding semantics |
+| `CenteredSeptenaryNormDischarged` | Derive the seven-symbol alphabet from the verifier-owned strict `b = 4` opening norm | no | candidate norm authority |
+| `CenteredSeptenaryLayout` | Reconstruct every 23-coordinate source word from exact bounded starts in the same norm-checked assignment | no | candidate assignment-layout boundary |
+| `CenteredSeptenaryFreshCcsAuthority` | Transfer one fresh radix-four CCS opening to every exact word in the same typed assignment | no | candidate verifier-authority boundary |
+| `CenteredSeptenaryLinearCompiler` | Transport arbitrary source rows through exact 23-coordinate radix-four words on the same fresh CCS assignment | no | candidate source-row refinement |
 | `NormDischarged` | Centered alphabet follows from verifier-owned `b = 2` norm | no | semantic row discharge |
 | `DerivedNegative` | Reconstruct negative indicators from centered digits | no | candidate refinement |
 | `Refinement.DerivedBorrow` | Substitute reconstructed indicators into borrow equations with checked degree | no | candidate row schedule |

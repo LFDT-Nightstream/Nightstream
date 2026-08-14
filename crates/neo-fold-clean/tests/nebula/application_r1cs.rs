@@ -193,3 +193,70 @@ fn multiplexed_slot_constraints_bind_the_selected_candidate() {
     };
     assert!(!binding_is_satisfied(&circuit, &layout, collision, rom_slot));
 }
+
+fn profile_application(anchor: [u8; 32]) -> NebulaApplication {
+    use crate::frontends::direct_ccs::R1cs;
+    use crate::frontends::f_prime::recursive_plan::{RecursiveStepImagePlan, StateXOutPlanOptions};
+    use crate::paper::f_prime::ring_action_trace::{LowNormEncoding, RingActionTraceLayout};
+    use neo_ccs::Mat;
+    use neo_math::D;
+
+    let shape = R1cs {
+        a: Mat::zero(1, D, F::ZERO),
+        b: Mat::zero(1, D, F::ZERO),
+        c: Mat::zero(1, D, F::ZERO),
+        m_in: 1,
+    };
+    let plan = RecursiveStepImagePlan {
+        limbs: D * 64 + 1,
+        app_private_var_widths: Vec::new(),
+        boundary_bits: 4 * 64,
+        kmul_count: 0,
+        ring_action_pair_count: 0,
+        projection_batches: Vec::new(),
+        ring_action_pair_layout: RingActionTraceLayout::new(
+            LowNormEncoding::U64,
+            LowNormEncoding::U64,
+            LowNormEncoding::U64,
+            LowNormEncoding::U64,
+        ),
+        sponge_transcript_permutes: 0,
+        nifs_payload_shapes: Vec::new(),
+        accumulator: None,
+        state_x_out: Some(StateXOutPlanOptions {
+            pc: 1,
+            public_x_out_lane_bit_starts: [0, 64, 128, 192],
+            app_public_input_var_indices: vec![0],
+            app_public_input_bit_var_indices: Vec::new(),
+            semantic_state_in_var_indices: vec![0],
+            semantic_state_out_var_indices: vec![0],
+            initial_semantic_state_digest_anchor: Some(anchor),
+        }),
+    };
+    NebulaApplication::new(shape, plan, test_layout()).expect("profile application")
+}
+
+#[test]
+fn prepared_application_profile_ignores_only_the_program_anchor() {
+    let reference = profile_application([1; 32]);
+    let rebound = reference
+        .bind_program_profile([2; 32], test_layout())
+        .expect("program-bound application");
+    assert!(reference.same_relation_profile_as(&rebound));
+
+    let mut changed_plan = rebound.clone();
+    changed_plan
+        .recursive_plan
+        .state_x_out
+        .as_mut()
+        .expect("state binding")
+        .pc += 1;
+    assert!(!reference.same_relation_profile_as(&changed_plan));
+
+    let mut changed_relation = rebound;
+    let R1csShape::Dense(shape) = &mut changed_relation.shape else {
+        panic!("test application uses a dense relation");
+    };
+    shape.a[(0, 0)] = F::ONE;
+    assert!(!reference.same_relation_profile_as(&changed_relation));
+}

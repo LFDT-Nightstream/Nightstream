@@ -64,6 +64,10 @@ name = "gadgets_r1cs_builder"
 path = "tests/gadgets/r1cs_builder.rs"
 
 [[test]]
+name = "nebula_streaming_claim_replay"
+path = "tests/nebula/streaming_claim_replay.rs"
+
+[[test]]
 name = "gadgets_u64_and_mux"
 path = "tests/gadgets/u64_and_mux.rs"
 
@@ -90,6 +94,14 @@ path = "tests/gadgets/u64_add_lean_artifact.rs"
 [[test]]
 name = "gadgets_f_prime_counter_lean_artifact"
 path = "tests/gadgets/f_prime_counter_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_nebula_recursive_arm_lean_artifact"
+path = "tests/gadgets/nebula_recursive_arm_lean_artifact.rs"
+
+[[test]]
+name = "gadgets_nebula_program_binding_lean_artifact"
+path = "tests/gadgets/nebula_program_binding_lean_artifact.rs"
 
 [[test]]
 name = "gadgets_f_prime_encoding_lean_artifact"
@@ -258,6 +270,10 @@ path = "tests/f_prime/source_image.rs"
 [[test]]
 name = "f_prime_low_norm_r1cs"
 path = "tests/f_prime/low_norm_r1cs.rs"
+
+[[test]]
+name = "f_prime_encoder_artifact"
+path = "tests/f_prime/encoder_artifact.rs"
 
 [[test]]
 name = "f_prime_selective_snapshot"
@@ -482,6 +498,10 @@ path = "tests/nebula/application.rs"
 [[test]]
 name = "nebula_f_prime"
 path = "tests/nebula/f_prime.rs"
+
+[[test]]
+name = "nebula_streaming_program"
+path = "tests/nebula/streaming_program.rs"
 
 [[test]]
 name = "nebula_adv"

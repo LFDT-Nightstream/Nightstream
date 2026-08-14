@@ -1,0 +1,13 @@
+import Nightstream.Implementation.Nebula.Production.Memory.SegmentContinuationRows
+
+set_option autoImplicit false
+
+namespace tests.Axioms.NebulaProductionMemorySegmentContinuationRows
+
+open Nightstream.Implementation.Nebula.ProductionMemorySegmentContinuationRows
+
+#print axioms sound
+#print axioms rows_complete_active
+#print axioms rows_complete_closed
+
+end tests.Axioms.NebulaProductionMemorySegmentContinuationRows

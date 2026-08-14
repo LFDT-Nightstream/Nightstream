@@ -330,6 +330,7 @@ fn source_tree_hash(root: &Path) -> String {
         .split(|byte| *byte == 0)
         .filter(|path| !path.is_empty())
         .map(|path| String::from_utf8(path.to_vec()).expect("repository paths are UTF-8"))
+        .filter(|path| root.join(path).is_file())
         .collect::<BTreeSet<_>>();
     let mut hasher = Sha256::new();
     for path in paths {

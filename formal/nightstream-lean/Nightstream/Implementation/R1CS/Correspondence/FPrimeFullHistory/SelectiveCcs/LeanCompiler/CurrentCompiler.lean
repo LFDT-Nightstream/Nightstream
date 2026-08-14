@@ -25,8 +25,11 @@ Emits constraints: no new rows.
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.LeanCompiler.CurrentCompiler
 
 open Nightstream.SuperNeo.Concrete
+open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.Implementation.Lowering.Typed
 open Nightstream.Implementation.Lowering.Goldilocks
+open Nightstream.Implementation.R1CS.SelectiveCcs
+open Nightstream.Implementation.R1CS.SelectiveCcs.LeanCompiler
 
 universe u
 
@@ -69,7 +72,7 @@ def compiledSystem
     (encoding : Encoding source)
     (publicWidth : 270 ≤ encoding.columnIds.length) :
     (compiledSystem encoding publicWidth).constraintPolynomial =
-      Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics.polynomial :=
+      Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics.polynomial :=
   rfl
 
 /-- Compilation respects equality of complete encodings.
@@ -236,6 +239,7 @@ private def physicalProfile
     RelationProfile.Profile rows columns where
   rowVariables := Profile.rowVariables rows
   rowDomain := Profile.exactRowDomain rows
+  publicRingColumns := publicRingColumns
   publicFits := Profile.publicFits_of_alignedWidth publicWidth
 
 private def physicalCompiledSystem

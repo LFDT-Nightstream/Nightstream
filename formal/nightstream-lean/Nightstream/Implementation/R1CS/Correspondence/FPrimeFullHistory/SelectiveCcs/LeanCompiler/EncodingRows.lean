@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.LeanCompiler.StableRows
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.LeanCompiler.StableRows
 
 /-!
 Contract: instantiate the Lean-owned selective compiler from one complete
@@ -27,6 +27,8 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open Nightstream.Implementation.Lowering.Typed
 open Nightstream.Implementation.Lowering.Goldilocks
+open Nightstream.Implementation.R1CS.SelectiveCcs
+open Nightstream.Implementation.R1CS.SelectiveCcs.LeanCompiler
 
 universe u
 

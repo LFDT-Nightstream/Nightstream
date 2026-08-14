@@ -37,7 +37,7 @@ The public compact decider remains fail-closed with `Unsupported`.
 
 ## Independent Nebula V2 model
 
-`Nightstream/Protocol/NebulaV2/` is a model-level review of
+`Nightstream/Protocol/Nebula/` is a model-level review of
 `PaddedRowIdentityMemoryV2`. It is separate from M4 and does not extend the M4
 artifact claim. It covers exact memory execution, complete snapshots, segment
 composition, fixed physical port positions, fingerprint algebra, product
@@ -51,7 +51,7 @@ failure without an `ExecutionWitness` or `AcceptanceReduction` premise. A
 separate constructive theorem gives conditional ideal completeness from valid
 semantic segments and explicit honest primitive artifacts.
 
-`Nightstream/Implementation/NebulaV2/` adds an exponent-indexed SuperNeo and
+`Nightstream/Implementation/Nebula/` adds an exponent-indexed SuperNeo and
 HyperNova F-prime schema. It derives the exact prior-claim verification and
 consumption order, exact produced successors, proof forwarding, closed terminal
 consumption, and one extra augmented invocation. Its constructive lifetime has

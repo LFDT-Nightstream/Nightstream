@@ -18,11 +18,17 @@
 //! | Low-norm relation | [`lower_sparse_r1cs_to_low_norm`] | yes | Constrained field encodings |
 //! | Branch composition | fixed/multi-branch builders | yes | Constrained selector and branch rows |
 
+mod encoder_artifact;
 mod pi_dec_audit;
 mod poseidon_hash_audit;
 mod signed_unit;
 mod snapshot;
 mod support;
+
+pub use encoder_artifact::{
+    LowNormEncoderArtifactError, LowNormEncoderArtifactLimits, LowNormEncoderArtifactReceipt,
+    VerifiedLowNormEncoderArtifact,
+};
 
 pub use snapshot::{
     DerivedProductSumSnapshot, EncodedSlotSnapshot, LinearCombinationSnapshot, ProductFactorSnapshot,
@@ -47,7 +53,9 @@ use crate::frontends::r1cs_f_prime::SparseR1cs;
 use crate::paper::relations::Structure;
 
 use super::selective_audit::SelectiveCompilerAudit;
-use super::ternary_encoding::{balanced_ternary_digits, BALANCED_TERNARY_FIELD_WIDTH};
+use super::ternary_encoding::{
+    balanced_septenary_digits, balanced_ternary_digits, BALANCED_SEPTENARY_FIELD_WIDTH, BALANCED_TERNARY_FIELD_WIDTH,
+};
 use signed_unit::LowNormAssignmentWriter;
 use support::{encoded_matrix_rows, first_unsatisfied_structure_row, is_structure_satisfied};
 pub(crate) use support::{normalized_field_assignment, normalized_source_column};
@@ -1358,6 +1366,9 @@ fn append_encoded_matrix_triplets(
                 run.for_each_term(|row, col, coefficient| append(row, col, coefficient));
             }
         }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("low-norm matrix lowering requires materialized matrix content")
+        }
     }
 }
 
@@ -1443,6 +1454,15 @@ fn write_encoded_value(
                     _ => unreachable!("balanced ternary digit"),
                 },
             )?;
+        }
+        return Ok(());
+    }
+    if width == BALANCED_SEPTENARY_FIELD_WIDTH {
+        for (offset, digit) in balanced_septenary_digits(value, field_col)?
+            .into_iter()
+            .enumerate()
+        {
+            assignment.set(start + offset, F::from_i64(i64::from(digit)))?;
         }
         return Ok(());
     }

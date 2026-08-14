@@ -98,7 +98,7 @@ fn fixed_point_arms_have_complete_exportable_family_censuses() {
             .iter()
             .min_by_key(|family| family.source_rows().len())
             .expect("one owned family");
-        let problem = export_fixed_point_problem(
+        let export = export_fixed_point_problem(
             &audit,
             branch,
             ExportRequest {
@@ -110,7 +110,23 @@ fn fixed_point_arms_have_complete_exportable_family_censuses() {
             },
         )
         .expect("export one complete fixed-point family");
+        let problem = export.problem();
         assert_eq!(problem.rows.len(), family.source_rows().len());
         assert!(problem.rows.iter().all(|row| row.family == family.name()));
+        let binding = export.binding();
+        assert_eq!(binding.branch(), branch);
+        assert_eq!(binding.requested_source_rows(), family.source_rows());
+        assert!(binding
+            .requested_source_rows()
+            .iter()
+            .all(|row| binding.closure_source_rows().contains(row)));
+        assert_eq!(binding.final_rows(), audit.fixed_point().rows().total_rows());
+        assert_eq!(binding.final_columns(), audit.fixed_point().layout().total_columns());
+        assert_eq!(
+            binding.final_public_input_count(),
+            audit.fixed_point().layout().public_input_len()
+        );
+        assert!(binding.final_plan_digest().starts_with("sha256:"));
+        assert!(binding.projected_slice_digest().starts_with("sha256:"));
     }
 }

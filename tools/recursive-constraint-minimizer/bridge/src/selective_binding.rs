@@ -12,9 +12,7 @@ use p3_field::PrimeField64;
 use recursive_constraint_minimizer::Problem;
 use sha2::{Digest, Sha256};
 
-use super::{
-    finish_digest, hash_bytes, hash_physical_stages, hash_sparse_matrix, hash_usize, ExportError,
-};
+use super::{finish_digest, hash_bytes, hash_physical_stages, hash_sparse_matrix, hash_usize, ExportError};
 
 const PLAN_DIGEST_DOMAIN: &[u8] = b"nightstream/selective-fixed-point-plan/v1";
 const SLICE_DIGEST_DOMAIN: &[u8] = b"nightstream/selective-fixed-point-slice/v1";
@@ -456,9 +454,7 @@ fn disposition_kind(disposition: SelectiveSourceRowDisposition) -> Option<Select
         SelectiveSourceRowDisposition::ShiftedTernaryCanonical(_) => {
             Some(SelectiveRewriteKind::ShiftedTernaryCanonical)
         }
-        SelectiveSourceRowDisposition::PolynomialEvaluation(_) => {
-            Some(SelectiveRewriteKind::PolynomialEvaluation)
-        }
+        SelectiveSourceRowDisposition::PolynomialEvaluation(_) => Some(SelectiveRewriteKind::PolynomialEvaluation),
         SelectiveSourceRowDisposition::ProductSum(_) => Some(SelectiveRewriteKind::ProductSum),
         SelectiveSourceRowDisposition::LinearDefinition(_) => Some(SelectiveRewriteKind::LinearDefinition),
     }
@@ -468,9 +464,7 @@ fn rewrite_emitted_family(kind: SelectiveRewriteKind) -> Option<SelectiveEmitted
     match kind {
         SelectiveRewriteKind::Poseidon2 => Some(SelectiveEmittedRowFamily::Poseidon2),
         SelectiveRewriteKind::CenteredUnit => Some(SelectiveEmittedRowFamily::CenteredUnit),
-        SelectiveRewriteKind::ShiftedTernaryCanonical => {
-            Some(SelectiveEmittedRowFamily::ShiftedTernaryCanonical)
-        }
+        SelectiveRewriteKind::ShiftedTernaryCanonical => Some(SelectiveEmittedRowFamily::ShiftedTernaryCanonical),
         SelectiveRewriteKind::PolynomialEvaluation => Some(SelectiveEmittedRowFamily::PolynomialEvaluation),
         SelectiveRewriteKind::ProductSum => Some(SelectiveEmittedRowFamily::ProductSum),
         SelectiveRewriteKind::LinearDefinition => None,

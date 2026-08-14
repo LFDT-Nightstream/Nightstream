@@ -13,8 +13,8 @@ use crate::frontends::r1cs_f_prime::ivc::{R1csIvcError, R1csIvcFixedPointShapeAu
 use crate::frontends::r1cs_f_prime::{
     audit_multi_branch_selective_rows_with_alignment, R1csShape, SelectiveProjectedRowsAudit, SparseR1cs,
 };
-use neo_math::D;
 use crate::paper::params::Params;
+use neo_math::D;
 
 /// Read-only source relations from one successful fixed-point discovery.
 pub struct R1csIvcConstraintSourceAudit {
@@ -35,23 +35,13 @@ impl R1csIvcConstraintSourceAudit {
 
     /// Project exact final rows from the same prepared emitter plan that
     /// produced this fixed-point audit.
-    pub fn audit_selective_rows(
-        &self,
-        selected_rows: &[usize],
-    ) -> Result<SelectiveProjectedRowsAudit, R1csIvcError> {
-        let projected = audit_multi_branch_selective_rows_with_alignment(
-            &self.arms,
-            0,
-            D,
-            self.arms[0].m_in % D,
-            selected_rows,
-        )?;
+    pub fn audit_selective_rows(&self, selected_rows: &[usize]) -> Result<SelectiveProjectedRowsAudit, R1csIvcError> {
+        let projected =
+            audit_multi_branch_selective_rows_with_alignment(&self.arms, 0, D, self.arms[0].m_in % D, selected_rows)?;
         if projected.compiler_audit() != self.fixed_point.selective_compiler_audit() {
-            return Err(R1csIvcError::Composition(
-                crate::paper::f_prime::r1cs::Error::Inner(
-                    "bounded selective projection differs from the fixed-point compiler audit".into(),
-                ),
-            ));
+            return Err(R1csIvcError::Composition(crate::paper::f_prime::r1cs::Error::Inner(
+                "bounded selective projection differs from the fixed-point compiler audit".into(),
+            )));
         }
         Ok(projected)
     }

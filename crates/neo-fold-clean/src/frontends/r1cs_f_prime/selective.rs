@@ -20,18 +20,17 @@
 //! | CCS matrix emission | `structure::build_structure` | yes | Retained source rows and selectors |
 //! | Width audit | selective audit entrypoints | no | Exact prepared layout |
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
-use neo_ccs::{CcsMatrix, CscMat};
 use neo_math::{D, F};
-use p3_field::{Field, PrimeCharacteristicRing};
+use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
 use super::lowering::{DerivedProductSumEncoding, LowNormR1csError, MultiBranchLowNormR1cs};
 use super::selective_audit::{
-    retained_trace_widths, row_family_width_audits, SelectiveArmWidthAudit, SelectiveCanonicalOpeningAudit,
-    SelectiveCompilerAudit, SelectiveLayoutAudit, SelectiveLowNormWidthAudit, SelectiveRewriteKind,
-    SelectiveRowMappingAudit,
+    physical_stage_width_audits, retained_trace_widths, row_family_width_audits, SelectiveArmWidthAudit,
+    SelectiveCanonicalOpeningAudit, SelectiveCompilerAudit, SelectiveLayoutAudit, SelectiveLinearDefinitionAudit,
+    SelectiveLinearDefinitionTermAudit, SelectiveLowNormWidthAudit, SelectiveRewriteKind, SelectiveRowMappingAudit,
 };
 use super::SparseR1cs;
 use crate::engine::r1cs_circuit::builder::{
@@ -41,6 +40,8 @@ use crate::engine::r1cs_circuit::Lc;
 
 #[path = "selective_canonical.rs"]
 mod canonical;
+#[path = "selective_definitions.rs"]
+mod definitions;
 #[path = "selective_emit.rs"]
 mod emit;
 #[path = "selective_projected_decoder.rs"]
@@ -55,6 +56,7 @@ mod shape;
 mod structure;
 #[path = "selective_terms.rs"]
 mod terms;
+use definitions::{find_linear_definitions, LinearDefinitions};
 use emit::{lc_from_column, trace_error};
 pub use projected_decoder::{
     SelectiveProjectedDecoderProvenance, SelectiveProjectedDecoderRunProvenance, SelectiveProjectedSourceDecoder,
@@ -76,13 +78,13 @@ use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_row
 #[doc(hidden)]
 pub use shape::is_canonical_selective_low_norm_polynomial;
 pub(crate) use shape::{
-    audit_multi_branch_selective_low_norm_shape_with_alignment,
-    prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, selective_polynomial,
-    SelectiveLowNormShape, SelectiveLowNormShapeSummary,
+    audit_multi_branch_selective_low_norm_shape_with_alignment, selective_polynomial, SelectiveLowNormShape,
+    SelectiveLowNormShapeSummary,
 };
 
 pub(super) const EVAL_GROUP_SIZE: usize = 5;
 const BALANCED_FIELD_WIDTH: usize = 41;
+const SEPTENARY_FIELD_WIDTH: usize = 23;
 const CANON_CHUNK_WIDTH: usize = 2;
 const CANON_CHUNK_COUNT: usize = BALANCED_FIELD_WIDTH.div_ceil(CANON_CHUNK_WIDTH);
 const BINARY_FIELD_WIDTH: usize = 64;
@@ -102,7 +104,38 @@ const EVAL_PAIRS: [(usize, usize); EVAL_GROUP_SIZE] =
     [(BIT, A), (B, SBOX_INPUT), (CENTERED_UNIT, 8), (9, 10), (11, 12)];
 const SELECTIVE_ARITY: usize = 13;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct SelectiveEncoding {
+    norm_base: u32,
+    general_field_width: usize,
+}
+
+impl SelectiveEncoding {
+    fn for_norm_base(norm_base: u32) -> Result<Self, LowNormR1csError> {
+        match norm_base {
+            2 => Ok(Self {
+                norm_base,
+                general_field_width: BALANCED_FIELD_WIDTH,
+            }),
+            4 => Ok(Self {
+                norm_base,
+                general_field_width: SEPTENARY_FIELD_WIDTH,
+            }),
+            _ => Err(trace_error("selective lowering supports only norm base two or four")),
+        }
+    }
+
+    pub(super) fn general_field_width(self) -> usize {
+        self.general_field_width
+    }
+
+    pub(super) fn outer_norm_proves_centered_unit(self) -> bool {
+        self.norm_base == 2
+    }
+}
+
 struct SelectiveLayout {
+    encoding: SelectiveEncoding,
     plans: Vec<SelectiveArmPlan>,
     slots: Vec<Vec<Option<(usize, usize)>>>,
     aliases: Vec<Vec<Option<(usize, usize)>>>,
@@ -118,6 +151,7 @@ struct SelectiveLayout {
 }
 
 struct SelectiveLayoutCore {
+    encoding: SelectiveEncoding,
     plans: Vec<SelectiveArmPlan>,
     slots: Vec<Vec<Option<(usize, usize)>>>,
     aliases: Vec<Vec<Option<(usize, usize)>>>,
@@ -133,6 +167,15 @@ struct SelectiveLayoutCore {
     branch_start: usize,
     branch_coordinates: Vec<usize>,
     prepared_rows: PreparedSelectiveRows,
+}
+
+/// An owned selective layout that can be inspected for its exact shape and
+/// then consumed once to emit the matching relation. Owning the source arms
+/// prevents the final emitter from receiving different inputs.
+pub(crate) struct PreparedSelectiveLowNormR1cs {
+    arms: Vec<SparseR1cs>,
+    shared_private_fields: usize,
+    layout: SelectiveLayoutCore,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -154,29 +197,39 @@ impl SelectiveLayoutCore {
     }
 }
 
+impl PreparedSelectiveLowNormR1cs {
+    pub(crate) fn shape_summary(&self) -> SelectiveLowNormShapeSummary {
+        let layout = self.layout.summary();
+        SelectiveLowNormShapeSummary {
+            rows: layout.rows,
+            columns: layout.columns,
+            public_input_len: layout.public_input_len,
+            polynomial: selective_polynomial(),
+            total_coordinates: layout.total_coordinates,
+        }
+    }
+
+    pub(crate) fn arm(&self, index: usize) -> &SparseR1cs {
+        &self.arms[index]
+    }
+
+    pub(crate) fn finish(self) -> Result<MultiBranchLowNormR1cs, LowNormR1csError> {
+        let Self {
+            arms,
+            shared_private_fields,
+            layout,
+        } = self;
+        let layout = finish_selective_layout(&arms, shared_private_fields, layout)?;
+        build_selective_relation(&arms, shared_private_fields, layout)
+    }
+}
+
 struct SelectiveArmPlan {
     widths: Vec<usize>,
     centered: Vec<bool>,
     source_boolean_rows: Vec<bool>,
     equality_roots: Vec<usize>,
     definitions: LinearDefinitions,
-}
-
-struct LinearDefinition {
-    row: Option<usize>,
-    target: usize,
-    rhs: Lc,
-}
-
-struct LinearDefinitions {
-    by_column: Vec<Option<usize>>,
-    entries: Vec<LinearDefinition>,
-}
-
-impl LinearDefinitions {
-    fn get(&self, column: usize) -> Option<&Lc> {
-        self.by_column[column].map(|index| &self.entries[index].rhs)
-    }
 }
 
 /// Compile one-hot field-R1CS arms to selective degree-eight CCS.
@@ -221,6 +274,33 @@ pub fn audit_multi_branch_selective_rows_with_alignment(
     )
 }
 
+/// Project selected rows and include the exact source-column and rewrite
+/// provenance used by assurance artifacts.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub fn audit_multi_branch_selective_rows_with_complete_source_provenance_with_alignment(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    modulus: usize,
+    residue: usize,
+    selected_rows: &[usize],
+    source_arm: usize,
+    source_columns: &[usize],
+    retained_row_pairs: &[(usize, usize)],
+) -> Result<SelectiveProjectedRowsAudit, LowNormR1csError> {
+    project_rows_with_complete_source_provenance_with_alignment(
+        arms,
+        shared_private_fields,
+        shared_private_fields,
+        modulus,
+        residue,
+        selected_rows,
+        source_arm,
+        source_columns,
+        retained_row_pairs,
+    )
+}
+
 pub fn build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
@@ -229,8 +309,17 @@ pub fn build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
     residue: usize,
 ) -> Result<MultiBranchLowNormR1cs, LowNormR1csError> {
     let layout = prepare_selective_layout(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
+    build_selective_relation(arms, shared_private_fields, layout)
+}
+
+fn build_selective_relation(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    layout: SelectiveLayout,
+) -> Result<MultiBranchLowNormR1cs, LowNormR1csError> {
     let structure = structure::build_structure(
         arms,
+        layout.encoding,
         &layout.plans,
         &layout.slots,
         &layout.aliases,
@@ -243,6 +332,14 @@ pub fn build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
         layout.columns,
         &layout.prepared_rows,
     )?;
+    build_selective_relation_from_structure(arms, layout, structure)
+}
+
+fn build_selective_relation_from_structure(
+    arms: &[SparseR1cs],
+    layout: SelectiveLayout,
+    structure: crate::paper::relations::Structure,
+) -> Result<MultiBranchLowNormR1cs, LowNormR1csError> {
     Ok(MultiBranchLowNormR1cs::from_compiler_parts(
         structure,
         layout.public_input_len,
@@ -261,6 +358,30 @@ pub fn build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
     ))
 }
 
+pub(crate) fn prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+    arms: Vec<SparseR1cs>,
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+    norm_base: u32,
+) -> Result<PreparedSelectiveLowNormR1cs, LowNormR1csError> {
+    let encoding = SelectiveEncoding::for_norm_base(norm_base)?;
+    let layout = prepare_selective_layout_core(
+        &arms,
+        shared_private_fields,
+        shared_private_bit_fields,
+        modulus,
+        residue,
+        encoding,
+    )?;
+    Ok(PreparedSelectiveLowNormR1cs {
+        arms,
+        shared_private_fields,
+        layout,
+    })
+}
+
 /// Compute selective-lowering width without constructing output matrices.
 /// Public-carrier and private-alignment padding remain separate audit fields.
 pub fn audit_multi_branch_selective_low_norm_width_with_alignment(
@@ -276,6 +397,26 @@ pub fn audit_multi_branch_selective_low_norm_width_with_alignment(
         modulus,
         residue,
     )
+}
+
+pub(crate) fn audit_multi_branch_selective_low_norm_width_for_norm_base_with_alignment(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    modulus: usize,
+    residue: usize,
+    norm_base: u32,
+) -> Result<SelectiveLowNormWidthAudit, LowNormR1csError> {
+    let encoding = SelectiveEncoding::for_norm_base(norm_base)?;
+    Ok(prepare_selective_layout_for_encoding(
+        arms,
+        shared_private_fields,
+        shared_private_fields,
+        modulus,
+        residue,
+        encoding,
+    )?
+    .compiler_audit
+    .into_width())
 }
 
 pub fn audit_multi_branch_selective_low_norm_width_with_shared_bit_prefix(
@@ -298,6 +439,7 @@ fn prepare_selective_layout_core(
     shared_private_bit_fields: usize,
     modulus: usize,
     residue: usize,
+    encoding: SelectiveEncoding,
 ) -> Result<SelectiveLayoutCore, LowNormR1csError> {
     #[cfg(feature = "perf-timers")]
     let total_started = std::time::Instant::now();
@@ -322,7 +464,7 @@ fn prepare_selective_layout_core(
     let phase_started = std::time::Instant::now();
     let plans = arms
         .par_iter()
-        .map(|arm| selective_arm_plan(arm, shared_private_fields, shared_private_bit_fields))
+        .map(|arm| selective_arm_plan(arm, shared_private_fields, shared_private_bit_fields, encoding))
         .collect::<Result<Vec<_>, _>>()?;
     #[cfg(feature = "perf-timers")]
     let plans_elapsed = phase_started.elapsed();
@@ -428,8 +570,8 @@ fn prepare_selective_layout_core(
                 let groups = product_indices.chunks(EVAL_GROUP_SIZE).collect::<Vec<_>>();
                 let mut previous = None;
                 for group in groups.iter().take(groups.len().saturating_sub(1)) {
-                    let slot = (arm_cursors[arm_index], BALANCED_FIELD_WIDTH);
-                    arm_cursors[arm_index] += BALANCED_FIELD_WIDTH;
+                    let slot = (arm_cursors[arm_index], encoding.general_field_width());
+                    arm_cursors[arm_index] += encoding.general_field_width();
                     let index = derived_product_sums[arm_index].len();
                     derived_product_sums[arm_index].push(DerivedProductSumEncoding {
                         slot,
@@ -455,8 +597,8 @@ fn prepare_selective_layout_core(
                 let groups = identity.factors.chunks(EVAL_GROUP_SIZE).collect::<Vec<_>>();
                 let mut previous = None;
                 for group in groups.iter().take(groups.len() - 1) {
-                    let slot = (arm_cursors[arm_index], BALANCED_FIELD_WIDTH);
-                    arm_cursors[arm_index] += BALANCED_FIELD_WIDTH;
+                    let slot = (arm_cursors[arm_index], encoding.general_field_width());
+                    arm_cursors[arm_index] += encoding.general_field_width();
                     let index = derived_product_sums[arm_index].len();
                     derived_product_sums[arm_index].push(DerivedProductSumEncoding {
                         slot,
@@ -486,6 +628,7 @@ fn prepare_selective_layout_core(
         public_padding_cols.len(),
         private_padding_cols.len(),
         cursor,
+        encoding,
     )?;
     #[cfg(feature = "perf-timers")]
     eprintln!(
@@ -497,6 +640,7 @@ fn prepare_selective_layout_core(
         total_started.elapsed().as_secs_f64(),
     );
     Ok(SelectiveLayoutCore {
+        encoding,
         plans,
         slots,
         aliases,
@@ -522,21 +666,33 @@ fn prepare_selective_layout(
     modulus: usize,
     residue: usize,
 ) -> Result<SelectiveLayout, LowNormR1csError> {
-    let core = prepare_selective_layout_core(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?;
-    finish_selective_layout(arms, shared_private_fields, core)
+    prepare_selective_layout_for_encoding(
+        arms,
+        shared_private_fields,
+        shared_private_bit_fields,
+        modulus,
+        residue,
+        SelectiveEncoding::for_norm_base(2)?,
+    )
 }
 
-pub(super) fn prepare_selective_layout_summary(
+fn prepare_selective_layout_for_encoding(
     arms: &[SparseR1cs],
     shared_private_fields: usize,
     shared_private_bit_fields: usize,
     modulus: usize,
     residue: usize,
-) -> Result<SelectiveLayoutSummary, LowNormR1csError> {
-    Ok(
-        prepare_selective_layout_core(arms, shared_private_fields, shared_private_bit_fields, modulus, residue)?
-            .summary(),
-    )
+    encoding: SelectiveEncoding,
+) -> Result<SelectiveLayout, LowNormR1csError> {
+    let core = prepare_selective_layout_core(
+        arms,
+        shared_private_fields,
+        shared_private_bit_fields,
+        modulus,
+        residue,
+        encoding,
+    )?;
+    finish_selective_layout(arms, shared_private_fields, core)
 }
 
 fn finish_selective_layout(
@@ -547,6 +703,7 @@ fn finish_selective_layout(
     #[cfg(feature = "perf-timers")]
     let total_started = std::time::Instant::now();
     let SelectiveLayoutCore {
+        encoding,
         plans,
         slots,
         aliases,
@@ -565,7 +722,7 @@ fn finish_selective_layout(
     } = core;
     #[cfg(feature = "perf-timers")]
     let phase_started = std::time::Instant::now();
-    let arms_audit = arms
+    let arms_audit: Vec<SelectiveArmWidthAudit> = arms
         .par_iter()
         .enumerate()
         .map(|(arm_index, arm)| {
@@ -575,7 +732,7 @@ fn finish_selective_layout(
             let unit_columns = branch_widths.iter().filter(|&&width| width == 1).count();
             let balanced_columns = branch_widths
                 .iter()
-                .filter(|&&width| width == BALANCED_FIELD_WIDTH)
+                .filter(|&&width| width == encoding.general_field_width())
                 .count();
             let binary_columns = branch_widths
                 .iter()
@@ -591,7 +748,7 @@ fn finish_selective_layout(
                 .filter(|alias| alias.is_some())
                 .count();
             let derived_product_sums = derived_product_sums[arm_index].len();
-            let derived_coordinates = derived_product_sums * BALANCED_FIELD_WIDTH;
+            let derived_coordinates = derived_product_sums * encoding.general_field_width();
             SelectiveArmWidthAudit {
                 branch_source_columns: branch_widths.len(),
                 eliminated_columns,
@@ -610,12 +767,53 @@ fn finish_selective_layout(
                     arm,
                     &plans[arm_index].widths,
                     arm.m_in + shared_private_fields,
-                    BALANCED_FIELD_WIDTH,
+                    encoding.general_field_width(),
                     BINARY_FIELD_WIDTH,
+                ),
+                physical_stages: physical_stage_width_audits(
+                    arm,
+                    &plans[arm_index].widths,
+                    &aliases[arm_index],
+                    &equal_aliases[arm_index],
+                    &plans[arm_index].definitions.by_column,
+                    &plans[arm_index].centered,
+                    &plans[arm_index].source_boolean_rows,
+                    encoding.general_field_width(),
+                    BALANCED_FIELD_WIDTH,
+                    encoding.outer_norm_proves_centered_unit(),
+                    arm.m_in + shared_private_fields,
                 ),
             }
         })
         .collect();
+    for (arm_index, arm) in arms_audit.iter().enumerate() {
+        if !arm.physical_stages.is_empty() {
+            assert_eq!(
+                arm.physical_stages
+                    .iter()
+                    .map(|stage| stage.source_column_count)
+                    .sum::<usize>(),
+                arm.branch_source_columns,
+                "physical-stage decoder dispositions do not cover selective arm {arm_index}",
+            );
+            assert_eq!(
+                arm.physical_stages
+                    .iter()
+                    .map(|stage| stage.linear_definition_columns)
+                    .sum::<usize>(),
+                plans[arm_index].definitions.entries.len(),
+                "physical-stage definitions do not cover selective arm {arm_index}",
+            );
+            assert_eq!(
+                arm.physical_stages
+                    .iter()
+                    .map(|stage| stage.allocated_coordinates)
+                    .sum::<usize>(),
+                arm.branch_coordinates,
+                "physical-stage width does not cover selective arm {arm_index}",
+            );
+        }
+    }
     #[cfg(feature = "perf-timers")]
     let width_audit_elapsed = phase_started.elapsed();
     let width_audit = SelectiveLowNormWidthAudit {
@@ -641,9 +839,33 @@ fn finish_selective_layout(
         columns..columns.next_multiple_of(D),
     );
     let row_audit = prepared_rows.audit();
+    let first_accepted_selections =
+        super::selective_selection_audit::audit_first_accepted_selections(arms, &row_audit)?;
     #[cfg(feature = "perf-timers")]
     let phase_started = std::time::Instant::now();
     let canonical_openings = audit_canonical_openings(arms, &slots, &row_audit, columns)?;
+    let source_arm_linear_definitions = plans
+        .iter()
+        .map(|plan| {
+            plan.definitions
+                .entries
+                .iter()
+                .map(|definition| {
+                    SelectiveLinearDefinitionAudit::new(
+                        definition.row,
+                        definition.target,
+                        definition.rhs.constant,
+                        definition
+                            .rhs
+                            .terms
+                            .iter()
+                            .map(|&(column, coefficient)| SelectiveLinearDefinitionTermAudit::new(column, coefficient))
+                            .collect(),
+                    )
+                })
+                .collect()
+        })
+        .collect();
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[selective-layout-audit] shared_private_fields={shared_private_fields} width_audit={:.3}s openings={:.3}s total={:.3}s",
@@ -652,6 +874,7 @@ fn finish_selective_layout(
         total_started.elapsed().as_secs_f64(),
     );
     Ok(SelectiveLayout {
+        encoding,
         plans,
         slots,
         aliases,
@@ -671,6 +894,8 @@ fn finish_selective_layout(
             arms.iter()
                 .map(|arm| arm.physical_stage_ranges().to_vec())
                 .collect(),
+            source_arm_linear_definitions,
+            first_accepted_selections,
         ),
     })
 }
@@ -789,13 +1014,14 @@ fn selective_arm_plan(
     arm: &SparseR1cs,
     shared_private_fields: usize,
     shared_private_bit_fields: usize,
+    encoding: SelectiveEncoding,
 ) -> Result<SelectiveArmPlan, LowNormR1csError> {
     let shared_end = arm
         .m_in
         .checked_add(shared_private_fields)
         .filter(|&end| end <= arm.m)
         .ok_or_else(|| trace_error("shared private prefix exceeds the source arm"))?;
-    let mut widths = vec![BALANCED_FIELD_WIDTH; arm.m];
+    let mut widths = vec![encoding.general_field_width(); arm.m];
     let mut centered = vec![false; arm.m];
     widths[0] = 0;
     let mut eliminated = vec![false; arm.m];
@@ -966,163 +1192,6 @@ fn selective_arm_plan(
         equality_roots,
         definitions,
     })
-}
-
-fn find_linear_definitions(
-    arm: &SparseR1cs,
-    shared_end: usize,
-    directly_eliminated: &[bool],
-    skipped: &[bool],
-) -> Result<LinearDefinitions, LowNormR1csError> {
-    let mut protected = directly_eliminated.to_vec();
-    protected[..shared_end].fill(true);
-    for decomposition in arm.canonical_u64_decompositions() {
-        protected[decomposition.field_col] = true;
-        for &column in &decomposition.bit_cols {
-            protected[column] = true;
-        }
-    }
-    for decomposition in arm.balanced_ternary_decompositions() {
-        protected[decomposition.field_col] = true;
-        for &column in &decomposition.digit_cols {
-            protected[column] = true;
-        }
-    }
-    for trace in arm.poseidon2_traces() {
-        for sbox in &trace.sboxes {
-            protected[sbox.output_col] = true;
-        }
-    }
-    for trace in arm.polynomial_evaluation_traces() {
-        for &column in &trace.output_cols {
-            protected[column] = true;
-        }
-    }
-    for trace in arm.product_sum_batch_traces() {
-        for &column in &trace.retained_columns {
-            protected[column] = true;
-        }
-    }
-    if let CcsMatrix::CscWithSeededPhi81 { blocks, .. } = &arm.a {
-        for block in blocks {
-            for &start in block.word_starts() {
-                protected[start..start + block.word_width()].fill(true);
-            }
-        }
-    }
-
-    let mut by_column = vec![None; arm.m];
-    let mut entries = Vec::<LinearDefinition>::new();
-    for trace in arm.poseidon2_traces() {
-        for (&target, rhs) in trace.output_cols.iter().zip(&trace.output_linear_forms) {
-            if target == 0 || target >= arm.m {
-                return Err(trace_error("Poseidon2 output column is outside the source arm"));
-            }
-            if target < shared_end || protected[target] {
-                protected[target] = true;
-                continue;
-            }
-            if by_column[target].is_some() {
-                return Err(trace_error("Poseidon2 output column has multiple linear definitions"));
-            }
-            let index = entries.len();
-            by_column[target] = Some(index);
-            entries.push(LinearDefinition {
-                row: None,
-                target,
-                rhs: rhs.clone(),
-            });
-        }
-    }
-
-    let mut b_state = vec![0u8; arm.n];
-    for_each_explicit_term(&arm.b, |row, column, coefficient| {
-        b_state[row] = if b_state[row] == 0 && column == 0 && coefficient == F::ONE {
-            1
-        } else {
-            2
-        };
-    });
-    let mut c_nonzero = vec![false; arm.n];
-    for_each_explicit_term(&arm.c, |row, _, _| c_nonzero[row] = true);
-
-    let mut candidates = HashMap::<usize, (usize, F)>::new();
-    for_each_explicit_term(&arm.a, |row, column, coefficient| {
-        if skipped[row] || b_state[row] != 1 || c_nonzero[row] || column == 0 {
-            return;
-        }
-        let candidate = candidates.entry(row).or_insert((column, coefficient));
-        if column > candidate.0 {
-            *candidate = (column, coefficient);
-        }
-    });
-    let mut candidates = candidates
-        .into_iter()
-        .filter(|(_, (target, _))| !protected[*target])
-        .collect::<Vec<_>>();
-    candidates.sort_unstable_by_key(|(row, _)| *row);
-
-    let mut row_to_definition = HashMap::<usize, usize>::new();
-    for (row, (target, _)) in &candidates {
-        if by_column[*target].is_some() {
-            continue;
-        }
-        let index = entries.len();
-        by_column[*target] = Some(index);
-        row_to_definition.insert(*row, index);
-        entries.push(LinearDefinition {
-            row: Some(*row),
-            target: *target,
-            rhs: Lc::zero(),
-        });
-    }
-    let target_coefficients = candidates.into_iter().collect::<HashMap<_, _>>();
-    for_each_explicit_term(&arm.a, |row, column, coefficient| {
-        let Some(&definition_index) = row_to_definition.get(&row) else {
-            return;
-        };
-        let definition = &mut entries[definition_index];
-        if column == definition.target {
-            return;
-        }
-        let target_coefficient = target_coefficients[&row].1;
-        let scale = -target_coefficient.inverse();
-        if column == 0 {
-            definition.rhs.constant += coefficient * scale;
-        } else {
-            definition.rhs.terms.push((column, coefficient * scale));
-        }
-    });
-    if let Some((target, dependency)) = entries.iter().find_map(|definition| {
-        definition.rhs.terms.iter().find_map(|&(column, _)| {
-            (column >= definition.target || column >= directly_eliminated.len() || directly_eliminated[column])
-                .then_some((definition.target, column))
-        })
-    }) {
-        return Err(trace_error(&format!(
-            "linear definition for column {target} is not acyclic over retained dependency {dependency}"
-        )));
-    }
-    Ok(LinearDefinitions { by_column, entries })
-}
-
-fn for_each_explicit_term(matrix: &CcsMatrix<F>, mut visit: impl FnMut(usize, usize, F)) {
-    let mut visit_csc = |csc: &CscMat<F>| {
-        for column in 0..csc.ncols {
-            for index in csc.column_range(column) {
-                visit(csc.row_index(index), column, csc.vals[index]);
-            }
-        }
-    };
-    match matrix {
-        CcsMatrix::Identity { n } => {
-            for row in 0..*n {
-                visit(row, row, F::ONE);
-            }
-        }
-        CcsMatrix::Csc(csc) => visit_csc(csc),
-        CcsMatrix::CscWithSeededPhi81 { csc, .. } => visit_csc(csc),
-    }
 }
 
 fn propagate_low_norm_equalities(

@@ -483,6 +483,16 @@ fn same_matrix(left: &CcsMatrix<F>, right: &CcsMatrix<F>) -> bool {
                 geometric_runs: right_runs,
             },
         ) => same_csc(left_csc, right_csc) && left_blocks == right_blocks && left_runs == right_runs,
+        (
+            CcsMatrix::VerifierArtifact {
+                rows: left_rows,
+                cols: left_cols,
+            },
+            CcsMatrix::VerifierArtifact {
+                rows: right_rows,
+                cols: right_cols,
+            },
+        ) => left_rows == right_rows && left_cols == right_cols,
         _ => false,
     }
 }

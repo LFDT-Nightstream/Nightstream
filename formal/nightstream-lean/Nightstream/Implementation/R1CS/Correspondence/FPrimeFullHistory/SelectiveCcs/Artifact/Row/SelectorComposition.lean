@@ -25,10 +25,10 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact
 open Nightstream.SuperNeo.Concrete
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Decoder
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Boolean
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Rows
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Components
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Rows
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.Semantics
 
 private theorem fadd_assoc (left middle right : F) :

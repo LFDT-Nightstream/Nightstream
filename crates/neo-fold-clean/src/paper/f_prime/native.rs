@@ -783,7 +783,7 @@ fn prepare_with_nifs_prover_and_semantic_state(
     };
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
-    construction2::validate_state_authority(vk, s, &state, semantic_mode)?;
+    construction2::validate_state_authority(vk, pp.b(), s, &state, semantic_mode)?;
     if fresh_shapes.is_empty() {
         return Err(Error::EmptyStep);
     }
@@ -890,6 +890,7 @@ fn prepare_with_nifs_prover_and_semantic_state(
     };
     let nebula_open = nebula_advance.as_ref().and_then(|adv| adv.open);
     let coordinates = construction2::advance_state_coordinates(
+        pp.b(),
         s,
         &previous_coordinates,
         &next_running,
@@ -1040,7 +1041,7 @@ fn verify_core<R: VerifyStepRecorder>(
     recorder.stage(VerifyStepExecutionStage::Entry);
     construction2::enforce_pc_in_range(&state)?;
     construction2::state_base_case_check(&state)?;
-    construction2::validate_state_authority(vk, s, &state, semantic_mode)?;
+    construction2::validate_state_authority(vk, pp.b(), s, &state, semantic_mode)?;
     construction2::validate_digest32("proof.semantic_state_digest", proof.semantic_state_digest)?;
     if next_latest_claims.is_empty() {
         return Err(Error::EmptyStep);
@@ -1160,6 +1161,7 @@ fn verify_core<R: VerifyStepRecorder>(
     let next_state = construction2::advance_state_recorded(
         prev_state_for_advance,
         new_proof,
+        pp.b(),
         s,
         fresh_count,
         chunk_digest,

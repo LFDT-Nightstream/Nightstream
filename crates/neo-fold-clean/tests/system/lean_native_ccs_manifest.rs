@@ -732,7 +732,7 @@ fn terminal_lifecycle_fixture(manifest: &LeanNativeCcsManifest) -> (neo_fold_cle
     };
     let running_claims = vec![zero_claim.clone(); manifest.running_claim_count()];
     let running_witnesses = vec![zero_witness; manifest.running_claim_count()];
-    let acc_digest = AccumulatorHandle::from_running_parts(&running_claims, Some(&zero_claim)).digest();
+    let acc_digest = AccumulatorHandle::from_running_parts(2, &running_claims, Some(&zero_claim)).digest();
     let z_0 = initial_boundary_digest(prep.structure_digest(), prep.public_input_len);
 
     let placeholder = CcsClaim {
@@ -918,7 +918,7 @@ fn manifest_owned_lifecycle_proves_and_verifies() {
     )
     .expect("paper default running accumulator");
     post_state.acc_digest =
-        AccumulatorHandle::from_running_parts(&default_running.claims, default_running.parent_authority.as_ref())
+        AccumulatorHandle::from_running_parts(2, &default_running.claims, default_running.parent_authority.as_ref())
             .digest();
     post_state.semantic_state_digest = post_state.acc_digest;
     let state = &post_state;

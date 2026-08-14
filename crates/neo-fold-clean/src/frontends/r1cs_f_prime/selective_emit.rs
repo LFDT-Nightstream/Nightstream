@@ -23,7 +23,7 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use super::terms::MatrixTerms;
-use super::{Lc, LinearDefinitions, LowNormR1csError, BALANCED_FIELD_WIDTH};
+use super::{Lc, LinearDefinitions, LowNormR1csError, BALANCED_FIELD_WIDTH, SEPTENARY_FIELD_WIDTH};
 
 pub(super) fn append_lc(
     terms: &mut MatrixTerms,
@@ -89,10 +89,10 @@ pub(super) fn append_field(
 
 pub(super) fn append_slot(terms: &mut MatrixTerms, row: usize, slot: (usize, usize), coefficient: F) {
     let (start, width) = slot;
-    let radix = if width == BALANCED_FIELD_WIDTH {
-        F::from_u64(3)
-    } else {
-        F::from_u64(2)
+    let radix = match width {
+        BALANCED_FIELD_WIDTH => F::from_u64(3),
+        SEPTENARY_FIELD_WIDTH => F::from_u64(7),
+        _ => F::from_u64(2),
     };
     if width > 1 {
         terms

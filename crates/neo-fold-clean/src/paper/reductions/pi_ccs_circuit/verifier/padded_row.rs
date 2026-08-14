@@ -117,7 +117,7 @@ pub(super) fn enforce(
             .iter()
             .map(accumulator_digest_inputs)
             .collect::<Vec<_>>();
-        enforce_strict_binary_accumulator_family_digest(builder, &parent_inputs, &child_inputs)?
+        enforce_strict_radix_accumulator_family_digest(builder, cfg.params.b(), &parent_inputs, &child_inputs)?
     };
     builder.record_row_family(stage::BINDING, binding_start);
 

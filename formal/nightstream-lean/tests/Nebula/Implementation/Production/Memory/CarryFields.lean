@@ -1,0 +1,18 @@
+import Nightstream.Implementation.Nebula.Production.Memory.CarryFields
+
+/-! Regression surface for the field-native production memory carry. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductionMemoryCarryFields
+
+open Nightstream.Implementation.Nebula.ProductionMemoryCarryFields
+
+#check schema_length_exact
+#check encode_length
+#check tagAt
+#check encode_get
+#check encode_injective
+#check encode_fields_canonical
+
+end tests.NebulaProductionMemoryCarryFields

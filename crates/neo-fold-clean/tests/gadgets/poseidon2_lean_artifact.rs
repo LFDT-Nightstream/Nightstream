@@ -4,8 +4,9 @@
 mod lean_artifact_support;
 
 use lean_artifact_support::{lean_nat_list, lean_rows, lean_witness, sha256_hex, SCHEMA_VERSION};
+use neo_fold_clean::engine::r1cs_circuit::builder::Poseidon2CompactPermutationAudit;
 use neo_fold_clean::engine::r1cs_circuit::poseidon2::enforce_poseidon2_permutation;
-use neo_fold_clean::engine::r1cs_circuit::{R1csBuilder, Var};
+use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -28,6 +29,7 @@ struct BuiltPermutation {
     builder: R1csBuilder,
     outputs: [usize; 8],
     definitions: Vec<Definition>,
+    compact: Poseidon2CompactPermutationAudit,
 }
 
 fn row_terms(trips: &[(usize, usize, F)], row: usize) -> Vec<(usize, u64)> {
@@ -108,9 +110,12 @@ fn build(inputs: [F; 8]) -> BuiltPermutation {
         .chain(input_vars.into_iter().map(Var::col))
         .collect::<Vec<_>>();
     let definitions = normalize(&builder, &input_columns);
+    let mut compact = builder.poseidon2_compact_permutation_audits();
+    assert_eq!(compact.len(), 1, "isolated permutation must have one compact trace");
     BuiltPermutation {
         outputs: output_vars.map(Var::col),
         definitions,
+        compact: compact.remove(0),
         builder,
     }
 }
@@ -146,14 +151,44 @@ fn lean_definitions(definitions: &[Definition]) -> String {
         .join(",\n   ")
 }
 
+fn lc_terms(lc: &Lc) -> Vec<(usize, u64)> {
+    let mut terms = lc
+        .terms
+        .iter()
+        .map(|&(column, coefficient)| (column, coefficient.as_canonical_u64()))
+        .collect::<Vec<_>>();
+    if lc.constant != F::ZERO {
+        terms.push((0, lc.constant.as_canonical_u64()));
+    }
+    terms
+}
+
+fn lean_lc(lc: &Lc) -> String {
+    lean_terms(&lc_terms(lc))
+}
+
+fn lean_lcs<'a>(lcs: impl IntoIterator<Item = &'a Lc>) -> String {
+    format!(
+        "[{}]",
+        lcs.into_iter()
+            .map(lean_lc)
+            .collect::<Vec<_>>()
+            .join(",\n   ")
+    )
+}
+
 fn artifact_hashes(honest: &BuiltPermutation, forged: &[F]) -> (String, String) {
     let row_payload = format!(
         "schema={SCHEMA_VERSION}\nkind=r1cs/poseidon2-goldilocks-width8-permutation\n\
-         source=enforce_poseidon2_permutation\noutputs={}\ndefinitions={}\nrows={}\ncols={}\n{}",
+         source=enforce_poseidon2_permutation\noutputs={}\ndefinitions={}\nrows={}\ncols={}\n\
+         compact_inputs={}\ncompact_sbox_outputs={}\ncompact_outputs={}\n{}",
         lean_nat_list(honest.outputs),
         honest.definitions.len(),
         honest.builder.rows(),
         honest.builder.cols(),
+        lean_lcs(honest.compact.sboxes.iter().map(|sbox| &sbox.input)),
+        lean_nat_list(honest.compact.sboxes.iter().map(|sbox| sbox.output_col)),
+        lean_lcs(&honest.compact.output_linear_forms),
         lean_rows(&honest.builder),
     );
     let witness_payload = format!(
@@ -183,6 +218,9 @@ fn render_artifact(honest: &BuiltPermutation, row_hash: &str, witness_hash: &str
          def colCount : Nat := {}\n\
          def inputColumns : List Nat := [0, 1, 2, 3, 4, 5, 6, 7, 8]\n\
          def outputColumns : List Nat := {}\n\n\
+         def compactSboxInputTerms : List (List (Nat × Nat)) :=\n  {}\n\n\
+         def compactSboxOutputColumns : List Nat := {}\n\n\
+         def compactOutputLinearForms : List (List (Nat × Nat)) :=\n  {}\n\n\
          def definitions : List Definition :=\n  [{}]\n\n\
          def rows : List Row := definitions.map Definition.builderRow\n\n\
          theorem definitions_length : definitions.length = rowCount := by decide\n\
@@ -190,10 +228,18 @@ fn render_artifact(honest: &BuiltPermutation, row_hash: &str, witness_hash: &str
          theorem definitions_canonical :\n\
              ∀ definition ∈ definitions, definition.Canonical := by decide\n\
          theorem definitions_wellFormed : WellFormed inputColumns definitions := by decide\n\n\
+         theorem compact_trace_shape :\n\
+             compactSboxInputTerms.length = 86 ∧\n\
+             compactSboxOutputColumns.length = 86 ∧\n\
+             compactSboxOutputColumns.Nodup ∧\n\
+             compactOutputLinearForms.length = 8 := by decide\n\n\
          end Nightstream.Implementation.R1CS.Poseidon2Permutation\n",
         honest.builder.rows(),
         honest.builder.cols(),
         lean_nat_list(honest.outputs),
+        lean_lcs(honest.compact.sboxes.iter().map(|sbox| &sbox.input)),
+        lean_nat_list(honest.compact.sboxes.iter().map(|sbox| sbox.output_col)),
+        lean_lcs(&honest.compact.output_linear_forms),
         lean_definitions(&honest.definitions),
     )
 }

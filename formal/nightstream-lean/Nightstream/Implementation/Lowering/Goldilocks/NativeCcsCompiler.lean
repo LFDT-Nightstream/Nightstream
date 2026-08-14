@@ -1,5 +1,5 @@
 import Nightstream.Implementation.Lowering.Goldilocks.NativeCcsProgram
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.LeanCompiler.StableRows
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.LeanCompiler.StableRows
 
 /-!
 Contract: compile one receipt-conserving native selected-CCS program into the
@@ -28,9 +28,8 @@ namespace Nightstream.Implementation.Lowering.Goldilocks.NativeCcsCompiler
 open Nightstream.Implementation.Lowering.Goldilocks
 open Nightstream.Implementation.Lowering.Goldilocks.NativeCcsProgram
 open Nightstream.Implementation.Lowering.Goldilocks.NativeCcsSelector
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.LeanCompiler
+open Nightstream.Implementation.R1CS.SelectiveCcs.LeanCompiler
 open Nightstream.SuperNeo.Concrete
-open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier

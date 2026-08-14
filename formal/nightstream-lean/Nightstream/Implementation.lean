@@ -25,7 +25,7 @@ import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ProductionEnc
 import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ProductionEncodedEqualCallRecipe
 import Nightstream.Implementation.Lowering.Goldilocks.NumericRowBridge
 import Nightstream.Implementation.Lowering.Goldilocks.NIVCCodec
-import Nightstream.Implementation.NebulaV2
+import Nightstream.Implementation.Nebula
 import Nightstream.Implementation.R1CS.Core.Program
 import Nightstream.Implementation.R1CS.Core.CheckedProgram
 import Nightstream.Implementation.R1CS.Core.SeededPhi81
@@ -55,6 +55,10 @@ import Nightstream.Implementation.R1CS.Correspondence.ShiftedTernary.SharedSlots
 import Nightstream.Implementation.R1CS.Correspondence.ShiftedTernary.CenteredZero
 import Nightstream.Implementation.R1CS.Correspondence.ShiftedTernary.ReducedCore
 import Nightstream.Implementation.R1CS.Correspondence.Poseidon2.Poseidon2PermutationSound
+import Nightstream.Implementation.R1CS.Canonical.Poseidon2Compact
+import Nightstream.Implementation.R1CS.Canonical.Poseidon2PartialCoefficientForm
+import Nightstream.Implementation.R1CS.Correspondence.Poseidon2.CompactTraceRefinement
+import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Transcript.SliceComposition
 import Nightstream.Implementation.R1CS.Correspondence.Poseidon2.Sbox7Compact
 import Nightstream.Implementation.R1CS.Correspondence.Poseidon2.Sbox7OutputLayout
 import Nightstream.Implementation.R1CS.Correspondence.Poseidon2.OutputAuthoritySboxManifestProofs
@@ -72,8 +76,12 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrime.FPrimeChunkDigestSo
 import Nightstream.Implementation.R1CS.Correspondence.FPrime.ChunkBitOuterImage
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeBase.FPrimeBaseStateSound
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeBase.FPrimeBaseProgramSound
+import Nightstream.Implementation.R1CS.Correspondence.Nebula.NebulaProgramBindingSound
 import Nightstream.Implementation.R1CS.Correspondence.PiDecStrict.Necessity
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecAjtaiOpeningCollision
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler.CanonicalX
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler.RadixFourCanonicalX
+import Nightstream.Implementation.R1CS.Correspondence.Gadgets.PiDecStrictProductionCompiler.Differential
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.TerminalCeProgramSound
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.Phi81DynamicEvaluationRows
 import Nightstream.Implementation.R1CS.Correspondence.Gadgets.Phi81SharedTensorRows
@@ -92,6 +100,15 @@ import Nightstream.Implementation.R1CS.Correspondence.PiCcsMatrix
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.PaddedRowIdentityConcreteNifs
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.PaddedRowIdentityHyperNova
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.PaddedRowIdentityNIVCCompatibility
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.NebulaRecursiveArmSharing
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.CenteredDomainPackingArtifact
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.RadixFourSourceStageCoverageArtifact
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.RadixFourFirstAcceptedSelectionArtifact
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayArtifact
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayExecution
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.Row.Sbox
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Rewrite.GroupedProduct
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Rewrite.Artifact.SourceRowRefinement
 import Nightstream.Implementation.R1CS.Correspondence.ShiftedTernary.CanonicalWord
 
 /-!

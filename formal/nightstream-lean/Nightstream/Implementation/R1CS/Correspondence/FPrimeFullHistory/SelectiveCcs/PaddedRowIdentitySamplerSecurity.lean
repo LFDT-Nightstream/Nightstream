@@ -55,13 +55,10 @@ theorem sampleCoefficient_eq_none_iff_threeRejections
     (coefficient : Fin samplerCoefficientCount) :
     sampleCoefficient state source coefficient = none ↔
       ThreeRejections state source coefficient := by
-  cases first : candidateAccepted
-      (candidateValue state source coefficient firstAttempt) <;>
-    cases second : candidateAccepted
-      (candidateValue state source coefficient secondAttempt) <;>
-    cases third : candidateAccepted
-      (candidateValue state source coefficient thirdAttempt) <;>
-    simp [sampleCoefficient, ThreeRejections, first, second, third]
+  simpa [sampleCoefficient, ThreeRejections, candidateAccepted, candidateValue,
+    firstAttempt, secondAttempt, thirdAttempt] using
+    Nightstream.Implementation.Transcript.Construction3Poseidon2.sampleCoefficient_eq_none_iff
+      state source coefficient
 
 /-- A shortfall witness names one coefficient whose three attempts reject. -/
 theorem shortfall_requires_three_rejections
@@ -352,6 +349,8 @@ theorem completeSamplerShortfallBound_le_target :
   norm_num [completeSamplerShortfallBound, sampledCoefficientCount,
     singleCoefficientExhaustionBound, samplerSecurityTarget,
     samplerAttemptCount, samplerCoefficientCount, PaperProfile.arity,
+    Nightstream.Implementation.Transcript.Construction3Poseidon2.samplerAttemptCount,
+    Nightstream.Implementation.Transcript.Construction3Poseidon2.samplerCoefficientCount,
     goldilocksModulus]
 
 theorem samplerShortfall_probability_le

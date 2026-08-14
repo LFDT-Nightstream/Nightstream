@@ -22,6 +22,7 @@ use p3_field::PrimeField64;
 use super::lowering::LowNormR1csError;
 
 pub(super) const BALANCED_TERNARY_FIELD_WIDTH: usize = 41;
+pub(super) const BALANCED_SEPTENARY_FIELD_WIDTH: usize = 23;
 
 const CHUNK_DIGITS: usize = 5;
 const CHUNK_RADIX: u64 = 243;
@@ -71,6 +72,27 @@ pub(super) fn balanced_ternary_digits(
             out[digit_index] = if negative { -digit } else { digit };
             digit_index += 1;
         }
+    }
+    if remaining != 0 {
+        return Err(LowNormR1csError::BalancedTernaryOverflow { col: field_col });
+    }
+    Ok(out)
+}
+
+pub(super) fn balanced_septenary_digits(
+    value: F,
+    field_col: usize,
+) -> Result<[i8; BALANCED_SEPTENARY_FIELD_WIDTH], LowNormR1csError> {
+    const RADIX_POWER: u128 = 27_368_747_340_080_916_343;
+    const SHIFT: u128 = (RADIX_POWER - 1) / 2;
+    let modulus = u128::from(F::ORDER_U64);
+    let mut remaining = (u128::from(value.as_canonical_u64()) + SHIFT) % modulus;
+    let mut out = [0i8; BALANCED_SEPTENARY_FIELD_WIDTH];
+
+    for digit in &mut out {
+        let residue = remaining % 7;
+        remaining /= 7;
+        *digit = residue as i8 - 3;
     }
     if remaining != 0 {
         return Err(LowNormR1csError::BalancedTernaryOverflow { col: field_col });

@@ -8,6 +8,8 @@
 //! Does not own: chain state (`NebulaLane`), proving flow
 //! ([`super::prove`]), or memory semantics ([`super::trace`]).
 
+use std::sync::Arc;
+
 use neo_math::{D, F};
 
 use crate::frontends::nebula::circuit::SMemCircuit;
@@ -44,10 +46,12 @@ pub enum PlanError {
 /// [`super::prove::prove_segment`].
 pub struct NebulaPlan {
     params: NebulaParams,
-    circuit: SMemCircuit,
+    circuit: Arc<SMemCircuit>,
     scheme: LaneScheme,
     rom_image: Vec<u32>,
     ram_image: Vec<u32>,
+    plan_seed: [u8; 32],
+    kappa: usize,
     plan_digest: [F; 4],
     d_init: [F; 4],
 }
@@ -76,19 +80,8 @@ impl NebulaPlan {
         plan_seed: [u8; 32],
         kappa: usize,
     ) -> Result<Self, PlanError> {
-        if rom_image.len() != params.rom_cells() as usize {
-            return Err(PlanError::RomImageLength {
-                want: params.rom_cells() as usize,
-                got: rom_image.len(),
-            });
-        }
-        if ram_image.len() != params.ram_cells() as usize {
-            return Err(PlanError::RamImageLength {
-                want: params.ram_cells() as usize,
-                got: ram_image.len(),
-            });
-        }
-        let circuit = SMemCircuit::new(params);
+        validate_initial_memory_shape(&params, &rom_image, &ram_image)?;
+        let circuit = Arc::new(SMemCircuit::new(params));
         let scheme = LaneScheme::from_seeds(
             kappa,
             circuit.lane_ranges(),
@@ -103,6 +96,39 @@ impl NebulaPlan {
             scheme,
             rom_image,
             ram_image,
+            plan_seed,
+            kappa,
+            plan_digest,
+            d_init,
+        })
+    }
+
+    /// Bind new public ROM/RAM values while reusing the immutable circuit and
+    /// lane commitment matrices of this profile.
+    pub fn bind_initial_memory(&self, rom_image: Vec<u32>, ram_image: Vec<u32>) -> Result<Self, PlanError> {
+        validate_initial_memory_shape(&self.params, &rom_image, &ram_image)?;
+        #[cfg(feature = "perf-timers")]
+        let d_init_started = std::time::Instant::now();
+        let d_init = compute_d_init(&self.params, &self.scheme, &rom_image, &ram_image)?;
+        #[cfg(feature = "perf-timers")]
+        let d_init_elapsed = d_init_started.elapsed();
+        #[cfg(feature = "perf-timers")]
+        let plan_digest_started = std::time::Instant::now();
+        let plan_digest = plan_digest(&self.params, &rom_image, &ram_image, self.plan_seed, self.kappa, d_init);
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[nebula-plan-bind] d_init={:.3}s plan_digest={:.3}s",
+            d_init_elapsed.as_secs_f64(),
+            plan_digest_started.elapsed().as_secs_f64(),
+        );
+        Ok(Self {
+            params: self.params,
+            circuit: Arc::clone(&self.circuit),
+            scheme: self.scheme.clone(),
+            rom_image,
+            ram_image,
+            plan_seed: self.plan_seed,
+            kappa: self.kappa,
             plan_digest,
             d_init,
         })
@@ -115,6 +141,7 @@ impl NebulaPlan {
             steps_per_segment: self.params.steps_per_segment() as u64,
             seg_max: self.params.seg_max,
             stacks: self.params.stack_shape(),
+            initial_semantic_state_digest: digest::AccumulatorHandle::empty().digest_fields(),
             plan_digest: self.plan_digest,
             d_init: self.d_init,
         }
@@ -125,7 +152,7 @@ impl NebulaPlan {
     }
 
     pub fn circuit(&self) -> &SMemCircuit {
-        &self.circuit
+        self.circuit.as_ref()
     }
 
     pub fn scheme(&self) -> &LaneScheme {
@@ -166,6 +193,22 @@ impl NebulaPlan {
     }
 }
 
+fn validate_initial_memory_shape(params: &NebulaParams, rom_image: &[u32], ram_image: &[u32]) -> Result<(), PlanError> {
+    if rom_image.len() != params.rom_cells() as usize {
+        return Err(PlanError::RomImageLength {
+            want: params.rom_cells() as usize,
+            got: rom_image.len(),
+        });
+    }
+    if ram_image.len() != params.ram_cells() as usize {
+        return Err(PlanError::RamImageLength {
+            want: params.ram_cells() as usize,
+            got: ram_image.len(),
+        });
+    }
+    Ok(())
+}
+
 /// The fingerprint budget recorded by the plan.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ErrorBudget {
@@ -184,23 +227,80 @@ fn compute_d_init(
     rom_image: &[u32],
     ram_image: &[u32],
 ) -> Result<[F; 4], PlanError> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    #[cfg(feature = "perf-timers")]
+    let cells_started = std::time::Instant::now();
     let cells: Vec<CellRecord> = rom_image
         .iter()
         .chain(ram_image)
         .map(|&v| CellRecord { v, t: 0 })
         .collect();
+    #[cfg(feature = "perf-timers")]
+    let cells_elapsed = cells_started.elapsed();
     debug_assert_eq!(cells.len(), params.scanned_cells() as usize);
     let mut chain = digest::nebula_chain_mem_header();
+    #[cfg(feature = "perf-timers")]
+    let mut encode_elapsed = std::time::Duration::ZERO;
+    #[cfg(feature = "perf-timers")]
+    let mut commit_elapsed = std::time::Duration::ZERO;
+    #[cfg(feature = "perf-timers")]
+    let mut leaf_elapsed = std::time::Duration::ZERO;
+    #[cfg(feature = "perf-timers")]
+    let mut link_elapsed = std::time::Duration::ZERO;
+    #[cfg(feature = "perf-timers")]
+    let mut zero_lanes = 0usize;
+    let mut zero_leaf = None;
     for step in 0..params.steps_per_segment() {
         let chunk = &cells[step * params.b_scan..(step + 1) * params.b_scan];
+        #[cfg(feature = "perf-timers")]
+        let phase_started = std::time::Instant::now();
         let bits = params.encode_scan_lane(chunk)?;
+        let zero_lane = bits.iter().all(|bit| *bit == F::ZERO);
+        #[cfg(feature = "perf-timers")]
+        {
+            encode_elapsed += phase_started.elapsed();
+            zero_lanes += usize::from(zero_lane);
+        }
+        #[cfg(feature = "perf-timers")]
+        let phase_started = std::time::Instant::now();
         let commitment = scheme.commit_mem_lane_bits(&bits)?;
-        chain = digest::nebula_chain_link(
-            &chain,
-            digest::NEBULA_CHAIN_MEM_TAG,
-            &digest::nebula_mem_leaf(&commitment),
-        );
+        #[cfg(feature = "perf-timers")]
+        {
+            commit_elapsed += phase_started.elapsed();
+        }
+        #[cfg(feature = "perf-timers")]
+        let phase_started = std::time::Instant::now();
+        let leaf = if zero_lane {
+            *zero_leaf.get_or_insert_with(|| digest::nebula_mem_leaf(&commitment))
+        } else {
+            digest::nebula_mem_leaf(&commitment)
+        };
+        #[cfg(feature = "perf-timers")]
+        {
+            leaf_elapsed += phase_started.elapsed();
+        }
+        #[cfg(feature = "perf-timers")]
+        let phase_started = std::time::Instant::now();
+        chain = digest::nebula_chain_link(&chain, digest::NEBULA_CHAIN_MEM_TAG, &leaf);
+        #[cfg(feature = "perf-timers")]
+        {
+            link_elapsed += phase_started.elapsed();
+        }
     }
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[nebula-d-init] steps={} zero_lanes={} nonzero_lanes={} cells={:.3}s encode={:.3}s commit={:.3}s leaf={:.3}s link={:.3}s total={:.3}s",
+        params.steps_per_segment(),
+        zero_lanes,
+        params.steps_per_segment() - zero_lanes,
+        cells_elapsed.as_secs_f64(),
+        encode_elapsed.as_secs_f64(),
+        commit_elapsed.as_secs_f64(),
+        leaf_elapsed.as_secs_f64(),
+        link_elapsed.as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+    );
     Ok(chain)
 }
 

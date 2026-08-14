@@ -1,7 +1,7 @@
 import Nightstream.Implementation.R1CS.Canonical.Poseidon2CanonicalConstants
 import Nightstream.Implementation.R1CS.Canonical.Poseidon2Duplex
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.PaddedRowIdentity
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Polynomial.Semantics
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Polynomial.Semantics
 import Nightstream.Implementation.Rust.PiCcsExecution.CachedDuplex
 import Nightstream.Implementation.Rust.PiCcsExecution.Receipt
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
@@ -42,13 +42,13 @@ open Nightstream.Implementation.R1CS.Canonical.Poseidon2Core
 
 namespace SelectedPolynomial
 
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial
 
 /-- Exact paper shape selected for the production rectangular relation. -/
 def shape : Shape :=
   Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentity.shape
 
-/-- The exact 66-term polynomial with the ignored identity-matrix input,
+/-- The exact 74-term polynomial with the ignored identity-matrix input,
 lifted coefficient-by-coefficient into the quadratic extension. -/
 def polynomial : ConstraintPolynomial K shape.matrixCount :=
   ConstraintPolynomialLift.liftConstraintPolynomial K.embed
@@ -63,7 +63,7 @@ def encodeTerm (term : Monomial F 13) : List Nat :=
 
 /-- Exact compact statement absorption emitted by Rust for this polynomial. -/
 def statementFields : List Nat :=
-  [41, 24, 1, 14, 14, 54, 8, 66] ++
+  [41, 24, 1, 14, 14, 54, 8, 74] ++
     Semantics.terms.flatMap encodeTerm ++ [47]
 
 end SelectedPolynomial

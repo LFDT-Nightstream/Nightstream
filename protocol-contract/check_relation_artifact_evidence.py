@@ -176,7 +176,8 @@ def tracked_source_paths(root: Path) -> list[str]:
         check=True,
         capture_output=True,
     )
-    return sorted({part.decode() for part in result.stdout.split(b"\0") if part})
+    paths = {part.decode() for part in result.stdout.split(b"\0") if part}
+    return sorted(relative for relative in paths if (root / relative).is_file())
 
 
 def source_tree_hash(root: Path) -> str:

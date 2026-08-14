@@ -1,0 +1,15 @@
+import Nightstream.Assurance.Nebula.ProductionPaperReleasePipelineCountermodels
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductionPaperReleasePipelineCountermodels
+
+open Nightstream.Assurance.Nebula.ProductionPaperReleasePipelineCountermodels
+
+#check decodeFailureStages
+#check stages_type_does_not_prove_extraction
+#check ignoresAllStages
+#check ignoresAllStages_has_trace
+#check ignoresAllStages_refines_every_accepted
+
+end tests.NebulaProductionPaperReleasePipelineCountermodels

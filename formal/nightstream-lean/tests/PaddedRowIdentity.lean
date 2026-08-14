@@ -15,14 +15,13 @@ namespace tests.PaddedRowIdentity
 
 open Nightstream.Implementation.R1CS
 open Nightstream.SuperNeo.Concrete
-open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open Nightstream.SuperNeo.InteractiveReduction.FiniteUniform
+open Nightstream.Implementation.R1CS.SelectiveCcs.LeanCompiler
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.LeanCompiler
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentity
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentitySoundness
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentitySecurity

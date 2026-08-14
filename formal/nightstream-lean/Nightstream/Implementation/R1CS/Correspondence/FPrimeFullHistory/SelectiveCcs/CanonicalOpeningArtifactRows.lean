@@ -114,7 +114,7 @@ private def polynomialValue (values : List Nat) : Nat :=
     0
 
 /-- Exact residual obtained from the generated row ports and generated
-66-term selective polynomial. -/
+74-term selective polynomial. -/
 def artifactResidual (assignment : Nat → Nat) (row : Nat) : Nat :=
   polynomialValue (rowValues assignment row)
 
@@ -132,7 +132,7 @@ theorem artifact_port_arity_exact :
   decide
 
 theorem artifact_polynomial_term_count_exact :
-    ShiftedTernarySelectiveArtifact.polynomialTerms.length = 66 := by
+    ShiftedTernarySelectiveArtifact.polynomialTerms.length = 74 := by
   decide
 
 theorem artifact_exponent_arity_exact :

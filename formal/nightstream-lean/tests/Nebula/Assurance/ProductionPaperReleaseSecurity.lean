@@ -1,0 +1,22 @@
+import Nightstream.Assurance.Nebula.ProductionPaperReleaseSecurity
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductionPaperReleaseSecurity
+
+open Nightstream.Assurance.Nebula.ProductionPaperReleaseSecurity
+
+#check ProbabilityModel
+#check DeterministicClosure
+#check SetupFamily
+#check ComputationalAny
+#check anyBad_implies_computationalAny
+#check computationalAny_implies_anyBad
+#check ComputationalBounds
+#check computationalAny_probability_le_total
+#check FalseAcceptance
+#check falseAcceptance_implies_computationalAny
+#check falseAcceptance_probability_lt_target96
+#check generated_falseAcceptance_probability_lt_target96
+
+end tests.NebulaProductionPaperReleaseSecurity

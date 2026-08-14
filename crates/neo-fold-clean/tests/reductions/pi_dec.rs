@@ -9,14 +9,17 @@ mod support;
 
 use std::collections::BTreeSet;
 
-use neo_ccs::Mat;
+use neo_ccs::{CcsMatrix, CcsStructure, Mat, SparsePoly};
 use neo_fold_clean::engine::r1cs_circuit::builder::{
     PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit,
 };
 use neo_fold_clean::engine::r1cs_circuit::{CanonicalSparseRow, R1csBuilder};
 use neo_fold_clean::engine::transcript::Transcript;
-use neo_fold_clean::frontends::r1cs_f_prime::lower_field_r1cs;
+use neo_fold_clean::frontends::r1cs_f_prime::{
+    build_multi_branch_selective_low_norm_r1cs_with_alignment, lower_field_r1cs,
+};
 use neo_fold_clean::paper::construction2::RunningInstance;
+use neo_fold_clean::paper::digest::{strict_radix_accumulator_family_digest, AccumulatorHandle};
 use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
 use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::pi_dec;
@@ -25,6 +28,7 @@ use neo_fold_clean::paper::reductions::pi_dec_circuit::{
     enforce_x_bitness, stage as pi_dec_stage,
 };
 use neo_fold_clean::paper::reductions::pi_rlc_circuit::stage as pi_rlc_stage;
+use neo_fold_clean::{preprocess, Params, Preprocessing};
 use neo_math::ring::D;
 use neo_math::{F, K};
 use p3_field::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
@@ -376,6 +380,163 @@ fn pi_dec_strict_rejects_recomposition_preserving_mixed_binary_signs() {
     assert!(
         !builder.is_satisfied(),
         "strict Π_DEC accepted a recomposition-valid noncanonical binary split"
+    );
+}
+
+#[test]
+fn pi_dec_strict_radix_four_accepts_the_native_canonical_split() {
+    let (prep, proof) = drive_radix_four_nifs(0x4401);
+    assert_eq!(
+        proof.pi_dec.children.len(),
+        7,
+        "radix-four profile must emit seven children"
+    );
+
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &proof.pi_rlc.combined, &proof.pi_dec.children);
+    let receipt = enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict radix-four PiDEC");
+
+    assert_eq!(receipt.program().plan().radix(), 4);
+    assert_eq!(receipt.program().plan().child_count(), 7);
+    assert!(
+        builder.is_satisfied(),
+        "radix-four circuit rejected the native split at row {:?}",
+        builder.first_unsatisfied_row()
+    );
+    let snapshot = builder.snapshot();
+    for relative_row in 0..receipt.program().row_count() {
+        let physical_row = receipt
+            .physical_row(relative_row)
+            .expect("radix-four physical row");
+        let actual = CanonicalSparseRow {
+            a: snapshot.a_row(physical_row).to_vec(),
+            b: snapshot.b_row(physical_row).to_vec(),
+            c: snapshot.c_row(physical_row).to_vec(),
+        };
+        assert_eq!(receipt.actual_row_at(relative_row), Some(actual));
+    }
+}
+
+#[test]
+fn radix_four_accumulator_handle_selects_the_compact_family_codec() {
+    let (_prep, proof) = drive_radix_four_nifs(0x4405);
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+    parent.X.set(0, 0, F::from_u64(2));
+    let split =
+        neo_reductions::common::split_b_matrix_k(&parent.X, children.len(), 4).expect("radix-four canonical split");
+    for (child, expected_x) in children.iter_mut().zip(split) {
+        child.X = expected_x;
+    }
+
+    let compact = strict_radix_accumulator_family_digest(4, &children, &parent)
+        .expect("native radix-four family must pass canonical recomposition");
+    let handle = AccumulatorHandle::from_running_parts(4, &children, Some(&parent));
+
+    assert_eq!(handle.digest_fields(), compact);
+    assert_ne!(handle, AccumulatorHandle::from_claims(&children));
+    assert!(
+        strict_radix_accumulator_family_digest(2, &children, &parent).is_none(),
+        "the verifier radix must control canonical child recomposition"
+    );
+}
+
+#[test]
+fn pi_dec_strict_radix_four_rejects_a_mixed_sign_recomposition_alias() {
+    let (prep, proof) = drive_radix_four_nifs(0x4402);
+    let mut parent = proof.pi_rlc.combined;
+    let mut children = proof.pi_dec.children;
+
+    parent.X.set(0, 0, F::ONE);
+    for child in &mut children {
+        child.X.set(0, 0, F::ZERO);
+    }
+    children[0].X.set(0, 0, F::ZERO - F::from_u64(3));
+    children[1].X.set(0, 0, F::ONE);
+
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &parent, &children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict radix-four PiDEC");
+    assert!(
+        !builder.is_satisfied(),
+        "radix-four PiDEC accepted -3 + 4·1 as the canonical split of one"
+    );
+}
+
+#[test]
+fn pi_dec_strict_radix_four_rejects_a_rewitnessed_limb() {
+    let (prep, proof) = drive_radix_four_nifs(0x4403);
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &proof.pi_rlc.combined, &proof.pi_dec.children);
+    let receipt = enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict radix-four PiDEC");
+    assert!(builder.is_satisfied(), "baseline radix-four witness must satisfy");
+
+    let canonical_limb = receipt
+        .program()
+        .limb_canonical_column(0, 0, 0)
+        .expect("first radix-four limb");
+    let physical_limb = receipt
+        .columns()
+        .actual_column(canonical_limb)
+        .expect("mapped first radix-four limb");
+    builder.tamper_witness(physical_limb, builder.witness()[physical_limb] + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "radix-four PiDEC accepted a rewitnessed signed limb"
+    );
+}
+
+#[test]
+fn pi_dec_radix_four_selective_lowering_uses_two_exact_signed_limbs() {
+    let (prep, proof) = drive_radix_four_nifs(0x4404);
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_dec_inputs(&mut builder, &proof.pi_rlc.combined, &proof.pi_dec.children);
+    enforce_dec_v_strict(&mut builder, &prep.params, &wires).expect("strict radix-four PiDEC");
+    let (shape, assignment) = lower_field_r1cs(builder, &[])
+        .expect("lower radix-four source R1CS")
+        .into_parts();
+    let trace = shape.pi_dec_strict_audits()[0].x_radix_four_decompositions[0];
+
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(
+        &[shape.clone(), shape.clone()],
+        0,
+        D,
+        shape.m_in % D,
+    )
+    .expect("compile radix-four selective relation");
+    assert_eq!(relation.field_slot(0, trace.value_col), None);
+    assert!(trace.limb_cols.iter().all(|&column| relation
+        .field_slot(0, column)
+        .is_some_and(|slot| slot.1 == 1)));
+    let encoded = relation
+        .encode(0, &assignment)
+        .expect("encode radix-four assignment");
+    assert!(relation.is_satisfied(&encoded), "honest compact radix-four assignment");
+
+    let mut invalid_assignment = assignment.clone();
+    invalid_assignment[trace.limb_cols[0]] = F::from_u64(2);
+    let invalid = relation
+        .encode(0, &invalid_assignment)
+        .expect("encode hostile radix-four limb");
+    assert!(
+        !relation.is_satisfied(&invalid),
+        "joint norm must reject a non-unit limb"
+    );
+
+    let mut drifted = shape.clone();
+    let csc = match &mut drifted.a {
+        CcsMatrix::Csc(csc) | CcsMatrix::CscWithSeededPhi81 { csc, .. } => csc,
+        other => panic!("unexpected radix-four A matrix: {other:?}"),
+    };
+    let entry = csc
+        .column_range(trace.value_col)
+        .find(|&entry| csc.row_index(entry) == trace.row)
+        .expect("radix-four value coefficient");
+    csc.vals[entry] += F::ONE;
+    assert!(
+        build_multi_branch_selective_low_norm_r1cs_with_alignment(&[drifted.clone(), drifted], 0, D, shape.m_in % D,)
+            .is_err(),
+        "selective lowering accepted a drifted decomposition row"
     );
 }
 
@@ -1070,6 +1231,44 @@ fn drive_nifs(seed: u64) -> (nifs::NifsProof, Vec<neo_fold_clean::CcsInstance>) 
     (proof, claims)
 }
 
+fn drive_radix_four_nifs(seed: u64) -> (Preprocessing, nifs::NifsProof) {
+    let inner = neo_params::NeoParams::new(
+        neo_params::goldilocks_paper_b2::Q,
+        neo_params::goldilocks_paper_b2::ETA as u32,
+        neo_params::goldilocks_paper_b2::D as u32,
+        neo_params::goldilocks_paper_b2::KAPPA,
+        neo_params::goldilocks_paper_b2::M,
+        4,
+        7,
+        neo_params::goldilocks_paper_b2::T,
+        neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
+        114,
+    )
+    .expect("radix-four test profile");
+    let params = Params::test_only_from_neo_params(inner);
+    let structure =
+        CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, vec![])).expect("toy radix-four CCS structure");
+    support::install_ajtai_module(&params, &structure);
+    let prep = preprocess(params, structure, Some(D)).expect("radix-four preprocessing");
+    let fresh = vec![support::toy_instance(&prep, seed)];
+    let running = RunningInstance::default();
+    let mut transcript = Transcript::session();
+    let (_, proof) = nifs::prove(
+        &mut transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        fresh,
+        &running,
+    )
+    .expect("radix-four NIFS proof");
+    (prep, proof)
+}
+
 fn remap_pi_dec_commitment_for_test(audit: &mut PiDecCommitmentAudit, old_to_new: &[usize]) {
     audit.d_col = old_to_new[audit.d_col];
     audit.kappa_col = old_to_new[audit.kappa_col];
@@ -1114,5 +1313,9 @@ fn remap_pi_dec_audit_for_test(audit: &mut PiDecStrictAudit, old_to_new: &[usize
     }
     for pair in &mut audit.x_sign_traces {
         *pair = pair.map(|col| old_to_new[col]);
+    }
+    for trace in &mut audit.x_radix_four_decompositions {
+        trace.value_col = old_to_new[trace.value_col];
+        trace.limb_cols = trace.limb_cols.map(|col| old_to_new[col]);
     }
 }

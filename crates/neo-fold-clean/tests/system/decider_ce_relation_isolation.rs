@@ -831,6 +831,7 @@ fn non_trivial_nebula_fixture() -> NonTrivialFixture {
         steps_per_segment: 1,
         seg_max: 1,
         stacks: StackShape::NONE,
+        initial_semantic_state_digest: [F::ZERO; 4],
         plan_digest: [F::ZERO; 4],
         d_init: [F::ZERO; 4],
     });

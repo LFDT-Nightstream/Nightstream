@@ -159,6 +159,7 @@ fn matrix_triplets(matrix: &CcsMatrix<F>) -> Result<Vec<(usize, usize, F)>, Look
             Ok(out)
         }
         CcsMatrix::CscWithSeededPhi81 { .. } => Err(LookupCircuitError::CompactBaseMatrix),
+        CcsMatrix::VerifierArtifact { .. } => Err(LookupCircuitError::VerifierArtifactBaseMatrix),
     }
 }
 
@@ -168,6 +169,8 @@ pub enum LookupCircuitError {
     WidthCount { actual: usize, expected: usize },
     #[error("lookup relation cannot extend a compact seeded base matrix")]
     CompactBaseMatrix,
+    #[error("lookup relation cannot extend a verifier-artifact matrix header")]
+    VerifierArtifactBaseMatrix,
     #[error("lookup relation synthesis failed: {0}")]
     Synthesis(String),
     #[error("lookup relation row {row} is unsatisfied")]

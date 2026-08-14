@@ -36,8 +36,8 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Interpreter
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Decoder
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.PolynomialGating
 
 /-- Exact coefficient shape required for one of the two selector gate classes.

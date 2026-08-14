@@ -143,6 +143,36 @@ fn active_strict_pi_dec_source_rows_have_exact_layout_and_census() {
 }
 
 #[test]
+fn fixed_point_constraint_source_audit_retains_all_three_exact_arms() {
+    let params = tiny_params();
+    let app = one_product_r1cs();
+    let plan = make_tiny_lifecycle_plan(app.m(), app.m_in);
+    let audit = R1csIvcRelation::audit_fixed_point_constraint_sources(&params, &app.into(), &plan)
+        .expect("audit fixed-point constraint sources");
+    let final_round = audit
+        .fixed_point()
+        .rounds()
+        .last()
+        .expect("fixed-point discovery has one round");
+
+    for branch in [
+        R1csIvcBranch::Base,
+        R1csIvcBranch::BootstrapRecursive,
+        R1csIvcBranch::Recursive,
+    ] {
+        let arm = audit.arm(branch);
+        let expected = final_round.arms[branch as usize];
+        assert_eq!(
+            (arm.n, arm.m, arm.m_in),
+            (expected.rows, expected.columns, expected.public_columns)
+        );
+        assert!(!arm.row_family_ranges().is_empty());
+        arm.validate_shape()
+            .expect("audited source arm has valid sparse shape");
+    }
+}
+
+#[test]
 #[ignore = "full fixed-point selective term projection exceeds the unconditional five-minute test cap; use the source audit for ordinary regression"]
 fn diagnostic_active_strict_pi_dec_selective_rows_have_exact_provenance() {
     let params = tiny_params();

@@ -60,7 +60,8 @@ use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 use crate::engine::r1cs_circuit::boolean;
 use crate::engine::r1cs_circuit::builder::{
-    CenteredUnitTrace, PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit,
+    CenteredUnitTrace, PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecRadixFourDecompositionAudit,
+    PiDecStrictAudit,
 };
 use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{
@@ -323,16 +324,15 @@ pub fn enforce_r_consistency(builder: &mut R1csBuilder, wires: &DecInputWires) -
     Ok(())
 }
 
-/// Strict Π_DEC.V. At the active binary radix this mirrors native
-/// `verify_dec_public`; wider radices retain the legacy centered-alphabet
-/// schedule and are not claimed as exact native refinement.
+/// Strict Π_DEC.V. Radix two uses one signed bit per child. Radix four uses
+/// two signed bits per child and constrains `digit = low + 2·high`. Both forms
+/// mirror the common-sign split computed by native `verify_dec_public`.
 ///
 /// Composes:
 ///   1. Commitment/X recomposition and semantic-prefix `y_ring`
 ///      recomposition.
 ///   2. [`enforce_r_consistency`] — `parent.r == child_i.r` for all `i`.
-///   3. [`enforce_child_x_canonical_split`] — exact uniform-sign binary
-///      digits for `b = 2`; the prior centered alphabet for `b > 2`.
+///   3. Exact common-sign digits for `b = 2` or `b = 4`.
 ///   4. [`enforce_ct_consistency`] — every claim's cached `ct[j]` is the
 ///      lane-0 K-element of `y_ring[j]`.
 ///   5. `y_ring[D..] == 0` — the padded CE representation is canonical.
@@ -349,10 +349,10 @@ pub fn enforce_dec_v_strict(
     pp: &Params,
     wires: &DecInputWires,
 ) -> Result<PiDecCanonicalXReceipt, Error> {
-    if pp.b() != 2 {
+    if !matches!(pp.b(), 2 | 4) {
         return Err(Error::ShapeMismatch {
-            what: "strict PiDEC canonical-X radix",
-            expected: 2,
+            what: "strict PiDEC canonical-X radix (two or four)",
+            expected: 4,
             got: pp.b() as usize,
             idx: 0,
         });
@@ -373,7 +373,18 @@ pub fn enforce_dec_v_strict(
     builder.record_row_family(stage::R, phase_start);
 
     let phase_start = builder.rows();
-    let x_sign_traces = enforce_child_x_canonical_split(builder, pp, wires)?;
+    let (x_sign_traces, radix_four_limb_traces, x_radix_four_decompositions) = match pp.b() {
+        2 => (
+            enforce_binary_child_x_canonical_split(builder, wires)?,
+            None,
+            Vec::new(),
+        ),
+        4 => {
+            let (signs, limbs, decompositions) = enforce_radix_four_child_x_canonical_split(builder, wires)?;
+            (signs, Some(limbs), decompositions)
+        }
+        _ => unreachable!("radix checked above"),
+    };
     builder.record_row_family(stage::ALPHABET, phase_start);
     let x_canonicality_rows = phase_start..builder.rows();
 
@@ -406,8 +417,9 @@ pub fn enforce_dec_v_strict(
         parent: pi_dec_claim_audit(&wires.parent),
         children: wires.children.iter().map(pi_dec_claim_audit).collect(),
         x_sign_traces: x_sign_trace_columns.clone(),
+        x_radix_four_decompositions,
     });
-    let program = canonical_x_program(wires)?;
+    let program = canonical_x_program(wires, pp.b())?;
     if x_recomposition.parent_columns.len() != program.plan().logical_coordinates()
         || x_recomposition.child_columns.len() != program.plan().child_count()
         || x_recomposition
@@ -424,6 +436,13 @@ pub fn enforce_dec_v_strict(
     canonical_to_actual.extend(x_recomposition.parent_columns);
     canonical_to_actual.extend(x_recomposition.child_columns.into_iter().flatten());
     canonical_to_actual.extend(x_sign_trace_columns.into_iter().flatten());
+    if let Some(limb_traces) = radix_four_limb_traces {
+        for child in 0..program.plan().child_count() {
+            for limb in 0..program.plan().limbs_per_child() {
+                canonical_to_actual.extend(limb_traces.iter().map(|active| active[child][limb].col()));
+            }
+        }
+    }
     let columns =
         PiDecCanonicalXColumnMap::new(program, canonical_to_actual).map_err(|error| Error::CanonicalX(error.into()))?;
     PiDecCanonicalXReceipt::new(program, strict_rows, x_recomposition_rows, x_canonicality_rows, columns)
@@ -643,8 +662,11 @@ fn enforce_active_x_combination(
     radix: u32,
 ) -> Result<ActiveXEmission, Error> {
     let active_cols = crate::paper::relations::superneo_public_x_cols(parent.m_in);
-    let program = (radix == 2)
-        .then(|| PiDecCanonicalXPlan::new(parent.x_rows, active_cols, children.len()).map(PiDecCanonicalXProgram::new))
+    let program = matches!(radix, 2 | 4)
+        .then(|| {
+            PiDecCanonicalXPlan::new_with_radix(parent.x_rows, active_cols, children.len(), radix)
+                .map(PiDecCanonicalXProgram::new)
+        })
         .transpose()
         .map_err(|error| Error::CanonicalX(error.into()))?;
     let row_start = builder.rows();
@@ -685,9 +707,9 @@ fn enforce_active_x_combination(
     })
 }
 
-fn canonical_x_program(wires: &DecInputWires) -> Result<PiDecCanonicalXProgram, Error> {
+fn canonical_x_program(wires: &DecInputWires, radix: u32) -> Result<PiDecCanonicalXProgram, Error> {
     let active_columns = crate::paper::relations::superneo_public_x_cols(wires.parent.m_in);
-    PiDecCanonicalXPlan::new(wires.parent.x_rows, active_columns, wires.children.len())
+    PiDecCanonicalXPlan::new_with_radix(wires.parent.x_rows, active_columns, wires.children.len(), radix)
         .map(PiDecCanonicalXProgram::new)
         .map_err(|error| Error::CanonicalX(error.into()))
 }
@@ -696,7 +718,7 @@ fn enforce_binary_child_x_canonical_split(
     builder: &mut R1csBuilder,
     wires: &DecInputWires,
 ) -> Result<Vec<[Var; 2]>, Error> {
-    let program = canonical_x_program(wires)?;
+    let program = canonical_x_program(wires, 2)?;
     let plan = program.plan();
     let mut traces = Vec::with_capacity(plan.logical_coordinates());
     for x_row in 0..plan.x_rows() {
@@ -746,6 +768,94 @@ fn enforce_binary_child_x_canonical_split(
         }
     }
     Ok(traces)
+}
+
+type RadixFourLimbTraces = Vec<Vec<[Var; 2]>>;
+
+fn enforce_radix_four_child_x_canonical_split(
+    builder: &mut R1csBuilder,
+    wires: &DecInputWires,
+) -> Result<
+    (
+        Vec<[Var; 2]>,
+        RadixFourLimbTraces,
+        Vec<PiDecRadixFourDecompositionAudit>,
+    ),
+    Error,
+> {
+    let program = canonical_x_program(wires, 4)?;
+    let plan = program.plan();
+    let mut signs = Vec::with_capacity(plan.logical_coordinates());
+    let mut limbs = Vec::with_capacity(plan.logical_coordinates());
+    for x_row in 0..plan.x_rows() {
+        for active_column in 0..plan.active_columns() {
+            let lane = x_row * wires.parent.x_cols + active_column;
+            let digits = wires
+                .children
+                .iter()
+                .map(|child| child.x[lane])
+                .collect::<Vec<_>>();
+            let sign_value = radix_four_sign_witness(builder, &digits);
+            let sign = builder.alloc(sign_value);
+            let product = builder.alloc((sign_value + F::ONE) * sign_value);
+            signs.push([sign, product]);
+            limbs.push(
+                digits
+                    .iter()
+                    .map(|&digit| {
+                        let values = radix_four_limb_witness(builder, digit, sign_value);
+                        [builder.alloc(values[0]), builder.alloc(values[1])]
+                    })
+                    .collect::<Vec<_>>(),
+            );
+        }
+    }
+
+    let mut decompositions = Vec::with_capacity(plan.logical_coordinates() * plan.child_count());
+    for (active_index, [sign, product]) in signs.iter().copied().enumerate() {
+        let x_row = active_index / plan.active_columns();
+        let active_column = active_index % plan.active_columns();
+        let lane = x_row * wires.parent.x_cols + active_column;
+        let child_columns = wires
+            .children
+            .iter()
+            .map(|child| child.x[lane].col())
+            .collect::<Vec<_>>();
+        let limb_columns = limbs[active_index]
+            .iter()
+            .map(|pair| pair.map(Var::col))
+            .collect::<Vec<_>>();
+        let centered_start = builder.rows();
+        let rows_per_coordinate = 2 + 3 * plan.child_count();
+        for relative_row in 0..rows_per_coordinate {
+            let row = builder.rows();
+            let compiled = program
+                .canonicality_row_radix_four(relative_row, sign.col(), product.col(), &child_columns, &limb_columns)
+                .ok_or_else(|| Error::CanonicalX("radix-four PiDEC compiler rejected its live arity".into()))?;
+            enforce_compiled_row(builder, &compiled);
+            if relative_row == 1 {
+                builder.record_centered_unit_trace(CenteredUnitTrace {
+                    row_start: centered_start,
+                    row_end: builder.rows(),
+                    allocated_columns: vec![product.col()],
+                    value_col: sign.col(),
+                });
+            }
+            if relative_row >= 2 && (relative_row - 2) % 3 == 2 {
+                let child = (relative_row - 2) / 3;
+                decompositions.push(PiDecRadixFourDecompositionAudit {
+                    row,
+                    value_col: child_columns[child],
+                    limb_cols: limb_columns[child],
+                });
+            }
+        }
+        for pair in &limbs[active_index] {
+            builder.record_centered_unit(pair[0]);
+            builder.record_centered_unit(pair[1]);
+        }
+    }
+    Ok((signs, limbs, decompositions))
 }
 
 fn enforce_compiled_row(builder: &mut R1csBuilder, row: &CanonicalSparseRow) {
@@ -900,6 +1010,42 @@ fn binary_sign_witness(builder: &R1csBuilder, digits: &[Var]) -> F {
         .find(|value| *value != F::ZERO)
         .filter(|value| *value == F::ONE || *value == negative_one)
         .unwrap_or(F::ZERO)
+}
+
+fn radix_four_sign_witness(builder: &R1csBuilder, digits: &[Var]) -> F {
+    let negative_one = F::ZERO - F::ONE;
+    digits
+        .iter()
+        .map(|digit| builder.witness()[digit.col()])
+        .find(|value| *value != F::ZERO)
+        .map(|value| {
+            if value.as_canonical_u64() <= 3 {
+                F::ONE
+            } else if (-value).as_canonical_u64() <= 3 {
+                negative_one
+            } else {
+                F::ZERO
+            }
+        })
+        .unwrap_or(F::ZERO)
+}
+
+fn radix_four_limb_witness(builder: &R1csBuilder, digit: Var, sign: F) -> [F; 2] {
+    let value = builder.witness()[digit.col()];
+    let magnitude = if sign == F::ONE {
+        value.as_canonical_u64()
+    } else if sign == F::ZERO - F::ONE {
+        (-value).as_canonical_u64()
+    } else {
+        0
+    };
+    if magnitude > 3 {
+        return [F::ZERO; 2];
+    }
+    [
+        if magnitude & 1 == 1 { sign } else { F::ZERO },
+        if magnitude & 2 == 2 { sign } else { F::ZERO },
+    ]
 }
 
 fn enforce_centered_alphabet(builder: &mut R1csBuilder, v: Var, b: u32) -> Vec<Var> {

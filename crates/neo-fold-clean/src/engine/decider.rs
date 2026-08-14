@@ -125,6 +125,7 @@ fn f_prime_state_audit_columns(state: &FPrimeStateWires) -> Vec<usize> {
     columns.extend(state.acc_digest.map(Var::col));
     columns.extend(state.public_trace.map(Var::col));
     if let Some(nebula) = state.nebula {
+        columns.extend(nebula.program_binding_digest.map(Var::col));
         columns.extend([
             nebula.open.col(),
             nebula.seg_idx.col(),
@@ -990,7 +991,7 @@ fn emit_terminal_fold(
     // parent cache but does not make it injective in its child vector.
     let accumulator_start = builder.rows();
     let post_fold_acc_digest =
-        enforce_terminal_output_acc_digest(builder, &nifs_outputs.parent, &nifs_outputs.children)
+        enforce_terminal_output_acc_digest(builder, prep.params.b(), &nifs_outputs.parent, &nifs_outputs.children)
             .map_err(|error| decider::Error::WalkFailed(format!("terminal output accumulator digest: {error}")))?;
     let terminal_children = nifs_outputs.children;
     builder.record_row_family("terminal.accumulator", accumulator_start);

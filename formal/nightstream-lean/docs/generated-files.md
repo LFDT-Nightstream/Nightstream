@@ -30,22 +30,27 @@ file without a live Rust path owner is stale and must be removed.
 | Selected-profile PiCCS execution receipt | `cargo test -p neo-fold-clean --lib --release pi_ccs_execution_receipt_matches_generated_lean` |
 | Small production NIFS receipt, claims, and Poseidon2 round traces | `cargo test -p neo-fold-clean --release --test nifs_production_golden_receipts` |
 | Canonical u64, increment, and addition | `gadgets_lean_artifact`, `gadgets_u64_increment_lean_artifact`, `gadgets_u64_add_lean_artifact` |
-| Seeded Phi81 and shifted ternary | `gadgets_seeded_phi81_lean_artifact`, `gadgets_shifted_ternary_lean_artifact` |
+| Seeded Phi81, shifted ternary, and centered septenary boundary cases | `gadgets_seeded_phi81_lean_artifact`, `gadgets_shifted_ternary_lean_artifact`, and the `centered_septenary_rust_encoder_artifact_matches_committed_file` library test |
 | Poseidon2 permutation | `gadgets_poseidon2_lean_artifact` |
 | F-prime counter, encoding, state links, terminal link, base state, chunk digest, and base program | The matching `gadgets_f_prime_*_lean_artifact` targets |
+| Nebula base-lane program binding and its exact Poseidon2 sponge trace | `gadgets_nebula_program_binding_lean_artifact` |
 | PiRLC packed-Mod-5 and aggregate-acceptance leaves | `gadgets_packed_mod5_lean_artifact`, `gadgets_aggregate_acceptance_lean_artifact` |
 | PiRLC projection boundary | `gadgets_pi_rlc_projection_boundary` |
 | Recursive verifier manifest, transcript layout, source roles, and output-authority S-box census | `gadgets_f_prime_recursive_manifest` |
 | Isolated SumCheck compiler row and both one-joint production call sites | `gadgets_nifs_compiler_conformance` |
 | Selective 270-coordinate carrier and selector coverage | `f_prime_selective_snapshot` |
+| Production-width radix-four selector, source-stage, centered-domain rows, and first-accepted selection coverage | `neo-wasm` target `wasm_nebula_pipeline_profile`, test `radix_four::wasm_nebula_radix_four_candidate_census` |
+| Streaming F-prime verifier program | `neo-fold-clean` target `nebula_streaming_program`, test `production_streaming_program_matches_lean_artifact` |
+| Streaming F-prime claim-replay arms | `neo-fold-clean` target `nebula_streaming_claim_replay`, test `production_claim_replay_lean_artifact_is_current` |
 | Strict PiDEC source rows | `f_prime_pi_dec_source_lean_artifact` |
 | Canonical PiDEC X rows | `f_prime_pi_dec_canonical_x_lean_artifact` |
 | Native step, terminal link, and one-slot conformance records | `system_formal_conformance` |
 
 The selected full recursive circuit is checked by live Rust synthesis tests.
-There is no committed full-matrix Lean dump. Exact runtime synthesis is the
-Rust-conformant gate; the absence of a complete Lean matrix artifact remains a
-declared assurance boundary.
+The Nebula base-lane program-binding owner now has a complete exact-row
+artifact. There is no committed full-matrix artifact for the remaining
+recursive or terminal relation. Exact runtime synthesis is the Rust-conformant
+gate for those rows; their absence remains a declared assurance boundary.
 
 ## Required focused commands
 
@@ -74,6 +79,19 @@ cargo test -p neo-fold-clean --release \
 cargo test -p neo-fold-clean --release \
   --test f_prime_selective_snapshot \
   selective_snapshot_selector_gate_coverage_matches_final_matrices -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test nebula_streaming_program \
+  production_streaming_program_matches_lean_artifact -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test nebula_streaming_claim_replay \
+  production_claim_replay_lean_artifact_is_current -- --exact
+
+cargo test -p neo-wasm --release \
+  --test wasm_nebula_pipeline_profile --features perf-timers \
+  radix_four::wasm_nebula_radix_four_candidate_census \
+  -- --ignored --exact --nocapture
 ```
 
 ## Review workflow

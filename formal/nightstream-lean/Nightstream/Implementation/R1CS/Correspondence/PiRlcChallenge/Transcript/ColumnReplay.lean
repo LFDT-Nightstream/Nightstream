@@ -6,8 +6,9 @@ Column-level replay kernel for Poseidon2 transcript artifacts.
 
 Owns: a small physical sponge state containing eight column identifiers, the
 rate cursor, and positions in compact pin/call tables; executable consumption
-of pinned constants, authoritative external columns, and digest requests; and
-the matching value-level execution of the independent transcript machine.
+of pinned constants, authoritative external columns, digest requests, and the
+pending permutation at a Rust slice boundary; and the matching value-level
+execution of the independent transcript machine.
 
 Does not own: any protocol operation schedule, generated column or row,
 initial-state authority, digest-input authority, row satisfaction, native Rust
@@ -173,6 +174,25 @@ def execute
       let next ← step trace run operation
       execute trace next rest
 
+/-- Normalize one completed Rust `absorb_slice` boundary. Scalar absorption
+leaves a full rate cursor pending. Rust consumes that permutation before the
+slice call returns. -/
+def normalizeSlice
+    (trace : TranscriptCertificate.Trace) (run : Run) : Option Run :=
+  if _full : rate ≤ run.cursor.absorbed.val then do
+    let cursor ← permute trace run.cursor
+    pure { run with cursor := cursor }
+  else
+    some run
+
+/-- Execute scalar absorb operations and then apply the exact Rust slice
+boundary rule. -/
+def executeSlice
+    (trace : TranscriptCertificate.Trace) (run : Run)
+    (operations : List Operation) : Option Run := do
+  let next ← execute trace run operations
+  normalizeSlice trace next
+
 /-- Canonical value-level state represented by one physical column cursor. -/
 def decodeCursor
     (assignment : Nat → Nat) (canonical : CanonicalAssignment assignment)
@@ -223,6 +243,19 @@ def semanticExecute
   | run, operation :: rest =>
       semanticExecute assignment canonical
         (semanticStep assignment canonical run operation) rest
+
+/-- Value-level form of the Rust slice boundary. -/
+def semanticNormalizeSlice (run : SemanticRun) : SemanticRun :=
+  if rate ≤ run.state.absorbed.val then
+    { run with state := TranscriptMachine.permute run.state }
+  else
+    run
+
+def semanticExecuteSlice
+    (assignment : Nat → Nat) (canonical : CanonicalAssignment assignment)
+    (run : SemanticRun) (operations : List Operation) : SemanticRun :=
+  semanticNormalizeSlice
+    (semanticExecute assignment canonical run operations)
 
 /-! ## Value-level refinement -/
 
@@ -580,5 +613,71 @@ theorem execute_sound
                   stepExecution)
             _ = decodeRun assignment canonical result :=
               induction execution
+
+/-- The physical slice normalization consumes exactly the pending semantic
+permutation, if one exists. -/
+theorem normalizeSlice_sound
+    {trace : TranscriptCertificate.Trace}
+    {assignment : Nat → Nat}
+    (canonical : CanonicalAssignment assignment)
+    (one : assignment 0 = 1)
+    (accepted : trace.Accepted assignment)
+    {run next : Run}
+    (execution : normalizeSlice trace run = some next) :
+    semanticNormalizeSlice (decodeRun assignment canonical run) =
+      decodeRun assignment canonical next := by
+  unfold normalizeSlice at execution
+  split at execution
+  case isTrue full =>
+    cases permutationExecution : ColumnReplay.permute trace run.cursor with
+    | none => simp [permutationExecution] at execution
+    | some cursor =>
+        simp [permutationExecution] at execution
+        subst next
+        have refinement := permute_sound canonical one accepted
+          permutationExecution
+        unfold semanticNormalizeSlice
+        have decodedFull :
+            rate ≤ (decodeRun assignment canonical run).state.absorbed.val := by
+          simpa [decodeRun, decodeCursor] using full
+        simp only [decodedFull, ↓reduceIte]
+        apply semanticRunExt
+        · exact refinement
+        · rfl
+  case isFalse notFull =>
+    simp only [Option.some.injEq] at execution
+    subst next
+    unfold semanticNormalizeSlice
+    have decodedNotFull :
+        ¬ rate ≤ (decodeRun assignment canonical run).state.absorbed.val := by
+      simpa [decodeRun, decodeCursor] using notFull
+    simp only [decodedNotFull, ↓reduceIte]
+
+/-- A complete accepted physical slice refines the independent bulk semantic
+execution, including Rust's eager final permutation for exact rate multiples. -/
+theorem executeSlice_sound
+    {trace : TranscriptCertificate.Trace}
+    {assignment : Nat → Nat}
+    (canonical : CanonicalAssignment assignment)
+    (pinValuesCanonical : ConstantPins.ValuesCanonical trace.pins)
+    (one : assignment 0 = 1)
+    (accepted : trace.Accepted assignment)
+    {start result : Run} {operations : List Operation}
+    (execution : executeSlice trace start operations = some result) :
+    semanticExecuteSlice assignment canonical
+        (decodeRun assignment canonical start) operations =
+      decodeRun assignment canonical result := by
+  unfold executeSlice at execution
+  cases replayExecution : execute trace start operations with
+  | none => simp [replayExecution] at execution
+  | some next =>
+      simp only [replayExecution] at execution
+      have replayRefinement := execute_sound canonical pinValuesCanonical one
+        accepted replayExecution
+      have normalizationRefinement := normalizeSlice_sound canonical one
+        accepted execution
+      unfold semanticExecuteSlice
+      rw [replayRefinement]
+      exact normalizationRefinement
 
 end Nightstream.Implementation.R1CS.PiRlcChallenge.Transcript.ColumnReplay

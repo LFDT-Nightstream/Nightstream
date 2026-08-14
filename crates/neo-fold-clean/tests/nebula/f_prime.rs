@@ -1,5 +1,6 @@
 //! Authoritative `S_mem + F'` composition tests.
 
+use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
 
 #[path = "../support/mod.rs"]
@@ -43,6 +44,113 @@ fn relation_audit_guard() -> MutexGuard<'static, ()> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+fn print_width_owners(relation: &NebulaFPrimeRelation) {
+    let audit = relation
+        .low_norm_width_audit()
+        .expect("live relation has a width audit");
+    let snapshot = relation
+        .selective_snapshot()
+        .expect("live relation has a selective compiler snapshot");
+    eprintln!(
+        "FPRIME_CANONICAL_OPENINGS counts={:?}",
+        snapshot
+            .compiler_audit()
+            .canonical_openings()
+            .iter()
+            .map(Vec::len)
+            .collect::<Vec<_>>()
+    );
+    eprintln!(
+        "FPRIME_WIDTH total={} constant={} public={} selectors={} alignment={} shared_private={} branch_start={}",
+        audit.total_coordinates,
+        audit.constant_coordinate,
+        audit.public_coordinates,
+        audit.selector_coordinates,
+        audit.alignment_padding,
+        audit.shared_private_coordinates,
+        audit.branch_start,
+    );
+    for (arm_index, arm) in audit.arms.iter().enumerate() {
+        let mut by_path = BTreeMap::<&str, (usize, usize, usize, usize, usize, usize)>::new();
+        let mut by_component = BTreeMap::<&str, usize>::new();
+        for stage in &arm.physical_stages {
+            let entry = by_path.entry(stage.path).or_default();
+            entry.0 += stage.allocated_coordinates;
+            entry.1 += stage.source_column_count;
+            entry.2 += stage.eliminated_columns;
+            entry.3 += stage.unit_columns;
+            entry.4 += stage.balanced_columns;
+            entry.5 += stage.binary_columns;
+            let component = if stage.path.starts_with("nifs.pi_ccs") {
+                "pi_ccs"
+            } else if stage.path.starts_with("nifs.pi_rlc") {
+                "pi_rlc"
+            } else if stage.path.contains("pi_dec") {
+                "pi_dec"
+            } else if stage.path.starts_with("fprime.recursive.step.accumulator") {
+                "accumulator"
+            } else if stage.path.starts_with("fprime.recursive.step.nebula") {
+                "nebula"
+            } else {
+                "other"
+            };
+            *by_component.entry(component).or_default() += stage.allocated_coordinates;
+        }
+        let mut owners = by_path.into_iter().collect::<Vec<_>>();
+        owners.sort_unstable_by(|left, right| right.1 .0.cmp(&left.1 .0).then_with(|| left.0.cmp(right.0)));
+        eprintln!(
+            "FPRIME_WIDTH_ARM arm={} source_columns={} eliminated_columns={} unit_columns={} balanced_columns={} binary_columns={} retained_before_aliases={} decomposition_aliases={} equality_aliases={} branch_coordinates={} derived_product_sums={} derived_coordinates={} total_branch_coordinates={}",
+            arm_index,
+            arm.branch_source_columns,
+            arm.eliminated_columns,
+            arm.unit_columns,
+            arm.balanced_columns,
+            arm.binary_columns,
+            arm.retained_coordinates_before_aliases,
+            arm.decomposition_aliases,
+            arm.equality_aliases,
+            arm.branch_coordinates,
+            arm.derived_product_sums,
+            arm.derived_coordinates,
+            arm.total_branch_coordinates,
+        );
+        for (component, coordinates) in by_component {
+            eprintln!(
+                "FPRIME_WIDTH_COMPONENT arm={} coordinates={} component={}",
+                arm_index, coordinates, component,
+            );
+        }
+        eprintln!(
+            "FPRIME_WIDTH_TRACES arm={} poseidon2_permutations={} poseidon2_columns={} poseidon2_coordinates={} polynomial_columns={} polynomial_coordinates={} product_sum_columns={} product_sum_coordinates={} product_sum_internal_columns={} product_sum_internal_coordinates={}",
+            arm_index,
+            arm.traces.poseidon2_permutations,
+            arm.traces.poseidon2_columns,
+            arm.traces.poseidon2_coordinates,
+            arm.traces.polynomial_evaluation_columns,
+            arm.traces.polynomial_evaluation_coordinates,
+            arm.traces.product_sum_columns,
+            arm.traces.product_sum_coordinates,
+            arm.traces.product_sum_internal_columns,
+            arm.traces.product_sum_internal_coordinates,
+        );
+        for (path, (coordinates, source_columns, eliminated_columns, unit_columns, balanced_columns, binary_columns)) in
+            owners.into_iter().take(32)
+        {
+            eprintln!(
+                "FPRIME_WIDTH_OWNER arm={} coordinates={} source_columns={} eliminated_columns={} unit_columns={} balanced_columns={} binary_columns={} path={}",
+                arm_index,
+                coordinates,
+                source_columns,
+                eliminated_columns,
+                unit_columns,
+                balanced_columns,
+                binary_columns,
+                path,
+            );
+        }
+    }
+}
+
 fn fields(seed: u64) -> [F; 4] {
     std::array::from_fn(|index| F::from_u64(seed + index as u64))
 }
@@ -61,6 +169,23 @@ fn shape_test_params() -> neo_fold_clean::Params {
         20,
     )
     .expect("reduced fixed-point shape parameters");
+    neo_fold_clean::Params::test_only_from_neo_params(inner)
+}
+
+fn shape_test_radix_four_params() -> neo_fold_clean::Params {
+    let inner = neo_params::NeoParams::new(
+        neo_params::goldilocks_paper_b2::Q,
+        neo_params::goldilocks_paper_b2::ETA as u32,
+        neo_params::goldilocks_paper_b2::D as u32,
+        1,
+        1 << 25,
+        4,
+        7,
+        neo_params::goldilocks_paper_b2::T,
+        2,
+        20,
+    )
+    .expect("reduced radix-four fixed-point shape parameters");
     neo_fold_clean::Params::test_only_from_neo_params(inner)
 }
 
@@ -103,7 +228,7 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
     )
     .expect("canonical zero running accumulator");
     let output_acc =
-        AccumulatorHandle::from_running_parts(&zero_running.claims, zero_running.parent_authority.as_ref())
+        AccumulatorHandle::from_running_parts(2, &zero_running.claims, zero_running.parent_authority.as_ref())
             .digest_fields();
 
     let empty_acc = AccumulatorHandle::empty().digest_fields();
@@ -302,7 +427,24 @@ fn base_step_composes_current_s_mem_and_exports_one_relation() {
         .expect("one exported field relation must preserve composition");
 
     let (shape, field_assignment) = lowered.into_parts();
-    let fixed = NebulaFPrimeRelation::compile(&shape, &shape, &shape, &plan).expect("fixed-shape Nebula F'");
+    let fixed = NebulaFPrimeRelation::compile(&shape, &shape, &plan).expect("fixed-shape Nebula F'");
+    assert_eq!(
+        fixed
+            .low_norm_width_audit()
+            .expect("live relation has a width audit")
+            .selector_coordinates,
+        2,
+        "bootstrap and steady recursion must share one physical selector arm"
+    );
+    assert_eq!(
+        fixed
+            .encode(NebulaFPrimeBranch::BootstrapRecursive, &field_assignment)
+            .expect("bootstrap encoding"),
+        fixed
+            .encode(NebulaFPrimeBranch::Recursive, &field_assignment)
+            .expect("recursive encoding"),
+        "bootstrap and steady recursion must encode through the same relation arm"
+    );
     support::install_ajtai_module(&fixed_params, fixed.structure());
     let fixed_prep = preprocess(fixed_params, fixed.structure().clone(), Some(fixed.public_input_len()))
         .expect("fixed relation preprocessing")
@@ -369,6 +511,7 @@ fn reduced_profile_fixed_point_stabilizes() {
 
     let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)
         .expect("the verifier requires one stabilized, selectively lowered authoritative relation");
+    print_width_owners(&relation);
     eprintln!(
         "fixed-shape F' relation: {} coordinates, {} rows, {} matrices, degree {}",
         relation.structure().m,
@@ -391,9 +534,82 @@ fn reduced_profile_fixed_point_stabilizes() {
         "the first application matrix must not duplicate the virtual PiCCS identity matrix"
     );
     assert_eq!(
+        relation
+            .low_norm_width_audit()
+            .expect("live relation has a width audit")
+            .selector_coordinates,
+        2,
+        "bootstrap and steady recursion must share one physical selector arm"
+    );
+    assert_eq!(
+        relation
+            .low_norm_width_audit()
+            .expect("live relation has a width audit")
+            .arms
+            .len(),
+        2,
+        "the fixed relation must contain only its two distinct R1CS arms"
+    );
+    let recursive_width = &relation
+        .low_norm_width_audit()
+        .expect("live relation has a width audit")
+        .arms[1];
+    assert!(
+        !recursive_width.physical_stages.is_empty(),
+        "the composed recursive relation must retain complete physical-stage provenance"
+    );
+    assert_eq!(
+        recursive_width
+            .physical_stages
+            .iter()
+            .map(|stage| stage.allocated_coordinates)
+            .sum::<usize>(),
+        recursive_width.branch_coordinates,
+        "exclusive recursive stages must own every branch coordinate exactly once"
+    );
+    assert_eq!(
         (relation.structure().n, relation.structure().m),
-        (8_252_423, 15_319_206),
+        (4_113_183, 14_543_442),
         "reduced-profile rectangular verifier fixed point drifted"
+    );
+}
+
+#[test]
+fn reduced_radix_four_profile_fixed_point_stabilizes() {
+    let _guard = relation_audit_guard();
+    let nebula_params = NebulaParams::new(0, 0, 1, 2, 8).expect("one-step segment params");
+    let params = shape_test_radix_four_params();
+    let plan =
+        NebulaPlan::new(nebula_params, vec![7], [0xD8; 32], params.kappa() as usize).expect("tiny fixed-shape plan");
+
+    let relation = NebulaFPrimeRelation::compile_fixed_point(&params, &plan)
+        .expect("the radix-four verifier requires one stabilized authoritative relation");
+    print_width_owners(&relation);
+    eprintln!(
+        "radix-four fixed-shape F' relation: {} coordinates, {} rows, {} matrices, degree {}",
+        relation.structure().m,
+        relation.structure().n,
+        relation.structure().t(),
+        relation.structure().max_degree(),
+    );
+    assert_eq!((params.b(), params.k_rho(), params.big_b()), (4, 7, 16_384));
+    assert_eq!(
+        (
+            relation.structure().n,
+            relation.structure().m,
+            relation.structure().t(),
+            relation.structure().max_degree(),
+        ),
+        (4_818_211, 7_048_026, 13, 8),
+        "reduced radix-four fixed point drifted"
+    );
+    assert!(
+        relation.structure().n <= 1 << 24,
+        "radix-four rows exceed the target joint domain"
+    );
+    assert!(
+        relation.structure().m <= 1 << 24,
+        "radix-four columns exceed the target joint domain"
     );
 }
 
@@ -427,6 +643,21 @@ fn run_single_segment_append() {
     let plan = NebulaPlan::new(memory_params, rom.to_vec(), [0xD3; 32], params.kappa() as usize).expect("plan");
     let prep = NebulaFPrimePreprocessing::new_seeded(params, plan, 0xD3D3_0001).expect("fixed preprocessing");
     assert!(prep.prep.enforces_terminal_induction());
+    let relation_artifact = prep
+        .relation_artifact_json()
+        .expect("exact recursive relation artifact");
+    let relation_receipt = prep
+        .validate_relation_artifact_json(&relation_artifact)
+        .expect("validate exact recursive relation artifact");
+    assert_eq!(relation_receipt.logical_rows(), prep.relation().structure().n as u64);
+    assert_eq!(
+        relation_receipt.assignment_fields(),
+        prep.relation().structure().m as u64
+    );
+    assert_eq!(
+        relation_receipt.public_field_width(),
+        Some(prep.relation().public_input_len() as u64)
+    );
 
     let mut memory = Memory::new(memory_params, &rom).expect("memory");
     let trace0 = {

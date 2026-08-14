@@ -1,0 +1,26 @@
+import Nightstream.Implementation.Nebula.Production.FPrime.Lifetime.ExactLifetimeSoundness
+
+/-! Regression surface for the exponent-indexed F-prime soundness bridge. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductionPaperExactLifetimeSoundness
+
+open Nightstream.Implementation.Nebula.ProductionPaperExactLifetimeSoundness
+
+#check MemoryFailure
+#check Failure
+#check CertifiedExecution
+#check CertifiedExecution.baseChallengeAuthorityExact
+#check CertifiedExecution.exactClaimSchedule
+#check CertifiedExecution.fixedBranchSchedule
+#check CertifiedExecution.receiptsExact
+#check CertifiedExecution.consumerInvocationIndicesExact
+#check CertifiedExecution.fullStateContinuityExact
+#check CertifiedExecution.exactClaimOpenings
+#check CertifiedExecution.everyConsumedBundleOpens
+#check CertifiedExecution.everyConsumedClaimHolds
+#check exact_lifetime_implies_certificate_or_failure
+#check exact_lifetime_implies_execution_or_failure
+
+end tests.NebulaProductionPaperExactLifetimeSoundness

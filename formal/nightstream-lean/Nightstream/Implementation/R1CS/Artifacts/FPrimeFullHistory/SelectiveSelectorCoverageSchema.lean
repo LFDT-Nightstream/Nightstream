@@ -31,6 +31,7 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.
 inductive RawGatePort where
   | general
   | evaluation
+  | generalEvaluation
 deriving DecidableEq, Repr
 
 structure RawOwnerRun where

@@ -5,9 +5,29 @@
 //! directions in one wrapper makes Nebula's one-step delay explicit.
 
 mod chain;
+mod encoder_artifact;
+mod relation_artifact;
 mod shape;
+mod streaming_claim_replay;
+mod streaming_program;
 
-pub use chain::{NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreprocessing};
+pub use chain::{
+    NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreparedProfile, NebulaFPrimePreprocessing,
+};
+pub use encoder_artifact::{NebulaFPrimeEncoderArtifactReceipt, VerifiedNebulaFPrimeEncoderArtifact};
+#[doc(hidden)]
+pub use streaming_claim_replay::{
+    claim_replay_shape_audit_for_chunk_fields, production_claim_replay_shape_audit, NebulaFPrimeClaimReplayArmKind,
+    NebulaFPrimeClaimReplayError, NebulaFPrimeClaimReplayFieldArmAudit, NebulaFPrimeClaimReplayShapeAudit,
+    NebulaFPrimeClaimReplaySynthesis,
+};
+#[doc(hidden)]
+pub use streaming_program::{
+    NebulaFPrimeStreamingPhase, NebulaFPrimeStreamingProgramAudit, NebulaFPrimeStreamingRun,
+    NebulaFPrimeStreamingWorkItem,
+};
+
+use std::sync::Arc;
 
 use neo_math::D;
 use neo_math::F;
@@ -20,10 +40,10 @@ use crate::frontends::nebula::application::{enforce_memory_ports, ApplicationErr
 use crate::frontends::nebula::circuit::{SMemCircuit, SMemR1csError};
 use crate::frontends::nebula::plan::NebulaPlan;
 use crate::frontends::r1cs_f_prime::{
-    audit_multi_branch_selective_low_norm_width_with_alignment,
-    build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix,
-    prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix, FieldR1csLoweringError,
-    LowNormR1csError, MultiBranchLowNormR1cs, SelectiveLowNormShapeSummary, SelectiveLowNormWidthAudit, SparseR1cs,
+    audit_multi_branch_selective_low_norm_width_for_norm_base_with_alignment,
+    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, selective_polynomial,
+    FieldR1csLoweringError, LowNormEncoderArtifactError, LowNormR1csError, MultiBranchLowNormR1cs,
+    PreparedSelectiveLowNormR1cs, SelectiveLowNormShapeSummary, SelectiveLowNormWidthAudit, SparseR1cs,
 };
 use crate::lifecycle::Preprocessing;
 use crate::paper::construction2::NebulaConfig;
@@ -33,6 +53,7 @@ use crate::paper::f_prime::r1cs::{
     enforce_f_prime_base_step_circuit, enforce_f_prime_recursive_step_circuit, Error as FPrimeError, FPrimeBaseInputs,
     FPrimeRecursiveInputs, FPrimeStepConfig, FPrimeStepOutput,
 };
+use crate::paper::f_prime::stage as fprime_stage;
 use crate::paper::nifs::NifsFreshSignedUnitAssignment;
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs_circuit::PiCcsVerifierRelation;
@@ -73,6 +94,8 @@ pub enum NebulaFPrimeRelationError {
     #[error(transparent)]
     FieldR1cs(#[from] FieldR1csLoweringError),
     #[error(transparent)]
+    EncoderArtifact(#[from] LowNormEncoderArtifactError),
+    #[error(transparent)]
     Composition(#[from] NebulaFPrimeError),
     #[error("fixed Nebula F': {0}")]
     Geometry(String),
@@ -80,6 +103,8 @@ pub enum NebulaFPrimeRelationError {
     Unsatisfied { row: usize },
     #[error("fixed Nebula F': preprocessing was built for a different relation")]
     PreprocessingMismatch,
+    #[error("fixed Nebula F': program does not match the prepared relation profile: {0}")]
+    PreparedProfileMismatch(&'static str),
     #[error(
         "fixed Nebula F': relation-shape discovery entered a cycle after {rounds} rounds \
          (last verifier relation {input_rows}x{input_cols}, next {output_rows}x{output_cols})"
@@ -93,9 +118,9 @@ pub enum NebulaFPrimeRelationError {
     },
 }
 
-/// Branches of the single folded relation. Both recursive branches carry the
-/// fixed `k_rho` accumulator. Bootstrap-recursive has no delayed projection;
-/// steady recursive carries one.
+/// Lifecycle branches of the single folded relation. Both recursive branches
+/// use the same recursive circuit. Their different witness values describe
+/// whether a delayed projection is present.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NebulaFPrimeBranch {
     Base,
@@ -126,34 +151,45 @@ pub struct NebulaFPrimeFieldShapeAudit {
 }
 
 impl NebulaFPrimeBranch {
-    const fn index(self) -> usize {
+    const fn logical_index(self) -> usize {
         match self {
             Self::Base => 0,
             Self::BootstrapRecursive => 1,
             Self::Recursive => 2,
         }
     }
+
+    /// Physical selective-relation arm used by this lifecycle branch.
+    #[doc(hidden)]
+    pub const fn relation_arm_index(self) -> usize {
+        match self {
+            Self::Base => 0,
+            Self::BootstrapRecursive | Self::Recursive => 1,
+        }
+    }
 }
 
-/// One foldable low-norm relation for all three Nebula F' branches, plus
-/// the lane scheme remapped onto their shared `S_mem` region.
+/// One foldable low-norm relation for all Nebula F' lifecycle branches.
+/// Bootstrap and steady recursion share one physical recursive arm because
+/// they use the same R1CS relation.
 pub struct NebulaFPrimeRelation {
-    relation: MultiBranchLowNormR1cs,
+    relation: Arc<MultiBranchLowNormR1cs>,
     config: NebulaConfig,
     application: Option<NebulaApplication>,
     arm_shapes: [NebulaFPrimeFieldArmShape; 3],
-    width_audit: SelectiveLowNormWidthAudit,
+    width_audit: Option<Arc<SelectiveLowNormWidthAudit>>,
     preprocessing_digest: Option<[F; 4]>,
 }
 
 impl NebulaFPrimeRelation {
-    /// Compile the single three-arm relation to a verifier-shape fixed point.
+    /// Compile the two distinct relation arms to a verifier-shape fixed point.
     ///
     /// Recursive-arm matrices are synthesized from shape-correct placeholder
     /// messages. Their witness values need not satisfy the rows: R1CS shape and
     /// coefficients must be deterministic functions of `(params, folded
     /// relation shape)`. The active encoder test supplies honest assignments
-    /// to all three compiled arms, including an interior segment step, and
+    /// to both compiled arms, including bootstrap and interior recursive
+    /// witnesses, and
     /// therefore fails if live synthesis drifts from this fixed relation.
     pub fn compile_fixed_point(params: &Params, plan: &NebulaPlan) -> Result<Self, NebulaFPrimeRelationError> {
         Self::compile_fixed_point_inner(params, plan, None)
@@ -173,7 +209,16 @@ impl NebulaFPrimeRelation {
         plan: &NebulaPlan,
         application: Option<NebulaApplication>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
-        let mut verifier_relation = PiCcsVerifierRelation::from_structure(plan.circuit().structure());
+        // Fixed-point discovery starts inside the output compiler's relation
+        // family. The previous S_mem seed forced one full transition from a
+        // 15-matrix degree-4 relation before the 13-matrix degree-8 selective
+        // shape could begin converging. The exact terminal signature remains
+        // the return condition, so this changes only discovery work.
+        let verifier_row_domain = usize::try_from(params.m())
+            .map_err(|_| NebulaFPrimeRelationError::Geometry("parameter row domain exceeds usize".into()))?;
+        let verifier_assignment_domain = verifier_row_domain / D * D;
+        let mut verifier_relation =
+            PiCcsVerifierRelation::from_parts(verifier_row_domain, verifier_assignment_domain, selective_polynomial());
         let mut seen = Vec::new();
         loop {
             #[cfg(feature = "perf-timers")]
@@ -188,28 +233,15 @@ impl NebulaFPrimeRelation {
             #[cfg(feature = "perf-timers")]
             let synthesis_elapsed = synthesis_started.elapsed();
             #[cfg(feature = "perf-timers")]
-            let arm_shapes = [
-                (arms.base.n, arms.base.m),
-                (arms.bootstrap_recursive.n, arms.bootstrap_recursive.m),
-                (arms.recursive.n, arms.recursive.m),
-            ];
-            let shared_private_candidates = application.as_ref().map_or_else(
-                || vec![plan.circuit().cols() - plan.circuit().logical_public_input_len()],
-                |_| {
-                    let mut candidates = arms.shared_private_candidates.clone();
-                    candidates.push(arms.shared_private_fields);
-                    candidates
-                },
-            );
+            let arm_shapes = [(arms.base.n, arms.base.m), (arms.recursive.n, arms.recursive.m)];
             #[cfg(feature = "perf-timers")]
             let lowering_started = std::time::Instant::now();
-            let arm_relations = [arms.base, arms.bootstrap_recursive, arms.recursive];
-            let (shared_private_fields, next_shape) =
-                select_low_norm_shape_summary(&arm_relations, plan, shared_private_candidates)?;
+            let prepared = prepare_low_norm_relation(vec![arms.base, arms.recursive], plan, params.b())?;
+            let next_shape = prepared.shape_summary();
             let output_signature = shape_summary_signature(&next_shape);
             #[cfg(feature = "perf-timers")]
             eprintln!(
-                "[fprime-fixed-point] round={round} input={}x{} t={} u={} arms=base:{}x{},bootstrap:{}x{},recursive:{}x{} output={}x{} t={} u={} synth={:.3}s lower={:.3}s total={:.3}s",
+                "[fprime-fixed-point] round={round} input={}x{} t={} u={} arms=base:{}x{},recursive:{}x{} output={}x{} t={} u={} synth={:.3}s lower={:.3}s total={:.3}s",
                 input_signature.0,
                 input_signature.1,
                 input_signature.2,
@@ -218,8 +250,6 @@ impl NebulaFPrimeRelation {
                 arm_shapes[0].1,
                 arm_shapes[1].0,
                 arm_shapes[1].1,
-                arm_shapes[2].0,
-                arm_shapes[2].1,
                 next_shape.rows,
                 next_shape.columns,
                 next_shape.polynomial.arity(),
@@ -229,13 +259,7 @@ impl NebulaFPrimeRelation {
                 round_started.elapsed().as_secs_f64(),
             );
             if input_signature == output_signature {
-                return Self::compile_owned_selected(
-                    arm_relations,
-                    plan,
-                    application.clone(),
-                    shared_private_fields,
-                    next_shape,
-                );
+                return Self::compile_owned_selected(prepared, plan, application.clone());
             }
             if seen.contains(&output_signature) {
                 return Err(NebulaFPrimeRelationError::NoFixedPoint {
@@ -273,61 +297,62 @@ impl NebulaFPrimeRelation {
         let circuit = plan.circuit();
         let logical_public_fields = circuit.logical_public_input_len();
         let shared_private_fields = circuit.cols() - logical_public_fields;
-        Ok(audit_multi_branch_selective_low_norm_width_with_alignment(
-            &[arms.base, arms.bootstrap_recursive, arms.recursive],
-            shared_private_fields,
-            D,
-            logical_public_fields % D,
-        )?)
+        Ok(
+            audit_multi_branch_selective_low_norm_width_for_norm_base_with_alignment(
+                &[arms.base, arms.recursive],
+                shared_private_fields,
+                D,
+                logical_public_fields % D,
+                params.b(),
+            )?,
+        )
     }
 
-    /// Compile already-synthesized base and recursive arms. All arms must
+    /// Compile already-synthesized base and recursive arms. Both arms must
     /// come from this module's composition functions, which allocate the
     /// same current `S_mem` assignment before branch-specific F' advice.
     pub fn compile(
         base: &SparseR1cs,
-        bootstrap_recursive: &SparseR1cs,
         recursive: &SparseR1cs,
         plan: &NebulaPlan,
     ) -> Result<Self, NebulaFPrimeRelationError> {
-        let arms = [base.clone(), bootstrap_recursive.clone(), recursive.clone()];
-        let shared_private_fields = plan.circuit().cols() - plan.circuit().logical_public_input_len();
-        Self::compile_owned(arms, plan, None, vec![shared_private_fields])
+        let arms = vec![base.clone(), recursive.clone()];
+        Self::compile_owned(arms, plan, None)
     }
 
     fn compile_owned(
-        arms: [SparseR1cs; 3],
+        arms: Vec<SparseR1cs>,
         plan: &NebulaPlan,
         application: Option<NebulaApplication>,
-        shared_private_candidates: Vec<usize>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
-        let (shared_private_fields, shape) = select_low_norm_shape_summary(&arms, plan, shared_private_candidates)?;
-        Self::compile_owned_selected(arms, plan, application, shared_private_fields, shape)
+        let prepared = prepare_low_norm_relation(arms, plan, 2)?;
+        Self::compile_owned_selected(prepared, plan, application)
     }
 
     fn compile_owned_selected(
-        arms: [SparseR1cs; 3],
+        prepared: PreparedSelectiveLowNormR1cs,
         plan: &NebulaPlan,
         application: Option<NebulaApplication>,
-        shared_private_fields: usize,
-        shape: SelectiveLowNormShapeSummary,
     ) -> Result<Self, NebulaFPrimeRelationError> {
         let circuit = plan.circuit();
-        let logical_public_fields = circuit.logical_public_input_len();
-        let shared_private_bit_fields = circuit.cols() - logical_public_fields;
-        let arm_shapes: [NebulaFPrimeFieldArmShape; 3] = std::array::from_fn(|index| NebulaFPrimeFieldArmShape {
-            rows: arms[index].n,
-            columns: arms[index].m,
-            public_columns: arms[index].m_in,
-            poseidon2_permutations: arms[index].poseidon2_permutations(),
-        });
-        let relation = build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
-            &arms,
-            shared_private_fields,
-            shared_private_bit_fields,
-            D,
-            logical_public_fields % D,
-        )?;
+        let shape = prepared.shape_summary();
+        let base = prepared.arm(0);
+        let recursive = prepared.arm(1);
+        let base_shape = NebulaFPrimeFieldArmShape {
+            rows: base.n,
+            columns: base.m,
+            public_columns: base.m_in,
+            poseidon2_permutations: base.poseidon2_permutations(),
+        };
+        let recursive_shape = NebulaFPrimeFieldArmShape {
+            rows: recursive.n,
+            columns: recursive.m,
+            public_columns: recursive.m_in,
+            poseidon2_permutations: recursive.poseidon2_permutations(),
+        };
+        let source_public_input_lens = [base.m_in, recursive.m_in];
+        let arm_shapes = [base_shape, recursive_shape, recursive_shape];
+        let relation = prepared.finish()?;
         let compiler_audit = relation.selective_compiler_audit().ok_or_else(|| {
             NebulaFPrimeRelationError::Geometry("exact selective relation has no compiler audit".into())
         })?;
@@ -340,15 +365,15 @@ impl NebulaFPrimeRelation {
                 "lightweight shape differs from the emitted selective relation".into(),
             ));
         }
-        let remapped_ranges = remap_lane_ranges(&relation, &arms, circuit)?;
-        let mut config = plan.config();
+        let remapped_ranges = remap_lane_ranges(&relation, source_public_input_lens, circuit)?;
+        let mut config = relation_config(plan, application.as_ref());
         config.scheme = config.scheme.remap_ranges(remapped_ranges)?;
         Ok(Self {
-            relation,
+            relation: Arc::new(relation),
             config,
             application,
             arm_shapes,
-            width_audit,
+            width_audit: Some(Arc::new(width_audit)),
             preprocessing_digest: None,
         })
     }
@@ -379,12 +404,73 @@ impl NebulaFPrimeRelation {
     }
 
     #[doc(hidden)]
-    pub fn low_norm_width_audit(&self) -> &SelectiveLowNormWidthAudit {
-        &self.width_audit
+    pub fn low_norm_width_audit(&self) -> Option<&SelectiveLowNormWidthAudit> {
+        self.width_audit.as_deref()
+    }
+
+    /// Return the checked, read-only compiler snapshot for conformance audits.
+    #[doc(hidden)]
+    pub fn selective_snapshot(
+        &self,
+    ) -> Result<
+        crate::frontends::r1cs_f_prime::lowering::SelectiveLowNormSnapshot<'_>,
+        crate::frontends::r1cs_f_prime::lowering::SelectiveSnapshotError,
+    > {
+        self.relation.selective_snapshot()
+    }
+
+    fn bind_program_profile(
+        &self,
+        plan: &NebulaPlan,
+        application: Option<NebulaApplication>,
+    ) -> Result<Self, NebulaFPrimeRelationError> {
+        match (self.application.as_ref(), application.as_ref()) {
+            (Some(reference), Some(candidate)) if !reference.same_relation_profile_as(candidate) => {
+                return Err(NebulaFPrimeRelationError::PreparedProfileMismatch(
+                    "application relation, recursive plan, or memory routing differs",
+                ));
+            }
+            (Some(_), None) | (None, Some(_)) => {
+                return Err(NebulaFPrimeRelationError::PreparedProfileMismatch(
+                    "application presence differs",
+                ));
+            }
+            _ => {}
+        }
+        if let Some(application) = application.as_ref() {
+            application.validate_for(plan)?;
+        }
+
+        let mut config = relation_config(plan, application.as_ref());
+        if config.steps_per_segment != self.config.steps_per_segment
+            || config.seg_max != self.config.seg_max
+            || config.stacks != self.config.stacks
+            || config.scheme.seeded_setup() != self.config.scheme.seeded_setup()
+        {
+            return Err(NebulaFPrimeRelationError::PreparedProfileMismatch(
+                "Nebula geometry or commitment setup differs",
+            ));
+        }
+        config.scheme = config
+            .scheme
+            .remap_ranges(self.config.scheme.lane_ranges().clone())?;
+        Ok(Self {
+            relation: Arc::clone(&self.relation),
+            config,
+            application,
+            arm_shapes: self.arm_shapes,
+            width_audit: self.width_audit.clone(),
+            preprocessing_digest: None,
+        })
+    }
+
+    #[doc(hidden)]
+    pub fn shares_compiled_relation_with(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.relation, &other.relation)
     }
 
     fn arm_shape(&self, branch: NebulaFPrimeBranch) -> NebulaFPrimeFieldArmShape {
-        self.arm_shapes[branch.index()]
+        self.arm_shapes[branch.logical_index()]
     }
 
     pub(super) fn bind_preprocessing(&mut self, prep: &Preprocessing) -> Result<(), NebulaFPrimeRelationError> {
@@ -418,6 +504,41 @@ impl NebulaFPrimeRelation {
         #[cfg(feature = "perf-timers")]
         let validate_started = std::time::Instant::now();
         if let Some(row) = self.relation.first_unsatisfied_row(&assignment) {
+            #[cfg(feature = "perf-timers")]
+            if let Some(audit) = self.relation.selective_compiler_audit() {
+                if let Some(run) = audit
+                    .rows()
+                    .emitted_runs()
+                    .iter()
+                    .find(|run| run.emitted_rows().contains(&row))
+                {
+                    let source_row = run.arm().and_then(|arm| {
+                        audit.rows().arms()[arm]
+                            .source_runs()
+                            .iter()
+                            .find_map(|source| {
+                                let emitted = source.emitted_start()?;
+                                let source_rows = source.source_rows();
+                                (emitted <= row && row < emitted + source_rows.len())
+                                    .then_some(source_rows.start + row - emitted)
+                            })
+                    });
+                    let stage = run
+                        .arm()
+                        .zip(run.source_stage_occurrence())
+                        .and_then(|(arm, occurrence)| {
+                            audit.source_arm_physical_stages()[arm]
+                                .get(occurrence)
+                                .map(|stage| stage.path())
+                        });
+                    eprintln!(
+                        "[fprime-unsatisfied] row={row} family={:?} arm={:?} source_row={source_row:?} stage={stage:?} rewrite={:?}",
+                        run.family(),
+                        run.arm(),
+                        run.rewrite_id().map(|id| id.index()),
+                    );
+                }
+            }
             return Err(NebulaFPrimeRelationError::Unsatisfied { row });
         }
         #[cfg(feature = "perf-timers")]
@@ -440,7 +561,7 @@ impl NebulaFPrimeRelation {
         field_assignment: &[F],
     ) -> Result<Vec<F>, NebulaFPrimeRelationError> {
         self.relation
-            .encode(branch.index(), field_assignment)
+            .encode(branch.relation_arm_index(), field_assignment)
             .map_err(Into::into)
     }
 
@@ -450,8 +571,18 @@ impl NebulaFPrimeRelation {
         field_assignment: &[F],
     ) -> Result<NifsFreshSignedUnitAssignment, NebulaFPrimeRelationError> {
         self.relation
-            .encode_signed_unit(branch.index(), field_assignment)
+            .encode_signed_unit(branch.relation_arm_index(), field_assignment)
             .map_err(Into::into)
+    }
+
+    pub(super) fn build_instance_from_encoded(
+        &self,
+        prep: &Preprocessing,
+        assignment: &[F],
+    ) -> Result<CcsInstance, NebulaFPrimeRelationError> {
+        let mut instance = self.ccs_instance_from_encoded(prep, assignment)?;
+        self.attach_lane_commitment(&mut instance)?;
+        Ok(instance)
     }
 
     /// Encode, commit, and attach the product-commitment sidecar used by the
@@ -465,13 +596,6 @@ impl NebulaFPrimeRelation {
     ) -> Result<CcsInstance, NebulaFPrimeRelationError> {
         #[cfg(feature = "perf-timers")]
         let total_started = std::time::Instant::now();
-        let structure_matches = self.preprocessing_digest.map_or_else(
-            || digest::structure_digest(self.structure()) == *prep.structure_digest(),
-            |bound| bound == *prep.structure_digest(),
-        );
-        if !structure_matches || prep.public_input_len != Some(self.public_input_len()) {
-            return Err(NebulaFPrimeRelationError::PreprocessingMismatch);
-        }
         #[cfg(feature = "perf-timers")]
         let encode_started = std::time::Instant::now();
         let assignment = self.encode(branch, field_assignment)?;
@@ -479,13 +603,7 @@ impl NebulaFPrimeRelation {
         let encode_elapsed = encode_started.elapsed();
         #[cfg(feature = "perf-timers")]
         let instance_started = std::time::Instant::now();
-        let mut instance = CcsInstance::from_low_norm_assignment(
-            &prep.params,
-            &prep.log,
-            prep.structure(),
-            &assignment,
-            self.public_input_len(),
-        )?;
+        let mut instance = self.ccs_instance_from_encoded(prep, &assignment)?;
         #[cfg(feature = "perf-timers")]
         let instance_elapsed = instance_started.elapsed();
         #[cfg(feature = "perf-timers")]
@@ -508,6 +626,28 @@ impl NebulaFPrimeRelation {
         Ok(instance)
     }
 
+    fn ccs_instance_from_encoded(
+        &self,
+        prep: &Preprocessing,
+        assignment: &[F],
+    ) -> Result<CcsInstance, NebulaFPrimeRelationError> {
+        let structure_matches = self.preprocessing_digest.map_or_else(
+            || digest::structure_digest(self.structure()) == *prep.structure_digest(),
+            |bound| bound == *prep.structure_digest(),
+        );
+        if !structure_matches || prep.public_input_len != Some(self.public_input_len()) {
+            return Err(NebulaFPrimeRelationError::PreprocessingMismatch);
+        }
+        CcsInstance::from_low_norm_assignment(
+            &prep.params,
+            &prep.log,
+            prep.structure(),
+            assignment,
+            self.public_input_len(),
+        )
+        .map_err(Into::into)
+    }
+
     pub(super) fn attach_lane_commitment(&self, instance: &mut CcsInstance) -> Result<(), NebulaFPrimeRelationError> {
         let adv = self.config.scheme.commit(&instance.witness.Z)?;
         if adv.ops.kappa != instance.claim.c.kappa {
@@ -518,6 +658,16 @@ impl NebulaFPrimeRelation {
         instance.claim.adv = Some(adv);
         Ok(())
     }
+}
+
+fn relation_config(plan: &NebulaPlan, application: Option<&NebulaApplication>) -> NebulaConfig {
+    let mut config = plan.config();
+    if let Some(application) = application {
+        let initial =
+            crate::frontends::r1cs_f_prime::initial_semantic_state_digest_for_plan(application.recursive_plan());
+        config.initial_semantic_state_digest = digest::digest32_as_fields(initial);
+    }
+    config
 }
 
 fn relation_signature(structure: &Structure) -> (usize, usize, usize, u32) {
@@ -537,64 +687,53 @@ fn shape_summary_signature(shape: &SelectiveLowNormShapeSummary) -> (usize, usiz
     )
 }
 
-fn select_low_norm_shape_summary(
-    arms: &[SparseR1cs; 3],
+fn prepare_low_norm_relation(
+    arms: Vec<SparseR1cs>,
     plan: &NebulaPlan,
-    mut shared_private_candidates: Vec<usize>,
-) -> Result<(usize, SelectiveLowNormShapeSummary), NebulaFPrimeRelationError> {
+    norm_base: u32,
+) -> Result<PreparedSelectiveLowNormR1cs, NebulaFPrimeRelationError> {
     let circuit = plan.circuit();
     let logical_public_fields = circuit.logical_public_input_len();
     let shared_private_bit_fields = circuit.cols() - logical_public_fields;
-    shared_private_candidates.push(shared_private_bit_fields);
-    shared_private_candidates.sort_unstable();
-    shared_private_candidates.dedup();
-    shared_private_candidates.retain(|&shared_private_fields| shared_private_fields >= shared_private_bit_fields);
-
-    let (shared_private_fields, shape) = shared_private_candidates
-        .into_iter()
-        .map(|shared_private_fields| -> Result<_, NebulaFPrimeRelationError> {
-            #[cfg(feature = "perf-timers")]
-            let candidate_started = std::time::Instant::now();
-            let shape = prepare_multi_branch_selective_low_norm_shape_summary_with_shared_bit_prefix(
-                arms,
-                shared_private_fields,
-                shared_private_bit_fields,
-                D,
-                logical_public_fields % D,
-            )?;
-            #[cfg(feature = "perf-timers")]
-            eprintln!(
-                "[fprime-low-norm-candidate] shared_private_fields={shared_private_fields} rows={} columns={} coordinates={} total={:.3}s",
-                shape.rows,
-                shape.columns,
-                shape.total_coordinates,
-                candidate_started.elapsed().as_secs_f64(),
-            );
-            Ok((shared_private_fields, shape))
-        })
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .min_by_key(|(_, shape)| shape.total_coordinates)
-        .ok_or_else(|| NebulaFPrimeRelationError::Geometry("no valid shared-private prefix candidate".into()))?;
-    Ok((shared_private_fields, shape))
+    #[cfg(feature = "perf-timers")]
+    let started = std::time::Instant::now();
+    let prepared = prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
+        arms,
+        shared_private_bit_fields,
+        shared_private_bit_fields,
+        D,
+        logical_public_fields % D,
+        norm_base,
+    )?;
+    #[cfg(feature = "perf-timers")]
+    let shape = prepared.shape_summary();
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[fprime-low-norm-shape] shared_private_fields={shared_private_bit_fields} rows={} columns={} coordinates={} total={:.3}s",
+        shape.rows,
+        shape.columns,
+        shape.total_coordinates,
+        started.elapsed().as_secs_f64(),
+    );
+    Ok(prepared)
 }
 
 fn remap_lane_ranges(
     relation: &MultiBranchLowNormR1cs,
-    arms: &[SparseR1cs; 3],
+    source_public_input_lens: [usize; 2],
     circuit: &SMemCircuit,
 ) -> Result<LaneRanges, NebulaFPrimeRelationError> {
     let source = circuit.lane_ranges();
     Ok(LaneRanges {
-        ops: remap_lane_range(relation, arms, circuit, source.ops)?,
-        is: remap_lane_range(relation, arms, circuit, source.is)?,
-        fs: remap_lane_range(relation, arms, circuit, source.fs)?,
+        ops: remap_lane_range(relation, source_public_input_lens, circuit, source.ops)?,
+        is: remap_lane_range(relation, source_public_input_lens, circuit, source.is)?,
+        fs: remap_lane_range(relation, source_public_input_lens, circuit, source.fs)?,
     })
 }
 
 fn remap_lane_range(
     relation: &MultiBranchLowNormR1cs,
-    arms: &[SparseR1cs; 3],
+    source_public_input_lens: [usize; 2],
     circuit: &SMemCircuit,
     source_ring_columns: core::ops::Range<usize>,
 ) -> Result<core::ops::Range<usize>, NebulaFPrimeRelationError> {
@@ -613,12 +752,12 @@ fn remap_lane_range(
         // prefix. The zero fields that complete that prefix to one ring
         // column stay at the start of private advice, before these lanes.
         let private_offset = source_col - circuit.logical_public_input_len();
-        let slots: Vec<(usize, usize)> = arms
+        let slots: Vec<(usize, usize)> = source_public_input_lens
             .iter()
             .enumerate()
-            .map(|(arm, shape)| {
+            .map(|(arm, &public_input_len)| {
                 relation
-                    .field_slot(arm, shape.m_in + private_offset)
+                    .field_slot(arm, public_input_len + private_offset)
                     .ok_or_else(|| NebulaFPrimeRelationError::Geometry("missing S_mem lane slot".into()))
             })
             .collect::<Result<_, _>>()?;
@@ -660,12 +799,6 @@ pub struct NebulaFPrimeStepOutput {
     pub application: Vec<Var>,
     /// `[step_x_bits || open || bits(D_pre)]` produced for the next step.
     pub current_public_suffix: Vec<Var>,
-    /// Contiguous normalized private prefix allocated before branch-specific
-    /// F' verifier advice.
-    pub shared_private_fields: usize,
-    /// Natural current-application allocation boundaries that may be shared
-    /// across all lifecycle arms without changing column order.
-    pub shared_private_candidates: Vec<usize>,
 }
 
 impl NebulaFPrimeStepOutput {
@@ -686,9 +819,9 @@ pub fn enforce_nebula_f_prime_base_step(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeBaseInputs<'_>,
 ) -> Result<NebulaFPrimeStepOutput, NebulaFPrimeError> {
+    builder.begin_encoding_stage(fprime_stage::BASE_ROOT);
+    builder.begin_encoding_stage(fprime_stage::BASE_APPLICATION);
     let current = enforce_current_application(builder, s_mem, s_mem_assignment, None, current_d_pre, cfg)?;
-    let shared_private_fields = builder.witness().len() - 1 - current.public_suffix.len();
-    let shared_private_candidates = shared_private_candidates(builder, &current.public_suffix);
     let f_prime_column_start = builder.witness().len();
     let f_prime = enforce_f_prime_base_step_circuit(builder, cfg, inputs)?;
     builder.record_column_family("nebula.f_prime", f_prime_column_start);
@@ -697,8 +830,6 @@ pub fn enforce_nebula_f_prime_base_step(
         s_mem: current.s_mem,
         application: current.application,
         current_public_suffix: current.public_suffix,
-        shared_private_fields,
-        shared_private_candidates,
     })
 }
 
@@ -711,9 +842,9 @@ pub fn enforce_nebula_f_prime_recursive_step(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeRecursiveInputs<'_>,
 ) -> Result<NebulaFPrimeStepOutput, NebulaFPrimeError> {
+    builder.begin_encoding_stage(fprime_stage::RECURSIVE_ROOT);
+    builder.begin_encoding_stage(fprime_stage::RECURSIVE_APPLICATION);
     let current = enforce_current_application(builder, s_mem, s_mem_assignment, None, current_d_pre, cfg)?;
-    let shared_private_fields = builder.witness().len() - 1 - current.public_suffix.len();
-    let shared_private_candidates = shared_private_candidates(builder, &current.public_suffix);
     let f_prime_column_start = builder.witness().len();
     let f_prime = enforce_f_prime_recursive_step_circuit(builder, pp, cfg, inputs)?;
     builder.record_column_family("nebula.f_prime", f_prime_column_start);
@@ -722,8 +853,6 @@ pub fn enforce_nebula_f_prime_recursive_step(
         s_mem: current.s_mem,
         application: current.application,
         current_public_suffix: current.public_suffix,
-        shared_private_fields,
-        shared_private_candidates,
     })
 }
 
@@ -737,6 +866,8 @@ pub fn enforce_nebula_application_f_prime_base_step(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeBaseInputs<'_>,
 ) -> Result<NebulaFPrimeStepOutput, NebulaFPrimeError> {
+    builder.begin_encoding_stage(fprime_stage::BASE_ROOT);
+    builder.begin_encoding_stage(fprime_stage::BASE_APPLICATION);
     let current = enforce_current_application(
         builder,
         s_mem,
@@ -745,12 +876,11 @@ pub fn enforce_nebula_application_f_prime_base_step(
         current_d_pre,
         cfg,
     )?;
-    let shared_private_fields = builder.witness().len() - 1 - current.public_suffix.len();
-    let shared_private_candidates = shared_private_candidates(builder, &current.public_suffix);
     let f_prime_column_start = builder.witness().len();
     let f_prime = enforce_f_prime_base_step_circuit(builder, cfg, inputs)?;
     builder.record_column_family("nebula.f_prime", f_prime_column_start);
     if let Some(semantic) = current.semantic {
+        builder.begin_encoding_stage(fprime_stage::BASE_SEMANTIC_LINKS);
         crate::frontends::r1cs_f_prime::ivc::shape::bind_semantic_state(
             builder,
             application.recursive_plan(),
@@ -764,8 +894,6 @@ pub fn enforce_nebula_application_f_prime_base_step(
         s_mem: current.s_mem,
         application: current.application,
         current_public_suffix: current.public_suffix,
-        shared_private_fields,
-        shared_private_candidates,
     })
 }
 
@@ -780,6 +908,8 @@ pub fn enforce_nebula_application_f_prime_recursive_step(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeRecursiveInputs<'_>,
 ) -> Result<NebulaFPrimeStepOutput, NebulaFPrimeError> {
+    builder.begin_encoding_stage(fprime_stage::RECURSIVE_ROOT);
+    builder.begin_encoding_stage(fprime_stage::RECURSIVE_APPLICATION);
     let current = enforce_current_application(
         builder,
         s_mem,
@@ -788,12 +918,11 @@ pub fn enforce_nebula_application_f_prime_recursive_step(
         current_d_pre,
         cfg,
     )?;
-    let shared_private_fields = builder.witness().len() - 1 - current.public_suffix.len();
-    let shared_private_candidates = shared_private_candidates(builder, &current.public_suffix);
     let f_prime_column_start = builder.witness().len();
     let f_prime = enforce_f_prime_recursive_step_circuit(builder, pp, cfg, inputs)?;
     builder.record_column_family("nebula.f_prime", f_prime_column_start);
     if let Some(semantic) = current.semantic {
+        builder.begin_encoding_stage(fprime_stage::RECURSIVE_SEMANTIC_LINKS);
         crate::frontends::r1cs_f_prime::ivc::shape::bind_semantic_state(
             builder,
             application.recursive_plan(),
@@ -807,8 +936,6 @@ pub fn enforce_nebula_application_f_prime_recursive_step(
         s_mem: current.s_mem,
         application: current.application,
         current_public_suffix: current.public_suffix,
-        shared_private_fields,
-        shared_private_candidates,
     })
 }
 
@@ -817,26 +944,6 @@ struct CurrentApplication {
     application: Vec<Var>,
     public_suffix: Vec<Var>,
     semantic: Option<crate::frontends::r1cs_f_prime::ivc::shape::SemanticWires>,
-}
-
-fn shared_private_candidates(builder: &R1csBuilder, public_suffix: &[Var]) -> Vec<usize> {
-    let mut boundaries = builder
-        .column_family_ranges()
-        .iter()
-        .map(|range| range.column_end)
-        .collect::<Vec<_>>();
-    boundaries.push(builder.witness().len());
-    let mut candidates = boundaries
-        .into_iter()
-        .filter(|&end| end > 1)
-        .map(|end| {
-            let public_before = public_suffix.iter().filter(|var| var.col() < end).count();
-            end - 1 - public_before
-        })
-        .collect::<Vec<_>>();
-    candidates.sort_unstable();
-    candidates.dedup();
-    candidates
 }
 
 fn enforce_current_application(

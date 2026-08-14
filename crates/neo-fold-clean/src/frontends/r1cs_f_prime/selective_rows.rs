@@ -34,14 +34,35 @@ use super::super::selective_audit::{
     SelectiveSourceRowRunAudit,
 };
 use super::{
-    trace_error, LowNormR1csError, SelectiveArmPlan, SparseR1cs, BALANCED_FIELD_WIDTH, CANON_CHUNK_COUNT,
-    EVAL_GROUP_SIZE,
+    trace_error, LowNormR1csError, SelectiveArmPlan, SelectiveEncoding, SparseR1cs, BALANCED_FIELD_WIDTH,
+    CANON_CHUNK_COUNT, EVAL_GROUP_SIZE,
 };
+
+fn domain_counts(
+    encoding: SelectiveEncoding,
+    width: usize,
+    centered: bool,
+    source_proves_boolean: bool,
+) -> (usize, usize) {
+    if source_proves_boolean || width == encoding.general_field_width() {
+        return (0, 0);
+    }
+    if centered || width == BALANCED_FIELD_WIDTH {
+        return (0, usize::from(!encoding.outer_norm_proves_centered_unit()) * width);
+    }
+    (width, 0)
+}
 
 #[derive(Clone)]
 struct SourceClaim {
     rows: Range<usize>,
     disposition: SelectiveSourceRowDisposition,
+}
+
+#[derive(Clone, Copy)]
+struct PreparedCenteredDomainRows {
+    pair_row: Option<usize>,
+    tail_row: Option<usize>,
 }
 
 /// One arm's prepared source mapping and trace-rewrite sequence.
@@ -158,6 +179,7 @@ impl PreparedEmissionCursor<'_> {
 pub(super) struct PreparedSelectiveRows {
     prefix_rows: Range<usize>,
     arms: Vec<PreparedSelectiveArmRows>,
+    centered_domain_rows: Vec<PreparedCenteredDomainRows>,
     ring_padding_rows: Range<usize>,
     emitted_runs: Vec<SelectiveEmittedRowRunAudit>,
     rewrites: Vec<SelectiveRewriteAudit>,
@@ -178,6 +200,7 @@ impl PreparedSelectiveRows {
         public_padding_rows: usize,
         private_padding_rows: usize,
         columns_before_ring_padding: usize,
+        encoding: SelectiveEncoding,
     ) -> Result<Self, LowNormR1csError> {
         let mut row_cursor = 0usize;
         let mut emitted_runs = Vec::new();
@@ -192,17 +215,19 @@ impl PreparedSelectiveRows {
         );
 
         let mut shared_domain_rows = 0usize;
+        let mut shared_centered_coordinates = 0usize;
         for source in 1..arms[0].m_in + shared_private_fields {
             if aliases[0][source].is_some() {
                 continue;
             }
             if let Some((_, width)) = slots[0][source] {
                 let source_proves_boolean = plans.iter().all(|plan| plan.source_boolean_rows[source]);
-                if !source_proves_boolean && !plans[0].centered[source] && width != BALANCED_FIELD_WIDTH {
-                    shared_domain_rows += width;
-                }
+                let (rows, centered) = domain_counts(encoding, width, plans[0].centered[source], source_proves_boolean);
+                shared_domain_rows += rows;
+                shared_centered_coordinates += centered;
             }
         }
+        shared_domain_rows += shared_centered_coordinates.div_ceil(2);
         push_emitted_run(
             &mut emitted_runs,
             &mut row_cursor,
@@ -213,21 +238,42 @@ impl PreparedSelectiveRows {
             None,
         );
 
+        let mut centered_domain_rows = Vec::with_capacity(arms.len());
         for (arm_index, arm) in arms.iter().enumerate() {
+            let arm_domain_start = row_cursor;
             let mut arm_domain_rows = 0usize;
+            let mut pending_centered = false;
+            let mut pair_offset = None;
             for source in arm.m_in + shared_private_fields..arm.m {
                 if aliases[arm_index][source].is_some() || equal_aliases[arm_index][source].is_some() {
                     continue;
                 }
                 if let Some((_, width)) = slots[arm_index][source] {
-                    if !plans[arm_index].source_boolean_rows[source]
-                        && !plans[arm_index].centered[source]
-                        && width != BALANCED_FIELD_WIDTH
-                    {
-                        arm_domain_rows += width;
+                    let (rows, centered) = domain_counts(
+                        encoding,
+                        width,
+                        plans[arm_index].centered[source],
+                        plans[arm_index].source_boolean_rows[source],
+                    );
+                    arm_domain_rows += rows;
+                    let mut centered = centered;
+                    if centered != 0 {
+                        if pending_centered {
+                            pair_offset.get_or_insert(arm_domain_rows);
+                            arm_domain_rows += 1;
+                            centered -= 1;
+                        }
+                        if centered >= 2 {
+                            pair_offset.get_or_insert(arm_domain_rows);
+                            arm_domain_rows += centered / 2;
+                            centered %= 2;
+                        }
+                        pending_centered = centered == 1;
                     }
                 }
             }
+            let tail_offset = pending_centered.then_some(arm_domain_rows);
+            arm_domain_rows += usize::from(pending_centered);
             push_emitted_run(
                 &mut emitted_runs,
                 &mut row_cursor,
@@ -237,6 +283,10 @@ impl PreparedSelectiveRows {
                 None,
                 None,
             );
+            centered_domain_rows.push(PreparedCenteredDomainRows {
+                pair_row: pair_offset.map(|offset| arm_domain_start + offset),
+                tail_row: tail_offset.map(|offset| arm_domain_start + offset),
+            });
         }
         push_emitted_run(
             &mut emitted_runs,
@@ -544,6 +594,7 @@ impl PreparedSelectiveRows {
         Ok(Self {
             prefix_rows,
             arms: prepared_arms,
+            centered_domain_rows,
             ring_padding_rows,
             emitted_runs,
             rewrites,
@@ -571,11 +622,14 @@ impl PreparedSelectiveRows {
             self.prefix_rows.clone(),
             self.arms
                 .iter()
-                .map(|arm| {
+                .zip(&self.centered_domain_rows)
+                .map(|(arm, centered)| {
                     SelectiveArmRowMappingAudit::new(
                         arm.source_runs.clone(),
                         arm.retained_emitted_rows.clone(),
                         arm.emitted_rows.clone(),
+                        centered.pair_row,
+                        centered.tail_row,
                     )
                 })
                 .collect(),

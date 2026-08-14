@@ -1,0 +1,20 @@
+import Nightstream.Implementation.Nebula.FPrime.Terminal.ProductRelationBridge
+
+/-! Focused gate for the exact fourteen-child V2 terminal relation. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductTerminalRelation
+
+open Nightstream.Implementation.Nebula
+
+#check ProductTerminalRelation.checkCore_eq_true_iff
+#check ProductTerminalRelation.holds_of_common_openings
+#check ProductTerminalRelation.core_of_holds
+#check ProductTerminalRelation.canonical_children_hold
+#check ProductTerminalRelation.commitment_of_holds
+#check ProductTerminalRelation.combined_children_can_satisfy_ce_but_not_terminal
+#check TerminalProductRelationBridge.terminal_children_hold_of_rows
+#check TerminalProductRelationBridge.terminal_core_check_complete
+
+end tests.NebulaProductTerminalRelation

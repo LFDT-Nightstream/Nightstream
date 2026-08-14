@@ -28,7 +28,6 @@ open Nightstream.Implementation.Lowering.Goldilocks.NativeCcsProgram
 open Nightstream.Implementation.Lowering.Goldilocks.NativeCcsSelector
 open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding
 open Nightstream.SuperNeo.Concrete
-open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 
 private abbrev RelationShape
@@ -712,7 +711,7 @@ theorem rows_ccsSound
       program valid domain publicRingColumns publicFits
       (fun coordinate => assignment (frame.witness coordinate))).mpr
   simpa [physicalColumn, NativeCcsCompiler.pulledAssignment,
-    Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.LeanCompiler.StableRows.pulledAssignment]
+    Nightstream.Implementation.R1CS.SelectiveCcs.LeanCompiler.StableRows.pulledAssignment]
     using rows_sound valid frame assignment satisfied
 
 /-- Honest native CCS satisfaction and prefilled residuals satisfy every

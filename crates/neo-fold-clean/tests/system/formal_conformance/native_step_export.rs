@@ -813,7 +813,7 @@ impl<'a> CorpusBuilder<'a> {
             construction2::VerifyStepExecutionProofState::Active { running, .. } => Some(RunningDigestCall {
                 running: self.intern_running(running),
                 relation_columns: self.prep.structure().m,
-                output: AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref())
+                output: AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref())
                     .digest(),
             }),
         };
@@ -1141,7 +1141,7 @@ fn build_native_step_corpus() -> NativeStepCorpus {
     };
     assert_ne!(
         bad_accumulator_handle.acc_digest,
-        AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest(),
+        AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest(),
         "incoming-handle mutation must disagree with the public running claims"
     );
     builder.push_case(

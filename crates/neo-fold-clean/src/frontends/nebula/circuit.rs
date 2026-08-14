@@ -433,6 +433,9 @@ fn matrix_row_lcs(matrix: &CcsMatrix<F>, vars: &[Var], rows: usize) -> Vec<Lc> {
                 });
             }
         }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("S_mem circuit construction requires materialized matrix content")
+        }
     }
     out
 }

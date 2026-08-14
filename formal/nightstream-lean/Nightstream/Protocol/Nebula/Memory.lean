@@ -1,17 +1,17 @@
 import Mathlib.Data.Multiset.AddSub
-import Nightstream.Protocol.Nebula.Fingerprint
+import Nightstream.Protocol.Nebula.Types
 
 /-!
-Contract: Lean-owned sequential memory semantics for one Nebula segment.
+Contract: reverse sequential-consistency semantics for one V2 memory segment.
 
 Assurance tier: model-level.
 
-Owns an exact access relation, execution over a current cell snapshot, and
-the telescoping theorem that every honest execution satisfies the Nebula
-initial/write versus read/final product equation.
+Owns multiset memory states, exact access execution, the IS/WS versus RS/FS
+balance predicate, and reconstruction of an execution from balance plus the
+V2 ordered integer timestamp schedule.
 
-Does not own ROM/RAM namespace policy, stack rules, transcript challenges,
-commitments, CCS rows, F-prime carry, Rust layouts, or collision probability.
+Does not own complete-scan extraction, application-port coverage,
+fingerprints, commitments, circuit rows, or cryptographic probabilities.
 
 Emits constraints: no.
 -/
@@ -20,42 +20,7 @@ set_option autoImplicit false
 
 namespace Nightstream.Protocol.Nebula.Memory
 
-open Nightstream.SuperNeo.Concrete
-open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
-open Nightstream.Protocol.Nebula.Fingerprint
-
-/-- One memory access as the multiset checker sees it. -/
-structure Access where
-  read : MemTuple
-  write : MemTuple
-deriving DecidableEq, Repr
-
-/-- One access replaces exactly the tuple that is currently stored at its
-global cell index.  The write timestamp is the next global timestamp. -/
-structure Applies
-    (before : List MemTuple) (timestampIn : Nat)
-    (access : Access) (after : List MemTuple) (timestampOut : Nat) where
-  left : List MemTuple
-  right : List MemTuple
-  beforeExact : before = left ++ (access.read :: right)
-  afterExact : after = left ++ (access.write :: right)
-  sameCell : access.write.globalIndex = access.read.globalIndex
-  previousTimestamp : access.read.timestamp < timestampIn + 1
-  writeTimestamp : access.write.timestamp = timestampIn + 1
-  timestampExact : timestampOut = timestampIn + 1
-
-/-- Exact sequential execution of a list of accesses. -/
-inductive Executes :
-    List MemTuple → Nat → List Access → List MemTuple → Nat → Prop
-  | nil (snapshot : List MemTuple) (timestamp : Nat) :
-      Executes snapshot timestamp [] snapshot timestamp
-  | cons
-      {before middle after : List MemTuple}
-      {timestampIn timestampMiddle timestampOut : Nat}
-      {access : Access} {rest : List Access}
-      (applies : Applies before timestampIn access middle timestampMiddle)
-      (tail : Executes middle timestampMiddle rest after timestampOut) :
-      Executes before timestampIn (access :: rest) after timestampOut
+open Nightstream.Protocol.Nebula
 
 def readTuples (accesses : List Access) : List MemTuple :=
   accesses.map Access.read
@@ -63,171 +28,209 @@ def readTuples (accesses : List Access) : List MemTuple :=
 def writeTuples (accesses : List Access) : List MemTuple :=
   accesses.map Access.write
 
-/-- One exact access preserves the paper multiset invariant before any
-fingerprint is selected. -/
-theorem applies_multiset
-    {before after : List MemTuple}
+/-- Exact multiset equation checked by a sound fingerprint opening. -/
+def Balanced
+    (initial : Multiset MemTuple)
+    (accesses : List Access)
+    (final : Multiset MemTuple) : Prop :=
+  initial + (writeTuples accesses : Multiset MemTuple) =
+    (readTuples accesses : Multiset MemTuple) + final
+
+/-- One operational transition removes the record read by the application and
+installs its checked write record. -/
+structure Applies
+    (before : Multiset MemTuple)
+    (timestampIn : Nat)
+    (access : Access)
+    (after : Multiset MemTuple) : Prop where
+  valid : access.ValidAt timestampIn
+  readPresent : access.read ∈ before
+  afterExact :
+    after = ({access.write} : Multiset MemTuple) + before.erase access.read
+
+/-- Exact sequential execution in the application-provided access order. -/
+inductive Executes :
+    Multiset MemTuple → Nat → List Access → Multiset MemTuple → Nat → Prop
+  | nil (state : Multiset MemTuple) (timestamp : Nat) :
+      Executes state timestamp [] state timestamp
+  | cons
+      {before middle final : Multiset MemTuple}
+      {timestampIn timestampOut : Nat}
+      {access : Access}
+      {rest : List Access}
+      (applies : Applies before timestampIn access middle)
+      (tail : Executes middle (timestampIn + 1) rest final timestampOut) :
+      Executes before timestampIn (access :: rest) final timestampOut
+
+/-- Every write in an ordered suffix occurs after the suffix input timestamp. -/
+theorem ordered_write_timestamp_gt
+    {timestampIn timestampOut : Nat}
+    {accesses : List Access}
+    (ordered : Ordered timestampIn accesses timestampOut)
+    {entry : MemTuple}
+    (member : entry ∈ (writeTuples accesses : Multiset MemTuple)) :
+    timestampIn < entry.timestamp := by
+  induction ordered with
+  | nil =>
+      simp [writeTuples] at member
+  | @cons timestampIn timestampOut access rest valid tail inductionHypothesis =>
+      have memberList : entry ∈ writeTuples (access :: rest) := by
+        exact member
+      simp only [writeTuples, List.map_cons, List.mem_cons] at memberList
+      rcases memberList with equal | memberList
+      · subst entry
+        simpa only [valid.writeTimestamp] using Nat.lt_succ_self timestampIn
+      · have tailMember : entry ∈ (writeTuples rest : Multiset MemTuple) := by
+          exact memberList
+        have later := inductionHypothesis tailMember
+        exact Nat.lt_trans (Nat.lt_succ_self timestampIn) later
+
+/-- Every committed write record is a canonical value and its timestamp is at
+most the segment output timestamp. -/
+theorem ordered_write_valid_at_output
+    {timestampIn timestampOut : Nat}
+    {accesses : List Access}
+    (ordered : Ordered timestampIn accesses timestampOut)
+    {entry : MemTuple}
+    (member : entry ∈ (writeTuples accesses : Multiset MemTuple)) :
+    entry.value < valueLimit ∧ entry.timestamp ≤ timestampOut := by
+  induction ordered with
+  | nil =>
+      simp [writeTuples] at member
+  | @cons timestampIn timestampOut access rest valid tail
+      inductionHypothesis =>
+      have memberList : entry ∈ writeTuples (access :: rest) := member
+      simp only [writeTuples, List.map_cons, List.mem_cons] at memberList
+      rcases memberList with equal | memberList
+      · subst entry
+        constructor
+        · exact valid.wellFormed.writeValueInRange
+        · rw [valid.writeTimestamp, tail.timestampOut_eq]
+          omega
+      · exact inductionHypothesis memberList
+
+/-- Exact balance makes each final record originate in either the initial
+snapshot or the write-record sequence. Read records cannot create a final
+record. -/
+theorem balanced_final_member_origin
+    {initial final : Multiset MemTuple}
+    {accesses : List Access}
+    (balance : Balanced initial accesses final)
+    {entry : MemTuple}
+    (member : entry ∈ final) :
+    entry ∈ initial ∨
+      entry ∈ (writeTuples accesses : Multiset MemTuple) := by
+  have onRight :
+      entry ∈ (readTuples accesses : Multiset MemTuple) + final :=
+    Multiset.mem_add.mpr (Or.inr member)
+  have onLeft :
+      entry ∈ initial + (writeTuples accesses : Multiset MemTuple) := by
+    rw [balance]
+    exact onRight
+  exact Multiset.mem_add.mp onLeft
+
+private theorem head_read_mem_initial
+    {initial final : Multiset MemTuple}
     {timestampIn timestampOut : Nat}
     {access : Access}
-    (applies : Applies before timestampIn access after timestampOut) :
-    (before : Multiset MemTuple) + ({access.write} : Multiset MemTuple) =
-      ({access.read} : Multiset MemTuple) + (after : Multiset MemTuple) := by
-  obtain ⟨left, right, beforeExact, afterExact, _, _, _, _⟩ := applies
-  subst before
-  subst after
-  change
-    ((left : Multiset MemTuple) +
-          (({access.read} : Multiset MemTuple) +
-            (right : Multiset MemTuple))) +
-        ({access.write} : Multiset MemTuple) =
-      ({access.read} : Multiset MemTuple) +
-        ((left : Multiset MemTuple) +
-          (({access.write} : Multiset MemTuple) +
-            (right : Multiset MemTuple)))
+    {rest : List Access}
+    (ordered : Ordered timestampIn (access :: rest) timestampOut)
+    (balance : Balanced initial (access :: rest) final) :
+    access.read ∈ initial := by
+  have readOnRight :
+      access.read ∈
+        (readTuples (access :: rest) : Multiset MemTuple) + final := by
+    simp [readTuples]
+  have readOnLeft :
+      access.read ∈
+        initial + (writeTuples (access :: rest) : Multiset MemTuple) := by
+    rw [balance]
+    exact readOnRight
+  rcases Multiset.mem_add.mp readOnLeft with readInInitial | readInWrites
+  · exact readInInitial
+  · have writeAfter := ordered_write_timestamp_gt ordered readInWrites
+    cases ordered with
+    | cons valid _ =>
+        have readBefore := valid.readBeforeWrite
+        omega
+
+private theorem cancel_head
+    {initial final : Multiset MemTuple}
+    {access : Access}
+    {rest : List Access}
+    (readPresent : access.read ∈ initial)
+    (balance : Balanced initial (access :: rest) final) :
+    Balanced
+      (({access.write} : Multiset MemTuple) + initial.erase access.read)
+      rest
+      final := by
+  unfold Balanced at balance ⊢
+  have initialDecomposition :
+      ({access.read} : Multiset MemTuple) + initial.erase access.read = initial := by
+    simpa only [Multiset.singleton_add] using Multiset.cons_erase readPresent
+  apply Multiset.add_right_inj.mp
   calc
-    ((left : Multiset MemTuple) +
-          (({access.read} : Multiset MemTuple) +
-            (right : Multiset MemTuple))) +
-        ({access.write} : Multiset MemTuple) =
-      (left : Multiset MemTuple) +
-        (({access.read} : Multiset MemTuple) +
-          ((right : Multiset MemTuple) +
-            ({access.write} : Multiset MemTuple))) := by
-              rw [Multiset.add_assoc, Multiset.add_assoc]
-    _ = (left : Multiset MemTuple) +
-        (({access.read} : Multiset MemTuple) +
-          (({access.write} : Multiset MemTuple) +
-            (right : Multiset MemTuple))) := by
-              rw [Multiset.add_comm (right : Multiset MemTuple)]
+    ({access.read} : Multiset MemTuple) +
+        ((({access.write} : Multiset MemTuple) + initial.erase access.read) +
+          (writeTuples rest : Multiset MemTuple)) =
+      (({access.read} : Multiset MemTuple) + initial.erase access.read) +
+        (({access.write} : Multiset MemTuple) +
+          (writeTuples rest : Multiset MemTuple)) := by
+            rw [Multiset.add_comm
+              ({access.write} : Multiset MemTuple)
+              (initial.erase access.read)]
+            rw [Multiset.add_assoc]
+            rw [← Multiset.add_assoc]
+    _ = initial +
+        (({access.write} : Multiset MemTuple) +
+          (writeTuples rest : Multiset MemTuple)) := by
+          rw [initialDecomposition]
+    _ = initial + (writeTuples (access :: rest) : Multiset MemTuple) := by
+          simp only [writeTuples, List.map_cons, ← Multiset.cons_coe,
+            ← Multiset.singleton_add]
+    _ = (readTuples (access :: rest) : Multiset MemTuple) + final := balance
     _ = ({access.read} : Multiset MemTuple) +
-        ((left : Multiset MemTuple) +
-          (({access.write} : Multiset MemTuple) +
-            (right : Multiset MemTuple))) := by
-              rw [← Multiset.add_assoc]
-              rw [Multiset.add_comm (left : Multiset MemTuple)]
-              rw [Multiset.add_assoc]
+        ((readTuples rest : Multiset MemTuple) + final) := by
+          simp only [readTuples, List.map_cons, ← Multiset.cons_coe,
+            ← Multiset.singleton_add]
+          exact Multiset.add_assoc _ _ _
 
-/-- Honest sequential execution gives Nebula Lemma 7's exact multiset
-identity `IS ∪ WS = RS ∪ FS`. This theorem is independent of the
-fingerprint representation. -/
-theorem executes_multiset
-    {initial final : List MemTuple}
+/-- Reverse direction needed by V2 soundness: exact multiset balance cannot
+hide a future read when write timestamps follow the global integer access
+order. The proof reconstructs the application access sequence one operation at
+a time. -/
+theorem balanced_implies_executes
+    {initial final : Multiset MemTuple}
     {timestampIn timestampOut : Nat}
     {accesses : List Access}
-    (execution : Executes initial timestampIn accesses final timestampOut) :
-    (initial : Multiset MemTuple) +
-        (writeTuples accesses : Multiset MemTuple) =
-      (readTuples accesses : Multiset MemTuple) +
-        (final : Multiset MemTuple) := by
-  induction execution with
-  | nil snapshot timestamp =>
-      simp [writeTuples, readTuples]
-  | @cons before middle after timestampIn timestampMiddle timestampOut
-      access rest applies tail inductionHypothesis =>
-      change
-        (before : Multiset MemTuple) +
-            (({access.write} : Multiset MemTuple) +
-              (writeTuples rest : Multiset MemTuple)) =
-          (({access.read} : Multiset MemTuple) +
-              (readTuples rest : Multiset MemTuple)) +
-            (after : Multiset MemTuple)
-      rw [← Multiset.add_assoc]
-      rw [applies_multiset applies]
-      rw [Multiset.add_assoc]
-      rw [inductionHypothesis]
-      rw [← Multiset.add_assoc]
+    (ordered : Ordered timestampIn accesses timestampOut)
+    (balance : Balanced initial accesses final) :
+    Executes initial timestampIn accesses final timestampOut := by
+  induction ordered generalizing initial with
+  | nil timestamp =>
+      have finalExact : initial = final := by
+        simpa [Balanced, writeTuples, readTuples] using balance
+      subst final
+      exact .nil initial timestamp
+  | @cons timestampIn timestampOut access rest valid tail inductionHypothesis =>
+      have readPresent := head_read_mem_initial (.cons valid tail) balance
+      let middle : Multiset MemTuple :=
+        ({access.write} : Multiset MemTuple) + initial.erase access.read
+      have tailBalance : Balanced middle rest final := by
+        exact cancel_head readPresent balance
+      exact .cons
+        { valid := valid
+          readPresent := readPresent
+          afterExact := rfl }
+        (inductionHypothesis tailBalance)
 
-/-- List-permutation form of `executes_multiset`, used by any selected
-commutative fingerprint product. -/
-theorem executes_perm
-    {initial final : List MemTuple}
+theorem balanced_implies_timestamp_exact
+    {initial final : Multiset MemTuple}
     {timestampIn timestampOut : Nat}
     {accesses : List Access}
-    (execution : Executes initial timestampIn accesses final timestampOut) :
-    (initial ++ writeTuples accesses).Perm
-      (readTuples accesses ++ final) := by
-  rw [← Multiset.coe_eq_coe]
-  exact executes_multiset execution
-
-private theorem k_mul_assoc (left middle right : K) :
-    K.mul (K.mul left middle) right = K.mul left (K.mul middle right) :=
-  extensionLaws.mul_assoc left middle right
-
-private theorem k_mul_comm (left right : K) :
-    K.mul left right = K.mul right left :=
-  extensionLaws.mul_comm left right
-
-private theorem k_one_mul (value : K) : K.mul K.one value = value :=
-  extensionLaws.one_mul value
-
-private theorem k_mul_one (value : K) : K.mul value K.one = value :=
-  extensionLaws.mul_one value
-
-local instance : Std.Associative K.mul := ⟨k_mul_assoc⟩
-local instance : Std.Commutative K.mul := ⟨k_mul_comm⟩
-
-theorem applies_product
-    (challenges : Challenges)
-    {before after : List MemTuple}
-    {timestampIn timestampOut : Nat}
-    {access : Access}
-    (applies : Applies before timestampIn access after timestampOut) :
-    K.mul (product challenges before)
-        (fingerprint challenges access.write) =
-      K.mul (fingerprint challenges access.read)
-        (product challenges after) := by
-  obtain ⟨left, right, beforeExact, afterExact, _, _, _, _⟩ := applies
-  subst before
-  subst after
-  rw [product_append, product_append]
-  simp only [product]
-  ac_rfl
-
-theorem executes_product
-    (challenges : Challenges)
-    {initial final : List MemTuple}
-    {timestampIn timestampOut : Nat}
-    {accesses : List Access}
-    (execution : Executes initial timestampIn accesses final timestampOut) :
-    K.mul (product challenges initial)
-        (product challenges (writeTuples accesses)) =
-      K.mul (product challenges (readTuples accesses))
-        (product challenges final) := by
-  induction execution with
-  | nil snapshot timestamp =>
-      simp only [writeTuples, readTuples, List.map, product]
-      rw [k_mul_one, k_one_mul]
-  | cons applies tail inductionHypothesis =>
-      simp only [writeTuples, readTuples, List.map, product] at inductionHypothesis ⊢
-      rw [← k_mul_assoc]
-      rw [applies_product challenges applies]
-      rw [k_mul_assoc]
-      rw [inductionHypothesis]
-      rw [← k_mul_assoc]
-
-/-- Product order used by the selected Nebula lane:
-`[read, write, initial, final]`. -/
-def products
-    (challenges : Challenges)
-    (initial : List MemTuple) (accesses : List Access)
-    (final : List MemTuple) : Fin 4 → K
-  | ⟨0, _⟩ => product challenges (readTuples accesses)
-  | ⟨1, _⟩ => product challenges (writeTuples accesses)
-  | ⟨2, _⟩ => product challenges initial
-  | _ => product challenges final
-
-/-- Nebula's segment-close product equation. -/
-def Balanced (values : Fin 4 → K) : Prop :=
-  K.mul (values ⟨2, by decide⟩) (values ⟨1, by decide⟩) =
-    K.mul (values ⟨0, by decide⟩) (values ⟨3, by decide⟩)
-
-theorem executes_balanced
-    (challenges : Challenges)
-    {initial final : List MemTuple}
-    {timestampIn timestampOut : Nat}
-    {accesses : List Access}
-    (execution : Executes initial timestampIn accesses final timestampOut) :
-    Balanced (products challenges initial accesses final) := by
-  exact executes_product challenges execution
+    (ordered : Ordered timestampIn accesses timestampOut)
+    (_balance : Balanced initial accesses final) :
+    timestampOut = timestampIn + accesses.length :=
+  ordered.timestampOut_eq
 
 end Nightstream.Protocol.Nebula.Memory

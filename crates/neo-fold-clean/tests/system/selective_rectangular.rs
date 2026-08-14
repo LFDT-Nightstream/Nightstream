@@ -791,6 +791,25 @@ fn linear_definition_rewrite_is_explicitly_source_to_empty() {
         .expect("selective compiler audit")
         .rows();
 
+    let definition_arms = relation
+        .selective_compiler_audit()
+        .expect("selective compiler audit")
+        .source_arm_linear_definitions();
+    assert_eq!(definition_arms.len(), 2);
+    for definitions in definition_arms {
+        let [definition] = definitions.as_slice() else {
+            panic!("one exact affine definition per arm");
+        };
+        assert_eq!(definition.source_row(), Some(0));
+        assert_eq!(definition.target(), 2);
+        assert_eq!(definition.constant(), F::from_u64(3));
+        let [term] = definition.terms() else {
+            panic!("one exact affine source term");
+        };
+        assert_eq!(term.column(), 1);
+        assert_eq!(term.coefficient(), F::ONE);
+    }
+
     for arm in 0..2 {
         let rewrite = rows
             .rewrites()
@@ -877,6 +896,16 @@ fn repeated_stage_paths_remain_distinct_occurrences_in_the_row_ledger() {
     assert_eq!(audit.source_arm_physical_stages()[0][0].rows(), 0..0);
     assert_eq!(audit.source_arm_physical_stages()[0][1].path(), "test.repeated");
     assert_eq!(audit.source_arm_physical_stages()[0][2].path(), "test.repeated");
+    for arm in &audit.width().arms {
+        assert_eq!(
+            arm.physical_stages
+                .iter()
+                .map(|stage| stage.allocated_coordinates)
+                .sum::<usize>(),
+            arm.branch_coordinates,
+            "exclusive stage widths must cover each branch exactly",
+        );
+    }
     let runs = audit.rows().arms()[0].source_runs();
     assert_eq!(runs.len(), 2);
     assert_eq!(runs[0].source_rows(), 0..1);

@@ -21,26 +21,68 @@ use neo_fold_clean::paper::f_prime::r1cs::F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN;
 use neo_fold_clean::paper::nifs;
 use neo_fold_clean::paper::reductions::pi_dec;
 use neo_fold_clean::paper::reductions::pi_dec_circuit::{alloc_dec_inputs, enforce_dec_v_strict};
-use neo_fold_clean::{config, preprocess, CcsInstance, Preprocessing};
+use neo_fold_clean::{config, preprocess, CcsInstance, Params, Preprocessing};
 use neo_math::{D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-const GENERATED_DIRECTORY: &str =
+const BINARY_GENERATED_DIRECTORY: &str =
     "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Nifs/PiDecCanonicalX/Generated";
+const RADIX_FOUR_GENERATED_DIRECTORY: &str =
+    "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/FPrimeSelectiveFixedPoint/Nifs/PiDecCanonicalX/RadixFourCandidate/Generated";
+const SCHEMA_NAMESPACE: &str =
+    "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX";
 const COORDINATE_SHARD_SIZE: usize = 100;
 const ROW_SHARD_SIZE: usize = 240;
 const X_ROWS: usize = 54;
 const ACTIVE_COLUMNS: usize = 5;
-const CHILD_COUNT: usize = 14;
 const LOGICAL_COORDINATES: usize = X_ROWS * ACTIVE_COLUMNS;
 const RECOMPOSITION_ROWS: usize = LOGICAL_COORDINATES;
-const CANONICALITY_ROWS: usize = LOGICAL_COORDINATES * (CHILD_COUNT + 2);
-const TOTAL_ROWS: usize = RECOMPOSITION_ROWS + CANONICALITY_ROWS;
-const CANONICAL_COLUMNS: usize = 1 + LOGICAL_COORDINATES * (CHILD_COUNT + 3);
 const APPLICATION_MATRIX_COUNT: usize = 13;
 const PAPER_MATRIX_COUNT: usize = APPLICATION_MATRIX_COUNT + 1;
-const ACTIVE_PROFILE_TAG: usize = 0;
 const RECURSIVE_SELECTOR: u64 = 1;
+
+#[derive(Clone, Copy)]
+struct ArtifactProfile {
+    generated_directory: &'static str,
+    generated_namespace: &'static str,
+    radix: u32,
+    child_count: usize,
+    profile_tag: usize,
+}
+
+impl ArtifactProfile {
+    fn canonicality_rows(self) -> usize {
+        let rows_per_child = if self.radix == 2 { 1 } else { 3 };
+        LOGICAL_COORDINATES * (2 + rows_per_child * self.child_count)
+    }
+
+    fn total_rows(self) -> usize {
+        RECOMPOSITION_ROWS + self.canonicality_rows()
+    }
+
+    fn canonical_columns(self) -> usize {
+        let limbs = if self.radix == 2 { 0 } else { 2 * self.child_count };
+        1 + LOGICAL_COORDINATES * (1 + self.child_count + 2 + limbs)
+    }
+}
+
+const BINARY_PROFILE: ArtifactProfile = ArtifactProfile {
+    generated_directory: BINARY_GENERATED_DIRECTORY,
+    generated_namespace:
+        "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated",
+    radix: 2,
+    child_count: 14,
+    profile_tag: 0,
+};
+
+const RADIX_FOUR_PROFILE: ArtifactProfile = ArtifactProfile {
+    generated_directory: RADIX_FOUR_GENERATED_DIRECTORY,
+    generated_namespace:
+        "Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.RadixFourCandidate.Generated",
+    radix: 4,
+    child_count: 7,
+    profile_tag: 1,
+};
 
 struct GeneratedLeanFile {
     relative_path: String,
@@ -53,6 +95,7 @@ struct CoordinateColumns {
     children: Vec<usize>,
     sign: usize,
     product: usize,
+    limbs: Vec<[usize; 2]>,
 }
 
 #[derive(Clone)]
@@ -139,14 +182,33 @@ fn committed_lean_files(directory: &Path, root: &Path, files: &mut BTreeSet<Stri
     }
 }
 
-fn compact_preprocessing() -> Preprocessing {
+fn compact_preprocessing(profile: ArtifactProfile) -> Preprocessing {
     let matrices = (0..APPLICATION_MATRIX_COUNT)
         .map(|_| Mat::identity(LOGICAL_COORDINATES))
         .collect::<Vec<_>>();
     let structure = CcsStructure::new(matrices, SparsePoly::new(APPLICATION_MATRIX_COUNT, vec![]))
         .expect("compact 270-coordinate paper-shape structure");
-    let params = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+    let base = config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
         .expect("compact paper-shape params");
+    let params = if profile.radix == 2 {
+        base
+    } else {
+        Params::test_only_from_neo_params(
+            neo_params::NeoParams::new(
+                base.q(),
+                base.eta(),
+                base.d(),
+                base.kappa(),
+                base.m(),
+                profile.radix,
+                profile.child_count as u32,
+                base.T(),
+                base.extension_degree(),
+                114,
+            )
+            .expect("radix-four compact artifact params"),
+        )
+    };
     support::install_ajtai_module(&params, &structure);
     preprocess(params, structure, Some(LOGICAL_COORDINATES)).expect("compact paper-shape preprocessing")
 }
@@ -161,8 +223,8 @@ fn compact_assignment() -> Vec<F> {
         .collect()
 }
 
-fn drive_nifs() -> (Preprocessing, RunningInstance, nifs::NifsProof) {
-    let prep = compact_preprocessing();
+fn drive_nifs(profile: ArtifactProfile) -> (Preprocessing, RunningInstance, nifs::NifsProof) {
+    let prep = compact_preprocessing(profile);
     let fresh = vec![CcsInstance::from_low_norm_assignment(
         &prep.params,
         &prep.log,
@@ -189,18 +251,18 @@ fn drive_nifs() -> (Preprocessing, RunningInstance, nifs::NifsProof) {
     (prep, next, proof)
 }
 
-fn production_fixture() -> ProductionFixture {
-    let (prep, next, proof) = drive_nifs();
+fn production_fixture(profile: ArtifactProfile) -> ProductionFixture {
+    let (prep, next, proof) = drive_nifs(profile);
     let parent = proof.pi_rlc.combined;
     let children = proof.pi_dec.children;
     assert_eq!(F_PRIME_SUPERNEO_PUBLIC_INPUT_LEN, LOGICAL_COORDINATES);
-    assert_eq!(next.witnesses.len(), CHILD_COUNT);
-    assert_eq!(children.len(), CHILD_COUNT);
+    assert_eq!(next.witnesses.len(), profile.child_count);
+    assert_eq!(children.len(), profile.child_count);
     assert_eq!(parent.m_in, LOGICAL_COORDINATES);
     assert_eq!(parent.X.rows(), D);
     assert_eq!(parent.X.cols(), ACTIVE_COLUMNS);
 
-    let mut child_values = vec![vec![F::ZERO; LOGICAL_COORDINATES]; CHILD_COUNT];
+    let mut child_values = vec![vec![F::ZERO; LOGICAL_COORDINATES]; profile.child_count];
     for (child_index, ((claim, witness), values)) in children
         .iter()
         .zip(&next.witnesses)
@@ -233,7 +295,7 @@ fn production_fixture() -> ProductionFixture {
         let mut power = F::ONE;
         for values in &child_values {
             parent_values[public_column] += power * values[public_column];
-            power *= F::from_u64(2);
+            power *= F::from_u64(profile.radix as u64);
         }
         let row = public_column % D;
         let column = public_column / D;
@@ -268,25 +330,26 @@ fn production_fixture() -> ProductionFixture {
     }
 }
 
-fn collect_artifact() -> Artifact {
+fn collect_artifact(profile: ArtifactProfile) -> Artifact {
     let ProductionFixture {
         builder,
         receipt,
         parent_values,
         child_values,
-    } = production_fixture();
+    } = production_fixture(profile);
     let snapshot = builder.snapshot();
     let program = receipt.program();
     let plan = program.plan();
     assert_eq!(
         (plan.x_rows(), plan.active_columns(), plan.child_count()),
-        (X_ROWS, ACTIVE_COLUMNS, CHILD_COUNT)
+        (X_ROWS, ACTIVE_COLUMNS, profile.child_count)
     );
+    assert_eq!(plan.radix(), profile.radix);
     assert_eq!(plan.logical_coordinates(), LOGICAL_COORDINATES);
     assert_eq!(plan.recomposition_rows(), RECOMPOSITION_ROWS);
-    assert_eq!(plan.canonicality_rows(), CANONICALITY_ROWS);
-    assert_eq!(program.row_count(), TOTAL_ROWS);
-    assert_eq!(plan.canonical_column_count(), CANONICAL_COLUMNS);
+    assert_eq!(plan.canonicality_rows(), profile.canonicality_rows());
+    assert_eq!(program.row_count(), profile.total_rows());
+    assert_eq!(plan.canonical_column_count(), profile.canonical_columns());
 
     let coordinates = (0..LOGICAL_COORDINATES)
         .map(|active_index| CoordinateColumns {
@@ -298,7 +361,7 @@ fn collect_artifact() -> Artifact {
                         .expect("parent canonical column"),
                 )
                 .expect("parent actual column"),
-            children: (0..CHILD_COUNT)
+            children: (0..profile.child_count)
                 .map(|child| {
                     receipt
                         .columns()
@@ -326,12 +389,30 @@ fn collect_artifact() -> Artifact {
                         .expect("product canonical column"),
                 )
                 .expect("product actual column"),
+            limbs: if plan.limbs_per_child() == 0 {
+                Vec::new()
+            } else {
+                (0..profile.child_count)
+                    .map(|child| {
+                        core::array::from_fn(|limb| {
+                            receipt
+                                .columns()
+                                .actual_column(
+                                    program
+                                        .limb_canonical_column(child, limb, active_index)
+                                        .expect("limb canonical column"),
+                                )
+                                .expect("limb actual column")
+                        })
+                    })
+                    .collect()
+            },
         })
         .collect::<Vec<_>>();
 
     let mut reconstructed_columns = vec![0];
     reconstructed_columns.extend(coordinates.iter().map(|coordinate| coordinate.parent));
-    for child in 0..CHILD_COUNT {
+    for child in 0..profile.child_count {
         reconstructed_columns.extend(
             coordinates
                 .iter()
@@ -343,13 +424,22 @@ fn collect_artifact() -> Artifact {
             .iter()
             .flat_map(|coordinate| [coordinate.sign, coordinate.product]),
     );
+    for child in 0..profile.child_count {
+        for limb in 0..program.plan().limbs_per_child() {
+            reconstructed_columns.extend(
+                coordinates
+                    .iter()
+                    .map(|coordinate| coordinate.limbs[child][limb]),
+            );
+        }
+    }
     assert_eq!(
         reconstructed_columns,
         receipt.columns().canonical_to_actual(),
         "coordinate records must reconstruct the exact canonical-to-actual map"
     );
 
-    let rows = (0..TOTAL_ROWS)
+    let rows = (0..profile.total_rows())
         .map(|relative_index| {
             let physical_index = receipt
                 .physical_row(relative_index)
@@ -377,7 +467,7 @@ fn collect_artifact() -> Artifact {
             .map(|row| row.physical_index)
             .collect::<BTreeSet<_>>()
             .len(),
-        TOTAL_ROWS,
+        profile.total_rows(),
         "physical canonical-X rows must be uniquely owned"
     );
 
@@ -387,22 +477,22 @@ fn collect_artifact() -> Artifact {
         canonicality_rows: receipt.canonicality_rows(),
         coordinates,
         rows,
-        differential_cases: differential_cases(&parent_values, &child_values),
+        differential_cases: differential_cases(profile, &parent_values, &child_values),
     }
 }
 
-fn native_case_accepts(case: &DifferentialCase) -> bool {
-    if case.profile_tag != ACTIVE_PROFILE_TAG
+fn native_case_accepts(profile: ArtifactProfile, case: &DifferentialCase) -> bool {
+    if case.profile_tag != profile.profile_tag
         || case.recursive_selector != RECURSIVE_SELECTOR
         || case.public_column >= LOGICAL_COORDINATES
-        || case.children.len() != CHILD_COUNT
-        || case.child_evaluation_arities != vec![PAPER_MATRIX_COUNT; CHILD_COUNT]
+        || case.children.len() != profile.child_count
+        || case.child_evaluation_arities != vec![PAPER_MATRIX_COUNT; profile.child_count]
     {
         return false;
     }
     let mut parent = Mat::zero(D, 1, F::ZERO);
     parent.set(0, 0, case.parent);
-    let Ok(expected) = neo_reductions::common::split_b_matrix_k(&parent, CHILD_COUNT, 2) else {
+    let Ok(expected) = neo_reductions::common::split_b_matrix_k(&parent, profile.child_count, profile.radix) else {
         return false;
     };
     expected
@@ -412,6 +502,7 @@ fn native_case_accepts(case: &DifferentialCase) -> bool {
 }
 
 fn checked_case(
+    profile: ArtifactProfile,
     case_id: usize,
     profile_tag: usize,
     recursive_selector: u64,
@@ -430,20 +521,20 @@ fn checked_case(
         child_evaluation_arities,
         rust_accepted: false,
     };
-    case.rust_accepted = native_case_accepts(&case);
+    case.rust_accepted = native_case_accepts(profile, &case);
     case
 }
 
-fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<DifferentialCase> {
+fn differential_cases(profile: ArtifactProfile, parent_values: &[F], child_values: &[Vec<F>]) -> Vec<DifferentialCase> {
     assert_eq!(parent_values.len(), LOGICAL_COORDINATES);
-    assert_eq!(child_values.len(), CHILD_COUNT);
+    assert_eq!(child_values.len(), profile.child_count);
     assert!(child_values
         .iter()
         .all(|values| values.len() == LOGICAL_COORDINATES));
     let public_column = (0..LOGICAL_COORDINATES)
         .find(|&column| {
-            (0..CHILD_COUNT).any(|left| {
-                (left + 1..CHILD_COUNT).any(|right| child_values[left][column] != child_values[right][column])
+            (0..profile.child_count).any(|left| {
+                (left + 1..profile.child_count).any(|right| child_values[left][column] != child_values[right][column])
             })
         })
         .expect("raw fixture must expose a nonconstant canonical digit vector");
@@ -451,10 +542,11 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
         .iter()
         .map(|values| values[public_column])
         .collect::<Vec<_>>();
-    let arities = vec![PAPER_MATRIX_COUNT; CHILD_COUNT];
+    let arities = vec![PAPER_MATRIX_COUNT; profile.child_count];
     let honest = checked_case(
+        profile,
         0,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         RECURSIVE_SELECTOR,
         public_column,
         parent_values[public_column],
@@ -468,8 +560,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
 
     let mut cases = vec![honest];
     let last = checked_case(
+        profile,
         1,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         RECURSIVE_SELECTOR,
         LOGICAL_COORDINATES - 1,
         parent_values[LOGICAL_COORDINATES - 1],
@@ -488,8 +581,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
     let mut changed_child = raw_children.clone();
     changed_child[0] += F::ONE;
     cases.push(checked_case(
+        profile,
         2,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         RECURSIVE_SELECTOR,
         public_column,
         parent_values[public_column],
@@ -497,9 +591,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
         arities.clone(),
     ));
 
-    let (left, right) = (0..CHILD_COUNT)
+    let (left, right) = (0..profile.child_count)
         .find_map(|left| {
-            (left + 1..CHILD_COUNT)
+            (left + 1..profile.child_count)
                 .find(|&right| raw_children[left] != raw_children[right])
                 .map(|right| (left, right))
         })
@@ -507,8 +601,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
     let mut reordered = raw_children.clone();
     reordered.swap(left, right);
     cases.push(checked_case(
+        profile,
         3,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         RECURSIVE_SELECTOR,
         public_column,
         parent_values[public_column],
@@ -517,8 +612,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
     ));
 
     cases.push(checked_case(
+        profile,
         4,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         RECURSIVE_SELECTOR,
         public_column,
         parent_values[public_column] + F::ONE,
@@ -529,8 +625,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
     let mut short = raw_children.clone();
     short.pop();
     cases.push(checked_case(
+        profile,
         5,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         RECURSIVE_SELECTOR,
         public_column,
         parent_values[public_column],
@@ -538,12 +635,13 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
         arities.clone(),
     ));
 
-    let mut mixed_sign = vec![F::ZERO; CHILD_COUNT];
-    mixed_sign[0] = F::ZERO - F::ONE;
+    let mut mixed_sign = vec![F::ZERO; profile.child_count];
+    mixed_sign[0] = F::ZERO - F::from_u64((profile.radix - 1) as u64);
     mixed_sign[1] = F::ONE;
     cases.push(checked_case(
+        profile,
         6,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         RECURSIVE_SELECTOR,
         0,
         F::ONE,
@@ -552,8 +650,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
     ));
 
     cases.push(checked_case(
+        profile,
         7,
-        ACTIVE_PROFILE_TAG + 1,
+        profile.profile_tag + 1,
         RECURSIVE_SELECTOR,
         public_column,
         parent_values[public_column],
@@ -561,8 +660,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
         arities.clone(),
     ));
     cases.push(checked_case(
+        profile,
         8,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         0,
         public_column,
         parent_values[public_column],
@@ -572,8 +672,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
     let mut wrong_arity = arities.clone();
     wrong_arity[0] += 1;
     cases.push(checked_case(
+        profile,
         9,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         RECURSIVE_SELECTOR,
         public_column,
         parent_values[public_column],
@@ -581,8 +682,9 @@ fn differential_cases(parent_values: &[F], child_values: &[Vec<F>]) -> Vec<Diffe
         wrong_arity,
     ));
     cases.push(checked_case(
+        profile,
         10,
-        ACTIVE_PROFILE_TAG,
+        profile.profile_tag,
         RECURSIVE_SELECTOR,
         LOGICAL_COORDINATES,
         parent_values[public_column],
@@ -641,34 +743,54 @@ fn lean_owner(owner: PiDecCanonicalXRowOwner) -> String {
         PiDecCanonicalXRowOwner::ChildDigit { active_index, child } => {
             format!(".childDigit {active_index} {child}")
         }
+        PiDecCanonicalXRowOwner::RadixFourLimb {
+            active_index,
+            child,
+            limb,
+        } => format!(".radixFourLimb {active_index} {child} {limb}"),
+        PiDecCanonicalXRowOwner::RadixFourReconstruction { active_index, child } => {
+            format!(".radixFourReconstruction {active_index} {child}")
+        }
     }
 }
 
-fn render_coordinate_chunk(index: usize, coordinates: &[CoordinateColumns]) -> String {
+fn render_coordinate_chunk(profile: ArtifactProfile, index: usize, coordinates: &[CoordinateColumns]) -> String {
     let values = coordinates
         .iter()
         .map(|coordinate| {
+            let limbs = format!(
+                "[{}]",
+                coordinate
+                    .limbs
+                    .iter()
+                    .map(|pair| lean_nat_list(pair.iter().copied()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
             format!(
-                "{{ parent := {}, children := {}, sign := {}, product := {} }}",
+                "{{ parent := {}, children := {}, sign := {}, product := {}, limbs := {} }}",
                 coordinate.parent,
                 lean_nat_list(coordinate.children.iter().copied()),
                 coordinate.sign,
-                coordinate.product
+                coordinate.product,
+                limbs,
             )
         })
         .collect::<Vec<_>>()
         .join(",\n  ");
     format!(
         "import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Schema\n\n\
-         /-! Generated production-shaped PiDEC canonical-X columns. Do not hand-edit. -/\n\n\
-         namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Coordinates.Chunk{index}\n\n\
-         open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX\n\n\
+         /-! Generated exact PiDEC canonical-X columns. Do not hand-edit. -/\n\n\
+         namespace {namespace}.Coordinates.Chunk{index}\n\n\
+         open {SCHEMA_NAMESPACE}\n\n\
+         set_option maxRecDepth 100000 in\n\
          def values : List CoordinateColumns := [\n  {values}\n]\n\n\
-         end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Coordinates.Chunk{index}\n"
+         end {namespace}.Coordinates.Chunk{index}\n",
+        namespace = profile.generated_namespace,
     )
 }
 
-fn render_row_chunk(index: usize, rows: &[PhysicalRow]) -> String {
+fn render_row_chunk(profile: ArtifactProfile, index: usize, rows: &[PhysicalRow]) -> String {
     let values = rows
         .iter()
         .map(|row| {
@@ -686,59 +808,72 @@ fn render_row_chunk(index: usize, rows: &[PhysicalRow]) -> String {
         .join(",\n  ");
     format!(
         "import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Schema\n\n\
-         /-! Generated exact production-shaped PiDEC canonical-X rows. Do not hand-edit. -/\n\n\
-         namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Rows.Chunk{index}\n\n\
-         open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX\n\n\
+         /-! Generated exact PiDEC canonical-X rows. Do not hand-edit. -/\n\n\
+         namespace {namespace}.Rows.Chunk{index}\n\n\
+         open {SCHEMA_NAMESPACE}\n\n\
          set_option maxRecDepth 100000 in\n\
          def values : List PhysicalRow := [\n  {values}\n]\n\n\
-         end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Rows.Chunk{index}\n"
+         end {namespace}.Rows.Chunk{index}\n",
+        namespace = profile.generated_namespace,
     )
 }
 
-fn row_ranges() -> Vec<std::ops::Range<usize>> {
+fn row_ranges(profile: ArtifactProfile) -> Vec<std::ops::Range<usize>> {
     let mut ranges = vec![0..100, 100..200, 200..RECOMPOSITION_ROWS];
-    ranges.extend((0..18).map(|chunk| {
-        let start = RECOMPOSITION_ROWS + chunk * 240;
-        start..start + 240
-    }));
-    assert_eq!(ranges.last().expect("row range").end, TOTAL_ROWS);
+    let mut start = RECOMPOSITION_ROWS;
+    while start < profile.total_rows() {
+        let end = (start + ROW_SHARD_SIZE).min(profile.total_rows());
+        ranges.push(start..end);
+        start = end;
+    }
+    assert_eq!(ranges.last().expect("row range").end, profile.total_rows());
     assert!(ranges.iter().all(|range| range.len() <= ROW_SHARD_SIZE));
     ranges
 }
 
-fn render_metadata(artifact: &Artifact, row_counts: &[usize]) -> String {
+fn render_metadata(profile: ArtifactProfile, artifact: &Artifact, row_counts: &[usize]) -> String {
+    let coordinate_counts = (0..LOGICAL_COORDINATES)
+        .step_by(COORDINATE_SHARD_SIZE)
+        .map(|start| COORDINATE_SHARD_SIZE.min(LOGICAL_COORDINATES - start));
     format!(
-        "/-! Generated production-shaped strict-PiDEC canonical-X metadata. Do not hand-edit. -/\n\n\
-         namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Metadata\n\n\
+        "/-! Generated exact strict-PiDEC canonical-X metadata. Do not hand-edit. -/\n\n\
+         namespace {namespace}.Metadata\n\n\
          def schemaVersion : Nat := 1\n\
+         def radix : Nat := {}\n\
          def xRows : Nat := {X_ROWS}\n\
          def activeColumns : Nat := {ACTIVE_COLUMNS}\n\
-         def childCount : Nat := {CHILD_COUNT}\n\
+         def childCount : Nat := {}\n\
          def logicalCoordinates : Nat := {LOGICAL_COORDINATES}\n\
-         def canonicalColumnCount : Nat := {CANONICAL_COLUMNS}\n\
+         def canonicalColumnCount : Nat := {}\n\
          def strictRowStart : Nat := {}\n\
          def strictRowEnd : Nat := {}\n\
          def recompositionRowStart : Nat := {}\n\
          def recompositionRowEnd : Nat := {}\n\
          def canonicalityRowStart : Nat := {}\n\
          def canonicalityRowEnd : Nat := {}\n\
-         def rowCount : Nat := {TOTAL_ROWS}\n\
+         def rowCount : Nat := {}\n\
          def coordinateShardSize : Nat := {COORDINATE_SHARD_SIZE}\n\
          def rowShardSize : Nat := {ROW_SHARD_SIZE}\n\
-         def coordinateChunkCounts : List Nat := [100, 100, 70]\n\
+         def coordinateChunkCounts : List Nat := {}\n\
          def rowChunkCounts : List Nat := {}\n\n\
-         end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Metadata\n",
+         end {namespace}.Metadata\n",
+        profile.radix,
+        profile.child_count,
+        profile.canonical_columns(),
         artifact.strict_rows.start,
         artifact.strict_rows.end,
         artifact.recomposition_rows.start,
         artifact.recomposition_rows.end,
         artifact.canonicality_rows.start,
         artifact.canonicality_rows.end,
+        profile.total_rows(),
+        lean_nat_list(coordinate_counts),
         lean_nat_list(row_counts.iter().copied()),
+        namespace = profile.generated_namespace,
     )
 }
 
-fn render_differential_cases(cases: &[DifferentialCase]) -> String {
+fn render_differential_cases(profile: ArtifactProfile, cases: &[DifferentialCase]) -> String {
     let values = cases
         .iter()
         .map(|case| {
@@ -759,18 +894,26 @@ fn render_differential_cases(cases: &[DifferentialCase]) -> String {
     format!(
         "import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Schema\n\n\
          /-! Generated compact Rust/Lean PiDEC-X differential cases. Do not hand-edit. -/\n\n\
-         namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.DifferentialCases\n\n\
-         open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX\n\n\
+         namespace {namespace}.DifferentialCases\n\n\
+         open {SCHEMA_NAMESPACE}\n\n\
          def values : List DifferentialCase := [\n  {values}\n]\n\n\
-         end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.DifferentialCases\n"
+         end {namespace}.DifferentialCases\n",
+        namespace = profile.generated_namespace,
     )
 }
 
-fn render_aggregate(kind: &str, shard_count: usize, value_type: &str, value_name: &str) -> String {
+fn render_aggregate(
+    profile: ArtifactProfile,
+    kind: &str,
+    shard_count: usize,
+    value_type: &str,
+    value_name: &str,
+) -> String {
     let imports = (0..shard_count)
         .map(|index| {
             format!(
-                "import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.{kind}.Chunk{index}"
+                "import {namespace}.{kind}.Chunk{index}",
+                namespace = profile.generated_namespace,
             )
         })
         .collect::<Vec<_>>()
@@ -782,29 +925,30 @@ fn render_aggregate(kind: &str, shard_count: usize, value_type: &str, value_name
     format!(
         "{imports}\n\n\
          /-! Generated ordered PiDEC canonical-X {kind}. Do not hand-edit. -/\n\n\
-         namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated\n\n\
-         open Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX\n\n\
+         namespace {namespace}\n\n\
+         open {SCHEMA_NAMESPACE}\n\n\
          def {value_name} : List {value_type} :=\n\
            [{chunks}].flatten\n\n\
-         end Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated\n"
+         end {namespace}\n",
+        namespace = profile.generated_namespace,
     )
 }
 
-fn generated_files() -> Vec<GeneratedLeanFile> {
-    let artifact = collect_artifact();
-    let row_ranges = row_ranges();
+fn generated_files(profile: ArtifactProfile) -> Vec<GeneratedLeanFile> {
+    let artifact = collect_artifact(profile);
+    let row_ranges = row_ranges(profile);
     let row_counts = row_ranges
         .iter()
         .map(std::ops::Range::len)
         .collect::<Vec<_>>();
     let mut files = vec![
         GeneratedLeanFile {
-            relative_path: format!("{GENERATED_DIRECTORY}/Metadata.lean"),
-            contents: render_metadata(&artifact, &row_counts),
+            relative_path: format!("{}/Metadata.lean", profile.generated_directory),
+            contents: render_metadata(profile, &artifact, &row_counts),
         },
         GeneratedLeanFile {
-            relative_path: format!("{GENERATED_DIRECTORY}/DifferentialCases.lean"),
-            contents: render_differential_cases(&artifact.differential_cases),
+            relative_path: format!("{}/DifferentialCases.lean", profile.generated_directory),
+            contents: render_differential_cases(profile, &artifact.differential_cases),
         },
     ];
     files.extend(
@@ -813,13 +957,14 @@ fn generated_files() -> Vec<GeneratedLeanFile> {
             .chunks(COORDINATE_SHARD_SIZE)
             .enumerate()
             .map(|(index, coordinates)| GeneratedLeanFile {
-                relative_path: format!("{GENERATED_DIRECTORY}/Coordinates/Chunk{index}.lean"),
-                contents: render_coordinate_chunk(index, coordinates),
+                relative_path: format!("{}/Coordinates/Chunk{index}.lean", profile.generated_directory),
+                contents: render_coordinate_chunk(profile, index, coordinates),
             }),
     );
     files.push(GeneratedLeanFile {
-        relative_path: format!("{GENERATED_DIRECTORY}/Coordinates.lean"),
+        relative_path: format!("{}/Coordinates.lean", profile.generated_directory),
         contents: render_aggregate(
+            profile,
             "Coordinates",
             LOGICAL_COORDINATES.div_ceil(COORDINATE_SHARD_SIZE),
             "CoordinateColumns",
@@ -831,20 +976,29 @@ fn generated_files() -> Vec<GeneratedLeanFile> {
             .iter()
             .enumerate()
             .map(|(index, range)| GeneratedLeanFile {
-                relative_path: format!("{GENERATED_DIRECTORY}/Rows/Chunk{index}.lean"),
-                contents: render_row_chunk(index, &artifact.rows[range.clone()]),
+                relative_path: format!("{}/Rows/Chunk{index}.lean", profile.generated_directory),
+                contents: render_row_chunk(profile, index, &artifact.rows[range.clone()]),
             }),
     );
     files.push(GeneratedLeanFile {
-        relative_path: format!("{GENERATED_DIRECTORY}/Rows.lean"),
-        contents: render_aggregate("Rows", row_ranges.len(), "PhysicalRow", "rows"),
+        relative_path: format!("{}/Rows.lean", profile.generated_directory),
+        contents: render_aggregate(profile, "Rows", row_ranges.len(), "PhysicalRow", "rows"),
     });
     files
 }
 
 #[test]
 fn production_pi_dec_canonical_x_artifact_matches_live_rows() {
-    let files = generated_files();
+    check_generated_profile(BINARY_PROFILE);
+}
+
+#[test]
+fn radix_four_candidate_pi_dec_canonical_x_artifact_matches_live_rows() {
+    check_generated_profile(RADIX_FOUR_PROFILE);
+}
+
+fn check_generated_profile(profile: ArtifactProfile) {
+    let files = generated_files(profile);
     let root = repo_root();
     let expected_paths = files
         .iter()
@@ -855,13 +1009,13 @@ fn production_pi_dec_canonical_x_artifact_matches_live_rows() {
         compare_or_write_expected(&root, file, &mut drifted);
     }
     let mut committed_paths = BTreeSet::new();
-    committed_lean_files(&root.join(GENERATED_DIRECTORY), &root, &mut committed_paths);
+    committed_lean_files(&root.join(profile.generated_directory), &root, &mut committed_paths);
     for stale in committed_paths.difference(&expected_paths) {
         drifted.push(format!("stale generated module: {stale}"));
     }
     assert!(
         drifted.is_empty(),
-        "production PiDEC canonical-X artifact drifted; inspect every generated `.lean.expected` candidate before promotion: {drifted:?}"
+        "PiDEC canonical-X artifact drifted; inspect every generated `.lean.expected` candidate before promotion: {drifted:?}"
     );
 }
 
@@ -869,14 +1023,16 @@ fn production_pi_dec_canonical_x_artifact_matches_live_rows() {
 #[ignore = "deliberately promotes reviewed generated Lean candidates"]
 fn regenerate_production_pi_dec_canonical_x_artifact() {
     let root = repo_root();
-    for file in generated_files() {
-        let path = root.join(&file.relative_path);
-        fs::create_dir_all(path.parent().expect("generated canonical-X parent"))
-            .expect("create generated canonical-X directory");
-        fs::write(&path, file.contents).expect("write generated canonical-X artifact");
-        let expected = path.with_extension("lean.expected");
-        if expected.exists() {
-            fs::remove_file(expected).expect("remove promoted canonical-X candidate");
+    for profile in [BINARY_PROFILE, RADIX_FOUR_PROFILE] {
+        for file in generated_files(profile) {
+            let path = root.join(&file.relative_path);
+            fs::create_dir_all(path.parent().expect("generated canonical-X parent"))
+                .expect("create generated canonical-X directory");
+            fs::write(&path, file.contents).expect("write generated canonical-X artifact");
+            let expected = path.with_extension("lean.expected");
+            if expected.exists() {
+                fs::remove_file(expected).expect("remove promoted canonical-X candidate");
+            }
         }
     }
 }

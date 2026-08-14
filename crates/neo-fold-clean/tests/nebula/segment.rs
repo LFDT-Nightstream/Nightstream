@@ -9,15 +9,19 @@
 mod fixture;
 
 use fixture::{honest_two_segment_chain, plan, preprocessing, segment0, segment1, tiny_params, LANE_KAPPA, ROM};
+use neo_ajtai::{AjtaiSModule, Commitment};
+use neo_ccs::traits::SModuleHomomorphism;
+use neo_ccs::Mat;
 use neo_fold_clean::frontends::nebula::circuit::StepData;
 use neo_fold_clean::frontends::nebula::fingerprint::Gammas;
+use neo_fold_clean::frontends::nebula::layout::{CellRecord, NebulaParams};
 use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
 use neo_fold_clean::frontends::nebula::prove::{derive_segment_gamma, prove_segment, resume_segment, SegmentError};
 use neo_fold_clean::frontends::nebula::trace::{Memory, SegmentTrace};
 use neo_fold_clean::lifecycle::{self, verify_uncompressed_audit, Preprocessing, UncompressedAudit};
 use neo_fold_clean::paper::digest;
-use neo_fold_clean::paper::relations::CcsInstance;
-use neo_math::K;
+use neo_fold_clean::paper::relations::{CcsInstance, LaneSchemeError};
+use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 /// The whole protocol, real circuit, two segments, verified end to end:
@@ -92,6 +96,112 @@ fn plan_binds_and_memory_uses_nonzero_initial_ram() {
 #[test]
 fn d_init_is_deterministic() {
     assert_eq!(plan().d_init(), plan().d_init());
+}
+
+#[test]
+fn zero_initial_memory_lane_has_the_exact_zero_commitment() {
+    let plan = plan();
+    let cells = vec![CellRecord { v: 0, t: 0 }; plan.params().b_scan];
+    let bits = plan
+        .params()
+        .encode_scan_lane(&cells)
+        .expect("zero scan lane");
+    assert_eq!(
+        plan.scheme()
+            .commit_mem_lane_bits(&bits)
+            .expect("zero commitment"),
+        Commitment::zeros(D, LANE_KAPPA),
+    );
+}
+
+#[test]
+fn zero_initial_memory_lane_rejects_wrong_width() {
+    let plan = plan();
+    assert!(matches!(
+        plan.scheme().commit_mem_lane_bits(&[]),
+        Err(LaneSchemeError::WitnessWidth { need, got: 0 }) if need > 0
+    ));
+}
+
+#[test]
+fn cached_zero_leaf_preserves_uncached_d_init() {
+    let params = NebulaParams::new(3, 3, 4, 4, 16).expect("params with four zero lanes");
+    let rom = vec![0; params.rom_cells() as usize];
+    let ram = vec![0; params.ram_cells() as usize];
+    let plan = NebulaPlan::new_with_initial_ram(params, rom.clone(), ram.clone(), [0xD4; 32], LANE_KAPPA)
+        .expect("all-zero plan");
+
+    let cells = rom
+        .iter()
+        .chain(&ram)
+        .map(|&v| CellRecord { v, t: 0 })
+        .collect::<Vec<_>>();
+    let mut expected = digest::nebula_chain_mem_header();
+    for step in 0..params.steps_per_segment() {
+        let bits = params
+            .encode_scan_lane(&cells[step * params.b_scan..(step + 1) * params.b_scan])
+            .expect("scan lane");
+        let commitment = plan
+            .scheme()
+            .commit_mem_lane_bits(&bits)
+            .expect("memory commitment");
+        expected = digest::nebula_chain_link(
+            &expected,
+            digest::NEBULA_CHAIN_MEM_TAG,
+            &digest::nebula_mem_leaf(&commitment),
+        );
+    }
+
+    assert_eq!(plan.d_init(), expected);
+}
+
+#[test]
+fn masked_initial_memory_commitment_matches_dense_ajtai_commitment() {
+    let plan = plan();
+    let mut cells = vec![CellRecord { v: 0, t: 0 }; plan.params().b_scan];
+    cells[0].v = 0x8000_0001;
+    cells[1].t = 7;
+    let bits = plan
+        .params()
+        .encode_scan_lane(&cells)
+        .expect("nonzero scan lane");
+    let masked = plan
+        .scheme()
+        .commit_mem_lane_bits(&bits)
+        .expect("masked commitment");
+
+    let cols = plan.scheme().lane_ranges().is.len();
+    let mut dense = Mat::zero(D, cols, F::ZERO);
+    for (index, value) in bits.into_iter().enumerate() {
+        dense[(index % D, index / D)] = value;
+    }
+    let module = AjtaiSModule::new(
+        plan.scheme()
+            .mem_verification_pp()
+            .expect("memory verification PP"),
+    );
+    assert_eq!(masked, module.commit(&dense));
+}
+
+#[test]
+fn bound_initial_memory_matches_a_fresh_plan() {
+    let template = plan();
+    let params = tiny_params();
+    let mut rom = ROM.to_vec();
+    rom[1] ^= 0x55;
+    let mut ram = vec![0; params.ram_cells() as usize];
+    ram[2] = 0x1234_5678;
+
+    let bound = template
+        .bind_initial_memory(rom.clone(), ram.clone())
+        .expect("bind initial memory");
+    let fresh =
+        NebulaPlan::new_with_initial_ram(params, rom, ram, [0xC3; 32], LANE_KAPPA).expect("fresh equivalent plan");
+
+    assert_eq!(bound.d_init(), fresh.d_init());
+    assert_eq!(bound.plan_digest(), fresh.plan_digest());
+    assert_eq!(bound.circuit().rows(), fresh.circuit().rows());
+    assert_eq!(bound.circuit().cols(), fresh.circuit().cols());
 }
 
 // ── Prover resume ────────────────────────────────────────────────────────

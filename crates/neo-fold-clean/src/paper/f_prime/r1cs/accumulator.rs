@@ -1,6 +1,6 @@
 //! Outgoing Construction-2 accumulator binding inside F′.
 //!
-//! Owns: the strict-binary family serialization, bounded SIS chunks, and the
+//! Owns: the strict-radix family serialization, bounded SIS chunks, and the
 //! outer Poseidon2 aggregate.
 //!
 //! Does not own: PiDEC validation, the checked parent cache, `state_x_out`, or
@@ -22,8 +22,8 @@ use crate::engine::r1cs_circuit::field_ext::KVar;
 use crate::engine::r1cs_circuit::{R1csBuilder, Var};
 use crate::paper::f_prime::stage;
 use crate::paper::reductions::pi_ccs_circuit::{
-    enforce_strict_binary_accumulator_family_digest,
-    enforce_strict_binary_accumulator_family_digest_with_aggregate_stage, AccumulatorCeClaimDigestInputs,
+    enforce_strict_radix_accumulator_family_digest,
+    enforce_strict_radix_accumulator_family_digest_with_aggregate_stage, AccumulatorCeClaimDigestInputs,
 };
 use crate::paper::reductions::pi_dec_circuit::CeClaimWires;
 
@@ -31,10 +31,11 @@ use super::Error;
 
 pub(super) fn enforce_nifs_output_acc_digest(
     builder: &mut R1csBuilder,
+    base: u32,
     parent: &CeClaimWires,
     children: &[CeClaimWires],
 ) -> Result<[Var; 4], Error> {
-    enforce_output_acc_digest(builder, parent, children, true)
+    enforce_output_acc_digest(builder, base, parent, children, true)
 }
 
 /// Terminal-fold entrypoint for the same profile-aware codec. The terminal
@@ -42,14 +43,16 @@ pub(super) fn enforce_nifs_output_acc_digest(
 /// terminal stage layout instead of adding recursive-F' stage markers.
 pub(crate) fn enforce_terminal_output_acc_digest(
     builder: &mut R1csBuilder,
+    base: u32,
     parent: &CeClaimWires,
     children: &[CeClaimWires],
 ) -> Result<[Var; 4], Error> {
-    enforce_output_acc_digest(builder, parent, children, false)
+    enforce_output_acc_digest(builder, base, parent, children, false)
 }
 
 fn enforce_output_acc_digest(
     builder: &mut R1csBuilder,
+    base: u32,
     parent: &CeClaimWires,
     children: &[CeClaimWires],
     record_recursive_stages: bool,
@@ -69,14 +72,15 @@ fn enforce_output_acc_digest(
         .map(|(child, y_ring)| accumulator_inputs(child, y_ring))
         .collect::<Vec<_>>();
     if record_recursive_stages {
-        enforce_strict_binary_accumulator_family_digest_with_aggregate_stage(
+        enforce_strict_radix_accumulator_family_digest_with_aggregate_stage(
             builder,
+            base,
             &parent_inputs,
             &child_inputs,
             stage::RECURSIVE_ACCUMULATOR_OUTPUT_AGGREGATE,
         )
     } else {
-        enforce_strict_binary_accumulator_family_digest(builder, &parent_inputs, &child_inputs)
+        enforce_strict_radix_accumulator_family_digest(builder, base, &parent_inputs, &child_inputs)
     }
     .map_err(|error| Error::Inner(format!("output accumulator family digest: {error}")))
 }

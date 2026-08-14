@@ -52,11 +52,11 @@ contains data, never the semantic conclusion that data is intended to support.
 
 ## Nebula V2 implementation ownership
 
-`Nightstream/Implementation/NebulaV2` is organized by the object or protocol
+`Nightstream/Implementation/Nebula` is organized by the object or protocol
 stage that owns each implementation theorem:
 
 ```text
-NebulaV2
+Nebula
 ├── Core          reusable field, bit, comparison, and selector rows
 ├── Commitment    bundle, compact-token, lane, and terminal-opening rows
 ├── Memory        carry, claim, operation, product, snapshot, and transition rows
@@ -67,9 +67,9 @@ NebulaV2
 ```
 
 Each directory has a facade that imports its immediate children. The public
-`NebulaV2` facade imports only these seven ownership facades. Tests and axiom
-guards mirror the same ownership paths below `tests/NebulaV2` and
-`tests/Axioms/NebulaV2`. New modules must enter through the narrowest owning
+`Nebula` facade imports only these seven ownership facades. Tests and axiom
+guards mirror the same ownership paths below `tests/Nebula` and
+`tests/Axioms/Nebula`. New modules must enter through the narrowest owning
 facade; do not restore a flat list in the public facade.
 
 ## Proof ownership trees

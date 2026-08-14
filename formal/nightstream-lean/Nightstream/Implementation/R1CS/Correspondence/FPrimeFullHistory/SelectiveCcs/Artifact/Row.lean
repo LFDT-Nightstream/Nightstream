@@ -1,4 +1,6 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.Row.Boolean
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.Row.CenteredDomain
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.Row.Sbox
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.Row.SelectorComposition
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.Row.Gating
 
@@ -9,6 +11,7 @@ Materialized-row bridge for the final selective CCS structure.
 |---|---|---|
 | `Row.Decoder` | canonical untrusted-wire decoding | no |
 | `Row.Boolean` | sparse action and Boolean-row classification | no |
+| `Row.Sbox` | compact Poseidon2 S-box classification and soundness | no |
 | `Row.SelectorComposition` | selector-total and generic arm-gate classification | no |
 | `Row.Gating` | coefficient-only selector class and exact decoded-row-to-relation action boundary | no |
 

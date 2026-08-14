@@ -25,7 +25,7 @@ namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage.Wire
 
 def rawCoverage : RawCoverage where
-  schemaVersion := 2
+  schemaVersion := 3
   rows := 753
   columns := 1458
   selectorColumns := [54, 55, 56]
@@ -38,6 +38,14 @@ def rawCoverage : RawCoverage where
   , { coefficient := 1, exponents := [0, 1, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0] }
   , { coefficient := 1, exponents := [0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0] }
   , { coefficient := 18446744069414584320, exponents := [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] }
+  , { coefficient := 18446744069414584320, exponents := [0, 1, 0, 0, 0, 0, 3, 1, 0, 0, 0, 0, 0] }
+  , { coefficient := 1, exponents := [0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0] }
+  , { coefficient := 1, exponents := [0, 1, 0, 0, 0, 0, 6, 1, 0, 0, 0, 0, 0] }
+  , { coefficient := 18446744069414584319, exponents := [0, 1, 0, 0, 0, 0, 4, 1, 0, 0, 0, 0, 0] }
+  , { coefficient := 1, exponents := [0, 1, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0, 0] }
+  , { coefficient := 18446744069414584314, exponents := [0, 1, 6, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] }
+  , { coefficient := 14, exponents := [0, 1, 4, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] }
+  , { coefficient := 18446744069414584314, exponents := [0, 1, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] }
   , { coefficient := 18446744069414584320, exponents := [0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0] }
   , { coefficient := 1, exponents := [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0] }
   , { coefficient := 1, exponents := [0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0] }
@@ -120,9 +128,9 @@ def rawCoverage : RawCoverage where
   ]
   gateRuns := [
     { start := 0, stop := 3, port := .general, column := 0, coefficient := 1 }
-  , { start := 3, stop := 67, port := .general, column := 54, coefficient := 1 }
-  , { start := 67, stop := 131, port := .general, column := 55, coefficient := 1 }
-  , { start := 131, stop := 195, port := .general, column := 56, coefficient := 1 }
+  , { start := 3, stop := 67, port := .generalEvaluation, column := 54, coefficient := 1 }
+  , { start := 67, stop := 131, port := .generalEvaluation, column := 55, coefficient := 1 }
+  , { start := 131, stop := 195, port := .generalEvaluation, column := 56, coefficient := 1 }
   , { start := 195, stop := 196, port := .general, column := 0, coefficient := 1 }
   , { start := 196, stop := 248, port := .general, column := 0, coefficient := 1 }
   , { start := 248, stop := 299, port := .general, column := 0, coefficient := 1 }

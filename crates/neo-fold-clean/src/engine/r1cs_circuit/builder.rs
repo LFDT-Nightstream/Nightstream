@@ -29,14 +29,22 @@ use neo_ccs::SeededPhi81LinearBlock;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
+mod compact_poseidon_audit;
+mod row_audit;
+
+pub use compact_poseidon_audit::{
+    Poseidon2CompactPermutationAudit, Poseidon2CompactSboxAudit, Poseidon2PermutationAudit,
+};
+
 pub use super::decider_audit::{
-    PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecStrictAudit, TerminalCeClaimAudit,
+    PiDecAdvAudit, PiDecClaimAudit, PiDecCommitmentAudit, PiDecRadixFourDecompositionAudit, PiDecStrictAudit,
+    TerminalCeClaimAudit,
 };
 use super::encoding_trace::{
     AcceptanceTraceEntry, BalancedTernaryOpeningTraceEntry, CanonicalU64TraceEntry, FirstAcceptedSelectionTraceEntry,
     KMulTraceEntry, Mod5TraceEntry, PolynomialEvaluationTraceEntry, PoseidonHashTraceEntry,
-    PoseidonPermutationTraceEntry, ProjectionIdentityTraceEntry, R1csEncodingTrace, R1csStageCheckpoint,
-    RingMulToom3TraceEntry, Sbox7TraceEntry,
+    PoseidonPermutationTraceEntry, ProjectionIdentityTraceEntry, R1csEncodingTrace, RingMulToom3TraceEntry,
+    Sbox7TraceEntry,
 };
 pub use super::encoding_trace::{ProjectionIdentityRole, ProjectionNebulaCoordinate};
 use super::stage_provenance::PhysicalStageCheckpoint;
@@ -61,7 +69,7 @@ impl Var {
 }
 
 /// A linear combination over witness variables: `Σ coeff_i · z[col_i] + constant`.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Lc {
     pub terms: Vec<(usize, F)>,
     pub constant: F,
@@ -131,7 +139,7 @@ pub struct RingMulAuditEntry {
 /// Low-norm lowering may additionally use this trusted synthesis metadata to
 /// place each one-bit child directly in the corresponding bit of `field_col`
 /// instead of committing the same bit twice.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CanonicalU64Decomposition {
     pub(crate) field_col: usize,
     pub(crate) bit_cols: [usize; 64],
@@ -139,7 +147,7 @@ pub(crate) struct CanonicalU64Decomposition {
 
 pub const BALANCED_TERNARY_DIGITS: usize = 41;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BalancedTernaryDecomposition {
     pub(crate) field_col: usize,
     pub(crate) digit_cols: [usize; BALANCED_TERNARY_DIGITS],
@@ -158,7 +166,7 @@ pub struct BalancedTernaryAudit {
 }
 
 /// One Poseidon2 S-box in a selectively lowerable permutation trace.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Poseidon2SboxTrace {
     pub(crate) input: Lc,
     pub(crate) output_col: usize,
@@ -169,7 +177,7 @@ pub(crate) struct Poseidon2SboxTrace {
 /// The ordinary R1CS rows remain authoritative and testable. The low-norm
 /// low-norm compiler may replace precisely these rows with `x^7` gates and
 /// final linear-output rows, eliminating only the listed temporary columns.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Poseidon2PermutationTrace {
     pub(crate) row_start: usize,
     pub(crate) row_end: usize,
@@ -178,22 +186,6 @@ pub(crate) struct Poseidon2PermutationTrace {
     pub(crate) sboxes: Vec<Poseidon2SboxTrace>,
     pub(crate) output_cols: [usize; 8],
     pub(crate) output_linear_forms: [Lc; 8],
-}
-
-/// Compact assurance view of one exact production Poseidon2 invocation.
-///
-/// The isolated artifact numbers its eight inputs as columns 1..8 and its
-/// fresh columns from 9 onward.  A call site is therefore identified by its
-/// eight input columns and first fresh column; the remaining renaming is
-/// affine.  Row hashes remain the drift authority.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Poseidon2PermutationAudit {
-    pub row_start: usize,
-    pub row_end: usize,
-    pub input_cols: [usize; 8],
-    pub first_allocated_col: usize,
-    pub allocated_col_count: usize,
-    pub output_cols: [usize; 8],
 }
 
 #[derive(Clone, Debug)]
@@ -261,21 +253,21 @@ pub struct CanonicalU64Audit {
 }
 
 /// One identity inside a selectively lowered batch: `result = sum(a_i*b_i)`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ProductSumIdentityTrace {
     pub(crate) factors: Vec<ProductFactorTrace>,
     pub(crate) result: Lc,
 }
 
 /// One scaled product in a selectively lowered product sum.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ProductFactorTrace {
     pub(crate) left: Lc,
     pub(crate) right: Lc,
     pub(crate) coefficient: F,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct CenteredUnitTrace {
     pub(crate) row_start: usize,
     pub(crate) row_end: usize,
@@ -289,7 +281,7 @@ pub(crate) struct CenteredUnitTrace {
 /// schedule to replace the indicator-heavy alphabet and borrow rows with
 /// equivalent degree-seven CCS rows while retaining one borrow endpoint per
 /// two-trit chunk.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ShiftedTernaryCanonicalTrace {
     pub(crate) field_column: usize,
     pub(crate) digit_columns_start: usize,
@@ -301,7 +293,7 @@ pub(crate) struct ShiftedTernaryCanonicalTrace {
 }
 
 /// A group of product-sum identities whose ordinary R1CS rows are contiguous.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ProductSumBatchTrace {
     pub(crate) row_start: usize,
     pub(crate) row_end: usize,
@@ -607,12 +599,13 @@ impl R1csBuilder {
             self.physical_stage_checkpoints
                 .push(PhysicalStageCheckpoint::new(label, self.rows(), self.cols()));
         }
+        self.begin_nested_encoding_stage(label);
+    }
+
+    pub(crate) fn begin_nested_encoding_stage(&mut self, label: &'static str) {
         if self.encoding_trace_enabled {
-            self.encoding_trace.push_stage(R1csStageCheckpoint {
-                label,
-                row: self.rows(),
-                col: self.cols(),
-            });
+            self.encoding_trace
+                .push_stage(label, self.rows(), self.cols());
         }
     }
 
@@ -1105,37 +1098,6 @@ impl R1csBuilder {
             .collect()
     }
 
-    /// Exact column-renaming certificates for all emitted Poseidon2 calls.
-    #[doc(hidden)]
-    pub fn poseidon2_permutation_audits(&self) -> Vec<Poseidon2PermutationAudit> {
-        self.poseidon2_traces
-            .iter()
-            .map(|trace| {
-                let first_allocated_col = trace
-                    .allocated_columns
-                    .first()
-                    .copied()
-                    .expect("Poseidon2 permutation allocates fresh columns");
-                assert!(
-                    trace
-                        .allocated_columns
-                        .iter()
-                        .copied()
-                        .eq(first_allocated_col..first_allocated_col + trace.allocated_columns.len()),
-                    "Poseidon2 fresh columns must remain contiguous",
-                );
-                Poseidon2PermutationAudit {
-                    row_start: trace.row_start,
-                    row_end: trace.row_end,
-                    input_cols: trace.input_cols,
-                    first_allocated_col,
-                    allocated_col_count: trace.allocated_columns.len(),
-                    output_cols: trace.output_cols,
-                }
-            })
-            .collect()
-    }
-
     #[doc(hidden)]
     pub fn poseidon2_hash_audits(&self) -> Vec<Poseidon2HashAudit> {
         self.poseidon2_hash_traces
@@ -1219,6 +1181,11 @@ impl R1csBuilder {
         if self.encoding_trace_enabled {
             self.encoding_trace.push_product_sum_batch(trace.clone());
         }
+        self.record_selective_product_sum_batch(trace);
+    }
+
+    /// Record a product-sum rewrite only in the structural trace.
+    pub(crate) fn record_selective_product_sum_batch(&mut self, trace: ProductSumBatchTrace) {
         if self.record_structure {
             debug_assert_eq!(trace.row_end, self.rows);
             self.product_sum_batch_traces.push(trace);

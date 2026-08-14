@@ -124,7 +124,7 @@ fn canonical_base_acc_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
         .expect("artifact fixture pins public input width");
     let running = RunningInstance::canonical_zero(&prep.params, prep.structure(), m_in, LaneCommitmentMode::Plain)
         .expect("construct canonical base accumulator");
-    AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields()
+    AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest_fields()
 }
 
 fn native_x_out(state: &FPrimeStateIn, chunk_digest: [F; 4], base_acc: [F; 4]) -> [F; 4] {

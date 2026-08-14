@@ -1,6 +1,7 @@
 import Nightstream.Implementation.R1CS.Canonical.KPiCcsPaperFiatShamir
 import Nightstream.Implementation.R1CS.Canonical.Poseidon2CanonicalConstants
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.PaddedRowIdentityConcreteAlgebra
+import Nightstream.Implementation.Transcript.Construction3Poseidon2
 import Nightstream.SuperNeo.Folding.Nifs.PaperProfile
 import Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive.Types
 import Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionStrongSet
@@ -37,6 +38,7 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRo
 
 open Nightstream.Implementation.R1CS.Canonical
 open Nightstream.Implementation.R1CS.Canonical.KPiCcsPaperFiatShamir
+open Nightstream.Implementation.Transcript
 open Nightstream.SuperNeo
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Folding.Nifs
@@ -47,9 +49,9 @@ open Nightstream.SuperNeo.SumCheck.Finite
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentity
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityConcreteAlgebra
 
-abbrev State := Poseidon2Duplex.State
+abbrev State := Construction3Poseidon2.State
 /-- Four Goldilocks output lanes from one Poseidon2 digest. -/
-abbrev StatementId := Fin 4 -> F
+abbrev StatementId := Construction3Poseidon2.StatementId
 abbrev PaperShape := Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Shape
 abbrev SelectedCommitment :=
   PaddedRowIdentityConcreteAlgebra.Commitment
@@ -60,82 +62,69 @@ abbrev SelectedEvaluation :=
 
 /-- Selected, Lean-owned width-8 Poseidon2 constants. -/
 def constants : Poseidon2Schedule.Constants :=
-  Poseidon2CanonicalConstants.selected
+  Construction3Poseidon2.constants
 
 /-- Empty state before the statement identifier starts one NIFS transcript. -/
-def initialState : State := Poseidon2Duplex.empty
+def initialState : State := Construction3Poseidon2.initialState
 
 /-! ## Canonical field serialization -/
 
 /-- Numeric words are reduced exactly as the existing one-joint schedule. -/
-def word (value : Nat) : Nat := value % goldilocksModulus
+def word (value : Nat) : Nat := Construction3Poseidon2.word value
 
 /-- Canonical UTF-8 bytes for
 `HyperNova/MultiFold/Fiat-Shamir/v2`. -/
 def construction3DomainBytes : List Nat :=
-  [72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 77, 117, 108, 116,
-    105, 70, 111, 108, 100, 47, 70, 105, 97, 116, 45, 83, 104, 97,
-    109, 105, 114, 47, 118, 50]
+  Construction3Poseidon2.construction3DomainBytes
 
 /-- Canonical UTF-8 bytes for Construction 3's `statement-id` label. -/
 def statementIdLabelBytes : List Nat :=
-  [115, 116, 97, 116, 101, 109, 101, 110, 116, 45, 105, 100]
+  Construction3Poseidon2.statementIdLabelBytes
 
 /-- Canonical UTF-8 bytes for Construction 3's `proof` label. -/
-def proofLabelBytes : List Nat := [112, 114, 111, 111, 102]
+def proofLabelBytes : List Nat := Construction3Poseidon2.proofLabelBytes
 
 /-- Canonical UTF-8 bytes for Construction 3's `prover-message` label. -/
 def proverMessageLabelBytes : List Nat :=
-  [112, 114, 111, 118, 101, 114, 45, 109, 101, 115, 115, 97, 103, 101]
+  Construction3Poseidon2.proverMessageLabelBytes
 
 /-- Canonical UTF-8 bytes for Construction 3's `verifier-challenge` label. -/
 def verifierChallengeLabelBytes : List Nat :=
-  [118, 101, 114, 105, 102, 105, 101, 114, 45, 99, 104, 97, 108,
-    108, 101, 110, 103, 101]
+  Construction3Poseidon2.verifierChallengeLabelBytes
 
 /-- Type-and-length frame for one Construction 3 string. -/
 def stringFields (bytes : List Nat) : List Nat :=
-  [word 32, word bytes.length] ++ bytes.map word
+  Construction3Poseidon2.stringFields bytes
 
 def construction3DomainFields : List Nat :=
-  stringFields construction3DomainBytes
+  Construction3Poseidon2.construction3DomainFields
 
 def statementIdLabelFields : List Nat :=
-  stringFields statementIdLabelBytes
+  Construction3Poseidon2.statementIdLabelFields
 
-def proofLabelFields : List Nat := stringFields proofLabelBytes
+def proofLabelFields : List Nat := Construction3Poseidon2.proofLabelFields
 
 def proverMessageLabelFields : List Nat :=
-  stringFields proverMessageLabelBytes
+  Construction3Poseidon2.proverMessageLabelFields
 
 def verifierChallengeLabelFields : List Nat :=
-  stringFields verifierChallengeLabelBytes
+  Construction3Poseidon2.verifierChallengeLabelFields
 
 /-- Construction 3 domain tag for the fixed-length statement identifier. -/
-def statementIdentifierTag : Nat := 39
+def statementIdentifierTag : Nat := Construction3Poseidon2.statementIdentifierTag
 
 /-- Exact selected event descriptor. Indices are one-based, as in
 Construction 3. `fieldCount` fixes the declared message or challenge space. -/
-inductive Event where
-  | proverMessage
-      (eventIndex messageIndex messageType fieldCount : Nat)
-  | verifierCoins
-      (eventIndex challengeIndex challengeType fieldCount : Nat)
-deriving Repr, DecidableEq
+abbrev Event := Construction3Poseidon2.Event
 
 def Event.fields : Event -> List Nat
-  | .proverMessage eventIndex messageIndex messageType fieldCount =>
-      [word 34, word eventIndex, word messageIndex, word messageType,
-        word fieldCount]
-  | .verifierCoins eventIndex challengeIndex challengeType fieldCount =>
-      [word 35, word eventIndex, word challengeIndex, word challengeType,
-        word fieldCount]
+  := Construction3Poseidon2.Event.fields
 
 /-- Production transcript tag for one indexed PiRLC candidate. -/
-def piRlcCandidateTag : Nat := 1314062624
+def piRlcCandidateTag : Nat := Construction3Poseidon2.piRlcCandidateTag
 
 /-- The final PiDEC prover message has its own fixed type tag. -/
-def piDecOutputTag : Nat := 48
+def piDecOutputTag : Nat := Construction3Poseidon2.piDecOutputTag
 
 /-- The exact 53-event public schedule for one selected fold:
 alpha, gamma, 24 interleaved SumCheck rounds, the complete PiCCS output,
@@ -188,8 +177,11 @@ def proofPrefixFields (statementId : StatementId) : List Nat :=
 @[simp] theorem proofPrefixFields_length (statementId : StatementId) :
     (proofPrefixFields statementId).length = 356 := by
   simp [proofPrefixFields, construction3DomainFields, proofLabelFields,
-    stringFields, construction3DomainBytes, proofLabelBytes,
-    canonicalFinIndices_length]
+    Construction3Poseidon2.construction3DomainFields,
+    Construction3Poseidon2.proofLabelFields,
+    Construction3Poseidon2.stringFields,
+    Construction3Poseidon2.construction3DomainBytes,
+    Construction3Poseidon2.proofLabelBytes]
 
 /-- The fixed-length identifier is absorbed with the Construction 3 domain,
 `proof` label, event schedule, and `(mu, nu) = (1, 1)` before all public NIFS
@@ -203,20 +195,20 @@ def initialStateForStatement (statementId : StatementId) : State :=
     (statementIdentifierFields statementId) initialState
 
 /-- A base-field element has one canonical Goldilocks coordinate. -/
-def fFields (value : F) : List Nat := [value.val]
+def fFields (value : F) : List Nat := Construction3Poseidon2.fFields value
 
 /-- A quadratic-extension element is low limb followed by high limb. -/
-def kFields (value : K) : List Nat := [value.c0.val, value.c1.val]
+def kFields (value : K) : List Nat := Construction3Poseidon2.kFields value
 
 /-- Encode a finite function in increasing `Fin` order. -/
 def finFields
     {count : Nat} {Value : Type}
     (encode : Value -> List Nat) (values : Fin count -> Value) : List Nat :=
-  (canonicalFinIndices count).flatMap fun index => encode (values index)
+  Construction3Poseidon2.finFields encode values
 
 /-- Ring coefficients use increasing polynomial degree. -/
 def ringFFields (value : RingF) : List Nat :=
-  finFields fFields value
+  Construction3Poseidon2.ringFFields value
 
 /-- The selected paper shape, in the same order as `KPiCcsTranscript`. -/
 def shapeFields (value : PaperShape) : List Nat :=
@@ -417,7 +409,8 @@ private theorem sourceOutputFields_length
 
 private theorem ringFFields_length (value : RingF) :
     (ringFFields value).length = ringDegree := by
-  unfold ringFFields finFields
+  unfold ringFFields Construction3Poseidon2.ringFFields
+    Construction3Poseidon2.finFields
   calc
     _ = (canonicalFinIndices ringDegree).length * 1 := by
       apply Poseidon2Program.length_flatMap_uniform
@@ -497,14 +490,11 @@ evaluation families. -/
 /-- Interpret the first two freshly permuted lanes as the selected concrete
 quadratic extension. -/
 def challengeValue (state : State) : K where
-  c0 := ⟨state.lanes ⟨0, by decide⟩ % goldilocksModulus,
-    Nat.mod_lt _ (by decide)⟩
-  c1 := ⟨state.lanes ⟨1, by decide⟩ % goldilocksModulus,
-    Nat.mod_lt _ (by decide)⟩
+  c0 := (Construction3Poseidon2.challengeValue state).c0
+  c1 := (Construction3Poseidon2.challengeValue state).c1
 
 def squeezeK (state : State) : K × State :=
-  let next := Poseidon2Duplex.gate constants state
-  (challengeValue next, next)
+  Construction3Poseidon2.squeezeK state
 
 /-- Construction 3 challenge frame. The domain, literal challenge label,
 event index, challenge index, declared type, and domain-expansion coordinates
@@ -512,16 +502,14 @@ are absorbed before the concrete squeeze. -/
 def verifierChallengeFields
     (eventIndex challengeIndex challengeType : Nat)
     (coordinates : List Nat) : List Nat :=
-  construction3DomainFields ++ verifierChallengeLabelFields ++
-    [word eventIndex, word challengeIndex, word challengeType,
-      word coordinates.length] ++ coordinates.map word
+  Construction3Poseidon2.verifierChallengeFields
+    eventIndex challengeIndex challengeType coordinates
 
 def squeezeVerifierChallenge
     (eventIndex challengeIndex challengeType : Nat)
     (coordinates : List Nat) (state : State) : K × State :=
-  squeezeK (Poseidon2Duplex.absorbList constants
-    (verifierChallengeFields eventIndex challengeIndex challengeType coordinates)
-    state)
+  Construction3Poseidon2.squeezeVerifierChallenge
+    eventIndex challengeIndex challengeType coordinates state
 
 /-- Exact typed paper transcript, with no caller-provided challenges. -/
 def transcript :
@@ -569,268 +557,175 @@ def oracle : ProtocolVerifier.Oracle K State shape where
 
 /-! ## Exact bounded full-field PiRLC sampling -/
 
-abbrev Coefficient :=
-  Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.Coefficient
+abbrev Coefficient := Construction3Poseidon2.Coefficient
+abbrev Scalar := Construction3Poseidon2.Scalar
 
-abbrev Scalar :=
-  Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionStrongSet.Scalar
+def samplerAttemptCount : Nat :=
+  Construction3Poseidon2.samplerAttemptCount
 
-/-- Every ring coefficient gets at most three full-field candidates. -/
-def samplerAttemptCount : Nat := 3
+def firstAttempt : Fin samplerAttemptCount :=
+  Construction3Poseidon2.firstAttempt
 
-/-- Canonical attempt indices. Named values keep the attempt identity stable
-across the sampler and its security proof. -/
-def firstAttempt : Fin samplerAttemptCount := ⟨0, by decide⟩
+def secondAttempt : Fin samplerAttemptCount :=
+  Construction3Poseidon2.secondAttempt
 
-def secondAttempt : Fin samplerAttemptCount := ⟨1, by decide⟩
+def thirdAttempt : Fin samplerAttemptCount :=
+  Construction3Poseidon2.thirdAttempt
 
-def thirdAttempt : Fin samplerAttemptCount := ⟨2, by decide⟩
+def samplerCoefficientCount : Nat :=
+  Construction3Poseidon2.samplerCoefficientCount
 
-/-- Exact number of coefficients in one Phi81 challenge. -/
-def samplerCoefficientCount : Nat := 54
-
-/-- Exact source-major, coefficient-major, attempt-minor candidate index. -/
 def candidateFlat
     (source : Fin PaperProfile.arity.total)
     (coefficient : Fin samplerCoefficientCount)
     (attempt : Fin samplerAttemptCount) : Nat :=
-  (source.val * samplerCoefficientCount + coefficient.val) *
-      samplerAttemptCount + attempt.val
+  Construction3Poseidon2.candidateFlat source coefficient attempt
 
-/-- Exact fixed-width domain frame for one PiRLC candidate fork.
-
-The complete post-PiCCS state already binds the statement, profile, event
-schedule, proof prefix, and PiCCS output. One unique candidate tag plus the
-injective flat candidate index therefore separates every candidate without
-reabsorbing the text-form Construction-3 labels on each of the 2,430 forks.
-The fixed two-field arity and index order are verifier-key data. -/
 def candidateFields
     (source : Fin PaperProfile.arity.total)
     (coefficient : Fin samplerCoefficientCount)
     (attempt : Fin samplerAttemptCount) : List Nat :=
-  [word piRlcCandidateTag, word (candidateFlat source coefficient attempt)]
+  Construction3Poseidon2.candidateFields source coefficient attempt
 
 @[simp] theorem candidateFields_length
     (source : Fin PaperProfile.arity.total)
     (coefficient : Fin samplerCoefficientCount)
     (attempt : Fin samplerAttemptCount) :
     (candidateFields source coefficient attempt).length = 2 := by
-  rfl
+  simpa [candidateFields, samplerCoefficientCount, samplerAttemptCount] using
+    Construction3Poseidon2.candidateFields_length source coefficient attempt
 
-/-- One indexed full-field candidate derived from the fixed post-PiCCS state.
-The candidate is a complete canonical Goldilocks element, not a 16-bit chunk. -/
 def candidateValue
     (state : State)
     (source : Fin PaperProfile.arity.total)
     (coefficient : Fin samplerCoefficientCount)
     (attempt : Fin samplerAttemptCount) : F :=
-  let tagged := Poseidon2Duplex.absorbList constants
-    (candidateFields source coefficient attempt) state
-  let sampled := Poseidon2Duplex.challengeField constants tagged
-  ⟨sampled.1 % goldilocksModulus,
-    Nat.mod_lt _ (by decide)⟩
+  Construction3Poseidon2.candidateValue state source coefficient attempt
 
-/-- Reject only the final Goldilocks residue `q-1`. -/
 def candidateAccepted (candidate : F) : Bool :=
-  decide (candidate.val < goldilocksModulus - 1)
+  Construction3Poseidon2.candidateAccepted candidate
 
-/-- Accepted residues map in order to the five centered digits. -/
 def candidateDigit (candidate : F) : Coefficient :=
-  ⟨candidate.val % 5, Nat.mod_lt _ (by decide)⟩
+  Construction3Poseidon2.candidateDigit candidate
 
 @[simp] theorem candidateAccepted_eq_true_iff (candidate : F) :
     candidateAccepted candidate = true ↔
       candidate.val < goldilocksModulus - 1 := by
-  simp [candidateAccepted]
+  simpa [candidateAccepted] using
+    Construction3Poseidon2.candidateAccepted_eq_true_iff candidate
 
 @[simp] theorem candidateAccepted_eq_false_iff (candidate : F) :
     candidateAccepted candidate = false ↔
       candidate.val = goldilocksModulus - 1 := by
-  simp only [candidateAccepted, decide_eq_false_iff_not]
-  have upper := candidate.isLt
-  simp only [goldilocksModulus] at upper ⊢
-  omega
+  simpa [candidateAccepted] using
+    Construction3Poseidon2.candidateAccepted_eq_false_iff candidate
 
-/-- One coefficient uses the first accepted candidate and fails after exactly
-three rejections. Unused later attempts have no authority. -/
 def sampleCoefficient
     (state : State)
     (source : Fin PaperProfile.arity.total)
     (coefficient : Fin samplerCoefficientCount) : Option Coefficient :=
-  let first := candidateValue state source coefficient firstAttempt
-  if candidateAccepted first then
-    some (candidateDigit first)
-  else
-    let second := candidateValue state source coefficient secondAttempt
-    if candidateAccepted second then
-      some (candidateDigit second)
-    else
-      let third := candidateValue state source coefficient thirdAttempt
-      if candidateAccepted third then some (candidateDigit third) else none
+  Construction3Poseidon2.sampleCoefficient state source coefficient
 
-/-- Exact proof-rejection event: at least one of the 15x54 coefficients
-exhausts all three attempts. -/
-def SamplerShortfall (state : State) : Prop :=
-  Exists fun source : Fin PaperProfile.arity.total =>
-    Exists fun coefficient : Fin samplerCoefficientCount =>
-      sampleCoefficient state source coefficient = none
+abbrev SamplerShortfall := Construction3Poseidon2.SamplerShortfall
+abbrev SamplerAvailable := Construction3Poseidon2.SamplerAvailable
 
-def SamplerAvailable (state : State) : Prop :=
-  ¬ SamplerShortfall state
-
-/-- Executable gate used by the selected verifier. -/
-noncomputable def samplerSucceeded (state : State) : Bool := by
-  classical
-  exact decide (SamplerAvailable state)
+noncomputable def samplerSucceeded (state : State) : Bool :=
+  Construction3Poseidon2.samplerSucceeded state
 
 @[simp] theorem samplerSucceeded_eq_true_iff (state : State) :
     samplerSucceeded state = true ↔ SamplerAvailable state := by
-  classical
-  simp [samplerSucceeded]
+  simpa [samplerSucceeded] using
+    Construction3Poseidon2.samplerSucceeded_eq_true_iff state
 
 @[simp] theorem samplerSucceeded_eq_false_iff (state : State) :
     samplerSucceeded state = false ↔ SamplerShortfall state := by
-  classical
-  simp [samplerSucceeded, SamplerAvailable]
+  simpa [samplerSucceeded] using
+    Construction3Poseidon2.samplerSucceeded_eq_false_iff state
 
 theorem available_or_shortfall (state : State) :
-    SamplerAvailable state \/ SamplerShortfall state := by
-  rcases Classical.em (SamplerShortfall state) with shortfall | available
-  · exact Or.inr shortfall
-  · exact Or.inl available
+    SamplerAvailable state ∨ SamplerShortfall state :=
+  Construction3Poseidon2.available_or_shortfall state
 
 theorem available_excludes_shortfall
     {state : State} (available : SamplerAvailable state) :
     ¬ SamplerShortfall state :=
-  available
+  Construction3Poseidon2.available_excludes_shortfall available
 
 theorem not_available_iff_shortfall (state : State) :
-    ¬ SamplerAvailable state ↔ SamplerShortfall state := by
-  simp only [SamplerAvailable, Classical.not_not]
+    ¬ SamplerAvailable state ↔ SamplerShortfall state :=
+  Construction3Poseidon2.not_available_iff_shortfall state
 
-/-- Centered zero is symbol `2`, since the semantic value is `symbol - 2`. -/
-def zeroCoefficient : Coefficient := ⟨2, by decide⟩
+def zeroCoefficient : Coefficient :=
+  Construction3Poseidon2.zeroCoefficient
 
-def zeroScalar : Scalar := fun _ => zeroCoefficient
+def zeroScalar : Scalar :=
+  Construction3Poseidon2.zeroScalar
 
-/-- The generic key needs a total scalar function. Failed coordinates use a
-fixed internal zero only so the carrier is total. `samplerSucceeded` prevents
-the selected verifier from accepting any execution that reaches this case. -/
 def scalarResponse
     (state : State) (source : Fin PaperProfile.arity.total) : Scalar :=
-  fun coefficient =>
-    (sampleCoefficient state source
-      (Fin.cast (by rfl) coefficient)).getD zeroCoefficient
+  Construction3Poseidon2.scalarResponse state source
 
-/-- Ring-valued response consumed by the generic paper-key carrier. -/
 def piRlcResponse
     (state : State) (source : Fin PaperProfile.arity.total) : RingF :=
-  Phi81StrongSet.embedScalar (scalarResponse state source)
+  Construction3Poseidon2.piRlcResponse state source
 
 theorem piRlcResponse_valid (state : State)
     (source : Fin PaperProfile.arity.total) :
     Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra.Challenge.challengeValid
       (piRlcResponse state source) := by
-  exact
-    Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra.Challenge.embedScalar_valid _
+  simpa [piRlcResponse] using
+    Construction3Poseidon2.piRlcResponse_valid state source
 
-/-- Pointwise refinement to the exact successful three-attempt sampler. -/
-def ResponseRefinesAt
-    (response : State -> Fin PaperProfile.arity.total -> Scalar)
-    (state : State) : Prop :=
-  forall source coefficient,
-    sampleCoefficient state source (Fin.cast (by rfl) coefficient) =
-      some (response state source coefficient)
+abbrev ResponseRefinesAt := Construction3Poseidon2.ResponseRefinesAt
 
 theorem piRlcResponse_refines_of_available
     {state : State} (available : SamplerAvailable state) :
     ResponseRefinesAt scalarResponse state := by
-  intro source coefficient
-  have succeeds :
-      sampleCoefficient state source (Fin.cast (by rfl) coefficient) ≠ none := by
-    intro failed
-    exact available ⟨source, Fin.cast (by rfl) coefficient, failed⟩
-  unfold scalarResponse
-  cases sampled : sampleCoefficient state source (Fin.cast (by rfl) coefficient) with
-  | none => exact False.elim (succeeds sampled)
-  | some value => simp [sampled]
+  simpa [scalarResponse] using
+    Construction3Poseidon2.piRlcResponse_refines_of_available available
 
 theorem piRlcResponse_refines_of_no_shortfall
     {state : State} (noShortfall : ¬ SamplerShortfall state) :
-    ResponseRefinesAt scalarResponse state :=
-  piRlcResponse_refines_of_available noShortfall
+    ResponseRefinesAt scalarResponse state := by
+  simpa [scalarResponse] using
+    Construction3Poseidon2.piRlcResponse_refines_of_no_shortfall noShortfall
 
-/-! ## Exact balance of the accepted field domain -/
-
-def acceptedQuotientCount : Nat := 3689348813882916864
+def acceptedQuotientCount : Nat :=
+  Construction3Poseidon2.acceptedQuotientCount
 
 theorem acceptedDomain_factorization :
     goldilocksModulus - 1 = acceptedQuotientCount * 5 := by
-  decide
+  simpa [acceptedQuotientCount] using
+    Construction3Poseidon2.acceptedDomain_factorization
 
-abbrev AcceptedCandidate :=
-  { candidate : F // candidate.val < goldilocksModulus - 1 }
+abbrev AcceptedCandidate := Construction3Poseidon2.AcceptedCandidate
 
 def factorAccepted (candidate : AcceptedCandidate) :
     Fin acceptedQuotientCount × Coefficient :=
-  let quotient := candidate.val.val / 5
-  have quotientLt : quotient < acceptedQuotientCount := by
-    have accepted := candidate.property
-    simp only [goldilocksModulus, acceptedQuotientCount] at accepted ⊢
-    omega
-  ⟨⟨quotient, quotientLt⟩, candidateDigit candidate.val⟩
+  Construction3Poseidon2.factorAccepted candidate
 
 def combineAccepted
     (coordinates : Fin acceptedQuotientCount × Coefficient) :
     AcceptedCandidate :=
-  let value := coordinates.1.val * 5 + coordinates.2.val
-  have accepted : value < goldilocksModulus - 1 := by
-    have quotientLt := coordinates.1.isLt
-    have residueLt : coordinates.2.val < 5 := by
-      simpa [Nightstream.SuperNeo.Folding.Nifs.NonInteractive.PiRlcSampler.ProductionAlphabet.alphabetSize]
-        using coordinates.2.isLt
-    simp only [acceptedQuotientCount] at quotientLt
-    change coordinates.1.val * 5 + coordinates.2.val <
-      goldilocksModulus - 1
-    simp only [goldilocksModulus]
-    omega
-  have canonical : value < goldilocksModulus := by
-    omega
-  ⟨⟨value, canonical⟩, accepted⟩
+  Construction3Poseidon2.combineAccepted coordinates
 
 theorem combineAccepted_factorAccepted (candidate : AcceptedCandidate) :
     combineAccepted (factorAccepted candidate) = candidate := by
-  apply Subtype.ext
-  apply Fin.ext
-  change candidate.val.val / 5 * 5 + candidate.val.val % 5 = candidate.val.val
-  simpa [Nat.mul_comm] using Nat.div_add_mod candidate.val.val 5
+  simpa [combineAccepted, factorAccepted, acceptedQuotientCount] using
+    Construction3Poseidon2.combineAccepted_factorAccepted candidate
 
 theorem factorAccepted_combineAccepted
     (coordinates : Fin acceptedQuotientCount × Coefficient) :
     factorAccepted (combineAccepted coordinates) = coordinates := by
-  rcases coordinates with ⟨quotient, residue⟩
-  have residueLt : residue.val < 5 := by
-    exact residue.isLt
-  apply Prod.ext
-  · apply Fin.ext
-    change (quotient.val * 5 + residue.val) / 5 = quotient.val
-    omega
-  · apply Fin.ext
-    change (quotient.val * 5 + residue.val) % 5 = residue.val
-    omega
+  simpa [combineAccepted, factorAccepted, acceptedQuotientCount] using
+    Construction3Poseidon2.factorAccepted_combineAccepted coordinates
 
-/-- The accepted candidate domain is exactly a product with `Fin 5`.
-Therefore a uniform full-field candidate, conditioned on acceptance, gives an
-exactly uniform centered digit. -/
 theorem acceptedCandidate_exactly_balanced :
-    (forall candidate, combineAccepted (factorAccepted candidate) = candidate) /\
-      (forall coordinates, factorAccepted (combineAccepted coordinates) = coordinates) :=
+    (∀ candidate, combineAccepted (factorAccepted candidate) = candidate) ∧
+      (∀ coordinates, factorAccepted (combineAccepted coordinates) = coordinates) :=
   ⟨combineAccepted_factorAccepted, factorAccepted_combineAccepted⟩
 
-/-- Concrete transcript-security event added by the bounded sampler. The four
-paper transcript collision classes remain those in
-`PaperNonInteractive.TranscriptSecurityEvent`. -/
-inductive Poseidon2SecurityEvent (state : State) where
-  | boundedSamplerShortfall (failure : SamplerShortfall state)
+abbrev Poseidon2SecurityEvent :=
+  Construction3Poseidon2.Poseidon2SecurityEvent
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityPoseidon2

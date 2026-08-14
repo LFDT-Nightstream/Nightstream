@@ -162,7 +162,7 @@ fn check_already_finalized_consistency(prep: &Preprocessing, proof: &Uncompresse
         return Err(Error::FinalizedProofInconsistent);
     }
     let expected_acc_digest = running
-        .accumulator_digest(prep.structure())
+        .accumulator_digest(prep.params.b(), prep.structure())
         .map_err(|_| Error::FinalizedProofInconsistent)?;
     if proof.state.acc_digest != expected_acc_digest {
         return Err(Error::FinalizedProofInconsistent);

@@ -95,6 +95,72 @@ def absorbList (constants : Constants) : List Nat → State → State
   | [], s => s
   | x :: rest, s => absorbList constants rest (absorbElem constants x s)
 
+/-- Exact Rust `absorb_slice` boundary semantics. The scalar loop delays a
+permutation until the next write when the rate is full. Rust's slice fast path
+performs that pending permutation before it returns. -/
+def absorbSlice (constants : Constants) (input : List Nat) (s : State) : State :=
+  guarded constants (absorbList constants input s)
+
+/-- Normalizing an already normalized slice state changes nothing. -/
+theorem guarded_idempotent (constants : Constants) (s : State) :
+    guarded constants (guarded constants s) = guarded constants s := by
+  by_cases full : rate ≤ s.absorbed
+  · have first : guarded constants s = permute constants s := by
+      exact if_pos full
+    rw [first]
+    have normalized : ¬ rate ≤ (permute constants s).absorbed := by
+      simp [permute, rate]
+    exact if_neg normalized
+  · have first : guarded constants s = s := by
+      exact if_neg full
+    rw [first]
+    exact first
+
+/-- One scalar absorb performs the same guard whether the caller normalized
+the input state first or left the pending guard to `absorbElem`. -/
+theorem absorbElem_guarded (constants : Constants) (x : Nat) (s : State) :
+    absorbElem constants x (guarded constants s) =
+      absorbElem constants x s := by
+  simp only [absorbElem, guarded_idempotent]
+
+private theorem absorbList_cons_guarded
+    (constants : Constants) (x : Nat) (rest : List Nat) (s : State) :
+    absorbList constants (x :: rest) (guarded constants s) =
+      absorbList constants (x :: rest) s := by
+  simp only [absorbList, absorbElem_guarded]
+
+private theorem absorbList_append
+    (constants : Constants) (left right : List Nat) (s : State) :
+    absorbList constants (left ++ right) s =
+      absorbList constants right (absorbList constants left s) := by
+  induction left generalizing s with
+  | nil => rfl
+  | cons head tail inductionHypothesis =>
+      simp only [List.cons_append, absorbList]
+      exact inductionHypothesis _
+
+/-- Separate Rust bulk-absorb calls compose exactly. This permits bounded
+streaming without changing the native transcript function. -/
+theorem absorbSlice_append
+    (constants : Constants) (left right : List Nat) (s : State) :
+    absorbSlice constants (left ++ right) s =
+      absorbSlice constants right (absorbSlice constants left s) := by
+  unfold absorbSlice
+  rw [absorbList_append]
+  cases right with
+  | nil => exact (guarded_idempotent constants _).symm
+  | cons head tail =>
+      rw [absorbList_cons_guarded]
+
+/-- A scalar replay whose final cursor is not full already has Rust slice
+boundary form. -/
+theorem absorbSlice_eq_absorbList_of_absorbed_lt
+    (constants : Constants) (input : List Nat) (s : State)
+    (notFull : (absorbList constants input s).absorbed < rate) :
+    absorbSlice constants input s = absorbList constants input s := by
+  unfold absorbSlice guarded
+  rw [if_neg (by omega)]
+
 /-! ## The cursor invariant
 
 Everything else rests on this. -/

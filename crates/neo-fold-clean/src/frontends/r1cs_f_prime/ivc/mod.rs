@@ -21,9 +21,9 @@ pub use pi_ccs_output_digest_audit::{
     PiCcsOutputEnvelopePrefixAudit, PiCcsOutputSisPhysicalAudit, SeededPhi81BlockAudit,
 };
 pub use relation::{
-    R1csIvcBranch, R1csIvcPiDecCanonicalXSelectiveRowsAudit, R1csIvcPiDecSelectiveRowsAudit,
-    R1csIvcPiDecSourceRowAudit, R1csIvcPiDecSourceRowsAudit, R1csIvcRawRunningAssignmentAudit,
-    R1csIvcRawRunningEncodingAudit, R1csIvcRelation,
+    R1csIvcBranch, R1csIvcConstraintSourceAudit, R1csIvcPiDecCanonicalXSelectiveRowsAudit,
+    R1csIvcPiDecSelectiveRowsAudit, R1csIvcPiDecSourceRowAudit, R1csIvcPiDecSourceRowsAudit,
+    R1csIvcRawRunningAssignmentAudit, R1csIvcRawRunningEncodingAudit, R1csIvcRelation,
 };
 
 use thiserror::Error;

@@ -1,5 +1,5 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.SelectiveSelectorCoverageSchema
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Polynomial.Semantics
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Polynomial.Semantics
 
 /-!
 Contract: fail-closed handwritten decoder for compact selector-coverage
@@ -7,7 +7,7 @@ artifacts.
 
 Owns: selector-column separation, exact ledger and gate interval partitions,
 family-label-to-gate-class decoding, run-wise ledger/gate reconciliation, and
-comparison of the exported Rust polynomial with the independent Lean 66-term
+comparison of the exported Rust polynomial with the independent Lean 74-term
 syntax.
 
 Does not own: any generated fixture, full matrix rows, selector-port matrix
@@ -15,7 +15,7 @@ actions, arithmetic-family identity, an expected zero-cost-node inventory,
 branch semantics, production coverage, constraint necessity, or row removal.
 
 Emits constraints: no. Validation is linear in owner runs, gate runs, and the
-66 polynomial terms; it never enumerates physical rows.
+74 polynomial terms; it never enumerates physical rows.
 
 Authority boundary: a family label becomes usable only as a gate-class claim
 after an aligned run from the final selector matrices agrees with the
@@ -29,7 +29,7 @@ equality with the independent Lean syntax.
 | owner partition | every interval, including empty intervals, is cursor-anchored | owner runs |
 | gate partition | nonempty unit intervals exactly cover all rows | gate runs |
 | reconciliation | each nonempty owner has the same interval and expected gate | run count |
-| polynomial | ordered canonical terms equal Polynomial.Semantics.terms | 66 terms |
+| polynomial | ordered canonical terms equal Polynomial.Semantics.terms | 74 terms |
 -/
 
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage
@@ -39,7 +39,7 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Wire
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage.Wire
 
-def supportedSchemaVersion : Nat := 2
+def supportedSchemaVersion : Nat := 3
 
 def ownerNonempty (run : RawOwnerRun) : Bool :=
   decide (run.start < run.stop)
@@ -54,6 +54,12 @@ private def commonGate (arm : Option Nat) :
     Option (RawGatePort × Nat) :=
   match arm with
   | none => some (.general, 0)
+  | some _ => none
+
+private def commonCombinedGate (arm : Option Nat) :
+    Option (RawGatePort × Nat) :=
+  match arm with
+  | none => some (.generalEvaluation, 0)
   | some _ => none
 
 private def armGate
@@ -74,8 +80,8 @@ def expectedGate
     Option (RawGatePort × Nat) :=
   match owner.family with
   | .selectorDomain => commonGate owner.arm
-  | .sharedDomain => commonGate owner.arm
-  | .armDomain => armGate selectorColumns .general owner.arm
+  | .sharedDomain => commonCombinedGate owner.arm
+  | .armDomain => armGate selectorColumns .generalEvaluation owner.arm
   | .oneHot => commonGate owner.arm
   | .publicPadding => commonGate owner.arm
   | .privatePadding => commonGate owner.arm
@@ -91,7 +97,7 @@ def expectedGate
 
 /-- Exact ordered wire image of the independently specified Lean polynomial. -/
 def expectedPolynomialTerms : List RawPolynomialTerm :=
-  Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics.terms.map fun term => {
+  Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics.terms.map fun term => {
     coefficient := term.coefficient.val
     exponents := List.ofFn term.exponents
   }

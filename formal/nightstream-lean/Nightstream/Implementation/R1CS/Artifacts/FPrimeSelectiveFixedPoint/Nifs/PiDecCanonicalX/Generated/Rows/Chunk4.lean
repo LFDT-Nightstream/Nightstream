@@ -1,6 +1,6 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Schema
 
-/-! Generated exact production-shaped PiDEC canonical-X rows. Do not hand-edit. -/
+/-! Generated exact PiDEC canonical-X rows. Do not hand-edit. -/
 
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeSelectiveFixedPoint.Nifs.PiDecCanonicalX.Generated.Rows.Chunk4
 

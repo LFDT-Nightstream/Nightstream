@@ -196,37 +196,45 @@ pub fn enforce_accumulator_claims_digest(builder: &mut R1csBuilder, child_digest
     enforce_poseidon2_hash(builder, &preimage)
 }
 
-/// Circuit mirror of `strict_binary_accumulator_family_digest`.
+/// Circuit mirror of `strict_radix_accumulator_family_digest`.
 ///
 /// The caller must also enforce strict PiDEC for `parent` and `children`.
 /// That relation proves that omitted child `X`, `r`, `ct`, fold-digest, and
 /// padding fields are uniquely derived from the fields serialized here.
-pub fn enforce_strict_binary_accumulator_family_digest(
+pub fn enforce_strict_radix_accumulator_family_digest(
     builder: &mut R1csBuilder,
+    base: u32,
     parent: &AccumulatorCeClaimDigestInputs<'_>,
     children: &[AccumulatorCeClaimDigestInputs<'_>],
 ) -> Result<[Var; 4], Error> {
-    enforce_strict_binary_accumulator_family_digest_inner(builder, parent, children, None)
+    enforce_strict_radix_accumulator_family_digest_inner(builder, base, parent, children, None)
 }
 
-pub(crate) fn enforce_strict_binary_accumulator_family_digest_with_aggregate_stage(
+pub(crate) fn enforce_strict_radix_accumulator_family_digest_with_aggregate_stage(
     builder: &mut R1csBuilder,
+    base: u32,
     parent: &AccumulatorCeClaimDigestInputs<'_>,
     children: &[AccumulatorCeClaimDigestInputs<'_>],
     aggregate_stage: &'static str,
 ) -> Result<[Var; 4], Error> {
-    enforce_strict_binary_accumulator_family_digest_inner(builder, parent, children, Some(aggregate_stage))
+    enforce_strict_radix_accumulator_family_digest_inner(builder, base, parent, children, Some(aggregate_stage))
 }
 
-fn enforce_strict_binary_accumulator_family_digest_inner(
+fn enforce_strict_radix_accumulator_family_digest_inner(
     builder: &mut R1csBuilder,
+    base: u32,
     parent: &AccumulatorCeClaimDigestInputs<'_>,
     children: &[AccumulatorCeClaimDigestInputs<'_>],
     aggregate_stage: Option<&'static str>,
 ) -> Result<[Var; 4], Error> {
+    if base < 2 {
+        return Err(Error::Shape(format!(
+            "accumulator family radix {base} is less than two"
+        )));
+    }
     let first = children
         .first()
-        .ok_or_else(|| Error::Shape("strict-binary accumulator family is empty".into()))?;
+        .ok_or_else(|| Error::Shape("strict-radix accumulator family is empty".into()))?;
     validate_family_member_shape("parent", parent, first)?;
     for (index, child) in children.iter().enumerate() {
         validate_family_member_shape(&format!("child[{index}]"), child, first)?;

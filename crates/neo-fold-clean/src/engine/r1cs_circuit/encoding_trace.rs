@@ -864,7 +864,7 @@ impl R1csEncodingTrace {
         }
     }
 
-    pub(crate) fn push_stage(&mut self, checkpoint: R1csStageCheckpoint) {
-        self.stages.push(checkpoint);
+    pub(crate) fn push_stage(&mut self, label: &'static str, row: usize, col: usize) {
+        self.stages.push(R1csStageCheckpoint { label, row, col });
     }
 }

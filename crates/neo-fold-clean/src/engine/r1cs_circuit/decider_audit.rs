@@ -42,6 +42,15 @@ pub struct PiDecClaimAudit {
     pub fold_digest_cols: [usize; 4],
 }
 
+/// Exact radix-four source row `value = low + 2·high`.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PiDecRadixFourDecompositionAudit {
+    pub row: usize,
+    pub value_col: usize,
+    pub limb_cols: [usize; 2],
+}
+
 /// Complete strict-PiDEC input schedule for one emitted verifier invocation.
 #[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,6 +67,7 @@ pub struct PiDecStrictAudit {
     pub children: Vec<PiDecClaimAudit>,
     /// `[sign, centered-product]` columns, row-major over active X.
     pub x_sign_traces: Vec<[usize; 2]>,
+    pub x_radix_four_decompositions: Vec<PiDecRadixFourDecompositionAudit>,
 }
 
 /// Exact input-wire ownership for one direct terminal-CE claim program.

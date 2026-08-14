@@ -148,6 +148,7 @@ pub(crate) fn validate_digest32(owner: &'static str, value: [u8; 32]) -> Result<
 
 pub(crate) fn validate_state_authority(
     vk: &VerifierKey,
+    base: u32,
     structure: &Structure,
     state: &State,
     semantic_mode: SemanticStateMode,
@@ -183,7 +184,7 @@ pub(crate) fn validate_state_authority(
             }
         }
         ProofState::Active { running, .. } => {
-            if state.acc_digest != running.accumulator_digest(structure)? {
+            if state.acc_digest != running.accumulator_digest(base, structure)? {
                 return Err(Error::StateAuthorityMismatch);
             }
             if matches!(semantic_mode, SemanticStateMode::Stateless) && state.semantic_state_digest != state.acc_digest
@@ -201,6 +202,7 @@ pub(crate) fn validate_state_authority(
 pub(crate) fn advance_state_recorded<R: VerifyTransitionRecorder>(
     prev: State,
     new_proof: ProofState,
+    base: u32,
     structure: &Structure,
     fresh_count: u64,
     chunk_digest: [F; 4],
@@ -209,7 +211,7 @@ pub(crate) fn advance_state_recorded<R: VerifyTransitionRecorder>(
     recorder: &mut R,
 ) -> Result<State, Error> {
     let (chunk_count, step_count) = checked_advanced_counts(&prev, fresh_count)?;
-    let canonical = canonical_accumulator_digest(&new_proof, structure)?;
+    let canonical = canonical_accumulator_digest(&new_proof, base, structure)?;
     if let ProofState::Active { running, .. } = &new_proof {
         recorder.running_digest(running, structure.m, canonical.0);
     }
@@ -232,6 +234,7 @@ pub(crate) fn advance_state_recorded<R: VerifyTransitionRecorder>(
 /// the running accumulator already fixes every coordinate used by `x_out`.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn advance_state_coordinates(
+    base: u32,
     structure: &Structure,
     prev: &StateCoordinates,
     next_running: &RunningInstance,
@@ -254,7 +257,7 @@ pub(crate) fn advance_state_coordinates(
     if step_count >= F::ORDER_U64 {
         return Err(Error::CounterOverflow { counter: "step_count" });
     }
-    let new_acc_digest = next_running.accumulator_digest(structure)?;
+    let new_acc_digest = next_running.accumulator_digest(base, structure)?;
     let z_i = digest::digest_fields_as_digest32(chunk_digest);
     Ok(StateCoordinates {
         chunk_count,
@@ -293,11 +296,14 @@ fn checked_advanced_counts(prev: &State, fresh_count: u64) -> Result<(u64, u64),
 
 fn canonical_accumulator_digest(
     new_proof: &ProofState,
+    base: u32,
     structure: &Structure,
 ) -> Result<CanonicalAccumulatorDigest, Error> {
     match new_proof {
         ProofState::Initial => Ok(CanonicalAccumulatorDigest(digest::AccumulatorHandle::empty().digest())),
-        ProofState::Active { running, .. } => Ok(CanonicalAccumulatorDigest(running.accumulator_digest(structure)?)),
+        ProofState::Active { running, .. } => {
+            Ok(CanonicalAccumulatorDigest(running.accumulator_digest(base, structure)?))
+        }
     }
 }
 

@@ -22,7 +22,8 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation
 open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.ColumnMap
-open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding
 
 #check dimensions_exact
 #check Dimensions.shape_publicRingColumns

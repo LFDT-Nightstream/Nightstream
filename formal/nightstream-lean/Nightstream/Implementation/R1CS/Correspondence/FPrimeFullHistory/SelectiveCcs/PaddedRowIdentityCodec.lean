@@ -1,4 +1,4 @@
-import Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsCanonicalCodecCore
+import Nightstream.Implementation.Encoding.NifsCanonicalCodec
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.PaddedRowIdentityPoseidon2
 
 /-!
@@ -29,8 +29,7 @@ set_option maxRecDepth 10000
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityCodec
 
 open Nightstream.Implementation.Lowering.Goldilocks
-open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding
-open Nightstream.Implementation.Lowering.FPrimeFixedOne.Encoding.ConcreteNifsCanonicalCodecCore
+open Nightstream.Implementation.Encoding.NifsCanonicalCodec
 open Nightstream.SuperNeo
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Folding.Nifs.PaperNonInteractive

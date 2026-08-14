@@ -6,8 +6,8 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Interpreter
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.RowAction
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Rows
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Rows
 
 private def booleanRelation : InterpretedRelation 1 1 where
   matrices := fun role _row _column => booleanPoint 1 1 role.index
@@ -40,10 +40,10 @@ example (port : Fin 13) :
     matrixImageAt booleanRelation booleanAssignment onlyRow port =
       matrixVectorAt
         Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.baseOps
-        (Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.padRows
+        (Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.padRows
           (booleanRelation.matrixAt port))
         booleanAssignment
-        (Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding.numericRowVertex
+        (Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.RowPadding.numericRowVertex
           (rowVariables := 1) (by decide) onlyRow) := by
   exact matrixImageAt_eq_paddedMatrixVectorAt
     booleanRelation booleanAssignment (rowVariables := 1) (by decide) onlyRow port

@@ -15,7 +15,7 @@ use crate::paper::relations::Structure;
 ///
 /// All three matrices must share the same `n × m` shape. `n` is the
 /// number of constraints, `m` is the assignment length (`= |x| + |w|`).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct R1cs {
     pub a: Mat<F>,
     pub b: Mat<F>,

@@ -61,6 +61,7 @@ pub mod verify;
 use neo_ajtai::AjtaiSModule;
 use neo_math::{D, F};
 use neo_reductions::optimized_engine::OptimizedStructureCache;
+use neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact;
 use thiserror::Error;
 
 use crate::paper::construction2::{FinalFoldProof, SemanticStateMode, State, StepProof, VerifierKey};
@@ -80,6 +81,8 @@ pub enum Error {
     NebulaLanePresenceMismatch,
     #[error("nebula: externally accepted proofs must end at a closed segment (idx == 0, γ == ⊥, header chains)")]
     NebulaSegmentOpenAtTerminal,
+    #[error("nebula: terminal lane program binding differs from verifier preprocessing")]
+    NebulaProgramBindingMismatch,
     #[error("nebula: terminal claim's adv tuple failed the lane slice opening")]
     NebulaSliceOpeningFailed,
     #[error("nebula: terminal claim carries no adv tuple on a Nebula chain (or a tuple on a plain chain)")]
@@ -229,6 +232,7 @@ pub enum Error {
 /// The verifier does not know which Ajtai setup the prover used internally.
 /// It fixes this context locally and accepts only proofs that verify under
 /// these params/setup. Proofs must never carry or choose params/setup.
+#[derive(Clone)]
 pub struct Preprocessing {
     pub params: Params,
     structure: std::sync::Arc<Structure>,
@@ -441,6 +445,14 @@ impl Preprocessing {
         &self.optimized_cache
     }
 
+    #[doc(hidden)]
+    pub fn shares_cached_structure_with(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.structure, &other.structure)
+            && self
+                .optimized_cache
+                .shares_storage_with(&other.optimized_cache)
+    }
+
     /// Verifier-circuit view of this preprocessing context. The dimensions
     /// and PiCCS header are derived from the same params, structure, and
     /// matrix cache used by native proving, so recursive frontends do not
@@ -474,22 +486,22 @@ impl Preprocessing {
     }
 
     /// Cheap integrity check that the memoized `structure_digest` and
-    /// `optimized_cache` still describe the live `structure`. Compares
-    /// the cache's shape fingerprint `(n, m, t)` and re-runs
-    /// `structure_digest` from `structure`. The protocol-bound digest
-    /// is the recomputed value; the stored field is only authority by
-    /// preprocessing-time construction.
+    /// `optimized_cache` still describe the live `structure`. The optimized
+    /// cache rechecks its matrix authority, then this method recomputes the
+    /// structure digest from that matrix digest and the live CCS header.
     ///
     /// Returns [`Error::StructureCacheMismatch`] if internal code somehow
     /// desynchronized `structure` and the derived caches after construction.
     /// Production paths don't call this on every step; it's a developer
     /// footgun gate.
     pub fn validate_cached_structure(&self) -> Result<(), Error> {
-        let live_shape = (self.structure.n, self.structure.m, self.structure.t());
-        if self.optimized_cache.shape() != live_shape {
-            return Err(Error::StructureCacheMismatch);
-        }
-        let live_digest = crate::paper::digest::structure_digest(&self.structure);
+        self.optimized_cache
+            .validate_structure(self.structure.as_ref())
+            .map_err(|_| Error::StructureCacheMismatch)?;
+        let live_digest = crate::paper::digest::structure_digest_from_mat_digest(
+            self.structure.as_ref(),
+            self.optimized_cache.matrix_digest(),
+        );
         if live_digest != self.structure_digest {
             return Err(Error::StructureCacheMismatch);
         }
@@ -645,6 +657,32 @@ pub(crate) fn preprocess_shared(
     )
 }
 
+/// Build production preprocessing with a bounded verifier-owned evaluator
+/// artifact. The receipt-bound cache supplies the matrix authority; the live
+/// structure supplies the checked polynomial, dimensions, and witness layout.
+pub(crate) fn preprocess_shared_with_cache_artifact(
+    params: Params,
+    structure: std::sync::Arc<Structure>,
+    public_input_len: Option<usize>,
+    artifact: VerifiedSuperneoCacheArtifact,
+) -> Result<Preprocessing, Error> {
+    structure
+        .validate()
+        .map_err(|error| neo_reductions::error::PiCcsError::InvalidInput(error.to_string()))?;
+    let cols = structure.m.div_ceil(D);
+    let log = AjtaiSModule::from_global_for_dims(D, cols)?;
+    let optimized_cache = OptimizedStructureCache::from_verified_artifact(std::sync::Arc::clone(&structure), artifact)?;
+    preprocess_with_test_log_and_optimized_cache(
+        params,
+        structure,
+        log,
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        public_input_len,
+        optimized_cache,
+    )
+}
+
 /// Build test preprocessing over a shared structure with an explicitly owned
 /// Ajtai setup. Seeded test constructors use this path so equal-shaped tests
 /// cannot race through the production global setup registry.
@@ -658,6 +696,30 @@ pub(crate) fn preprocess_shared_with_test_log(
         .validate()
         .map_err(|error| neo_reductions::error::PiCcsError::InvalidInput(error.to_string()))?;
     let optimized_cache = OptimizedStructureCache::build_shared(std::sync::Arc::clone(&structure))?;
+    preprocess_with_test_log_and_optimized_cache(
+        params,
+        structure,
+        log,
+        ajtai_rlc_mixer,
+        ajtai_dec_mixer,
+        public_input_len,
+        optimized_cache,
+    )
+}
+
+/// Test counterpart of [`preprocess_shared_with_cache_artifact`] with an
+/// explicitly owned Ajtai setup.
+pub(crate) fn preprocess_shared_with_test_log_and_cache_artifact(
+    params: Params,
+    structure: std::sync::Arc<Structure>,
+    log: AjtaiSModule,
+    public_input_len: Option<usize>,
+    artifact: VerifiedSuperneoCacheArtifact,
+) -> Result<Preprocessing, Error> {
+    structure
+        .validate()
+        .map_err(|error| neo_reductions::error::PiCcsError::InvalidInput(error.to_string()))?;
+    let optimized_cache = OptimizedStructureCache::from_verified_artifact(std::sync::Arc::clone(&structure), artifact)?;
     preprocess_with_test_log_and_optimized_cache(
         params,
         structure,

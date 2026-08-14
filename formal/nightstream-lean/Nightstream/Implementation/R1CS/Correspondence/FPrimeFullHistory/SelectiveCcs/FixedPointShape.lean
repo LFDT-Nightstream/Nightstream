@@ -1,6 +1,7 @@
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.FixedPointShapeSchema
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.SelectorCoverage
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.RelationProfile
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.RelationProfile
+import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.Assignment
 
 /-!
 Model-level contract from an untrusted fixed-point header to the independent
@@ -31,7 +32,7 @@ separate payload refinement.
 |---|---|---|---|---|---|
 | `f_prime.fixed_point.header.stable` | terminal input = selective output = emitted header | checked | `Refinement.terminalInput_eq_materialized` | fixed-point compiler audit | one final round |
 | `f_prime.fixed_point.header.matrices` | emitted matrix count = polynomial arity = independent port count | checked | `materialized_matrixCount_eq_13`, `materialized_polynomialArity_eq_13` | emitted structure and full sparse polynomial | semantic port vocabulary |
-| `f_prime.fixed_point.header.polynomial` | exact independent 66-term syntax | checked | `materialized_polynomialTerms_eq` | full sparse polynomial export | `Polynomial.Semantics.terms` |
+| `f_prime.fixed_point.header.polynomial` | exact independent 74-term syntax | checked | `materialized_polynomialTerms_eq` | full sparse polynomial export | `Polynomial.Semantics.terms` |
 | `f_prime.fixed_point.header.public` | public input is exactly five Phi81 rings = 270 fields | checked | `materialized_publicInputLength_eq_270` | selective layout audit | `FPrimeCarrier270.alignedPublicWidth` |
 | `f_prime.fixed_point.header.columns` | final width is already a complete Phi81 carrier | checked | `materialized_columns_ring_aligned` | emitted relation width | `Phi81CarrierLayout.carrierWidth` |
 | `f_prime.fixed_point.header.rows` | row variables form the least Boolean cube covering physical rows | checked | `Refinement.rowDomain` | final relation rows | `RelationProfile.ExactRowDomain` |
@@ -43,6 +44,7 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.FixedPoi
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
+open Nightstream.Implementation.R1CS.SelectiveCcs
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.FixedPointShape.Wire
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage
 
@@ -89,6 +91,7 @@ def toProfile {raw : RawSnapshot} (refinement : Refinement raw) :
       raw.materialized.verifier.columns where
   rowVariables := refinement.rowVariables
   rowDomain := refinement.rowDomain
+  publicRingColumns := publicRingColumns
   publicFits := by
     have publicToColumns :
         alignedPublicWidth <= raw.materialized.verifier.columns := by

@@ -1,5 +1,5 @@
 import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.ColumnMap
-import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowMap
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.NumericRowMap
 
 /-!
 Typed CCS preservation across the five-ring F' carrier repair.

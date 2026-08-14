@@ -35,8 +35,8 @@ private def validatedCompilerRow : ValidatedBooleanRow decodedCompilerRow :=
 theorem compiler_selector_row_residual
     (assignment : Fin decodedCompilerRow.columns → F) :
     residual decodedCompilerRow assignment =
-      Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components.booleanResidual
-        (Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Rows.booleanPoint
+      Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Components.booleanResidual
+        (Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Rows.booleanPoint
           (assignment validatedCompilerRow.selectorColumn)
           (assignment validatedCompilerRow.bitColumn)) := by
   exact residual_eq_booleanResidual decodedCompilerRow validatedCompilerRow assignment
@@ -69,8 +69,8 @@ private def validatedBooleanRow : ValidatedBooleanRow decodedBooleanRow :=
 
 example (assignment : Fin decodedBooleanRow.columns → F) :
     residual decodedBooleanRow assignment =
-      Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components.booleanResidual
-        (Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Rows.booleanPoint
+      Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Components.booleanResidual
+        (Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Rows.booleanPoint
           (assignment validatedBooleanRow.selectorColumn)
           (assignment validatedBooleanRow.bitColumn)) := by
   exact residual_eq_booleanResidual decodedBooleanRow validatedBooleanRow assignment

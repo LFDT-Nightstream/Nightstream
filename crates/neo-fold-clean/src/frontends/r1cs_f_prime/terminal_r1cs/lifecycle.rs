@@ -269,7 +269,7 @@ fn validate_public_statement(
     }
     let expected_acc = running
         .as_running()?
-        .accumulator_digest(prep.structure())
+        .accumulator_digest(prep.params.b(), prep.structure())
         .map_err(|error| TerminalR1csError::Carrier(error.to_string()))?;
     if image.acc_digest != expected_acc {
         return Err(TerminalR1csError::InvalidState(

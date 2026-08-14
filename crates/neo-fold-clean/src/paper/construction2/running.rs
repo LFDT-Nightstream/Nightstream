@@ -183,13 +183,18 @@ impl RunningInstance {
     ///
     /// The Pi_RLC parent remains a separately checked cache; its presence is
     /// validated here but it is not substituted for the exact child family.
-    pub(crate) fn accumulator_digest(&self, structure: &Structure) -> Result<[u8; 32], RunningInstanceError> {
-        self.accumulator_digest_for_relation_shape(structure.n, structure.m, structure.t())
+    pub(crate) fn accumulator_digest(
+        &self,
+        base: u32,
+        structure: &Structure,
+    ) -> Result<[u8; 32], RunningInstanceError> {
+        self.accumulator_digest_for_relation_shape(base, structure.n, structure.m, structure.t())
     }
 
     /// Canonical accumulator digest from the verifier-owned relation shape.
     pub(crate) fn accumulator_digest_for_relation_shape(
         &self,
+        base: u32,
         _relation_rows: usize,
         _relation_columns: usize,
         _matrices: usize,
@@ -204,9 +209,11 @@ impl RunningInstance {
             return Err(RunningInstanceError::MissingParentAuthority);
         }
 
-        Ok(
-            crate::paper::digest::AccumulatorHandle::from_running_parts(&self.claims, self.parent_authority.as_ref())
-                .digest(),
+        Ok(crate::paper::digest::AccumulatorHandle::from_running_parts(
+            base,
+            &self.claims,
+            self.parent_authority.as_ref(),
         )
+        .digest())
     }
 }

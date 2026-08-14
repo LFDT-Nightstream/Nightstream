@@ -1,0 +1,29 @@
+import Nightstream.Protocol.Nebula.ExactDelayedScheduleCountermodels
+
+/-! Regression surface for exact delayed-schedule countermodels. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaExactDelayedScheduleCountermodels
+
+open Nightstream.Protocol.Nebula.ExactDelayedScheduleCountermodels
+
+#check missing_terminal_passes_prefix_check
+#check missing_terminal_breaks_equal_claim_counts
+#check current_claim_rule_accepts_wrong_index
+#check terminal_consumption_does_not_forbid_successor
+#check base_production_does_not_forbid_consumption
+#check erased_exponent_aliases_distinct_relations
+#check prior_consumption_does_not_bind_produced_successor
+#check acceptance_and_claim_equality_do_not_forward_the_exact_proof
+#check trailing_consumption_does_not_imply_closed_state
+#check no_prior_claim_does_not_fix_base_index
+#check claim_count_does_not_fix_consumer_indexes
+#check exact_index_does_not_fix_full_state
+#check PaperTerminalGap.paper_terminal_accepts_open_delayed_memory
+#check PaperTerminalGap.paper_terminal_acceptance_does_not_imply_a_trailing_fold
+#check PaperTerminalGap.v2_terminal_implies_paper_terminal
+#check PaperTerminalGap.v2_terminal_rejects_open_delayed_memory
+#check PaperTerminalGap.paper_terminal_is_strictly_weaker
+
+end tests.NebulaExactDelayedScheduleCountermodels

@@ -17,10 +17,10 @@ use neo_fold_clean::paper::digest;
 use neo_fold_clean::paper::f_prime::nebula_lane_circuit::{
     alloc_nebula_lane_wires, decode_delayed_nebula_public_suffix_circuit, decode_nebula_step_x_bits_circuit,
     enforce_delayed_nebula_claim_circuit, enforce_nebula_advance_circuit, enforce_nebula_chain_link_circuit,
-    enforce_nebula_close_circuit, enforce_nebula_lane_constant_circuit, enforce_nebula_lane_digest_circuit,
-    enforce_nebula_lane_digest_selected_circuit, enforce_nebula_lane_leaf_digests_circuit,
-    enforce_nebula_maybe_close_circuit, enforce_nebula_maybe_open_circuit, GammaWires, NebulaLaneWires,
-    NebulaOpenContextWires, NebulaStepXWires,
+    enforce_nebula_close_circuit, enforce_nebula_lane_base_circuit, enforce_nebula_lane_constant_circuit,
+    enforce_nebula_lane_digest_circuit, enforce_nebula_lane_digest_selected_circuit,
+    enforce_nebula_lane_leaf_digests_circuit, enforce_nebula_maybe_close_circuit, enforce_nebula_maybe_open_circuit,
+    GammaWires, NebulaLaneWires, NebulaOpenContextWires, NebulaStepXWires,
 };
 use neo_fold_clean::paper::relations::product_commitment_circuit::alloc_adv;
 use neo_fold_clean::paper::relations::{LaneRanges, LaneScheme};
@@ -72,6 +72,7 @@ fn config(d_init: [F; 4]) -> NebulaConfig {
         steps_per_segment: N,
         seg_max: 1,
         stacks: StackShape::NONE,
+        initial_semantic_state_digest: [F::from_u64(6); 4],
         plan_digest: [F::from_u64(7); 4],
         d_init,
     }
@@ -105,6 +106,7 @@ fn alloc_k(b: &mut R1csBuilder, value: K) -> KVar {
 fn alloc_lane(b: &mut R1csBuilder, lane: &NebulaLane) -> NebulaLaneWires {
     let gamma = lane.gamma.unwrap_or([K::ONE; 2]);
     NebulaLaneWires {
+        program_binding_digest: alloc_digest(b, lane.program_binding_digest),
         open: b.alloc(if lane.gamma.is_some() { F::ONE } else { F::ZERO }),
         seg_idx: b.alloc(F::from_u64(lane.seg_idx)),
         idx: b.alloc(F::from_u64(lane.idx)),
@@ -145,6 +147,10 @@ fn extract_digest(b: &R1csBuilder, vars: [Var; 4]) -> [F; 4] {
 
 fn assert_lane_parity(b: &R1csBuilder, wires: &NebulaLaneWires, native: &NebulaLane) {
     let value = |v: Var| b.witness()[v.col()];
+    assert_eq!(
+        extract_digest(b, wires.program_binding_digest),
+        native.program_binding_digest
+    );
     assert_eq!(value(wires.open), if native.gamma.is_some() { F::ONE } else { F::ZERO });
     assert_eq!(value(wires.seg_idx), F::from_u64(native.seg_idx));
     assert_eq!(value(wires.idx), F::from_u64(native.idx));
@@ -272,7 +278,6 @@ fn maybe_open_replays_native_gamma_and_carries_open_segments() {
         vk_fs: alloc_digest(&mut builder, digest::digest32_as_fields(vk)),
         z_i: alloc_digest(&mut builder, digest::digest32_as_fields(z_i)),
         acc_digest: alloc_digest(&mut builder, digest::digest32_as_fields(acc)),
-        plan_digest: alloc_digest(&mut builder, cfg.plan_digest),
     };
     let opened = enforce_nebula_maybe_open_circuit(&mut builder, &lane, &delayed, &context, cfg.seg_max);
     native
@@ -322,7 +327,6 @@ fn maybe_open_rejects_a_segment_at_the_plan_limit() {
         vk_fs: alloc_digest(&mut builder, [F::ZERO; 4]),
         z_i: alloc_digest(&mut builder, [F::ZERO; 4]),
         acc_digest: alloc_digest(&mut builder, [F::ZERO; 4]),
-        plan_digest: alloc_digest(&mut builder, cfg.plan_digest),
     };
     let _ = enforce_nebula_maybe_open_circuit(&mut builder, &lane, &delayed, &context, cfg.seg_max);
     assert!(!builder.is_satisfied(), "seg_idx == seg_max must fail in circuit");
@@ -402,6 +406,32 @@ fn base_lane_wires_are_pinned_to_the_verifier_owned_constant() {
     let original = builder.witness()[column];
     builder.tamper_witness(column, original + F::ONE);
     assert!(!builder.is_satisfied(), "base lane D_mem must be verifier-pinned");
+}
+
+#[test]
+fn reusable_base_rows_do_not_embed_program_bindings() {
+    let first = config([F::from_u64(41); 4]);
+    let mut second = first.clone();
+    second.initial_semantic_state_digest = [F::from_u64(101); 4];
+    second.plan_digest = [F::from_u64(103); 4];
+    second.d_init = [F::from_u64(107); 4];
+
+    let build = |cfg: &NebulaConfig| {
+        let mut builder = R1csBuilder::new();
+        let lane = alloc_nebula_lane_wires(&mut builder, &NebulaLane::base(cfg));
+        let semantic = cfg
+            .initial_semantic_state_digest
+            .map(|value| builder.alloc(value));
+        enforce_nebula_lane_base_circuit(&mut builder, &lane, cfg, &semantic);
+        assert!(builder.is_satisfied());
+        builder
+    };
+    let first = build(&first);
+    let second = build(&second);
+
+    assert_ne!(first.witness(), second.witness());
+    assert_eq!((first.rows(), first.cols()), (second.rows(), second.cols()));
+    assert_eq!(first.sparse_triplets(), second.sparse_triplets());
 }
 
 // ── The lane transition, mirrored end to end ─────────────────────────────
@@ -558,7 +588,6 @@ fn delayed_claim_transition_matches_native_end_to_end() {
         vk_fs: alloc_digest(&mut builder, digest::digest32_as_fields(vk)),
         z_i: alloc_digest(&mut builder, digest::digest32_as_fields(z_i)),
         acc_digest: alloc_digest(&mut builder, digest::digest32_as_fields(acc)),
-        plan_digest: alloc_digest(&mut builder, cfg.plan_digest),
     };
 
     for (step, tuple) in advs.iter().enumerate() {

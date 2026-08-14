@@ -1,4 +1,5 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.SelectorComposition.SelectorCoverageArtifact
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.SelectorComposition.RadixFourSelectorCoverageArtifact
 
 /-!
 Executable regression checks for the compact selector-coverage decoder.
@@ -11,7 +12,7 @@ Executable regression checks for the compact selector-coverage decoder.
 | reversed empty owner | cursor-anchored owner partition |
 | non-unit gate | literal final-matrix coefficient |
 | wrong gate port | ledger-to-gate reconciliation |
-| changed polynomial | independent 66-term syntax equality |
+| changed polynomial | independent 74-term syntax equality |
 
 Two accepted mutations pin the decoder's deliberate limit: selector support
 cannot distinguish arithmetic-family labels within one gate class, and it
@@ -23,6 +24,7 @@ namespace Tests.FPrimeFullHistorySelectiveCcsSelectorCoverage
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.SelectorCoverage.Wire
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.SelectorCoverageArtifact
+open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.SelectorComposition.RadixFourSelectorCoverageArtifact
 
 private abbrev fixtureRaw :=
   Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.SelectiveSelectorCoverageFixture.rawCoverage
@@ -123,5 +125,21 @@ example : withoutEmptySharedNode ≠ fixtureRaw := by
 #check fixture_nonempty_owner_has_exact_gate
 #check fixture_every_row_reconciles
 #check fixture_polynomial_exact
+
+private abbrev candidateRaw :=
+  Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.RadixFourSelectorCoverage.rawCoverage
+
+example : CoverageValid candidateRaw :=
+  candidate_coverage_valid
+
+example :
+    candidateRaw.rows = 8102331 ∧
+    candidateRaw.columns = 12288726 ∧
+    candidateRaw.ownerRuns.length = 14 := by
+  decide
+
+#check candidate_nonempty_owner_has_exact_gate
+#check candidate_every_row_reconciles
+#check candidate_polynomial_exact
 
 end Tests.FPrimeFullHistorySelectiveCcsSelectorCoverage

@@ -1,18 +1,19 @@
-import Nightstream.Protocol.Nebula.Memory
+import Nightstream.Protocol.Nebula.Types
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 
 /-!
 Contract: literal Nebula Corollary 8 fingerprint semantics.
 
-Assurance tier: model-level.
+Assurance tier: paper-comparison model.
 
 Owns the paper formula
 `a + gamma1 * v + gamma1^2 * t - gamma2`, its commutative list product,
-the exact bad-event boundary, and honest completeness from the fingerprint-
-independent multiset identity in `Memory.executes_perm`.
+and its exact collision boundary.
 
-This module is separate from `Fingerprint`, which owns Nightstream's packed
-production variant. It does not own commitment binding, challenge derivation,
-collision probability, Layer-2 finalization, circuit rows, or Rust.
+This formula is not the packed two-coordinate production fingerprint in
+`Fingerprint`. The two modules model different encodings of the same memory
+record. This module does not authorize the production transcript, circuit,
+or Rust implementation.
 
 Emits constraints: no.
 -/
@@ -21,10 +22,16 @@ set_option autoImplicit false
 
 namespace Nightstream.Protocol.Nebula.PaperFingerprint
 
+open Nightstream.Protocol.Nebula
 open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
-open Nightstream.Protocol.Nebula.Fingerprint
-open Nightstream.Protocol.Nebula.Memory
+
+/-- Challenges in the literal paper formula. They are separate from the
+production polynomial-coordinate challenge type. -/
+structure Challenges where
+  gamma1 : K
+  gamma2 : K
+deriving DecidableEq, Repr
 
 /-- Canonical base-field image of the paper address coordinate. -/
 def addressField (entry : MemTuple) : F :=
@@ -36,6 +43,11 @@ def timestampField (entry : MemTuple) : F :=
   ⟨entry.timestamp % goldilocksModulus,
     Nat.mod_lt _ (by decide)⟩
 
+/-- Canonical base-field image of the memory value coordinate. -/
+def valueField (entry : MemTuple) : F :=
+  ⟨entry.value % goldilocksModulus,
+    Nat.mod_lt _ (by decide)⟩
+
 /-- Literal Nebula Corollary 8 fingerprint
 `a + gamma1 * v + gamma1^2 * t - gamma2`. -/
 def fingerprint (challenges : Challenges) (entry : MemTuple) : K :=
@@ -43,8 +55,7 @@ def fingerprint (challenges : Challenges) (entry : MemTuple) : K :=
     (K.add
       (K.add
         (K.embed (addressField entry))
-        (K.mul challenges.gamma1
-          (K.embed (Fingerprint.valueField entry))))
+        (K.mul challenges.gamma1 (K.embed (valueField entry))))
       (K.mul
         (K.mul challenges.gamma1 challenges.gamma1)
         (K.embed (timestampField entry))))
@@ -79,6 +90,7 @@ theorem product_append
       simp only [List.cons_append, product, inductionHypothesis]
       exact (k_mul_assoc _ _ _).symm
 
+/-- The literal paper product is independent of list order. -/
 theorem product_perm
     (challenges : Challenges) {left right : List MemTuple}
     (permutation : left.Perm right) :
@@ -109,30 +121,6 @@ theorem product_perm
               k_mul_assoc _ _ _
   | trans first second firstHypothesis secondHypothesis =>
       exact firstHypothesis.trans secondHypothesis
-
-/-- Paper product order: `[read, write, initial, final]`. -/
-def products
-    (challenges : Challenges)
-    (initial : List MemTuple) (accesses : List Access)
-    (final : List MemTuple) : Fin 4 → K
-  | ⟨0, _⟩ => product challenges (readTuples accesses)
-  | ⟨1, _⟩ => product challenges (writeTuples accesses)
-  | ⟨2, _⟩ => product challenges initial
-  | _ => product challenges final
-
-/-- Honest execution satisfies Corollary 8's product equation for every
-challenge. This is the probability-one completeness direction only. -/
-theorem executes_balanced
-    (challenges : Challenges)
-    {initial final : List MemTuple}
-    {timestampIn timestampOut : Nat}
-    {accesses : List Access}
-    (execution : Executes initial timestampIn accesses final timestampOut) :
-    Balanced (products challenges initial accesses final) := by
-  have exactProduct :=
-    product_perm challenges (Memory.executes_perm execution)
-  rw [product_append, product_append] at exactProduct
-  exact exactProduct
 
 /-- Named paper bad event. This definition assigns no probability. -/
 def Collision (challenges : Challenges) : Prop :=

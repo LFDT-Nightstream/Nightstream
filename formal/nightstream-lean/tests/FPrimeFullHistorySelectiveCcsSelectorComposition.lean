@@ -77,7 +77,7 @@ example (assignment : Fin decodedGatedRow.columns → F) :
     Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Boolean.residual
         decodedGatedRow assignment =
       assignment gatedSelectorColumn *
-        Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics.evaluate
+        Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics.evaluate
           (ungate .general
             (Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Boolean.rowPoint
               decodedGatedRow assignment)) :=

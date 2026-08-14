@@ -85,6 +85,25 @@ impl TranscriptGadget {
         Self { state, absorbed }
     }
 
+    /// Continue from an already constrained variable sponge state.
+    ///
+    /// This constructor emits no binding rows. The caller must expose or
+    /// constrain every input wire at its own state-transition boundary.
+    pub(crate) fn from_variable_state(state: [Var; WIDTH], absorbed: usize) -> Self {
+        assert!(absorbed <= RATE, "absorbed cursor out of range");
+        Self { state, absorbed }
+    }
+
+    /// Return the current variable sponge state for a constrained transition
+    /// output. The absorb cursor remains verifier-selected control data.
+    pub(crate) const fn variable_state(&self) -> [Var; WIDTH] {
+        self.state
+    }
+
+    pub(crate) const fn absorbed(&self) -> usize {
+        self.absorbed
+    }
+
     // ── Public API mirrors `neo_transcript::Transcript` ─────────────────
 
     /// Replicates `Poseidon2Transcript::append_message(label, msg)`.

@@ -6,7 +6,7 @@ Contract: kernel-checked consumption of one compact Rust selector-coverage
 fixture.
 
 Owns: decoding the fixture, exact ledger-to-gate interval compatibility for
-every fixture row, and equality of the exported 66 polynomial terms with the
+every fixture row, and equality of the exported 74 polynomial terms with the
 independent Lean polynomial syntax.
 
 Does not own: a production F-prime relation, complete family coverage, matrix

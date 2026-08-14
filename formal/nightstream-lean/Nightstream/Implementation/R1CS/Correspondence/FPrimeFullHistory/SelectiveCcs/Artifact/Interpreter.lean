@@ -1,5 +1,5 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.Schema
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.RelationProfile
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.RelationProfile
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 
 /-!
@@ -29,10 +29,10 @@ Emits constraints: no.
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Interpreter
 
 open Nightstream.SuperNeo.Concrete
-open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
+open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Schema
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
 
 private def contributionSum {Item : Type}
     (items : List Item) (contribution : Item → F) : F :=
@@ -143,14 +143,14 @@ private def ValidatedBundle.interpretMatrices (artifact : ValidatedBundle) :
 
 /-- Artifact-facing name for the independent finite selective relation. -/
 abbrev InterpretedRelation :=
-  Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.RelationProfile.FiniteRelation
+  Nightstream.Implementation.R1CS.SelectiveCcs.RelationProfile.FiniteRelation
 
 /-- The only polynomial available for an interpreted selective relation. This
 reduces definitionally to the independently specified gate polynomial. -/
 def InterpretedRelation.constraintPolynomial
     {rows columns : Nat} (_relation : InterpretedRelation rows columns) :
     Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable.ConstraintPolynomial
-      F Polynomial.Ports.portCount :=
+      F Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports.portCount :=
   gatePolynomial
 
 /-- Decode the validated raw arrays and compact generators into the typed

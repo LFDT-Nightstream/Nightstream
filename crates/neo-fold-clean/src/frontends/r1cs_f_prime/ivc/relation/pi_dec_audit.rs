@@ -872,6 +872,11 @@ fn recover_source_rows(arm: &SparseR1cs, rows: &[usize]) -> Result<Vec<R1csIvcPi
                     }
                 }
             }
+            CcsMatrix::VerifierArtifact { .. } => {
+                return Err(invalid_pi_dec_audit(
+                    "strict PiDEC source-row audit requires materialized matrix content",
+                ));
+            }
         }
     }
     for artifact in &mut artifacts {

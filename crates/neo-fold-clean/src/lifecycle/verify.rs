@@ -28,13 +28,11 @@
 //! The walk over per-step F' proofs lives in
 //! [`verify_uncompressed_audit`] (and the decider's `validate_witness`);
 //! audit-trail tampers are caught there, not here.
-//!
 //! This distinction is load-bearing. The compact artifact has dropped
 //! the intermediate step witnesses and NIFS.V messages. For the authoritative
 //! fixed relation, those checks were constraints of every folded F' instance,
 //! so the running accumulator plus latest relation authenticate them
 //! inductively. Other frontends do not own that relation and remain rejected.
-//!
 //! The plain HyperNova branch checks the opened running CE accumulator and the
 //! latest CCS relation directly. For Nebula or other terminal-fold inputs,
 //! the verifier additionally follows this path:
@@ -95,15 +93,16 @@
 //! Step 5's CE-relation check is what binds those transcript-derived
 //! `y_j` values back to the *opened* witness `Z`.
 
+use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::utils::tensor_point_parallel;
-use neo_ccs::{check_ccs_rowwise_zero, traits::SModuleHomomorphism};
 use neo_math::balanced::within_nc_bound;
 use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_reductions::common::{
     decode_superneo_coeffs_from_witness_mat, project_x_from_witness_mat, validate_superneo_witness_mat,
 };
 use neo_reductions::superneo_eval::{
-    eval_ring_linear_forms_real_z_blocks, SuperneoEvalCache, SuperneoRingLinearForm, SuperneoZBlocks,
+    check_ccs_relation_zero_cached, eval_ring_linear_forms_real_z_blocks, SuperneoEvalCache, SuperneoRingLinearForm,
+    SuperneoZBlocks,
 };
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
@@ -403,7 +402,11 @@ fn check_stateless_semantic_invariant(prep: &Preprocessing, proof: &Uncompressed
             // current acc_digest IS the pre-terminal acc_digest.
             proof.state.acc_digest
         }
-        Some(final_fold) => pre_fold_acc_digest(&final_fold.terminal_inputs.pre_final_running, prep.structure())?,
+        Some(final_fold) => pre_fold_acc_digest(
+            &final_fold.terminal_inputs.pre_final_running,
+            prep.params.b(),
+            prep.structure(),
+        )?,
     };
     if proof.state.semantic_state_digest != expected {
         return Err(Error::StatelessSemanticInvariantViolated);
@@ -576,7 +579,7 @@ fn check_latest_instances_authority(prep: &Preprocessing, latest: &LatestInstanc
         if prep.log.commit(&witness.Z) != claim.c {
             return Err(fail("Ajtai commitment does not open to the supplied witness".into()));
         }
-        check_ccs_rowwise_zero(prep.structure(), &claim.x, &private)
+        check_ccs_relation_zero_cached(prep.optimized_cache().superneo(), &prep.structure().f, &decoded)
             .map_err(|error| fail(format!("CCS relation: {error}")))?;
     }
     Ok(())
@@ -752,7 +755,7 @@ fn verify_no_terminal_fold_case(
 /// Construct the pre-final-fold `State` from chain coords (which are
 /// unchanged by finalization) + the snapshotted pre-fold inputs.
 fn build_pre_final_state(prep: &Preprocessing, post: &State, terminal: &TerminalFoldInputs) -> Result<State, Error> {
-    let pre_acc_digest = pre_fold_acc_digest(&terminal.pre_final_running, prep.structure())?;
+    let pre_acc_digest = pre_fold_acc_digest(&terminal.pre_final_running, prep.params.b(), prep.structure())?;
     Ok(State {
         chunk_count: post.chunk_count,
         step_count: post.step_count,
@@ -772,13 +775,14 @@ fn build_pre_final_state(prep: &Preprocessing, post: &State, terminal: &Terminal
 /// [`construction2::prove_final_fold`] / [`construction2::verify_final_fold`].
 fn pre_fold_acc_digest(
     pre_running: &RunningInstance,
+    base: u32,
     structure: &crate::paper::relations::Structure,
 ) -> Result<[u8; 32], Error> {
     if !pre_running.claims.is_empty() && pre_running.parent_authority.is_none() {
         Err(Error::PreFinalAccumulatorMissingParentAuthority)
     } else {
         pre_running
-            .accumulator_digest(structure)
+            .accumulator_digest(base, structure)
             .map_err(|_| Error::AccDigestMismatch)
     }
 }
@@ -1397,7 +1401,7 @@ fn check_recorded_acc_digest(
     recorded: &[u8; 32],
 ) -> Result<(), Error> {
     let recomputed = running
-        .accumulator_digest(prep.structure())
+        .accumulator_digest(prep.params.b(), prep.structure())
         .map_err(|_| Error::AccDigestMismatch)?;
     if recomputed != *recorded {
         return Err(Error::AccDigestMismatch);
@@ -1481,7 +1485,10 @@ pub fn verify_uncompressed_audit(prep: &Preprocessing, audit: &UncompressedAudit
 /// Enforce Nebula finalization and lane/config presence coherence.
 fn check_nebula_terminal_state(prep: &Preprocessing, state: &State) -> Result<(), Error> {
     match (prep.nebula(), &state.nebula) {
-        (Some(_), Some(lane)) => {
+        (Some(config), Some(lane)) => {
+            if !lane.matches_program_binding(config) {
+                return Err(Error::NebulaProgramBindingMismatch);
+            }
             if !lane.is_closed() {
                 return Err(Error::NebulaSegmentOpenAtTerminal);
             }

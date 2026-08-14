@@ -1,8 +1,0 @@
-import Nightstream.Implementation.NebulaV2.Production.FPrime.Base.InvocationFor
-import tests.Axioms.Support
-
-set_option pp.universes true in
-#audit_axioms Nightstream.Implementation.NebulaV2.ProductionPaperBaseInvocationFor.exact
-
-#audit_axioms Nightstream.Implementation.NebulaV2.ProductionPaperBaseInvocationFor.initialState_canonical
-#audit_axioms Nightstream.Implementation.NebulaV2.ProductionPaperBaseInvocationFor.state_preCarry_exact

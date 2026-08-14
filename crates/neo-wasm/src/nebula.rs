@@ -8,7 +8,7 @@ use neo_fold_clean::frontends::nebula::application::{
     ApplicationError, MemoryPortLayout, MemoryRegion, MemoryRegionKind, NebulaApplication,
 };
 use neo_fold_clean::frontends::nebula::f_prime::{
-    NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreprocessing,
+    NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreparedProfile, NebulaFPrimePreprocessing,
 };
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::nebula::plan::{NebulaPlan, PlanError};
@@ -40,6 +40,58 @@ const WASM_NEBULA_PLAN_SEED: [u8; 32] = [0x57; 32];
 const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WasmNebulaRomLimits {
+    program_pc_bound: u64,
+    functions: u64,
+    module_types: u64,
+    control_choices: u64,
+    grammar_events_per_function: u64,
+    grammar_slots_per_event: u64,
+}
+
+impl WasmNebulaRomLimits {
+    pub fn new(
+        program_pc_bound: u64,
+        functions: u64,
+        module_types: u64,
+        control_choices: u64,
+        grammar_events_per_function: u64,
+        grammar_slots_per_event: u64,
+    ) -> Result<Self, WasmNebulaError> {
+        let out = Self {
+            program_pc_bound,
+            functions,
+            module_types,
+            control_choices,
+            grammar_events_per_function,
+            grammar_slots_per_event,
+        };
+        for (name, value) in out.named_values() {
+            if value < 2 || !value.is_power_of_two() {
+                return Err(WasmNebulaError::NonPowerOfTwoLimit { name, value });
+            }
+        }
+        Ok(out)
+    }
+
+    #[doc(hidden)]
+    pub fn test_profile() -> Self {
+        Self::new(64, 8, 8, 2, 4, 8).expect("test WASM ROM limits")
+    }
+
+    fn named_values(self) -> [(&'static str, u64); 6] {
+        [
+            ("program_pc_bound", self.program_pc_bound),
+            ("functions", self.functions),
+            ("module_types", self.module_types),
+            ("control_choices", self.control_choices),
+            ("grammar_events_per_function", self.grammar_events_per_function),
+            ("grammar_slots_per_event", self.grammar_slots_per_event),
+        ]
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WasmNebulaLimits {
     stack_cells: u64,
     call_stack_cells: u64,
@@ -49,6 +101,7 @@ pub struct WasmNebulaLimits {
     globals: u64,
     tables: u64,
     table_elements: u64,
+    rom: WasmNebulaRomLimits,
 }
 
 impl WasmNebulaLimits {
@@ -62,6 +115,7 @@ impl WasmNebulaLimits {
         globals: u64,
         tables: u64,
         table_elements: u64,
+        rom: WasmNebulaRomLimits,
     ) -> Result<Self, WasmNebulaError> {
         let out = Self {
             stack_cells,
@@ -72,6 +126,7 @@ impl WasmNebulaLimits {
             globals,
             tables,
             table_elements,
+            rom,
         };
         for (name, value) in out.named_values() {
             if value < 2 || !value.is_power_of_two() {
@@ -83,7 +138,7 @@ impl WasmNebulaLimits {
 
     #[doc(hidden)]
     pub fn test_profile() -> Self {
-        Self::new(16, 8, 8, 4, 64, 4, 2, 4).expect("test WASM Nebula limits")
+        Self::new(16, 8, 8, 4, 64, 4, 2, 4, WasmNebulaRomLimits::test_profile()).expect("test WASM Nebula limits")
     }
 
     fn named_values(self) -> [(&'static str, u64); 8] {
@@ -123,12 +178,12 @@ impl WasmNebulaProfile {
 
     #[doc(hidden)]
     pub fn test_profile() -> Self {
-        let memory = NebulaParams::new(10, 10, 64, 1024, 16).expect("test WASM Nebula geometry");
+        let memory = NebulaParams::new(11, 11, 64, 1024, 16).expect("test WASM Nebula geometry");
         Self::test_profile_with_schedule(memory, 3)
     }
 
     /// Test profile over a caller-chosen memory geometry, for fixtures whose
-    /// ROM plan (pc space, grammar tables) outgrows the default `r = 10`.
+    /// ROM plan (pc space, grammar tables) outgrows the default `r = 11`.
     #[doc(hidden)]
     pub fn test_profile_with_geometry(memory: NebulaParams) -> Self {
         Self::test_profile_with_schedule(memory, 3)
@@ -202,6 +257,97 @@ impl WasmNebulaPreprocessing {
     }
 }
 
+/// One compiled WASM/Nebula relation and evaluator cache for a fixed profile.
+///
+/// Live construction can write the evaluator and encoder artifacts. A later
+/// process restores this object with [`prepare_profile_with_artifacts`].
+/// [`Self::bind_program`] then performs only program construction, exact
+/// profile comparison, and verifier-policy binding.
+pub struct WasmNebulaPreparedProfile {
+    inner: NebulaFPrimePreparedProfile,
+    profile: WasmNebulaProfile,
+    plan_template: NebulaPlan,
+    application_template: NebulaApplication,
+    single_step_columns: usize,
+    lookup_auxiliary_columns_per_instruction: usize,
+    lookup_auxiliary_columns_total: usize,
+}
+
+impl WasmNebulaPreparedProfile {
+    pub fn bind_program(
+        &self,
+        artifacts: &WasmProgramArtifacts,
+        initial_locals: &[u32],
+        entry_pc: u64,
+    ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+        validate_sound_program(artifacts, self.profile.limits)?;
+        self.bind_program_inner(artifacts, initial_locals, entry_pc)
+    }
+
+    #[doc(hidden)]
+    pub fn bind_program_reduced_memory_test_only(
+        &self,
+        artifacts: &WasmProgramArtifacts,
+        initial_locals: &[u32],
+        entry_pc: u64,
+    ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+        reject_host_imports(artifacts)?;
+        self.bind_program_inner(artifacts, initial_locals, entry_pc)
+    }
+
+    fn bind_program_inner(
+        &self,
+        artifacts: &WasmProgramArtifacts,
+        initial_locals: &[u32],
+        entry_pc: u64,
+    ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
+        #[cfg(feature = "perf-timers")]
+        let build_started = std::time::Instant::now();
+        let program = build_program_binding_from_template(
+            self.inner.params(),
+            self.profile,
+            artifacts,
+            initial_locals,
+            entry_pc,
+            &self.plan_template,
+            &self.application_template,
+            self.single_step_columns,
+            self.lookup_auxiliary_columns_per_instruction,
+            self.lookup_auxiliary_columns_total,
+        )?;
+        #[cfg(feature = "perf-timers")]
+        let build_elapsed = build_started.elapsed();
+        if program.metadata.lookup_auxiliary_columns_per_instruction != self.lookup_auxiliary_columns_per_instruction
+            || program.metadata.lookup_auxiliary_columns_total != self.lookup_auxiliary_columns_total
+        {
+            return Err(WasmNebulaError::PreparedProfileMismatch);
+        }
+        let metadata = program.metadata;
+        #[cfg(feature = "perf-timers")]
+        let bind_started = std::time::Instant::now();
+        let inner = self
+            .inner
+            .bind_application(program.plan, program.application)?;
+        #[cfg(feature = "perf-timers")]
+        eprintln!(
+            "[wasm-nebula-profile-bind] program={:.3}s relation+policy={:.3}s total={:.3}s",
+            build_elapsed.as_secs_f64(),
+            bind_started.elapsed().as_secs_f64(),
+            build_started.elapsed().as_secs_f64(),
+        );
+        Ok(metadata.finish(inner, self.profile))
+    }
+
+    pub fn profile(&self) -> WasmNebulaProfile {
+        self.profile
+    }
+
+    #[doc(hidden)]
+    pub fn inner(&self) -> &NebulaFPrimePreparedProfile {
+        &self.inner
+    }
+}
+
 pub struct WasmNebulaProof {
     proof: Uncompressed,
 }
@@ -210,6 +356,80 @@ impl WasmNebulaProof {
     pub fn inner(&self) -> &Uncompressed {
         &self.proof
     }
+}
+
+/// Compile one reusable relation and evaluator cache for this WASM profile.
+/// `artifacts` supplies a checked reference instance of the profile shape;
+/// its program values are not verifier authority for later bindings.
+pub fn prepare_profile(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
+    validate_sound_program(artifacts, profile.limits)?;
+    prepare_profile_inner(params, profile, artifacts, initial_locals, entry_pc, None, None)
+}
+
+/// Restore a production profile from receipt-checked evaluator and encoder artifacts.
+#[allow(clippy::too_many_arguments)]
+pub fn prepare_profile_with_artifacts(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+    cache_artifact: neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact,
+    encoder_artifact: neo_fold_clean::frontends::nebula::f_prime::VerifiedNebulaFPrimeEncoderArtifact,
+) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
+    validate_sound_program(artifacts, profile.limits)?;
+    prepare_profile_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        None,
+        Some((cache_artifact, encoder_artifact)),
+    )
+}
+
+#[doc(hidden)]
+pub fn prepare_profile_seeded_reduced_memory_test_only(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+    seed: u64,
+) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
+    reject_host_imports(artifacts)?;
+    prepare_profile_inner(params, profile, artifacts, initial_locals, entry_pc, Some(seed), None)
+}
+
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub fn prepare_profile_seeded_reduced_memory_with_artifacts_test_only(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+    seed: u64,
+    cache_artifact: neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact,
+    encoder_artifact: neo_fold_clean::frontends::nebula::f_prime::VerifiedNebulaFPrimeEncoderArtifact,
+) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
+    reject_host_imports(artifacts)?;
+    prepare_profile_inner(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        entry_pc,
+        Some(seed),
+        Some((cache_artifact, encoder_artifact)),
+    )
 }
 
 pub fn preprocess(
@@ -300,7 +520,196 @@ fn preprocess_inner(
     grammar: Option<(&HostEventGrammar, u32, CommChainState)>,
     seed: Option<u64>,
 ) -> Result<WasmNebulaPreprocessing, WasmNebulaError> {
-    let initial_state = match grammar {
+    let program = build_program_binding(&params, profile, artifacts, initial_locals, entry_pc, grammar)?;
+    let metadata = program.metadata;
+    let inner = match seed {
+        Some(seed) => {
+            NebulaFPrimePreprocessing::new_seeded_with_application(params, program.plan, program.application, seed)?
+        }
+        None => NebulaFPrimePreprocessing::new_with_application(params, program.plan, program.application)?,
+    };
+    Ok(metadata.finish(inner, profile))
+}
+
+fn prepare_profile_inner(
+    params: Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+    seed: Option<u64>,
+    profile_artifacts: Option<(
+        neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact,
+        neo_fold_clean::frontends::nebula::f_prime::VerifiedNebulaFPrimeEncoderArtifact,
+    )>,
+) -> Result<WasmNebulaPreparedProfile, WasmNebulaError> {
+    let program = build_program_binding(&params, profile, artifacts, initial_locals, entry_pc, None)?;
+    let inner = match (seed, profile_artifacts) {
+        (Some(seed), Some((cache_artifact, encoder_artifact))) => {
+            NebulaFPrimePreparedProfile::new_seeded_with_application_artifacts(
+                params,
+                &program.plan,
+                &program.application,
+                seed,
+                cache_artifact,
+                encoder_artifact,
+            )?
+        }
+        (None, Some((cache_artifact, encoder_artifact))) => {
+            NebulaFPrimePreparedProfile::new_with_application_artifacts(
+                params,
+                &program.plan,
+                &program.application,
+                cache_artifact,
+                encoder_artifact,
+            )?
+        }
+        (Some(seed), None) => {
+            NebulaFPrimePreparedProfile::new_seeded_with_application(params, &program.plan, &program.application, seed)?
+        }
+        (None, None) => NebulaFPrimePreparedProfile::new_with_application(params, &program.plan, &program.application)?,
+    };
+    Ok(WasmNebulaPreparedProfile {
+        inner,
+        profile,
+        plan_template: program.plan,
+        application_template: program.application,
+        single_step_columns: program.metadata.single_step_columns,
+        lookup_auxiliary_columns_per_instruction: program.metadata.lookup_auxiliary_columns_per_instruction,
+        lookup_auxiliary_columns_total: program.metadata.lookup_auxiliary_columns_total,
+    })
+}
+
+struct WasmNebulaProgramBinding {
+    plan: NebulaPlan,
+    application: NebulaApplication,
+    metadata: WasmNebulaProgramMetadata,
+}
+
+#[derive(Clone, Copy)]
+struct WasmNebulaProgramMetadata {
+    single_step_columns: usize,
+    lookup_auxiliary_columns_per_instruction: usize,
+    lookup_auxiliary_columns_total: usize,
+    has_linear_memory: bool,
+    allows_host_calls: bool,
+}
+
+impl WasmNebulaProgramMetadata {
+    fn finish(self, inner: NebulaFPrimePreprocessing, profile: WasmNebulaProfile) -> WasmNebulaPreprocessing {
+        WasmNebulaPreprocessing {
+            inner,
+            profile,
+            lookup_auxiliary_columns_per_instruction: self.lookup_auxiliary_columns_per_instruction,
+            lookup_auxiliary_columns_total: self.lookup_auxiliary_columns_total,
+            has_linear_memory: self.has_linear_memory,
+            allows_host_calls: self.allows_host_calls,
+        }
+    }
+}
+
+fn build_program_binding(
+    params: &Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+    grammar: Option<(&HostEventGrammar, u32, CommChainState)>,
+) -> Result<WasmNebulaProgramBinding, WasmNebulaError> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    let initial_state = program_initial_state_digest(artifacts, entry_pc, grammar);
+    #[cfg(feature = "perf-timers")]
+    let canonical_started = std::time::Instant::now();
+    let canonical =
+        canonical_wasm_nebula_shape_batched_with_initial_state_digest(params, profile.batch_size, initial_state)?;
+    #[cfg(feature = "perf-timers")]
+    let canonical_elapsed = canonical_started.elapsed();
+    let (plan, memory) = build_program_memory_plan(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        grammar.map(|(grammar, _, _)| grammar),
+        canonical.single_step_columns,
+        None,
+    )?;
+    #[cfg(feature = "perf-timers")]
+    let application_started = std::time::Instant::now();
+    let application = NebulaApplication::new(canonical.sparse_r1cs, canonical.plan, memory)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[wasm-nebula-program-bind] canonical={:.3}s application={:.3}s total={:.3}s",
+        canonical_elapsed.as_secs_f64(),
+        application_started.elapsed().as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+    );
+    Ok(WasmNebulaProgramBinding {
+        plan,
+        application,
+        metadata: WasmNebulaProgramMetadata {
+            single_step_columns: canonical.single_step_columns,
+            lookup_auxiliary_columns_per_instruction: canonical.lookup_auxiliary_columns_per_instruction,
+            lookup_auxiliary_columns_total: canonical.lookup_auxiliary_columns_total,
+            has_linear_memory: artifacts.tables.initial_memory_pages.is_some(),
+            allows_host_calls: grammar.is_some(),
+        },
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_program_binding_from_template(
+    params: &Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    entry_pc: u64,
+    plan_template: &NebulaPlan,
+    application_template: &NebulaApplication,
+    single_step_columns: usize,
+    lookup_auxiliary_columns_per_instruction: usize,
+    lookup_auxiliary_columns_total: usize,
+) -> Result<WasmNebulaProgramBinding, WasmNebulaError> {
+    #[cfg(feature = "perf-timers")]
+    let total_started = std::time::Instant::now();
+    let initial_state = program_initial_state_digest(artifacts, entry_pc, None);
+    let (plan, memory) = build_program_memory_plan(
+        params,
+        profile,
+        artifacts,
+        initial_locals,
+        None,
+        single_step_columns,
+        Some(plan_template),
+    )?;
+    #[cfg(feature = "perf-timers")]
+    let application_started = std::time::Instant::now();
+    let application = application_template.bind_program_profile(initial_state, memory)?;
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[wasm-nebula-program-bind] canonical=reused application={:.3}s total={:.3}s",
+        application_started.elapsed().as_secs_f64(),
+        total_started.elapsed().as_secs_f64(),
+    );
+    Ok(WasmNebulaProgramBinding {
+        plan,
+        application,
+        metadata: WasmNebulaProgramMetadata {
+            single_step_columns,
+            lookup_auxiliary_columns_per_instruction,
+            lookup_auxiliary_columns_total,
+            has_linear_memory: artifacts.tables.initial_memory_pages.is_some(),
+            allows_host_calls: false,
+        },
+    })
+}
+
+fn program_initial_state_digest(
+    artifacts: &WasmProgramArtifacts,
+    entry_pc: u64,
+    grammar: Option<(&HostEventGrammar, u32, CommChainState)>,
+) -> [u8; 32] {
+    match grammar {
         Some((grammar, export_fref, initial_comm_chain)) => grammar_top_level_initial_state_digest(
             &artifacts.tables,
             entry_pc,
@@ -309,38 +718,52 @@ fn preprocess_inner(
             initial_comm_chain,
         ),
         None => top_level_initial_state_digest(&artifacts.tables, entry_pc),
+    }
+}
+
+fn build_program_memory_plan(
+    params: &Params,
+    profile: WasmNebulaProfile,
+    artifacts: &WasmProgramArtifacts,
+    initial_locals: &[u32],
+    grammar: Option<&HostEventGrammar>,
+    single_step_columns: usize,
+    plan_template: Option<&NebulaPlan>,
+) -> Result<(NebulaPlan, MemoryPortLayout), WasmNebulaError> {
+    #[cfg(feature = "perf-timers")]
+    let backend_started = std::time::Instant::now();
+    let backend = build_memory_backend(artifacts, initial_locals, grammar, &profile, single_step_columns)?;
+    #[cfg(feature = "perf-timers")]
+    let backend_elapsed = backend_started.elapsed();
+    let MemoryBackend {
+        layout,
+        rom_image,
+        ram_image,
+    } = backend;
+    #[cfg(feature = "perf-timers")]
+    let plan_started = std::time::Instant::now();
+    let plan = match plan_template {
+        Some(template) => {
+            if template.params() != &profile.memory {
+                return Err(WasmNebulaError::PreparedProfileMismatch);
+            }
+            template.bind_initial_memory(rom_image, ram_image)?
+        }
+        None => NebulaPlan::new_with_initial_ram(
+            profile.memory,
+            rom_image,
+            ram_image,
+            WASM_NEBULA_PLAN_SEED,
+            params.kappa() as usize,
+        )?,
     };
-    let canonical =
-        canonical_wasm_nebula_shape_batched_with_initial_state_digest(&params, profile.batch_size, initial_state)?;
-    let backend = build_memory_backend(
-        artifacts,
-        initial_locals,
-        grammar.map(|(grammar, _, _)| grammar),
-        &profile,
-        canonical.single_step_columns,
-    )?;
-    let plan = NebulaPlan::new_with_initial_ram(
-        profile.memory,
-        backend.rom_image,
-        backend.ram_image,
-        WASM_NEBULA_PLAN_SEED,
-        params.kappa() as usize,
-    )?;
-    let lookup_auxiliary_columns_per_instruction = canonical.lookup_auxiliary_columns_per_instruction;
-    let lookup_auxiliary_columns_total = canonical.lookup_auxiliary_columns_total;
-    let application = NebulaApplication::new(canonical.sparse_r1cs, canonical.plan, backend.layout)?;
-    let inner = match seed {
-        Some(seed) => NebulaFPrimePreprocessing::new_seeded_with_application(params, plan, application, seed)?,
-        None => NebulaFPrimePreprocessing::new_with_application(params, plan, application)?,
-    };
-    Ok(WasmNebulaPreprocessing {
-        inner,
-        profile,
-        lookup_auxiliary_columns_per_instruction,
-        lookup_auxiliary_columns_total,
-        has_linear_memory: artifacts.tables.initial_memory_pages.is_some(),
-        allows_host_calls: grammar.is_some(),
-    })
+    #[cfg(feature = "perf-timers")]
+    eprintln!(
+        "[wasm-nebula-memory-plan] memory={:.3}s plan={:.3}s",
+        backend_elapsed.as_secs_f64(),
+        plan_started.elapsed().as_secs_f64(),
+    );
+    Ok((plan, layout))
 }
 
 #[cfg(feature = "perf-timers")]
@@ -533,6 +956,8 @@ fn build_memory_backend(
             rom_component_bits(
                 memory.name,
                 memory.columns[0].address_columns.len(),
+                profile.limits.rom,
+                grammar.is_some(),
                 by_memory.get(memory.name),
             )?
         } else {
@@ -587,9 +1012,10 @@ fn build_memory_backend(
 fn rom_component_bits(
     memory: &str,
     arity: usize,
+    limits: WasmNebulaRomLimits,
+    grammar_enabled: bool,
     entries: Option<&Vec<(Vec<u32>, u32)>>,
 ) -> Result<Vec<u8>, WasmNebulaError> {
-    let mut maxima = vec![1u64; arity];
     for (address, _) in entries.into_iter().flatten() {
         if address.len() != arity {
             return Err(WasmNebulaError::MemoryAddressArity {
@@ -598,11 +1024,57 @@ fn rom_component_bits(
                 actual: address.len(),
             });
         }
-        for (index, &value) in address.iter().enumerate() {
-            maxima[index] = maxima[index].max(u64::from(value) + 1);
-        }
     }
-    Ok(maxima.into_iter().map(bits_for_bound).collect())
+    let program = bits_for_bound(limits.program_pc_bound);
+    let functions = bits_for_bound(limits.functions);
+    let component_bits = match memory {
+        "program_opcodes"
+        | "program_local_indices"
+        | "program_global_indices"
+        | "program_table_ids"
+        | "program_memory_offsets"
+        | "program_call_indirect_type_indices"
+        | "program_call_indirect_expected_type_ids"
+        | "program_i32_const_values"
+        | "program_i64_const_values_lo"
+        | "program_i64_const_values_hi"
+        | "program_ref_func_refs"
+        | "pc_function_refs"
+        | "call_targets"
+        | "pc_edge_kinds" => vec![program],
+        "pc_rom" => vec![program, bits_for_bound(limits.control_choices)],
+        "function_types" | "function_local_counts" | "function_call_metadata" | "function_entries" => {
+            vec![functions]
+        }
+        "module_types" => vec![bits_for_bound(limits.module_types)],
+        "grammar_import_pre_counts" | "grammar_export_entry_counts" | "grammar_export_exit_counts" => {
+            vec![if grammar_enabled { functions } else { 1 }]
+        }
+        "grammar_slot_kind"
+        | "grammar_slot_arg"
+        | "grammar_slot_variant"
+        | "grammar_slot_const_lo"
+        | "grammar_slot_const_hi" => {
+            if grammar_enabled {
+                vec![
+                    functions,
+                    bits_for_bound(limits.grammar_events_per_function),
+                    bits_for_bound(limits.grammar_slots_per_event),
+                ]
+            } else {
+                vec![1; arity]
+            }
+        }
+        other => return Err(WasmNebulaError::UnknownMemory(other.to_string())),
+    };
+    if component_bits.len() != arity {
+        return Err(WasmNebulaError::MemoryAddressArity {
+            memory: memory.to_string(),
+            expected: arity,
+            actual: component_bits.len(),
+        });
+    }
+    Ok(component_bits)
 }
 
 fn ram_component_bits(memory: &str, limits: WasmNebulaLimits) -> Result<Vec<u8>, WasmNebulaError> {
@@ -761,9 +1233,15 @@ pub enum WasmNebulaError {
     FinalStateMismatch,
     #[error("WASM Nebula preprocessing is missing its application relation")]
     MissingApplication,
+    #[error("WASM program does not match the prepared profile")]
+    PreparedProfileMismatch,
     #[error("WASM prover backend `{backend}` is unavailable: {reason}")]
     ProverBackendUnavailable {
         backend: &'static str,
         reason: String,
     },
 }
+
+#[cfg(test)]
+#[path = "../tests/nebula/profile_binding.rs"]
+mod tests;

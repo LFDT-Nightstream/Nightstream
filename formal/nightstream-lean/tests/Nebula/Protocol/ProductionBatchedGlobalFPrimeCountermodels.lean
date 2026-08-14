@@ -1,0 +1,12 @@
+import Nightstream.Protocol.Nebula.ProductionBatchedGlobalFPrimeCountermodels
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductionBatchedGlobalFPrimeCountermodels
+
+open Nightstream.Protocol.Nebula.ProductionBatchedGlobalFPrimeCountermodels
+
+#check weak_local_checks_accept_changed_authority
+#check fixed_lifetime_authority_rejects_countermodel
+
+end tests.NebulaProductionBatchedGlobalFPrimeCountermodels

@@ -87,8 +87,18 @@ fn nebula_test_params() -> Params {
 fn two_page_profile() -> neo_wasm::nebula::WasmNebulaProfile {
     const WASM32_PAGE_WORDS: u64 = 65_536 / 4;
 
-    let limits = neo_wasm::nebula::WasmNebulaLimits::new(2, 2, 2, 2, 2 * WASM32_PAGE_WORDS, 2, 2, 2)
-        .expect("two-page WASM test limits");
+    let limits = neo_wasm::nebula::WasmNebulaLimits::new(
+        2,
+        2,
+        2,
+        2,
+        2 * WASM32_PAGE_WORDS,
+        2,
+        2,
+        2,
+        neo_wasm::WasmNebulaRomLimits::test_profile(),
+    )
+    .expect("two-page WASM test limits");
     neo_wasm::nebula::WasmNebulaProfile::production(limits, 3).expect("two-page WASM test profile")
 }
 

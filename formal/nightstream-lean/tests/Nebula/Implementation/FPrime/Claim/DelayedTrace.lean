@@ -1,0 +1,15 @@
+import Nightstream.Implementation.Nebula.FPrime.Claim.DelayedTrace
+
+set_option autoImplicit false
+
+namespace tests.NebulaFullClaimDelayedTrace
+
+open Nightstream.Implementation.Nebula.FullClaimDelayedTrace
+
+#check check_authority_eq_true_iff_carries
+#check singleton_freshLinked_iff_carries
+#check Producer.outgoing_of_carries
+#check Producer.carries_of_outgoing
+#check Producer.freshLinked_of_outgoing
+
+end tests.NebulaFullClaimDelayedTrace

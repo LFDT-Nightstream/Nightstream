@@ -38,8 +38,8 @@ use super::rows::PreparedSelectiveRows;
 use super::shape::selective_polynomial;
 use super::terms::MatrixTerms;
 use super::{
-    LinearDefinitions, SelectiveArmPlan, A, B, BALANCED_FIELD_WIDTH, BIT, C, CENTERED_UNIT, EVAL_GROUP_SIZE,
-    EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT, SELECTIVE_ARITY,
+    LinearDefinitions, SelectiveArmPlan, SelectiveEncoding, A, B, BALANCED_FIELD_WIDTH, BIT, C, CENTERED_UNIT,
+    EVAL_GROUP_SIZE, EVAL_PAIRS, EVAL_SELECTOR, GENERAL_SELECTOR, SBOX_INPUT, SELECTIVE_ARITY,
 };
 use crate::paper::relations::Structure;
 
@@ -87,6 +87,7 @@ impl EmittedStructureTerms {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_structure(
     arms: &[SparseR1cs],
+    encoding: SelectiveEncoding,
     plans: &[SelectiveArmPlan],
     slots: &[Vec<Option<(usize, usize)>>],
     aliases: &[Vec<Option<(usize, usize)>>],
@@ -105,6 +106,7 @@ pub(super) fn build_structure(
     let emission_started = std::time::Instant::now();
     let emitted = emit_structure_terms(
         arms,
+        encoding,
         plans,
         slots,
         aliases,
@@ -134,6 +136,7 @@ pub(super) fn build_structure(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_structure_terms(
     arms: &[SparseR1cs],
+    encoding: SelectiveEncoding,
     plans: &[SelectiveArmPlan],
     slots: &[Vec<Option<(usize, usize)>>],
     aliases: &[Vec<Option<(usize, usize)>>],
@@ -157,7 +160,7 @@ pub(super) fn emit_structure_terms(
 
     let family_start = row_cursor;
     for &selector in selectors {
-        emit_domain_digit(&mut matrix_terms, &mut row_cursor, None, selector, false);
+        emit_bit_domain(&mut matrix_terms, &mut row_cursor, None, selector, false);
     }
     emission_plan.check(
         SelectiveEmittedRowFamily::SelectorDomain,
@@ -167,6 +170,7 @@ pub(super) fn emit_structure_terms(
     )?;
 
     let family_start = row_cursor;
+    let mut pending_centered = None;
     for source in 1..arms[0].m_in + shared_private_fields {
         if aliases[0][source].is_some() {
             continue;
@@ -176,16 +180,27 @@ pub(super) fn emit_structure_terms(
             if source_proves_boolean {
                 continue;
             }
+            if width == encoding.general_field_width()
+                || ((plans[0].centered[source] || width == BALANCED_FIELD_WIDTH)
+                    && encoding.outer_norm_proves_centered_unit())
+            {
+                continue;
+            }
             for column in start..start + width {
-                emit_domain_digit(
-                    &mut matrix_terms,
-                    &mut row_cursor,
-                    None,
-                    column,
-                    plans[0].centered[source] || width == BALANCED_FIELD_WIDTH,
-                );
+                if plans[0].centered[source] || width == BALANCED_FIELD_WIDTH {
+                    if let Some(left) = pending_centered.take() {
+                        emit_centered_unit_pair(&mut matrix_terms, &mut row_cursor, None, left, Some(column));
+                    } else {
+                        pending_centered = Some(column);
+                    }
+                } else {
+                    emit_bit_domain(&mut matrix_terms, &mut row_cursor, None, column, true);
+                }
             }
         }
+    }
+    if let Some(left) = pending_centered {
+        emit_centered_unit_pair(&mut matrix_terms, &mut row_cursor, None, left, None);
     }
     emission_plan.check(
         SelectiveEmittedRowFamily::SharedDomain,
@@ -196,6 +211,7 @@ pub(super) fn emit_structure_terms(
 
     for (arm_index, arm) in arms.iter().enumerate() {
         let family_start = row_cursor;
+        let mut pending_centered = None;
         for source in arm.m_in + shared_private_fields..arm.m {
             if aliases[arm_index][source].is_some() || equal_aliases[arm_index][source].is_some() {
                 continue;
@@ -204,27 +220,45 @@ pub(super) fn emit_structure_terms(
                 if plans[arm_index].source_boolean_rows[source] {
                     continue;
                 }
+                if width == encoding.general_field_width()
+                    || ((plans[arm_index].centered[source] || width == BALANCED_FIELD_WIDTH)
+                        && encoding.outer_norm_proves_centered_unit())
+                {
+                    continue;
+                }
                 for column in start..start + width {
-                    emit_domain_digit(
-                        &mut matrix_terms,
-                        &mut row_cursor,
-                        Some(selectors[arm_index]),
-                        column,
-                        plans[arm_index].centered[source] || width == BALANCED_FIELD_WIDTH,
-                    );
+                    if plans[arm_index].centered[source] || width == BALANCED_FIELD_WIDTH {
+                        if let Some(left) = pending_centered.take() {
+                            emit_centered_unit_pair(
+                                &mut matrix_terms,
+                                &mut row_cursor,
+                                Some(selectors[arm_index]),
+                                left,
+                                Some(column),
+                            );
+                        } else {
+                            pending_centered = Some(column);
+                        }
+                    } else {
+                        emit_bit_domain(
+                            &mut matrix_terms,
+                            &mut row_cursor,
+                            Some(selectors[arm_index]),
+                            column,
+                            true,
+                        );
+                    }
                 }
             }
         }
-        for derived in &derived_product_sums[arm_index] {
-            for column in derived.slot.0..derived.slot.0 + derived.slot.1 {
-                emit_domain_digit(
-                    &mut matrix_terms,
-                    &mut row_cursor,
-                    Some(selectors[arm_index]),
-                    column,
-                    true,
-                );
-            }
+        if let Some(left) = pending_centered {
+            emit_centered_unit_pair(
+                &mut matrix_terms,
+                &mut row_cursor,
+                Some(selectors[arm_index]),
+                left,
+                None,
+            );
         }
         emission_plan.check(
             SelectiveEmittedRowFamily::ArmDomain,
@@ -613,20 +647,36 @@ pub(super) fn emit_structure_terms(
     })
 }
 
-fn emit_domain_digit(
+fn emit_bit_domain(
     matrix_terms: &mut [MatrixTerms],
     row_cursor: &mut usize,
     selector: Option<usize>,
     column: usize,
-    centered: bool,
+    combined_selector: bool,
 ) {
-    // The selected joint norm term proves every committed coordinate lies in {-1, 0, 1}.
-    // Only binary coordinates need an additional CCS row to exclude -1.
-    if centered {
-        return;
+    let selector = selector.unwrap_or(0);
+    matrix_terms[GENERAL_SELECTOR].push((*row_cursor, selector, F::ONE));
+    if combined_selector {
+        matrix_terms[EVAL_SELECTOR].push((*row_cursor, selector, F::ONE));
     }
-    matrix_terms[GENERAL_SELECTOR].push((*row_cursor, selector.unwrap_or(0), F::ONE));
     matrix_terms[BIT].push((*row_cursor, column, F::ONE));
+    *row_cursor += 1;
+}
+
+fn emit_centered_unit_pair(
+    matrix_terms: &mut [MatrixTerms],
+    row_cursor: &mut usize,
+    selector: Option<usize>,
+    left: usize,
+    right: Option<usize>,
+) {
+    let selector = selector.unwrap_or(0);
+    matrix_terms[GENERAL_SELECTOR].push((*row_cursor, selector, F::ONE));
+    matrix_terms[EVAL_SELECTOR].push((*row_cursor, selector, F::ONE));
+    matrix_terms[CENTERED_UNIT].push((*row_cursor, left, F::ONE));
+    if let Some(right) = right {
+        matrix_terms[A].push((*row_cursor, right, F::ONE));
+    }
     *row_cursor += 1;
 }
 
@@ -700,6 +750,11 @@ fn append_source_matrix(
                     .seeded
                     .push(block.with_geometry(target_start, starts)?);
             }
+        }
+        CcsMatrix::VerifierArtifact { .. } => {
+            return Err(trace_error(
+                "selective source lowering requires materialized matrix content",
+            ));
         }
     }
     Ok(())

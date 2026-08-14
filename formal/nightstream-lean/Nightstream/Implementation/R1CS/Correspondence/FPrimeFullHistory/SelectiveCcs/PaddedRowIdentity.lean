@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.LeanCompiler.DirectRows
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.LeanCompiler.DirectRows
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConstraintPolynomialPrepend
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.FullOutputCoordinates
 import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PrefixLayout
@@ -26,7 +26,7 @@ an end-to-end release claim.
 Emits constraints: no.
 
 Assurance tier: model-level reference snapshot. The polynomial is the
-independent 66-term selective polynomial, but the matrix family remains an
+independent 74-term selective polynomial, but the matrix family remains an
 explicit typed input. Therefore these theorems validate the construction for
 every matrix family of these fixed dimensions; they do not select the active
 verifier-key dimensions or claim that Rust emits a particular family.
@@ -49,7 +49,6 @@ set_option autoImplicit false
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentity
 
 open Nightstream.SuperNeo.Concrete
-open Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.CCSResidualTable
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.ConcreteCarrier
@@ -58,8 +57,9 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.UnifiedSources
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.LeanCompiler
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial
+open Nightstream.Implementation.R1CS.SelectiveCcs
+open Nightstream.Implementation.R1CS.SelectiveCcs.LeanCompiler
 
 /-- Fixed reference-snapshot row-cube dimension. -/
 def rowVariables : Nat := 24
@@ -167,7 +167,7 @@ def identityFirstMatrices (matrices : ApplicationMatrices) :
     (fun matrix => RowPadding.padRows (matrices.matrixAt matrix))
 
 /-- The selected joint CCS structure. Its polynomial ignores `M_0` by
-construction and preserves the exact 66 application terms. -/
+construction and preserves the exact 74 application terms. -/
 def identityFirstSystem (matrices : ApplicationMatrices) :
     Structure F shape assignmentColumns where
   matrices := identityFirstMatrices matrices
@@ -209,7 +209,7 @@ def LogicalConstraintSatisfied
     (assignment : Assignment F assignmentColumns) : Prop :=
   forall row, logicalResidualAt matrices assignment row = 0
 
-/-- The exact 66-term application polynomial has no constant term. This is
+/-- The exact 74-term application polynomial has no constant term. This is
 proved from its explicit syntax, not supplied as a profile premise. -/
 theorem applicationPolynomial_at_zero :
     evaluatePolynomial baseOps Semantics.polynomial

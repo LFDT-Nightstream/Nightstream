@@ -322,6 +322,9 @@ fn matrix_entry_base_f(matrix: &CcsMatrix<F>, row: usize, col: usize) -> F {
             }
             acc
         }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("decider relation synthesis requires materialized matrix content")
+        }
     }
 }
 

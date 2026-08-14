@@ -1,0 +1,8 @@
+import Nightstream.Implementation.Nebula.Production.FPrime.Recursive.RecursiveSuccessorFor
+
+open Nightstream.Implementation.Nebula.ProductionRecursiveSuccessorFor
+
+#check nextRunning
+#check Evidence.memory_continues_from_rows
+#check Evidence.prior_running_is_nifs_input
+#check Evidence.exact_successor

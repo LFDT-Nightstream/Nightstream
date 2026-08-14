@@ -1,5 +1,5 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Artifact.Row.Decoder
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Polynomial.Rows
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Polynomial.Rows
 
 /-!
 Contract: semantic classification of one decoded Boolean/domain row.
@@ -26,10 +26,10 @@ namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact
 
 open Nightstream.SuperNeo.Concrete
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Decoder
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Components
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Rows
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Components
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Rows
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics
 
 def action {columns : Nat} (port : DecodedPort columns)
     (assignment : Fin columns → F) : F :=

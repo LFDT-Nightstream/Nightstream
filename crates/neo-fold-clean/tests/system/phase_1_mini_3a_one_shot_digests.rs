@@ -308,14 +308,14 @@ fn phase_1_mini_3a_accumulator_from_parent_c_data_digest() {
 fn phase_1_mini_3a_live_accumulator_handle_binds_exact_ordered_children() {
     let fixture = build_nifs_fixture();
     let baseline =
-        AccumulatorHandle::from_running_parts(&fixture.running_claims, Some(&fixture.parent_authority)).digest();
+        AccumulatorHandle::from_running_parts(2, &fixture.running_claims, Some(&fixture.parent_authority)).digest();
 
     macro_rules! assert_child_mutation_changes {
         ($label:literal, $mutate:expr) => {{
             let mut claims = fixture.running_claims.clone();
             ($mutate)(&mut claims[0]);
             assert_ne!(
-                AccumulatorHandle::from_running_parts(&claims, Some(&fixture.parent_authority)).digest(),
+                AccumulatorHandle::from_running_parts(2, &claims, Some(&fixture.parent_authority)).digest(),
                 baseline,
                 "exact Construction-2 accumulator handle must bind child {}",
                 $label
@@ -328,7 +328,7 @@ fn phase_1_mini_3a_live_accumulator_handle_binds_exact_ordered_children() {
             let mut parent = fixture.parent_authority.clone();
             ($mutate)(&mut parent);
             assert_eq!(
-                AccumulatorHandle::from_running_parts(&fixture.running_claims, Some(&parent)).digest(),
+                AccumulatorHandle::from_running_parts(2, &fixture.running_claims, Some(&parent)).digest(),
                 baseline,
                 "checked parent field {} is a cache, not the paper accumulator",
                 $label
@@ -343,7 +343,8 @@ fn phase_1_mini_3a_live_accumulator_handle_binds_exact_ordered_children() {
         claim.fold_digest[0] ^= 0xA5;
     });
     assert_ne!(
-        AccumulatorHandle::from_running_parts(&fixture.running_claims[1..], Some(&fixture.parent_authority)).digest(),
+        AccumulatorHandle::from_running_parts(2, &fixture.running_claims[1..], Some(&fixture.parent_authority))
+            .digest(),
         baseline,
         "the handle must bind child count and order"
     );

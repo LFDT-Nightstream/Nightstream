@@ -321,6 +321,7 @@ pub fn nebula_chain_link(prev: &[F; 4], link_tag: &'static [u8], leaf: &[F; 4]) 
 /// zero flag with zeroed slots, `Some` as a one flag plus coefficients.
 #[allow(clippy::too_many_arguments)]
 pub fn nebula_lane_digest(
+    program_binding_digest: &[F; 4],
     seg_idx: u64,
     idx: u64,
     ts: u64,
@@ -331,7 +332,8 @@ pub fn nebula_lane_digest(
     d_seen: &[[F; 4]; 3],
     d_mem: &[F; 4],
 ) -> [F; 4] {
-    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/nebula/lane_digest/v3");
+    let mut preimage = pack_bytes_as_fields(b"neo.fold.clean/nebula/lane_digest/v4");
+    preimage.extend_from_slice(program_binding_digest);
     preimage.push(F::from_u64(seg_idx));
     preimage.push(F::from_u64(idx));
     preimage.push(F::from_u64(ts));
@@ -351,6 +353,22 @@ pub fn nebula_lane_digest(
         preimage.extend_from_slice(chain);
     }
     preimage.extend_from_slice(d_mem);
+    poseidon_digest_fields(&preimage)
+}
+
+/// Program values compressed into the carried Nebula lane. Verifiers
+/// recompute this digest from the exact preprocessing values.
+pub const NEBULA_PROGRAM_BINDING_TAG: &[u8] = b"neo.fold.clean/nebula/program_binding/v1";
+
+pub fn nebula_program_binding_digest(
+    initial_semantic_state_digest: &[F; 4],
+    plan_digest: &[F; 4],
+    d_init: &[F; 4],
+) -> [F; 4] {
+    let mut preimage = pack_bytes_as_fields(NEBULA_PROGRAM_BINDING_TAG);
+    preimage.extend_from_slice(initial_semantic_state_digest);
+    preimage.extend_from_slice(plan_digest);
+    preimage.extend_from_slice(d_init);
     poseidon_digest_fields(&preimage)
 }
 
@@ -586,9 +604,9 @@ pub fn accumulator_claims_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4]
     poseidon_digest_fields(&preimage)
 }
 
-/// Canonical compact binding for a nonempty strict-binary PiDEC family.
+/// Canonical compact binding for a nonempty strict-radix PiDEC family.
 ///
-/// Strict PiDEC makes the child `X` matrices the unique binary split of the
+/// Strict PiDEC makes the child `X` matrices the unique radix-`base` split of the
 /// parent `X`, makes `r` and `fold_digest` common, derives `ct` from
 /// `y_ring`, and forces padded `y_ring` lanes to zero. This serializer binds
 /// those fields once. It still binds every ordered child commitment, every
@@ -598,11 +616,12 @@ pub fn accumulator_claims_digest(claims: &[CeClaim<Commitment, F, K>]) -> [F; 4]
 ///
 /// Returns `None` when the supplied family is not in that canonical profile.
 /// Callers then use the conservative exact-child codec.
-pub fn strict_binary_accumulator_family_digest(
+pub fn strict_radix_accumulator_family_digest(
+    base: u32,
     claims: &[CeClaim<Commitment, F, K>],
     parent: &CeClaim<Commitment, F, K>,
 ) -> Option<[F; 4]> {
-    let preimage = strict_binary_accumulator_family_preimage(claims, parent)?;
+    let preimage = strict_radix_accumulator_family_preimage(base, claims, parent)?;
     let chunk_digests = preimage
         .chunks(PROTOCOL_BINDING_MAX_FIELDS)
         .map(|chunk| {
@@ -620,10 +639,14 @@ pub fn strict_binary_accumulator_family_digest(
     Some(poseidon_digest_fields(&aggregate))
 }
 
-fn strict_binary_accumulator_family_preimage(
+fn strict_radix_accumulator_family_preimage(
+    base: u32,
     claims: &[CeClaim<Commitment, F, K>],
     parent: &CeClaim<Commitment, F, K>,
 ) -> Option<Vec<F>> {
+    if base < 2 {
+        return None;
+    }
     let first = claims.first()?;
     let active_x_cols = crate::paper::relations::superneo_public_x_cols(first.m_in);
     if first.m_in % neo_math::D != 0
@@ -644,7 +667,7 @@ fn strict_binary_accumulator_family_preimage(
         return None;
     }
 
-    let expected_child_x = neo_reductions::common::split_b_matrix_k(&parent.X, claims.len(), 2).ok()?;
+    let expected_child_x = neo_reductions::common::split_b_matrix_k(&parent.X, claims.len(), base).ok()?;
     if parent.m_in != first.m_in
         || parent.X.rows() != first.X.rows()
         || parent.X.cols() != first.X.cols()
@@ -911,12 +934,13 @@ impl AccumulatorHandle {
 
     /// Shape-checking adapter for the running transport envelope.
     ///
-    /// Canonical strict-binary families use the compact family codec. The
+    /// Canonical strict-radix families use the compact family codec. The
     /// parent supplies only the `X` value whose unique PiDEC split is checked
     /// against every child; it is not a second accumulator authority. Other
     /// shapes retain the conservative exact-child codec. Malformed
     /// empty/parent combinations receive a distinct fail-closed digest.
     pub fn from_running_parts(
+        base: u32,
         claims: &[CeClaim<Commitment, F, K>],
         parent_authority: Option<&CeClaim<Commitment, F, K>>,
     ) -> Self {
@@ -927,7 +951,7 @@ impl AccumulatorHandle {
         }
         if !claims.is_empty() {
             if let Some(parent) = parent_authority {
-                if let Some(digest) = strict_binary_accumulator_family_digest(claims, parent) {
+                if let Some(digest) = strict_radix_accumulator_family_digest(base, claims, parent) {
                     return Self {
                         digest: digest_fields_as_digest32(digest),
                     };
@@ -949,14 +973,6 @@ impl AccumulatorHandle {
     pub fn digest_fields(&self) -> [F; 4] {
         digest32_as_fields(self.digest)
     }
-}
-
-/// Compatibility wrapper for [`AccumulatorHandle::from_running_parts`].
-pub fn accumulator_digest_from_running_parts(
-    claims: &[CeClaim<Commitment, F, K>],
-    parent_authority: Option<&CeClaim<Commitment, F, K>>,
-) -> [u8; 32] {
-    AccumulatorHandle::from_running_parts(claims, parent_authority).digest()
 }
 
 fn malformed_accumulator_digest(

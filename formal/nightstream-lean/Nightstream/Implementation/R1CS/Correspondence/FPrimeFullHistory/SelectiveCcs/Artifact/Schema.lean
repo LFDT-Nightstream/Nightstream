@@ -1,6 +1,6 @@
 import Nightstream.Implementation.R1CS.Core.SeededPhi81
-import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.Polynomial.Semantics
-import Nightstream.SuperNeo.Concrete.Phi81Relation.FPrimeCarrier270.RowPadding
+import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Polynomial.Semantics
+import Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.NumericRowPadding
 
 /-!
 Contract: handwritten data schema for one compact selective-CCS matrix
@@ -40,12 +40,12 @@ open Nightstream.Implementation.R1CS
 /-- Exact matrix arity, owned by the independent selective polynomial rather
 than duplicated by the artifact schema. -/
 def portCount : Nat :=
-  Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports.portCount
+  Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports.portCount
 
 /-- Type-level binding from the artifact port count to the independently
 specified gate polynomial. No artifact may substitute another polynomial. -/
 abbrev gatePolynomial : ConstraintPolynomial F portCount :=
-  Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Semantics.polynomial
+  Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Semantics.polynomial
 
 /-- Raw arrays of Rust's compressed-sparse-column payload. No semantic
 triplet list is accepted at this boundary. -/

@@ -1,4 +1,4 @@
-import Nightstream.Implementation.NebulaV2.NIFS.PiDEC.LinearCombination
+import Nightstream.Implementation.Nebula.NIFS.PiDEC.LinearCombination
 import Nightstream.Implementation.R1CS.Canonical.KBooleanMleSemantics
 import Nightstream.Implementation.R1CS.Canonical.KConcreteBridge
 import Nightstream.SuperNeo.Concrete.Phi81Relation.Evaluation
@@ -33,7 +33,7 @@ set_option maxRecDepth 100000
 
 namespace Nightstream.Implementation.R1CS.Phi81DynamicEvaluationRows
 
-open Nightstream.Implementation.NebulaV2.ProductPiDecLinearCombination
+open Nightstream.Implementation.Nebula.ProductPiDecLinearCombination
 open Nightstream.Implementation.R1CS
 open Nightstream.Implementation.R1CS.Canonical
 open Nightstream.Implementation.R1CS.Canonical.KBooleanMle

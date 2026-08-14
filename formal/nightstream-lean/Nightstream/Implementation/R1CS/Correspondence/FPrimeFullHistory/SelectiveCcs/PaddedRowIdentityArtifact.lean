@@ -26,8 +26,9 @@ set_option autoImplicit false
 namespace Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentityArtifact
 
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.LeanCompiler
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.PaddedRowIdentity
+open Nightstream.Implementation.R1CS.SelectiveCcs
+open Nightstream.Implementation.R1CS.SelectiveCcs.LeanCompiler
 
 abbrev FixedSnapshot :=
   Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.PayloadRefinement.FixedSnapshot

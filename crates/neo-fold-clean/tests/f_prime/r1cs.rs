@@ -402,7 +402,7 @@ fn make_step_config<'a>(prep: &'a neo_fold_clean::Preprocessing) -> FPrimeStepCo
 }
 
 fn running_acc_digest(running: &RunningInstance) -> [F; 4] {
-    AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields()
+    AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest_fields()
 }
 
 fn canonical_base_acc_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
@@ -411,7 +411,7 @@ fn canonical_base_acc_digest(prep: &neo_fold_clean::Preprocessing) -> [F; 4] {
         .expect("fixture pins the public input width");
     let running = RunningInstance::canonical_zero(&prep.params, prep.structure(), m_in, LaneCommitmentMode::Plain)
         .expect("construct canonical base accumulator");
-    AccumulatorHandle::from_running_parts(&running.claims, running.parent_authority.as_ref()).digest_fields()
+    AccumulatorHandle::from_running_parts(2, &running.claims, running.parent_authority.as_ref()).digest_fields()
 }
 
 fn base_state(b: u32, z_0: [F; 4]) -> FPrimeStateIn {
@@ -877,7 +877,7 @@ fn recursive_x_out(fixture: &Fixture) -> [F; 4] {
 }
 
 fn recursive_acc_digest(fixture: &Fixture) -> [F; 4] {
-    AccumulatorHandle::from_running_parts(&fixture.children, Some(&fixture.combined)).digest_fields()
+    AccumulatorHandle::from_running_parts(2, &fixture.children, Some(&fixture.combined)).digest_fields()
 }
 
 /// Bundle of the source image + every handle a base/recursive F' input

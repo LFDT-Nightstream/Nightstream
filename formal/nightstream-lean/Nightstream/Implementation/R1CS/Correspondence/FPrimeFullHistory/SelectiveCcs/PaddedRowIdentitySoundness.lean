@@ -44,7 +44,7 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint.StrongReduction
 open Nightstream.SuperNeo.SumCheck
 open Nightstream.Implementation.R1CS
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial
 open PaddedRowIdentity
 
 universe uCommitment uPublicInput

@@ -73,6 +73,7 @@ fn config(d_init: [F; 4]) -> NebulaConfig {
         steps_per_segment: N,
         seg_max: 1,
         stacks: StackShape::NONE,
+        initial_semantic_state_digest: [F::from_u64(6); 4],
         plan_digest: [F::from_u64(7); 4],
         d_init,
     }
@@ -195,6 +196,22 @@ fn segment_limit_is_enforced_by_the_lane_relation() {
     assert_eq!(
         lane.open_segment(&cfg, [3; 32], [4; 32], [5; 32], d_pre),
         Err(NebulaError::SegmentLimit { seg_idx: 1, seg_max: 1 })
+    );
+}
+
+#[test]
+fn verifier_preprocessing_rejects_a_lane_from_another_program() {
+    let d_pre = honest_d_pre(&(0..N).map(adv).collect::<Vec<_>>());
+    let first = config(d_pre[1]);
+    let mut second = first.clone();
+    second.plan_digest[0] += F::ONE;
+
+    let mut lane = NebulaLane::base(&first);
+    assert!(lane.matches_program_binding(&first));
+    assert!(!lane.matches_program_binding(&second));
+    assert_eq!(
+        lane.open_segment(&second, [3; 32], [4; 32], [5; 32], d_pre),
+        Err(NebulaError::ProgramBindingMismatch)
     );
 }
 

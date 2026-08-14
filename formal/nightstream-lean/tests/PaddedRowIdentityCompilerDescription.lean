@@ -33,17 +33,17 @@ def emptyDescription : Description where
 
 example : structureHeader.length = 10 := structureHeader_length
 
-example : polynomialTerms.length = 66 := polynomialTerms_count_exact
+example : polynomialTerms.length = 74 := polynomialTerms_count_exact
 
-example : polynomialFields.length = 925 := polynomialFields_length
+example : polynomialFields.length = 1037 := polynomialFields_length
 
 example : emptyDescription.entryCount = 0 := by native_decide
 
-example : (structureFields emptyDescription).length = 961 := by
+example : (structureFields emptyDescription).length = 1073 := by
   rw [structureFields_length]
   native_decide
 
-example : (fields emptyDescription).length = 962 := by
+example : (fields emptyDescription).length = 1074 := by
   rw [fields_length]
   native_decide
 

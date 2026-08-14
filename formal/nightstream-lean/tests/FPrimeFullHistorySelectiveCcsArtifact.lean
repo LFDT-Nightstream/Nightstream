@@ -5,7 +5,7 @@ namespace NightstreamTests.FPrimeFullHistorySelectiveCcsArtifact
 open Nightstream.SuperNeo.Concrete
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Schema
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Interpreter
-open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Polynomial.Ports
+open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
 
 private def validCsc : CscPayload where
   colPtr := [0, 0, 1, 2]

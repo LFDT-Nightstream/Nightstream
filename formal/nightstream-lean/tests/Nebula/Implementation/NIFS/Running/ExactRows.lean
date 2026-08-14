@@ -1,0 +1,11 @@
+import Nightstream.Implementation.Nebula.NIFS.Running.ExactRows
+
+set_option autoImplicit false
+
+namespace tests.NebulaExactNifsRunningRows
+
+#check Nightstream.Implementation.Nebula.ExactNifsRunningRows.bitsPlaced_of_fullClaim
+#check Nightstream.Implementation.Nebula.ExactNifsRunningRows.input_matches_rows
+#check Nightstream.Implementation.Nebula.ExactNifsRunningRows.selected_input_matches_rows
+
+end tests.NebulaExactNifsRunningRows

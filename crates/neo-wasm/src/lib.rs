@@ -56,8 +56,8 @@ pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_comp
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use nebula::{
-    preprocess, prove, verify, WasmNebulaError, WasmNebulaLimits, WasmNebulaPreprocessing, WasmNebulaProfile,
-    WasmNebulaProof,
+    prepare_profile, preprocess, prove, verify, WasmNebulaError, WasmNebulaLimits, WasmNebulaPreparedProfile,
+    WasmNebulaPreprocessing, WasmNebulaProfile, WasmNebulaProof, WasmNebulaRomLimits,
 };
 pub use preprocess::{
     grammar_top_level_initial_state, grammar_top_level_initial_state_digest, semantic_state_digest,

@@ -1402,6 +1402,7 @@ dependencies = [
  "neo-ccs",
  "neo-fold-clean",
  "neo-math",
+ "neo-params",
  "neo-reductions",
  "neo-transcript",
  "objc2",

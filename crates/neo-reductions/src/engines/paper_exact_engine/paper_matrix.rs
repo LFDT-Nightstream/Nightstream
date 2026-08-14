@@ -48,6 +48,9 @@ where
             }
             value
         }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("paper-exact matrix access is unavailable for verifier-artifact matrices")
+        }
     }
 }
 

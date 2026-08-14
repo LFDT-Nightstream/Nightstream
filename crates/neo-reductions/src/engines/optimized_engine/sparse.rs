@@ -306,6 +306,9 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
                     row_idx: m.row_idx.clone(),
                     vals: m.vals.clone(),
                 })),
+                CcsMatrix::VerifierArtifact { .. } => {
+                    panic!("raw sparse cache construction is unavailable for verifier-artifact matrices")
+                }
             }
         }
 

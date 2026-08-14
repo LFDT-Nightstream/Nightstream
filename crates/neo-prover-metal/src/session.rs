@@ -87,6 +87,7 @@ pub struct MetalSession {
     dec_build_parallel_original_forms: Pipeline,
     dec_build_parallel_original_form_tiles: Pipeline,
     dec_reduce_parallel_original_form_tiles: Pipeline,
+    dec_add_geometric_ring_forms: Pipeline,
     dec_bar_ring_forms_in_place: Pipeline,
     dec_build_seeded_ring_forms: Pipeline,
     dec_add_bar_seeded_ring_forms: Pipeline,
@@ -179,6 +180,7 @@ impl MetalSession {
             pipeline(&device, &library, "dec_build_parallel_original_form_tiles")?;
         let dec_reduce_parallel_original_form_tiles =
             pipeline(&device, &library, "dec_reduce_parallel_original_form_tiles")?;
+        let dec_add_geometric_ring_forms = pipeline(&device, &library, "dec_add_geometric_ring_forms")?;
         let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
         let dec_build_seeded_ring_forms = pipeline(&device, &library, "dec_build_seeded_ring_forms")?;
         let dec_add_bar_seeded_ring_forms = pipeline(&device, &library, "dec_add_bar_seeded_ring_forms")?;
@@ -231,6 +233,7 @@ impl MetalSession {
             dec_build_parallel_original_forms,
             dec_build_parallel_original_form_tiles,
             dec_reduce_parallel_original_form_tiles,
+            dec_add_geometric_ring_forms,
             dec_bar_ring_forms_in_place,
             dec_build_seeded_ring_forms,
             dec_add_bar_seeded_ring_forms,

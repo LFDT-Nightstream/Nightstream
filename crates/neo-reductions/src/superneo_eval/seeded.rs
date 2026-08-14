@@ -83,9 +83,9 @@ impl SuperneoMatrixCache {
         }
 
         for (row, out_row) in out.iter_mut().enumerate() {
-            let mut acc = F::ZERO;
+            let mut acc = self.geometric_dot_real(row, z_blocks);
             for block in self.row_blocks_for(row).iter().copied() {
-                let block_index = block.block();
+                let block_index = self.row_block_index(block);
                 if z_blocks.real_nonzero(block_index) {
                     acc += self.compact_dot_real(block, z_blocks, block_index);
                 }
@@ -154,9 +154,9 @@ impl SuperneoMatrixCache {
         }
 
         for (row, out_row) in out.iter_mut().enumerate() {
-            let mut acc = F::ZERO;
+            let mut acc = self.geometric_dot_real(row, z_blocks);
             for block in self.row_blocks_for(row).iter().copied() {
-                let block_index = block.block();
+                let block_index = self.row_block_index(block);
                 if z_blocks.real_nonzero(block_index) {
                     acc += self.compact_dot_real(block, z_blocks, block_index);
                 }
@@ -320,17 +320,18 @@ impl SuperneoMatrixCache {
                 continue;
             }
             for compact in self.row_blocks_for(row).iter().copied() {
-                let block = compact.block();
+                let block = self.row_block_index(compact);
                 touch_ring_block(scratch, block);
-                if let Some((local, coefficient)) = compact.single_parts() {
+                if let Some((_, local, coefficient)) = compact.single_parts() {
                     scratch.agg_re[block].0[local] += w_re * coefficient;
                     scratch.agg_im[block].0[local] += w_im * coefficient;
                 } else {
-                    let orig = self.dense_block(compact.dense_index().expect("dense compact block"));
+                    let orig = self.dense_block(self.dense_pattern_index(compact));
                     add_scaled_rq(&mut scratch.agg_re[block], &orig, w_re);
                     add_scaled_rq(&mut scratch.agg_im[block], &orig, w_im);
                 }
             }
+            self.accumulate_geometric_ring_form_row(row, w_re, w_im, scratch);
         }
 
         for index in 0..scratch.active_blocks.len() {

@@ -42,6 +42,9 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
             }
             value
         }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("baseline matrix access is unavailable for verifier-artifact matrices")
+        }
     }
 }
 

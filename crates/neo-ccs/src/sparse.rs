@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 /// Compressed Sparse Column (CSC) format for sparse matrices.
 ///
 /// This layout is efficient for column-wise operations and for computing `y += Aᵀ·x`.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct CscMat<Ff> {
     /// Number of rows.
     pub nrows: usize,
@@ -469,7 +469,7 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> SparseCache<Ff> {
 /// CCS matrices are typically extremely sparse. For large circuits we avoid materializing dense
 /// matrices and instead keep a CSC form, with an explicit identity variant to represent `I_n`
 /// without storing `n` diagonal entries.
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum CcsMatrix<Ff> {
     /// Identity matrix `I_n` (only valid for square CCS).
     Identity {
@@ -489,6 +489,18 @@ pub enum CcsMatrix<Ff> {
         blocks: Vec<SeededPhi81LinearBlock>,
         /// Compact contiguous radix expansions in individual rows.
         geometric_runs: Vec<GeometricRowRun<Ff>>,
+    },
+    /// Matrix content supplied by a separately verified evaluator artifact.
+    ///
+    /// This variant carries shape only. It is valid only inside a complete
+    /// artifact-backed [`crate::CcsStructure`]. Raw matrix operations reject
+    /// it because treating the missing content as zero would change the CCS
+    /// relation.
+    VerifierArtifact {
+        /// Number of matrix rows.
+        rows: usize,
+        /// Number of matrix columns.
+        cols: usize,
     },
 }
 
@@ -547,6 +559,7 @@ impl<Ff> CcsMatrix<Ff> {
             CcsMatrix::Identity { n } => *n,
             CcsMatrix::Csc(m) => m.nrows,
             CcsMatrix::CscWithSeededPhi81 { csc, .. } => csc.nrows,
+            CcsMatrix::VerifierArtifact { rows, .. } => *rows,
         }
     }
 
@@ -556,6 +569,7 @@ impl<Ff> CcsMatrix<Ff> {
             CcsMatrix::Identity { n } => *n,
             CcsMatrix::Csc(m) => m.ncols,
             CcsMatrix::CscWithSeededPhi81 { csc, .. } => csc.ncols,
+            CcsMatrix::VerifierArtifact { cols, .. } => *cols,
         }
     }
 
@@ -564,7 +578,7 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { .. } => None,
             CcsMatrix::Csc(m) => Some(m),
-            CcsMatrix::CscWithSeededPhi81 { .. } => None,
+            CcsMatrix::CscWithSeededPhi81 { .. } | CcsMatrix::VerifierArtifact { .. } => None,
         }
     }
 
@@ -573,6 +587,7 @@ impl<Ff> CcsMatrix<Ff> {
         match self {
             CcsMatrix::Identity { .. } => None,
             CcsMatrix::Csc(csc) | CcsMatrix::CscWithSeededPhi81 { csc, .. } => Some(csc),
+            CcsMatrix::VerifierArtifact { .. } => None,
         }
     }
 
@@ -580,7 +595,7 @@ impl<Ff> CcsMatrix<Ff> {
     pub fn seeded_phi81_blocks(&self) -> &[SeededPhi81LinearBlock] {
         match self {
             CcsMatrix::CscWithSeededPhi81 { blocks, .. } => blocks,
-            CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) => &[],
+            CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) | CcsMatrix::VerifierArtifact { .. } => &[],
         }
     }
 
@@ -588,7 +603,7 @@ impl<Ff> CcsMatrix<Ff> {
     pub fn geometric_runs(&self) -> &[GeometricRowRun<Ff>] {
         match self {
             CcsMatrix::CscWithSeededPhi81 { geometric_runs, .. } => geometric_runs,
-            CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) => &[],
+            CcsMatrix::Identity { .. } | CcsMatrix::Csc(_) | CcsMatrix::VerifierArtifact { .. } => &[],
         }
     }
 }
@@ -599,6 +614,7 @@ impl<Ff: Field> CcsMatrix<Ff> {
         match self {
             Self::Identity { n } => *n > 0,
             Self::Csc(csc) | Self::CscWithSeededPhi81 { csc, .. } => csc.is_canonical(),
+            Self::VerifierArtifact { .. } => false,
         }
     }
 }
@@ -631,6 +647,7 @@ where
                 true
             }
             CcsMatrix::CscWithSeededPhi81 { .. } => false,
+            CcsMatrix::VerifierArtifact { .. } => false,
         }
     }
 }
@@ -666,6 +683,9 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                         accumulate_row_term(&mut terms, column, coefficient);
                     });
                 }
+            }
+            CcsMatrix::VerifierArtifact { .. } => {
+                panic!("raw row materialization is unavailable for a verifier-artifact matrix")
             }
         }
         Some(
@@ -704,6 +724,9 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                     run.add_mul_transpose_into(x, y, n_eff);
                 }
             }
+            CcsMatrix::VerifierArtifact { .. } => {
+                panic!("raw transpose multiplication is unavailable for a verifier-artifact matrix")
+            }
         }
     }
 
@@ -734,6 +757,9 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CcsMatrix<Ff> {
                 for run in geometric_runs {
                     run.add_mul_into(x, y, n_eff);
                 }
+            }
+            CcsMatrix::VerifierArtifact { .. } => {
+                panic!("raw multiplication is unavailable for a verifier-artifact matrix")
             }
         }
     }

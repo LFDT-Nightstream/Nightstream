@@ -1,12 +1,13 @@
 use neo_ccs::{
-    matrix::Mat, poly::SparsePoly, CcsMatrix, CcsStructure, CscMat, GeometricRowRun, SeededPhi81LinearBlock, Term,
+    check_ccs_rowwise_zero, matrix::Mat, poly::SparsePoly, CcsMatrix, CcsStructure, CscMat, GeometricRowRun,
+    SeededPhi81LinearBlock, Term,
 };
 use neo_math::{superneo_bar_block, KExtensions, Rq};
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
-    build_superneo_eval_cache, eval_all_mats_cached, eval_all_mats_cached_with_blocks, eval_all_mats_direct,
-    eval_all_mats_ring_cached, eval_all_mats_ring_cached_with_blocks, eval_all_mats_transformed,
-    eval_ring_linear_forms_real_z_blocks, SuperneoZBlocks,
+    build_superneo_eval_cache, check_ccs_relation_zero_cached, eval_all_mats_cached, eval_all_mats_cached_with_blocks,
+    eval_all_mats_direct, eval_all_mats_ring_cached, eval_all_mats_ring_cached_with_blocks, eval_all_mats_transformed,
+    eval_ring_linear_forms_real_z_blocks, SuperneoCachedRelationError, SuperneoCompactRowOffsets, SuperneoZBlocks,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -65,6 +66,34 @@ fn column_mask_witness_blocks_match_row_major_signed_unit_blocks() {
 }
 
 #[test]
+fn signed_digit_masks_use_exact_radix_four_plane_order() {
+    let signed = [-3_i64, -2, -1, 0, 1, 2, 3];
+    let z = signed
+        .into_iter()
+        .map(|value| {
+            let magnitude = F::from_u64(value.unsigned_abs());
+            K::from(if value < 0 { F::ZERO - magnitude } else { magnitude })
+        })
+        .collect::<Vec<_>>();
+    let blocks = SuperneoZBlocks::from_z(&z);
+
+    assert_eq!(
+        blocks.signed_digit_masks(4),
+        Some(vec![1 << 4, 1 << 2, 1 << 5, 1 << 1, 1 << 6, 1]),
+        "radix-four masks must use [+1, -1, +2, -2, +3, -3] plane order"
+    );
+}
+
+#[test]
+fn signed_digit_masks_reject_coefficients_outside_the_radix_alphabet() {
+    let radix_four_out_of_range = SuperneoZBlocks::from_z(&[K::from(F::from_u64(4))]);
+    let radix_two_out_of_range = SuperneoZBlocks::from_z(&[K::from(F::from_u64(2))]);
+
+    assert!(radix_four_out_of_range.signed_digit_masks(4).is_none());
+    assert!(radix_two_out_of_range.signed_digit_masks(2).is_none());
+}
+
+#[test]
 fn transformed_eval_matches_direct_eval_for_sparse_mats() {
     let n = 8usize;
     let m = 2 * D;
@@ -101,6 +130,117 @@ fn transformed_eval_matches_direct_eval_for_sparse_mats() {
 }
 
 #[test]
+fn repeated_dense_ring_patterns_share_one_compact_dictionary_entry() {
+    let n = 2usize;
+    let m = 2 * D;
+    let matrix = CcsMatrix::Csc(CscMat::from_triplets(
+        vec![
+            (0, 0, F::from_u64(3)),
+            (0, 1, F::from_u64(5)),
+            (1, D, F::from_u64(3)),
+            (1, D + 1, F::from_u64(5)),
+        ],
+        n,
+        m,
+    ));
+    let structure = CcsStructure::new_sparse(vec![matrix], SparsePoly::new(1, vec![])).expect("valid CCS");
+    let cache = build_superneo_eval_cache(&structure).expect("SuperNeo cache");
+    let matrix = cache.matrix(0).expect("matrix cache");
+    let device = matrix
+        .compact_device_parts()
+        .expect("finished compact cache");
+
+    assert_eq!(device.row_blocks.len(), 2);
+    assert_eq!(core::mem::size_of_val(device.row_blocks), 8);
+    assert_eq!(device.dense_row_blocks.len(), 2);
+    assert_eq!(core::mem::size_of_val(device.dense_row_blocks), 16);
+    assert_eq!(
+        device.dense_offsets.len(),
+        2,
+        "one shared pattern plus the terminal offset"
+    );
+
+    let z = (0..m)
+        .map(|column| K::from_coeffs([F::from_u64((column + 1) as u64), F::ZERO]))
+        .collect::<Vec<_>>();
+    let chi = [K::from_coeffs([F::from_u64(7), F::from_u64(2)]), K::from_u64(11)];
+    assert_eq!(
+        eval_all_mats_cached(&cache, &z, &chi, n),
+        eval_all_mats_direct(&structure, &z, &chi, n),
+    );
+}
+
+#[test]
+fn compact_relation_authority_matches_exact_rowwise_ccs_satisfaction() {
+    let matrices = vec![
+        CcsMatrix::Identity { n: D },
+        CcsMatrix::Identity { n: D },
+        CcsMatrix::Identity { n: D },
+    ];
+    let polynomial = SparsePoly::new(
+        3,
+        vec![
+            Term {
+                coeff: F::ONE,
+                exps: vec![1, 1, 0],
+            },
+            Term {
+                coeff: -F::ONE,
+                exps: vec![0, 0, 1],
+            },
+        ],
+    );
+    let structure = CcsStructure::new_sparse(matrices, polynomial).expect("bit relation");
+    let cache = build_superneo_eval_cache(&structure).expect("SuperNeo cache");
+    let mut assignment = (0..D)
+        .map(|index| F::from_bool(index % 2 == 0))
+        .collect::<Vec<_>>();
+    let as_extension = |values: &[F]| values.iter().copied().map(K::from).collect::<Vec<_>>();
+
+    check_ccs_rowwise_zero(&structure, &assignment, &[]).expect("raw rowwise relation");
+    check_ccs_relation_zero_cached(&cache, &structure.f, &as_extension(&assignment)).expect("compact rowwise relation");
+
+    assignment[7] = F::from_u64(2);
+    assert!(check_ccs_rowwise_zero(&structure, &assignment, &[]).is_err());
+    assert_eq!(
+        check_ccs_relation_zero_cached(&cache, &structure.f, &as_extension(&assignment)),
+        Err(SuperneoCachedRelationError::UnsatisfiedRow { row: 7 }),
+    );
+}
+
+#[test]
+fn compact_row_offsets_use_exact_u16_chunk_bases() {
+    let n = 600usize;
+    let m = 2 * D;
+    let entries = (0..n)
+        .flat_map(|row| [(row, row % D, F::ONE), (row, D + row % D, F::from_u64(3))])
+        .collect::<Vec<_>>();
+    let matrix = CcsMatrix::Csc(CscMat::from_triplets(entries, n, m));
+    let structure = CcsStructure::new_sparse(vec![matrix], SparsePoly::new(1, vec![])).expect("valid CCS");
+    let cache = build_superneo_eval_cache(&structure).expect("SuperNeo cache");
+    let parts = cache
+        .matrix(0)
+        .expect("matrix cache")
+        .compact_device_parts()
+        .expect("finished compact cache");
+    let SuperneoCompactRowOffsets::U16Chunked {
+        chunk_offsets,
+        local_offsets,
+        chunk_rows,
+    } = parts.row_offsets
+    else {
+        panic!("small per-chunk offsets must use the u16 representation");
+    };
+    assert_eq!(chunk_rows, 256);
+    assert_eq!(local_offsets.len(), n + 1);
+    assert_eq!(chunk_offsets.len(), (n + 1).div_ceil(chunk_rows));
+    for row in 0..=n {
+        let reconstructed = chunk_offsets[row / chunk_rows] + u32::from(local_offsets[row]);
+        assert_eq!(reconstructed as usize, parts.row_blocks.len().min(2 * row));
+    }
+}
+
+#[test]
 fn geometric_rows_match_expanded_csc_in_direct_cached_and_transformed_evaluation() {
     let n = 4usize;
     let m = 2 * D;
@@ -129,7 +269,72 @@ fn geometric_rows_match_expanded_csc_in_direct_cached_and_transformed_evaluation
     assert_eq!(eval_all_mats_direct(&structured, &z, &chi_r, n), expected);
 
     let cache = build_superneo_eval_cache(&structured).expect("structured SuperNeo cache");
+    let expanded_cache = build_superneo_eval_cache(&expanded).expect("expanded SuperNeo cache");
+    assert_eq!(
+        cache
+            .matrix(0)
+            .expect("matrix cache")
+            .compact_geometric_run_count(),
+        1
+    );
+    assert_eq!(
+        cache
+            .matrix(0)
+            .expect("matrix cache")
+            .compact_explicit_coefficient_count(),
+        1
+    );
     assert_eq!(eval_all_mats_cached(&cache, &z, &chi_r, n), expected);
+
+    let compact_linear = cache.build_linear_forms(&chi_r, n);
+    let expanded_linear = expanded_cache.build_linear_forms(&chi_r, n);
+    assert_eq!(compact_linear[0].eval_vec_k(&z), expanded_linear[0].eval_vec_k(&z));
+
+    let real_z = (0..m)
+        .map(|column| match column % 3 {
+            0 => -K::ONE,
+            1 => K::ZERO,
+            _ => K::ONE,
+        })
+        .collect::<Vec<_>>();
+    let real_blocks = SuperneoZBlocks::from_z(&real_z);
+    let mut compact_rows = vec![K::ZERO; n];
+    let mut expanded_rows = vec![K::ZERO; n];
+    cache
+        .matrix(0)
+        .expect("matrix cache")
+        .fill_row_dots_real_with_blocks(&mut compact_rows, &real_blocks);
+    expanded_cache
+        .matrix(0)
+        .expect("expanded matrix cache")
+        .fill_row_dots_real_with_blocks(&mut expanded_rows, &real_blocks);
+    assert_eq!(compact_rows, expanded_rows);
+
+    let compact_ring = cache.build_ring_linear_forms(&chi_r, n);
+    let expanded_ring = expanded_cache.build_ring_linear_forms(&chi_r, n);
+    assert_eq!(
+        eval_ring_linear_forms_real_z_blocks(&compact_ring, &real_blocks),
+        eval_ring_linear_forms_real_z_blocks(&expanded_ring, &real_blocks),
+    );
+
+    let weights: [K; D] = core::array::from_fn(|lane| {
+        K::from_coeffs([F::from_u64((lane + 1) as u64), F::from_u64((2 * lane + 3) as u64)])
+    });
+    let compact_weighted = cache.build_weighted_matrix_caches(&weights);
+    let expanded_weighted = expanded_cache.build_weighted_matrix_caches(&weights);
+    let complex_blocks = SuperneoZBlocks::from_z(&z);
+    for row in 0..n {
+        assert_eq!(
+            compact_weighted[0].row_dot_with_blocks(row, &complex_blocks),
+            expanded_weighted[0].row_dot_with_blocks(row, &complex_blocks),
+            "weighted geometric row {row}",
+        );
+    }
+    let matrix_coefficients = [K::from_coeffs([F::from_u64(5), F::from_u64(7)])];
+    assert_eq!(
+        cache.eval_weighted_row_table(&complex_blocks, &weights, &matrix_coefficients, n, n),
+        expanded_cache.eval_weighted_row_table(&complex_blocks, &weights, &matrix_coefficients, n, n),
+    );
 
     let transformed = structured
         .transform_matrices_superneo()

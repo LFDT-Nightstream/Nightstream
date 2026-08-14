@@ -6,6 +6,7 @@ impl SuperneoMatrixCache {
     #[inline]
     pub(super) fn compact_row_offsets(&mut self) {
         self.row_offsets.compact(self.rows + 1);
+        self.geometric_row_offsets.compact(self.rows + 1);
     }
 
     #[inline]
@@ -19,6 +20,19 @@ impl SuperneoMatrixCache {
     }
 
     #[inline]
+    pub(super) fn row_block_index(&self, block: CompactRowBlock) -> usize {
+        block.single_parts().map_or_else(
+            || self.dense_row_blocks[block.dense_index().expect("dense compact block")].block(),
+            |(block, _, _)| block,
+        )
+    }
+
+    #[inline]
+    pub(super) fn dense_pattern_index(&self, block: CompactRowBlock) -> usize {
+        self.dense_row_blocks[block.dense_index().expect("dense compact block")].pattern()
+    }
+
+    #[inline]
     pub(super) fn row_blocks_for(&self, row: usize) -> &[CompactRowBlock] {
         if self.identity {
             return &[];
@@ -28,15 +42,16 @@ impl SuperneoMatrixCache {
 
     #[inline]
     pub(super) fn expanded_block(&self, block: CompactRowBlock) -> RowBlock {
-        let orig = if let Some((local, coefficient)) = block.single_parts() {
+        let (blk, orig) = if let Some((blk, local, coefficient)) = block.single_parts() {
             let mut coefficients = [F::ZERO; D];
             coefficients[local] = coefficient;
-            Rq(coefficients)
+            (blk, Rq(coefficients))
         } else {
-            self.dense_block(block.dense_index().expect("compact dense block"))
+            let dense = self.dense_row_blocks[block.dense_index().expect("compact dense block")];
+            (dense.block(), self.dense_block(dense.pattern()))
         };
         RowBlock {
-            blk: block.block(),
+            blk,
             bar: Rq(neo_math::superneo_bar_block(orig.0)),
             orig,
         }
@@ -53,22 +68,22 @@ impl SuperneoMatrixCache {
                 orig: Rq(orig),
             }];
         }
-        self.row_blocks_for(row)
+        let mut out = self
+            .row_blocks_for(row)
             .iter()
             .copied()
             .map(|block| self.expanded_block(block))
-            .collect()
+            .collect();
+        self.append_geometric_row_blocks(row, &mut out);
+        out
     }
 
     #[inline]
     pub(super) fn compact_dot_real(&self, block: CompactRowBlock, input: &SuperneoZBlocks, block_index: usize) -> F {
-        if let Some((local, coefficient)) = block.single_parts() {
+        if let Some((_, local, coefficient)) = block.single_parts() {
             coefficient * input.real_coefficient(block_index, local)
         } else {
-            input.real_dot(
-                &self.dense_block(block.dense_index().expect("compact dense block")),
-                block_index,
-            )
+            input.real_dot(&self.dense_block(self.dense_pattern_index(block)), block_index)
         }
     }
 

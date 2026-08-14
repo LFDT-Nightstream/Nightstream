@@ -5,16 +5,25 @@ use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
+mod artifact;
+mod authority;
 mod baseline;
 mod cache;
 mod compact;
 mod digit;
+mod geometric;
 mod matrix_cache_impl;
 mod parallel;
+mod row_block;
 mod seeded;
 mod weighted;
 mod weighted_table;
 
+pub use artifact::{
+    SuperneoCacheArtifactError, SuperneoCacheArtifactLimits, SuperneoCacheArtifactReceipt,
+    VerifiedSuperneoCacheArtifact,
+};
+pub use authority::{check_ccs_relation_zero_cached, SuperneoCachedRelationError};
 pub use baseline::{
     eval_all_mats_direct, eval_all_mats_superneo, eval_all_mats_transformed, eval_mle_direct_matrix,
     eval_mle_superneo_from_original, eval_mle_transformed_matrix, is_superneo_compatible_shape,
@@ -27,6 +36,7 @@ use digit::{
     accumulate_by_digit_block, accumulate_by_signed_unit_masks, accumulate_pair_by_digit_block,
     accumulate_pair_by_signed_unit_masks, mul_by_digit_block, mul_by_signed_unit_masks,
 };
+use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
 
 /// The per-lane weighted projection basis forms `(re, im)` derived from the
@@ -73,6 +83,9 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
                 value += run.entry(row, col);
             }
             value
+        }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("direct matrix access is unavailable for verifier-artifact matrices")
         }
     }
 }
@@ -128,31 +141,50 @@ struct RowBlock {
     orig: Rq,
 }
 
-const DENSE_BLOCK_TAG: u32 = 1 << 31;
-const NEGATIVE_BLOCK_TAG: u32 = 1 << 30;
-const BLOCK_PAYLOAD_MASK: u32 = NEGATIVE_BLOCK_TAG - 1;
-
-#[derive(Clone, Copy, Debug, Default)]
-#[repr(C)]
-struct CompactRowBlock {
-    blk: u32,
-    payload: u32,
-}
-
-const _: [(); 8] = [(); core::mem::size_of::<CompactRowBlock>()];
-
 #[derive(Clone, Debug, Default)]
 enum RowOffsetStore {
     #[default]
     Empty,
+    U16Chunked {
+        chunk_offsets: Vec<u32>,
+        local_offsets: Vec<u16>,
+    },
     U24(Vec<u8>),
     U32(Vec<u32>),
 }
 
 impl RowOffsetStore {
+    const CHUNK_ROWS: usize = 256;
+
     fn from_dense(offsets: Vec<u32>) -> Self {
         if offsets.is_empty() {
             return Self::Empty;
+        }
+        let mut chunk_offsets = Vec::with_capacity(offsets.len().div_ceil(Self::CHUNK_ROWS));
+        let mut local_offsets = Vec::with_capacity(offsets.len());
+        let mut fits_u16 = true;
+        for chunk in offsets.chunks(Self::CHUNK_ROWS) {
+            let base = chunk[0];
+            chunk_offsets.push(base);
+            for &offset in chunk {
+                let Some(local) = offset
+                    .checked_sub(base)
+                    .and_then(|value| u16::try_from(value).ok())
+                else {
+                    fits_u16 = false;
+                    break;
+                };
+                local_offsets.push(local);
+            }
+            if !fits_u16 {
+                break;
+            }
+        }
+        if fits_u16 {
+            return Self::U16Chunked {
+                chunk_offsets,
+                local_offsets,
+            };
         }
         if offsets.last().copied().unwrap_or(0) <= 0x00ff_ffff {
             let mut packed = Vec::with_capacity(offsets.len() * 3);
@@ -170,6 +202,13 @@ impl RowOffsetStore {
     fn get(&self, index: usize) -> u32 {
         match self {
             Self::Empty => 0,
+            Self::U16Chunked {
+                chunk_offsets,
+                local_offsets,
+            } => {
+                let chunk = index / Self::CHUNK_ROWS;
+                chunk_offsets[chunk] + u32::from(local_offsets[index])
+            }
             Self::U24(bytes) => {
                 let start = index * 3;
                 u32::from_le_bytes([bytes[start], bytes[start + 1], bytes[start + 2], 0])
@@ -186,6 +225,14 @@ impl RowOffsetStore {
     fn take_dense(&mut self, len: usize) -> Vec<u32> {
         match core::mem::take(self) {
             Self::Empty => Vec::new(),
+            Self::U16Chunked {
+                chunk_offsets,
+                local_offsets,
+            } => local_offsets
+                .into_iter()
+                .enumerate()
+                .map(|(index, local)| chunk_offsets[index / Self::CHUNK_ROWS] + u32::from(local))
+                .collect(),
             Self::U24(bytes) => (0..len)
                 .map(|index| {
                     let start = index * 3;
@@ -205,6 +252,10 @@ impl RowOffsetStore {
     fn compact_bytes(&self) -> usize {
         match self {
             Self::Empty => 0,
+            Self::U16Chunked {
+                chunk_offsets,
+                local_offsets,
+            } => chunk_offsets.len() * core::mem::size_of::<u32>() + local_offsets.len() * core::mem::size_of::<u16>(),
             Self::U24(bytes) => bytes.len(),
             Self::U32(offsets) => offsets.len() * core::mem::size_of::<u32>(),
         }
@@ -246,17 +297,6 @@ impl DenseBlockStore {
         };
     }
 
-    fn take_building(&mut self) -> Vec<Rq> {
-        match core::mem::replace(self, DenseBlockStore::Building(Vec::new())) {
-            DenseBlockStore::Building(blocks) => blocks,
-            DenseBlockStore::Compact { .. } => panic!("dense blocks were compacted before construction finished"),
-        }
-    }
-
-    fn replace_building(&mut self, blocks: Vec<Rq>) {
-        *self = DenseBlockStore::Building(blocks);
-    }
-
     fn expanded(&self, index: usize) -> Rq {
         match self {
             DenseBlockStore::Building(blocks) => blocks[index],
@@ -293,60 +333,16 @@ impl DenseBlockStore {
     }
 }
 
-impl CompactRowBlock {
-    #[inline]
-    fn single(blk: usize, local: usize, coefficient: F) -> Self {
-        assert!(blk <= u32::MAX as usize, "SuperNeo block index exceeds compact cache");
-        debug_assert!(local < D);
-        debug_assert!(coefficient == F::ONE || coefficient == F::ZERO - F::ONE);
-        Self {
-            blk: blk as u32,
-            payload: local as u32 | u32::from(coefficient == F::ZERO - F::ONE) * NEGATIVE_BLOCK_TAG,
-        }
-    }
-
-    #[inline]
-    fn dense(blk: usize, index: usize) -> Self {
-        assert!(blk <= u32::MAX as usize, "SuperNeo block index exceeds compact cache");
-        assert!(
-            index <= BLOCK_PAYLOAD_MASK as usize,
-            "SuperNeo dense-block cache exceeds u30"
-        );
-        Self {
-            blk: blk as u32,
-            payload: DENSE_BLOCK_TAG | index as u32,
-        }
-    }
-
-    #[inline]
-    fn block(self) -> usize {
-        self.blk as usize
-    }
-
-    #[inline]
-    fn single_parts(self) -> Option<(usize, F)> {
-        (self.payload & DENSE_BLOCK_TAG == 0).then(|| {
-            let coefficient = if self.payload & NEGATIVE_BLOCK_TAG == 0 {
-                F::ONE
-            } else {
-                F::ZERO - F::ONE
-            };
-            ((self.payload & BLOCK_PAYLOAD_MASK) as usize, coefficient)
-        })
-    }
-
-    #[inline]
-    fn dense_index(self) -> Option<usize> {
-        (self.payload & DENSE_BLOCK_TAG != 0).then_some((self.payload & BLOCK_PAYLOAD_MASK) as usize)
-    }
-}
 #[derive(Clone, Debug)]
 pub struct SuperneoMatrixCache {
     rows: usize,
     cols: usize,
     row_offsets: RowOffsetStore,
     row_blocks: Vec<CompactRowBlock>,
+    dense_row_blocks: Vec<DenseRowBlock>,
     dense_orig: DenseBlockStore,
+    geometric_row_offsets: RowOffsetStore,
+    geometric_runs: Vec<[u64; 3]>,
     identity: bool,
     seeded_phi81_blocks: Vec<SeededPhi81LinearBlock>,
 }

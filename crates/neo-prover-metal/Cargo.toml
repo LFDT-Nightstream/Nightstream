@@ -57,6 +57,7 @@ rayon = { workspace = true, optional = true }
 
 [dev-dependencies]
 neo-math = { path = "../neo-math" }
+neo-params = { path = "../neo-params" }
 neo-transcript = { path = "../neo-transcript" }
 p3-field = { workspace = true }
 rand = { workspace = true }

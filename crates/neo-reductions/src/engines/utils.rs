@@ -445,6 +445,9 @@ fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff
                     });
                 }
             }
+            CcsMatrix::VerifierArtifact { .. } => {
+                panic!("raw CCS digest is unavailable for verifier-artifact matrices")
+            }
         }
     }
 

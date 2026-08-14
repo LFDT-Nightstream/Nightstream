@@ -73,6 +73,11 @@ impl<F: Field> CcsStructure<F> {
         let n = matrices[0].rows();
         let m = matrices[0].cols();
         for mj in matrices.iter() {
+            if matches!(mj, CcsMatrix::VerifierArtifact { .. }) {
+                return Err(RelationError::Message(
+                    "verifier-artifact matrices require the artifact-header constructor".into(),
+                ));
+            }
             if mj.rows() != n || mj.cols() != m {
                 return Err(RelationError::InvalidStructure);
             }
@@ -96,13 +101,57 @@ impl<F: Field> CcsStructure<F> {
         Ok(Self { matrices, f, n, m })
     }
 
+    /// Create a matrix-content-free CCS header for a separately verified
+    /// evaluator artifact.
+    pub fn new_verifier_artifact_header(
+        n: usize,
+        m: usize,
+        matrix_count: usize,
+        f: SparsePoly<F>,
+    ) -> Result<Self, RelationError> {
+        if n == 0 || m == 0 || matrix_count == 0 {
+            return Err(RelationError::InvalidStructure);
+        }
+        if f.arity() != matrix_count {
+            return Err(RelationError::PolyArity {
+                poly_arity: f.arity(),
+                t: matrix_count,
+            });
+        }
+        validate_polynomial(&f, matrix_count)?;
+        Ok(Self {
+            matrices: vec![CcsMatrix::VerifierArtifact { rows: n, cols: m }; matrix_count],
+            f,
+            n,
+            m,
+        })
+    }
+
+    /// Whether all matrix content is owned by a verifier artifact.
+    pub fn is_verifier_artifact_header(&self) -> bool {
+        !self.matrices.is_empty()
+            && self
+                .matrices
+                .iter()
+                .all(|matrix| matches!(matrix, CcsMatrix::VerifierArtifact { .. }))
+    }
+
     /// Recheck all structure invariants at a public boundary.
     pub fn validate(&self) -> Result<(), RelationError> {
         if self.matrices.is_empty() || self.n == 0 || self.m == 0 {
             return Err(RelationError::InvalidStructure);
         }
+        let artifact_header = self.is_verifier_artifact_header();
+        if !artifact_header
+            && self
+                .matrices
+                .iter()
+                .any(|matrix| matches!(matrix, CcsMatrix::VerifierArtifact { .. }))
+        {
+            return Err(RelationError::InvalidStructure);
+        }
         for matrix in &self.matrices {
-            if matrix.rows() != self.n || matrix.cols() != self.m || !matrix.has_canonical_csc() {
+            if matrix.rows() != self.n || matrix.cols() != self.m || (!artifact_header && !matrix.has_canonical_csc()) {
                 return Err(RelationError::InvalidStructure);
             }
         }
@@ -263,6 +312,11 @@ fn transform_ccs_matrix_superneo(
                     .iter()
                     .map(|block| block.with_superneo_transformed_columns()),
             );
+        }
+        CcsMatrix::VerifierArtifact { .. } => {
+            return Err(RelationError::Message(
+                "SuperNeo matrix transformation requires materialized matrix content".into(),
+            ));
         }
     }
 
@@ -486,6 +540,9 @@ fn matrix_entry_base_f<F: Field + Copy + Into<GoldiF>>(mat: &CcsMatrix<F>, row: 
                 acc += run.entry(row, col).into();
             }
             acc
+        }
+        CcsMatrix::VerifierArtifact { .. } => {
+            panic!("raw matrix entry access is unavailable for a verifier-artifact matrix")
         }
     }
 }

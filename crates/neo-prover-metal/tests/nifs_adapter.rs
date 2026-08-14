@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use neo_ccs::{CcsMatrix, CscMat, Mat, SeededPhi81LinearBlock};
+use neo_ccs::{CcsMatrix, CscMat, GeometricRowRun, Mat, SeededPhi81LinearBlock};
 use neo_fold_clean::engine::r1cs_circuit::boolean::enforce_bit;
 use neo_fold_clean::engine::r1cs_circuit::R1csBuilder;
 use neo_fold_clean::engine::transcript::Transcript;
@@ -48,6 +48,26 @@ fn assignment(columns: usize, lhs: u64, rhs: u64) -> Vec<F> {
     values[2] = F::from_u64(rhs);
     values[3] = F::from_u64(lhs + rhs);
     values
+}
+
+fn radix_four_params(structure: &neo_ccs::CcsStructure<F>) -> neo_fold_clean::Params {
+    let base = neo_fold_clean::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("radix-four base parameters");
+    neo_fold_clean::Params::test_only_from_neo_params(
+        neo_params::NeoParams::new(
+            base.q(),
+            base.eta(),
+            base.d(),
+            base.kappa(),
+            base.m(),
+            4,
+            7,
+            base.T(),
+            base.extension_degree(),
+            114,
+        )
+        .expect("radix-four parameters"),
+    )
 }
 
 fn with_extra_sparse_term(matrix: &CcsMatrix<F>, row: usize, column: usize, coefficient: F) -> CcsMatrix<F> {
@@ -160,6 +180,162 @@ fn metal_one_joint_oracle_matches_the_canonical_host_without_running_claims() {
     )
     .expect("verify delegated proof");
     assert_eq!(verified.claims, delegated.0.claims);
+}
+
+#[test]
+fn metal_one_joint_oracle_matches_the_canonical_host_with_compact_geometric_rows() {
+    let r1cs = relation(2 * D);
+    let baseline = direct_ccs::preprocess_seeded(&r1cs, 0x4745_4f4d_4554).expect("baseline preprocessing");
+    let mut structure = baseline.structure().clone();
+    structure.matrices[0] = CcsMatrix::csc_with_compact_rows(
+        CscMat::from_triplets(Vec::new(), structure.n, structure.m),
+        Vec::new(),
+        vec![GeometricRowRun::new(0, 1, 2, F::ONE, F::ONE)],
+    )
+    .expect("compact geometric A matrix");
+    let params = neo_fold_clean::config::ccs_params(structure.n, structure.m, structure.t(), structure.max_degree())
+        .expect("geometric parameters");
+    let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x4745_4f4d_4554);
+    let prep = neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))
+        .expect("geometric preprocessing");
+    assert_eq!(
+        prep.optimized_cache()
+            .superneo()
+            .matrix(0)
+            .expect("geometric matrix cache")
+            .compact_geometric_run_count(),
+        1,
+    );
+    let values = assignment(2 * D, 1, 0);
+    let fresh = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &values, r1cs.m_in)
+        .expect("geometric fresh instance");
+    let running = RunningInstance::default();
+
+    let mut cpu_transcript = Transcript::session();
+    let cpu = nifs::prove(
+        &mut cpu_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![fresh.clone()],
+        &running,
+    )
+    .expect("canonical geometric proof");
+
+    let mut metal = MetalNifsProver::new().expect("Metal adapter");
+    let mut metal_transcript = Transcript::session();
+    let accelerated = nifs::prove_with_adapter(
+        &mut metal,
+        &mut metal_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![fresh],
+        &running,
+    )
+    .expect("Metal geometric proof");
+
+    assert_eq!(accelerated.0.claims, cpu.0.claims);
+    assert_eq!(accelerated.1.pi_ccs.outputs, cpu.1.pi_ccs.outputs);
+    assert_eq!(
+        accelerated.1.pi_ccs.sumcheck.canonical_bytes(),
+        cpu.1.pi_ccs.sumcheck.canonical_bytes(),
+    );
+}
+
+#[test]
+fn metal_radix_four_geometric_running_oracle_matches_the_host() {
+    let columns = 11 * D;
+    let r1cs = relation(columns);
+    let mut structure = r1cs.to_structure();
+    structure.matrices[0] = CcsMatrix::csc_with_compact_rows(
+        CscMat::from_triplets(Vec::new(), structure.n, structure.m),
+        Vec::new(),
+        vec![GeometricRowRun::new(0, 1, 2, F::ONE, F::from_u64(2))],
+    )
+    .expect("radix-four geometric A matrix");
+    let params = radix_four_params(&structure);
+    let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x5241_4434_4745);
+    let prep = neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(D))
+        .expect("radix-four geometric preprocessing");
+    let values = |lhs: u64, rhs: u64| {
+        let mut values = vec![F::ZERO; columns];
+        values[0] = F::ONE;
+        values[1] = F::from_u64(lhs);
+        values[2] = F::from_u64(rhs);
+        values[3] = F::from_u64(lhs + 2 * rhs);
+        values
+    };
+
+    let initial = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &values(1, 1), D)
+        .expect("initial radix-four geometric instance");
+    let mut initial_transcript = Transcript::session();
+    let (running, _) = nifs::prove(
+        &mut initial_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![initial],
+        &RunningInstance::default(),
+    )
+    .expect("initial radix-four geometric fold");
+    assert!(running.witnesses.iter().any(|witness| {
+        witness.to_dense_vec().iter().any(|value| {
+            *value == F::from_u64(2)
+                || *value == -F::from_u64(2)
+                || *value == F::from_u64(3)
+                || *value == -F::from_u64(3)
+        })
+    }));
+
+    let fresh = CcsInstance::from_low_norm_assignment(&prep.params, &prep.log, prep.structure(), &values(3, 0), D)
+        .expect("recursive radix-four geometric instance");
+    let mut cpu_transcript = Transcript::session();
+    let cpu = nifs::prove(
+        &mut cpu_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![fresh.clone()],
+        &running,
+    )
+    .expect("radix-four geometric host proof");
+    let mut metal = MetalNifsProver::new().expect("Metal adapter");
+    let mut metal_transcript = Transcript::session();
+    let accelerated = nifs::prove_with_adapter(
+        &mut metal,
+        &mut metal_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![fresh],
+        &running,
+    )
+    .expect("radix-four geometric Metal proof");
+    assert_eq!(
+        accelerated.1.pi_ccs.sumcheck.canonical_bytes(),
+        cpu.1.pi_ccs.sumcheck.canonical_bytes(),
+    );
 }
 
 #[test]
@@ -659,6 +835,100 @@ fn metal_one_joint_oracle_matches_the_canonical_host_with_running_claims() {
         &accelerated.1,
     )
     .expect("verify Metal proof");
+}
+
+#[test]
+fn metal_radix_four_one_joint_matches_the_host_with_running_digits() {
+    let r1cs = relation(11 * D);
+    let structure = r1cs.to_structure();
+    let params = radix_four_params(&structure);
+    let log = direct_ccs::ajtai::setup_seeded(&params, &structure, 0x5241_4449_5834);
+    let prep = neo_fold_clean::lifecycle::preprocess_with_test_log(params, structure, log, Some(r1cs.m_in))
+        .expect("radix-four preprocessing");
+
+    let initial_fresh =
+        direct_ccs::build_instance(&prep, &r1cs, &assignment(11 * D, 1, 2)).expect("initial radix-four instance");
+    let mut initial_transcript = Transcript::session();
+    let (running, _) = nifs::prove(
+        &mut initial_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![initial_fresh],
+        &RunningInstance::default(),
+    )
+    .expect("initial radix-four fold");
+    assert!(running.witnesses.iter().any(|witness| {
+        witness.to_dense_vec().iter().any(|value| {
+            *value == F::from_u64(2)
+                || *value == -F::from_u64(2)
+                || *value == F::from_u64(3)
+                || *value == -F::from_u64(3)
+        })
+    }));
+
+    let fresh =
+        direct_ccs::build_instance(&prep, &r1cs, &assignment(11 * D, 2, 1)).expect("second radix-four instance");
+    let fresh_claims = vec![fresh.claim.clone()];
+    let mut cpu_transcript = Transcript::session();
+    let cpu = nifs::prove(
+        &mut cpu_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![fresh.clone()],
+        &running,
+    )
+    .expect("canonical radix-four proof");
+
+    let mut metal = MetalNifsProver::new().expect("Metal adapter");
+    metal.session().reset_activity();
+    let mut metal_transcript = Transcript::session();
+    let accelerated = nifs::prove_with_adapter(
+        &mut metal,
+        &mut metal_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        &prep.log,
+        None,
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        vec![fresh],
+        &running,
+    )
+    .expect("Metal radix-four proof");
+
+    assert!(metal.session().activity().dispatches > 20);
+    assert_eq!(accelerated.0.claims, cpu.0.claims);
+    assert_eq!(accelerated.0.witnesses, cpu.0.witnesses);
+    assert_eq!(accelerated.1.pi_ccs.outputs, cpu.1.pi_ccs.outputs);
+    assert_eq!(
+        accelerated.1.pi_ccs.sumcheck.canonical_bytes(),
+        cpu.1.pi_ccs.sumcheck.canonical_bytes(),
+    );
+
+    let mut verifier_transcript = Transcript::session();
+    nifs::verify(
+        &mut verifier_transcript,
+        &prep.params,
+        prep.structure(),
+        prep.optimized_cache(),
+        prep.mix_rhos_commits(),
+        prep.combine_b_pows(),
+        &fresh_claims,
+        &running,
+        &accelerated.1,
+    )
+    .expect("verify Metal radix-four proof");
 }
 
 #[test]

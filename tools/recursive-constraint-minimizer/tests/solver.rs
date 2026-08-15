@@ -35,6 +35,26 @@ fn fake_solver(output: &str) -> PathBuf {
     path
 }
 
+fn sleeping_solver() -> PathBuf {
+    static NEXT_ID: AtomicU64 = AtomicU64::new(10_000);
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock after epoch")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!(
+        "recursive-constraint-minimizer-sleep-{}-{nonce}-{}.sh",
+        std::process::id(),
+        NEXT_ID.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::write(&path, "#!/bin/sh\ncat >/dev/null\nexec sleep 2\n").expect("write sleeping solver");
+    let mut permissions = fs::metadata(&path)
+        .expect("sleeping solver metadata")
+        .permissions();
+    permissions.set_mode(0o700);
+    fs::set_permissions(&path, permissions).expect("make sleeping solver executable");
+    path
+}
+
 fn config(executable: PathBuf) -> SolverConfig {
     SolverConfig {
         executable,
@@ -72,4 +92,15 @@ fn unrecognized_solver_output_fails_closed() {
     let error = run_cvc5(&query, &config(executable.clone())).expect_err("must reject missing status");
     fs::remove_file(executable).expect("remove fake solver");
     assert!(error.to_string().contains("did not contain"));
+}
+
+#[test]
+fn host_wall_clock_limit_fails_closed() {
+    let executable = sleeping_solver();
+    let query = render_query(&fixture(), &Selection::Family("zero".to_owned())).expect("query");
+    let mut solver = config(executable.clone());
+    solver.timeout_ms = 20;
+    let error = run_cvc5(&query, &solver).expect_err("must stop an unresponsive solver");
+    fs::remove_file(executable).expect("remove fake solver");
+    assert!(error.to_string().contains("wall-clock limit"));
 }

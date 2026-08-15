@@ -16,7 +16,7 @@ pub use certificate::{
     ScalarSupport, SCALAR_CERTIFICATE_SCHEMA,
 };
 pub use evidence::{Evidence, EVIDENCE_SCHEMA};
-pub use model::{parse_model, row_is_satisfied, FieldModel, ModelError};
+pub use model::{parse_model, parse_model_with_defaults, row_is_satisfied, FieldModel, ModelError};
 pub use problem::{
     LinearCombination, Problem, ProblemError, Row, Scope, Selection, Source, Term, GOLDILOCKS_MODULUS, PROBLEM_SCHEMA,
 };

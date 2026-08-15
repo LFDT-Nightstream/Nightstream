@@ -1,5 +1,6 @@
 //! Exact SMT-LIB encoding of one R1CS row or row-family implication query.
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use serde::Serialize;
@@ -18,6 +19,8 @@ pub struct RowReference {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Query {
     pub smt2: String,
+    /// Strictly ordered source columns declared in this bounded query.
+    pub model_columns: Vec<usize>,
     pub retained_rows: Vec<RowReference>,
     pub removed_rows: Vec<RowReference>,
 }
@@ -29,7 +32,14 @@ pub fn render_query(problem: &Problem, selection: &Selection) -> Result<Query, P
     writeln!(smt2, "(set-option :produce-models true)").unwrap();
     writeln!(smt2, "(set-option :produce-unsat-cores true)").unwrap();
     writeln!(smt2, "(define-sort F () (_ FiniteField {}))", problem.field_modulus).unwrap();
-    for column in 0..problem.column_count {
+    let mut model_columns = BTreeSet::from([problem.constant_one_column]);
+    for row in &problem.rows {
+        for term in row.a.iter().chain(&row.b).chain(&row.c) {
+            model_columns.insert(term.column);
+        }
+    }
+    let model_columns = model_columns.into_iter().collect::<Vec<_>>();
+    for &column in &model_columns {
         writeln!(smt2, "(declare-const x_{column} F)").unwrap();
     }
     writeln!(
@@ -69,6 +79,7 @@ pub fn render_query(problem: &Problem, selection: &Selection) -> Result<Query, P
         .collect();
     Ok(Query {
         smt2,
+        model_columns,
         retained_rows,
         removed_rows,
     })

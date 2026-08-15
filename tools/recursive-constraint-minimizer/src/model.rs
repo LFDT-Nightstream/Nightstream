@@ -35,8 +35,40 @@ impl Error for ModelError {}
 
 /// Parse all `x_N` definitions from a cvc5 finite-field model.
 pub fn parse_model(stdout: &str, column_count: usize) -> Result<FieldModel, ModelError> {
+    let expected_columns = (0..column_count).collect::<Vec<_>>();
+    parse_model_with_defaults(stdout, &vec![0; column_count], &expected_columns)
+}
+
+/// Parse exactly the columns declared by a bounded query and fill every other
+/// source column from a complete canonical background assignment.
+pub fn parse_model_with_defaults(
+    stdout: &str,
+    defaults: &[u64],
+    expected_columns: &[usize],
+) -> Result<FieldModel, ModelError> {
+    let column_count = defaults.len();
     if column_count == 0 {
         return Err(ModelError::new("column_count must be positive"));
+    }
+    let modulus = GOLDILOCKS_MODULUS
+        .parse::<u64>()
+        .expect("fixed Goldilocks modulus fits in u64");
+    if defaults.iter().any(|&value| value >= modulus) {
+        return Err(ModelError::new("default assignment contains a noncanonical residue"));
+    }
+    let mut prior = None;
+    for &column in expected_columns {
+        if column >= column_count {
+            return Err(ModelError::new(format!(
+                "expected model column x_{column} is out of range"
+            )));
+        }
+        if prior.is_some_and(|prior| column <= prior) {
+            return Err(ModelError::new(
+                "expected model columns must be strictly ordered and unique",
+            ));
+        }
+        prior = Some(column);
     }
     let mut assignments = vec![None; column_count];
     let mut tokens = Tokens::new(stdout);
@@ -45,11 +77,19 @@ pub fn parse_model(stdout: &str, column_count: usize) -> Result<FieldModel, Mode
             parse_definition(&mut tokens, &mut assignments)?;
         }
     }
-    let values = assignments
-        .into_iter()
-        .enumerate()
-        .map(|(column, value)| value.ok_or_else(|| ModelError::new(format!("model does not define x_{column}"))))
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut values = defaults.to_vec();
+    let mut expected_cursor = 0usize;
+    for (column, value) in assignments.into_iter().enumerate() {
+        if expected_columns.get(expected_cursor) == Some(&column) {
+            values[column] = value.ok_or_else(|| ModelError::new(format!("model does not define x_{column}")))?;
+            expected_cursor += 1;
+        } else if value.is_some() {
+            return Err(ModelError::new(format!(
+                "model defines undeclared source column x_{column}"
+            )));
+        }
+    }
+    debug_assert_eq!(expected_cursor, expected_columns.len());
     Ok(FieldModel { values })
 }
 

@@ -203,7 +203,8 @@ fn renders_a_complete_checked_removal_counterexample() {
 
     assert!(lean.contains("import Generated.Artifact"));
     assert!(lean.contains("removedFamily := \"zero\""));
-    assert!(lean.contains("values := [1,1]"));
+    assert!(lean.contains("def removalCounterexampleValues : List Field := ["));
+    assert!(lean.contains("values := removalCounterexampleValues"));
     assert!(lean.contains("theorem removalCounterexample_valid"));
     assert!(lean.contains("theorem necessary"));
     assert!(lean.contains("necessary_of_full_bound_valid"));

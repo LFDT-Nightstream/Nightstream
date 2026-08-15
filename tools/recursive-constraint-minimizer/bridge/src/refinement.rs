@@ -22,6 +22,11 @@ use crate::{
 
 pub const MAX_REFINEMENT_ITERATIONS: usize = 256;
 
+/// Upper bound on violated retained rows added to the slice per iteration.
+/// Batching keeps real-arm necessity searches convergent while every query
+/// stays a bounded slice.
+const REFINEMENT_ROW_BATCH: usize = 512;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RefinementReport {
     pub conclusion: Conclusion,
@@ -88,7 +93,7 @@ impl Error for RefinementError {}
 
 /// Run cvc5 and replay each `sat` assignment against all retained source rows.
 ///
-/// A replay failure adds one violated retained row to the next query. `unsat`
+/// A replay failure adds a bounded batch of violated retained rows to the next query. `unsat`
 /// remains non-authoritative solver evidence. An iteration-cap result is
 /// inconclusive and keeps the candidate constraint.
 pub fn refine_with_cvc5(
@@ -128,9 +133,11 @@ pub fn refine_with_cvc5(
                 .copied()
                 .filter(|&row| !snapshot_row_holds(snapshot, row, model))
                 .collect::<Vec<_>>();
-            let first_violated_retained = (0..snapshot.rows())
-                .find(|row| candidate_rows.binary_search(row).is_err() && !snapshot_row_holds(snapshot, *row, model));
-            Ok((violated_candidate_rows, first_violated_retained))
+            let violated_retained_rows = (0..snapshot.rows())
+                .filter(|row| candidate_rows.binary_search(row).is_err() && !snapshot_row_holds(snapshot, *row, model))
+                .take(REFINEMENT_ROW_BATCH)
+                .collect::<Vec<_>>();
+            Ok((violated_candidate_rows, violated_retained_rows))
         },
     )
 }
@@ -270,7 +277,7 @@ fn refine<Export, Replay>(
 ) -> Result<RefinementReport, RefinementError>
 where
     Export: Fn(&ExportRequest) -> Result<Problem, RefinementError>,
-    Replay: Fn(&FieldModel, &[usize]) -> Result<(Vec<usize>, Option<usize>), RefinementError>,
+    Replay: Fn(&FieldModel, &[usize]) -> Result<(Vec<usize>, Vec<usize>), RefinementError>,
 {
     if max_iterations == 0 || max_iterations > MAX_REFINEMENT_ITERATIONS {
         return Err(RefinementError::new(format!(
@@ -321,14 +328,14 @@ where
             ));
         }
         let candidate_rows = candidate_source_rows(&problem, selection)?;
-        let (violated_candidate_rows, first_violated_retained) = replay(&model, &candidate_rows)?;
+        let (violated_candidate_rows, violated_retained_rows) = replay(&model, &candidate_rows)?;
         if violated_candidate_rows.is_empty() {
             return Err(RefinementError::new(
                 "cvc5 model does not violate a selected candidate row",
             ));
         }
 
-        let Some(violated_row) = first_violated_retained else {
+        if violated_retained_rows.is_empty() {
             return Ok(report(
                 Conclusion::CounterexampleCandidate,
                 iteration,
@@ -339,10 +346,13 @@ where
                 violated_candidate_rows,
                 None,
             ));
-        };
-        if request.source_rows.binary_search(&violated_row).is_ok() {
+        }
+        if let Some(&asserted) = violated_retained_rows
+            .iter()
+            .find(|row| request.source_rows.binary_search(row).is_ok())
+        {
             return Err(RefinementError::new(format!(
-                "cvc5 model violates asserted retained source row {violated_row}"
+                "cvc5 model violates asserted retained source row {asserted}"
             )));
         }
         if iteration == max_iterations {
@@ -354,14 +364,16 @@ where
                 solver_run,
                 Some(model),
                 violated_candidate_rows,
-                Some(violated_row),
+                Some(violated_retained_rows[0]),
             ));
         }
-        let insertion = request
-            .source_rows
-            .binary_search(&violated_row)
-            .expect_err("the violated row was checked as absent");
-        request.source_rows.insert(insertion, violated_row);
+        for &violated_row in &violated_retained_rows {
+            let insertion = request
+                .source_rows
+                .binary_search(&violated_row)
+                .expect_err("the violated row was checked as absent");
+            request.source_rows.insert(insertion, violated_row);
+        }
     }
     unreachable!("the bounded refinement loop always returns")
 }
@@ -370,7 +382,7 @@ fn replay_sparse_arm(
     arm: &SparseR1cs,
     model: &FieldModel,
     candidate_rows: &[usize],
-) -> Result<(Vec<usize>, Option<usize>), RefinementError> {
+) -> Result<(Vec<usize>, Vec<usize>), RefinementError> {
     if model.values().len() != arm.m {
         return Err(RefinementError::new(format!(
             "cvc5 model has {} columns; sparse source requires {}",
@@ -397,8 +409,11 @@ fn replay_sparse_arm(
         .copied()
         .filter(|&row| !row_holds(row))
         .collect::<Vec<_>>();
-    let first_violated_retained = (0..arm.n).find(|row| candidate_rows.binary_search(row).is_err() && !row_holds(*row));
-    Ok((violated_candidate_rows, first_violated_retained))
+    let violated_retained_rows = (0..arm.n)
+        .filter(|row| candidate_rows.binary_search(row).is_err() && !row_holds(*row))
+        .take(REFINEMENT_ROW_BATCH)
+        .collect::<Vec<_>>();
+    Ok((violated_candidate_rows, violated_retained_rows))
 }
 
 #[allow(clippy::too_many_arguments)]

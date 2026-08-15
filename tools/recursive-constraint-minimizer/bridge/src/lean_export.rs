@@ -13,6 +13,135 @@ use recursive_constraint_minimizer::{
 
 use super::{ExportError, FixedPointProblemExport, TerminalProblemExport};
 
+/// One generated Lean module: full dotted module name plus file content.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GeneratedLeanModule {
+    pub module_name: String,
+    pub content: String,
+}
+
+const GENERATED_MODULE_SPLIT_BYTES: usize = 16 * 1024 * 1024;
+
+/// Split one rendered artifact module into data submodules plus the assembly
+/// module. Data modules reuse the same namespace, so unqualified references
+/// keep resolving; spillable blocks are pure data defs taken as a prefix in
+/// dependency order.
+fn split_generated_module(content: &str, module_name: &str) -> Result<Vec<GeneratedLeanModule>, ExportError> {
+    if content.len() <= GENERATED_MODULE_SPLIT_BYTES {
+        return Ok(vec![GeneratedLeanModule {
+            module_name: module_name.to_owned(),
+            content: content.to_owned(),
+        }]);
+    }
+    let namespace_line = format!("namespace {module_name}\n");
+    let end_line = format!("end {module_name}");
+    let header_end = content
+        .find(&namespace_line)
+        .ok_or_else(|| ExportError::new("generated module is missing its namespace line"))?
+        + namespace_line.len();
+    let header = &content[..header_end];
+    let body_end = content
+        .rfind(&end_line)
+        .ok_or_else(|| ExportError::new("generated module is missing its end line"))?;
+    let body = &content[header_end..body_end];
+    let footer = &content[body_end..];
+
+    let blocks = body.split("\n\n").collect::<Vec<_>>();
+    let spillable = |block: &str| {
+        let block = block.trim_start();
+        block.starts_with("def hoistedList")
+            || (block.starts_with("def ") && {
+                let name_end = block[4..]
+                    .find(|character: char| character == ' ' || character == ':')
+                    .map(|offset| 4 + offset)
+                    .unwrap_or(block.len());
+                let name = &block[4..name_end];
+                name.contains("Chunk")
+            })
+    };
+    let mut modules = Vec::new();
+    let mut current = String::new();
+    let mut assembly_blocks = Vec::new();
+    let mut preamble_blocks = Vec::new();
+    let mut seen_def = false;
+    for block in blocks {
+        if !seen_def {
+            if block.trim_start().starts_with("def ") {
+                seen_def = true;
+            } else {
+                preamble_blocks.push(block);
+                continue;
+            }
+        }
+        if block.trim() == LEAN_SPLIT_MARKER {
+            if current.len() >= GENERATED_MODULE_SPLIT_BYTES {
+                modules.push(current);
+                current = String::new();
+            }
+        } else if spillable(block) {
+            current.push_str(block);
+            current.push_str("\n\n");
+        } else {
+            assembly_blocks.push(block);
+        }
+    }
+    if !current.is_empty() {
+        modules.push(current);
+    }
+    let preamble = preamble_blocks
+        .iter()
+        .filter(|block| !block.trim().is_empty())
+        .map(|block| format!("{block}\n\n"))
+        .collect::<String>();
+
+    let mut generated = Vec::with_capacity(modules.len() + 1);
+    let mut data_imports = String::new();
+    for (index, module_body) in modules.into_iter().enumerate() {
+        let data_name = format!("{module_name}Data{index}");
+        let mut data_content = header.to_owned();
+        data_content.push('\n');
+        data_content.push_str(&preamble);
+        data_content.push_str(&module_body);
+        data_content.push_str(&format!("end {module_name}\n"));
+        writeln!(data_imports, "import {data_name}").unwrap();
+        generated.push(GeneratedLeanModule {
+            module_name: data_name,
+            content: data_content,
+        });
+    }
+    let mut assembly = String::new();
+    let import_line = "import Nightstream.Assurance.ConstraintMinimization\n";
+    let header_with_imports = header.replacen(import_line, &format!("{import_line}{data_imports}"), 1);
+    assembly.push_str(&header_with_imports);
+    assembly.push('\n');
+    assembly.push_str(&preamble);
+    assembly.push_str(&assembly_blocks.join("\n\n"));
+    assembly.push_str(footer);
+    generated.push(GeneratedLeanModule {
+        module_name: module_name.to_owned(),
+        content: assembly,
+    });
+    Ok(generated)
+}
+
+/// Render a complete fixed-point artifact as data submodules plus assembly.
+pub fn render_complete_bound_artifact_modules(
+    export: &FixedPointProblemExport,
+    namespace: &str,
+) -> Result<Vec<GeneratedLeanModule>, ExportError> {
+    let content = render_complete_bound_artifact_lean(export, namespace)?;
+    split_generated_module(&content, namespace)
+}
+
+/// Render a complete terminal artifact as data submodules plus assembly.
+pub fn render_complete_terminal_bound_artifact_modules(
+    export: &TerminalProblemExport,
+    namespace: &str,
+) -> Result<Vec<GeneratedLeanModule>, ExportError> {
+    let content = render_complete_terminal_bound_artifact_lean(export, namespace)?;
+    split_generated_module(&content, namespace)
+}
+
 /// Render one self-contained Lean module with exact source and final rows.
 ///
 /// The output contains data and a decidable coherence theorem. It contains no
@@ -64,11 +193,14 @@ fn render_bound_artifact_for(
     }
 
     let mut out = String::new();
-    writeln!(out, "import Nightstream.Assurance.ConstraintMinimization\n").unwrap();
+    writeln!(out, "import Nightstream.Assurance.ConstraintMinimization").unwrap();
+    writeln!(out, "set_option maxHeartbeats 2000000").unwrap();
+    writeln!(out, "set_option maxRecDepth 65536\n").unwrap();
     writeln!(out, "namespace {namespace}\n").unwrap();
     writeln!(out, "open Nightstream.Assurance.ConstraintMinimization\n").unwrap();
-    render_source_artifact(&mut out, export.problem())?;
-    render_selective_binding(&mut out, export)?;
+    let mut hoist_counter = 0usize;
+    render_source_artifact(&mut out, &mut hoist_counter, export.problem())?;
+    render_selective_binding(&mut out, &mut hoist_counter, export)?;
     writeln!(
         out,
         "def boundArtifact : BoundArtifact :=\n  {{ source := sourceArtifact, binding := selectiveBinding }}\n"
@@ -82,7 +214,7 @@ fn render_bound_artifact_for(
     if complete {
         writeln!(
             out,
-            "theorem sourceArtifact_row_count :\n    sourceArtifact.rows.length = sourceArtifact.totalRows := by\n  rfl\n"
+            "theorem sourceArtifact_row_count :\n    sourceArtifact.rows.length = sourceArtifact.totalRows := by\n  native_decide\n"
         )
         .unwrap();
         writeln!(
@@ -130,11 +262,14 @@ fn render_terminal_bound_artifact_for(
     validate_terminal_export(export)?;
 
     let mut out = String::new();
-    writeln!(out, "import Nightstream.Assurance.ConstraintMinimization\n").unwrap();
+    writeln!(out, "import Nightstream.Assurance.ConstraintMinimization").unwrap();
+    writeln!(out, "set_option maxHeartbeats 2000000").unwrap();
+    writeln!(out, "set_option maxRecDepth 65536\n").unwrap();
     writeln!(out, "namespace {namespace}\n").unwrap();
     writeln!(out, "open Nightstream.Assurance.ConstraintMinimization\n").unwrap();
-    render_source_artifact(&mut out, export.problem())?;
-    render_terminal_binding(&mut out, export)?;
+    let mut hoist_counter = 0usize;
+    render_source_artifact(&mut out, &mut hoist_counter, export.problem())?;
+    render_terminal_binding(&mut out, &mut hoist_counter, export)?;
     writeln!(
         out,
         "def terminalBoundArtifact : TerminalBoundArtifact :=\n  {{ source := sourceArtifact, binding := terminalBinding }}\n"
@@ -148,7 +283,7 @@ fn render_terminal_bound_artifact_for(
     if complete {
         writeln!(
             out,
-            "theorem sourceArtifact_row_count :\n    sourceArtifact.rows.length = sourceArtifact.totalRows := by\n  rfl\n"
+            "theorem sourceArtifact_row_count :\n    sourceArtifact.rows.length = sourceArtifact.totalRows := by\n  native_decide\n"
         )
         .unwrap();
         writeln!(
@@ -289,7 +424,9 @@ fn render_removal_counterexample_for(
     validate_removal_model(complete_problem, model, removed_family, reviewed_plan)?;
 
     let mut out = String::new();
-    writeln!(out, "import {artifact_module}\n").unwrap();
+    writeln!(out, "import {artifact_module}").unwrap();
+    writeln!(out, "set_option maxHeartbeats 2000000").unwrap();
+    writeln!(out, "set_option maxRecDepth 65536\n").unwrap();
     writeln!(out, "namespace {namespace}\n").unwrap();
     writeln!(out, "open Nightstream.Assurance.ConstraintMinimization").unwrap();
     writeln!(out, "open Nightstream.SuperNeo.CheckPlan").unwrap();
@@ -299,13 +436,15 @@ fn render_removal_counterexample_for(
         write!(out, "{}{}", lean_string(entry), separator(index, reviewed_plan.len())).unwrap();
     }
     writeln!(out, "]\n").unwrap();
+    let values = model
+        .values()
+        .iter()
+        .map(|value| value.to_string())
+        .collect::<Vec<_>>();
+    write_chunked_list_def(&mut out, "removalCounterexampleValues", "Field", &values);
     writeln!(out, "def removalCounterexample : RemovalCounterexample where").unwrap();
     writeln!(out, "  removedFamily := {}", lean_string(removed_family)).unwrap();
-    write!(out, "  values := [").unwrap();
-    for (index, value) in model.values().iter().enumerate() {
-        write!(out, "{value}{}", separator(index, model.values().len())).unwrap();
-    }
-    writeln!(out, "]\n").unwrap();
+    writeln!(out, "  values := removalCounterexampleValues\n").unwrap();
     writeln!(
         out,
         "theorem removalCounterexample_valid :\n    removalCounterexample.Valid {bound_artifact}.source reviewedPlan := by\n  native_decide\n"
@@ -449,7 +588,9 @@ fn render_redundancy_certificate_for(
     validate_certificate_slice(complete_problem, query_problem, family)?;
 
     let mut out = String::new();
-    writeln!(out, "import {artifact_module}\n").unwrap();
+    writeln!(out, "import {artifact_module}").unwrap();
+    writeln!(out, "set_option maxHeartbeats 2000000").unwrap();
+    writeln!(out, "set_option maxRecDepth 65536\n").unwrap();
     writeln!(out, "namespace {namespace}\n").unwrap();
     writeln!(out, "open Nightstream.Assurance.ConstraintMinimization").unwrap();
     writeln!(out, "open Nightstream.SuperNeo.CheckPlan").unwrap();
@@ -460,35 +601,48 @@ fn render_redundancy_certificate_for(
     }
     writeln!(out, "]\n").unwrap();
 
+    let mut counter = 0usize;
+    let certificates = certificate
+        .rows
+        .iter()
+        .map(|row_certificate| {
+            let candidate = source_row(query_problem, row_certificate.candidate_source_index)?;
+            let mut hoisted = String::new();
+            let mut item = String::new();
+            write!(item, "{{ candidate := ").unwrap();
+            render_indexed_row_hoisted(&mut hoisted, &mut counter, &mut item, candidate)?;
+            write!(item, ", support := [").unwrap();
+            for (support_index, support) in row_certificate.support.iter().enumerate() {
+                let source = source_row(query_problem, support.source_index)?;
+                let coefficient = support.coefficient.parse::<u64>().map_err(|_| {
+                    ExportError::new(format!(
+                        "cannot emit noncanonical certificate coefficient {:?}",
+                        support.coefficient
+                    ))
+                })?;
+                write!(item, "{{ source := ").unwrap();
+                render_indexed_row_hoisted(&mut hoisted, &mut counter, &mut item, source)?;
+                write!(
+                    item,
+                    ", coefficient := ({} : Field) }}{}",
+                    coefficient,
+                    separator(support_index, row_certificate.support.len())
+                )
+                .unwrap();
+            }
+            write!(item, "] }}").unwrap();
+            Ok((hoisted, item))
+        })
+        .collect::<Result<Vec<_>, ExportError>>()?;
+    write_chunked_list_def_grouped(
+        &mut out,
+        "familyCertificateCertificates",
+        "ScalarCertificate",
+        &certificates,
+    );
     writeln!(out, "def familyCertificate : FamilyCertificate where").unwrap();
     writeln!(out, "  family := {}", lean_string(family)).unwrap();
-    writeln!(out, "  certificates := [").unwrap();
-    for (index, row_certificate) in certificate.rows.iter().enumerate() {
-        let candidate = source_row(query_problem, row_certificate.candidate_source_index)?;
-        write!(out, "    {{ candidate := ").unwrap();
-        render_indexed_row(&mut out, candidate)?;
-        writeln!(out, ", support := [").unwrap();
-        for (support_index, support) in row_certificate.support.iter().enumerate() {
-            let source = source_row(query_problem, support.source_index)?;
-            let coefficient = support.coefficient.parse::<u64>().map_err(|_| {
-                ExportError::new(format!(
-                    "cannot emit noncanonical certificate coefficient {:?}",
-                    support.coefficient
-                ))
-            })?;
-            write!(out, "      {{ source := ").unwrap();
-            render_indexed_row(&mut out, source)?;
-            writeln!(
-                out,
-                ", coefficient := ({} : Field) }}{}",
-                coefficient,
-                separator(support_index, row_certificate.support.len())
-            )
-            .unwrap();
-        }
-        writeln!(out, "    ] }}{}", separator(index, certificate.rows.len())).unwrap();
-    }
-    writeln!(out, "  ]\n").unwrap();
+    writeln!(out, "  certificates := familyCertificateCertificates\n").unwrap();
     writeln!(
         out,
         "theorem familyCertificate_valid :\n    familyCertificate.Valid sourceArtifact reviewedPlan := by"
@@ -566,7 +720,151 @@ fn validate_certificate_slice(
     Ok(())
 }
 
-fn render_source_artifact(out: &mut String, problem: &Problem) -> Result<(), ExportError> {
+const LEAN_LIST_CHUNK: usize = 256;
+
+/// Inline short lists; hoist long ones into chunked defs written to `defs`.
+/// Returns the Lean expression to reference at the use site.
+fn inline_or_hoist(defs: &mut String, counter: &mut usize, element_type: &str, items: &[String]) -> String {
+    if items.len() <= LEAN_LIST_CHUNK {
+        return format!("[{}]", items.join(", "));
+    }
+    let name = format!("hoistedList{counter}");
+    *counter += 1;
+    write_chunked_list_def(defs, &name, element_type, items);
+    name
+}
+
+const LEAN_SPLIT_MARKER: &str = "-- lean-split-safe";
+
+/// Chunked list writer for items that carry their own hoisted defs. Hoisted
+/// defs interleave immediately before the chunk that consumes them, and every
+/// cluster boundary is marked as a safe split point.
+fn write_chunked_list_def_grouped(out: &mut String, name: &str, element_type: &str, items: &[(String, String)]) {
+    if items.is_empty() {
+        writeln!(out, "def {name} : List {element_type} := []\n").unwrap();
+        return;
+    }
+    let chunk_count = items.chunks(LEAN_LIST_CHUNK).count();
+    for (chunk_index, chunk) in items.chunks(LEAN_LIST_CHUNK).enumerate() {
+        writeln!(out, "{LEAN_SPLIT_MARKER}\n").unwrap();
+        for (hoisted, _) in chunk {
+            if !hoisted.is_empty() {
+                out.push_str(hoisted);
+            }
+        }
+        if chunk_count == 1 {
+            writeln!(out, "def {name} : List {element_type} := [").unwrap();
+        } else {
+            writeln!(out, "def {name}Chunk{chunk_index} : List {element_type} := [").unwrap();
+        }
+        for (index, (_, item)) in chunk.iter().enumerate() {
+            writeln!(out, "  {item}{}", separator(index, chunk.len())).unwrap();
+        }
+        writeln!(out, "]\n").unwrap();
+    }
+    if chunk_count > 1 {
+        writeln!(out, "{LEAN_SPLIT_MARKER}\n").unwrap();
+        writeln!(out, "def {name} : List {element_type} :=\n  List.flatten [").unwrap();
+        for chunk_index in 0..chunk_count {
+            writeln!(
+                out,
+                "    {name}Chunk{chunk_index}{}",
+                separator(chunk_index, chunk_count)
+            )
+            .unwrap();
+        }
+        writeln!(out, "  ]\n").unwrap();
+    }
+}
+
+fn render_terms_hoisted(
+    defs: &mut String,
+    counter: &mut usize,
+    out: &mut String,
+    terms: &[recursive_constraint_minimizer::Term],
+) -> Result<(), ExportError> {
+    let items = terms
+        .iter()
+        .map(|term| {
+            let coefficient = term.coefficient.parse::<u64>().map_err(|_| {
+                ExportError::new(format!("cannot emit noncanonical coefficient {:?}", term.coefficient))
+            })?;
+            Ok(format!("({}, {})", term.column, coefficient))
+        })
+        .collect::<Result<Vec<_>, ExportError>>()?;
+    write!(out, "{}", inline_or_hoist(defs, counter, "(Nat × Nat)", &items)).unwrap();
+    Ok(())
+}
+
+fn render_indexed_row_hoisted(
+    defs: &mut String,
+    counter: &mut usize,
+    out: &mut String,
+    row: &recursive_constraint_minimizer::Row,
+) -> Result<(), ExportError> {
+    write!(
+        out,
+        "{{ sourceIndex := {}, family := {}, row := {{ a := ",
+        row.source_index,
+        lean_string(&row.family)
+    )
+    .unwrap();
+    render_terms_hoisted(defs, counter, out, &row.a)?;
+    write!(out, ", b := ").unwrap();
+    render_terms_hoisted(defs, counter, out, &row.b)?;
+    write!(out, ", c := ").unwrap();
+    render_terms_hoisted(defs, counter, out, &row.c)?;
+    write!(out, " }} }}").unwrap();
+    Ok(())
+}
+
+/// Emit one list as chunked top-level defs so no literal exceeds the
+/// elaborator's recursion depth, then one flattened definition.
+fn write_chunked_list_def(out: &mut String, name: &str, element_type: &str, items: &[String]) {
+    if items.is_empty() {
+        writeln!(out, "def {name} : List {element_type} := []\n").unwrap();
+        return;
+    }
+    if items.len() <= LEAN_LIST_CHUNK {
+        writeln!(out, "def {name} : List {element_type} := [").unwrap();
+        for (index, item) in items.iter().enumerate() {
+            writeln!(out, "  {item}{}", separator(index, items.len())).unwrap();
+        }
+        writeln!(out, "]\n").unwrap();
+        return;
+    }
+    let chunk_count = items.chunks(LEAN_LIST_CHUNK).count();
+    for (chunk_index, chunk) in items.chunks(LEAN_LIST_CHUNK).enumerate() {
+        writeln!(out, "def {name}Chunk{chunk_index} : List {element_type} := [").unwrap();
+        for (index, item) in chunk.iter().enumerate() {
+            writeln!(out, "  {item}{}", separator(index, chunk.len())).unwrap();
+        }
+        writeln!(out, "]\n").unwrap();
+    }
+    writeln!(out, "def {name} : List {element_type} :=\n  List.flatten [").unwrap();
+    for chunk_index in 0..chunk_count {
+        writeln!(
+            out,
+            "    {name}Chunk{chunk_index}{}",
+            separator(chunk_index, chunk_count)
+        )
+        .unwrap();
+    }
+    writeln!(out, "  ]\n").unwrap();
+}
+
+fn render_source_artifact(out: &mut String, counter: &mut usize, problem: &Problem) -> Result<(), ExportError> {
+    let rows = problem
+        .rows
+        .iter()
+        .map(|row| {
+            let mut hoisted = String::new();
+            let mut item = String::new();
+            render_indexed_row_hoisted(&mut hoisted, counter, &mut item, row)?;
+            Ok((hoisted, item))
+        })
+        .collect::<Result<Vec<_>, ExportError>>()?;
+    write_chunked_list_def_grouped(out, "sourceArtifactRows", "IndexedRow", &rows);
     writeln!(out, "def sourceArtifact : Artifact :=").unwrap();
     writeln!(out, "  {{ schema := {}", lean_string(&problem.schema)).unwrap();
     writeln!(out, "    profile := {}", lean_string(&problem.source.profile)).unwrap();
@@ -593,33 +891,54 @@ fn render_source_artifact(out: &mut String, problem: &Problem) -> Result<(), Exp
         .unwrap();
     }
     writeln!(out, "]").unwrap();
-    writeln!(out, "    rows := [").unwrap();
-    for (index, row) in problem.rows.iter().enumerate() {
-        write!(
-            out,
-            "      {{ sourceIndex := {}, family := {}, row := {{ a := ",
-            row.source_index,
-            lean_string(&row.family)
-        )
-        .unwrap();
-        render_terms(out, &row.a)?;
-        write!(out, ", b := ").unwrap();
-        render_terms(out, &row.b)?;
-        write!(out, ", c := ").unwrap();
-        render_terms(out, &row.c)?;
-        writeln!(out, " }} }}{}", separator(index, problem.rows.len())).unwrap();
-    }
-    writeln!(out, "    ] }}\n").unwrap();
+    writeln!(out, "    rows := sourceArtifactRows }}\n").unwrap();
     Ok(())
 }
 
-fn render_terminal_binding(out: &mut String, export: &TerminalProblemExport) -> Result<(), ExportError> {
+fn render_terminal_binding(
+    out: &mut String,
+    counter: &mut usize,
+    export: &TerminalProblemExport,
+) -> Result<(), ExportError> {
     let binding = export.binding();
     let layout = binding.column_layout();
+    let nat_items = |values: &[usize]| {
+        values
+            .iter()
+            .map(|value| value.to_string())
+            .collect::<Vec<_>>()
+    };
+    write_chunked_list_def(
+        out,
+        "terminalBindingRequestedSourceRows",
+        "Nat",
+        &nat_items(binding.requested_source_rows()),
+    );
+    let projected = binding
+        .projected_rows()
+        .iter()
+        .map(|row| {
+            let mut hoisted = String::new();
+            let mut item = String::new();
+            write!(
+                item,
+                "{{ sourceRow := {}, spartanRow := {}, row := {{ a := ",
+                row.source_row(),
+                row.spartan_row()
+            )
+            .unwrap();
+            render_terms_hoisted(&mut hoisted, counter, &mut item, row.a())?;
+            write!(item, ", b := ").unwrap();
+            render_terms_hoisted(&mut hoisted, counter, &mut item, row.b())?;
+            write!(item, ", c := ").unwrap();
+            render_terms_hoisted(&mut hoisted, counter, &mut item, row.c())?;
+            write!(item, " }} }}").unwrap();
+            Ok((hoisted, item))
+        })
+        .collect::<Result<Vec<_>, ExportError>>()?;
+    write_chunked_list_def_grouped(out, "terminalBindingProjectedRows", "TerminalProjectedRow", &projected);
     writeln!(out, "def terminalBinding : TerminalBinding :=").unwrap();
-    write!(out, "  {{ requestedSourceRows := ").unwrap();
-    render_nats(out, binding.requested_source_rows());
-    writeln!(out).unwrap();
+    writeln!(out, "  {{ requestedSourceRows := terminalBindingRequestedSourceRows").unwrap();
     write!(out, "    verifierNativeGuards := [").unwrap();
     for (index, guard) in binding.verifier_native_guards().iter().enumerate() {
         write!(
@@ -650,23 +969,7 @@ fn render_terminal_binding(out: &mut String, export: &TerminalProblemExport) -> 
         layout.spartan_private_columns()
     )
     .unwrap();
-    writeln!(out, "    projectedRows := [").unwrap();
-    for (index, row) in binding.projected_rows().iter().enumerate() {
-        write!(
-            out,
-            "      {{ sourceRow := {}, spartanRow := {}, row := {{ a := ",
-            row.source_row(),
-            row.spartan_row()
-        )
-        .unwrap();
-        render_terms(out, row.a())?;
-        write!(out, ", b := ").unwrap();
-        render_terms(out, row.b())?;
-        write!(out, ", c := ").unwrap();
-        render_terms(out, row.c())?;
-        writeln!(out, " }} }}{}", separator(index, binding.projected_rows().len())).unwrap();
-    }
-    writeln!(out, "    ]").unwrap();
+    writeln!(out, "    projectedRows := terminalBindingProjectedRows").unwrap();
     writeln!(out, "    spartanRows := {}", binding.spartan_rows()).unwrap();
     writeln!(out, "    spartanColumns := {}", binding.spartan_columns()).unwrap();
     writeln!(
@@ -734,55 +1037,111 @@ fn validate_terminal_export(export: &TerminalProblemExport) -> Result<(), Export
     Ok(())
 }
 
-fn render_selective_binding(out: &mut String, export: &FixedPointProblemExport) -> Result<(), ExportError> {
+fn render_selective_binding(
+    out: &mut String,
+    counter: &mut usize,
+    export: &FixedPointProblemExport,
+) -> Result<(), ExportError> {
     let binding = export.binding();
+    let nat_items = |values: &[usize]| {
+        values
+            .iter()
+            .map(|value| value.to_string())
+            .collect::<Vec<_>>()
+    };
+    write_chunked_list_def(
+        out,
+        "selectiveBindingRequestedSourceRows",
+        "Nat",
+        &nat_items(binding.requested_source_rows()),
+    );
+    write_chunked_list_def(
+        out,
+        "selectiveBindingClosureSourceRows",
+        "Nat",
+        &nat_items(binding.closure_source_rows()),
+    );
+    write_chunked_list_def(
+        out,
+        "selectiveBindingAdditionalSourceRows",
+        "Nat",
+        &nat_items(binding.additional_source_rows()),
+    );
+    write_chunked_list_def(
+        out,
+        "selectiveBindingEmittedRows",
+        "Nat",
+        &nat_items(binding.emitted_rows()),
+    );
+    let retained = binding
+        .retained_rows()
+        .iter()
+        .map(|row| {
+            format!(
+                "{{ sourceRow := {}, emittedRow := {}, stageOccurrence := {} }}",
+                row.source_row(),
+                row.emitted_row(),
+                lean_option(row.stage_occurrence())
+            )
+        })
+        .collect::<Vec<_>>();
+    write_chunked_list_def(out, "selectiveBindingRetainedRows", "RetainedRowBinding", &retained);
+    let rewrites = binding
+        .rewrites()
+        .iter()
+        .map(|rewrite| {
+            let mut item = String::new();
+            write!(
+                item,
+                "{{ rewriteId := {}, kind := {}, sourceRows := ",
+                rewrite.rewrite_id(),
+                lean_string(rewrite_kind_name(rewrite.kind()))
+            )
+            .unwrap();
+            render_ranges(&mut item, &rewrite.source_rows());
+            write!(
+                item,
+                ", emittedRows := {}, stageOccurrence := {} }}",
+                lean_range(rewrite.emitted_rows()),
+                lean_option(rewrite.stage_occurrence())
+            )
+            .unwrap();
+            item
+        })
+        .collect::<Vec<_>>();
+    write_chunked_list_def(out, "selectiveBindingRewrites", "RewriteBinding", &rewrites);
+    let projected = binding
+        .projected_rows()
+        .iter()
+        .map(|row| {
+            let mut hoisted = String::new();
+            let mut item = String::new();
+            write!(
+                item,
+                "{{ emittedRow := {}, runIndex := {}, family := {}, arm := {}, ports := [",
+                row.emitted_row(),
+                row.run_index(),
+                lean_string(emitted_family_name(row.family())),
+                lean_option(row.arm())
+            )
+            .unwrap();
+            for (port_index, port) in row.ports().iter().enumerate() {
+                render_port(&mut hoisted, counter, &mut item, port)?;
+                write!(item, "{}", separator(port_index, row.ports().len())).unwrap();
+            }
+            write!(item, "] }}").unwrap();
+            Ok((hoisted, item))
+        })
+        .collect::<Result<Vec<_>, ExportError>>()?;
+    write_chunked_list_def_grouped(out, "selectiveBindingProjectedRows", "FinalRow", &projected);
     writeln!(out, "def selectiveBinding : SelectiveBinding :=").unwrap();
     writeln!(out, "  {{ branch := {}", lean_string(binding.branch())).unwrap();
-    write!(out, "    requestedSourceRows := ").unwrap();
-    render_nats(out, binding.requested_source_rows());
-    writeln!(out).unwrap();
-    write!(out, "    closureSourceRows := ").unwrap();
-    render_nats(out, binding.closure_source_rows());
-    writeln!(out).unwrap();
-    write!(out, "    additionalSourceRows := ").unwrap();
-    render_nats(out, binding.additional_source_rows());
-    writeln!(out).unwrap();
-    writeln!(out, "    retainedRows := [").unwrap();
-    for (index, row) in binding.retained_rows().iter().enumerate() {
-        writeln!(
-            out,
-            "      {{ sourceRow := {}, emittedRow := {}, stageOccurrence := {} }}{}",
-            row.source_row(),
-            row.emitted_row(),
-            lean_option(row.stage_occurrence()),
-            separator(index, binding.retained_rows().len())
-        )
-        .unwrap();
-    }
-    writeln!(out, "    ]").unwrap();
-    writeln!(out, "    rewrites := [").unwrap();
-    for (index, rewrite) in binding.rewrites().iter().enumerate() {
-        write!(
-            out,
-            "      {{ rewriteId := {}, kind := {}, sourceRows := ",
-            rewrite.rewrite_id(),
-            lean_string(rewrite_kind_name(rewrite.kind()))
-        )
-        .unwrap();
-        render_ranges(out, rewrite.source_rows());
-        writeln!(
-            out,
-            ", emittedRows := {}, stageOccurrence := {} }}{}",
-            lean_range(rewrite.emitted_rows()),
-            lean_option(rewrite.stage_occurrence()),
-            separator(index, binding.rewrites().len())
-        )
-        .unwrap();
-    }
-    writeln!(out, "    ]").unwrap();
-    write!(out, "    emittedRows := ").unwrap();
-    render_nats(out, binding.emitted_rows());
-    writeln!(out).unwrap();
+    writeln!(out, "    requestedSourceRows := selectiveBindingRequestedSourceRows").unwrap();
+    writeln!(out, "    closureSourceRows := selectiveBindingClosureSourceRows").unwrap();
+    writeln!(out, "    additionalSourceRows := selectiveBindingAdditionalSourceRows").unwrap();
+    writeln!(out, "    retainedRows := selectiveBindingRetainedRows").unwrap();
+    writeln!(out, "    rewrites := selectiveBindingRewrites").unwrap();
+    writeln!(out, "    emittedRows := selectiveBindingEmittedRows").unwrap();
     writeln!(out, "    finalRows := {}", binding.final_rows()).unwrap();
     writeln!(out, "    finalColumns := {}", binding.final_columns()).unwrap();
     writeln!(
@@ -803,53 +1162,47 @@ fn render_selective_binding(out: &mut String, export: &FixedPointProblemExport) 
         lean_string(binding.projected_slice_digest())
     )
     .unwrap();
-    writeln!(out, "    projectedRows := [").unwrap();
-    for (index, row) in binding.projected_rows().iter().enumerate() {
-        write!(
-            out,
-            "      {{ emittedRow := {}, runIndex := {}, family := {}, arm := {}, ports := [",
-            row.emitted_row(),
-            row.run_index(),
-            lean_string(emitted_family_name(row.family())),
-            lean_option(row.arm())
-        )
-        .unwrap();
-        for (port_index, port) in row.ports().iter().enumerate() {
-            render_port(out, port)?;
-            write!(out, "{}", separator(port_index, row.ports().len())).unwrap();
-        }
-        writeln!(out, "] }}{}", separator(index, binding.projected_rows().len())).unwrap();
-    }
-    writeln!(out, "    ] }}\n").unwrap();
+    writeln!(out, "    projectedRows := selectiveBindingProjectedRows }}\n").unwrap();
     Ok(())
 }
 
-fn render_port(out: &mut String, port: &SelectiveProjectedPort) -> Result<(), ExportError> {
-    write!(out, "{{ explicit := [").unwrap();
-    for (index, term) in port.explicit().iter().enumerate() {
-        write!(
-            out,
-            "({}, {}){}",
-            term.column(),
-            term.coefficient().as_canonical_u64(),
-            separator(index, port.explicit().len())
-        )
-        .unwrap();
-    }
-    write!(out, "], geometricRuns := [").unwrap();
-    for (index, run) in port.geometric_runs().iter().enumerate() {
-        write!(
-            out,
-            "{{ columnStart := {}, length := {}, initial := {}, ratio := {} }}{}",
-            run.column_start(),
-            run.length(),
-            run.initial().as_canonical_u64(),
-            run.ratio().as_canonical_u64(),
-            separator(index, port.geometric_runs().len())
-        )
-        .unwrap();
-    }
-    write!(out, "], seededBlocks := [").unwrap();
+fn render_port(
+    defs: &mut String,
+    counter: &mut usize,
+    out: &mut String,
+    port: &SelectiveProjectedPort,
+) -> Result<(), ExportError> {
+    let explicit = port
+        .explicit()
+        .iter()
+        .map(|term| format!("({}, {})", term.column(), term.coefficient().as_canonical_u64()))
+        .collect::<Vec<_>>();
+    write!(
+        out,
+        "{{ explicit := {}",
+        inline_or_hoist(defs, counter, "(Nat × Nat)", &explicit)
+    )
+    .unwrap();
+    let runs = port
+        .geometric_runs()
+        .iter()
+        .map(|run| {
+            format!(
+                "{{ columnStart := {}, length := {}, initial := {}, ratio := {} }}",
+                run.column_start(),
+                run.length(),
+                run.initial().as_canonical_u64(),
+                run.ratio().as_canonical_u64()
+            )
+        })
+        .collect::<Vec<_>>();
+    write!(
+        out,
+        ", geometricRuns := {}",
+        inline_or_hoist(defs, counter, "FinalGeometricRun", &runs)
+    )
+    .unwrap();
+    write!(out, ", seededBlocks := [").unwrap();
     for (index, block) in port.seeded_blocks().iter().enumerate() {
         render_seeded_block(out, block)?;
         write!(out, "{}", separator(index, port.seeded_blocks().len())).unwrap();
@@ -887,43 +1240,6 @@ fn render_seeded_block(out: &mut String, block: &neo_ccs::SeededPhi81LinearBlock
         block.has_superneo_transformed_columns()
     )
     .unwrap();
-    Ok(())
-}
-
-fn render_terms(out: &mut String, terms: &[recursive_constraint_minimizer::Term]) -> Result<(), ExportError> {
-    write!(out, "[").unwrap();
-    for (index, term) in terms.iter().enumerate() {
-        let coefficient = term
-            .coefficient
-            .parse::<u64>()
-            .map_err(|_| ExportError::new(format!("cannot emit noncanonical coefficient {:?}", term.coefficient)))?;
-        write!(
-            out,
-            "({}, {}){}",
-            term.column,
-            coefficient,
-            separator(index, terms.len())
-        )
-        .unwrap();
-    }
-    write!(out, "]").unwrap();
-    Ok(())
-}
-
-fn render_indexed_row(out: &mut String, row: &recursive_constraint_minimizer::Row) -> Result<(), ExportError> {
-    write!(
-        out,
-        "{{ sourceIndex := {}, family := {}, row := {{ a := ",
-        row.source_index,
-        lean_string(&row.family)
-    )
-    .unwrap();
-    render_terms(out, &row.a)?;
-    write!(out, ", b := ").unwrap();
-    render_terms(out, &row.b)?;
-    write!(out, ", c := ").unwrap();
-    render_terms(out, &row.c)?;
-    write!(out, " }} }}").unwrap();
     Ok(())
 }
 

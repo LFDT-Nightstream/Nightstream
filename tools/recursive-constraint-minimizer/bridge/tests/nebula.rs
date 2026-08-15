@@ -158,7 +158,6 @@ fn accepted_assignments_cover_and_satisfy_both_physical_source_arms() {
 }
 
 #[test]
-#[ignore = "requires a GPL cvc5 build with finite-field support"]
 fn installed_cvc5_runs_one_exact_nebula_refinement_iteration() {
     let (audit, assignment) = accepted_base_source_assignment();
     let branch = NebulaFPrimeBranch::Base;
@@ -623,7 +622,6 @@ fn recursive_pi_rlc_padding_has_an_exact_scalar_certificate() {
 }
 
 #[test]
-#[ignore = "requires a GPL cvc5 build with finite-field support"]
 fn installed_cvc5_finds_the_recursive_pi_rlc_padding_candidate_unsat() {
     const CANDIDATE: &str = "nifs.pi_rlc.verify.padding.y_ring";
     const PI_CCS_SUPPORT: &str = "nifs.pi_ccs.padded_row.canonicality";

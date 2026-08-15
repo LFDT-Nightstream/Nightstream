@@ -12,7 +12,9 @@ use neo_fold_clean::paper::relations::{
 };
 use neo_math::{D, F, K};
 use nightstream_constraint_exporter::{
-    export_terminal_problem, refine_terminal_with_cvc5, terminal_family_census, ExportRequest,
+    export_complete_terminal_problem, export_terminal_problem, find_exclusive_column_witness,
+    refine_terminal_with_cvc5, render_complete_terminal_bound_artifact_modules,
+    render_terminal_removal_counterexample_lean, terminal_family_census, ExportRequest,
 };
 use p3_field::PrimeCharacteristicRing;
 use recursive_constraint_minimizer::{Conclusion, Scope, Selection, SolverConfig, SolverStatus};
@@ -125,7 +127,6 @@ fn exact_combined_terminal_fixture_has_the_reviewed_exportable_census() {
 }
 
 #[test]
-#[ignore = "requires the installed GPL cvc5 finite-field solver"]
 fn installed_cvc5_runs_one_exact_combined_terminal_iteration() {
     let relation = compile_fixture();
     let audit = relation.constraint_audit();
@@ -164,4 +165,109 @@ fn installed_cvc5_runs_one_exact_combined_terminal_iteration() {
     assert_eq!(report.refinement().solver_run.status, SolverStatus::Sat);
     assert_eq!(report.refinement().conclusion, Conclusion::Inconclusive);
     assert!(report.refinement().pending_retained_row.is_some());
+}
+
+#[test]
+#[ignore = "terminal exclusive-column witness census; run with --ignored --nocapture"]
+fn print_terminal_exclusive_column_witness_census() {
+    let relation = compile_fixture();
+    let audit = relation.constraint_audit();
+    let export = export_complete_terminal_problem(&audit, "campaign-terminal-witness-census")
+        .expect("export the complete terminal relation");
+    let problem = export.problem();
+    let background = audit
+        .source()
+        .witness()
+        .iter()
+        .map(|value| p3_field::PrimeField64::as_canonical_u64(value))
+        .collect::<Vec<_>>();
+    let census = terminal_family_census(&audit).expect("complete reviewed terminal family ownership");
+    let mut found = 0usize;
+    for family in &census {
+        match find_exclusive_column_witness(problem, &background, family.name()) {
+            Ok(Some(witness)) => {
+                found += 1;
+                eprintln!(
+                    "terminal witness family={} column={} delta={} violated={}",
+                    family.name(),
+                    witness.column(),
+                    witness.delta(),
+                    witness.violated_rows().len(),
+                );
+            }
+            Ok(None) => eprintln!("terminal no-exclusive-witness family={}", family.name()),
+            Err(error) => eprintln!("terminal witness-error family={} error={error}", family.name()),
+        }
+    }
+    eprintln!("terminal exclusive-column census: {found}/{} families", census.len());
+}
+
+#[test]
+#[ignore = "emit the terminal Lean classification batch to NIGHTSTREAM_EMIT_DIR; run with --ignored --nocapture"]
+fn emit_terminal_lean_classification_batch() {
+    let emit_dir = std::env::var("NIGHTSTREAM_EMIT_DIR").expect("set NIGHTSTREAM_EMIT_DIR");
+    let relation = compile_fixture();
+    let audit = relation.constraint_audit();
+    let export = export_complete_terminal_problem(&audit, "campaign-terminal-classification-v1")
+        .expect("export the complete terminal relation");
+    let problem = export.problem().clone();
+    let background = audit
+        .source()
+        .witness()
+        .iter()
+        .map(|value| p3_field::PrimeField64::as_canonical_u64(value))
+        .collect::<Vec<_>>();
+    let census = terminal_family_census(&audit).expect("complete reviewed terminal family ownership");
+    let plan = census
+        .iter()
+        .map(|family| family.name().to_owned())
+        .collect::<Vec<_>>();
+
+    let artifact_namespace =
+        "Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.TerminalBoundArtifact";
+    let artifact_modules = render_complete_terminal_bound_artifact_modules(&export, artifact_namespace)
+        .expect("render the complete terminal bound artifact modules");
+    for module in &artifact_modules {
+        let file = module
+            .module_name
+            .rsplit('.')
+            .next()
+            .expect("module name has a final segment");
+        let path = format!("{emit_dir}/{file}.lean");
+        std::fs::write(&path, &module.content).expect("write terminal artifact module");
+        eprintln!("emitted {path} bytes={}", module.content.len());
+    }
+
+    for family in &census {
+        let witness = find_exclusive_column_witness(&problem, &background, family.name())
+            .expect("witness search must run")
+            .expect("every terminal family has an exclusive-column witness");
+        let module_stem = family
+            .name()
+            .split(['.', '_'])
+            .map(|part| {
+                let mut chars = part.chars();
+                match chars.next() {
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                    None => String::new(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("");
+        let namespace =
+            format!("Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.{module_stem}Necessity");
+        let lean = render_terminal_removal_counterexample_lean(
+            &problem,
+            witness.model(),
+            family.name(),
+            artifact_namespace,
+            artifact_namespace,
+            &namespace,
+            &plan,
+        )
+        .expect("render the terminal removal counterexample");
+        let path = format!("{emit_dir}/{module_stem}Necessity.lean");
+        std::fs::write(&path, &lean).expect("write terminal counterexample module");
+        eprintln!("emitted {path} bytes={}", lean.len());
+    }
 }

@@ -14,6 +14,22 @@ impl FieldModel {
     pub fn values(&self) -> &[u64] {
         &self.values
     }
+
+    /// Build a model from canonical residues produced by a Rust witness
+    /// constructor. The same replay and Lean checks apply to every model,
+    /// whatever produced it.
+    pub fn from_canonical_values(values: Vec<u64>) -> Result<Self, ModelError> {
+        if values.is_empty() {
+            return Err(ModelError::new("model must contain at least one column"));
+        }
+        let modulus = GOLDILOCKS_MODULUS
+            .parse::<u64>()
+            .expect("fixed Goldilocks modulus fits in u64");
+        if values.iter().any(|&value| value >= modulus) {
+            return Err(ModelError::new("model contains a noncanonical residue"));
+        }
+        Ok(Self { values })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -27,11 +27,13 @@ mod refinement;
 mod selective_binding;
 mod source_assignment;
 mod terminal_binding;
+mod witness_search;
 
 pub use lean_export::{
-    render_bound_artifact_lean, render_complete_bound_artifact_lean, render_complete_terminal_bound_artifact_lean,
+    render_bound_artifact_lean, render_complete_bound_artifact_lean, render_complete_bound_artifact_modules,
+    render_complete_terminal_bound_artifact_lean, render_complete_terminal_bound_artifact_modules,
     render_redundancy_certificate_lean, render_removal_counterexample_lean, render_terminal_bound_artifact_lean,
-    render_terminal_redundancy_certificate_lean, render_terminal_removal_counterexample_lean,
+    render_terminal_redundancy_certificate_lean, render_terminal_removal_counterexample_lean, GeneratedLeanModule,
 };
 pub use obligation_ledger::{
     paper_obligation_ledger, validate_paper_obligation_ledger, EvidenceKind, ObligationEvidence, ObligationState,
@@ -54,6 +56,7 @@ pub use terminal_binding::{
     terminal_verifier_native_guard_names, TerminalColumnLayout, TerminalOwnedFamily, TerminalProblemExport,
     TerminalProjectedRowArtifact, TerminalSpartanBinding,
 };
+pub use witness_search::{find_exclusive_column_witness, ExclusiveColumnWitness};
 
 const DIGEST_DOMAIN: &[u8] = b"nightstream/r1cs-source-artifact/v1";
 const SPARSE_DIGEST_DOMAIN: &[u8] = b"nightstream/sparse-r1cs-source-artifact/v2";

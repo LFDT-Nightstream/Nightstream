@@ -12,6 +12,7 @@ use std::io;
 use neo_ccs::CcsMatrix;
 use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
 use neo_fold_clean::engine::r1cs_circuit::{PhysicalStageRange, R1csSnapshot, Var};
+use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
 use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
 use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
@@ -19,12 +20,39 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use recursive_constraint_minimizer::{Problem, Row, Scope, Source, Term, GOLDILOCKS_MODULUS, PROBLEM_SCHEMA};
 use sha2::{Digest, Sha256};
 
+mod analysis;
+mod lean_export;
+mod obligation_ledger;
 mod refinement;
 mod selective_binding;
+mod source_assignment;
+mod terminal_binding;
 
-pub use refinement::{refine_with_cvc5, RefinementError, RefinementReport, MAX_REFINEMENT_ITERATIONS};
+pub use lean_export::{
+    render_bound_artifact_lean, render_complete_bound_artifact_lean, render_complete_terminal_bound_artifact_lean,
+    render_redundancy_certificate_lean, render_removal_counterexample_lean, render_terminal_bound_artifact_lean,
+    render_terminal_redundancy_certificate_lean, render_terminal_removal_counterexample_lean,
+};
+pub use obligation_ledger::{
+    paper_obligation_ledger, validate_paper_obligation_ledger, EvidenceKind, ObligationEvidence, ObligationState,
+    Paper, PaperObligation,
+};
+pub use refinement::{
+    refine_fixed_point_with_cvc5, refine_nebula_with_cvc5, refine_sparse_with_cvc5, refine_terminal_with_cvc5,
+    refine_with_cvc5, FixedPointRefinementReport, RefinementError, RefinementReport, TerminalRefinementReport,
+    MAX_REFINEMENT_ITERATIONS,
+};
 pub use selective_binding::{
     FixedPointProblemExport, SelectiveRetainedRowBinding, SelectiveRewriteBinding, SelectiveSliceBinding,
+};
+pub use source_assignment::{
+    bind_nebula_source_assignment, load_nebula_source_assignment, CheckedNebulaSourceAssignment,
+    NebulaPhysicalSourceArm, NEBULA_SOURCE_ASSIGNMENT_SCHEMA,
+};
+pub use terminal_binding::{
+    export_complete_terminal_problem, export_terminal_problem, terminal_family_census,
+    terminal_verifier_native_guard_names, TerminalColumnLayout, TerminalOwnedFamily, TerminalProblemExport,
+    TerminalProjectedRowArtifact, TerminalSpartanBinding,
 };
 
 const DIGEST_DOMAIN: &[u8] = b"nightstream/r1cs-source-artifact/v1";
@@ -107,165 +135,212 @@ pub fn fixed_point_family_census(
     sparse_family_census(arm)
 }
 
+/// Enumerate one Nebula F-prime arm after checking its complete reviewed
+/// stage vocabulary.
+pub fn nebula_family_census(
+    audit: &NebulaFPrimeConstraintSourceAudit,
+    branch: NebulaFPrimeBranch,
+) -> Result<Vec<SparseOwnedFamily>, ExportError> {
+    let arm = audit.arm(branch);
+    validate_nebula_stage_vocabulary(audit, branch)?;
+    sparse_family_census(arm)
+}
+
 /// Export selected rows and bind them to the complete source relation.
 pub fn export_problem(
     snapshot: &R1csSnapshot,
     ranges: &[RowFamilyRange],
     request: ExportRequest,
 ) -> Result<Problem, ExportError> {
-    validate_request(snapshot.rows(), &request)?;
-    validate_public_input_count(snapshot.cols(), &request)?;
-    let ranges = validate_ranges(snapshot.rows(), ranges)?;
-    let mut hasher = Sha256::new();
-    hasher.update(DIGEST_DOMAIN);
-    hash_usize(&mut hasher, snapshot.rows())?;
-    hash_usize(&mut hasher, snapshot.cols())?;
-    hash_usize(&mut hasher, Var::ONE.col())?;
-    hash_usize(&mut hasher, request.public_input_count)?;
-    hash_bytes(&mut hasher, GOLDILOCKS_MODULUS.as_bytes())?;
+    SnapshotProblemExporter::new(snapshot, ranges, request.public_input_count)?.export(request)
+}
 
-    let mut exported_rows = Vec::with_capacity(request.source_rows.len());
-    let mut total_by_family = BTreeMap::<&str, usize>::new();
-    let mut selected_by_family = BTreeMap::<&str, usize>::new();
-    let mut selected_cursor = 0usize;
-    let mut range_cursor = 0usize;
-    let mut active_ranges = Vec::<usize>::new();
+pub(crate) struct SnapshotProblemExporter<'a> {
+    snapshot: &'a R1csSnapshot,
+    owners: Vec<Option<&'static str>>,
+    total_by_family: BTreeMap<&'static str, usize>,
+    artifact_digest: String,
+    public_input_count: usize,
+}
 
-    for source_index in 0..snapshot.rows() {
-        while active_ranges
-            .last()
-            .is_some_and(|&range_index| ranges[range_index].row_end == source_index)
-        {
-            active_ranges.pop();
-        }
-        while range_cursor < ranges.len() && ranges[range_cursor].row_start == source_index {
-            active_ranges.push(range_cursor);
-            range_cursor += 1;
-        }
-        let owner = active_ranges
-            .last()
-            .map(|&range_index| ranges[range_index].name);
-        hash_row(&mut hasher, snapshot, source_index, owner)?;
+impl<'a> SnapshotProblemExporter<'a> {
+    pub(crate) fn new(
+        snapshot: &'a R1csSnapshot,
+        input_ranges: &[RowFamilyRange],
+        public_input_count: usize,
+    ) -> Result<Self, ExportError> {
+        validate_public_prefix(snapshot.cols(), public_input_count)?;
+        let ranges = validate_ranges(snapshot.rows(), input_ranges)?;
+        let mut hasher = Sha256::new();
+        hasher.update(DIGEST_DOMAIN);
+        hash_usize(&mut hasher, snapshot.rows())?;
+        hash_usize(&mut hasher, snapshot.cols())?;
+        hash_usize(&mut hasher, Var::ONE.col())?;
+        hash_usize(&mut hasher, public_input_count)?;
+        hash_bytes(&mut hasher, GOLDILOCKS_MODULUS.as_bytes())?;
 
-        if let Some(family) = owner {
-            *total_by_family.entry(family).or_default() += 1;
+        let mut owners = Vec::with_capacity(snapshot.rows());
+        let mut total_by_family = BTreeMap::<&'static str, usize>::new();
+        let mut range_cursor = 0usize;
+        let mut active_ranges = Vec::<usize>::new();
+        for source_index in 0..snapshot.rows() {
+            while active_ranges
+                .last()
+                .is_some_and(|&range_index| ranges[range_index].row_end == source_index)
+            {
+                active_ranges.pop();
+            }
+            while range_cursor < ranges.len() && ranges[range_cursor].row_start == source_index {
+                active_ranges.push(range_cursor);
+                range_cursor += 1;
+            }
+            let owner = active_ranges
+                .last()
+                .map(|&range_index| ranges[range_index].name);
+            hash_row(&mut hasher, snapshot, source_index, owner)?;
+            if let Some(family) = owner {
+                *total_by_family.entry(family).or_default() += 1;
+            }
+            owners.push(owner);
         }
-        if request.source_rows.get(selected_cursor) == Some(&source_index) {
-            let family = owner.ok_or_else(|| {
+
+        Ok(Self {
+            snapshot,
+            owners,
+            total_by_family,
+            artifact_digest: finish_digest(hasher),
+            public_input_count,
+        })
+    }
+
+    pub(crate) fn export(&self, request: ExportRequest) -> Result<Problem, ExportError> {
+        validate_request(self.snapshot.rows(), &request)?;
+        if request.public_input_count != self.public_input_count {
+            return Err(ExportError::new(format!(
+                "requested public prefix {} differs from cached source prefix {}",
+                request.public_input_count, self.public_input_count
+            )));
+        }
+
+        let mut exported_rows = Vec::with_capacity(request.source_rows.len());
+        let mut selected_by_family = BTreeMap::<&str, usize>::new();
+        for &source_index in &request.source_rows {
+            let family = self.owners[source_index].ok_or_else(|| {
                 ExportError::new(format!("selected source row {source_index} has no row-family owner"))
             })?;
             *selected_by_family.entry(family).or_default() += 1;
-            exported_rows.push(export_row(snapshot, source_index, family));
-            selected_cursor += 1;
+            exported_rows.push(export_row(self.snapshot, source_index, family));
         }
-    }
-    debug_assert_eq!(selected_cursor, request.source_rows.len());
+        validate_complete_families(&request.complete_families, &self.total_by_family, &selected_by_family)?;
 
-    for family in &request.complete_families {
-        let total = total_by_family.get(family.as_str()).copied().unwrap_or(0);
-        let selected = selected_by_family
-            .get(family.as_str())
-            .copied()
-            .unwrap_or(0);
-        if total == 0 {
-            return Err(ExportError::new(format!(
-                "complete family {family:?} owns no source rows"
-            )));
-        }
-        if selected != total {
-            return Err(ExportError::new(format!(
-                "complete family {family:?} has {selected} of {total} source rows"
-            )));
-        }
+        let problem = Problem {
+            schema: PROBLEM_SCHEMA.to_owned(),
+            source: Source {
+                profile: request.profile,
+                artifact_digest: self.artifact_digest.clone(),
+                scope: request.scope,
+                total_rows: self.snapshot.rows(),
+            },
+            field_modulus: GOLDILOCKS_MODULUS.to_owned(),
+            column_count: self.snapshot.cols(),
+            constant_one_column: Var::ONE.col(),
+            public_input_count: request.public_input_count,
+            complete_families: request.complete_families,
+            rows: exported_rows,
+        };
+        problem
+            .validate()
+            .map_err(|error| ExportError::new(format!("exported problem is invalid: {error}")))?;
+        Ok(problem)
     }
-
-    let digest = hasher.finalize();
-    let mut artifact_digest = String::with_capacity(7 + digest.len() * 2);
-    artifact_digest.push_str("sha256:");
-    for byte in digest {
-        write!(artifact_digest, "{byte:02x}").expect("writing to String cannot fail");
-    }
-    let problem = Problem {
-        schema: PROBLEM_SCHEMA.to_owned(),
-        source: Source {
-            profile: request.profile,
-            artifact_digest,
-            scope: request.scope,
-            total_rows: snapshot.rows(),
-        },
-        field_modulus: GOLDILOCKS_MODULUS.to_owned(),
-        column_count: snapshot.cols(),
-        constant_one_column: Var::ONE.col(),
-        public_input_count: request.public_input_count,
-        complete_families: request.complete_families,
-        rows: exported_rows,
-    };
-    problem
-        .validate()
-        .map_err(|error| ExportError::new(format!("exported problem is invalid: {error}")))?;
-    Ok(problem)
 }
 
 /// Export selected rows from one exact stabilized field-R1CS arm.
 pub fn export_sparse_problem(arm: &SparseR1cs, request: ExportRequest) -> Result<Problem, ExportError> {
-    arm.validate_shape()
-        .map_err(|error| ExportError::new(format!("invalid sparse source shape: {error}")))?;
-    if arm.m_in == 0 || Var::ONE.col() >= arm.m_in {
-        return Err(ExportError::new(
-            "sparse source has no normalized constant-one public prefix",
-        ));
-    }
-    if request.public_input_count != arm.m_in {
-        return Err(ExportError::new(format!(
-            "requested public prefix {} differs from sparse source prefix {}",
-            request.public_input_count, arm.m_in
-        )));
-    }
-    if [&arm.a, &arm.b, &arm.c]
-        .into_iter()
-        .any(|matrix| !matrix.has_canonical_csc())
-    {
-        return Err(ExportError::new(
-            "sparse source matrices must have canonical materialized components",
-        ));
-    }
-    validate_request(arm.n, &request)?;
-    validate_physical_stages(arm)?;
-    let owners = stage_owners(arm.n, arm.physical_stage_ranges());
-    let recovered = recover_sparse_rows(arm, &request.source_rows)?;
-    let mut hasher = Sha256::new();
-    hasher.update(SPARSE_DIGEST_DOMAIN);
-    hash_usize(&mut hasher, arm.n)?;
-    hash_usize(&mut hasher, arm.m)?;
-    hash_usize(&mut hasher, arm.m_in)?;
-    hash_usize(&mut hasher, Var::ONE.col())?;
-    hash_bytes(&mut hasher, GOLDILOCKS_MODULUS.as_bytes())?;
-    hash_physical_stages(&mut hasher, arm.physical_stage_ranges())?;
-    hash_sparse_matrix(&mut hasher, 0, &arm.a)?;
-    hash_sparse_matrix(&mut hasher, 1, &arm.b)?;
-    hash_sparse_matrix(&mut hasher, 2, &arm.c)?;
+    SparseProblemExporter::new(arm)?.export(request)
+}
 
-    let mut exported_rows = Vec::with_capacity(request.source_rows.len());
-    let mut total_by_family = BTreeMap::<&str, usize>::new();
-    let mut selected_by_family = BTreeMap::<&str, usize>::new();
-    let mut selected_cursor = 0usize;
-    for (source_index, owner) in owners.into_iter().enumerate() {
-        hash_usize(&mut hasher, source_index)?;
-        match owner {
-            Some(name) => {
-                hasher.update([1]);
-                hash_bytes(&mut hasher, name.as_bytes())?;
-                *total_by_family.entry(name).or_default() += 1;
+pub(crate) struct SparseProblemExporter<'a> {
+    arm: &'a SparseR1cs,
+    owners: Vec<Option<&'static str>>,
+    total_by_family: BTreeMap<&'static str, usize>,
+    artifact_digest: String,
+}
+
+impl<'a> SparseProblemExporter<'a> {
+    pub(crate) fn new(arm: &'a SparseR1cs) -> Result<Self, ExportError> {
+        arm.validate_shape()
+            .map_err(|error| ExportError::new(format!("invalid sparse source shape: {error}")))?;
+        if arm.m_in == 0 || Var::ONE.col() >= arm.m_in {
+            return Err(ExportError::new(
+                "sparse source has no normalized constant-one public prefix",
+            ));
+        }
+        if [&arm.a, &arm.b, &arm.c]
+            .into_iter()
+            .any(|matrix| !matrix.has_canonical_csc())
+        {
+            return Err(ExportError::new(
+                "sparse source matrices must have canonical materialized components",
+            ));
+        }
+        validate_physical_stages(arm)?;
+
+        let owners = stage_owners(arm.n, arm.physical_stage_ranges());
+        let mut hasher = Sha256::new();
+        hasher.update(SPARSE_DIGEST_DOMAIN);
+        hash_usize(&mut hasher, arm.n)?;
+        hash_usize(&mut hasher, arm.m)?;
+        hash_usize(&mut hasher, arm.m_in)?;
+        hash_usize(&mut hasher, Var::ONE.col())?;
+        hash_bytes(&mut hasher, GOLDILOCKS_MODULUS.as_bytes())?;
+        hash_physical_stages(&mut hasher, arm.physical_stage_ranges())?;
+        hash_sparse_matrix(&mut hasher, 0, &arm.a)?;
+        hash_sparse_matrix(&mut hasher, 1, &arm.b)?;
+        hash_sparse_matrix(&mut hasher, 2, &arm.c)?;
+
+        let mut total_by_family = BTreeMap::<&'static str, usize>::new();
+        for (source_index, owner) in owners.iter().copied().enumerate() {
+            hash_usize(&mut hasher, source_index)?;
+            match owner {
+                Some(name) => {
+                    hasher.update([1]);
+                    hash_bytes(&mut hasher, name.as_bytes())?;
+                    *total_by_family.entry(name).or_default() += 1;
+                }
+                None => hasher.update([0]),
             }
-            None => hasher.update([0]),
         }
 
-        if request.source_rows.get(selected_cursor) == Some(&source_index) {
-            let family = owner.ok_or_else(|| {
+        Ok(Self {
+            arm,
+            owners,
+            total_by_family,
+            artifact_digest: finish_digest(hasher),
+        })
+    }
+
+    pub(crate) fn artifact_digest(&self) -> &str {
+        &self.artifact_digest
+    }
+
+    pub(crate) fn export(&self, request: ExportRequest) -> Result<Problem, ExportError> {
+        if request.public_input_count != self.arm.m_in {
+            return Err(ExportError::new(format!(
+                "requested public prefix {} differs from sparse source prefix {}",
+                request.public_input_count, self.arm.m_in
+            )));
+        }
+        validate_request(self.arm.n, &request)?;
+        let recovered = recover_sparse_rows(self.arm, &request.source_rows)?;
+        let mut exported_rows = Vec::with_capacity(request.source_rows.len());
+        let mut selected_by_family = BTreeMap::<&str, usize>::new();
+        for (position, &source_index) in request.source_rows.iter().enumerate() {
+            let family = self.owners[source_index].ok_or_else(|| {
                 ExportError::new(format!("selected source row {source_index} has no row-family owner"))
             })?;
             *selected_by_family.entry(family).or_default() += 1;
-            let [a, b, c] = &recovered[selected_cursor];
+            let [a, b, c] = &recovered[position];
             exported_rows.push(Row {
                 id: format!("r1cs.row.{source_index}"),
                 source_index,
@@ -274,32 +349,29 @@ pub fn export_sparse_problem(arm: &SparseR1cs, request: ExportRequest) -> Result
                 b: export_sparse_terms(b),
                 c: export_sparse_terms(c),
             });
-            selected_cursor += 1;
         }
-    }
-    debug_assert_eq!(selected_cursor, request.source_rows.len());
 
-    validate_complete_families(&request.complete_families, &total_by_family, &selected_by_family)?;
-    let artifact_digest = finish_digest(hasher);
-    let problem = Problem {
-        schema: PROBLEM_SCHEMA.to_owned(),
-        source: Source {
-            profile: request.profile,
-            artifact_digest,
-            scope: request.scope,
-            total_rows: arm.n,
-        },
-        field_modulus: GOLDILOCKS_MODULUS.to_owned(),
-        column_count: arm.m,
-        constant_one_column: Var::ONE.col(),
-        public_input_count: arm.m_in,
-        complete_families: request.complete_families,
-        rows: exported_rows,
-    };
-    problem
-        .validate()
-        .map_err(|error| ExportError::new(format!("exported problem is invalid: {error}")))?;
-    Ok(problem)
+        validate_complete_families(&request.complete_families, &self.total_by_family, &selected_by_family)?;
+        let problem = Problem {
+            schema: PROBLEM_SCHEMA.to_owned(),
+            source: Source {
+                profile: request.profile,
+                artifact_digest: self.artifact_digest.clone(),
+                scope: request.scope,
+                total_rows: self.arm.n,
+            },
+            field_modulus: GOLDILOCKS_MODULUS.to_owned(),
+            column_count: self.arm.m,
+            constant_one_column: Var::ONE.col(),
+            public_input_count: self.arm.m_in,
+            complete_families: request.complete_families,
+            rows: exported_rows,
+        };
+        problem
+            .validate()
+            .map_err(|error| ExportError::new(format!("exported problem is invalid: {error}")))?;
+        Ok(problem)
+    }
 }
 
 /// Export one fixed-point arm after checking its complete reviewed stage
@@ -313,6 +385,73 @@ pub fn export_fixed_point_problem(
     validate_fixed_point_stage_vocabulary(arm, branch)?;
     let problem = export_sparse_problem(arm, request)?;
     selective_binding::bind_fixed_point_problem(audit, branch, problem)
+}
+
+/// Export every source row and family in one reviewed fixed-point branch.
+///
+/// This complete artifact is the Lean authority for a removal counterexample
+/// or for transporting a slice certificate to the full branch relation. It is
+/// not intended as a cvc5 query input.
+pub fn export_complete_fixed_point_problem(
+    audit: &R1csIvcConstraintSourceAudit,
+    branch: R1csIvcBranch,
+    profile: &str,
+) -> Result<FixedPointProblemExport, ExportError> {
+    let arm = audit.arm(branch);
+    let families = fixed_point_family_census(audit, branch)?;
+    export_fixed_point_problem(
+        audit,
+        branch,
+        ExportRequest {
+            profile: profile.to_owned(),
+            scope: Scope::Branch,
+            public_input_count: arm.m_in,
+            source_rows: (0..arm.n).collect(),
+            complete_families: families
+                .into_iter()
+                .map(|family| family.name().to_owned())
+                .collect(),
+        },
+    )
+}
+
+/// Export selected rows from one exact stabilized Nebula F-prime arm.
+pub fn export_nebula_problem(
+    audit: &NebulaFPrimeConstraintSourceAudit,
+    branch: NebulaFPrimeBranch,
+    request: ExportRequest,
+) -> Result<FixedPointProblemExport, ExportError> {
+    let arm = audit.arm(branch);
+    validate_nebula_stage_vocabulary(audit, branch)?;
+    let problem = export_sparse_problem(arm, request)?;
+    selective_binding::bind_nebula_problem(audit, branch, problem)
+}
+
+/// Export every source row and family in one reviewed Nebula F-prime arm.
+///
+/// This artifact is for full-relation Lean checks. It is not intended as a
+/// cvc5 query input.
+pub fn export_complete_nebula_problem(
+    audit: &NebulaFPrimeConstraintSourceAudit,
+    branch: NebulaFPrimeBranch,
+    profile: &str,
+) -> Result<FixedPointProblemExport, ExportError> {
+    let arm = audit.arm(branch);
+    let families = nebula_family_census(audit, branch)?;
+    export_nebula_problem(
+        audit,
+        branch,
+        ExportRequest {
+            profile: profile.to_owned(),
+            scope: Scope::Branch,
+            public_input_count: arm.m_in,
+            source_rows: (0..arm.n).collect(),
+            complete_families: families
+                .into_iter()
+                .map(|family| family.name().to_owned())
+                .collect(),
+        },
+    )
 }
 
 fn stage_owners(row_count: usize, stages: &[PhysicalStageRange]) -> Vec<Option<&'static str>> {
@@ -374,6 +513,42 @@ fn validate_fixed_point_stage_vocabulary(arm: &SparseR1cs, branch: R1csIvcBranch
         let unexpected = actual.difference(&expected).copied().collect::<Vec<_>>();
         return Err(ExportError::new(format!(
             "fixed-point {branch:?} stage vocabulary drifted; missing {missing:?}, unexpected {unexpected:?}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_nebula_stage_vocabulary(
+    audit: &NebulaFPrimeConstraintSourceAudit,
+    branch: NebulaFPrimeBranch,
+) -> Result<(), ExportError> {
+    use neo_fold_clean::paper::f_prime::stage as fprime_stage;
+
+    let arm = audit.arm(branch);
+    validate_physical_stages(arm)?;
+    let generic_branch = match branch {
+        NebulaFPrimeBranch::Base => R1csIvcBranch::Base,
+        NebulaFPrimeBranch::BootstrapRecursive | NebulaFPrimeBranch::Recursive => R1csIvcBranch::Recursive,
+    };
+    let mut expected = fixed_point_stage_vocabulary(generic_branch);
+    if !audit.application_bound() {
+        expected.remove(match branch {
+            NebulaFPrimeBranch::Base => fprime_stage::BASE_SEMANTIC_LINKS,
+            NebulaFPrimeBranch::BootstrapRecursive | NebulaFPrimeBranch::Recursive => {
+                fprime_stage::RECURSIVE_SEMANTIC_LINKS
+            }
+        });
+    }
+    let actual = arm
+        .physical_stage_ranges()
+        .iter()
+        .map(PhysicalStageRange::path)
+        .collect::<BTreeSet<_>>();
+    if actual != expected {
+        let missing = expected.difference(&actual).copied().collect::<Vec<_>>();
+        let unexpected = actual.difference(&expected).copied().collect::<Vec<_>>();
+        return Err(ExportError::new(format!(
+            "Nebula F-prime {branch:?} stage vocabulary drifted; missing {missing:?}, unexpected {unexpected:?}"
         )));
     }
     Ok(())
@@ -471,14 +646,13 @@ fn validate_request(row_count: usize, request: &ExportRequest) -> Result<(), Exp
     Ok(())
 }
 
-fn validate_public_input_count(column_count: usize, request: &ExportRequest) -> Result<(), ExportError> {
-    if request.public_input_count == 0 || request.public_input_count > column_count {
+fn validate_public_prefix(column_count: usize, public_input_count: usize) -> Result<(), ExportError> {
+    if public_input_count == 0 || public_input_count > column_count {
         return Err(ExportError::new(format!(
-            "public_input_count {} is out of range for {column_count} columns",
-            request.public_input_count
+            "public_input_count {public_input_count} is out of range for {column_count} columns"
         )));
     }
-    if Var::ONE.col() >= request.public_input_count {
+    if Var::ONE.col() >= public_input_count {
         return Err(ExportError::new(
             "constant-one column is outside the requested public prefix",
         ));
@@ -772,3 +946,9 @@ fn hash_usize(hasher: &mut Sha256, value: usize) -> Result<(), ExportError> {
     hasher.update(value.to_le_bytes());
     Ok(())
 }
+pub use analysis::{
+    analyze_fixed_point_branch, analyze_fixed_point_family, analyze_nebula_branch, analyze_nebula_family,
+    analyze_terminal_families, analyze_terminal_family, FixedPointBranchSearchReport, FixedPointFamilySearch,
+    FixedPointFamilySearchRecord, NebulaBranchSearchReport, TerminalFamilySearch, TerminalFamilySearchRecord,
+    TerminalFamilySearchReport,
+};

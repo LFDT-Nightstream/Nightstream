@@ -7,8 +7,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
 use neo_fold_clean::engine::r1cs_circuit::{Lc, R1csBuilder, R1csSnapshot};
+use neo_fold_clean::frontends::r1cs_f_prime::{lower_field_r1cs, SparseR1cs};
 use neo_math::F;
-use nightstream_constraint_exporter::{refine_with_cvc5, ExportRequest};
+use nightstream_constraint_exporter::{refine_sparse_with_cvc5, refine_with_cvc5, ExportRequest};
 use p3_field::PrimeCharacteristicRing;
 use recursive_constraint_minimizer::{Conclusion, Scope, Selection, SolverConfig, SolverMode, GOLDILOCKS_MODULUS};
 
@@ -36,6 +37,36 @@ fn necessary_source() -> (R1csSnapshot, Vec<RowFamilyRange>) {
     builder.enforce(&Lc::from_var(x), &x_minus_one, &zero);
     builder.record_row_family("bitness", 1);
     (builder.snapshot(), builder.row_family_ranges().to_vec())
+}
+
+fn duplicate_sparse_source() -> (SparseR1cs, Vec<F>) {
+    let mut builder = R1csBuilder::new();
+    builder.begin_encoding_stage("candidate");
+    let x = builder.alloc(F::ZERO);
+    let one = Lc::from_const(F::ONE);
+    let zero = Lc::zero();
+    builder.enforce(&Lc::from_var(x), &one, &zero);
+    builder.begin_encoding_stage("copy");
+    builder.enforce(&Lc::from_var(x), &one, &zero);
+    lower_field_r1cs(builder, &[])
+        .expect("lower staged sparse fixture")
+        .into_parts()
+}
+
+fn necessary_sparse_source() -> (SparseR1cs, Vec<F>) {
+    let mut builder = R1csBuilder::new();
+    builder.begin_encoding_stage("candidate");
+    let x = builder.alloc(F::ZERO);
+    let one = Lc::from_const(F::ONE);
+    let zero = Lc::zero();
+    builder.enforce(&Lc::from_var(x), &one, &zero);
+    builder.begin_encoding_stage("bitness");
+    let mut x_minus_one = Lc::from_var(x);
+    x_minus_one.add_constant(-F::ONE);
+    builder.enforce(&Lc::from_var(x), &x_minus_one, &zero);
+    lower_field_r1cs(builder, &[])
+        .expect("lower staged sparse fixture")
+        .into_parts()
 }
 
 fn request() -> ExportRequest {
@@ -161,4 +192,62 @@ fn iteration_cap_is_inconclusive_and_keeps_the_candidate() {
     remove_file(&executable);
     assert_eq!(report.conclusion, Conclusion::Inconclusive);
     assert_eq!(report.pending_retained_row, Some(1));
+}
+
+#[test]
+fn sparse_replay_adds_a_violated_retained_row_before_unsat() {
+    let state = unique_path("sparse-state");
+    let script = format!(
+        "#!/bin/sh\ncat >/dev/null\nif [ -e '{state}' ]; then\n  printf '%s\\n' 'unsat'\nelse\n  : > '{state}'\n  printf '%s' '{sat}'\nfi\n",
+        state = state.display(),
+        sat = sat_model()
+    );
+    let executable = make_solver(&script);
+    let solver = config(executable.clone());
+    let (arm, assignment) = duplicate_sparse_source();
+    let report = refine_sparse_with_cvc5(
+        &arm,
+        &assignment,
+        request(),
+        &Selection::Row("r1cs.row.0".to_owned()),
+        &solver,
+        2,
+    )
+    .expect("bounded sparse refinement");
+
+    remove_file(&executable);
+    remove_file(&state);
+    assert_eq!(report.conclusion, Conclusion::RedundancyCandidate);
+    assert_eq!(report.iterations, 2);
+    assert_eq!(
+        report
+            .problem
+            .rows
+            .iter()
+            .map(|row| row.source_index)
+            .collect::<Vec<_>>(),
+        [0, 1]
+    );
+}
+
+#[test]
+fn sparse_sat_requires_every_retained_rust_row_to_hold() {
+    let executable = make_solver(&format!("#!/bin/sh\ncat >/dev/null\nprintf '%s' '{}'\n", sat_model()));
+    let solver = config(executable.clone());
+    let (arm, assignment) = necessary_sparse_source();
+    let report = refine_sparse_with_cvc5(
+        &arm,
+        &assignment,
+        request(),
+        &Selection::Row("r1cs.row.0".to_owned()),
+        &solver,
+        2,
+    )
+    .expect("complete sparse Rust replay");
+
+    remove_file(&executable);
+    assert_eq!(report.conclusion, Conclusion::CounterexampleCandidate);
+    assert_eq!(report.iterations, 1);
+    assert_eq!(report.violated_candidate_rows, [0]);
+    assert!(report.pending_retained_row.is_none());
 }

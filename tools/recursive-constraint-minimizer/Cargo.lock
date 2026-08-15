@@ -458,12 +458,15 @@ name = "nightstream-constraint-exporter"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "neo-ajtai",
  "neo-ccs",
  "neo-fold-clean",
  "neo-math",
  "neo-params",
  "p3-field 0.5.3",
  "recursive-constraint-minimizer",
+ "serde",
+ "serde_json",
  "sha2",
 ]
 

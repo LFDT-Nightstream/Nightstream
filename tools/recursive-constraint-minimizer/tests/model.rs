@@ -1,4 +1,4 @@
-use recursive_constraint_minimizer::{parse_model, row_is_satisfied, Problem};
+use recursive_constraint_minimizer::{parse_model, parse_model_with_defaults, row_is_satisfied, Problem};
 
 fn fixture() -> Problem {
     serde_json::from_str(include_str!("../examples/known-local.json")).expect("valid fixture")
@@ -41,4 +41,15 @@ fn rejects_missing_or_wrong_field_assignments() {
 
     let wrong_modulus = parse_model("sat\n(define-fun x_0 () F #f1m13)", 1).expect_err("must reject wrong field");
     assert!(wrong_modulus.to_string().contains("wrong modulus"));
+}
+
+#[test]
+fn fills_undeclared_columns_from_an_exact_background() {
+    let stdout = "sat\n(model (define-fun x_0 () F (as ff1 F)) \
+                  (define-fun x_2 () F (as ff9 F)))\n";
+    let model = parse_model_with_defaults(stdout, &[1, 7, 3], &[0, 2]).expect("bounded model");
+    assert_eq!(model.values(), [1, 7, 9]);
+
+    let error = parse_model_with_defaults(stdout, &[1, 7, 3], &[0]).expect_err("must reject undeclared output");
+    assert!(error.to_string().contains("undeclared source column x_2"));
 }

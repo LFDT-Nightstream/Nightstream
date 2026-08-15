@@ -56,3 +56,12 @@ fn invalid_public_prefix_fails_closed() {
         .expect_err("must reject public-prefix drift");
     assert!(error.to_string().contains("public_input_count"));
 }
+
+#[test]
+fn declares_only_columns_reached_by_the_bounded_rows() {
+    let mut problem = fixture();
+    problem.column_count = 3;
+    let query = render_query(&problem, &Selection::Row("zero_copy".to_owned())).expect("bounded query");
+    assert_eq!(query.model_columns, [0, 1]);
+    assert!(!query.smt2.contains("declare-const x_2"));
+}

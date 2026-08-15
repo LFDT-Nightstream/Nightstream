@@ -4,7 +4,7 @@ use serde::Serialize;
 
 use crate::{Conclusion, Problem, Query, Selection, SolverConfig, SolverRun, SolverStatus, Source};
 
-pub const EVIDENCE_SCHEMA: &str = "nightstream/cvc5-redundancy-evidence/v3";
+pub const EVIDENCE_SCHEMA: &str = "nightstream/cvc5-redundancy-evidence/v4";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct SolverRecord {
@@ -22,6 +22,7 @@ pub struct Evidence {
     pub column_count: usize,
     pub public_input_count: usize,
     pub complete_families: Vec<String>,
+    pub model_columns: Vec<usize>,
     pub selection: Selection,
     pub retained_rows: Vec<crate::RowReference>,
     pub removed_rows: Vec<crate::RowReference>,
@@ -45,6 +46,7 @@ impl Evidence {
             column_count: problem.column_count,
             public_input_count: problem.public_input_count,
             complete_families: problem.complete_families.clone(),
+            model_columns: query.model_columns.clone(),
             selection,
             retained_rows: query.retained_rows,
             removed_rows: query.removed_rows,

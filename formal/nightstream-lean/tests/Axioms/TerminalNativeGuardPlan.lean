@@ -1,0 +1,14 @@
+import Nightstream.Assurance.TerminalNativeGuardPlan
+import tests.Axioms.Support
+
+namespace tests.Axioms.TerminalNativeGuardPlan
+
+open Nightstream.Assurance.TerminalNativeGuardPlan
+
+#audit_axioms verify_eq_ok_iff_target
+#audit_axioms retained_necessary
+#audit_axioms inclusionMinimalSound
+#audit_axioms artifact_guard_names_exact
+#audit_axioms artifact_name_has_removal_witness
+
+end tests.Axioms.TerminalNativeGuardPlan

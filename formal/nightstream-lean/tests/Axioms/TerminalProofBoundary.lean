@@ -1,0 +1,15 @@
+import Nightstream.Assurance.TerminalProofBoundary
+import tests.Axioms.Support
+
+namespace tests.Axioms.TerminalProofBoundary
+
+open Nightstream.Assurance.TerminalProofBoundary
+
+#audit_axioms guardNames_exact
+#audit_axioms verify_eq_true_iff_target
+#audit_axioms expectedPublicImage_necessary
+#audit_axioms backendVerification_necessary
+#audit_axioms publicStatement_necessary
+#audit_axioms inclusionMinimalSound
+
+end tests.Axioms.TerminalProofBoundary

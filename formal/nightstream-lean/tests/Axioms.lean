@@ -2,6 +2,10 @@ import tests.Axioms.Paper
 import tests.Axioms.DeciderReduction
 import tests.Axioms.RelationArtifactBinding
 import tests.Axioms.ConstraintMinimization
+import tests.Axioms.TerminalContextBoundary
+import tests.Axioms.TerminalNativeGuardPlan
+import tests.Axioms.TerminalProofBoundary
+import tests.Axioms.TerminalStatementBoundary
 import tests.Axioms.FPrimeAccumulatorBinding
 import tests.Axioms.FPrimeCanonicalVerifier
 import tests.Axioms.FPrimeCanonicalNifsRefinement

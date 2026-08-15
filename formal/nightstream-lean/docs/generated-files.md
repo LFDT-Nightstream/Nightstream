@@ -45,6 +45,7 @@ file without a live Rust path owner is stale and must be removed.
 | Strict PiDEC source rows | `f_prime_pi_dec_source_lean_artifact` |
 | Canonical PiDEC X rows | `f_prime_pi_dec_canonical_x_lean_artifact` |
 | Native step, terminal link, and one-slot conformance records | `system_formal_conformance` |
+| Verifier-native terminal guard names | `system_formal_conformance`, test `terminal_native_guard_names_are_exact_and_deterministic` |
 
 The selected full recursive circuit is checked by live Rust synthesis tests.
 The Nebula base-lane program-binding owner now has a complete exact-row

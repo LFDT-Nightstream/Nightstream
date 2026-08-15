@@ -3,15 +3,15 @@
   "sources": [
     {
       "path": "crates/neo-fold-clean/src/paper/f_prime/native.rs",
-      "sha256": "9f37ed3c59e1d54cd1525e65bc429a1ba80c3b8c693375fa20e3a31ef2183d2b"
+      "sha256": "3ec80ab349615c27412bdb3f05790e7733b0e4eca0050406068fa7e7ae99f71a"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/construction2/transition.rs",
-      "sha256": "5570daab0fb5c4ff5372ab3e7e05eb0eb326953d8b0899f4d89bfc7a8f95c4a1"
+      "sha256": "4bbb2010314df22ecc1bd1ad3877d8effdeec6d68144695c1f8060d4d7c04223"
     },
     {
       "path": "crates/neo-fold-clean/src/lifecycle/verify.rs",
-      "sha256": "7bd44138c6fdfc747821ec9413e166d97b1e3c26a5ef483443b7a3556786021f"
+      "sha256": "d80c5861177fbfa4f5292356370b07c025123918f9f92702c05d8e65fcead37d"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/decider.rs",
@@ -23,19 +23,23 @@
     },
     {
       "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/mod.rs",
-      "sha256": "4109224d101325826d47a0c0245d2902f6c7e3110896e94903334d3c8931777b"
+      "sha256": "70347d9ba8ac408f21320e53b5b05bb75fb7820c81c486f94d8ca6a4d2dec9f8"
     },
     {
       "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/compiler.rs",
-      "sha256": "2eb66acaab7e9ba57aa40a22f8a59f2936cf826988aff4ac1f3aab0acb4f8497"
+      "sha256": "44ae568d00bedb9a17f7233f07e2f76b0ae0ec45e7c5cfc939bf62f10dd720c9"
     },
     {
       "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/lifecycle.rs",
-      "sha256": "c44b22f394a3150848ffd53cafea3fb010623f87c681204a8e21903fc5450e81"
+      "sha256": "f573af578cc8e9942ff51dffe3d30ab5f07c4598c417c214e3b0bf517da02793"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/formal_conformance.rs",
-      "sha256": "0585111800eb36b92cfdf685b96aa64b1bc6e7a0adf9a367001e949fa93e7dbb"
+      "sha256": "a82f354982f73364bdd9fc8b3a7fe1ec81ebb9fd3fe3edd9f7bfe422b57dada0"
+    },
+    {
+      "path": "crates/neo-fold-clean/tests/system/formal_conformance/terminal_native_guard_export.rs",
+      "sha256": "74b54b35369fcdb4d102e005b7609937bfebd2611c46065da3e37b2d8e1724b2"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/formal_conformance/canonical_step_export.rs",
@@ -47,11 +51,11 @@
     },
     {
       "path": "crates/neo-fold-clean/tests/system/formal_conformance/rust_origin.rs",
-      "sha256": "3329d13a145a4c303439a3ffb9c9703e2c53ec5f03ec92a2f5abfe63eebb24d4"
+      "sha256": "94ab4818f6618302f9ffaf264065bae9c07fb35eefc71c8b369e1c7b9ef56af1"
     },
     {
       "path": "protocol-contract/check_rust_evidence.py",
-      "sha256": "c8bd4bb8838f1ef3ae78b99f6a7237c73278a879fe3e4397788b31a1211b22f4"
+      "sha256": "84cb64a46cd4a74fb7d38aa97a38b8c0fa837e54a391690a7ad9165e9c36fe1d"
     },
     {
       "path": "formal/nightstream-lean/scripts/validate.sh",
@@ -82,6 +86,38 @@
       "sha256": "5920e181bf541cef0fa9711798dbe92e5ee27528ec9323efd2bea6f4a18341ca"
     },
     {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/TerminalNativeGuards.lean",
+      "sha256": "cffed5142528715e549331072ef0e853fa911a50d5afae97950ac5c44b9efb62"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/TerminalVerifierNativeGuards.lean",
+      "sha256": "1b937ed0d2fe5940434f458f3c52c4dc51b57e9b6d1b43bf4312a91da4cb7519"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/TerminalContextBoundary.lean",
+      "sha256": "d5de0ccadafd7ca96a737b7d77221b4b4a8392090a10130ce498c1a9f71446ae"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/TerminalStatementBoundary.lean",
+      "sha256": "e7b30b16edeb0f11de1dcebfe0a3f619bf59f4e2a0f75ac1b9eb7da97ba48b22"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/TerminalProofBoundary.lean",
+      "sha256": "652885d80478d0bb34ba28ede056d64d527b20c219d3bba14f6da9030aa9a709"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/TerminalNativeGuardPlan.lean",
+      "sha256": "a6fbd2ab7eb727f51895392d35fb23e9a112043fec487b0aa7b9e2b2e7862221"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/ConstraintMinimization.lean",
+      "sha256": "046c7ae18fc9a2e7aff2e6a69b2af86d58861bd9b94181f0a354f147f1aa7d37"
+    },
+    {
+      "path": "formal/nightstream-lean/tests/Axioms/TerminalNativeGuardPlan.lean",
+      "sha256": "7b6e7f04a2fbabb1d7f4657054a9d9cfb7552a80d493293204cc55ab7d4d3b35"
+    },
+    {
       "path": "formal/nightstream-lean/Nightstream/Assurance/DeciderReduction.lean",
       "sha256": "1fe28128c689d6589bea5734b0549c46601bfa791f24142c89b8c73b9623f158"
     },
@@ -91,7 +127,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/relation_artifact.rs",
-      "sha256": "9ce7fe88edd74b04c0c02611bd7b2526137c0f9a44bf56bb485d147caffc6797"
+      "sha256": "46a96ca632e4b6125ab01e3e81cd025bfb49c33779ea893ab5b323a393fbe055"
     },
     {
       "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/relation_artifact.rs",
@@ -99,11 +135,11 @@
     },
     {
       "path": "crates/neo-fold-clean/tests/system/relation_artifact.rs",
-      "sha256": "ce49925f8a77e6c75c4a2288450c0ccb07d2886b82c1fcca2596989ba2acc773"
+      "sha256": "ed2fd6286c789300dcdbda15e5fdfacc49f6ea3790b49399d5bf7d96ea0c6ce7"
     },
     {
       "path": "protocol-contract/check_relation_artifact_evidence.py",
-      "sha256": "2f4262d3c129a2ea35e301982d18885626e5ca664c65f04aa589dfe8b6b2a021"
+      "sha256": "c33c6ecd4899f3db595719707e778a99c21e7a7d85139e8e88cb8f6c5b60f481"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Assurance/RelationArtifactBinding.lean",
@@ -146,6 +182,42 @@
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/Terminal.lean",
       "name": "theorem invalid_has_named_rejection"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/TerminalNativeGuards.lean",
+      "name": "theorem verify_eq_ok_iff"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/TerminalNativeGuardPlan.lean",
+      "name": "theorem verify_eq_ok_iff_target"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/TerminalNativeGuardPlan.lean",
+      "name": "theorem inclusionMinimalSound"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/TerminalNativeGuardPlan.lean",
+      "name": "theorem artifact_guard_names_exact"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/ConstraintMinimization.lean",
+      "name": "theorem rust_terminal_native_guard_names_exact"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/ConstraintMinimization.lean",
+      "name": "theorem redundant_of_full_bound_valid"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/ConstraintMinimization.lean",
+      "name": "theorem redundant_of_full_terminal_bound_valid"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/ConstraintMinimization.lean",
+      "name": "theorem necessary_of_full_bound_valid"
+    },
+    {
+      "path": "formal/nightstream-lean/Nightstream/Assurance/ConstraintMinimization.lean",
+      "name": "theorem necessary_of_full_terminal_bound_valid"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/Rust/CanonicalConformance/OneSlot.lean",

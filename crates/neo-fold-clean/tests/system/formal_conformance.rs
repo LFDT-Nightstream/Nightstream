@@ -18,6 +18,8 @@ mod support;
 mod terminal_link_program_export;
 #[path = "formal_conformance/terminal_link_rows_export.rs"]
 mod terminal_link_rows_export;
+#[path = "formal_conformance/terminal_native_guard_export.rs"]
+mod terminal_native_guard_export;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -314,6 +316,21 @@ fn terminal_link_two_claim_rows_are_exact_and_deterministic() {
     assert!(
         drifted.is_empty(),
         "terminal-link two-claim rows drifted; inspect and deliberately promote {drifted:?}"
+    );
+}
+
+#[test]
+fn terminal_native_guard_names_are_exact_and_deterministic() {
+    let lean = terminal_native_guard_export::checked_terminal_native_guard_names();
+    let lean_path = repo_root().join(
+        "formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/\
+         TerminalVerifierNativeGuards/Generated/Names.lean",
+    );
+    let mut drifted = Vec::new();
+    compare_or_write_expected(&lean_path, &lean, &mut drifted);
+    assert!(
+        drifted.is_empty(),
+        "terminal native guard ledger drifted; inspect and deliberately promote {drifted:?}"
     );
 }
 

@@ -12,7 +12,7 @@ mod pi_ccs_output_digest_audit;
 mod relation;
 pub(crate) mod shape;
 
-pub use chain::{R1csIvc, R1csIvcPreprocessing};
+pub use chain::{R1csIvc, R1csIvcConstraintWitnessAudit, R1csIvcPreprocessing};
 pub use compilation_audit::{
     ArmShapeAudit, FixedPointRoundAudit, R1csIvcCompilationAudit, R1csIvcFixedPointShapeAudit, RelationHeaderAudit,
 };

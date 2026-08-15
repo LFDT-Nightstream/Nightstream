@@ -1,11 +1,47 @@
 //! Data returned by bounded selective-row projection.
 
+use neo_ccs::SeededPhi81LinearBlock;
 use neo_math::F;
 
 use crate::frontends::r1cs_f_prime::selective_audit::{SelectiveEmittedRowFamily, SelectiveRewriteKind};
 use crate::frontends::r1cs_f_prime::selective_row_artifact::SELECTIVE_ROW_ARTIFACT_SCHEMA_VERSION;
 
 use super::super::SELECTIVE_ARITY;
+
+/// Exact storage census for one port's explicit emitter-order term stream
+/// under constant-coefficient affine run encoding.
+///
+/// This is a format-design measurement. It does not replace the emitted
+/// matrix or authorize a compact artifact claim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SelectiveProjectedExplicitRunCensus {
+    pub(super) term_count: usize,
+    pub(super) affine_run_count: usize,
+    pub(super) affine_run_terms: usize,
+    pub(super) literal_count: usize,
+}
+
+impl SelectiveProjectedExplicitRunCensus {
+    pub fn term_count(self) -> usize {
+        self.term_count
+    }
+
+    pub fn affine_run_count(self) -> usize {
+        self.affine_run_count
+    }
+
+    pub fn affine_run_terms(self) -> usize {
+        self.affine_run_terms
+    }
+
+    pub fn literal_count(self) -> usize {
+        self.literal_count
+    }
+
+    pub fn record_count(self) -> usize {
+        self.affine_run_count + self.literal_count
+    }
+}
 
 /// One exact source-field term retained in compiler provenance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -346,6 +382,7 @@ impl SelectiveProjectedGeometricRun {
 pub struct SelectiveProjectedPort {
     pub(super) explicit: Vec<SelectiveProjectedTerm>,
     pub(super) geometric_runs: Vec<SelectiveProjectedGeometricRun>,
+    pub(super) seeded_blocks: Vec<SeededPhi81LinearBlock>,
 }
 
 impl SelectiveProjectedPort {
@@ -355,6 +392,10 @@ impl SelectiveProjectedPort {
 
     pub fn geometric_runs(&self) -> &[SelectiveProjectedGeometricRun] {
         &self.geometric_runs
+    }
+
+    pub fn seeded_blocks(&self) -> &[SeededPhi81LinearBlock] {
+        &self.seeded_blocks
     }
 }
 

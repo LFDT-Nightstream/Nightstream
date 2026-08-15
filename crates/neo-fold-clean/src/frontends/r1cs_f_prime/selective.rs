@@ -67,12 +67,12 @@ pub(crate) use projected_rows::{
     project_rows_with_alignment, project_rows_with_complete_source_provenance_with_alignment,
 };
 pub use projected_rows::{
-    SelectiveProjectedDerivedProductSum, SelectiveProjectedGeometricRun, SelectiveProjectedPort,
-    SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource,
-    SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep,
-    SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit, SelectiveProjectedSourceDefinition,
-    SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot,
-    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+    SelectiveProjectedDerivedProductSum, SelectiveProjectedExplicitRunCensus, SelectiveProjectedGeometricRun,
+    SelectiveProjectedPort, SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate,
+    SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput,
+    SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit,
+    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance,
+    SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_rows, PreparedSelectiveRows};
 #[doc(hidden)]
@@ -211,6 +211,18 @@ impl PreparedSelectiveLowNormR1cs {
 
     pub(crate) fn arm(&self, index: usize) -> &SparseR1cs {
         &self.arms[index]
+    }
+
+    /// Finish the exact compiler audit without emitting the final CCS
+    /// matrices, and return the source arms from the same prepared plan.
+    pub(crate) fn into_source_audit_parts(self) -> Result<(Vec<SparseR1cs>, SelectiveCompilerAudit), LowNormR1csError> {
+        let Self {
+            arms,
+            shared_private_fields,
+            layout,
+        } = self;
+        let layout = finish_selective_layout(&arms, shared_private_fields, layout)?;
+        Ok((arms, layout.compiler_audit))
     }
 
     pub(crate) fn finish(self) -> Result<MultiBranchLowNormR1cs, LowNormR1csError> {

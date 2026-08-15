@@ -5,6 +5,8 @@
 //! directions in one wrapper makes Nebula's one-step delay explicit.
 
 mod chain;
+mod constraint_source_audit;
+mod constraint_witness_audit;
 mod encoder_artifact;
 mod relation_artifact;
 mod shape;
@@ -14,6 +16,8 @@ mod streaming_program;
 pub use chain::{
     NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreparedProfile, NebulaFPrimePreprocessing,
 };
+pub use constraint_source_audit::NebulaFPrimeConstraintSourceAudit;
+pub use constraint_witness_audit::NebulaFPrimeConstraintWitnessAudit;
 pub use encoder_artifact::{NebulaFPrimeEncoderArtifactReceipt, VerifiedNebulaFPrimeEncoderArtifact};
 #[doc(hidden)]
 pub use streaming_claim_replay::{
@@ -181,6 +185,13 @@ pub struct NebulaFPrimeRelation {
     preprocessing_digest: Option<[F; 4]>,
 }
 
+struct NebulaFixedPointCandidate {
+    prepared: PreparedSelectiveLowNormR1cs,
+    rounds: usize,
+    verifier_rows: usize,
+    verifier_columns: usize,
+}
+
 impl NebulaFPrimeRelation {
     /// Compile the two distinct relation arms to a verifier-shape fixed point.
     ///
@@ -209,6 +220,15 @@ impl NebulaFPrimeRelation {
         plan: &NebulaPlan,
         application: Option<NebulaApplication>,
     ) -> Result<Self, NebulaFPrimeRelationError> {
+        let candidate = Self::discover_fixed_point(params, plan, application.as_ref())?;
+        Self::compile_owned_selected(candidate.prepared, plan, application)
+    }
+
+    fn discover_fixed_point(
+        params: &Params,
+        plan: &NebulaPlan,
+        application: Option<&NebulaApplication>,
+    ) -> Result<NebulaFixedPointCandidate, NebulaFPrimeRelationError> {
         // Fixed-point discovery starts inside the output compiler's relation
         // family. The previous S_mem seed forced one full transition from a
         // 15-matrix degree-4 relation before the 13-matrix degree-8 selective
@@ -229,7 +249,7 @@ impl NebulaFPrimeRelation {
             seen.push(input_signature);
             #[cfg(feature = "perf-timers")]
             let synthesis_started = std::time::Instant::now();
-            let arms = shape::synthesize_arm_shapes(params, &verifier_relation, plan, application.as_ref())?;
+            let arms = shape::synthesize_arm_shapes(params, &verifier_relation, plan, application)?;
             #[cfg(feature = "perf-timers")]
             let synthesis_elapsed = synthesis_started.elapsed();
             #[cfg(feature = "perf-timers")]
@@ -259,7 +279,12 @@ impl NebulaFPrimeRelation {
                 round_started.elapsed().as_secs_f64(),
             );
             if input_signature == output_signature {
-                return Self::compile_owned_selected(prepared, plan, application.clone());
+                return Ok(NebulaFixedPointCandidate {
+                    prepared,
+                    rounds: seen.len(),
+                    verifier_rows: input_signature.0,
+                    verifier_columns: input_signature.1,
+                });
             }
             if seen.contains(&output_signature) {
                 return Err(NebulaFPrimeRelationError::NoFixedPoint {

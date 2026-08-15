@@ -47,12 +47,12 @@ use super::{
 mod model;
 
 pub use model::{
-    SelectiveProjectedDerivedProductSum, SelectiveProjectedGeometricRun, SelectiveProjectedPort,
-    SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource,
-    SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep,
-    SelectiveProjectedRowArtifact, SelectiveProjectedSourceDefinition, SelectiveProjectedSourceLinearCombination,
-    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm,
-    SelectiveProjectedTerm,
+    SelectiveProjectedDerivedProductSum, SelectiveProjectedExplicitRunCensus, SelectiveProjectedGeometricRun,
+    SelectiveProjectedPort, SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate,
+    SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput,
+    SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact, SelectiveProjectedSourceDefinition,
+    SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance, SelectiveProjectedSourceSlot,
+    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 
 /// Exact selected rows emitted from one prepared selective compiler plan.
@@ -72,6 +72,7 @@ pub struct SelectiveProjectedRowsAudit {
     source_provenance: Option<SelectiveProjectedSourceProvenance>,
     decoder_provenance: Option<SelectiveProjectedDecoderProvenance>,
     decoder_run_provenance: Option<SelectiveProjectedDecoderRunProvenance>,
+    explicit_run_census: Vec<SelectiveProjectedExplicitRunCensus>,
 }
 
 impl SelectiveProjectedRowsAudit {
@@ -146,6 +147,58 @@ impl SelectiveProjectedRowsAudit {
     pub fn decoder_run_provenance(&self) -> Option<&SelectiveProjectedDecoderRunProvenance> {
         self.decoder_run_provenance.as_ref()
     }
+
+    /// Per-port format-design census over the exact emitter-order explicit
+    /// term stream. A run has at least three terms, one fixed field
+    /// coefficient, and fixed signed row and column deltas.
+    pub fn explicit_run_census(&self) -> &[SelectiveProjectedExplicitRunCensus] {
+        &self.explicit_run_census
+    }
+}
+
+fn signed_delta(next: usize, current: usize) -> i128 {
+    next as i128 - current as i128
+}
+
+fn explicit_run_census(terms: &[(usize, usize, F)]) -> SelectiveProjectedExplicitRunCensus {
+    let mut cursor = 0usize;
+    let mut affine_run_count = 0usize;
+    let mut affine_run_terms = 0usize;
+    let mut literal_count = 0usize;
+    while cursor < terms.len() {
+        if cursor + 2 < terms.len() {
+            let first = terms[cursor];
+            let second = terms[cursor + 1];
+            let row_delta = signed_delta(second.0, first.0);
+            let column_delta = signed_delta(second.1, first.1);
+            if second.2 == first.2
+                && terms[cursor + 2].2 == first.2
+                && signed_delta(terms[cursor + 2].0, second.0) == row_delta
+                && signed_delta(terms[cursor + 2].1, second.1) == column_delta
+            {
+                let mut stop = cursor + 3;
+                while stop < terms.len()
+                    && terms[stop].2 == first.2
+                    && signed_delta(terms[stop].0, terms[stop - 1].0) == row_delta
+                    && signed_delta(terms[stop].1, terms[stop - 1].1) == column_delta
+                {
+                    stop += 1;
+                }
+                affine_run_count += 1;
+                affine_run_terms += stop - cursor;
+                cursor = stop;
+                continue;
+            }
+        }
+        literal_count += 1;
+        cursor += 1;
+    }
+    SelectiveProjectedExplicitRunCensus {
+        term_count: terms.len(),
+        affine_run_count,
+        affine_run_terms,
+        literal_count,
+    }
 }
 
 fn public_coordinate_decoder(
@@ -212,7 +265,12 @@ fn public_coordinate_decoder(
     Ok(decoded)
 }
 
-fn project_port(terms: &MatrixTerms, row: usize, columns: usize) -> Result<SelectiveProjectedPort, LowNormR1csError> {
+fn project_port(
+    terms: &MatrixTerms,
+    row: usize,
+    rows: usize,
+    columns: usize,
+) -> Result<SelectiveProjectedPort, LowNormR1csError> {
     let mut canonical = BTreeMap::<usize, F>::new();
     let mut add = |column: usize, coefficient: F| -> Result<(), LowNormR1csError> {
         if column >= columns {
@@ -243,13 +301,17 @@ fn project_port(terms: &MatrixTerms, row: usize, columns: usize) -> Result<Selec
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    for block in &terms.seeded {
-        if block.row_start() <= row && row < block.row_start() + D * block.kappa() {
-            return Err(trace_error(
-                "bounded selective projection intersects a compact seeded row",
-            ));
-        }
-    }
+    let seeded_blocks = terms
+        .seeded
+        .iter()
+        .filter(|block| (block.row_start()..block.row_end()).contains(&row))
+        .map(|block| {
+            block
+                .validate_matrix_shape(rows, columns)
+                .map_err(|_| trace_error("projected seeded block exceeds the final matrix geometry"))?;
+            Ok(block.clone())
+        })
+        .collect::<Result<Vec<_>, LowNormR1csError>>()?;
     canonical.retain(|_, coefficient| *coefficient != F::ZERO);
     Ok(SelectiveProjectedPort {
         explicit: canonical
@@ -257,6 +319,7 @@ fn project_port(terms: &MatrixTerms, row: usize, columns: usize) -> Result<Selec
             .map(|(column, coefficient)| SelectiveProjectedTerm { column, coefficient })
             .collect(),
         geometric_runs,
+        seeded_blocks,
     })
 }
 
@@ -285,7 +348,7 @@ fn project_row_artifact(
     row: usize,
 ) -> Result<SelectiveProjectedRowArtifact, LowNormR1csError> {
     let ports = (0..SELECTIVE_ARITY)
-        .map(|port| project_port(&emitted.matrix_terms[port], row, emitted.columns))
+        .map(|port| project_port(&emitted.matrix_terms[port], row, emitted.rows, emitted.columns))
         .collect::<Result<Vec<_>, _>>()?;
     let ports: [SelectiveProjectedPort; SELECTIVE_ARITY] = ports
         .try_into()
@@ -317,6 +380,12 @@ fn port_intersects_slot(port: &SelectiveProjectedPort, (start, width): (usize, u
         || port.geometric_runs.iter().any(|run| {
             let run_end = run.column_start + run.length;
             start < run_end && run.column_start < end
+        })
+        || port.seeded_blocks.iter().any(|block| {
+            block.word_starts().iter().any(|&word_start| {
+                let word_end = word_start + block.word_width();
+                start < word_end && word_start < end
+            })
         })
 }
 
@@ -642,7 +711,7 @@ fn verify_rewrite_step(
         )?;
     }
     for (port, terms) in expected.iter().enumerate() {
-        if project_port(terms, 0, artifact.columns)? != artifact.ports[port] {
+        if project_port(terms, 0, artifact.rows, artifact.columns)? != artifact.ports[port] {
             return Err(trace_error(
                 "projected executable rewrite step does not reproduce its exact emitted row",
             ));
@@ -777,7 +846,7 @@ fn verify_retained_step(
         }
     }
     for (port, terms) in expected.iter().enumerate() {
-        if project_port(terms, 0, artifact.columns)? != artifact.ports[port] {
+        if project_port(terms, 0, artifact.rows, artifact.columns)? != artifact.ports[port] {
             return Err(trace_error(
                 "projected retained source step does not reproduce its exact emitted row",
             ));
@@ -1144,6 +1213,11 @@ fn project_rows_inner(
             "projected emitter row count differs from its compiler audit",
         ));
     }
+    let explicit_run_census = emitted
+        .matrix_terms
+        .iter()
+        .map(|terms| explicit_run_census(&terms.explicit))
+        .collect();
 
     let mut unique = BTreeSet::new();
     for &row in selected_rows {
@@ -1325,5 +1399,6 @@ fn project_rows_inner(
         source_provenance,
         decoder_provenance,
         decoder_run_provenance,
+        explicit_run_census,
     })
 }

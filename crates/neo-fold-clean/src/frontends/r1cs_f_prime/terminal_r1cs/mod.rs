@@ -16,6 +16,8 @@ use wip_spartan::{
     SplitR1CSShape,
 };
 
+use crate::engine::r1cs_circuit::builder::RowFamilyRange;
+use crate::engine::r1cs_circuit::R1csSnapshot;
 use crate::paper::relations::{CcsClaim, CcsInstance, CeClaim, WitnessMat};
 
 use super::{
@@ -25,12 +27,190 @@ use super::{
 /// Direct Spartan engine used by the terminal reference relation.
 pub type TerminalSpartanEngine = GoldilocksWhirEngine;
 
+#[repr(u8)]
+#[derive(Clone, Copy)]
+enum TerminalContextGuard {
+    Induction,
+    PlainChain,
+    PublicWidth,
+    RelationStructure,
+}
+
+impl TerminalContextGuard {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Induction => "terminal.context.induction",
+            Self::PlainChain => "terminal.context.plain_chain",
+            Self::PublicWidth => "terminal.context.public_width",
+            Self::RelationStructure => "terminal.context.relation_structure",
+        }
+    }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy)]
+enum TerminalStatementGuard {
+    RunningClaimCount,
+    VerifierKey,
+    InitialSemanticState,
+    InitialBoundary,
+    ProgramCounter,
+    Counters,
+    FreshBoundary,
+    RunningAccumulator,
+    SemanticState,
+    StateXOut,
+    FreshPublicLink,
+}
+
+impl TerminalStatementGuard {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::RunningClaimCount => "terminal.statement.running_claim_count",
+            Self::VerifierKey => "terminal.statement.verifier_key",
+            Self::InitialSemanticState => "terminal.statement.initial_semantic_state",
+            Self::InitialBoundary => "terminal.statement.initial_boundary",
+            Self::ProgramCounter => "terminal.statement.program_counter",
+            Self::Counters => "terminal.statement.counters",
+            Self::FreshBoundary => "terminal.statement.fresh_boundary",
+            Self::RunningAccumulator => "terminal.statement.running_accumulator",
+            Self::SemanticState => "terminal.statement.semantic_state",
+            Self::StateXOut => "terminal.statement.state_x_out",
+            Self::FreshPublicLink => "terminal.statement.fresh_public_link",
+        }
+    }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy)]
+enum TerminalProofGuard {
+    ExpectedPublicImage,
+    SpartanVerification,
+    PublicStatement,
+}
+
+impl TerminalProofGuard {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::ExpectedPublicImage => "terminal.proof.expected_public_image",
+            Self::SpartanVerification => "terminal.proof.spartan_verification",
+            Self::PublicStatement => "terminal.proof.public_statement",
+        }
+    }
+}
+
+/// Reviewed semantic family vocabulary for the direct terminal R1CS.
+pub const TERMINAL_R1CS_FAMILY_NAMES: [&str; 8] = [
+    "terminal.fresh.commitment",
+    "terminal.fresh.norm",
+    "terminal.fresh.public_projection",
+    "terminal.fresh.selected_relation",
+    "terminal.running.commitment",
+    "terminal.running.evaluations",
+    "terminal.running.norm",
+    "terminal.running.public_projection",
+];
+
+/// Verifier-owned context guards outside the terminal R1CS.
+pub const TERMINAL_CONTEXT_GUARD_NAMES: [&str; 4] = [
+    TerminalContextGuard::Induction.name(),
+    TerminalContextGuard::PlainChain.name(),
+    TerminalContextGuard::PublicWidth.name(),
+    TerminalContextGuard::RelationStructure.name(),
+];
+
+/// Verifier-native terminal statement guards outside the terminal R1CS.
+///
+/// cvc5 must not classify these names as polynomial row families. Their
+/// authority comes from verifier recomputation and separate Lean proofs.
+pub const TERMINAL_STATEMENT_GUARD_NAMES: [&str; 11] = [
+    TerminalStatementGuard::RunningClaimCount.name(),
+    TerminalStatementGuard::VerifierKey.name(),
+    TerminalStatementGuard::InitialSemanticState.name(),
+    TerminalStatementGuard::InitialBoundary.name(),
+    TerminalStatementGuard::ProgramCounter.name(),
+    TerminalStatementGuard::Counters.name(),
+    TerminalStatementGuard::FreshBoundary.name(),
+    TerminalStatementGuard::RunningAccumulator.name(),
+    TerminalStatementGuard::SemanticState.name(),
+    TerminalStatementGuard::StateXOut.name(),
+    TerminalStatementGuard::FreshPublicLink.name(),
+];
+
+/// Cryptographic proof-boundary guards outside the terminal R1CS.
+pub const TERMINAL_PROOF_GUARD_NAMES: [&str; 3] = [
+    TerminalProofGuard::ExpectedPublicImage.name(),
+    TerminalProofGuard::SpartanVerification.name(),
+    TerminalProofGuard::PublicStatement.name(),
+];
+
 /// Exact terminal relation and one satisfying assignment.
 pub struct CompiledTerminalR1cs {
     shape: SplitR1CSShape<TerminalSpartanEngine>,
     private_values: Vec<SpartanF>,
     public_values: Vec<SpartanF>,
     lean_public_columns: usize,
+    constraint_audit: TerminalR1csConstraintAudit,
+}
+
+/// Exact unpadded terminal R1CS and its map into the padded Spartan shape.
+///
+/// Source columns use `[one, public, private]`. Spartan uses
+/// `[padded private, one, public]`. The explicit map binds both layouts.
+#[derive(Clone, Debug)]
+pub struct TerminalR1csConstraintAudit {
+    source: R1csSnapshot,
+    row_families: Vec<RowFamilyRange>,
+    source_public_columns: usize,
+    source_private_columns: usize,
+    spartan_private_columns: usize,
+    spartan_rows: usize,
+    spartan_columns: usize,
+}
+
+impl TerminalR1csConstraintAudit {
+    pub fn source(&self) -> &R1csSnapshot {
+        &self.source
+    }
+
+    pub fn row_families(&self) -> &[RowFamilyRange] {
+        &self.row_families
+    }
+
+    /// Source public prefix length, including the constant-one column.
+    pub fn source_public_columns(&self) -> usize {
+        self.source_public_columns
+    }
+
+    pub fn source_private_columns(&self) -> usize {
+        self.source_private_columns
+    }
+
+    pub fn spartan_private_columns(&self) -> usize {
+        self.spartan_private_columns
+    }
+
+    /// Map `[one, public, private]` source columns into
+    /// `[padded private, one, public]` Spartan columns.
+    pub fn source_to_spartan_column(&self, source_column: usize) -> Option<usize> {
+        if source_column == 0 {
+            Some(self.spartan_private_columns)
+        } else if source_column < self.source_public_columns {
+            Some(self.spartan_private_columns + source_column)
+        } else if source_column < self.source.cols() {
+            Some(source_column - self.source_public_columns)
+        } else {
+            None
+        }
+    }
+
+    pub fn spartan_rows(&self) -> usize {
+        self.spartan_rows
+    }
+
+    pub fn spartan_columns(&self) -> usize {
+        self.spartan_columns
+    }
 }
 
 /// Verifier-reconstructible terminal relation and its explicit public values.
@@ -79,6 +259,10 @@ impl CompiledTerminalR1cs {
     /// Lean counts the verifier-owned constant-one column as public.
     pub fn lean_public_columns(&self) -> usize {
         self.lean_public_columns
+    }
+
+    pub fn constraint_audit(&self) -> &TerminalR1csConstraintAudit {
+        &self.constraint_audit
     }
 
     pub fn into_parts(self) -> (SplitR1CSShape<TerminalSpartanEngine>, Vec<SpartanF>, Vec<SpartanF>) {
@@ -172,5 +356,8 @@ pub fn compile_combined_terminal_r1cs_statement(
 }
 
 pub use lifecycle::{
-    finish_with_spartan, verify_spartan, TerminalRunningStatement, TerminalSpartanProof, TerminalSpartanStatement,
+    audit_combined_terminal_context_guards, audit_combined_terminal_statement_guards, audit_terminal_context_guards,
+    audit_terminal_statement_guards, finish_combined_with_spartan, finish_with_spartan, verify_combined_spartan,
+    verify_spartan, TerminalContextGuardAudit, TerminalRunningStatement, TerminalSpartanProof,
+    TerminalSpartanStatement, TerminalStatementGuardAudit,
 };

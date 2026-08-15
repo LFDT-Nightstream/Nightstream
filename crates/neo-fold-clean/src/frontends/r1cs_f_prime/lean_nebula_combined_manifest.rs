@@ -19,6 +19,7 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use thiserror::Error;
 
+use crate::paper::f_prime::r1cs::FPrimePublicInputLayout;
 use crate::paper::relations::Structure;
 
 use super::lean_manifest::{invalid, ColumnId, LeanManifestError, ManifestCost, ManifestTerm, GOLDILOCKS_MODULUS};
@@ -316,6 +317,11 @@ impl LeanNebulaCombinedManifest {
     /// Read the complete combined public carrier width.
     pub fn public_carrier_width(&self) -> usize {
         self.wire.relation.layout.combined_public_width
+    }
+
+    /// Read the native F' prefix plus application-public suffix layout.
+    pub fn public_input_layout(&self) -> FPrimePublicInputLayout {
+        FPrimePublicInputLayout::with_suffix(self.wire.relation.layout.nebula_public_end - 1)
     }
 
     /// Read the exact application-owned private witness width.

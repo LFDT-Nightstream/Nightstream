@@ -1,0 +1,13 @@
+import Nightstream.Assurance.TerminalContextBoundary
+import tests.Axioms.Support
+
+namespace tests.Axioms.TerminalContextBoundary
+
+open Nightstream.Assurance.TerminalContextBoundary
+
+#audit_axioms guardNames_exact
+#audit_axioms verify_eq_true_iff_target
+#audit_axioms retained_necessary
+#audit_axioms inclusionMinimalSound
+
+end tests.Axioms.TerminalContextBoundary

@@ -2,6 +2,7 @@ import Nightstream.Assurance.ValidExecution
 import Nightstream.Assurance.DeciderReduction
 import Nightstream.Assurance.RelationArtifactBinding
 import Nightstream.Assurance.ConstraintMinimization
+import Nightstream.Assurance.TerminalNativeGuardPlan
 import Nightstream.Assurance.FPrimeTrace
 import Nightstream.Assurance.FPrimeCircuit
 import Nightstream.Assurance.FPrimeCircuitTrace

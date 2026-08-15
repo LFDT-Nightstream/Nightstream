@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use neo_ajtai::{precompute_rot_columns, AjtaiSModule};
 use neo_ccs::build_superneo_ring_forms;
@@ -6,12 +6,13 @@ use neo_math::{KExtensions, D, F};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use wip_spartan::{provider::goldi::F as SpartanF, SparseMatrix, SplitR1CSShape};
 
-use crate::engine::r1cs_circuit::{Lc, R1csBuilder, Var};
+use crate::engine::r1cs_circuit::builder::RowFamilyRange;
+use crate::engine::r1cs_circuit::{Lc, R1csBuilder, R1csSnapshot, Var};
 use crate::paper::relations::{superneo_has_canonical_x_shape, CcsClaim, CcsWitness, CeClaim, Structure, WitnessMat};
 
 use super::{
-    CompiledTerminalR1cs, CompiledTerminalR1csStatement, LeanNativeCcsManifest, TerminalR1csError, TerminalR1csInput,
-    TerminalR1csStatement, TerminalSpartanEngine,
+    CompiledTerminalR1cs, CompiledTerminalR1csStatement, LeanNativeCcsManifest, TerminalR1csConstraintAudit,
+    TerminalR1csError, TerminalR1csInput, TerminalR1csStatement, TerminalSpartanEngine, TERMINAL_R1CS_FAMILY_NAMES,
 };
 use crate::frontends::r1cs_f_prime::lean_manifest::{ColumnId, ManifestCost, ManifestTerm};
 use crate::frontends::r1cs_f_prime::lean_nebula_combined_manifest::{
@@ -47,6 +48,7 @@ pub(super) fn compile(
         private_values,
         public_values: compiled.public_values,
         lean_public_columns: compiled.lean_public_columns,
+        constraint_audit: compiled.constraint_audit,
     })
 }
 
@@ -97,6 +99,7 @@ pub(super) fn compile_combined(
         private_values,
         public_values: compiled.public_values,
         lean_public_columns: compiled.lean_public_columns,
+        constraint_audit: compiled.constraint_audit,
     })
 }
 
@@ -126,6 +129,7 @@ struct CompiledRelation {
     shape: SplitR1CSShape<TerminalSpartanEngine>,
     public_values: Vec<SpartanF>,
     lean_public_columns: usize,
+    constraint_audit: TerminalR1csConstraintAudit,
 }
 
 fn compile_relation(
@@ -300,12 +304,19 @@ fn finish_relation(
         builder.cols(),
         private_vars.len() + public_vars.len() + 1,
     )?;
-    let old_to_new = column_permutation(builder.cols(), &private_vars, &public_vars)?;
+    let row_families = validate_terminal_row_families(builder.row_family_ranges(), builder.rows())?;
+    let old_to_spartan = column_permutation(builder.cols(), &private_vars, &public_vars)?;
+    let old_to_source = source_column_permutation(builder.cols(), &private_vars, &public_vars)?;
     let total_columns = builder.cols();
     let (a_trips, b_trips, c_trips) = builder.sparse_triplets();
-    let a = canonical_matrix(builder.rows(), total_columns, a_trips, &old_to_new)?;
-    let b = canonical_matrix(builder.rows(), total_columns, b_trips, &old_to_new)?;
-    let c = canonical_matrix(builder.rows(), total_columns, c_trips, &old_to_new)?;
+    let source_a = remap_triplets(a_trips, &old_to_source)?;
+    let source_b = remap_triplets(b_trips, &old_to_source)?;
+    let source_c = remap_triplets(c_trips, &old_to_source)?;
+    let source_witness = source_assignment(builder.witness(), &private_vars, &public_vars);
+    let source = R1csSnapshot::from_builder_parts(&source_a, &source_b, &source_c, &[], builder.rows(), source_witness);
+    let a = canonical_matrix(builder.rows(), total_columns, a_trips, &old_to_spartan)?;
+    let b = canonical_matrix(builder.rows(), total_columns, b_trips, &old_to_spartan)?;
+    let c = canonical_matrix(builder.rows(), total_columns, c_trips, &old_to_spartan)?;
     let shape = SplitR1CSShape::<TerminalSpartanEngine>::new(
         2,
         builder.rows(),
@@ -319,6 +330,16 @@ fn finish_relation(
         c,
     )
     .map_err(|error| TerminalR1csError::Spartan(error.to_string()))?;
+    let constraint_audit = TerminalR1csConstraintAudit {
+        source,
+        row_families,
+        source_public_columns: public_vars.len() + 1,
+        source_private_columns: private_vars.len(),
+        spartan_private_columns: shape.num_variables(),
+        spartan_rows: shape.num_constraints(),
+        spartan_columns: shape.num_variables() + 1 + shape.num_public(),
+    };
+    validate_terminal_constraint_audit(&constraint_audit, &shape)?;
     let witness = builder.witness();
     let public_values = public_vars
         .iter()
@@ -330,6 +351,7 @@ fn finish_relation(
         shape,
         public_values,
         lean_public_columns: public_vars.len() + 1,
+        constraint_audit,
     })
 }
 
@@ -445,10 +467,19 @@ fn compile_running(
     let high_wires = alloc_public_vec(builder, public_vars, &high_values);
     let square_wires = alloc_squares(builder, private_vars, &witness_wires);
 
+    let phase_start = builder.rows();
     enforce_ajtai(builder, rotations, &witness_wires, &commitment_wires);
+    builder.record_row_family("terminal.running.commitment", phase_start);
+    let phase_start = builder.rows();
     enforce_projection(builder, &witness_wires, &projection_wires);
+    builder.record_row_family("terminal.running.public_projection", phase_start);
+    let phase_start = builder.rows();
     enforce_norm(builder, &witness_wires, &square_wires);
-    enforce_fixed_evaluations(builder, structure, claim, &witness_wires, &low_wires, &high_wires)
+    builder.record_row_family("terminal.running.norm", phase_start);
+    let phase_start = builder.rows();
+    enforce_fixed_evaluations(builder, structure, claim, &witness_wires, &low_wires, &high_wires)?;
+    builder.record_row_family("terminal.running.evaluations", phase_start);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -476,10 +507,19 @@ fn compile_fresh(
     let projection_wires = alloc_public_vec(builder, public_vars, &claim.x);
     let square_wires = alloc_squares(builder, private_vars, &witness_wires);
 
+    let phase_start = builder.rows();
     enforce_ajtai(builder, rotations, &witness_wires, &commitment_wires);
+    builder.record_row_family("terminal.fresh.commitment", phase_start);
+    let phase_start = builder.rows();
     enforce_projection(builder, &witness_wires, &projection_wires);
+    builder.record_row_family("terminal.fresh.public_projection", phase_start);
+    let phase_start = builder.rows();
     enforce_norm(builder, &witness_wires, &square_wires);
-    enforce_fresh_ccs(builder, private_vars, manifest, step, &witness_wires)
+    builder.record_row_family("terminal.fresh.norm", phase_start);
+    let phase_start = builder.rows();
+    enforce_fresh_ccs(builder, private_vars, manifest, step, &witness_wires)?;
+    builder.record_row_family("terminal.fresh.selected_relation", phase_start);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -506,10 +546,19 @@ fn compile_combined_fresh(
     let projection_wires = alloc_public_vec(builder, public_vars, &claim.x);
     let square_wires = alloc_squares(builder, private_vars, &witness_wires);
 
+    let phase_start = builder.rows();
     enforce_ajtai(builder, rotations, &witness_wires, &commitment_wires);
+    builder.record_row_family("terminal.fresh.commitment", phase_start);
+    let phase_start = builder.rows();
     enforce_projection(builder, &witness_wires, &projection_wires);
+    builder.record_row_family("terminal.fresh.public_projection", phase_start);
+    let phase_start = builder.rows();
     enforce_norm(builder, &witness_wires, &square_wires);
-    enforce_combined_fresh_relation(builder, private_vars, manifest, &witness_wires)
+    builder.record_row_family("terminal.fresh.norm", phase_start);
+    let phase_start = builder.rows();
+    enforce_combined_fresh_relation(builder, private_vars, manifest, &witness_wires)?;
+    builder.record_row_family("terminal.fresh.selected_relation", phase_start);
+    Ok(())
 }
 
 fn validate_running_claim(
@@ -959,6 +1008,159 @@ fn column_permutation(
         ));
     }
     Ok(map)
+}
+
+fn source_column_permutation(
+    columns: usize,
+    private_vars: &[Var],
+    public_vars: &[Var],
+) -> Result<Vec<usize>, TerminalR1csError> {
+    let mut map = vec![usize::MAX; columns];
+    map_column(&mut map, Var::ONE, 0)?;
+    for (index, variable) in public_vars.iter().enumerate() {
+        map_column(&mut map, *variable, 1 + index)?;
+    }
+    for (index, variable) in private_vars.iter().enumerate() {
+        map_column(&mut map, *variable, 1 + public_vars.len() + index)?;
+    }
+    if map.iter().any(|&column| column == usize::MAX) {
+        return Err(TerminalR1csError::Manifest(
+            "terminal compiler allocated an unclassified source column".into(),
+        ));
+    }
+    Ok(map)
+}
+
+fn source_assignment(witness: &[F], private_vars: &[Var], public_vars: &[Var]) -> Vec<F> {
+    std::iter::once(witness[Var::ONE.col()])
+        .chain(public_vars.iter().map(|variable| witness[variable.col()]))
+        .chain(private_vars.iter().map(|variable| witness[variable.col()]))
+        .collect()
+}
+
+fn remap_triplets(
+    triplets: &[(usize, usize, F)],
+    permutation: &[usize],
+) -> Result<Vec<(usize, usize, F)>, TerminalR1csError> {
+    triplets
+        .iter()
+        .map(|&(row, column, coefficient)| {
+            let mapped = permutation.get(column).copied().ok_or_else(|| {
+                TerminalR1csError::Manifest("terminal source row column exceeds the permutation".into())
+            })?;
+            Ok((row, mapped, coefficient))
+        })
+        .collect()
+}
+
+fn validate_terminal_row_families(
+    ranges: &[RowFamilyRange],
+    rows: usize,
+) -> Result<Vec<RowFamilyRange>, TerminalR1csError> {
+    let reviewed = TERMINAL_R1CS_FAMILY_NAMES
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let mut seen = BTreeSet::new();
+    let mut cursor = 0usize;
+    for range in ranges {
+        if range.row_start != cursor || range.row_end <= range.row_start || !reviewed.contains(range.name) {
+            return Err(TerminalR1csError::Manifest(
+                "terminal row-family ledger is not an exclusive reviewed partition".into(),
+            ));
+        }
+        seen.insert(range.name);
+        cursor = range.row_end;
+    }
+    if cursor != rows || seen != reviewed {
+        return Err(TerminalR1csError::Manifest(
+            "terminal row-family ledger does not cover every row and reviewed family".into(),
+        ));
+    }
+    Ok(ranges.to_vec())
+}
+
+fn validate_terminal_constraint_audit(
+    audit: &TerminalR1csConstraintAudit,
+    shape: &SplitR1CSShape<TerminalSpartanEngine>,
+) -> Result<(), TerminalR1csError> {
+    if audit.source.rows() != shape.num_constraints_unpadded()
+        || audit.source_public_columns + audit.source_private_columns != audit.source.cols()
+        || audit.spartan_private_columns != shape.num_variables()
+        || audit.spartan_rows != shape.num_constraints()
+        || audit.spartan_columns != shape.num_variables() + 1 + shape.num_public()
+    {
+        return Err(TerminalR1csError::Manifest(
+            "terminal constraint audit dimensions differ from the Spartan shape".into(),
+        ));
+    }
+    if audit.spartan_private_columns < audit.source_private_columns
+        || audit.spartan_columns != audit.spartan_private_columns + audit.source_public_columns
+        || (0..audit.source.cols()).any(|column| {
+            audit
+                .source_to_spartan_column(column)
+                .is_none_or(|mapped| mapped >= audit.spartan_columns)
+        })
+    {
+        return Err(TerminalR1csError::Manifest(
+            "terminal source-to-Spartan column map is not injective and in range".into(),
+        ));
+    }
+    let (a, b, c) = shape.matrices();
+    validate_terminal_matrix_binding(audit, a, 0)?;
+    validate_terminal_matrix_binding(audit, b, 1)?;
+    validate_terminal_matrix_binding(audit, c, 2)
+}
+
+fn validate_terminal_matrix_binding(
+    audit: &TerminalR1csConstraintAudit,
+    matrix: &SparseMatrix<SpartanF>,
+    side: usize,
+) -> Result<(), TerminalR1csError> {
+    if matrix.rows() != audit.spartan_rows || matrix.cols() != audit.spartan_columns {
+        return Err(TerminalR1csError::Manifest(
+            "terminal Spartan matrix dimensions differ from the constraint audit".into(),
+        ));
+    }
+    for row in 0..audit.source.rows() {
+        let source = match side {
+            0 => audit.source.a_row(row),
+            1 => audit.source.b_row(row),
+            2 => audit.source.c_row(row),
+            _ => unreachable!("terminal R1CS has exactly three matrices"),
+        };
+        let mut expected = source
+            .iter()
+            .map(|&(column, coefficient)| {
+                (
+                    audit
+                        .source_to_spartan_column(column)
+                        .expect("validated source row column is in range"),
+                    to_spartan(coefficient),
+                )
+            })
+            .collect::<Vec<_>>();
+        expected.sort_unstable_by_key(|entry| entry.0);
+        let start = matrix.indptr[row];
+        let end = matrix.indptr[row + 1];
+        if expected.len() != end - start
+            || expected
+                .iter()
+                .zip(start..end)
+                .any(|(&(column, coefficient), index)| {
+                    matrix.indices[index] != column || matrix.data[index] != coefficient
+                })
+        {
+            return Err(TerminalR1csError::Manifest(
+                "terminal source row differs from the padded Spartan matrix".into(),
+            ));
+        }
+    }
+    if (audit.source.rows()..audit.spartan_rows).any(|row| matrix.indptr[row] != matrix.indptr[row + 1]) {
+        return Err(TerminalR1csError::Manifest(
+            "terminal Spartan padding contains a nonzero constraint row".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn map_column(map: &mut [usize], variable: Var, new_column: usize) -> Result<(), TerminalR1csError> {

@@ -613,6 +613,59 @@ fn reduced_radix_four_profile_fixed_point_stabilizes() {
     );
 }
 
+#[test]
+fn reduced_profile_constraint_source_audit_is_exact() {
+    let _guard = relation_audit_guard();
+    let memory_params = NebulaParams::new(0, 0, 1, 2, 1).expect("one-step segment");
+    let params = minimal_chain_params();
+    let plan = NebulaPlan::new(memory_params, vec![7], [0xD9; 32], params.kappa() as usize).expect("plan");
+    let audit = NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan)
+        .expect("discover exact Nebula source arms");
+
+    assert!(audit.fixed_point_rounds() > 0);
+    assert_eq!(audit.compiler_audit().rows().total_rows(), audit.verifier_rows());
+    assert_eq!(
+        audit.compiler_audit().layout().total_columns(),
+        audit.verifier_columns()
+    );
+    assert_eq!(audit.compiler_audit().rows().arms().len(), 2);
+    assert_eq!(audit.compiler_audit().source_arm_physical_stages().len(), 2);
+    assert!(!audit
+        .arm(NebulaFPrimeBranch::Base)
+        .physical_stage_ranges()
+        .is_empty());
+    assert!(!audit
+        .arm(NebulaFPrimeBranch::Recursive)
+        .physical_stage_ranges()
+        .is_empty());
+    assert!(std::ptr::eq(
+        audit.arm(NebulaFPrimeBranch::BootstrapRecursive),
+        audit.arm(NebulaFPrimeBranch::Recursive),
+    ));
+
+    for (arm, mapping) in audit
+        .physical_arms()
+        .iter()
+        .zip(audit.compiler_audit().rows().arms())
+    {
+        assert_eq!(
+            mapping
+                .source_runs()
+                .iter()
+                .map(|run| run.source_rows().len())
+                .sum::<usize>(),
+            arm.n,
+        );
+    }
+
+    let first_row = audit.compiler_audit().rows().prefix_rows().start;
+    let projected = audit
+        .audit_selective_rows(&[first_row])
+        .expect("project one exact final row");
+    assert_eq!(projected.row_artifacts()[0].emitted_row(), first_row);
+    assert_eq!(projected.compiler_audit(), audit.compiler_audit());
+}
+
 fn minimal_chain_params() -> neo_fold_clean::Params {
     let inner = neo_params::NeoParams::new(
         neo_params::goldilocks_paper_b2::Q,
@@ -667,7 +720,16 @@ fn run_single_segment_append() {
     };
 
     let mut chain = NebulaFPrimeChainBuilder::new(&prep);
-    chain.append_segment(&trace0).expect("base arm");
+    let witnesses = chain
+        .append_segment_with_constraint_witness_audit(&trace0)
+        .expect("base arm with source audit");
+    assert_eq!(witnesses.len(), 1);
+    assert_eq!(witnesses[0].branch(), NebulaFPrimeBranch::Base);
+    assert_eq!(witnesses[0].source_assignment().first(), Some(&F::ONE));
+    assert_eq!(
+        witnesses[0].source_assignment().len(),
+        prep.relation().field_arm_shapes()[0].columns,
+    );
     let audit = chain.into_audit().expect("one appended segment");
 
     assert_eq!(audit.proof.state.chunk_count, 1);

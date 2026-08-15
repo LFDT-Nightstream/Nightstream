@@ -101,18 +101,56 @@ pub struct R1csIvc<'a> {
     audit: Option<UncompressedAudit>,
 }
 
+/// Exact normalized field assignment synthesized for one accepted IVC step.
+///
+/// This diagnostic value is not a proof. A consumer must replay it against
+/// the exact exported source arm before it is used as a solver background.
+#[derive(Debug)]
+pub struct R1csIvcConstraintWitnessAudit {
+    branch: R1csIvcBranch,
+    source_assignment: Vec<F>,
+}
+
+impl R1csIvcConstraintWitnessAudit {
+    pub fn branch(&self) -> R1csIvcBranch {
+        self.branch
+    }
+
+    pub fn source_assignment(&self) -> &[F] {
+        &self.source_assignment
+    }
+}
+
 impl<'a> R1csIvc<'a> {
     pub fn new(prep: &'a R1csIvcPreprocessing) -> Self {
         Self { prep, audit: None }
     }
 
     pub fn extend(&mut self, assignment: Vec<F>) -> Result<(), R1csIvcError> {
+        self.extend_with_constraint_witness_audit(assignment)?;
+        Ok(())
+    }
+
+    /// Extend the lifecycle and return the exact normalized source assignment
+    /// used for this accepted step.
+    #[doc(hidden)]
+    pub fn extend_with_constraint_witness_audit(
+        &mut self,
+        assignment: Vec<F>,
+    ) -> Result<R1csIvcConstraintWitnessAudit, R1csIvcError> {
         self.prep.app.is_satisfied_by(&assignment)?;
         let semantic = semantic_values(&self.prep.plan, &assignment)?;
         let prepared = self.prepare_step(semantic.input, semantic.output)?;
-        let instance = self.synthesize_instance(&prepared, &assignment)?;
+        let SynthesizedSourceInstance {
+            branch,
+            source_assignment,
+            instance,
+        } = self.synthesize_instance(&prepared, &assignment)?;
         self.deposit(prepared, instance)?;
-        Ok(())
+        Ok(R1csIvcConstraintWitnessAudit {
+            branch,
+            source_assignment,
+        })
     }
 
     pub fn audit(&self) -> Option<&UncompressedAudit> {
@@ -173,7 +211,11 @@ impl<'a> R1csIvc<'a> {
         })
     }
 
-    fn synthesize_instance(&self, prepared: &PreparedStep, assignment: &[F]) -> Result<CcsInstance, R1csIvcError> {
+    fn synthesize_instance(
+        &self,
+        prepared: &PreparedStep,
+        assignment: &[F],
+    ) -> Result<SynthesizedSourceInstance, R1csIvcError> {
         #[cfg(feature = "perf-timers")]
         let synth_start = std::time::Instant::now();
         let cfg = FPrimeStepConfig {
@@ -284,7 +326,11 @@ impl<'a> R1csIvc<'a> {
             instance_start.elapsed().as_secs_f64(),
             synth_start.elapsed().as_secs_f64(),
         );
-        Ok(instance)
+        Ok(SynthesizedSourceInstance {
+            branch,
+            source_assignment: field_assignment,
+            instance,
+        })
     }
 
     fn deposit(&mut self, prepared: PreparedStep, instance: CcsInstance) -> Result<(), R1csIvcError> {
@@ -305,6 +351,12 @@ impl<'a> R1csIvc<'a> {
         });
         Ok(())
     }
+}
+
+struct SynthesizedSourceInstance {
+    branch: R1csIvcBranch,
+    source_assignment: Vec<F>,
+    instance: CcsInstance,
 }
 
 enum PreparedStep {

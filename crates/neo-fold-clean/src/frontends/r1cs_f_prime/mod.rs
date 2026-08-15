@@ -49,14 +49,14 @@ pub use selective::{
     audit_multi_branch_selective_rows_with_complete_source_provenance_with_alignment,
     build_multi_branch_selective_low_norm_r1cs_with_alignment,
     build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, SelectiveProjectedDecoderProvenance,
-    SelectiveProjectedDecoderRunProvenance, SelectiveProjectedDerivedProductSum, SelectiveProjectedGeometricRun,
-    SelectiveProjectedPort, SelectiveProjectedProductFactor, SelectiveProjectedPublicCoordinate,
-    SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep, SelectiveProjectedRewriteOutput,
-    SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit,
-    SelectiveProjectedSourceDecoder, SelectiveProjectedSourceDecoderRun, SelectiveProjectedSourceDefinition,
-    SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance,
-    SelectiveProjectedSourceResolution, SelectiveProjectedSourceResolutionRun, SelectiveProjectedSourceSlot,
-    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+    SelectiveProjectedDecoderRunProvenance, SelectiveProjectedDerivedProductSum, SelectiveProjectedExplicitRunCensus,
+    SelectiveProjectedGeometricRun, SelectiveProjectedPort, SelectiveProjectedProductFactor,
+    SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
+    SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
+    SelectiveProjectedRowsAudit, SelectiveProjectedSourceDecoder, SelectiveProjectedSourceDecoderRun,
+    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceLinearCombination,
+    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceResolution, SelectiveProjectedSourceResolutionRun,
+    SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 pub use selective_audit::{
     SelectiveArmRowMappingAudit, SelectiveArmWidthAudit, SelectiveCanonicalOpeningAudit, SelectiveCompilerAudit,
@@ -79,8 +79,9 @@ pub use selective_selector_coverage::{
 };
 pub use structure::{build_r1cs_f_prime_structure, R1csRowAnchors, R1csShape, SparseR1cs};
 pub use terminal_r1cs::{
-    compile_combined_terminal_r1cs, compile_combined_terminal_r1cs_statement, finish_with_spartan, verify_spartan,
-    TerminalR1csError, TerminalSpartanProof, TerminalSpartanStatement,
+    compile_combined_terminal_r1cs, compile_combined_terminal_r1cs_statement, finish_combined_with_spartan,
+    finish_with_spartan, verify_combined_spartan, verify_spartan, TerminalR1csError, TerminalSpartanProof,
+    TerminalSpartanStatement,
 };
 
 use thiserror::Error;

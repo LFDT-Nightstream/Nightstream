@@ -12,6 +12,7 @@ use neo_reductions::superneo_eval::VerifiedSuperneoCacheArtifact;
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
+use super::constraint_witness_audit::{retain_first_constraint_witness, NebulaFPrimeConstraintWitnessAudit};
 use super::{
     enforce_nebula_application_f_prime_base_step, enforce_nebula_application_f_prime_recursive_step,
     enforce_nebula_f_prime_base_step, enforce_nebula_f_prime_recursive_step, NebulaFPrimeBranch,
@@ -393,7 +394,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
     /// Append one complete memory segment. Its last claim remains delayed
     /// until the next append or terminal finalization.
     pub fn append_segment(&mut self, trace: &SegmentTrace) -> Result<(), NebulaFPrimeChainError> {
-        self.append_segment_inner(trace, None)
+        self.append_segment_inner(trace, None, None)
     }
 
     /// Append one complete memory segment while routing recursive NIFS
@@ -403,13 +404,26 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         trace: &SegmentTrace,
         adapter: &mut dyn NifsProverAdapter,
     ) -> Result<(), NebulaFPrimeChainError> {
-        self.append_segment_inner(trace, Some(adapter))
+        self.append_segment_inner(trace, Some(adapter), None)
+    }
+
+    /// Append one segment and retain the first accepted source assignment for
+    /// each branch used by that segment.
+    #[doc(hidden)]
+    pub fn append_segment_with_constraint_witness_audit(
+        &mut self,
+        trace: &SegmentTrace,
+    ) -> Result<Vec<NebulaFPrimeConstraintWitnessAudit>, NebulaFPrimeChainError> {
+        let mut witnesses = Vec::new();
+        self.append_segment_inner(trace, None, Some(&mut witnesses))?;
+        Ok(witnesses)
     }
 
     fn append_segment_inner(
         &mut self,
         trace: &SegmentTrace,
         mut adapter: Option<&mut dyn NifsProverAdapter>,
+        mut constraint_witnesses: Option<&mut Vec<NebulaFPrimeConstraintWitnessAudit>>,
     ) -> Result<(), NebulaFPrimeChainError> {
         if self.prep.relation.application().is_some() {
             return Err(NebulaFPrimeChainError::ApplicationTraceRequired);
@@ -479,11 +493,17 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             h_in = step_x.h_out;
             sp_in = step_x.sp_out;
 
-            let instance = if let Some(adapter) = adapter.as_mut() {
+            let synthesized = if let Some(adapter) = adapter.as_mut() {
                 self.synthesize_instance(&prepared, &s_mem_assignment, None, current_d_pre, Some(&mut **adapter))?
             } else {
                 self.synthesize_instance(&prepared, &s_mem_assignment, None, current_d_pre, None)?
             };
+            let SynthesizedSourceInstance {
+                branch,
+                source_assignment,
+                instance,
+            } = synthesized;
+            retain_first_constraint_witness(constraint_witnesses.as_deref_mut(), branch, source_assignment);
             if instance.claim.adv.as_ref() != Some(&expected_advs[step]) {
                 return Err(NebulaFPrimeChainError::LaneCommitmentMismatch);
             }
@@ -503,7 +523,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         &mut self,
         trace: &ApplicationSegmentTrace,
     ) -> Result<(), NebulaFPrimeChainError> {
-        self.append_application_steps(trace, self.prep.plan().params().steps_per_segment(), None)
+        self.append_application_steps(trace, self.prep.plan().params().steps_per_segment(), None, None)
     }
 
     /// Append one complete application segment while routing recursive NIFS
@@ -513,7 +533,29 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         trace: &ApplicationSegmentTrace,
         adapter: &mut dyn NifsProverAdapter,
     ) -> Result<(), NebulaFPrimeChainError> {
-        self.append_application_steps(trace, self.prep.plan().params().steps_per_segment(), Some(adapter))
+        self.append_application_steps(
+            trace,
+            self.prep.plan().params().steps_per_segment(),
+            Some(adapter),
+            None,
+        )
+    }
+
+    /// Append one application segment and retain the first accepted source
+    /// assignment for each branch used by that segment.
+    #[doc(hidden)]
+    pub fn append_application_segment_with_constraint_witness_audit(
+        &mut self,
+        trace: &ApplicationSegmentTrace,
+    ) -> Result<Vec<NebulaFPrimeConstraintWitnessAudit>, NebulaFPrimeChainError> {
+        let mut witnesses = Vec::new();
+        self.append_application_steps(
+            trace,
+            self.prep.plan().params().steps_per_segment(),
+            None,
+            Some(&mut witnesses),
+        )?;
+        Ok(witnesses)
     }
 
     /// Append a nonterminal prefix of a production segment for per-fold
@@ -532,7 +574,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 available,
             });
         }
-        self.append_application_steps(trace, step_count, None)
+        self.append_application_steps(trace, step_count, None, None)
     }
 
     fn append_application_steps(
@@ -540,6 +582,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         trace: &ApplicationSegmentTrace,
         step_count: usize,
         mut adapter: Option<&mut dyn NifsProverAdapter>,
+        mut constraint_witnesses: Option<&mut Vec<NebulaFPrimeConstraintWitnessAudit>>,
     ) -> Result<(), NebulaFPrimeChainError> {
         #[cfg(feature = "perf-timers")]
         let segment_started = std::time::Instant::now();
@@ -644,7 +687,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
 
             #[cfg(feature = "perf-timers")]
             let synthesis_started = std::time::Instant::now();
-            let instance = if let Some(adapter) = adapter.as_mut() {
+            let synthesized = if let Some(adapter) = adapter.as_mut() {
                 self.synthesize_instance(
                     &prepared,
                     &s_mem_assignment,
@@ -655,6 +698,12 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             } else {
                 self.synthesize_instance(&prepared, &s_mem_assignment, Some(assignment), current_d_pre, None)?
             };
+            let SynthesizedSourceInstance {
+                branch,
+                source_assignment,
+                instance,
+            } = synthesized;
+            retain_first_constraint_witness(constraint_witnesses.as_deref_mut(), branch, source_assignment);
             #[cfg(feature = "perf-timers")]
             let synthesis_elapsed = synthesis_started.elapsed();
             if instance.claim.adv.as_ref() != Some(&expected_advs[step]) {
@@ -837,7 +886,7 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         application_assignment: Option<&[F]>,
         current_d_pre: Option<[[F; 4]; 3]>,
         adapter: Option<&mut dyn NifsProverAdapter>,
-    ) -> Result<CcsInstance, NebulaFPrimeChainError> {
+    ) -> Result<SynthesizedSourceInstance, NebulaFPrimeChainError> {
         #[cfg(feature = "perf-timers")]
         let total_started = std::time::Instant::now();
         let nifs = self.prep.prep.nifs_v_circuit_config()?;
@@ -1145,7 +1194,11 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
                 })
             }
             Err(error) => Err(error),
-            Ok(instance) => Ok(instance),
+            Ok(instance) => Ok(SynthesizedSourceInstance {
+                branch,
+                source_assignment: field_assignment,
+                instance,
+            }),
         }
     }
 
@@ -1179,6 +1232,12 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
         });
         Ok(())
     }
+}
+
+struct SynthesizedSourceInstance {
+    branch: NebulaFPrimeBranch,
+    source_assignment: Vec<F>,
+    instance: CcsInstance,
 }
 
 enum PreparedStep {

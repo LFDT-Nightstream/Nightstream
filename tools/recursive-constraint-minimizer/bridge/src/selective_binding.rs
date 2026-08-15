@@ -3,19 +3,22 @@
 use std::collections::BTreeSet;
 use std::ops::Range;
 
+use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
 use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
 use neo_fold_clean::frontends::r1cs_f_prime::{
-    SelectiveCompilerAudit, SelectiveEmittedRowFamily, SelectiveProjectedRowArtifact, SelectiveRewriteKind,
-    SelectiveSourceRowDisposition, R1CS_F_PRIME_COMPILER_ID,
+    SelectiveCompilerAudit, SelectiveEmittedRowFamily, SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit,
+    SelectiveRewriteKind, SelectiveRowMappingAudit, SelectiveSourceRowDisposition, SparseR1cs,
+    R1CS_F_PRIME_COMPILER_ID,
 };
+use neo_math::F;
 use p3_field::PrimeField64;
 use recursive_constraint_minimizer::Problem;
 use sha2::{Digest, Sha256};
 
 use super::{finish_digest, hash_bytes, hash_physical_stages, hash_sparse_matrix, hash_usize, ExportError};
 
-const PLAN_DIGEST_DOMAIN: &[u8] = b"nightstream/selective-fixed-point-plan/v1";
-const SLICE_DIGEST_DOMAIN: &[u8] = b"nightstream/selective-fixed-point-slice/v1";
+const PLAN_DIGEST_DOMAIN: &[u8] = b"nightstream/selective-fixed-point-plan/v2";
+const SLICE_DIGEST_DOMAIN: &[u8] = b"nightstream/selective-fixed-point-slice/v3";
 
 /// One source row copied monotonically into the selective relation.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -74,13 +77,14 @@ impl SelectiveRewriteBinding {
 /// Exact source-to-final slice binding for one fixed-point branch.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SelectiveSliceBinding {
-    branch: R1csIvcBranch,
+    branch: String,
     requested_source_rows: Vec<usize>,
     closure_source_rows: Vec<usize>,
     additional_source_rows: Vec<usize>,
     retained_rows: Vec<SelectiveRetainedRowBinding>,
     rewrites: Vec<SelectiveRewriteBinding>,
     emitted_rows: Vec<usize>,
+    projected_rows: Vec<SelectiveProjectedRowArtifact>,
     final_rows: usize,
     final_columns: usize,
     final_public_input_count: usize,
@@ -89,8 +93,8 @@ pub struct SelectiveSliceBinding {
 }
 
 impl SelectiveSliceBinding {
-    pub fn branch(&self) -> R1csIvcBranch {
-        self.branch
+    pub fn branch(&self) -> &str {
+        &self.branch
     }
 
     pub fn requested_source_rows(&self) -> &[usize] {
@@ -117,6 +121,11 @@ impl SelectiveSliceBinding {
 
     pub fn emitted_rows(&self) -> &[usize] {
         &self.emitted_rows
+    }
+
+    /// Exact final thirteen-port terms emitted for this bound slice.
+    pub fn projected_rows(&self) -> &[SelectiveProjectedRowArtifact] {
+        &self.projected_rows
     }
 
     pub fn final_rows(&self) -> usize {
@@ -170,12 +179,74 @@ pub(super) fn bind_fixed_point_problem(
     branch: R1csIvcBranch,
     problem: Problem,
 ) -> Result<FixedPointProblemExport, ExportError> {
+    let source_arms = [
+        audit.arm(R1csIvcBranch::Base),
+        audit.arm(R1csIvcBranch::BootstrapRecursive),
+        audit.arm(R1csIvcBranch::Recursive),
+    ];
+    bind_selective_problem(
+        r1cs_branch_name(branch),
+        branch_index(branch),
+        audit.arm(branch),
+        &source_arms,
+        audit.fixed_point().rows(),
+        audit.fixed_point().rows().total_rows(),
+        audit.fixed_point().layout().total_columns(),
+        b"generic-r1cs",
+        &[],
+        problem,
+        |rows| {
+            audit
+                .audit_selective_rows(rows)
+                .map_err(|error| ExportError::new(format!("cannot project exact selective rows: {error}")))
+        },
+    )
+}
+
+pub(super) fn bind_nebula_problem(
+    audit: &NebulaFPrimeConstraintSourceAudit,
+    branch: NebulaFPrimeBranch,
+    problem: Problem,
+) -> Result<FixedPointProblemExport, ExportError> {
+    let source_arms = audit.physical_arms().iter().collect::<Vec<_>>();
+    bind_selective_problem(
+        nebula_branch_name(branch),
+        branch.relation_arm_index(),
+        audit.arm(branch),
+        &source_arms,
+        audit.compiler_audit().rows(),
+        audit.verifier_rows(),
+        audit.verifier_columns(),
+        b"nebula-f-prime",
+        &audit.plan_digest(),
+        problem,
+        |rows| {
+            audit
+                .audit_selective_rows(rows)
+                .map_err(|error| ExportError::new(format!("cannot project exact Nebula selective rows: {error}")))
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bind_selective_problem(
+    branch: &str,
+    physical_arm: usize,
+    arm: &SparseR1cs,
+    source_arms: &[&SparseR1cs],
+    mapping_rows: &SelectiveRowMappingAudit,
+    expected_final_rows: usize,
+    expected_final_columns: usize,
+    source_kind: &[u8],
+    identity_fields: &[F],
+    problem: Problem,
+    project: impl FnOnce(&[usize]) -> Result<SelectiveProjectedRowsAudit, ExportError>,
+) -> Result<FixedPointProblemExport, ExportError> {
     let source_rows = problem
         .rows
         .iter()
         .map(|row| row.source_index)
         .collect::<Vec<_>>();
-    let arm = audit.arm(branch);
     if problem.source.total_rows != arm.n
         || problem.column_count != arm.m
         || problem.public_input_count != arm.m_in
@@ -186,11 +257,9 @@ pub(super) fn bind_fixed_point_problem(
         ));
     }
 
-    let mapping = audit
-        .fixed_point()
-        .rows()
+    let mapping = mapping_rows
         .arms()
-        .get(branch_index(branch))
+        .get(physical_arm)
         .ok_or_else(|| ExportError::new("fixed-point compiler audit omitted the requested arm"))?;
     validate_source_partition(mapping.source_runs(), arm.n)?;
 
@@ -219,7 +288,7 @@ pub(super) fn bind_fixed_point_problem(
                     ExportError::new(format!("retained source row {source_row} has no emitted start"))
                 })?;
                 let emitted_row = emitted_start + source_row - run_rows.start;
-                validate_retained_owner(audit, branch, emitted_row)?;
+                validate_retained_owner(mapping_rows, physical_arm, emitted_row)?;
                 retained_rows.push(SelectiveRetainedRowBinding {
                     source_row,
                     emitted_row,
@@ -239,9 +308,7 @@ pub(super) fn bind_fixed_point_problem(
     let mut closure = requested.clone();
     let mut rewrites = Vec::with_capacity(touched_rewrites.len());
     for rewrite_id in touched_rewrites {
-        let records = audit
-            .fixed_point()
-            .rows()
+        let records = mapping_rows
             .rewrites()
             .iter()
             .filter(|rewrite| rewrite.id().index() == rewrite_id)
@@ -251,18 +318,17 @@ pub(super) fn bind_fixed_point_problem(
                 "rewrite identifier {rewrite_id} does not name exactly one compiler record"
             )));
         };
-        if rewrite.arm() != branch_index(branch) {
+        if rewrite.arm() != physical_arm {
             return Err(ExportError::new(format!(
-                "rewrite identifier {rewrite_id} belongs to arm {}, not {:?}",
+                "rewrite identifier {rewrite_id} belongs to arm {}, not {branch}",
                 rewrite.arm(),
-                branch
             )));
         }
         validate_rewrite_runs(mapping.source_runs(), rewrite_id, rewrite.kind(), rewrite.source_rows())?;
         for range in rewrite.source_rows() {
             closure.extend(range.clone());
         }
-        validate_rewrite_owner(audit, rewrite_id, rewrite.kind(), rewrite.emitted_rows())?;
+        validate_rewrite_owner(mapping_rows, rewrite_id, rewrite.kind(), rewrite.emitted_rows())?;
         rewrites.push(SelectiveRewriteBinding {
             rewrite_id,
             kind: rewrite.kind(),
@@ -286,11 +352,9 @@ pub(super) fn bind_fixed_point_problem(
         }
     }
     let emitted_rows = emitted.into_iter().collect::<Vec<_>>();
-    let projected = audit
-        .audit_selective_rows(&emitted_rows)
-        .map_err(|error| ExportError::new(format!("cannot project exact selective rows: {error}")))?;
-    if projected.rows() != audit.fixed_point().rows().total_rows()
-        || projected.columns() != audit.fixed_point().layout().total_columns()
+    let projected = project(&emitted_rows)?;
+    if projected.rows() != expected_final_rows
+        || projected.columns() != expected_final_columns
         || projected
             .row_artifacts()
             .iter()
@@ -304,9 +368,10 @@ pub(super) fn bind_fixed_point_problem(
 
     let closure_source_rows = closure.iter().copied().collect::<Vec<_>>();
     let additional_source_rows = closure.difference(&requested).copied().collect::<Vec<_>>();
-    let final_plan_digest = hash_final_plan(audit, projected.compiler_audit())?;
+    let final_plan_digest = hash_final_plan(source_arms, projected.compiler_audit(), source_kind, identity_fields)?;
     let projected_slice_digest = hash_projected_slice(
         branch,
+        physical_arm,
         &problem.source.artifact_digest,
         &source_rows,
         &closure_source_rows,
@@ -315,14 +380,16 @@ pub(super) fn bind_fixed_point_problem(
         projected.row_artifacts(),
         &final_plan_digest,
     )?;
+    let projected_rows = projected.row_artifacts().to_vec();
     let binding = SelectiveSliceBinding {
-        branch,
+        branch: branch.to_owned(),
         requested_source_rows: source_rows,
         closure_source_rows,
         additional_source_rows,
         retained_rows,
         rewrites,
         emitted_rows,
+        projected_rows,
         final_rows: projected.rows(),
         final_columns: projected.columns(),
         final_public_input_count: projected.compiler_audit().layout().public_input_len(),
@@ -384,13 +451,11 @@ fn validate_rewrite_runs(
 }
 
 fn validate_retained_owner(
-    audit: &R1csIvcConstraintSourceAudit,
-    branch: R1csIvcBranch,
+    rows: &SelectiveRowMappingAudit,
+    physical_arm: usize,
     emitted_row: usize,
 ) -> Result<(), ExportError> {
-    let owners = audit
-        .fixed_point()
-        .rows()
+    let owners = rows
         .emitted_runs()
         .iter()
         .filter(|run| run.emitted_rows().contains(&emitted_row))
@@ -401,7 +466,7 @@ fn validate_retained_owner(
         )));
     };
     if owner.family() != SelectiveEmittedRowFamily::Retained
-        || owner.arm() != Some(branch_index(branch))
+        || owner.arm() != Some(physical_arm)
         || owner.rewrite_id().is_some()
     {
         return Err(ExportError::new(format!(
@@ -412,27 +477,30 @@ fn validate_retained_owner(
 }
 
 fn validate_rewrite_owner(
-    audit: &R1csIvcConstraintSourceAudit,
+    rows: &SelectiveRowMappingAudit,
     rewrite_id: usize,
     kind: SelectiveRewriteKind,
     emitted_rows: Range<usize>,
 ) -> Result<(), ExportError> {
     let expected_family = rewrite_emitted_family(kind);
-    if emitted_rows.is_empty() {
-        if kind != SelectiveRewriteKind::LinearDefinition {
-            return Err(ExportError::new(format!(
-                "nonlinear rewrite identifier {rewrite_id} emits no final rows"
-            )));
-        }
-        return Ok(());
-    }
-    let runs = audit
-        .fixed_point()
-        .rows()
+    let runs = rows
         .emitted_runs()
         .iter()
         .filter(|run| run.rewrite_id().map(|id| id.index()) == Some(rewrite_id))
         .collect::<Vec<_>>();
+    if kind == SelectiveRewriteKind::LinearDefinition {
+        if !emitted_rows.is_empty() || !runs.is_empty() {
+            return Err(ExportError::new(format!(
+                "linear-definition rewrite identifier {rewrite_id} has a final owner"
+            )));
+        }
+        return Ok(());
+    }
+    if emitted_rows.is_empty() && kind != SelectiveRewriteKind::CenteredUnit {
+        return Err(ExportError::new(format!(
+            "rewrite identifier {rewrite_id} of kind {kind:?} emits no final rows"
+        )));
+    }
     let [run] = runs.as_slice() else {
         return Err(ExportError::new(format!(
             "rewrite identifier {rewrite_id} does not have exactly one emitted run"
@@ -472,19 +540,22 @@ fn rewrite_emitted_family(kind: SelectiveRewriteKind) -> Option<SelectiveEmitted
 }
 
 fn hash_final_plan(
-    audit: &R1csIvcConstraintSourceAudit,
+    source_arms: &[&SparseR1cs],
     compiler: &SelectiveCompilerAudit,
+    source_kind: &[u8],
+    identity_fields: &[F],
 ) -> Result<String, ExportError> {
     let mut hasher = Sha256::new();
     hasher.update(PLAN_DIGEST_DOMAIN);
     hash_bytes(&mut hasher, R1CS_F_PRIME_COMPILER_ID.as_bytes())?;
-    for branch in [
-        R1csIvcBranch::Base,
-        R1csIvcBranch::BootstrapRecursive,
-        R1csIvcBranch::Recursive,
-    ] {
-        let arm = audit.arm(branch);
-        hash_usize(&mut hasher, branch_index(branch))?;
+    hash_bytes(&mut hasher, source_kind)?;
+    hash_usize(&mut hasher, identity_fields.len())?;
+    for &field in identity_fields {
+        hash_field(&mut hasher, field);
+    }
+    hash_usize(&mut hasher, source_arms.len())?;
+    for (physical_arm, arm) in source_arms.iter().enumerate() {
+        hash_usize(&mut hasher, physical_arm)?;
         hash_usize(&mut hasher, arm.n)?;
         hash_usize(&mut hasher, arm.m)?;
         hash_usize(&mut hasher, arm.m_in)?;
@@ -604,7 +675,8 @@ fn hash_compiler_plan(hasher: &mut Sha256, compiler: &SelectiveCompilerAudit) ->
 
 #[allow(clippy::too_many_arguments)]
 fn hash_projected_slice(
-    branch: R1csIvcBranch,
+    branch: &str,
+    physical_arm: usize,
     source_artifact_digest: &str,
     requested_source_rows: &[usize],
     closure_source_rows: &[usize],
@@ -615,7 +687,8 @@ fn hash_projected_slice(
 ) -> Result<String, ExportError> {
     let mut hasher = Sha256::new();
     hasher.update(SLICE_DIGEST_DOMAIN);
-    hash_usize(&mut hasher, branch_index(branch))?;
+    hash_bytes(&mut hasher, branch.as_bytes())?;
+    hash_usize(&mut hasher, physical_arm)?;
     hash_bytes(&mut hasher, source_artifact_digest.as_bytes())?;
     hash_bytes(&mut hasher, final_plan_digest.as_bytes())?;
     hash_usize_slice(&mut hasher, requested_source_rows)?;
@@ -656,6 +729,23 @@ fn hash_projected_slice(
                 hash_usize(&mut hasher, run.length())?;
                 hash_field(&mut hasher, run.initial());
                 hash_field(&mut hasher, run.ratio());
+            }
+            hash_usize(&mut hasher, port.seeded_blocks().len())?;
+            for block in port.seeded_blocks() {
+                hash_usize(&mut hasher, block.row_start())?;
+                hash_usize_slice(&mut hasher, block.word_starts())?;
+                hash_usize(&mut hasher, block.word_width())?;
+                hash_usize(&mut hasher, block.kappa())?;
+                hash_usize(&mut hasher, block.message_cols())?;
+                hash_usize(&mut hasher, block.chunk_size())?;
+                hash_usize(&mut hasher, block.chunk_seeds_by_row().len())?;
+                for output_seeds in block.chunk_seeds_by_row() {
+                    hash_usize(&mut hasher, output_seeds.len())?;
+                    for seed in output_seeds {
+                        hash_bytes(&mut hasher, seed)?;
+                    }
+                }
+                hash_usize(&mut hasher, usize::from(block.has_superneo_transformed_columns()))?;
             }
         }
     }
@@ -746,5 +836,21 @@ fn branch_index(branch: R1csIvcBranch) -> usize {
         R1csIvcBranch::Base => 0,
         R1csIvcBranch::BootstrapRecursive => 1,
         R1csIvcBranch::Recursive => 2,
+    }
+}
+
+fn r1cs_branch_name(branch: R1csIvcBranch) -> &'static str {
+    match branch {
+        R1csIvcBranch::Base => "base",
+        R1csIvcBranch::BootstrapRecursive => "bootstrap_recursive",
+        R1csIvcBranch::Recursive => "recursive",
+    }
+}
+
+fn nebula_branch_name(branch: NebulaFPrimeBranch) -> &'static str {
+    match branch {
+        NebulaFPrimeBranch::Base => "nebula_base",
+        NebulaFPrimeBranch::BootstrapRecursive => "nebula_bootstrap_recursive",
+        NebulaFPrimeBranch::Recursive => "nebula_recursive",
     }
 }

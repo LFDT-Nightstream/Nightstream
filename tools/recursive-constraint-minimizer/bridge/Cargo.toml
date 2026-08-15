@@ -13,7 +13,10 @@ neo-fold-clean = { path = "../../../crates/neo-fold-clean" }
 neo-math = { path = "../../../crates/neo-math" }
 p3-field = "=0.5.3"
 recursive-constraint-minimizer = { path = ".." }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 sha2 = "0.10"
 
 [dev-dependencies]
+neo-ajtai = { path = "../../../crates/neo-ajtai" }
 neo-params = { path = "../../../crates/neo-params" }

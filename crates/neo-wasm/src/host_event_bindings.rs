@@ -11,10 +11,17 @@
 //! or static linear-memory accesses.
 
 use crate::comm_chain::{COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_EVENT_ARGS};
-use crate::ir::{WasmBuildError, WasmHostEventMemoryWidth, WasmHostEventRomVariant};
+use crate::ir::{
+    function_call_metadata_shape, WasmBuildError, WasmHostEventMemoryBase, WasmHostEventMemoryWidth,
+    WasmHostEventRomVariant,
+};
+use crate::WasmProgramTables;
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
 use std::collections::BTreeMap;
+
+mod builder;
+pub use builder::{EventBlockBuilder, HostEventBindingsBuilder};
 
 /// Which 32-bit limb of a two-limb value feeds a slot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -31,8 +38,10 @@ pub enum MemoryBase {
     /// An import argument, read from the call's operand-stack argument area.
     /// Its high limb must be zero so the value is a wasm32 pointer.
     Arg(u8),
-    /// An export-frame local, read from the locals memory.
+    /// An export-entry pointer local, read from the locals memory.
     Local(u8),
+    /// The captured wasm32 result pointer of a single-result export.
+    Output,
 }
 
 /// How one event slot obtains its value and any associated VM effect.
@@ -100,11 +109,12 @@ pub(crate) const fn memory_rom_arg_variant(
     base: MemoryBase,
     width: WasmHostEventMemoryWidth,
 ) -> (u8, WasmHostEventRomVariant) {
-    let (arg, local_base) = match base {
-        MemoryBase::Arg(arg) => (arg, false),
-        MemoryBase::Local(local) => (local, true),
+    let (arg, base) = match base {
+        MemoryBase::Arg(arg) => (arg, WasmHostEventMemoryBase::Argument),
+        MemoryBase::Local(local) => (local, WasmHostEventMemoryBase::Local),
+        MemoryBase::Output => (0, WasmHostEventMemoryBase::Output),
     };
-    (arg, WasmHostEventRomVariant::Memory { local_base, width })
+    (arg, WasmHostEventRomVariant::Memory { base, width })
 }
 
 /// One host-event block: eight arbitrary slot bindings.
@@ -200,7 +210,7 @@ impl ExportTemplate {
     /// source from consts and entry input words (`Input`/`InputLocal`);
     /// exit events from consts, exit input words, and the captured output.
     /// The stack-based import sources (`ArgElem`/`ResultElem`) never apply.
-    pub fn validate(&self, local_bound: u8) -> Result<(), WasmBuildError> {
+    pub fn validate(&self, local_bound: u32, result_count: u8) -> Result<(), WasmBuildError> {
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
         let mut written = std::collections::BTreeSet::new();
         for (phase, events, input_count) in [
@@ -234,7 +244,7 @@ impl ExportTemplate {
                                 return err(ctx("locals bootstrap only applies to the entry phase"));
                             }
                             check_input_index(input)?;
-                            if local >= local_bound {
+                            if u32::from(local) >= local_bound {
                                 return err(ctx(&format!(
                                     "local index {local} out of range for {local_bound} locals"
                                 )));
@@ -254,6 +264,9 @@ impl ExportTemplate {
                             if matches!(phase, ExportPhase::Entry) {
                                 return err(ctx("output reference before the export halts"));
                             }
+                            if result_count != 1 {
+                                return err(ctx("output reference requires a single-result export"));
+                            }
                         }
                         SlotBinding::MemoryRead32 { base, .. }
                         | SlotBinding::MemoryRead16 { base, .. }
@@ -261,7 +274,12 @@ impl ExportTemplate {
                             if matches!(phase, ExportPhase::Entry) {
                                 return err(ctx("memory reads only apply to the export exit phase"));
                             }
-                            validate_export_memory_base(base, local_bound, &ctx)?;
+                            if base != MemoryBase::Output {
+                                return err(ctx("export exit memory reads require the captured output pointer"));
+                            }
+                            if result_count != 1 {
+                                return err(ctx("export exit memory reads require a single-result export"));
+                            }
                         }
                         SlotBinding::MemoryWrite32 { input, base, .. }
                         | SlotBinding::MemoryWrite16 { input, base, .. }
@@ -270,10 +288,14 @@ impl ExportTemplate {
                                 return err(ctx("memory writes only apply to the export entry phase"));
                             }
                             check_input_index(input)?;
-                            validate_export_memory_base(base, local_bound, &ctx)?;
                             let MemoryBase::Local(local) = base else {
-                                unreachable!("validated export memory base")
+                                return err(ctx("export entry memory writes require a local base"));
                             };
+                            if u32::from(local) >= local_bound {
+                                return err(ctx(&format!(
+                                    "memory base local {local} out of range for {local_bound} locals"
+                                )));
+                            }
                             if !written.contains(&(local, false)) {
                                 return err(ctx(&format!(
                                     "memory base local {local} must be bootstrap-written by an earlier InputLocal Lo slot"
@@ -322,6 +344,64 @@ impl HostEventBindings {
             .insert(export_fref, ExportTemplate::default());
         bindings
     }
+
+    /// Validate every binding against verifier-owned program tables.
+    pub fn validate_against_program(&self, program: &WasmProgramTables) -> Result<(), WasmBuildError> {
+        for (&function_ref, template) in &self.imports {
+            let (param_count, result_count, is_guest) = function_shape(program, function_ref)?;
+
+            if is_guest {
+                return Err(WasmBuildError::Trace(format!(
+                    "host-event import fref {function_ref} names a guest function"
+                )));
+            }
+
+            template.validate(param_count, result_count)?;
+        }
+
+        for (&function_ref, template) in &self.exports {
+            let (_, result_count, is_guest) = function_shape(program, function_ref)?;
+
+            if !is_guest {
+                return Err(WasmBuildError::Trace(format!(
+                    "host-event export fref {function_ref} names a host import"
+                )));
+            }
+
+            let local_bound = program
+                .function_local_counts
+                .iter()
+                .find_map(|&(fref, count)| (fref == u64::from(function_ref)).then_some(count))
+                .ok_or_else(|| {
+                    WasmBuildError::Trace(format!(
+                        "host-event export fref {function_ref} has no function-local-count entry"
+                    ))
+                })?;
+
+            let local_bound = u32::try_from(local_bound).map_err(|_| {
+                WasmBuildError::Trace(format!(
+                    "host-event export fref {function_ref} local count does not fit u32"
+                ))
+            })?;
+
+            template.validate(local_bound, result_count)?;
+        }
+        Ok(())
+    }
+}
+
+fn function_shape(program: &WasmProgramTables, function_ref: u32) -> Result<(u8, u8, bool), WasmBuildError> {
+    let metadata = program
+        .function_call_metadata
+        .iter()
+        .find_map(|&(fref, metadata)| (fref == u64::from(function_ref)).then_some(metadata))
+        .ok_or_else(|| {
+            WasmBuildError::Trace(format!(
+                "host-event binding fref {function_ref} has no function-call metadata"
+            ))
+        })?;
+
+    Ok(function_call_metadata_shape(metadata))
 }
 
 impl ImportTemplate {
@@ -646,23 +726,9 @@ fn validate_import_memory_base(
         MemoryBase::Arg(arg) => Err(WasmBuildError::Trace(ctx(&format!(
             "memory base arg {arg} out of range for {param_count} params"
         )))),
-        MemoryBase::Local(_) => Err(WasmBuildError::Trace(ctx(
+        MemoryBase::Local(_) | MemoryBase::Output => Err(WasmBuildError::Trace(ctx(
             "import memory slots require an argument base",
         ))),
-    }
-}
-
-fn validate_export_memory_base(
-    base: MemoryBase,
-    local_bound: u8,
-    ctx: &impl Fn(&str) -> String,
-) -> Result<(), WasmBuildError> {
-    match base {
-        MemoryBase::Local(local) if local < local_bound => Ok(()),
-        MemoryBase::Local(local) => Err(WasmBuildError::Trace(ctx(&format!(
-            "memory base local {local} out of range for {local_bound} locals"
-        )))),
-        MemoryBase::Arg(_) => Err(WasmBuildError::Trace(ctx("export memory slots require a local base"))),
     }
 }
 

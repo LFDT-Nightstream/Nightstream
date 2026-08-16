@@ -245,7 +245,7 @@ pub(super) fn build_trace(
         // local_write_value: the value being stored into the local (local.set / local.tee:
         //   the top of operand stack at this step, captured before execution).
         let local_read_value = if matches!(current.opcode, WasmOpcode::LocalGet) {
-            current.local_value
+            current.local_value_lo
         } else {
             None
         };
@@ -526,7 +526,6 @@ pub(super) fn build_trace(
                     current.cycle
                 ))
             })?;
-            template.validate(param_count, result_count)?;
             let args_base = sp_before - index_pops as u64 - u64::from(param_count);
             host_event_plan = Some(
                 plan_import_call(
@@ -535,6 +534,7 @@ pub(super) fn build_trace(
                     &arg_limbs,
                     result_limbs,
                     &current.host_call_inputs,
+                    current.memory_pages_before,
                     &mut linear_memory,
                 )
                 .map_err(|err| {

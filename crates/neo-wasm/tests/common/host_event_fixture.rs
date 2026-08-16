@@ -3,22 +3,14 @@
 //! traced with bindings tables. Used by the F′ audit lifecycle test and the
 //! Nebula proof test.
 
-use neo_wasm::comm_chain::{COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_EVENT_ARGS};
-use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, ImportTemplate, Limb, SlotBinding};
-use neo_wasm::WasmVmStep;
+use neo_wasm::comm_chain::COMM_CHAIN_BLOCK_WORDS;
+use neo_wasm::host_event_bindings::{
+    EventBlockBuilder, HostEventBindings, HostEventBindingsBuilder, Limb, SlotBinding,
+};
+use neo_wasm::{WasmBuildError, WasmProgramTables, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 pub const ENTRY_INPUTS: [u64; 2] = [500, 501];
-
-const ZERO: SlotBinding = SlotBinding::Const(0);
-
-fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
-    let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
-    for &(idx, source) in entries {
-        out[idx] = source;
-    }
-    out
-}
 
 fn mul_sink_component_wat() -> &'static str {
     r#"
@@ -55,62 +47,37 @@ fn mul_sink_component_wat() -> &'static str {
 
 /// Import templates for mul/sink plus an export boundary for `run`:
 /// Enter + Activation at entry, Return-with-output at exit.
-fn test_bindings(mul_fref: u32, sink_fref: u32, run_fref: u32) -> HostEventBindings {
-    let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
-    let input = |idx| SlotBinding::Input { index: idx };
-    let mut bindings = HostEventBindings::default();
-    bindings.imports.insert(
-        mul_fref,
-        ImportTemplate {
-            events: vec![
-                EventBlock::op(
-                    10,
-                    slots(&[(0, input(0)), (1, arg(0, Limb::Lo)), (2, arg(1, Limb::Lo))]),
-                ),
-                // The ResultElem Lo slot pushes the host result (atomic
-                // import events; args gathered above, before the push); the
-                // Hi slot binds the pushed hi lane (0 for the i32 result).
-                EventBlock::op(
-                    12,
-                    slots(&[
-                        (0, SlotBinding::ResultElem { limb: Limb::Lo }),
-                        (1, input(0)),
-                        (2, SlotBinding::ResultElem { limb: Limb::Hi }),
-                    ]),
-                ),
-            ],
-            input_count: 1,
-        },
-    );
-    bindings.imports.insert(
-        sink_fref,
-        ImportTemplate {
-            events: vec![EventBlock::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
-            input_count: 0,
-        },
-    );
-    bindings.exports.insert(
-        run_fref,
-        ExportTemplate {
-            entry: vec![
-                EventBlock::op(20, slots(&[(0, SlotBinding::Const(55))])),
-                EventBlock::op(
-                    8,
-                    slots(&[
-                        (1, SlotBinding::Input { index: 0 }),
-                        (3, SlotBinding::Input { index: 1 }),
-                    ]),
-                ),
-            ],
-            exit: vec![EventBlock::op(
-                17,
-                slots(&[(1, SlotBinding::OutputElem { limb: Limb::Lo })]),
-            )],
-            entry_input_count: 2,
-            exit_input_count: 0,
-        },
-    );
-    bindings
+fn test_bindings(
+    program: &WasmProgramTables,
+    mul_fref: u32,
+    sink_fref: u32,
+    run_fref: u32,
+) -> Result<HostEventBindings, WasmBuildError> {
+    let mul_args = EventBlockBuilder::op(10)
+        .input_i32(0, 0)?
+        .arg_i32(1, 0)?
+        .arg_i32(2, 1)?
+        .finish();
+    // The ResultElem Lo slot pushes the host result; the Hi slot binds the
+    // pushed hi lane (zero for this i32 result).
+    let mul_result = EventBlockBuilder::op(12)
+        .slot(0, SlotBinding::ResultElem { limb: Limb::Lo })?
+        .input_i32(1, 0)?
+        .slot(2, SlotBinding::ResultElem { limb: Limb::Hi })?
+        .finish();
+    let sink = EventBlockBuilder::op(7).arg_i32(0, 0)?.finish();
+    let enter = EventBlockBuilder::op(20).constant_i32(0, 55)?.finish();
+    let activation = EventBlockBuilder::op(8)
+        .input_i32(1, 0)?
+        .input_i32(3, 1)?
+        .finish();
+    let exit = EventBlockBuilder::op(17).output_i32(1)?.finish();
+
+    let mut bindings = HostEventBindingsBuilder::new(program);
+    bindings.import(mul_fref, vec![mul_args, mul_result])?;
+    bindings.import(sink_fref, vec![sink])?;
+    bindings.export(run_fref, vec![enter, activation], vec![exit])?;
+    bindings.finish()
 }
 
 /// The mul import is the two-event template; sink has one event.
@@ -174,7 +141,7 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
     .expect("component run");
 
     let (frefs, run_fref) = run_frefs(&run);
-    let bindings = test_bindings(frefs[0], frefs[1], run_fref);
+    let bindings = test_bindings(&run.program_tables, frefs[0], frefs[1], run_fref).expect("build bindings");
 
     let turns = [neo_wasm::host_event_bindings::TurnInputs {
         entry: ENTRY_INPUTS.to_vec(),

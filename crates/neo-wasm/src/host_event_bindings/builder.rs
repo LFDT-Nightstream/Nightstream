@@ -108,19 +108,6 @@ impl EventBlockBuilder {
         self.result_pair(slot_index)
     }
 
-    pub fn input_i32(self, slot_index: usize, input: u8) -> Result<Self, WasmBuildError> {
-        self.slot(slot_index, SlotBinding::Input { index: input })
-    }
-
-    pub fn input_i64(self, slot_index: usize, first_input: u8) -> Result<Self, WasmBuildError> {
-        let second_input = next_input(first_input)?;
-        self.slot_pair(
-            slot_index,
-            SlotBinding::Input { index: first_input },
-            SlotBinding::Input { index: second_input },
-        )
-    }
-
     pub fn input_local_i32(self, slot_index: usize, input: u8, local: u8) -> Result<Self, WasmBuildError> {
         self.slot(
             slot_index,
@@ -295,8 +282,8 @@ impl<'a> HostEventBindingsBuilder<'a> {
         Ok(self)
     }
 
-    /// Bind an export boundary. Entry and exit inputs are independently
-    /// required to form dense zero-based tuples.
+    /// Bind an export boundary. Entry inputs must form a dense zero-based
+    /// tuple.
     pub fn export(
         &mut self,
         function_ref: u32,
@@ -304,7 +291,6 @@ impl<'a> HostEventBindingsBuilder<'a> {
         exit: Vec<EventBlock>,
     ) -> Result<&mut Self, WasmBuildError> {
         let entry_input_count = input_count(&entry)?;
-        let exit_input_count = input_count(&exit)?;
 
         if self.bindings.exports.contains_key(&function_ref) {
             return Err(WasmBuildError::Trace(format!(
@@ -318,7 +304,6 @@ impl<'a> HostEventBindingsBuilder<'a> {
                 entry,
                 exit,
                 entry_input_count,
-                exit_input_count,
             },
         );
 
@@ -336,7 +321,6 @@ fn input_count(events: &[EventBlock]) -> Result<u8, WasmBuildError> {
         .iter()
         .flat_map(|event| event.block)
         .filter_map(|slot| match slot {
-            SlotBinding::Input { index } => Some(index),
             SlotBinding::InputLocal { input, .. }
             | SlotBinding::MemoryWrite32 { input, .. }
             | SlotBinding::MemoryWrite16 { input, .. }

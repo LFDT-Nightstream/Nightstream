@@ -879,6 +879,22 @@ theorem redundant_of_full_terminal_bound_valid
   exact certificate.redundant_of_terminal_bound_valid
     authoritative carried plan exact valid
 
+/-- A full-branch variant for artifacts whose authority format is the
+expanded string-payload source relation. The coverage premise prevents a
+bounded query slice from becoming the theorem target; the exact validation
+keeps the authoritative/carried split of the bound variants. -/
+theorem redundant_of_full_valid
+    (certificate : FamilyCertificate)
+    (authoritative carried : Artifact) (plan : List String)
+    (coverage : authoritative.CoversFullRelation)
+    (exact : Artifact.ExactValidation authoritative carried = true)
+    (valid : certificate.Valid carried plan) :
+    Redundant (FamilyHolds authoritative) plan certificate.family := by
+  rcases coverage with ⟨_, _⟩
+  have equal := Artifact.accepted_eq_authoritative exact
+  subst carried
+  exact certificate.redundant_of_valid authoritative plan valid
+
 end FamilyCertificate
 
 /-- Finite model record used for a checked removal counterexample. -/
@@ -1052,6 +1068,38 @@ theorem necessary_normalized_of_full_terminal_bound_valid
   rcases coverage with ⟨_, _⟩
   exact counterexample.necessary_normalized_of_terminal_bound_valid
     authoritative carried plan exact valid
+
+/-- A full-branch counterexample for artifacts whose authority format is the
+expanded string-payload source relation. The coverage premise keeps partial
+cvc5 query artifacts outside the proof target; the exact validation keeps
+the authoritative/carried split of the bound variants. -/
+theorem necessary_of_full_valid
+    (counterexample : RemovalCounterexample)
+    (authoritative carried : Artifact) (plan : List String)
+    (coverage : authoritative.CoversFullRelation)
+    (exact : Artifact.ExactValidation authoritative carried = true)
+    (valid : counterexample.Valid carried plan) :
+    NecessaryForSoundness (FamilyHolds authoritative) (Target authoritative)
+      plan counterexample.removedFamily := by
+  rcases coverage with ⟨_, _⟩
+  have equal := Artifact.accepted_eq_authoritative exact
+  subst carried
+  exact counterexample.necessary_of_valid authoritative plan valid
+
+theorem necessary_normalized_of_full_valid
+    (counterexample : RemovalCounterexample)
+    (authoritative carried : Artifact) (plan : List String)
+    (coverage : authoritative.CoversFullRelation)
+    (exact : Artifact.ExactValidation authoritative carried = true)
+    (valid : counterexample.Valid carried plan) :
+    NecessaryForSoundness
+      (NormalizedFamilyHolds authoritative)
+      (NormalizedTarget authoritative)
+      plan counterexample.removedFamily := by
+  rcases coverage with ⟨_, _⟩
+  have equal := Artifact.accepted_eq_authoritative exact
+  subst carried
+  exact counterexample.necessary_normalized_of_valid authoritative plan valid
 
 end RemovalCounterexample
 

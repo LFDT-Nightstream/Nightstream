@@ -21,6 +21,7 @@ use recursive_constraint_minimizer::{Problem, Row, Scope, Source, Term, GOLDILOC
 use sha2::{Digest, Sha256};
 
 mod analysis;
+mod compact_source_export;
 mod lean_export;
 mod lean_sampler_mirror;
 mod obligation_ledger;
@@ -30,6 +31,7 @@ mod source_assignment;
 mod terminal_binding;
 mod witness_search;
 
+pub use compact_source_export::{render_compact_source_artifact_modules, CompactSourceEmission};
 pub use lean_export::{
     render_bound_artifact_lean, render_complete_bound_artifact_lean, render_complete_bound_artifact_modules,
     render_complete_terminal_bound_artifact_lean, render_complete_terminal_bound_artifact_modules,

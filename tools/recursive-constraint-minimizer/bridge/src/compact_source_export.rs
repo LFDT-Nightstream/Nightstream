@@ -295,6 +295,16 @@ fn render_block(out: &mut String, block: &SeededPhi81LinearBlock) {
                 starts[0],
             ));
         }
+        None if starts.len() > 512 => {
+            let words = starts
+                .iter()
+                .map(|&start| u32::try_from(start).expect("word start fits u32"))
+                .collect::<Vec<_>>();
+            out.push_str(&format!(
+                "\n        wordStarts :=\n          (((readU32s (decodeBase64 {})).getD #[]).toList)\n",
+                lean_string_literal(&base64_encode(&le_bytes_u32(&words))),
+            ));
+        }
         None => {
             out.push_str("\n        wordStarts := [");
             out.push_str(

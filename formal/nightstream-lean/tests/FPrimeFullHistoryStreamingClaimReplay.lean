@@ -1,4 +1,25 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayExecution
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsCoordinateBinding
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsCoordinateBindingSetup
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsCoordinateBindingRows
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsCoordinateBindingOpeningRows
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsCoordinateBindingOutputRows
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsCoordinateBindingCompleteRows
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsCoordinateBindingClaimSchedule
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsCoordinateBindingProductionSetup
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsStatementBinding
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiCcsStatementBindingState
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayPiCcsBinding
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayDigest
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayCoordinate
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayCoordinateAccumulator
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayCoordinateOverlay
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayCoordinateSequence
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayPhase
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayPublic
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayReduction
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplayPiCcsStart
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingClaimReplaySequence
 
 /-! Focused surface for the Rust-conformant streaming claim-replay artifact. -/
 
@@ -6,13 +27,32 @@ namespace tests.FPrimeFullHistoryStreamingClaimReplay
 
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayArtifact
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayExecution
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayDigestDomain
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayDigest
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayCoordinate
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayCoordinateAccumulator
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayCoordinateOverlay
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayCoordinateSequence
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayPhase
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayPublic
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayReduction
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayPiCcsStart
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplaySequence
+open Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachineDuplex
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsStatementBinding
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsStatementBindingState
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsStatementChunkSelection
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayPiCcsBinding
 
 #check artifact_valid
 #check exact_shape
 #check exact_leaf_counts
+#check exact_public_word_layout
+#check exact_state_word_layout
 #check poseidon2_width_attribution_exact
 #check canonical_call_refines
 #check poseidon2_call_refines
+#check coordinate_call_holds
 #check glue_row_holds
 #check full_execution
 #check final_execution
@@ -20,5 +60,171 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayExecut
 #check final_execution_refines
 #check full_rows_refine_declared_runtime
 #check final_rows_refine_declared_runtime
+#check domain_certificate_partition_exact
+#check domain_framing_words_exact
+#check checkpoint1_exact
+#check checkpoint2_exact
+#check checkpoint3_exact
+#check checkpoint4_exact
+#check domain_initial_state_state_exact
+#check domain_initial_state_exact
+#check state_fields_label_exact
+#check exact_digest_operation_shape
+#check digest_execution
+#check digest_execution_refines
+#check state_digest_refines
+#check public_word_refines
+#check public_bit_binary
+#check state_digest_public_word
+#check cursor_public_word
+#check shared_public_words_refine
+#check fullCoordinateCall_block_exact
+#check fullCoordinateCall_rows_exact
+#check full_partial_commitment
+#check full_before_zero
+#check full_commitment_transition
+#check final_commitment_carry
+#check partialCoordinate_sum
+#check accumulated_zero
+#check accumulated_succ
+#check AcceptedRun.state_eq_accumulated
+#check AcceptedRun.final_eq_direct
+#check updateRows_length
+#check updateRows_sound
+#check zeroRows_sound
+#check activeRows_imply_step
+#check activeRows_chunkZero_initial
+#check carryRows_sound
+#check inactiveChunk_of_gap
+#check partialCoordinate_eq_zero_of_inactive
+#check carryRows_imply_step
+#check overlayKindAt_zero
+#check overlayKindAt_evaluation
+#check overlayKindAt_final
+#check overlayKindAt_fullCarry
+#check inactiveChunk_of_not_active
+#check ActiveLinkedRows.activeFieldsPlaced
+#check ActiveLinkedRows.step
+#check ActiveLinkedRows.initial
+#check CarryLinkedRows.step
+#check PhaseRowsAt.step
+#check PhaseRowsAt.zero_initial
+#check AcceptedLinkedRun.toAccumulatorRun
+#check AcceptedLinkedRun.final_eq_direct
+#check exact_public_carrier_layout
+#check carrier_getD_bit
+#check carrier_getD_one
+#check carrier_getD_padding
+#check carrier_binary
+#check private_decomposition_redundant
+#check exact_reduction_census
+#check semanticExecuteSlice_external_toDuplex
+#check rows_imply_relation
+#check publicLinked_state_eq_or_collision
+#check AcceptedRunFrom.runtime_replay_of_no_collision
+#check accepted_run_recovers_frame_or_named_collision
+#check selected_public_state_eq_bindingState
+#check acceptedRun_implies_piCcsStartRelation_of_no_state_collision
+#check acceptedRun_initializes_piCcs_or_named_collision
+#check production_window_geometry
+#check authoritativeFrame_sections
+#check pointWindow_eq
+#check evaluationWindow_eq
+#check frameOrderCarriedCoordinates_perm_canonical
+#check frameOrderVariableFields_exactVerifierInput
+#check selectedAuthoritativeFields_exactVerifierInput
+#check authoritativeState_eq_exactVerifierInput
+#check accepted_fields_match_exactVerifierInput_or_collision
+#check production_chunk_window_geometry
+#check selectedFieldsFromChunks_eq_authoritative
+#check selectedStateFromChunks_eq_authoritative
+#check acceptedRun_selects_authoritativeFields_or_named_collision
+#check acceptedRun_selectedState_eq_authoritative_or_named_collision
+#check acceptedRun_matches_exactPiCcsFields_or_named_collision
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBinding
+
+#check exact_geometry
+#check flatIndex_messagePosition
+#check coordinateWitness_injective
+#check coordinateWitness_unit_bound
+#check equal_binding_recovers_fields_or_failure
+#check maskedWitness_partition
+#check commit_mask_add_complement
+#check exact_production_chunk_source_shape
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBindingSetup
+
+#check ExecutablePhi81.mul_coefficients
+#check integerResidue_zero_val
+#check integerResidue_signedDigit
+#check seededMatrix_coefficients
+#check exact_rust_identity
+#check exact_chunk_geometry
+#check flattenCommitment_injective
+#check equal_concrete_binding_recovers_fields_or_failure
+#check exact_output_width
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBindingProductionSetup
+
+#check productionSetup
+#check exact_identity
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBindingRows
+
+#check Layout.wordStarts_length
+#check coordinateBlock_exact_geometry
+#check coordinateBlock_baseRotations
+#check coordinateBlock_bitColumn
+#check coordinateBlock_tail_bitColumn_none
+#check SourceColumnsExact
+#check selected_word_exact
+#check selected_coordinate_exact
+#check coordinateBlock_coefficient_residue
+#check coordinateBlock_inputValue_exact
+#check exact_tail_width
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBindingOpeningRows
+
+#check zeroRows_length
+#check openingBlockRows_length
+#check openingRows_length
+#check sourceRows_length
+#check zero_word_exact
+#check opening_of_rows
+#check active_digit_exact
+#check sourceColumnsExact_of_rows
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBindingOutputRows
+
+#check linearValue_residue
+#check coordinateBlock_linearValue_eq_ring_products
+#check maskedCommitment_coordinate_eq_linearValue
+#check compact_output_exact
+#check compact_output_exact_of_rows
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBindingCompleteRows
+
+#check shapeRows_length
+#check shape_exact
+#check coordinateRows_length
+#check rows_length
+#check production_rows_length
+#check Exact
+#check rows_sound
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiCcsCoordinateBindingClaimSchedule
+
+#check claimFramePosition_recompose
+#check point_chunk_geometry
+#check evaluation_chunk_geometry
+#check activeFields_nodup
+#check layout_selected_eq_chunkMask
+#check rows_imply_claimChunkCommitment
+#check maskedWitness_sum
+#check commitments_sum
+#check concrete_commitments_sum
+#check claimChunk_active_range
+#check active_phase_row_census
 
 end tests.FPrimeFullHistoryStreamingClaimReplay

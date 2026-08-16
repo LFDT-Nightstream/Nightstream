@@ -1,0 +1,28 @@
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiRLCInputBindingSetup
+
+/-! Regression surface for the concrete production PiRLC input binding. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductionStreamingPiRlcInputBindingSetup
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputBindingSetup
+
+#check seededMatrix_coefficients
+#check outputPair_outputIndex
+#check outputIndex_outputPair
+#check outputIndex_val
+#check flatten_unflatten
+#check unflatten_flatten
+#check flattenCommitment_injective
+#check exact_output_width
+#check equal_concrete_binding_recovers_inputs_or_failure
+#check flatten_addResidual
+#check flatten_zeroResidual
+#check ConcreteResidualTransition
+#check concretePhaseBindings_sum
+#check ConcreteCompleteResidualRun
+#check honest_concreteCompleteResidualRun
+#check concrete_complete_zero_recovers_inputs_or_failure
+
+end tests.NebulaProductionStreamingPiRlcInputBindingSetup

@@ -31,15 +31,15 @@ open Nightstream.Implementation.R1CS.PiRlcChallenge.Transcript
 /-- Compact call trace extracted from one exact Rust arm. -/
 def traceFor (arm : RawArm) : TranscriptCertificate.Trace where
   pins := []
-  calls := arm.poseidon2Calls
+  calls := arm.poseidon2Calls.take arm.replayPoseidon2CallCount
 
-/-- Field column of one canonical public transition word. -/
-def publicWordColumn (arm : RawArm) (index : Nat) : Nat :=
-  (arm.canonicalCalls.getD index default).fieldColumn
+/-- Field column of one private transition-state word. -/
+def stateWordColumn (arm : RawArm) (index : Nat) : Nat :=
+  arm.stateWordColumns.getD index 0
 
-/-- The chunk starts after the last canonical-word decomposition allocation. -/
+/-- The chunk starts after the after-cursor canonical decomposition. -/
 def chunkBase (arm : RawArm) : Nat :=
-  (arm.canonicalCalls.getD 39 default).inverseColumn + 1
+  (arm.canonicalCalls.getD 1 default).inverseColumn + 1
 
 def chunkColumn (arm : RawArm) (index : Nat) : Nat :=
   chunkBase arm + index
@@ -50,12 +50,12 @@ def chunkOperations (arm : RawArm) (count : Nat) :
     .external (chunkColumn arm index)
 
 def afterRuntimeColumn (arm : RawArm) (lane : Fin 8) : Nat :=
-  publicWordColumn arm (29 + lane.val)
+  stateWordColumn arm (137 + lane.val)
 
-/-- Runtime state columns in the public before-state block. -/
+/-- Runtime state columns in the private before-state block. -/
 def startRun (arm : RawArm) : ColumnReplay.Run where
   cursor := {
-    lanes := fun lane => publicWordColumn arm (9 + lane.val)
+    lanes := fun lane => stateWordColumn arm (9 + lane.val)
     absorbed := ⟨0, by decide⟩
     nextPin := 0
     nextCall := 0 }
@@ -211,7 +211,7 @@ theorem trace_accepted
   · simp [traceFor]
   · intro call member
     exact poseidon2_call_refines arm assignment canonical one satisfied call
-      (by simpa [traceFor] using member)
+      (List.mem_of_mem_take (by simpa [traceFor] using member))
 
 /-- Accepted full-arm rows refine the exact extracted bulk permutation
 execution. This result still stops at the generated SSA permutation semantics. -/
@@ -244,14 +244,14 @@ theorem final_execution_refines
   exact final_execution
 
 private def fullOutputGlue (lane : Fin 8) : IndexedRow :=
-  fullArm.glueRows.get ⟨16 + lane.val, by
-    have lengthExact : fullArm.glueRows.length = 24 := by native_decide
+  fullArm.glueRows.get ⟨124 + lane.val, by
+    have lengthExact : fullArm.glueRows.length = 270 := by native_decide
     rw [lengthExact]
     omega⟩
 
 private def finalOutputGlue (lane : Fin 8) : IndexedRow :=
   finalArm.glueRows.get ⟨59 + lane.val, by
-    have lengthExact : finalArm.glueRows.length = 77 := by native_decide
+    have lengthExact : finalArm.glueRows.length = 215 := by native_decide
     rw [lengthExact]
     omega⟩
 
@@ -332,7 +332,7 @@ private theorem transcriptStateExt
   cases right
   simp_all
 
-/-- The full arm's declared public successor is the state reconstructed from
+/-- The full arm's declared private successor is the state reconstructed from
 the complete accepted Rust call trace. -/
 theorem full_declared_runtime_eq_result
     (assignment : Nat → Nat)
@@ -347,7 +347,7 @@ theorem full_declared_runtime_eq_result
     exact full_output_lanes assignment canonical one satisfied lane
   · rfl
 
-/-- The final arm's declared public successor is the state reconstructed from
+/-- The final arm's declared private successor is the state reconstructed from
 the complete accepted Rust call trace. -/
 theorem final_declared_runtime_eq_result
     (assignment : Nat → Nat)
@@ -363,8 +363,8 @@ theorem final_declared_runtime_eq_result
   · rfl
 
 /-- Same-assignment conformance for the complete full-chunk Poseidon2 path,
-from public before-state columns and private chunk columns to public
-successor-state columns. -/
+from private before-state and chunk columns to private successor-state
+columns. The shared public digest link is proved separately. -/
 theorem full_rows_refine_declared_runtime
     (assignment : Nat → Nat)
     (canonical : ∀ column, assignment column < goldilocksP)

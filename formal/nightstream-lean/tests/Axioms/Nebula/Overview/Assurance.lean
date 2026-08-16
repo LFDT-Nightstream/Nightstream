@@ -5,11 +5,11 @@ open Nightstream.Implementation.Nebula.ConcreteField
 open Nightstream.Assurance.Nebula.FingerprintSecurity
 open Nightstream.Assurance.Nebula.SecurityBudget
 
-/-- info: 'Nightstream.Assurance.Nebula.AjtaiBinding.signed_unit_collision_to_kernel' depends on axioms: [propext,
+/-- info: 'Nightstream.Protocol.Nebula.AjtaiBinding.signed_unit_collision_to_kernel' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/
 #guard_msgs in
-#audit_axioms Nightstream.Assurance.Nebula.AjtaiBinding.signed_unit_collision_to_kernel
+#audit_axioms Nightstream.Protocol.Nebula.AjtaiBinding.signed_unit_collision_to_kernel
 
 /-- info: 'Nightstream.Assurance.Nebula.AjtaiBinding.primary_failure_to_kernel' depends on axioms: [propext,
  Classical.choice,

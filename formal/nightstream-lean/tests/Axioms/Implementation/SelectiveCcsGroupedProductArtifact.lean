@@ -4,6 +4,11 @@ import tests.Axioms.Support
 
 /-! Fail-closed dependency gate for the grouped-product Rust fixture. -/
 
+/-- info: 'Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.EvaluationRowBridge.fiveProductEquation_iff_stepHolds' depends on axioms: [propext,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.EvaluationRowBridge.fiveProductEquation_iff_stepHolds
+
 /-- info: 'Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.FixtureRefinement.decodedSteps_length' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.FixtureRefinement.decodedSteps_length

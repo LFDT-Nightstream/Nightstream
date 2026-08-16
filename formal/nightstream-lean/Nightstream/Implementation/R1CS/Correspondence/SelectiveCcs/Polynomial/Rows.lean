@@ -139,6 +139,20 @@ theorem evaluate_productPoint (selector left right output : F) :
     Role.index, Fin.zero_mul, Fin.mul_zero, Fin.zero_add, Fin.add_zero,
     Lean.Grind.AddCommGroup.neg_zero]
 
+theorem evaluate_productPoint_one_eq_zero_iff
+    (left right output : F) :
+    evaluate (productPoint 1 left right output) = 0 ↔
+      left * right = output := by
+  rw [evaluate_productPoint]
+  have expanded :
+      productResidual (productPoint (1 : F) left right output) =
+        left * right + -output := by
+    simp [productResidual, productPoint, sparsePoint, Role.index, Fin.one_mul]
+  rw [expanded]
+  simpa only [Fin.sub_eq_add_neg] using
+    (Lean.Grind.AddCommGroup.sub_eq_zero_iff :
+      left * right - output = 0 ↔ left * right = output)
+
 theorem evaluate_sboxPoint (selector input output : F) :
     evaluate (sboxPoint selector input output) =
       productResidual (sboxPoint selector input output) +

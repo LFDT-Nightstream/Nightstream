@@ -4,6 +4,7 @@ set_option autoImplicit false
 
 namespace tests.NebulaAjtaiBinding
 
+open Nightstream.Protocol.Nebula.AjtaiBinding
 open Nightstream.Assurance.Nebula.AjtaiBinding
 
 def tinyShape : Shape where

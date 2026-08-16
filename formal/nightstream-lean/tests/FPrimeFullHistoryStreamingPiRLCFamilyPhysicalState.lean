@@ -1,0 +1,23 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyPhysicalState
+
+/-! Focused surface for the complete PiRLC family same-assignment adapter. -/
+
+set_option autoImplicit false
+
+namespace tests.FPrimeFullHistoryStreamingPiRLCFamilyPhysicalState
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPhysicalState
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicState
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyState
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutPreimage
+
+#check digest_preimage_is_family_state
+#check program_cursor_field_mod
+#check cursor_public_word_exact
+#check shared_public_state_refines
+#check parityForArm_kindForFamily
+#check AcceptedArm.xOutPreimageBinding
+#check AcceptedArm.sound
+#check AcceptedArm.soundWithXOutPreimage
+
+end tests.FPrimeFullHistoryStreamingPiRLCFamilyPhysicalState

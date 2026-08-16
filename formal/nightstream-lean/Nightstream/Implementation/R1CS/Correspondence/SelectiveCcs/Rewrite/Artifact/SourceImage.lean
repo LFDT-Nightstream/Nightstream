@@ -334,10 +334,11 @@ theorem evaluate_ofPort {columns : Nat} (port : DecodedPort columns)
 
 end Form
 
-/-- The compiler uses 41 balanced ternary coordinates for an ordinary field
-and binary coordinates for every other retained width. -/
+/-- The compiler uses 41 balanced ternary coordinates for an input field,
+23 centered-septenary coordinates for a general field, and binary
+coordinates for every other retained width. -/
 def slotRadix (width : Nat) : F :=
-  if width = 41 then 3 else 2
+  if width = 41 then 3 else if width = 23 then 7 else 2
 
 private def sourceSlotColumn {sourceColumns finalColumns : Nat}
     (slot : DecodedSourceSlot sourceColumns finalColumns)
@@ -362,6 +363,76 @@ def sourceSlotForm {sourceColumns finalColumns : Nat}
           (slotRadix slot.width ^ index.val)) tail)
     Form.zero
 
+private def sourceSlotValueFrom {sourceColumns finalColumns : Nat}
+    (slot : DecodedSourceSlot sourceColumns finalColumns)
+    (assignment : Fin finalColumns → F) : List (Fin slot.width) → F
+  | [] => 0
+  | index :: tail =>
+      slotRadix slot.width ^ index.val *
+          assignment (sourceSlotColumn slot index) +
+        sourceSlotValueFrom slot assignment tail
+
+/-- Sparse evaluation of one source slot. It traverses only the retained
+low-norm coordinates, not the complete final assignment. -/
+def sourceSlotValue {sourceColumns finalColumns : Nat}
+    (slot : DecodedSourceSlot sourceColumns finalColumns)
+    (assignment : Fin finalColumns → F) : F :=
+  sourceSlotValueFrom slot assignment (canonicalFinIndices slot.width)
+
+/-- The sparse source-slot value is the canonical finite-index fold exposed
+without its private recursive helper. -/
+theorem sourceSlotValue_eq_foldr {sourceColumns finalColumns : Nat}
+    (slot : DecodedSourceSlot sourceColumns finalColumns)
+    (assignment : Fin finalColumns → F) :
+    sourceSlotValue slot assignment =
+      (canonicalFinIndices slot.width).foldr
+        (fun index tail =>
+          slotRadix slot.width ^ index.val *
+              assignment
+                ⟨slot.start + index.val,
+                  Nat.lt_of_lt_of_le
+                    (Nat.add_lt_add_left index.isLt slot.start)
+                    slot.columnsFit⟩ +
+            tail)
+        0 := by
+  unfold sourceSlotValue
+  induction canonicalFinIndices slot.width with
+  | nil => rfl
+  | cons head tail inductionHypothesis =>
+      simp only [sourceSlotValueFrom, List.foldr_cons,
+        inductionHypothesis]
+      rfl
+
+private theorem evaluate_sourceSlotFormFrom
+    {sourceColumns finalColumns : Nat}
+    (slot : DecodedSourceSlot sourceColumns finalColumns)
+    (assignment : Fin finalColumns → F)
+    (indices : List (Fin slot.width)) :
+    Form.evaluate
+        (indices.foldr
+          (fun index tail =>
+            Form.add
+              (Form.single (sourceSlotColumn slot index)
+                (slotRadix slot.width ^ index.val)) tail)
+          Form.zero)
+        assignment =
+      sourceSlotValueFrom slot assignment indices := by
+  induction indices with
+  | nil =>
+      exact Form.evaluate_zero assignment
+  | cons index tail inductionHypothesis =>
+      rw [List.foldr_cons, sourceSlotValueFrom, Form.evaluate_add,
+        Form.evaluate_single, inductionHypothesis]
+
+/-- The sparse slot evaluator is exactly the dense linear-form action. -/
+theorem evaluate_sourceSlotForm {sourceColumns finalColumns : Nat}
+    (slot : DecodedSourceSlot sourceColumns finalColumns)
+    (assignment : Fin finalColumns → F) :
+    Form.evaluate (sourceSlotForm slot) assignment =
+      sourceSlotValue slot assignment := by
+  unfold sourceSlotForm sourceSlotValue
+  exact evaluate_sourceSlotFormFrom slot assignment _
+
 def derivedSlotForm {finalColumns : Nat}
     (slot : DecodedDerivedSlot finalColumns) : Form finalColumns :=
   (canonicalFinIndices slot.width).foldr
@@ -374,6 +445,14 @@ def derivedSlotForm {finalColumns : Nat}
 def constantForm {columns : Nat} (columnsPositive : 0 < columns) :
     Form columns :=
   Form.single ⟨0, columnsPositive⟩ 1
+
+theorem evaluate_constantForm {columns : Nat}
+    (columnsPositive : 0 < columns) (assignment : Fin columns → F) :
+    Form.evaluate (constantForm columnsPositive) assignment =
+      assignment ⟨0, columnsPositive⟩ := by
+  unfold constantForm
+  rw [Form.evaluate_single]
+  exact Fin.one_mul _
 
 def findSourceSlot {sourceColumns finalColumns : Nat}
     (slots : List (DecodedSourceSlot sourceColumns finalColumns))

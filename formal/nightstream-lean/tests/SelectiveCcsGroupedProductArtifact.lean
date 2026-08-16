@@ -8,6 +8,8 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.SelectiveGroupe
 open Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.Artifact.Row.Boolean
 open Nightstream.Implementation.R1CS.SelectiveCcs.Polynomial.Ports
 open Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.FixtureRefinement
+open Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.EvaluationRowBridge
+open Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.FinalAssignment
 open Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.FinalRowSourceBridge
 open Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.FinalRowsReconstructSource
 open Nightstream.Implementation.R1CS.SelectiveCcs.Rewrite.Artifact.FixtureSourceReconstruction
@@ -59,6 +61,18 @@ example (index : Fin 6) (factor : Fin 5)
             decodedSourceDefinitions sourceFuel factor.val false
             (decodedStep index)) assignment :=
   generated_factor_actions_eq_source_images index factor assignment
+
+example (index : Fin 6) (assignment : Fin finalColumnCount → F)
+    (constantOne : assignment ⟨0, finalColumnCount_positive⟩ = 1) :
+    FiveProductEquation (decodedFixedRow index).ports assignment ↔
+      StepHolds (decodedStep index)
+        (sourceAssignment finalColumnCount_positive decodedSourceSlots
+          decodedSourceDefinitions sourceFuel assignment)
+        1 (derivedAssignment decodedDerivedSlots assignment) :=
+  fiveProductEquation_iff_stepHolds finalColumnCount_positive
+    (decodedFixedRow index).ports (decodedStep index) decodedSourceSlots
+    decodedSourceDefinitions decodedDerivedSlots sourceFuel
+    (generated_step_images_match index) assignment constantOne
 
 example : decodedSourceDefinitions.length = 1 :=
   decodedSourceDefinitions_length

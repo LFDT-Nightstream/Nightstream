@@ -1,0 +1,13 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyNormalizedLink
+
+namespace Nightstream.Tests.Axioms.Implementation.FPrimeFullHistoryStreamingPiRLCFamilyNormalizedLink
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyNormalizedLink
+
+#print axioms source_geometry_exact
+#print axioms final_geometry_exact
+#print axioms link_census_exact
+#print axioms cross_receipts_exact
+#print axioms audit_valid
+
+end Nightstream.Tests.Axioms.Implementation.FPrimeFullHistoryStreamingPiRLCFamilyNormalizedLink

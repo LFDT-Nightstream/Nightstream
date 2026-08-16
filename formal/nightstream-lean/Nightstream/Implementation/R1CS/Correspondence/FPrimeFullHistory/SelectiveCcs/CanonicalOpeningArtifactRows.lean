@@ -1,4 +1,5 @@
 import Nightstream.Implementation.R1CS.Artifacts.ShiftedTernary
+import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.CenteredSeptenaryNormDischarged
 import Nightstream.Implementation.R1CS.Correspondence.FieldEncoding.Refinement.BorrowChunk
 
 /-!
@@ -270,17 +271,16 @@ private def caseAssignment
 
 private theorem inputValue_eq_physical
     (assignment : Nat → Nat)
-    (borrowNorm : ∀ index : Fin chunkBorrowCount,
-      NormBoundTwo
-        (localAssignment assignment
-          (chunkBorrowColumnBase + index.val)))
+    (borrowCanonical : ∀ index : Fin chunkBorrowCount,
+      localAssignment assignment
+          (chunkBorrowColumnBase + index.val) < goldilocksP)
     {row : Nat} (rowLt : row < chunkCount) (positive : 0 < row) :
     inputValue assignment row =
       assignment (inputBorrowColumn row) := by
   have indexLt : row - 1 < chunkBorrowCount := by
     unfold chunkBorrowCount chunkCount at *
     omega
-  have bounded := borrowNorm ⟨row - 1, indexLt⟩
+  have bounded := borrowCanonical ⟨row - 1, indexLt⟩
   rw [localAssignment_borrow assignment indexLt] at bounded
   have rowNe : row ≠ 0 := by omega
   have coordinateEq :
@@ -302,14 +302,13 @@ private theorem inputValue_eq_physical
       _ = assignment (inputBorrowColumn row) := by rw [coordinateEq]
   simp [inputValue, chunkInputValue, chunkInput,
     CenteredTernaryDerivedBorrow.Polynomial.eval,
-    rowNe, physicalEq, Nat.mod_eq_of_lt bounded.1]
+    rowNe, physicalEq, Nat.mod_eq_of_lt bounded]
 
 private theorem outputValue_eq_physical
     (assignment : Nat → Nat)
-    (borrowNorm : ∀ index : Fin chunkBorrowCount,
-      NormBoundTwo
-        (localAssignment assignment
-          (chunkBorrowColumnBase + index.val)))
+    (borrowCanonical : ∀ index : Fin chunkBorrowCount,
+      localAssignment assignment
+          (chunkBorrowColumnBase + index.val) < goldilocksP)
     {row : Nat} (rowLt : row < chunkCount)
     (hasOutput : row + 1 < chunkCount) :
     outputValue assignment row =
@@ -317,29 +316,29 @@ private theorem outputValue_eq_physical
   have indexLt : row < chunkBorrowCount := by
     unfold chunkBorrowCount chunkCount at *
     omega
-  have bounded := borrowNorm ⟨row, indexLt⟩
+  have bounded := borrowCanonical ⟨row, indexLt⟩
   rw [localAssignment_borrow assignment indexLt] at bounded
   have notLast : row + 1 ≠ chunkCount := by omega
-  change NormBoundTwo
-    (assignment (outputBorrowColumn row)) at bounded
   have physicalEq :
       localAssignment assignment (chunkBorrowColumnBase + row) =
         assignment (outputBorrowColumn row) := by
     rw [localAssignment_borrow assignment indexLt]
     rfl
+  have boundedOutput :
+      assignment (outputBorrowColumn row) < goldilocksP := by
+    simpa [outputBorrowColumn] using bounded
   simp [outputValue, chunkOutputValue, chunkOutput,
     CenteredTernaryDerivedBorrow.Polynomial.eval,
-    notLast, physicalEq, Nat.mod_eq_of_lt bounded.1]
+    notLast, physicalEq, Nat.mod_eq_of_lt boundedOutput]
 
 private theorem artifactResidual_eq_case
     (assignment : Nat → Nat)
     (one : assignment 0 = 1)
     (selector :
       assignment ShiftedTernarySelectiveArtifact.selectorColumn = 1)
-    (borrowNorm : ∀ index : Fin chunkBorrowCount,
-      NormBoundTwo
-        (localAssignment assignment
-          (chunkBorrowColumnBase + index.val)))
+    (borrowCanonical : ∀ index : Fin chunkBorrowCount,
+      localAssignment assignment
+          (chunkBorrowColumnBase + index.val) < goldilocksP)
     {row : Nat} (rowLt : row < chunkCount) :
     artifactResidual assignment row =
       artifactResidual
@@ -399,7 +398,7 @@ private theorem artifactResidual_eq_case
     rw [if_neg notZero, if_neg notSelector, if_neg notFirst, if_pos rfl]
     simp [secondValue, live]
   · rcases input with ⟨positive, rfl⟩
-    rw [inputValue_eq_physical assignment borrowNorm rowLt positive]
+    rw [inputValue_eq_physical assignment borrowCanonical rowLt positive]
     have notZero : inputBorrowColumn row ≠ 0 := by
       unfold inputBorrowColumn physicalBorrowBase
       omega
@@ -420,7 +419,7 @@ private theorem artifactResidual_eq_case
     rw [if_neg notZero, if_neg notSelector, if_neg notFirst,
       if_neg notSecond, if_pos rfl]
   · rcases output with ⟨hasOutput, rfl⟩
-    rw [outputValue_eq_physical assignment borrowNorm rowLt hasOutput]
+    rw [outputValue_eq_physical assignment borrowCanonical rowLt hasOutput]
     have notZero : outputBorrowColumn row ≠ 0 := by
       unfold outputBorrowColumn physicalBorrowBase
       omega
@@ -450,6 +449,17 @@ private def centeredValue : Fin 3 → Nat
   | ⟨1, _⟩ => 0
   | ⟨2, _⟩ => 1
 
+/-- Canonical Goldilocks representatives for the production `b = 4`
+outer-norm alphabet. -/
+private def normFourValue : Fin 7 → Nat
+  | ⟨0, _⟩ => goldilocksP - 3
+  | ⟨1, _⟩ => goldilocksP - 2
+  | ⟨2, _⟩ => goldilocksP - 1
+  | ⟨3, _⟩ => 0
+  | ⟨4, _⟩ => 1
+  | ⟨5, _⟩ => 2
+  | ⟨6, _⟩ => 3
+
 private def binaryValue (value : Fin 2) : Nat :=
   value.val
 
@@ -460,6 +470,20 @@ private theorem centeredValue_surjective
   · exact ⟨⟨0, by decide⟩, negative.symm⟩
   · exact ⟨⟨1, by decide⟩, zero.symm⟩
   · exact ⟨⟨2, by decide⟩, one.symm⟩
+
+private theorem normFourValue_surjective
+    {value : Nat}
+    (centered : CenteredSeptenaryField.CenteredResidue value) :
+    ∃ index : Fin 7, normFourValue index = value := by
+  rcases centered with negativeThree | negativeTwo | negativeOne |
+      zero | one | two | three
+  · exact ⟨⟨0, by decide⟩, negativeThree.symm⟩
+  · exact ⟨⟨1, by decide⟩, negativeTwo.symm⟩
+  · exact ⟨⟨2, by decide⟩, negativeOne.symm⟩
+  · exact ⟨⟨3, by decide⟩, zero.symm⟩
+  · exact ⟨⟨4, by decide⟩, one.symm⟩
+  · exact ⟨⟨5, by decide⟩, two.symm⟩
+  · exact ⟨⟨6, by decide⟩, three.symm⟩
 
 private theorem binaryValue_surjective
     {value : Nat} (bounded : value ≤ 1) :
@@ -491,28 +515,29 @@ private def caseScalarValue
     (chunkEntries row) (caseInput row input)
 
 /-- Closed exact truth table for all 21 generated rows. The incoming borrow
-is Boolean; the outgoing endpoint is only assumed centered. The conclusion
-both identifies the intended two-trit transition and establishes the Boolean
-invariant needed by the next row.
+is Boolean; the outgoing endpoint is only assumed to satisfy the production
+`b = 4` outer-norm alphabet. The conclusion identifies the intended two-trit
+transition and establishes the Boolean invariant needed by the next row.
 
 This is the sole native-code certificate in the refinement. -/
 theorem finiteRowTransition :
     ∀ row : Fin chunkCount,
-    ∀ first second output : Fin 3,
+    ∀ first second : Fin 3,
+    ∀ output : Fin 7,
     ∀ input : Fin 2,
       artifactResidual
           (caseAssignment row.val
             (centeredValue first)
             (caseSecond row.val (centeredValue second))
             (caseInput row.val (binaryValue input))
-            (caseOutput row.val (centeredValue output)))
+            (caseOutput row.val (normFourValue output)))
           row.val = 0 →
-        caseOutput row.val (centeredValue output) =
+        caseOutput row.val (normFourValue output) =
             caseScalarValue row.val
               (centeredValue first)
               (caseSecond row.val (centeredValue second))
               (caseInput row.val (binaryValue input)) ∧
-          caseOutput row.val (centeredValue output) ≤ 1 := by
+          caseOutput row.val (normFourValue output) ≤ 1 := by
   native_decide
 
 private theorem firstValue_centered
@@ -547,26 +572,29 @@ private theorem secondValue_centered
 private theorem outputValue_centered
     (assignment : Nat → Nat)
     (borrowNorm : ∀ index : Fin chunkBorrowCount,
-      NormBoundTwo
+      CenteredSeptenaryNormDischarged.NormBoundFour
         (localAssignment assignment
           (chunkBorrowColumnBase + index.val)))
     {row : Nat} (rowLt : row < chunkCount) :
-    CenteredResidue (outputValue assignment row) := by
+    CenteredSeptenaryField.CenteredResidue
+      (outputValue assignment row) := by
   by_cases last : row + 1 = chunkCount
-  · right
-    left
-    simp [outputValue, chunkOutputValue, chunkOutput,
+  · simp [CenteredSeptenaryField.CenteredResidue, outputValue,
+      chunkOutputValue, chunkOutput,
       CenteredTernaryDerivedBorrow.Polynomial.eval, last]
   · have indexLt : row < chunkBorrowCount := by
       unfold chunkBorrowCount chunkCount at *
       omega
     have bounded := borrowNorm ⟨row, indexLt⟩
     have outputEq :=
-      outputValue_eq_physical assignment borrowNorm rowLt (by omega)
+      outputValue_eq_physical assignment (fun index => (borrowNorm index).1)
+        rowLt (by omega)
     rw [outputEq]
     unfold outputBorrowColumn
     rw [← localAssignment_borrow assignment indexLt]
-    exact normBoundTwo_iff_centeredResidue.mp bounded
+    exact
+      CenteredSeptenaryNormDischarged.normBoundFour_iff_centeredResidue.mp
+        bounded
 
 private theorem inputValue_case
     (assignment : Nat → Nat) {row : Nat} :
@@ -683,7 +711,7 @@ private theorem artifactChunk_sound
       assignment ShiftedTernarySelectiveArtifact.selectorColumn = 1)
     (digitNorm : DigitNormBoundTwo (localAssignment assignment))
     (borrowNorm : ∀ index : Fin chunkBorrowCount,
-      NormBoundTwo
+      CenteredSeptenaryNormDischarged.NormBoundFour
         (localAssignment assignment
           (chunkBorrowColumnBase + index.val)))
     {row : Nat} (rowLt : row < chunkCount)
@@ -697,7 +725,7 @@ private theorem artifactChunk_sound
   rcases centeredValue_surjective
       (secondValue_centered assignment digitNorm row) with
     ⟨secondIndex, secondEq⟩
-  rcases centeredValue_surjective
+  rcases normFourValue_surjective
       (outputValue_centered assignment borrowNorm rowLt) with
     ⟨outputIndex, outputEq⟩
   rcases binaryValue_surjective inputLe with ⟨inputIndex, inputEq⟩
@@ -707,11 +735,12 @@ private theorem artifactChunk_sound
             (centeredValue firstIndex)
             (caseSecond row (centeredValue secondIndex))
             (caseInput row (binaryValue inputIndex))
-            (caseOutput row (centeredValue outputIndex)))
+            (caseOutput row (normFourValue outputIndex)))
           row = 0 := by
     rw [firstEq, secondEq, inputEq, outputEq,
       secondValue_case, inputValue_case, outputValue_case]
-    rw [← artifactResidual_eq_case assignment one selector borrowNorm rowLt]
+    rw [← artifactResidual_eq_case assignment one selector
+      (fun index => (borrowNorm index).1) rowLt]
     exact rowZero
   have checked :=
     finiteRowTransition ⟨row, rowLt⟩ firstIndex secondIndex outputIndex
@@ -741,7 +770,7 @@ theorem artifactRows_imply_chunkScheduleHolds
       assignment ShiftedTernarySelectiveArtifact.selectorColumn = 1)
     (digitNorm : DigitNormBoundTwo (localAssignment assignment))
     (borrowNorm : ∀ index : Fin chunkBorrowCount,
-      NormBoundTwo
+      CenteredSeptenaryNormDischarged.NormBoundFour
         (localAssignment assignment
           (chunkBorrowColumnBase + index.val)))
     (rowsHold : ArtifactRowsHold assignment) :

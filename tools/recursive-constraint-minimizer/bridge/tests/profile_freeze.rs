@@ -282,6 +282,76 @@ fn probe_k_rho_10_digests() {
 }
 
 #[test]
+#[ignore = "k_rho=10 encoding-limit probe for the compact pipeline; run with --ignored --nocapture"]
+fn probe_k_rho_10_encoding_limits() {
+    use neo_ccs::CcsMatrix;
+    use std::collections::HashSet;
+
+    let inner = neo_params::NeoParams::new(
+        neo_params::goldilocks_paper_b2::Q,
+        neo_params::goldilocks_paper_b2::ETA as u32,
+        neo_params::goldilocks_paper_b2::D as u32,
+        1,
+        neo_params::goldilocks_paper_b2::M,
+        neo_params::goldilocks_paper_b2::B_BASE,
+        10,
+        1,
+        neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
+        1,
+    )
+    .expect("k_rho=10 minimal parameters");
+    let params = Params::test_only_from_neo_params(inner);
+    let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("campaign memory profile");
+    let plan = NebulaPlan::new(memory, vec![7], [0xDA; 32], params.kappa() as usize).expect("campaign Nebula plan");
+    let audit = NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan)
+        .expect("discover k_rho=10 source arms");
+    let arm = audit.arm(NebulaFPrimeBranch::Recursive);
+    let mut values = HashSet::new();
+    let mut nnz = 0usize;
+    let mut row_terms = vec![0u32; arm.n];
+    let mut blocks_total = 0usize;
+    let mut geometric_total = 0usize;
+    for matrix in [&arm.a, &arm.b, &arm.c] {
+        match matrix {
+            CcsMatrix::Csc(csc) => {
+                nnz += csc.vals.len();
+                for value in &csc.vals {
+                    values.insert(p3_field::PrimeField64::as_canonical_u64(value));
+                }
+                for column in 0..csc.ncols {
+                    for k in csc.column_range(column) {
+                        row_terms[csc.row_index(k)] += 1;
+                    }
+                }
+            }
+            CcsMatrix::CscWithSeededPhi81 {
+                csc,
+                blocks,
+                geometric_runs,
+            } => {
+                nnz += csc.vals.len();
+                blocks_total += blocks.len();
+                geometric_total += geometric_runs.len();
+                for value in &csc.vals {
+                    values.insert(p3_field::PrimeField64::as_canonical_u64(value));
+                }
+                for column in 0..csc.ncols {
+                    for k in csc.column_range(column) {
+                        row_terms[csc.row_index(k)] += 1;
+                    }
+                }
+            }
+            _ => panic!("unexpected matrix variant"),
+        }
+    }
+    eprintln!(
+        "k_rho=10 recursive encodings: nnz={nnz} distinct_values={} max_row_terms={} seeded_blocks={blocks_total} geometric_runs={geometric_total}",
+        values.len(),
+        row_terms.iter().max().copied().unwrap_or(0),
+    );
+}
+
+#[test]
 #[ignore = "k_rho=10 foldable-shape probe for the bar-2 amendment; run with --ignored --nocapture"]
 fn probe_k_rho_10_minimal_shape_capture() {
     use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeChainBuilder, NebulaFPrimePreprocessing};

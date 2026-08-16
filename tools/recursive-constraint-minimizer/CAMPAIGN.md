@@ -85,7 +85,11 @@ capture, witnesses, emission, one base-batch Lean rebuild); all compact
 recursive artifacts and the y_ring module re-emit through the pipeline
 (~2x payload). The two-segment k_rho=10 capture probe is running to prove
 foldability end to end; its success plus this table is the decision
-package. Base step 0 already passes in 2.9 s at k_rho=10.
+package. Base step 0 already passes in 2.9 s at k_rho=10. Encoding
+limits measured for the candidate arm: 45,123,011 nnz, still 527
+distinct coefficients, max 7,562 terms per row, the same 36 seeded
+blocks, zero geometric runs - the string-payload pipeline absorbs the
+amended shape without any emitter change (~390 MB of payloads).
 
 ## Staged solver runbook (cvc5-focused lane, awaiting go)
 

@@ -55,9 +55,11 @@ define_column_region! {
             "host-event ROM slot binding kind (0 const, 1 arg, 2 result, 3 input, 4 input-local, 5 output, 6 memory-read, 7 memory-write)",
         COL_HOST_EVENT_SLOT_ARG: Field => "host-event ROM slot argument or input index",
         COL_HOST_EVENT_SLOT_VARIANT: Field =>
-            "encoded host-event ROM slot variant: value kinds use 0 lo / 1 hi; memory kinds use bit 0 for local base, bit 1 for byte width, and bit 2 for half width",
-        COL_HOST_EVENT_SLOT_CONST_LO: Field => "host-event ROM slot constant, low 32 bits",
-        COL_HOST_EVENT_SLOT_CONST_HI: Field => "host-event ROM slot constant, high 32 bits",
+            "encoded host-event ROM slot variant: value kinds use 0 lo / 1 hi; memory kinds use bit 0 for local base, bit 1 for byte width, bit 2 for half width, and bit 3 for captured-output base",
+        COL_HOST_EVENT_SLOT_IMMEDIATE0: Field =>
+            "host-event ROM slot immediate 0; see WasmHostEventRomEntry",
+        COL_HOST_EVENT_SLOT_IMMEDIATE1: Field =>
+            "host-event ROM slot immediate 1; see WasmHostEventRomEntry",
         COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT: Field =>
             "host-event ROM initial-schedule count for the called import or entered export (biased +1; reread to offset export-exit indices)",
         COL_HOST_EVENT_EXIT_SCHEDULE_COUNT: Field =>

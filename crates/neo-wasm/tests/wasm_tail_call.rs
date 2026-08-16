@@ -2,10 +2,11 @@ mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
-    EventBlock, ExportTemplate, HostEventBindings, ImportTemplate, Limb, SlotBinding, TurnInputs,
+    EventBlock, EventBlockBuilder, ExportTemplate, HostEventBindings, ImportTemplate, Limb, MemoryBase, SlotBinding,
+    TurnInputs,
 };
 use neo_wasm::{
-    collect_wasmtime_component_run_with_linker, traces_from_wasmtime_steps_with_host_events,
+    collect_wasmtime_component_run_with_linker, collect_wasmtime_steps, traces_from_wasmtime_steps_with_host_events,
     witness_builder::build_witness_vector, WasmAuxOpcode, WasmBuildError, WasmOpcode, WasmRowKind,
 };
 
@@ -241,6 +242,47 @@ fn host_event_exit_events_remain_attributed_to_the_export_after_a_guest_tail_cal
     let witnesses: Vec<_> = trace.iter().map(build_witness_vector).collect();
     neo_wasm::sanity_check_memory_rows(neo_wasm::build_wasm_relation_layout(), &witnesses, &preload)
         .expect("memory and bindings ROM bindings");
+}
+
+#[test]
+fn tail_call_exit_memory_uses_the_captured_output_pointer() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (memory 1)
+            (func $callee (result i32)
+                i32.const 0)
+            (func (export "run") (result i32)
+                return_call $callee))"#,
+    )
+    .expect("valid wasm");
+    let run = collect_wasmtime_steps(&wasm, "run", &[]).expect("wasmtime trace");
+    let export_fref = run
+        .steps
+        .first()
+        .and_then(|row| row.current_function_ref)
+        .expect("export function ref");
+    let exit = EventBlockBuilder::op(1)
+        .memory_read_i32(0, MemoryBase::Output, 0)
+        .expect("valid exit memory slot")
+        .finish();
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(
+        export_fref,
+        ExportTemplate {
+            exit: vec![exit],
+            ..Default::default()
+        },
+    );
+
+    let trace = traces_from_wasmtime_steps_with_host_events(
+        &run.steps,
+        &run.program_tables,
+        &bindings,
+        &[TurnInputs::default()],
+        Default::default(),
+    )
+    .expect("captured output survives replacement of the export frame");
+    common::ccs_check_trace(&trace);
 }
 
 #[test]

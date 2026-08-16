@@ -464,6 +464,7 @@ dependencies = [
  "neo-math",
  "neo-params",
  "p3-field 0.5.3",
+ "rand_chacha 0.9.0",
  "recursive-constraint-minimizer",
  "serde",
  "serde_json",

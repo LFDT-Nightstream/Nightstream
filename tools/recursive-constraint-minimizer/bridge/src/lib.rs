@@ -22,6 +22,7 @@ use sha2::{Digest, Sha256};
 
 mod analysis;
 mod lean_export;
+mod lean_sampler_mirror;
 mod obligation_ledger;
 mod refinement;
 mod selective_binding;
@@ -35,6 +36,7 @@ pub use lean_export::{
     render_redundancy_certificate_lean, render_removal_counterexample_lean, render_terminal_bound_artifact_lean,
     render_terminal_redundancy_certificate_lean, render_terminal_removal_counterexample_lean, GeneratedLeanModule,
 };
+pub use lean_sampler_mirror::{mirror_block, MirrorReplay};
 pub use obligation_ledger::{
     paper_obligation_ledger, validate_paper_obligation_ledger, EvidenceKind, ObligationEvidence, ObligationState,
     Paper, PaperObligation,

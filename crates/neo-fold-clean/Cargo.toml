@@ -80,6 +80,10 @@ name = "gadgets_seeded_phi81_lean_artifact"
 path = "tests/gadgets/seeded_phi81_lean_artifact.rs"
 
 [[test]]
+name = "gadgets_seeded_phi81_conformance_artifact"
+path = "tests/gadgets/seeded_phi81_conformance_artifact.rs"
+
+[[test]]
 name = "gadgets_shifted_ternary_lean_artifact"
 path = "tests/gadgets/shifted_ternary_lean_artifact.rs"
 

@@ -1,0 +1,17 @@
+import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiRLCNormalizedOuterNorm
+
+/-! Regression surface for the normalized PiRLC outer-norm transfer. -/
+
+set_option autoImplicit false
+
+namespace tests.NebulaProductionStreamingPiRlcNormalizedOuterNorm
+
+open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedOuterNorm.Normalized
+
+#check bodyColumn
+#check bodyAssignment
+#check borrowCoordinatesNormFour_of_outerNorm
+#check borrowCoordinatesNormFour_of_freshCcsHolds
+#check radixFourCandidate_borrowCoordinatesNormFour
+
+end tests.NebulaProductionStreamingPiRlcNormalizedOuterNorm

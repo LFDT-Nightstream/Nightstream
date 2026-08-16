@@ -42,8 +42,15 @@ file without a live Rust path owner is stale and must be removed.
 | Production-width radix-four selector, source-stage, centered-domain rows, and first-accepted selection coverage | `neo-wasm` target `wasm_nebula_pipeline_profile`, test `radix_four::wasm_nebula_radix_four_candidate_census` |
 | Streaming F-prime verifier program | `neo-fold-clean` target `nebula_streaming_program`, test `production_streaming_program_matches_lean_artifact` |
 | Streaming F-prime claim-replay arms | `neo-fold-clean` target `nebula_streaming_claim_replay`, test `production_claim_replay_lean_artifact_is_current` |
+| Streaming claim-digest domain Poseidon2 witnesses | `neo-fold-clean` target `streaming_claim_digest_poseidon_witnesses` |
 | Strict PiDEC source rows | `f_prime_pi_dec_source_lean_artifact` |
 | Canonical PiDEC X rows | `f_prime_pi_dec_canonical_x_lean_artifact` |
+| One-family PiRLC selective-CCS recipe and exhaustive matrix audit | `neo-fold-clean` target `nebula_pi_rlc_family_selective_ccs` |
+| Normalized PiRLC parity-body decoder, compact row-owner ledger, and retained algebra port-image scan receipt | `neo-fold-clean` target `nebula_streaming_pi_rlc_family_relation`, ignored tests `pi_rlc_family_body_decoder_runs_cover_both_source_assignments` and `pi_rlc_family_body_low_norm_shape_snapshot` |
+| One-round PiCCS selective-CCS recipe and exhaustive matrix audit | `neo-fold-clean` target `nebula_pi_ccs_round_selective_ccs` |
+| Grouped common-row composition links and shared-public fixture | `neo-fold-clean` target `f_prime_grouped_phase` |
+| Schedule-over-grouped-phase selector, activation, and cursor links | `neo-fold-clean` target `f_prime_scheduled_grouped_phase` |
+| Schedule-linked private-overlay selector, activation, decoded-field, and padding links | `neo-fold-clean` target `f_prime_scheduled_linked_overlay` |
 | Native step, terminal link, and one-slot conformance records | `system_formal_conformance` |
 | Verifier-native terminal guard names | `system_formal_conformance`, test `terminal_native_guard_names_are_exact_and_deterministic` |
 
@@ -88,6 +95,39 @@ cargo test -p neo-fold-clean --release \
 cargo test -p neo-fold-clean --release \
   --test nebula_streaming_claim_replay \
   production_claim_replay_lean_artifact_is_current -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test streaming_claim_digest_poseidon_witnesses
+
+cargo test -p neo-fold-clean --release \
+  --test nebula_pi_rlc_family_selective_ccs \
+  pi_rlc_family_rows_match_generated_selective_recipe -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test nebula_streaming_pi_rlc_family_relation \
+  pi_rlc_family_body_decoder_runs_cover_both_source_assignments \
+  -- --ignored --exact
+
+cargo test -p neo-fold-clean --release \
+  --test nebula_streaming_pi_rlc_family_relation \
+  pi_rlc_family_body_low_norm_shape_snapshot \
+  -- --ignored --exact
+
+cargo test -p neo-fold-clean --release \
+  --test nebula_pi_ccs_round_selective_ccs \
+  pi_ccs_round_emitter_matches_generated_selective_recipe -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test f_prime_grouped_phase \
+  grouped_phase_generated_artifact_matches_emitted_recipe -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test f_prime_scheduled_grouped_phase \
+  scheduled_grouped_phase_generated_artifact_matches_emitted_recipe -- --exact
+
+cargo test -p neo-fold-clean --release \
+  --test f_prime_scheduled_linked_overlay \
+  scheduled_linked_overlay_generated_artifact_matches_emitted_recipe -- --exact
 
 cargo test -p neo-wasm --release \
   --test wasm_nebula_pipeline_profile --features perf-timers \

@@ -725,7 +725,9 @@ theorem ringFMul_zero_left (right : RingF) :
       CarrierAction.ringFMul_scale_left 0 ringFZero right
     _ = ringFZero := ringFScale_zero _
 
-private theorem ringF_linear_eq_of_basis
+/-- Two base-field-linear maps on `RingF` are equal when they agree on all
+54 coefficient basis elements. -/
+theorem ringF_linear_eq_of_basis
     (leftMap rightMap : RingF -> RingF)
     (leftZero : leftMap ringFZero = ringFZero)
     (rightZero : rightMap ringFZero = ringFZero)

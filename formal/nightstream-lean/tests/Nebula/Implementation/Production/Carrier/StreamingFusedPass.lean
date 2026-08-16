@@ -12,6 +12,7 @@ open Nightstream.Implementation.Nebula.ProductionStreamingFusedPass
 #check run_cursor
 #check run_accumulator
 #check run_schedule_exact
+#check accepted_run_recovers_fold_or_collision_at
 #check accepted_run_recovers_fold_or_collision
 #check persistentFields_length
 

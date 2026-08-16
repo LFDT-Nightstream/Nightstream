@@ -36,23 +36,53 @@ theorem artifact_valid : rawArtifact.Valid :=
   rawArtifact_valid
 
 theorem exact_shape :
-    rawArtifact.full.rowCount = 156384 /\
-      rawArtifact.full.columnCount = 157305 /\
-      rawArtifact.finalChunk.rowCount = 149837 /\
-      rawArtifact.finalChunk.columnCount = 150705 /\
-      rawArtifact.lowNormRows = 51338 /\
-      rawArtifact.lowNormColumns = 536112 /\
-      rawArtifact.lowNormPublicColumns = 2592 /\
-      rawArtifact.lowNormTotalCoordinates = 536086 := by
+    rawArtifact.full.rowCount = 201959 /\
+      rawArtifact.full.columnCount = 202866 /\
+      rawArtifact.finalChunk.rowCount = 188705 /\
+      rawArtifact.finalChunk.columnCount = 189771 /\
+      rawArtifact.lowNormRows = 61034 /\
+      rawArtifact.lowNormColumns = 673866 /\
+      rawArtifact.lowNormPublicColumns = 648 /\
+      rawArtifact.lowNormTotalCoordinates = 673865 := by
   native_decide
 
 theorem exact_leaf_counts :
-    rawArtifact.full.canonicalCalls.length = 40 /\
-      rawArtifact.finalChunk.canonicalCalls.length = 40 /\
-      rawArtifact.full.poseidon2Calls.length = 256 /\
-      rawArtifact.finalChunk.poseidon2Calls.length = 245 /\
-      rawArtifact.full.glueRows.length = 24 /\
-      rawArtifact.finalChunk.glueRows.length = 77 := by
+    rawArtifact.full.canonicalCalls.length = 10 /\
+      rawArtifact.finalChunk.canonicalCalls.length = 10 /\
+      rawArtifact.full.poseidon2Calls.length = 324 /\
+      rawArtifact.finalChunk.poseidon2Calls.length = 313 /\
+      rawArtifact.full.coordinateCalls.length = 1 /\
+      rawArtifact.finalChunk.coordinateCalls.length = 0 /\
+      rawArtifact.full.glueRows.length = 270 /\
+      rawArtifact.finalChunk.glueRows.length = 215 := by
+  native_decide
+
+/-- The normalized public prefix is eight digest lanes followed by the before
+and after program cursors. Both physical arms use the same word roles. -/
+theorem exact_public_word_layout :
+    rawArtifact.full.publicColumnCount = 641 /\
+      rawArtifact.finalChunk.publicColumnCount = 641 /\
+      rawArtifact.full.publicWordCallIndices =
+        [2, 3, 4, 5, 6, 7, 8, 9, 0, 1] /\
+      rawArtifact.finalChunk.publicWordCallIndices =
+        [2, 3, 4, 5, 6, 7, 8, 9, 0, 1] /\
+      rawArtifact.lowNormPublicColumns = 648 := by
+  native_decide
+
+/-- Both arms use two 128-field digest preimages. Each preimage contains the
+20 replay words followed by the 108 carried commitment coordinates. -/
+theorem exact_state_word_layout :
+    rawArtifact.full.stateWordColumns.length = 256 /\
+      rawArtifact.full.stateWordColumns.take 19 = List.range' 1 19 /\
+      rawArtifact.full.stateWordColumns[19]? = some 128 /\
+      (rawArtifact.full.stateWordColumns.drop 20).take 108 =
+        List.range' 20 108 /\
+      (rawArtifact.full.stateWordColumns.drop 128).take 19 =
+        List.range' 195 19 /\
+      rawArtifact.full.stateWordColumns[147]? = some 322 /\
+      rawArtifact.full.stateWordColumns.drop 148 = List.range' 214 108 /\
+      rawArtifact.finalChunk.stateWordColumns =
+        rawArtifact.full.stateWordColumns := by
   native_decide
 
 /-- The width census identifies the next architecture target. Almost all
@@ -60,10 +90,10 @@ branch-private coordinates belong to Poseidon2 call traces, not carried
 protocol state. -/
 theorem poseidon2_width_attribution_exact :
     rawArtifact.lowNormFullBranchCoordinates =
-        rawArtifact.lowNormFullPoseidon2Coordinates + 943 /\
+        rawArtifact.lowNormFullPoseidon2Coordinates + 25761 /\
       rawArtifact.lowNormFinalBranchCoordinates =
-        rawArtifact.lowNormFinalPoseidon2Coordinates /\
-      rawArtifact.lowNormSharedPrivateCoordinates = 1103 := by
+        rawArtifact.lowNormFinalPoseidon2Coordinates + 22732 /\
+      rawArtifact.lowNormSharedPrivateCoordinates = 260 := by
   native_decide
 
 /-- Every canonical-word leaf in a satisfying arm has the unique canonical
@@ -96,6 +126,15 @@ theorem poseidon2_call_refines
     call.columnMap call.columnMap_zero canonical one
   simpa [Poseidon2Call.Call.rows] using satisfied.2.1 call member
 
+/-- Every selected coordinate call enforces its compact source, shape, and
+seeded output rows. -/
+theorem coordinate_call_holds
+    (arm : RawArm) (assignment : Nat → Nat)
+    (satisfied : arm.Satisfied assignment)
+    (call : CoordinateCall) (member : call ∈ arm.coordinateCalls) :
+    Satisfies call.rows assignment := by
+  exact satisfied.2.2.1 call member
+
 /-- Glue rows are stored exactly and remain enforced after the repeated leaf
 programs are compressed into call certificates. -/
 theorem glue_row_holds
@@ -103,6 +142,6 @@ theorem glue_row_holds
     (satisfied : arm.Satisfied assignment)
     (indexed : IndexedRow) (member : indexed ∈ arm.glueRows) :
     RowHolds assignment indexed.row := by
-  exact satisfied.2.2 indexed member
+  exact satisfied.2.2.2 indexed member
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayArtifact

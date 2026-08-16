@@ -123,14 +123,47 @@ theorem run_schedule_exact
   · rw [run_accumulator, schedule.flatten_eq]
 
 /-- Exact failure event for a supplied frame that differs from the
-authoritative frame but reaches the same Poseidon2 state. -/
-def FrameReplayCollision (authoritative : List Nat) : Prop :=
+authoritative frame but reaches the same Poseidon2 state from one specified
+carried state. -/
+def FrameReplayCollisionAt (prior : State) (authoritative : List Nat) : Prop :=
   exists supplied : List Nat,
     supplied ≠ authoritative /\
       Poseidon2Duplex.absorbSlice ProductPoseidon2.constants supplied
-          ProductPoseidon2.initialState =
+          prior =
         Poseidon2Duplex.absorbSlice ProductPoseidon2.constants authoritative
-          ProductPoseidon2.initialState
+          prior
+
+/-- Initial-state specialization used by complete-frame replay. -/
+abbrev FrameReplayCollision (authoritative : List Nat) : Prop :=
+  FrameReplayCollisionAt ProductPoseidon2.initialState authoritative
+
+/-- If the final transcript equals the authoritative transcript, the fused
+algebra used the authoritative frame, or the execution exposes one named
+Poseidon2 collision from the carried prior state. -/
+theorem accepted_run_recovers_fold_or_collision_at
+    {Accumulator : Type}
+    (consume : Accumulator -> Nat -> Accumulator)
+    {width : Nat} {authoritative supplied : List Nat}
+    {chunks : List (List Nat)} (runtime : Runtime Accumulator)
+    (schedule : ChunkSchedule width supplied chunks)
+    (normalized : runtime.transcript.absorbed < Poseidon2Sponge.rate)
+    (transcriptExact :
+      (run consume chunks runtime).transcript =
+        Poseidon2Duplex.absorbSlice ProductPoseidon2.constants authoritative
+          runtime.transcript) :
+    (run consume chunks runtime).accumulator =
+        authoritative.foldl consume runtime.accumulator \/
+      FrameReplayCollisionAt runtime.transcript authoritative := by
+  have suppliedTranscript :
+      (run consume chunks runtime).transcript =
+        Poseidon2Duplex.absorbSlice ProductPoseidon2.constants supplied
+          runtime.transcript :=
+    (run_schedule_exact consume schedule runtime normalized).1
+  by_cases exactFrame : supplied = authoritative
+  · left
+    rw [run_accumulator, schedule.flatten_eq, exactFrame]
+  · right
+    exact ⟨supplied, exactFrame, suppliedTranscript.symm.trans transcriptExact⟩
 
 /-- If the final transcript equals the authoritative transcript, the fused
 algebra used the authoritative frame, or the execution exposes the named
@@ -150,22 +183,11 @@ theorem accepted_run_recovers_fold_or_collision
     (run consume chunks (initial start)).accumulator =
         authoritative.foldl consume start \/
       FrameReplayCollision authoritative := by
-  have suppliedTranscript :
-      (run consume chunks (initial start)).transcript =
-        Poseidon2Duplex.absorbSlice ProductPoseidon2.constants supplied
-          ProductPoseidon2.initialState := by
-    have normalized :
-        (initial start).transcript.absorbed < Poseidon2Sponge.rate := by
-      change ProductPoseidon2.initialState.absorbed < Poseidon2Sponge.rate
-      decide
-    exact (run_schedule_exact consume schedule (initial start) normalized).1
-  by_cases exactFrame : supplied = authoritative
-  · left
-    rw [run_accumulator, schedule.flatten_eq, exactFrame]
-    rfl
-  · right
-    refine ⟨supplied, exactFrame, ?_⟩
-    exact suppliedTranscript.symm.trans transcriptExact
+  apply accepted_run_recovers_fold_or_collision_at consume
+    (initial start) schedule
+  · change ProductPoseidon2.initialState.absorbed < Poseidon2Sponge.rate
+    decide
+  · exact transcriptExact
 
 /-- Canonical generic continuation width. Concrete accumulators add only
 their explicit encoding to the ten Poseidon2-and-cursor fields. -/

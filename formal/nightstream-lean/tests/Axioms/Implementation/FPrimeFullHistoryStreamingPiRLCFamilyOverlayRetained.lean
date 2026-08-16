@@ -1,0 +1,12 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyOverlayRetained
+
+namespace Nightstream.Tests.Axioms.Implementation.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained
+
+#print axioms seed_schedule_exact
+#print axioms affine_geometry_exact
+#print axioms nonzero_census_exact
+#print axioms audit_valid
+
+end Nightstream.Tests.Axioms.Implementation.FPrimeFullHistoryStreamingPiRLCFamilyOverlayRetained

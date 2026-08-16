@@ -4,6 +4,7 @@ import Nightstream.Protocol.Nebula.ApplicationRowRun
 import Nightstream.Protocol.Nebula.ApplicationBatch
 import Nightstream.Protocol.Nebula.ApplicationBatchCompletion
 import Nightstream.Protocol.Nebula.AugmentedLifecycle
+import Nightstream.Protocol.Nebula.AjtaiBinding
 import Nightstream.Protocol.Nebula.CarryEncoding
 import Nightstream.Protocol.Nebula.Digest
 import Nightstream.Protocol.Nebula.CanonicalFieldBits

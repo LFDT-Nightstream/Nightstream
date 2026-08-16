@@ -1,0 +1,19 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyXOutSequence
+
+/-! Focused surface for the full-`x_out` PiRLC family sequence. -/
+
+set_option autoImplicit false
+
+namespace tests.FPrimeFullHistoryStreamingPiRLCFamilyXOutSequence
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutSequence
+
+#check AcceptedFullStateArm
+#check AcceptedFullStateRun
+#check AcceptedFullStateRun.adjacent_state_or_failure
+#check AcceptedFullStateRun.semanticRun
+#check AcceptedFullStateRun.semanticRun_or_failure
+#check AcceptedFullStateRun.start_finish_recovers_inputs_or_failure
+#check AcceptedFullStateRun.outputs_exact_or_failure
+
+end tests.FPrimeFullHistoryStreamingPiRLCFamilyXOutSequence

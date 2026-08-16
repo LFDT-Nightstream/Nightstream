@@ -104,11 +104,11 @@ theorem Block.Valid.baseRotations_success {block : Block}
   | none => simp [execution] at sampler
   | some rotations => exact ⟨rotations, rfl⟩
 
-private def fieldNeg (value : Nat) : Nat :=
+def fieldNeg (value : Nat) : Nat :=
   let value := value % goldilocksP
   if value = 0 then 0 else goldilocksP - value
 
-private def fieldSub (left right : Nat) : Nat :=
+def fieldSub (left right : Nat) : Nat :=
   (left % goldilocksP + fieldNeg right) % goldilocksP
 
 /-- Multiplication by `X` modulo `Phi_81 = X^54 + X^27 + 1`. -/
@@ -120,7 +120,7 @@ def rotatePhi81 (current : List Nat) : List Nat :=
       fieldSub (current.getD 26 0) last
     else current.getD (coordinate - 1) 0
 
-private def rotatePow : Nat → List Nat → List Nat
+def rotatePow : Nat → List Nat → List Nat
   | 0, current => current
   | count + 1, current => rotatePow count (rotatePhi81 current)
 
@@ -139,16 +139,158 @@ def Block.bitColumn (block : Block) (bitIndex : Nat) : Option Nat :=
       bitIndex % block.wordWidth)
   else none
 
+/-- One optional sparse term before list assembly. -/
+def Block.term (block : Block) (output coordinate messageCol messageRow : Nat) :
+    Option (Nat × Nat) :=
+  match block.bitColumn (messageRow * block.messageCols + messageCol) with
+  | none => none
+  | some column =>
+      let coefficient :=
+        block.coefficient output messageCol messageRow coordinate
+      if coefficient = 0 then none else some (column, coefficient)
+
 def Block.terms (block : Block) (output coordinate : Nat) :
     List (Nat × Nat) :=
   (List.range block.messageCols).flatMap fun messageCol =>
     (List.range dimension).filterMap fun messageRow =>
-      match block.bitColumn (messageRow * block.messageCols + messageCol) with
-      | none => none
+      block.term output coordinate messageCol messageRow
+
+/-- Assignment value selected by one dense matrix coordinate. Missing tail
+coordinates have the authoritative value zero. -/
+def Block.inputValue
+    (block : Block) (assignment : Nat → Nat) (messageCol messageRow : Nat) :
+    Nat :=
+  match block.bitColumn (messageRow * block.messageCols + messageCol) with
+  | none => 0
+  | some column => assignment column
+
+theorem Block.inputValue_eq_of_bitColumn_some
+    {block : Block} {assignment : Nat → Nat}
+    {messageCol messageRow column : Nat}
+    (selected : block.bitColumn
+      (messageRow * block.messageCols + messageCol) = some column) :
+    block.inputValue assignment messageCol messageRow = assignment column := by
+  simp [Block.inputValue, selected]
+
+theorem Block.inputValue_eq_zero_of_bitColumn_none
+    {block : Block} {assignment : Nat → Nat}
+    {messageCol messageRow : Nat}
+    (absent : block.bitColumn
+      (messageRow * block.messageCols + messageCol) = none) :
+    block.inputValue assignment messageCol messageRow = 0 := by
+  simp [Block.inputValue, absent]
+
+/-- Unreduced contribution of one dense seeded-matrix coordinate. -/
+def Block.termValue
+    (block : Block) (assignment : Nat → Nat)
+    (output coordinate messageCol messageRow : Nat) : Nat :=
+  block.coefficient output messageCol messageRow coordinate *
+    block.inputValue assignment messageCol messageRow
+
+/-- Exact dense meaning of one compact output row. -/
+def Block.linearValue
+    (block : Block) (assignment : Nat → Nat)
+    (output coordinate : Nat) : Nat :=
+  ((List.range block.messageCols).foldl (fun outer messageCol =>
+    (List.range dimension).foldl (fun inner messageRow =>
+      inner + block.termValue assignment output coordinate
+        messageCol messageRow) outer) 0) % goldilocksP
+
+theorem Block.linearValue_lt
+    (block : Block) (assignment : Nat → Nat)
+    (output coordinate : Nat) :
+    block.linearValue assignment output coordinate < goldilocksP := by
+  unfold Block.linearValue
+  exact Nat.mod_lt _ (by decide)
+
+private theorem foldl_term_exact
+    (block : Block) (assignment : Nat → Nat)
+    (output coordinate messageCol : Nat) (messageRows : List Nat) :
+    ∀ initial,
+      (messageRows.filterMap fun messageRow =>
+        block.term output coordinate messageCol messageRow).foldl
+          (fun accumulated term =>
+            accumulated + term.2 * assignment term.1) initial =
+        messageRows.foldl (fun accumulated messageRow =>
+          accumulated + block.termValue assignment output coordinate
+            messageCol messageRow) initial := by
+  intro initial
+  induction messageRows generalizing initial with
+  | nil => rfl
+  | cons messageRow messageRows inductionHypothesis =>
+      cases source : block.bitColumn
+          (messageRow * block.messageCols + messageCol) with
+      | none =>
+          have termNone :
+              block.term output coordinate messageCol messageRow = none := by
+            simp [Block.term, source]
+          have valueZero :
+              block.termValue assignment output coordinate
+                messageCol messageRow = 0 := by
+            simp [Block.termValue, Block.inputValue, source]
+          simp only [List.filterMap_cons, termNone, List.foldl_cons,
+            valueZero, Nat.add_zero]
+          exact inductionHypothesis initial
       | some column =>
-          let coefficient :=
-            block.coefficient output messageCol messageRow coordinate
-          if coefficient = 0 then none else some (column, coefficient)
+          by_cases zero :
+              block.coefficient output messageCol messageRow coordinate = 0
+          · have termNone :
+                block.term output coordinate messageCol messageRow = none := by
+              simp [Block.term, source, zero]
+            have valueZero :
+                block.termValue assignment output coordinate
+                  messageCol messageRow = 0 := by
+              simp [Block.termValue, Block.inputValue, source, zero]
+            simp only [List.filterMap_cons, termNone, List.foldl_cons,
+              valueZero, Nat.add_zero]
+            exact inductionHypothesis initial
+          · have termSome :
+                block.term output coordinate messageCol messageRow =
+                  some (column,
+                    block.coefficient output messageCol messageRow
+                      coordinate) := by
+              simp [Block.term, source, zero]
+            have valueSome :
+                block.termValue assignment output coordinate
+                    messageCol messageRow =
+                  block.coefficient output messageCol messageRow coordinate *
+                    assignment column := by
+              simp [Block.termValue, Block.inputValue, source]
+            simp only [List.filterMap_cons, termSome, List.foldl_cons,
+              valueSome]
+            exact inductionHypothesis _
+
+private theorem foldl_terms_exact
+    (block : Block) (assignment : Nat → Nat)
+    (output coordinate : Nat) (messageCols : List Nat) :
+    ∀ initial,
+      (messageCols.flatMap fun messageCol =>
+        (List.range dimension).filterMap fun messageRow =>
+          block.term output coordinate messageCol messageRow).foldl
+          (fun accumulated term =>
+            accumulated + term.2 * assignment term.1) initial =
+        messageCols.foldl (fun outer messageCol =>
+          (List.range dimension).foldl (fun inner messageRow =>
+            inner + block.termValue assignment output coordinate
+              messageCol messageRow) outer) initial := by
+  intro initial
+  induction messageCols generalizing initial with
+  | nil => rfl
+  | cons messageCol messageCols inductionHypothesis =>
+      simp only [List.flatMap_cons, List.foldl_append, List.foldl_cons]
+      rw [foldl_term_exact, inductionHypothesis]
+
+/-- Sparse zero elision and the absent 28-coordinate tail do not change the
+dense linear value of a compact row. -/
+theorem Block.lcEval_terms_eq_linearValue
+    (block : Block) (assignment : Nat → Nat)
+    (output coordinate : Nat) :
+    lcEval assignment (block.terms output coordinate) =
+      block.linearValue assignment output coordinate := by
+  unfold lcEval Block.terms Block.linearValue
+  exact congrArg (fun value => value % goldilocksP)
+    (foldl_terms_exact block assignment output coordinate
+      (List.range block.messageCols) 0)
 
 def Block.definition (block : Block) (output coordinate : Nat) : Definition :=
   ⟨block.outputColumns.getD (output * dimension + coordinate) 0,
@@ -174,6 +316,31 @@ theorem Block.rows_length (block : Block) :
 the seeded Phi81 linear form of the named input-word columns. -/
 def Block.Holds (block : Block) (assignment : Nat → Nat) : Prop :=
   ∀ definition ∈ block.definitions, Definition.Holds assignment definition
+
+/-- Every accepted compact output definition equals the dense seeded linear
+value derived from the same input columns. -/
+theorem Block.output_eq_linearValue
+    {block : Block} {assignment : Nat → Nat}
+    (holds : block.Holds assignment)
+    (output : Fin block.kappa) (coordinate : Fin dimension) :
+    assignment
+        (block.outputColumns.getD
+          (output.val * dimension + coordinate.val) 0) =
+      block.linearValue assignment output.val coordinate.val := by
+  have member : block.definition output.val coordinate.val ∈
+      block.definitions := by
+    unfold Block.definitions
+    apply List.mem_flatMap.mpr
+    refine ⟨output.val, List.mem_range.mpr output.isLt, ?_⟩
+    exact List.mem_map.mpr
+      ⟨coordinate.val, List.mem_range.mpr coordinate.isLt, rfl⟩
+  have definitionHolds := holds _ member
+  change assignment
+      (block.outputColumns.getD
+        (output.val * dimension + coordinate.val) 0) =
+    lcEval assignment (block.terms output.val coordinate.val) at definitionHolds
+  rw [definitionHolds]
+  exact block.lcEval_terms_eq_linearValue assignment output.val coordinate.val
 
 instance (block : Block) (assignment : Nat → Nat) :
     Decidable (block.Holds assignment) := by

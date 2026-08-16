@@ -1,0 +1,17 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyXOutContinuity
+
+/-! Focused surface for complete `x_out` PiRLC family-state continuity. -/
+
+set_option autoImplicit false
+
+namespace tests.FPrimeFullHistoryStreamingPiRLCFamilyXOutContinuity
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyContinuity
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutContinuity
+
+#check familyState_eq_or_poseidon2_collision
+#check ContinuityFailure
+#check semantic_digest_eq_or_xOut_failure
+#check familyState_eq_or_continuity_failure
+
+end tests.FPrimeFullHistoryStreamingPiRLCFamilyXOutContinuity

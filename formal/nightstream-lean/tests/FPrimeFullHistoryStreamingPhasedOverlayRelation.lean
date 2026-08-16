@@ -1,0 +1,19 @@
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPhasedOverlayRelation
+
+/-! Focused surface for the exact 400-arm base-plus-overlay model. -/
+
+namespace Tests.FPrimeFullHistoryStreamingPhasedOverlayRelation
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPhasedOverlayRelation
+
+#check overlayKind_nonOverlay
+#check overlayKind_claim
+#check overlayKind_piRlcFamily
+#check jointExactRefinement
+#check exists_linkedAccepts_iff_jointArmSemantics
+#check linkedAccepts_implies_step_of_joint_sound
+#check exactRefinement
+#check exists_linkedAccepts_iff_overlayArmSemantics
+#check linkedAccepts_implies_step
+
+end Tests.FPrimeFullHistoryStreamingPhasedOverlayRelation

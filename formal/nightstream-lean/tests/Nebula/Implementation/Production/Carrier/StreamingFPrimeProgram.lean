@@ -80,4 +80,19 @@ example :
 
 example : (program productionConfig)[400]? = none := by decide
 
+example :
+    circuitKind productionConfig { phase := .piRlcFamily, index := 0 } =
+      .piRlcFamilyEven := by
+  decide
+
+example :
+    circuitKind productionConfig { phase := .piRlcFamily, index := 1 } =
+      .piRlcFamilyOdd := by
+  decide
+
+example :
+    circuitKind productionConfig { phase := .piRlcFamily, index := 109 } =
+      .piRlcFamilyOdd := by
+  decide
+
 end tests.NebulaProductionStreamingFPrimeProgram

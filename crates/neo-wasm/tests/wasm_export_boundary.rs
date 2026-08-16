@@ -358,14 +358,15 @@ fn i64_param_bootstraps_both_lanes() {
 }
 
 #[test]
-fn export_memory_accesses_use_a_local_pointer_base() {
+fn export_exit_memory_reads_use_the_captured_output_pointer() {
     let component_bytes = wat::parse_str(
         r#"
         (component
-          (type $run-type (func (param "ptr" s32)))
+          (type $run-type (func (param "ptr" s32) (result s32)))
           (core module $m
             (memory 1)
-            (func (export "run") (param i32)))
+            (func (export "run") (param i32) (result i32)
+              local.get 0))
           (core instance $i (instantiate $m))
           (alias core export $i "run" (core func $run))
           (func (export "run") (type $run-type)
@@ -425,21 +426,21 @@ fn export_memory_accesses_use_a_local_pointer_base() {
                     (
                         0,
                         SlotBinding::MemoryRead32 {
-                            base: MemoryBase::Local(0),
+                            base: MemoryBase::Output,
                             byte_offset: 0,
                         },
                     ),
                     (
                         1,
                         SlotBinding::MemoryRead8 {
-                            base: MemoryBase::Local(0),
+                            base: MemoryBase::Output,
                             byte_offset: 1,
                         },
                     ),
                     (
                         2,
                         SlotBinding::MemoryRead16 {
-                            base: MemoryBase::Local(0),
+                            base: MemoryBase::Output,
                             byte_offset: 2,
                         },
                     ),
@@ -471,7 +472,7 @@ fn export_memory_accesses_use_a_local_pointer_base() {
     let witness_rows: Vec<Vec<neo_math::F>> = trace.iter().map(build_witness_vector).collect();
     let layout = neo_wasm::relation_layout::build_wasm_relation_layout();
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
-        .expect("bindings local base and linear-memory accesses match");
+        .expect("bindings output base and linear-memory accesses match");
 
     let staged_reads: Vec<u64> = trace
         .iter()
@@ -491,7 +492,48 @@ fn export_memory_accesses_use_a_local_pointer_base() {
         })
         .expect("memory read gather");
     let mut forged = build_witness_vector(read);
-    common::assert_satisfied(&forged, "untampered local-base memory read");
-    forged[neo_wasm::layout::COL_LOCAL_INDEX] += neo_math::F::ONE;
-    common::assert_rejected(&forged, "memory read redirected to another pointer local");
+    common::assert_satisfied(&forged, "untampered output-base memory read");
+    forged[neo_wasm::layout::COL_OUTPUT_VALUE_LO_BEFORE] += neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_OUTPUT_VALUE_LO_AFTER] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "memory read detached from the captured output pointer");
+}
+
+#[test]
+fn export_exit_memory_rejects_an_oob_output_pointer_during_normalization() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (memory 1)
+            (func (export "run") (result i32)
+                i32.const 65536))"#,
+    )
+    .expect("valid wasm");
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, "run", &[]).expect("wasmtime trace");
+    let fref = export_fref(&run.steps);
+    let mut bindings = HostEventBindings::default();
+    bindings.exports.insert(
+        fref,
+        ExportTemplate {
+            exit: vec![EventBlock::op(
+                1,
+                slots(&[(
+                    0,
+                    SlotBinding::MemoryRead8 {
+                        base: MemoryBase::Output,
+                        byte_offset: 0,
+                    },
+                )]),
+            )],
+            ..Default::default()
+        },
+    );
+
+    let err = neo_wasm::traces_from_wasmtime_steps_with_host_events(
+        &run.steps,
+        &run.program_tables,
+        &bindings,
+        &[Default::default()],
+        Default::default(),
+    )
+    .expect_err("OOB output pointer must fail during normalization");
+    assert!(err.to_string().contains("out of bounds for 1 memory pages"));
 }

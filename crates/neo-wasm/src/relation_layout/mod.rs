@@ -9,8 +9,8 @@ use super::layout::{
     COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
     COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_CALL_ACTIVE,
     COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_BEFORE,
-    COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CONST_HI,
-    COL_HOST_EVENT_SLOT_CONST_LO, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_HOST_EVENT_SLOT_KIND,
+    COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
+    COL_HOST_EVENT_SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND,
     COL_HOST_EVENT_SLOT_VARIANT, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
     COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
     COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
@@ -978,23 +978,23 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
-            WasmMemoryId::HostEventSlotConstLo,
+            WasmMemoryId::HostEventSlotImmediate0,
             vec![
                 Column(COL_HOST_CALLEE_FREF_BEFORE),
                 Column(COL_HOST_EVENT_INDEX_BEFORE),
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_HOST_EVENT_SLOT_CONST_LO),
+            Column(COL_HOST_EVENT_SLOT_IMMEDIATE0),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         rom_read_spec(
-            WasmMemoryId::HostEventSlotConstHi,
+            WasmMemoryId::HostEventSlotImmediate1,
             vec![
                 Column(COL_HOST_CALLEE_FREF_BEFORE),
                 Column(COL_HOST_EVENT_INDEX_BEFORE),
                 Column(COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
             ],
-            Column(COL_HOST_EVENT_SLOT_CONST_HI),
+            Column(COL_HOST_EVENT_SLOT_IMMEDIATE1),
             WasmMemoryActivation::BooleanGate(Column(COL_GATHER_ACTIVE)),
         ),
         // Import schedule counts and export entry-schedule counts are

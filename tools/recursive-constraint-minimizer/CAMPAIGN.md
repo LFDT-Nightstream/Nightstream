@@ -118,6 +118,22 @@ support context (the y_ring pattern). Evidence: target/campaign-evidence/.
   in background alongside the two bar-2/bar-4 measurements. The census output
   will drive the first certificate-emission batch and the regime question
   goes to the user once the λ114 numbers land.
+- 2026-08-15 iteration 13 (recursive-artifact design): measured the frozen
+  recursive source arm: A csc+seeded (9,529,982 explicit nnz + 36 blocks, 0
+  geometric runs), B csc 7,516,607, C csc 4,245,757 — 21.3 M explicit terms
+  total, far beyond list-literal Lean emission (HANDOFF's "~200k rows" guess
+  is falsified; the arm is 4,530,315 rows). Translation-pattern compression
+  fails (3.97 M distinct row patterns — row-varying constants), confirming
+  README's grammar verdict. New measurements that fix the design: only 527
+  distinct coefficient values (a value table + u16 indices), max 1,514 terms
+  per row, and a standalone Lean prototype shows a 43 MB string-literal
+  payload decodes (base64) and passes native_decide in 45 s / 0.75 GB —
+  ~13x lighter than list literals. Plan of record for the complete recursive
+  artifact: string-payload CSR + value table + seeded blocks, expanded
+  natively in Lean into the existing `Artifact`/`BoundArtifact` types so the
+  `*_of_full_bound_valid` theorems apply unchanged; coverage and exactness
+  proved once in the assembly module; per-family counterexamples ride one
+  shared string-encoded background assignment plus tiny per-column overrides.
 - 2026-08-15 iteration 13 (continued): bar 2 marked met after an independent
   no-context refutation attempt failed on all six angles (commit a34a8cce;
   verifier confirmed pins equal the committed Lean mirror digests and traced

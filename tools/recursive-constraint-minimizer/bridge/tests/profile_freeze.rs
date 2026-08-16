@@ -232,6 +232,193 @@ fn campaign_profile_v1_digests_are_frozen() {
 }
 
 #[test]
+#[ignore = "measurement printer for coefficient/value structure; run with --ignored --nocapture"]
+fn print_campaign_profile_v1_recursive_value_census() {
+    use neo_ccs::CcsMatrix;
+    use std::collections::HashSet;
+
+    let audit = campaign_audit([0xDA; 32]);
+    let arm = audit.arm(NebulaFPrimeBranch::Recursive);
+    let mut values = HashSet::new();
+    let mut nnz = 0usize;
+    let mut max_row_terms = vec![0usize; arm.n];
+    for matrix in [&arm.a, &arm.b, &arm.c] {
+        match matrix {
+            CcsMatrix::Csc(csc) | CcsMatrix::CscWithSeededPhi81 { csc, .. } => {
+                nnz += csc.vals.len();
+                for value in &csc.vals {
+                    values.insert(p3_field::PrimeField64::as_canonical_u64(value));
+                }
+                for column in 0..csc.ncols {
+                    for k in csc.column_range(column) {
+                        max_row_terms[csc.row_index(k)] += 1;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    eprintln!(
+        "recursive value census: nnz={nnz} distinct_values={} max_row_terms={}",
+        values.len(),
+        max_row_terms.iter().max().copied().unwrap_or(0),
+    );
+}
+
+#[test]
+#[ignore = "measurement printer for row-pattern repetition; run with --ignored --nocapture"]
+fn print_campaign_profile_v1_recursive_row_pattern_census() {
+    use neo_ccs::CcsMatrix;
+    use std::collections::HashMap;
+
+    let audit = campaign_audit([0xDA; 32]);
+    let arm = audit.arm(NebulaFPrimeBranch::Recursive);
+
+    // Per-row signature across A, B, C: term columns are anchored to the
+    // row's minimum column so translated repetitions collapse.
+    let rows = arm.n;
+    let mut row_terms: Vec<[Vec<(usize, u64)>; 3]> = vec![[Vec::new(), Vec::new(), Vec::new()]; rows];
+    for (matrix_index, matrix) in [&arm.a, &arm.b, &arm.c].into_iter().enumerate() {
+        match matrix {
+            CcsMatrix::Csc(csc) | CcsMatrix::CscWithSeededPhi81 { csc, .. } => {
+                for column in 0..csc.ncols {
+                    for k in csc.column_range(column) {
+                        let row = csc.row_index(k);
+                        row_terms[row][matrix_index]
+                            .push((column, p3_field::PrimeField64::as_canonical_u64(&csc.vals[k])));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    // Seeded rows are compact already; exclude them from the pattern census.
+    let mut seeded = vec![false; rows];
+    if let CcsMatrix::CscWithSeededPhi81 { blocks, .. } = &arm.a {
+        for block in blocks {
+            for row in block.row_start()..block.row_end() {
+                seeded[row] = true;
+            }
+        }
+    }
+
+    let mut patterns: HashMap<Vec<Vec<(usize, u64)>>, u32> = HashMap::new();
+    let mut pattern_terms = Vec::<usize>::new();
+    let mut row_pattern = vec![(0u32, 0usize); rows];
+    for row in 0..rows {
+        if seeded[row] {
+            continue;
+        }
+        let mut sorted: [Vec<(usize, u64)>; 3] = row_terms[row].clone();
+        for terms in &mut sorted {
+            terms.sort_unstable();
+        }
+        let anchor = sorted
+            .iter()
+            .flat_map(|terms| terms.first().map(|term| term.0))
+            .min()
+            .unwrap_or(0);
+        let signature = sorted
+            .iter()
+            .map(|terms| {
+                terms
+                    .iter()
+                    .map(|(column, value)| (column - anchor, *value))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let terms_len = signature.iter().map(Vec::len).sum::<usize>();
+        let next_id = patterns.len() as u32;
+        let id = *patterns.entry(signature).or_insert_with(|| {
+            pattern_terms.push(terms_len);
+            next_id
+        });
+        row_pattern[row] = (id, anchor);
+    }
+
+    // Compress placements: maximal runs of consecutive rows with one pattern
+    // and a constant anchor stride.
+    let mut runs = 0usize;
+    let mut row = 0usize;
+    while row < rows {
+        if seeded[row] {
+            row += 1;
+            continue;
+        }
+        let (id, anchor) = row_pattern[row];
+        let mut end = row + 1;
+        let mut stride: Option<isize> = None;
+        let mut previous_anchor = anchor as isize;
+        while end < rows && !seeded[end] && row_pattern[end].0 == id {
+            let next_anchor = row_pattern[end].1 as isize;
+            let step = next_anchor - previous_anchor;
+            match stride {
+                None => stride = Some(step),
+                Some(existing) if existing == step => {}
+                _ => break,
+            }
+            previous_anchor = next_anchor;
+            end += 1;
+        }
+        runs += 1;
+        row = end;
+    }
+    let census_rows = seeded.iter().filter(|flag| !**flag).count();
+    let table_terms = pattern_terms.iter().sum::<usize>();
+    eprintln!(
+        "recursive pattern census: rows={census_rows} seeded_rows={} distinct_patterns={} pattern_table_terms={table_terms} placement_runs={runs}",
+        rows - census_rows,
+        patterns.len(),
+    );
+}
+
+#[test]
+#[ignore = "measurement printer for the source-matrix encodings; run with --ignored --nocapture"]
+fn print_campaign_profile_v1_source_matrix_encodings() {
+    use neo_ccs::CcsMatrix;
+    let audit = campaign_audit([0xDA; 32]);
+    for branch in [NebulaFPrimeBranch::Base, NebulaFPrimeBranch::Recursive] {
+        let arm = audit.arm(branch);
+        for (matrix_name, matrix) in [("a", &arm.a), ("b", &arm.b), ("c", &arm.c)] {
+            match matrix {
+                CcsMatrix::Identity { n } => {
+                    eprintln!("branch={branch:?} matrix={matrix_name} variant=identity n={n}");
+                }
+                CcsMatrix::Csc(csc) => {
+                    eprintln!(
+                        "branch={branch:?} matrix={matrix_name} variant=csc rows={} cols={} nnz={}",
+                        csc.nrows,
+                        csc.ncols,
+                        csc.vals.len(),
+                    );
+                }
+                CcsMatrix::CscWithSeededPhi81 {
+                    csc,
+                    blocks,
+                    geometric_runs,
+                } => {
+                    let run_terms = geometric_runs.iter().map(|run| run.len()).sum::<usize>();
+                    eprintln!(
+                        "branch={branch:?} matrix={matrix_name} variant=csc+seeded rows={} cols={} csc_nnz={} blocks={} geometric_runs={} run_terms={}",
+                        csc.nrows,
+                        csc.ncols,
+                        csc.vals.len(),
+                        blocks.len(),
+                        geometric_runs.len(),
+                        run_terms,
+                    );
+                }
+                CcsMatrix::VerifierArtifact { rows, cols } => {
+                    eprintln!(
+                        "branch={branch:?} matrix={matrix_name} variant=verifier-artifact rows={rows} cols={cols}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 #[ignore = "measurement printer for the seeded-block geometry; run with --ignored --nocapture"]
 fn print_campaign_profile_v1_seeded_block_geometry() {
     let audit = campaign_audit([0xDA; 32]);

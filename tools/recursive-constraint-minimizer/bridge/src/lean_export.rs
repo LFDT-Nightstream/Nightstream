@@ -348,6 +348,112 @@ pub fn render_terminal_redundancy_certificate_lean(
     )
 }
 
+/// Render one Lean module that checks a scalar redundancy certificate against
+/// a string-payload compact source artifact. The validity proof runs by
+/// `native_decide` because the expanded artifact is executable, not a
+/// literal, and the transport cites the Artifact-level full theorems.
+#[allow(clippy::too_many_arguments)]
+pub fn render_compact_redundancy_certificate_lean(
+    complete_problem: &Problem,
+    query_problem: &Problem,
+    certificate: &ScalarCertificate,
+    artifact_module: &str,
+    artifact_namespace: &str,
+    namespace: &str,
+    reviewed_plan: &[String],
+) -> Result<String, ExportError> {
+    validate_namespace(artifact_module)?;
+    validate_namespace(artifact_namespace)?;
+    validate_namespace(namespace)?;
+    validate_complete_problem(complete_problem)?;
+    validate_scalar_certificate(query_problem, certificate)
+        .map_err(|error| ExportError::new(format!("invalid scalar certificate: {error}")))?;
+    let Selection::Family(family) = &certificate.selection else {
+        return Err(ExportError::new(
+            "Lean family emission requires a complete family selection",
+        ));
+    };
+    validate_reviewed_plan(complete_problem, family, reviewed_plan)?;
+    validate_certificate_slice(complete_problem, query_problem, family)?;
+
+    let mut out = String::new();
+    writeln!(out, "import {artifact_module}").unwrap();
+    writeln!(out, "set_option maxHeartbeats 2000000").unwrap();
+    writeln!(out, "set_option maxRecDepth 65536\n").unwrap();
+    writeln!(out, "namespace {namespace}\n").unwrap();
+    writeln!(out, "open Nightstream.Assurance.ConstraintMinimization").unwrap();
+    writeln!(out, "open Nightstream.SuperNeo.CheckPlan").unwrap();
+    writeln!(out, "open {artifact_namespace}\n").unwrap();
+    write!(out, "def reviewedPlan : List String := [").unwrap();
+    for (index, entry) in reviewed_plan.iter().enumerate() {
+        write!(out, "{}{}", lean_string(entry), separator(index, reviewed_plan.len())).unwrap();
+    }
+    writeln!(out, "]\n").unwrap();
+
+    let mut counter = 0usize;
+    let certificates = certificate
+        .rows
+        .iter()
+        .map(|row_certificate| {
+            let candidate = source_row(query_problem, row_certificate.candidate_source_index)?;
+            let mut hoisted = String::new();
+            let mut item = String::new();
+            write!(item, "{{ candidate := ").unwrap();
+            render_indexed_row_hoisted(&mut hoisted, &mut counter, &mut item, candidate)?;
+            write!(item, ", support := [").unwrap();
+            for (support_index, support) in row_certificate.support.iter().enumerate() {
+                let source = source_row(query_problem, support.source_index)?;
+                let coefficient = support.coefficient.parse::<u64>().map_err(|_| {
+                    ExportError::new(format!(
+                        "cannot emit noncanonical certificate coefficient {:?}",
+                        support.coefficient
+                    ))
+                })?;
+                write!(item, "{{ source := ").unwrap();
+                render_indexed_row_hoisted(&mut hoisted, &mut counter, &mut item, source)?;
+                write!(
+                    item,
+                    ", coefficient := ({} : Field) }}{}",
+                    coefficient,
+                    separator(support_index, row_certificate.support.len())
+                )
+                .unwrap();
+            }
+            write!(item, "] }}").unwrap();
+            Ok((hoisted, item))
+        })
+        .collect::<Result<Vec<_>, ExportError>>()?;
+    write_chunked_list_def_grouped(
+        &mut out,
+        "familyCertificateCertificates",
+        "ScalarCertificate",
+        &certificates,
+    );
+    writeln!(out, "def familyCertificate : FamilyCertificate where").unwrap();
+    writeln!(out, "  family := {}", lean_string(family)).unwrap();
+    writeln!(out, "  certificates := familyCertificateCertificates\n").unwrap();
+    writeln!(
+        out,
+        "theorem familyCertificate_valid :\n    familyCertificate.Valid sourceArtifact reviewedPlan := by\n  native_decide\n"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "theorem redundant :\n    Redundant (FamilyHolds sourceArtifact) reviewedPlan {} :=\n  familyCertificate.redundant_of_full_valid sourceArtifact sourceArtifact\n    reviewedPlan sourceArtifact_coversFullRelation sourceArtifact_exactValidation\n    familyCertificate_valid\n",
+        lean_string(family),
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "theorem normalizedRedundant :\n    Redundant (NormalizedFamilyHolds sourceArtifact)\n      reviewedPlan {} :=\n  normalizedRedundant_of_redundant sourceArtifact\n    reviewedPlan {} redundant\n",
+        lean_string(family),
+        lean_string(family),
+    )
+    .unwrap();
+    writeln!(out, "end {namespace}").unwrap();
+    Ok(out)
+}
+
 /// Render a complete Rust-replayed removal counterexample for one fixed-point
 /// branch as a Lean proof.
 #[allow(clippy::too_many_arguments)]

@@ -162,6 +162,80 @@ fn committed_base_compact_necessity_pilot_matches_the_emitter() {
 }
 
 #[test]
+#[ignore = "builds the complete 4.5M-row problem (~22 GB peak); run explicitly during campaign iterations"]
+fn committed_y_ring_compact_redundancy_module_matches_the_emitter() {
+    use nightstream_constraint_exporter::{
+        export_sparse_problem, nebula_family_census, render_compact_redundancy_certificate_lean, ExportRequest,
+    };
+    use recursive_constraint_minimizer::{derive_scalar_certificate, Scope, Selection};
+    use std::collections::BTreeSet;
+
+    const CANDIDATE: &str = "nifs.pi_rlc.verify.padding.y_ring";
+    const PI_CCS_SUPPORT: &str = "nifs.pi_ccs.padded_row.canonicality";
+    const PI_DEC_SUPPORT: &str = "nifs.pi_dec.verify";
+    const GENERATED_NS: &str = "Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated";
+
+    let audit = campaign_audit();
+    let arm = audit.arm(NebulaFPrimeBranch::Recursive);
+    let census = nebula_family_census(&audit, NebulaFPrimeBranch::Recursive).expect("complete reviewed ownership");
+    let plan_names = census
+        .iter()
+        .map(|family| family.name().to_owned())
+        .collect::<Vec<_>>();
+    let family = |name: &str| {
+        census
+            .iter()
+            .find(|family| family.name() == name)
+            .unwrap_or_else(|| panic!("missing exact family {name}"))
+    };
+    let complete = export_sparse_problem(
+        arm,
+        ExportRequest {
+            profile: "campaign-recursive-classification-v1".to_owned(),
+            scope: Scope::Branch,
+            public_input_count: arm.m_in,
+            source_rows: (0..arm.n).collect(),
+            complete_families: plan_names.clone(),
+        },
+    )
+    .expect("export the complete binding-free recursive problem");
+    let slice_rows = [CANDIDATE, PI_CCS_SUPPORT, PI_DEC_SUPPORT]
+        .into_iter()
+        .flat_map(|name| family(name).source_rows().iter().copied())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let slice = export_sparse_problem(
+        arm,
+        ExportRequest {
+            profile: "campaign-recursive-classification-v1".to_owned(),
+            scope: Scope::Branch,
+            public_input_count: arm.m_in,
+            source_rows: slice_rows,
+            complete_families: vec![CANDIDATE.to_owned()],
+        },
+    )
+    .expect("export the y_ring candidate and support slice");
+    let certificate = derive_scalar_certificate(&slice, &Selection::Family(CANDIDATE.to_owned()))
+        .expect("derive the scalar certificate")
+        .expect("every y_ring row has a scalar certificate");
+    let content = render_compact_redundancy_certificate_lean(
+        &complete,
+        &slice,
+        &certificate,
+        &format!("{GENERATED_NS}.RecursiveCompactSourceArtifact"),
+        &format!("{GENERATED_NS}.RecursiveCompactSourceArtifact"),
+        &format!("{GENERATED_NS}.RecursiveNifsPiRlcVerifyPaddingYRingRedundancy"),
+        &plan_names,
+    )
+    .expect("render the y_ring compact redundancy module");
+    assert_modules_match_committed(&[nightstream_constraint_exporter::GeneratedLeanModule {
+        module_name: format!("{GENERATED_NS}.RecursiveNifsPiRlcVerifyPaddingYRingRedundancy"),
+        content,
+    }]);
+}
+
+#[test]
 fn committed_recursive_compact_source_modules_match_the_emitter() {
     let audit = campaign_audit();
     let emission = render_compact_source_artifact_modules(

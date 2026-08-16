@@ -67,6 +67,26 @@ launch. A third-party sglang server holds ~7 GB on this box; respect it.
   attempt failed at the second segment append; reason unknown until a rerun
   with full output capture.
 
+## Bar-2 amendment evidence (k_rho=10 foldable shape, measured 2026-08-15)
+
+The frozen v1 shape (k_rho=2) cannot fold (Definition-14 guard). Measured
+k_rho=10 minimal shape (identical construction otherwise):
+
+| Relation | k_rho=2 (frozen v1) | k_rho=10 (candidate v2) |
+|---|---|---|
+| Base arm | 39,949 x 38,626, digest `54bec6fa...` | same geometry, digest `acc3f180...` (coefficients change) |
+| Recursive arm | 4,530,315 x 4,480,464, digest `4c0a5164...` | 9,857,455 x 9,759,794, digest `edaf7a51...` |
+| Selective fixed point | 1,415,271 x 6,559,326 | 3,216,103 x 11,969,802, plan digest `f87c4841...` |
+| Terminal | unchanged (paper-B.2 fixture) | unchanged |
+
+Family counts stay 6/82. Consequences of amending: terminal 8/8
+certification survives; base 6/6 re-emits and re-certifies (mechanical:
+capture, witnesses, emission, one base-batch Lean rebuild); all compact
+recursive artifacts and the y_ring module re-emit through the pipeline
+(~2x payload). The two-segment k_rho=10 capture probe is running to prove
+foldability end to end; its success plus this table is the decision
+package. Base step 0 already passes in 2.9 s at k_rho=10.
+
 ## Staged solver runbook (cvc5-focused lane, awaiting go)
 
 Zero-compute staging for the user's "focus on cvc5" direction. On "go":

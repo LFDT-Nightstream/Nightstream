@@ -232,6 +232,56 @@ fn campaign_profile_v1_digests_are_frozen() {
 }
 
 #[test]
+#[ignore = "k_rho=10 digest probe for the bar-2 amendment; run with --ignored --nocapture"]
+fn probe_k_rho_10_digests() {
+    let inner = neo_params::NeoParams::new(
+        neo_params::goldilocks_paper_b2::Q,
+        neo_params::goldilocks_paper_b2::ETA as u32,
+        neo_params::goldilocks_paper_b2::D as u32,
+        1,
+        neo_params::goldilocks_paper_b2::M,
+        neo_params::goldilocks_paper_b2::B_BASE,
+        10,
+        1,
+        neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
+        1,
+    )
+    .expect("k_rho=10 minimal parameters");
+    let params = Params::test_only_from_neo_params(inner);
+    let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("campaign memory profile");
+    let plan = NebulaPlan::new(memory, vec![7], [0xDA; 32], params.kappa() as usize).expect("campaign Nebula plan");
+    let audit = NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan)
+        .expect("discover k_rho=10 source arms");
+    for branch in [NebulaFPrimeBranch::Base, NebulaFPrimeBranch::Recursive] {
+        let arm = audit.arm(branch);
+        let export = export_nebula_problem(
+            &audit,
+            branch,
+            ExportRequest {
+                profile: "k-rho-10-digest-probe".to_owned(),
+                scope: Scope::Branch,
+                public_input_count: arm.m_in,
+                source_rows: vec![0],
+                complete_families: Vec::new(),
+            },
+        )
+        .expect("export one k_rho=10 source row");
+        let census = nebula_family_census(&audit, branch).expect("census");
+        eprintln!(
+            "k_rho=10 branch={branch:?} n={} m={} m_in={} families={} digest={} final_rows={} final_cols={} final_plan_digest={}",
+            export.problem().source.total_rows,
+            export.problem().column_count,
+            export.problem().public_input_count,
+            census.len(),
+            export.problem().source.artifact_digest,
+            export.binding().final_rows(),
+            export.binding().final_columns(),
+            export.binding().final_plan_digest(),
+        );
+    }
+}
+
+#[test]
 #[ignore = "k_rho=10 foldable-shape probe for the bar-2 amendment; run with --ignored --nocapture"]
 fn probe_k_rho_10_minimal_shape_capture() {
     use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeChainBuilder, NebulaFPrimePreprocessing};

@@ -15,9 +15,8 @@ mod trace_build;
 
 use super::decode::{DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode};
 use super::runtime_read::{
-    function_arity_from_ref, function_type_id_from_ref, normalize_value_lanes, parse_stack_word, read_byte,
-    read_global_lanes, read_halfword, read_memory_pages_if_present, read_table_funcref_u32, read_table_size, read_word,
-    val_to_string,
+    function_arity_from_ref, function_type_id_from_ref, normalize_value_lanes, read_byte, read_global_lanes,
+    read_halfword, read_memory_pages_if_present, read_table_funcref_u32, read_table_size, read_word, val_to_string,
 };
 use super::{LoweringTables, WasmtimeTraceMemoryAccess, WasmtimeTraceMemoryWordLane, WasmtimeTraceStep};
 use crate::ir::{LinearMemoryAccess, LinearMemoryWordLane, WasmBuildError, WasmPcEdgeKind};
@@ -44,6 +43,7 @@ pub fn traces_from_wasmtime_steps_with_host_events(
     turn_inputs: &[crate::host_event_bindings::TurnInputs],
     initial_comm_chain: crate::comm_chain::CommChainState,
 ) -> Result<Vec<crate::ir::WasmVmStep>, WasmBuildError> {
+    bindings.validate_against_program(program)?;
     let linear_memory = memory::LinearMemoryImage::for_host_events(bindings, program)?;
     trace_build::build_trace(rows, Some((bindings, turn_inputs)), initial_comm_chain, linear_memory)
 }
@@ -66,7 +66,7 @@ struct NormalizedStep {
     local_index: Option<u32>,
     /// For local.get: the value of local[local_index] before this step executes
     /// (captured from the wasmtime frame's locals snapshot).
-    local_value: Option<u32>,
+    local_value_lo: Option<u32>,
     local_value_hi: Option<u32>,
     /// For global.get / global.set: the 0-based global index.
     global_index: Option<u32>,
@@ -100,9 +100,7 @@ struct NormalizedStep {
     num_locals: u32,
     /// Parsed local values at this step (before execution). Used to build aux param-init rows at
     /// call boundaries.
-    locals_snapshot: Vec<u32>,
-    /// High 32-bit lanes of the locals snapshot (i64 locals).
-    locals_snapshot_hi: Vec<u32>,
+    locals_snapshot: Vec<(u32, u32)>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
     /// Oracle words recorded on this (host-call) row at collection time.
@@ -148,12 +146,8 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         WasmOpcode::LocalGet | WasmOpcode::LocalSet | WasmOpcode::LocalTee => immediate_i32,
         _ => None,
     };
-    let local_value = local_index.and_then(|idx| {
-        row.locals
-            .get(idx as usize)
-            .and_then(|v| parse_stack_word(v).ok())
-    });
-    let local_value_hi = local_index.and_then(|idx| row.locals_words_hi.get(idx as usize).copied());
+    let local_value_lo = local_index.and_then(|idx| row.locals_words.get(idx as usize).map(|&(lo, _)| lo));
+    let local_value_hi = local_index.and_then(|idx| row.locals_words.get(idx as usize).map(|&(_, hi)| hi));
     let global_index = match opcode {
         WasmOpcode::GlobalGet | WasmOpcode::GlobalSet => row.global_index,
         _ => None,
@@ -231,12 +225,6 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         }
         _ => None,
     };
-    let locals_snapshot: Vec<u32> = row
-        .locals
-        .iter()
-        .map(|v| v.parse::<i128>().map(|n| (n as i32) as u32).unwrap_or(0))
-        .collect();
-
     Ok(Some(NormalizedStep {
         cycle: row.step,
         pc,
@@ -251,7 +239,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         operand_stack_hi,
         immediate_i32,
         local_index,
-        local_value,
+        local_value_lo,
         local_value_hi,
         global_index,
         global_value_before: row.global_value_before,
@@ -276,8 +264,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         call_return_pc: row.call_return_pc,
         pc_after_instruction: row.pc_after_instruction,
         num_locals: row.num_locals,
-        locals_snapshot,
-        locals_snapshot_hi: row.locals_words_hi.clone(),
+        locals_snapshot: row.locals_words.clone(),
         linear_memory,
         linear_memory_offset: row.memory.as_ref().map(|memory| memory.offset).unwrap_or(0),
         host_call_inputs: row.host_call_inputs.clone(),
@@ -322,14 +309,13 @@ pub(crate) fn capture_frame<T>(
         .map_err(|err| WasmBuildError::Trace(format!("failed to inspect Wasmtime locals length: {err}")))?;
     let func_ref_ids = &tables.func_ref_ids;
     let mut locals = Vec::with_capacity(num_locals as usize);
-    let mut locals_words_hi = Vec::with_capacity(num_locals as usize);
+    let mut locals_words = Vec::with_capacity(num_locals as usize);
     for index in 0..num_locals {
         let value = frame
             .local(&mut *store, index)
             .map_err(|err| WasmBuildError::Trace(format!("failed to inspect Wasmtime local {index}: {err}")))?;
         locals.push(val_to_string(value));
-        let (_, hi) = normalize_value_lanes(value, func_ref_ids, &mut *store)?;
-        locals_words_hi.push(hi);
+        locals_words.push(normalize_value_lanes(value, func_ref_ids, &mut *store)?);
     }
 
     let num_stacks = frame
@@ -527,7 +513,7 @@ pub(crate) fn capture_frame<T>(
         memory_max_pages: memory_max_now,
         memory,
         locals,
-        locals_words_hi,
+        locals_words,
         operand_stack,
         operand_stack_words,
         operand_stack_words_hi,

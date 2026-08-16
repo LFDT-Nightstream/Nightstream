@@ -14,7 +14,7 @@ pub(super) fn collect_callee_initial_params(
         .iter()
         .take(usize::from(param_count))
         .enumerate()
-        .map(|(i, &value)| (callee_fbp + i as u64, value))
+        .map(|(i, &(lo, _))| (callee_fbp + i as u64, lo))
         .collect()
 }
 
@@ -53,7 +53,7 @@ pub(super) fn write_lane(
                 current.cycle
             ))
         })?,
-        WasmOpcode::LocalGet => current.local_value.ok_or_else(|| {
+        WasmOpcode::LocalGet => current.local_value_lo.ok_or_else(|| {
             WasmBuildError::Trace(format!("missing local value for local.get at cycle {}", current.cycle))
         })?,
         WasmOpcode::GlobalGet => current.global_value_before.ok_or_else(|| {

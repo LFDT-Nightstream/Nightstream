@@ -332,14 +332,14 @@ pub fn preload_host_event_tables(
         for (event_index, event) in events.into_iter().enumerate() {
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![fref, event_index as u32, slot_index as u32];
-                let (kind, arg, variant, const_lo, const_hi) = encode(source);
+                let (kind, arg, variant, immediate0, immediate1) = encode(source);
                 // Bit 3 carries the per-event advice flag.
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
                 preload.insert(WasmMemoryId::HostEventSlotKind, key.clone(), kind);
                 preload.insert(WasmMemoryId::HostEventSlotArg, key.clone(), arg);
                 preload.insert(WasmMemoryId::HostEventSlotVariant, key.clone(), variant);
-                preload.insert(WasmMemoryId::HostEventSlotConstLo, key.clone(), const_lo);
-                preload.insert(WasmMemoryId::HostEventSlotConstHi, key, const_hi);
+                preload.insert(WasmMemoryId::HostEventSlotImmediate0, key.clone(), immediate0);
+                preload.insert(WasmMemoryId::HostEventSlotImmediate1, key, immediate1);
             }
         }
     };

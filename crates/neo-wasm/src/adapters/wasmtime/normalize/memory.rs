@@ -48,8 +48,10 @@ impl LinearMemoryImage {
         &self,
         base: u32,
         byte_offset: u32,
+        memory_pages: Option<u32>,
     ) -> Result<(u32, LinearMemoryAccess), WasmBuildError> {
         let word_addr = aligned_word_addr(base, byte_offset)?;
+        ensure_word_in_bounds(word_addr, memory_pages)?;
         let value = self.read_word(word_addr);
         Ok((value, memory_access(4, 0, word_addr, value, value)))
     }
@@ -59,25 +61,40 @@ impl LinearMemoryImage {
         base: u32,
         byte_offset: u32,
         value: u32,
+        memory_pages: Option<u32>,
     ) -> Result<LinearMemoryAccess, WasmBuildError> {
         let word_addr = aligned_word_addr(base, byte_offset)?;
+        ensure_word_in_bounds(word_addr, memory_pages)?;
         let prior = self.read_word(word_addr);
         self.write_word(word_addr, value);
         Ok(memory_access(4, 0, word_addr, prior, value))
     }
 
-    pub(super) fn read_byte(&self, base: u32, byte_offset: u32) -> Result<(u8, LinearMemoryAccess), WasmBuildError> {
-        self.read_subword(base, byte_offset, |b, i| b[i])
+    pub(super) fn read_byte(
+        &self,
+        base: u32,
+        byte_offset: u32,
+        memory_pages: Option<u32>,
+    ) -> Result<(u8, LinearMemoryAccess), WasmBuildError> {
+        self.read_subword(base, byte_offset, memory_pages, |b, i| b[i])
     }
 
-    pub(super) fn read_half(&self, base: u32, byte_offset: u32) -> Result<(u16, LinearMemoryAccess), WasmBuildError> {
-        self.read_subword(base, byte_offset, |b, i| u16::from_le_bytes([b[i], b[i + 1]]))
+    pub(super) fn read_half(
+        &self,
+        base: u32,
+        byte_offset: u32,
+        memory_pages: Option<u32>,
+    ) -> Result<(u16, LinearMemoryAccess), WasmBuildError> {
+        self.read_subword(base, byte_offset, memory_pages, |b, i| {
+            u16::from_le_bytes([b[i], b[i + 1]])
+        })
     }
 
     pub(super) fn read_subword<T>(
         &self,
         base: u32,
         byte_offset: u32,
+        memory_pages: Option<u32>,
         f: impl Fn([u8; 4], usize) -> T,
     ) -> Result<(T, LinearMemoryAccess), WasmBuildError> {
         let byte_width = std::mem::size_of::<T>();
@@ -86,6 +103,7 @@ impl LinearMemoryImage {
         debug_assert!((1..=2).contains(&byte_width));
 
         let (word_addr, byte_in_word) = subword_address(base, byte_offset, byte_width as u32)?;
+        ensure_word_in_bounds(word_addr, memory_pages)?;
         let word = self.read_word(word_addr);
         let value = f(word.to_le_bytes(), byte_in_word as usize);
 
@@ -100,8 +118,9 @@ impl LinearMemoryImage {
         base: u32,
         byte_offset: u32,
         value: u8,
+        memory_pages: Option<u32>,
     ) -> Result<LinearMemoryAccess, WasmBuildError> {
-        self.write_subword(base, byte_offset, value as u16, 1)
+        self.write_subword(base, byte_offset, value as u16, 1, memory_pages)
     }
 
     pub(super) fn write_half(
@@ -109,8 +128,9 @@ impl LinearMemoryImage {
         base: u32,
         byte_offset: u32,
         value: u16,
+        memory_pages: Option<u32>,
     ) -> Result<LinearMemoryAccess, WasmBuildError> {
-        self.write_subword(base, byte_offset, value, 2)
+        self.write_subword(base, byte_offset, value, 2, memory_pages)
     }
 
     pub(super) fn write_subword(
@@ -119,9 +139,11 @@ impl LinearMemoryImage {
         byte_offset: u32,
         value: u16,
         byte_width: usize,
+        memory_pages: Option<u32>,
     ) -> Result<LinearMemoryAccess, WasmBuildError> {
         let value_le_bytes = &value.to_le_bytes()[0..byte_width];
         let (word_addr, byte_in_word) = subword_address(base, byte_offset, 1)?;
+        ensure_word_in_bounds(word_addr, memory_pages)?;
         let prior = self.read_word(word_addr);
         let mut bytes = prior.to_le_bytes();
         let offset = usize::from(byte_in_word);
@@ -255,6 +277,19 @@ fn aligned_word_addr(base: u32, byte_offset: u32) -> Result<u64, WasmBuildError>
         )));
     }
     Ok(u64::from(effective / 4))
+}
+
+fn ensure_word_in_bounds(word_addr: u64, memory_pages: Option<u32>) -> Result<(), WasmBuildError> {
+    let pages = memory_pages
+        .ok_or_else(|| WasmBuildError::Trace("host-event memory access requires default linear memory".to_string()))?;
+    let word_bound = u64::from(pages) * 16_384;
+    if word_addr >= word_bound {
+        return Err(WasmBuildError::Trace(format!(
+            "host-event memory access at byte address {} is out of bounds for {pages} memory pages",
+            word_addr * 4
+        )));
+    }
+    Ok(())
 }
 
 fn memory_access(

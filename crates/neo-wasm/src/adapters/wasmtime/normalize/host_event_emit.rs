@@ -60,9 +60,10 @@ pub(super) fn plan_import_call(
     args: &[(u32, u32)],
     result: Option<(u32, u32)>,
     inputs: &[u64],
+    memory_pages: Option<u32>,
     memory: &mut LinearMemoryImage,
 ) -> Result<HostCallEventPlan, WasmBuildError> {
-    let resolved_memory = resolve_import_memory(template, args, inputs, memory)?;
+    let resolved_memory = resolve_import_memory(template, args, inputs, memory_pages, memory)?;
     let blocks = expand_import_events(template, args, result, inputs, &resolved_memory.reads)?;
     Ok(HostCallEventPlan {
         blocks: plan_event_blocks(
@@ -81,6 +82,7 @@ fn resolve_import_memory(
     template: &ImportTemplate,
     import_args: &[(u32, u32)],
     inputs: &[u64],
+    memory_pages: Option<u32>,
     memory: &mut LinearMemoryImage,
 ) -> Result<ResolvedEventMemory, WasmBuildError> {
     let mut reads = Vec::new();
@@ -92,7 +94,7 @@ fn resolve_import_memory(
                     unreachable!("validated import memory base")
                 };
                 let pointer = import_memory_pointer(import_args, arg)?;
-                let (value, access) = memory.read_aligned_word(pointer, byte_offset)?;
+                let (value, access) = memory.read_aligned_word(pointer, byte_offset, memory_pages)?;
                 reads.push(value);
                 accesses.push(access);
             }
@@ -101,7 +103,7 @@ fn resolve_import_memory(
                     unreachable!("validated import memory base")
                 };
                 let pointer = import_memory_pointer(import_args, arg)?;
-                let (value, access) = memory.read_byte(pointer, byte_offset)?;
+                let (value, access) = memory.read_byte(pointer, byte_offset, memory_pages)?;
                 reads.push(u32::from(value));
                 accesses.push(access);
             }
@@ -110,7 +112,7 @@ fn resolve_import_memory(
                     unreachable!("validated import memory base")
                 };
                 let pointer = import_memory_pointer(import_args, arg)?;
-                let (value, access) = memory.read_half(pointer, byte_offset)?;
+                let (value, access) = memory.read_half(pointer, byte_offset, memory_pages)?;
                 reads.push(u32::from(value));
                 accesses.push(access);
             }
@@ -128,7 +130,7 @@ fn resolve_import_memory(
                     unreachable!("validated import memory base")
                 };
                 let pointer = import_memory_pointer(import_args, arg)?;
-                accesses.push(memory.write_aligned_word(pointer, byte_offset, value)?);
+                accesses.push(memory.write_aligned_word(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite8 {
                 input,
@@ -144,7 +146,7 @@ fn resolve_import_memory(
                     unreachable!("validated import memory base")
                 };
                 let pointer = import_memory_pointer(import_args, arg)?;
-                accesses.push(memory.write_byte(pointer, byte_offset, value)?);
+                accesses.push(memory.write_byte(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite16 {
                 input,
@@ -160,7 +162,7 @@ fn resolve_import_memory(
                     unreachable!("validated import memory base")
                 };
                 let pointer = import_memory_pointer(import_args, arg)?;
-                accesses.push(memory.write_half(pointer, byte_offset, value)?);
+                accesses.push(memory.write_half(pointer, byte_offset, value, memory_pages)?);
             }
             _ => {}
         }
@@ -190,7 +192,8 @@ fn event_memory_width(source: SlotBinding) -> WasmHostEventMemoryWidth {
 pub(super) fn apply_export_entry_memory(
     events: &[EventBlock],
     blocks: &[[u64; 8]],
-    locals: &[u32],
+    locals: &[(u32, u32)],
+    memory_pages: Option<u32>,
     memory: &mut LinearMemoryImage,
 ) -> Result<Vec<LinearMemoryAccess>, WasmBuildError> {
     let mut accesses = Vec::new();
@@ -206,7 +209,8 @@ pub(super) fn apply_export_entry_memory(
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
-                accesses.push(memory.write_aligned_word(locals[usize::from(local)], byte_offset, value)?);
+                let pointer = export_local_pointer(locals, local)?;
+                accesses.push(memory.write_aligned_word(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite8 { base, byte_offset, .. } => {
                 let value = u8::try_from(*value)
@@ -214,7 +218,8 @@ pub(super) fn apply_export_entry_memory(
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
-                accesses.push(memory.write_byte(locals[usize::from(local)], byte_offset, value)?);
+                let pointer = export_local_pointer(locals, local)?;
+                accesses.push(memory.write_byte(pointer, byte_offset, value, memory_pages)?);
             }
             SlotBinding::MemoryWrite16 { base, byte_offset, .. } => {
                 let value = u16::try_from(*value)
@@ -222,7 +227,8 @@ pub(super) fn apply_export_entry_memory(
                 let MemoryBase::Local(local) = base else {
                     unreachable!("validated export memory base")
                 };
-                accesses.push(memory.write_half(locals[usize::from(local)], byte_offset, value)?);
+                let pointer = export_local_pointer(locals, local)?;
+                accesses.push(memory.write_half(pointer, byte_offset, value, memory_pages)?);
             }
             _ => {}
         }
@@ -232,32 +238,49 @@ pub(super) fn apply_export_entry_memory(
 
 pub(super) fn read_export_exit_memory(
     events: &[EventBlock],
-    locals: &[u32],
+    output: Option<(u32, u32)>,
+    memory_pages: Option<u32>,
     memory: &LinearMemoryImage,
 ) -> Result<ResolvedEventMemory, WasmBuildError> {
     let mut reads = Vec::new();
     let mut accesses = Vec::new();
+
+    let output_pointer = events
+        .iter()
+        .flat_map(|event| &event.block)
+        .any(|source| {
+            matches!(
+                source,
+                SlotBinding::MemoryRead32 { .. } | SlotBinding::MemoryRead16 { .. } | SlotBinding::MemoryRead8 { .. }
+            )
+        })
+        .then(|| export_memory_pointer(output))
+        .transpose()?;
+
     for source in events.iter().flat_map(|event| &event.block) {
         let resolved = match *source {
             SlotBinding::MemoryRead32 { base, byte_offset } => {
-                let MemoryBase::Local(local) = base else {
+                let MemoryBase::Output = base else {
                     unreachable!("validated export memory base")
                 };
-                let (value, access) = memory.read_aligned_word(locals[usize::from(local)], byte_offset)?;
+                let pointer = output_pointer.expect("memory read requires resolved output pointer");
+                let (value, access) = memory.read_aligned_word(pointer, byte_offset, memory_pages)?;
                 Some((value, access))
             }
             SlotBinding::MemoryRead8 { base, byte_offset } => {
-                let MemoryBase::Local(local) = base else {
+                let MemoryBase::Output = base else {
                     unreachable!("validated export memory base")
                 };
-                let (value, access) = memory.read_byte(locals[usize::from(local)], byte_offset)?;
+                let pointer = output_pointer.expect("memory read requires resolved output pointer");
+                let (value, access) = memory.read_byte(pointer, byte_offset, memory_pages)?;
                 Some((u32::from(value), access))
             }
             SlotBinding::MemoryRead16 { base, byte_offset } => {
-                let MemoryBase::Local(local) = base else {
+                let MemoryBase::Output = base else {
                     unreachable!("validated export memory base")
                 };
-                let (value, access) = memory.read_half(locals[usize::from(local)], byte_offset)?;
+                let pointer = output_pointer.expect("memory read requires resolved output pointer");
+                let (value, access) = memory.read_half(pointer, byte_offset, memory_pages)?;
                 Some((u32::from(value), access))
             }
             _ => None,
@@ -268,6 +291,30 @@ pub(super) fn read_export_exit_memory(
         }
     }
     Ok(ResolvedEventMemory { reads, accesses })
+}
+
+fn export_memory_pointer(output: Option<(u32, u32)>) -> Result<u32, WasmBuildError> {
+    let (pointer, high) = output
+        .ok_or_else(|| WasmBuildError::Trace("export exit memory requires a captured output pointer".to_string()))?;
+
+    if high != 0 {
+        return Err(WasmBuildError::Trace(format!(
+            "export exit memory output is not a wasm32 pointer: high limb is {high}"
+        )));
+    }
+
+    Ok(pointer)
+}
+
+fn export_local_pointer(locals: &[(u32, u32)], local: u8) -> Result<u32, WasmBuildError> {
+    locals
+        .get(usize::from(local))
+        .map(|&(lo, _)| lo)
+        .ok_or_else(|| {
+            WasmBuildError::Trace(format!(
+                "export memory base local {local} is missing from the runtime locals snapshot"
+            ))
+        })
 }
 
 fn plan_event_blocks(
@@ -292,12 +339,12 @@ fn plan_event_blocks(
                         crate::host_event_bindings::Limb::Lo => WasmHostEventRomVariant::LowLimb,
                         crate::host_event_bindings::Limb::Hi => WasmHostEventRomVariant::HighLimb,
                     };
-                    let entry = |kind, arg, variant, const_lo, const_hi| crate::ir::WasmHostEventRomEntry {
+                    let entry = |kind, arg, variant, immediate0, immediate1| crate::ir::WasmHostEventRomEntry {
                         kind,
                         arg,
                         variant,
-                        const_lo,
-                        const_hi,
+                        immediate0,
+                        immediate1,
                         advice: !event.absorb,
                     };
                     let base_slot_row = |rom| EventSlotRow {
@@ -453,7 +500,7 @@ pub(super) fn perm_group_plan(chain: [u64; 4], evbuf: [u64; 8]) -> ([[u64; 12]; 
 pub(super) fn plan_export_blocks(
     events: &[EventBlock],
     blocks: &[[u64; 8]],
-    locals: &[u32],
+    locals: &[(u32, u32)],
     memory_accesses: &[LinearMemoryAccess],
 ) -> Result<Vec<EventBlockPlan>, WasmBuildError> {
     let mut memory_accesses = memory_accesses.iter();
@@ -474,8 +521,8 @@ pub(super) fn plan_export_blocks(
                         kind,
                         arg,
                         variant,
-                        const_lo: 0,
-                        const_hi: 0,
+                        immediate0: 0,
+                        immediate1: 0,
                         advice: false,
                     };
                     let base_slot_row = |rom| EventSlotRow {
@@ -492,8 +539,8 @@ pub(super) fn plan_export_blocks(
                             kind: WasmHostEventSlotKind::Const,
                             arg: 0,
                             variant: WasmHostEventRomVariant::None,
-                            const_lo: constant as u32,
-                            const_hi: (constant >> 32) as u32,
+                            immediate0: constant as u32,
+                            immediate1: (constant >> 32) as u32,
                             advice: false,
                         }),
                         SlotBinding::Input { index: idx } => {
@@ -513,13 +560,11 @@ pub(super) fn plan_export_blocks(
                         SlotBinding::MemoryRead32 { base, byte_offset }
                         | SlotBinding::MemoryRead16 { base, byte_offset }
                         | SlotBinding::MemoryRead8 { base, byte_offset } => {
-                            let (local, variant) = memory_rom_arg_variant(base, event_memory_width(*source));
-                            let MemoryBase::Local(_) = base else {
+                            let (arg, variant) = memory_rom_arg_variant(base, event_memory_width(*source));
+                            let MemoryBase::Output = base else {
                                 unreachable!("validated export memory base")
                             };
-                            let base_value = locals[usize::from(local)];
                             EventSlotRow {
-                                local_read: Some((u32::from(local), base_value)),
                                 linear_memory: Some(
                                     *memory_accesses
                                         .next()
@@ -527,10 +572,10 @@ pub(super) fn plan_export_blocks(
                                 ),
                                 ..base_slot_row(crate::ir::WasmHostEventRomEntry {
                                     kind: WasmHostEventSlotKind::MemoryRead,
-                                    arg: local,
+                                    arg,
                                     variant,
-                                    const_lo: byte_offset,
-                                    const_hi: 0,
+                                    immediate0: byte_offset,
+                                    immediate1: 0,
                                     advice: false,
                                 })
                             }
@@ -554,7 +599,7 @@ pub(super) fn plan_export_blocks(
                             let MemoryBase::Local(_) = base else {
                                 unreachable!("validated export memory base")
                             };
-                            let base_value = locals[usize::from(local)];
+                            let base_value = export_local_pointer(locals, local)?;
                             EventSlotRow {
                                 local_read: Some((u32::from(local), base_value)),
                                 linear_memory: Some(
@@ -566,8 +611,8 @@ pub(super) fn plan_export_blocks(
                                     kind: WasmHostEventSlotKind::MemoryWrite,
                                     arg: local,
                                     variant,
-                                    const_lo: byte_offset,
-                                    const_hi: u32::from(input),
+                                    immediate0: byte_offset,
+                                    immediate1: u32::from(input),
                                     advice: false,
                                 })
                             }

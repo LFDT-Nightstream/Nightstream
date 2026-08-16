@@ -15,6 +15,14 @@ pub(crate) const fn function_call_metadata_is_guest(metadata: u64) -> bool {
     metadata & FUNCTION_CALL_METADATA_GUEST_FACTOR != 0
 }
 
+pub(crate) const fn function_call_metadata_shape(metadata: u64) -> (u8, u8, bool) {
+    (
+        metadata as u8,
+        (metadata / FUNCTION_CALL_METADATA_RESULT_FACTOR) as u8,
+        function_call_metadata_is_guest(metadata),
+    )
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmPcEdgeKind {
     Static = 0,
@@ -367,12 +375,19 @@ pub enum WasmHostEventMemoryWidth {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WasmHostEventMemoryBase {
+    Argument,
+    Local,
+    Output,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmHostEventRomVariant {
     None,
     LowLimb,
     HighLimb,
     Memory {
-        local_base: bool,
+        base: WasmHostEventMemoryBase,
         width: WasmHostEventMemoryWidth,
     },
 }
@@ -380,18 +395,24 @@ pub enum WasmHostEventRomVariant {
 impl WasmHostEventRomVariant {
     pub(crate) const MEMORY_BYTE_ENCODING_FACTOR: u8 = 2;
     pub(crate) const MEMORY_HALF_ENCODING_FACTOR: u8 = 4;
+    pub(crate) const MEMORY_OUTPUT_ENCODING_FACTOR: u8 = 8;
 
     pub const fn encoded(self) -> u8 {
         match self {
             Self::None | Self::LowLimb => 0,
             Self::HighLimb => 1,
-            Self::Memory { local_base, width } => {
+            Self::Memory { base, width } => {
                 let width = match width {
                     WasmHostEventMemoryWidth::Word => 0,
                     WasmHostEventMemoryWidth::Byte => Self::MEMORY_BYTE_ENCODING_FACTOR,
                     WasmHostEventMemoryWidth::Half => Self::MEMORY_HALF_ENCODING_FACTOR,
                 };
-                local_base as u8 + width
+                let base = match base {
+                    WasmHostEventMemoryBase::Argument => 0,
+                    WasmHostEventMemoryBase::Local => 1,
+                    WasmHostEventMemoryBase::Output => Self::MEMORY_OUTPUT_ENCODING_FACTOR,
+                };
+                base + width
             }
         }
     }
@@ -405,7 +426,23 @@ impl WasmHostEventRomVariant {
     }
 
     pub const fn uses_local_memory_base(self) -> bool {
-        matches!(self, Self::Memory { local_base: true, .. })
+        matches!(
+            self,
+            Self::Memory {
+                base: WasmHostEventMemoryBase::Local,
+                ..
+            }
+        )
+    }
+
+    pub const fn uses_output_memory_base(self) -> bool {
+        matches!(
+            self,
+            Self::Memory {
+                base: WasmHostEventMemoryBase::Output,
+                ..
+            }
+        )
     }
 
     pub const fn uses_byte_memory_width(self) -> bool {
@@ -438,8 +475,10 @@ pub struct WasmHostEventRomEntry {
     pub arg: u8,
     /// Kind-dependent native variant; encoded only at the ROM/circuit boundary.
     pub variant: WasmHostEventRomVariant,
-    pub const_lo: u32,
-    pub const_hi: u32,
+    /// `Const` low limb; memory byte offset; zero for other slot kinds.
+    pub immediate0: u32,
+    /// `Const` high limb; `MemoryWrite*` input index; zero for other slot kinds.
+    pub immediate1: u32,
     /// Whether this slot belongs to an unabsorbed event.
     pub advice: bool,
 }

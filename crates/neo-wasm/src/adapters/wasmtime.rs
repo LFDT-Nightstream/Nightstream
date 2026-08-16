@@ -71,7 +71,8 @@ pub struct WasmtimeTraceStep {
     pub memory_max_pages: Option<u32>,
     pub memory: Option<WasmtimeTraceMemoryAccess>,
     pub locals: Vec<String>,
-    pub locals_words_hi: Vec<u32>,
+    /// Numeric `(lo, hi)` lanes, one pair per captured local.
+    pub locals_words: Vec<(u32, u32)>,
     pub operand_stack: Vec<String>,
     pub operand_stack_words: Vec<u32>,
     pub operand_stack_words_hi: Vec<u32>,

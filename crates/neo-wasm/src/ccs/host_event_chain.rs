@@ -80,6 +80,7 @@ define_column_region! {
         GHC_PARAMS: Field => "host-event host-call and parameter-count product",
         G_ADVICE: Boolean => "advice-event slot flag",
         GMEM_LOCAL: Boolean => "memory pointer comes from an export local",
+        GMEM_OUTPUT: Boolean => "memory pointer comes from the captured export output",
         GMEM_BYTE: Boolean => "byte-width host-event memory slot",
         GMEM_HALF: Boolean => "half-width host-event memory slot",
         INITIAL_SCHEDULE_COUNT_MINUS_ONE_INV: Field => "turn-boundary nonempty-entry inverse witness",
@@ -112,6 +113,10 @@ pub(crate) const fn gather_memory_write_kind_col() -> usize {
 
 pub(crate) const fn gather_memory_local_base_col() -> usize {
     GMEM_LOCAL
+}
+
+pub(crate) const fn gather_memory_output_base_col() -> usize {
+    GMEM_OUTPUT
 }
 
 pub(crate) const fn gather_memory_byte_width_col() -> usize {
@@ -235,6 +240,7 @@ fn push_interface_constraints(b: &mut R1csBuilder) {
                 (GK_MEMORY_READ, -F::ONE),
                 (GK_MEMORY_WRITE, -F::ONE),
                 (GMEM_LOCAL, F::ONE),
+                (GMEM_OUTPUT, F::ONE),
             ],
             [],
         );
@@ -266,8 +272,8 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
         COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT as EXIT_SCHEDULE_COUNT,
         COL_HOST_EVENT_INDEX_AFTER as EVENT_INDEX_AFTER, COL_HOST_EVENT_INDEX_BEFORE as EVENT_INDEX_BEFORE,
         COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT as INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG as SLOT_ARG,
-        COL_HOST_EVENT_SLOT_CONST_HI as CONST_HI, COL_HOST_EVENT_SLOT_CONST_LO as CONST_LO,
         COL_HOST_EVENT_SLOT_CURSOR_AFTER as SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE as SLOT_CURSOR_BEFORE,
+        COL_HOST_EVENT_SLOT_IMMEDIATE0 as SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1 as SLOT_IMMEDIATE1,
         COL_HOST_EVENT_SLOT_KIND as SLOT_KIND, COL_HOST_EVENT_SLOT_VARIANT as SLOT_VARIANT, COL_IS_PROGRAM_ROW,
         COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_LANE_ADDR,
         COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3, COL_LOCAL_INDEX,
@@ -471,8 +477,8 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
             [(GATHER_KIND[0], F::ONE)],
             [
                 (GSLOT_VALUE, F::ONE),
-                (CONST_LO, -F::ONE),
-                (CONST_HI, -F::from_u64(1 << 32)),
+                (SLOT_IMMEDIATE0, -F::ONE),
+                (SLOT_IMMEDIATE1, -F::from_u64(1 << 32)),
             ],
             [],
         );
@@ -597,9 +603,8 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
             [],
         );
 
-        // Memory slots (kinds 6-7): ROM variant bit 0 selects an
-        // import-argument or export-local pointer base; bits 1 and 2 select
-        // byte and half width respectively.
+        // Memory-slot ROM variants encode one base (0 argument, 1 export
+        // local, 8 captured output) plus one width (0 word, 2 byte, 4 half).
         b.push_row(
             [(GK_MEMORY_READ, F::ONE), (GK_MEMORY_WRITE, F::ONE)],
             [(SLOT_VARIANT, F::ONE)],
@@ -617,9 +622,16 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
                         crate::ir::WasmHostEventRomVariant::MEMORY_HALF_ENCODING_FACTOR,
                     )),
                 ),
+                (
+                    GMEM_OUTPUT,
+                    F::from_u64(u64::from(
+                        crate::ir::WasmHostEventRomVariant::MEMORY_OUTPUT_ENCODING_FACTOR,
+                    )),
+                ),
             ],
         );
         b.push_boolean(GMEM_LOCAL);
+        b.push_boolean(GMEM_OUTPUT);
         b.push_boolean(GMEM_BYTE);
         b.push_boolean(GMEM_HALF);
         // Word slots have no intra-word byte offset. Subword slots bind it
@@ -651,6 +663,7 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
                 (GK_MEMORY_READ, F::ONE),
                 (GK_MEMORY_WRITE, F::ONE),
                 (GMEM_LOCAL, -F::ONE),
+                (GMEM_OUTPUT, -F::ONE),
             ],
             [
                 (COL_STACK_READ_ADDR_LO[0], F::ONE),
@@ -664,12 +677,13 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
                 (GK_MEMORY_READ, F::ONE),
                 (GK_MEMORY_WRITE, F::ONE),
                 (GMEM_LOCAL, -F::ONE),
+                (GMEM_OUTPUT, -F::ONE),
             ],
             [
                 (COL_LINEAR_MEM_LANE_ADDR[0], F::from_u64(4)),
                 (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
                 (COL_STACK_READ_VALUE_LO[0], -F::ONE),
-                (CONST_LO, -F::ONE),
+                (SLOT_IMMEDIATE0, -F::ONE),
             ],
             [],
         );
@@ -680,6 +694,7 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
                 (GK_MEMORY_READ, F::ONE),
                 (GK_MEMORY_WRITE, F::ONE),
                 (GMEM_LOCAL, -F::ONE),
+                (GMEM_OUTPUT, -F::ONE),
             ],
             [(COL_STACK_READ_VALUE_HI[0], F::ONE)],
             [],
@@ -690,13 +705,34 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
             [(COL_LOCAL_INDEX, F::ONE), (SLOT_ARG, -F::ONE)],
             [],
         );
+        // Exit memory reads use the captured single-result value as their
+        // wasm32 pointer, independent of the terminal call frame.
+        b.push_row(
+            [(GMEM_OUTPUT, F::ONE)],
+            [(COL_OUTPUT_ENABLED_BEFORE, F::ONE), (COL_ONE, -F::ONE)],
+            [],
+        );
+        b.push_row(
+            [(GMEM_OUTPUT, F::ONE)],
+            [
+                (COL_LINEAR_MEM_LANE_ADDR[0], F::from_u64(4)),
+                (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
+                // this is a ptr here
+                //
+                // so read_memory_addr = output_ptr + read_memory_offset
+                (COL_OUTPUT_VALUE_LO_BEFORE, -F::ONE),
+                (SLOT_IMMEDIATE0, -F::ONE),
+            ],
+            [],
+        );
+        b.push_row([(GMEM_OUTPUT, F::ONE)], [(COL_OUTPUT_VALUE_HI_BEFORE, F::ONE)], []);
         b.push_row(
             [(GMEM_LOCAL, F::ONE)],
             [
                 (COL_LINEAR_MEM_LANE_ADDR[0], F::from_u64(4)),
                 (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
                 (COL_LOCAL_VALUE, -F::ONE),
-                (CONST_LO, -F::ONE),
+                (SLOT_IMMEDIATE0, -F::ONE),
             ],
             [],
         );
@@ -1138,6 +1174,7 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
             wit[GK2_HI] = bool_f(rom.kind == WasmHostEventSlotKind::Result && rom.variant.is_high_limb());
             wit[G_ADVICE] = bool_f(rom.advice);
             wit[GMEM_LOCAL] = bool_f(rom.variant.uses_local_memory_base());
+            wit[GMEM_OUTPUT] = bool_f(rom.variant.uses_output_memory_base());
             wit[GMEM_BYTE] = bool_f(rom.variant.uses_byte_memory_width());
             wit[GMEM_HALF] = bool_f(rom.variant.uses_half_memory_width());
         }

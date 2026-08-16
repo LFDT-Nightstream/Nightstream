@@ -15,8 +15,8 @@ pub enum WasmMemoryId {
     HostEventExportExitScheduleCount,
     HostEventImportScheduleCount,
     HostEventSlotArg,
-    HostEventSlotConstHi,
-    HostEventSlotConstLo,
+    HostEventSlotImmediate1,
+    HostEventSlotImmediate0,
     HostEventSlotKind,
     HostEventSlotVariant,
     LinearMemory,
@@ -59,8 +59,8 @@ impl WasmMemoryId {
             Self::HostEventExportExitScheduleCount => "host_event_export_exit_schedule_count",
             Self::HostEventImportScheduleCount => "host_event_import_schedule_count",
             Self::HostEventSlotArg => "host_event_slot_arg",
-            Self::HostEventSlotConstHi => "host_event_slot_const_hi",
-            Self::HostEventSlotConstLo => "host_event_slot_const_lo",
+            Self::HostEventSlotImmediate1 => "host_event_slot_immediate_1",
+            Self::HostEventSlotImmediate0 => "host_event_slot_immediate_0",
             Self::HostEventSlotKind => "host_event_slot_kind",
             Self::HostEventSlotVariant => "host_event_slot_variant",
             Self::LinearMemory => "linear_memory",
@@ -109,8 +109,8 @@ impl WasmMemoryId {
             | Self::HostEventExportExitScheduleCount
             | Self::HostEventImportScheduleCount
             | Self::HostEventSlotArg
-            | Self::HostEventSlotConstHi
-            | Self::HostEventSlotConstLo
+            | Self::HostEventSlotImmediate1
+            | Self::HostEventSlotImmediate0
             | Self::HostEventSlotKind
             | Self::HostEventSlotVariant
             | Self::ModuleType

@@ -28,8 +28,6 @@ const PROTOCOL_VERSION: u64 = 2;
 const STATEMENT_TAG: u64 = 41;
 const ALPHA_TAG: u64 = 42;
 const GAMMA_TAG: u64 = 43;
-const ROUND_TAG: u64 = 45;
-const ROUND_CHALLENGE_TAG: u64 = 46;
 const COMPACT_BINDING_TAG: u64 = 47;
 
 type Dims = neo_reductions::engines::pi_ccs_joint::JointDims;
@@ -138,7 +136,15 @@ pub(super) fn enforce(
         running_wires.len(),
         running_acc_digest,
     );
-    absorb_statement(builder, transcript, cfg, dims, fresh_wires.len(), running_wires.len());
+    absorb_statement(
+        builder,
+        transcript,
+        cfg.structure.polynomial(),
+        dims.variables,
+        fresh_wires.len(),
+        running_wires.len(),
+        dims.matrix_count,
+    );
     builder.record_row_family(stage::PREFIX, prefix_start);
 
     builder.begin_encoding_stage(stage::CHALLENGES);
@@ -162,12 +168,12 @@ pub(super) fn enforce(
     for (round_index, round) in msg.sumcheck_rounds.iter().enumerate() {
         let coefficients = alloc_k_vec(builder, round);
         let mut fields = Vec::with_capacity(3 + 2 * coefficients.len());
-        push_const(builder, &mut fields, ROUND_TAG);
+        push_const(builder, &mut fields, PI_CCS_ROUND_MESSAGE_TAG);
         push_const(builder, &mut fields, round_index as u64);
         push_const(builder, &mut fields, coefficients.len() as u64);
         push_k_vars(&mut fields, &coefficients);
         transcript.append_fields_unframed_vars(builder, &fields);
-        let challenge = squeeze(builder, transcript, ROUND_CHALLENGE_TAG, Some(round_index));
+        let challenge = squeeze(builder, transcript, PI_CCS_ROUND_CHALLENGE_TAG, Some(round_index));
         claim = enforce_sumcheck_round(builder, &coefficients, challenge, claim);
         point.push(challenge);
     }
@@ -372,28 +378,29 @@ fn absorb_public(
     transcript.append_fields_unframed_vars(builder, &fields);
 }
 
-fn absorb_statement(
+pub(crate) fn absorb_statement(
     builder: &mut R1csBuilder,
     transcript: &mut TranscriptGadget,
-    cfg: &PiCcsVerifierConfig<'_>,
-    dims: Dims,
+    polynomial: &SparsePoly<F>,
+    variables: usize,
     fresh_count: usize,
     running_count: usize,
+    matrix_count: usize,
 ) {
     let mut fields = Vec::new();
     for value in [
         STATEMENT_TAG,
-        dims.variables as u64,
+        variables as u64,
         fresh_count as u64,
         running_count as u64,
-        dims.matrix_count as u64,
+        matrix_count as u64,
         D as u64,
-        cfg.structure.max_degree() as u64,
-        cfg.structure.polynomial().terms().len() as u64,
+        polynomial.max_degree() as u64,
+        polynomial.terms().len() as u64,
     ] {
         push_const(builder, &mut fields, value);
     }
-    for term in cfg.structure.polynomial().terms() {
+    for term in polynomial.terms() {
         fields.push(alloc_constant_var(builder, term.coeff));
         fields.push(alloc_constant_var(builder, F::ZERO));
         fields.push(alloc_constant_var(builder, F::ZERO));
@@ -405,7 +412,12 @@ fn absorb_statement(
     transcript.append_fields_unframed_vars(builder, &fields);
 }
 
-fn squeeze(builder: &mut R1csBuilder, transcript: &mut TranscriptGadget, label: u64, index: Option<usize>) -> KVar {
+pub(crate) fn squeeze(
+    builder: &mut R1csBuilder,
+    transcript: &mut TranscriptGadget,
+    label: u64,
+    index: Option<usize>,
+) -> KVar {
     let mut fields = Vec::with_capacity(2);
     push_const(builder, &mut fields, label);
     if let Some(index) = index {
@@ -594,6 +606,13 @@ fn bind_outputs(
         if index < fresh.len() {
             let input = &fresh[index];
             bind_metadata_and_commitment(builder, output, input.c_d_var, input.c_kappa_var, &input.c_data)?;
+            enforce_adv_equality(
+                builder,
+                output.adv.as_ref(),
+                input.adv.as_ref(),
+                &format!("fresh output[{index}].adv"),
+            )
+            .map_err(Error::Shape)?;
             if output.m_in != input.m_in
                 || output.x_rows != D
                 || output.x_cols != crate::paper::relations::superneo_public_x_cols(input.m_in)
@@ -609,6 +628,13 @@ fn bind_outputs(
         } else {
             let input = &running[index - fresh.len()];
             bind_metadata_and_commitment(builder, output, input.c_d_var, input.c_kappa_var, &input.c_data)?;
+            enforce_adv_equality(
+                builder,
+                output.adv.as_ref(),
+                input.adv.as_ref(),
+                &format!("running output[{index}].adv"),
+            )
+            .map_err(Error::Shape)?;
             if output.m_in != input.m_in || output.x_rows != input.x_rows || output.x_cols != input.x_cols {
                 return Err(Error::Shape(format!("running output[{index}] public shape mismatch")));
             }

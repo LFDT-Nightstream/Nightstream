@@ -18,7 +18,9 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use crate::engine::r1cs_circuit::builder::{Lc, R1csBuilder, SumcheckRoundAudit, Var};
-use crate::engine::r1cs_circuit::field_ext::{alloc_klc, enforce_k_mul, KLc, KVar};
+use crate::engine::r1cs_circuit::field_ext::{
+    alloc_klc, enforce_k_mul, klc_add, w_constant, KLc, KMulIntermediates, KVar,
+};
 use crate::engine::r1cs_circuit::transcript::TranscriptGadget;
 
 /// `[γ^0, γ^1, …, γ^{count-1}]` as K-vars. Uses `count - 1` K-mults.
@@ -96,6 +98,129 @@ pub fn enforce_sumcheck_round(builder: &mut R1csBuilder, coeffs: &[KVar], r_q: K
         claim_out_cols: [claim_out.c0.col(), claim_out.c1.col()],
     });
     claim_out
+}
+
+fn carried_horner_output(coefficient: KVar, frame: KMulIntermediates) -> KLc {
+    KLc {
+        c0: Lc::from_var(coefficient.c0)
+            .add_scaled(&Lc::from_var(frame.p), F::ONE)
+            .add_scaled(&Lc::from_var(frame.q), w_constant()),
+        c1: Lc::from_var(coefficient.c1)
+            .add_scaled(&Lc::from_var(frame.r), F::ONE)
+            .add_scaled(&Lc::from_var(frame.p), -F::ONE)
+            .add_scaled(&Lc::from_var(frame.q), -F::ONE),
+    }
+}
+
+fn allocate_carried_horner_frames(
+    builder: &mut R1csBuilder,
+    coeffs: &[KVar],
+    challenge: KVar,
+) -> Vec<KMulIntermediates> {
+    let degree = coeffs.len() - 1;
+    let witness = builder.witness();
+    let beta = [witness[challenge.c0.col()], witness[challenge.c1.col()]];
+    let last = coeffs[degree];
+    let mut suffix = [witness[last.c0.col()], witness[last.c1.col()]];
+    let mut values = vec![[F::ZERO; 3]; degree];
+    let w = w_constant();
+
+    for step in (0..degree).rev() {
+        let p = beta[0] * suffix[0];
+        let q = beta[1] * suffix[1];
+        let r = (beta[0] + beta[1]) * (suffix[0] + suffix[1]);
+        values[step] = [p, q, r];
+        let coefficient = coeffs[step];
+        suffix = [
+            witness[coefficient.c0.col()] + p + w * q,
+            witness[coefficient.c1.col()] + r - p - q,
+        ];
+    }
+
+    values
+        .into_iter()
+        .map(|[p, q, r]| {
+            let frame = KMulIntermediates {
+                p: builder.alloc(p),
+                q: builder.alloc(q),
+                r: builder.alloc(r),
+            };
+            builder.record_k_mul(frame.p, frame.q, frame.r);
+            frame
+        })
+        .collect()
+}
+
+fn enforce_carried_equality(builder: &mut R1csBuilder, left: &KLc, right: &KLc) {
+    let one = Lc::from_var(Var::ONE);
+    builder.enforce(&left.c0, &one, &right.c0);
+    builder.enforce(&left.c1, &one, &right.c1);
+}
+
+/// Emit the compact phase relation for one fixed-width SumCheck round.
+///
+/// The caller allocates `claim_out` before this function. The function emits
+/// two incoming-claim rows, three Karatsuba rows per polynomial degree, and
+/// two rows that bind the final carried Horner value to `claim_out`. It does
+/// not allocate a K output after each multiplication.
+///
+/// For the production degree nine, this is exactly 31 rows and 27 auxiliary
+/// columns. The coefficient, challenge, incoming-claim, and outgoing-claim
+/// columns are read once by the same row interval.
+pub fn enforce_sumcheck_round_phase(
+    builder: &mut R1csBuilder,
+    coeffs: &[KVar],
+    challenge: KVar,
+    claim_in: KVar,
+    claim_out: KVar,
+) {
+    assert!(!coeffs.is_empty(), "sumcheck round phase: empty coefficient list");
+    let row_start = builder.rows();
+    let first_allocated_column = builder.cols();
+    let frames = allocate_carried_horner_frames(builder, coeffs, challenge);
+
+    let mut round_initial = KLc::from_var(coeffs[0]);
+    for &coefficient in coeffs {
+        round_initial = klc_add(&round_initial, &KLc::from_var(coefficient));
+    }
+    enforce_carried_equality(builder, &KLc::from_var(claim_in), &round_initial);
+
+    for step in 0..frames.len() {
+        let suffix = if step + 1 == frames.len() {
+            KLc::from_var(coeffs[step + 1])
+        } else {
+            carried_horner_output(coeffs[step + 1], frames[step + 1])
+        };
+        let frame = frames[step];
+        let challenge_sum = KLc::from_var(challenge)
+            .c0
+            .add_scaled(&Lc::from_var(challenge.c1), F::ONE);
+        let suffix_sum = suffix.c0.clone().add_scaled(&suffix.c1, F::ONE);
+        builder.enforce(&Lc::from_var(challenge.c0), &suffix.c0, &Lc::from_var(frame.p));
+        builder.enforce(&Lc::from_var(challenge.c1), &suffix.c1, &Lc::from_var(frame.q));
+        builder.enforce(&challenge_sum, &suffix_sum, &Lc::from_var(frame.r));
+    }
+
+    let outgoing = if frames.is_empty() {
+        KLc::from_var(coeffs[0])
+    } else {
+        carried_horner_output(coeffs[0], frames[0])
+    };
+    enforce_carried_equality(builder, &outgoing, &KLc::from_var(claim_out));
+
+    builder.record_sumcheck_round(SumcheckRoundAudit {
+        row_start,
+        row_end: builder.rows(),
+        first_allocated_column,
+        allocated_cols: (first_allocated_column..builder.cols()).collect(),
+        coefficient_cols: coeffs
+            .iter()
+            .map(|coefficient| [coefficient.c0.col(), coefficient.c1.col()])
+            .collect(),
+        challenge_cols: [challenge.c0.col(), challenge.c1.col()],
+        claim_in_cols: [claim_in.c0.col(), claim_in.c1.col()],
+        claim_out_cols: [claim_out.c0.col(), claim_out.c1.col()],
+    });
 }
 
 /// Walk a complete sumcheck verifier, threading the running claim through

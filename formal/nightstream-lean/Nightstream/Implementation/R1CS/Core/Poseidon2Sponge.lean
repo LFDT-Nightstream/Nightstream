@@ -81,6 +81,25 @@ instance (round : Round) (programRows : List Row) :
   unfold Round.Valid Round.metadataValid
   cases kind : round.kind <;> simp only [kind] <;> infer_instance
 
+/-- A round owns its definition prefix and renamed permutation suffix. This
+structural theorem avoids reevaluating either row list to prove self-validity. -/
+theorem Round.selfValid
+    {round : Round}
+    (metadata : round.metadataValid)
+    (rowStart : round.call.rowStart = round.expectedDefinitionRows.length)
+    (rowEnd :
+      round.call.rowEnd =
+        round.expectedDefinitionRows.length + round.call.rows.length) :
+    round.Valid round.rows := by
+  refine ⟨metadata, ?_, ?_⟩
+  · unfold Call.Matches Call.programSlice Round.rows
+    rw [rowStart, rowEnd]
+    simp
+  · unfold rowsIncluded
+    apply List.all_eq_true.mpr
+    intro row member
+    exact decide_eq_true (List.mem_append_left _ member)
+
 def Round.inputLane (assignment : Nat → Nat) (round : Round) (lane : Nat) : Nat :=
   match round.kind with
   | .absorb chunkColumns =>
@@ -868,5 +887,177 @@ theorem trace_values_sound
   intro lane laneLt
   rw [← pure]
   exact trace_sound valid canonical one satisfies lane laneLt
+
+/-! ## Self-owned compact traces
+
+Large generated sponges use one compact formula for every round. Their row
+owner therefore supplies each round as `round.rows` instead of searching one
+large flattened list for 600-row call slices. The following certificate has
+the same semantic checks as `Trace.Valid`, but checks each round against its
+own exact rows. -/
+
+structure Trace.OwnedValid (trace : Trace) : Prop where
+  roundsAccepted :
+    trace.rounds.all (fun round => decide (round.Valid round.rows)) = true
+  linked : linkedCheck (List.replicate 8 trace.zeroColumn) trace.rounds = true
+  inputsOwned : trace.absorbedColumns = trace.inputColumns
+  finalOutput : trace.outputColumns =
+    (finalColumns (List.replicate 8 trace.zeroColumn) trace.rounds).take 4
+  outputLength : trace.outputColumns.length = 4
+  terminalPad : trace.rounds.getLast?.map Round.kind = some .pad
+
+instance (trace : Trace) : Decidable trace.OwnedValid := by
+  let conditions :=
+    trace.rounds.all (fun round => decide (round.Valid round.rows)) = true ∧
+    linkedCheck (List.replicate 8 trace.zeroColumn) trace.rounds = true ∧
+    trace.absorbedColumns = trace.inputColumns ∧
+    trace.outputColumns =
+      (finalColumns (List.replicate 8 trace.zeroColumn) trace.rounds).take 4 ∧
+    trace.outputColumns.length = 4 ∧
+    trace.rounds.getLast?.map Round.kind = some .pad
+  have decision : Decidable conditions := inferInstance
+  cases decision with
+  | isTrue accepted =>
+      exact isTrue {
+        roundsAccepted := accepted.1
+        linked := accepted.2.1
+        inputsOwned := accepted.2.2.1
+        finalOutput := accepted.2.2.2.1
+        outputLength := accepted.2.2.2.2.1
+        terminalPad := accepted.2.2.2.2.2 }
+  | isFalse rejected =>
+      exact isFalse fun valid => rejected ⟨
+        valid.roundsAccepted,
+        valid.linked,
+        valid.inputsOwned,
+        valid.finalOutput,
+        valid.outputLength,
+        valid.terminalPad⟩
+
+theorem Trace.OwnedValid.roundValid
+    {trace : Trace} (valid : trace.OwnedValid) {round : Round}
+    (member : round ∈ trace.rounds) : round.Valid round.rows := by
+  have accepted := (List.all_eq_true.mp valid.roundsAccepted) round member
+  exact of_decide_eq_true accepted
+
+private theorem traceRows_zero_satisfies
+    {trace : Trace} {assignment : Nat → Nat}
+    (satisfies : Satisfies trace.rows assignment) :
+    Satisfies trace.zeroDefinitionRows assignment := by
+  intro row member
+  exact satisfies row (by
+    unfold Trace.rows
+    exact List.mem_append_left _ member)
+
+private theorem traceRows_round_satisfies
+    {trace : Trace} {assignment : Nat → Nat}
+    (satisfies : Satisfies trace.rows assignment)
+    {round : Round} (member : round ∈ trace.rounds) :
+    Satisfies round.rows assignment := by
+  intro row rowMember
+  apply satisfies row
+  unfold Trace.rows
+  apply List.mem_append_right
+  exact List.mem_flatMap.mpr ⟨round, member, rowMember⟩
+
+private theorem ownedRounds_sound
+    {assignment : Nat → Nat}
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (rounds : List Round)
+    (roundValid : ∀ round ∈ rounds, round.Valid round.rows)
+    (roundSatisfied : ∀ round ∈ rounds, Satisfies round.rows assignment)
+    (priorColumns : List Nat)
+    (initialState : Nat → Nat)
+    (initialMatches : ∀ lane, lane < 8 →
+      assignment (priorColumns.getD lane 0) = initialState lane)
+    (linked : linkedCheck priorColumns rounds = true) :
+    ∀ lane, lane < 8 →
+      assignment (finalColumns priorColumns rounds |>.getD lane 0) =
+        runRounds assignment rounds initialState lane := by
+  induction rounds generalizing priorColumns initialState with
+  | nil =>
+      simpa [finalColumns, runRounds] using initialMatches
+  | cons round rest inductionHypothesis =>
+      simp only [linkedCheck, Bool.and_eq_true] at linked
+      have valid := roundValid round (by simp)
+      have localSatisfied := roundSatisfied round (by simp)
+      have localSound := round_sound valid canonical one localSatisfied
+      have roundStateMatches : ∀ lane, lane < 8 →
+          assignment (round.stateBeforeColumns.getD lane 0) =
+            initialState lane := by
+        rw [of_decide_eq_true linked.1]
+        exact initialMatches
+      have roundInputMatches := inputLane_matches_semantic roundStateMatches
+      have outputMatches : ∀ lane, lane < 8 →
+          assignment (round.permutationOutputColumns.getD lane 0) =
+            semanticRound assignment round initialState lane := by
+        intro lane laneLt
+        rw [localSound lane laneLt]
+        apply Nightstream.Implementation.R1CS.Poseidon2PermutationSound.permute_congr
+        exact roundInputMatches
+      apply inductionHypothesis
+      · intro later laterMember
+        exact roundValid later (by simp [laterMember])
+      · intro later laterMember
+        exact roundSatisfied later (by simp [laterMember])
+      · exact outputMatches
+      · exact linked.2
+
+/-- A satisfying self-owned compact trace computes the pure ordered-input
+sponge. This theorem is for exact generated row formulas; it does not accept a
+digest value as evidence. -/
+theorem ownedTrace_values_sound
+    {trace : Trace} {assignment : Nat → Nat}
+    (valid : trace.OwnedValid)
+    (canonical : ∀ column, assignment column < goldilocksP)
+    (one : assignment 0 = 1)
+    (satisfies : Satisfies trace.rows assignment) :
+    ∀ lane, lane < 4 →
+      assignment (trace.outputColumns.getD lane 0) =
+        runValueRounds trace.rounds
+          (trace.inputColumns.map assignment) (fun _ => 0) lane := by
+  have zeroRows := traceRows_zero_satisfies satisfies
+  have zeroMember : builderLinearRow trace.zeroColumn [] ∈
+      trace.zeroDefinitionRows := by simp [Trace.zeroDefinitionRows]
+  have zeroHolds := zeroRows _ zeroMember
+  have zero := builderLinearRow_sound canonical one trace.zeroColumn []
+    (by simp [CanonicalTerms]) zeroHolds
+  have initialMatches : ∀ lane, lane < 8 →
+      assignment ((List.replicate 8 trace.zeroColumn).getD lane 0) = 0 := by
+    intro lane laneLt
+    have replicateLt : lane < (List.replicate 8 trace.zeroColumn).length := by
+      simpa using laneLt
+    rw [← List.getElem_eq_getD (h := replicateLt) 0]
+    simpa only [List.getElem_replicate] using (show assignment trace.zeroColumn = 0 by
+      simpa [lcEval] using zero)
+  have rowSound := ownedRounds_sound canonical one trace.rounds
+    (fun round member => valid.roundValid member)
+    (fun _ member => traceRows_round_satisfies satisfies member)
+    (List.replicate 8 trace.zeroColumn) (fun _ => 0) initialMatches
+    valid.linked
+  have columnsAgree :
+      (absorbedColumnsOf trace.rounds).map assignment =
+        trace.inputColumns.map assignment := by
+    exact congrArg (List.map assignment) (by
+      simpa [Trace.absorbedColumns] using valid.inputsOwned)
+  have pure := runRounds_eq_runValueRounds assignment trace.rounds
+    (trace.inputColumns.map assignment) (fun _ => 0) columnsAgree
+  intro lane laneLt
+  rw [valid.finalOutput]
+  let final := finalColumns (List.replicate 8 trace.zeroColumn) trace.rounds
+  change assignment ((final.take 4).getD lane 0) = _
+  have finalLength : 4 ≤ final.length := by
+    have outputLength := valid.outputLength
+    rw [valid.finalOutput, List.length_take] at outputLength
+    change min 4 final.length = 4 at outputLength
+    omega
+  have laneFinal : lane < final.length := by omega
+  have laneTake : lane < (final.take 4).length := by
+    rw [List.length_take, Nat.min_eq_left finalLength]
+    exact laneLt
+  rw [← List.getElem_eq_getD (h := laneTake) 0, List.getElem_take,
+    List.getElem_eq_getD (h := laneFinal) 0]
+  exact (rowSound lane (by omega)).trans (congrFun pure lane)
 
 end Nightstream.Implementation.R1CS.Poseidon2Sponge

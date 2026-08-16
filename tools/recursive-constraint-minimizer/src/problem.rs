@@ -74,7 +74,7 @@ pub(crate) struct Partition<'a> {
 pub struct ProblemError(String);
 
 impl ProblemError {
-    fn new(message: impl Into<String>) -> Self {
+    pub(crate) fn new(message: impl Into<String>) -> Self {
         Self(message.into())
     }
 }

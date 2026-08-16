@@ -34,7 +34,7 @@ use crate::engine::r1cs_circuit::R1csBuilder;
 use crate::paper::digest::AccumulatorHandle;
 use crate::paper::params::Params;
 use crate::paper::reductions::pi_ccs_output_message::Profile as PiCcsOutputMessageProfile;
-use crate::paper::relations::product_commitment_circuit::{alloc_adv, AdvCommitmentWires};
+use crate::paper::relations::product_commitment_circuit::{alloc_adv, enforce_adv_equality, AdvCommitmentWires};
 use crate::paper::relations::{validate_adv_shape, CcsClaim, CeClaim};
 
 #[path = "verifier_claims.rs"]
@@ -43,6 +43,14 @@ use claims::*;
 
 #[path = "verifier/padded_row.rs"]
 mod padded_row;
+pub(crate) use padded_row::{absorb_statement as append_pi_ccs_statement, squeeze as squeeze_pi_ccs_challenge};
+
+/// Verifier-selected framing tags for one PiCCS SumCheck round.
+///
+/// The streaming round circuit imports these constants so its split replay
+/// cannot drift from the monolithic verifier transcript.
+pub(crate) const PI_CCS_ROUND_MESSAGE_TAG: u64 = 45;
+pub(crate) const PI_CCS_ROUND_CHALLENGE_TAG: u64 = 46;
 
 /// Matrix-independent CCS header consumed by the in-circuit verifier.
 ///

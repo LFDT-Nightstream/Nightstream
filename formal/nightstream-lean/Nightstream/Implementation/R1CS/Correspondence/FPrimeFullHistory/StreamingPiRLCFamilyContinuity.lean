@@ -246,20 +246,20 @@ theorem accepted_after_state_fields_canonical
     937 accepted.afterState
   simpa [AcceptedArm.afterState] using accepted.publicBinding.afterPreimage
 
-/-- Explicit local semantic-digest equality and exact public cursor equality
-between adjacent accepted arms. The digest fields are XOut preimage fields;
-they are not public output words. -/
+/-- Explicit local family-digest equality and exact public cursor equality
+between adjacent accepted arms. The local digest fields feed the phase
+envelope; they are not XOut fields or public output words. -/
 structure SemanticStateContinuous
     {setup : InputBindingSetup} {leftFamily rightFamily : Family}
     (left : AcceptedArm setup leftFamily)
     (right : AcceptedArm setup rightFamily) : Prop where
-  semanticDigest : forall lane : Fin 4,
+  localDigest : forall lane : Fin 4,
     left.bodyAssignment
-        (xOutPreimageColumn (kindForFamily leftFamily) .after
-          (19 + lane.val)) =
+        (phaseEnvelopeLocalSourceColumn (kindForFamily leftFamily) .after
+          lane) =
       right.bodyAssignment
-        (xOutPreimageColumn (kindForFamily rightFamily) .before
-          (19 + lane.val))
+        (phaseEnvelopeLocalSourceColumn (kindForFamily rightFamily) .before
+          lane)
   cursor :
     publicWordValue left.bodyAssignment (kindForFamily leftFamily)
         (cursorPublicWordIndex .after) =
@@ -314,9 +314,9 @@ theorem accepted_semantic_continuity
     rw [← leftDigest, ← rightDigest]
     funext lane
     apply Fin.ext
-    exact (leftBinding.afterSemanticDigest lane).trans
-      ((continuous.semanticDigest lane).trans
-        (rightBinding.beforeSemanticDigest lane).symm)
+    exact (leftBinding.afterLocalDigestSource lane).trans
+      ((continuous.localDigest lane).trans
+        (rightBinding.beforeLocalDigestSource lane).symm)
   refine ⟨cursorEqual, ?_⟩
   by_cases stateEqual : left.afterState = right.beforeState
   · exact Or.inl stateEqual

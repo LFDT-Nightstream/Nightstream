@@ -32,6 +32,8 @@ use crate::paper::params::Params;
 
 const VK_FS_TAG: &[u8] = b"neo.fold.clean/vk_fs/v4";
 const VK_FS_POLICY_TAG: &[u8] = b"neo.fold.clean/vk_fs_policy/v1";
+const INITIAL_BOUNDARY_TAG: &[u8] = b"neo.fold.clean/initial_boundary/v2";
+const PUBLIC_TRACE_SEED_TAG: &[u8] = b"neo.fold.clean/public_trace_seed/v1";
 
 /// Recompute the F' step/shape digest from verifier-owned claim geometry and
 /// the in-circuit start index. The native digest deliberately excludes claim
@@ -100,6 +102,30 @@ pub fn enforce_public_trace_update_digest_circuit(
     enforce_poseidon2_hash(builder, &input)
 }
 
+/// Recompute the verifier-owned initial boundary from the exact structure
+/// digest and fixed public carrier width.
+pub fn enforce_initial_boundary_digest_circuit(
+    builder: &mut R1csBuilder,
+    structure_digest: [Var; DIGEST_LEN],
+    public_input_len: Option<usize>,
+) -> [Var; DIGEST_LEN] {
+    let mut preimage = alloc_const_tag(builder, INITIAL_BOUNDARY_TAG);
+    preimage.extend_from_slice(&structure_digest);
+    extend_optional_usize_const(builder, &mut preimage, public_input_len);
+    enforce_poseidon2_hash(builder, &preimage)
+}
+
+/// Recompute the verifier-owned initial public-trace seed from the exact
+/// structure digest.
+pub fn enforce_public_trace_seed_digest_circuit(
+    builder: &mut R1csBuilder,
+    structure_digest: [Var; DIGEST_LEN],
+) -> [Var; DIGEST_LEN] {
+    let mut preimage = alloc_const_tag(builder, PUBLIC_TRACE_SEED_TAG);
+    preimage.extend_from_slice(&structure_digest);
+    enforce_poseidon2_hash(builder, &preimage)
+}
+
 /// Recompute the Construction-2 verifier-key digest from fixed-shape key
 /// wires. The matrix-dependent structure/header values, Ajtai setup identity,
 /// and initial state are witness data that this relation consumes and binds;
@@ -129,14 +155,7 @@ pub fn enforce_vk_fs_digest_circuit(
     preimage.push(alloc_constant(builder, F::from_u64(params.T() as u64)));
     preimage.push(alloc_constant(builder, F::from_u64(params.extension_degree() as u64)));
     preimage.push(alloc_constant(builder, F::from_u64(params.lambda() as u64)));
-    match public_input_len {
-        None => preimage.extend([alloc_constant(builder, F::ZERO); 2]),
-        Some(value) => {
-            let value = value as u64;
-            preimage.push(alloc_constant(builder, F::from_u64((value & 0xffff_ffff) + 1)));
-            preimage.push(alloc_constant(builder, F::from_u64(value >> 32)));
-        }
-    }
+    extend_optional_usize_const(builder, &mut preimage, public_input_len);
     preimage.extend_from_slice(&initial_semantic_state_digest);
     enforce_poseidon2_hash(builder, &preimage)
 }
@@ -196,6 +215,16 @@ pub struct StateXOutDigestInputs {
     pub public_trace: [Var; DIGEST_LEN],
 }
 
+/// Exact wires used by one canonical `state_x_out` hash.
+///
+/// This is an internal artifact surface. The digest is the circuit output and
+/// `preimage` is the ordered 32-field stateful Nebula preimage that produced
+/// it. Callers must still bind every non-constant preimage wire to authority.
+pub(crate) struct StateXOutDigestCircuitWires {
+    pub digest: [Var; DIGEST_LEN],
+    pub preimage: Vec<Var>,
+}
+
 /// `x_out` — the Construction-2 hash-chain output. Mirrors
 /// [`crate::paper::digest::state_x_out_digest`] byte-for-byte (modulo the
 /// digest32↔[F;4] conversion at the IO boundary).
@@ -203,6 +232,15 @@ pub fn enforce_state_x_out_digest_circuit(
     builder: &mut R1csBuilder,
     inputs: &StateXOutDigestInputs,
 ) -> [Var; DIGEST_LEN] {
+    enforce_state_x_out_digest_inner(builder, inputs, None).digest
+}
+
+/// Artifact-facing plain-chain variant that also returns the exact ordered
+/// hash preimage.
+pub(crate) fn enforce_state_x_out_digest_circuit_wires(
+    builder: &mut R1csBuilder,
+    inputs: &StateXOutDigestInputs,
+) -> StateXOutDigestCircuitWires {
     enforce_state_x_out_digest_inner(builder, inputs, None)
 }
 
@@ -214,6 +252,15 @@ pub fn enforce_state_x_out_digest_with_nebula_circuit(
     inputs: &StateXOutDigestInputs,
     nebula_lane_digest: [Var; DIGEST_LEN],
 ) -> [Var; DIGEST_LEN] {
+    enforce_state_x_out_digest_inner(builder, inputs, Some(nebula_lane_digest)).digest
+}
+
+/// Artifact-facing variant that also returns the exact ordered hash preimage.
+pub(crate) fn enforce_state_x_out_digest_with_nebula_circuit_wires(
+    builder: &mut R1csBuilder,
+    inputs: &StateXOutDigestInputs,
+    nebula_lane_digest: [Var; DIGEST_LEN],
+) -> StateXOutDigestCircuitWires {
     enforce_state_x_out_digest_inner(builder, inputs, Some(nebula_lane_digest))
 }
 
@@ -221,7 +268,7 @@ fn enforce_state_x_out_digest_inner(
     builder: &mut R1csBuilder,
     inputs: &StateXOutDigestInputs,
     nebula_lane_digest: Option<[Var; DIGEST_LEN]>,
-) -> [Var; DIGEST_LEN] {
+) -> StateXOutDigestCircuitWires {
     let mut preimage = vec![alloc_constant(builder, F::from_u64(F_PRIME_STATE_X_OUT_DOMAIN))];
     preimage.extend_from_slice(&inputs.vk_fs_digest);
     preimage.extend_from_slice(&inputs.pi_ccs_header_bundle);
@@ -250,7 +297,8 @@ fn enforce_state_x_out_digest_inner(
         preimage.extend_from_slice(&lane);
     }
 
-    enforce_poseidon2_hash(builder, &preimage)
+    let digest = enforce_poseidon2_hash(builder, &preimage);
+    StateXOutDigestCircuitWires { digest, preimage }
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────
@@ -279,6 +327,17 @@ pub(crate) fn alloc_constant(builder: &mut R1csBuilder, c: F) -> Var {
 fn push_u64_halves_const(builder: &mut R1csBuilder, out: &mut Vec<Var>, value: u64) {
     out.push(alloc_constant(builder, F::from_u64(value & 0xffff_ffff)));
     out.push(alloc_constant(builder, F::from_u64(value >> 32)));
+}
+
+fn extend_optional_usize_const(builder: &mut R1csBuilder, out: &mut Vec<Var>, value: Option<usize>) {
+    match value {
+        None => out.extend([alloc_constant(builder, F::ZERO); 2]),
+        Some(value) => {
+            let value = value as u64;
+            out.push(alloc_constant(builder, F::from_u64((value & 0xffff_ffff) + 1)));
+            out.push(alloc_constant(builder, F::from_u64(value >> 32)));
+        }
+    }
 }
 
 /// Split an F-valued Var (canonical u64 < p) into `(lo, hi)` 32-bit halves

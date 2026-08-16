@@ -74,6 +74,7 @@ pub const RECURSIVE_PRIOR_LINK_DIGEST: &str = "fprime.recursive.step.prior_link.
 pub const RECURSIVE_PRIOR_LINK_ENC_INST: &str = "fprime.recursive.step.prior_link.enc_inst";
 pub const RECURSIVE_PRIOR_LINK_CARRIER_PADDING: &str = "fprime.recursive.step.prior_link.carrier_padding";
 pub const RECURSIVE_NEBULA: &str = "fprime.recursive.step.nebula";
+pub const RECURSIVE_NEBULA_PRIVATE_INPUT: &str = "fprime.recursive.step.nebula.private_delayed_input";
 pub const RECURSIVE_ACCUMULATOR: &str = "fprime.recursive.step.accumulator";
 pub const RECURSIVE_ACCUMULATOR_INPUT: &str = "fprime.recursive.step.accumulator.input_link";
 pub const RECURSIVE_ACCUMULATOR_OUTPUT: &str = "fprime.recursive.step.accumulator.output_authority";

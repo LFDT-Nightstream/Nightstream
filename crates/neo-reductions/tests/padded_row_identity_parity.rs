@@ -8,12 +8,12 @@ use neo_ccs::traits::SModuleHomomorphism;
 use neo_ccs::{
     CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, CscMat, Mat, SeededPhi81LinearBlock, SparsePoly, Term,
 };
-use neo_math::{D, F, K};
+use neo_math::{KExtensions, D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{dec_children_with_commit, prove, rlc_with_commit, verify, FoldingMode};
 use neo_reductions::engines::crosscheck_engine::{crosscheck_prove_with_binding, crosscheck_verify_with_binding};
 use neo_reductions::engines::paper_exact_engine::paper_joint::PaperJointOracle;
-use neo_reductions::engines::pi_ccs_joint::{build_joint_dims, carried_gamma_exponent};
+use neo_reductions::engines::pi_ccs_joint::{build_joint_dims, carried_gamma_exponent, gamma_power};
 use neo_reductions::engines::pi_ccs_joint_protocol::TranscriptBinding;
 use neo_reductions::engines::pi_ccs_protocol::Challenges;
 use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle;
@@ -756,6 +756,20 @@ fn carried_gamma_slots_include_the_identity_matrix() {
     assert_eq!(carried_gamma_exponent(2, 2, 3, 1, 0, 0), 7);
     assert_eq!(carried_gamma_exponent(2, 2, 3, 0, 1, 0), 8);
     assert_eq!(carried_gamma_exponent(2, 2, 3, 0, 0, 1), 12);
+}
+
+#[test]
+fn carried_gamma_power_handles_protocol_scale_exponents() {
+    let gamma = K::from_coeffs([F::from_u64(3), F::from_u64(5)]);
+    let squarings = ((usize::BITS - 2) as usize).min(40);
+    let exponent = 1usize << squarings;
+    let expected = (0..squarings).fold(gamma, |power, _| power * power);
+
+    assert_eq!(gamma_power(gamma, exponent), expected);
+    for exponent in 0..128 {
+        let linear = (0..exponent).fold(K::ONE, |power, _| power * gamma);
+        assert_eq!(gamma_power(gamma, exponent), linear);
+    }
 }
 
 #[test]

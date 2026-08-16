@@ -265,12 +265,7 @@ fn public_coordinate_decoder(
     Ok(decoded)
 }
 
-fn project_port(
-    terms: &MatrixTerms,
-    row: usize,
-    rows: usize,
-    columns: usize,
-) -> Result<SelectiveProjectedPort, LowNormR1csError> {
+fn project_port(terms: &MatrixTerms, row: usize, columns: usize) -> Result<SelectiveProjectedPort, LowNormR1csError> {
     let mut canonical = BTreeMap::<usize, F>::new();
     let mut add = |column: usize, coefficient: F| -> Result<(), LowNormR1csError> {
         if column >= columns {
@@ -301,17 +296,13 @@ fn project_port(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let seeded_blocks = terms
-        .seeded
-        .iter()
-        .filter(|block| (block.row_start()..block.row_end()).contains(&row))
-        .map(|block| {
-            block
-                .validate_matrix_shape(rows, columns)
-                .map_err(|_| trace_error("projected seeded block exceeds the final matrix geometry"))?;
-            Ok(block.clone())
-        })
-        .collect::<Result<Vec<_>, LowNormR1csError>>()?;
+    for block in &terms.seeded {
+        if block.row_start() <= row && row < block.row_start() + D * block.kappa() {
+            return Err(trace_error(
+                "bounded selective projection intersects a compact seeded row",
+            ));
+        }
+    }
     canonical.retain(|_, coefficient| *coefficient != F::ZERO);
     Ok(SelectiveProjectedPort {
         explicit: canonical
@@ -319,7 +310,7 @@ fn project_port(
             .map(|(column, coefficient)| SelectiveProjectedTerm { column, coefficient })
             .collect(),
         geometric_runs,
-        seeded_blocks,
+        seeded_blocks: Vec::new(),
     })
 }
 
@@ -348,7 +339,7 @@ fn project_row_artifact(
     row: usize,
 ) -> Result<SelectiveProjectedRowArtifact, LowNormR1csError> {
     let ports = (0..SELECTIVE_ARITY)
-        .map(|port| project_port(&emitted.matrix_terms[port], row, emitted.rows, emitted.columns))
+        .map(|port| project_port(&emitted.matrix_terms[port], row, emitted.columns))
         .collect::<Result<Vec<_>, _>>()?;
     let ports: [SelectiveProjectedPort; SELECTIVE_ARITY] = ports
         .try_into()
@@ -380,12 +371,6 @@ fn port_intersects_slot(port: &SelectiveProjectedPort, (start, width): (usize, u
         || port.geometric_runs.iter().any(|run| {
             let run_end = run.column_start + run.length;
             start < run_end && run.column_start < end
-        })
-        || port.seeded_blocks.iter().any(|block| {
-            block.word_starts().iter().any(|&word_start| {
-                let word_end = word_start + block.word_width();
-                start < word_end && word_start < end
-            })
         })
 }
 
@@ -711,7 +696,7 @@ fn verify_rewrite_step(
         )?;
     }
     for (port, terms) in expected.iter().enumerate() {
-        if project_port(terms, 0, artifact.rows, artifact.columns)? != artifact.ports[port] {
+        if project_port(terms, 0, artifact.columns)? != artifact.ports[port] {
             return Err(trace_error(
                 "projected executable rewrite step does not reproduce its exact emitted row",
             ));
@@ -846,7 +831,7 @@ fn verify_retained_step(
         }
     }
     for (port, terms) in expected.iter().enumerate() {
-        if project_port(terms, 0, artifact.rows, artifact.columns)? != artifact.ports[port] {
+        if project_port(terms, 0, artifact.columns)? != artifact.ports[port] {
             return Err(trace_error(
                 "projected retained source step does not reproduce its exact emitted row",
             ));
@@ -1380,7 +1365,7 @@ fn project_rows_inner(
             let source_arm = arms
                 .get(arm)
                 .ok_or_else(|| trace_error("complete decoder arm is out of range"))?;
-            decoder_run_provenance(&layout, arm, source_range, source_arm.column_family_ranges())
+            decoder_run_provenance(&layout, arm, source_range, source_arm)
         })
         .transpose()?;
 

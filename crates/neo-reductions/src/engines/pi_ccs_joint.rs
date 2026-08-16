@@ -173,10 +173,16 @@ pub struct ProtocolTrace {
 }
 
 #[inline]
-pub fn gamma_power(gamma: K, exponent: usize) -> K {
+pub fn gamma_power(mut base: K, mut exponent: usize) -> K {
     let mut power = K::ONE;
-    for _ in 0..exponent {
-        power *= gamma;
+    while exponent != 0 {
+        if exponent & 1 == 1 {
+            power *= base;
+        }
+        exponent >>= 1;
+        if exponent != 0 {
+            base *= base;
+        }
     }
     power
 }

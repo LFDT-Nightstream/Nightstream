@@ -1,5 +1,5 @@
 import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiRLCAuthority
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyReplay
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyReplayExecutionCertificate
 import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.TranscriptMachineDuplex
 
 /-!
@@ -31,190 +31,6 @@ open Nightstream.Implementation.R1CS.PiRlcChallenge.Transcript
 open Nightstream.Implementation.R1CS.PiRlcChallenge.TranscriptMachine
 open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyReplay
 open Nightstream.SuperNeo.Concrete
-
-inductive CursorParity where
-  | even
-  | odd
-deriving DecidableEq, Repr
-
-inductive ReplayKind where
-  | input
-  | output
-deriving DecidableEq, Repr
-
-def arm : CursorParity → RawArm
-  | .even => evenArm
-  | .odd => oddArm
-
-def beforeAbsorbed : CursorParity → Fin (rate + 1)
-  | .even => ⟨0, by decide⟩
-  | .odd => ⟨2, by decide⟩
-
-def afterAbsorbed : CursorParity → Fin (rate + 1)
-  | .even => ⟨2, by decide⟩
-  | .odd => ⟨0, by decide⟩
-
-def replayColumns (parity : CursorParity) : ReplayKind → List Nat
-  | .input => (arm parity).inputColumns
-  | .output => (arm parity).outputColumns
-
-def beforeColumns (parity : CursorParity) : ReplayKind → List Nat
-  | .input => (arm parity).inputBeforeColumns
-  | .output => (arm parity).outputBeforeColumns
-
-def afterColumns (parity : CursorParity) : ReplayKind → List Nat
-  | .input => (arm parity).inputAfterColumns
-  | .output => (arm parity).outputAfterColumns
-
-def trace (parity : CursorParity) : ReplayKind → TranscriptCertificate.Trace
-  | .input => {
-      pins := []
-      calls := (arm parity).poseidon2Calls.take
-        (arm parity).inputPoseidon2CallCount }
-  | .output => {
-      pins := []
-      calls := (arm parity).poseidon2Calls.drop
-        (arm parity).inputPoseidon2CallCount }
-
-def operations (parity : CursorParity) (kind : ReplayKind) :
-    List ColumnReplay.Operation :=
-  (replayColumns parity kind).map ColumnReplay.Operation.external
-
-def runFor
-    (columns : List Nat) (absorbed : Fin (rate + 1)) : ColumnReplay.Run where
-  cursor := {
-    lanes := fun lane => columns.getD lane.val 0
-    absorbed := absorbed
-    nextPin := 0
-    nextCall := 0 }
-  digests := []
-
-def startRun (parity : CursorParity) (kind : ReplayKind) : ColumnReplay.Run :=
-  runFor (beforeColumns parity kind) (beforeAbsorbed parity)
-
-def resultRun (parity : CursorParity) (kind : ReplayKind) : ColumnReplay.Run :=
-  {
-    cursor := {
-      lanes := fun lane => (afterColumns parity kind).getD lane.val 0
-      absorbed := afterAbsorbed parity
-      nextPin := 0
-      nextCall := (trace parity kind).calls.length }
-    digests := [] }
-
-private structure CursorView where
-  lanes : List Nat
-  absorbed : Nat
-  nextPin : Nat
-  nextCall : Nat
-deriving DecidableEq
-
-private def cursorView (cursor : ColumnReplay.Cursor) : CursorView where
-  lanes := List.ofFn cursor.lanes
-  absorbed := cursor.absorbed.val
-  nextPin := cursor.nextPin
-  nextCall := cursor.nextCall
-
-private theorem cursorView_injective : Function.Injective cursorView := by
-  intro left right equal
-  cases left with
-  | mk leftLanes leftAbsorbed leftPin leftCall =>
-      cases right with
-      | mk rightLanes rightAbsorbed rightPin rightCall =>
-          have lanesEqual : leftLanes = rightLanes :=
-            List.ofFn_injective (congrArg CursorView.lanes equal)
-          have absorbedEqual : leftAbsorbed = rightAbsorbed :=
-            Fin.ext (congrArg CursorView.absorbed equal)
-          have pinEqual : leftPin = rightPin :=
-            congrArg CursorView.nextPin equal
-          have callEqual : leftCall = rightCall :=
-            congrArg CursorView.nextCall equal
-          subst rightLanes
-          subst rightAbsorbed
-          subst rightPin
-          subst rightCall
-          rfl
-
-private structure RunView where
-  cursor : CursorView
-  digests : List (List Nat)
-deriving DecidableEq
-
-private def runView (run : ColumnReplay.Run) : RunView where
-  cursor := cursorView run.cursor
-  digests := run.digests.map List.ofFn
-
-private theorem runView_injective : Function.Injective runView := by
-  intro left right equal
-  cases left with
-  | mk leftCursor leftDigests =>
-      cases right with
-      | mk rightCursor rightDigests =>
-          have cursorEqual : leftCursor = rightCursor :=
-            cursorView_injective (congrArg RunView.cursor equal)
-          have digestEqual : leftDigests = rightDigests := by
-            apply (List.map_injective_iff.mpr fun first second valuesEqual =>
-              List.ofFn_injective valuesEqual)
-            exact congrArg RunView.digests equal
-          subst rightCursor
-          subst rightDigests
-          rfl
-
-private def executionMatches
-    (result : Option ColumnReplay.Run) (expected : ColumnReplay.Run) : Bool :=
-  match result with
-  | none => false
-  | some actual => decide (runView actual = runView expected)
-
-private theorem executionMatches_sound
-    {result : Option ColumnReplay.Run} {expected : ColumnReplay.Run}
-    (checked : executionMatches result expected = true) :
-    result = some expected := by
-  cases result with
-  | none => simp [executionMatches] at checked
-  | some actual =>
-      have viewsEqual : runView actual = runView expected := by
-        exact of_decide_eq_true (by simpa [executionMatches] using checked)
-      rw [runView_injective viewsEqual]
-
-private theorem evenInputChecked :
-    executionMatches
-      (ColumnReplay.executeSlice (trace .even .input)
-        (startRun .even .input) (operations .even .input))
-      (resultRun .even .input) = true := by
-  native_decide
-
-private theorem evenOutputChecked :
-    executionMatches
-      (ColumnReplay.executeSlice (trace .even .output)
-        (startRun .even .output) (operations .even .output))
-      (resultRun .even .output) = true := by
-  native_decide
-
-private theorem oddInputChecked :
-    executionMatches
-      (ColumnReplay.executeSlice (trace .odd .input)
-        (startRun .odd .input) (operations .odd .input))
-      (resultRun .odd .input) = true := by
-  native_decide
-
-private theorem oddOutputChecked :
-    executionMatches
-      (ColumnReplay.executeSlice (trace .odd .output)
-        (startRun .odd .output) (operations .odd .output))
-      (resultRun .odd .output) = true := by
-  native_decide
-
-/-- Every generated physical trace consumes its exact input columns and ends
-at the exact Rust-emitted lane columns and cursor. -/
-theorem execution (parity : CursorParity) (kind : ReplayKind) :
-    ColumnReplay.executeSlice (trace parity kind) (startRun parity kind)
-        (operations parity kind) =
-      some (resultRun parity kind) := by
-  cases parity <;> cases kind
-  · exact executionMatches_sound evenInputChecked
-  · exact executionMatches_sound evenOutputChecked
-  · exact executionMatches_sound oddInputChecked
-  · exact executionMatches_sound oddOutputChecked
 
 theorem trace_pins_canonical (parity : CursorParity) (kind : ReplayKind) :
     ConstantPins.ValuesCanonical (trace parity kind).pins := by
@@ -434,6 +250,8 @@ theorem exact_shape :
       rawArtifact.odd.columnCount = 276440 /\
       rawArtifact.even.poseidon2Calls.length = 215 /\
       rawArtifact.odd.poseidon2Calls.length = 217 := by
-  native_decide
+  refine ⟨rfl, rfl, rfl, rfl, rfl, ?_, ?_⟩
+  · exact evenArm_poseidon2Calls_length
+  · exact oddArm_poseidon2Calls_length
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyReplayArtifact

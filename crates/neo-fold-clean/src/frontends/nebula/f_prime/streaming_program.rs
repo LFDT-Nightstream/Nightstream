@@ -11,6 +11,13 @@ const SUCCESSOR_PREFIX_FRAME_FIELDS: usize = 83_756;
 const PI_CCS_ROUNDS: usize = 26;
 const PI_RLC_FAMILIES: usize = 110;
 const FIXED_WORK_ITEMS: usize = 14;
+const LIFECYCLE_GROUPS: usize = 2;
+const CIRCUIT_KINDS: usize = 23;
+pub(super) const FIRST_CLAIM_PROGRAM_CURSOR: usize = 1 + PRIOR_STATE_FRAME_FIELDS.div_ceil(STATE_CHUNK_FIELDS);
+pub(super) const FIRST_PI_CCS_ROUND_PROGRAM_CURSOR: usize =
+    FIRST_CLAIM_PROGRAM_CURSOR + CLAIM_FRAME_FIELDS.div_ceil(CLAIM_CHUNK_FIELDS) + 1;
+pub(super) const FIRST_PI_RLC_FAMILY_PROGRAM_CURSOR: usize =
+    FIRST_CLAIM_PROGRAM_CURSOR + CLAIM_FRAME_FIELDS.div_ceil(CLAIM_CHUNK_FIELDS) + 1 + PI_CCS_ROUNDS + 3;
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,6 +44,45 @@ pub enum NebulaFPrimeStreamingPhase {
 }
 
 impl NebulaFPrimeStreamingPhase {
+    pub const fn code(self) -> u8 {
+        self as u8
+    }
+}
+
+/// Distinct field-R1CS shapes stored once by the phased relation.
+///
+/// Full and final replay chunks are separate kinds because their row and
+/// assignment shapes differ. Indexed PiCCS rounds share one kind. PiRLC
+/// families use separate even-cursor and odd-cursor replay shapes.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NebulaFPrimeStreamingCircuitKind {
+    Prelude = 0,
+    PriorStateReplayFull = 1,
+    PriorStateReplayFinal = 2,
+    ClaimReplayFull = 3,
+    ClaimReplayFinal = 4,
+    PiCcsStart = 5,
+    PiCcsRound = 6,
+    PiCcsFinish = 7,
+    RunningParentPiDec = 8,
+    PiRlcStart = 9,
+    PiRlcFamilyEven = 10,
+    PiRlcFamilyOdd = 11,
+    PiRlcFinish = 12,
+    PiDec = 13,
+    PointBinding = 14,
+    Application = 15,
+    Counters = 16,
+    SuccessorPrefixReplayFull = 17,
+    SuccessorPrefixReplayFinal = 18,
+    Nebula = 19,
+    Accumulator = 20,
+    Output = 21,
+    SemanticLinks = 22,
+}
+
+impl NebulaFPrimeStreamingCircuitKind {
     pub const fn code(self) -> u8 {
         self as u8
     }
@@ -149,6 +195,14 @@ impl NebulaFPrimeStreamingProgramAudit {
         CLAIM_FRAME_FIELDS.div_ceil(CLAIM_CHUNK_FIELDS)
     }
 
+    pub const fn first_claim_program_cursor(&self) -> usize {
+        FIRST_CLAIM_PROGRAM_CURSOR
+    }
+
+    pub const fn first_pi_rlc_family_program_cursor(&self) -> usize {
+        FIRST_PI_RLC_FAMILY_PROGRAM_CURSOR
+    }
+
     pub const fn pi_ccs_rounds(&self) -> usize {
         PI_CCS_ROUNDS
     }
@@ -165,8 +219,31 @@ impl NebulaFPrimeStreamingProgramAudit {
         SUCCESSOR_PREFIX_FRAME_FIELDS.div_ceil(STATE_CHUNK_FIELDS)
     }
 
+    pub const fn lifecycle_group_count(&self) -> usize {
+        LIFECYCLE_GROUPS
+    }
+
+    pub const fn circuit_kind_count(&self) -> usize {
+        CIRCUIT_KINDS
+    }
+
     pub fn work_items(&self) -> &[NebulaFPrimeStreamingWorkItem] {
         &self.work_items
+    }
+
+    /// Exact base or shared-recursive circuit for each schedule arm.
+    pub fn lifecycle_group_map(&self) -> Vec<usize> {
+        (0..self.work_items.len())
+            .map(|arm| usize::from(arm != 0))
+            .collect()
+    }
+
+    /// Exact shared circuit kind for each schedule arm.
+    pub fn circuit_kind_map(&self) -> Vec<usize> {
+        self.work_items
+            .iter()
+            .map(|&item| self.circuit_kind(item).code() as usize)
+            .collect()
     }
 
     pub fn runs(&self) -> Vec<NebulaFPrimeStreamingRun> {
@@ -184,6 +261,39 @@ impl NebulaFPrimeStreamingProgramAudit {
             }
         }
         runs
+    }
+
+    fn circuit_kind(&self, item: NebulaFPrimeStreamingWorkItem) -> NebulaFPrimeStreamingCircuitKind {
+        use NebulaFPrimeStreamingCircuitKind as Kind;
+        use NebulaFPrimeStreamingPhase as Phase;
+
+        match item.phase {
+            Phase::Prelude => Kind::Prelude,
+            Phase::PriorStateReplay if item.index + 1 == self.prior_state_chunks() => Kind::PriorStateReplayFinal,
+            Phase::PriorStateReplay => Kind::PriorStateReplayFull,
+            Phase::ClaimReplay if item.index + 1 == self.claim_chunks() => Kind::ClaimReplayFinal,
+            Phase::ClaimReplay => Kind::ClaimReplayFull,
+            Phase::PiCcsStart => Kind::PiCcsStart,
+            Phase::PiCcsRound => Kind::PiCcsRound,
+            Phase::PiCcsFinish => Kind::PiCcsFinish,
+            Phase::RunningParentPiDec => Kind::RunningParentPiDec,
+            Phase::PiRlcStart => Kind::PiRlcStart,
+            Phase::PiRlcFamily if item.index % 2 == 0 => Kind::PiRlcFamilyEven,
+            Phase::PiRlcFamily => Kind::PiRlcFamilyOdd,
+            Phase::PiRlcFinish => Kind::PiRlcFinish,
+            Phase::PiDec => Kind::PiDec,
+            Phase::PointBinding => Kind::PointBinding,
+            Phase::Application => Kind::Application,
+            Phase::Counters => Kind::Counters,
+            Phase::SuccessorPrefixReplay if item.index + 1 == self.successor_prefix_chunks() => {
+                Kind::SuccessorPrefixReplayFinal
+            }
+            Phase::SuccessorPrefixReplay => Kind::SuccessorPrefixReplayFull,
+            Phase::Nebula => Kind::Nebula,
+            Phase::Accumulator => Kind::Accumulator,
+            Phase::Output => Kind::Output,
+            Phase::SemanticLinks => Kind::SemanticLinks,
+        }
     }
 }
 

@@ -101,6 +101,7 @@ pub fn enforce_terminal_fold_against_last_acc_digest(
     let state = dummy_state_wires(&mut builder, last_acc_digest);
     let last = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, zero_digest),
+        x_out_preimage: Vec::new(),
         x_out_bits: fresh_bits.iter().map(|&bit| builder.alloc(bit)).collect(),
         prior_link: None,
         state_in: state,
@@ -112,6 +113,7 @@ pub fn enforce_terminal_fold_against_last_acc_digest(
         pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
+        private_delayed_nebula_input: None,
     };
 
     emit_terminal_fold(
@@ -145,6 +147,7 @@ pub fn enforce_terminal_fold_ce_closure_against(
     let state = dummy_state_wires(&mut builder, last_acc_digest);
     let last = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, zero_digest),
+        x_out_preimage: Vec::new(),
         x_out_bits: fresh_bits.iter().map(|&bit| builder.alloc(bit)).collect(),
         prior_link: None,
         state_in: state,
@@ -156,6 +159,7 @@ pub fn enforce_terminal_fold_ce_closure_against(
         pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
+        private_delayed_nebula_input: None,
     };
     let (_, _, _, _, _, terminal_children) = emit_terminal_fold(
         &mut builder,
@@ -208,6 +212,7 @@ pub fn enforce_terminal_fold_parent_authority_against_self(
         .ok_or_else(|| "terminal parent-authority probe requires a y_ring c1 limb".to_string())?;
     let last = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, zero_digest),
+        x_out_preimage: Vec::new(),
         x_out_bits: fresh_bits.iter().map(|&bit| builder.alloc(bit)).collect(),
         prior_link: None,
         state_in: state,
@@ -219,6 +224,7 @@ pub fn enforce_terminal_fold_parent_authority_against_self(
         pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
+        private_delayed_nebula_input: None,
     };
 
     emit_terminal_fold(
@@ -270,6 +276,7 @@ pub fn enforce_terminal_fold_children_continuity_against_self(
         .ok_or_else(|| "terminal children continuity probe requires a y_ring c1 limb".to_string())?;
     let last = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, zero_digest),
+        x_out_preimage: Vec::new(),
         x_out_bits: fresh_bits.iter().map(|&bit| builder.alloc(bit)).collect(),
         prior_link: None,
         state_in: state,
@@ -281,6 +288,7 @@ pub fn enforce_terminal_fold_children_continuity_against_self(
         pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
+        private_delayed_nebula_input: None,
     };
 
     let (_emitted, _latest_link, _parent_link, _final_acc, terminal_running, _terminal_children) = emit_terminal_fold(
@@ -430,6 +438,7 @@ pub fn enforce_base_state_constants_against(
     };
     let base = FPrimeStepOutput {
         x_out: alloc_digest_fields(&mut builder, [F::ZERO; 4]),
+        x_out_preimage: Vec::new(),
         x_out_bits: Vec::new(),
         prior_link: None,
         state_in: state,
@@ -441,6 +450,7 @@ pub fn enforce_base_state_constants_against(
         pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
+        private_delayed_nebula_input: None,
     };
     let public = PublicImage {
         vk_fs_digest: prep.vk.digest(),
@@ -498,6 +508,7 @@ pub fn enforce_public_image_pins_against_chain(
     };
     let last = FPrimeStepOutput {
         x_out: alloc_digest32(&mut builder, chain.x_out.digest_bytes),
+        x_out_preimage: Vec::new(),
         x_out_bits: Vec::new(),
         prior_link: None,
         state_in: state,
@@ -509,6 +520,7 @@ pub fn enforce_public_image_pins_against_chain(
         pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
+        private_delayed_nebula_input: None,
     };
     let final_acc_digest = alloc_digest32(&mut builder, chain.acc_digest);
     super::pin_public_image(&mut builder, public, prep, &last, &final_acc_digest);

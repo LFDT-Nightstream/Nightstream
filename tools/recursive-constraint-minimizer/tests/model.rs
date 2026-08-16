@@ -1,4 +1,18 @@
-use recursive_constraint_minimizer::{parse_model, parse_model_with_defaults, row_is_satisfied, Problem};
+use recursive_constraint_minimizer::{
+    parse_model, parse_model_with_defaults, row_is_satisfied, FieldModel, Problem, GOLDILOCKS_MODULUS,
+};
+
+#[test]
+fn builds_a_model_only_from_canonical_values() {
+    let model = FieldModel::from_canonical_values(vec![1, 2]).expect("canonical model");
+    assert_eq!(model.values(), [1, 2]);
+
+    assert!(FieldModel::from_canonical_values(Vec::new()).is_err());
+    let modulus = GOLDILOCKS_MODULUS
+        .parse::<u64>()
+        .expect("Goldilocks modulus");
+    assert!(FieldModel::from_canonical_values(vec![modulus]).is_err());
+}
 
 fn fixture() -> Problem {
     serde_json::from_str(include_str!("../examples/known-local.json")).expect("valid fixture")

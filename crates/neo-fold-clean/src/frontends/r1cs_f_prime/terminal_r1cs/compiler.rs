@@ -8,8 +8,11 @@ use wip_spartan::{provider::goldi::F as SpartanF, SparseMatrix, SplitR1CSShape};
 
 use crate::engine::r1cs_circuit::builder::RowFamilyRange;
 use crate::engine::r1cs_circuit::{Lc, R1csBuilder, R1csSnapshot, Var};
-use crate::paper::relations::{superneo_has_canonical_x_shape, CcsClaim, CcsWitness, CeClaim, Structure, WitnessMat};
+use crate::paper::relations::{
+    superneo_has_canonical_x_shape, CcsClaim, CcsWitness, CeClaim, LaneScheme, Structure, WitnessMat,
+};
 
+use super::lane_opening::{self, LaneOpeningRows};
 use super::{
     CompiledTerminalR1cs, CompiledTerminalR1csStatement, LeanNativeCcsManifest, TerminalR1csConstraintAudit,
     TerminalR1csError, TerminalR1csInput, TerminalR1csStatement, TerminalSpartanEngine, TERMINAL_R1CS_FAMILY_NAMES,
@@ -20,6 +23,46 @@ use crate::frontends::r1cs_f_prime::lean_nebula_combined_manifest::{
 };
 
 type Rotations = [[F; D]; D];
+
+#[derive(Clone, Copy)]
+struct ExpectedCost {
+    rows: usize,
+    committed_columns: usize,
+    public_columns: usize,
+    auxiliary_columns: usize,
+}
+
+impl ExpectedCost {
+    fn from_manifest(cost: ManifestCost) -> Self {
+        Self {
+            rows: cost.recurring_rows(),
+            committed_columns: cost.committed_columns(),
+            public_columns: cost.public_columns(),
+            auxiliary_columns: cost.auxiliary_columns(),
+        }
+    }
+
+    fn with_lane_openings(self, claim_count: usize, verifier_rows: usize) -> Result<Self, TerminalR1csError> {
+        let per_claim = 3usize
+            .checked_mul(D)
+            .and_then(|value| value.checked_mul(verifier_rows))
+            .ok_or_else(|| TerminalR1csError::Carrier("terminal lane-opening width overflow".into()))?;
+        let added = claim_count
+            .checked_mul(per_claim)
+            .ok_or_else(|| TerminalR1csError::Carrier("terminal lane-opening claim count overflow".into()))?;
+        Ok(Self {
+            rows: self
+                .rows
+                .checked_add(added)
+                .ok_or_else(|| TerminalR1csError::Carrier("terminal lane-opening row count overflow".into()))?,
+            public_columns: self
+                .public_columns
+                .checked_add(added)
+                .ok_or_else(|| TerminalR1csError::Carrier("terminal lane-opening public width overflow".into()))?,
+            ..self
+        })
+    }
+}
 
 pub(super) fn compile(
     manifest: &LeanNativeCcsManifest,
@@ -33,6 +76,7 @@ pub(super) fn compile(
         Some(input.running_witnesses),
         &input.fresh.claim,
         Some(&input.fresh.witness),
+        None,
     )?;
     if let Some(row) = compiled.builder.first_unsatisfied_row() {
         return Err(TerminalR1csError::Unsatisfied(row));
@@ -64,6 +108,62 @@ pub(super) fn compile_statement(
         None,
         statement.fresh_claim,
         None,
+        None,
+    )?;
+    Ok(CompiledTerminalR1csStatement {
+        shape: compiled.shape,
+        public_values: compiled.public_values,
+        lean_public_columns: compiled.lean_public_columns,
+    })
+}
+
+pub(super) fn compile_with_nebula_lanes(
+    manifest: &LeanNativeCcsManifest,
+    log: &AjtaiSModule,
+    lanes: &LaneScheme,
+    input: TerminalR1csInput<'_>,
+) -> Result<CompiledTerminalR1cs, TerminalR1csError> {
+    let compiled = compile_relation(
+        manifest,
+        log,
+        input.running_claims,
+        Some(input.running_witnesses),
+        &input.fresh.claim,
+        Some(&input.fresh.witness),
+        Some(lanes),
+    )?;
+    if let Some(row) = compiled.builder.first_unsatisfied_row() {
+        return Err(TerminalR1csError::Unsatisfied(row));
+    }
+    let witness = compiled.builder.witness();
+    let private_values = compiled
+        .private_vars
+        .iter()
+        .map(|variable| to_spartan(witness[variable.col()]))
+        .collect();
+    Ok(CompiledTerminalR1cs {
+        shape: compiled.shape,
+        private_values,
+        public_values: compiled.public_values,
+        lean_public_columns: compiled.lean_public_columns,
+        constraint_audit: compiled.constraint_audit,
+    })
+}
+
+pub(super) fn compile_statement_with_nebula_lanes(
+    manifest: &LeanNativeCcsManifest,
+    log: &AjtaiSModule,
+    lanes: &LaneScheme,
+    statement: TerminalR1csStatement<'_>,
+) -> Result<CompiledTerminalR1csStatement, TerminalR1csError> {
+    let compiled = compile_relation(
+        manifest,
+        log,
+        statement.running_claims,
+        None,
+        statement.fresh_claim,
+        None,
+        Some(lanes),
     )?;
     Ok(CompiledTerminalR1csStatement {
         shape: compiled.shape,
@@ -139,10 +239,16 @@ fn compile_relation(
     running_witnesses: Option<&[WitnessMat]>,
     fresh_claim: &CcsClaim,
     fresh_witness: Option<&CcsWitness>,
+    lanes: Option<&LaneScheme>,
 ) -> Result<CompiledRelation, TerminalR1csError> {
     let descriptor = manifest.terminal_r1cs();
     validate_ajtai_setup(manifest, log)?;
-    let expected_cost = descriptor.cost();
+    let claim_count = manifest.running_claim_count() + manifest.fresh_claim_count();
+    let expected_cost = match lanes {
+        Some(_) => ExpectedCost::from_manifest(descriptor.cost())
+            .with_lane_openings(claim_count, descriptor.verifier_rows())?,
+        None => ExpectedCost::from_manifest(descriptor.cost()),
+    };
     require_len("running claims", manifest.running_claim_count(), running_claims.len())?;
     if let Some(witnesses) = running_witnesses {
         require_len("running witnesses", manifest.running_claim_count(), witnesses.len())?;
@@ -155,6 +261,7 @@ fn compile_relation(
     let structure = step.structure();
     validate_structure(manifest, structure)?;
     let rotations = verifier_rotations(log, structure.m, descriptor.verifier_rows())?;
+    let lane_openings = lane_opening::prepare(lanes, structure, descriptor.verifier_rows())?;
 
     let zero_running;
     let running_witnesses = match running_witnesses {
@@ -178,8 +285,8 @@ fn compile_relation(
     };
 
     let mut builder = R1csBuilder::new();
-    let mut private_vars = Vec::with_capacity(expected_cost.committed_columns() + expected_cost.auxiliary_columns());
-    let mut public_vars = Vec::with_capacity(expected_cost.public_columns().saturating_sub(1));
+    let mut private_vars = Vec::with_capacity(expected_cost.committed_columns + expected_cost.auxiliary_columns);
+    let mut public_vars = Vec::with_capacity(expected_cost.public_columns.saturating_sub(1));
 
     for (claim, witness) in running_claims.iter().zip(running_witnesses) {
         compile_running(
@@ -188,6 +295,7 @@ fn compile_relation(
             &mut public_vars,
             structure,
             &rotations,
+            lane_openings.as_ref(),
             manifest.public_carrier_width(),
             claim,
             witness,
@@ -201,11 +309,18 @@ fn compile_relation(
         structure,
         &step,
         &rotations,
+        lane_openings.as_ref(),
         fresh_claim,
         fresh_witness,
     )?;
 
-    finish_relation(builder, private_vars, public_vars, expected_cost)
+    finish_relation(
+        builder,
+        private_vars,
+        public_vars,
+        expected_cost,
+        &TERMINAL_R1CS_FAMILY_NAMES,
+    )
 }
 
 fn compile_combined_relation(
@@ -218,7 +333,7 @@ fn compile_combined_relation(
 ) -> Result<CompiledRelation, TerminalR1csError> {
     let descriptor = manifest.terminal_r1cs();
     validate_combined_ajtai_setup(manifest, log)?;
-    let expected_cost = descriptor.cost();
+    let expected_cost = ExpectedCost::from_manifest(descriptor.cost());
     require_len("running claims", manifest.running_claim_count(), running_claims.len())?;
     if let Some(witnesses) = running_witnesses {
         require_len("running witnesses", manifest.running_claim_count(), witnesses.len())?;
@@ -253,8 +368,8 @@ fn compile_combined_relation(
     };
 
     let mut builder = R1csBuilder::new();
-    let mut private_vars = Vec::with_capacity(expected_cost.committed_columns() + expected_cost.auxiliary_columns());
-    let mut public_vars = Vec::with_capacity(expected_cost.public_columns().saturating_sub(1));
+    let mut private_vars = Vec::with_capacity(expected_cost.committed_columns + expected_cost.auxiliary_columns);
+    let mut public_vars = Vec::with_capacity(expected_cost.public_columns.saturating_sub(1));
 
     for (claim, witness) in running_claims.iter().zip(running_witnesses) {
         compile_running(
@@ -263,6 +378,7 @@ fn compile_combined_relation(
             &mut public_vars,
             &structure,
             &rotations,
+            None,
             manifest.public_carrier_width(),
             claim,
             witness,
@@ -275,28 +391,36 @@ fn compile_combined_relation(
         manifest,
         &structure,
         &rotations,
+        None,
         fresh_claim,
         fresh_witness,
     )?;
 
-    finish_relation(builder, private_vars, public_vars, expected_cost)
+    finish_relation(
+        builder,
+        private_vars,
+        public_vars,
+        expected_cost,
+        &TERMINAL_R1CS_FAMILY_NAMES,
+    )
 }
 
 fn finish_relation(
     builder: R1csBuilder,
     private_vars: Vec<Var>,
     public_vars: Vec<Var>,
-    expected_cost: ManifestCost,
+    expected_cost: ExpectedCost,
+    reviewed_family_names: &[&'static str],
 ) -> Result<CompiledRelation, TerminalR1csError> {
-    check_count("terminal rows", expected_cost.recurring_rows(), builder.rows())?;
+    check_count("terminal rows", expected_cost.rows, builder.rows())?;
     check_count(
         "terminal private columns",
-        expected_cost.committed_columns() + expected_cost.auxiliary_columns(),
+        expected_cost.committed_columns + expected_cost.auxiliary_columns,
         private_vars.len(),
     )?;
     check_count(
         "terminal public columns",
-        expected_cost.public_columns(),
+        expected_cost.public_columns,
         public_vars.len() + 1,
     )?;
     check_count(
@@ -304,7 +428,8 @@ fn finish_relation(
         builder.cols(),
         private_vars.len() + public_vars.len() + 1,
     )?;
-    let row_families = validate_terminal_row_families(builder.row_family_ranges(), builder.rows())?;
+    let row_families =
+        validate_terminal_row_families(builder.row_family_ranges(), builder.rows(), reviewed_family_names)?;
     let old_to_spartan = column_permutation(builder.cols(), &private_vars, &public_vars)?;
     let old_to_source = source_column_permutation(builder.cols(), &private_vars, &public_vars)?;
     let total_columns = builder.cols();
@@ -333,6 +458,7 @@ fn finish_relation(
     let constraint_audit = TerminalR1csConstraintAudit {
         source,
         row_families,
+        reviewed_family_names: reviewed_family_names.to_vec(),
         source_public_columns: public_vars.len() + 1,
         source_private_columns: private_vars.len(),
         spartan_private_columns: shape.num_variables(),
@@ -442,14 +568,16 @@ fn compile_running(
     public_vars: &mut Vec<Var>,
     structure: &Structure,
     rotations: &[Vec<Rotations>],
+    lane_openings: Option<&LaneOpeningRows>,
     public_width: usize,
     claim: &CeClaim,
     witness: &WitnessMat,
 ) -> Result<(), TerminalR1csError> {
-    validate_running_claim(structure, rotations.len(), public_width, claim, witness)?;
+    validate_running_claim(structure, rotations.len(), lane_openings, public_width, claim, witness)?;
     let witness_values = packed_witness(witness, structure.m);
     let witness_wires = alloc_private_vec(builder, private_vars, &witness_values);
     let commitment_wires = alloc_public_vec(builder, public_vars, &claim.c.data);
+    let lane_commitment_wires = lane_opening::alloc_public(builder, public_vars, claim.adv.as_ref());
     let projected_values = projected_ce_values(claim, public_width);
     let projection_wires = alloc_public_vec(builder, public_vars, &projected_values);
 
@@ -469,6 +597,7 @@ fn compile_running(
 
     let phase_start = builder.rows();
     enforce_ajtai(builder, rotations, &witness_wires, &commitment_wires);
+    lane_opening::enforce(builder, lane_openings, &witness_wires, lane_commitment_wires.as_ref())?;
     builder.record_row_family("terminal.running.commitment", phase_start);
     let phase_start = builder.rows();
     enforce_projection(builder, &witness_wires, &projection_wires);
@@ -491,12 +620,14 @@ fn compile_fresh(
     structure: &Structure,
     step: &super::super::lean_native_ccs_manifest::NativePhi81StepEmission,
     rotations: &[Vec<Rotations>],
+    lane_openings: Option<&LaneOpeningRows>,
     claim: &CcsClaim,
     witness: &CcsWitness,
 ) -> Result<(), TerminalR1csError> {
     validate_fresh(
         structure,
         rotations.len(),
+        lane_openings,
         manifest.public_carrier_width(),
         claim,
         witness,
@@ -504,11 +635,13 @@ fn compile_fresh(
     let witness_values = packed_witness(&witness.Z, structure.m);
     let witness_wires = alloc_private_vec(builder, private_vars, &witness_values);
     let commitment_wires = alloc_public_vec(builder, public_vars, &claim.c.data);
+    let lane_commitment_wires = lane_opening::alloc_public(builder, public_vars, claim.adv.as_ref());
     let projection_wires = alloc_public_vec(builder, public_vars, &claim.x);
     let square_wires = alloc_squares(builder, private_vars, &witness_wires);
 
     let phase_start = builder.rows();
     enforce_ajtai(builder, rotations, &witness_wires, &commitment_wires);
+    lane_opening::enforce(builder, lane_openings, &witness_wires, lane_commitment_wires.as_ref())?;
     builder.record_row_family("terminal.fresh.commitment", phase_start);
     let phase_start = builder.rows();
     enforce_projection(builder, &witness_wires, &projection_wires);
@@ -530,12 +663,14 @@ fn compile_combined_fresh(
     manifest: &LeanNebulaCombinedManifest,
     structure: &Structure,
     rotations: &[Vec<Rotations>],
+    lane_openings: Option<&LaneOpeningRows>,
     claim: &CcsClaim,
     witness: &CcsWitness,
 ) -> Result<(), TerminalR1csError> {
     validate_fresh(
         structure,
         rotations.len(),
+        lane_openings,
         manifest.public_carrier_width(),
         claim,
         witness,
@@ -543,11 +678,13 @@ fn compile_combined_fresh(
     let witness_values = packed_witness(&witness.Z, structure.m);
     let witness_wires = alloc_private_vec(builder, private_vars, &witness_values);
     let commitment_wires = alloc_public_vec(builder, public_vars, &claim.c.data);
+    let lane_commitment_wires = lane_opening::alloc_public(builder, public_vars, claim.adv.as_ref());
     let projection_wires = alloc_public_vec(builder, public_vars, &claim.x);
     let square_wires = alloc_squares(builder, private_vars, &witness_wires);
 
     let phase_start = builder.rows();
     enforce_ajtai(builder, rotations, &witness_wires, &commitment_wires);
+    lane_opening::enforce(builder, lane_openings, &witness_wires, lane_commitment_wires.as_ref())?;
     builder.record_row_family("terminal.fresh.commitment", phase_start);
     let phase_start = builder.rows();
     enforce_projection(builder, &witness_wires, &projection_wires);
@@ -564,13 +701,12 @@ fn compile_combined_fresh(
 fn validate_running_claim(
     structure: &Structure,
     verifier_rows: usize,
+    lane_openings: Option<&LaneOpeningRows>,
     public_width: usize,
     claim: &CeClaim,
     witness: &WitnessMat,
 ) -> Result<(), TerminalR1csError> {
-    if claim.adv.is_some() {
-        return Err(TerminalR1csError::Unsupported("Nebula running commitment sidecars"));
-    }
+    lane_opening::validate(lane_openings, claim.adv.as_ref(), verifier_rows, true)?;
     validate_witness(witness, structure.m)?;
     validate_commitment(&claim.c, verifier_rows)?;
     require_len("running public width", public_width, claim.m_in)?;
@@ -605,13 +741,12 @@ fn validate_running_claim(
 fn validate_fresh(
     structure: &Structure,
     verifier_rows: usize,
+    lane_openings: Option<&LaneOpeningRows>,
     public_width: usize,
     claim: &CcsClaim,
     witness: &CcsWitness,
 ) -> Result<(), TerminalR1csError> {
-    if claim.adv.is_some() {
-        return Err(TerminalR1csError::Unsupported("Nebula fresh commitment sidecars"));
-    }
+    lane_opening::validate(lane_openings, claim.adv.as_ref(), verifier_rows, false)?;
     validate_witness(&witness.Z, structure.m)?;
     validate_commitment(&claim.c, verifier_rows)?;
     require_len("fresh public width", public_width, claim.m_in)?;
@@ -1056,10 +1191,20 @@ fn remap_triplets(
 fn validate_terminal_row_families(
     ranges: &[RowFamilyRange],
     rows: usize,
+    reviewed_family_names: &[&'static str],
 ) -> Result<Vec<RowFamilyRange>, TerminalR1csError> {
-    let reviewed = TERMINAL_R1CS_FAMILY_NAMES
-        .into_iter()
+    let reviewed = reviewed_family_names
+        .iter()
+        .copied()
         .collect::<BTreeSet<_>>();
+    if reviewed.is_empty()
+        || reviewed.len() != reviewed_family_names.len()
+        || reviewed.iter().any(|name| name.is_empty())
+    {
+        return Err(TerminalR1csError::Manifest(
+            "terminal reviewed row-family vocabulary is empty or ambiguous".into(),
+        ));
+    }
     let mut seen = BTreeSet::new();
     let mut cursor = 0usize;
     for range in ranges {
@@ -1083,6 +1228,7 @@ fn validate_terminal_constraint_audit(
     audit: &TerminalR1csConstraintAudit,
     shape: &SplitR1CSShape<TerminalSpartanEngine>,
 ) -> Result<(), TerminalR1csError> {
+    validate_terminal_row_families(&audit.row_families, audit.source.rows(), &audit.reviewed_family_names)?;
     if audit.source.rows() != shape.num_constraints_unpadded()
         || audit.source_public_columns + audit.source_private_columns != audit.source.cols()
         || audit.spartan_private_columns != shape.num_variables()

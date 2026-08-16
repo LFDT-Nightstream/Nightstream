@@ -75,8 +75,8 @@ use crate::paper::construction2::{LaneCommitmentMode, NebulaConfig, NebulaLane, 
 use crate::paper::digest::AccumulatorHandle;
 use crate::paper::digest::StateXOutDigestMode;
 use crate::paper::f_prime::digest_circuit::{
-    enforce_f_prime_chunk_public_digest_circuit, enforce_state_x_out_digest_circuit,
-    enforce_state_x_out_digest_with_nebula_circuit, StateXOutDigestInputs,
+    enforce_f_prime_chunk_public_digest_circuit, enforce_state_x_out_digest_circuit_wires,
+    enforce_state_x_out_digest_with_nebula_circuit_wires, StateXOutDigestCircuitWires, StateXOutDigestInputs,
 };
 use crate::paper::f_prime::nebula_lane_circuit::{
     alloc_nebula_lane_wires, decode_delayed_nebula_public_suffix_circuit, delayed_nebula_public_suffix_len,
@@ -468,6 +468,9 @@ pub struct FPrimeRecursiveInputs<'a> {
 ///   equality).
 pub struct FPrimeStepOutput {
     pub x_out: [Var; DIGEST_LEN],
+    /// Exact ordered preimage consumed by the existing `x_out` hash rows.
+    #[doc(hidden)]
+    pub x_out_preimage: Vec<Var>,
     pub x_out_bits: Vec<Var>,
     /// Recursive consumer-side link wires. `None` for the base branch.
     /// This is a read-only formal-artifact surface; the enforcing rows remain
@@ -491,6 +494,10 @@ pub struct FPrimeStepOutput {
     /// Product-commitment coordinates paired index-for-index with
     /// [`Self::fresh_public_suffixes`].
     pub fresh_adv: Vec<Option<crate::paper::relations::product_commitment_circuit::AdvCommitmentWires>>,
+    /// Exact private delayed Nebula input allocated by the phased profile.
+    /// `None` for base and for the ordinary public-suffix entry point.
+    #[doc(hidden)]
+    pub private_delayed_nebula_input: Option<Vec<Var>>,
 }
 
 /// Exact wires participating in the delayed HyperNova public-input link.
@@ -501,6 +508,7 @@ pub struct FPrimePriorLinkWires {
     pub row_end: usize,
     pub first_allocated_column: usize,
     pub digest: [Var; DIGEST_LEN],
+    pub preimage: Vec<Var>,
     pub encoded_bits: Vec<Var>,
     pub fresh_public_inputs: Vec<Vec<Var>>,
 }
@@ -540,25 +548,35 @@ fn validate_nebula_configuration(
     cfg: &FPrimeStepConfig<'_>,
     state: &FPrimeStateIn,
     fresh_count: Option<usize>,
+    private_delayed_len: Option<usize>,
 ) -> Result<(), Error> {
     match (cfg.nebula, state.nebula.as_ref()) {
-        (None, None) => Ok(()),
+        (None, None) if private_delayed_len.is_none() => Ok(()),
         (Some(nebula), Some(_)) => {
             if nebula.steps_per_segment == 0 {
                 return Err(Error::Inner("Nebula F' requires steps_per_segment >= 1".into()));
             }
             let expected_suffix = delayed_nebula_public_suffix_len(nebula.stacks);
-            if cfg.public_input_layout.suffix_len() != expected_suffix {
-                return Err(Error::Inner(format!(
-                    "Nebula F' public suffix length {} != delayed contract {expected_suffix}",
-                    cfg.public_input_layout.suffix_len()
-                )));
-            }
             if let Some(fresh_count) = fresh_count {
                 if fresh_count != 1 {
                     return Err(Error::Inner(format!(
                         "Nebula F' currently requires exactly one delayed fresh claim, got {fresh_count}"
                     )));
+                }
+                match private_delayed_len {
+                    Some(actual) if actual != expected_suffix => {
+                        return Err(Error::Inner(format!(
+                            "Nebula F' private delayed input length {actual} != {expected_suffix}"
+                        )));
+                    }
+                    Some(_) => {}
+                    None if cfg.public_input_layout.suffix_len() != expected_suffix => {
+                        return Err(Error::Inner(format!(
+                            "Nebula F' public suffix length {} != delayed contract {expected_suffix}",
+                            cfg.public_input_layout.suffix_len()
+                        )));
+                    }
+                    None => {}
                 }
             }
             Ok(())
@@ -665,7 +683,7 @@ fn build_x_out(
     new_chunk_count: Var,
     new_step_count: Var,
     nebula: Option<&NebulaLaneWires>,
-) -> ([Var; DIGEST_LEN], [Var; DIGEST_LEN], [Var; DIGEST_LEN]) {
+) -> (StateXOutDigestCircuitWires, [Var; DIGEST_LEN], [Var; DIGEST_LEN]) {
     if matches!(mode, StateXOutDigestMode::Stateless) {
         enforce_digest_eq(builder, &new_semantic_state_digest, &new_acc_digest);
     }
@@ -685,14 +703,14 @@ fn build_x_out(
         construction2_acc: new_acc_digest,
         public_trace: new_public_trace,
     };
-    let x_out = match nebula {
-        None => enforce_state_x_out_digest_circuit(builder, &x_out_inputs),
+    let x_out_wires = match nebula {
+        None => enforce_state_x_out_digest_circuit_wires(builder, &x_out_inputs),
         Some(lane) => {
             let lane_digest = enforce_nebula_lane_digest_selected_circuit(builder, lane);
-            enforce_state_x_out_digest_with_nebula_circuit(builder, &x_out_inputs, lane_digest)
+            enforce_state_x_out_digest_with_nebula_circuit_wires(builder, &x_out_inputs, lane_digest)
         }
     };
-    (x_out, new_z_i, new_public_trace)
+    (x_out_wires, new_z_i, new_public_trace)
 }
 
 fn enforce_digest_eq(builder: &mut R1csBuilder, a: &[Var; DIGEST_LEN], b: &[Var; DIGEST_LEN]) {
@@ -735,7 +753,7 @@ fn enforce_f_prime_base_step_with_output_acc(
     output_acc_digest: [F; DIGEST_LEN],
 ) -> Result<FPrimeStepOutput, Error> {
     let base_start = builder.rows();
-    validate_nebula_configuration(cfg, &inputs.state, None)?;
+    validate_nebula_configuration(cfg, &inputs.state, None, None)?;
     if inputs.rows_in_chunk == 0 {
         return Err(Error::Inner(
             "strict F' base: rows_in_chunk must be \u{2265} 1 (first chunk must be non-empty)".into(),
@@ -833,7 +851,7 @@ fn enforce_f_prime_base_step_with_output_acc(
 
     let output_start = builder.rows();
     builder.begin_encoding_stage(stage::BASE_OUTPUT);
-    let (x_out, new_z_i, new_public_trace) = build_x_out(
+    let (x_out_wires, new_z_i, new_public_trace) = build_x_out(
         builder,
         cfg.state_x_out_digest_mode,
         &sw,
@@ -844,6 +862,7 @@ fn enforce_f_prime_base_step_with_output_acc(
         new_step_count,
         sw.nebula.as_ref(),
     );
+    let x_out = x_out_wires.digest;
     let expected_bits = source_wires.range(inputs.public_x_out_bits);
     let x_out_bits = enforce_x_out_public_bit_wires(builder, expected_bits, &x_out)?;
     let state_in = state_in_to_wires(&sw);
@@ -861,6 +880,7 @@ fn enforce_f_prime_base_step_with_output_acc(
     builder.record_row_family("fprime.base.total", base_start);
     Ok(FPrimeStepOutput {
         x_out,
+        x_out_preimage: x_out_wires.preimage,
         x_out_bits,
         prior_link: None,
         state_in,
@@ -873,6 +893,7 @@ fn enforce_f_prime_base_step_with_output_acc(
         pi_dec_canonical_x_receipt: None,
         fresh_public_suffixes: Vec::new(),
         fresh_adv: Vec::new(),
+        private_delayed_nebula_input: None,
     })
 }
 
@@ -898,7 +919,25 @@ pub fn enforce_f_prime_recursive_step_circuit(
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeRecursiveInputs<'_>,
 ) -> Result<FPrimeStepOutput, Error> {
-    enforce_f_prime_recursive_step_circuit_impl(builder, pp, cfg, inputs)
+    enforce_f_prime_recursive_step_circuit_impl(builder, pp, cfg, inputs, None)
+}
+
+/// Phased-profile entry point. The delayed Nebula payload is private advice
+/// because the shared public carrier is reserved for the two complete XOut
+/// values and the two schedule cursors. The caller must add checked link rows
+/// from this exact advice slice to the selected phase relation.
+///
+/// This entry point does not weaken any Nebula transition row. It changes only
+/// where the canonical delayed bits are allocated.
+#[doc(hidden)]
+pub fn enforce_f_prime_recursive_step_circuit_with_private_nebula_input(
+    builder: &mut R1csBuilder,
+    pp: &Params,
+    cfg: &FPrimeStepConfig<'_>,
+    inputs: &FPrimeRecursiveInputs<'_>,
+    private_delayed_suffix: &[F],
+) -> Result<FPrimeStepOutput, Error> {
+    enforce_f_prime_recursive_step_circuit_impl(builder, pp, cfg, inputs, Some(private_delayed_suffix))
 }
 
 fn enforce_f_prime_recursive_step_circuit_impl(
@@ -906,6 +945,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     pp: &Params,
     cfg: &FPrimeStepConfig<'_>,
     inputs: &FPrimeRecursiveInputs<'_>,
+    private_delayed_suffix: Option<&[F]>,
 ) -> Result<FPrimeStepOutput, Error> {
     let recursive_start = builder.rows();
     // ── Strict-mode shape ──────────────────────────────────────────────
@@ -914,7 +954,12 @@ fn enforce_f_prime_recursive_step_circuit_impl(
             "strict F' recursive: fresh batch must be non-empty".into(),
         ));
     }
-    validate_nebula_configuration(cfg, &inputs.state, Some(inputs.nifs_msg.fresh.len()))?;
+    validate_nebula_configuration(
+        cfg,
+        &inputs.state,
+        Some(inputs.nifs_msg.fresh.len()),
+        private_delayed_suffix.map(|suffix| suffix.len()),
+    )?;
     if inputs.rows_in_chunk == 0 {
         return Err(Error::Inner(
             "strict F' recursive: rows_in_chunk must be \u{2265} 1 (new chunk must be non-empty)".into(),
@@ -1073,10 +1118,13 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     if matches!(cfg.state_x_out_digest_mode, StateXOutDigestMode::Stateless) {
         enforce_digest_eq(builder, &sw.semantic_state_digest_in, &sw.acc_digest_in);
     }
-    let prior_x_out = match nebula_lane_in_digest {
-        None => enforce_state_x_out_digest_circuit(builder, &prior_x_out_inputs),
-        Some(lane_digest) => enforce_state_x_out_digest_with_nebula_circuit(builder, &prior_x_out_inputs, lane_digest),
+    let prior_x_out_wires = match nebula_lane_in_digest {
+        None => enforce_state_x_out_digest_circuit_wires(builder, &prior_x_out_inputs),
+        Some(lane_digest) => {
+            enforce_state_x_out_digest_with_nebula_circuit_wires(builder, &prior_x_out_inputs, lane_digest)
+        }
     };
+    let prior_x_out = prior_x_out_wires.digest;
 
     if nifs_outputs.fresh_x.is_empty() {
         return Err(Error::Inner("strict F' missing fresh u_i".into()));
@@ -1132,6 +1180,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
         row_end: builder.rows(),
         first_allocated_column: prior_link_first_column,
         digest: prior_x_out,
+        preimage: prior_x_out_wires.preimage,
         encoded_bits: prior_bits.to_vec(),
         fresh_public_inputs: nifs_outputs.fresh_x.clone(),
     };
@@ -1141,12 +1190,32 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     // data and split witness commitment while producing the next claim.
     let nebula_start = builder.rows();
     builder.begin_encoding_stage(stage::RECURSIVE_NEBULA);
+    let mut private_delayed_nebula_input = None;
     let new_nebula_lane = match (cfg.nebula, sw.nebula.as_ref()) {
         (None, None) => None,
         (Some(nebula_cfg), Some(lane)) => {
-            let delayed =
+            let delayed = if let Some(suffix) = private_delayed_suffix {
+                builder.begin_encoding_stage(stage::RECURSIVE_NEBULA_PRIVATE_INPUT);
+                let input_start = builder.rows();
+                let input_column_start = builder.cols();
+                let wires = suffix
+                    .iter()
+                    .map(|value| builder.alloc(*value))
+                    .collect::<Vec<_>>();
+                builder.record_column_family(
+                    "fprime.recursive.nebula.private_delayed_input.raw_bits",
+                    input_column_start,
+                );
+                private_delayed_nebula_input = Some(wires.clone());
+                let delayed = decode_delayed_nebula_public_suffix_circuit(builder, &wires, nebula_cfg.stacks)
+                    .map_err(|e| Error::Inner(format!("private delayed Nebula input: {e}")))?;
+                builder.record_row_family("fprime.recursive.nebula.private_delayed_input", input_start);
+                builder.begin_encoding_stage(stage::RECURSIVE_NEBULA);
+                delayed
+            } else {
                 decode_delayed_nebula_public_suffix_circuit(builder, &fresh_public_suffixes[0], nebula_cfg.stacks)
-                    .map_err(|e| Error::Inner(format!("delayed Nebula suffix: {e}")))?;
+                    .map_err(|e| Error::Inner(format!("delayed Nebula suffix: {e}")))?
+            };
             let adv = nifs_outputs.fresh_adv[0]
                 .as_ref()
                 .ok_or_else(|| Error::Inner("delayed Nebula fresh claim is missing adv".into()))?;
@@ -1243,7 +1312,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
 
     let output_start = builder.rows();
     builder.begin_encoding_stage(stage::RECURSIVE_OUTPUT);
-    let (x_out, new_z_i, new_public_trace) = build_x_out(
+    let (x_out_wires, new_z_i, new_public_trace) = build_x_out(
         builder,
         cfg.state_x_out_digest_mode,
         &sw,
@@ -1254,6 +1323,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
         new_step_count,
         new_nebula_lane.as_ref(),
     );
+    let x_out = x_out_wires.digest;
 
     let expected_bits = source_wires.range(inputs.public_x_out_bits);
     let x_out_bits = enforce_x_out_public_bit_wires(builder, expected_bits, &x_out)?;
@@ -1273,6 +1343,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
     builder.record_row_family("fprime.recursive.total", recursive_start);
     Ok(FPrimeStepOutput {
         x_out,
+        x_out_preimage: x_out_wires.preimage,
         x_out_bits,
         prior_link: Some(prior_link),
         state_in,
@@ -1284,6 +1355,7 @@ fn enforce_f_prime_recursive_step_circuit_impl(
         pi_dec_canonical_x_receipt: Some(nifs_outputs.pi_dec_canonical_x_receipt),
         fresh_public_suffixes,
         fresh_adv: nifs_outputs.fresh_adv,
+        private_delayed_nebula_input,
     })
 }
 

@@ -10,6 +10,10 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutSe
 
 #check AcceptedFullStateArm
 #check AcceptedFullStateRun
+#check acceptedPhasePayload
+#check accepted_local_digest_values
+#check accepted_phase_preimage_exact
+#check accepted_semantic_eq_phase_envelope
 #check AcceptedFullStateRun.adjacent_state_or_failure
 #check AcceptedFullStateRun.semanticRun
 #check AcceptedFullStateRun.semanticRun_or_failure

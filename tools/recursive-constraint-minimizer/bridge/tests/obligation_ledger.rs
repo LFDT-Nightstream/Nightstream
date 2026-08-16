@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use nightstream_constraint_exporter::{paper_obligation_ledger, ObligationState};
+use nightstream_constraint_exporter::{
+    paper_obligation_ledger, require_complete_lifecycle_target_ready, EvidenceKind, ObligationState,
+};
 
 #[test]
 fn obligation_ledger_keeps_the_reviewed_scope_and_open_checks() {
@@ -25,6 +27,10 @@ fn obligation_ledger_keeps_the_reviewed_scope_and_open_checks() {
         "hypernova.poseidon2_state_binding",
         "hypernova.terminal_linkage",
         "hypernova.recursive_size_closure",
+        "nebula.common_public_and_exact_active_arm",
+        "nebula.commit_then_challenge",
+        "nebula.delayed_commitment_finalization",
+        "nebula.program_state_digest_and_closed_lane",
     ]);
     let actual = paper_obligation_ledger()
         .iter()
@@ -37,5 +43,36 @@ fn obligation_ledger_keeps_the_reviewed_scope_and_open_checks() {
         .filter(|obligation| obligation.state() == ObligationState::Open)
         .map(|obligation| obligation.id())
         .collect::<BTreeSet<_>>();
-    assert_eq!(open, BTreeSet::from(["hypernova.recursive_size_closure"]));
+    assert_eq!(
+        open,
+        BTreeSet::from([
+            "hypernova.terminal_linkage",
+            "hypernova.recursive_size_closure",
+            "nebula.delayed_commitment_finalization",
+            "nebula.program_state_digest_and_closed_lane",
+        ])
+    );
+
+    let base = paper_obligation_ledger()
+        .iter()
+        .flat_map(|obligation| obligation.evidence())
+        .filter(|evidence| evidence.kind() == EvidenceKind::BaseRowFamily)
+        .map(|evidence| evidence.name())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let recursive = paper_obligation_ledger()
+        .iter()
+        .flat_map(|obligation| obligation.evidence())
+        .filter(|evidence| evidence.kind() == EvidenceKind::RecursiveRowFamily)
+        .map(|evidence| evidence.name())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let error = require_complete_lifecycle_target_ready(&base, &recursive)
+        .expect_err("an incomplete lifecycle target must fail closed");
+    assert!(error.to_string().contains("hypernova.terminal_linkage"));
+    assert!(error
+        .to_string()
+        .contains("nebula.delayed_commitment_finalization"));
 }

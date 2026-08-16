@@ -183,7 +183,8 @@ pub(crate) fn audit_multi_branch_selective_low_norm_shape_with_shared_bit_prefix
     })
 }
 
-pub(crate) fn selective_polynomial() -> SparsePoly<F> {
+#[doc(hidden)]
+pub fn selective_polynomial() -> SparsePoly<F> {
     let term = |coefficient: F, powers: &[(usize, u32)]| {
         let mut exps = vec![0u32; SELECTIVE_ARITY];
         for &(index, power) in powers {

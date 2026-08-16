@@ -89,6 +89,28 @@ pub(crate) fn normalized_source_column(cols: usize, public_outputs: &[Var], norm
     None
 }
 
+/// Map one synthesized source column into the normalized field-R1CS order.
+pub(crate) fn normalized_field_column(cols: usize, public_outputs: &[Var], source_col: usize) -> Option<usize> {
+    if source_col >= cols {
+        return None;
+    }
+    if source_col == Var::ONE.col() {
+        return Some(0);
+    }
+    if let Some(index) = public_outputs
+        .iter()
+        .position(|output| output.col() == source_col)
+    {
+        return Some(index + 1);
+    }
+
+    let moved_before = public_outputs
+        .iter()
+        .filter(|output| output.col() < source_col)
+        .count();
+    Some(1 + public_outputs.len() + (source_col - 1) - moved_before)
+}
+
 pub(super) fn eval_source_lc(lc: &Lc, assignment: &[F]) -> F {
     lc.terms
         .iter()

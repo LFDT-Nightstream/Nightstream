@@ -9,8 +9,8 @@ use neo_math::F;
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use nightstream_constraint_exporter::{
     analyze_fixed_point_branch, export_complete_fixed_point_problem, export_fixed_point_problem,
-    fixed_point_family_census, render_bound_artifact_lean, render_complete_bound_artifact_lean, ExportRequest,
-    FixedPointFamilySearch,
+    fixed_point_family_census, render_bound_artifact_data_lean, render_complete_bound_artifact_data_lean,
+    ExportRequest, FixedPointFamilySearch,
 };
 use p3_field::PrimeCharacteristicRing;
 use recursive_constraint_minimizer::{Scope, SolverConfig};
@@ -158,10 +158,12 @@ fn fixed_point_arms_have_complete_exportable_family_censuses() {
         );
         assert!(binding.final_plan_digest().starts_with("sha256:"));
         assert!(binding.projected_slice_digest().starts_with("sha256:"));
-        let lean = render_bound_artifact_lean(&export, &format!("Generated.FixedPoint{branch:?}"))
+        let lean = render_bound_artifact_data_lean(&export, &format!("Generated.FixedPoint{branch:?}"))
             .expect("render exact bound Lean data");
         assert!(lean.contains("def boundArtifact : BoundArtifact"));
-        assert!(lean.contains("theorem boundArtifact_coherent"));
+        assert!(lean.contains("boundArtifact is exact data only"));
+        assert!(!lean.contains("theorem boundArtifact_coherent"));
+        assert!(!lean.contains("native_decide"));
         assert!(lean.contains("scope := \"branch\""));
         assert!(lean.contains("fieldModulus := \"18446744069414584321\""));
     }
@@ -253,10 +255,12 @@ fn complete_branch_export_contains_every_owned_source_row() {
         export.binding().requested_source_rows()
     );
     assert!(export.binding().additional_source_rows().is_empty());
-    let lean = render_complete_bound_artifact_lean(&export, "Generated.CompleteFixedPoint")
-        .expect("render complete relation coverage proof");
-    assert!(lean.contains("theorem sourceArtifact_row_count"));
-    assert!(lean.contains("theorem boundArtifact_coversFullRelation"));
+    let lean = render_complete_bound_artifact_data_lean(&export, "Generated.CompleteFixedPoint")
+        .expect("render complete relation data");
+    assert!(lean.contains("boundArtifact is exact data only"));
+    assert!(!lean.contains("theorem sourceArtifact_row_count"));
+    assert!(!lean.contains("theorem boundArtifact_coversFullRelation"));
+    assert!(!lean.contains("native_decide"));
 }
 
 fn branch_index(branch: R1csIvcBranch) -> usize {

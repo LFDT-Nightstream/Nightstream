@@ -3,7 +3,7 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.Streamin
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPhasedOverlayRelation
 
 /-!
-Contract: production source-semantics adapter for the 136-kind physical
+Contract: production source-semantics adapter for the 197-kind physical
 overlay relation.
 
 Owns the joint local soundness target for claim-coordinate and PiRLC-family
@@ -44,7 +44,7 @@ def workItem (arm : WorkArm) : WorkItem :=
 def phaseKind (arm : WorkArm) : Fin 23 :=
   Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPhasedOverlayRelation.phaseKind arm
 
-def overlayKind (arm : WorkArm) : Fin 136 :=
+def overlayKind (arm : WorkArm) : Fin 197 :=
   Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPhasedOverlayRelation.overlayKind arm
 
 /-- Algebraic claim-coordinate transition selected by one bounded claim
@@ -93,7 +93,7 @@ structure SourceSoundness {State : Type}
     (piRlcState : State → FamilyState)
     (other : WorkItem → State → State → Prop)
     (phaseKindRows : Fin 23 → ResidualFamily)
-    (overlayRows fieldLinkRows : Fin 136 → ResidualFamily)
+    (overlayRows fieldLinkRows : Fin 197 → ResidualFamily)
     (before after : Runtime State) : Prop where
   claim : ∀ arm,
     (workItem arm).phase = .claimReplay →
@@ -123,7 +123,7 @@ structure SourceSoundness {State : Type}
 namespace SourceSoundness
 
 /-- The physical source evidence supplies the joint local-soundness premise
-used by the 136-kind scheduled selector relation. -/
+used by the 197-kind scheduled selector relation. -/
 theorem localSound {State : Type}
     {production : ProductionSetup} {fields : Fields}
     {setup : InputBindingSetup}
@@ -131,7 +131,7 @@ theorem localSound {State : Type}
     {piRlcState : State → FamilyState}
     {other : WorkItem → State → State → Prop}
     {phaseKindRows : Fin 23 → ResidualFamily}
-    {overlayRows fieldLinkRows : Fin 136 → ResidualFamily}
+    {overlayRows fieldLinkRows : Fin 197 → ResidualFamily}
     {before after : Runtime State}
     (source : SourceSoundness production fields setup claimAccumulator
       piRlcState other phaseKindRows overlayRows fieldLinkRows before after) :
@@ -171,7 +171,7 @@ theorem linkedAccepts_implies_step
     {commonRows : Fin 2 → ResidualFamily}
     {phaseKindRows : Fin 23 → ResidualFamily}
     {scheduleRows : WorkArm → ResidualFamily}
-    {overlayRows fieldLinkRows : Fin 136 → ResidualFamily}
+    {overlayRows fieldLinkRows : Fin 197 → ResidualFamily}
     {before after : Runtime State}
     (source : SourceSoundness production fields setup claimAccumulator
       piRlcState other phaseKindRows overlayRows fieldLinkRows before after)
@@ -182,7 +182,7 @@ theorem linkedAccepts_implies_step
     {weights : WorkArm → F}
     {lifecycleWeights : Fin 2 → F}
     {phaseKindWeights : Fin 23 → F}
-    {overlayWeights : Fin 136 → F}
+    {overlayWeights : Fin 197 → F}
     (accepted :
       LinkedAccepts
         Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPhasedOverlayRelation.lifecycleCircuit

@@ -5,6 +5,27 @@ import tests.Axioms.Support
 
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutSequence
 
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutSequence.accepted_local_digest_values' depends on axioms: [propext,
+ Classical.choice,
+ Lean.trustCompiler,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms accepted_local_digest_values
+
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutSequence.accepted_phase_preimage_exact' depends on axioms: [propext,
+ Classical.choice,
+ Lean.trustCompiler,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms accepted_phase_preimage_exact
+
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutSequence.accepted_semantic_eq_phase_envelope' depends on axioms: [propext,
+ Classical.choice,
+ Lean.trustCompiler,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms accepted_semantic_eq_phase_envelope
+
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutSequence.AcceptedFullStateRun.adjacent_state_or_failure' depends on axioms: [propext,
  Classical.choice,
  Lean.trustCompiler,

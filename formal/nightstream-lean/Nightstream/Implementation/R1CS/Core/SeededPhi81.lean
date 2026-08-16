@@ -92,6 +92,41 @@ instance (block : Block) : Decidable block.Valid := by
     allRotationsCanonical
   infer_instance
 
+/-- Validity depends on the sampler profile and on the lengths of the two
+column lists, but not on their physical column values or on `rowStart`.
+This theorem lets one verifier-owned sampler certificate authorize all
+physical placements of the same exact profile. -/
+theorem Block.Valid.transfer
+    {source target : Block}
+    (valid : source.Valid)
+    (wordWidth : target.wordWidth = source.wordWidth)
+    (kappa : target.kappa = source.kappa)
+    (schedule : target.schedule = source.schedule)
+    (messageCols : target.messageCols = source.messageCols)
+    (wordStartsLength :
+      target.wordStarts.length = source.wordStarts.length)
+    (outputColumnsLength :
+      target.outputColumns.length = source.outputColumns.length)
+    (transformed :
+      target.superneoTransformedColumns =
+        source.superneoTransformedColumns) :
+    target.Valid := by
+  rcases valid with
+    ⟨wordWidthPositive, kappaPositive, chunkSizePositive,
+      sourceTransformed, messageGeometry, outputGeometry,
+      outputSeedCount, chunkCounts, seedsValid, samplerSuccess⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · simpa [wordWidth] using wordWidthPositive
+  · simpa [kappa] using kappaPositive
+  · simpa [schedule] using chunkSizePositive
+  · simpa [transformed] using sourceTransformed
+  · simpa [wordWidth, messageCols, wordStartsLength] using messageGeometry
+  · simpa [kappa, outputColumnsLength] using outputGeometry
+  · simpa [kappa, schedule] using outputSeedCount
+  · simpa [seedChunkCountsValid, schedule, messageCols] using chunkCounts
+  · simpa [schedule] using seedsValid
+  · simpa [samplerValid, kappa, schedule, messageCols] using samplerSuccess
+
 /-- A valid compact block contains an actual successful sampler execution;
 the fallback value of `Block.baseRotations` is therefore unreachable. -/
 theorem Block.Valid.baseRotations_success {block : Block}

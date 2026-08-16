@@ -4,10 +4,12 @@
 //! construction, selective lowering, audit artifacts, and terminal Spartan
 //! verification.
 
+mod grouped_phase;
 pub mod ivc;
 pub mod lean_manifest;
 pub mod lean_native_ccs_manifest;
 pub mod lean_nebula_combined_manifest;
+mod linked_overlay;
 pub mod lowering;
 pub mod native_ccs;
 pub mod nebula_combined_ccs;
@@ -22,8 +24,20 @@ pub mod structure;
 pub mod terminal_r1cs;
 mod ternary_encoding;
 
+pub use grouped_phase::{
+    build_grouped_phase_low_norm_r1cs, build_scheduled_grouped_phase_low_norm_r1cs,
+    build_scheduled_grouped_phase_low_norm_r1cs_with_field_links, GroupedPhaseError, GroupedPhaseLayout,
+    GroupedPhaseLowNormR1cs, ScheduledCommonPhaseFieldLink, ScheduledCursorBits, ScheduledGroupedPhaseError,
+    ScheduledGroupedPhaseLayout, ScheduledGroupedPhaseLowNormR1cs, ScheduledPhaseKindLinks,
+};
 pub use lean_native_ccs_manifest::LeanNativeCcsManifest;
 pub use lean_nebula_combined_manifest::{LeanNebulaCombinedManifest, NebulaCombinedEmission};
+pub use linked_overlay::{
+    build_scheduled_linked_overlay_low_norm_r1cs, build_scheduled_linked_overlay_low_norm_r1cs_with_phase_field_links,
+    LinkedOverlayError, OverlayFieldLink, OverlayKindLinks, ScheduledLinkedOverlayLayout,
+    ScheduledLinkedOverlayLowNormR1cs,
+};
+pub(crate) use lowering::normalized_field_column;
 pub use lowering::{
     build_fixed_shape_low_norm_r1cs, build_fixed_shape_low_norm_r1cs_with_shared_private_prefix,
     build_multi_branch_low_norm_r1cs, build_multi_branch_low_norm_r1cs_with_alignment, lower_field_r1cs,
@@ -34,13 +48,13 @@ pub use lowering::{
 pub use native_ccs::{LeanNativeCcsError, LeanNativeCcsPreprocessing};
 pub use nebula_combined_ccs::{LeanNebulaCombinedError, LeanNebulaCombinedPreprocessing};
 pub use relation_artifact::{R1CS_F_PRIME_COMPILER_ID, R1CS_F_PRIME_CONTRACT_ID, R1CS_F_PRIME_PROFILE_ID};
-#[doc(hidden)]
-pub use selective::is_canonical_selective_low_norm_polynomial;
 pub(crate) use selective::{
+    audit_multi_branch_selective_compiler_with_shared_bit_prefix,
+    audit_multi_branch_selective_decoder_runs_with_shared_bit_prefix,
     audit_multi_branch_selective_low_norm_shape_with_alignment,
     audit_multi_branch_selective_low_norm_width_for_norm_base_with_alignment,
-    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, selective_polynomial,
-    PreparedSelectiveLowNormR1cs, SelectiveLowNormShape, SelectiveLowNormShapeSummary,
+    prepare_owned_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix, PreparedSelectiveLowNormR1cs,
+    SelectiveLowNormShape, SelectiveLowNormShapeSummary,
 };
 pub use selective::{
     audit_multi_branch_selective_low_norm_width_with_alignment,
@@ -54,10 +68,14 @@ pub use selective::{
     SelectiveProjectedPublicCoordinate, SelectiveProjectedPublicCoordinateSource, SelectiveProjectedRetainedStep,
     SelectiveProjectedRewriteOutput, SelectiveProjectedRewriteStep, SelectiveProjectedRowArtifact,
     SelectiveProjectedRowsAudit, SelectiveProjectedSourceDecoder, SelectiveProjectedSourceDecoderRun,
-    SelectiveProjectedSourceDefinition, SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceLinearCombination,
-    SelectiveProjectedSourceProvenance, SelectiveProjectedSourceResolution, SelectiveProjectedSourceResolutionRun,
-    SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
+    SelectiveProjectedSourceDecoderStridedRun, SelectiveProjectedSourceDecoderTemplate,
+    SelectiveProjectedSourceDecoderTemplateInstances, SelectiveProjectedSourceDefinition,
+    SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceLinearCombination, SelectiveProjectedSourceProvenance,
+    SelectiveProjectedSourceResolution, SelectiveProjectedSourceResolutionRun, SelectiveProjectedSourceSlot,
+    SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
+#[doc(hidden)]
+pub use selective::{is_canonical_selective_low_norm_polynomial, selective_polynomial};
 pub use selective_audit::{
     SelectiveArmRowMappingAudit, SelectiveArmWidthAudit, SelectiveCanonicalOpeningAudit, SelectiveCompilerAudit,
     SelectiveEmittedRowFamily, SelectiveEmittedRowRunAudit, SelectiveFamilyWidthAudit, SelectiveLayoutAudit,

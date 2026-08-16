@@ -13,7 +13,7 @@ use neo_math::F;
 use neo_params::{goldilocks_paper_b2, NeoParams};
 use nightstream_constraint_exporter::{
     analyze_nebula_branch, bind_nebula_source_assignment, export_nebula_problem, export_sparse_problem,
-    load_nebula_source_assignment, nebula_family_census, refine_nebula_with_cvc5, render_bound_artifact_lean,
+    load_nebula_source_assignment, nebula_family_census, refine_nebula_with_cvc5, render_bound_artifact_data_lean,
     sparse_family_census, validate_paper_obligation_ledger, ExportRequest, FixedPointFamilySearch,
     NebulaPhysicalSourceArm,
 };
@@ -383,7 +383,7 @@ fn compact_seeded_row_slice_binds_and_renders_without_dense_expansion() {
         source_block.has_superneo_transformed_columns(),
     );
 
-    let lean = render_bound_artifact_lean(&export, "Generated.CompactSeededRow")
+    let lean = render_bound_artifact_data_lean(&export, "Generated.CompactSeededRow")
         .expect("render exact compact seeded metadata for Lean");
     assert!(lean.contains("seededBlocks := ["));
     assert!(lean.contains(&format!("rowStart := {emitted_row}")));

@@ -10,6 +10,11 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyContin
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutContinuity
 
 #check familyState_eq_or_poseidon2_collision
+#check PhasePayload
+#check phaseEnvelopePreimage
+#check phaseEnvelopeDigest
+#check Poseidon2PhaseEnvelopeCollision
+#check local_digest_eq_or_phase_envelope_collision
 #check ContinuityFailure
 #check semantic_digest_eq_or_xOut_failure
 #check familyState_eq_or_continuity_failure

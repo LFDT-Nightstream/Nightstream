@@ -1,0 +1,49 @@
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicArmScalarCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicEvenHashLayoutCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicEvenOwnershipTailCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicLeafGeometryCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicMetadataCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicOddHashLayoutCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicOddOwnershipTailCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicSmallLayoutCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicStateColumnLayoutCertificate
+
+/-!
+Contract: structural validity certificate for the Rust-emitted PiRLC
+public-family artifact.
+
+Owns the composition of bounded metadata, scalar, layout, hash, leaf-geometry,
+and owner-schedule certificates for both arms.
+
+Emits constraints: no.
+-/
+
+set_option autoImplicit false
+
+namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyPublic
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublic.Artifact
+
+theorem evenArm_valid : evenArm.Valid :=
+  ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicArmScalarCertificate.evenArm_scalar_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.evenArm_stateColumnLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicSmallLayoutCertificate.evenArm_xOutColumnLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenHashLayoutCertificate.evenArm_hashLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicSmallLayoutCertificate.evenArm_publicAndPinLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicLeafGeometryCertificate.evenArm_leafGeometry_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenOwnershipTailCertificate.evenArm_ownership_valid⟩
+
+theorem oddArm_valid : oddArm.Valid :=
+  ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicArmScalarCertificate.oddArm_scalar_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.oddArm_stateColumnLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicSmallLayoutCertificate.oddArm_xOutColumnLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddHashLayoutCertificate.oddArm_hashLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicSmallLayoutCertificate.oddArm_publicAndPinLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicLeafGeometryCertificate.oddArm_leafGeometry_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddOwnershipTailCertificate.oddArm_ownership_valid⟩
+
+theorem rawArtifact_valid : rawArtifact.Valid :=
+  ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicMetadataCertificate.rawArtifact_metadata_valid,
+    evenArm_valid, oddArm_valid⟩
+
+end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyPublic

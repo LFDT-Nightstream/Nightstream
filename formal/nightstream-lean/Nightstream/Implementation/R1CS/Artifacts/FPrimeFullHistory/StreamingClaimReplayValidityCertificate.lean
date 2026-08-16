@@ -1,0 +1,58 @@
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayArmScalarCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayCoordinateCallCertificates
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayFinalOwnershipCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayFullOwnershipCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayLeafGeometryCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayMetadataCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayPublicAndPinLayoutCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayStateWordLayoutCertificate
+
+/-!
+Contract: structural validity certificate for the Rust-emitted streaming
+claim-replay artifact.
+
+Assurance tier: artifact-checked validity certificate.
+
+Owns the composition of the bounded metadata, scalar, layout, leaf-geometry,
+owner-schedule, and coordinate-call certificates for both artifact arms.
+
+Does not own claim semantics, Rust drift detection, or lifecycle integration.
+
+Emits constraints: no.
+-/
+
+set_option autoImplicit false
+
+namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingClaimReplay
+
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplay.Artifact
+
+theorem fullArm_valid_without_coordinates : fullArm.ValidWithoutCoordinates :=
+  ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayArmScalarCertificate.fullArm_scalar_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayStateWordLayoutCertificate.fullArm_stateWordLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayPublicAndPinLayoutCertificate.fullArm_publicWordLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayPublicAndPinLayoutCertificate.fullArm_digestPinLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayLeafGeometryCertificate.fullArm_leafGeometry_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayFullOwnershipCertificate.fullArm_ownership_valid⟩
+
+theorem finalArm_valid_without_coordinates : finalArm.ValidWithoutCoordinates :=
+  ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayArmScalarCertificate.finalArm_scalar_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayStateWordLayoutCertificate.finalArm_stateWordLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayPublicAndPinLayoutCertificate.finalArm_publicWordLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayPublicAndPinLayoutCertificate.finalArm_digestPinLayout_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayLeafGeometryCertificate.finalArm_leafGeometry_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayFinalOwnershipCertificate.finalArm_ownership_valid⟩
+
+theorem fullArm_valid : fullArm.Valid :=
+  ⟨fullArm_valid_without_coordinates,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayCoordinateCallCertificates.fullArm_coordinateCalls_valid⟩
+
+theorem finalArm_valid : finalArm.Valid :=
+  ⟨finalArm_valid_without_coordinates,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayCoordinateCallCertificates.finalArm_coordinateCalls_valid⟩
+
+theorem rawArtifact_valid : rawArtifact.Valid :=
+  ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingClaimReplayMetadataCertificate.rawArtifact_metadata_valid,
+    fullArm_valid, finalArm_valid⟩
+
+end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingClaimReplay

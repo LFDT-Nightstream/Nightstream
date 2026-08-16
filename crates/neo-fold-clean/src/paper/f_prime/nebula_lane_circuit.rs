@@ -41,7 +41,9 @@ use crate::paper::f_prime::digest_circuit::{alloc_const_tag, alloc_constant};
 use crate::paper::reductions::accumulator_sis_circuit::{
     enforce_accumulator_digest as enforce_sis_accumulator_digest, NEBULA_LEAF_SIS_CONFIG,
 };
-use crate::paper::relations::product_commitment_circuit::{validate_adv_shape, AdvCommitmentWires};
+use crate::paper::relations::product_commitment_circuit::{
+    adv_commitment_data_wires, validate_adv_data_shape, validate_adv_shape, AdvCommitmentDataWires, AdvCommitmentWires,
+};
 
 /// Mirror of the native lane-digest domain tag (private in
 /// `paper::digest`; the parity test is the lockstep guard).
@@ -191,6 +193,24 @@ pub struct NebulaBaseBindingWires {
     pub computed_program_binding_digest: [Var; DIGEST_LEN],
 }
 
+/// Recompute the program binding from the three authoritative digest inputs.
+///
+/// Callers own the authority for these input wires. The terminal relation
+/// uses verifier-public values; the reusable base relation binds the same
+/// wires through its verifier-key replay.
+pub fn enforce_nebula_program_binding_digest_circuit(
+    builder: &mut R1csBuilder,
+    initial_semantic_state_digest: [Var; DIGEST_LEN],
+    plan_digest: [Var; DIGEST_LEN],
+    d_init: [Var; DIGEST_LEN],
+) -> [Var; DIGEST_LEN] {
+    let mut binding_preimage = alloc_const_tag(builder, NEBULA_PROGRAM_BINDING_TAG);
+    binding_preimage.extend_from_slice(&initial_semantic_state_digest);
+    binding_preimage.extend_from_slice(&plan_digest);
+    binding_preimage.extend_from_slice(&d_init);
+    enforce_poseidon2_hash(builder, &binding_preimage)
+}
+
 pub fn enforce_nebula_lane_base_circuit(
     builder: &mut R1csBuilder,
     wires: &NebulaLaneWires,
@@ -202,11 +222,8 @@ pub fn enforce_nebula_lane_base_circuit(
         .map(|value| builder.alloc(value));
     let plan_digest = cfg.plan_digest.map(|value| builder.alloc(value));
     let d_init = cfg.d_init.map(|value| builder.alloc(value));
-    let mut binding_preimage = alloc_const_tag(builder, NEBULA_PROGRAM_BINDING_TAG);
-    binding_preimage.extend_from_slice(&initial_semantic_state_digest);
-    binding_preimage.extend_from_slice(&plan_digest);
-    binding_preimage.extend_from_slice(&d_init);
-    let binding_digest = enforce_poseidon2_hash(builder, &binding_preimage);
+    let binding_digest =
+        enforce_nebula_program_binding_digest_circuit(builder, initial_semantic_state_digest, plan_digest, d_init);
     for (actual, expected) in binding_digest
         .iter()
         .zip(wires.program_binding_digest.iter())
@@ -735,6 +752,40 @@ pub fn enforce_nebula_close_circuit(builder: &mut R1csBuilder, lane: &NebulaLane
     }
 }
 
+/// Enforce the canonical post-close lane state.
+///
+/// This is the exact reset produced by [`enforce_nebula_close_circuit`]. It
+/// is stronger than the native convenience predicate `NebulaLane::is_closed`:
+/// it also pins dead gamma slots, products, and stack pointers. Segment index,
+/// timestamp, memory digest, and program binding remain carried values.
+pub fn enforce_nebula_terminal_closed_circuit(builder: &mut R1csBuilder, lane: &NebulaLaneWires) {
+    builder.enforce_zero(&Lc::from_var(lane.open));
+    builder.enforce_zero(&Lc::from_var(lane.idx));
+    for gamma in &lane.gamma {
+        enforce_k_constant(builder, gamma, K::ONE);
+    }
+    for product in &lane.h {
+        enforce_k_constant(builder, product, K::ONE);
+    }
+    for sp in lane.sp {
+        builder.enforce_zero(&Lc::from_var(sp));
+    }
+    let headers = [
+        nebula_chain_ops_header(),
+        nebula_chain_mem_header(),
+        nebula_chain_mem_header(),
+    ];
+    for (wire, expected) in lane
+        .d_pre
+        .iter()
+        .chain(lane.d_seen.iter())
+        .flatten()
+        .zip(headers.iter().chain(headers.iter()).flatten())
+    {
+        builder.enforce_eq(&Lc::from_var(*wire), &Lc::from_const(*expected));
+    }
+}
+
 pub struct NebulaMaybeCloseOutput {
     pub lane: NebulaLaneWires,
     pub closed: Var,
@@ -751,6 +802,22 @@ pub fn enforce_delayed_nebula_claim_circuit(
     seg_max: u64,
 ) -> Result<NebulaMaybeCloseOutput, String> {
     validate_adv_shape(Some(adv), adv.ops.d, adv.ops.kappa, "delayed Nebula fresh claim")?;
+    let data = adv_commitment_data_wires(adv);
+    enforce_delayed_nebula_claim_data_circuit(builder, lane, input, &data, context, steps_per_segment, seg_max)
+}
+
+/// Consume one delayed claim from the exact public commitment coordinates
+/// already opened against the terminal fresh witness.
+pub fn enforce_delayed_nebula_claim_data_circuit(
+    builder: &mut R1csBuilder,
+    lane: &NebulaLaneWires,
+    input: &DelayedNebulaInputWires,
+    adv: &AdvCommitmentDataWires,
+    context: &NebulaOpenContextWires,
+    steps_per_segment: u64,
+    seg_max: u64,
+) -> Result<NebulaMaybeCloseOutput, String> {
+    validate_adv_data_shape(adv, adv.ops.d, adv.ops.kappa, "delayed Nebula fresh claim")?;
     let opened = enforce_nebula_maybe_open_circuit(builder, lane, input, context, seg_max);
     let leaves = enforce_nebula_lane_leaf_digests_circuit(
         builder,

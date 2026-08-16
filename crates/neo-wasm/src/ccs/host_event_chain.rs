@@ -562,11 +562,7 @@ fn push_host_event_gather_constraints(b: &mut R1csBuilder) {
             (GK2_HI, -F::ONE),
         ]);
 
-        // Input slots (kind 3): free absorbed input words. Expansion resolves
-        // every `Input { index }` occurrence with the same index from one
-        // runtime input, while the transcript check binds the absorbed words.
-
-        // Input-local slots (kind 4): the staged input word is written
+        // Input-local slots: the staged input word is written
         // into one 32-bit lane of the entry frame's locals at the
         // table-pinned index (ROM limb select: 0 lo, 1 hi). Routing the word
         // through the U32-checked locals value columns range-proves it. Lo

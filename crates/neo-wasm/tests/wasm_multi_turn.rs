@@ -136,46 +136,30 @@ fn zero_local_component_wat() -> &'static str {
     "#
 }
 
-/// Entry absorbs caller attribution and initializes local 0; exit absorbs the
-/// captured output.
+/// Entry initializes local 0; exit absorbs the captured output.
 fn add_template() -> ExportTemplate {
     ExportTemplate {
         entry: vec![EventBlock::op(
             8,
-            slots(&[
-                (0, SlotBinding::Input { index: 0 }),
-                (
-                    1,
-                    SlotBinding::InputLocal {
-                        input: 1,
-                        local: 0,
-                        limb: Limb::Lo,
-                    },
-                ),
-            ]),
+            slots(&[(
+                1,
+                SlotBinding::InputLocal {
+                    input: 0,
+                    local: 0,
+                    limb: Limb::Lo,
+                },
+            )]),
         )],
         exit: vec![EventBlock::op(
             17,
             slots(&[(0, SlotBinding::OutputElem { limb: Limb::Lo })]),
         )],
-        entry_input_count: 2,
-        exit_input_count: 0,
+        entry_input_count: 1,
     }
 }
 
 fn turn_inputs() -> [TurnInputs; 2] {
-    [
-        TurnInputs {
-            entry: vec![901, 7],
-            exit: vec![],
-            ..Default::default()
-        },
-        TurnInputs {
-            entry: vec![902, 35],
-            exit: vec![],
-            ..Default::default()
-        },
-    ]
+    [TurnInputs { entry: vec![7] }, TurnInputs { entry: vec![35] }]
 }
 
 struct MultiTurnSetup {
@@ -250,10 +234,8 @@ fn expected_transcript(
     let mut blocks = Vec::new();
     for (turn, &output) in turns.iter().zip(outputs) {
         blocks.extend(neo_wasm::host_event_bindings::expand_export_entry(template, &turn.entry).expect("entry"));
-        blocks.extend(
-            neo_wasm::host_event_bindings::expand_export_exit(template, Some((output, 0)), &turn.exit, &[])
-                .expect("exit"),
-        );
+        blocks
+            .extend(neo_wasm::host_event_bindings::expand_export_exit(template, Some((output, 0)), &[]).expect("exit"));
     }
     blocks
         .into_iter()
@@ -368,7 +350,7 @@ fn multi_turn_proof_binds_both_turns_inputs() {
         .expect("verify with the two-turn transcript");
 
     let mut wrong_turns = turn_inputs();
-    wrong_turns[1].entry[1] = 34;
+    wrong_turns[1].entry[0] = 34;
     let wrong = expected_transcript(&setup.bindings, setup.add_fref, &wrong_turns, &[7, 42]);
     assert!(
         matches!(
@@ -581,7 +563,6 @@ fn resultless_turn_can_precede_another_turn() {
             )],
             exit: vec![EventBlock::op(16, slots(&[]))],
             entry_input_count: 1,
-            exit_input_count: 0,
         },
     );
     bindings.exports.insert(
@@ -593,17 +574,9 @@ fn resultless_turn_can_precede_another_turn() {
                 slots(&[(0, SlotBinding::OutputElem { limb: Limb::Lo })]),
             )],
             entry_input_count: 0,
-            exit_input_count: 0,
         },
     );
-    let turns = [
-        TurnInputs {
-            entry: vec![41],
-            exit: vec![],
-            ..Default::default()
-        },
-        TurnInputs::default(),
-    ];
+    let turns = [TurnInputs { entry: vec![41] }, TurnInputs::default()];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
@@ -643,14 +616,14 @@ fn resultless_turn_can_precede_another_turn() {
     let mut blocks =
         neo_wasm::host_event_bindings::expand_export_entry(&bindings.exports[&poke_fref], &[41]).expect("poke entry");
     blocks.extend(
-        neo_wasm::host_event_bindings::expand_export_exit(&bindings.exports[&poke_fref], None, &[], &[])
+        neo_wasm::host_event_bindings::expand_export_exit(&bindings.exports[&poke_fref], None, &[])
             .expect("resultless poke exit"),
     );
     blocks.extend(
         neo_wasm::host_event_bindings::expand_export_entry(&bindings.exports[&read_fref], &[]).expect("read entry"),
     );
     blocks.extend(
-        neo_wasm::host_event_bindings::expand_export_exit(&bindings.exports[&read_fref], Some((41, 0)), &[], &[])
+        neo_wasm::host_event_bindings::expand_export_exit(&bindings.exports[&read_fref], Some((41, 0)), &[])
             .expect("exit"),
     );
     let lifted: Vec<[p3_goldilocks::Goldilocks; 8]> = blocks

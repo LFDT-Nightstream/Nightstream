@@ -7,8 +7,8 @@
 //! never interprets them.
 //!
 //! One event block contains exactly eight words. Templates are static per
-//! function reference; slots bind Wasm values, runtime inputs, constants,
-//! or static linear-memory accesses.
+//! function reference; slots bind Wasm values, effectful runtime inputs,
+//! constants, or static linear-memory accesses.
 
 use crate::comm_chain::{COMM_CHAIN_BLOCK_WORDS, COMM_CHAIN_EVENT_ARGS};
 use crate::ir::{
@@ -54,13 +54,6 @@ pub enum SlotBinding {
     ArgElem { arg: u8, limb: Limb },
     /// A limb of the call's single flat result.
     ResultElem { limb: Limb },
-    /// The indexed input word of the slot's phase (export entry inputs,
-    /// per-call host-provided values, exit values): a free absorbed word
-    /// in-circuit. The index is input-side structure — expansion resolves
-    /// every slot sharing an index from one input entry, and the transcript
-    /// check (native fold or the interleaving proof) binds the absorbed
-    /// words to that input; nothing is enforced locally.
-    Input { index: u8 },
     /// Export entry templates only: the selected entry input word, absorbed
     /// AND written to one 32-bit lane of the entry frame's `locals[local]`
     /// (the word must fit in 32 bits). This is how export inputs reach the
@@ -169,25 +162,21 @@ impl EventBlock {
 pub struct ImportTemplate {
     pub events: Vec<EventBlock>,
     /// Number of per-call input words the template draws from (one array
-    /// for the whole call — e.g. a ref id supplied once and referenced in
-    /// several events).
+    /// for the whole call; one word may feed multiple modeled memory writes).
     pub input_count: u8,
 }
 
 /// Static expansion of one exported function's boundary into host-event
-/// blocks: `entry` blocks absorb before the export's first instruction
-/// (receiver-side `Enter`/`Activation`/payload reads), `exit` events after
-/// the halting row (`Return`/`Yield` and result publication). Single-turn
-/// V1: one export invocation per trace.
+/// blocks: `entry` blocks absorb before the export's first instruction;
+/// `exit` blocks absorb after the halting row and may publish the captured
+/// result. Single-turn V1: one export invocation per trace.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ExportTemplate {
     pub entry: Vec<EventBlock>,
     pub exit: Vec<EventBlock>,
-    /// Number of entry input words (`Input`/`InputLocal` indices resolve
-    /// against this array; `InputLocal` words also bootstrap locals).
+    /// Number of entry input words consumed by `InputLocal` and memory-write
+    /// slots.
     pub entry_input_count: u8,
-    /// Number of exit input words.
-    pub exit_input_count: u8,
 }
 
 #[derive(Clone, Copy)]
@@ -207,16 +196,14 @@ impl ExportPhase {
 
 impl ExportTemplate {
     /// Check the template against the export's locals bound. Entry events
-    /// source from consts and entry input words (`Input`/`InputLocal`);
-    /// exit events from consts, exit input words, and the captured output.
+    /// source from consts and entry input words (`InputLocal` or memory
+    /// writes); exit events source from consts, memory, and the captured
+    /// output.
     /// The stack-based import sources (`ArgElem`/`ResultElem`) never apply.
     pub fn validate(&self, local_bound: u32, result_count: u8) -> Result<(), WasmBuildError> {
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
         let mut written = std::collections::BTreeSet::new();
-        for (phase, events, input_count) in [
-            (ExportPhase::Entry, &self.entry, self.entry_input_count),
-            (ExportPhase::Exit, &self.exit, self.exit_input_count),
-        ] {
+        for (phase, events) in [(ExportPhase::Entry, &self.entry), (ExportPhase::Exit, &self.exit)] {
             let phase_name = phase.name();
             for (idx, event) in events.iter().enumerate() {
                 let ctx = |what: &str| format!("export template {phase_name} event {idx}: {what}");
@@ -224,9 +211,10 @@ impl ExportTemplate {
                     return err(ctx("export boundary events must absorb; advice events are import-only"));
                 }
                 let check_input_index = |index: u8| {
-                    if index >= input_count {
+                    if index >= self.entry_input_count {
                         return err(ctx(&format!(
-                            "input index {index} out of range for {input_count} {phase_name} input words"
+                            "input index {index} out of range for {} entry input words",
+                            self.entry_input_count
                         )));
                     }
                     Ok(())
@@ -238,7 +226,6 @@ impl ExportTemplate {
                                 return err(ctx("constant is not a canonical field element"));
                             }
                         }
-                        SlotBinding::Input { index } => check_input_index(index)?,
                         SlotBinding::InputLocal { input, local, limb } => {
                             if matches!(phase, ExportPhase::Exit) {
                                 return err(ctx("locals bootstrap only applies to the entry phase"));
@@ -313,12 +300,11 @@ impl ExportTemplate {
     }
 }
 
-/// Entry and exit input words for one export invocation. Multi-turn traces
-/// supply these in invocation order.
+/// Entry input words for one export invocation. Multi-turn traces supply
+/// these in invocation order.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct TurnInputs {
     pub entry: Vec<u64>,
-    pub exit: Vec<u64>,
 }
 
 /// Per-program bindings: import templates keyed by callee function ref, and
@@ -470,14 +456,6 @@ impl ImportTemplate {
                             }
                         }
                     }
-                    SlotBinding::Input { index } => {
-                        if index >= self.input_count {
-                            return err(ctx(&format!(
-                                "input index {index} out of range for {} input words",
-                                self.input_count
-                            )));
-                        }
-                    }
                     SlotBinding::MemoryRead32 { base, .. }
                     | SlotBinding::MemoryRead16 { base, .. }
                     | SlotBinding::MemoryRead8 { base, .. } => {
@@ -595,7 +573,6 @@ pub fn expand_export_entry(
             for (word, slot) in block.iter_mut().zip(&event.block) {
                 *word = match *slot {
                     SlotBinding::Const(value) => value,
-                    SlotBinding::Input { index } => entry_inputs[usize::from(index)],
                     SlotBinding::InputLocal { input, local, .. } => {
                         let value = entry_inputs[usize::from(input)];
                         if value > u64::from(u32::MAX) {
@@ -636,15 +613,12 @@ pub fn expand_export_entry(
         .collect()
 }
 
-/// Resolve an export template's EXIT phase against the captured output and
-/// the exit input words.
+/// Resolve an export template's EXIT phase against the captured output.
 pub fn expand_export_exit(
     template: &ExportTemplate,
     output: Option<(u32, u32)>,
-    exit_inputs: &[u64],
     memory_reads: &[u32],
 ) -> Result<Vec<[u64; COMM_CHAIN_BLOCK_WORDS]>, WasmBuildError> {
-    check_inputs("exit", exit_inputs, template.exit_input_count)?;
     check_memory_reads("exit", memory_reads, &template.exit)?;
     let mut memory_index = 0usize;
     template
@@ -658,7 +632,6 @@ pub fn expand_export_exit(
                     SlotBinding::OutputElem { limb } => output
                         .map(|pair| limb_of(pair, limb))
                         .ok_or_else(|| WasmBuildError::Trace("export slot references a missing output".to_string()))?,
-                    SlotBinding::Input { index } => exit_inputs[usize::from(index)],
                     SlotBinding::MemoryRead32 { .. }
                     | SlotBinding::MemoryRead16 { .. }
                     | SlotBinding::MemoryRead8 { .. } => {
@@ -756,10 +729,6 @@ fn resolve_slot(
         SlotBinding::ResultElem { limb } => result
             .map(|pair| limb_of(pair, limb))
             .ok_or_else(|| WasmBuildError::Trace("event slot references a missing result".to_string())),
-        SlotBinding::Input { index } => inputs
-            .get(usize::from(index))
-            .copied()
-            .ok_or_else(|| WasmBuildError::Trace(format!("event slot references missing input {index}"))),
         SlotBinding::MemoryRead32 { .. } | SlotBinding::MemoryRead16 { .. } | SlotBinding::MemoryRead8 { .. } => {
             let value = memory_reads[*memory_index];
             *memory_index += 1;

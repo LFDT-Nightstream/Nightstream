@@ -1,12 +1,9 @@
-//! Export-boundary bindings templates: entry events (receiver-side
-//! `Enter`/`Activation`/payload publication) absorb before the export's
-//! first instruction — with `InputLocal` slots bootstrapping the
-//! zero-initialized entry frame's locals from the runtime inputs — and exit
-//! events (`Return`, optionally with a captured result) absorb after the
-//! halting row. Event values are bound by the final-chain transcript check: the
-//! verifier folds the claimed transcript natively (`fold_event_blocks`)
-//! and compares it with the proof-carried final `comm_chain`. Single-turn
-//! V1. Discriminants below are example embedder data.
+//! Export-boundary templates: entry events absorb before the export's first
+//! instruction, with `InputLocal` slots bootstrapping the zero-initialized
+//! entry frame. Exit events absorb after the halting row and may bind the
+//! captured result. The verifier folds the claimed transcript natively and
+//! compares it with the proof-carried final commitment chain. Tags below are
+//! arbitrary embedder data.
 
 mod common;
 
@@ -18,6 +15,10 @@ use p3_field::PrimeCharacteristicRing;
 use wasmtime::component::Val as ComponentVal;
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
+const ENTRY_HEADER_TAG: u64 = 1;
+const ENTRY_INPUT_TAG: u64 = 2;
+const EXIT_OUTPUT_TAG: u64 = 3;
+const ENTRY_HEADER_WORD: u64 = 9;
 
 fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
     let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
@@ -44,39 +45,24 @@ fn add_component_wat() -> &'static str {
     "#
 }
 
-/// Entry: Enter(f_id) + one spec-shaped Activation whose payload slots
-/// carry the runtime inputs — two absorb-only words and the two param words,
-/// the latter annotated `InputLocal` so they also bootstrap the param
-/// locals. The absorbed Activation block is bit-identical to one with
-/// plain `Claim` slots: the write behavior is table data, never
-/// transcript. Exit: Return-ish event carrying the output. Claim-input
-/// words are consumed in slot order:
-/// [activation val, activation caller, param 0, param 1].
+/// Two entry blocks carry constants and bootstrap the parameter locals; one
+/// exit block carries the output.
 fn export_template() -> ExportTemplate {
-    let write = |idx, local| SlotBinding::InputLocal {
-        input: idx,
+    let write = |input, local| SlotBinding::InputLocal {
+        input,
         local,
         limb: Limb::Lo,
     };
     ExportTemplate {
         entry: vec![
-            EventBlock::op(20, slots(&[(0, SlotBinding::Const(55))])), // Enter(f_id)
-            EventBlock::op(
-                8,
-                slots(&[
-                    (1, SlotBinding::Input { index: 0 }),
-                    (3, SlotBinding::Input { index: 1 }),
-                    (4, write(2, 0)),
-                    (5, write(3, 1)),
-                ]),
-            ), // Activation(val, caller, payload = params)
+            EventBlock::op(ENTRY_HEADER_TAG, slots(&[(0, SlotBinding::Const(ENTRY_HEADER_WORD))])),
+            EventBlock::op(ENTRY_INPUT_TAG, slots(&[(0, write(0, 0)), (1, write(1, 1))])),
         ],
         exit: vec![EventBlock::op(
-            17,
-            slots(&[(1, SlotBinding::OutputElem { limb: Limb::Lo })]),
+            EXIT_OUTPUT_TAG,
+            slots(&[(0, SlotBinding::OutputElem { limb: Limb::Lo })]),
         )],
-        entry_input_count: 4,
-        exit_input_count: 0,
+        entry_input_count: 2,
     }
 }
 
@@ -97,11 +83,7 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventBindings) {
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(fref, export_template());
 
-    let turns = [neo_wasm::host_event_bindings::TurnInputs {
-        entry: vec![500, 501, 7, 35],
-        exit: vec![],
-        ..Default::default()
-    }];
+    let turns = [neo_wasm::host_event_bindings::TurnInputs { entry: vec![7, 35] }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
@@ -114,7 +96,7 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventBindings) {
     common::ccs_check_trace(&trace);
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
-    // Claim bootstrap: the RAM model's entry locals start all-zero; the
+    // Input bootstrap: the RAM model's entry locals start all-zero; the
     // entry gather rows write the runtime inputs into them.
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings);
@@ -146,20 +128,18 @@ fn export_boundary_folds_entry_and_exit_events() {
     assert_eq!(
         staged,
         vec![
-            [20, 55, 0, 0, 0, 0, 0, 0],    // Enter
-            [8, 0, 500, 0, 501, 7, 35, 0], // Activation(val, caller, payload = params)
-            [17, 0, 42, 0, 0, 0, 0, 0],    // Return(output)
+            [ENTRY_HEADER_TAG, ENTRY_HEADER_WORD, 0, 0, 0, 0, 0, 0],
+            [ENTRY_INPUT_TAG, 7, 35, 0, 0, 0, 0, 0],
+            [EXIT_OUTPUT_TAG, 42, 0, 0, 0, 0, 0, 0],
         ],
     );
 
-    // The verifier's transcript check: expand the claimed transcript from
-    // the template + claims (entry inputs, captured output) and fold it
-    // natively; the proof-carried final chain must equal that fold — and a
-    // different input claim must not.
+    // Expand the transcript from the template and runtime values, then fold
+    // it natively. The proof-carried final chain must equal that fold; a
+    // different entry input must not.
     let template = bindings.exports.values().next().expect("template");
-    let mut expected = neo_wasm::host_event_bindings::expand_export_entry(template, &[500, 501, 7, 35]).expect("entry");
-    expected
-        .extend(neo_wasm::host_event_bindings::expand_export_exit(template, Some((42, 0)), &[], &[]).expect("exit"));
+    let mut expected = neo_wasm::host_event_bindings::expand_export_entry(template, &[7, 35]).expect("entry");
+    expected.extend(neo_wasm::host_event_bindings::expand_export_exit(template, Some((42, 0)), &[]).expect("exit"));
     assert_eq!(expected, staged, "claimed transcript must match the staged blocks");
     let lift = |blocks: &[[u64; 8]]| -> Vec<[p3_goldilocks::Goldilocks; 8]> {
         blocks
@@ -172,8 +152,7 @@ fn export_boundary_folds_entry_and_exit_events() {
         final_chain,
         neo_wasm::comm_chain::fold_event_blocks(Default::default(), &lift(&expected)).canonical_u64()
     );
-    let wrong_inputs =
-        neo_wasm::host_event_bindings::expand_export_entry(template, &[500, 501, 7, 36]).expect("wrong entry");
+    let wrong_inputs = neo_wasm::host_event_bindings::expand_export_entry(template, &[7, 36]).expect("wrong entry");
     assert_ne!(
         final_chain,
         neo_wasm::comm_chain::fold_event_blocks(
@@ -181,7 +160,7 @@ fn export_boundary_folds_entry_and_exit_events() {
             &lift(&[wrong_inputs, expected[2..].to_vec()].concat())
         )
         .canonical_u64(),
-        "a different input claim must fold to a different chain"
+        "a different entry input must fold to a different chain"
     );
 }
 
@@ -305,15 +284,10 @@ fn i64_param_bootstraps_both_lanes() {
                 ]),
             )],
             entry_input_count: 2,
-            exit_input_count: 0,
         },
     );
 
-    let turns = [neo_wasm::host_event_bindings::TurnInputs {
-        entry: vec![7, 3],
-        exit: vec![],
-        ..Default::default()
-    }];
+    let turns = [neo_wasm::host_event_bindings::TurnInputs { entry: vec![7, 3] }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,
         &run.program_tables,
@@ -447,13 +421,10 @@ fn export_exit_memory_reads_use_the_captured_output_pointer() {
                 ]),
             )],
             entry_input_count: 4,
-            exit_input_count: 0,
         },
     );
     let turns = [neo_wasm::host_event_bindings::TurnInputs {
         entry: vec![16, 77, 5, 0x1234],
-        exit: vec![],
-        ..Default::default()
     }];
     let trace = neo_wasm::traces_from_wasmtime_steps_with_host_events(
         &run.steps,

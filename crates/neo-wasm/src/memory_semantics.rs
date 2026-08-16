@@ -240,7 +240,6 @@ pub fn preload_host_event_tables(
             0,
             0,
         ),
-        SlotBinding::Input { index: idx } => (u32::from(WasmHostEventSlotKind::Input.code()), u32::from(idx), 0, 0, 0),
         SlotBinding::InputLocal { local, limb, .. } => (
             u32::from(WasmHostEventSlotKind::InputLocal.code()),
             u32::from(local),

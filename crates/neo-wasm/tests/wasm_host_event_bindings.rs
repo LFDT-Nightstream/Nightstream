@@ -1,18 +1,13 @@
-//! Native expansion of host-event templates: the worked resource
-//! method from `docs/host-event-grammar-tables.md` §3.2, pinned against
-//! hand-built absorb blocks and `commit_event` folds.
+//! Native expansion and validation of host-event templates.
 //!
-//! The discriminants and slot indices below are EXAMPLE embedder data
-//! (mirroring `starstream-interleaving-spec`'s `EffectDiscriminant` and
-//! `ArgName::idx`); neo-wasm itself never interprets them.
+//! The tags and slot indices below are arbitrary embedder data; neo-wasm
+//! never interprets them.
 
-use neo_wasm::comm_chain::{commit_event, COMM_CHAIN_EVENT_ARGS};
+use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
     expand_export_entry, expand_import_events, EventBlock, EventBlockBuilder, ExportTemplate, HostEventBindings,
     HostEventBindingsBuilder, ImportTemplate, Limb, MemoryBase, SlotBinding, TurnInputs,
 };
-use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
 
@@ -30,15 +25,15 @@ fn public_builder_pads_blocks_derives_inputs_and_validates_functions() -> Result
     let export_fref = u32::try_from(artifacts.tables.function_entries[0].0).expect("export fref");
 
     let import_event = EventBlockBuilder::op(10)
-        .input_i32(0, 0)?
-        .input_i32(1, 1)?
-        .input_i32(2, 2)?
+        .memory_write_i32(0, 0, MemoryBase::Arg(0), 0)?
+        .memory_write_i32(1, 1, MemoryBase::Arg(0), 4)?
+        .memory_write_i32(2, 2, MemoryBase::Arg(0), 8)?
         .arg_i32(3, 0)?
         .result(4)?
         .finish();
     let entry_event = EventBlockBuilder::op(20)
-        .input_i32(0, 0)?
-        .input_local_i32(1, 1, 0)?
+        .input_local_i32(0, 0, 0)?
+        .memory_write_i32(1, 1, MemoryBase::Local(0), 0)?
         .finish();
     let exit_event = EventBlockBuilder::op(17).output_i32(0)?.finish();
 
@@ -49,7 +44,6 @@ fn public_builder_pads_blocks_derives_inputs_and_validates_functions() -> Result
 
     assert_eq!(bindings.imports[&import_fref].input_count, 3);
     assert_eq!(bindings.exports[&export_fref].entry_input_count, 2);
-    assert_eq!(bindings.exports[&export_fref].exit_input_count, 0);
     assert_eq!(
         bindings.imports[&import_fref].events[0].block[0],
         SlotBinding::Const(10)
@@ -66,7 +60,9 @@ fn public_builder_pads_blocks_derives_inputs_and_validates_functions() -> Result
         .expect_err("slot zero was already assigned");
     assert!(duplicate.to_string().contains("block slot 0"));
 
-    let gap = EventBlockBuilder::op(1).input_i32(0, 1)?.finish();
+    let gap = EventBlockBuilder::op(1)
+        .memory_write_i32(0, 1, MemoryBase::Arg(0), 0)?
+        .finish();
     let mut builder = HostEventBindingsBuilder::new(&artifacts.tables);
     let err = builder
         .import(import_fref, vec![gap])
@@ -81,7 +77,6 @@ fn scalar_helpers_address_tagged_and_continuation_blocks() -> Result<(), Box<dyn
     let tagged = EventBlockBuilder::op(9)
         .constant_i64(0, 0x1122_3344_5566_7788)?
         .arg_i64(2, 3)?
-        .input_i64(4, 7)?
         .finish();
 
     assert_eq!(
@@ -92,8 +87,8 @@ fn scalar_helpers_address_tagged_and_continuation_blocks() -> Result<(), Box<dyn
             SlotBinding::Const(0x1122_3344),
             SlotBinding::ArgElem { arg: 3, limb: Limb::Lo },
             SlotBinding::ArgElem { arg: 3, limb: Limb::Hi },
-            SlotBinding::Input { index: 7 },
-            SlotBinding::Input { index: 8 },
+            ZERO,
+            ZERO,
             ZERO,
         ]
     );
@@ -145,89 +140,6 @@ fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARG
         out[idx] = source;
     }
     out
-}
-
-/// `foo(handle, a: u32, b: u64) -> u32` from the design note: payload tuple
-/// `(a, b)` encodes to one ref word `[a, b.lo, b.hi, 0]`.
-fn method_template() -> ImportTemplate {
-    let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
-    let input = |idx| SlotBinding::Input { index: idx };
-    ImportTemplate {
-        events: vec![
-            // NewRef(size=1) -> payload ref (input 0). Ret=slot2, Size=slot3.
-            EventBlock::op(10, slots(&[(2, input(0)), (3, SlotBinding::Const(1))])),
-            // RefPush([a, b.lo, b.hi, 0]). PackedRef0..3 = slots 0..3.
-            EventBlock::op(
-                11,
-                slots(&[(0, arg(1, Limb::Lo)), (1, arg(2, Limb::Lo)), (2, arg(2, Limb::Hi))]),
-            ),
-            // Resume(target, f_id, val_ref) -> (ret_ref, caller).
-            // Target=slot0, Val=slot1, Ret=slot2, Caller=slot3, FunctionId1=slot4.
-            EventBlock::op(
-                0,
-                slots(&[
-                    (0, input(3)),
-                    (1, input(0)),
-                    (2, input(1)),
-                    (3, input(2)),
-                    (4, SlotBinding::Const(77)), // dummy f_id
-                ]),
-            ),
-            // RefGet(ret_ref, 0) -> [r, 0, 0, 0]: the ResultElem Lo slot is
-            // also the row that pushes the host result onto the stack.
-            // Val(=ref)=slot1, Offset=slot3, PackedRef0/2/4/5 = slots 0/2/4/5.
-            EventBlock::op(
-                12,
-                slots(&[
-                    (1, input(1)),
-                    (0, SlotBinding::ResultElem { limb: Limb::Lo }),
-                    (2, SlotBinding::ResultElem { limb: Limb::Hi }),
-                ]),
-            ),
-        ],
-        input_count: 4,
-    }
-}
-
-#[test]
-fn method_template_expands_to_pinned_blocks_and_chain() {
-    let template = method_template();
-    template
-        .validate(3, 1)
-        .expect("template validates against arity (3, 1)");
-
-    // handle = 0xAA, a = 5, b = 3·2^32 + 7, result = 42.
-    let args = [(0xAA, 0), (5, 0), (7, 3)];
-    let result = Some((42, 0));
-    let inputs = [100u64, 101, 102, 103]; // payload ref, ret ref, caller, target
-
-    let blocks = expand_import_events(&template, &args, result, &inputs, &[]).expect("expansion");
-
-    assert_eq!(
-        blocks,
-        vec![
-            [10, 0, 0, 100, 1, 0, 0, 0],       // NewRef
-            [11, 5, 7, 3, 0, 0, 0, 0],         // RefPush
-            [0, 103, 100, 101, 102, 77, 0, 0], // Resume
-            [12, 42, 101, 0, 0, 0, 0, 0],      // RefGet (result push)
-        ],
-    );
-
-    // The chain fold over the blocks equals the manual commit_event sequence.
-    let f = Goldilocks::from_u64;
-    let mut chain = [Goldilocks::ZERO; 4];
-    for block in &blocks {
-        let words: [Goldilocks; COMM_CHAIN_EVENT_ARGS] = core::array::from_fn(|i| f(block[1 + i]));
-        chain = commit_event(chain, f(block[0]), words);
-    }
-    let expected = {
-        let mut c = [Goldilocks::ZERO; 4];
-        c = commit_event(c, f(10), [f(0), f(0), f(100), f(1), f(0), f(0), f(0)]);
-        c = commit_event(c, f(11), [f(5), f(7), f(3), f(0), f(0), f(0), f(0)]);
-        c = commit_event(c, f(0), [f(103), f(100), f(101), f(102), f(77), f(0), f(0)]);
-        commit_event(c, f(12), [f(42), f(101), f(0), f(0), f(0), f(0), f(0)])
-    };
-    assert_eq!(chain, expected);
 }
 
 #[test]
@@ -298,12 +210,16 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(0, 1).is_err());
 
-    // Input index beyond the declared count.
+    // Memory-write input index beyond the declared count.
     let template = ImportTemplate {
-        events: vec![event(SlotBinding::Input { index: 1 })],
+        events: vec![event(SlotBinding::MemoryWrite32 {
+            input: 1,
+            base: MemoryBase::Arg(0),
+            byte_offset: 0,
+        })],
         input_count: 1,
     };
-    assert!(template.validate(0, 0).is_err());
+    assert!(template.validate(1, 0).is_err());
 
     // Non-canonical constant.
     let template = ImportTemplate {
@@ -329,15 +245,22 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(1, 0).is_err());
     let template = ImportTemplate {
-        events: vec![advice(SlotBinding::Input { index: 0 })],
+        events: vec![advice(SlotBinding::MemoryWrite32 {
+            input: 0,
+            base: MemoryBase::Arg(0),
+            byte_offset: 0,
+        })],
         input_count: 1,
     };
-    assert!(template.validate(0, 0).is_err());
+    assert!(template.validate(1, 0).is_err());
     let template = ImportTemplate {
         events: vec![advice(result_lo), advice(result_hi)],
         input_count: 1,
     };
-    assert!(template.validate(0, 1).is_err(), "input words need an absorbing event");
+    assert!(
+        template.validate(0, 1).is_err(),
+        "recorded input words need an absorbing event"
+    );
     let template = ExportTemplate {
         entry: vec![EventBlock::advice([ZERO; 8])],
         ..Default::default()
@@ -378,9 +301,13 @@ fn export_entry_validation_and_expansion_rules() {
         .validate(1, 1)
         .expect("single-result export may bind its output");
 
-    // Input index beyond the phase's declared count.
+    // Input-local index beyond the declared count.
     let template = ExportTemplate {
-        entry: vec![event(SlotBinding::Input { index: 1 })],
+        entry: vec![event(SlotBinding::InputLocal {
+            input: 1,
+            local: 0,
+            limb: Limb::Lo,
+        })],
         entry_input_count: 1,
         ..Default::default()
     };
@@ -393,7 +320,6 @@ fn export_entry_validation_and_expansion_rules() {
             local: 0,
             limb: Limb::Lo,
         })],
-        exit_input_count: 1,
         ..Default::default()
     };
     assert!(template.validate(1, 0).is_err());
@@ -445,26 +371,18 @@ fn export_entry_validation_and_expansion_rules() {
     };
     template.validate(1, 0).expect("lo-then-hi validates");
 
-    // Entry expansion resolves indexed input words — the same index may
-    // feed several slots — and rejects a wrong array length or a
-    // locals-bound word that does not fit the lane.
+    // Entry expansion rejects a wrong array length or a locals-bound word
+    // that does not fit the lane.
     let template = ExportTemplate {
-        entry: vec![EventBlock::op(
-            9,
-            slots(&[
-                (0, SlotBinding::Input { index: 1 }),
-                (1, lo(0)),
-                (2, SlotBinding::Input { index: 0 }),
-            ]),
-        )],
-        entry_input_count: 2,
+        entry: vec![EventBlock::op(9, slots(&[(0, lo(0))]))],
+        entry_input_count: 1,
         ..Default::default()
     };
     template.validate(1, 0).expect("entry template validates");
-    let blocks = expand_export_entry(&template, &[7, 500]).expect("entry expansion");
-    assert_eq!(blocks, vec![[9, 500, 7, 7, 0, 0, 0, 0]]);
-    assert!(expand_export_entry(&template, &[7]).is_err());
-    assert!(expand_export_entry(&template, &[1 << 32, 500]).is_err());
+    let blocks = expand_export_entry(&template, &[7]).expect("entry expansion");
+    assert_eq!(blocks, vec![[9, 7, 0, 0, 0, 0, 0, 0]]);
+    assert!(expand_export_entry(&template, &[]).is_err());
+    assert!(expand_export_entry(&template, &[1 << 32]).is_err());
 }
 
 #[test]
@@ -497,16 +415,40 @@ fn program_validation_rejects_output_on_a_resultless_export() {
 
 #[test]
 fn expansion_rejects_wrong_input_count() {
-    let template = method_template();
-    let args = [(0, 0), (0, 0), (0, 0)];
-    assert!(expand_import_events(&template, &args, Some((0, 0)), &[1, 2, 3], &[]).is_err());
+    let template = ImportTemplate {
+        events: vec![EventBlock::op(
+            1,
+            slots(&[(
+                0,
+                SlotBinding::MemoryWrite32 {
+                    input: 0,
+                    base: MemoryBase::Arg(0),
+                    byte_offset: 0,
+                },
+            )]),
+        )],
+        input_count: 1,
+    };
+    assert!(expand_import_events(&template, &[(0, 0)], None, &[], &[]).is_err());
 }
 
 #[test]
 fn expansion_rejects_non_canonical_input() {
-    let template = method_template();
-    let args = [(0, 0), (0, 0), (0, 0)];
-    assert!(expand_import_events(&template, &args, Some((0, 0)), &[1, 2, 3, u64::MAX], &[]).is_err());
+    let template = ImportTemplate {
+        events: vec![EventBlock::op(
+            1,
+            slots(&[(
+                0,
+                SlotBinding::MemoryWrite32 {
+                    input: 0,
+                    base: MemoryBase::Arg(0),
+                    byte_offset: 0,
+                },
+            )]),
+        )],
+        input_count: 1,
+    };
+    assert!(expand_import_events(&template, &[(0, 0)], None, &[u64::MAX], &[]).is_err());
 }
 
 #[test]
@@ -586,7 +528,6 @@ fn memory_slots_validate_phase_base_and_input_source() {
             base: MemoryBase::Local(0),
             byte_offset: 0,
         })],
-        exit_input_count: 1,
         ..Default::default()
     };
     assert!(export.validate(1, 0).is_err());

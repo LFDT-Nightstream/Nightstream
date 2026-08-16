@@ -343,7 +343,6 @@ pub enum WasmHostEventSlotKind {
     Const,
     Arg,
     Result,
-    Input,
     InputLocal,
     Output,
     MemoryRead,
@@ -351,7 +350,7 @@ pub enum WasmHostEventSlotKind {
 }
 
 impl WasmHostEventSlotKind {
-    pub const COUNT: usize = 8;
+    pub const COUNT: usize = 7;
 
     pub const fn index(self) -> usize {
         self as usize

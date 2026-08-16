@@ -653,19 +653,145 @@ theorem wellFormed_of_chunks (wire : Wire)
     rw [← rowWellFormedAt_eq (sourceArtifactOf wire) row]
     exact fact
 
--- ── Shared background assignments ────────────────────────────────────────
 
-/-- Override a background assignment at named columns. Generated removal
-counterexamples share one string-encoded background assignment and carry
-only their mutated columns. -/
-def applyOverrides (base : Array Nat) (overrides : List (Nat × Nat)) :
-    Option (Array Nat) := Id.run do
-  let mut out := base
-  for override in overrides do
-    if override.1 >= out.size then
-      return none
-    out := out.set! override.1 override.2
-  return some out
+-- ── Counterexample assembly from shared leaves ──────────────────────────
+
+/-- Combined per-chunk guard for every override of a classification batch:
+each row either belongs to the pair's family or avoids the pair's column.
+One leaf per chunk serves all families. -/
+def chunkGuardsOverrides (pairs : List (Nat × String))
+    (rows : List IndexedRow) : Bool :=
+  rows.all fun row => pairs.all fun pair =>
+    decide (row.family = pair.2) || rowAvoidsColumn pair.1 row.row
+
+theorem chunkSupportsOverride_of_guards
+    (background : Nat → Field) (pairs : List (Nat × String))
+    (column : Nat) (family : String) (rows : List IndexedRow)
+    (guards : chunkGuardsOverrides pairs rows = true)
+    (holds : rows.all
+      (fun row => decide (Algebraic.Holds background row.row)) = true)
+    (member : (column, family) ∈ pairs) :
+    chunkSupportsOverride background column family rows = true := by
+  unfold chunkGuardsOverrides at guards
+  unfold chunkSupportsOverride
+  rw [List.all_eq_true] at guards holds ⊢
+  intro row rowMember
+  have rowGuards := guards row rowMember
+  rw [List.all_eq_true] at rowGuards
+  have pairGuard := rowGuards (column, family) member
+  have rowHolds := holds row rowMember
+  simp only [Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq] at pairGuard ⊢
+  cases pairGuard with
+  | inl same => exact Or.inl same
+  | inr avoids =>
+      exact Or.inr ⟨avoids, by simpa using rowHolds⟩
+
+/-- Background assignment as a function over canonical residues. -/
+def backgroundFn (values : Array Nat) : Nat → Field :=
+  fun index => ((values.getD index 0 : Nat) : Field)
+
+/-- The counterexample values: the background with one column overridden. -/
+def overriddenValues (values : Array Nat) (column value : Nat) : List Field :=
+  (List.range values.size).map fun index =>
+    if index = column then (value : Field) else backgroundFn values index
+
+def mkCounterexample (values : Array Nat) (column value : Nat)
+    (removed : String) : RemovalCounterexample :=
+  { removedFamily := removed
+    values := overriddenValues values column value }
+
+theorem overriddenValues_length (values : Array Nat) (column value : Nat) :
+    (overriddenValues values column value).length = values.size := by
+  simp [overriddenValues]
+
+theorem overriddenValues_getD (values : Array Nat) (column value : Nat)
+    (index : Nat) (inRange : column < values.size) :
+    (overriddenValues values column value).getD index 0 =
+      overrideAt (backgroundFn values) column (value : Field) index := by
+  unfold overriddenValues overrideAt
+  by_cases bounded : index < values.size
+  · rw [List.getD_eq_getElem?_getD]
+    rw [List.getElem?_map]
+    simp [bounded]
+  · rw [List.getD_eq_getElem?_getD]
+    rw [List.getElem?_map]
+    have outOfRange : values.size ≤ index := Nat.le_of_not_lt bounded
+    have notColumn : index ≠ column := by omega
+    simp [bounded, notColumn, backgroundFn, Array.getD_eq_getD_getElem?,
+      Array.getElem?_eq_none outOfRange]
+
+theorem mkCounterexample_assignment (values : Array Nat)
+    (column value : Nat) (removed : String)
+    (inRange : column < values.size) :
+    (mkCounterexample values column value removed).assignment =
+      overrideAt (backgroundFn values) column (value : Field) := by
+  funext index
+  unfold mkCounterexample RemovalCounterexample.assignment
+  exact overriddenValues_getD values column value index inRange
+
+/-- Complete validity of a generated removal counterexample from bounded
+leaves: the shared background-holds and override-guard chunk facts, one
+membership leaf and one violation leaf for the removed family, and small
+scalar facts. -/
+theorem mkCounterexample_valid (wire : Wire) (values : Array Nat)
+    (pairs : List (Nat × String)) (column value : Nat) (removed : String)
+    (plan : List String)
+    (planFamilies : ∀ family ∈ plan,
+      family ∈ (sourceArtifactOf wire).completeFamilies)
+    (sizeEq : values.size = wire.columnCount)
+    (inRange : column < values.size)
+    (constantOne :
+      overrideAt (backgroundFn values) column (value : Field)
+        wire.constantOneColumn = 1)
+    (pairMember : (column, removed) ∈ pairs)
+    (guards : ∀ k, k < wire.chunkCount →
+      chunkGuardsOverrides pairs (rowsChunk wire k) = true)
+    (holds : ∀ k, k < wire.chunkCount →
+      (rowsChunk wire k).all
+        (fun row => decide (Algebraic.Holds (backgroundFn values) row.row)) =
+          true)
+    (violated : IndexedRow) (violatedChunk : Nat)
+    (violatedInChunk : violatedChunk < wire.chunkCount ∧
+      violated ∈ rowsChunk wire violatedChunk)
+    (violation : ¬ Algebraic.Holds
+      (overrideAt (backgroundFn values) column (value : Field)) violated.row) :
+    (mkCounterexample values column value removed).Valid
+      (sourceArtifactOf wire) plan := by
+  have assignmentEq := mkCounterexample_assignment values column value removed inRange
+  refine ⟨planFamilies, ?_, ?_, ?_, ?_⟩
+  · -- length
+    show (overriddenValues values column value).length =
+      (sourceArtifactOf wire).columnCount
+    rw [overriddenValues_length]
+    exact sizeEq
+  · -- constant one
+    rw [assignmentEq]
+    exact constantOne
+  · -- acceptance of every retained family
+    rw [assignmentEq]
+    intro family familyMember
+    have familyFacts :=
+      Nightstream.SuperNeo.CheckPlan.mem_without_iff.mp familyMember
+    refine familyHolds_overrideAt_of_chunks (sourceArtifactOf wire)
+      (backgroundFn values) column (value : Field) removed
+      ((List.range wire.chunkCount).map (rowsChunk wire))
+      (artifactRows_eq_flatMap_id wire) ?_ family familyFacts.2
+    intro chunk chunkMember
+    rcases List.mem_map.mp chunkMember with ⟨k, kMember, rfl⟩
+    have kBound := List.mem_range.mp kMember
+    exact chunkSupportsOverride_of_guards (backgroundFn values) pairs column
+      removed (rowsChunk wire k) (guards k kBound) (holds k kBound) pairMember
+  · -- the target fails
+    rw [assignmentEq]
+    intro target
+    apply violation
+    apply target.2 violated
+    show violated ∈ artifactRows wire
+    unfold artifactRows
+    exact List.mem_flatMap.mpr
+      ⟨violatedChunk, List.mem_range.mpr violatedInChunk.1, violatedInChunk.2⟩
+
+-- ── Shared background assignments ────────────────────────────────────────
 
 /-- Decode one string-encoded assignment of canonical `u64` residues. -/
 def decodeAssignment (payload : String) : Option (Array Nat) :=

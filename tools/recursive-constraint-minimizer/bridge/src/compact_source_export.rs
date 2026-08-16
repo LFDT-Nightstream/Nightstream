@@ -419,6 +419,8 @@ pub fn render_compact_source_artifact_modules(
         content.push_str(&format!("namespace {module_name}\n\n"));
         content.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
         content.push_str("open Nightstream.Implementation.R1CS\n\n");
+        content.push_str("set_option maxHeartbeats 2000000\n");
+        content.push_str("set_option maxRecDepth 65536\n\n");
         content.push_str("def chunk : ChunkWire :=\n");
         for (matrix_index, label) in ["a", "b", "c"].iter().enumerate() {
             let payload = &payloads.matrices[matrix_index];

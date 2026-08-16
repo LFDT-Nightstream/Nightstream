@@ -11,7 +11,20 @@ mod encoder_artifact;
 mod relation_artifact;
 mod shape;
 mod streaming_claim_replay;
+mod streaming_lifecycle_fixed_point;
+mod streaming_lifecycle_profile;
+mod streaming_lifecycle_relation;
+mod streaming_phase_envelope;
+mod streaming_pi_ccs_round_relation;
+mod streaming_pi_ccs_start_relation;
+mod streaming_pi_ccs_state;
+mod streaming_pi_rlc_family_relation;
+mod streaming_pi_rlc_family_replay;
 mod streaming_program;
+mod streaming_public;
+mod streaming_relation;
+mod streaming_state_envelope;
+mod streaming_terminal_profile;
 
 pub use chain::{
     NebulaFPrimeChainBuilder, NebulaFPrimeChainError, NebulaFPrimePreparedProfile, NebulaFPrimePreprocessing,
@@ -21,14 +34,132 @@ pub use constraint_witness_audit::NebulaFPrimeConstraintWitnessAudit;
 pub use encoder_artifact::{NebulaFPrimeEncoderArtifactReceipt, VerifiedNebulaFPrimeEncoderArtifact};
 #[doc(hidden)]
 pub use streaming_claim_replay::{
-    claim_replay_shape_audit_for_chunk_fields, production_claim_replay_shape_audit, NebulaFPrimeClaimReplayArmKind,
+    build_production_claim_coordinate_overlay_low_norm_r1cs, build_production_claim_replay_base_low_norm_r1cs,
+    claim_replay_shape_audit_for_chunk_fields, production_claim_coordinate_overlay_kind_count,
+    production_claim_coordinate_overlay_kind_map, production_claim_coordinate_overlay_link_runs,
+    production_claim_coordinate_overlay_links, production_claim_coordinate_overlay_shape_audit,
+    production_claim_replay_base_shape_audit, production_claim_replay_shape_audit,
+    production_claim_running_metadata_field_map, production_claim_statement_fresh_field_map,
+    NebulaFPrimeClaimCoordinateOverlayLinkRun, NebulaFPrimeClaimCoordinateOverlayShapeAudit,
+    NebulaFPrimeClaimCoordinateOverlaySynthesis, NebulaFPrimeClaimReplayArmKind, NebulaFPrimeClaimReplayBaseShapeAudit,
     NebulaFPrimeClaimReplayError, NebulaFPrimeClaimReplayFieldArmAudit, NebulaFPrimeClaimReplayShapeAudit,
     NebulaFPrimeClaimReplaySynthesis,
 };
 #[doc(hidden)]
+pub use streaming_lifecycle_fixed_point::{
+    production_streaming_lifecycle_full_source_fixed_point_audit,
+    NebulaFPrimeStreamingLifecycleFullSourceFixedPointAudit, NebulaFPrimeStreamingLifecycleFullSourceFixedPointRound,
+    NebulaFPrimeStreamingLifecycleFullSourceFixedPointShape, NebulaFPrimeStreamingLifecycleFullSourceShape,
+    STREAMING_LIFECYCLE_FULL_SOURCE_JOINT_DOMAIN_BITS,
+};
+#[doc(hidden)]
+pub use streaming_lifecycle_profile::{
+    production_streaming_lifecycle_profile, NebulaFPrimeStreamingLifecycleArmProfile,
+    NebulaFPrimeStreamingLifecycleColumnLayout, NebulaFPrimeStreamingLifecycleDecoderTerm,
+    NebulaFPrimeStreamingLifecycleFieldBinding, NebulaFPrimeStreamingLifecycleFinalRowRun,
+    NebulaFPrimeStreamingLifecycleProfile, NebulaFPrimeStreamingLifecycleProfileError,
+    NebulaFPrimeStreamingLifecycleRewriteBinding, NebulaFPrimeStreamingLifecycleSourceRunBinding,
+    NebulaFPrimeStreamingLifecycleStageBinding, NebulaFPrimeStreamingLifecycleXOutBinding,
+    STREAMING_LIFECYCLE_BASE_SOURCE_ARTIFACT_ID, STREAMING_LIFECYCLE_FINAL_ARTIFACT_ID, STREAMING_LIFECYCLE_PROFILE_ID,
+    STREAMING_LIFECYCLE_RECURSIVE_SOURCE_ARTIFACT_ID,
+};
+#[doc(hidden)]
+pub use streaming_lifecycle_relation::{
+    prepare_streaming_lifecycle_preprocessing, synthesize_streaming_lifecycle_source_arms,
+    synthesize_streaming_lifecycle_source_arms_with_recursive_assignment, NebulaFPrimeStreamingLaneSourceColumns,
+    NebulaFPrimeStreamingLifecycleArm, NebulaFPrimeStreamingLifecycleSourceArms,
+    NebulaFPrimeStreamingPhaseEnvelopeFields,
+};
+#[doc(hidden)]
+pub use streaming_phase_envelope::{
+    enforce_streaming_phase_semantic_digest, streaming_phase_semantic_digest, STREAMING_CARRY_PHASE_ENVELOPE_FAMILY,
+    STREAMING_DELAYED_NEBULA_PAYLOAD_FIELDS, STREAMING_PHASE_AFTER_DELAYED_PAYLOAD_FAMILY,
+    STREAMING_PHASE_AFTER_LOCAL_STATE_FAMILY, STREAMING_PHASE_BEFORE_DELAYED_PAYLOAD_FAMILY,
+    STREAMING_PHASE_BEFORE_LOCAL_STATE_FAMILY,
+};
+#[doc(hidden)]
+pub use streaming_pi_ccs_round_relation::{
+    production_pi_ccs_round_source_arm, NebulaFPrimePiCcsRoundArithmeticBinding, NebulaFPrimePiCcsRoundColumnLayout,
+    NebulaFPrimePiCcsRoundRelationError, NebulaFPrimePiCcsRoundShapeAudit, NebulaFPrimePiCcsRoundSourceStage,
+    NebulaFPrimePiCcsRoundSynthesis, PI_CCS_ROUND_AFTER_LAST_PROGRAM_CURSOR, PI_CCS_ROUND_ARITHMETIC_BINDING,
+    PI_CCS_ROUND_COMPACT_ARITHMETIC_ARTIFACT_ID, PI_CCS_ROUND_FINAL_COMMON_PUBLIC_COLUMNS,
+    PI_CCS_ROUND_FIRST_PROGRAM_CURSOR, PI_CCS_ROUND_LIFECYCLE_SCOPE, PI_CCS_ROUND_PROFILE_ID,
+    PI_CCS_ROUND_SOURCE_ARTIFACT_ID, PI_CCS_ROUND_SOURCE_COLUMNS, PI_CCS_ROUND_SOURCE_COLUMN_LAYOUT,
+    PI_CCS_ROUND_SOURCE_POSEIDON2_PERMUTATIONS, PI_CCS_ROUND_SOURCE_PUBLIC_COLUMNS, PI_CCS_ROUND_SOURCE_ROWS,
+    PI_CCS_ROUND_SOURCE_SHA256, PI_CCS_ROUND_SOURCE_STAGE_SCHEDULE, STREAMING_PI_CCS_ROUND_AFTER_STATE_FAMILY,
+    STREAMING_PI_CCS_ROUND_ARITHMETIC_FAMILY, STREAMING_PI_CCS_ROUND_BEFORE_STATE_FAMILY,
+    STREAMING_PI_CCS_ROUND_COEFFICIENT_FAMILY, STREAMING_PI_CCS_ROUND_LIFECYCLE_CARRY_FAMILY,
+    STREAMING_PI_CCS_ROUND_STATE_DIGEST_FAMILY, STREAMING_PI_CCS_ROUND_STATE_TRANSITION_FAMILY,
+    STREAMING_PI_CCS_ROUND_TRANSCRIPT_FAMILY,
+};
+#[doc(hidden)]
+pub use streaming_pi_ccs_start_relation::{
+    production_pi_ccs_start_source_arm, NebulaFPrimePiCcsStartColumnLayout, NebulaFPrimePiCcsStartRelationError,
+    NebulaFPrimePiCcsStartShapeAudit, NebulaFPrimePiCcsStartSourceStage, NebulaFPrimePiCcsStartSynthesis,
+    PI_CCS_START_AFTER_PROGRAM_CURSOR, PI_CCS_START_BEFORE_PROGRAM_CURSOR, PI_CCS_START_FINAL_BINDING_STATUS,
+    PI_CCS_START_FINAL_COMMON_PUBLIC_COLUMNS, PI_CCS_START_LIFECYCLE_SCOPE, PI_CCS_START_PROFILE_ID,
+    PI_CCS_START_SOURCE_ARTIFACT_ID, PI_CCS_START_SOURCE_COLUMNS, PI_CCS_START_SOURCE_COLUMN_LAYOUT,
+    PI_CCS_START_SOURCE_HASH_SCHEMA, PI_CCS_START_SOURCE_POSEIDON2_PERMUTATIONS, PI_CCS_START_SOURCE_PUBLIC_COLUMNS,
+    PI_CCS_START_SOURCE_ROWS, PI_CCS_START_SOURCE_SHA256, PI_CCS_START_SOURCE_STAGE_SCHEDULE,
+    STREAMING_PI_CCS_START_CLAIM_STATE_FAMILY, STREAMING_PI_CCS_START_CONTEXT_FAMILY,
+    STREAMING_PI_CCS_START_INITIAL_CLAIM_FAMILY, STREAMING_PI_CCS_START_LIFECYCLE_CARRY_FAMILY,
+    STREAMING_PI_CCS_START_READY_FAMILY, STREAMING_PI_CCS_START_TRANSCRIPT_FAMILY,
+    STREAMING_PI_CCS_START_VARIABLE_BINDING_FAMILY, STREAMING_PI_CCS_START_VARIABLE_FIELDS_FAMILY,
+};
+#[doc(hidden)]
+pub use streaming_pi_rlc_family_relation::{
+    build_production_pi_rlc_family_body_low_norm_r1cs, build_production_pi_rlc_family_overlay_low_norm_r1cs,
+    production_pi_rlc_family_body_algebra_retained_audit, production_pi_rlc_family_body_carry_retained_audit,
+    production_pi_rlc_family_body_compiler_audit, production_pi_rlc_family_body_decoder_runs,
+    production_pi_rlc_family_body_opening_rows_audit, production_pi_rlc_family_body_residual_retained_audit,
+    production_pi_rlc_family_body_row_ledger, production_pi_rlc_family_body_source_arms,
+    production_pi_rlc_family_normalized_link_audit, production_pi_rlc_family_overlay_kind_map,
+    production_pi_rlc_family_overlay_link_runs, production_pi_rlc_family_overlay_links,
+    production_pi_rlc_family_overlay_retained_audit, NebulaFPrimePiRlcBodyAlgebraRetainedAudit,
+    NebulaFPrimePiRlcBodyCarryRetainedAudit, NebulaFPrimePiRlcBodyFixedEmittedRun, NebulaFPrimePiRlcBodyFixedFamily,
+    NebulaFPrimePiRlcBodyOpeningRowsAudit, NebulaFPrimePiRlcBodyResidualRetainedAudit,
+    NebulaFPrimePiRlcBodyRetainedRun, NebulaFPrimePiRlcBodyRewriteBatch, NebulaFPrimePiRlcBodyRewriteKind,
+    NebulaFPrimePiRlcFamilyBodyRowLedger, NebulaFPrimePiRlcFamilyBodyShapeAudit, NebulaFPrimePiRlcFamilyBodySynthesis,
+    NebulaFPrimePiRlcFamilyNormalizedLinkAudit, NebulaFPrimePiRlcFamilyNormalizedLinkRunAudit,
+    NebulaFPrimePiRlcFamilyOverlayLinkRun, NebulaFPrimePiRlcFamilyOverlayRetainedAudit,
+    NebulaFPrimePiRlcFamilyOverlayShapeAudit, NebulaFPrimePiRlcFamilyOverlaySynthesis,
+    NebulaFPrimePiRlcFamilyRelationError, PI_RLC_FAMILY_BODY_EVEN_COLUMNS, PI_RLC_FAMILY_BODY_EVEN_ROWS,
+    PI_RLC_FAMILY_BODY_EVEN_SOURCE_ROWS, PI_RLC_FAMILY_BODY_ODD_COLUMNS, PI_RLC_FAMILY_BODY_ODD_ROWS,
+    PI_RLC_FAMILY_BODY_ODD_SOURCE_ROWS, PI_RLC_FAMILY_BODY_PUBLIC_OUTPUTS, PI_RLC_FAMILY_BODY_SOURCE_ROWS,
+    PI_RLC_FAMILY_COUNT, PI_RLC_FAMILY_LINK_FIELDS, PI_RLC_FAMILY_OVERLAY_COLUMNS, PI_RLC_FAMILY_OVERLAY_ROWS,
+    PI_RLC_GLOBAL_INPUT_FIELDS, PI_RLC_MESSAGE_COLUMNS,
+};
+#[doc(hidden)]
+pub use streaming_pi_rlc_family_replay::{
+    NebulaFPrimePiRlcFamilyReplayArmKind, NebulaFPrimePiRlcFamilyReplayShapeAudit,
+    NebulaFPrimePiRlcFamilyReplaySynthesis,
+};
+#[doc(hidden)]
 pub use streaming_program::{
-    NebulaFPrimeStreamingPhase, NebulaFPrimeStreamingProgramAudit, NebulaFPrimeStreamingRun,
-    NebulaFPrimeStreamingWorkItem,
+    NebulaFPrimeStreamingCircuitKind, NebulaFPrimeStreamingPhase, NebulaFPrimeStreamingProgramAudit,
+    NebulaFPrimeStreamingRun, NebulaFPrimeStreamingWorkItem,
+};
+#[doc(hidden)]
+pub use streaming_public::NebulaFPrimeStreamingPublicLayout;
+#[doc(hidden)]
+pub use streaming_relation::{
+    build_production_combined_overlay_low_norm_r1cs, build_production_streaming_schedule_low_norm_r1cs,
+    build_production_streaming_schedule_with_overlays_low_norm_r1cs, production_combined_overlay_kind_count,
+    production_combined_overlay_kind_map, production_combined_overlay_links, production_phase_envelope_link_profile,
+    NebulaFPrimeStreamingPhaseEnvelopeLinkProfile, NebulaFPrimeStreamingRelationError,
+};
+#[doc(hidden)]
+pub use streaming_state_envelope::enforce_streaming_state_x_out_bits;
+#[doc(hidden)]
+pub use streaming_terminal_profile::{
+    production_streaming_terminal_profile, NebulaFPrimeStreamingTerminalColumnLayout,
+    NebulaFPrimeStreamingTerminalDecoderTerm, NebulaFPrimeStreamingTerminalFieldBinding,
+    NebulaFPrimeStreamingTerminalFieldDomain, NebulaFPrimeStreamingTerminalFinalRowRun,
+    NebulaFPrimeStreamingTerminalLaneBinding, NebulaFPrimeStreamingTerminalProfile,
+    NebulaFPrimeStreamingTerminalProfileError, NebulaFPrimeStreamingTerminalSliceBinding,
+    NebulaFPrimeStreamingTerminalSourceStageBinding, NebulaFPrimeStreamingTerminalXOutBinding,
+    STREAMING_TERMINAL_ACCEPTED_WORK_ITEMS, STREAMING_TERMINAL_FINAL_ARTIFACT_ID, STREAMING_TERMINAL_PROFILE_ID,
+    STREAMING_TERMINAL_SOURCE_ARTIFACT_ID,
 };
 
 use std::sync::Arc;

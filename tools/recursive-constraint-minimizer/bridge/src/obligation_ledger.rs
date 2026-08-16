@@ -6,8 +6,8 @@
 use std::collections::BTreeSet;
 
 use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
-    TERMINAL_CONTEXT_GUARD_NAMES, TERMINAL_PROOF_GUARD_NAMES, TERMINAL_R1CS_FAMILY_NAMES,
-    TERMINAL_STATEMENT_GUARD_NAMES,
+    STREAMING_TERMINAL_R1CS_FAMILY_NAMES, TERMINAL_CONTEXT_GUARD_NAMES, TERMINAL_PROOF_GUARD_NAMES,
+    TERMINAL_R1CS_FAMILY_NAMES, TERMINAL_STATEMENT_GUARD_NAMES,
 };
 use neo_fold_clean::paper::construction2::TRIVIAL_PC;
 use neo_fold_clean::paper::f_prime::stage as fprime_stage;
@@ -19,11 +19,14 @@ use super::ExportError;
 
 const FIXED_ONE_PROGRAM: &str = "nightstream.profile.fixed_one_program";
 const COMBINED_PRE_FINAL_SPARTAN: &str = "nightstream.lifecycle.combined_pre_final_spartan";
+const STREAMING_COMMON_PUBLIC: &str = "nightstream.streaming.common_public_648";
+const STREAMING_EXACT_ACTIVE_ARM: &str = "nightstream.streaming.exactly_one_active_arm";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Paper {
     SuperNeo,
     HyperNova,
+    Nebula,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,6 +42,7 @@ pub enum EvidenceKind {
     TerminalRowFamily,
     TerminalNativeGuard,
     TerminalLifecycle,
+    StreamingTerminalRowFamily,
     FixedProfileInvariant,
     OpenCheck,
 }
@@ -523,7 +527,7 @@ const OBLIGATIONS: &[PaperObligation] = &[
         paper: Paper::HyperNova,
         id: "hypernova.terminal_linkage",
         statement: "The terminal verifier closes the exact combined Nebula running and fresh relations.",
-        state: ObligationState::Mapped,
+        state: ObligationState::Open,
         evidence: &[
             ObligationEvidence {
                 kind: EvidenceKind::TerminalNativeGuard,
@@ -541,6 +545,18 @@ const OBLIGATIONS: &[PaperObligation] = &[
                 kind: EvidenceKind::TerminalLifecycle,
                 name: COMBINED_PRE_FINAL_SPARTAN,
             },
+            ObligationEvidence {
+                kind: EvidenceKind::StreamingTerminalRowFamily,
+                name: "terminal.streaming.nebula_finalizer",
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::StreamingTerminalRowFamily,
+                name: "terminal.streaming.nebula_closed",
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::OpenCheck,
+                name: "integrate the streaming lifecycle rows into the terminal Spartan compiler",
+            },
         ],
     },
     PaperObligation {
@@ -552,6 +568,90 @@ const OBLIGATIONS: &[PaperObligation] = &[
             kind: EvidenceKind::OpenCheck,
             name: "freeze the production profile and solve the regenerated recursive fixed point",
         }],
+    },
+    PaperObligation {
+        paper: Paper::Nebula,
+        id: "nebula.common_public_and_exact_active_arm",
+        statement: "Every selected phase uses one common public input and exactly one Boolean arm is active.",
+        state: ObligationState::Mapped,
+        evidence: &[
+            ObligationEvidence {
+                kind: EvidenceKind::FixedProfileInvariant,
+                name: STREAMING_COMMON_PUBLIC,
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::FixedProfileInvariant,
+                name: STREAMING_EXACT_ACTIVE_ARM,
+            },
+        ],
+    },
+    PaperObligation {
+        paper: Paper::Nebula,
+        id: "nebula.commit_then_challenge",
+        statement: "Nebula challenges are transcript-derived after the carried commitment sidecars are bound.",
+        state: ObligationState::Mapped,
+        evidence: &[
+            ObligationEvidence {
+                kind: EvidenceKind::RecursiveRowFamily,
+                name: fprime_stage::RECURSIVE_TRANSCRIPT,
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::RecursiveRowFamily,
+                name: pi_ccs_stage::PREFIX,
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::RecursiveRowFamily,
+                name: pi_rlc_stage::PROJECTION_BINDING_TRANSCRIPT_BETA,
+            },
+        ],
+    },
+    PaperObligation {
+        paper: Paper::Nebula,
+        id: "nebula.delayed_commitment_finalization",
+        statement: "Terminal acceptance opens the trailing fresh commitment and finalizes that same delayed Nebula payload.",
+        state: ObligationState::Open,
+        evidence: &[
+            ObligationEvidence {
+                kind: EvidenceKind::TerminalRowFamily,
+                name: "terminal.fresh.commitment",
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::StreamingTerminalRowFamily,
+                name: "terminal.streaming.source_binding",
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::StreamingTerminalRowFamily,
+                name: "terminal.streaming.nebula_finalizer",
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::OpenCheck,
+                name: "compile the streaming source binding and delayed finalizer into terminal Spartan",
+            },
+        ],
+    },
+    PaperObligation {
+        paper: Paper::Nebula,
+        id: "nebula.program_state_digest_and_closed_lane",
+        statement: "The terminal relation recomputes program binding and lane state digests and accepts only the canonical closed lane.",
+        state: ObligationState::Open,
+        evidence: &[
+            ObligationEvidence {
+                kind: EvidenceKind::StreamingTerminalRowFamily,
+                name: "terminal.streaming.nebula_state_digest",
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::StreamingTerminalRowFamily,
+                name: "terminal.streaming.nebula_program_binding",
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::StreamingTerminalRowFamily,
+                name: "terminal.streaming.nebula_closed",
+            },
+            ObligationEvidence {
+                kind: EvidenceKind::OpenCheck,
+                name: "compile and prove the streaming Nebula digest and closed-lane families",
+            },
+        ],
     },
 ];
 
@@ -568,6 +668,9 @@ pub fn validate_paper_obligation_ledger(
     let base = base_families.iter().copied().collect::<BTreeSet<_>>();
     let recursive = recursive_families.iter().copied().collect::<BTreeSet<_>>();
     let terminal = TERMINAL_R1CS_FAMILY_NAMES
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let streaming_terminal = STREAMING_TERMINAL_R1CS_FAMILY_NAMES
         .into_iter()
         .collect::<BTreeSet<_>>();
     let terminal_guards = TERMINAL_CONTEXT_GUARD_NAMES
@@ -604,7 +707,12 @@ pub fn validate_paper_obligation_ledger(
                 EvidenceKind::TerminalRowFamily => terminal.contains(item.name),
                 EvidenceKind::TerminalNativeGuard => terminal_guards.contains(item.name),
                 EvidenceKind::TerminalLifecycle => item.name == COMBINED_PRE_FINAL_SPARTAN,
-                EvidenceKind::FixedProfileInvariant => item.name == FIXED_ONE_PROGRAM && TRIVIAL_PC == 1,
+                EvidenceKind::StreamingTerminalRowFamily => streaming_terminal.contains(item.name),
+                EvidenceKind::FixedProfileInvariant => match item.name {
+                    FIXED_ONE_PROGRAM => TRIVIAL_PC == 1,
+                    STREAMING_COMMON_PUBLIC | STREAMING_EXACT_ACTIVE_ARM => true,
+                    _ => false,
+                },
                 EvidenceKind::OpenCheck => {
                     has_open_check = true;
                     true
@@ -624,8 +732,31 @@ pub fn validate_paper_obligation_ledger(
             )));
         }
     }
-    if papers != BTreeSet::from([Paper::SuperNeo, Paper::HyperNova]) {
-        return Err(ExportError::new("paper obligation ledger does not cover both papers"));
+    if papers != BTreeSet::from([Paper::SuperNeo, Paper::HyperNova, Paper::Nebula]) {
+        return Err(ExportError::new(
+            "paper obligation ledger does not cover SuperNeo, HyperNova, and Nebula",
+        ));
     }
     Ok(())
+}
+
+/// Reject a full lifecycle audit while any paper obligation remains open.
+pub fn require_complete_lifecycle_target_ready(
+    base_families: &[&str],
+    recursive_families: &[&str],
+) -> Result<(), ExportError> {
+    validate_paper_obligation_ledger(base_families, recursive_families)?;
+    let open = OBLIGATIONS
+        .iter()
+        .filter(|obligation| obligation.state == ObligationState::Open)
+        .map(|obligation| obligation.id)
+        .collect::<Vec<_>>();
+    if open.is_empty() {
+        Ok(())
+    } else {
+        Err(ExportError::new(format!(
+            "complete lifecycle target is not ready; open obligations: {}",
+            open.join(", ")
+        )))
+    }
 }

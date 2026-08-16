@@ -58,7 +58,7 @@ use super::ternary_encoding::{
 };
 use signed_unit::LowNormAssignmentWriter;
 use support::{encoded_matrix_rows, first_unsatisfied_structure_row, is_structure_satisfied};
-pub(crate) use support::{normalized_field_assignment, normalized_source_column};
+pub(crate) use support::{normalized_field_assignment, normalized_field_column, normalized_source_column};
 
 /// Sparse relation and matching assignment produced from one synthesis.
 #[derive(Debug)]
@@ -277,6 +277,10 @@ impl MultiBranchLowNormR1cs {
 
     pub fn field_slot(&self, arm: usize, field_col: usize) -> Option<(usize, usize)> {
         self.arm_slots.get(arm)?.get(field_col).copied()?.get()
+    }
+
+    pub(crate) fn source_field_decoding_terms(&self, arm: usize, field_col: usize) -> Result<Vec<(usize, F)>, String> {
+        super::grouped_phase::decoded_source_field_terms(self, arm, field_col)
     }
 
     pub fn is_satisfied(&self, assignment: &[F]) -> bool {

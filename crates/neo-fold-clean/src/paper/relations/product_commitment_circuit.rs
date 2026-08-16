@@ -25,6 +25,34 @@ pub struct CommitmentWires {
 /// The three Nebula commitment coordinates of the product commitment.
 pub type AdvCommitmentWires = LaneCommitments<CommitmentWires>;
 
+/// Commitment data needed by a verifier that already owns the fixed shape.
+///
+/// This view omits the allocated shape variables. It lets terminal opening
+/// rows and the delayed Nebula finalizer consume the same public commitment
+/// coordinates without allocating a second copy.
+#[derive(Clone, Debug)]
+pub struct CommitmentDataWires {
+    pub d: usize,
+    pub kappa: usize,
+    pub data: Vec<Var>,
+}
+
+/// Data-only view of the three Nebula commitment coordinates.
+pub type AdvCommitmentDataWires = LaneCommitments<CommitmentDataWires>;
+
+pub fn adv_commitment_data_wires(adv: &AdvCommitmentWires) -> AdvCommitmentDataWires {
+    let project = |commitment: &CommitmentWires| CommitmentDataWires {
+        d: commitment.d,
+        kappa: commitment.kappa,
+        data: commitment.data.clone(),
+    };
+    LaneCommitments {
+        ops: project(&adv.ops),
+        is: project(&adv.is),
+        fs: project(&adv.fs),
+    }
+}
+
 pub fn alloc_commitment(builder: &mut R1csBuilder, commitment: &Commitment) -> CommitmentWires {
     CommitmentWires {
         d: commitment.d,
@@ -57,6 +85,31 @@ pub fn validate_adv_shape(
         if commitment.d != expected_d || commitment.kappa != expected_kappa {
             return Err(format!(
                 "{label}.adv.{lane}: commitment shape differs from main coordinate"
+            ));
+        }
+        let expected_len = expected_d * expected_kappa;
+        if commitment.data.len() != expected_len {
+            return Err(format!(
+                "{label}.adv.{lane}.data.len ({}) != d*kappa ({expected_len})",
+                commitment.data.len()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Validate a data-only `adv` view against one verifier-owned commitment
+/// shape. All three lane commitments must use the same exact shape.
+pub fn validate_adv_data_shape(
+    adv: &AdvCommitmentDataWires,
+    expected_d: usize,
+    expected_kappa: usize,
+    label: &str,
+) -> Result<(), String> {
+    for (lane, commitment) in [("ops", &adv.ops), ("is", &adv.is), ("fs", &adv.fs)] {
+        if commitment.d != expected_d || commitment.kappa != expected_kappa {
+            return Err(format!(
+                "{label}.adv.{lane}: commitment shape differs from verifier-owned shape"
             ));
         }
         let expected_len = expected_d * expected_kappa;

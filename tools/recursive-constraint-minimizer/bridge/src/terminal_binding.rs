@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use std::ops::Range;
 
 use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
-    TerminalR1csConstraintAudit, TERMINAL_CONTEXT_GUARD_NAMES, TERMINAL_PROOF_GUARD_NAMES, TERMINAL_R1CS_FAMILY_NAMES,
+    TerminalR1csConstraintAudit, TERMINAL_CONTEXT_GUARD_NAMES, TERMINAL_PROOF_GUARD_NAMES,
     TERMINAL_STATEMENT_GUARD_NAMES,
 };
 use recursive_constraint_minimizer::{Problem, Row, Term};
@@ -347,9 +347,13 @@ fn validate_terminal_audit(audit: &TerminalR1csConstraintAudit) -> Result<(), Ex
             "terminal source-to-Spartan map is not injective and in range",
         ));
     }
-    let reviewed = TERMINAL_R1CS_FAMILY_NAMES
-        .into_iter()
-        .collect::<BTreeSet<_>>();
+    let reviewed_names = audit.reviewed_family_names();
+    let reviewed = reviewed_names.iter().copied().collect::<BTreeSet<_>>();
+    if reviewed.is_empty() || reviewed.len() != reviewed_names.len() || reviewed.iter().any(|name| name.is_empty()) {
+        return Err(ExportError::new(
+            "terminal reviewed row-family vocabulary is empty or ambiguous",
+        ));
+    }
     let mut seen = BTreeSet::new();
     let mut cursor = 0usize;
     for range in audit.row_families() {

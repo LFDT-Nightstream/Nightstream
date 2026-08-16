@@ -473,6 +473,5 @@ def rawArtifact : RawArtifact :=
   { schemaVersion := 1, profileId := "nebula-f-prime-streaming-pi-rlc-family-replay-v1",
     sourceColumns := 146224, even := evenArm, odd := oddArm }
 
-theorem rawArtifact_valid : rawArtifact.Valid := by native_decide
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyReplay

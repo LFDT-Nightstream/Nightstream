@@ -1,5 +1,6 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyDigestDomain
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyPublicArtifact
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCPhaseEnvelope
 import Nightstream.Implementation.R1CS.Correspondence.PiRlcChallenge.Transcript.ColumnReplay
 import Nightstream.Implementation.R1CS.Canonical.Poseidon2Normalized
 
@@ -9,13 +10,13 @@ streaming PiRLC family arm.
 
 Owns the four fixed field-framing words, the exact 937-field before and after
 local preimages, the 236 connected Poseidon2 calls for each local digest, the
-placement of those digests in full XOut preimages, and the eight full-XOut
-public digest-word roles.
+placement of those digests in the phase-envelope source columns, and the eight
+full-XOut public digest-word roles.
 
 Does not own collision resistance, the full XOut hash execution,
-interpretation of the other XOut fields, the two global cursor words, the
-source-prefix relation, selective lowering, or recursive lifecycle
-integration.
+the phase-envelope hash, interpretation of the XOut fields, the two global
+cursor words, the source-prefix relation, selective lowering, or recursive
+lifecycle integration.
 
 The generated artifact supplies only physical columns and call slices. The
 handwritten operation list supplies protocol meaning. A digest is accepted
@@ -45,6 +46,27 @@ inductive StateSide where
   | after
   | before
 deriving DecidableEq, Repr
+
+/-- Phase-envelope boundary that corresponds to one local-state boundary. -/
+def phaseEnvelopeSideFor : StateSide →
+    FPrimeFullHistoryStreamingPiRLCPhaseEnvelope.Artifact.StateSide
+  | .after => .after
+  | .before => .before
+
+/-- Exact generated phase-envelope arm for one public-suffix parity. -/
+def phaseEnvelopeArmFor (kind : ArmKind) :
+    FPrimeFullHistoryStreamingPiRLCPhaseEnvelope.Artifact.RawArm :=
+  match kind with
+  | .even =>
+      Artifacts.FPrimeFullHistory.StreamingPiRLCPhaseEnvelope.evenArm
+  | .odd =>
+      Artifacts.FPrimeFullHistory.StreamingPiRLCPhaseEnvelope.oddArm
+
+/-- Exact local-digest source column consumed by the phase envelope. -/
+def phaseEnvelopeLocalSourceColumn
+    (kind : ArmKind) (side : StateSide) (lane : Fin 4) : Nat :=
+  ((phaseEnvelopeArmFor kind).localSourceColumns
+    (phaseEnvelopeSideFor side)).getD lane.val 0
 
 /-! ## Exact physical schedule -/
 
@@ -503,21 +525,21 @@ theorem x_out_digest_public_word
   rw [public_word_refines kind (xOutPublicWordIndex side lane) assignment
     canonical one satisfied, public_x_out_field_column_exact]
 
-/-- The local semantic state digest occupies fields 19 through 22 of the
-complete 32-field XOut preimage. -/
-theorem state_digest_x_out_preimage
+/-- The local family-state digest occupies the exact source columns consumed
+by the phase envelope. It is not itself the outer XOut semantic digest. -/
+theorem state_digest_phase_envelope_source
     (kind : ArmKind) (side : StateSide) (lane : Fin 4)
     (assignment : Nat → Nat)
     (canonical : ∀ column, assignment column < goldilocksP)
     (one : assignment 0 = 1)
     (satisfied : (armFor kind).Satisfied assignment) :
     (stateDigest assignment canonical kind side lane).val =
-      assignment (xOutPreimageColumn kind side (19 + lane.val)) := by
+      assignment (phaseEnvelopeLocalSourceColumn kind side lane) := by
   have digestEqual := congrFun
     (state_digest_refines kind side assignment canonical one satisfied) lane
   have columnEqual :
       digestOutputColumns kind side lane =
-        xOutPreimageColumn kind side (19 + lane.val) := by
+        phaseEnvelopeLocalSourceColumn kind side lane := by
     cases kind <;> cases side <;> fin_cases lane <;> native_decide
   exact (congrArg Fin.val digestEqual).trans (congrArg assignment columnEqual)
 

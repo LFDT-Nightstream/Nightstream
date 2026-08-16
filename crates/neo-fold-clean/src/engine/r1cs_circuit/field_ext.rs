@@ -31,7 +31,7 @@ use crate::engine::r1cs_circuit::builder::{
 use crate::engine::r1cs_circuit::encoding_trace::KMulTraceEntry;
 
 /// `K = F[X]/(X² − W)`. For Goldilocks-quadratic, `W = 7`.
-fn w_constant() -> F {
+pub(crate) fn w_constant() -> F {
     <Fq as BinomiallyExtendable<2>>::W
 }
 

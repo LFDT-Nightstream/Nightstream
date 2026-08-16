@@ -68,6 +68,38 @@ name = "nebula_streaming_claim_replay"
 path = "tests/nebula/streaming_claim_replay.rs"
 
 [[test]]
+name = "nebula_streaming_pi_rlc_family_replay"
+path = "tests/nebula/streaming_pi_rlc_family_replay.rs"
+
+[[test]]
+name = "nebula_streaming_pi_rlc_family_relation"
+path = "tests/nebula/streaming_pi_rlc_family_relation.rs"
+
+[[test]]
+name = "nebula_streaming_pi_rlc_family_public"
+path = "tests/nebula/streaming_pi_rlc_family_public.rs"
+
+[[test]]
+name = "nebula_streaming_pi_rlc_phase_envelope"
+path = "tests/nebula/streaming_pi_rlc_phase_envelope.rs"
+
+[[test]]
+name = "nebula_streaming_state_envelope"
+path = "tests/nebula/streaming_state_envelope.rs"
+
+[[test]]
+name = "nebula_streaming_lifecycle_profile"
+path = "tests/nebula/streaming_lifecycle_profile.rs"
+
+[[test]]
+name = "nebula_streaming_terminal_profile"
+path = "tests/nebula/streaming_terminal_profile.rs"
+
+[[test]]
+name = "f_prime_scheduled_linked_overlay"
+path = "tests/f_prime/scheduled_linked_overlay.rs"
+
+[[test]]
 name = "gadgets_u64_and_mux"
 path = "tests/gadgets/u64_and_mux.rs"
 
@@ -282,6 +314,14 @@ path = "tests/f_prime/selective_snapshot.rs"
 [[test]]
 name = "f_prime_selective_structure_census"
 path = "tests/f_prime/selective_structure_census.rs"
+
+[[test]]
+name = "f_prime_grouped_phase"
+path = "tests/f_prime/grouped_phase.rs"
+
+[[test]]
+name = "f_prime_scheduled_grouped_phase"
+path = "tests/f_prime/scheduled_grouped_phase.rs"
 
 [[test]]
 name = "f_prime_pi_dec_selective_rows"
@@ -502,6 +542,22 @@ path = "tests/nebula/f_prime.rs"
 [[test]]
 name = "nebula_streaming_program"
 path = "tests/nebula/streaming_program.rs"
+
+[[test]]
+name = "nebula_pi_rlc_family_selective_ccs"
+path = "tests/nebula/pi_rlc_family_selective_ccs.rs"
+
+[[test]]
+name = "nebula_pi_ccs_round_selective_ccs"
+path = "tests/nebula/pi_ccs_round_selective_ccs.rs"
+
+[[test]]
+name = "nebula_streaming_pi_ccs_round_relation"
+path = "tests/nebula/streaming_pi_ccs_round_relation.rs"
+
+[[test]]
+name = "nebula_streaming_pi_ccs_start_relation"
+path = "tests/nebula/streaming_pi_ccs_start_relation.rs"
 
 [[test]]
 name = "nebula_adv"

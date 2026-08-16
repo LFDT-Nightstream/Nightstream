@@ -16,7 +16,7 @@ use neo_fold_clean::paper::nifs::circuit::{
     enforce_nifs_v_circuit_with_transcript, NifsVCircuitConfig, NifsVCircuitMessages, NifsVOutputs,
 };
 use neo_fold_clean::paper::nifs::NifsProof;
-use neo_fold_clean::paper::reductions::pi_ccs_circuit::PiCcsVerifierConfig;
+use neo_fold_clean::paper::reductions::pi_ccs_circuit::{enforce_pi_ccs, PiCcsVerifierConfig, PiCcsVerifierMessages};
 use neo_fold_clean::paper::relations::{superneo_public_x_cols, CcsClaim, LaneRanges, LaneScheme};
 use neo_fold_clean::paper::{pi_dec, pi_rlc};
 use neo_fold_clean::{CeClaim, Preprocessing};
@@ -377,6 +377,56 @@ fn nifs_v_must_reject_unforwarded_fresh_adv() {
         assert!(
             !builder.is_satisfied(),
             "NIFS.V accepted a fresh adv tuple that is absent from the proved Pi_CCS output"
+        );
+    }
+}
+
+#[test]
+fn recursive_pi_ccs_rejects_unforwarded_output_adv() {
+    for mutate_running_output in [false, true] {
+        let mut fixture = build_honest_fixture_with_adv(true);
+        let output_index = if mutate_running_output {
+            fixture.fresh_claims.len()
+        } else {
+            0
+        };
+        fixture.proof.pi_ccs.outputs[output_index]
+            .adv
+            .as_mut()
+            .expect("output adv")
+            .ops
+            .data[0] += F::ONE;
+
+        let mut native_tr = Transcript::session();
+        assert!(
+            neo_fold_clean::paper::pi_ccs::verify(
+                &mut native_tr,
+                &fixture.prep.params,
+                fixture.prep.structure(),
+                fixture.prep.optimized_cache(),
+                &fixture.fresh_claims,
+                &fixture.running,
+                &fixture.proof.pi_ccs,
+            )
+            .is_err(),
+            "fixture precondition: native PiCCS.V must reject output adv that was not forwarded"
+        );
+
+        let mut builder = R1csBuilder::new();
+        let mut circuit_tr = TranscriptGadget::new(&mut builder, SESSION_LABEL);
+        let messages = PiCcsVerifierMessages {
+            fresh: &fixture.fresh_claims,
+            running: &fixture.running.claims,
+            running_parent_authority: fixture.running.parent_authority.as_ref(),
+            outputs: &fixture.proof.pi_ccs.outputs,
+            outputs_digest: fixture.proof.pi_ccs.outputs_digest,
+            sumcheck_rounds: &fixture.proof.pi_ccs.sumcheck.sumcheck_rounds,
+        };
+        enforce_pi_ccs(&mut builder, &mut circuit_tr, &pi_ccs_config(&fixture.prep), &messages)
+            .expect("recursive PiCCS.V synthesis");
+        assert!(
+            !builder.is_satisfied(),
+            "native/recursive differential: recursive PiCCS.V accepted output adv that differs from its input"
         );
     }
 }

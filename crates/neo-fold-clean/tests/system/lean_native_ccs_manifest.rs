@@ -12,7 +12,8 @@ use neo_fold_clean::frontends::r1cs_f_prime::lean_manifest::{ColumnId, PhysicalO
 use neo_fold_clean::frontends::r1cs_f_prime::terminal_r1cs::{
     audit_combined_terminal_context_guards, audit_terminal_context_guards, audit_terminal_statement_guards,
     compile_combined_terminal_r1cs, compile_combined_terminal_r1cs_statement, compile_terminal_r1cs,
-    compile_terminal_r1cs_statement, TerminalR1csInput, TerminalR1csStatement, TerminalRunningStatement,
+    compile_terminal_r1cs_statement, compile_terminal_r1cs_statement_with_nebula_lanes,
+    compile_terminal_r1cs_with_nebula_lanes, TerminalR1csInput, TerminalR1csStatement, TerminalRunningStatement,
     TerminalSpartanEngine, TerminalSpartanStatement, TERMINAL_CONTEXT_GUARD_NAMES, TERMINAL_PROOF_GUARD_NAMES,
     TERMINAL_R1CS_FAMILY_NAMES, TERMINAL_STATEMENT_GUARD_NAMES,
 };
@@ -24,7 +25,8 @@ use neo_fold_clean::paper::digest::{
 use neo_fold_clean::paper::f_prime::r1cs::{encode_f_prime_superneo_public_input, F_PRIME_PUBLIC_INPUT_LEN};
 use neo_fold_clean::paper::params::Params;
 use neo_fold_clean::paper::relations::{
-    superneo_has_canonical_x_shape, superneo_public_x_cols, CcsClaim, CcsInstance, CeClaim, WitnessMat,
+    superneo_has_canonical_x_shape, superneo_public_x_cols, CcsClaim, CcsInstance, CeClaim, LaneRanges, LaneScheme,
+    WitnessMat,
 };
 use neo_fold_clean::{
     finish_combined_with_spartan, finish_uncompressed, finish_with_spartan, prove, verify_combined_spartan,
@@ -129,6 +131,20 @@ fn direct_terminal_fixture(
         vec![zero_witness; manifest.running_claim_count()],
         fresh,
     )
+}
+
+fn direct_terminal_lane_scheme(manifest: &LeanNativeCcsManifest) -> LaneScheme {
+    LaneScheme::from_seeds(
+        manifest.terminal_r1cs().verifier_rows(),
+        LaneRanges {
+            ops: 0..1,
+            is: 1..2,
+            fs: 2..3,
+        },
+        [0xA1; 32],
+        [0xB2; 32],
+    )
+    .expect("terminal lane scheme")
 }
 
 fn direct_combined_terminal_fixture(
@@ -747,6 +763,115 @@ fn terminal_r1cs_proves_and_verifies_with_spartan_and_whir() {
         .expect("direct Spartan proof");
 
     assert_eq!(proof.verify(&verifier_key).expect("WHIR verification"), verifier_public);
+}
+
+#[test]
+fn terminal_nebula_lane_openings_bind_the_same_witness() {
+    let manifest = parse(&valid_manifest()).expect("valid native manifest");
+    let (log, mut running_claims, running_witnesses, mut fresh) = direct_terminal_fixture(&manifest);
+    let lanes = direct_terminal_lane_scheme(&manifest);
+    let zero_adv = lanes
+        .commit(&running_witnesses[0])
+        .expect("zero running lane commitments");
+    for claim in &mut running_claims {
+        claim.adv = Some(zero_adv.clone());
+    }
+    fresh.claim.adv = Some(
+        lanes
+            .commit(&fresh.witness.Z)
+            .expect("fresh lane commitments"),
+    );
+
+    let relation = compile_terminal_r1cs_with_nebula_lanes(
+        &manifest,
+        &log,
+        &lanes,
+        TerminalR1csInput {
+            running_claims: &running_claims,
+            running_witnesses: &running_witnesses,
+            fresh: &fresh,
+        },
+    )
+    .expect("terminal relation with lane openings");
+    let statement = compile_terminal_r1cs_statement_with_nebula_lanes(
+        &manifest,
+        &log,
+        &lanes,
+        TerminalR1csStatement {
+            running_claims: &running_claims,
+            fresh_claim: &fresh.claim,
+        },
+    )
+    .expect("terminal lane-opening statement");
+
+    let base = manifest.terminal_r1cs().cost();
+    let claim_count = running_claims.len() + 1;
+    let added = claim_count * 3 * D * manifest.terminal_r1cs().verifier_rows();
+    assert_eq!(
+        relation.shape().num_constraints_unpadded(),
+        base.recurring_rows() + added
+    );
+    assert_eq!(relation.lean_public_columns(), base.public_columns() + added);
+    assert_eq!(statement.shape(), relation.shape());
+    assert_eq!(statement.public_values(), relation.public_values());
+    assert!(relation
+        .constraint_audit()
+        .source()
+        .is_satisfied(relation.constraint_audit().source().witness()));
+    assert_eq!(
+        relation
+            .constraint_audit()
+            .row_families()
+            .iter()
+            .map(|range| range.name)
+            .collect::<BTreeSet<_>>(),
+        TERMINAL_R1CS_FAMILY_NAMES.into_iter().collect()
+    );
+    let family_rows = |name: &str| {
+        relation
+            .constraint_audit()
+            .row_families()
+            .iter()
+            .filter(|range| range.name == name)
+            .map(|range| range.row_end - range.row_start)
+            .sum::<usize>()
+    };
+    let commitment_rows_per_claim = 4 * D * manifest.terminal_r1cs().verifier_rows();
+    assert_eq!(
+        family_rows("terminal.running.commitment"),
+        running_claims.len() * commitment_rows_per_claim
+    );
+    assert_eq!(family_rows("terminal.fresh.commitment"), commitment_rows_per_claim);
+
+    fresh.claim.adv.as_mut().expect("fresh sidecar").ops.data[0] += F::ONE;
+    assert!(matches!(
+        compile_terminal_r1cs_with_nebula_lanes(
+            &manifest,
+            &log,
+            &lanes,
+            TerminalR1csInput {
+                running_claims: &running_claims,
+                running_witnesses: &running_witnesses,
+                fresh: &fresh,
+            },
+        ),
+        Err(TerminalR1csError::Unsatisfied(_))
+    ));
+
+    fresh.claim.adv = None;
+    assert!(matches!(
+        compile_terminal_r1cs_with_nebula_lanes(
+            &manifest,
+            &log,
+            &lanes,
+            TerminalR1csInput {
+                running_claims: &running_claims,
+                running_witnesses: &running_witnesses,
+                fresh: &fresh,
+            },
+        ),
+        Err(TerminalR1csError::Unsupported(_))
+    ));
 }
 
 #[test]

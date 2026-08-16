@@ -100,6 +100,24 @@ def strictlyIncreasingSourceRows : List IndexedRow → Bool
       decide (first.sourceIndex < second.sourceIndex) &&
         strictlyIncreasingSourceRows (second :: tail)
 
+theorem strictlyIncreasingSourceRows_of_pairwise
+    {rows : List IndexedRow}
+    (pairwise : rows.Pairwise fun left right =>
+      left.sourceIndex < right.sourceIndex) :
+    strictlyIncreasingSourceRows rows = true := by
+  induction rows with
+  | nil => rfl
+  | cons first tail inductionHypothesis =>
+      cases tail with
+      | nil => rfl
+      | cons second rest =>
+          rcases List.pairwise_cons.mp pairwise with
+            ⟨firstBefore, tailPairwise⟩
+          have firstBeforeSecond : first.sourceIndex < second.sourceIndex :=
+            firstBefore second (by simp)
+          simp [strictlyIncreasingSourceRows, firstBeforeSecond,
+            inductionHypothesis tailPairwise]
+
 /-- Structural checks that make the carried Rust problem unambiguous for the
 Goldilocks checker in this module. The diagnostic digest remains metadata. -/
 def WellFormed (artifact : Artifact) : Prop :=
@@ -125,6 +143,62 @@ instance (artifact : Artifact) : Decidable artifact.WellFormed := by
   unfold WellFormed
   infer_instance
 
+/-- Structural input for an artifact validity proof. Large row predicates are
+supplied as reusable leaf facts instead of one complete Boolean decision. -/
+structure StructuralCertificate (artifact : Artifact) : Prop where
+  schemaExact : artifact.schema = supportedSchema
+  profilePresent : artifact.profile ≠ ""
+  scopeSupported : artifact.scope ∈ scopes
+  diagnosticDigestPresent : artifact.diagnosticDigest ≠ ""
+  fieldModulusExact : artifact.fieldModulus = goldilocksModulusDecimal
+  totalRowsPositive : 0 < artifact.totalRows
+  columnCountPositive : 0 < artifact.columnCount
+  publicInputCountPositive : 0 < artifact.publicInputCount
+  publicInputCountBounded : artifact.publicInputCount ≤ artifact.columnCount
+  constantOneColumnPublic :
+    artifact.constantOneColumn < artifact.publicInputCount
+  rowsPresent : artifact.rows ≠ []
+  completeFamiliesNodup : artifact.completeFamilies.Nodup
+  completeFamiliesNonempty :
+    ∀ family ∈ artifact.completeFamilies, family ≠ ""
+  completeFamilyWitness :
+    ∀ family ∈ artifact.completeFamilies,
+      ∃ row ∈ artifact.rows, row.family = family
+  sourceRowsPairwise : artifact.rows.Pairwise fun left right =>
+    left.sourceIndex < right.sourceIndex
+  rowsWellFormed :
+    ∀ row ∈ artifact.rows, rowWellFormed artifact row = true
+
+theorem StructuralCertificate.sound
+    {artifact : Artifact}
+    (certificate : StructuralCertificate artifact) :
+    artifact.WellFormed := by
+  refine
+    ⟨certificate.schemaExact,
+      certificate.profilePresent,
+      certificate.scopeSupported,
+      certificate.diagnosticDigestPresent,
+      certificate.fieldModulusExact,
+      certificate.totalRowsPositive,
+      certificate.columnCountPositive,
+      certificate.publicInputCountPositive,
+      certificate.publicInputCountBounded,
+      certificate.constantOneColumnPublic,
+      certificate.rowsPresent,
+      certificate.completeFamiliesNodup,
+      ?_, ?_, ?_, ?_⟩
+  · apply List.all_eq_true.mpr
+    intro family member
+    simp [certificate.completeFamiliesNonempty family member]
+  · apply List.all_eq_true.mpr
+    intro family member
+    rcases certificate.completeFamilyWitness family member with
+      ⟨row, rowMember, rowFamily⟩
+    exact List.any_eq_true.mpr ⟨row, rowMember, by simp [rowFamily]⟩
+  · exact strictlyIncreasingSourceRows_of_pairwise
+      certificate.sourceRowsPairwise
+  · exact List.all_eq_true.mpr certificate.rowsWellFormed
+
 /-- Exact coverage of every source-row index and every row-family owner.
 This separates a complete relation artifact from a bounded query slice. -/
 def CoversFullRelation (artifact : Artifact) : Prop :=
@@ -136,8 +210,28 @@ instance (artifact : Artifact) : Decidable artifact.CoversFullRelation := by
   unfold CoversFullRelation
   infer_instance
 
+/-- Structural source-row coverage. Each row-family membership can be proved
+in the leaf that owns that row. -/
+structure CoverageCertificate (artifact : Artifact) : Prop where
+  sourceIndicesExact :
+    artifact.rows.map (fun row => row.sourceIndex) =
+      List.range artifact.totalRows
+  rowFamiliesCovered :
+    ∀ row ∈ artifact.rows, row.family ∈ artifact.completeFamilies
+
+theorem CoverageCertificate.sound
+    {artifact : Artifact}
+    (certificate : CoverageCertificate artifact) :
+    artifact.CoversFullRelation :=
+  ⟨certificate.sourceIndicesExact, certificate.rowFamiliesCovered⟩
+
 def ExactValidation (authoritative carried : Artifact) : Bool :=
   decide (carried = authoritative ∧ carried.WellFormed)
+
+theorem exactValidation_self (artifact : Artifact)
+    (wellFormed : artifact.WellFormed) :
+    ExactValidation artifact artifact = true := by
+  simp [ExactValidation, wellFormed]
 
 theorem exactValidation_eq_true_iff
     {authoritative carried : Artifact} :
@@ -314,6 +408,56 @@ instance (artifact : BoundArtifact) : Decidable artifact.Coherent := by
   unfold Coherent
   infer_instance
 
+/-- Structural input for one source-to-selective binding proof. Projected-row
+geometry is supplied per row and per port, so the assembly cost does not
+depend on evaluation of the complete generated artifact. -/
+structure StructuralCertificate (artifact : BoundArtifact) : Prop where
+  sourceWellFormed : artifact.source.WellFormed
+  sourceRowsExact :
+    artifact.source.rows.map (fun row => row.sourceIndex) =
+      artifact.binding.requestedSourceRows
+  projectedRowsExact :
+    artifact.binding.projectedRows.map (fun row => row.emittedRow) =
+      artifact.binding.emittedRows
+  additionalRowsExact :
+    artifact.binding.additionalSourceRows =
+      artifact.binding.closureSourceRows.filter
+        (fun row => decide (row ∉ artifact.binding.requestedSourceRows))
+  finalRowsPositive : 0 < artifact.binding.finalRows
+  finalColumnsPositive : 0 < artifact.binding.finalColumns
+  finalPublicInputCountPositive :
+    0 < artifact.binding.finalPublicInputCount
+  finalPublicInputCountBounded :
+    artifact.binding.finalPublicInputCount ≤ artifact.binding.finalColumns
+  projectedRowsWellFormed :
+    ∀ row ∈ artifact.binding.projectedRows,
+      row.emittedRow < artifact.binding.finalRows ∧
+        row.ports.length = 13 ∧
+          ∀ port ∈ row.ports,
+            FinalPort.WellFormed artifact.binding.finalRows
+              artifact.binding.finalColumns row.emittedRow port = true
+
+theorem StructuralCertificate.sound
+    {artifact : BoundArtifact}
+    (certificate : StructuralCertificate artifact) :
+    artifact.Coherent := by
+  refine
+    ⟨certificate.sourceWellFormed,
+      certificate.sourceRowsExact,
+      certificate.projectedRowsExact,
+      certificate.additionalRowsExact,
+      certificate.finalRowsPositive,
+      certificate.finalColumnsPositive,
+      certificate.finalPublicInputCountPositive,
+      certificate.finalPublicInputCountBounded,
+      ?_⟩
+  apply List.all_eq_true.mpr
+  intro row rowMember
+  have rowFacts := certificate.projectedRowsWellFormed row rowMember
+  rw [Bool.and_eq_true]
+  refine ⟨?_, List.all_eq_true.mpr rowFacts.2.2⟩
+  simp [rowFacts.1, rowFacts.2.1]
+
 /-- A coherent source-to-final binding whose source covers the full branch
 relation, not only a cvc5 query slice. -/
 def CoversFullRelation (artifact : BoundArtifact) : Prop :=
@@ -323,8 +467,20 @@ instance (artifact : BoundArtifact) : Decidable artifact.CoversFullRelation := b
   unfold CoversFullRelation
   infer_instance
 
+theorem coversFullRelation_of_structural
+    {artifact : BoundArtifact}
+    (coherent : StructuralCertificate artifact)
+    (coverage : Artifact.CoverageCertificate artifact.source) :
+    artifact.CoversFullRelation :=
+  ⟨coherent.sound, coverage.sound⟩
+
 def ExactValidation (authoritative carried : BoundArtifact) : Bool :=
   decide (carried = authoritative ∧ carried.Coherent)
+
+theorem exactValidation_self (artifact : BoundArtifact)
+    (coherent : artifact.Coherent) :
+    ExactValidation artifact artifact = true := by
+  simp [ExactValidation, coherent]
 
 theorem accepted_eq_authoritative
     {authoritative carried : BoundArtifact}
@@ -472,6 +628,88 @@ instance (artifact : TerminalBoundArtifact) : Decidable artifact.Coherent := by
   unfold Coherent
   infer_instance
 
+/-- Structural input for a terminal source-to-Spartan binding proof. Source
+rows and projected rows are checked in bounded leaves before this theorem is
+used. -/
+structure StructuralCertificate (artifact : TerminalBoundArtifact) : Prop where
+  sourceWellFormed : artifact.source.WellFormed
+  nativeGuardsExact :
+    artifact.binding.verifierNativeGuards = terminalNativeGuardNames
+  nativeGuardsNodup : artifact.binding.verifierNativeGuards.Nodup
+  nativeGuardsNonempty :
+    ∀ guard ∈ artifact.binding.verifierNativeGuards, guard ≠ ""
+  nativeGuardsNotPolynomial :
+    ∀ guard ∈ artifact.binding.verifierNativeGuards,
+      guard ∉ artifact.source.completeFamilies
+  sourceRowsExact :
+    artifact.source.rows.map (fun row => row.sourceIndex) =
+      artifact.binding.requestedSourceRows
+  projectedRowsExact :
+    artifact.binding.projectedRows.map (fun row => row.sourceRow) =
+      artifact.binding.requestedSourceRows
+  rowCountsExact :
+    artifact.source.rows.length = artifact.binding.projectedRows.length
+  sourcePublicColumnsExact :
+    artifact.binding.columnLayout.sourcePublicColumns =
+      artifact.source.publicInputCount
+  sourceColumnsExact :
+    artifact.binding.columnLayout.sourcePublicColumns +
+        artifact.binding.columnLayout.sourcePrivateColumns =
+      artifact.source.columnCount
+  privateColumnsBounded :
+    artifact.binding.columnLayout.sourcePrivateColumns ≤
+      artifact.binding.columnLayout.spartanPrivateColumns
+  spartanColumnsExact :
+    artifact.binding.spartanColumns =
+      artifact.binding.columnLayout.spartanPrivateColumns +
+        artifact.binding.columnLayout.sourcePublicColumns
+  privatePaddingExact :
+    artifact.binding.spartanPrivatePaddingColumns =
+      artifact.binding.columnLayout.spartanPrivateColumns -
+        artifact.binding.columnLayout.sourcePrivateColumns
+  paddingStartExact :
+    artifact.binding.spartanPaddingRows.start = artifact.source.totalRows
+  paddingStopExact :
+    artifact.binding.spartanPaddingRows.stop = artifact.binding.spartanRows
+  sourceRowsBounded : artifact.source.totalRows ≤ artifact.binding.spartanRows
+  sourceRowColumnsInRange :
+    ∀ row ∈ artifact.source.rows,
+      rowColumnsInRange artifact.source.columnCount row.row = true
+  projectedRowsInRange :
+    ∀ row ∈ artifact.binding.projectedRows,
+      row.spartanRow < artifact.binding.spartanRows
+  projectionsMatch :
+    ∀ pair ∈ artifact.source.rows.zip artifact.binding.projectedRows,
+      projectionMatches artifact.binding.columnLayout pair.1 pair.2 = true
+
+theorem StructuralCertificate.sound
+    {artifact : TerminalBoundArtifact}
+    (certificate : StructuralCertificate artifact) :
+    artifact.Coherent := by
+  refine
+    ⟨certificate.sourceWellFormed,
+      certificate.nativeGuardsExact,
+      certificate.nativeGuardsNodup,
+      certificate.nativeGuardsNonempty,
+      certificate.nativeGuardsNotPolynomial,
+      certificate.sourceRowsExact,
+      certificate.projectedRowsExact,
+      certificate.rowCountsExact,
+      certificate.sourcePublicColumnsExact,
+      certificate.sourceColumnsExact,
+      certificate.privateColumnsBounded,
+      certificate.spartanColumnsExact,
+      certificate.privatePaddingExact,
+      certificate.paddingStartExact,
+      certificate.paddingStopExact,
+      certificate.sourceRowsBounded,
+      List.all_eq_true.mpr certificate.sourceRowColumnsInRange,
+      ?_,
+      List.all_eq_true.mpr certificate.projectionsMatch⟩
+  apply List.all_eq_true.mpr
+  intro row rowMember
+  simp [certificate.projectedRowsInRange row rowMember]
+
 /-- A coherent source-to-Spartan binding whose source covers the complete
 terminal polynomial relation. -/
 def CoversFullRelation (artifact : TerminalBoundArtifact) : Prop :=
@@ -482,8 +720,20 @@ instance (artifact : TerminalBoundArtifact) :
   unfold CoversFullRelation
   infer_instance
 
+theorem coversFullRelation_of_structural
+    {artifact : TerminalBoundArtifact}
+    (coherent : StructuralCertificate artifact)
+    (coverage : Artifact.CoverageCertificate artifact.source) :
+    artifact.CoversFullRelation :=
+  ⟨coherent.sound, coverage.sound⟩
+
 def ExactValidation (authoritative carried : TerminalBoundArtifact) : Bool :=
   decide (carried = authoritative ∧ carried.Coherent)
+
+theorem exactValidation_self (artifact : TerminalBoundArtifact)
+    (coherent : artifact.Coherent) :
+    ExactValidation artifact artifact = true := by
+  simp [ExactValidation, coherent]
 
 theorem accepted_eq_authoritative
     {authoritative carried : TerminalBoundArtifact}
@@ -901,6 +1151,39 @@ def Valid (counterexample : RemovalCounterexample)
           (without plan counterexample.removedFamily)
           counterexample.assignment ∧
           ¬ Target artifact counterexample.assignment
+
+/-- Row-level replay facts used by a structural removal certificate. -/
+def RetainedRowsHold (counterexample : RemovalCounterexample)
+    (artifact : Artifact) (plan : List String) : Prop :=
+  ∀ row ∈ artifact.rows,
+    row.family ∈ without plan counterexample.removedFamily →
+      Algebraic.Holds counterexample.assignment row.row
+
+/-- One exact failed source row is enough to refute the complete target. -/
+def HasViolatedRow (counterexample : RemovalCounterexample)
+    (artifact : Artifact) : Prop :=
+  ∃ row ∈ artifact.rows,
+    ¬ Algebraic.Holds counterexample.assignment row.row
+
+/-- Assemble a removal counterexample from bounded row-replay leaves. This
+theorem does not evaluate the complete assignment or source-row list. -/
+theorem valid_of_structural_replay
+    (counterexample : RemovalCounterexample)
+    (artifact : Artifact) (plan : List String)
+    (planCovered : ∀ family ∈ plan, family ∈ artifact.completeFamilies)
+    (assignmentWidth :
+      counterexample.values.length = artifact.columnCount)
+    (constantOne :
+      counterexample.assignment artifact.constantOneColumn = 1)
+    (retainedRowsHold : counterexample.RetainedRowsHold artifact plan)
+    (violatedRow : counterexample.HasViolatedRow artifact) :
+    counterexample.Valid artifact plan := by
+  refine ⟨planCovered, assignmentWidth, constantOne, ?_, ?_⟩
+  · intro family familyMember row rowMember rowFamily
+    exact retainedRowsHold row rowMember (by simpa [rowFamily] using familyMember)
+  · rcases violatedRow with ⟨row, rowMember, rowFails⟩
+    intro target
+    exact rowFails (target.2 row rowMember)
 
 instance (counterexample : RemovalCounterexample)
     (artifact : Artifact) (plan : List String) :

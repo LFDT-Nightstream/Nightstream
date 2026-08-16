@@ -3,22 +3,103 @@
 use std::collections::BTreeSet;
 use std::ops::Range;
 
-use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
+use neo_fold_clean::frontends::nebula::f_prime::{
+    production_streaming_lifecycle_profile, NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit,
+    NebulaFPrimeStreamingLifecycleArm, NebulaFPrimeStreamingLifecycleProfile, NebulaFPrimeStreamingLifecycleSourceArms,
+};
 use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
 use neo_fold_clean::frontends::r1cs_f_prime::{
-    SelectiveCompilerAudit, SelectiveEmittedRowFamily, SelectiveProjectedRowArtifact, SelectiveProjectedRowsAudit,
-    SelectiveRewriteKind, SelectiveRowMappingAudit, SelectiveSourceRowDisposition, SparseR1cs,
-    R1CS_F_PRIME_COMPILER_ID,
+    MultiBranchLowNormR1cs, SelectiveCompilerAudit, SelectiveEmittedRowFamily, SelectiveProjectedRowArtifact,
+    SelectiveProjectedRowsAudit, SelectiveRewriteKind, SelectiveRowMappingAudit, SelectiveSourceRowDisposition,
+    SparseR1cs, R1CS_F_PRIME_COMPILER_ID,
 };
 use neo_math::F;
 use p3_field::PrimeField64;
 use recursive_constraint_minimizer::Problem;
 use sha2::{Digest, Sha256};
 
-use super::{finish_digest, hash_bytes, hash_physical_stages, hash_sparse_matrix, hash_usize, ExportError};
+use super::{
+    finish_digest, hash_bytes, hash_physical_stages, hash_sparse_matrix, hash_usize, sparse_family_census,
+    validate_paper_obligation_ledger, ExportError, SparseProblemExporter,
+};
 
 const PLAN_DIGEST_DOMAIN: &[u8] = b"nightstream/selective-fixed-point-plan/v2";
 const SLICE_DIGEST_DOMAIN: &[u8] = b"nightstream/selective-fixed-point-slice/v3";
+const STREAMING_LIFECYCLE_SOURCE_KIND: &[u8] = b"nebula-streaming-lifecycle";
+const STREAMING_LIFECYCLE_FINAL_RELATION_DOMAIN: &[u8] = b"nightstream/streaming-lifecycle-final-relation/v1";
+
+/// Exact lifecycle profile plus diagnostic identities of the source matrices,
+/// compiler plan, and emitted selective relation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StreamingLifecycleProfileExport {
+    profile: NebulaFPrimeStreamingLifecycleProfile,
+    source_artifact_digests: [String; 2],
+    final_plan_digest: String,
+    final_relation_digest: String,
+}
+
+impl StreamingLifecycleProfileExport {
+    pub fn profile(&self) -> &NebulaFPrimeStreamingLifecycleProfile {
+        &self.profile
+    }
+
+    pub fn source_artifact_digest(&self, arm: NebulaFPrimeStreamingLifecycleArm) -> &str {
+        &self.source_artifact_digests[streaming_lifecycle_arm_index(arm)]
+    }
+
+    pub fn final_plan_digest(&self) -> &str {
+        &self.final_plan_digest
+    }
+
+    pub fn final_relation_digest(&self) -> &str {
+        &self.final_relation_digest
+    }
+}
+
+/// Freeze exact diagnostic identities for one checked Goldilocks lifecycle
+/// source-to-selective profile. SHA-256 is identity only, not protocol
+/// authority.
+pub fn export_streaming_lifecycle_profile(
+    lifecycle: &NebulaFPrimeStreamingLifecycleSourceArms,
+    relation: &MultiBranchLowNormR1cs,
+) -> Result<StreamingLifecycleProfileExport, ExportError> {
+    let profile = production_streaming_lifecycle_profile(lifecycle, relation)
+        .map_err(|error| ExportError::new(error.to_string()))?;
+    let source_arms = [
+        lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Base),
+        lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Recursive),
+    ];
+    let base_families = sparse_family_census(source_arms[0])?;
+    let recursive_families = sparse_family_census(source_arms[1])?;
+    let base_names = base_families
+        .iter()
+        .map(|family| family.name())
+        .collect::<Vec<_>>();
+    let recursive_names = recursive_families
+        .iter()
+        .map(|family| family.name())
+        .collect::<Vec<_>>();
+    validate_paper_obligation_ledger(&base_names, &recursive_names)?;
+    let source_artifact_digests = [
+        SparseProblemExporter::new(source_arms[0])?
+            .artifact_digest()
+            .to_owned(),
+        SparseProblemExporter::new(source_arms[1])?
+            .artifact_digest()
+            .to_owned(),
+    ];
+    let compiler = relation
+        .selective_compiler_audit()
+        .ok_or_else(|| ExportError::new("streaming lifecycle selective compiler audit is absent"))?;
+    let final_plan_digest = hash_final_plan(&source_arms, compiler, STREAMING_LIFECYCLE_SOURCE_KIND, &[])?;
+    let final_relation_digest = hash_final_streaming_lifecycle_relation(relation)?;
+    Ok(StreamingLifecycleProfileExport {
+        profile,
+        source_artifact_digests,
+        final_plan_digest,
+        final_relation_digest,
+    })
+}
 
 /// One source row copied monotonically into the selective relation.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -566,6 +647,37 @@ fn hash_final_plan(
     }
     hash_compiler_plan(&mut hasher, compiler)?;
     Ok(finish_digest(hasher))
+}
+
+fn hash_final_streaming_lifecycle_relation(relation: &MultiBranchLowNormR1cs) -> Result<String, ExportError> {
+    let structure = relation.structure();
+    let mut hasher = Sha256::new();
+    hasher.update(STREAMING_LIFECYCLE_FINAL_RELATION_DOMAIN);
+    hash_usize(&mut hasher, structure.n)?;
+    hash_usize(&mut hasher, structure.m)?;
+    hash_usize(&mut hasher, relation.public_input_len())?;
+    hash_usize(&mut hasher, structure.f.arity())?;
+    hash_usize(&mut hasher, structure.f.terms().len())?;
+    for term in structure.f.terms() {
+        hash_field(&mut hasher, term.coeff);
+        hash_usize(&mut hasher, term.exps.len())?;
+        for &exponent in &term.exps {
+            hash_usize(&mut hasher, exponent as usize)?;
+        }
+    }
+    hash_usize(&mut hasher, structure.matrices.len())?;
+    for (port, matrix) in structure.matrices.iter().enumerate() {
+        let port = u8::try_from(port).map_err(|_| ExportError::new("streaming lifecycle matrix port exceeds u8"))?;
+        hash_sparse_matrix(&mut hasher, port, matrix)?;
+    }
+    Ok(finish_digest(hasher))
+}
+
+const fn streaming_lifecycle_arm_index(arm: NebulaFPrimeStreamingLifecycleArm) -> usize {
+    match arm {
+        NebulaFPrimeStreamingLifecycleArm::Base => 0,
+        NebulaFPrimeStreamingLifecycleArm::Recursive => 1,
+    }
 }
 
 fn hash_compiler_plan(hasher: &mut Sha256, compiler: &SelectiveCompilerAudit) -> Result<(), ExportError> {

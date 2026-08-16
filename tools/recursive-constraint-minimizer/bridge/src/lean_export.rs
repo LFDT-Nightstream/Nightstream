@@ -13,29 +13,30 @@ use recursive_constraint_minimizer::{
 
 use super::{ExportError, FixedPointProblemExport, TerminalProblemExport};
 
-/// Render one self-contained Lean module with exact source and final rows.
+/// Render one self-contained Lean data module with exact source and final rows.
 ///
-/// The output contains data and a decidable coherence theorem. It contains no
-/// solver result and makes no redundancy or necessity claim.
-pub fn render_bound_artifact_lean(export: &FixedPointProblemExport, namespace: &str) -> Result<String, ExportError> {
-    render_bound_artifact_for(export, namespace, false)
+/// Coherence must be proved in separate bounded leaf modules and assembled
+/// with `BoundArtifact.StructuralCertificate.sound`. The data module contains
+/// no solver result and makes no validity, redundancy, or necessity claim.
+pub fn render_bound_artifact_data_lean(
+    export: &FixedPointProblemExport,
+    namespace: &str,
+) -> Result<String, ExportError> {
+    render_bound_artifact_for(export, namespace)
 }
 
-/// Render a complete fixed-point branch artifact. The additional coverage
-/// theorem is required by generated redundancy and necessity proofs.
-pub fn render_complete_bound_artifact_lean(
+/// Render a complete fixed-point branch data artifact after Rust checks full
+/// source-row and family coverage. A separate structural Lean certificate is
+/// still required before any proof can use that coverage.
+pub fn render_complete_bound_artifact_data_lean(
     export: &FixedPointProblemExport,
     namespace: &str,
 ) -> Result<String, ExportError> {
     validate_complete_problem(export.problem())?;
-    render_bound_artifact_for(export, namespace, true)
+    render_bound_artifact_for(export, namespace)
 }
 
-fn render_bound_artifact_for(
-    export: &FixedPointProblemExport,
-    namespace: &str,
-    complete: bool,
-) -> Result<String, ExportError> {
+fn render_bound_artifact_for(export: &FixedPointProblemExport, namespace: &str) -> Result<String, ExportError> {
     validate_namespace(namespace)?;
     export
         .problem()
@@ -74,23 +75,7 @@ fn render_bound_artifact_for(
         "def boundArtifact : BoundArtifact :=\n  {{ source := sourceArtifact, binding := selectiveBinding }}\n"
     )
     .unwrap();
-    writeln!(
-        out,
-        "theorem boundArtifact_coherent : boundArtifact.Coherent := by\n  native_decide\n"
-    )
-    .unwrap();
-    if complete {
-        writeln!(
-            out,
-            "theorem sourceArtifact_row_count :\n    sourceArtifact.rows.length = sourceArtifact.totalRows := by\n  rfl\n"
-        )
-        .unwrap();
-        writeln!(
-            out,
-            "theorem boundArtifact_coversFullRelation :\n    boundArtifact.CoversFullRelation := by\n  native_decide\n"
-        )
-        .unwrap();
-    }
+    render_structural_certificate_notice(&mut out, "boundArtifact")?;
     writeln!(out, "end {namespace}").unwrap();
     Ok(out)
 }
@@ -98,30 +83,26 @@ fn render_bound_artifact_for(
 /// Render one self-contained Lean module with exact terminal source and
 /// padded Spartan rows.
 ///
-/// The output contains data and a decidable coherence theorem. It contains no
-/// solver result and makes no redundancy or necessity claim.
-pub fn render_terminal_bound_artifact_lean(
+/// Coherence must be proved in separate bounded leaf modules and assembled
+/// with `TerminalBoundArtifact.StructuralCertificate.sound`.
+pub fn render_terminal_bound_artifact_data_lean(
     export: &TerminalProblemExport,
     namespace: &str,
 ) -> Result<String, ExportError> {
-    render_terminal_bound_artifact_for(export, namespace, false)
+    render_terminal_bound_artifact_for(export, namespace)
 }
 
-/// Render a complete terminal polynomial artifact with an exact source-row
-/// coverage theorem.
-pub fn render_complete_terminal_bound_artifact_lean(
+/// Render a complete terminal polynomial data artifact after Rust checks full
+/// source-row coverage. A separate structural Lean certificate is required.
+pub fn render_complete_terminal_bound_artifact_data_lean(
     export: &TerminalProblemExport,
     namespace: &str,
 ) -> Result<String, ExportError> {
     validate_complete_problem(export.problem())?;
-    render_terminal_bound_artifact_for(export, namespace, true)
+    render_terminal_bound_artifact_for(export, namespace)
 }
 
-fn render_terminal_bound_artifact_for(
-    export: &TerminalProblemExport,
-    namespace: &str,
-    complete: bool,
-) -> Result<String, ExportError> {
+fn render_terminal_bound_artifact_for(export: &TerminalProblemExport, namespace: &str) -> Result<String, ExportError> {
     validate_namespace(namespace)?;
     export
         .problem()
@@ -140,31 +121,16 @@ fn render_terminal_bound_artifact_for(
         "def terminalBoundArtifact : TerminalBoundArtifact :=\n  {{ source := sourceArtifact, binding := terminalBinding }}\n"
     )
     .unwrap();
-    writeln!(
-        out,
-        "theorem terminalBoundArtifact_coherent : terminalBoundArtifact.Coherent := by\n  native_decide\n"
-    )
-    .unwrap();
-    if complete {
-        writeln!(
-            out,
-            "theorem sourceArtifact_row_count :\n    sourceArtifact.rows.length = sourceArtifact.totalRows := by\n  rfl\n"
-        )
-        .unwrap();
-        writeln!(
-            out,
-            "theorem terminalBoundArtifact_coversFullRelation :\n    terminalBoundArtifact.CoversFullRelation := by\n  native_decide\n"
-        )
-        .unwrap();
-    }
+    render_structural_certificate_notice(&mut out, "terminalBoundArtifact")?;
     writeln!(out, "end {namespace}").unwrap();
     Ok(out)
 }
 
-/// Render one Lean module that checks a scalar redundancy certificate against
-/// a separately generated bound-artifact module.
+/// Render exact scalar-certificate data against a separately generated bound
+/// artifact. Separate bounded leaf modules must prove `FamilyCertificate.Valid`
+/// before the candidate can authorize a removal.
 #[allow(clippy::too_many_arguments)]
-pub fn render_redundancy_certificate_lean(
+pub fn render_redundancy_candidate_lean(
     complete_problem: &Problem,
     query_problem: &Problem,
     certificate: &ScalarCertificate,
@@ -181,16 +147,13 @@ pub fn render_redundancy_certificate_lean(
         artifact_namespace,
         namespace,
         reviewed_plan,
-        "boundArtifact",
-        "redundant_of_full_bound_valid",
-        "boundArtifact_coversFullRelation",
     )
 }
 
 /// Render one Lean module that checks a scalar terminal-family redundancy
 /// certificate against a separately generated terminal artifact module.
 #[allow(clippy::too_many_arguments)]
-pub fn render_terminal_redundancy_certificate_lean(
+pub fn render_terminal_redundancy_candidate_lean(
     complete_problem: &Problem,
     query_problem: &Problem,
     certificate: &ScalarCertificate,
@@ -207,16 +170,14 @@ pub fn render_terminal_redundancy_certificate_lean(
         artifact_namespace,
         namespace,
         reviewed_plan,
-        "terminalBoundArtifact",
-        "redundant_of_full_terminal_bound_valid",
-        "terminalBoundArtifact_coversFullRelation",
     )
 }
 
-/// Render a complete Rust-replayed removal counterexample for one fixed-point
-/// branch as a Lean proof.
+/// Render complete Rust-replayed removal-counterexample data for one fixed-point
+/// branch. It remains a candidate until bounded Lean row-replay leaves prove
+/// `RemovalCounterexample.Valid`.
 #[allow(clippy::too_many_arguments)]
-pub fn render_removal_counterexample_lean(
+pub fn render_removal_counterexample_candidate_lean(
     complete_problem: &Problem,
     model: &FieldModel,
     removed_family: &str,
@@ -233,17 +194,13 @@ pub fn render_removal_counterexample_lean(
         artifact_namespace,
         namespace,
         reviewed_plan,
-        "boundArtifact",
-        "necessary_of_full_bound_valid",
-        "necessary_normalized_of_full_bound_valid",
-        "boundArtifact_coversFullRelation",
     )
 }
 
-/// Render a complete Rust-replayed terminal removal counterexample as a Lean
-/// proof against the terminal source-to-Spartan artifact.
+/// Render complete Rust-replayed terminal removal-counterexample data. It does
+/// not authorize a family removal without a separate structural Lean proof.
 #[allow(clippy::too_many_arguments)]
-pub fn render_terminal_removal_counterexample_lean(
+pub fn render_terminal_removal_counterexample_candidate_lean(
     complete_problem: &Problem,
     model: &FieldModel,
     removed_family: &str,
@@ -260,10 +217,6 @@ pub fn render_terminal_removal_counterexample_lean(
         artifact_namespace,
         namespace,
         reviewed_plan,
-        "terminalBoundArtifact",
-        "necessary_of_full_terminal_bound_valid",
-        "necessary_normalized_of_full_terminal_bound_valid",
-        "terminalBoundArtifact_coversFullRelation",
     )
 }
 
@@ -276,10 +229,6 @@ fn render_removal_counterexample_for(
     artifact_namespace: &str,
     namespace: &str,
     reviewed_plan: &[String],
-    bound_artifact: &str,
-    transport_theorem: &str,
-    normalized_transport_theorem: &str,
-    coverage_theorem: &str,
 ) -> Result<String, ExportError> {
     validate_namespace(artifact_module)?;
     validate_namespace(artifact_namespace)?;
@@ -306,23 +255,7 @@ fn render_removal_counterexample_for(
         write!(out, "{value}{}", separator(index, model.values().len())).unwrap();
     }
     writeln!(out, "]\n").unwrap();
-    writeln!(
-        out,
-        "theorem removalCounterexample_valid :\n    removalCounterexample.Valid {bound_artifact}.source reviewedPlan := by\n  native_decide\n"
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "theorem necessary :\n    NecessaryForSoundness (FamilyHolds {bound_artifact}.source)\n      (Target {bound_artifact}.source) reviewedPlan {} :=\n  removalCounterexample.{transport_theorem}\n    {bound_artifact} {bound_artifact} reviewedPlan {coverage_theorem}\n    (by native_decide) removalCounterexample_valid\n",
-        lean_string(removed_family),
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "theorem necessaryNormalized :\n    NecessaryForSoundness\n      (NormalizedFamilyHolds {bound_artifact}.source)\n      (NormalizedTarget {bound_artifact}.source) reviewedPlan {} :=\n  removalCounterexample.{normalized_transport_theorem}\n    {bound_artifact} {bound_artifact} reviewedPlan {coverage_theorem}\n    (by native_decide) removalCounterexample_valid\n",
-        lean_string(removed_family),
-    )
-    .unwrap();
+    render_structural_certificate_notice(&mut out, "removalCounterexample")?;
     writeln!(out, "end {namespace}").unwrap();
     Ok(out)
 }
@@ -430,9 +363,6 @@ fn render_redundancy_certificate_for(
     artifact_namespace: &str,
     namespace: &str,
     reviewed_plan: &[String],
-    bound_artifact: &str,
-    transport_theorem: &str,
-    coverage_theorem: &str,
 ) -> Result<String, ExportError> {
     validate_namespace(artifact_module)?;
     validate_namespace(artifact_namespace)?;
@@ -489,29 +419,7 @@ fn render_redundancy_certificate_for(
         writeln!(out, "    ] }}{}", separator(index, certificate.rows.len())).unwrap();
     }
     writeln!(out, "  ]\n").unwrap();
-    writeln!(
-        out,
-        "theorem familyCertificate_valid :\n    familyCertificate.Valid sourceArtifact reviewedPlan := by"
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "  simp [FamilyCertificate.Valid, familyCertificate, sourceArtifact,\n    reviewedPlan, ScalarCertificate.Valid, scalarCombination, candidateRows,\n    Algebraic.residual, Algebraic.linearPolynomial] <;> ring\n"
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "theorem redundant :\n    Redundant (FamilyHolds {bound_artifact}.source) reviewedPlan {} :=\n  familyCertificate.{transport_theorem} {bound_artifact} {bound_artifact}\n    reviewedPlan {coverage_theorem} (by native_decide)\n    familyCertificate_valid\n",
-        lean_string(family),
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "theorem normalizedRedundant :\n    Redundant (NormalizedFamilyHolds {bound_artifact}.source)\n      reviewedPlan {} :=\n  normalizedRedundant_of_redundant {bound_artifact}.source\n    reviewedPlan {} redundant\n",
-        lean_string(family),
-        lean_string(family),
-    )
-    .unwrap();
+    render_structural_certificate_notice(&mut out, "familyCertificate")?;
     writeln!(out, "end {namespace}").unwrap();
     Ok(out)
 }
@@ -965,6 +873,14 @@ fn lean_option(value: Option<usize>) -> String {
 
 fn lean_string(value: &str) -> String {
     format!("{value:?}")
+}
+
+fn render_structural_certificate_notice(out: &mut String, value: &str) -> Result<(), ExportError> {
+    writeln!(
+        out,
+        "/- {value} is exact data only. A separate bounded structural Lean\ncertificate is required before this value can authorize a constraint removal. -/\n"
+    )
+    .map_err(|error| ExportError::new(format!("cannot render Lean certificate notice: {error}")))
 }
 
 fn scope_name(scope: &Scope) -> &'static str {

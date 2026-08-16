@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplaySchema
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingArtifactLeafSchema
 
 /-!
 Contract: compact schema for the public-binding suffix of the two PiRLC
@@ -6,8 +6,9 @@ family body shapes.
 
 Owns the exact 937-field local before and after state-column lists, both
 32-field full XOut preimages and four-field outputs, the two derived
-program-cursor words, 11 canonical-u64 calls, 490 suffix Poseidon2 calls, and
-the small glue-row set after the established algebra-and-replay source prefix.
+program-cursor words, 11 canonical-u64 calls, 490 public-state Poseidon2 calls,
+and the small glue-row set after the established algebra-and-replay source
+prefix. One exact delegated range belongs to the phase-envelope artifact.
 
 Does not own the source prefix semantics, low-norm slot projection, lifecycle
 integration, or Poseidon2 collision resistance.
@@ -27,6 +28,7 @@ inductive OwnerKind where
   | canonical
   | poseidon2
   | glue
+  | phaseEnvelope
 deriving DecidableEq, Repr, Inhabited
 
 structure Owner where
@@ -67,7 +69,9 @@ structure RawArm where
   columnCount : Nat
   publicColumnCount : Nat
   replayPoseidon2CallCount : Nat
-  suffixPoseidon2CallCount : Nat
+  publicPoseidon2CallCount : Nat
+  phaseEnvelopeRowStart : Nat
+  phaseEnvelopeRowEnd : Nat
   beforeFamilyCursorColumn : Nat
   afterFamilyCursorColumn : Nat
   beforeStateColumns : List Nat
@@ -98,6 +102,9 @@ def Owner.Matches (arm : RawArm) (owner : Owner) : Prop :=
   | .glue =>
       ∃ indexed, arm.glueRows[owner.index]? = some indexed ∧
         owner.rowStart = indexed.index ∧ owner.rowEnd = indexed.index + 1
+  | .phaseEnvelope =>
+      owner.index = 0 ∧ owner.rowStart = arm.phaseEnvelopeRowStart ∧
+        owner.rowEnd = arm.phaseEnvelopeRowEnd
 
 instance (arm : RawArm) (owner : Owner) : Decidable (owner.Matches arm) := by
   unfold Owner.Matches
@@ -191,44 +198,69 @@ instance (arm : RawArm) (expectedInput expectedOutput : List Nat)
   unfold RawHash.Valid
   infer_instance
 
-def RawArm.Valid (arm : RawArm) : Prop :=
+def RawArm.ScalarValid (arm : RawArm) : Prop :=
   0 < arm.sourceRowCount ∧ arm.sourceRowCount < arm.rowCount ∧
     arm.publicColumnCount = 641 ∧ arm.publicColumnCount ≤ arm.columnCount ∧
     arm.replayPoseidon2CallCount > 0 ∧
-    arm.suffixPoseidon2CallCount = 490 ∧
-    arm.poseidon2Calls.length = arm.suffixPoseidon2CallCount ∧
+    arm.publicPoseidon2CallCount = 490 ∧
+    arm.poseidon2Calls.length = arm.publicPoseidon2CallCount ∧
+    arm.sourceRowCount ≤ arm.phaseEnvelopeRowStart ∧
+    arm.phaseEnvelopeRowStart < arm.phaseEnvelopeRowEnd ∧
+    arm.phaseEnvelopeRowEnd ≤ arm.rowCount ∧
     arm.beforeFamilyCursorColumn < arm.columnCount ∧
-    arm.afterFamilyCursorColumn < arm.columnCount ∧
+    arm.afterFamilyCursorColumn < arm.columnCount
+
+def RawArm.StateColumnLayoutValid (arm : RawArm) : Prop :=
     columnsValid arm.columnCount 937 arm.beforeStateColumns ∧
-    columnsValid arm.columnCount 937 arm.afterStateColumns ∧
+    columnsValid arm.columnCount 937 arm.afterStateColumns
+
+def RawArm.XOutColumnLayoutValid (arm : RawArm) : Prop :=
     columnsValid arm.columnCount 32 arm.afterXOutPreimageColumns ∧
     columnsValid arm.columnCount 32 arm.beforeXOutPreimageColumns ∧
     columnsValid arm.columnCount 4 arm.afterXOutDigestColumns ∧
-    columnsValid arm.columnCount 4 arm.beforeXOutDigestColumns ∧
+    columnsValid arm.columnCount 4 arm.beforeXOutDigestColumns
+
+def RawArm.HashLayoutValid (arm : RawArm) : Prop :=
     RawHash.Valid arm arm.afterXOutPreimageColumns
       arm.afterXOutDigestColumns 472 arm.afterXOutHash ∧
     RawHash.Valid arm arm.beforeXOutPreimageColumns
-      arm.beforeXOutDigestColumns 481 arm.beforeXOutHash ∧
+      arm.beforeXOutDigestColumns 481 arm.beforeXOutHash
+
+def RawArm.PublicAndPinLayoutValid (arm : RawArm) : Prop :=
     arm.publicWordCallIndices = [3, 4, 5, 6, 7, 8, 9, 10, 0, 1] ∧
     columnsValid arm.columnCount 13 arm.afterDigestPinColumns ∧
-    columnsValid arm.columnCount 13 arm.beforeDigestPinColumns ∧
+    columnsValid arm.columnCount 13 arm.beforeDigestPinColumns
+
+def RawArm.CanonicalCallsValid (arm : RawArm) : Prop :=
     arm.canonicalCalls.length = 11 ∧
-    (∀ call ∈ arm.canonicalCalls,
-      call.Valid arm.columnCount ∧ arm.sourceRowCount ≤ call.rowStart) ∧
-    (∀ call ∈ arm.poseidon2Calls,
+    ∀ call ∈ arm.canonicalCalls,
+      call.Valid arm.columnCount ∧ arm.sourceRowCount ≤ call.rowStart
+
+def RawArm.Poseidon2CallsValid (arm : RawArm) : Prop :=
+    ∀ call ∈ arm.poseidon2Calls,
       PoseidonCallValid arm.columnCount call ∧
-        arm.sourceRowCount ≤ call.rowStart) ∧
-    (∀ indexed ∈ arm.glueRows,
+        arm.sourceRowCount ≤ call.rowStart
+
+def RawArm.GlueRowsValid (arm : RawArm) : Prop :=
+    ∀ indexed ∈ arm.glueRows,
       arm.sourceRowCount ≤ indexed.index ∧ indexed.index < arm.rowCount ∧
-        rowColumnsBelow arm.columnCount indexed.row) ∧
+        rowColumnsBelow arm.columnCount indexed.row
+
+def RawArm.LeafGeometryValid (arm : RawArm) : Prop :=
+  arm.CanonicalCallsValid ∧ arm.Poseidon2CallsValid ∧ arm.GlueRowsValid
+
+def RawArm.OwnershipValid (arm : RawArm) : Prop :=
     ownerIndices .canonical arm.owners = List.range arm.canonicalCalls.length ∧
     ownerIndices .poseidon2 arm.owners = List.range arm.poseidon2Calls.length ∧
     ownerIndices .glue arm.owners = List.range arm.glueRows.length ∧
+    ownerIndices .phaseEnvelope arm.owners = [0] ∧
     exactOwnerChainFrom arm arm.sourceRowCount arm.owners = true
 
-instance (arm : RawArm) : Decidable arm.Valid := by
-  unfold RawArm.Valid
-  infer_instance
+def RawArm.Valid (arm : RawArm) : Prop :=
+  arm.ScalarValid ∧ arm.StateColumnLayoutValid ∧
+    arm.XOutColumnLayoutValid ∧ arm.HashLayoutValid ∧
+    arm.PublicAndPinLayoutValid ∧ arm.LeafGeometryValid ∧
+    arm.OwnershipValid
 
 def RawArm.Satisfied (arm : RawArm) (assignment : Nat → Nat) : Prop :=
   (∀ call ∈ arm.canonicalCalls, call.Satisfied assignment) ∧
@@ -249,29 +281,27 @@ structure RawArtifact where
   odd : RawArm
 deriving DecidableEq, Repr
 
-def RawArtifact.Valid (artifact : RawArtifact) : Prop :=
-  artifact.schemaVersion = 2 ∧
+def RawArtifact.MetadataValid (artifact : RawArtifact) : Prop :=
+  artifact.schemaVersion = 3 ∧
     artifact.profileId =
-      "nebula-f-prime-streaming-pi-rlc-family-public-v2" ∧
+      "nebula-f-prime-streaming-pi-rlc-family-public-v3" ∧
     artifact.familyStateFields = 937 ∧
     artifact.sharedPublicWords = 10 ∧
     artifact.publicBitsPerWord = 64 ∧
     artifact.firstFamilyProgramCursor = 199 ∧
-    artifact.lowNormRows = 282459 ∧
-    artifact.lowNormColumns = 2521314 ∧
+    artifact.lowNormRows = 474966 ∧
+    artifact.lowNormColumns = 4687416 ∧
     artifact.lowNormPublicColumns = 648 ∧
     artifact.even.sourceRowCount = 275006 ∧
-    artifact.even.rowCount = 569886 ∧
-    artifact.even.columnCount = 570115 ∧
+    artifact.even.rowCount = 1232857 ∧
+    artifact.even.columnCount = 1233086 ∧
     artifact.even.replayPoseidon2CallCount = 215 ∧
     artifact.odd.sourceRowCount = 276206 ∧
-    artifact.odd.rowCount = 571086 ∧
-    artifact.odd.columnCount = 571315 ∧
-    artifact.odd.replayPoseidon2CallCount = 217 ∧
-    artifact.even.Valid ∧ artifact.odd.Valid
+    artifact.odd.rowCount = 1234057 ∧
+    artifact.odd.columnCount = 1234286 ∧
+    artifact.odd.replayPoseidon2CallCount = 217
 
-instance (artifact : RawArtifact) : Decidable artifact.Valid := by
-  unfold RawArtifact.Valid
-  infer_instance
+def RawArtifact.Valid (artifact : RawArtifact) : Prop :=
+  artifact.MetadataValid ∧ artifact.even.Valid ∧ artifact.odd.Valid
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublic.Artifact

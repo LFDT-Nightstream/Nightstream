@@ -123,7 +123,7 @@ def RawOverlayLinkRun.valid (raw : RawProgram)
     run.activeOffsetStart + run.activeFieldCount <= raw.claimChunkFields
 
 def ProgramValid (raw : RawProgram) : Prop :=
-  raw.schemaVersion = 8 /\
+  raw.schemaVersion = 9 /\
     0 < raw.stateChunkFields /\
     0 < raw.priorStateChunks /\
     (raw.priorStateChunks - 1) * raw.stateChunkFields <

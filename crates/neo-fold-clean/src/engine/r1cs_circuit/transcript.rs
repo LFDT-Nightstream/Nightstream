@@ -55,6 +55,7 @@ pub struct TranscriptGadget {
     /// Compile-time-tracked rate cursor. Not a witness — its value follows
     /// deterministically from the absorb sequence emitted so far.
     absorbed: usize,
+    constant_bindings: Vec<(Var, F)>,
 }
 
 impl TranscriptGadget {
@@ -79,10 +80,16 @@ impl TranscriptGadget {
     pub fn from_native_state(builder: &mut R1csBuilder, state_vals: [F; WIDTH], absorbed: usize) -> Self {
         assert!(absorbed <= RATE, "absorbed cursor out of range");
         let mut state = [Var::ONE; WIDTH];
+        let mut constant_bindings = Vec::with_capacity(WIDTH);
         for (slot, &v) in state.iter_mut().zip(state_vals.iter()) {
             *slot = alloc_constant(builder, v);
+            constant_bindings.push((*slot, v));
         }
-        Self { state, absorbed }
+        Self {
+            state,
+            absorbed,
+            constant_bindings,
+        }
     }
 
     /// Continue from an already constrained variable sponge state.
@@ -91,7 +98,11 @@ impl TranscriptGadget {
     /// constrain every input wire at its own state-transition boundary.
     pub(crate) fn from_variable_state(state: [Var; WIDTH], absorbed: usize) -> Self {
         assert!(absorbed <= RATE, "absorbed cursor out of range");
-        Self { state, absorbed }
+        Self {
+            state,
+            absorbed,
+            constant_bindings: Vec::new(),
+        }
     }
 
     /// Return the current variable sponge state for a constrained transition
@@ -102,6 +113,12 @@ impl TranscriptGadget {
 
     pub(crate) const fn absorbed(&self) -> usize {
         self.absorbed
+    }
+
+    /// Verifier-fixed constant wires in allocation order. This is audit
+    /// metadata; transcript semantics still come from the emitted rows.
+    pub(crate) fn constant_bindings(&self) -> &[(Var, F)] {
+        &self.constant_bindings
     }
 
     // ── Public API mirrors `neo_transcript::Transcript` ─────────────────
@@ -256,6 +273,7 @@ impl TranscriptGadget {
     /// proceeds via `absorb_elem`.
     fn absorb_const_elem(&mut self, builder: &mut R1csBuilder, c: F) {
         let v = alloc_constant(builder, c);
+        self.constant_bindings.push((v, c));
         self.absorb_elem(builder, v);
     }
 

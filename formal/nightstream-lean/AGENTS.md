@@ -85,6 +85,12 @@ passing result.
   establish its exact input length. Any partitioned certificate must check its
   maximum shard length, exact coverage, absence of overlap, and final remainder
   size so an unbounded tail cannot masquerade as a shard.
+- Use `native_decide` only for small closed facts whose cost does not grow with
+  generated artifact size. Do not use it for complete artifact validity, row
+  sets, seed schedules, sampler coefficients, witness data, or trust-boundary
+  equality. Prove these claims with structural theorems and reusable leaf
+  certificates. If a `native_decide` proof reaches the Lean timeout, do not run
+  it again unchanged.
 - Avoid closed computation over large proof-carrying structures. Project to the
   smallest compact decidable data that expresses the artifact fact, then use a
   generic kernel theorem to derive the semantic result.

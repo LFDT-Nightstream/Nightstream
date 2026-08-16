@@ -174,6 +174,31 @@ def execute
       let next ← step trace run operation
       execute trace next rest
 
+/-- Splitting an operation list does not change its physical execution. -/
+theorem execute_append_eq
+    (trace : TranscriptCertificate.Trace) (start : Run)
+    (left right : List Operation) :
+    execute trace start (left ++ right) =
+      (execute trace start left).bind fun middle =>
+        execute trace middle right := by
+  induction left generalizing start with
+  | nil => rfl
+  | cons operation rest inductionHypothesis =>
+      simp only [List.cons_append, execute]
+      cases step trace start operation with
+      | none => simp
+      | some next => simp [inductionHypothesis]
+
+/-- Compose two physical replay executions without reevaluating either list. -/
+theorem execute_append
+    {trace : TranscriptCertificate.Trace}
+    {start middle result : Run} {left right : List Operation}
+    (leftExecution : execute trace start left = some middle)
+    (rightExecution : execute trace middle right = some result) :
+    execute trace start (left ++ right) = some result := by
+  rw [execute_append_eq, leftExecution]
+  exact rightExecution
+
 /-- Normalize one completed Rust `absorb_slice` boundary. Scalar absorption
 leaves a full rate cursor pending. Rust consumes that permutation before the
 slice call returns. -/

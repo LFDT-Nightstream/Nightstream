@@ -16,13 +16,15 @@ use neo_fold_clean::paper::construction2::{NebulaConfig, NebulaLane, NebulaStepX
 use neo_fold_clean::paper::digest;
 use neo_fold_clean::paper::f_prime::nebula_lane_circuit::{
     alloc_nebula_lane_wires, decode_delayed_nebula_public_suffix_circuit, decode_nebula_step_x_bits_circuit,
-    enforce_delayed_nebula_claim_circuit, enforce_nebula_advance_circuit, enforce_nebula_chain_link_circuit,
-    enforce_nebula_close_circuit, enforce_nebula_lane_base_circuit, enforce_nebula_lane_constant_circuit,
-    enforce_nebula_lane_digest_circuit, enforce_nebula_lane_digest_selected_circuit,
-    enforce_nebula_lane_leaf_digests_circuit, enforce_nebula_maybe_close_circuit, enforce_nebula_maybe_open_circuit,
-    GammaWires, NebulaLaneWires, NebulaOpenContextWires, NebulaStepXWires,
+    enforce_delayed_nebula_claim_circuit, enforce_delayed_nebula_claim_data_circuit, enforce_nebula_advance_circuit,
+    enforce_nebula_chain_link_circuit, enforce_nebula_close_circuit, enforce_nebula_lane_base_circuit,
+    enforce_nebula_lane_constant_circuit, enforce_nebula_lane_digest_circuit,
+    enforce_nebula_lane_digest_selected_circuit, enforce_nebula_lane_leaf_digests_circuit,
+    enforce_nebula_maybe_close_circuit, enforce_nebula_maybe_open_circuit,
+    enforce_nebula_program_binding_digest_circuit, enforce_nebula_terminal_closed_circuit, GammaWires, NebulaLaneWires,
+    NebulaOpenContextWires, NebulaStepXWires,
 };
-use neo_fold_clean::paper::relations::product_commitment_circuit::alloc_adv;
+use neo_fold_clean::paper::relations::product_commitment_circuit::{adv_commitment_data_wires, alloc_adv};
 use neo_fold_clean::paper::relations::{LaneRanges, LaneScheme};
 use neo_math::field::KExtensions;
 use neo_math::{F, K};
@@ -434,6 +436,53 @@ fn reusable_base_rows_do_not_embed_program_bindings() {
     assert_eq!(first.sparse_triplets(), second.sparse_triplets());
 }
 
+#[test]
+fn program_binding_rows_recompute_the_native_poseidon2_digest() {
+    let cfg = config([F::from_u64(41); 4]);
+    let mut builder = R1csBuilder::new();
+    let semantic = alloc_digest(&mut builder, cfg.initial_semantic_state_digest);
+    let plan = alloc_digest(&mut builder, cfg.plan_digest);
+    let memory = alloc_digest(&mut builder, cfg.d_init);
+    let computed = enforce_nebula_program_binding_digest_circuit(&mut builder, semantic, plan, memory);
+
+    assert_eq!(extract_digest(&builder, computed), cfg.program_binding_digest());
+    assert!(builder.is_satisfied(), "honest program binding must satisfy");
+
+    let column = plan[0].col();
+    let original = builder.witness()[column];
+    builder.tamper_witness(column, original + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "a changed verifier-owned plan digest must reject"
+    );
+}
+
+#[test]
+fn terminal_closed_rows_pin_the_complete_native_reset() {
+    let cfg = config([F::from_u64(41); 4]);
+    let lane = NebulaLane::base(&cfg);
+    let mut builder = R1csBuilder::new();
+    let wires = alloc_nebula_lane_wires(&mut builder, &lane);
+    enforce_nebula_terminal_closed_circuit(&mut builder, &wires);
+    assert!(builder.is_satisfied(), "the canonical closed lane must satisfy");
+
+    for (column, label) in [
+        (wires.open.col(), "open flag"),
+        (wires.idx.col(), "step index"),
+        (wires.gamma[0].c0.col(), "dead gamma"),
+        (wires.h[0].c0.col(), "reset product"),
+        (wires.sp[0].col(), "stack pointer"),
+        (wires.d_pre[0][0].col(), "pre-chain header"),
+        (wires.d_seen[1][0].col(), "seen-chain header"),
+    ] {
+        let original = builder.witness()[column];
+        builder.tamper_witness(column, original + F::ONE);
+        assert!(!builder.is_satisfied(), "changed {label} must reject");
+        builder.tamper_witness(column, original);
+        assert!(builder.is_satisfied(), "restored {label} must satisfy");
+    }
+}
+
 // ── The lane transition, mirrored end to end ─────────────────────────────
 
 /// Walk one honest N = 2 segment natively and in-circuit side by side:
@@ -598,9 +647,21 @@ fn delayed_claim_transition_matches_native_end_to_end() {
         let input = decode_delayed_nebula_public_suffix_circuit(&mut builder, &suffix_wires, cfg.stacks)
             .expect("decode delayed claim");
         let adv_wires = alloc_adv(&mut builder, Some(tuple)).expect("adv wires");
-        let out =
+        let out = if step == 0 {
             enforce_delayed_nebula_claim_circuit(&mut builder, &wires, &input, &adv_wires, &context, N, cfg.seg_max)
-                .expect("delayed transition");
+        } else {
+            let adv_data_wires = adv_commitment_data_wires(&adv_wires);
+            enforce_delayed_nebula_claim_data_circuit(
+                &mut builder,
+                &wires,
+                &input,
+                &adv_data_wires,
+                &context,
+                N,
+                cfg.seg_max,
+            )
+        }
+        .expect("delayed transition");
         native
             .advance(&cfg, &x, Some(tuple))
             .expect("native advance");

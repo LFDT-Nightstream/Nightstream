@@ -6,8 +6,8 @@ Contract: same-assignment semantic adapter for one physical PiRLC family arm.
 
 Owns the conversion from a family ordinal to its parity body, direct decoding
 of both semantic `FamilyState` values from that body assignment, and the joint
-result of body rows, one linked physical overlay, the public-state suffix, and
-the structural full-XOut preimage fields.
+result of body rows, one linked physical overlay, the phase-envelope rows, the
+public-state suffix, and the structural full-XOut preimage fields.
 
 Does not own normalized selective lowering, the 400-arm schedule, collision
 resistance, authority for opaque outer XOut fields, recursive lifecycle
@@ -56,9 +56,9 @@ def kindForFamily (family : Family) : ArmKind :=
     parityForArm (kindForFamily family) = parityFor family := by
   simp [kindForFamily]
 
-/-- Accepted evidence for one complete physical family arm. The body and
-public suffix use the same assignment. The physical overlay has its own
-assignment and joins the body only through all exact field links. -/
+/-- Accepted evidence for one complete physical family arm. The body, phase
+envelope, and public suffix use the same assignment. The physical overlay has
+its own assignment and joins the body only through all exact field links. -/
 structure AcceptedArm (setup : InputBindingSetup) (family : Family) where
   bodyAssignment : Nat → Nat
   overlayAssignment : Nat → Nat
@@ -81,6 +81,11 @@ structure AcceptedArm (setup : InputBindingSetup) (family : Family) where
   overlaySatisfied : Satisfies
     (Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyPhysicalOverlayRows.rows
       setup family) overlayAssignment
+  phaseEnvelopeSatisfied :
+    (FPrimeFullHistoryStreamingPiRLCPhaseEnvelopeArtifact.armFor
+      (phaseArtifactKindFor (kindForFamily family))).Satisfied
+        Artifacts.FPrimeFullHistory.StreamingPiRLCPhaseEnvelope.phaseConstantValues
+        bodyAssignment
   suffixSatisfied :
     (armFor (kindForFamily family)).Satisfied bodyAssignment
 
@@ -179,8 +184,8 @@ private theorem after_cursor_bound
   have ordinalBound := ProductPiRlcAlgebraRows.familyOrdinal_lt family
   omega
 
-/-- The accepted public suffix binds all ten public words to the two decoded
-semantic states. -/
+/-- The accepted public suffix binds all ten public words and both local
+digest source values to the two decoded semantic states. -/
 theorem publicBinding
     {setup : InputBindingSetup} {family : Family}
     (accepted : AcceptedArm setup family) :
@@ -192,8 +197,9 @@ theorem publicBinding
       accepted.suffixSatisfied (before_cursor_bound accepted)
       (after_cursor_bound accepted)
 
-/-- The accepted suffix fixes the exact structural fields of either full-XOut
-preimage. The five outer four-field values remain opaque at this layer. -/
+/-- The accepted suffix and phase envelope fix the exact structural and
+semantic-envelope fields of either full-XOut preimage. The five outer
+four-field values remain opaque at this layer. -/
 theorem xOutPreimageBinding
     {setup : InputBindingSetup} {family : Family}
     (accepted : AcceptedArm setup family) (side : StateSide) :
@@ -202,7 +208,8 @@ theorem xOutPreimageBinding
   simpa [beforeState, afterState] using
     x_out_preimage_refines (kindForFamily family) side
       accepted.bodyAssignment accepted.bodyCanonical accepted.bodyOne
-      accepted.suffixSatisfied (before_cursor_bound accepted)
+      accepted.suffixSatisfied accepted.phaseEnvelopeSatisfied
+      (before_cursor_bound accepted)
       (after_cursor_bound accepted)
 
 /-- The accepted body, public suffix, and linked overlay imply one exact

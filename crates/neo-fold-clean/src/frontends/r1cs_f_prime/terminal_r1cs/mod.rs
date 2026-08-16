@@ -7,7 +7,9 @@
 //! Spartan setup, proofs, WHIR, or manifest generation.
 
 mod compiler;
+mod lane_opening;
 mod lifecycle;
+mod streaming_lifecycle;
 
 use neo_ajtai::AjtaiSModule;
 use thiserror::Error;
@@ -18,10 +20,15 @@ use wip_spartan::{
 
 use crate::engine::r1cs_circuit::builder::RowFamilyRange;
 use crate::engine::r1cs_circuit::R1csSnapshot;
-use crate::paper::relations::{CcsClaim, CcsInstance, CeClaim, WitnessMat};
+use crate::paper::relations::{CcsClaim, CcsInstance, CeClaim, LaneScheme, WitnessMat};
 
 use super::{
     lean_native_ccs_manifest::LeanNativeCcsManifest, lean_nebula_combined_manifest::LeanNebulaCombinedManifest,
+};
+
+pub use streaming_lifecycle::{
+    enforce_streaming_terminal_lifecycle, StreamingTerminalLifecycleError, StreamingTerminalLifecycleOutput,
+    StreamingTerminalPublicWires, STREAMING_TERMINAL_R1CS_FAMILY_NAMES,
 };
 
 /// Direct Spartan engine used by the terminal reference relation.
@@ -161,6 +168,7 @@ pub struct CompiledTerminalR1cs {
 pub struct TerminalR1csConstraintAudit {
     source: R1csSnapshot,
     row_families: Vec<RowFamilyRange>,
+    reviewed_family_names: Vec<&'static str>,
     source_public_columns: usize,
     source_private_columns: usize,
     spartan_private_columns: usize,
@@ -175,6 +183,11 @@ impl TerminalR1csConstraintAudit {
 
     pub fn row_families(&self) -> &[RowFamilyRange] {
         &self.row_families
+    }
+
+    /// Exact family vocabulary that the compiler reviewed for this relation.
+    pub fn reviewed_family_names(&self) -> &[&'static str] {
+        &self.reviewed_family_names
     }
 
     /// Source public prefix length, including the constant-one column.
@@ -334,6 +347,29 @@ pub fn compile_terminal_r1cs_statement(
     statement: TerminalR1csStatement<'_>,
 ) -> Result<CompiledTerminalR1csStatement, TerminalR1csError> {
     compiler::compile_statement(manifest, log, statement)
+}
+
+/// Compile the native terminal relation with three verifier-owned Nebula
+/// lane-slice openings for every running and fresh claim. The slice rows are
+/// owned by the existing terminal commitment families.
+pub fn compile_terminal_r1cs_with_nebula_lanes(
+    manifest: &LeanNativeCcsManifest,
+    log: &AjtaiSModule,
+    lanes: &LaneScheme,
+    input: TerminalR1csInput<'_>,
+) -> Result<CompiledTerminalR1cs, TerminalR1csError> {
+    compiler::compile_with_nebula_lanes(manifest, log, lanes, input)
+}
+
+/// Rebuild the Nebula lane-opening terminal shape and public statement
+/// without private witnesses.
+pub fn compile_terminal_r1cs_statement_with_nebula_lanes(
+    manifest: &LeanNativeCcsManifest,
+    log: &AjtaiSModule,
+    lanes: &LaneScheme,
+    statement: TerminalR1csStatement<'_>,
+) -> Result<CompiledTerminalR1csStatement, TerminalR1csError> {
+    compiler::compile_statement_with_nebula_lanes(manifest, log, lanes, statement)
 }
 
 /// Compile the exact Lean-owned native F-prime plus Nebula terminal relation.

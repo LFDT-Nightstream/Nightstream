@@ -1,6 +1,7 @@
-import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiRLCAuthority
 import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublic
+import Nightstream.Implementation.R1CS.Canonical.CanonicalU64RecipeSound
 import Nightstream.Implementation.R1CS.Canonical.GoldilocksField
+import Nightstream.Implementation.R1CS.Core.Poseidon2Call
 
 /-!
 Contract: exact Rust artifact boundary for the PiRLC family public suffix.
@@ -8,14 +9,14 @@ Contract: exact Rust artifact boundary for the PiRLC family public suffix.
 Assurance tier: Rust-conformant for property
 `FPRIME-STREAMING-PIRLC-FAMILY-FULL-XOUT-ROWS-V2`.
 
-Owns both parity shapes, the exact suffix boundary, complete suffix-row
-ownership, the 937-field local states, both 32-field full XOut preimages and
-four-field outputs, and transport of every canonical-u64 and Poseidon2 leaf
-to its Lean soundness theorem.
+Owns both parity shapes, the exact suffix boundary outside one delegated
+phase-envelope range, the 937-field local states, both 32-field full XOut
+preimages and four-field outputs, and transport of every owned canonical-u64
+and Poseidon2 leaf to its Lean soundness theorem.
 
-Does not own interpretation of the state columns as `FamilyState`, the
-state-digest transcript, the source-prefix relation, selective lowering, or
-recursive lifecycle integration.
+Does not own the delegated phase-envelope rows, interpretation of the state
+columns as `FamilyState`, the state-digest transcript, the source-prefix
+relation, selective lowering, or recursive lifecycle integration.
 
 Emits constraints: no.
 -/
@@ -47,15 +48,15 @@ theorem artifact_valid : rawArtifact.Valid :=
 
 theorem exact_shape :
     rawArtifact.even.sourceRowCount = 275006 /\
-      rawArtifact.even.rowCount = 569886 /\
-      rawArtifact.even.columnCount = 570115 /\
+      rawArtifact.even.rowCount = 1232857 /\
+      rawArtifact.even.columnCount = 1233086 /\
       rawArtifact.odd.sourceRowCount = 276206 /\
-      rawArtifact.odd.rowCount = 571086 /\
-      rawArtifact.odd.columnCount = 571315 /\
-      rawArtifact.lowNormRows = 282459 /\
-      rawArtifact.lowNormColumns = 2521314 /\
+      rawArtifact.odd.rowCount = 1234057 /\
+      rawArtifact.odd.columnCount = 1234286 /\
+      rawArtifact.lowNormRows = 474966 /\
+      rawArtifact.lowNormColumns = 4687416 /\
       rawArtifact.lowNormPublicColumns = 648 := by
-  native_decide
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem exact_leaf_counts :
     rawArtifact.even.canonicalCalls.length = 11 /\
@@ -64,7 +65,34 @@ theorem exact_leaf_counts :
       rawArtifact.odd.poseidon2Calls.length = 490 /\
       rawArtifact.even.glueRows.length = 121 /\
       rawArtifact.odd.glueRows.length = 121 := by
-  native_decide
+  exact
+    ⟨by
+      simpa [rawArtifact] using
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCanonicalCallCertificate.evenArm_canonicalCalls_valid.1,
+    by
+      simpa [rawArtifact] using
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCanonicalCallCertificate.oddArm_canonicalCalls_valid.1,
+    by
+      simpa [rawArtifact] using
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenPoseidon2CallCertificate.evenArm_poseidon2Calls_length,
+    by
+      simpa [rawArtifact] using
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddPoseidon2CallCertificate.oddArm_poseidon2Calls_length,
+    by
+      simpa [rawArtifact] using
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenGlueRowCertificate.evenArm_glueRows_length,
+    by
+      simpa [rawArtifact] using
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddGlueRowCertificate.oddArm_glueRows_length⟩
+
+/-- The public-state artifact delegates one exact contiguous range per parity
+arm to the phase-envelope artifact. -/
+theorem exact_phase_envelope_ranges :
+    rawArtifact.even.phaseEnvelopeRowStart = 558380 /\
+      rawArtifact.even.phaseEnvelopeRowEnd = 1221351 /\
+      rawArtifact.odd.phaseEnvelopeRowStart = 559580 /\
+      rawArtifact.odd.phaseEnvelopeRowEnd = 1222551 := by
+  exact ⟨rfl, rfl, rfl, rfl⟩
 
 /-- The shared public prefix is the after full XOut digest, the before full
 XOut digest, the before global cursor, and the after global cursor. -/
@@ -76,7 +104,7 @@ theorem exact_public_word_layout :
       rawArtifact.odd.publicWordCallIndices =
         [3, 4, 5, 6, 7, 8, 9, 10, 0, 1] /\
       rawArtifact.lowNormPublicColumns = 648 := by
-  native_decide
+  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 /-- Each serialized side has exactly the complete 937-field `FamilyState`.
 Its last source column is the family cursor carried by the source rows. -/
@@ -84,10 +112,22 @@ theorem exact_state_column_shape (kind : ArmKind) :
     (armFor kind).beforeStateColumns.length = 937 /\
       (armFor kind).afterStateColumns.length = 937 /\
       (armFor kind).beforeStateColumns.getD 936 0 =
-        (armFor kind).beforeFamilyCursorColumn /\
+      (armFor kind).beforeFamilyCursorColumn /\
       (armFor kind).afterStateColumns.getD 936 0 =
         (armFor kind).afterFamilyCursorColumn := by
-  cases kind <;> native_decide
+  cases kind with
+  | even =>
+      exact
+        ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.evenArm_stateColumnLayout_valid.1.1,
+          Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.evenArm_stateColumnLayout_valid.2.1,
+          Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.evenArm_beforeState_last_is_cursor,
+          Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.evenArm_afterState_last_is_cursor⟩
+  | odd =>
+      exact
+        ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.oddArm_stateColumnLayout_valid.1.1,
+          Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.oddArm_stateColumnLayout_valid.2.1,
+          Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.oddArm_beforeState_last_is_cursor,
+          Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicStateColumnLayoutCertificate.oddArm_afterState_last_is_cursor⟩
 
 /-- Each side carries the complete 32-field full-state preimage and its
 four-field Poseidon2 output. -/
@@ -96,14 +136,28 @@ theorem exact_x_out_column_shape (kind : ArmKind) :
       (armFor kind).beforeXOutPreimageColumns.length = 32 /\
       (armFor kind).afterXOutDigestColumns.length = 4 /\
       (armFor kind).beforeXOutDigestColumns.length = 4 := by
-  cases kind <;> native_decide
+  cases kind with
+  | even =>
+      have valid :=
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicSmallLayoutCertificate.evenArm_xOutColumnLayout_valid
+      exact ⟨valid.1.1, valid.2.1.1, valid.2.2.1.1, valid.2.2.2.1⟩
+  | odd =>
+      have valid :=
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicSmallLayoutCertificate.oddArm_xOutColumnLayout_valid
+      exact ⟨valid.1.1, valid.2.1.1, valid.2.2.1.1, valid.2.2.2.1⟩
 
-/-- The generated owner chain covers every suffix row once, from the exact
-source boundary to the physical row count. -/
+/-- The generated coordinate chain covers every suffix row once. The
+phase-envelope marker delegates its rows and does not prove them here. -/
 theorem exact_suffix_owner_chain (kind : ArmKind) :
     exactOwnerChainFrom (armFor kind) (armFor kind).sourceRowCount
       (armFor kind).owners = true := by
-  cases kind <;> native_decide
+  cases kind with
+  | even =>
+      exact
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenOwnershipTailCertificate.evenArm_ownership_valid.2.2.2.2
+  | odd =>
+      exact
+        Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddOwnershipTailCertificate.oddArm_ownership_valid.2.2.2.2
 
 /-- Every canonical-word leaf in a satisfying suffix has the unique
 canonical 64-bit value specified by the Lean-owned recipe. -/

@@ -795,6 +795,15 @@ impl SelectiveCompilerAudit {
         &self.source_arm_linear_definitions
     }
 
+    /// Exact affine definition for one compiler-eliminated source field.
+    pub fn source_arm_linear_definition(&self, arm: usize, target: usize) -> Option<&SelectiveLinearDefinitionAudit> {
+        let definitions = self.source_arm_linear_definitions.get(arm)?;
+        definitions
+            .binary_search_by_key(&target, SelectiveLinearDefinitionAudit::target)
+            .ok()
+            .map(|index| &definitions[index])
+    }
+
     /// Exact fixed-width selection traces joined to source and emitted rows.
     pub fn first_accepted_selections(&self) -> &[super::SelectiveFirstAcceptedSelectionAudit] {
         &self.first_accepted_selections

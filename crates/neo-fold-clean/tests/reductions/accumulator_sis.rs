@@ -22,11 +22,12 @@ use neo_fold_clean::frontends::r1cs_f_prime::{
 };
 use neo_fold_clean::paper::digest::accumulator_ce_claim_digest;
 use neo_fold_clean::paper::reductions::accumulator_sis_circuit::{
-    accumulator_digest, commit_fields, enforce_accumulator_digest, enforce_commit_fields, SisAccumulatorConfig,
-    SisAccumulatorError, ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG,
-    DIGEST_COMPRESSION_MAX_MESSAGE_COLS, NEBULA_LEAF_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG,
-    PI_RLC_PROJECTION_SIS_CONFIG, PROTOCOL_BINDING_KAPPA, PROTOCOL_BINDING_MAX_MESSAGE_COLS,
-    SIS_DIGEST_COMPRESSION_CONFIG,
+    accumulator_digest, commit_coordinate_fields, commit_fields, enforce_accumulator_digest,
+    enforce_commit_coordinate_fields, enforce_commit_fields, SisAccumulatorConfig, SisAccumulatorError,
+    ACCUMULATOR_CE_CLAIM_SIS_CONFIG, CCS_CLAIM_SIS_CONFIG, CE_CLAIM_SIS_CONFIG, DIGEST_COMPRESSION_MAX_MESSAGE_COLS,
+    NEBULA_LEAF_SIS_CONFIG, PI_CCS_OUTPUTS_SIS_CONFIG, PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
+    PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, PI_RLC_PROJECTION_SIS_CONFIG, PROTOCOL_BINDING_KAPPA,
+    PROTOCOL_BINDING_MAX_MESSAGE_COLS, SIS_DIGEST_COMPRESSION_CONFIG,
 };
 use neo_math::{KExtensions, D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -354,6 +355,8 @@ fn protocol_binding_maps_match_estimated_two_level_profile() {
         PI_CCS_OUTPUTS_SIS_CONFIG,
         PI_RLC_PROJECTION_SIS_CONFIG,
         NEBULA_LEAF_SIS_CONFIG,
+        PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
+        PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG,
     ];
     for config in long_maps {
         assert_eq!(config.kappa, PROTOCOL_BINDING_KAPPA);
@@ -367,6 +370,8 @@ fn protocol_binding_maps_match_estimated_two_level_profile() {
         long_maps[3],
         long_maps[4],
         long_maps[5],
+        long_maps[6],
+        long_maps[7],
         SIS_DIGEST_COMPRESSION_CONFIG,
     ];
     for (index, config) in all_maps.iter().enumerate() {
@@ -422,6 +427,219 @@ fn protocol_binding_widths_stop_at_the_estimated_security_boundary() {
         folding_error,
         SisAccumulatorError::UnsupportedKappa { kappa: 18 }
     ));
+}
+
+#[test]
+fn coordinate_commitments_add_to_the_same_full_vector_in_any_phase_order() {
+    const TOTAL_FIELDS: usize = 12;
+    let full = (0..TOTAL_FIELDS)
+        .map(|position| (position, F::from_u64(100 + 17 * position as u64)))
+        .collect::<Vec<_>>();
+    let mut first = full
+        .iter()
+        .copied()
+        .filter(|(position, _)| position % 2 == 0)
+        .collect::<Vec<_>>();
+    let mut second = full
+        .iter()
+        .copied()
+        .filter(|(position, _)| position % 2 == 1)
+        .collect::<Vec<_>>();
+    first.reverse();
+    second.rotate_left(2);
+
+    let expected = commit_coordinate_fields(PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, TOTAL_FIELDS, &full)
+        .expect("full coordinate commitment");
+    assert_eq!(
+        expected,
+        commit_fields(
+            PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
+            &full.iter().map(|(_, value)| *value).collect::<Vec<_>>(),
+        )
+        .expect("existing full-vector commitment"),
+        "coordinate binding must reuse the existing standard packing",
+    );
+    let mut combined = commit_coordinate_fields(PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, TOTAL_FIELDS, &first)
+        .expect("first partial coordinate commitment");
+    combined.add_inplace(
+        &commit_coordinate_fields(PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, TOTAL_FIELDS, &second)
+            .expect("second partial coordinate commitment"),
+    );
+
+    assert_eq!(
+        combined, expected,
+        "partial phase order must not change the fixed-vector commitment"
+    );
+
+    let mut changed = full.clone();
+    changed[7].1 += F::ONE;
+    let changed = commit_coordinate_fields(PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, TOTAL_FIELDS, &changed)
+        .expect("changed coordinate commitment");
+    assert_ne!(changed, expected, "the hostile fixture must change the commitment");
+}
+
+#[test]
+fn coordinate_commitment_rows_bind_source_fields_zero_word_and_global_positions() {
+    const TOTAL_FIELDS: usize = 16;
+    let values = [F::from_u64(3), F::from_u64(5), F::from_u64(8)];
+    let mut builder = R1csBuilder::new();
+    builder.enable_encoding_trace();
+    let fields = builder.alloc_vec(&values);
+    let positioned = [(7, fields[0]), (2, fields[1]), (11, fields[2])];
+    let wires = enforce_commit_coordinate_fields(
+        &mut builder,
+        PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
+        TOTAL_FIELDS,
+        &positioned,
+    )
+    .expect("coordinate-preserving SIS rows");
+
+    assert!(builder.is_satisfied());
+    assert_eq!(builder.unconstrained_columns(), Vec::<usize>::new());
+    assert_eq!(
+        builder.rows(),
+        BALANCED_TERNARY_DIGITS + positioned.len() * 124 + 2 + 2 * D
+    );
+    assert_eq!(
+        builder.cols(),
+        1 + values.len() + BALANCED_TERNARY_DIGITS + positioned.len() * 122 + 2 + 2 * D
+    );
+
+    let native = commit_coordinate_fields(
+        PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
+        TOTAL_FIELDS,
+        &[(7, values[0]), (2, values[1]), (11, values[2])],
+    )
+    .expect("native coordinate commitment");
+    assert_eq!(
+        wires
+            .data
+            .iter()
+            .map(|wire| builder.witness()[wire.col()])
+            .collect::<Vec<_>>(),
+        native.data,
+    );
+
+    let blocks = builder.seeded_phi81_a_blocks();
+    assert_eq!(blocks.len(), 1);
+    let block = &blocks[0];
+    assert_eq!(
+        block.message_cols(),
+        (TOTAL_FIELDS * BALANCED_TERNARY_DIGITS).div_ceil(D)
+    );
+    assert_eq!(block.word_width(), BALANCED_TERNARY_DIGITS);
+    assert_eq!(block.word_starts().len(), TOTAL_FIELDS);
+    let zero_start = block.word_starts()[0];
+    for position in 0..TOTAL_FIELDS {
+        if ![2, 7, 11].contains(&position) {
+            assert_eq!(block.word_starts()[position], zero_start);
+        }
+    }
+    assert!([2, 7, 11]
+        .into_iter()
+        .all(|position| block.word_starts()[position] != zero_start));
+
+    builder.tamper_witness(fields[0].col(), values[0] + F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "source-field substitution must fail its canonical opening"
+    );
+    builder.tamper_witness(fields[0].col(), values[0]);
+    assert!(builder.is_satisfied());
+
+    builder.tamper_witness(zero_start, F::ONE);
+    assert!(
+        !builder.is_satisfied(),
+        "the shared missing-coordinate word must stay zero"
+    );
+}
+
+#[test]
+fn coordinate_commitment_geometry_fails_closed() {
+    let zero_total = commit_coordinate_fields(PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, 0, &[(0, F::ONE)])
+        .expect_err("zero coordinate vector width");
+    assert!(matches!(zero_total, SisAccumulatorError::ZeroCoordinateFieldCount));
+
+    let out_of_range = commit_coordinate_fields(PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, 3, &[(3, F::ONE)])
+        .expect_err("out-of-range coordinate");
+    assert!(matches!(
+        out_of_range,
+        SisAccumulatorError::CoordinateOutOfRange {
+            position: 3,
+            total_field_count: 3,
+        }
+    ));
+
+    let duplicate = commit_coordinate_fields(PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG, 3, &[(1, F::ONE), (1, F::ZERO)])
+        .expect_err("duplicate coordinate");
+    assert!(matches!(
+        duplicate,
+        SisAccumulatorError::DuplicateCoordinate { position: 1 }
+    ));
+
+    let too_wide = commit_coordinate_fields(
+        PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
+        PROTOCOL_BINDING_MAX_MESSAGE_COLS * D / BALANCED_TERNARY_DIGITS + 1,
+        &[(0, F::ONE)],
+    )
+    .expect_err("coordinate vector above the estimated width");
+    assert!(matches!(
+        too_wide,
+        SisAccumulatorError::MessageTooWide {
+            kappa: PROTOCOL_BINDING_KAPPA,
+            field_count,
+            max_field_count,
+            max_message_cols: PROTOCOL_BINDING_MAX_MESSAGE_COLS,
+        } if field_count == PROTOCOL_BINDING_MAX_MESSAGE_COLS * D / BALANCED_TERNARY_DIGITS + 1
+            && max_field_count == PROTOCOL_BINDING_MAX_MESSAGE_COLS * D / BALANCED_TERNARY_DIGITS
+    ));
+}
+
+#[test]
+#[ignore = "production 1,024-field coordinate-binding cost snapshot"]
+fn coordinate_commitment_production_chunk_low_norm_snapshot() {
+    const TOTAL_FIELDS: usize = 21_220;
+    const ACTIVE_FIELDS: usize = 1_024;
+    let values = (0..ACTIVE_FIELDS)
+        .map(|index| F::from_u64(0x1000 + index as u64))
+        .collect::<Vec<_>>();
+    let mut builder = R1csBuilder::new();
+    builder.enable_encoding_trace();
+    let fields = builder.alloc_vec(&values);
+    let positioned = fields.iter().copied().enumerate().collect::<Vec<_>>();
+    enforce_commit_coordinate_fields(
+        &mut builder,
+        PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG,
+        TOTAL_FIELDS,
+        &positioned,
+    )
+    .expect("production-width partial coordinate commitment");
+    assert!(builder.is_satisfied());
+    assert_eq!(
+        builder.rows(),
+        BALANCED_TERNARY_DIGITS + ACTIVE_FIELDS * 124 + 2 + 2 * D
+    );
+    assert_eq!(
+        builder.cols(),
+        1 + ACTIVE_FIELDS + BALANCED_TERNARY_DIGITS + ACTIVE_FIELDS * 122 + 2 + 2 * D
+    );
+
+    let lowered = lower_field_r1cs(builder, &[]).expect("production chunk field lowering");
+    let (shape, assignment) = lowered.into_parts();
+    let relation = build_multi_branch_selective_low_norm_r1cs_with_alignment(&[shape.clone(), shape], 0, D, 0)
+        .expect("production chunk selective low-norm lowering");
+    let encoded = relation
+        .encode(0, &assignment)
+        .expect("production chunk encoding");
+    assert!(relation.is_satisfied(&encoded));
+    eprintln!(
+        "coordinate binding (1024 of 21220): rows={}, committed_coordinates={}, assignment_coordinates={}",
+        relation.structure().n,
+        relation.structure().m,
+        encoded.len(),
+    );
+    assert!(relation.structure().n <= 1 << 24);
+    assert!(relation.structure().m <= 1 << 24);
 }
 
 #[test]

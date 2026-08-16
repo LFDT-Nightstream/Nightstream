@@ -106,6 +106,35 @@ pub const NEBULA_LEAF_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
     domain: 0x4E42_4C41_5F4C_4546,
 };
 
+/// Coordinate-preserving binding for the variable part of the production
+/// PiCCS statement. Each canonical field keeps its standard 41-coordinate
+/// word at one fixed global position, so disjoint phase commitments add to the
+/// existing full-vector commitment.
+pub const PI_CCS_VARIABLE_COORDINATE_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC8; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x5049_4356_4152_4244,
+};
+
+/// Coordinate-preserving binding for the running-claim commitment and
+/// public-input fields consumed by PiCCS. This map is separate from the
+/// statement-and-fresh map so both fixed production messages remain within
+/// the rank-two estimator bound.
+pub const PI_CCS_RUNNING_METADATA_COORDINATE_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xCA; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x5049_4352_554E_4D44,
+};
+
+/// Coordinate-preserving binding for the 110 fixed PiRLC input families.
+/// This map is wider than the pinned estimator model. Its binding property is
+/// therefore an explicit Module-SIS assumption, not an estimator conclusion.
+pub const PI_RLC_INPUT_COORDINATE_SIS_CONFIG: SisAccumulatorConfig = SisAccumulatorConfig {
+    seed: [0xC9; 32],
+    kappa: PROTOCOL_BINDING_KAPPA,
+    domain: 0x5049_524C_4349_4E50,
+};
+
 #[derive(Debug, Error)]
 pub enum SisAccumulatorError {
     #[error("SIS accumulator requires at least one input field")]
@@ -124,6 +153,15 @@ pub enum SisAccumulatorError {
         max_field_count: usize,
         max_message_cols: usize,
     },
+    #[error("coordinate-preserving SIS map requires a nonzero total field count")]
+    ZeroCoordinateFieldCount,
+    #[error("coordinate-preserving SIS field position {position} is outside 0..{total_field_count}")]
+    CoordinateOutOfRange {
+        position: usize,
+        total_field_count: usize,
+    },
+    #[error("coordinate-preserving SIS field position {position} occurs more than once")]
+    DuplicateCoordinate { position: usize },
 }
 
 pub struct SisAccumulatorWires {
@@ -261,6 +299,40 @@ pub fn commit_fields(config: SisAccumulatorConfig, fields: &[F]) -> Result<Commi
     ))
 }
 
+/// Commit a subset of one fixed coordinate vector under the standard seeded
+/// Ajtai key for `total_field_count` message columns.
+///
+/// Each selected field occupies its standard 41-coordinate signed-ternary
+/// word. Missing fields use one constrained zero word. Therefore commitments
+/// to disjoint subsets add to the commitment of their union, independently of
+/// the order in which the subsets are processed.
+pub fn commit_coordinate_fields(
+    config: SisAccumulatorConfig,
+    total_field_count: usize,
+    fields: &[(usize, F)],
+) -> Result<Commitment, SisAccumulatorError> {
+    let positions = fields
+        .iter()
+        .map(|(position, _)| *position)
+        .collect::<Vec<_>>();
+    validate_coordinate_map(config, total_field_count, &positions)?;
+    let message_cols = (total_field_count * BALANCED_TERNARY_DIGITS).div_ceil(D);
+    let mut message = Mat::zero(D, message_cols, F::ZERO);
+    for &(position, value) in fields {
+        for (digit, coefficient) in balanced_ternary_digits(value).into_iter().enumerate() {
+            let index = position * BALANCED_TERNARY_DIGITS + digit;
+            message.set(index / message_cols, index % message_cols, coefficient);
+        }
+    }
+    Ok(commit_row_major_seeded(
+        config.seed,
+        D,
+        config.kappa,
+        message_cols,
+        &message,
+    ))
+}
+
 pub fn enforce_commit_fields(
     builder: &mut R1csBuilder,
     config: SisAccumulatorConfig,
@@ -300,6 +372,51 @@ pub fn enforce_commit_fields(
         chunk_seeds,
     )
     .expect("fixed seeded SIS geometry");
+    builder.enforce_seeded_phi81_a_block(block, &commitment.data);
+    Ok(commitment)
+}
+
+/// Circuit form of [`commit_coordinate_fields`]. The compact seeded block
+/// contains the complete fixed key. Unselected coordinates all point to one
+/// constrained zero word, while selected coordinates point to exact fixed-width
+/// canonical openings of the supplied source fields.
+pub fn enforce_commit_coordinate_fields(
+    builder: &mut R1csBuilder,
+    config: SisAccumulatorConfig,
+    total_field_count: usize,
+    fields: &[(usize, Var)],
+) -> Result<CommitmentWires, SisAccumulatorError> {
+    let positions = fields
+        .iter()
+        .map(|(position, _)| *position)
+        .collect::<Vec<_>>();
+    validate_coordinate_map(config, total_field_count, &positions)?;
+    let values = fields
+        .iter()
+        .map(|(position, field)| (*position, builder.witness()[field.col()]))
+        .collect::<Vec<_>>();
+    let native = commit_coordinate_fields(config, total_field_count, &values)?;
+
+    let zero_word = alloc_zero_coordinate_word(builder);
+    let mut word_starts = vec![zero_word[0].col(); total_field_count];
+    for &(position, field) in fields {
+        let word = decompose_var_to_balanced_ternary(builder, field);
+        word_starts[position] = word[0].col();
+    }
+
+    let commitment = alloc_commitment(builder, &native);
+    let message_cols = (total_field_count * BALANCED_TERNARY_DIGITS).div_ceil(D);
+    let (chunk_size, chunk_seeds) = seeded_pp_chunk_seeds(config.seed, config.kappa, message_cols);
+    let block = SeededPhi81LinearBlock::new_with_word_width(
+        builder.rows(),
+        word_starts,
+        BALANCED_TERNARY_DIGITS,
+        config.kappa,
+        message_cols,
+        chunk_size,
+        chunk_seeds,
+    )
+    .expect("fixed coordinate-preserving seeded SIS geometry");
     builder.enforce_seeded_phi81_a_block(block, &commitment.data);
     Ok(commitment)
 }
@@ -387,12 +504,32 @@ fn balanced_ternary_message(fields: &[F]) -> Mat<F> {
     message
 }
 
-fn decompose_var_to_balanced_ternary(builder: &mut R1csBuilder, field: Var) -> [Var; BALANCED_TERNARY_DIGITS] {
+pub(crate) fn decompose_var_to_balanced_ternary(
+    builder: &mut R1csBuilder,
+    field: Var,
+) -> [Var; BALANCED_TERNARY_DIGITS] {
     if let Some(digits) = builder.balanced_ternary_decomposition(field) {
         return digits;
     }
     let values = balanced_ternary_digits(builder.witness()[field.col()]);
     let digits = values.map(|value| builder.alloc(value));
+    enforce_balanced_ternary_opening(builder, field, digits);
+    digits
+}
+
+pub(crate) fn alloc_zero_coordinate_word(builder: &mut R1csBuilder) -> [Var; BALANCED_TERNARY_DIGITS] {
+    let word: [Var; BALANCED_TERNARY_DIGITS] = builder
+        .alloc_vec(&[F::ZERO; BALANCED_TERNARY_DIGITS])
+        .try_into()
+        .expect("one 41-coordinate zero word");
+    for &coordinate in &word {
+        builder.record_centered_unit(coordinate);
+        builder.enforce_eq(&Lc::from_var(coordinate), &Lc::zero());
+    }
+    word
+}
+
+fn enforce_balanced_ternary_opening(builder: &mut R1csBuilder, field: Var, digits: [Var; BALANCED_TERNARY_DIGITS]) {
     let digit_rows_start = builder.rows();
     let negative_indicators = digits.map(|digit| {
         let value = builder.witness()[digit.col()];
@@ -444,7 +581,6 @@ fn decompose_var_to_balanced_ternary(builder: &mut R1csBuilder, field: Var) -> [
         reconstruction_row,
         transition_rows: transition_rows_start..transition_rows_end,
     });
-    digits
 }
 
 /// Select one low-norm opening for every field residue without a 64-bit
@@ -525,7 +661,7 @@ fn enforce_shifted_base3_canonical(
         .expect("one borrow variable per non-terminal ternary digit")
 }
 
-fn balanced_ternary_digits(value: F) -> [F; BALANCED_TERNARY_DIGITS] {
+pub(crate) fn balanced_ternary_digits(value: F) -> [F; BALANCED_TERNARY_DIGITS] {
     let modulus = F::ORDER_U64 as u128;
     let shift = (3u128.pow(BALANCED_TERNARY_DIGITS as u32) - 1) / 2;
     let mut remaining = (value.as_canonical_u64() as u128 + shift) % modulus;
@@ -547,14 +683,7 @@ fn validate(config: SisAccumulatorConfig, field_count: usize) -> Result<(), SisA
     if field_count == 0 {
         return Err(SisAccumulatorError::EmptyInput);
     }
-    if config.kappa == 0 {
-        return Err(SisAccumulatorError::ZeroKappa);
-    }
-    let max_message_cols = match config.kappa {
-        1 => DIGEST_COMPRESSION_MAX_MESSAGE_COLS,
-        PROTOCOL_BINDING_KAPPA => PROTOCOL_BINDING_MAX_MESSAGE_COLS,
-        kappa => return Err(SisAccumulatorError::UnsupportedKappa { kappa }),
-    };
+    let max_message_cols = max_message_cols(config)?;
     let max_field_count = max_message_cols * D / BALANCED_TERNARY_DIGITS;
     if field_count > max_field_count {
         return Err(SisAccumulatorError::MessageTooWide {
@@ -565,6 +694,54 @@ fn validate(config: SisAccumulatorConfig, field_count: usize) -> Result<(), SisA
         });
     }
     Ok(())
+}
+
+fn validate_coordinate_map(
+    config: SisAccumulatorConfig,
+    total_field_count: usize,
+    positions: &[usize],
+) -> Result<(), SisAccumulatorError> {
+    if positions.is_empty() {
+        return Err(SisAccumulatorError::EmptyInput);
+    }
+    if total_field_count == 0 {
+        return Err(SisAccumulatorError::ZeroCoordinateFieldCount);
+    }
+    let max_message_cols = max_message_cols(config)?;
+    let max_field_count = max_message_cols * D / BALANCED_TERNARY_DIGITS;
+    if total_field_count > max_field_count {
+        return Err(SisAccumulatorError::MessageTooWide {
+            kappa: config.kappa,
+            field_count: total_field_count,
+            max_field_count,
+            max_message_cols,
+        });
+    }
+    let mut seen = vec![false; total_field_count];
+    for &position in positions {
+        if position >= total_field_count {
+            return Err(SisAccumulatorError::CoordinateOutOfRange {
+                position,
+                total_field_count,
+            });
+        }
+        if seen[position] {
+            return Err(SisAccumulatorError::DuplicateCoordinate { position });
+        }
+        seen[position] = true;
+    }
+    Ok(())
+}
+
+fn max_message_cols(config: SisAccumulatorConfig) -> Result<usize, SisAccumulatorError> {
+    if config.kappa == 0 {
+        return Err(SisAccumulatorError::ZeroKappa);
+    }
+    match config.kappa {
+        1 => Ok(DIGEST_COMPRESSION_MAX_MESSAGE_COLS),
+        PROTOCOL_BINDING_KAPPA => Ok(PROTOCOL_BINDING_MAX_MESSAGE_COLS),
+        kappa => Err(SisAccumulatorError::UnsupportedKappa { kappa }),
+    }
 }
 
 fn alloc_constant(builder: &mut R1csBuilder, value: F) -> Var {

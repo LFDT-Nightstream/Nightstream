@@ -12,9 +12,12 @@ use std::io;
 use neo_ccs::CcsMatrix;
 use neo_fold_clean::engine::r1cs_circuit::builder::RowFamilyRange;
 use neo_fold_clean::engine::r1cs_circuit::{PhysicalStageRange, R1csSnapshot, Var};
-use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit};
+use neo_fold_clean::frontends::nebula::f_prime::{
+    NebulaFPrimeBranch, NebulaFPrimeConstraintSourceAudit, NebulaFPrimeStreamingLifecycleArm,
+    NebulaFPrimeStreamingLifecycleArmProfile, NebulaFPrimeStreamingLifecycleSourceArms,
+};
 use neo_fold_clean::frontends::r1cs_f_prime::ivc::{R1csIvcBranch, R1csIvcConstraintSourceAudit};
-use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
+use neo_fold_clean::frontends::r1cs_f_prime::{MultiBranchLowNormR1cs, SparseR1cs};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use recursive_constraint_minimizer::{Problem, Row, Scope, Source, Term, GOLDILOCKS_MODULUS, PROBLEM_SCHEMA};
@@ -27,15 +30,17 @@ mod refinement;
 mod selective_binding;
 mod source_assignment;
 mod terminal_binding;
+mod witness_search;
 
 pub use lean_export::{
-    render_bound_artifact_lean, render_complete_bound_artifact_lean, render_complete_terminal_bound_artifact_lean,
-    render_redundancy_certificate_lean, render_removal_counterexample_lean, render_terminal_bound_artifact_lean,
-    render_terminal_redundancy_certificate_lean, render_terminal_removal_counterexample_lean,
+    render_bound_artifact_data_lean, render_complete_bound_artifact_data_lean,
+    render_complete_terminal_bound_artifact_data_lean, render_redundancy_candidate_lean,
+    render_removal_counterexample_candidate_lean, render_terminal_bound_artifact_data_lean,
+    render_terminal_redundancy_candidate_lean, render_terminal_removal_counterexample_candidate_lean,
 };
 pub use obligation_ledger::{
-    paper_obligation_ledger, validate_paper_obligation_ledger, EvidenceKind, ObligationEvidence, ObligationState,
-    Paper, PaperObligation,
+    paper_obligation_ledger, require_complete_lifecycle_target_ready, validate_paper_obligation_ledger, EvidenceKind,
+    ObligationEvidence, ObligationState, Paper, PaperObligation,
 };
 pub use refinement::{
     refine_fixed_point_with_cvc5, refine_nebula_with_cvc5, refine_sparse_with_cvc5, refine_terminal_with_cvc5,
@@ -43,7 +48,8 @@ pub use refinement::{
     MAX_REFINEMENT_ITERATIONS,
 };
 pub use selective_binding::{
-    FixedPointProblemExport, SelectiveRetainedRowBinding, SelectiveRewriteBinding, SelectiveSliceBinding,
+    export_streaming_lifecycle_profile, FixedPointProblemExport, SelectiveRetainedRowBinding, SelectiveRewriteBinding,
+    SelectiveSliceBinding, StreamingLifecycleProfileExport,
 };
 pub use source_assignment::{
     bind_nebula_source_assignment, load_nebula_source_assignment, CheckedNebulaSourceAssignment,
@@ -54,6 +60,7 @@ pub use terminal_binding::{
     terminal_verifier_native_guard_names, TerminalColumnLayout, TerminalOwnedFamily, TerminalProblemExport,
     TerminalProjectedRowArtifact, TerminalSpartanBinding,
 };
+pub use witness_search::{find_exclusive_column_witness, ExclusiveColumnWitness};
 
 const DIGEST_DOMAIN: &[u8] = b"nightstream/r1cs-source-artifact/v1";
 const SPARSE_DIGEST_DOMAIN: &[u8] = b"nightstream/sparse-r1cs-source-artifact/v2";
@@ -68,6 +75,37 @@ pub struct ExportRequest {
     pub source_rows: Vec<usize>,
     /// Strictly ordered family names that are complete in `source_rows`.
     pub complete_families: Vec<String>,
+}
+
+/// Every exact source row in one frozen streaming lifecycle arm, joined to
+/// its checked two-arm selective profile.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StreamingLifecycleProblemExport {
+    problem: Problem,
+    arm: NebulaFPrimeStreamingLifecycleArm,
+    profile: StreamingLifecycleProfileExport,
+}
+
+impl StreamingLifecycleProblemExport {
+    pub fn problem(&self) -> &Problem {
+        &self.problem
+    }
+
+    pub const fn arm(&self) -> NebulaFPrimeStreamingLifecycleArm {
+        self.arm
+    }
+
+    pub fn arm_profile(&self) -> &NebulaFPrimeStreamingLifecycleArmProfile {
+        self.profile.profile().arm(self.arm)
+    }
+
+    pub fn profile_export(&self) -> &StreamingLifecycleProfileExport {
+        &self.profile
+    }
+
+    pub fn into_problem(self) -> Problem {
+        self.problem
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -452,6 +490,38 @@ pub fn export_complete_nebula_problem(
                 .collect(),
         },
     )
+}
+
+/// Export every exact source row in one streaming lifecycle arm and bind the
+/// result to the frozen two-arm selective profile.
+pub fn export_complete_streaming_lifecycle_problem(
+    lifecycle: &NebulaFPrimeStreamingLifecycleSourceArms,
+    relation: &MultiBranchLowNormR1cs,
+    arm: NebulaFPrimeStreamingLifecycleArm,
+    profile: &str,
+) -> Result<StreamingLifecycleProblemExport, ExportError> {
+    let source = lifecycle.arm(arm);
+    let families = sparse_family_census(source)?;
+    let problem = export_sparse_problem(
+        source,
+        ExportRequest {
+            profile: profile.to_owned(),
+            scope: Scope::Lifecycle,
+            public_input_count: source.m_in,
+            source_rows: (0..source.n).collect(),
+            complete_families: families
+                .into_iter()
+                .map(|family| family.name().to_owned())
+                .collect(),
+        },
+    )?;
+    let profile = selective_binding::export_streaming_lifecycle_profile(lifecycle, relation)?;
+    if problem.source.artifact_digest != profile.source_artifact_digest(arm) {
+        return Err(ExportError::new(
+            "streaming lifecycle problem digest differs from the frozen source profile",
+        ));
+    }
+    Ok(StreamingLifecycleProblemExport { problem, arm, profile })
 }
 
 fn stage_owners(row_count: usize, stages: &[PhysicalStageRange]) -> Vec<Option<&'static str>> {

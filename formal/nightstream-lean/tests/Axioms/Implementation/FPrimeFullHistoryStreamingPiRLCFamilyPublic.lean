@@ -6,12 +6,14 @@ import tests.Axioms.Support
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicArtifact
 
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicArtifact.artifact_valid' depends on axioms: [propext,
- Lean.trustCompiler] -/
+ Classical.choice,
+ Quot.sound] -/
 #guard_msgs in
 #audit_axioms artifact_valid
 
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicArtifact.exact_suffix_owner_chain' depends on axioms: [propext,
- Lean.trustCompiler] -/
+ Classical.choice,
+ Quot.sound] -/
 #guard_msgs in
 #audit_axioms exact_suffix_owner_chain
 

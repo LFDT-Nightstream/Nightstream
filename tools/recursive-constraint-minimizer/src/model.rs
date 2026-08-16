@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::fmt;
 
-use crate::{Row, GOLDILOCKS_MODULUS};
+use crate::{Row, TypedTargetRow, GOLDILOCKS_MODULUS};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FieldModel {
@@ -13,6 +13,22 @@ pub struct FieldModel {
 impl FieldModel {
     pub fn values(&self) -> &[u64] {
         &self.values
+    }
+
+    /// Build a model from canonical residues produced by a Rust witness
+    /// constructor. The same replay and Lean checks apply to every model,
+    /// independent of how the model was found.
+    pub fn from_canonical_values(values: Vec<u64>) -> Result<Self, ModelError> {
+        if values.is_empty() {
+            return Err(ModelError::new("model must contain at least one column"));
+        }
+        let modulus = GOLDILOCKS_MODULUS
+            .parse::<u64>()
+            .expect("fixed Goldilocks modulus fits in u64");
+        if values.iter().any(|&value| value >= modulus) {
+            return Err(ModelError::new("model contains a noncanonical residue"));
+        }
+        Ok(Self { values })
     }
 }
 
@@ -95,6 +111,14 @@ pub fn parse_model_with_defaults(
 
 /// Evaluate one exported R1CS equation with a parsed assignment.
 pub fn row_is_satisfied(row: &Row, model: &FieldModel) -> Result<bool, ModelError> {
+    let a = evaluate(&row.a, model)?;
+    let b = evaluate(&row.b, model)?;
+    let c = evaluate(&row.c, model)?;
+    Ok(multiply(a, b) == c)
+}
+
+/// Evaluate one independently defined typed-target equation.
+pub fn typed_target_row_is_satisfied(row: &TypedTargetRow, model: &FieldModel) -> Result<bool, ModelError> {
     let a = evaluate(&row.a, model)?;
     let b = evaluate(&row.b, model)?;
     let c = evaluate(&row.c, model)?;

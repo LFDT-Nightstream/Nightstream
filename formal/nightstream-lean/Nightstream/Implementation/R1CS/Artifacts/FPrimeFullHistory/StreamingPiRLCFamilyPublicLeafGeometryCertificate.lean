@@ -1,0 +1,34 @@
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicCanonicalCallCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicEvenGlueRowCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicEvenPoseidon2CallTailCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicOddGlueRowCertificate
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyPublicOddPoseidon2CallTailCertificate
+
+/-!
+Contract: structural leaf-geometry certificates for both Rust-emitted PiRLC
+public-family arms.
+
+Owns only the composition of canonical-u64, Poseidon2, and glue-row geometry
+facts. It owns no leaf semantics or row ownership.
+
+Emits constraints: no.
+-/
+
+set_option autoImplicit false
+
+namespace Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicLeafGeometryCertificate
+
+open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyPublic
+open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublic.Artifact
+
+theorem evenArm_leafGeometry_valid : evenArm.LeafGeometryValid :=
+  ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCanonicalCallCertificate.evenArm_canonicalCalls_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenPoseidon2CallTailCertificate.evenArm_poseidon2Calls_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicEvenGlueRowCertificate.evenArm_glueRows_valid⟩
+
+theorem oddArm_leafGeometry_valid : oddArm.LeafGeometryValid :=
+  ⟨Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicCanonicalCallCertificate.oddArm_canonicalCalls_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddPoseidon2CallTailCertificate.oddArm_poseidon2Calls_valid,
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddGlueRowCertificate.oddArm_glueRows_valid⟩
+
+end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicLeafGeometryCertificate

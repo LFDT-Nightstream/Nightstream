@@ -87,6 +87,7 @@ fn exact_combined_terminal_fixture_has_the_reviewed_exportable_census() {
     assert_eq!(audit.source().rows(), 58_593);
     assert_eq!(audit.source_public_columns(), 48_871);
     assert_eq!(audit.source_private_columns(), 9_721);
+    assert_eq!(audit.reviewed_family_names(), TERMINAL_R1CS_FAMILY_NAMES);
 
     let census = terminal_family_census(audit).expect("complete reviewed terminal family ownership");
     assert_eq!(

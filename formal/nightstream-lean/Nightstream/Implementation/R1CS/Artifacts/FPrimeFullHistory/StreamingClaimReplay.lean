@@ -1,4 +1,4 @@
-import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingClaimReplay
+import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingClaimReplayValidityCertificate
 
 /-! Stable facade for the generated streaming claim-replay artifact. -/
 

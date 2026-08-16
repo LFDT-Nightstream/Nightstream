@@ -1,4 +1,5 @@
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyPublicState
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCPhaseEnvelopeArtifact
 
 /-!
 Contract: exact role map for the 32 physical full-XOut preimage fields of one
@@ -6,12 +7,13 @@ PiRLC family arm.
 
 Owns the generated rows that fix the XOut domain, both copies of the global
 program-cursor halves, the fixed program-counter halves, the stateful semantic
-digest slots, and the Nebula-present marker. It also gives names to the five
+envelope slots, and the Nebula-present marker. It also gives names to the five
 four-field outer coordinates that this phase carries as opaque data.
 
 Does not give authority to the verifier digest, PiCCS header, boundary,
 Construction-2 accumulator, or Nebula digest. Lifecycle circuits must derive
-those fields from verifier-owned inputs and checked transitions.
+those fields from verifier-owned inputs and checked transitions. Common-to-
+phase links must bind the delayed payload to the selected physical arm.
 
 Assurance tier: artifact-checked for property
 `FPRIME-STREAMING-PIRLC-FAMILY-XOUT-PREIMAGE-V1`.
@@ -42,6 +44,12 @@ open Nightstream.Implementation.R1CS.Program
 def xOutDomain : Nat := 0x4e460002
 
 def nebulaPresentMarker : Nat := 0x4e424c41
+
+/-- Phase artifact parity that corresponds to one public-suffix parity. -/
+def phaseArtifactKindFor : ArmKind →
+    FPrimeFullHistoryStreamingPiRLCPhaseEnvelopeArtifact.ArmKind
+  | .even => .even
+  | .odd => .odd
 
 def cursorCallIndex : StateSide -> Nat
   | .before => 0
@@ -307,7 +315,8 @@ structure PreimageBinding
   pcHigh : assignment (xOutPreimageColumn kind side 14) = 0
   semanticState : ∀ lane : Fin 4,
     assignment (xOutPreimageColumn kind side (19 + lane.val)) =
-      (stateDigest assignment canonical kind side lane).val
+      FPrimeFullHistoryStreamingPiRLCPhaseEnvelopeArtifact.phaseEnvelopeDigest
+        (phaseArtifactKindFor kind) (phaseEnvelopeSideFor side) assignment lane
   nebulaPresent :
     assignment (xOutPreimageColumn kind side 27) = nebulaPresentMarker
 
@@ -320,6 +329,11 @@ theorem x_out_preimage_refines
     (canonical : ∀ column, assignment column < goldilocksP)
     (one : assignment 0 = 1)
     (satisfied : (armFor kind).Satisfied assignment)
+    (phaseSatisfied :
+      (FPrimeFullHistoryStreamingPiRLCPhaseEnvelopeArtifact.armFor
+        (phaseArtifactKindFor kind)).Satisfied
+          Artifacts.FPrimeFullHistory.StreamingPiRLCPhaseEnvelope.phaseConstantValues
+          assignment)
     (beforeBound :
       (familyStateAt assignment canonical kind .before).familyCursor < 111)
     (afterBound :
@@ -425,8 +439,17 @@ theorem x_out_preimage_refines
       high_terms_eval (pcCall kind) assignment canonical one pcCallSatisfied,
       pcHalves.2]
   · intro lane
-    exact (state_digest_x_out_preimage kind side lane assignment canonical one
-      satisfied).symm
+    have columnExact :
+        xOutPreimageColumn kind side (19 + lane.val) =
+          ((FPrimeFullHistoryStreamingPiRLCPhaseEnvelopeArtifact.armFor
+              (phaseArtifactKindFor kind)).xOutSemanticColumns
+            (phaseEnvelopeSideFor side)).getD lane.val 0 := by
+      cases kind <;> cases side <;> fin_cases lane <;> native_decide
+    rw [columnExact]
+    exact
+      FPrimeFullHistoryStreamingPiRLCPhaseEnvelopeArtifact.x_out_semantic_refines_phase_envelope
+        (phaseArtifactKindFor kind) (phaseEnvelopeSideFor side) assignment
+        canonical one phaseSatisfied lane
   · have exact := artifact_linear_row_sound assignment canonical one
       (xOutPreimageColumn kind side 27) [(0, nebulaPresentMarker)]
       (by unfold nebulaPresentMarker; native_decide)

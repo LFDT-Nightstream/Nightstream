@@ -60,8 +60,9 @@ use definitions::{find_linear_definitions, LinearDefinitions};
 use emit::{lc_from_column, trace_error};
 pub use projected_decoder::{
     SelectiveProjectedDecoderProvenance, SelectiveProjectedDecoderRunProvenance, SelectiveProjectedSourceDecoder,
-    SelectiveProjectedSourceDecoderRun, SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceResolution,
-    SelectiveProjectedSourceResolutionRun,
+    SelectiveProjectedSourceDecoderRun, SelectiveProjectedSourceDecoderStridedRun,
+    SelectiveProjectedSourceDecoderTemplate, SelectiveProjectedSourceDecoderTemplateInstances,
+    SelectiveProjectedSourceFamilyRange, SelectiveProjectedSourceResolution, SelectiveProjectedSourceResolutionRun,
 };
 pub(crate) use projected_rows::{
     project_rows_with_alignment, project_rows_with_complete_source_provenance_with_alignment,
@@ -75,12 +76,11 @@ pub use projected_rows::{
     SelectiveProjectedSourceSlot, SelectiveProjectedSourceTerm, SelectiveProjectedTerm,
 };
 use rows::{balanced_ternary_decompositions_by_digit_start, skipped_selective_rows, PreparedSelectiveRows};
-#[doc(hidden)]
-pub use shape::is_canonical_selective_low_norm_polynomial;
 pub(crate) use shape::{
-    audit_multi_branch_selective_low_norm_shape_with_alignment, selective_polynomial, SelectiveLowNormShape,
-    SelectiveLowNormShapeSummary,
+    audit_multi_branch_selective_low_norm_shape_with_alignment, SelectiveLowNormShape, SelectiveLowNormShapeSummary,
 };
+#[doc(hidden)]
+pub use shape::{is_canonical_selective_low_norm_polynomial, selective_polynomial};
 
 pub(super) const EVAL_GROUP_SIZE: usize = 5;
 const BALANCED_FIELD_WIDTH: usize = 41;
@@ -89,10 +89,10 @@ const CANON_CHUNK_WIDTH: usize = 2;
 const CANON_CHUNK_COUNT: usize = BALANCED_FIELD_WIDTH.div_ceil(CANON_CHUNK_WIDTH);
 const BINARY_FIELD_WIDTH: usize = 64;
 const BIT: usize = 0;
-const GENERAL_SELECTOR: usize = 1;
-const A: usize = 2;
-const B: usize = 3;
-const C: usize = 4;
+pub(super) const GENERAL_SELECTOR: usize = 1;
+pub(super) const A: usize = 2;
+pub(super) const B: usize = 3;
+pub(super) const C: usize = 4;
 const SBOX_INPUT: usize = 5;
 const CENTERED_UNIT: usize = 6;
 const EVAL_SELECTOR: usize = 7;
@@ -102,7 +102,7 @@ const EVAL_SELECTOR: usize = 7;
 const CANON_CHUNK_CLASS_SELECTORS: [usize; 5] = [8, 9, 10, 11, 12];
 const EVAL_PAIRS: [(usize, usize); EVAL_GROUP_SIZE] =
     [(BIT, A), (B, SBOX_INPUT), (CENTERED_UNIT, 8), (9, 10), (11, 12)];
-const SELECTIVE_ARITY: usize = 13;
+pub(super) const SELECTIVE_ARITY: usize = 13;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct SelectiveEncoding {
@@ -311,6 +311,63 @@ pub fn audit_multi_branch_selective_rows_with_complete_source_provenance_with_al
         source_columns,
         retained_row_pairs,
     )
+}
+
+/// Compute complete run-compressed source decoders from one exact selective
+/// layout without emitting its matrices. Each requested interval is checked
+/// pointwise against the same slots, aliases, and elimination plan that the
+/// production emitter consumes.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn audit_multi_branch_selective_decoder_runs_with_shared_bit_prefix(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+    norm_base: u32,
+    requests: &[(usize, std::ops::Range<usize>)],
+) -> Result<Vec<SelectiveProjectedDecoderRunProvenance>, LowNormR1csError> {
+    let layout = prepare_selective_layout_for_encoding(
+        arms,
+        shared_private_fields,
+        shared_private_bit_fields,
+        modulus,
+        residue,
+        SelectiveEncoding::for_norm_base(norm_base)?,
+    )?;
+    requests
+        .iter()
+        .map(|(arm, source_range)| {
+            let source_arm = arms
+                .get(*arm)
+                .ok_or_else(|| trace_error("complete decoder arm is out of range"))?;
+            projected_decoder::decoder_run_provenance(&layout, *arm, source_range.clone(), source_arm)
+        })
+        .collect()
+}
+
+/// Return the complete compiler ledger from the exact prepared layout without
+/// adapting it through a finished-relation snapshot or emitting matrices.
+#[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn audit_multi_branch_selective_compiler_with_shared_bit_prefix(
+    arms: &[SparseR1cs],
+    shared_private_fields: usize,
+    shared_private_bit_fields: usize,
+    modulus: usize,
+    residue: usize,
+    norm_base: u32,
+) -> Result<SelectiveCompilerAudit, LowNormR1csError> {
+    Ok(prepare_selective_layout_for_encoding(
+        arms,
+        shared_private_fields,
+        shared_private_bit_fields,
+        modulus,
+        residue,
+        SelectiveEncoding::for_norm_base(norm_base)?,
+    )?
+    .compiler_audit)
 }
 
 pub fn build_multi_branch_selective_low_norm_r1cs_with_shared_bit_prefix(
@@ -859,7 +916,8 @@ fn finish_selective_layout(
     let source_arm_linear_definitions = plans
         .iter()
         .map(|plan| {
-            plan.definitions
+            let mut definitions = plan
+                .definitions
                 .entries
                 .iter()
                 .map(|definition| {
@@ -875,7 +933,9 @@ fn finish_selective_layout(
                             .collect(),
                     )
                 })
-                .collect()
+                .collect::<Vec<_>>();
+            definitions.sort_unstable_by_key(SelectiveLinearDefinitionAudit::target);
+            definitions
         })
         .collect();
     #[cfg(feature = "perf-timers")]

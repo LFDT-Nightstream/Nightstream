@@ -45,3 +45,4 @@ hashes use Poseidon2.
 - [Lifecycle](lifecycle.md)
 - [Frontends](frontends.md)
 - [Terminal proof and decider](decider.md)
+- [Nebula F′ paper contract](nebula-f-prime-paper-contract.md)

@@ -2,16 +2,16 @@ import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.Streamin
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyXOutArtifact
 
 /-!
-Contract: exact local-state and full-XOut public binding for one PiRLC family
-arm.
+Contract: exact local-state source and full-XOut public binding for one PiRLC
+family arm.
 
 Owns the two offset rows that derive global program cursors from family
-cursors, their canonical public words, local semantic-digest placement in the
-full XOut preimages, and exact execution of both full-XOut hashes into their
-eight public digest words.
+cursors, their canonical public words, local digest placement in the
+phase-envelope source columns, and exact execution of both full-XOut hashes
+into their eight public digest words.
 
-Does not own family arithmetic, overlay links, collision resistance, selective
-lowering, or recursive lifecycle integration.
+Does not own the phase-envelope rows, family arithmetic, overlay links,
+collision resistance, selective lowering, or recursive lifecycle integration.
 
 Emits constraints: no.
 -/
@@ -173,12 +173,12 @@ structure Binding
         assignment (stateWordColumnFor kind .before index)) =
       familyStateFields
         (familyStateAt assignment canonical kind .before)
-  afterSemanticDigest : ∀ lane : Fin 4,
+  afterLocalDigestSource : ∀ lane : Fin 4,
     (stateDigest assignment canonical kind .after lane).val =
-      assignment (xOutPreimageColumn kind .after (19 + lane.val))
-  beforeSemanticDigest : ∀ lane : Fin 4,
+      assignment (phaseEnvelopeLocalSourceColumn kind .after lane)
+  beforeLocalDigestSource : ∀ lane : Fin 4,
     (stateDigest assignment canonical kind .before lane).val =
-      assignment (xOutPreimageColumn kind .before (19 + lane.val))
+      assignment (phaseEnvelopeLocalSourceColumn kind .before lane)
   afterXOutDigest : ∀ lane : Fin 4,
     assignment (xOutDigestColumn kind .after lane) =
       publicWordValue assignment kind
@@ -204,9 +204,9 @@ structure Binding
       (familyStateAt assignment canonical kind .after).familyCursor +
         firstFamilyProgramCursor
 
-/-- The local state digests occupy their exact full-XOut preimage slots, the
-eight public words are the physical full-XOut outputs, and the last two words
-are the non-wrapping global cursors. -/
+/-- The local state digests occupy their exact phase-envelope source columns,
+the eight public words are the physical full-XOut outputs, and the last two
+words are the non-wrapping global cursors. -/
 theorem shared_public_state_refines
     (kind : ArmKind)
     (assignment : Nat → Nat)
@@ -224,12 +224,12 @@ theorem shared_public_state_refines
   beforePreimage :=
     digest_preimage_is_family_state kind .before assignment canonical one
       satisfied
-  afterSemanticDigest := fun lane =>
-    state_digest_x_out_preimage kind .after lane assignment canonical one
-      satisfied
-  beforeSemanticDigest := fun lane =>
-    state_digest_x_out_preimage kind .before lane assignment canonical one
-      satisfied
+  afterLocalDigestSource := fun lane =>
+    state_digest_phase_envelope_source kind .after lane assignment canonical
+      one satisfied
+  beforeLocalDigestSource := fun lane =>
+    state_digest_phase_envelope_source kind .before lane assignment canonical
+      one satisfied
   afterXOutDigest :=
     (shared_x_out_public_words_refine kind assignment canonical one
       satisfied).1

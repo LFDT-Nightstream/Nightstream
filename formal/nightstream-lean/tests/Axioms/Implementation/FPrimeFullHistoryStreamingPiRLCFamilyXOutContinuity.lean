@@ -12,6 +12,12 @@ open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutCo
 #guard_msgs in
 #audit_axioms familyState_eq_or_poseidon2_collision
 
+/-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutContinuity.local_digest_eq_or_phase_envelope_collision' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#audit_axioms local_digest_eq_or_phase_envelope_collision
+
 /-- info: 'Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutContinuity.semantic_digest_eq_or_xOut_failure' depends on axioms: [propext,
  Classical.choice,
  Quot.sound] -/

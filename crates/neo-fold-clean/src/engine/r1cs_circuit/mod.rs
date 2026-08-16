@@ -50,7 +50,8 @@ pub(crate) use stage_provenance::finalize_physical_stages;
 pub use stage_provenance::{PhysicalStageError, PhysicalStageRange};
 pub use sumcheck::{
     enforce_chi_alpha, enforce_eq_k, enforce_gamma_indexed_sum, enforce_norm_check_b2, enforce_r1cs_f_term,
-    enforce_sumcheck_round, enforce_sumcheck_rounds_engine, enforce_sumcheck_walk, gamma_powers, horner_eval_k,
+    enforce_sumcheck_round, enforce_sumcheck_round_phase, enforce_sumcheck_rounds_engine, enforce_sumcheck_walk,
+    gamma_powers, horner_eval_k,
 };
 pub use transcript::TranscriptGadget;
 pub use u64_arith::{

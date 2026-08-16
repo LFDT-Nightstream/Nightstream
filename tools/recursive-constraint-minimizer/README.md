@@ -99,12 +99,21 @@ rows. Lean checks its row and column geometry, chunk counts, and seed bytes.
 This closes bounded seeded-row slices without dense expansion. It does not yet
 prove that the Rust and Lean seeded samplers produce the same coefficients.
 
-The complete recursive bound artifact is not available yet. It has millions
-of rows, so a row-by-row Lean list is not a viable authority format. The
-production path still needs a run-compressed complete relation artifact and
-the Rust-to-Lean compact-matrix refinement. This limit does not affect exact
-source export, Rust replay, cvc5 queries, or the checked 1,120-row scalar
-certificate.
+The complete recursive source relation is now a committed Lean authority
+artifact in string-payload form. A row-by-row Lean list is not viable at
+4,530,315 rows, so the emitter writes base64 payloads (u16 per-row term
+counts, u32 term columns, u16 indices into a 527-entry u64 value table)
+plus the 36 compact seeded blocks and the reviewed family range table.
+`Nightstream.Assurance.CompactSourceArtifact.expand` decodes them natively
+into the exact `Artifact` value; the artifact assembly proves expansion
+success, full coverage, and exact validation once by `native_decide`, and
+per-family modules cite the Artifact-level `*_of_full_valid` theorems. The
+emitter replays every payload row against the independent sparse recovery
+before rendering, and drift gates byte-compare the committed modules. The
+base arm rides the same pipeline as a pilot whose expansion is pinned equal
+to the committed literal artifact by `native_decide`. Removal
+counterexamples share one string-encoded background assignment and carry
+only their mutated columns.
 
 The current reduced final relation has a conservative fixed-width raw wire
 size of 647,108,852 bytes. Its thirteen ports contain 85,271,251 CSC pointers,

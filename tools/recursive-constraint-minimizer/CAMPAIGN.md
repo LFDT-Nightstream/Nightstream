@@ -91,6 +91,40 @@ distinct coefficients, max 7,562 terms per row, the same 36 seeded
 blocks, zero geometric runs - the string-payload pipeline absorbs the
 amended shape without any emitter change (~390 MB of payloads).
 
+## Column-minimization lens (user directive, 2026-08-15)
+
+The user re-anchored the goal on columns and directed that parameter
+choices follow the papers' soundness and completeness requirements, not
+preference. Consequences now in force:
+
+- The bar-2 amendment is a derivation, not an ask: SuperNeo Definition 14
+  requires `(K+k)·T·(b-1) < b^k_rho` with B.2 fixing `b=2, T=216` for
+  Goldilocks. The open empirical question is whether the engine's RLC count
+  includes the k_rho accumulator limbs (self-consistent minimum k_rho=12
+  for one fresh claim) or stays k_rho-independent at 3 (minimum k_rho=10,
+  as the engine's own "increase k_rho" fix implies). The running k_rho=10
+  two-segment probe discriminates the two laws; the smallest paper-sound
+  k_rho wins because the Pi_DEC accumulator carries k_rho full-width limbs
+  and is the dominant recurring committed-column driver.
+- Nebula Lemma 10 discipline: cost columns are the ACTIVE (nonzero)
+  columns, since committing zeros is free in MSM and pay-per-bit Ajtai
+  commitments alike. The bar-10 cost report must separate committed-active
+  columns from total width.
+- Row-family removals shrink columns only when the removed family
+  exclusively owns columns. Measured column-ownership census (recursive
+  arm, frozen shape): 4,480,464 columns; 4,320,440 (96.4%) exclusively
+  owned; 160,024 shared; 0 unused. Top exclusive owners:
+  `nifs.pi_ccs.padded_row.binding` 1,532,770 (34%),
+  `nifs.pi_rlc.verify.projection_binding.sis_digest` 1,037,600 (23%),
+  `nifs.pi_ccs.padded_row.output_digest.sis` 586,400 (13%),
+  `fprime.recursive.step.accumulator.output_authority.child_digests`
+  454,175 (10%), `nifs.pi_ccs.padded_row.prefix` 184,202 (4%). Four
+  families own ~80% of all columns — all fold-verification plumbing
+  (padded-row binding traces and Poseidon2/SIS digest projections). These
+  are the protocol-side column targets; inclusion-minimal classification
+  alone cannot remove them if they prove necessary, so the campaign's
+  column deliverable is this ranked ledger plus exact per-family costs.
+
 ## Staged solver runbook (cvc5-focused lane, awaiting go)
 
 Zero-compute staging for the user's "focus on cvc5" direction. On "go":

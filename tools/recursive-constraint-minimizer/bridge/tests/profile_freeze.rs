@@ -232,6 +232,88 @@ fn campaign_profile_v1_digests_are_frozen() {
 }
 
 #[test]
+#[ignore = "column-ownership census: which families exclusively own columns; run with --ignored --nocapture"]
+fn probe_recursive_column_ownership_census() {
+    use neo_ccs::CcsMatrix;
+    use nightstream_constraint_exporter::sparse_family_census;
+
+    let audit = campaign_audit([0xDA; 32]);
+    let arm = audit.arm(NebulaFPrimeBranch::Recursive);
+    let census = sparse_family_census(arm).expect("complete reviewed ownership");
+    let mut row_family = vec![u16::MAX; arm.n];
+    for (family_index, family) in census.iter().enumerate() {
+        for &row in family.source_rows() {
+            row_family[row] = family_index as u16;
+        }
+    }
+    // Ownership per column: untouched, one family, or shared.
+    const UNUSED: u16 = u16::MAX;
+    const SHARED: u16 = u16::MAX - 1;
+    let mut owner = vec![UNUSED; arm.m];
+    let mark = |row: usize, column: usize, owner: &mut Vec<u16>| {
+        let family = row_family[row];
+        owner[column] = match owner[column] {
+            UNUSED => family,
+            current if current == family => current,
+            _ => SHARED,
+        };
+    };
+    for matrix in [&arm.a, &arm.b, &arm.c] {
+        match matrix {
+            CcsMatrix::Csc(csc) => {
+                for column in 0..csc.ncols {
+                    for k in csc.column_range(column) {
+                        mark(csc.row_index(k), column, &mut owner);
+                    }
+                }
+            }
+            CcsMatrix::CscWithSeededPhi81 { csc, blocks, .. } => {
+                for column in 0..csc.ncols {
+                    for k in csc.column_range(column) {
+                        mark(csc.row_index(k), column, &mut owner);
+                    }
+                }
+                for block in blocks {
+                    for row in block.row_start()..block.row_end() {
+                        for &start in block.word_starts() {
+                            for column in start..start + block.word_width() {
+                                mark(row, column, &mut owner);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => panic!("unexpected matrix variant"),
+        }
+    }
+    let mut exclusive = vec![0usize; census.len()];
+    let mut shared = 0usize;
+    let mut unused = 0usize;
+    for &column_owner in &owner {
+        match column_owner {
+            UNUSED => unused += 1,
+            SHARED => shared += 1,
+            family => exclusive[family as usize] += 1,
+        }
+    }
+    let mut ranked = census
+        .iter()
+        .enumerate()
+        .map(|(index, family)| (exclusive[index], family.name(), family.source_rows().len()))
+        .collect::<Vec<_>>();
+    ranked.sort_unstable_by(|left, right| right.0.cmp(&left.0));
+    eprintln!(
+        "recursive column ownership: columns={} shared={shared} unused={unused}",
+        arm.m
+    );
+    for (columns, name, rows) in ranked.iter().take(25) {
+        eprintln!("exclusive_columns={columns} rows={rows} family={name}");
+    }
+    let exclusive_total = exclusive.iter().sum::<usize>();
+    eprintln!("exclusive_total={exclusive_total}");
+}
+
+#[test]
 #[ignore = "k_rho=10 digest probe for the bar-2 amendment; run with --ignored --nocapture"]
 fn probe_k_rho_10_digests() {
     let inner = neo_params::NeoParams::new(

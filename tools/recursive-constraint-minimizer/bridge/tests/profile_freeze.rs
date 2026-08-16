@@ -232,6 +232,62 @@ fn campaign_profile_v1_digests_are_frozen() {
 }
 
 #[test]
+#[ignore = "k_rho=10 foldable-shape probe for the bar-2 amendment; run with --ignored --nocapture"]
+fn probe_k_rho_10_minimal_shape_capture() {
+    use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeChainBuilder, NebulaFPrimePreprocessing};
+    use neo_fold_clean::frontends::nebula::trace::Memory;
+
+    let inner = neo_params::NeoParams::new(
+        neo_params::goldilocks_paper_b2::Q,
+        neo_params::goldilocks_paper_b2::ETA as u32,
+        neo_params::goldilocks_paper_b2::D as u32,
+        1,
+        neo_params::goldilocks_paper_b2::M,
+        neo_params::goldilocks_paper_b2::B_BASE,
+        10,
+        1,
+        neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
+        1,
+    )
+    .expect("k_rho=10 minimal parameters");
+    let params = Params::test_only_from_neo_params(inner);
+    let memory_params = NebulaParams::new(0, 0, 1, 2, 2).expect("two-step memory profile");
+    let rom = [7];
+    let plan = NebulaPlan::new(memory_params, rom.to_vec(), [0xDA; 32], params.kappa() as usize).expect("Nebula plan");
+
+    let start = Instant::now();
+    let audit = NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan)
+        .expect("discover k_rho=10 source arms");
+    eprintln!("k_rho=10 audit build: {} ms", start.elapsed().as_millis());
+    for branch in [NebulaFPrimeBranch::Base, NebulaFPrimeBranch::Recursive] {
+        let arm = audit.arm(branch);
+        eprintln!("k_rho=10 branch={branch:?} n={} m={} m_in={}", arm.n, arm.m, arm.m_in);
+    }
+
+    let prep = NebulaFPrimePreprocessing::new_seeded(params, plan, 0xDA00_0001).expect("k_rho=10 Nebula preprocessing");
+    let mut memory = Memory::new(memory_params, &rom).expect("memory");
+    let mut chain = NebulaFPrimeChainBuilder::new(&prep);
+    for index in 0..2usize {
+        let step = Instant::now();
+        let trace = {
+            let mut segment = memory.begin_segment().expect("segment");
+            segment.write(true, 0, 5 + index as u32).expect("RAM write");
+            segment.finish().expect("accepted trace")
+        };
+        let witnesses = chain
+            .append_segment_with_constraint_witness_audit(&trace)
+            .expect("accepted k_rho=10 Nebula step");
+        eprintln!(
+            "k_rho=10 step {index}: branch={:?} assignment_len={} ms={}",
+            witnesses[0].branch(),
+            witnesses[0].source_assignment().len(),
+            step.elapsed().as_millis(),
+        );
+    }
+    eprintln!("k_rho=10 two-segment capture SUCCEEDED");
+}
+
+#[test]
 #[ignore = "measurement printer for coefficient/value structure; run with --ignored --nocapture"]
 fn print_campaign_profile_v1_recursive_value_census() {
     use neo_ccs::CcsMatrix;

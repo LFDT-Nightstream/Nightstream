@@ -158,6 +158,40 @@ fn accepted_assignments_cover_and_satisfy_both_physical_source_arms() {
 }
 
 #[test]
+#[ignore = "two accepted CPU lifecycle steps; writes the checked recursive assignment for bar 4"]
+fn capture_and_save_the_bootstrap_recursive_assignment() {
+    const PROFILE: &str = "nebula-saved-recursive-assignment";
+    const OUTPUT: &str = "evidence/nebula-recursive-assignment.json";
+
+    let (audit, accepted) = accepted_source_assignments(2);
+    assert_eq!(
+        accepted
+            .iter()
+            .map(|(branch, _)| *branch)
+            .collect::<Vec<_>>(),
+        [NebulaFPrimeBranch::Base, NebulaFPrimeBranch::BootstrapRecursive]
+    );
+    let checked =
+        bind_nebula_source_assignment(&audit, NebulaFPrimeBranch::BootstrapRecursive, PROFILE, &accepted[1].1)
+            .expect("bind the accepted bootstrap assignment");
+    assert_eq!(checked.source_arm(), NebulaPhysicalSourceArm::Recursive);
+    let json = checked
+        .to_json_vec()
+        .expect("serialize recursive assignment");
+    load_nebula_source_assignment(&audit, NebulaFPrimeBranch::Recursive, PROFILE, &json)
+        .expect("the recursive branch must accept the shared physical-arm assignment");
+    let path = format!("{}/../{OUTPUT}", env!("CARGO_MANIFEST_DIR"));
+    std::fs::create_dir_all(
+        std::path::Path::new(&path)
+            .parent()
+            .expect("evidence directory"),
+    )
+    .expect("create evidence directory");
+    std::fs::write(&path, &json).expect("write the checked recursive assignment");
+    eprintln!("saved checked recursive assignment: {path} ({} bytes)", json.len());
+}
+
+#[test]
 fn installed_cvc5_runs_one_exact_nebula_refinement_iteration() {
     let (audit, assignment) = accepted_base_source_assignment();
     let branch = NebulaFPrimeBranch::Base;

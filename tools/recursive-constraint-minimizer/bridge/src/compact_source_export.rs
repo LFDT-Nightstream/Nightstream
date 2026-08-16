@@ -513,7 +513,10 @@ pub fn render_compact_source_artifact_modules(
     out.push_str("theorem expand_succeeds : (expand wire).isSome := by native_decide\n\n");
     out.push_str("def sourceArtifact : Artifact := (expand wire).get expand_succeeds\n\n");
     out.push_str("theorem sourceArtifact_coversFullRelation :\n");
-    out.push_str("    sourceArtifact.CoversFullRelation := by native_decide\n");
+    out.push_str("    sourceArtifact.CoversFullRelation := by native_decide\n\n");
+    out.push_str("theorem sourceArtifact_exactValidation :\n");
+    out.push_str("    Artifact.ExactValidation sourceArtifact sourceArtifact = true := by\n");
+    out.push_str("  native_decide\n");
     if let Some(committed) = committed_equality_namespace {
         out.push_str(&format!(
             "\ntheorem sourceArtifact_matches_committed :\n    sourceArtifact = {committed}.sourceArtifact := by native_decide\n"
@@ -525,4 +528,154 @@ pub fn render_compact_source_artifact_modules(
         content: out,
     });
     Ok(CompactSourceEmission { modules, replayed_rows })
+}
+
+/// Render one shared background assignment as string-payload modules. The
+/// assembly decodes it once; family modules apply per-column overrides.
+pub fn render_assignment_payload_modules(
+    values: &[u64],
+    module_namespace: &str,
+) -> Result<Vec<GeneratedLeanModule>, ExportError> {
+    let mut writer = PartWriter { parts: Vec::new() };
+    let payload = writer.push_payload(&le_bytes_u64(values));
+    let mut modules = Vec::with_capacity(writer.parts.len() + 1);
+    for (index, part) in writer.parts.iter().enumerate() {
+        let module_name = format!("{module_namespace}Data{index}");
+        let mut content = String::with_capacity(part.len() + 256);
+        content.push_str("/-!\nGENERATED FILE - do not edit by hand.\n\n");
+        content.push_str("One base64 payload part of a shared background assignment.\n-/\n\n");
+        content.push_str(&format!("namespace {module_name}\n\n"));
+        content.push_str("def part : String :=\n  ");
+        content.push_str(&lean_string_literal(part));
+        content.push_str(&format!("\n\nend {module_name}\n"));
+        modules.push(GeneratedLeanModule { module_name, content });
+    }
+    let mut out = String::new();
+    out.push_str("import Nightstream.Assurance.CompactSourceArtifact\n");
+    for index in 0..writer.parts.len() {
+        out.push_str(&format!("import {module_namespace}Data{index}\n"));
+    }
+    out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\n");
+    out.push_str("Shared accepted background assignment, decoded once. Removal\n");
+    out.push_str("counterexamples apply per-column overrides to these values.\n-/\n\n");
+    out.push_str(&format!("namespace {module_namespace}\n\n"));
+    out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n\n");
+    out.push_str(&format!(
+        "def payload : String := {}\n\n",
+        payload_expression(module_namespace, &payload)
+    ));
+    out.push_str("theorem decode_succeeds : (decodeAssignment payload).isSome := by\n");
+    out.push_str("  native_decide\n\n");
+    out.push_str("def values : Array Nat := (decodeAssignment payload).get decode_succeeds\n\n");
+    out.push_str(&format!("end {module_namespace}\n"));
+    modules.push(GeneratedLeanModule {
+        module_name: module_namespace.to_owned(),
+        content: out,
+    });
+    Ok(modules)
+}
+
+/// Render one removal-counterexample module against a string-payload source
+/// artifact and a shared background assignment. The witness must come from
+/// `find_exclusive_column_witness` over the same complete problem and
+/// background; every Lean premise is re-checked here before rendering.
+pub fn render_compact_removal_counterexample_lean(
+    problem: &recursive_constraint_minimizer::Problem,
+    background: &[u64],
+    witness: &crate::ExclusiveColumnWitness,
+    artifact_namespace: &str,
+    background_namespace: &str,
+    namespace: &str,
+    reviewed_plan: &[String],
+) -> Result<String, ExportError> {
+    if background.len() != problem.column_count {
+        return Err(ExportError::new("background length differs from the relation"));
+    }
+    if witness.column() >= background.len() {
+        return Err(ExportError::new("witness column exceeds the relation"));
+    }
+    let modulus = recursive_constraint_minimizer::GOLDILOCKS_MODULUS
+        .parse::<u128>()
+        .expect("fixed Goldilocks modulus");
+    let mutated = ((u128::from(background[witness.column()]) + u128::from(witness.delta())) % modulus) as u64;
+    let mut expected = background.to_vec();
+    expected[witness.column()] = mutated;
+    if witness.model().values() != expected.as_slice() {
+        return Err(ExportError::new(
+            "witness model differs from the background plus its override",
+        ));
+    }
+    let mut plan_names = problem.complete_families.clone();
+    plan_names.sort();
+    let mut reviewed_sorted = reviewed_plan.to_vec();
+    reviewed_sorted.sort();
+    if plan_names != reviewed_sorted {
+        return Err(ExportError::new(
+            "reviewed plan differs from the problem's complete families",
+        ));
+    }
+    if !reviewed_plan.iter().any(|name| name == witness.family()) {
+        return Err(ExportError::new("witness family is not in the reviewed plan"));
+    }
+
+    let mut out = String::new();
+    out.push_str(&format!("import {artifact_namespace}\n"));
+    out.push_str(&format!("import {background_namespace}\n"));
+    out.push_str("set_option maxHeartbeats 2000000\n");
+    out.push_str("set_option maxRecDepth 65536\n\n");
+    out.push_str(&format!("namespace {namespace}\n\n"));
+    out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
+    out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
+    out.push_str(&format!("open {artifact_namespace}\n\n"));
+    out.push_str(&format!(
+        "def reviewedPlan : List String := [{}]\n\n",
+        reviewed_plan
+            .iter()
+            .map(|name| lean_string_literal(name))
+            .collect::<Vec<_>>()
+            .join(",")
+    ));
+    out.push_str(&format!(
+        "def overrides : List (Nat × Nat) := [({}, {})]\n\n",
+        witness.column(),
+        mutated
+    ));
+    out.push_str(&format!(
+        "theorem overrides_apply :\n    (applyOverrides {background_namespace}.values overrides).isSome := by\n  native_decide\n\n"
+    ));
+    out.push_str(&format!(
+        "def removalCounterexampleValues : List Field :=\n  ((applyOverrides {background_namespace}.values overrides).get overrides_apply).toList.map\n    (fun value => (value : Field))\n\n"
+    ));
+    out.push_str("def removalCounterexample : RemovalCounterexample where\n");
+    out.push_str(&format!(
+        "  removedFamily := {}\n",
+        lean_string_literal(witness.family())
+    ));
+    out.push_str("  values := removalCounterexampleValues\n\n");
+    out.push_str("theorem removalCounterexample_valid :\n");
+    out.push_str("    removalCounterexample.Valid sourceArtifact reviewedPlan := by\n");
+    out.push_str("  native_decide\n\n");
+    out.push_str("theorem necessary :\n");
+    out.push_str("    NecessaryForSoundness (FamilyHolds sourceArtifact)\n");
+    out.push_str(&format!(
+        "      (Target sourceArtifact) reviewedPlan {} :=\n",
+        lean_string_literal(witness.family())
+    ));
+    out.push_str("  removalCounterexample.necessary_of_full_valid\n");
+    out.push_str("    sourceArtifact sourceArtifact reviewedPlan\n");
+    out.push_str("    sourceArtifact_coversFullRelation sourceArtifact_exactValidation\n");
+    out.push_str("    removalCounterexample_valid\n\n");
+    out.push_str("theorem necessaryNormalized :\n");
+    out.push_str("    NecessaryForSoundness\n");
+    out.push_str("      (NormalizedFamilyHolds sourceArtifact)\n");
+    out.push_str(&format!(
+        "      (NormalizedTarget sourceArtifact) reviewedPlan {} :=\n",
+        lean_string_literal(witness.family())
+    ));
+    out.push_str("  removalCounterexample.necessary_normalized_of_full_valid\n");
+    out.push_str("    sourceArtifact sourceArtifact reviewedPlan\n");
+    out.push_str("    sourceArtifact_coversFullRelation sourceArtifact_exactValidation\n");
+    out.push_str("    removalCounterexample_valid\n\n");
+    out.push_str(&format!("end {namespace}\n"));
+    Ok(out)
 }

@@ -31,7 +31,10 @@ mod source_assignment;
 mod terminal_binding;
 mod witness_search;
 
-pub use compact_source_export::{render_compact_source_artifact_modules, CompactSourceEmission};
+pub use compact_source_export::{
+    render_assignment_payload_modules, render_compact_removal_counterexample_lean,
+    render_compact_source_artifact_modules, CompactSourceEmission,
+};
 pub use lean_export::{
     render_bound_artifact_lean, render_complete_bound_artifact_lean, render_complete_bound_artifact_modules,
     render_complete_terminal_bound_artifact_lean, render_complete_terminal_bound_artifact_modules,

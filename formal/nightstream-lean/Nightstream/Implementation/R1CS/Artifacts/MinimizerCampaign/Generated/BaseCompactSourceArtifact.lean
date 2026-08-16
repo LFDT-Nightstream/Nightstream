@@ -79,6 +79,10 @@ def sourceArtifact : Artifact := (expand wire).get expand_succeeds
 theorem sourceArtifact_coversFullRelation :
     sourceArtifact.CoversFullRelation := by native_decide
 
+theorem sourceArtifact_exactValidation :
+    Artifact.ExactValidation sourceArtifact sourceArtifact = true := by
+  native_decide
+
 theorem sourceArtifact_matches_committed :
     sourceArtifact = Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseBoundArtifact.sourceArtifact := by native_decide
 

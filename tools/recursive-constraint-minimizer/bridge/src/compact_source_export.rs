@@ -277,16 +277,36 @@ fn render_block(out: &mut String, block: &SeededPhi81LinearBlock) {
     let rows = block.row_end() - block.row_start();
     out.push_str("      { rowStart := ");
     out.push_str(&block.row_start().to_string());
-    out.push_str("\n        wordStarts := [");
-    out.push_str(
-        &block
-            .word_starts()
-            .iter()
-            .map(|start| start.to_string())
-            .collect::<Vec<_>>()
-            .join(", "),
-    );
-    out.push_str("]\n");
+    let starts = block.word_starts();
+    let stride = if starts.len() >= 2 {
+        let step = starts[1].wrapping_sub(starts[0]);
+        starts
+            .windows(2)
+            .all(|pair| pair[1].wrapping_sub(pair[0]) == step)
+            .then_some(step)
+    } else {
+        None
+    };
+    match stride {
+        Some(step) => {
+            out.push_str(&format!(
+                "\n        wordStarts := (List.range {}).map (fun index => {} + index * {step})\n",
+                starts.len(),
+                starts[0],
+            ));
+        }
+        None => {
+            out.push_str("\n        wordStarts := [");
+            out.push_str(
+                &starts
+                    .iter()
+                    .map(|start| start.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+            out.push_str("]\n");
+        }
+    }
     out.push_str(&format!("        wordWidth := {}\n", block.word_width()));
     out.push_str(&format!("        kappa := {}\n", block.kappa()));
     out.push_str(&format!("        messageCols := {}\n", block.message_cols()));

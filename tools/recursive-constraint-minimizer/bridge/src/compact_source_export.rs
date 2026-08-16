@@ -433,7 +433,7 @@ pub fn render_compact_source_artifact_modules(
                 content.push_str("    ");
             }
             content.push_str(&format!(
-                "{label} := {{ rowCounts := {}\n         columns := {}\n         valueIndexes := {} }}\n",
+                "{label} := {{ rowCounts := {}, columns := {}, valueIndexes := {} }},\n",
                 lean_string_literal(&counts),
                 lean_string_literal(&columns),
                 lean_string_literal(&indexes),

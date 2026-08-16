@@ -18,7 +18,8 @@ use neo_fold_clean::paper::relations::{
 };
 use neo_math::{D, F, K};
 use nightstream_constraint_exporter::{
-    export_complete_nebula_problem, export_complete_terminal_problem, export_nebula_problem, ExportRequest,
+    export_complete_nebula_problem, export_complete_terminal_problem, export_nebula_problem, nebula_family_census,
+    ExportRequest,
 };
 use p3_field::PrimeCharacteristicRing;
 use recursive_constraint_minimizer::Scope;
@@ -159,15 +160,18 @@ fn campaign_profile_v1_digests_are_frozen() {
     const TERMINAL_DIAGNOSTIC_DIGEST: &str = "sha256:63664e95c3f91dcf35db99ad3e0dd235643d274e5ccfd9be6a18252eb8a12f98";
 
     let audit = campaign_audit([0xDA; 32]);
-    for (branch, source_digest, rows, columns) in [
-        (NebulaFPrimeBranch::Base, BASE_SOURCE_DIGEST, 39_949, 38_626),
+    for (branch, source_digest, rows, columns, families) in [
+        (NebulaFPrimeBranch::Base, BASE_SOURCE_DIGEST, 39_949, 38_626, 6),
         (
             NebulaFPrimeBranch::Recursive,
             RECURSIVE_SOURCE_DIGEST,
             4_530_315,
             4_480_464,
+            82,
         ),
     ] {
+        let census = nebula_family_census(&audit, branch).expect("complete reviewed Nebula family ownership");
+        assert_eq!(census.len(), families, "{branch:?} family count drifted");
         let arm = audit.arm(branch);
         let export = export_nebula_problem(
             &audit,
@@ -225,6 +229,37 @@ fn campaign_profile_v1_digests_are_frozen() {
     );
     assert_eq!(binding.spartan_rows(), 65_536, "terminal Spartan rows drifted");
     assert_eq!(binding.spartan_columns(), 114_407, "terminal Spartan columns drifted");
+}
+
+#[test]
+#[ignore = "measurement printer for the seeded-block geometry; run with --ignored --nocapture"]
+fn print_campaign_profile_v1_seeded_block_geometry() {
+    let audit = campaign_audit([0xDA; 32]);
+    for branch in [NebulaFPrimeBranch::Base, NebulaFPrimeBranch::Recursive] {
+        let arm = audit.arm(branch);
+        for (matrix_name, matrix) in [("a", &arm.a), ("b", &arm.b), ("c", &arm.c)] {
+            for block in matrix.seeded_phi81_blocks() {
+                let seeds = block
+                    .chunk_seeds_by_row()
+                    .iter()
+                    .map(|row| row.len())
+                    .sum::<usize>();
+                eprintln!(
+                    "branch={branch:?} matrix={matrix_name} row_start={} row_end={} rows={} word_width={} kappa={} message_cols={} chunk_size={} seed_rows={} total_seeds={} superneo_transformed={}",
+                    block.row_start(),
+                    block.row_end(),
+                    block.row_end() - block.row_start(),
+                    block.word_width(),
+                    block.kappa(),
+                    block.message_cols(),
+                    block.chunk_size(),
+                    block.chunk_seeds_by_row().len(),
+                    seeds,
+                    block.has_superneo_transformed_columns(),
+                );
+            }
+        }
+    }
 }
 
 #[test]

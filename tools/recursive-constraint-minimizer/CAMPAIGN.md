@@ -7,7 +7,7 @@ repository root unless stated.
 | Bar | Item | State | Evidence |
 |---|---|---|---|
 | 1 | cvc5 with finite-field support; three gate tests pass un-ignored | **met** (refutation failed, 2026-08-15 iter 1; re-verified on Linux, iter 13) | cvc5 1.3.4 (Homebrew, cocoa: yes). Gates green live and un-ignored (commit 869f94e98: exactly three `#[ignore]` lines removed, nothing weakened). Independent verifier reran the suite: 38 passed, 0 failed; the three gates execute real solver runs with hard outcome asserts. Linux re-verification (iter 13): official `cvc5-Linux-x86_64-static-gpl` 1.3.4 release binary in `~/.local/bin` (cocoa: yes); both nebula gates green (y_ring Unsat in 1,073 ms; refinement control Inconclusive with pending row 8,665) and the terminal gate green (pending row 56,700, matches README). |
-| 2 | Production profile frozen with pinned digests | pending refutation (iter 13) | User decision 2026-08-15: option (a), campaign profile v1 on the minimal shape; re-run classification when the production regime lands. `PROFILE.md` pins source digests, final-plan digest, terminal digests, and geometry for both arms and the terminal relation; non-ignored drift gate `campaign_profile_v1_digests_are_frozen` (13 s) re-derives all pins from fresh audits. Measured: source digests are plan-seed-independent (0xDA vs 0xD9); the final plan digest binds to the 0xDA mirror shape; all pins byte-match the committed Lean mirrors. Rejected regimes stay recorded: λ=125 fails the extension-policy census (114 bits available); λ=114 audit construction alone ran >2 h 06 m. |
+| 2 | Production profile frozen with pinned digests | **met** (refutation failed, 2026-08-15 iter 13) | User decision 2026-08-15: option (a), campaign profile v1 on the minimal shape; re-run classification when the production regime lands. `PROFILE.md` pins source digests, final-plan digest, terminal digests, and geometry for both arms and the terminal relation; non-ignored drift gate `campaign_profile_v1_digests_are_frozen` (13 s) re-derives all pins from fresh audits. Measured: source digests are plan-seed-independent (0xDA vs 0xD9); the final plan digest binds to the 0xDA mirror shape; all pins byte-match the committed Lean mirrors. Rejected regimes stay recorded: λ=125 fails the extension-policy census (114 bits available); λ=114 audit construction alone ran >2 h 06 m. |
 | 3 | Seeded-Phi81 sampler equivalence proved | unmet | README next-work item 1. |
 | 4 | Checked bootstrap-recursive assignment committed | unmet, capture defect | The staged capture run failed after ~1.8 h inside the second `append_segment_with_constraint_witness_audit` call (`bridge/tests/nebula.rs:73`); the panic message needs a targeted rerun with full output capture. Until then bar 4 and the recursive-arm witness census are blocked. |
 | 5 | Every census family classified; zero Inconclusive | in-progress: base 6/6 and terminal 8/8 Lean-certified, **both refutation-proof**; recursive arm blocked on bar 4 | First certified family: `nifs.pi_rlc.verify.padding.y_ring` (1,120 rows, in-house scalar certificate; live cvc5 confirms Unsat). Lean module emission not yet run. |
@@ -118,6 +118,18 @@ support context (the y_ring pattern). Evidence: target/campaign-evidence/.
   in background alongside the two bar-2/bar-4 measurements. The census output
   will drive the first certificate-emission batch and the regime question
   goes to the user once the λ114 numbers land.
+- 2026-08-15 iteration 13 (continued): bar 2 marked met after an independent
+  no-context refutation attempt failed on all six angles (commit a34a8cce;
+  verifier confirmed pins equal the committed Lean mirror digests and traced
+  digest selection-independence through `SparseProblemExporter::new` and
+  `hash_final_plan`). The verifier's one minor note — family counts not
+  asserted — is fixed: the drift gate now pins base 6 and recursive 82 family
+  censuses. Also measured the frozen profile's seeded-block geometry for
+  bar 3: 36 blocks, all in the recursive arm A matrix (18 x 108 rows with
+  kappa=2, 18 x 54 rows with kappa=1), word width 41, 54 seeds total, 2,916
+  seeded rows; dense conformance data would be tens of millions of terms, so
+  the bar-3 design goes through sampler-semantic validation plus exact-data
+  conformance fixtures per code-path class.
 - 2026-08-15 iteration 13 (new Linux environment): installed the official
   `cvc5-Linux-x86_64-static-gpl` 1.3.4 release binary (cocoa: yes) — no source
   build needed; all three gate tests re-verified green live. Lean v4.30.0

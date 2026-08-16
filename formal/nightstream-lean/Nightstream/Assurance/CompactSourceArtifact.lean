@@ -512,6 +512,147 @@ theorem familyHolds_overrideAt_of_chunks (artifact : Artifact)
       exact holds_overrideAt_of_avoids background column value row.row
         avoidsAndHolds.1 avoidsAndHolds.2
 
+
+-- ── Scalar-geometry leaf predicates ─────────────────────────────────────
+
+/-- `Artifact.rowWellFormed` with the geometry passed as scalars, so leaf
+certificates never mention (and never force) the assembled artifact. -/
+def rowWellFormedAt (totalRows columnCount : Nat) (row : IndexedRow) : Bool :=
+  decide (row.sourceIndex < totalRows ∧ row.family ≠ "") &&
+    Artifact.termsWellFormed columnCount row.row.a &&
+      Artifact.termsWellFormed columnCount row.row.b &&
+        Artifact.termsWellFormed columnCount row.row.c
+
+theorem rowWellFormedAt_eq (artifact : Artifact) (row : IndexedRow) :
+    rowWellFormedAt artifact.totalRows artifact.columnCount row =
+      Artifact.rowWellFormed artifact row := rfl
+
+-- ── Assembly: chunk facts to full coverage and well-formedness ───────────
+
+/-- The artifact rows are exactly the concatenation of the chunk lists. -/
+theorem artifactRows_eq_flatMap_id (wire : Wire) :
+    artifactRows wire =
+      ((List.range wire.chunkCount).map (rowsChunk wire)).flatMap id := by
+  unfold artifactRows
+  rw [List.flatMap_def]
+  simp [List.flatMap_def]
+
+/-- Full source-index coverage from per-chunk index censuses plus the chunk
+arithmetic of the wire. -/
+theorem covers_indexes_of_chunks (wire : Wire)
+    (censuses : ∀ k, k < wire.chunkCount →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k))
+    (fullChunks : ∀ k, k + 1 < wire.chunkCount →
+      wire.chunkLength k = wire.chunkRows)
+    (lastChunk : wire.chunkCount ≠ 0 →
+      (wire.chunkCount - 1) * wire.chunkRows +
+        wire.chunkLength (wire.chunkCount - 1) = wire.totalRows)
+    (leadChunks : wire.chunkCount ≠ 0 →
+      (wire.chunkCount - 1) * wire.chunkRows ≤ wire.totalRows)
+    (noChunks : wire.chunkCount = 0 → wire.totalRows = 0) :
+    (artifactRows wire).map (fun row => row.sourceIndex) =
+      List.range wire.totalRows := by
+  unfold artifactRows
+  rw [flatMap_map]
+  have pointwise :
+      ((List.range wire.chunkCount).flatMap fun k =>
+          (rowsChunk wire k).map fun row => row.sourceIndex) =
+        (List.range wire.chunkCount).flatMap fun k =>
+          List.range' (k * wire.chunkRows) (wire.chunkLength k) := by
+    apply List.flatMap_congr
+    intro k membership
+    exact censuses k (List.mem_range.mp membership)
+  rw [pointwise]
+  exact range'_flatMap_with_tail wire.chunkCount wire.chunkRows wire.totalRows
+    wire.chunkLength fullChunks lastChunk leadChunks noChunks
+
+/-- Full coverage from index censuses plus per-chunk family membership. -/
+theorem coversFullRelation_of_chunks (wire : Wire)
+    (censuses : ∀ k, k < wire.chunkCount →
+      (rowsChunk wire k).map (fun row => row.sourceIndex) =
+        List.range' (wire.chunkStart k) (wire.chunkLength k))
+    (fullChunks : ∀ k, k + 1 < wire.chunkCount →
+      wire.chunkLength k = wire.chunkRows)
+    (lastChunk : wire.chunkCount ≠ 0 →
+      (wire.chunkCount - 1) * wire.chunkRows +
+        wire.chunkLength (wire.chunkCount - 1) = wire.totalRows)
+    (leadChunks : wire.chunkCount ≠ 0 →
+      (wire.chunkCount - 1) * wire.chunkRows ≤ wire.totalRows)
+    (noChunks : wire.chunkCount = 0 → wire.totalRows = 0)
+    (membership : ∀ k, k < wire.chunkCount →
+      (rowsChunk wire k).all
+        (fun row => decide (row.family ∈ wire.completeFamilies)) = true) :
+    (sourceArtifactOf wire).CoversFullRelation := by
+  constructor
+  · exact covers_indexes_of_chunks wire censuses fullChunks lastChunk
+      leadChunks noChunks
+  · intro row rowMember
+    have inChunks : row ∈ (List.range wire.chunkCount).flatMap (rowsChunk wire) :=
+      rowMember
+    rcases List.mem_flatMap.mp inChunks with ⟨k, kMember, rowInChunk⟩
+    have chunkAll := membership k (List.mem_range.mp kMember)
+    rw [List.all_eq_true] at chunkAll
+    simpa using chunkAll row rowInChunk
+
+/-- Complete well-formedness from bounded chunk facts. The scalar conjuncts
+arrive as one small decidable pack; the row facts arrive per chunk against
+the scalar geometry; monotonicity is inherited from the index census. -/
+theorem wellFormed_of_chunks (wire : Wire)
+    (scalars : (sourceArtifactOf wire).schema = Artifact.supportedSchema ∧
+      (sourceArtifactOf wire).profile ≠ "" ∧
+      (sourceArtifactOf wire).scope ∈ Artifact.scopes ∧
+      (sourceArtifactOf wire).diagnosticDigest ≠ "" ∧
+      (sourceArtifactOf wire).fieldModulus = Artifact.goldilocksModulusDecimal ∧
+      0 < (sourceArtifactOf wire).totalRows ∧
+      0 < (sourceArtifactOf wire).columnCount ∧
+      0 < (sourceArtifactOf wire).publicInputCount ∧
+      (sourceArtifactOf wire).publicInputCount ≤ (sourceArtifactOf wire).columnCount ∧
+      (sourceArtifactOf wire).constantOneColumn < (sourceArtifactOf wire).publicInputCount ∧
+      (sourceArtifactOf wire).completeFamilies.Nodup ∧
+      (sourceArtifactOf wire).completeFamilies.all
+        (fun family => decide (family ≠ "")) = true)
+    (indexCensus : (artifactRows wire).map (fun row => row.sourceIndex) =
+      List.range wire.totalRows)
+    (rowFacts : ∀ k, k < wire.chunkCount →
+      (rowsChunk wire k).all
+        (rowWellFormedAt wire.totalRows wire.columnCount) = true)
+    (presence : (sourceArtifactOf wire).completeFamilies.all
+      (fun family =>
+        (sourceArtifactOf wire).rows.any
+          (fun row => decide (row.family = family))) = true) :
+    (sourceArtifactOf wire).WellFormed := by
+  obtain ⟨schema, profile, scope, digest, modulus, totalPos, columnPos,
+    publicPos, publicLe, constantLt, nodup, nonempty⟩ := scalars
+  refine ⟨schema, profile, scope, digest, modulus, totalPos, columnPos,
+    publicPos, publicLe, constantLt, ?_, nodup, nonempty, presence, ?_, ?_⟩
+  · -- rows ≠ []
+    intro empty
+    have censusEmpty := indexCensus
+    rw [show (sourceArtifactOf wire).rows = artifactRows wire from rfl] at empty
+    rw [empty] at censusEmpty
+    have rangeEmpty : List.range wire.totalRows = [] := censusEmpty.symm
+    have zero : wire.totalRows = 0 := by
+      simpa [List.range_eq_nil] using rangeEmpty
+    have pos : 0 < wire.totalRows := totalPos
+    omega
+  · -- strictly increasing source rows
+    have census' : (artifactRows wire).map (fun row => row.sourceIndex) =
+        List.range' 0 wire.totalRows := by
+      rw [indexCensus, List.range_eq_range']
+    exact strictlyIncreasing_of_index_census (artifactRows wire) 0
+      wire.totalRows census'
+  · -- every row is well formed
+    rw [show (sourceArtifactOf wire).rows = artifactRows wire from rfl,
+      List.all_eq_true]
+    intro row rowMember
+    rcases List.mem_flatMap.mp rowMember with ⟨k, kMember, rowInChunk⟩
+    have chunkAll := rowFacts k (List.mem_range.mp kMember)
+    rw [List.all_eq_true] at chunkAll
+    have fact := chunkAll row rowInChunk
+    rw [← rowWellFormedAt_eq (sourceArtifactOf wire) row]
+    exact fact
+
 -- ── Shared background assignments ────────────────────────────────────────
 
 /-- Override a background assignment at named columns. Generated removal

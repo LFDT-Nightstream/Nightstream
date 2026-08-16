@@ -448,7 +448,7 @@ pub fn render_compact_source_artifact_modules(
     out.push_str(&format!("namespace {module_namespace}\n\n"));
     out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
     out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
-    out.push_str("open Nightstream.Implementation.R1CS (SeededPhi81)\n\n");
+    out.push_str("open Nightstream.Implementation.R1CS\n\n");
     out.push_str("set_option maxHeartbeats 2000000\nset_option maxRecDepth 65536\n\n");
 
     let mut block_names: [Vec<String>; 3] = [Vec::new(), Vec::new(), Vec::new()];

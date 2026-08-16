@@ -184,7 +184,7 @@ fn emit_lean() -> String {
     out.push_str("kappa 2 with per-output chunk seeds (TwoOutputs), and a seed whose\n");
     out.push_str("first 54-word draw rejects one word (Rejection).\n-/\n\n");
     out.push_str("namespace Nightstream.Implementation.R1CS.SeededPhi81ConformanceArtifact\n\n");
-    out.push_str("open Nightstream.Implementation.R1CS.Program (Row)\n\n");
+    out.push_str("set_option maxRecDepth 65536\n\n");
     for fixture in class_fixtures() {
         emit_class(&mut out, &fixture);
     }

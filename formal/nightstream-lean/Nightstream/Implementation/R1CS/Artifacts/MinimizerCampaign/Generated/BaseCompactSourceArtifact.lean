@@ -24,7 +24,7 @@ namespace Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.
 
 open Nightstream.Assurance.CompactSourceArtifact
 open Nightstream.Assurance.ConstraintMinimization
-open Nightstream.Implementation.R1CS (SeededPhi81)
+open Nightstream.Implementation.R1CS
 
 set_option maxHeartbeats 2000000
 set_option maxRecDepth 65536

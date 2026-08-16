@@ -12,7 +12,7 @@ first 54-word draw rejects one word (Rejection).
 
 namespace Nightstream.Implementation.R1CS.SeededPhi81ConformanceArtifact
 
-open Nightstream.Implementation.R1CS.Program (Row)
+set_option maxRecDepth 65536
 
 def blockMultiChunk : SeededPhi81.Block :=
   { rowStart := 0

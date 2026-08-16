@@ -7,10 +7,7 @@
 //! term-for-term equality with the production `for_each_term` expansion.
 
 use neo_ccs::SeededPhi81LinearBlock;
-use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeRelation};
-use neo_fold_clean::frontends::nebula::layout::NebulaParams;
-use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
-use neo_fold_clean::paper::params::Params;
+use neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeBranch;
 use neo_math::F;
 use nightstream_constraint_exporter::mirror_block;
 use p3_field::PrimeField64;
@@ -107,26 +104,7 @@ fn mirror_matches_the_committed_conformance_fixture_classes() {
 
 #[test]
 fn mirror_matches_every_frozen_profile_seeded_block() {
-    let params = {
-        let inner = neo_params::NeoParams::new(
-            neo_params::goldilocks_paper_b2::Q,
-            neo_params::goldilocks_paper_b2::ETA as u32,
-            neo_params::goldilocks_paper_b2::D as u32,
-            1,
-            neo_params::goldilocks_paper_b2::M,
-            neo_params::goldilocks_paper_b2::B_BASE,
-            2,
-            1,
-            neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
-            1,
-        )
-        .expect("campaign profile parameters");
-        Params::test_only_from_neo_params(inner)
-    };
-    let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("campaign memory profile");
-    let plan = NebulaPlan::new(memory, vec![7], [0xDA; 32], params.kappa() as usize).expect("campaign Nebula plan");
-    let audit = NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan)
-        .expect("discover campaign source arms");
+    let audit = nightstream_constraint_exporter::campaign_profile_audit().expect("discover campaign source arms");
 
     let mut blocks = 0usize;
     let mut rejected_words = 0usize;

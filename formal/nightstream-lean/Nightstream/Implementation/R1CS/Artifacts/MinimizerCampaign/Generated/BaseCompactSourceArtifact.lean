@@ -59,7 +59,7 @@ def wire : Wire where
   schema := "nightstream/r1cs-redundancy-problem/v3"
   profile := "campaign-base-classification-v1"
   scope := "branch"
-  diagnosticDigest := "sha256:54bec6fa7de4ec475e2fd43a1c015bfede809d2d1370b67677ea66dbda6839e7"
+  diagnosticDigest := "sha256:e5f31e44449fd9bdf41f742f0afd6a9cee93be2fe98b1dedfa4d27f6aa250570"
   fieldModulus := "18446744069414584321"
   totalRows := 39949
   columnCount := 38626

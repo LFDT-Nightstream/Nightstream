@@ -21,6 +21,7 @@ use recursive_constraint_minimizer::{Problem, Row, Scope, Source, Term, GOLDILOC
 use sha2::{Digest, Sha256};
 
 mod analysis;
+mod campaign_profile;
 mod compact_source_export;
 mod lean_export;
 mod lean_sampler_mirror;
@@ -31,6 +32,10 @@ mod source_assignment;
 mod terminal_binding;
 mod witness_search;
 
+pub use campaign_profile::{
+    campaign_profile_audit, campaign_profile_params, campaign_profile_plan, CAMPAIGN_K_RHO, CAMPAIGN_PLAN_SEED,
+    CAMPAIGN_PREPROCESSING_SEED,
+};
 pub use compact_source_export::{
     render_assignment_payload_modules, render_compact_removal_counterexample_lean,
     render_compact_source_artifact_modules, CompactSourceEmission,

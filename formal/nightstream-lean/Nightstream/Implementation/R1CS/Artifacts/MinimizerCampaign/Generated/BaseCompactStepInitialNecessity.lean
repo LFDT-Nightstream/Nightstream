@@ -11,7 +11,7 @@ open Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseC
 
 def reviewedPlan : List String := ["fprime.base.finalize.application","fprime.base.step.advance","fprime.base.step.initial","fprime.base.step.output","fprime.base.step.prelude","fprime.base.step.source"]
 
-def overrides : List (Nat × Nat) := [(3811, 1055183102398969390)]
+def overrides : List (Nat × Nat) := [(3811, 7452973988482309350)]
 
 theorem overrides_apply :
     (applyOverrides Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment.values overrides).isSome := by

@@ -11,6 +11,7 @@ bincode = "=1.3.3"
 neo-ccs = { path = "../../../crates/neo-ccs" }
 neo-fold-clean = { path = "../../../crates/neo-fold-clean" }
 neo-math = { path = "../../../crates/neo-math" }
+neo-params = { path = "../../../crates/neo-params" }
 p3-field = "=0.5.3"
 rand_chacha = "=0.9.0"
 recursive-constraint-minimizer = { path = ".." }
@@ -20,4 +21,3 @@ sha2 = "0.10"
 
 [dev-dependencies]
 neo-ajtai = { path = "../../../crates/neo-ajtai" }
-neo-params = { path = "../../../crates/neo-params" }

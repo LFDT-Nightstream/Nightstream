@@ -68,27 +68,10 @@ fn print_paper_b2_lambda114_freeze_candidate_digests() {
     print_freeze_candidate("paper-b2-lambda114", Params::test_only_from_neo_params(inner));
 }
 
-fn campaign_minimal_params() -> Params {
-    let inner = neo_params::NeoParams::new(
-        neo_params::goldilocks_paper_b2::Q,
-        neo_params::goldilocks_paper_b2::ETA as u32,
-        neo_params::goldilocks_paper_b2::D as u32,
-        1,
-        neo_params::goldilocks_paper_b2::M,
-        neo_params::goldilocks_paper_b2::B_BASE,
-        2,
-        1,
-        neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
-        1,
-    )
-    .expect("minimal parameters satisfy the exact RLC guard");
-    Params::test_only_from_neo_params(inner)
-}
-
 fn campaign_audit(
     plan_seed: [u8; 32],
 ) -> neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeConstraintSourceAudit {
-    let params = campaign_minimal_params();
+    let params = nightstream_constraint_exporter::campaign_profile_params();
     let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("campaign memory profile");
     let plan = NebulaPlan::new(memory, vec![7], plan_seed, params.kappa() as usize).expect("campaign Nebula plan");
     NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan).expect("discover campaign source arms")
@@ -151,11 +134,11 @@ fn compile_terminal_fixture() -> neo_fold_clean::frontends::r1cs_f_prime::termin
 }
 
 #[test]
-fn campaign_profile_v1_digests_are_frozen() {
+fn campaign_profile_v2_digests_are_frozen() {
     // PROFILE.md is the freeze document. These pins must match its table.
-    const BASE_SOURCE_DIGEST: &str = "sha256:54bec6fa7de4ec475e2fd43a1c015bfede809d2d1370b67677ea66dbda6839e7";
-    const RECURSIVE_SOURCE_DIGEST: &str = "sha256:4c0a51647877cd072970c160d49d1dc78b7d34b39dd3e7613c716cef2869934e";
-    const FINAL_PLAN_DIGEST: &str = "sha256:3024cf0eea6ac9093157e5dc1674187abc9fa3f17f8598d72ab41e45504e50fc";
+    const BASE_SOURCE_DIGEST: &str = "sha256:e5f31e44449fd9bdf41f742f0afd6a9cee93be2fe98b1dedfa4d27f6aa250570";
+    const RECURSIVE_SOURCE_DIGEST: &str = "sha256:f06cd06435b8060f0c94adaddeb8349a24ba784b974a6bac7a06ca9e93163915";
+    const FINAL_PLAN_DIGEST: &str = "sha256:42eb7385d90b1de44cb67a505ae5ba1634559f105c315031acb681401449b965";
     const TERMINAL_SOURCE_DIGEST: &str = "sha256:85b400cebcfaa8fac702072aff342d67c6acca87e4470199d86a935c98264461";
     const TERMINAL_DIAGNOSTIC_DIGEST: &str = "sha256:63664e95c3f91dcf35db99ad3e0dd235643d274e5ccfd9be6a18252eb8a12f98";
 
@@ -165,8 +148,8 @@ fn campaign_profile_v1_digests_are_frozen() {
         (
             NebulaFPrimeBranch::Recursive,
             RECURSIVE_SOURCE_DIGEST,
-            4_530_315,
-            4_480_464,
+            11_187_825,
+            11_078_210,
             82,
         ),
     ] {
@@ -199,8 +182,8 @@ fn campaign_profile_v1_digests_are_frozen() {
             FINAL_PLAN_DIGEST,
             "{branch:?} final plan digest drifted"
         );
-        assert_eq!(binding.final_rows(), 1_415_271, "{branch:?} final rows drifted");
-        assert_eq!(binding.final_columns(), 6_559_326, "{branch:?} final columns drifted");
+        assert_eq!(binding.final_rows(), 3_666_055, "{branch:?} final rows drifted");
+        assert_eq!(binding.final_columns(), 13_314_834, "{branch:?} final columns drifted");
         assert_eq!(
             binding.final_public_input_count(),
             2_430,
@@ -229,6 +212,92 @@ fn campaign_profile_v1_digests_are_frozen() {
     );
     assert_eq!(binding.spartan_rows(), 65_536, "terminal Spartan rows drifted");
     assert_eq!(binding.spartan_columns(), 114_407, "terminal Spartan columns drifted");
+}
+
+#[test]
+#[ignore = "y_ring slice measurement at the amended shape; run with --ignored --nocapture"]
+fn probe_y_ring_slice_constants() {
+    use nightstream_constraint_exporter::export_nebula_problem;
+    use recursive_constraint_minimizer::{derive_scalar_certificate, Selection};
+    use std::collections::BTreeSet;
+
+    const CANDIDATE: &str = "nifs.pi_rlc.verify.padding.y_ring";
+    const PI_CCS_SUPPORT: &str = "nifs.pi_ccs.padded_row.canonicality";
+    const PI_DEC_SUPPORT: &str = "nifs.pi_dec.verify";
+
+    let audit = campaign_audit([0xDA; 32]);
+    let branch = NebulaFPrimeBranch::Recursive;
+    let arm = audit.arm(branch);
+    let census = nebula_family_census(&audit, branch).expect("census");
+    let family = |name: &str| {
+        census
+            .iter()
+            .find(|family| family.name() == name)
+            .unwrap_or_else(|| panic!("missing {name}"))
+    };
+    let candidate_export = export_nebula_problem(
+        &audit,
+        branch,
+        ExportRequest {
+            profile: "y-ring-slice-probe".to_owned(),
+            scope: Scope::Branch,
+            public_input_count: arm.m_in,
+            source_rows: family(CANDIDATE).source_rows().to_vec(),
+            complete_families: vec![CANDIDATE.to_owned()],
+        },
+    )
+    .expect("bind candidate rows");
+    eprintln!(
+        "y_ring: family_rows={} retained={} rewrites={} closure={} emitted={}",
+        family(CANDIDATE).source_rows().len(),
+        candidate_export.binding().retained_rows().len(),
+        candidate_export.binding().rewrites().len(),
+        candidate_export.binding().closure_source_rows().len(),
+        candidate_export.binding().emitted_rows().len(),
+    );
+    let source_rows = [CANDIDATE, PI_CCS_SUPPORT, PI_DEC_SUPPORT]
+        .into_iter()
+        .flat_map(|name| family(name).source_rows().iter().copied())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let export = export_nebula_problem(
+        &audit,
+        branch,
+        ExportRequest {
+            profile: "y-ring-slice-probe".to_owned(),
+            scope: Scope::Branch,
+            public_input_count: arm.m_in,
+            source_rows,
+            complete_families: vec![CANDIDATE.to_owned()],
+        },
+    )
+    .expect("export candidate and supports");
+    let certificate = derive_scalar_certificate(export.problem(), &Selection::Family(CANDIDATE.to_owned()))
+        .expect("derive")
+        .expect("certificate exists");
+    let mut ccs = 0;
+    let mut dec = 0;
+    for row in &certificate.rows {
+        let [support] = row.support.as_slice() else {
+            panic!("one support")
+        };
+        let support_row = export
+            .problem()
+            .rows
+            .binary_search_by_key(&support.source_index, |row| row.source_index)
+            .map(|index| &export.problem().rows[index])
+            .expect("support in slice");
+        match support_row.family.as_str() {
+            PI_CCS_SUPPORT => ccs += 1,
+            PI_DEC_SUPPORT => dec += 1,
+            other => panic!("unexpected support family {other}"),
+        }
+    }
+    eprintln!(
+        "y_ring certificate: rows={} pi_ccs_support={ccs} pi_dec_support={dec}",
+        certificate.rows.len()
+    );
 }
 
 #[test]
@@ -314,8 +383,8 @@ fn probe_recursive_column_ownership_census() {
 }
 
 #[test]
-#[ignore = "k_rho=10 digest probe for the bar-2 amendment; run with --ignored --nocapture"]
-fn probe_k_rho_10_digests() {
+#[ignore = "k_rho=12 digest probe for the bar-2 amendment; run with --ignored --nocapture"]
+fn probe_k_rho_12_digests() {
     let inner = neo_params::NeoParams::new(
         neo_params::goldilocks_paper_b2::Q,
         neo_params::goldilocks_paper_b2::ETA as u32,
@@ -323,12 +392,12 @@ fn probe_k_rho_10_digests() {
         1,
         neo_params::goldilocks_paper_b2::M,
         neo_params::goldilocks_paper_b2::B_BASE,
-        10,
+        12,
         1,
         neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
         1,
     )
-    .expect("k_rho=10 minimal parameters");
+    .expect("k_rho=12 minimal parameters");
     let params = Params::test_only_from_neo_params(inner);
     let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("campaign memory profile");
     let plan = NebulaPlan::new(memory, vec![7], [0xDA; 32], params.kappa() as usize).expect("campaign Nebula plan");
@@ -340,7 +409,7 @@ fn probe_k_rho_10_digests() {
             &audit,
             branch,
             ExportRequest {
-                profile: "k-rho-10-digest-probe".to_owned(),
+                profile: "k-rho-12-digest-probe".to_owned(),
                 scope: Scope::Branch,
                 public_input_count: arm.m_in,
                 source_rows: vec![0],
@@ -350,7 +419,7 @@ fn probe_k_rho_10_digests() {
         .expect("export one k_rho=10 source row");
         let census = nebula_family_census(&audit, branch).expect("census");
         eprintln!(
-            "k_rho=10 branch={branch:?} n={} m={} m_in={} families={} digest={} final_rows={} final_cols={} final_plan_digest={}",
+            "k_rho=12 branch={branch:?} n={} m={} m_in={} families={} digest={} final_rows={} final_cols={} final_plan_digest={}",
             export.problem().source.total_rows,
             export.problem().column_count,
             export.problem().public_input_count,
@@ -364,8 +433,8 @@ fn probe_k_rho_10_digests() {
 }
 
 #[test]
-#[ignore = "k_rho=10 encoding-limit probe for the compact pipeline; run with --ignored --nocapture"]
-fn probe_k_rho_10_encoding_limits() {
+#[ignore = "k_rho=12 encoding-limit probe for the compact pipeline; run with --ignored --nocapture"]
+fn probe_k_rho_12_encoding_limits() {
     use neo_ccs::CcsMatrix;
     use std::collections::HashSet;
 
@@ -376,12 +445,12 @@ fn probe_k_rho_10_encoding_limits() {
         1,
         neo_params::goldilocks_paper_b2::M,
         neo_params::goldilocks_paper_b2::B_BASE,
-        10,
+        12,
         1,
         neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
         1,
     )
-    .expect("k_rho=10 minimal parameters");
+    .expect("k_rho=12 minimal parameters");
     let params = Params::test_only_from_neo_params(inner);
     let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("campaign memory profile");
     let plan = NebulaPlan::new(memory, vec![7], [0xDA; 32], params.kappa() as usize).expect("campaign Nebula plan");
@@ -427,15 +496,15 @@ fn probe_k_rho_10_encoding_limits() {
         }
     }
     eprintln!(
-        "k_rho=10 recursive encodings: nnz={nnz} distinct_values={} max_row_terms={} seeded_blocks={blocks_total} geometric_runs={geometric_total}",
+        "k_rho=12 recursive encodings: nnz={nnz} distinct_values={} max_row_terms={} seeded_blocks={blocks_total} geometric_runs={geometric_total}",
         values.len(),
         row_terms.iter().max().copied().unwrap_or(0),
     );
 }
 
 #[test]
-#[ignore = "k_rho=10 foldable-shape probe for the bar-2 amendment; run with --ignored --nocapture"]
-fn probe_k_rho_10_minimal_shape_capture() {
+#[ignore = "k_rho=12 foldable-shape probe for the bar-2 amendment; run with --ignored --nocapture"]
+fn probe_k_rho_12_minimal_shape_capture() {
     use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeChainBuilder, NebulaFPrimePreprocessing};
     use neo_fold_clean::frontends::nebula::trace::Memory;
 
@@ -446,12 +515,12 @@ fn probe_k_rho_10_minimal_shape_capture() {
         1,
         neo_params::goldilocks_paper_b2::M,
         neo_params::goldilocks_paper_b2::B_BASE,
-        10,
+        12,
         1,
         neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
         1,
     )
-    .expect("k_rho=10 minimal parameters");
+    .expect("k_rho=12 minimal parameters");
     let params = Params::test_only_from_neo_params(inner);
     let memory_params = NebulaParams::new(0, 0, 1, 2, 2).expect("two-step memory profile");
     let rom = [7];
@@ -460,13 +529,13 @@ fn probe_k_rho_10_minimal_shape_capture() {
     let start = Instant::now();
     let audit = NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan)
         .expect("discover k_rho=10 source arms");
-    eprintln!("k_rho=10 audit build: {} ms", start.elapsed().as_millis());
+    eprintln!("k_rho=12 audit build: {} ms", start.elapsed().as_millis());
     for branch in [NebulaFPrimeBranch::Base, NebulaFPrimeBranch::Recursive] {
         let arm = audit.arm(branch);
-        eprintln!("k_rho=10 branch={branch:?} n={} m={} m_in={}", arm.n, arm.m, arm.m_in);
+        eprintln!("k_rho=12 branch={branch:?} n={} m={} m_in={}", arm.n, arm.m, arm.m_in);
     }
 
-    let prep = NebulaFPrimePreprocessing::new_seeded(params, plan, 0xDA00_0001).expect("k_rho=10 Nebula preprocessing");
+    let prep = NebulaFPrimePreprocessing::new_seeded(params, plan, 0xDA00_0001).expect("k_rho=12 Nebula preprocessing");
     let mut memory = Memory::new(memory_params, &rom).expect("memory");
     let mut chain = NebulaFPrimeChainBuilder::new(&prep);
     for index in 0..2usize {
@@ -478,15 +547,15 @@ fn probe_k_rho_10_minimal_shape_capture() {
         };
         let witnesses = chain
             .append_segment_with_constraint_witness_audit(&trace)
-            .expect("accepted k_rho=10 Nebula step");
+            .expect("accepted k_rho=12 Nebula step");
         eprintln!(
-            "k_rho=10 step {index}: branch={:?} assignment_len={} ms={}",
+            "k_rho=12 step {index}: branch={:?} assignment_len={} ms={}",
             witnesses[0].branch(),
             witnesses[0].source_assignment().len(),
             step.elapsed().as_millis(),
         );
     }
-    eprintln!("k_rho=10 two-segment capture SUCCEEDED");
+    eprintln!("k_rho=12 two-segment capture SUCCEEDED");
 }
 
 #[test]

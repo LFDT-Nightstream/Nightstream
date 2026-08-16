@@ -7,10 +7,7 @@
 //! constructor). Successful witnesses render compact necessity modules
 //! against the string-payload recursive source artifact.
 
-use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeRelation};
-use neo_fold_clean::frontends::nebula::layout::NebulaParams;
-use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
-use neo_fold_clean::paper::params::Params;
+use neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeBranch;
 use nightstream_constraint_exporter::{
     export_sparse_problem, find_exclusive_column_witness, load_nebula_source_assignment, nebula_family_census,
     render_assignment_payload_modules, render_compact_removal_counterexample_lean, ExportRequest, GeneratedLeanModule,
@@ -23,23 +20,7 @@ const GENERATED_NS: &str = "Nightstream.Implementation.R1CS.Artifacts.MinimizerC
 const ASSIGNMENT_PROFILE: &str = "nebula-saved-recursive-assignment";
 
 fn campaign_audit() -> neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeConstraintSourceAudit {
-    let inner = neo_params::NeoParams::new(
-        neo_params::goldilocks_paper_b2::Q,
-        neo_params::goldilocks_paper_b2::ETA as u32,
-        neo_params::goldilocks_paper_b2::D as u32,
-        1,
-        neo_params::goldilocks_paper_b2::M,
-        neo_params::goldilocks_paper_b2::B_BASE,
-        2,
-        1,
-        neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
-        1,
-    )
-    .expect("campaign profile parameters");
-    let params = Params::test_only_from_neo_params(inner);
-    let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("campaign memory profile");
-    let plan = NebulaPlan::new(memory, vec![7], [0xDA; 32], params.kappa() as usize).expect("campaign Nebula plan");
-    NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan).expect("discover campaign source arms")
+    nightstream_constraint_exporter::campaign_profile_audit().expect("discover campaign source arms")
 }
 
 fn module_stem(family: &str) -> String {

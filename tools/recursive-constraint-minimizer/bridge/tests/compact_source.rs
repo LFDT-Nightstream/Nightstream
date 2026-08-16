@@ -5,32 +5,13 @@
 //! generated assembly pins with a `native_decide` equality theorem.
 
 use neo_fold_clean::frontends::nebula::f_prime::{NebulaFPrimeBranch, NebulaFPrimeRelation};
-use neo_fold_clean::frontends::nebula::layout::NebulaParams;
-use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
-use neo_fold_clean::paper::params::Params;
 use nightstream_constraint_exporter::render_compact_source_artifact_modules;
 
 const GENERATED_DIR: &str =
     "../../../formal/nightstream-lean/Nightstream/Implementation/R1CS/Artifacts/MinimizerCampaign/Generated";
 
 fn campaign_audit() -> neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeConstraintSourceAudit {
-    let inner = neo_params::NeoParams::new(
-        neo_params::goldilocks_paper_b2::Q,
-        neo_params::goldilocks_paper_b2::ETA as u32,
-        neo_params::goldilocks_paper_b2::D as u32,
-        1,
-        neo_params::goldilocks_paper_b2::M,
-        neo_params::goldilocks_paper_b2::B_BASE,
-        2,
-        1,
-        neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
-        1,
-    )
-    .expect("campaign profile parameters");
-    let params = Params::test_only_from_neo_params(inner);
-    let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("campaign memory profile");
-    let plan = NebulaPlan::new(memory, vec![7], [0xDA; 32], params.kappa() as usize).expect("campaign Nebula plan");
-    NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan).expect("discover campaign source arms")
+    nightstream_constraint_exporter::campaign_profile_audit().expect("discover campaign source arms")
 }
 
 fn assert_modules_match_committed(modules: &[nightstream_constraint_exporter::GeneratedLeanModule]) {
@@ -81,26 +62,17 @@ fn committed_base_compact_necessity_pilot_matches_the_emitter() {
     const FAMILY: &str = "fprime.base.step.initial";
     const GENERATED_NS: &str = "Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated";
 
-    let inner = neo_params::NeoParams::new(
-        neo_params::goldilocks_paper_b2::Q,
-        neo_params::goldilocks_paper_b2::ETA as u32,
-        neo_params::goldilocks_paper_b2::D as u32,
-        1,
-        neo_params::goldilocks_paper_b2::M,
-        neo_params::goldilocks_paper_b2::B_BASE,
-        2,
-        1,
-        neo_params::goldilocks_paper_b2::EXTENSION_DEGREE,
-        1,
-    )
-    .expect("campaign profile parameters");
-    let params = Params::test_only_from_neo_params(inner);
-    let memory_params = NebulaParams::new(0, 0, 1, 2, 1).expect("one-step memory profile");
+    let (params, memory_params, plan) =
+        nightstream_constraint_exporter::campaign_profile_plan(1).expect("campaign plan");
     let rom = [7];
-    let plan = NebulaPlan::new(memory_params, rom.to_vec(), [0xDA; 32], params.kappa() as usize).expect("Nebula plan");
     let audit = NebulaFPrimeRelation::audit_fixed_point_constraint_sources(&params, &plan)
         .expect("discover campaign source arms");
-    let prep = NebulaFPrimePreprocessing::new_seeded(params, plan, 0xDA00_0001).expect("fixed Nebula preprocessing");
+    let prep = NebulaFPrimePreprocessing::new_seeded(
+        params,
+        plan,
+        nightstream_constraint_exporter::CAMPAIGN_PREPROCESSING_SEED,
+    )
+    .expect("fixed Nebula preprocessing");
     let mut memory = Memory::new(memory_params, &rom).expect("memory");
     let mut chain = NebulaFPrimeChainBuilder::new(&prep);
     let trace = {

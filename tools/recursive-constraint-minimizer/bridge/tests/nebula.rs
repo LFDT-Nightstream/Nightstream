@@ -10,7 +10,6 @@ use neo_fold_clean::frontends::nebula::trace::Memory;
 use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
 use neo_fold_clean::paper::params::Params;
 use neo_math::F;
-use neo_params::{goldilocks_paper_b2, NeoParams};
 use nightstream_constraint_exporter::{
     analyze_nebula_branch, bind_nebula_source_assignment, export_nebula_problem, export_sparse_problem,
     load_nebula_source_assignment, nebula_family_census, refine_nebula_with_cvc5, render_bound_artifact_lean,
@@ -24,20 +23,7 @@ use recursive_constraint_minimizer::{
 };
 
 fn minimal_params() -> Params {
-    let inner = NeoParams::new(
-        goldilocks_paper_b2::Q,
-        goldilocks_paper_b2::ETA as u32,
-        goldilocks_paper_b2::D as u32,
-        1,
-        goldilocks_paper_b2::M,
-        goldilocks_paper_b2::B_BASE,
-        2,
-        1,
-        goldilocks_paper_b2::EXTENSION_DEGREE,
-        1,
-    )
-    .expect("minimal parameters satisfy the exact RLC guard");
-    Params::test_only_from_neo_params(inner)
+    nightstream_constraint_exporter::campaign_profile_params()
 }
 
 fn source_audit() -> neo_fold_clean::frontends::nebula::f_prime::NebulaFPrimeConstraintSourceAudit {

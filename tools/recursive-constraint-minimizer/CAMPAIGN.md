@@ -13,7 +13,7 @@ repository root unless stated.
 | 5 | Every census family classified; zero Inconclusive | in-progress: base 6/6 and terminal 8/8 Lean-certified, **both refutation-proof**; recursive pipeline built, awaiting bar 4 | The complete recursive source relation is now a committed Lean authority artifact: string-payload CSR + 527-value table + 36 compact seeded blocks (197 MB payloads, emitted with a full 4.5 M-row replay against the independent recovery, 33 s). Artifact-level `*_of_full_valid` theorems added; the census runner (`recursive_census.rs`) will emit one compact necessity module per family from the shared assignment plus one column override. Base pilot flows end to end (BaseCompactSourceArtifact + BaseCampaignAssignment + BaseCompactStepInitialNecessity), pinned to the committed literal artifact by native_decide equality. y_ring stays the redundancy leg via its scalar certificate. |
 | 6 | Removals applied; relations regenerated; fixed point re-solved | unmet | Blocked on 5. |
 | 7 | `normalizedFullPlanInclusionMinimalSound` instantiated; ledger zero Open | unmet | One Open entry: `hypernova.recursive_size_closure` (`bridge/src/obligation_ledger.rs`). |
-| 8 | Planted redundant + necessary controls flow end to end | in-progress | Necessary leg exercised at real scale: witness -> replay -> generated module -> lake green for six families. Redundant leg (y_ring certificate through Lean) still pending. |
+| 8 | Planted redundant + necessary controls flow end to end | in-progress | Necessary leg exercised at real scale: witness -> replay -> generated module -> lake green for six families. Redundant leg: the y_ring compact redundancy module is now emitted and committed (`RecursiveNifsPiRlcVerifyPaddingYRingRedundancy.lean`: 1,120 exact candidate/support rows, native_decide validity against the expanded compact artifact, Artifact-level full-theorem transport); its lake check rides the running build. |
 | 9 | Rust, Lean, drift, axioms suites all green | in-progress | Rust suites green (core 18, bridge 39 incl. gates). Lean build not yet run this campaign. |
 | 10 | Cost report before/after per relation | unmet | Instrument exists (`emitter_order_constant_affine_run_census_is_exact`). |
 
@@ -93,6 +93,23 @@ exhausted. cvc5's remaining role is confirming Rust-proposed candidates with
 support context (the y_ring pattern). Evidence: target/campaign-evidence/.
 
 ## Iteration log
+
+- 2026-08-15 iteration 14 (compact pipeline): built and committed the full
+  string-payload classification pipeline in one sitting — the complete
+  recursive source artifact (32 payload modules + assembly with
+  expand/coverage/exact-validation theorems), the base pilot (compact
+  artifact + shared assignment + one compact necessity module, pinned by
+  native_decide equality to the committed literal artifact), the compact
+  redundancy renderer and the committed y_ring module, the persisting bar-4
+  capture test, and the 82-family recursive census runner. Also added
+  Artifact-level `redundant_of_full_valid` /
+  `necessary_[normalized_]of_full_valid` to ConstraintMinimization
+  (extension only; compiles clean). Operational measurements: complete
+  binding-free recursive problem export peaks ~22 GB (the y_ring emission
+  gate is therefore `#[ignore]`, run per campaign iteration); the compact
+  emission replay covers all 4,530,315 rows in ~33 s. The bar-4 capture
+  diagnostic and the full Lean rebuild (invalidated once by the core
+  extension, restarted, 1 worker while the capture runs) are both live.
 
 - 2026-08-15 iteration 1: installed cvc5 1.3.4 via Homebrew (CoCoA present, so no
   source build needed); ran the tool's positive and negative controls live;

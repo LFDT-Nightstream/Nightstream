@@ -27,6 +27,12 @@ RAM (~46 GB). A ~200 GB parallel Lean elaboration (~20 workers x ~10 GB on
 (`taskset -c 0-2 lake build` gives 3 workers, ~30 GB worst case on the
 17-19 MB generated Data modules) and check `free -g` before every heavy
 launch. A third-party sglang server holds ~7 GB on this box; respect it.
+Measured on the terminal-module build tail (2026-08-16): the lake parent
+process itself accumulates ~20 GB while the heaviest terminal Data
+modules push a single worker to ~28 GB - a one-worker build peaks near
+~48 GB on that stretch. The terminal tail therefore runs ALONE: no probe,
+no capture, no export may run beside it, and lake's own footprint counts
+in every budget.
 
 ## Strategy notes
 

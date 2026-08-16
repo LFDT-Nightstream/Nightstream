@@ -37,8 +37,8 @@ pub use campaign_profile::{
     CAMPAIGN_PREPROCESSING_SEED,
 };
 pub use compact_source_export::{
-    render_assignment_payload_modules, render_compact_removal_counterexample_lean,
-    render_compact_source_artifact_modules, CompactSourceEmission,
+    render_assignment_payload_modules, render_classification_leaves_module, render_compact_removal_counterexample_lean,
+    render_compact_source_artifact_modules, ClassificationOverride, CommittedEquality, CompactSourceEmission,
 };
 pub use lean_export::{
     render_bound_artifact_lean, render_compact_redundancy_certificate_lean, render_complete_bound_artifact_lean,

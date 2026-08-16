@@ -38,11 +38,16 @@ fn assert_modules_match_committed(modules: &[nightstream_constraint_exporter::Ge
 #[test]
 fn committed_base_compact_source_modules_match_the_emitter() {
     let audit = campaign_audit();
+    let equality = nightstream_constraint_exporter::CommittedEquality {
+        namespace: "Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseBoundArtifact".to_owned(),
+        chunk_prefix: "sourceArtifactRowsChunk".to_owned(),
+    };
     let emission = render_compact_source_artifact_modules(
         audit.arm(NebulaFPrimeBranch::Base),
         "campaign-base-classification-v1",
         "Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCompactSourceArtifact",
-        Some("Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseBoundArtifact"),
+        256,
+        Some(&equality),
     )
     .expect("render the compact base source artifact");
     assert_eq!(emission.replayed_rows, audit.arm(NebulaFPrimeBranch::Base).n);
@@ -106,24 +111,50 @@ fn committed_base_compact_necessity_pilot_matches_the_emitter() {
         },
     )
     .expect("export the complete binding-free base problem");
-    let plan_names = census
-        .iter()
-        .map(|family| family.name().to_owned())
-        .collect::<Vec<_>>();
     let witness = find_exclusive_column_witness(&problem, &background, FAMILY)
         .expect("witness search must run")
         .expect("the base control family has an exclusive-column witness");
 
     let mut modules = render_assignment_payload_modules(&background, &format!("{GENERATED_NS}.BaseCampaignAssignment"))
         .expect("render the shared base assignment payload");
+    let mutated = {
+        let modulus = recursive_constraint_minimizer::GOLDILOCKS_MODULUS
+            .parse::<u128>()
+            .expect("fixed Goldilocks modulus");
+        ((u128::from(background[witness.column()]) + u128::from(witness.delta())) % modulus) as u64
+    };
+    let override_entry = nightstream_constraint_exporter::ClassificationOverride {
+        family: FAMILY.to_owned(),
+        column: witness.column(),
+        value: mutated,
+    };
+    let chunk_count = arm.n.div_ceil(256);
+    modules.push(
+        nightstream_constraint_exporter::render_classification_leaves_module(
+            &format!("{GENERATED_NS}.BaseCompactSourceArtifact"),
+            &format!("{GENERATED_NS}.BaseCampaignAssignment"),
+            &format!("{GENERATED_NS}.BaseClassificationLeaves"),
+            chunk_count,
+            std::slice::from_ref(&override_entry),
+        )
+        .expect("render the base classification leaves"),
+    );
+    let violated_source = witness.violated_rows()[0];
+    let violated_row = problem
+        .rows
+        .iter()
+        .find(|row| row.source_index == violated_source)
+        .expect("violated row in the complete problem")
+        .clone();
     let necessity = render_compact_removal_counterexample_lean(
-        &problem,
-        &background,
-        &witness,
         &format!("{GENERATED_NS}.BaseCompactSourceArtifact"),
         &format!("{GENERATED_NS}.BaseCampaignAssignment"),
+        &format!("{GENERATED_NS}.BaseClassificationLeaves"),
         &format!("{GENERATED_NS}.BaseCompactStepInitialNecessity"),
-        &plan_names,
+        &override_entry,
+        &violated_row,
+        violated_source / 256,
+        chunk_count,
     )
     .expect("render the compact necessity pilot module");
     modules.push(nightstream_constraint_exporter::GeneratedLeanModule {
@@ -214,6 +245,7 @@ fn committed_recursive_compact_source_modules_match_the_emitter() {
         audit.arm(NebulaFPrimeBranch::Recursive),
         "campaign-recursive-classification-v1",
         "Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.RecursiveCompactSourceArtifact",
+        65_536,
         None,
     )
     .expect("render the compact recursive source artifact");

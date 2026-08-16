@@ -5,18 +5,23 @@ import Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.Bas
 GENERATED FILE - do not edit by hand.
 
 Shared accepted background assignment, decoded once. Removal
-counterexamples apply per-column overrides to these values.
+counterexamples override single columns of these values. The two
+leaves below are the only facts that force the decode.
 -/
 
 namespace Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment
 
 open Nightstream.Assurance.CompactSourceArtifact
 
-def payload : String := Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignmentData0.part
+def payload : String :=
+  Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignmentData0.part
 
-theorem decode_succeeds : (decodeAssignment payload).isSome := by
+def values : Array Nat := (decodeAssignment payload).getD #[]
+
+theorem values_size : values.size = 38626 := by
   native_decide
 
-def values : Array Nat := (decodeAssignment payload).get decode_succeeds
+theorem values_one : values.getD 0 0 = 1 := by
+  native_decide
 
 end Nightstream.Implementation.R1CS.Artifacts.MinimizerCampaign.Generated.BaseCampaignAssignment

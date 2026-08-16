@@ -73,31 +73,21 @@ fn recursive_witness_census_emits_compact_necessity_modules() {
     )
     .expect("export the complete binding-free recursive problem");
 
+    const CHUNK_ROWS: usize = 65_536;
+    let modulus = recursive_constraint_minimizer::GOLDILOCKS_MODULUS
+        .parse::<u128>()
+        .expect("fixed Goldilocks modulus");
     let mut modules: Vec<GeneratedLeanModule> =
         render_assignment_payload_modules(&background, &format!("{GENERATED_NS}.RecursiveCampaignAssignment"))
             .expect("render the shared recursive assignment payload");
     let mut summary = Vec::new();
+    let mut witnesses = Vec::new();
     for family in &census {
         let start = std::time::Instant::now();
         let outcome =
             find_exclusive_column_witness(&problem, &background, family.name()).expect("witness search must run");
         match outcome {
             Some(witness) => {
-                let stem = format!("Recursive{}Necessity", module_stem(family.name()));
-                let content = render_compact_removal_counterexample_lean(
-                    &problem,
-                    &background,
-                    &witness,
-                    &format!("{GENERATED_NS}.RecursiveCompactSourceArtifact"),
-                    &format!("{GENERATED_NS}.RecursiveCampaignAssignment"),
-                    &format!("{GENERATED_NS}.{stem}"),
-                    &plan_names,
-                )
-                .expect("render the compact necessity module");
-                modules.push(GeneratedLeanModule {
-                    module_name: format!("{GENERATED_NS}.{stem}"),
-                    content,
-                });
                 summary.push(format!(
                     "{} witness column={} delta={} violated={} ms={}",
                     family.name(),
@@ -106,6 +96,7 @@ fn recursive_witness_census_emits_compact_necessity_modules() {
                     witness.violated_rows().len(),
                     start.elapsed().as_millis(),
                 ));
+                witnesses.push((family.name().to_owned(), witness));
             }
             None => {
                 summary.push(format!(
@@ -116,6 +107,52 @@ fn recursive_witness_census_emits_compact_necessity_modules() {
             }
         }
         eprintln!("{}", summary.last().expect("recorded"));
+    }
+    let overrides = witnesses
+        .iter()
+        .map(
+            |(family, witness)| nightstream_constraint_exporter::ClassificationOverride {
+                family: family.clone(),
+                column: witness.column(),
+                value: ((u128::from(background[witness.column()]) + u128::from(witness.delta())) % modulus) as u64,
+            },
+        )
+        .collect::<Vec<_>>();
+    let chunk_count = arm.n.div_ceil(CHUNK_ROWS);
+    modules.push(
+        nightstream_constraint_exporter::render_classification_leaves_module(
+            &format!("{GENERATED_NS}.RecursiveCompactSourceArtifact"),
+            &format!("{GENERATED_NS}.RecursiveCampaignAssignment"),
+            &format!("{GENERATED_NS}.RecursiveClassificationLeaves"),
+            chunk_count,
+            &overrides,
+        )
+        .expect("render the shared classification leaves"),
+    );
+    for ((family, witness), override_entry) in witnesses.iter().zip(&overrides) {
+        let stem = format!("Recursive{}Necessity", module_stem(family));
+        let violated_source = witness.violated_rows()[0];
+        let violated_row = problem
+            .rows
+            .iter()
+            .find(|row| row.source_index == violated_source)
+            .expect("violated row in the complete problem")
+            .clone();
+        let content = render_compact_removal_counterexample_lean(
+            &format!("{GENERATED_NS}.RecursiveCompactSourceArtifact"),
+            &format!("{GENERATED_NS}.RecursiveCampaignAssignment"),
+            &format!("{GENERATED_NS}.RecursiveClassificationLeaves"),
+            &format!("{GENERATED_NS}.{stem}"),
+            override_entry,
+            &violated_row,
+            violated_source / CHUNK_ROWS,
+            chunk_count,
+        )
+        .expect("render the compact necessity module");
+        modules.push(GeneratedLeanModule {
+            module_name: format!("{GENERATED_NS}.{stem}"),
+            content,
+        });
     }
 
     let evidence_path = format!(

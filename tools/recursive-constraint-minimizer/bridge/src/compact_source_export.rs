@@ -1,14 +1,17 @@
-//! String-payload emission for complete source artifacts.
+//! String-payload emission for complete source artifacts (v3, chunked).
 //!
-//! Owns: the compact wire construction (shared value table, per-matrix CSR
-//! payloads, compact seeded blocks, family row ranges), a complete chunked
+//! Owns: the chunk-aligned wire construction (shared value table, per-chunk
+//! CSR payloads, clipped seeded blocks, family row ranges), a complete
 //! replay that compares the wire expansion against the independent sparse
-//! row recovery before anything is rendered, and the Lean module rendering
-//! (one string payload part per data module plus one assembly module).
+//! row recovery before anything is rendered, and the Lean module rendering:
+//! one data module per row chunk and one assembly module whose per-chunk
+//! leaf certificates are bounded `native_decide` facts glued by the
+//! structural theorems of `Nightstream.Assurance.CompactSourceArtifact`.
+//! No generated proof obligation evaluates the whole artifact.
 //!
-//! Does not own: expansion semantics (Lean `CompactSourceArtifact.expand`),
-//! sampler conformance (the mirror gate), the minimization theorems, or any
-//! removal authority.
+//! Does not own: expansion semantics (Lean `CompactSourceArtifact`), sampler
+//! conformance (the mirror gate), the minimization theorems, or any removal
+//! authority.
 
 use std::collections::BTreeMap;
 
@@ -22,7 +25,6 @@ use recursive_constraint_minimizer::GOLDILOCKS_MODULUS;
 use crate::lean_export::GeneratedLeanModule;
 use crate::{recover_sparse_rows, sparse_family_census, ExportError, SparseProblemExporter};
 
-const PART_CHAR_BUDGET: usize = 7_800_000;
 const REPLAY_CHUNK_ROWS: usize = 131_072;
 
 struct MatrixPayload {
@@ -170,8 +172,7 @@ fn replay_against_recovery(arm: &SparseR1cs, payloads: &WirePayloads) -> Result<
                         block.for_each_row_term::<F, _>(row, |column, coefficient| {
                             terms.push((column, coefficient.as_canonical_u64()));
                         });
-                        let seeded = terms.split_off(before);
-                        let mut seeded = seeded;
+                        let mut seeded = terms.split_off(before);
                         seeded.sort_unstable();
                         let plain = terms.split_off(0);
                         terms = merge_disjoint(plain, seeded).ok_or_else(|| {
@@ -268,73 +269,34 @@ fn le_bytes_u64(values: &[u64]) -> Vec<u8> {
         .collect()
 }
 
-struct PayloadRef {
-    first_part: usize,
-    part_count: usize,
-}
-
-struct PartWriter {
-    parts: Vec<String>,
-}
-
-impl PartWriter {
-    fn push_payload(&mut self, bytes: &[u8]) -> PayloadRef {
-        let encoded = base64_encode(bytes);
-        let first_part = self.parts.len();
-        if encoded.is_empty() {
-            self.parts.push(String::new());
-            return PayloadRef {
-                first_part,
-                part_count: 1,
-            };
-        }
-        let mut cursor = 0;
-        while cursor < encoded.len() {
-            let stop = (cursor + PART_CHAR_BUDGET).min(encoded.len());
-            self.parts.push(encoded[cursor..stop].to_owned());
-            cursor = stop;
-        }
-        PayloadRef {
-            first_part,
-            part_count: self.parts.len() - first_part,
-        }
-    }
-}
-
-fn payload_expression(namespace: &str, payload: &PayloadRef) -> String {
-    (payload.first_part..payload.first_part + payload.part_count)
-        .map(|part| format!("{namespace}Data{part}.part"))
-        .collect::<Vec<_>>()
-        .join(" ++ ")
-}
-
 fn lean_string_literal(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-fn render_block(out: &mut String, name: &str, block: &SeededPhi81LinearBlock) {
+fn render_block(out: &mut String, block: &SeededPhi81LinearBlock) {
     let rows = block.row_end() - block.row_start();
-    out.push_str(&format!("def {name} : SeededPhi81.Block :=\n"));
-    out.push_str(&format!("  {{ rowStart := {}\n", block.row_start()));
-    out.push_str(&format!(
-        "    wordStarts := [{}]\n",
-        block
+    out.push_str("      { rowStart := ");
+    out.push_str(&block.row_start().to_string());
+    out.push_str("\n        wordStarts := [");
+    out.push_str(
+        &block
             .word_starts()
             .iter()
             .map(|start| start.to_string())
             .collect::<Vec<_>>()
-            .join(", ")
-    ));
-    out.push_str(&format!("    wordWidth := {}\n", block.word_width()));
-    out.push_str(&format!("    kappa := {}\n", block.kappa()));
-    out.push_str(&format!("    messageCols := {}\n", block.message_cols()));
+            .join(", "),
+    );
+    out.push_str("]\n");
+    out.push_str(&format!("        wordWidth := {}\n", block.word_width()));
+    out.push_str(&format!("        kappa := {}\n", block.kappa()));
+    out.push_str(&format!("        messageCols := {}\n", block.message_cols()));
     // The artifact expansion never reads output columns; `Block.Valid` only
     // constrains their count.
-    out.push_str(&format!("    outputColumns := List.range {rows}\n"));
-    out.push_str("    superneoTransformedColumns := false\n");
-    out.push_str("    schedule :=\n");
-    out.push_str(&format!("      {{ chunkSize := {}\n", block.chunk_size()));
-    out.push_str("        seedsByOutput := [");
+    out.push_str(&format!("        outputColumns := List.range {rows}\n"));
+    out.push_str("        superneoTransformedColumns := false\n");
+    out.push_str("        schedule :=\n");
+    out.push_str(&format!("          {{ chunkSize := {}\n", block.chunk_size()));
+    out.push_str("            seedsByOutput := [");
     for (row_index, seeds) in block.chunk_seeds_by_row().iter().enumerate() {
         if row_index != 0 {
             out.push_str(", ");
@@ -357,7 +319,7 @@ fn render_block(out: &mut String, name: &str, block: &SeededPhi81LinearBlock) {
         out.push(']');
     }
     out.push_str("]\n");
-    out.push_str("        rejectionFuel := 4 } }\n\n");
+    out.push_str("            rejectionFuel := 4 } }");
 }
 
 fn family_ranges(source_rows: &[usize]) -> Vec<(usize, usize)> {
@@ -381,25 +343,50 @@ fn family_ranges(source_rows: &[usize]) -> Vec<(usize, usize)> {
     ranges
 }
 
+/// Emit a bounded `match` dispatcher from per-chunk leaf theorems to the
+/// universally quantified hypothesis the assembly theorems consume.
+fn render_dispatcher(out: &mut String, theorem_name: &str, statement: &str, leaf_prefix: &str, chunk_count: usize) {
+    out.push_str(&format!("theorem {theorem_name} :\n    {statement} := by\n"));
+    out.push_str("  intro k bound\n  match k with\n");
+    for chunk in 0..chunk_count {
+        out.push_str(&format!("  | {chunk} => exact {leaf_prefix}{chunk}\n"));
+    }
+    out.push_str(&format!("  | n + {chunk_count} => exact absurd bound (by omega)\n\n"));
+}
+
 /// Complete compact-source emission for one physical arm.
 pub struct CompactSourceEmission {
-    /// Data modules (one payload part each) followed by the assembly module.
+    /// Chunk data modules followed by the assembly module.
     pub modules: Vec<GeneratedLeanModule>,
     /// Rows replayed against the independent sparse recovery.
     pub replayed_rows: usize,
+    /// Chunk grain used by the wire.
+    pub chunk_rows: usize,
+    /// Number of row chunks.
+    pub chunk_count: usize,
 }
 
-/// Render the complete source relation of one arm as string-payload Lean
-/// modules. `module_namespace` is the assembly module name; data modules are
-/// `<module_namespace>Data<i>`. When `committed_equality_namespace` is given,
-/// the assembly also pins `sourceArtifact` equal to that module's committed
-/// literal artifact.
+/// Optional per-chunk equality pin against a committed literal artifact.
+pub struct CommittedEquality {
+    /// Namespace holding the literal `sourceArtifact` and its chunk defs.
+    pub namespace: String,
+    /// Chunk-def prefix, e.g. `sourceArtifactRowsChunk`.
+    pub chunk_prefix: String,
+}
+
+/// Render the complete source relation of one arm as chunk-aligned Lean
+/// modules with bounded leaf certificates. `module_namespace` is the
+/// assembly module name; chunk data modules are `<module_namespace>Data<k>`.
 pub fn render_compact_source_artifact_modules(
     arm: &SparseR1cs,
     profile: &str,
     module_namespace: &str,
-    committed_equality_namespace: Option<&str>,
+    chunk_rows: usize,
+    committed_equality: Option<&CommittedEquality>,
 ) -> Result<CompactSourceEmission, ExportError> {
+    if chunk_rows == 0 {
+        return Err(ExportError::new("chunk grain must be positive"));
+    }
     let exporter = SparseProblemExporter::new(arm)?;
     let digest = exporter.artifact_digest().to_owned();
     let census = sparse_family_census(arm)?;
@@ -408,57 +395,92 @@ pub fn render_compact_source_artifact_modules(
     if replayed_rows != arm.n {
         return Err(ExportError::new("compact source replay did not cover every row"));
     }
+    let chunk_count = arm.n.div_ceil(chunk_rows);
 
-    let mut writer = PartWriter { parts: Vec::new() };
-    let value_table_ref = writer.push_payload(&le_bytes_u64(&payloads.value_table));
-    let mut matrix_refs = Vec::with_capacity(3);
+    // Per-matrix term offsets for chunk slicing.
+    let mut offsets = Vec::with_capacity(3);
     for payload in &payloads.matrices {
-        let row_counts = writer.push_payload(&le_bytes_u16(&payload.row_counts));
-        let columns = writer.push_payload(&le_bytes_u32(&payload.columns));
-        let value_indexes = writer.push_payload(&le_bytes_u16(&payload.value_indexes));
-        matrix_refs.push((row_counts, columns, value_indexes));
+        let mut acc = vec![0usize; arm.n + 1];
+        for row in 0..arm.n {
+            acc[row + 1] = acc[row] + payload.row_counts[row] as usize;
+        }
+        offsets.push(acc);
     }
 
-    let mut modules = Vec::with_capacity(writer.parts.len() + 1);
-    for (index, part) in writer.parts.iter().enumerate() {
-        let module_name = format!("{module_namespace}Data{index}");
-        let mut content = String::with_capacity(part.len() + 256);
+    let mut modules = Vec::with_capacity(chunk_count + 1);
+    for chunk in 0..chunk_count {
+        let start = chunk * chunk_rows;
+        let stop = ((chunk + 1) * chunk_rows).min(arm.n);
+        let module_name = format!("{module_namespace}Data{chunk}");
+        let mut content = String::new();
+        content.push_str("import Nightstream.Assurance.CompactSourceArtifact\n\n");
         content.push_str("/-!\nGENERATED FILE - do not edit by hand.\n\n");
-        content.push_str("One base64 payload part of the compact source artifact.\n-/\n\n");
+        content.push_str("One row chunk of the compact source artifact.\n-/\n\n");
         content.push_str(&format!("namespace {module_name}\n\n"));
-        content.push_str("def part : String :=\n  ");
-        content.push_str(&lean_string_literal(part));
-        content.push_str(&format!("\n\nend {module_name}\n"));
+        content.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
+        content.push_str("open Nightstream.Implementation.R1CS\n\n");
+        content.push_str("def chunk : ChunkWire :=\n");
+        for (matrix_index, label) in ["a", "b", "c"].iter().enumerate() {
+            let payload = &payloads.matrices[matrix_index];
+            let term_start = offsets[matrix_index][start];
+            let term_stop = offsets[matrix_index][stop];
+            let counts = base64_encode(&le_bytes_u16(&payload.row_counts[start..stop]));
+            let columns = base64_encode(&le_bytes_u32(&payload.columns[term_start..term_stop]));
+            let indexes = base64_encode(&le_bytes_u16(&payload.value_indexes[term_start..term_stop]));
+            if matrix_index == 0 {
+                content.push_str("  { ");
+            } else {
+                content.push_str("    ");
+            }
+            content.push_str(&format!(
+                "{label} := {{ rowCounts := {}\n         columns := {}\n         valueIndexes := {} }}\n",
+                lean_string_literal(&counts),
+                lean_string_literal(&columns),
+                lean_string_literal(&indexes),
+            ));
+        }
+        content.push_str("    seededBlocksA := [");
+        let mut first_block = true;
+        for block in &payloads.matrices[0].blocks {
+            if block.row_start() < stop && block.row_end() > start {
+                if !first_block {
+                    content.push(',');
+                }
+                content.push('\n');
+                render_block(&mut content, block);
+                first_block = false;
+            }
+        }
+        if first_block {
+            content.push_str("] }\n");
+        } else {
+            content.push_str("\n    ] }\n");
+        }
+        content.push_str(&format!("\nend {module_name}\n"));
         modules.push(GeneratedLeanModule { module_name, content });
     }
 
     let mut out = String::new();
     out.push_str("import Nightstream.Assurance.CompactSourceArtifact\n");
-    if let Some(committed) = committed_equality_namespace {
-        out.push_str(&format!("import {committed}\n"));
+    if let Some(committed) = committed_equality {
+        out.push_str(&format!("import {}\n", committed.namespace));
     }
-    for index in 0..writer.parts.len() {
-        out.push_str(&format!("import {module_namespace}Data{index}\n"));
+    for chunk in 0..chunk_count {
+        out.push_str(&format!("import {module_namespace}Data{chunk}\n"));
     }
     out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\n");
-    out.push_str("Assembly of the complete string-payload source artifact. The\n");
+    out.push_str("Assembly of the chunk-aligned compact source artifact. Every leaf\n");
+    out.push_str("below is a bounded per-chunk fact; the artifact-level properties\n");
+    out.push_str("come from the structural composition theorems, and the exact\n");
+    out.push_str("validation is discharged by proof, never by evaluation. The\n");
     out.push_str("emitter replayed every payload row against the independent sparse\n");
-    out.push_str("recovery before rendering; `expand` re-derives the artifact\n");
-    out.push_str("natively and fails closed on any malformation.\n-/\n\n");
+    out.push_str("recovery before rendering.\n-/\n\n");
     out.push_str(&format!("namespace {module_namespace}\n\n"));
     out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
     out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
     out.push_str("open Nightstream.Implementation.R1CS\n\n");
-    out.push_str("set_option maxHeartbeats 2000000\nset_option maxRecDepth 65536\n\n");
-
-    let mut block_names: [Vec<String>; 3] = [Vec::new(), Vec::new(), Vec::new()];
-    for (matrix_index, payload) in payloads.matrices.iter().enumerate() {
-        for (block_index, block) in payload.blocks.iter().enumerate() {
-            let name = format!("seededBlock{}{}", ["A", "B", "C"][matrix_index], block_index);
-            render_block(&mut out, &name, block);
-            block_names[matrix_index].push(name);
-        }
-    }
+    out.push_str("set_option maxHeartbeats 2000000\n");
+    out.push_str("set_option maxRecDepth 65536\n\n");
 
     out.push_str("def families : List FamilyRanges :=\n  [");
     for (family_index, family) in census.iter().enumerate() {
@@ -467,23 +489,12 @@ pub fn render_compact_source_artifact_modules(
         }
         let ranges = family_ranges(family.source_rows())
             .into_iter()
-            .map(|(start, stop)| format!("({start}, {stop})"))
+            .map(|(range_start, range_stop)| format!("({range_start}, {range_stop})"))
             .collect::<Vec<_>>()
             .join(", ");
         out.push_str(&format!("⟨{}, [{ranges}]⟩", lean_string_literal(family.name())));
     }
     out.push_str("]\n\n");
-
-    for (matrix_index, (row_counts, columns, value_indexes)) in matrix_refs.iter().enumerate() {
-        let label = ["A", "B", "C"][matrix_index];
-        out.push_str(&format!(
-            "def matrix{label} : MatrixWire where\n  rowCounts := {}\n  columns := {}\n  valueIndexes := {}\n  seededBlocks := [{}]\n\n",
-            payload_expression(module_namespace, row_counts),
-            payload_expression(module_namespace, columns),
-            payload_expression(module_namespace, value_indexes),
-            block_names[matrix_index].join(", "),
-        ));
-    }
 
     out.push_str("def wire : Wire where\n");
     out.push_str("  schema := \"nightstream/r1cs-redundancy-problem/v3\"\n");
@@ -505,41 +516,162 @@ pub fn render_compact_source_artifact_modules(
     ));
     out.push_str(&format!(
         "  valueTable := {}\n",
-        payload_expression(module_namespace, &value_table_ref)
+        lean_string_literal(&base64_encode(&le_bytes_u64(&payloads.value_table)))
     ));
     out.push_str("  families := families\n");
-    out.push_str("  a := matrixA\n  b := matrixB\n  c := matrixC\n\n");
+    out.push_str(&format!("  chunkRows := {chunk_rows}\n"));
+    out.push_str("  chunks := #[");
+    for chunk in 0..chunk_count {
+        if chunk != 0 {
+            out.push_str(", ");
+        }
+        out.push_str(&format!("{module_namespace}Data{chunk}.chunk"));
+    }
+    out.push_str("]\n\n");
+    out.push_str("def sourceArtifact : Artifact := sourceArtifactOf wire\n\n");
+    out.push_str("def reviewedPlan : List String := sourceArtifact.completeFamilies\n\n");
+    out.push_str("theorem reviewedPlan_subset :\n");
+    out.push_str("    ∀ family ∈ reviewedPlan, family ∈ sourceArtifact.completeFamilies :=\n");
+    out.push_str("  fun _ membership => membership\n\n");
 
-    out.push_str("theorem expand_succeeds : (expand wire).isSome := by native_decide\n\n");
-    out.push_str("def sourceArtifact : Artifact := (expand wire).get expand_succeeds\n\n");
-    out.push_str("theorem sourceArtifact_coversFullRelation :\n");
-    out.push_str("    sourceArtifact.CoversFullRelation := by native_decide\n\n");
-    out.push_str("theorem sourceArtifact_exactValidation :\n");
-    out.push_str("    Artifact.ExactValidation sourceArtifact sourceArtifact = true := by\n");
-    out.push_str("  native_decide\n");
-    if let Some(committed) = committed_equality_namespace {
+    // Bounded per-chunk leaves.
+    for chunk in 0..chunk_count {
+        let start = chunk * chunk_rows;
+        let length = (arm.n - start).min(chunk_rows);
         out.push_str(&format!(
-            "\ntheorem sourceArtifact_matches_committed :\n    sourceArtifact = {committed}.sourceArtifact := by native_decide\n"
+            "theorem censusLeaf{chunk} :\n    (rowsChunk wire {chunk}).map (fun row => row.sourceIndex) =\n      List.range' {start} {length} := by\n  native_decide\n\n"
         ));
+        out.push_str(&format!(
+            "theorem rowsWfLeaf{chunk} :\n    (rowsChunk wire {chunk}).all (rowWellFormedAt {} {}) = true := by\n  native_decide\n\n",
+            arm.n, arm.m
+        ));
+        out.push_str(&format!(
+            "theorem familiesLeaf{chunk} :\n    (rowsChunk wire {chunk}).all\n      (fun row => decide (row.family ∈ wire.completeFamilies)) = true := by\n  native_decide\n\n"
+        ));
+    }
+
+    // Family presence leaves: one bounded fact per family.
+    for (family_index, family) in census.iter().enumerate() {
+        let first_row = family.source_rows()[0];
+        let chunk = first_row / chunk_rows;
+        out.push_str(&format!(
+            "theorem presenceLeaf{family_index} :\n    (rowsChunk wire {chunk}).any\n      (fun row => decide (row.family = {})) = true := by\n  native_decide\n\n",
+            lean_string_literal(family.name())
+        ));
+    }
+
+    // Dispatchers.
+    render_dispatcher(
+        &mut out,
+        "censuses",
+        "∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).map (fun row => row.sourceIndex) =\n        List.range' (wire.chunkStart k) (wire.chunkLength k)",
+        "censusLeaf",
+        chunk_count,
+    );
+    render_dispatcher(
+        &mut out,
+        "rowsWf",
+        &format!(
+            "∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all (rowWellFormedAt {} {}) = true",
+            arm.n, arm.m
+        ),
+        "rowsWfLeaf",
+        chunk_count,
+    );
+    render_dispatcher(
+        &mut out,
+        "familiesCovered",
+        "∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (row.family ∈ wire.completeFamilies)) = true",
+        "familiesLeaf",
+        chunk_count,
+    );
+
+    // Chunk arithmetic: bounded scalar facts.
+    out.push_str("theorem chunkArithmeticFull :\n    ∀ k, k + 1 < wire.chunkCount → wire.chunkLength k = wire.chunkRows := by\n  native_decide\n\n");
+    out.push_str("theorem chunkArithmeticLast :\n    wire.chunkCount ≠ 0 →\n      (wire.chunkCount - 1) * wire.chunkRows +\n        wire.chunkLength (wire.chunkCount - 1) = wire.totalRows := by\n  native_decide\n\n");
+    out.push_str("theorem chunkArithmeticLead :\n    wire.chunkCount ≠ 0 →\n      (wire.chunkCount - 1) * wire.chunkRows ≤ wire.totalRows := by\n  native_decide\n\n");
+    out.push_str(
+        "theorem chunkArithmeticEmpty :\n    wire.chunkCount = 0 → wire.totalRows = 0 := by\n  native_decide\n\n",
+    );
+
+    // Family presence assembled from the per-family leaves.
+    out.push_str("theorem familyPresence :\n    sourceArtifact.completeFamilies.all\n      (fun family =>\n        sourceArtifact.rows.any\n          (fun row => decide (row.family = family))) = true := by\n");
+    out.push_str("  rw [List.all_eq_true]\n  intro family membership\n");
+    out.push_str("  have present : ∃ chunk, chunk < wire.chunkCount ∧\n      (rowsChunk wire chunk).any\n        (fun row => decide (row.family = family)) = true := by\n");
+    out.push_str("    fin_cases membership\n");
+    for (family_index, family) in census.iter().enumerate() {
+        let first_row = family.source_rows()[0];
+        let chunk = first_row / chunk_rows;
+        out.push_str(&format!(
+            "    · exact ⟨{chunk}, by native_decide, presenceLeaf{family_index}⟩\n"
+        ));
+    }
+    out.push_str("  rcases present with ⟨chunk, chunkBound, chunkAny⟩\n");
+    out.push_str("  rw [List.any_eq_true] at chunkAny ⊢\n");
+    out.push_str("  rcases chunkAny with ⟨row, rowMember, rowFamily⟩\n");
+    out.push_str("  refine ⟨row, ?_, rowFamily⟩\n");
+    out.push_str("  show row ∈ artifactRows wire\n");
+    out.push_str("  unfold artifactRows\n");
+    out.push_str("  exact List.mem_flatMap.mpr ⟨chunk, List.mem_range.mpr chunkBound, rowMember⟩\n\n");
+
+    // Scalar conjuncts: one small closed pack.
+    out.push_str("theorem scalarFacts :\n    sourceArtifact.schema = Artifact.supportedSchema ∧\n      sourceArtifact.profile ≠ \"\" ∧\n      sourceArtifact.scope ∈ Artifact.scopes ∧\n      sourceArtifact.diagnosticDigest ≠ \"\" ∧\n      sourceArtifact.fieldModulus = Artifact.goldilocksModulusDecimal ∧\n      0 < sourceArtifact.totalRows ∧\n      0 < sourceArtifact.columnCount ∧\n      0 < sourceArtifact.publicInputCount ∧\n      sourceArtifact.publicInputCount ≤ sourceArtifact.columnCount ∧\n      sourceArtifact.constantOneColumn < sourceArtifact.publicInputCount ∧\n      sourceArtifact.completeFamilies.Nodup ∧\n      sourceArtifact.completeFamilies.all\n        (fun family => decide (family ≠ \"\")) = true := by\n  native_decide\n\n");
+
+    // Assembly.
+    out.push_str("theorem sourceArtifact_indexCensus :\n    (artifactRows wire).map (fun row => row.sourceIndex) =\n      List.range wire.totalRows :=\n");
+    out.push_str("  covers_indexes_of_chunks wire censuses chunkArithmeticFull\n    chunkArithmeticLast chunkArithmeticLead chunkArithmeticEmpty\n\n");
+    out.push_str("theorem sourceArtifact_coversFullRelation :\n    sourceArtifact.CoversFullRelation :=\n");
+    out.push_str("  coversFullRelation_of_chunks wire censuses chunkArithmeticFull\n    chunkArithmeticLast chunkArithmeticLead chunkArithmeticEmpty familiesCovered\n\n");
+    out.push_str("theorem sourceArtifact_wellFormed : sourceArtifact.WellFormed :=\n");
+    out.push_str("  wellFormed_of_chunks wire scalarFacts sourceArtifact_indexCensus\n    rowsWf familyPresence\n\n");
+    out.push_str("theorem sourceArtifact_exactValidation :\n    Artifact.ExactValidation sourceArtifact sourceArtifact = true :=\n");
+    out.push_str("  exactValidation_self sourceArtifact_wellFormed\n");
+
+    if let Some(committed) = committed_equality {
+        out.push_str("\n-- Per-chunk equality pins against the committed literal artifact.\n");
+        out.push_str("-- Together with both artifacts' coverage theorems these leaves make\n");
+        out.push_str("-- any divergence impossible without a leaf failing.\n");
+        for chunk in 0..chunk_count {
+            out.push_str(&format!(
+                "theorem equalityLeaf{chunk} :\n    rowsChunk wire {chunk} = {}.{}{chunk} := by\n  native_decide\n\n",
+                committed.namespace, committed.chunk_prefix
+            ));
+        }
     }
     out.push_str(&format!("\nend {module_namespace}\n"));
     modules.push(GeneratedLeanModule {
         module_name: module_namespace.to_owned(),
         content: out,
     });
-    Ok(CompactSourceEmission { modules, replayed_rows })
+    Ok(CompactSourceEmission {
+        modules,
+        replayed_rows,
+        chunk_rows,
+        chunk_count,
+    })
 }
 
-/// Render one shared background assignment as string-payload modules. The
-/// assembly decodes it once; family modules apply per-column overrides.
+/// Render one shared background assignment as string-payload modules with
+/// its two bounded leaves: the decoded size and the constant-one entry.
 pub fn render_assignment_payload_modules(
     values: &[u64],
     module_namespace: &str,
 ) -> Result<Vec<GeneratedLeanModule>, ExportError> {
-    let mut writer = PartWriter { parts: Vec::new() };
-    let payload = writer.push_payload(&le_bytes_u64(values));
-    let mut modules = Vec::with_capacity(writer.parts.len() + 1);
-    for (index, part) in writer.parts.iter().enumerate() {
+    const PART_CHAR_BUDGET: usize = 7_800_000;
+    let encoded = base64_encode(&le_bytes_u64(values));
+    let mut parts = Vec::new();
+    if encoded.is_empty() {
+        parts.push(String::new());
+    } else {
+        let mut cursor = 0;
+        while cursor < encoded.len() {
+            let stop = (cursor + PART_CHAR_BUDGET).min(encoded.len());
+            parts.push(encoded[cursor..stop].to_owned());
+            cursor = stop;
+        }
+    }
+    let mut modules = Vec::with_capacity(parts.len() + 1);
+    for (index, part) in parts.iter().enumerate() {
         let module_name = format!("{module_namespace}Data{index}");
         let mut content = String::with_capacity(part.len() + 256);
         content.push_str("/-!\nGENERATED FILE - do not edit by hand.\n\n");
@@ -552,21 +684,28 @@ pub fn render_assignment_payload_modules(
     }
     let mut out = String::new();
     out.push_str("import Nightstream.Assurance.CompactSourceArtifact\n");
-    for index in 0..writer.parts.len() {
+    for index in 0..parts.len() {
         out.push_str(&format!("import {module_namespace}Data{index}\n"));
     }
     out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\n");
     out.push_str("Shared accepted background assignment, decoded once. Removal\n");
-    out.push_str("counterexamples apply per-column overrides to these values.\n-/\n\n");
+    out.push_str("counterexamples override single columns of these values. The two\n");
+    out.push_str("leaves below are the only facts that force the decode.\n-/\n\n");
     out.push_str(&format!("namespace {module_namespace}\n\n"));
     out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n\n");
+    out.push_str("def payload : String :=\n  ");
+    out.push_str(
+        &(0..parts.len())
+            .map(|index| format!("{module_namespace}Data{index}.part"))
+            .collect::<Vec<_>>()
+            .join(" ++ "),
+    );
+    out.push_str("\n\ndef values : Array Nat := (decodeAssignment payload).getD #[]\n\n");
     out.push_str(&format!(
-        "def payload : String := {}\n\n",
-        payload_expression(module_namespace, &payload)
+        "theorem values_size : values.size = {} := by\n  native_decide\n\n",
+        values.len()
     ));
-    out.push_str("theorem decode_succeeds : (decodeAssignment payload).isSome := by\n");
-    out.push_str("  native_decide\n\n");
-    out.push_str("def values : Array Nat := (decodeAssignment payload).get decode_succeeds\n\n");
+    out.push_str("theorem values_one : values.getD 0 0 = 1 := by\n  native_decide\n\n");
     out.push_str(&format!("end {module_namespace}\n"));
     modules.push(GeneratedLeanModule {
         module_name: module_namespace.to_owned(),
@@ -575,107 +714,172 @@ pub fn render_assignment_payload_modules(
     Ok(modules)
 }
 
-/// Render one removal-counterexample module against a string-payload source
-/// artifact and a shared background assignment. The witness must come from
-/// `find_exclusive_column_witness` over the same complete problem and
-/// background; every Lean premise is re-checked here before rendering.
-pub fn render_compact_removal_counterexample_lean(
-    problem: &recursive_constraint_minimizer::Problem,
-    background: &[u64],
-    witness: &crate::ExclusiveColumnWitness,
-    artifact_namespace: &str,
-    background_namespace: &str,
-    namespace: &str,
-    reviewed_plan: &[String],
-) -> Result<String, ExportError> {
-    if background.len() != problem.column_count {
-        return Err(ExportError::new("background length differs from the relation"));
-    }
-    if witness.column() >= background.len() {
-        return Err(ExportError::new("witness column exceeds the relation"));
-    }
-    let modulus = recursive_constraint_minimizer::GOLDILOCKS_MODULUS
-        .parse::<u128>()
-        .expect("fixed Goldilocks modulus");
-    let mutated = ((u128::from(background[witness.column()]) + u128::from(witness.delta())) % modulus) as u64;
-    let mut expected = background.to_vec();
-    expected[witness.column()] = mutated;
-    if witness.model().values() != expected.as_slice() {
-        return Err(ExportError::new(
-            "witness model differs from the background plus its override",
-        ));
-    }
-    let mut plan_names = problem.complete_families.clone();
-    plan_names.sort();
-    let mut reviewed_sorted = reviewed_plan.to_vec();
-    reviewed_sorted.sort();
-    if plan_names != reviewed_sorted {
-        return Err(ExportError::new(
-            "reviewed plan differs from the problem's complete families",
-        ));
-    }
-    if !reviewed_plan.iter().any(|name| name == witness.family()) {
-        return Err(ExportError::new("witness family is not in the reviewed plan"));
-    }
+/// One override of a classification batch: the family, its exclusive
+/// column, and the mutated canonical value.
+pub struct ClassificationOverride {
+    /// Family the override removes.
+    pub family: String,
+    /// Exclusive column the witness mutates.
+    pub column: usize,
+    /// Mutated canonical residue at that column.
+    pub value: u64,
+}
 
+/// Render the shared classification-leaves module of one batch: per-chunk
+/// background-holds leaves and override-guard leaves (each bounded), their
+/// dispatchers, and the override pair table every family module cites.
+pub fn render_classification_leaves_module(
+    artifact_namespace: &str,
+    assignment_namespace: &str,
+    module_namespace: &str,
+    chunk_count: usize,
+    overrides: &[ClassificationOverride],
+) -> Result<GeneratedLeanModule, ExportError> {
+    if overrides.is_empty() {
+        return Err(ExportError::new("a classification batch needs at least one override"));
+    }
     let mut out = String::new();
     out.push_str(&format!("import {artifact_namespace}\n"));
-    out.push_str(&format!("import {background_namespace}\n"));
+    out.push_str(&format!("import {assignment_namespace}\n"));
+    out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n\n");
+    out.push_str("Shared classification leaves: every chunk proves once that the\n");
+    out.push_str("background satisfies its rows and that each row either belongs to\n");
+    out.push_str("an override's family or avoids the override's column. All family\n");
+    out.push_str("necessity modules of the batch reuse these leaves.\n-/\n\n");
+    out.push_str(&format!("namespace {module_namespace}\n\n"));
+    out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
+    out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
+    out.push_str(&format!("open {artifact_namespace}\n\n"));
     out.push_str("set_option maxHeartbeats 2000000\n");
     out.push_str("set_option maxRecDepth 65536\n\n");
-    out.push_str(&format!("namespace {namespace}\n\n"));
-    out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
-    out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
-    out.push_str(&format!("open {artifact_namespace}\n\n"));
     out.push_str(&format!(
-        "def reviewedPlan : List String := [{}]\n\n",
-        reviewed_plan
+        "def background : Nat → Field := backgroundFn {assignment_namespace}.values\n\n"
+    ));
+    out.push_str("def overridePairs : List (Nat × String) :=\n  [");
+    for (index, override_entry) in overrides.iter().enumerate() {
+        if index != 0 {
+            out.push_str(",\n   ");
+        }
+        out.push_str(&format!(
+            "({}, {})",
+            override_entry.column,
+            lean_string_literal(&override_entry.family)
+        ));
+    }
+    out.push_str("]\n\n");
+    for chunk in 0..chunk_count {
+        out.push_str(&format!(
+            "theorem holdsLeaf{chunk} :\n    (rowsChunk wire {chunk}).all\n      (fun row => decide (Algebraic.Holds background row.row)) = true := by\n  native_decide\n\n"
+        ));
+        out.push_str(&format!(
+            "theorem guardsLeaf{chunk} :\n    chunkGuardsOverrides overridePairs (rowsChunk wire {chunk}) = true := by\n  native_decide\n\n"
+        ));
+    }
+    render_dispatcher(
+        &mut out,
+        "holdsAll",
+        "∀ k, k < wire.chunkCount →\n      (rowsChunk wire k).all\n        (fun row => decide (Algebraic.Holds background row.row)) = true",
+        "holdsLeaf",
+        chunk_count,
+    );
+    render_dispatcher(
+        &mut out,
+        "guardsAll",
+        "∀ k, k < wire.chunkCount →\n      chunkGuardsOverrides overridePairs (rowsChunk wire k) = true",
+        "guardsLeaf",
+        chunk_count,
+    );
+    out.push_str(&format!("end {module_namespace}\n"));
+    Ok(GeneratedLeanModule {
+        module_name: module_namespace.to_owned(),
+        content: out,
+    })
+}
+
+/// Render one family's compact necessity module: two bounded leaves (the
+/// violated row's membership in its chunk and its violation under the
+/// override) plus structural glue through `mkCounterexample_valid` and the
+/// Artifact-level full theorems.
+#[allow(clippy::too_many_arguments)]
+pub fn render_compact_removal_counterexample_lean(
+    artifact_namespace: &str,
+    assignment_namespace: &str,
+    leaves_namespace: &str,
+    namespace: &str,
+    override_entry: &ClassificationOverride,
+    violated_row: &recursive_constraint_minimizer::Row,
+    violated_chunk: usize,
+    chunk_count: usize,
+) -> Result<String, ExportError> {
+    if violated_chunk >= chunk_count {
+        return Err(ExportError::new("violated chunk exceeds the wire"));
+    }
+    let render_terms = |terms: &[recursive_constraint_minimizer::Term]| -> Result<String, ExportError> {
+        let rendered = terms
             .iter()
-            .map(|name| lean_string_literal(name))
-            .collect::<Vec<_>>()
-            .join(",")
+            .map(|term| {
+                term.coefficient
+                    .parse::<u64>()
+                    .map(|value| format!("({}, {})", term.column, value))
+                    .map_err(|_| ExportError::new("noncanonical coefficient in the violated row"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(format!("[{}]", rendered.join(", ")))
+    };
+    let mut out = String::new();
+    out.push_str(&format!("import {artifact_namespace}\n"));
+    out.push_str(&format!("import {leaves_namespace}\n"));
+    out.push_str("\n/-!\nGENERATED FILE - do not edit by hand.\n-/\n\n");
+    out.push_str(&format!("namespace {namespace}\n\n"));
+    out.push_str("open Nightstream.Assurance.CompactSourceArtifact\n");
+    out.push_str("open Nightstream.Assurance.ConstraintMinimization\n");
+    out.push_str(&format!("open {artifact_namespace}\n\n"));
+    out.push_str("set_option maxHeartbeats 2000000\n");
+    out.push_str("set_option maxRecDepth 65536\n\n");
+    out.push_str(&format!("def column : Nat := {}\n\n", override_entry.column));
+    out.push_str(&format!("def value : Nat := {}\n\n", override_entry.value));
+    out.push_str(&format!(
+        "def removedFamily : String := {}\n\n",
+        lean_string_literal(&override_entry.family)
+    ));
+    out.push_str("def violatedRow : IndexedRow :=\n");
+    out.push_str(&format!(
+        "  ⟨{}, {}, ⟨{}, {}, {}⟩⟩\n\n",
+        violated_row.source_index,
+        lean_string_literal(&violated_row.family),
+        render_terms(&violated_row.a)?,
+        render_terms(&violated_row.b)?,
+        render_terms(&violated_row.c)?,
     ));
     out.push_str(&format!(
-        "def overrides : List (Nat × Nat) := [({}, {})]\n\n",
-        witness.column(),
-        mutated
+        "theorem violated_mem : violatedRow ∈ rowsChunk wire {violated_chunk} := by\n  native_decide\n\n"
     ));
     out.push_str(&format!(
-        "theorem overrides_apply :\n    (applyOverrides {background_namespace}.values overrides).isSome := by\n  native_decide\n\n"
+        "theorem violation :\n    ¬ Algebraic.Holds\n      (overrideAt {leaves_namespace}.background column (value : Field))\n      violatedRow.row := by\n  native_decide\n\n"
     ));
     out.push_str(&format!(
-        "def removalCounterexampleValues : List Field :=\n  ((applyOverrides {background_namespace}.values overrides).get overrides_apply).toList.map\n    (fun value => (value : Field))\n\n"
+        "theorem pair_member : (column, removedFamily) ∈ {leaves_namespace}.overridePairs := by\n  native_decide\n\n"
     ));
-    out.push_str("def removalCounterexample : RemovalCounterexample where\n");
     out.push_str(&format!(
-        "  removedFamily := {}\n",
-        lean_string_literal(witness.family())
+        "theorem column_inRange : column < {assignment_namespace}.values.size := by\n  rw [{assignment_namespace}.values_size]\n  decide\n\n"
     ));
-    out.push_str("  values := removalCounterexampleValues\n\n");
-    out.push_str("theorem removalCounterexample_valid :\n");
-    out.push_str("    removalCounterexample.Valid sourceArtifact reviewedPlan := by\n");
-    out.push_str("  native_decide\n\n");
-    out.push_str("theorem necessary :\n");
-    out.push_str("    NecessaryForSoundness (FamilyHolds sourceArtifact)\n");
     out.push_str(&format!(
-        "      (Target sourceArtifact) reviewedPlan {} :=\n",
-        lean_string_literal(witness.family())
+        "theorem constant_one :\n    overrideAt {leaves_namespace}.background column (value : Field)\n      wire.constantOneColumn = 1 := by\n  have distinct : wire.constantOneColumn ≠ column := by native_decide\n  show overrideAt _ _ _ wire.constantOneColumn = 1\n  unfold overrideAt\n  rw [if_neg distinct]\n  show {leaves_namespace}.background wire.constantOneColumn = 1\n  have zero : wire.constantOneColumn = 0 := by native_decide\n  rw [zero]\n  show ((({assignment_namespace}.values.getD 0 0 : Nat)) : Field) = 1\n  rw [{assignment_namespace}.values_one]\n  norm_num\n\n"
     ));
-    out.push_str("  removalCounterexample.necessary_of_full_valid\n");
-    out.push_str("    sourceArtifact sourceArtifact reviewedPlan\n");
-    out.push_str("    sourceArtifact_coversFullRelation sourceArtifact_exactValidation\n");
-    out.push_str("    removalCounterexample_valid\n\n");
-    out.push_str("theorem necessaryNormalized :\n");
-    out.push_str("    NecessaryForSoundness\n");
-    out.push_str("      (NormalizedFamilyHolds sourceArtifact)\n");
+    out.push_str("def removalCounterexample : RemovalCounterexample :=\n");
     out.push_str(&format!(
-        "      (NormalizedTarget sourceArtifact) reviewedPlan {} :=\n",
-        lean_string_literal(witness.family())
+        "  mkCounterexample {assignment_namespace}.values column value removedFamily\n\n"
     ));
-    out.push_str("  removalCounterexample.necessary_normalized_of_full_valid\n");
-    out.push_str("    sourceArtifact sourceArtifact reviewedPlan\n");
-    out.push_str("    sourceArtifact_coversFullRelation sourceArtifact_exactValidation\n");
-    out.push_str("    removalCounterexample_valid\n\n");
+    out.push_str(
+        "theorem removalCounterexample_valid :\n    removalCounterexample.Valid sourceArtifact reviewedPlan :=\n",
+    );
+    out.push_str(&format!(
+        "  mkCounterexample_valid wire {assignment_namespace}.values\n    {leaves_namespace}.overridePairs column value removedFamily reviewedPlan\n    reviewedPlan_subset\n    (by rw [{assignment_namespace}.values_size]; native_decide)\n    column_inRange constant_one pair_member {leaves_namespace}.guardsAll\n    {leaves_namespace}.holdsAll violatedRow {violated_chunk}\n    ⟨by native_decide, violated_mem⟩ violation\n\n"
+    ));
+    out.push_str("theorem necessary :\n    NecessaryForSoundness (FamilyHolds sourceArtifact)\n      (Target sourceArtifact) reviewedPlan removedFamily :=\n");
+    out.push_str("  removalCounterexample.necessary_of_full_valid\n    sourceArtifact sourceArtifact reviewedPlan\n    sourceArtifact_coversFullRelation sourceArtifact_exactValidation\n    removalCounterexample_valid\n\n");
+    out.push_str("theorem necessaryNormalized :\n    NecessaryForSoundness\n      (NormalizedFamilyHolds sourceArtifact)\n      (NormalizedTarget sourceArtifact) reviewedPlan removedFamily :=\n");
+    out.push_str("  removalCounterexample.necessary_normalized_of_full_valid\n    sourceArtifact sourceArtifact reviewedPlan\n    sourceArtifact_coversFullRelation sourceArtifact_exactValidation\n    removalCounterexample_valid\n\n");
     out.push_str(&format!("end {namespace}\n"));
     Ok(out)
 }

@@ -5,9 +5,10 @@
 
 mod common;
 
-use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup, ENTRY_INPUTS};
+use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup};
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::paper::params::Params;
+use p3_field::PrimeCharacteristicRing;
 
 fn nebula_test_params() -> Params {
     let raw = neo_params::NeoParams::new(
@@ -53,23 +54,19 @@ fn wasm_nebula_proves_a_host_event_template_trace() {
     neo_wasm::verify(&prep, &proof, final_state).expect("bindings Nebula verification");
 
     // Transcript binding on top of the digest-bound final state: the
-    // claimed event blocks (with the true input words) fold to the final
-    // chain; a transcript claiming different inputs folds elsewhere.
-    let fold = |inputs: &[u64]| {
-        neo_wasm::comm_chain::fold_event_blocks(
-            Default::default(),
-            &expected_transcript(&setup.bindings, setup.run_fref, inputs),
-        )
-        .canonical_u64()
-    };
+    // claimed event blocks fold to the final chain; a different transcript
+    // folds elsewhere.
+    let expected = expected_transcript(&setup.bindings, setup.run_fref);
+    let expected_chain = neo_wasm::comm_chain::fold_event_blocks(Default::default(), &expected).canonical_u64();
     assert_eq!(
-        final_state.comm_chain,
-        fold(&ENTRY_INPUTS),
+        final_state.comm_chain, expected_chain,
         "the claimed transcript must fold to the proven final chain"
     );
+    let mut wrong = expected;
+    wrong[0][1] += p3_goldilocks::Goldilocks::ONE;
+    let wrong_chain = neo_wasm::comm_chain::fold_event_blocks(Default::default(), &wrong).canonical_u64();
     assert_ne!(
-        final_state.comm_chain,
-        fold(&[500, 999]),
-        "a transcript claiming different inputs must not fold to the final chain"
+        final_state.comm_chain, wrong_chain,
+        "a different transcript must not fold to the final chain"
     );
 }

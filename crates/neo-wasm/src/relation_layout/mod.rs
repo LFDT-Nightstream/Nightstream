@@ -638,7 +638,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     activation: WasmMemoryActivation::BooleanGate(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
                 },
                 // Input bootstrap: lo-lane entry gather rows write the
-                // claim-input word into the entry frame's locals (kind 4).
+                // entry-input word into the entry frame's locals.
                 WasmMemoryColumnSpec {
                     address_columns: vec![Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)],
                     value_column: Column(COL_LOCAL_VALUE),

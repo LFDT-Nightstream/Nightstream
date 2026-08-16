@@ -394,13 +394,6 @@ fn plan_event_blocks(
                                 0,
                             ))
                         },
-                        SlotBinding::Input { index: idx } => base_slot_row(entry(
-                            WasmHostEventSlotKind::Input,
-                            idx,
-                            WasmHostEventRomVariant::None,
-                            0,
-                            0,
-                        )),
                         SlotBinding::MemoryRead32 { base, byte_offset }
                         | SlotBinding::MemoryRead16 { base, byte_offset }
                         | SlotBinding::MemoryRead8 { base, byte_offset } => {
@@ -543,9 +536,6 @@ pub(super) fn plan_export_blocks(
                             immediate1: (constant >> 32) as u32,
                             advice: false,
                         }),
-                        SlotBinding::Input { index: idx } => {
-                            base_slot_row(entry(WasmHostEventSlotKind::Input, idx, WasmHostEventRomVariant::None))
-                        }
                         SlotBinding::InputLocal { local, limb, .. } => {
                             // expand_export_entry rejects words over 32 bits.
                             let bit = u8::from(matches!(limb, Limb::Hi));

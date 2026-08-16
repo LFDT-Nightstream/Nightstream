@@ -171,14 +171,12 @@ fn ccs_rejects_suppressed_absorb_schedule() {
 /// re-fold to the carried chain, and retain separate trace attribution.
 #[test]
 fn absorbed_event_blocks_reconstruct_the_host_event_transcript() {
-    use common::host_event_fixture::{
-        expected_transcript, host_event_lifecycle_setup, mul_fref, sink_fref, ENTRY_INPUTS,
-    };
+    use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup, mul_fref, sink_fref};
 
     let setup = host_event_lifecycle_setup();
     let events = comm_chain::absorbed_event_blocks(&setup.trace);
 
-    let expected = expected_transcript(&setup.bindings, setup.run_fref, &ENTRY_INPUTS);
+    let expected = expected_transcript(&setup.bindings, setup.run_fref);
     assert_eq!(events.len(), expected.len());
     for (event, expected) in events.iter().zip(&expected) {
         assert_eq!(event.words.map(f), *expected);

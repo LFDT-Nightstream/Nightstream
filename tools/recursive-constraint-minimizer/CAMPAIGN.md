@@ -6,8 +6,8 @@ repository root unless stated.
 
 | Bar | Item | State | Evidence |
 |---|---|---|---|
-| 1 | cvc5 with finite-field support; three gate tests pass un-ignored | **met** (refutation failed, 2026-08-15 iter 1) | cvc5 1.3.4 (Homebrew, cocoa: yes). Gates green live and un-ignored (commit 869f94e98: exactly three `#[ignore]` lines removed, nothing weakened). Independent verifier reran the suite: 38 passed, 0 failed; the three gates execute real solver runs with hard outcome asserts. |
-| 2 | Production profile frozen with pinned digests | **blocked: regime decision, evidence complete** | λ=125 paper B.2: rejected by the extension-policy census (shape provides 114 bits). λ=114 paper B.2: audit construction alone ran >2 h 06 m and was terminated — impractical for iterated campaign use (the minimal shape builds in ~50 s). Options for the user: (a) freeze campaign profile v1 on the minimal shape and re-run classification once the production regime lands (recommended — the regime call is itself still open at the protocol level), (b) λ=114-capped paper B.2 with multi-hour audit cycles, (c) wait for a protocol-side census fix to 125 bits. |
+| 1 | cvc5 with finite-field support; three gate tests pass un-ignored | **met** (refutation failed, 2026-08-15 iter 1; re-verified on Linux, iter 13) | cvc5 1.3.4 (Homebrew, cocoa: yes). Gates green live and un-ignored (commit 869f94e98: exactly three `#[ignore]` lines removed, nothing weakened). Independent verifier reran the suite: 38 passed, 0 failed; the three gates execute real solver runs with hard outcome asserts. Linux re-verification (iter 13): official `cvc5-Linux-x86_64-static-gpl` 1.3.4 release binary in `~/.local/bin` (cocoa: yes); both nebula gates green (y_ring Unsat in 1,073 ms; refinement control Inconclusive with pending row 8,665) and the terminal gate green (pending row 56,700, matches README). |
+| 2 | Production profile frozen with pinned digests | pending refutation (iter 13) | User decision 2026-08-15: option (a), campaign profile v1 on the minimal shape; re-run classification when the production regime lands. `PROFILE.md` pins source digests, final-plan digest, terminal digests, and geometry for both arms and the terminal relation; non-ignored drift gate `campaign_profile_v1_digests_are_frozen` (13 s) re-derives all pins from fresh audits. Measured: source digests are plan-seed-independent (0xDA vs 0xD9); the final plan digest binds to the 0xDA mirror shape; all pins byte-match the committed Lean mirrors. Rejected regimes stay recorded: λ=125 fails the extension-policy census (114 bits available); λ=114 audit construction alone ran >2 h 06 m. |
 | 3 | Seeded-Phi81 sampler equivalence proved | unmet | README next-work item 1. |
 | 4 | Checked bootstrap-recursive assignment committed | unmet, capture defect | The staged capture run failed after ~1.8 h inside the second `append_segment_with_constraint_witness_audit` call (`bridge/tests/nebula.rs:73`); the panic message needs a targeted rerun with full output capture. Until then bar 4 and the recursive-arm witness census are blocked. |
 | 5 | Every census family classified; zero Inconclusive | in-progress: base 6/6 and terminal 8/8 Lean-certified, **both refutation-proof**; recursive arm blocked on bar 4 | First certified family: `nifs.pi_rlc.verify.padding.y_ring` (1,120 rows, in-house scalar certificate; live cvc5 confirms Unsat). Lean module emission not yet run. |
@@ -17,12 +17,16 @@ repository root unless stated.
 | 9 | Rust, Lean, drift, axioms suites all green | in-progress | Rust suites green (core 18, bridge 39 incl. gates). Lean build not yet run this campaign. |
 | 10 | Cost report before/after per relation | unmet | Instrument exists (`emitter_order_constant_affine_run_census_is_exact`). |
 
-## Resource budget (hard, user-set 2026-08-15)
+## Resource budget (hard, user-set 2026-08-15, updated for the Linux box)
 
-Never use more than 64 GB of memory. A ~200 GB parallel Lean elaboration
-(~20 workers x ~10 GB on 16 MB generated modules) hard-rebooted the machine.
-Every Lean build of generated modules runs `lake build -j2` (never above
-`-j4`), one heavy job at a time, with a `ps` load check before launching.
+This box has 62 GB of RAM and 16 cores. User directive (2026-08-15, second
+environment): use as many CPUs as needed, but never more than 3/4 of total
+RAM (~46 GB). A ~200 GB parallel Lean elaboration (~20 workers x ~10 GB on
+16 MB generated modules) hard-rebooted the previous machine. This repo's
+`lake` has no `-j` flag; throttle Lean worker count with CPU affinity
+(`taskset -c 0-2 lake build` gives 3 workers, ~30 GB worst case on the
+17-19 MB generated Data modules) and check `free -g` before every heavy
+launch. A third-party sglang server holds ~7 GB on this box; respect it.
 
 ## Strategy notes
 
@@ -114,6 +118,18 @@ support context (the y_ring pattern). Evidence: target/campaign-evidence/.
   in background alongside the two bar-2/bar-4 measurements. The census output
   will drive the first certificate-emission batch and the regime question
   goes to the user once the λ114 numbers land.
+- 2026-08-15 iteration 13 (new Linux environment): installed the official
+  `cvc5-Linux-x86_64-static-gpl` 1.3.4 release binary (cocoa: yes) — no source
+  build needed; all three gate tests re-verified green live. Lean v4.30.0
+  toolchain and the full mathlib olean cache fetched. Bar-2 decision received
+  (option a): wrote `PROFILE.md` and the `campaign_profile_v1_digests_are_frozen`
+  drift gate; measured that source digests are plan-seed-independent while the
+  final plan digest binds to the 0xDA mirror shape; measured the recursive
+  source arm at 4,530,315 rows x 4,480,464 columns. Bar-4 capture diagnostic
+  rerun launched with RUST_BACKTRACE=1 and full output capture (running).
+  Operational: complete recursive-arm exports need ~21 GB and were replaced by
+  one-row exports for digest pinning (final plan digest and source digest are
+  selection-independent).
 - 2026-08-15 iteration 12 (wait state): the machine hard-rebooted at ~200 GB
   during the terminal batch build; the user set the hard 64 GB budget now
   recorded above. All campaign processes verified stopped. Every remaining

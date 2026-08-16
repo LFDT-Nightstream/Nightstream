@@ -12,6 +12,9 @@ use neo_wasm::{WasmHostEventSlotKind, WasmMemoryId, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
+const MUL_ARGS_TAG: u64 = 1;
+const MUL_RESULT_TAG: u64 = 2;
+const SINK_TAG: u64 = 3;
 
 fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
     let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
@@ -22,8 +25,8 @@ fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARG
 }
 
 /// Example embedder bindings for the mul/sink component: `mul(x, y) -> r`
-/// expands to a two-event template (args event + result event referencing a
-/// shared input word), `sink(x)` to a single event.
+/// expands to a two-event template (args event + result event), `sink(x)`
+/// to a single event.
 fn test_bindings(mul_fref: u32, sink_fref: u32) -> HostEventBindings {
     let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
     let mut bindings = HostEventBindings::default();
@@ -31,34 +34,25 @@ fn test_bindings(mul_fref: u32, sink_fref: u32) -> HostEventBindings {
         mul_fref,
         ImportTemplate {
             events: vec![
-                EventBlock::op(
-                    10,
-                    slots(&[
-                        (0, SlotBinding::Input { index: 0 }),
-                        (1, arg(0, Limb::Lo)),
-                        (2, arg(1, Limb::Lo)),
-                        (3, SlotBinding::Const(5)),
-                    ]),
-                ),
+                EventBlock::op(MUL_ARGS_TAG, slots(&[(0, arg(0, Limb::Lo)), (1, arg(1, Limb::Lo))])),
                 // The ResultElem Lo slot is the gather row that pushes the
                 // host result onto the operand stack; the Hi slot binds the
                 // pushed hi lane (0 for the i32 result).
                 EventBlock::op(
-                    12,
+                    MUL_RESULT_TAG,
                     slots(&[
                         (0, SlotBinding::ResultElem { limb: Limb::Lo }),
-                        (1, SlotBinding::Input { index: 0 }),
-                        (2, SlotBinding::ResultElem { limb: Limb::Hi }),
+                        (1, SlotBinding::ResultElem { limb: Limb::Hi }),
                     ]),
                 ),
             ],
-            input_count: 1,
+            input_count: 0,
         },
     );
     bindings.imports.insert(
         sink_fref,
         ImportTemplate {
-            events: vec![EventBlock::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
+            events: vec![EventBlock::op(SINK_TAG, slots(&[(0, arg(0, Limb::Lo))]))],
             input_count: 0,
         },
     );
@@ -119,7 +113,7 @@ fn run_component_with_mul_inputs(mul_inputs: &'static [u64]) -> neo_wasm::Wasmti
 }
 
 fn run_component() -> neo_wasm::WasmtimeTraceRun {
-    run_component_with_mul_inputs(&[100])
+    run_component_with_mul_inputs(&[])
 }
 
 fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
@@ -137,8 +131,7 @@ fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
     (imports, export)
 }
 
-/// Bound host-event trace for the two-call component, with input words `[100]` for mul
-/// and `[]` for sink. The invoked export gets an empty boundary template
+/// Bound host-event trace for the two-call component. The invoked export gets an empty boundary template
 /// (every entered export needs a template; no boundary events for this test).
 fn host_event_trace() -> Vec<WasmVmStep> {
     host_event_trace_from(Default::default())
@@ -360,7 +353,7 @@ fn advice_import_pushes_without_absorbing() {
     bindings.imports.insert(
         frefs[1],
         ImportTemplate {
-            events: vec![EventBlock::op(7, slots(&[(0, arg(0, Limb::Lo))]))],
+            events: vec![EventBlock::op(SINK_TAG, slots(&[(0, arg(0, Limb::Lo))]))],
             input_count: 0,
         },
     );
@@ -392,7 +385,7 @@ fn advice_import_pushes_without_absorbing() {
     let f = p3_goldilocks::Goldilocks::from_u64;
     let expected = neo_wasm::comm_chain::commit_event(
         [p3_goldilocks::Goldilocks::ZERO; 4],
-        f(7),
+        f(SINK_TAG),
         core::array::from_fn(|i| if i == 0 { f(42) } else { f(0) }),
     );
     assert_eq!(
@@ -403,7 +396,7 @@ fn advice_import_pushes_without_absorbing() {
     // Extraction sees exactly the committed stream: sink's block, no advice.
     let events = neo_wasm::comm_chain::absorbed_event_blocks(&trace);
     assert_eq!(events.len(), 1);
-    assert_eq!(events[0].words, [7, 42, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(events[0].words, [SINK_TAG, 42, 0, 0, 0, 0, 0, 0]);
     assert_eq!(events[0].metadata.attributed_fref, frefs[1]);
 
     let advice_rows: Vec<&neo_wasm::WasmVmStep> = trace
@@ -435,7 +428,7 @@ fn advice_import_pushes_without_absorbing() {
     forged[neo_wasm::layout::COL_PERM_PENDING_AFTER] = neo_math::F::ONE;
     common::assert_rejected(&forged, "advice row absorbing its block");
     let mut forged = witness.clone();
-    forged[neo_wasm::layout::COL_HOST_EVENT_SLOT_KIND] -= neo_math::F::from_u64(8);
+    forged[neo_wasm::layout::COL_HOST_EVENT_SLOT_KIND] -= neo_math::F::from_u64(WasmHostEventSlotKind::COUNT as u64);
     common::assert_rejected(&forged, "advice row shedding the advice flag");
 }
 
@@ -456,9 +449,9 @@ fn host_event_trace_folds_expanded_blocks() {
     assert_eq!(
         staged,
         vec![
-            [10, 100, 7, 6, 5, 0, 0, 0],  // mul pre-result event
-            [12, 42, 100, 0, 0, 0, 0, 0], // mul post-result event
-            [7, 42, 0, 0, 0, 0, 0, 0],    // sink event
+            [MUL_ARGS_TAG, 7, 6, 0, 0, 0, 0, 0],
+            [MUL_RESULT_TAG, 42, 0, 0, 0, 0, 0, 0],
+            [SINK_TAG, 42, 0, 0, 0, 0, 0, 0],
         ],
     );
 
@@ -515,7 +508,7 @@ fn missing_template_is_rejected() {
 /// indicates a misaligned hand-off and is rejected.
 #[test]
 fn surplus_input_words_are_rejected() {
-    let run = run_component_with_mul_inputs(&[100, 7]);
+    let run = run_component_with_mul_inputs(&[1, 2]);
     let (frefs, export_fref) = run_frefs(&run);
     let mut bindings = test_bindings(frefs[0], frefs[1]);
     bindings
@@ -716,33 +709,4 @@ fn count_families_are_split_and_biased() {
         None,
         "exports must have no import-schedule count cell"
     );
-}
-
-/// Input slots are free absorbed words: staging a different value
-/// satisfies the per-row CCS (there is deliberately no local binding) but
-/// diverges the chain, so the transcript check rejects the claim. The
-/// same-index identity lives in input construction: expansion resolves
-/// every `Input{index}` from one input entry.
-#[test]
-fn input_words_are_row_free_and_transcript_bound() {
-    let trace = host_event_trace();
-    let input_row = trace
-        .iter()
-        .find(|row| {
-            row.row_kind.is_host_event_gather()
-                && row
-                    .host_event_rom_slot
-                    .is_some_and(|rom| rom.kind == WasmHostEventSlotKind::Input)
-        })
-        .expect("input slot row");
-    let mut witness = build_witness_vector(input_row);
-    common::assert_satisfied(&witness, "untampered input slot row");
-    // Forge the input word consistently in the staged buffer and the
-    // gadget's slot value: the row still satisfies (free word) ...
-    let cursor = usize::from(input_row.state_before.host_events.slot_cursor);
-    witness[neo_wasm::layout::COL_EVBUF_AFTER[cursor]] += neo_math::F::ONE;
-    common::assert_rejected(&witness, "buffer word diverging from the staged slot value");
-    // ... but any divergence between the absorbed words and the claimed
-    // transcript is caught by the final-chain fold (see
-    // the transcript-verification rejection).
 }

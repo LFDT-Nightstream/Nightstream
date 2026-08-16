@@ -568,7 +568,6 @@ pub(super) fn build_trace(
                 let plans = plan_turn_exit(
                     setup.template,
                     current,
-                    &turn_inputs[turn_index],
                     output_captured.then_some((output_value_lo_after, output_value_hi_after)),
                     &linear_memory,
                 )?;

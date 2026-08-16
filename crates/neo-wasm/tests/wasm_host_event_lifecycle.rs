@@ -8,9 +8,7 @@
 mod common;
 
 use common::audit::{prove_batched, verify_with_transcript, AuditProveError};
-use common::host_event_fixture::{
-    expected_transcript, host_event_lifecycle_setup, HostEventLifecycleSetup, ENTRY_INPUTS,
-};
+use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup, HostEventLifecycleSetup};
 use neo_wasm::{host_event_top_level_initial_state_digest, preprocess_seeded_batched};
 use p3_field::PrimeCharacteristicRing;
 
@@ -152,29 +150,17 @@ fn host_event_folding_proof_covers_import_and_export_events() {
     let final_state = common::final_state(&trace);
 
     // Transcript binding: verification succeeds only with the claimed
-    // transcript — export entry (with the input words), the two import
-    // calls, and the export exit — and rejects a transcript claiming
-    // different inputs. This is the verifier's input check: per-invocation
-    // data never touches preprocessing.
-    verify_with_transcript(
-        &prep,
-        &proof,
-        final_state,
-        Default::default(),
-        &expected_transcript(&bindings, run_fref, &ENTRY_INPUTS),
-    )
-    .expect("verify with the claimed transcript");
+    // transcript — export entry, the two import calls, and the export exit.
+    let expected = expected_transcript(&bindings, run_fref);
+    verify_with_transcript(&prep, &proof, final_state, Default::default(), &expected)
+        .expect("verify with the claimed transcript");
+    let mut wrong = expected;
+    wrong[0][1] += p3_goldilocks::Goldilocks::ONE;
     assert!(
         matches!(
-            verify_with_transcript(
-                &prep,
-                &proof,
-                final_state,
-                Default::default(),
-                &expected_transcript(&bindings, run_fref, &[500, 999])
-            ),
+            verify_with_transcript(&prep, &proof, final_state, Default::default(), &wrong),
             Err(AuditProveError::TranscriptMismatch)
         ),
-        "a transcript claiming different inputs must be rejected"
+        "a different transcript must be rejected"
     );
 }

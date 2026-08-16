@@ -85,12 +85,11 @@ pub(super) fn setup_turn<'g>(
 pub(super) fn plan_turn_exit(
     template: &crate::host_event_bindings::ExportTemplate,
     last: &NormalizedStep,
-    inputs: &TurnInputs,
     output: Option<(u32, u32)>,
     memory: &LinearMemoryImage,
 ) -> Result<Vec<EventBlockPlan>, WasmBuildError> {
     let resolved_memory = read_export_exit_memory(&template.exit, output, last.memory_pages_after, memory)?;
-    let blocks = crate::host_event_bindings::expand_export_exit(template, output, &inputs.exit, &resolved_memory.reads)
+    let blocks = crate::host_event_bindings::expand_export_exit(template, output, &resolved_memory.reads)
         .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
     plan_export_blocks(
         &template.exit,

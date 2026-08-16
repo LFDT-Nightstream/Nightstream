@@ -588,14 +588,14 @@ fn recursive_pi_rlc_padding_has_an_exact_scalar_certificate() {
         },
     )
     .expect("bind the exact duplicate candidate rows");
-    assert_eq!(candidate_export.binding().retained_rows().len(), 840);
+    assert_eq!(candidate_export.binding().retained_rows().len(), 3_640);
     assert_eq!(candidate_export.binding().rewrites().len(), 280);
-    assert_eq!(candidate_export.binding().closure_source_rows().len(), 1_120);
+    assert_eq!(candidate_export.binding().closure_source_rows().len(), 3_920);
     assert!(candidate_export
         .binding()
         .additional_source_rows()
         .is_empty());
-    assert_eq!(candidate_export.binding().emitted_rows().len(), 840);
+    assert_eq!(candidate_export.binding().emitted_rows().len(), 3_640);
     assert!(candidate_export.binding().rewrites().iter().all(|rewrite| {
         rewrite.kind() == neo_fold_clean::frontends::r1cs_f_prime::SelectiveRewriteKind::LinearDefinition
             && rewrite.emitted_rows().is_empty()
@@ -638,7 +638,7 @@ fn recursive_pi_rlc_padding_has_an_exact_scalar_certificate() {
             other => panic!("unexpected exact-duplicate support family {other}"),
         }
     }
-    assert_eq!((pi_ccs_support, pi_dec_support), (840, 280));
+    assert_eq!((pi_ccs_support, pi_dec_support), (3_640, 280));
 }
 
 #[test]

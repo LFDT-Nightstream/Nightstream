@@ -348,23 +348,28 @@ impl<'a> SparseProblemExporter<'a> {
             )));
         }
         validate_request(self.arm.n, &request)?;
-        let recovered = recover_sparse_rows(self.arm, &request.source_rows)?;
+        // Recover in bounded chunks: a single-shot recovery of a complete
+        // multi-million-row arm holds tens of gigabytes of term maps.
+        const RECOVERY_CHUNK_ROWS: usize = 262_144;
         let mut exported_rows = Vec::with_capacity(request.source_rows.len());
         let mut selected_by_family = BTreeMap::<&str, usize>::new();
-        for (position, &source_index) in request.source_rows.iter().enumerate() {
-            let family = self.owners[source_index].ok_or_else(|| {
-                ExportError::new(format!("selected source row {source_index} has no row-family owner"))
-            })?;
-            *selected_by_family.entry(family).or_default() += 1;
-            let [a, b, c] = &recovered[position];
-            exported_rows.push(Row {
-                id: format!("r1cs.row.{source_index}"),
-                source_index,
-                family: family.to_owned(),
-                a: export_sparse_terms(a),
-                b: export_sparse_terms(b),
-                c: export_sparse_terms(c),
-            });
+        for chunk in request.source_rows.chunks(RECOVERY_CHUNK_ROWS) {
+            let recovered = recover_sparse_rows(self.arm, chunk)?;
+            for (position, &source_index) in chunk.iter().enumerate() {
+                let family = self.owners[source_index].ok_or_else(|| {
+                    ExportError::new(format!("selected source row {source_index} has no row-family owner"))
+                })?;
+                *selected_by_family.entry(family).or_default() += 1;
+                let [a, b, c] = &recovered[position];
+                exported_rows.push(Row {
+                    id: format!("r1cs.row.{source_index}"),
+                    source_index,
+                    family: family.to_owned(),
+                    a: export_sparse_terms(a),
+                    b: export_sparse_terms(b),
+                    c: export_sparse_terms(c),
+                });
+            }
         }
 
         validate_complete_families(&request.complete_families, &self.total_by_family, &selected_by_family)?;

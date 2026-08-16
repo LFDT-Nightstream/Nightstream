@@ -3,7 +3,7 @@ use super::super::host_event_emit::{
 };
 use super::super::memory::LinearMemoryImage;
 use super::super::NormalizedStep;
-use crate::host_event_bindings::{HostEventBindings, TurnInputs};
+use crate::host_event_bindings::{HostEventBindings, MemoryBase, SlotBinding, TurnInputs};
 use crate::ir::WasmBuildError;
 
 pub(super) struct TurnSetup<'g> {
@@ -25,11 +25,16 @@ pub(super) fn setup_turn<'g>(
             "host-event bindings require an export template for the invoked export (fref {fref})"
         ))
     })?;
-    let local_bound = u8::try_from(first.num_locals.min(255)).expect("bounded");
-    template.validate(local_bound)?;
+    validate_runtime_entry_locals(template, first)?;
     let entry_blocks = crate::host_event_bindings::expand_export_entry(template, &inputs.entry)
         .map_err(|err| WasmBuildError::Trace(format!("export entry expansion: {err}")))?;
-    let memory_accesses = apply_export_entry_memory(&template.entry, &entry_blocks, &first.locals_snapshot, memory)?;
+    let memory_accesses = apply_export_entry_memory(
+        &template.entry,
+        &entry_blocks,
+        &first.locals_snapshot,
+        first.memory_pages_before,
+        memory,
+    )?;
     let entry_plans = plan_export_blocks(&template.entry, &entry_blocks, &first.locals_snapshot, &memory_accesses)?;
     if re_entered && entry_plans.is_empty() {
         return Err(WasmBuildError::Trace(format!(
@@ -62,8 +67,7 @@ pub(super) fn setup_turn<'g>(
                  (the locals RAM still holds the previous turn's values)"
             )));
         }
-        let ran_lo = first.locals_snapshot[local];
-        let ran_hi = first.locals_snapshot_hi.get(local).copied().unwrap_or(0);
+        let (ran_lo, ran_hi) = first.locals_snapshot[local];
         if (lo, hi) != (ran_lo, ran_hi) {
             return Err(WasmBuildError::Trace(format!(
                 "entry bootstrap does not reproduce the entry frame's locals: local {local} \
@@ -85,7 +89,7 @@ pub(super) fn plan_turn_exit(
     output: Option<(u32, u32)>,
     memory: &LinearMemoryImage,
 ) -> Result<Vec<EventBlockPlan>, WasmBuildError> {
-    let resolved_memory = read_export_exit_memory(&template.exit, &last.locals_snapshot, memory)?;
+    let resolved_memory = read_export_exit_memory(&template.exit, output, last.memory_pages_after, memory)?;
     let blocks = crate::host_event_bindings::expand_export_exit(template, output, &inputs.exit, &resolved_memory.reads)
         .map_err(|err| WasmBuildError::Trace(format!("export exit expansion: {err}")))?;
     plan_export_blocks(
@@ -94,4 +98,47 @@ pub(super) fn plan_turn_exit(
         &last.locals_snapshot,
         &resolved_memory.accesses,
     )
+}
+
+fn validate_runtime_entry_locals(
+    template: &crate::host_event_bindings::ExportTemplate,
+    first: &NormalizedStep,
+) -> Result<(), WasmBuildError> {
+    let local_count = usize::try_from(first.num_locals)
+        .map_err(|_| WasmBuildError::Trace("runtime local count does not fit usize".to_string()))?;
+
+    if first.locals_snapshot.len() != local_count {
+        return Err(WasmBuildError::Trace(format!(
+            "runtime local count {} does not match locals snapshot length {}",
+            first.num_locals,
+            first.locals_snapshot.len()
+        )));
+    }
+
+    for source in template.entry.iter().flat_map(|event| &event.block) {
+        let local = match *source {
+            SlotBinding::InputLocal { local, .. }
+            | SlotBinding::MemoryWrite32 {
+                base: MemoryBase::Local(local),
+                ..
+            }
+            | SlotBinding::MemoryWrite16 {
+                base: MemoryBase::Local(local),
+                ..
+            }
+            | SlotBinding::MemoryWrite8 {
+                base: MemoryBase::Local(local),
+                ..
+            } => local,
+            _ => continue,
+        };
+
+        if usize::from(local) >= local_count {
+            return Err(WasmBuildError::Trace(format!(
+                "export entry local {local} is missing from the runtime locals snapshot"
+            )));
+        }
+    }
+
+    Ok(())
 }

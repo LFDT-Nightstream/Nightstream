@@ -600,7 +600,7 @@ fn memory_rows_reject_forged_rom_claim() {
         })
         .expect("const slot row");
     if let Some(rom) = &mut trace[idx].host_event_rom_slot {
-        rom.const_lo ^= 1;
+        rom.immediate0 ^= 1;
     }
 
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");

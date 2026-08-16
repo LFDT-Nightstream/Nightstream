@@ -218,6 +218,7 @@ pub fn host_event_top_level_initial_state(
     export_fref: u32,
     initial_comm_chain: CommChainState,
 ) -> Result<WasmStepState, WasmBuildError> {
+    bindings.validate_against_program(tables)?;
     let entry_fref = tables
         .function_entries
         .iter()

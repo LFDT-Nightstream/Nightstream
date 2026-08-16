@@ -73,6 +73,42 @@ in every budget.
   attempt failed at the second segment append; reason unknown until a rerun
   with full output capture.
 
+## Proof-architecture directive (user, 2026-08-16)
+
+native_decide is restricted to small closed facts whose cost does not
+grow with generated artifact size. It is banned for complete artifact
+validity, row sets, seed schedules, sampler coefficients, witness data,
+and trust-boundary equality; those claims ride structural theorems plus
+reusable leaf certificates. A native_decide proof that reaches the Lean
+timeout is never rerun unchanged. Consequences:
+
+- The v2 compact assemblies' artifact-scale theorems (expand_succeeds,
+  coversFullRelation, exactValidation, matches_committed), the compact
+  necessity/redundancy validity proofs, and any full-relation replay by
+  native_decide are retired before they ever run. The build was stopped
+  ahead of them.
+- Replacement architecture (v3): the wire becomes row-chunk-aligned
+  (payload parts per fixed-size row chunk); `sourceArtifact` is defined
+  as the concatenation of per-chunk expansions; per-chunk leaves
+  (bounded native_decide: chunk well-formedness, chunk index coverage,
+  chunk lengths, chunk replay of the shared background, chunk owners of
+  the 82 override columns, chunk equality against committed literal
+  chunks for the base pilot) compose through universal append lemmas.
+  Exact validation costs nothing: `decide P = true` is discharged by
+  proving P (`Decidable.decide_eq_true` with rfl plus the structural
+  WellFormed proof), never by evaluating the artifact-scale Boolean.
+  One reusable transport theorem proves the exclusive-column argument
+  (background holds + column read only by family f + override violates
+  one f row => necessity), so each family costs one violated-row leaf
+  instead of a full replay. Estimated obligation count for the
+  recursive arm: ~350 bounded leaves instead of ~250 artifact-scale
+  evaluations.
+- Scoping note: the committed base and terminal literal batches predate
+  the directive and their historical builds completed without timeouts;
+  they migrate to the leaf pattern when they are next regenerated. The
+  small fixed-size sampler conformance fixtures are read as the
+  permitted "small closed facts"; flagged for the user to override.
+
 ## Bar-2 amendment evidence (k_rho=10 foldable shape, measured 2026-08-15)
 
 The frozen v1 shape (k_rho=2) cannot fold (Definition-14 guard). Measured

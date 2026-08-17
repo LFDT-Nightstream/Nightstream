@@ -8,6 +8,7 @@ use neo_fold_clean::frontends::nebula::f_prime::{
 };
 use neo_fold_clean::frontends::nebula::layout::NebulaParams;
 use neo_fold_clean::frontends::nebula::plan::NebulaPlan;
+use neo_fold_clean::paper::digest::digest32_as_fields;
 use neo_fold_clean::paper::f_prime::stage as fprime_stage;
 use neo_fold_clean::paper::params::Params;
 use neo_math::F;
@@ -20,7 +21,13 @@ use recursive_constraint_minimizer::{
 
 const VERIFIER_ADVICE_COLUMNS: &str = "fprime.streaming.base.verifier_advice";
 
-fn lifecycle_source(seed: u64) -> NebulaFPrimeStreamingLifecycleSourceArms {
+struct LifecycleFixture {
+    lifecycle: NebulaFPrimeStreamingLifecycleSourceArms,
+    verifier_digest: [F; 4],
+    pi_ccs_header: [F; 4],
+}
+
+fn lifecycle_source(seed: u64) -> LifecycleFixture {
     let reference_params = Params::production();
     let memory = NebulaParams::new(0, 0, 1, 2, 1).expect("one-step memory profile");
     let plan = NebulaPlan::new(memory, vec![7], [0xD9; 32], reference_params.kappa() as usize)
@@ -31,7 +38,7 @@ fn lifecycle_source(seed: u64) -> NebulaFPrimeStreamingLifecycleSourceArms {
         plan.circuit().structure().t(),
         plan.circuit().structure().max_degree(),
     )
-    .expect("shape-specific Appendix B.2 parameters");
+    .expect("shape-specific Nightstream Goldilocks k_rho=16 parameters");
     assert!(params.has_production_core());
     let log = neo_fold_clean::frontends::direct_ccs::ajtai::setup_seeded(
         &params,
@@ -43,7 +50,25 @@ fn lifecycle_source(seed: u64) -> NebulaFPrimeStreamingLifecycleSourceArms {
             .expect("verifier-owned lifecycle preprocessing");
     let preprocessing =
         prepare_streaming_lifecycle_preprocessing(preprocessing, &plan).expect("fixed streaming lifecycle policy");
-    synthesize_streaming_lifecycle_source_arms(&preprocessing, &plan).expect("exact streaming lifecycle source rows")
+    let verifier_digest = digest32_as_fields(preprocessing.vk.digest());
+    let pi_ccs_header = preprocessing.pi_ccs_header_bundle();
+    let lifecycle =
+        synthesize_streaming_lifecycle_source_arms(&preprocessing, &plan).expect("exact streaming lifecycle source rows");
+    LifecycleFixture {
+        lifecycle,
+        verifier_digest,
+        pi_ccs_header,
+    }
+}
+
+fn after_x_out_verifier_context(fixture: &LifecycleFixture, assignment: &[F]) -> ([F; 4], [F; 4]) {
+    let columns = fixture
+        .lifecycle
+        .x_out_preimage_columns(NebulaFPrimeStreamingLifecycleArm::Base)
+        .after();
+    let verifier_digest = std::array::from_fn(|index| assignment[columns[1 + index]]);
+    let pi_ccs_header = std::array::from_fn(|index| assignment[columns[5 + index]]);
+    (verifier_digest, pi_ccs_header)
 }
 
 fn fixed_value_row(id: String, one: usize, column: usize, value: u64) -> TypedTargetRow {
@@ -75,7 +100,8 @@ fn fixed_value_row(id: String, one: usize, column: usize, value: u64) -> TypedTa
 #[test]
 #[ignore = "expensive exact lifecycle cvc5 authority attack"]
 fn private_verifier_advice_admits_a_replayed_base_counterexample() {
-    let lifecycle = lifecycle_source(0x5354_5245_414d);
+    let fixture = lifecycle_source(0x5354_5245_414d);
+    let lifecycle = &fixture.lifecycle;
     let source = lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Base);
     source
         .is_satisfied_by(lifecycle.base_assignment())
@@ -195,28 +221,36 @@ fn private_verifier_advice_admits_a_replayed_base_counterexample() {
 
 #[test]
 #[ignore = "expensive exact lifecycle verifier-authority regression"]
-fn verifier_advice_is_bound_to_preprocessing_constants() {
+fn verifier_advice_is_bound_by_the_terminal_public_image() {
     let baseline = lifecycle_source(0x5354_5245_414d);
-    let baseline_assignment = baseline.base_assignment().to_vec();
-    let [baseline_source, _] = baseline.into_arms();
-
     let alternate = lifecycle_source(0x5354_5245_414e);
-    let alternate_assignment = alternate.base_assignment().to_vec();
-    let [alternate_source, _] = alternate.into_arms();
+    let baseline_assignment = baseline.lifecycle.base_assignment();
+    let alternate_assignment = alternate.lifecycle.base_assignment();
+    let baseline_source = baseline.lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Base);
+    let alternate_source = alternate.lifecycle.arm(NebulaFPrimeStreamingLifecycleArm::Base);
 
     baseline_source
-        .is_satisfied_by(&baseline_assignment)
+        .is_satisfied_by(baseline_assignment)
         .expect("baseline assignment");
     alternate_source
-        .is_satisfied_by(&alternate_assignment)
+        .is_satisfied_by(alternate_assignment)
         .expect("alternate assignment");
     assert_eq!(
         (baseline_source.n, baseline_source.m, baseline_source.m_in),
         (alternate_source.n, alternate_source.m, alternate_source.m_in)
     );
     assert_ne!(baseline_assignment, alternate_assignment);
-    assert!(
-        baseline_source.is_satisfied_by(&alternate_assignment).is_err(),
-        "a lifecycle relation must reject advice from a different verifier preprocessing"
+    baseline_source
+        .is_satisfied_by(alternate_assignment)
+        .expect("verifier advice must not become self-referential coefficients");
+
+    let baseline_context = after_x_out_verifier_context(&baseline, baseline_assignment);
+    let alternate_context = after_x_out_verifier_context(&alternate, alternate_assignment);
+    assert_eq!(baseline_context, (baseline.verifier_digest, baseline.pi_ccs_header));
+    assert_eq!(alternate_context, (alternate.verifier_digest, alternate.pi_ccs_header));
+    assert_ne!(baseline_context, alternate_context);
+    assert_ne!(
+        baseline.verifier_digest, alternate_context.0,
+        "terminal public binding must reject a verifier digest from different preprocessing"
     );
 }

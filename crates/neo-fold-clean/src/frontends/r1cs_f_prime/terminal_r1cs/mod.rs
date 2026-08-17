@@ -10,6 +10,8 @@ mod compiler;
 mod lane_opening;
 mod lifecycle;
 mod streaming_lifecycle;
+#[cfg(test)]
+mod tests;
 
 use neo_ajtai::AjtaiSModule;
 use thiserror::Error;
@@ -27,8 +29,9 @@ use super::{
 };
 
 pub use streaming_lifecycle::{
-    enforce_streaming_terminal_lifecycle, StreamingTerminalLifecycleError, StreamingTerminalLifecycleOutput,
-    StreamingTerminalPublicWires, STREAMING_TERMINAL_R1CS_FAMILY_NAMES,
+    enforce_streaming_terminal_lifecycle, streaming_terminal_x_out_authority_audit, StreamingTerminalLifecycleError,
+    StreamingTerminalLifecycleOutput, StreamingTerminalPublicWires, StreamingTerminalXOutAuthorityAudit,
+    STREAMING_TERMINAL_R1CS_FAMILY_NAMES,
 };
 
 /// Direct Spartan engine used by the terminal reference relation.

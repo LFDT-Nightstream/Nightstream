@@ -1375,6 +1375,22 @@ impl R1csBuilder {
         )
     }
 
+    /// Consume the builder and freeze its relation without cloning the witness.
+    pub fn into_snapshot(self) -> R1csSnapshot {
+        assert!(
+            self.record_structure,
+            "witness-only builder cannot snapshot R1CS structure"
+        );
+        R1csSnapshot::from_builder_parts(
+            &self.a_trips,
+            &self.b_trips,
+            &self.c_trips,
+            &self.seeded_phi81_a_blocks,
+            self.rows,
+            self.witness,
+        )
+    }
+
     /// Allocated witness columns that do not appear in any A/B/C row.
     ///
     /// This is an audit helper, not a proof of semantic binding: a column

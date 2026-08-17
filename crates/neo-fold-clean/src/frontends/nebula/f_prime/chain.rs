@@ -629,8 +629,6 @@ impl<'a> NebulaFPrimeChainBuilder<'a> {
             };
             #[cfg(feature = "perf-timers")]
             let prepare_elapsed = prepare_started.elapsed();
-            #[cfg(feature = "perf-timers")]
-            let branch = prepared.branch();
             let post = prepared.post();
             let lane = post
                 .nebula
@@ -1255,14 +1253,6 @@ enum PreparedStep {
 }
 
 impl PreparedStep {
-    #[cfg(feature = "perf-timers")]
-    fn branch(&self) -> NebulaFPrimeBranch {
-        match self {
-            Self::Base { .. } => NebulaFPrimeBranch::Base,
-            Self::Recursive { branch, .. } => *branch,
-        }
-    }
-
     fn pre(&self) -> &StateCoordinates {
         match self {
             Self::Base { pre, .. } | Self::Recursive { pre, .. } => pre,

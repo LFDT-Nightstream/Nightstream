@@ -8,8 +8,6 @@ use neo_ccs::Mat;
 use neo_math::F;
 use neo_reductions::api as reductions;
 use neo_reductions::common::{split_b_matrix_k_with_nonzero_flags, RotRho};
-use neo_transcript::Transcript as _;
-use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::paper::construction2::RunningInstance;
@@ -155,113 +153,12 @@ pub fn sample_rho_n(
             .into());
         }
     }
-    let mut output = Vec::with_capacity(count);
-    for source in 0..count {
-        transcript.append_fields_raw(&[F::ZERO, F::from_u64(source as u64)]);
-        let coefficients = sample_alphabet_coefficients(transcript, ring.alphabet, source as u64);
-        let matrix = rotation_matrix(&coefficients, ring.phi_coeffs);
-        output.push(RotRho::new_checked(params.inner(), matrix)?);
-    }
-    Ok(output)
-}
-
-fn sample_alphabet_coefficients(
-    transcript: &mut neo_transcript::Poseidon2Transcript,
-    alphabet: &[i8],
-    seed: u64,
-) -> Vec<F> {
-    let symbols = if alphabet.len().is_power_of_two() {
-        sample_power_of_two_alphabet(transcript, alphabet, seed)
-    } else {
-        sample_rejection_alphabet(transcript, alphabet, seed)
-    };
-    symbols.into_iter().map(signed_field).collect()
-}
-
-fn sample_power_of_two_alphabet(
-    transcript: &mut neo_transcript::Poseidon2Transcript,
-    alphabet: &[i8],
-    seed: u64,
-) -> Vec<i8> {
-    let bits = alphabet.len().trailing_zeros() as usize;
-    let mask = (1u64 << bits) - 1;
-    let mut output = Vec::with_capacity(neo_math::D);
-    let mut counter = seed;
-    while output.len() < neo_math::D {
-        transcript.append_fields_raw(&[F::ONE, F::from_u64(counter)]);
-        let digest = transcript.digest32();
-        for chunk in digest.chunks_exact(8) {
-            let word = u64::from_le_bytes(chunk.try_into().expect("digest limb"));
-            for index in 0..64 / bits {
-                output.push(alphabet[((word >> (bits * index)) & mask) as usize]);
-                if output.len() == neo_math::D {
-                    return output;
-                }
-            }
-        }
-        counter = counter.wrapping_add(1);
-    }
-    output
-}
-
-fn sample_rejection_alphabet(
-    transcript: &mut neo_transcript::Poseidon2Transcript,
-    alphabet: &[i8],
-    seed: u64,
-) -> Vec<i8> {
-    let modulus = alphabet.len() as u32;
-    let accepted = (1u32 << 16) / modulus * modulus;
-    let mut output = Vec::with_capacity(neo_math::D);
-    let mut counter = seed;
-    while output.len() < neo_math::D {
-        transcript.append_fields_raw(&[F::ONE, F::from_u64(counter)]);
-        let digest = transcript.digest32();
-        for chunk in digest.chunks_exact(2) {
-            let value = u16::from_le_bytes([chunk[0], chunk[1]]) as u32;
-            if value < accepted {
-                output.push(alphabet[(value % modulus) as usize]);
-                if output.len() == neo_math::D {
-                    return output;
-                }
-            }
-        }
-        counter = counter.wrapping_add(1);
-    }
-    output
-}
-
-fn signed_field(value: i8) -> F {
-    signed_field_i64(value as i64)
-}
-
-fn signed_field_i64(value: i64) -> F {
-    if value >= 0 {
-        F::from_u64(value as u64)
-    } else {
-        -F::from_u64(value.unsigned_abs())
-    }
-}
-
-fn rotation_matrix(coefficients: &[F], phi: &[i32]) -> Mat<F> {
-    let mut output = Mat::zero(neo_math::D, neo_math::D, F::ZERO);
-    let negative_phi = phi
-        .iter()
-        .map(|&coefficient| signed_field_i64(-(coefficient as i64)))
-        .collect::<Vec<_>>();
-    let mut column = coefficients.to_vec();
-    for index in 0..neo_math::D {
-        for row in 0..neo_math::D {
-            output[(row, index)] = column[row];
-        }
-        let last = column[neo_math::D - 1];
-        let mut next = vec![F::ZERO; neo_math::D];
-        next[0] = last * negative_phi[0];
-        for row in 1..neo_math::D {
-            next[row] = column[row - 1] + last * negative_phi[row];
-        }
-        column = next;
-    }
-    output
+    // One sampler owner: the shared typed sampler carries the corrected
+    // whole-digest schedule (PI_RLC_SAMPLER_DIGEST_ROUNDS) that the Lean
+    // conformance suite certifies; a local reimplementation diverged from
+    // the optimized engine at the prover-transcript boundary.
+    neo_reductions::common::sample_rot_rhos_n_typed(transcript, params.inner(), &params.ring(), count)
+        .map_err(Into::into)
 }
 
 /// Recompute the public PiRLC parent with the direct schoolbook reference.

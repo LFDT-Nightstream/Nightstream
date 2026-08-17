@@ -50,6 +50,25 @@ See `docs/architecture.md` for ownership boundaries.
 - Do not commit `*.expected`, `.lake/`, build output, or other ephemeral files.
 - Generator ownership and commands are recorded in `docs/generated-files.md`.
 
+## Acceptance-criterion gate
+
+- Before each command or edit, state one active acceptance criterion and the
+  exact evidence that will close it.
+- Give the action a thumbs-up only when deleting that action would leave the
+  active criterion unmet or unproven. Ask: **Will this close the current
+  claim?** If the answer is not clearly yes, do not take the action.
+- Keep only one claim active. Do not inspect downstream drift, unrelated
+  consumers, or later contract phases until the active claim is closed or they
+  are direct evidence for a blocker to that claim.
+- Use the smallest focused check that proves the claim. Do not repeat a green
+  check unless a relevant input, implementation, proof, or acceptance criterion
+  changed after that result.
+- After a claim closes, record its evidence and return to the next unmet
+  criterion in the governing contract.
+- If the claim is still open after three action rounds, stop work on that claim
+  and report the exact open item, the evidence obtained, and the evidence still
+  required. Do not replace it with a new claim to avoid this report.
+
 ## Editing and validation
 
 - Keep every source file below 1,500 lines. Split by proof responsibility, not
@@ -91,6 +110,20 @@ passing result.
   equality. Prove these claims with structural theorems and reusable leaf
   certificates. If a `native_decide` proof reaches the Lean timeout, do not run
   it again unchanged.
+- Separate artifact geometry from exact generated-data identity. Prove geometry
+  with symbolic arithmetic and structural theorems; do not evaluate the full
+  generated collection to prove its shape.
+- Prove each exact Rust-emitted schedule or row identity once in the smallest
+  Lean leaf module that owns it. Import and reuse that theorem. If Rust emits
+  equal schedules for multiple arms, prove the equality once at the
+  Rust-to-Lean boundary and transport the leaf certificate; do not recompute
+  the complete schedules for each arm.
+- Build complete artifact validity by composing leaf theorems. Never unfold or
+  evaluate the complete generated artifact again only to reconstruct a validity
+  theorem that those leaves already imply.
+- Keep exact Rust-emitted data unchanged when replacing a slow proof. A digest,
+  cvc5 result, test result, or matching count is not a Lean proof of schedule or
+  row identity.
 - Avoid closed computation over large proof-carrying structures. Project to the
   smallest compact decidable data that expresses the artifact fact, then use a
   generic kernel theorem to derive the semantic result.

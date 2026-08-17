@@ -182,18 +182,18 @@ theorem familyPresence :
   exact List.mem_flatMap.mpr ⟨chunk, List.mem_range.mpr chunkBound, rowMember⟩
 
 theorem scalarFacts :
-    sourceArtifact.schema = Artifact.supportedSchema ∧
-      sourceArtifact.profile ≠ "" ∧
-      sourceArtifact.scope ∈ Artifact.scopes ∧
-      sourceArtifact.diagnosticDigest ≠ "" ∧
-      sourceArtifact.fieldModulus = Artifact.goldilocksModulusDecimal ∧
-      0 < sourceArtifact.totalRows ∧
-      0 < sourceArtifact.columnCount ∧
-      0 < sourceArtifact.publicInputCount ∧
-      sourceArtifact.publicInputCount ≤ sourceArtifact.columnCount ∧
-      sourceArtifact.constantOneColumn < sourceArtifact.publicInputCount ∧
-      sourceArtifact.completeFamilies.Nodup ∧
-      sourceArtifact.completeFamilies.all
+    wire.schema = Artifact.supportedSchema ∧
+      wire.profile ≠ "" ∧
+      wire.scope ∈ Artifact.scopes ∧
+      wire.diagnosticDigest ≠ "" ∧
+      wire.fieldModulus = Artifact.goldilocksModulusDecimal ∧
+      0 < wire.totalRows ∧
+      0 < wire.columnCount ∧
+      0 < wire.publicInputCount ∧
+      wire.publicInputCount ≤ wire.columnCount ∧
+      wire.constantOneColumn < wire.publicInputCount ∧
+      wire.completeFamilies.Nodup ∧
+      wire.completeFamilies.all
         (fun family => decide (family ≠ "")) = true := by
   native_decide
 

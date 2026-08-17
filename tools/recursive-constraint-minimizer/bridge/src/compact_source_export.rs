@@ -794,7 +794,9 @@ pub fn render_compact_source_artifact_modules(
     out.push_str("  unfold artifactRows\n");
     out.push_str("  exact List.mem_flatMap.mpr ⟨chunk, List.mem_range.mpr chunkBound, rowMember⟩\n\n");
 
-    out.push_str("theorem scalarFacts :\n    sourceArtifact.schema = Artifact.supportedSchema ∧\n      sourceArtifact.profile ≠ \"\" ∧\n      sourceArtifact.scope ∈ Artifact.scopes ∧\n      sourceArtifact.diagnosticDigest ≠ \"\" ∧\n      sourceArtifact.fieldModulus = Artifact.goldilocksModulusDecimal ∧\n      0 < sourceArtifact.totalRows ∧\n      0 < sourceArtifact.columnCount ∧\n      0 < sourceArtifact.publicInputCount ∧\n      sourceArtifact.publicInputCount ≤ sourceArtifact.columnCount ∧\n      sourceArtifact.constantOneColumn < sourceArtifact.publicInputCount ∧\n      sourceArtifact.completeFamilies.Nodup ∧\n      sourceArtifact.completeFamilies.all\n        (fun family => decide (family ≠ \"\")) = true := by\n  native_decide\n\n");
+    // Wire-field form: a sourceArtifact-form statement would force the
+    // artifact struct natively, and its rows field is the full expansion.
+    out.push_str("theorem scalarFacts :\n    wire.schema = Artifact.supportedSchema ∧\n      wire.profile ≠ \"\" ∧\n      wire.scope ∈ Artifact.scopes ∧\n      wire.diagnosticDigest ≠ \"\" ∧\n      wire.fieldModulus = Artifact.goldilocksModulusDecimal ∧\n      0 < wire.totalRows ∧\n      0 < wire.columnCount ∧\n      0 < wire.publicInputCount ∧\n      wire.publicInputCount ≤ wire.columnCount ∧\n      wire.constantOneColumn < wire.publicInputCount ∧\n      wire.completeFamilies.Nodup ∧\n      wire.completeFamilies.all\n        (fun family => decide (family ≠ \"\")) = true := by\n  native_decide\n\n");
 
     out.push_str("theorem sourceArtifact_indexCensus :\n    (artifactRows wire).map (fun row => row.sourceIndex) =\n      List.range wire.totalRows :=\n");
     out.push_str("  covers_indexes_of_chunks wire censuses chunkArithmeticFull\n    chunkArithmeticLast chunkArithmeticLead chunkArithmeticEmpty\n\n");

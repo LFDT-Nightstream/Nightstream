@@ -23,7 +23,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/mod.rs",
-      "sha256": "70347d9ba8ac408f21320e53b5b05bb75fb7820c81c486f94d8ca6a4d2dec9f8"
+      "sha256": "676ea077ad33f184dcd3f77a207a959cb76f3e670c53cd10a5e0b07afa0a5ffc"
     },
     {
       "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/compiler.rs",
@@ -31,7 +31,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/frontends/r1cs_f_prime/terminal_r1cs/lifecycle.rs",
-      "sha256": "f573af578cc8e9942ff51dffe3d30ab5f07c4598c417c214e3b0bf517da02793"
+      "sha256": "27760bf20410ae4119cb30d7bff942da00afd93e1ab197c27d40da34270d459a"
     },
     {
       "path": "crates/neo-fold-clean/tests/system/formal_conformance.rs",
@@ -111,7 +111,7 @@
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Assurance/ConstraintMinimization.lean",
-      "sha256": "046c7ae18fc9a2e7aff2e6a69b2af86d58861bd9b94181f0a354f147f1aa7d37"
+      "sha256": "f2aec71a67f395453e794bb6674ede16c12892713a32931ac5b69e7f82bfe43e"
     },
     {
       "path": "formal/nightstream-lean/tests/Axioms/TerminalNativeGuardPlan.lean",

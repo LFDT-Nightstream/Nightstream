@@ -297,6 +297,44 @@ rerun with instrumentation. The suspicion, given this campaign's
 record, is another accidental quadratic in a k_rho- or v2-scaled
 loop.
 
+## Corrected-paper verification and pin-lag promotions (2026-08-17)
+
+Per the user's direction, the corrected papers
+(`docs/superneo-paper-v1_0`, errata-patched `docs/hypernova-paper`)
+were re-checked against the campaign's load-bearing decisions.
+Result: every one stands. Definition 14 keeps the guard
+`(K + k)T(b - 1) < B` verbatim; the corrected Pi_DEC still re-enters
+`k` limbs (`BatchCE_k`), so count = k_rho + 1 and the k_rho = 12
+freeze minimum is unchanged; the corrected B.2 constants (eta = 81,
+Phi = X^54 + X^27 + 1, d = 54, b = 2, T <= 216, B = 2^k, K in [61])
+match the frozen profile's basis. The hypernova errata's Definition
+12 property 6 (recursive-size closure) is exactly the campaign's one
+open obligation `hypernova.recursive_size_closure`.
+
+The corrected-paper migration commits ("Complete paper-faithful
+compact-X migration" and successors) predate this campaign and left
+five recording pins stale. Written log entry for their promotion,
+each value reproduced deterministically and traced to those commits:
+1. `NebulaRecursiveArmSharingArtifact.lean` — three source-hash pins
+   only; artifact content identical. Dependents rebuilt green.
+2. PiDec `Layout.lean`/`Metadata.lean` — fixed-point offsets moved
+   (+19,564 columns); `PiDec.lean`'s 54 checks rebuilt green.
+3. PiDec `Rows/Chunk0..46` — same coefficients at shifted columns.
+4. `fprime-recursive-program-manifest.json` — ten source-file hashes,
+   all migration-edited protocol files.
+5. `rust-conformance-manifest.json` — terminal_r1cs mod/lifecycle
+   hashes plus ConstraintMinimization.lean (this campaign's audited
+   extension-only change); the Lean theorem anchors all rebuilt green
+   today, which is the RUST-REFINE/TERM-CE review evidence.
+
+Still failing, real mismatches, NOT promoted (fail closed):
+- neo-wasm S_mem census: measured 54 rows (= d) and 369 nnz ABOVE the
+  reviewed pin — the pin already carries the migration's value; the
+  circuit exceeds it.
+- nifs_engine_crosscheck: prover-transcript boundary mismatch and a
+  PaperExact/Optimized rectangular divergence.
+- Extension-policy 116 vs 114 bits in nebula fixtures.
+
 ## Iteration log
 
 - 2026-08-17 iteration 17d (the strictness trap; chains go green): the

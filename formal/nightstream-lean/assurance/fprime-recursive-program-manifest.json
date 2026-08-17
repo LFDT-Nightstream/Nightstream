@@ -458,7 +458,7 @@
   "source_hashes": [
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/builder.rs",
-      "sha256": "d4a06c47faca177f4b13174a2e98d0c3121a536626f22c1eac5eff95448392b1"
+      "sha256": "2a6b50930d1498c288fc556e69b5199244dd52ea6af1abbe5acec6077841ca7c"
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/field_ext.rs",
@@ -482,7 +482,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/transcript.rs",
-      "sha256": "588d1c8894a1ed653810286ddfa2af091facce4b5b1572ee9454820ba72a5c8f"
+      "sha256": "fd48aae22bb0b7be401f868de6f946e4422e1250f4698d04bf4bf70c6a596b99"
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/u64.rs",
@@ -506,11 +506,11 @@
     },
     {
       "path": "crates/neo-fold-clean/src/engine/r1cs_circuit/alphabet_sampling/selection.rs",
-      "sha256": "e8f8033b7d4029915a2bcdf8ff13ca43a3f5852cc6f2931efca2326768db4bea"
+      "sha256": "0e66e7cb654147344064c10dd42419d430476cdf4a8876be3b045a4855eaf8a8"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/f_prime/r1cs.rs",
-      "sha256": "567e75033278fc73fb801ed14fe51f2f633cebf4d5f788a9992a34be78542b8e"
+      "sha256": "49256e68f8063d2276f0368b129775b6314e444723662ce7023fecddce26aad7"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/nifs/circuit/mod.rs",
@@ -554,7 +554,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/mod.rs",
-      "sha256": "0d4aaf1491ed2bad8dbcd90a797b8c9dc82364d101971c75316e242c09ea439b"
+      "sha256": "e6422fcb613f641f85a8d9a94fc2206842aa60215d8e235c89ca435f2c1b3040"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/stage.rs",
@@ -562,7 +562,7 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/digests.rs",
-      "sha256": "f1a7247bae443e58e36941b14b67b173b5b58df54513d995bfcb2928b1b59f86"
+      "sha256": "8835ca6f5dc642f6faaa27b488e4230bd3b6530a646675e3818ed9be3802399f"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/output_message.rs",
@@ -574,11 +574,11 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/verifier.rs",
-      "sha256": "f2fc958ed4cbc04bb36b3d3445c90717605bfd4fb646bb2bd33a013573dc9669"
+      "sha256": "eb4457284d335b061680ed01ac4b753014e9aaab0fb75b9e6fc9eaca9fc3e2cb"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/verifier/padded_row.rs",
-      "sha256": "edd9fbcc062f1469a090b5b06855771b80ecd35282523a002a85de9ed4a6de08"
+      "sha256": "38bcf9c415a193f1811ec38cb3764b8e0f39890df6b4f3671d4be315aee140ae"
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_ccs_circuit/verifier_claims.rs",
@@ -622,11 +622,11 @@
     },
     {
       "path": "crates/neo-fold-clean/src/paper/reductions/pi_dec_circuit.rs",
-      "sha256": "c918b67015f7e9aeeafcd7f004af802e0210d60eba815f5ae02e9eb6fd42da74"
+      "sha256": "0eb3e1120d6d9b32187d01ad1afa0603d698f203301500aa5b4f576799b8c4cf"
     },
     {
       "path": "crates/neo-fold-clean/tests/gadgets/f_prime_recursive_manifest.rs",
-      "sha256": "7c425a0f95b29c99beba9f85057153113bce66dd154e215f31bb644bd2f847f4"
+      "sha256": "94861529a98bc3a43998ff603790f3a8ee57e043b7162b33b364c7d1ecc88168"
     },
     {
       "path": "formal/nightstream-lean/Nightstream/Implementation/R1CS/Ownership/FPrimeRecursive/FPrimeRecursiveManifestSchema.lean",

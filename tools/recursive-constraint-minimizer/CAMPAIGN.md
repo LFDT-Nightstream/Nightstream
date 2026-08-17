@@ -274,11 +274,12 @@ live in protocol territory, so they are ask-first:
    census.
 
 Open user decisions (blocking the affected bars only):
-- Bars 5/8: the census runner and the y_ring regeneration gate cannot
-  fit any 300-second cargo invocation (complete-problem export alone
-  is ~4-5 minutes); the cap needs a same-turn user approval for those
-  specific invocations, or direction to engineer disk-checkpointed
-  splits.
+- Bars 5/8: RESOLVED 2026-08-17 — the user raised the test-invocation
+  budget: "you can go over the 5 min up to 20 min". Standing rule now:
+  cargo test invocations may run up to 1,200,000 ms; every launch
+  still carries an explicit timeout and a kill-at-budget watchdog.
+  Invocations that need more than 20 minutes still require a fresh
+  ask (the census runner splits per family if it breaches).
 - Bar 9: how to treat the five pre-existing protocol failure classes
   above (fix under guidance, known upstream work, or defer with the
   bar scoped to campaign-owned suites).

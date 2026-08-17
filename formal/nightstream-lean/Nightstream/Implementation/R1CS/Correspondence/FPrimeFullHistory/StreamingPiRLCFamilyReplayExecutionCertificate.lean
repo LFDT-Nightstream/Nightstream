@@ -180,15 +180,15 @@ private def inputChunk2 (parity : CursorParity) := (inputTail2 parity).take 256
 private def inputTail3 (parity : CursorParity) := (inputTail2 parity).drop 256
 
 private def evenInputRun1 : ColumnReplay.Run :=
-  checkpointRun [1063, 1064, 1065, 1066, 184036, 184037, 184038, 184039]
+  checkpointRun [1171, 1172, 1173, 1174, 203476, 203477, 203478, 203479]
     ⟨4, by decide⟩ 63
 
 private def evenInputRun2 : ColumnReplay.Run :=
-  checkpointRun [1319, 1320, 1321, 1322, 222436, 222437, 222438, 222439]
+  checkpointRun [1427, 1428, 1429, 1430, 241876, 241877, 241878, 241879]
     ⟨4, by decide⟩ 127
 
 private def evenInputRun3 : ColumnReplay.Run :=
-  checkpointRun [1575, 1576, 1577, 1578, 260836, 260837, 260838, 260839]
+  checkpointRun [1683, 1684, 1685, 1686, 280276, 280277, 280278, 280279]
     ⟨4, by decide⟩ 191
 
 private theorem evenInputChunk0_execution :
@@ -246,20 +246,20 @@ private theorem evenInputRaw_execution :
     evenInputTail1_execution
 
 private def oddInputRun1 : ColumnReplay.Run :=
-  checkpointRun [1065, 1066, 184634, 184635, 184636, 184637, 184638, 184639]
+  checkpointRun [1173, 1174, 204074, 204075, 204076, 204077, 204078, 204079]
     ⟨2, by decide⟩ 64
 
 private def oddInputRun2 : ColumnReplay.Run :=
-  checkpointRun [1321, 1322, 223034, 223035, 223036, 223037, 223038, 223039]
+  checkpointRun [1429, 1430, 242474, 242475, 242476, 242477, 242478, 242479]
     ⟨2, by decide⟩ 128
 
 private def oddInputRun3 : ColumnReplay.Run :=
-  checkpointRun [1577, 1578, 261434, 261435, 261436, 261437, 261438, 261439]
+  checkpointRun [1685, 1686, 280874, 280875, 280876, 280877, 280878, 280879]
     ⟨2, by decide⟩ 192
 
 private def oddInputBeforeNormalize : ColumnReplay.Run :=
-  checkpointRun [1617, 1618, 1619, 1620, 267436, 267437, 267438, 267439]
-    ⟨4, by decide⟩ 202
+  checkpointRun [1833, 1834, 1835, 1836, 303076, 303077, 303078, 303079]
+    ⟨4, by decide⟩ 229
 
 private theorem oddInputChunk0_execution :
     ColumnReplay.execute (trace .odd .input) (startRun .odd .input)
@@ -323,7 +323,7 @@ private theorem evenOutputRaw_execution :
   rfl
 
 private def oddOutputBeforeNormalize : ColumnReplay.Run :=
-  checkpointRun [1671, 1672, 1673, 1674, 275836, 275837, 275838, 275839]
+  checkpointRun [1887, 1888, 1889, 1890, 311476, 311477, 311478, 311479]
     ⟨4, by decide⟩ 13
 
 private theorem oddOutputRaw_execution :

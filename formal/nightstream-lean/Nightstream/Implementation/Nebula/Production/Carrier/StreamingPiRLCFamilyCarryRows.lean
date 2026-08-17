@@ -7,14 +7,14 @@ family phase.
 
 Assurance tier: generated source-row soundness.
 
-Owns one centered-symbol decode row and one carry row for each of the 810
+Owns one centered-symbol decode row and one carry row for each of the 918
 challenge fields, plus one linear row for the family cursor increment. The
 verifier-owned cursor bound rules out Goldilocks wraparound.
 
 Does not own either Poseidon2 replay, the 108 residual update, PiRLC
 arithmetic, normalized slots, or Rust assignment conformance.
 
-Emits constraints: 1,621 linear R1CS rows.
+Emits constraints: 1,837 linear R1CS rows.
 -/
 
 set_option autoImplicit false
@@ -48,10 +48,12 @@ def decodeRows (layout : Layout) : List Row :=
     List.ofFn fun lane : Fin ringDegree => decodeRow layout source lane).flatten
 
 theorem decodeRows_length (layout : Layout) :
-    (decodeRows layout).length = 810 := by
-  unfold decodeRows
-  rw [List.length_flatten]
-  simp [ringDegree]
+    (decodeRows layout).length = 918 := by
+  rw [decodeRows, List.length_flatten]
+  simp only [List.map_ofFn, Function.comp_def, List.length_ofFn,
+    List.ofFn_const, List.sum_replicate]
+  rw [ProductPiRlcRingCombinationRows.sourceCount_eq]
+  norm_num [ringDegree]
 
 /-- One exact carried challenge-field equality. -/
 def challengeRow
@@ -60,16 +62,18 @@ def challengeRow
     [(layout.beforeChallenge source lane, 1)]
     [(layout.afterChallenge source lane, 1)]
 
-/-- Source-major order for all 15 by 54 challenge fields. -/
+/-- Source-major order for all 17 by 54 challenge fields. -/
 def challengeRows (layout : Layout) : List Row :=
   (List.ofFn fun source : Source =>
     List.ofFn fun lane : Fin ringDegree => challengeRow layout source lane).flatten
 
 theorem challengeRows_length (layout : Layout) :
-    (challengeRows layout).length = 810 := by
-  unfold challengeRows
-  rw [List.length_flatten]
-  simp [ringDegree]
+    (challengeRows layout).length = 918 := by
+  rw [challengeRows, List.length_flatten]
+  simp only [List.map_ofFn, Function.comp_def, List.length_ofFn,
+    List.ofFn_const, List.sum_replicate]
+  rw [ProductPiRlcRingCombinationRows.sourceCount_eq]
+  norm_num [ringDegree]
 
 /-- One field equation: `afterCursor = beforeCursor + 1`. -/
 def cursorRow (layout : Layout) : Row :=
@@ -81,7 +85,7 @@ def rows (layout : Layout) : List Row :=
   decodeRows layout ++ (challengeRows layout ++ [cursorRow layout])
 
 theorem rows_length (layout : Layout) :
-    (rows layout).length = 1621 := by
+    (rows layout).length = 1837 := by
   simp [rows, decodeRows_length, challengeRows_length]
 
 /-- The source assignment places both carried challenge vectors and cursors. -/
@@ -169,7 +173,7 @@ theorem decoded_before_exact
       layout.algebra assignment range source lane = before.challenges source lane
   exact centered.symm.trans beforeEqualsCentered.symm
 
-/-- Accepted challenge rows force all 810 carried fields to be unchanged. -/
+/-- Accepted challenge rows force all 918 carried fields to be unchanged. -/
 theorem challenges_exact
     {layout : Layout} {assignment : Nat → Nat}
     {before after : FamilyState}
@@ -214,7 +218,7 @@ theorem cursor_exact
   simpa [lcEval, placed.2.2.1, placed.2.2.2, one,
     Nat.mod_eq_of_lt afterLt, Nat.mod_eq_of_lt sumLt] using equal
 
-/-- Semantic result of all 1,621 challenge-and-cursor rows. -/
+/-- Semantic result of all 1,837 challenge-and-cursor rows. -/
 structure Exact
     (layout : Layout) (assignment : Nat → Nat)
     (range : ∀ source lane,

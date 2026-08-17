@@ -11,7 +11,7 @@ Assurance tier: Rust-conformant for property
 
 Owns the 640-column public-prefix shift, both parity kind codes, all three
 source-field runs, the body and overlay final slots read by the link compiler,
-and the exact 33,359-per-family and 3,669,490-total censuses.
+and the exact 37,787-per-family and 4,156,570-total censuses.
 
 Does not own assignment values, equality-row acceptance, selector authority,
 shifted-ternary canonicality, recursive orchestration, lifecycle soundness,
@@ -32,42 +32,42 @@ abbrev audit :=
 
 def expectedRuns : List RawRun :=
   [
-    { bodySourceStart := 46055
+    { bodySourceStart := 52103
       overlaySourceStart := 1
       outerCount := 1
       bodySourceStride := 41
       overlaySourceStride := 41
       fieldCount := 41
-      bodyFinalStart := 1059804
+      bodyFinalStart := 2110644
       overlayFinalStart := 111
       finalOuterStride := 41
       finalFieldStride := 1
       width := 1
       radix := 2 }
-  , { bodySourceStart := 46096
+  , { bodySourceStart := 52144
       overlaySourceStart := 42
-      outerCount := 810
+      outerCount := 918
       bodySourceStride := 122
       overlaySourceStride := 41
       fieldCount := 41
-      bodyFinalStart := 19332
+      bodyFinalStart := 38340
       overlayFinalStart := 152
       finalOuterStride := 41
       finalFieldStride := 1
       width := 1
       radix := 2 }
-  , { bodySourceStart := 144918
-      overlaySourceStart := 33252
+  , { bodySourceStart := 164142
+      overlaySourceStart := 37680
       outerCount := 1
       bodySourceStride := 108
       overlaySourceStride := 108
       fieldCount := 108
-      bodyFinalStart := 1076091
-      overlayFinalStart := 33362
-      finalOuterStride := 2484
-      finalFieldStride := 23
-      width := 23
-      radix := 7 }
+      bodyFinalStart := 2129127
+      overlayFinalStart := 37790
+      finalOuterStride := 4428
+      finalFieldStride := 41
+      width := 41
+      radix := 3 }
   ]
 
 def RawRun.linkCount (run : RawRun) : Nat :=
@@ -86,40 +86,40 @@ def exactShape : Prop :=
     audit.familyCount = 110 /\
     audit.parityCount = 2 /\
     audit.publicOutputCount = 640 /\
-    audit.bodyFinalColumns = 2484972 /\
-    audit.overlayFinalColumns = 35856 /\
+    audit.bodyFinalColumns = 8858862 /\
+    audit.overlayFinalColumns = 42228 /\
     audit.phaseKinds = [10, 11] /\
     audit.runs = expectedRuns
 
 def sourceGeometryCoherent : Prop :=
   audit.runs.map RawRun.bodySourceStart =
-      [45415 + audit.publicOutputCount,
-       45456 + audit.publicOutputCount,
-       144278 + audit.publicOutputCount] /\
-    audit.runs.map RawRun.overlaySourceStart = [1, 42, 33252] /\
+      [51463 + audit.publicOutputCount,
+       51504 + audit.publicOutputCount,
+       163502 + audit.publicOutputCount] /\
+    audit.runs.map RawRun.overlaySourceStart = [1, 42, 37680] /\
     audit.runs.map RawRun.bodySourceStride = [41, 122, 108] /\
     audit.runs.map RawRun.overlaySourceStride = [41, 41, 108] /\
-    audit.runs.map RawRun.outerCount = [1, 810, 1] /\
+    audit.runs.map RawRun.outerCount = [1, 918, 1] /\
     audit.runs.map RawRun.fieldCount = [41, 41, 108]
 
 def finalGeometryCoherent : Prop :=
-  audit.runs.map RawRun.bodyFinalStart = [1059804, 19332, 1076091] /\
-    audit.runs.map RawRun.overlayFinalStart = [111, 152, 33362] /\
-    audit.runs.map RawRun.finalOuterStride = [41, 41, 2484] /\
-    audit.runs.map RawRun.finalFieldStride = [1, 1, 23] /\
-    audit.runs.map RawRun.width = [1, 1, 23] /\
-    audit.runs.map RawRun.radix = [2, 2, 7] /\
+  audit.runs.map RawRun.bodyFinalStart = [2110644, 38340, 2129127] /\
+    audit.runs.map RawRun.overlayFinalStart = [111, 152, 37790] /\
+    audit.runs.map RawRun.finalOuterStride = [41, 41, 4428] /\
+    audit.runs.map RawRun.finalFieldStride = [1, 1, 41] /\
+    audit.runs.map RawRun.width = [1, 1, 41] /\
+    audit.runs.map RawRun.radix = [2, 2, 3] /\
     (audit.runs.all fun run =>
       decide (RawRun.bodyFinalEnd run <= audit.bodyFinalColumns)) = true /\
     (audit.runs.all fun run =>
       decide (RawRun.overlayFinalEnd run <= audit.overlayFinalColumns)) = true
 
 def censusCoherent : Prop :=
-  audit.runs.map RawRun.linkCount = [41, 33210, 108] /\
+  audit.runs.map RawRun.linkCount = [41, 37638, 108] /\
     (audit.runs.map RawRun.linkCount).sum = audit.linkCountPerFamily /\
-    audit.linkCountPerFamily = 33359 /\
+    audit.linkCountPerFamily = 37787 /\
     audit.totalLinkCount = audit.familyCount * audit.linkCountPerFamily /\
-    audit.totalLinkCount = 3669490
+    audit.totalLinkCount = 4156570
 
 def crossReceiptCoherent : Prop :=
   let overlay :=
@@ -146,33 +146,35 @@ def AuditValid : Prop :=
 exact 640-column public prefix is inserted. -/
 theorem source_geometry_exact : sourceGeometryCoherent := by
   unfold sourceGeometryCoherent audit
-  native_decide
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- Every decoded body and overlay slot uses the exact affine start, stride,
 width, and radix read by the generic link compiler. -/
 theorem final_geometry_exact : finalGeometryCoherent := by
   unfold finalGeometryCoherent RawRun.bodyFinalEnd RawRun.overlayFinalEnd
     audit
-  native_decide
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- The three runs contain exactly 33,359 links per family and 3,669,490
+/-- The three runs contain exactly 37,787 links per family and 4,156,570
 links across all 110 family positions. -/
 theorem link_census_exact : censusCoherent := by
   unfold censusCoherent RawRun.linkCount audit
-  native_decide
+  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The link receipt and the independently checked body-decoder and overlay
 receipts use the same final column bounds and overlay slot image. -/
 theorem cross_receipts_exact : crossReceiptCoherent := by
   unfold crossReceiptCoherent audit
-  native_decide
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+private theorem exact_shape_exact : exactShape := by
+  unfold exactShape audit expectedRuns
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The generated receipt has the exact source geometry, final slot image,
 cross-receipt agreement, and link censuses checked by Rust. -/
 theorem audit_valid : AuditValid := by
-  unfold AuditValid exactShape sourceGeometryCoherent finalGeometryCoherent
-    censusCoherent crossReceiptCoherent RawRun.bodyFinalEnd
-    RawRun.overlayFinalEnd RawRun.linkCount audit expectedRuns
-  native_decide
+  refine ⟨exact_shape_exact, source_geometry_exact, final_geometry_exact,
+    link_census_exact, cross_receipts_exact⟩
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyNormalizedLink

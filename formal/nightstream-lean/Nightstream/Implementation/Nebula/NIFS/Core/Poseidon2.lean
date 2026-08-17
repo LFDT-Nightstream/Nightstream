@@ -74,9 +74,9 @@ def eventSchedule : List Event :=
   ((List.range ProductNifsCodec.shape.cubeVariables).flatMap fun round =>
     [.proverMessage (3 + 2 * round) (1 + round) 45 20,
       .verifierCoins (4 + 2 * round) (3 + round) 46 2]) ++
-  [.proverMessage 53 26 47 22680,
-    .verifierCoins 54 28 piRlcCandidateTag 810,
-    .proverMessage 55 27 piDecOutputTag 75600]
+  [.proverMessage 53 26 47 25704,
+    .verifierCoins 54 28 piRlcCandidateTag 918,
+    .proverMessage 55 27 piDecOutputTag 86400]
 
 @[simp] theorem eventSchedule_length : eventSchedule.length = 55 := by
   decide
@@ -422,7 +422,7 @@ private theorem pointFields_length
     {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (running : ProductNifsCodec.Running fullShape) :
-    (runningFields running).length = 83210 := by
+    (runningFields running).length = 95090 := by
   unfold runningFields
   rw [List.length_append, List.length_append, List.length_append,
     pointFields_length,
@@ -453,7 +453,7 @@ private theorem pointFields_length
     (degreeBound : Nat)
     (running : ProductNifsCodec.Running fullShape)
     (fresh : ProductNifsCodec.Fresh fullShape) :
-    (publicNifsFields degreeBound running fresh).length = 87655 := by
+    (publicNifsFields degreeBound running fresh).length = 99535 := by
   simp [publicNifsFields, profileFields_length, runningFields_length contract,
     freshFields_length contract]
 
@@ -468,7 +468,7 @@ private theorem matrixFields_length
 private theorem piDecPayloadFields_length
     (proof : Proof K SelectedCommitment ProductNifsCodec.shape 9) :
     (finFields bundleFields proof.piDecCommitments ++
-      finFields evaluationFields proof.piDecEvaluations).length = 75600 := by
+      finFields evaluationFields proof.piDecEvaluations).length = 86400 := by
   rw [List.length_append,
     finFields_length bundleFields proof.piDecCommitments bundleFields_length,
     finFields_length evaluationFields proof.piDecEvaluations
@@ -482,20 +482,20 @@ private theorem outputCoordinateFields_length
     (finFields
       (fun matrices => finFields
         (fun coefficients => finFields kFields coefficients) matrices)
-      values).length = 22680 := by
+      values).length = 25704 := by
   rw [finFields_length _ values matrixFields_length]
   rfl
 
 @[simp] theorem outputFields_length
     (message : FullOutputCoordinates.FullOutput K ProductNifsCodec.shape) :
-    (outputFields message).length = 22700 := by
+    (outputFields message).length = 25724 := by
   unfold outputFields proverMessageFields
   rw [List.length_append, outputCoordinateFields_length]
   decide
 
 @[simp] theorem piDecOutputFields_length
     (proof : Proof K SelectedCommitment ProductNifsCodec.shape 9) :
-    (piDecOutputFields proof).length = 75620 := by
+    (piDecOutputFields proof).length = 86420 := by
   unfold piDecOutputFields proverMessageFields
   rw [List.length_append, piDecPayloadFields_length]
   decide

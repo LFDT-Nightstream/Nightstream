@@ -7,8 +7,8 @@ Contract: exact generated selective-CCS bridge for one production PiRLC phase.
 
 Assurance tier: artifact-checked compiler correspondence.
 
-Owns the fail-closed generated recipe decode, the canonical 45,415-column
-phase layout, exact compilation of all 43,794 handwritten rows into the
+Owns the fail-closed generated recipe decode, the canonical 51,463-column
+phase layout, exact compilation of all 49,626 handwritten rows into the
 thirteen-port selective relation, and the same-assignment implication from
 generated CCS satisfaction to `FamilyPhaseRelation`.
 
@@ -16,7 +16,7 @@ Does not own the Rust witness encoder, Poseidon2 replay rows, PiCCS input
 authority, recursive orchestration, terminal integration, or security
 assumptions.
 
-Emits constraints: 43,794 selective product rows in a 16-variable Boolean row
+Emits constraints: 49,626 selective product rows in a 16-variable Boolean row
 domain. Padding rows are zero by the direct compiler theorem.
 -/
 
@@ -55,7 +55,7 @@ theorem decode_rawArtifact : decode rawArtifact = some artifact := by
 
 def layout : Layout := artifact.layout
 
-@[simp] theorem layout_base : layout.base = 1675 := by
+@[simp] theorem layout_base : layout.base = 1891 := by
   rfl
 
 @[simp] theorem layout_challengeSymbol
@@ -65,21 +65,21 @@ def layout : Layout := artifact.layout
 
 @[simp] theorem layout_input
     (source : ProductPiRlcRingCombinationRows.Source) (lane : Lane) :
-    layout.input source lane = 811 + source.val * 54 + lane.val := by
+    layout.input source lane = 919 + source.val * 54 + lane.val := by
   rfl
 
 @[simp] theorem layout_output (lane : Lane) :
-    layout.output lane = 1621 + lane.val := by
+    layout.output lane = 1837 + lane.val := by
   rfl
 
 def sourceRows : List R1CS.Row := rows layout
 
-@[simp] theorem sourceRows_length : sourceRows.length = 43794 := by
+@[simp] theorem sourceRows_length : sourceRows.length = 49626 := by
   exact rows_length layout
 
 def columns : Nat := rawArtifact.columns
 
-@[simp] theorem columns_eq : columns = 45415 := by
+@[simp] theorem columns_eq : columns = 51463 := by
   rfl
 
 theorem columns_positive : 0 < columns := by
@@ -91,8 +91,8 @@ private theorem productColumn_below
     productColumn layout source left right < columns := by
   have offsetLt := productOffset_lt source left right
   simp only [productColumn, layout_base, columns_eq]
-  change 1675 + productOffset source left right < 45415
-  have productExact : productCount = 43740 := productCount_eq
+  change 1891 + productOffset source left right < 51463
+  have productExact : productCount = 49572 := productCount_eq
   omega
 
 private theorem centeredChallenge_below
@@ -106,7 +106,7 @@ private theorem centeredChallenge_below
     simp only [layout_challengeSymbol, columns_eq]
     have sourceLt := source.isLt
     have laneLt := lane.isLt
-    change source.val < 15 at sourceLt
+    change source.val < 17 at sourceLt
     change lane.val < 54 at laneLt
     omega
   · subst term
@@ -118,7 +118,7 @@ private theorem input_below
   simp only [layout_input, columns_eq]
   have sourceLt := source.isLt
   have laneLt := lane.isLt
-  change source.val < 15 at sourceLt
+  change source.val < 17 at sourceLt
   change lane.val < 54 at laneLt
   omega
 
@@ -215,7 +215,7 @@ theorem sourceRows_below : RowsBelow columns sourceRows := by
 def directProgram : List (DirectRows.SourceRow columns) :=
   NumericBridge.directProgram columns_positive sourceRows
 
-@[simp] theorem directProgram_length : directProgram.length = 43794 := by
+@[simp] theorem directProgram_length : directProgram.length = 49626 := by
   simp [directProgram]
 
 def one : Fin columns := ⟨0, columns_positive⟩
@@ -226,7 +226,7 @@ def profile : RelationProfile.Profile directProgram.length columns where
   rowVariables := rawArtifact.rowVariables
   rowDomain := by
     rw [directProgram_length]
-    change RelationProfile.ExactRowDomain 43794 16
+    change RelationProfile.ExactRowDomain 49626 16
     constructor
     · norm_num
     · intro smaller smallerLt
@@ -261,7 +261,7 @@ theorem numericAssignment_one
   simpa [one] using sameValue
 
 /-- Satisfaction of every generated selective-CCS row implies the same
-concrete phase relation as the 43,794 handwritten rows. The finite field
+concrete phase relation as the 49,626 handwritten rows. The finite field
 assignment is read once; its exact numeric view is used by both sides. -/
 theorem generated_selective_ccs_implies_concrete_phase
     (assignment : Fin columns → F)

@@ -7,7 +7,7 @@ input residual.
 
 Assurance tier: implementation-to-security-reduction bridge.
 
-Owns specialization of the 89,100-field binding to one explicit seeded Ajtai
+Owns specialization of the 100,980-field binding to one explicit seeded Ajtai
 setup, canonical flattening of its two degree-54 outputs to 108 Goldilocks
 fields, the inverse representation, local family binding fields, and recovery
 of equal PiRLC inputs or one named Module-SIS failure.

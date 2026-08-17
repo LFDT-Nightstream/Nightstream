@@ -5,7 +5,7 @@ import Nightstream.Implementation.Nebula.Production.Memory.BatchCarrierBridge
 Contract: exact physical full-claim carrier at the generated
 augmented-relation exponent.
 
-The running window has `83160 + 2 * rowVariables` Goldilocks coordinates.
+The running window has `95040 + 2 * rowVariables` Goldilocks coordinates.
 The same `rowVariables` indexes the typed running value and its zero-copy NIFS
 alias. All windows are consecutive and non-overlapping.
 

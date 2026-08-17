@@ -64,7 +64,7 @@ transcript, security census, and verifier key. -/
 def shapeFor (rowVariables : Nat) : JointShape where
   cubeVariables := rowVariables
   freshCount := 1
-  runningCount := 14
+  runningCount := 16
   matrixCount := 14
   coefficientCount := ringDegree
 
@@ -77,7 +77,7 @@ relation proves that it fits. -/
 def shape : JointShape where
   cubeVariables := 25
   freshCount := 1
-  runningCount := 14
+  runningCount := 16
   matrixCount := 14
   coefficientCount := ringDegree
 
@@ -86,7 +86,7 @@ theorem shape_eq_shapeFor_25 : shape = shapeFor 25 := rfl
 theorem shape_exact :
     shape.cubeVariables = 25 /\
       shape.freshCount = 1 /\
-      shape.runningCount = 14 /\
+      shape.runningCount = 16 /\
       shape.matrixCount = 14 /\
       shape.coefficientCount = 54 := by
   decide
@@ -255,7 +255,7 @@ noncomputable def runningCodec (fullShape : Phi81Relation.Shape) :
 theorem runningCodec_width
     {fullShape : Phi81Relation.Shape}
     (contract : FullShapeContract fullShape) :
-    (runningCodec fullShape).width = 83210 := by
+    (runningCodec fullShape).width = 95090 := by
   rw [runningCodec, codec_pullback_width, codec_product_width,
     pointCodec_width, codec_product_width, codec_finFunction_width,
     bundleCodec_width, codec_product_width, codec_finFunction_width,
@@ -327,7 +327,7 @@ noncomputable def runningCodecFor
 Only the two coordinates of each additional extension-field point coordinate
 depend on the augmented-relation exponent. -/
 def runningFieldCountFor (rowVariables : Nat) : Nat :=
-  83160 + 2 * rowVariables
+  95040 + 2 * rowVariables
 
 theorem runningCodecFor_width
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
@@ -342,8 +342,8 @@ theorem runningCodecFor_width
   rw [contract.publicWidth]
   change
     rowVariables * 2 +
-        (14 * 3888 + (14 * 540 + 14 * 1512)) =
-      83160 + 2 * rowVariables
+        (16 * 3888 + (16 * 540 + 16 * 1512)) =
+      95040 + 2 * rowVariables
   omega
 
 theorem runningCodecFor_admissible
@@ -357,16 +357,16 @@ theorem runningCodecFor_admissible
       (fun index =>
         evaluationCodecFor_admissible (value.evaluations index))⟩
 
-theorem runningFieldCountFor_25 : runningFieldCountFor 25 = 83210 := by
+theorem runningFieldCountFor_25 : runningFieldCountFor 25 = 95090 := by
   decide
 
 /-! ## Canonical bit image -/
 
 def fieldBitWidth : Nat := 64
-def runningFieldCount : Nat := 83210
+def runningFieldCount : Nat := 95090
 def runningBitCount : Nat := runningFieldCount * fieldBitWidth
 
-theorem runningBitCount_exact : runningBitCount = 5325440 := by decide
+theorem runningBitCount_exact : runningBitCount = 6085760 := by decide
 
 def fieldBits (value : F) : List Nat :=
   WasmStateCodec.encodeWord fieldBitWidth value.val

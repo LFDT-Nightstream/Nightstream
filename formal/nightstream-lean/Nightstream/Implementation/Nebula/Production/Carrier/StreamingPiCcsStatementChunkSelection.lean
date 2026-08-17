@@ -6,7 +6,7 @@ chunks.
 
 Assurance tier: model-level serialization and state-binding refinement.
 
-Owns the fixed radix-four claim-frame windows for the prior point and carried
+Owns the fixed binary claim-frame windows for the prior point and carried
 evaluations. The selector reads the same ordered chunks that the full-claim
 Poseidon2 replay reads. It does not create a second source frame.
 
@@ -36,11 +36,11 @@ def claimChunkWidth : Nat := 1024
 theorem production_chunk_window_geometry :
     pointFrameStart = 0 * claimChunkWidth + 383 /\
       runningPointFieldCount 26 = 52 /\
-      evaluationFrameStart 26 = 60 * claimChunkWidth + 987 /\
+      evaluationFrameStart 26 = 69 * claimChunkWidth + 627 /\
       evaluationFrameStart 26 + runningEvaluationFieldCount =
-        81 * claimChunkWidth + 651 /\
+        93 * claimChunkWidth + 243 /\
       383 + 52 <= claimChunkWidth /\
-      987 + 37 = claimChunkWidth := by
+      627 + 397 = claimChunkWidth := by
   decide
 
 /-- Select the two PiCCS variable windows from the one ordered claim stream.
@@ -73,7 +73,7 @@ theorem selectedFieldsFromChunks_eq_authoritative
     (value : Value candidate fullShape) (chunks : List (List Nat))
     (exactFrame : chunks.flatten =
       authoritativeFrame statementId degreeBound value) :
-    (selectedFieldsFromChunks chunks).length = 21220 := by
+    (selectedFieldsFromChunks chunks).length = 24244 := by
   rw [selectedFieldsFromChunks_eq_authoritative contract statementId
     degreeBound value chunks exactFrame]
   exact selectedAuthoritativeFields_length_r26 contract statementId

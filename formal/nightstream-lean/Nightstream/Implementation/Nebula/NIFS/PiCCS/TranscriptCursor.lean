@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Canonical.SymbolicDuplexCursor
 Contract: exact post-PiCCS cursor for the selected V2 transcript.
 
 Owns the structural proof that all twenty-five SumCheck rounds end with a
-challenge gate at cursor zero, the complete PiCCS output has exactly 22,700
+challenge gate at cursor zero, the complete PiCCS output has exactly 25,724
 fields, and its absorption leaves the shared transcript at cursor four.
 
 Does not own field values, Poseidon2 row semantics, PiRLC candidates,
@@ -32,7 +32,7 @@ private theorem length_flatMap_uniform
       simp [uniform, inductionHypothesis, Nat.add_mul, Nat.add_comm]
 
 theorem fullOutputPayload_length (input : Input) :
-    (fullOutputPayload input).length = 22680 := by
+    (fullOutputPayload input).length = 25704 := by
   have coefficientsLength : forall source matrix,
       ((canonicalFinIndices selectedShape.coefficientCount).flatMap
         fun coefficient =>
@@ -58,7 +58,7 @@ theorem fullOutputPayload_length (input : Input) :
   rfl
 
 theorem fullOutputFields_length (input : Input) :
-    (fullOutputFields input).length = 22700 := by
+    (fullOutputFields input).length = 25724 := by
   unfold fullOutputFields proverMessageFields
   rw [List.length_append, fullOutputPayload_length]
   decide
@@ -99,12 +99,12 @@ private theorem after_four_four_mul (blocks : Nat) :
       rw [Nat.mul_succ, SymbolicDuplexCursor.after_add,
         inductionHypothesis, after_four_four]
 
-theorem after_zero_22700 :
-    SymbolicDuplexCursor.after 0 22700 = 4 := by
-  rw [show 22700 = 4 + 4 * 5674 by decide,
+theorem after_zero_25724 :
+    SymbolicDuplexCursor.after 0 25724 = 4 := by
+  rw [show 25724 = 4 + 4 * 6430 by decide,
     SymbolicDuplexCursor.after_add]
-  change SymbolicDuplexCursor.after 4 (4 * 5674) = 4
-  exact after_four_four_mul 5674
+  change SymbolicDuplexCursor.after 4 (4 * 6430) = 4
+  exact after_four_four_mul 6430
 
 /-- The selected complete PiCCS output fixes the common PiRLC start cursor.
 This is derived from the serialized output length, not supplied by a caller. -/
@@ -112,6 +112,6 @@ theorem afterFullOutput_absorbed (input : Input) :
     (afterFullOutput input).absorbed = 4 := by
   unfold afterFullOutput
   rw [SymbolicDuplexCursor.absorbMany_absorbed,
-    fullOutputFields_length, replayRounds_absorbed, after_zero_22700]
+    fullOutputFields_length, replayRounds_absorbed, after_zero_25724]
 
 end Nightstream.Implementation.Nebula.ProductPiCcsTranscriptCursor

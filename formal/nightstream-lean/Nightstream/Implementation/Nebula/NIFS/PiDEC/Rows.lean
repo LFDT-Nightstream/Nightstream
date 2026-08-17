@@ -48,7 +48,7 @@ structure BundleLayout where
 structure EvaluationLayout where
   column : MatrixIndex -> CoefficientIndex -> ExtensionLimb -> Nat
 
-/-- Parent and fourteen child coordinate locations. -/
+/-- Parent and sixteen child coordinate locations. -/
 structure Layout where
   parentBundle : BundleLayout
   childBundle : ChildIndex -> BundleLayout
@@ -87,7 +87,7 @@ private theorem length_flatMap_uniform
 def radixPowers : List Nat :=
   List.ofFn fun child : ChildIndex => (PiDEC.radixWeight child).val
 
-theorem radixPowers_length : radixPowers.length = 14 := by
+theorem radixPowers_length : radixPowers.length = 16 := by
   rfl
 
 /-- Every emitted coefficient is a nonzero canonical Goldilocks residue. -/

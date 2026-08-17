@@ -104,7 +104,7 @@ def piDecContext
     (priorPoint : CubePoint K rowVariables)
     (claimedCoefficient : CarriedCoordinate shape -> K) :
     (compatibleContext key matrices commitments publicInputs priorPoint
-      claimedCoefficient).arity.total = 15 := by
+      claimedCoefficient).arity.total = 17 := by
   rfl
 
 section Reduction

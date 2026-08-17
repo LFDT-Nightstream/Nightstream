@@ -2,13 +2,15 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPr
 import Nightstream.Implementation.R1CS.Artifacts.ShiftedTernary
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoder
 import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyBodyRowLedger
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.SelectiveCcs.CanonicalOpeningArtifactRows
 
 /-!
 Contract: independent arithmetic validation of the production PiRLC
 opening-row scan receipt.
 
 Assurance tier: Rust-conformant for the exact source traces, final matrix port
-images, and compact geometry checked by the Rust producer.
+images, and compact geometry checked by the Rust producer under the supported
+Goldilocks `b = 2`, `k_rho = 16` profile.
 
 Owns the receipt shape and its joins to the complete row ledger, source
 decoder, and generic 21-row shifted-ternary artifact.
@@ -41,29 +43,29 @@ def ExactReceipt : Prop :=
   audit.schemaVersion =
       Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyOpeningRowsSchema.supportedSchemaVersion /\
   audit.armCount = 2 /\
-  audit.openingCount = 810 /\
+  audit.openingCount = 918 /\
   audit.digitCount = 41 /\
   audit.borrowCount = 20 /\
   audit.chunkCount = 21 /\
-  audit.sourceZeroRowStart = 43794 /\
-  audit.sourceZeroDigitStart = 46055 /\
-  audit.sourceFieldStart = 1451 /\
-  audit.sourceDigitStart = 46096 /\
+  audit.sourceZeroRowStart = 49626 /\
+  audit.sourceZeroDigitStart = 52103 /\
+  audit.sourceFieldStart = 1559 /\
+  audit.sourceDigitStart = 52144 /\
   audit.sourceDigitStride = 122 /\
-  audit.sourceCanonicalRowStart = 43835 /\
+  audit.sourceCanonicalRowStart = 49667 /\
   audit.sourceCanonicalRowStride = 124 /\
   audit.centeredRowStart = 2 /\
-  audit.centeredRowCount = 16605 /\
-  audit.zeroEmittedStarts = [77962, 200320] /\
-  audit.canonicalEmittedStarts = [139516, 262046] /\
+  audit.centeredRowCount = 0 /\
+  audit.zeroEmittedStarts = [69456, 304967] /\
+  audit.canonicalEmittedStarts = [236063, 471746] /\
   audit.selectorColumns = [648, 649] /\
-  audit.finalDigitStart = 19332 /\
+  audit.finalDigitStart = 38340 /\
   audit.finalDigitStride = 41 /\
-  audit.finalZeroStart = 1059804 /\
-  audit.finalBorrowStart = 1059845 /\
+  audit.finalZeroStart = 2110644 /\
+  audit.finalBorrowStart = 2110685 /\
   audit.finalBorrowStride = 20 /\
-  audit.finalRows = 279089 /\
-  audit.finalColumns = 2484972 /\
+  audit.finalRows = 491046 /\
+  audit.finalColumns = 8858862 /\
   audit.normalizedChunkBounds =
     [3, 0, 3, 3, 3, 0, 1, 3, 1, 2, 4, 3, 2, 1, 3, 0, 0, 0, 3, 4, 1] /\
   audit.complementedChunks =
@@ -71,18 +73,18 @@ def ExactReceipt : Prop :=
       false, false, true, true, true, true, false, true, true, false, false] /\
   audit.sourceZeroNnz = [41, 41, 0] /\
   audit.finalPortNnz =
-    [46980, 50707, 50707, 82, 46980, 46980, 50625, 16605, 8100,
-      6480, 3240, 12960, 3240]
+    [53244, 38638, 38638, 82, 53244, 53244, 38556, 0, 9180,
+      7344, 3672, 14688, 3672]
 
 theorem exact_receipt : ExactReceipt := by
   simp [ExactReceipt, audit,
     Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyBodyOpeningRows.audit,
     Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyOpeningRowsSchema.supportedSchemaVersion]
 
-theorem audited_row_count_exact : auditedRowCount = 50707 := by
-  native_decide
+theorem audited_row_count_exact : auditedRowCount = 38638 := by
+  decide
 
-/-- The receipt accounts for the same 1,620 rewrites and 34,020 emitted rows
+/-- The receipt accounts for the same 1,836 rewrites and 38,556 emitted rows
 as the complete compiler row ledger. -/
 theorem row_ledger_canonical_census_join :
     audit.armCount * audit.openingCount =
@@ -93,7 +95,7 @@ theorem row_ledger_canonical_census_join :
           ledger .shiftedTernaryCanonical /\
       audit.finalRows = ledger.rows /\
       audit.finalColumns = ledger.columns := by
-  native_decide
+  decide
 
 /-- Both decoder arms use the exact source-digit, final-borrow, and shared
 final-digit affine template recorded by this receipt. -/
@@ -126,6 +128,10 @@ theorem generic_artifact_join :
       Nightstream.Implementation.R1CS.ShiftedTernarySelectiveArtifact.borrowCoordinates.length =
         audit.borrowCount /\
       Nightstream.Implementation.R1CS.ShiftedTernarySelectiveArtifact.polynomialTerms.length = 74 := by
-  native_decide
+  exact ⟨
+    Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.CanonicalOpeningArtifactRows.artifact_row_count_exact,
+    by decide,
+    by decide,
+    Nightstream.Implementation.R1CS.FPrimeFullHistorySelectiveCcs.CanonicalOpeningArtifactRows.artifact_polynomial_term_count_exact⟩
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyOpeningRows

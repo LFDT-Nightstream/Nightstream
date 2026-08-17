@@ -7,7 +7,7 @@ running claim.
 
 Assurance tier: implementation-to-protocol bridge.
 
-Owns one canonical-u64 block for each of the 83,210 running-claim fields,
+Owns one canonical-u64 block for each of the 95,090 running-claim fields,
 exact field-vector order, strict rejection of noncanonical Goldilocks aliases,
 and equality between every parsed field and its generated field wire.
 
@@ -44,8 +44,8 @@ def Slot.bitOffset (slot : Slot) : Nat := slot.val * fieldBitWidth
 theorem Slot.bitOffset_fits (slot : Slot) :
     slot.bitOffset + CanonicalFieldBits.bitCount ≤ runningBitCount := by
   have bounded := slot.isLt
-  change slot.val * 64 + 64 ≤ 5325440
-  change slot.val < 83210 at bounded
+  change slot.val * 64 + 64 ≤ 6085760
+  change slot.val < 95090 at bounded
   omega
 
 structure Layout where
@@ -71,7 +71,7 @@ def rows (layout : Layout) : List Row :=
   CanonicalFieldSchemaRows.schemaRows Slot.all layout.schema
 
 theorem rows_length_exact (layout : Layout) :
-    (rows layout).length = 11066930 := by
+    (rows layout).length = 12646970 := by
   rw [rows, CanonicalFieldSchemaRows.schemaRows_length,
     Slot.all_length_exact]
   rfl

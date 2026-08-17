@@ -8,7 +8,7 @@ carry and family cursor rows.
 
 Assurance tier: model-level.
 
-Owns the 1,621 retained equality-row images, their direct radix-seven source
+Owns the 1,837 retained equality-row images, their direct radix-three source
 decoding, and the same-assignment implication to the existing Lean
 challenge-carry and cursor theorem. It also proves that a carried strong-set
 challenge makes separate challenge-symbol range rows unnecessary.
@@ -51,7 +51,7 @@ private abbrev carryLayout :=
 abbrev Arm :=
   Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedAlgebraRows.Normalized.Arm
 
-def sourceColumns : Nat := 146224
+def sourceColumns : Nat := 165664
 
 abbrev finalColumns :=
   Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedAlgebraRows.Normalized.finalColumns
@@ -65,36 +65,36 @@ theorem finalColumns_positive : 0 < finalColumns :=
 def selectorColumn : Arm → Fin finalColumns :=
   Nightstream.Implementation.Nebula.ProductionStreamingPiRlcNormalizedAlgebraRows.Normalized.selectorColumn
 
-def directSourceStart : Nat := 144276
+def directSourceStart : Nat := 163500
 
-def finalDirectStart : Nat := 1076045
+def finalDirectStart : Nat := 2129045
 
-/-- Direct radix-seven image of one challenge symbol. -/
+/-- Direct radix-three image of one challenge symbol. -/
 def challengeSlot
     (column : Fin sourceColumns) (nonzero : column.val ≠ 0)
-    (upper : column.val < 811) :
+    (upper : column.val < 919) :
     DecodedSourceSlot sourceColumns finalColumns where
   column := column
-  start := 702 + (column.val - 1) * 23
-  width := 23
+  start := 702 + (column.val - 1) * 41
+  width := 41
   widthPositive := by decide
   columnsFit := by
     have lower : 1 ≤ column.val := Nat.one_le_iff_ne_zero.mpr nonzero
-    change 702 + (column.val - 1) * 23 + 23 ≤ 2484972
+    change 702 + (column.val - 1) * 41 + 41 ≤ 8858862
     omega
 
-/-- Direct radix-seven image from the generated 1,964-column decoder run. -/
+/-- Direct radix-three image from the generated 2,180-column decoder run. -/
 def directSlot
     (column : Fin sourceColumns) (_lower : directSourceStart ≤ column.val) :
     DecodedSourceSlot sourceColumns finalColumns where
   column := column
-  start := finalDirectStart + (column.val - directSourceStart) * 23
-  width := 23
+  start := finalDirectStart + (column.val - directSourceStart) * 41
+  width := 41
   widthPositive := by decide
   columnsFit := by
     have upper := column.isLt
     unfold sourceColumns at upper
-    change 1076045 + (column.val - 144276) * 23 + 23 ≤ 2484972
+    change 2129045 + (column.val - 163500) * 41 + 41 ≤ 8858862
     omega
 
 /-- Exact final linear image of one source column used by this block.
@@ -102,7 +102,7 @@ Unreferenced middle columns map to zero. -/
 def sourceColumnForm (column : Fin sourceColumns) : Form finalColumns :=
   if zero : column.val = 0 then
     constantForm finalColumns_positive
-  else if challenge : column.val < 811 then
+  else if challenge : column.val < 919 then
     sourceSlotForm (challengeSlot column zero challenge)
   else if direct : directSourceStart ≤ column.val then
     sourceSlotForm (directSlot column direct)
@@ -114,7 +114,7 @@ def sourceColumnValue
     (column : Fin sourceColumns) (assignment : Fin finalColumns → F) : F :=
   if zero : column.val = 0 then
     assignment ⟨0, finalColumns_positive⟩
-  else if challenge : column.val < 811 then
+  else if challenge : column.val < 919 then
     sourceSlotValue (challengeSlot column zero challenge) assignment
   else if direct : directSourceStart ≤ column.val then
     sourceSlotValue (directSlot column direct) assignment
@@ -294,9 +294,9 @@ structure ProductionAccepted
   cursor : cursorImage.Accepted
     (assignment (selectorColumn arm)) assignment
 
-def productionRowCount : Nat := 15 * 54 + 15 * 54 + 1
+def productionRowCount : Nat := 17 * 54 + 17 * 54 + 1
 
-theorem productionRowCount_exact : productionRowCount = 1621 := by
+theorem productionRowCount_exact : productionRowCount = 1837 := by
   decide
 
 /-- Every carried ring challenge is in the exact five-symbol production
@@ -561,9 +561,9 @@ theorem receipt_geometry_exact :
         Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyCarryRetained.audit.finalColumns /\
       productionRowCount =
         Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyCarryRetained.audit.sourceRows /\
-      directSourceStart + 640 = 144916 /\
-      finalDirectStart = 1076045 := by
-  native_decide
+      directSourceStart + 640 = 164140 /\
+      finalDirectStart = 2129045 := by
+  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 end Normalized
 

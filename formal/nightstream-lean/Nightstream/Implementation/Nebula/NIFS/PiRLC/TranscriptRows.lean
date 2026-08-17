@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Canonical.SymbolicDuplexCount
 /-!
 Contract: exact indexed Poseidon2 rows for the V2 full-field PiRLC sampler.
 
-Owns all 15 x 54 x 3 independently framed candidate calls. Each call starts
+Owns all 17 x 54 x 3 independently framed candidate calls. Each call starts
 from the same complete post-PiCCS state with the profile-fixed full cursor,
 absorbs the exact fixed-width two-field candidate frame, applies the
 challenge gate, and exposes lane zero as the candidate. Physical call windows
@@ -31,11 +31,11 @@ open Nightstream.Implementation.R1CS.Canonical
 open Nightstream.Implementation.R1CS.Canonical.LinCombNormal
 open Nightstream.SuperNeo.Folding.Nifs
 
-def scalarCount : Nat := 15
+def scalarCount : Nat := 17
 def coefficientCount : Nat := 54
 def attemptCount : Nat := 3
 
-theorem scalarCount_eq : scalarCount = 15 := by rfl
+theorem scalarCount_eq : scalarCount = 17 := by rfl
 theorem coefficientCount_eq : coefficientCount = 54 := by rfl
 theorem attemptCount_eq : attemptCount = 3 := by rfl
 
@@ -59,7 +59,7 @@ def CandidateIndex.flat (index : CandidateIndex) : Nat :=
 
 def candidateCount : Nat := scalarCount * coefficientCount * attemptCount
 
-theorem candidateCount_eq : candidateCount = 2430 := by decide
+theorem candidateCount_eq : candidateCount = 2754 := by decide
 
 theorem CandidateIndex.flat_lt (index : CandidateIndex) :
     index.flat < candidateCount := by
@@ -246,7 +246,7 @@ def RowsHold (input : Input) (assignment : Nat -> Nat) : Prop :=
 
 def aggregateRowCount : Nat := candidateCount * rowsPerCandidate
 
-theorem aggregateRowCount_eq : aggregateRowCount = 1710720 := by decide
+theorem aggregateRowCount_eq : aggregateRowCount = 1938816 := by decide
 
 theorem rows_window
     (input : Input) (index : CandidateIndex) (column : Nat)

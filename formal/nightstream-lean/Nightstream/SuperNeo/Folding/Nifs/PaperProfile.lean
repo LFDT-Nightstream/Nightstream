@@ -13,9 +13,9 @@ rows.
 
 Assurance tier: model-level.
 
-Owns: the exact `1 CCS + 14 CE -> 15 CE -> 1 CE -> 14 CE` semantic graph;
+Owns: the exact `1 CCS + 16 CE -> 17 CE -> 1 CE -> 16 CE` semantic graph;
 the abstract relation and tail algebras; source membership and common-shape
-obligations; one new row point; fifteen strong-set challenges; the operational
+obligations; one new row point; seventeen strong-set challenges; the operational
 Section-7.5 `Pi_DEC` verifier, including exact evaluation arity; and the
 canonical honest-completeness constructor.
 
@@ -26,14 +26,14 @@ lifecycle state, Rust, R1CS, costs, necessity, or row removal.
 Authority boundary: this module depends only on the paper-level relation and
 the independently specified `Pi_CCS`, `Pi_RLC`, and `Pi_DEC` algebras. It does
 not import any concrete NIFS verifier or F-prime module. The combined parent
-is an internal computed intermediate; only the fourteen children are public.
+is an internal computed intermediate; only the sixteen children are public.
 
-The final `-> 14 CE` edge comes from SuperNeo Section 7.5. Sections 7.3--7.4
+The final `-> 16 CE` edge comes from SuperNeo Section 7.5. Sections 7.3--7.4
 alone end at the single combined `CE(B)` parent.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
-| `nifs.paper.profile` | `K = 1`, `k = 14`, fifteen sources, fourteen outputs, `b = 2` | verifier parameters | profile count theorems |
+| `nifs.paper.profile` | `K = 1`, `k_rho = 16`, seventeen sources, sixteen outputs, `b = 2` | verifier parameters | profile count theorems |
 | `nifs.paper.source` | every source is fresh-stage, valid, same-structure, and running claims share one prior point | independent specification | `Realization` |
 | `nifs.paper.pi_ccs` | all sources are re-evaluated at one valid new point | computed | `outputs`, `Realization.outputsHold` |
 | `nifs.paper.pi_rlc` | fifteen valid challenges determine one valid combined opening | checked/computed | `ChallengesValid`, `parentOf`, `Realization.parentOpening` |
@@ -52,18 +52,18 @@ universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
   uScalar
 
 /-- HyperNova selects one fresh relation instance; SuperNeo carries the full
-production `k = 14` running product. -/
+production `k_rho = 16` running product. -/
 def arity : BatchArity productionGlobalParams :=
   BatchArity.active productionGlobalParams 1 (by decide) (by decide)
 
 @[simp] theorem arity_freshCount : arity.freshCount = 1 := rfl
 
 @[simp] theorem arity_runningCount :
-    arity.mode.count productionGlobalParams = 14 := rfl
+    arity.mode.count productionGlobalParams = 16 := rfl
 
-@[simp] theorem arity_total : arity.total = 15 := rfl
+@[simp] theorem arity_total : arity.total = 17 := rfl
 
-@[simp] theorem outputCount : productionGlobalParams.k = 14 := rfl
+@[simp] theorem outputCount : productionGlobalParams.k = 16 := rfl
 
 @[simp] theorem baseNormBound : productionGlobalParams.b = 2 := rfl
 
@@ -78,7 +78,7 @@ abbrev Input
   PiCCS.PaperProduct.InputProduct Structure PublicInput Point Evaluation Commitment
     productionGlobalParams arity
 
-/-- Exact public paper target: the fourteen post-decomposition CE children. -/
+/-- Exact public paper target: the sixteen post-decomposition CE children. -/
 abbrev Output
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)

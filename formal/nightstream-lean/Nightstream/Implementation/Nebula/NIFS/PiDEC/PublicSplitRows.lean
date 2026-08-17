@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Canonical.GoldilocksField
 Contract: exact verifier-computed public-input split rows for production PiDEC.
 
 For each of the 540 parent public coordinates, this block owns one common sign
-bit, fourteen magnitude bits, fourteen sign products, fourteen signed child
+bit, sixteen magnitude bits, sixteen sign products, sixteen signed child
 coordinates, and one radix recomposition check. The common sign is necessary:
 centered-unit digits plus recomposition alone allow mixed-sign alternate
 representations.
@@ -19,7 +19,7 @@ Assurance tier: generated-row semantic model.
 Does not own absolute placement in the recursive manifest, NIFS output-carrier
 serialization, Rust refinement, or cryptographic soundness.
 
-Emits constraints: 23,760 R1CS rows.
+Emits constraints: 27,000 R1CS rows.
 -/
 
 set_option autoImplicit false
@@ -117,11 +117,11 @@ private theorem length_flatMap_uniform
 
 theorem coordinateRows_length (layout : Layout)
     (coordinate : PublicCoordinate) :
-    (coordinateRows layout coordinate).length = 44 := by
+    (coordinateRows layout coordinate).length = 50 := by
   simp [coordinateRows]
 
-theorem rows_length (layout : Layout) : (rows layout).length = 23760 := by
-  rw [rows, length_flatMap_uniform _ _ 44 (coordinateRows_length layout),
+theorem rows_length (layout : Layout) : (rows layout).length = 27000 := by
+  rw [rows, length_flatMap_uniform _ _ 50 (coordinateRows_length layout),
     ProductPiDecRows.indices_length]
 
 private theorem coordinate_rows_hold

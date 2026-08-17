@@ -16,10 +16,10 @@ open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyBodyOverlay
 #check bodyRows_sound_of_output_exact
 #check rows_sound
 
-example : (bodyRowsForParity .even).length = 275006 := by
+example : (bodyRowsForParity .even).length = 310646 := by
   simpa using bodyRowsForParity_length .even
 
-example : (bodyRowsForParity .odd).length = 276206 := by
+example : (bodyRowsForParity .odd).length = 311846 := by
   simpa using bodyRowsForParity_length .odd
 
 end tests.NebulaProductionStreamingPiRlcFamilyBodyOverlayRows

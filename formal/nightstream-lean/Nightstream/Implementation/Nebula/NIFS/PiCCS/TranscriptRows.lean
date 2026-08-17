@@ -98,7 +98,7 @@ structure Input where
   constraintPolynomial :
     CCSResidualTable.ConstraintPolynomial K selectedShape.matrixCount
   publicNifsFields : List LinComb
-  publicNifsFields_length : publicNifsFields.length = 87655
+  publicNifsFields_length : publicNifsFields.length = 99535
   priorPoint : Fin selectedShape.cubeVariables -> Carried
   claimedCoefficient : CarriedCoordinate selectedShape -> Carried
   rounds : Fin selectedShape.cubeVariables -> Round

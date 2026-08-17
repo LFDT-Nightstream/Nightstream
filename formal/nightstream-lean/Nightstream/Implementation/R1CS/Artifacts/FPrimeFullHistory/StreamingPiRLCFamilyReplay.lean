@@ -5,7 +5,9 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRL
 namespace Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyReplay
 
 export Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyReplay
-  (artifactSha256 evenArm evenArm_poseidon2Calls_length oddArm
+  (artifactSha256 evenArm evenArm_inputColumns_exact
+    evenArm_outputColumns_exact evenArm_poseidon2Calls_length oddArm
+    oddArm_inputColumns_exact oddArm_outputColumns_exact
     oddArm_poseidon2Calls_length rawArtifact rawArtifact_valid)
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyReplay

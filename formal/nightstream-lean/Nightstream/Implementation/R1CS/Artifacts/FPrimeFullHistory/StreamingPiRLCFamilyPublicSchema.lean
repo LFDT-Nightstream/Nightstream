@@ -4,9 +4,9 @@ import Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingArti
 Contract: compact schema for the public-binding suffix of the two PiRLC
 family body shapes.
 
-Owns the exact 937-field local before and after state-column lists, both
+Owns the exact 1,045-field local before and after state-column lists, both
 32-field full XOut preimages and four-field outputs, the two derived
-program-cursor words, 11 canonical-u64 calls, 490 public-state Poseidon2 calls,
+program-cursor words, 11 canonical-u64 calls, 544 public-state Poseidon2 calls,
 and the small glue-row set after the established algebra-and-replay source
 prefix. One exact delegated range belongs to the phase-envelope artifact.
 
@@ -202,7 +202,7 @@ def RawArm.ScalarValid (arm : RawArm) : Prop :=
   0 < arm.sourceRowCount ∧ arm.sourceRowCount < arm.rowCount ∧
     arm.publicColumnCount = 641 ∧ arm.publicColumnCount ≤ arm.columnCount ∧
     arm.replayPoseidon2CallCount > 0 ∧
-    arm.publicPoseidon2CallCount = 490 ∧
+    arm.publicPoseidon2CallCount = 544 ∧
     arm.poseidon2Calls.length = arm.publicPoseidon2CallCount ∧
     arm.sourceRowCount ≤ arm.phaseEnvelopeRowStart ∧
     arm.phaseEnvelopeRowStart < arm.phaseEnvelopeRowEnd ∧
@@ -211,8 +211,8 @@ def RawArm.ScalarValid (arm : RawArm) : Prop :=
     arm.afterFamilyCursorColumn < arm.columnCount
 
 def RawArm.StateColumnLayoutValid (arm : RawArm) : Prop :=
-    columnsValid arm.columnCount 937 arm.beforeStateColumns ∧
-    columnsValid arm.columnCount 937 arm.afterStateColumns
+    columnsValid arm.columnCount 1045 arm.beforeStateColumns ∧
+    columnsValid arm.columnCount 1045 arm.afterStateColumns
 
 def RawArm.XOutColumnLayoutValid (arm : RawArm) : Prop :=
     columnsValid arm.columnCount 32 arm.afterXOutPreimageColumns ∧
@@ -222,9 +222,9 @@ def RawArm.XOutColumnLayoutValid (arm : RawArm) : Prop :=
 
 def RawArm.HashLayoutValid (arm : RawArm) : Prop :=
     RawHash.Valid arm arm.afterXOutPreimageColumns
-      arm.afterXOutDigestColumns 472 arm.afterXOutHash ∧
+      arm.afterXOutDigestColumns 526 arm.afterXOutHash ∧
     RawHash.Valid arm arm.beforeXOutPreimageColumns
-      arm.beforeXOutDigestColumns 481 arm.beforeXOutHash
+      arm.beforeXOutDigestColumns 535 arm.beforeXOutHash
 
 def RawArm.PublicAndPinLayoutValid (arm : RawArm) : Prop :=
     arm.publicWordCallIndices = [3, 4, 5, 6, 7, 8, 9, 10, 0, 1] ∧
@@ -285,21 +285,21 @@ def RawArtifact.MetadataValid (artifact : RawArtifact) : Prop :=
   artifact.schemaVersion = 3 ∧
     artifact.profileId =
       "nebula-f-prime-streaming-pi-rlc-family-public-v3" ∧
-    artifact.familyStateFields = 937 ∧
+    artifact.familyStateFields = 1045 ∧
     artifact.sharedPublicWords = 10 ∧
     artifact.publicBitsPerWord = 64 ∧
     artifact.firstFamilyProgramCursor = 199 ∧
-    artifact.lowNormRows = 474966 ∧
-    artifact.lowNormColumns = 4687416 ∧
+    artifact.lowNormRows = 491046 ∧
+    artifact.lowNormColumns = 8858862 ∧
     artifact.lowNormPublicColumns = 648 ∧
-    artifact.even.sourceRowCount = 275006 ∧
-    artifact.even.rowCount = 1232857 ∧
-    artifact.even.columnCount = 1233086 ∧
-    artifact.even.replayPoseidon2CallCount = 215 ∧
-    artifact.odd.sourceRowCount = 276206 ∧
-    artifact.odd.rowCount = 1234057 ∧
-    artifact.odd.columnCount = 1234286 ∧
-    artifact.odd.replayPoseidon2CallCount = 217
+    artifact.even.sourceRowCount = 310646 ∧
+    artifact.even.rowCount = 1300897 ∧
+    artifact.even.columnCount = 1301126 ∧
+    artifact.even.replayPoseidon2CallCount = 242 ∧
+    artifact.odd.sourceRowCount = 311846 ∧
+    artifact.odd.rowCount = 1302097 ∧
+    artifact.odd.columnCount = 1302326 ∧
+    artifact.odd.replayPoseidon2CallCount = 244
 
 def RawArtifact.Valid (artifact : RawArtifact) : Prop :=
   artifact.MetadataValid ∧ artifact.even.Valid ∧ artifact.odd.Valid

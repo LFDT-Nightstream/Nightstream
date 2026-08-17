@@ -5,14 +5,14 @@ import Nightstream.Implementation.Nebula.NIFS.PiDEC.Rows
 Contract: exact placement of all V2 PiRLC algebra ring families.
 
 The parent contains 110 base-ring families: 72 commitment rings, ten public
-input rings, and 28 evaluation-limb rings. Each family uses the same 15
+input rings, and 28 evaluation-limb rings. Each family uses the same 17
 transcript-derived challenge rings and one exact ring-combination occurrence.
 
 This file owns the family enumeration, disjoint auxiliary windows, aggregate
 row and column counts, and restriction of aggregate row satisfaction to each
 family. It does not own the typed paper-parent bridge or transcript sampling.
 
-Emits constraints: 4,817,340 R1CS rows and owns 4,811,400 auxiliary columns.
+Emits constraints: 5,458,860 R1CS rows and owns 5,452,920 auxiliary columns.
 -/
 
 set_option autoImplicit false
@@ -270,9 +270,9 @@ def rows (layout : Layout) : List Row :=
   families.flatMap fun family =>
     ProductPiRlcRingCombinationRows.rows (familyLayout layout family)
 
-theorem rows_length (layout : Layout) : (rows layout).length = 4817340 := by
+theorem rows_length (layout : Layout) : (rows layout).length = 5458860 := by
   unfold rows
-  rw [length_flatMap_uniform _ _ 43794]
+  rw [length_flatMap_uniform _ _ 49626]
   · rw [families_length]
   · intro family
     exact ProductPiRlcRingCombinationRows.rows_length
@@ -283,7 +283,7 @@ def allocation (layout : Layout) : List Nat :=
     ProductPiRlcRingCombinationRows.allocation (familyLayout layout family)
 
 theorem allocation_length (layout : Layout) :
-    (allocation layout).length = 4811400 := by
+    (allocation layout).length = 5452920 := by
   unfold allocation
   rw [length_flatMap_uniform _ _
     ProductPiRlcRingCombinationRows.auxiliaryCount]
@@ -307,13 +307,13 @@ theorem family_windows_disjoint
   rcases Nat.lt_or_gt_of_ne ordinalDifferent with before | after
   · left
     have auxiliaryExact :
-        ProductPiRlcRingCombinationRows.auxiliaryCount = 43740 := by
+        ProductPiRlcRingCombinationRows.auxiliaryCount = 49572 := by
       decide
     simp only [familyBase, auxiliaryExact]
     omega
   · right
     have auxiliaryExact :
-        ProductPiRlcRingCombinationRows.auxiliaryCount = 43740 := by
+        ProductPiRlcRingCombinationRows.auxiliaryCount = 49572 := by
       decide
     simp only [familyBase, auxiliaryExact]
     omega

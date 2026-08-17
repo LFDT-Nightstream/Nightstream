@@ -19,117 +19,91 @@ open Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCF
 
 def ledger : RawLedger where
   schemaVersion := 1
-  rows := 282459
-  columns := 2521314
-  evenSourceRows := 569886
-  oddSourceRows := 571086
-  rewriteCount := 3268
+  rows := 491046
+  columns := 8858862
+  evenSourceRows := 1300897
+  oddSourceRows := 1302097
+  rewriteCount := 14638
+  evenLinearDefinitionCount := 4520
+  oddLinearDefinitionCount := 4520
   fixedRuns :=
     [
       { start := 0, length := 2, family := .selectorDomain, arm := none }
-    , { start := 2, length := 32826, family := .sharedDomain, arm := none }
-    , { start := 32828, length := 704, family := .armDomain, arm := some 0 }
-    , { start := 33532, length := 704, family := .armDomain, arm := some 1 }
-    , { start := 34236, length := 1, family := .oneHot, arm := none }
-    , { start := 34237, length := 7, family := .publicPadding, arm := none }
-    , { start := 34244, length := 52, family := .privatePadding, arm := none }
-    , { start := 282420, length := 39, family := .ringPadding, arm := none }
+    , { start := 2, length := 18360, family := .sharedDomain, arm := none }
+    , { start := 18362, length := 704, family := .armDomain, arm := some 0 }
+    , { start := 19066, length := 704, family := .armDomain, arm := some 1 }
+    , { start := 19770, length := 1, family := .oneHot, arm := none }
+    , { start := 19771, length := 7, family := .publicPadding, arm := none }
+    , { start := 19778, length := 52, family := .privatePadding, arm := none }
+    , { start := 491024, length := 22, family := .ringPadding, arm := none }
     ]
   retainedRuns :=
     [
-      { arm := 0, sourceStart := 0, length := 43794, emittedStart := 34296 }
-    , { arm := 0, sourceStart := 43794, length := 41, emittedStart := 78090 }
-    , { arm := 0, sourceStart := 144275, length := 2, emittedStart := 78131 }
-    , { arm := 0, sourceStart := 144277, length := 108, emittedStart := 78133 }
-    , { arm := 0, sourceStart := 144385, length := 1621, emittedStart := 78241 }
-    , { arm := 0, sourceStart := 275006, length := 140, emittedStart := 79862 }
-    , { arm := 0, sourceStart := 558380, length := 1, emittedStart := 80002 }
-    , { arm := 0, sourceStart := 558386, length := 69, emittedStart := 80003 }
-    , { arm := 0, sourceStart := 563892, length := 276, emittedStart := 80072 }
-    , { arm := 0, sourceStart := 569610, length := 276, emittedStart := 80348 }
-    , { arm := 1, sourceStart := 0, length := 43794, emittedStart := 158272 }
-    , { arm := 1, sourceStart := 43794, length := 41, emittedStart := 202066 }
-    , { arm := 1, sourceStart := 144275, length := 2, emittedStart := 202107 }
-    , { arm := 1, sourceStart := 144277, length := 108, emittedStart := 202109 }
-    , { arm := 1, sourceStart := 144385, length := 1621, emittedStart := 202217 }
-    , { arm := 1, sourceStart := 276206, length := 140, emittedStart := 203838 }
-    , { arm := 1, sourceStart := 559580, length := 1, emittedStart := 203978 }
-    , { arm := 1, sourceStart := 559586, length := 69, emittedStart := 203979 }
-    , { arm := 1, sourceStart := 565092, length := 276, emittedStart := 204048 }
-    , { arm := 1, sourceStart := 570810, length := 276, emittedStart := 204324 }
+      { arm := 0, sourceStart := 0, length := 49626, emittedStart := 19830 }
+    , { arm := 0, sourceStart := 49626, length := 41, emittedStart := 69456 }
+    , { arm := 0, sourceStart := 163499, length := 2, emittedStart := 69497 }
+    , { arm := 0, sourceStart := 163501, length := 108, emittedStart := 69499 }
+    , { arm := 0, sourceStart := 163609, length := 1837, emittedStart := 69607 }
+    , { arm := 0, sourceStart := 310646, length := 140, emittedStart := 71444 }
+    , { arm := 0, sourceStart := 626424, length := 2169, emittedStart := 71584 }
+    , { arm := 0, sourceStart := 1289391, length := 1, emittedStart := 73753 }
+    , { arm := 0, sourceStart := 1289397, length := 69, emittedStart := 73754 }
+    , { arm := 0, sourceStart := 1294903, length := 276, emittedStart := 73823 }
+    , { arm := 0, sourceStart := 1300621, length := 276, emittedStart := 74099 }
+    , { arm := 1, sourceStart := 0, length := 49626, emittedStart := 255341 }
+    , { arm := 1, sourceStart := 49626, length := 41, emittedStart := 304967 }
+    , { arm := 1, sourceStart := 163499, length := 2, emittedStart := 305008 }
+    , { arm := 1, sourceStart := 163501, length := 108, emittedStart := 305010 }
+    , { arm := 1, sourceStart := 163609, length := 1837, emittedStart := 305118 }
+    , { arm := 1, sourceStart := 311846, length := 140, emittedStart := 306955 }
+    , { arm := 1, sourceStart := 627624, length := 2169, emittedStart := 307095 }
+    , { arm := 1, sourceStart := 1290591, length := 1, emittedStart := 309264 }
+    , { arm := 1, sourceStart := 1290597, length := 69, emittedStart := 309265 }
+    , { arm := 1, sourceStart := 1296103, length := 276, emittedStart := 309334 }
+    , { arm := 1, sourceStart := 1301821, length := 276, emittedStart := 309610 }
     ]
   rewriteBatches :=
     [
-      { rewriteStart := 0, count := 215, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 146006, sourceStride := 600, sourceWidth := 600, emittedStart := 80624, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 215, count := 2, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 275161, sourceStride := 601, sourceWidth := 600, emittedStart := 99114, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 217, count := 233, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 276362, sourceStride := 600, sourceWidth := 600, emittedStart := 99286, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 450, count := 2, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 416163, sourceStride := 613, sourceWidth := 600, emittedStart := 119324, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 452, count := 234, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 417377, sourceStride := 600, sourceWidth := 600, emittedStart := 119496, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 686, count := 2, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 557778, sourceStride := 685, sourceWidth := 600, emittedStart := 139620, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 688, count := 7, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 559067, sourceStride := 604, sourceWidth := 600, emittedStart := 139792, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 695, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 563292, sourceStride := 0, sourceWidth := 600, emittedStart := 140394, emittedStride := 0, emittedWidth := 90 }
-    , { rewriteStart := 696, count := 8, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 564181, sourceStride := 604, sourceWidth := 600, emittedStart := 140484, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 704, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 569010, sourceStride := 0, sourceWidth := 600, emittedStart := 141172, emittedStride := 0, emittedWidth := 90 }
-    , { rewriteStart := 705, count := 810, rewriteStride := 1, arm := 0, kind := .shiftedTernaryCanonical, sourceStart := 43835, sourceStride := 124, sourceWidth := 124, emittedStart := 141262, emittedStride := 21, emittedWidth := 21 }
-    , { rewriteStart := 1515, count := 15, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 275146, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1530, count := 2, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 275761, sourceStride := 140401, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1532, count := 13, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 416763, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1545, count := 2, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 417376, sourceStride := 140401, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1547, count := 2, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 558378, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1549, count := 5, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 558381, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1554, count := 8, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 558455, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1562, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 559063, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1566, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 559667, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1570, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 560271, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1574, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 560875, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1578, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 561479, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1582, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 562083, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1586, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 562687, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1590, count := 2, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 563291, sourceStride := 877, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1592, count := 12, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 564169, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1604, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 564781, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1608, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 565385, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1612, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 565989, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1616, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 566593, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1620, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 567197, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1624, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 567801, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1628, count := 4, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 568405, sourceStride := 1, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1632, count := 1, rewriteStride := 1, arm := 0, kind := .linearDefinition, sourceStart := 569009, sourceStride := 0, sourceWidth := 1, emittedStart := 158272, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 1633, count := 217, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 146006, sourceStride := 600, sourceWidth := 600, emittedStart := 204600, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 1850, count := 2, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 276361, sourceStride := 601, sourceWidth := 600, emittedStart := 223262, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 1852, count := 233, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 277562, sourceStride := 600, sourceWidth := 600, emittedStart := 223434, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 2085, count := 2, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 417363, sourceStride := 613, sourceWidth := 600, emittedStart := 243472, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 2087, count := 234, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 418577, sourceStride := 600, sourceWidth := 600, emittedStart := 243644, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 2321, count := 2, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 558978, sourceStride := 685, sourceWidth := 600, emittedStart := 263768, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 2323, count := 7, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 560267, sourceStride := 604, sourceWidth := 600, emittedStart := 263940, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 2330, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 564492, sourceStride := 0, sourceWidth := 600, emittedStart := 264542, emittedStride := 0, emittedWidth := 90 }
-    , { rewriteStart := 2331, count := 8, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 565381, sourceStride := 604, sourceWidth := 600, emittedStart := 264632, emittedStride := 86, emittedWidth := 86 }
-    , { rewriteStart := 2339, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 570210, sourceStride := 0, sourceWidth := 600, emittedStart := 265320, emittedStride := 0, emittedWidth := 90 }
-    , { rewriteStart := 2340, count := 810, rewriteStride := 1, arm := 1, kind := .shiftedTernaryCanonical, sourceStart := 43835, sourceStride := 124, sourceWidth := 124, emittedStart := 265410, emittedStride := 21, emittedWidth := 21 }
-    , { rewriteStart := 3150, count := 15, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 276346, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3165, count := 2, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 276961, sourceStride := 140401, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3167, count := 13, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 417963, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3180, count := 2, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 418576, sourceStride := 140401, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3182, count := 2, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 559578, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3184, count := 5, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 559581, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3189, count := 8, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 559655, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3197, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 560263, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3201, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 560867, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3205, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 561471, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3209, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 562075, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3213, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 562679, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3217, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 563283, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3221, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 563887, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3225, count := 2, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 564491, sourceStride := 877, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3227, count := 12, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 565369, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3239, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 565981, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3243, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 566585, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3247, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 567189, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3251, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 567793, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3255, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 568397, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3259, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 569001, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3263, count := 4, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 569605, sourceStride := 1, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
-    , { rewriteStart := 3267, count := 1, rewriteStride := 1, arm := 1, kind := .linearDefinition, sourceStart := 570209, sourceStride := 0, sourceWidth := 1, emittedStart := 282420, emittedStride := 0, emittedWidth := 0 }
+      { rewriteStart := 0, count := 242, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 165446, sourceStride := 600, sourceWidth := 600, emittedStart := 74375, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 242, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 310801, sourceStride := 0, sourceWidth := 600, emittedStart := 95187, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 243, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 311402, sourceStride := 0, sourceWidth := 600, emittedStart := 95273, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 244, count := 260, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 312002, sourceStride := 600, sourceWidth := 600, emittedStart := 95359, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 504, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 468003, sourceStride := 0, sourceWidth := 600, emittedStart := 117719, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 505, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 468616, sourceStride := 0, sourceWidth := 600, emittedStart := 117805, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 506, count := 261, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 469217, sourceStride := 600, sourceWidth := 600, emittedStart := 117891, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 767, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 625818, sourceStride := 0, sourceWidth := 600, emittedStart := 140337, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 768, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 628613, sourceStride := 0, sourceWidth := 600, emittedStart := 140423, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 769, count := 545, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 629217, sourceStride := 604, sourceWidth := 600, emittedStart := 140509, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 1314, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 958394, sourceStride := 0, sourceWidth := 600, emittedStart := 187379, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 1315, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 959010, sourceStride := 0, sourceWidth := 600, emittedStart := 187465, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 1316, count := 545, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 959614, sourceStride := 604, sourceWidth := 600, emittedStart := 187551, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 1861, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 1288791, sourceStride := 0, sourceWidth := 600, emittedStart := 234421, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 1862, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 1289474, sourceStride := 0, sourceWidth := 600, emittedStart := 234507, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 1863, count := 7, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 1290078, sourceStride := 604, sourceWidth := 600, emittedStart := 234593, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 1870, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 1294303, sourceStride := 0, sourceWidth := 600, emittedStart := 235195, emittedStride := 0, emittedWidth := 90 }
+    , { rewriteStart := 1871, count := 8, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 1295192, sourceStride := 604, sourceWidth := 600, emittedStart := 235285, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 1879, count := 1, rewriteStride := 1, arm := 0, kind := .poseidon2, sourceStart := 1300021, sourceStride := 0, sourceWidth := 600, emittedStart := 235973, emittedStride := 0, emittedWidth := 90 }
+    , { rewriteStart := 1880, count := 918, rewriteStride := 1, arm := 0, kind := .shiftedTernaryCanonical, sourceStart := 49667, sourceStride := 124, sourceWidth := 124, emittedStart := 236063, emittedStride := 21, emittedWidth := 21 }
+    , { rewriteStart := 7318, count := 244, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 165446, sourceStride := 600, sourceWidth := 600, emittedStart := 309886, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 7562, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 312001, sourceStride := 0, sourceWidth := 600, emittedStart := 330870, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 7563, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 312602, sourceStride := 0, sourceWidth := 600, emittedStart := 330956, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 7564, count := 260, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 313202, sourceStride := 600, sourceWidth := 600, emittedStart := 331042, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 7824, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 469203, sourceStride := 0, sourceWidth := 600, emittedStart := 353402, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 7825, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 469816, sourceStride := 0, sourceWidth := 600, emittedStart := 353488, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 7826, count := 261, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 470417, sourceStride := 600, sourceWidth := 600, emittedStart := 353574, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 8087, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 627018, sourceStride := 0, sourceWidth := 600, emittedStart := 376020, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 8088, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 629813, sourceStride := 0, sourceWidth := 600, emittedStart := 376106, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 8089, count := 545, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 630417, sourceStride := 604, sourceWidth := 600, emittedStart := 376192, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 8634, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 959594, sourceStride := 0, sourceWidth := 600, emittedStart := 423062, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 8635, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 960210, sourceStride := 0, sourceWidth := 600, emittedStart := 423148, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 8636, count := 545, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 960814, sourceStride := 604, sourceWidth := 600, emittedStart := 423234, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 9181, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 1289991, sourceStride := 0, sourceWidth := 600, emittedStart := 470104, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 9182, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 1290674, sourceStride := 0, sourceWidth := 600, emittedStart := 470190, emittedStride := 0, emittedWidth := 86 }
+    , { rewriteStart := 9183, count := 7, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 1291278, sourceStride := 604, sourceWidth := 600, emittedStart := 470276, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 9190, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 1295503, sourceStride := 0, sourceWidth := 600, emittedStart := 470878, emittedStride := 0, emittedWidth := 90 }
+    , { rewriteStart := 9191, count := 8, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 1296392, sourceStride := 604, sourceWidth := 600, emittedStart := 470968, emittedStride := 86, emittedWidth := 86 }
+    , { rewriteStart := 9199, count := 1, rewriteStride := 1, arm := 1, kind := .poseidon2, sourceStart := 1301221, sourceStride := 0, sourceWidth := 600, emittedStart := 471656, emittedStride := 0, emittedWidth := 90 }
+    , { rewriteStart := 9200, count := 918, rewriteStride := 1, arm := 1, kind := .shiftedTernaryCanonical, sourceStart := 49667, sourceStride := 124, sourceWidth := 124, emittedStart := 471746, emittedStride := 21, emittedWidth := 21 }
     ]
 
 end Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.Generated.FPrimeFullHistoryStreamingPiRLCFamilyBodyRowLedger

@@ -8,8 +8,8 @@ import Nightstream.Implementation.R1CS.Canonical.Poseidon2Normalized
 Contract: exact local-state digest and full-XOut public-word placement for one
 streaming PiRLC family arm.
 
-Owns the four fixed field-framing words, the exact 937-field before and after
-local preimages, the 236 connected Poseidon2 calls for each local digest, the
+Owns the four fixed field-framing words, the exact 1045-field before and after
+local preimages, the 263 connected Poseidon2 calls for each local digest, the
 placement of those digests in the phase-envelope source columns, and the eight
 full-XOut public digest-word roles.
 
@@ -71,7 +71,7 @@ def phaseEnvelopeLocalSourceColumn
 /-! ## Exact physical schedule -/
 
 def digestPinValues : List Nat :=
-  initialStateValues ++ [2, 5, 435744240755, 937, 1]
+  initialStateValues ++ [2, 5, 435744240755, 1045, 1]
 
 def digestPinColumns (kind : ArmKind) : StateSide → List Nat
   | .after => (armFor kind).afterDigestPinColumns
@@ -79,13 +79,13 @@ def digestPinColumns (kind : ArmKind) : StateSide → List Nat
 
 def digestCallOffset : StateSide → Nat
   | .after => 0
-  | .before => 236
+  | .before => 263
 
 def digestTrace (kind : ArmKind) (side : StateSide) :
     TranscriptCertificate.Trace where
   pins := (digestPinColumns kind side).zip digestPinValues
   calls := ((armFor kind).poseidon2Calls.drop
-    (digestCallOffset side)).take 236
+    (digestCallOffset side)).take 263
 
 def digestStart (kind : ArmKind) (side : StateSide) : ColumnReplay.Run where
   cursor := {
@@ -113,26 +113,26 @@ def xOutDigestColumn
   | .after => (armFor kind).afterXOutDigestColumns.getD lane.val 0
   | .before => (armFor kind).beforeXOutDigestColumns.getD lane.val 0
 
-/-- The digest relation contains the append-fields framing, exactly 937 state
+/-- The digest relation contains the append-fields framing, exactly 1045 state
 fields, and one digest gate. -/
 def digestOperations (kind : ArmKind) (side : StateSide) :
     List ColumnReplay.Operation :=
-  [.pinned 2, .pinned 5, .pinned 435744240755, .pinned 937] ++
-    ((List.range 937).map fun index =>
+  [.pinned 2, .pinned 5, .pinned 435744240755, .pinned 1045] ++
+    ((List.range 1045).map fun index =>
       .external (stateWordColumnFor kind side index)) ++
     [.digest]
 
 /-- The operation list has no hidden or prover-selected preimage word. -/
 theorem exact_digest_operation_shape (kind : ArmKind) (side : StateSide) :
-    (digestOperations kind side).length = 942 ∧
-      ((digestOperations kind side).drop 4).take 937 =
-        ((List.range 937).map fun index =>
+    (digestOperations kind side).length = 1050 ∧
+      ((digestOperations kind side).drop 4).take 1045 =
+        ((List.range 1045).map fun index =>
           .external (stateWordColumnFor kind side index)) ∧
-      (digestOperations kind side).getD 941 (.pinned 0) = .digest := by
+      (digestOperations kind side).getD 1049 (.pinned 0) = .digest := by
   simp [digestOperations]
 
 def digestLastCall (kind : ArmKind) (side : StateSide) : Poseidon2Call.Call :=
-  (digestTrace kind side).calls.getD 235 default
+  (digestTrace kind side).calls.getD 262 default
 
 def digestOutputColumns
     (kind : ArmKind) (side : StateSide) : Fin 4 → Nat := fun lane =>
@@ -147,7 +147,7 @@ def digestResult (kind : ArmKind) (side : StateSide) : ColumnReplay.Run where
     lanes := ColumnReplay.callOutputColumns (digestLastCall kind side)
     absorbed := ⟨0, by decide⟩
     nextPin := 13
-    nextCall := 236 }
+    nextCall := 263 }
   digests := [digestOutputColumns kind side]
 
 private structure CursorView where
@@ -225,21 +225,135 @@ private theorem executionMatches_sound
         exact of_decide_eq_true (by simpa [executionMatches] using checked)
       rw [runView_injective viewsEqual]
 
-private theorem digest_execution_checked
-    (kind : ArmKind) (side : StateSide) :
-    executionMatches
-      (ColumnReplay.execute (digestTrace kind side) (digestStart kind side)
-        (digestOperations kind side))
-      (digestResult kind side) = true := by
-  cases kind <;> cases side <;> native_decide
+private def digestTail0 (kind : ArmKind) (side : StateSide) :=
+  digestOperations kind side
 
-/-- Each physical digest path consumes 13 pins and 236 connected Poseidon2
+private def digestChunk0 (kind : ArmKind) (side : StateSide) :=
+  (digestTail0 kind side).take 256
+
+private def digestTail1 (kind : ArmKind) (side : StateSide) :=
+  (digestTail0 kind side).drop 256
+
+private def digestChunk1 (kind : ArmKind) (side : StateSide) :=
+  (digestTail1 kind side).take 256
+
+private def digestTail2 (kind : ArmKind) (side : StateSide) :=
+  (digestTail1 kind side).drop 256
+
+private def digestChunk2 (kind : ArmKind) (side : StateSide) :=
+  (digestTail2 kind side).take 256
+
+private def digestTail3 (kind : ArmKind) (side : StateSide) :=
+  (digestTail2 kind side).drop 256
+
+private def digestChunk3 (kind : ArmKind) (side : StateSide) :=
+  (digestTail3 kind side).take 256
+
+private def digestTail4 (kind : ArmKind) (side : StateSide) :=
+  (digestTail3 kind side).drop 256
+
+/-- Exact replay state after one 256-operation leaf. The first two lanes are
+the last two absorbed state columns. The other lanes remain the output of the
+last consumed call. -/
+private def digestCheckpoint
+    (kind : ArmKind) (side : StateSide)
+    (leftState rightState callIndex nextCall : Nat) : ColumnReplay.Run where
+  cursor := {
+    lanes := fun lane =>
+      if lane.val = 0 then stateWordColumnFor kind side leftState
+      else if lane.val = 1 then stateWordColumnFor kind side rightState
+      else ColumnReplay.callOutputColumns
+        ((digestTrace kind side).calls.getD callIndex default) lane
+    absorbed := ⟨2, by decide⟩
+    nextPin := 12
+    nextCall := nextCall }
+  digests := []
+
+private def digestRun1 (kind : ArmKind) (side : StateSide) : ColumnReplay.Run :=
+  digestCheckpoint kind side 250 251 63 64
+
+private def digestRun2 (kind : ArmKind) (side : StateSide) : ColumnReplay.Run :=
+  digestCheckpoint kind side 506 507 127 128
+
+private def digestRun3 (kind : ArmKind) (side : StateSide) : ColumnReplay.Run :=
+  digestCheckpoint kind side 762 763 191 192
+
+private def digestRun4 (kind : ArmKind) (side : StateSide) : ColumnReplay.Run :=
+  digestCheckpoint kind side 1018 1019 255 256
+
+private theorem digestChunk0_execution
+    (kind : ArmKind) (side : StateSide) :
+    ColumnReplay.execute (digestTrace kind side) (digestStart kind side)
+        (digestChunk0 kind side) =
+      some (digestRun1 kind side) := by
+  cases kind <;> cases side <;> apply executionMatches_sound <;> rfl
+
+private theorem digestChunk1_execution
+    (kind : ArmKind) (side : StateSide) :
+    ColumnReplay.execute (digestTrace kind side) (digestRun1 kind side)
+        (digestChunk1 kind side) =
+      some (digestRun2 kind side) := by
+  cases kind <;> cases side <;> apply executionMatches_sound <;> rfl
+
+private theorem digestChunk2_execution
+    (kind : ArmKind) (side : StateSide) :
+    ColumnReplay.execute (digestTrace kind side) (digestRun2 kind side)
+        (digestChunk2 kind side) =
+      some (digestRun3 kind side) := by
+  cases kind <;> cases side <;> apply executionMatches_sound <;> rfl
+
+private theorem digestChunk3_execution
+    (kind : ArmKind) (side : StateSide) :
+    ColumnReplay.execute (digestTrace kind side) (digestRun3 kind side)
+        (digestChunk3 kind side) =
+      some (digestRun4 kind side) := by
+  cases kind <;> cases side <;> apply executionMatches_sound <;> rfl
+
+private theorem digestTail4_execution
+    (kind : ArmKind) (side : StateSide) :
+    ColumnReplay.execute (digestTrace kind side) (digestRun4 kind side)
+        (digestTail4 kind side) =
+      some (digestResult kind side) := by
+  cases kind <;> cases side <;> apply executionMatches_sound <;> rfl
+
+private theorem digestTail3_execution
+    (kind : ArmKind) (side : StateSide) :
+    ColumnReplay.execute (digestTrace kind side) (digestRun3 kind side)
+        (digestTail3 kind side) =
+      some (digestResult kind side) := by
+  rw [← List.take_append_drop 256 (digestTail3 kind side)]
+  exact ColumnReplay.execute_append (digestChunk3_execution kind side)
+    (digestTail4_execution kind side)
+
+private theorem digestTail2_execution
+    (kind : ArmKind) (side : StateSide) :
+    ColumnReplay.execute (digestTrace kind side) (digestRun2 kind side)
+        (digestTail2 kind side) =
+      some (digestResult kind side) := by
+  rw [← List.take_append_drop 256 (digestTail2 kind side)]
+  exact ColumnReplay.execute_append (digestChunk2_execution kind side)
+    (digestTail3_execution kind side)
+
+private theorem digestTail1_execution
+    (kind : ArmKind) (side : StateSide) :
+    ColumnReplay.execute (digestTrace kind side) (digestRun1 kind side)
+        (digestTail1 kind side) =
+      some (digestResult kind side) := by
+  rw [← List.take_append_drop 256 (digestTail1 kind side)]
+  exact ColumnReplay.execute_append (digestChunk1_execution kind side)
+    (digestTail2_execution kind side)
+
+/-- Each physical digest path consumes 13 pins and 263 connected Poseidon2
 calls and exposes one four-lane digest. -/
 theorem digest_execution (kind : ArmKind) (side : StateSide) :
     ColumnReplay.execute (digestTrace kind side) (digestStart kind side)
         (digestOperations kind side) =
       some (digestResult kind side) := by
-  exact executionMatches_sound (digest_execution_checked kind side)
+  change ColumnReplay.execute (digestTrace kind side) (digestStart kind side)
+      (digestTail0 kind side) = some (digestResult kind side)
+  rw [← List.take_append_drop 256 (digestTail0 kind side)]
+  exact ColumnReplay.execute_append (digestChunk0_execution kind side)
+    (digestTail1_execution kind side)
 
 def glueProgram (kind : ArmKind) : List Row :=
   (armFor kind).glueRows.map IndexedRow.row
@@ -247,18 +361,33 @@ def glueProgram (kind : ArmKind) : List Row :=
 theorem digest_trace_pins_canonical
     (kind : ArmKind) (side : StateSide) :
     ConstantPins.ValuesCanonical (digestTrace kind side).pins := by
-  cases kind <;> cases side <;> native_decide
+  cases kind <;> cases side <;> decide
 
 def normalizedDigestPinRows
     (kind : ArmKind) (side : StateSide) : List Row :=
   Poseidon2Normalized.normalizeProgram
     (ConstantPins.rows (digestTrace kind side).pins)
 
-private theorem digest_pins_in_glue
+private theorem normalized_digest_pin_rows_exact
     (kind : ArmKind) (side : StateSide) :
-    rowsIncluded (normalizedDigestPinRows kind side)
-      (glueProgram kind) = true := by
-  cases kind <;> cases side <;> native_decide
+    normalizedDigestPinRows kind side =
+      ((glueProgram kind).drop
+        (match side with | .after => 6 | .before => 21)).take 13 := by
+  cases kind <;> cases side <;> rfl
+
+private theorem digest_pin_row_mem_glue
+    (kind : ArmKind) (side : StateSide) (row : Row)
+    (member : row ∈ normalizedDigestPinRows kind side) :
+    row ∈ glueProgram kind := by
+  rw [normalized_digest_pin_rows_exact kind side] at member
+  exact List.mem_of_mem_drop (List.mem_of_mem_take member)
+
+private theorem rowsIncluded_self (rows : List Row) :
+    rowsIncluded rows rows = true := by
+  unfold rowsIncluded
+  apply List.all_eq_true.mpr
+  intro row member
+  exact decide_eq_true member
 
 private theorem glue_satisfies
     (kind : ArmKind) (assignment : Nat → Nat)
@@ -280,7 +409,7 @@ private theorem digest_pin_facts
       Satisfies (normalizedDigestPinRows kind side) assignment := by
     intro row member
     exact glue_satisfies kind assignment satisfied row
-      (rowsIncluded_sound (digest_pins_in_glue kind side) row member)
+      (digest_pin_row_mem_glue kind side row member)
   have pinRowsSatisfy :
       Satisfies (ConstantPins.rows (digestTrace kind side).pins)
         assignment :=
@@ -290,7 +419,7 @@ private theorem digest_pin_facts
   exact ConstantPins.sound
     (programRows := ConstantPins.rows (digestTrace kind side).pins)
     (digest_trace_pins_canonical kind side)
-    (by cases kind <;> cases side <;> native_decide)
+    (rowsIncluded_self _)
     canonical one pinRowsSatisfy
 
 /-- Satisfying exact arm rows accept the isolated state-digest trace. -/
@@ -319,7 +448,7 @@ private theorem getD_mem_of_lt {alpha : Type} [Inhabited alpha]
 private theorem digest_pin_count
     (kind : ArmKind) (side : StateSide) :
     (digestTrace kind side).pins.length = 13 := by
-  cases kind <;> cases side <;> native_decide
+  cases kind <;> cases side <;> rfl
 
 private theorem initial_pin_shape
     (kind : ArmKind) (side : StateSide) :
@@ -327,7 +456,8 @@ private theorem initial_pin_shape
       (digestTrace kind side).pins.getD lane.val (0, 0) =
         ((digestStart kind side).cursor.lanes lane,
           initialStateValues.getD lane.val 0) := by
-  cases kind <;> cases side <;> native_decide
+  intro lane
+  cases kind <;> cases side <;> fin_cases lane <;> rfl
 
 private theorem state_ext {left right : State}
     (lanes : left.lanes = right.lanes)
@@ -382,7 +512,7 @@ def initialSemanticRun : ColumnReplay.SemanticRun where
   digests := []
 
 /-- Independent semantic execution whose single output is the digest of the
-exact selected 937-field state preimage. -/
+exact selected 1045-field state preimage. -/
 def semanticDigestRun
     (assignment : Nat → Nat)
     (canonical : ∀ column, assignment column < goldilocksP)
@@ -473,7 +603,9 @@ def cursorPublicWordIndex : StateSide → Fin 10
 private theorem publicWordCall_mem
     (kind : ArmKind) (word : Fin 10) :
     publicWordCall kind word ∈ (armFor kind).canonicalCalls := by
-  cases kind <;> fin_cases word <;> native_decide
+  unfold publicWordCall
+  apply getD_mem_of_lt
+  cases kind <;> fin_cases word <;> decide
 
 /-- The exact canonical-u64 rows identify each ordered public word with its
 Rust-selected source field. -/
@@ -510,7 +642,7 @@ private theorem public_x_out_field_column_exact
     (kind : ArmKind) (side : StateSide) (lane : Fin 4) :
     (publicWordCall kind (xOutPublicWordIndex side lane)).fieldColumn =
       xOutDigestColumn kind side lane := by
-  cases kind <;> cases side <;> fin_cases lane <;> native_decide
+  cases kind <;> cases side <;> fin_cases lane <;> rfl
 
 /-- One physical full-XOut digest lane is exactly the canonical integer
 represented by its ordered public 64-bit word. -/
@@ -540,7 +672,7 @@ theorem state_digest_phase_envelope_source
   have columnEqual :
       digestOutputColumns kind side lane =
         phaseEnvelopeLocalSourceColumn kind side lane := by
-    cases kind <;> cases side <;> fin_cases lane <;> native_decide
+    cases kind <;> cases side <;> fin_cases lane <;> rfl
   exact (congrArg Fin.val digestEqual).trans (congrArg assignment columnEqual)
 
 /-- Complete physical binding of the eight shared full-XOut digest words on

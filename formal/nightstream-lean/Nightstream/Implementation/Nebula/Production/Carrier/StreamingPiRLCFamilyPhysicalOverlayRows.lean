@@ -48,7 +48,7 @@ private abbrev Digit := Fin 41
 private abbrev Output := Fin 108
 
 /-- Exact local columns emitted by the Rust physical overlay builder. Only
-the zero word, the 810 active words, and the 108 outputs are authoritative.
+the zero word, the 918 active words, and the 108 outputs are authoritative.
 The other layout fields are not read by the seeded coordinate rows. -/
 def physicalLayout : InputPhaseLayout where
   inputColumn := fun _ _ => 0
@@ -102,14 +102,14 @@ theorem fieldLinkCount_exact : fieldLinkCount = 33359 := by
 /-- The compact link runs start at the exact body and physical columns and
 use the exact body and overlay strides. -/
 theorem link_run_geometry_exact :
-    sourceLayout.input.phase.zeroDigitStart = 45415 /\
+    sourceLayout.input.phase.zeroDigitStart = 51463 /\
       physicalLayout.zeroDigitStart = 1 /\
       sourceLayout.input.phase.digitStart
-          ⟨0, by decide⟩ ⟨0, by decide⟩ = 45456 /\
+          ⟨0, by decide⟩ ⟨0, by decide⟩ = 51504 /\
       physicalLayout.digitStart ⟨0, by decide⟩ ⟨0, by decide⟩ = 42 /\
-      sourceLayout.input.phase.outputColumn ⟨0, by decide⟩ = 144278 /\
+      sourceLayout.input.phase.outputColumn ⟨0, by decide⟩ = 163502 /\
       physicalLayout.outputColumn ⟨0, by decide⟩ = 33252 := by
-  native_decide
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- Exact body source digits transfer to the physical overlay assignment
 through all 33,251 input links. -/

@@ -73,74 +73,74 @@ def evenTail3 := evenTail2.drop 64
 theorem evenChunk0_length : evenChunk0.length = 64 := by rfl
 theorem evenChunk1_length : evenChunk1.length = 64 := by rfl
 theorem evenChunk2_length : evenChunk2.length = 64 := by rfl
-theorem evenTail3_length : evenTail3.length = 23 := by rfl
+theorem evenTail3_length : evenTail3.length = 50 := by rfl
 
 theorem evenArm_poseidon2Calls_length :
-    evenArm.poseidon2Calls.length = 215 := by
-  have tail2 : evenTail2.length = 87 :=
+    evenArm.poseidon2Calls.length = 242 := by
+  have tail2 : evenTail2.length = 114 :=
     length_of_take_drop (items := evenTail2) (count := 64)
       evenChunk2_length evenTail3_length
-  have tail1 : evenTail1.length = 151 :=
+  have tail1 : evenTail1.length = 178 :=
     length_of_take_drop (items := evenTail1) (count := 64)
       evenChunk1_length tail2
   exact length_of_take_drop (items := evenTail0) (count := 64)
     evenChunk0_length tail1
 
 theorem evenChunk0_valid :
-    ∀ call ∈ evenChunk0, PoseidonCallValid 275240 call := by
+    ∀ call ∈ evenChunk0, PoseidonCallValid 310880 call := by
   norm_num [evenChunk0, evenTail0, PoseidonCallValid, evenArm]
 
 theorem evenChunk1_valid :
-    ∀ call ∈ evenChunk1, PoseidonCallValid 275240 call := by
+    ∀ call ∈ evenChunk1, PoseidonCallValid 310880 call := by
   norm_num [evenChunk1, evenTail1, evenTail0, PoseidonCallValid, evenArm]
 
 theorem evenChunk2_valid :
-    ∀ call ∈ evenChunk2, PoseidonCallValid 275240 call := by
+    ∀ call ∈ evenChunk2, PoseidonCallValid 310880 call := by
   norm_num [evenChunk2, evenTail2, evenTail1, evenTail0,
     PoseidonCallValid, evenArm]
 
 theorem evenTail3_valid :
-    ∀ call ∈ evenTail3, PoseidonCallValid 275240 call := by
+    ∀ call ∈ evenTail3, PoseidonCallValid 310880 call := by
   norm_num [evenTail3, evenTail2, evenTail1, evenTail0,
     PoseidonCallValid, evenArm]
 
 theorem evenArm_poseidon2Calls_valid :
     ∀ call ∈ evenArm.poseidon2Calls,
       PoseidonCallValid evenArm.columnCount call := by
-  change ∀ call ∈ evenTail0, PoseidonCallValid 275240 call
+  change ∀ call ∈ evenTail0, PoseidonCallValid 310880 call
   exact valid_of_take_drop evenChunk0_valid
     (valid_of_take_drop evenChunk1_valid
       (valid_of_take_drop evenChunk2_valid evenTail3_valid))
 
 theorem evenChunk0_chain :
-    exactCallChainFrom 0 146240 evenChunk0 = true := by rfl
+    exactCallChainFrom 0 165680 evenChunk0 = true := by rfl
 
 theorem evenChunk1_chain :
-    exactCallChainFrom 38400 184640 evenChunk1 = true := by rfl
+    exactCallChainFrom 38400 204080 evenChunk1 = true := by rfl
 
 theorem evenChunk2_chain :
-    exactCallChainFrom 76800 223040 evenChunk2 = true := by rfl
+    exactCallChainFrom 76800 242480 evenChunk2 = true := by rfl
 
 theorem evenTail3_chain :
-    exactCallChainFrom 115200 261440 evenTail3 = true := by rfl
+    exactCallChainFrom 115200 280880 evenTail3 = true := by rfl
 
 theorem evenTail2_chain :
-    exactCallChainFrom 76800 223040 evenTail2 = true := by
+    exactCallChainFrom 76800 242480 evenTail2 = true := by
   rw [← List.take_append_drop 64 evenTail2]
   apply exactCallChainFrom_append
   · exact evenChunk2_chain
   · simpa [evenChunk2_length] using evenTail3_chain
 
 theorem evenTail1_chain :
-    exactCallChainFrom 38400 184640 evenTail1 = true := by
+    exactCallChainFrom 38400 204080 evenTail1 = true := by
   rw [← List.take_append_drop 64 evenTail1]
   apply exactCallChainFrom_append
   · exact evenChunk1_chain
   · simpa [evenChunk1_length] using evenTail2_chain
 
 theorem evenArm_call_chain :
-    exactCallChainFrom 0 146240 evenArm.poseidon2Calls = true := by
-  change exactCallChainFrom 0 146240 evenTail0 = true
+    exactCallChainFrom 0 165680 evenArm.poseidon2Calls = true := by
+  change exactCallChainFrom 0 165680 evenTail0 = true
   rw [← List.take_append_drop 64 evenTail0]
   apply exactCallChainFrom_append
   · exact evenChunk0_chain
@@ -157,74 +157,74 @@ def oddTail3 := oddTail2.drop 64
 theorem oddChunk0_length : oddChunk0.length = 64 := by rfl
 theorem oddChunk1_length : oddChunk1.length = 64 := by rfl
 theorem oddChunk2_length : oddChunk2.length = 64 := by rfl
-theorem oddTail3_length : oddTail3.length = 25 := by rfl
+theorem oddTail3_length : oddTail3.length = 52 := by rfl
 
 theorem oddArm_poseidon2Calls_length :
-    oddArm.poseidon2Calls.length = 217 := by
-  have tail2 : oddTail2.length = 89 :=
+    oddArm.poseidon2Calls.length = 244 := by
+  have tail2 : oddTail2.length = 116 :=
     length_of_take_drop (items := oddTail2) (count := 64)
       oddChunk2_length oddTail3_length
-  have tail1 : oddTail1.length = 153 :=
+  have tail1 : oddTail1.length = 180 :=
     length_of_take_drop (items := oddTail1) (count := 64)
       oddChunk1_length tail2
   exact length_of_take_drop (items := oddTail0) (count := 64)
     oddChunk0_length tail1
 
 theorem oddChunk0_valid :
-    ∀ call ∈ oddChunk0, PoseidonCallValid 276440 call := by
+    ∀ call ∈ oddChunk0, PoseidonCallValid 312080 call := by
   norm_num [oddChunk0, oddTail0, PoseidonCallValid, oddArm]
 
 theorem oddChunk1_valid :
-    ∀ call ∈ oddChunk1, PoseidonCallValid 276440 call := by
+    ∀ call ∈ oddChunk1, PoseidonCallValid 312080 call := by
   norm_num [oddChunk1, oddTail1, oddTail0, PoseidonCallValid, oddArm]
 
 theorem oddChunk2_valid :
-    ∀ call ∈ oddChunk2, PoseidonCallValid 276440 call := by
+    ∀ call ∈ oddChunk2, PoseidonCallValid 312080 call := by
   norm_num [oddChunk2, oddTail2, oddTail1, oddTail0,
     PoseidonCallValid, oddArm]
 
 theorem oddTail3_valid :
-    ∀ call ∈ oddTail3, PoseidonCallValid 276440 call := by
+    ∀ call ∈ oddTail3, PoseidonCallValid 312080 call := by
   norm_num [oddTail3, oddTail2, oddTail1, oddTail0,
     PoseidonCallValid, oddArm]
 
 theorem oddArm_poseidon2Calls_valid :
     ∀ call ∈ oddArm.poseidon2Calls,
       PoseidonCallValid oddArm.columnCount call := by
-  change ∀ call ∈ oddTail0, PoseidonCallValid 276440 call
+  change ∀ call ∈ oddTail0, PoseidonCallValid 312080 call
   exact valid_of_take_drop oddChunk0_valid
     (valid_of_take_drop oddChunk1_valid
       (valid_of_take_drop oddChunk2_valid oddTail3_valid))
 
 theorem oddChunk0_chain :
-    exactCallChainFrom 0 146240 oddChunk0 = true := by rfl
+    exactCallChainFrom 0 165680 oddChunk0 = true := by rfl
 
 theorem oddChunk1_chain :
-    exactCallChainFrom 38400 184640 oddChunk1 = true := by rfl
+    exactCallChainFrom 38400 204080 oddChunk1 = true := by rfl
 
 theorem oddChunk2_chain :
-    exactCallChainFrom 76800 223040 oddChunk2 = true := by rfl
+    exactCallChainFrom 76800 242480 oddChunk2 = true := by rfl
 
 theorem oddTail3_chain :
-    exactCallChainFrom 115200 261440 oddTail3 = true := by rfl
+    exactCallChainFrom 115200 280880 oddTail3 = true := by rfl
 
 theorem oddTail2_chain :
-    exactCallChainFrom 76800 223040 oddTail2 = true := by
+    exactCallChainFrom 76800 242480 oddTail2 = true := by
   rw [← List.take_append_drop 64 oddTail2]
   apply exactCallChainFrom_append
   · exact oddChunk2_chain
   · simpa [oddChunk2_length] using oddTail3_chain
 
 theorem oddTail1_chain :
-    exactCallChainFrom 38400 184640 oddTail1 = true := by
+    exactCallChainFrom 38400 204080 oddTail1 = true := by
   rw [← List.take_append_drop 64 oddTail1]
   apply exactCallChainFrom_append
   · exact oddChunk1_chain
   · simpa [oddChunk1_length] using oddTail2_chain
 
 theorem oddArm_call_chain :
-    exactCallChainFrom 0 146240 oddArm.poseidon2Calls = true := by
-  change exactCallChainFrom 0 146240 oddTail0 = true
+    exactCallChainFrom 0 165680 oddArm.poseidon2Calls = true := by
+  change exactCallChainFrom 0 165680 oddTail0 = true
   rw [← List.take_append_drop 64 oddTail0]
   apply exactCallChainFrom_append
   · exact oddChunk0_chain
@@ -246,7 +246,7 @@ private theorem oddArm_outputAfterColumns_valid :
     columnsValid oddArm.columnCount 8 oddArm.outputAfterColumns := by
   norm_num [columnsValid, oddArm]
 
-theorem evenArm_valid : evenArm.Valid 0 2 202 13 := by
+theorem evenArm_valid : evenArm.Valid 0 2 229 13 := by
   refine ⟨by norm_num [evenArm], by norm_num [evenArm], rfl, rfl, rfl, rfl, ?_,
     rfl, rfl, rfl, rfl, evenArm_inputAfterColumns_valid,
     evenArm_outputAfterColumns_valid, evenArm_poseidon2Calls_valid, ?_⟩
@@ -255,7 +255,7 @@ theorem evenArm_valid : evenArm.Valid 0 2 202 13 := by
       by rw [evenArm_poseidon2Calls_length]; norm_num [evenArm],
       by norm_num [evenArm]⟩
 
-theorem oddArm_valid : oddArm.Valid 2 0 203 14 := by
+theorem oddArm_valid : oddArm.Valid 2 0 230 14 := by
   refine ⟨by norm_num [oddArm], by norm_num [oddArm], rfl, rfl, rfl, rfl, ?_,
     rfl, rfl, rfl, rfl, oddArm_inputAfterColumns_valid,
     oddArm_outputAfterColumns_valid, oddArm_poseidon2Calls_valid, ?_⟩
@@ -263,6 +263,26 @@ theorem oddArm_valid : oddArm.Valid 2 0 203 14 := by
   · exact ⟨oddArm_call_chain,
       by rw [oddArm_poseidon2Calls_length]; norm_num [oddArm],
       by norm_num [oddArm]⟩
+
+/-- The even replay reads the canonical contiguous PiRLC input slice. -/
+theorem evenArm_inputColumns_exact :
+    evenArm.inputColumns = List.range' 919 918 :=
+  evenArm_valid.2.2.2.2.2.2.2.1
+
+/-- The odd replay reads the same canonical contiguous PiRLC input slice. -/
+theorem oddArm_inputColumns_exact :
+    oddArm.inputColumns = List.range' 919 918 :=
+  oddArm_valid.2.2.2.2.2.2.2.1
+
+/-- The even replay reads the canonical contiguous PiRLC output slice. -/
+theorem evenArm_outputColumns_exact :
+    evenArm.outputColumns = List.range' 1837 54 :=
+  evenArm_valid.2.2.2.2.2.2.2.2.1
+
+/-- The odd replay reads the same canonical contiguous PiRLC output slice. -/
+theorem oddArm_outputColumns_exact :
+    oddArm.outputColumns = List.range' 1837 54 :=
+  oddArm_valid.2.2.2.2.2.2.2.2.1
 
 theorem rawArtifact_valid : rawArtifact.Valid :=
   ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, evenArm_valid, oddArm_valid⟩

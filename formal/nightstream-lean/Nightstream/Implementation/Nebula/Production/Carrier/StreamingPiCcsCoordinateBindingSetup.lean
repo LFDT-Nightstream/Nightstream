@@ -230,7 +230,7 @@ structure ProductionSetup where
   seed_eq : setup.seed.bytes = rustSeedBytes
 
 theorem exact_chunk_geometry :
-    SeededAjtai.chunkSize messageColumnCount = 16112 /\
+    SeededAjtai.chunkSize messageColumnCount = 18408 /\
       SeededAjtai.chunkCount messageColumnCount = 1 := by
   decide
 

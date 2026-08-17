@@ -163,4 +163,16 @@ theorem poseidon2Permutation_complete {state : Nat → Nat}
   exact run_satisfies_builder_rows definitions_wellFormed canonical
     (by decide) hone definitions_canonical
 
+/-- Any canonical assignment that agrees with the checked interpreter on the
+complete input-and-definition closure satisfies the exact 600 source rows. -/
+theorem poseidon2Permutation_complete_of_agreement
+    {state z : Nat → Nat}
+    (canonical : ∀ column, z column < goldilocksP)
+    (one : z 0 = 1)
+    (agreement : AgreeOn (interpret state) z
+      (knownAfter inputColumns definitions)) :
+    Satisfies rows z := by
+  exact run_agrees_implies_builder_satisfies definitions_wellFormed
+    canonical one definitions_canonical agreement
+
 end Nightstream.Implementation.R1CS.Poseidon2PermutationSound

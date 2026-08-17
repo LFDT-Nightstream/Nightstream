@@ -62,6 +62,8 @@ structure RawLedger where
   evenSourceRows : Nat
   oddSourceRows : Nat
   rewriteCount : Nat
+  evenLinearDefinitionCount : Nat
+  oddLinearDefinitionCount : Nat
   fixedRuns : List RawFixedRun
   retainedRuns : List RawRetainedRun
   rewriteBatches : List RawRewriteBatch

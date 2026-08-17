@@ -9,7 +9,7 @@ open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyPhysicalOve
 #guard_msgs in
 #audit_axioms fieldLinkCount_exact
 
-/-- info: 'Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyPhysicalOverlayRows.link_run_geometry_exact' depends on axioms: [Lean.trustCompiler] -/
+/-- info: 'Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyPhysicalOverlayRows.link_run_geometry_exact' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms link_run_geometry_exact
 

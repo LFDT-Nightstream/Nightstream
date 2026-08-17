@@ -27,24 +27,24 @@ def oddGlueTail1 := oddGlueTail0.drop 64
 
 theorem oddGlueChunk0_checked :
     oddGlueChunk0.length = 64 ∧
-      glueRowsGeometryCheck 276206 1234057 1234286 oddGlueChunk0 = true := by
+      glueRowsGeometryCheck 311846 1302097 1302326 oddGlueChunk0 = true := by
   constructor <;> rfl
 
 theorem oddGlueChunk0_valid :
     ∀ indexed ∈ oddGlueChunk0,
-      276206 ≤ indexed.index ∧ indexed.index < 1234057 ∧
-        rowColumnsBelow 1234286 indexed.row :=
+      311846 ≤ indexed.index ∧ indexed.index < 1302097 ∧
+        rowColumnsBelow 1302326 indexed.row :=
   glueRowsGeometryCheck_sound oddGlueChunk0_checked.2
 
 theorem oddGlueTail1_checked :
     oddGlueTail1.length = 57 ∧
-      glueRowsGeometryCheck 276206 1234057 1234286 oddGlueTail1 = true := by
+      glueRowsGeometryCheck 311846 1302097 1302326 oddGlueTail1 = true := by
   constructor <;> rfl
 
 theorem oddGlueTail1_valid :
     ∀ indexed ∈ oddGlueTail1,
-      276206 ≤ indexed.index ∧ indexed.index < 1234057 ∧
-        rowColumnsBelow 1234286 indexed.row :=
+      311846 ≤ indexed.index ∧ indexed.index < 1302097 ∧
+        rowColumnsBelow 1302326 indexed.row :=
   glueRowsGeometryCheck_sound oddGlueTail1_checked.2
 
 theorem oddArm_glueRows_length : oddArm.glueRows.length = 121 :=
@@ -53,8 +53,8 @@ theorem oddArm_glueRows_length : oddArm.glueRows.length = 121 :=
 theorem oddArm_glueRows_valid : oddArm.GlueRowsValid := by
   unfold RawArm.GlueRowsValid
   change ∀ indexed ∈ oddGlueTail0,
-    276206 ≤ indexed.index ∧ indexed.index < 1234057 ∧
-      rowColumnsBelow 1234286 indexed.row
+    311846 ≤ indexed.index ∧ indexed.index < 1302097 ∧
+      rowColumnsBelow 1302326 indexed.row
   exact valid_of_take_drop oddGlueChunk0_valid oddGlueTail1_valid
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyPublicOddGlueRowCertificate

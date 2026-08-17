@@ -5,7 +5,7 @@ Contract: coordinate-local view of the complete production running claim.
 
 Assurance tier: model-level carrier isomorphism and exact field geometry.
 
-Owns a grouped view that places the same coordinate from all fourteen running
+Owns a grouped view that places the same coordinate from all sixteen running
 claims together, exact conversion to and from the typed paper running claim,
 injectivity, and exact field counts at a verifier-selected exponent.
 
@@ -31,7 +31,7 @@ open Nightstream.SuperNeo.Concrete
 open Nightstream.SuperNeo.Concrete.Phi81Relation
 open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 
-abbrev Source := Fin 14
+abbrev Source := Fin 16
 abbrev Matrix := Fin 14
 
 /-- Same typed data as `RunningFor`, grouped by arithmetic coordinate before
@@ -209,13 +209,13 @@ noncomputable def dataCodec
       (Codec.finFunction 4
         (Codec.finFunction ProductCommitmentAlgebra.Rank
           (Codec.finFunction ringDegree
-            (Codec.finFunction 14 fieldCodec))))
+            (Codec.finFunction 16 fieldCodec))))
       (Codec.product
         (Codec.finFunction fullShape.publicWidth
-          (Codec.finFunction 14 fieldCodec))
+          (Codec.finFunction 16 fieldCodec))
         (Codec.finFunction 14
           (Codec.finFunction ringDegree
-            (Codec.finFunction 14 kCodec)))))
+            (Codec.finFunction 16 kCodec)))))
 
 /-- Fixed-width field codec for the same typed running claim, with sources
 adjacent inside each arithmetic coordinate. -/
@@ -238,10 +238,10 @@ theorem coordinateLocalCodec_admissible
 
 def pointFieldCount (rowVariables : Nat) : Nat := rowVariables * 2
 def commitmentFieldCount : Nat :=
-  4 * ProductCommitmentAlgebra.Rank * ringDegree * 14
+  4 * ProductCommitmentAlgebra.Rank * ringDegree * 16
 def publicInputFieldCount (fullShape : Phi81Relation.Shape) : Nat :=
-  fullShape.publicWidth * 14
-def evaluationFieldCount : Nat := 14 * ringDegree * 14 * 2
+  fullShape.publicWidth * 16
+def evaluationFieldCount : Nat := 14 * ringDegree * 16 * 2
 
 def totalFieldCount
     (rowVariables : Nat) (fullShape : Phi81Relation.Shape) : Nat :=
@@ -322,16 +322,16 @@ theorem totalFieldCount_eq_runningFieldCountFor
 theorem totalFieldCount_r26
     {fullShape : Phi81Relation.Shape}
     (contract : FullShapeContractFor 26 fullShape) :
-    totalFieldCount 26 fullShape = 83212 := by
+    totalFieldCount 26 fullShape = 95092 := by
   rw [totalFieldCount_eq_runningFieldCountFor contract]
   decide
 
-/-- One coordinate-local ring action consumes fourteen running ring values and
+/-- One coordinate-local ring action consumes sixteen running ring values and
 one fresh ring value. Each ring value has 54 base-field lanes. -/
-def fullSourceRingWindowFieldCount : Nat := 15 * ringDegree
+def fullSourceRingWindowFieldCount : Nat := 17 * ringDegree
 
 theorem fullSourceRingWindowFieldCount_eq :
-    fullSourceRingWindowFieldCount = 810 := by
+    fullSourceRingWindowFieldCount = 918 := by
   decide
 
 end Nightstream.Implementation.Nebula.ProductionCoordinateLocalRunning

@@ -5,7 +5,7 @@ import Nightstream.Implementation.R1CS.Canonical.SymbolicDuplexCursor
 Contract: exact post-PiCCS cursor at any generated-relation exponent.
 
 The SumCheck round count changes with `rowVariables`, but every round ends in
-a challenge gate at cursor zero. The complete PiCCS output has 22,700 fields
+a challenge gate at cursor zero. The complete PiCCS output has 25,724 fields
 for every exponent because source, matrix, coefficient, and limb counts are
 profile constants. Its absorption therefore leaves cursor four.
 
@@ -35,7 +35,7 @@ private theorem length_flatMap_uniform
 
 theorem fullOutputPayload_length
     {rowVariables : Nat} (input : Input rowVariables) :
-    (fullOutputPayload input).length = 22680 := by
+    (fullOutputPayload input).length = 25704 := by
   have coefficientsLength : forall source matrix,
       ((canonicalFinIndices (Shape rowVariables).coefficientCount).flatMap
         fun coefficient =>
@@ -64,7 +64,7 @@ theorem fullOutputPayload_length
 
 theorem fullOutputFields_length
     {rowVariables : Nat} (input : Input rowVariables) :
-    (fullOutputFields input).length = 22700 := by
+    (fullOutputFields input).length = 25724 := by
   unfold fullOutputFields ProductPiCcsTranscriptRowsFor.proverMessageFields
     ProductPiCcsTranscriptRows.proverMessageFields
   simp only [List.length_append, List.length_map, List.length_cons,
@@ -101,18 +101,18 @@ private theorem after_four_four_mul (blocks : Nat) :
       rw [Nat.mul_succ, SymbolicDuplexCursor.after_add,
         inductionHypothesis, after_four_four]
 
-theorem after_zero_22700 :
-    SymbolicDuplexCursor.after 0 22700 = 4 := by
-  rw [show 22700 = 4 + 4 * 5674 by decide,
+theorem after_zero_25724 :
+    SymbolicDuplexCursor.after 0 25724 = 4 := by
+  rw [show 25724 = 4 + 4 * 6430 by decide,
     SymbolicDuplexCursor.after_add]
-  change SymbolicDuplexCursor.after 4 (4 * 5674) = 4
-  exact after_four_four_mul 5674
+  change SymbolicDuplexCursor.after 4 (4 * 6430) = 4
+  exact after_four_four_mul 6430
 
 theorem afterFullOutput_absorbed
     {rowVariables : Nat} (input : Input rowVariables) :
     (afterFullOutput input).absorbed = 4 := by
   unfold afterFullOutput
   rw [SymbolicDuplexCursor.absorbMany_absorbed,
-    fullOutputFields_length, replayRounds_absorbed, after_zero_22700]
+    fullOutputFields_length, replayRounds_absorbed, after_zero_25724]
 
 end Nightstream.Implementation.Nebula.ProductPiCcsTranscriptCursorFor

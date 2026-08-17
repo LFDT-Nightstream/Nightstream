@@ -114,7 +114,7 @@ noncomputable def fullOutputCodec :
     fullOutputData fullOutputData_injective
 
 @[simp] theorem fullOutputCodec_width :
-    fullOutputCodec.width = 22680 := by
+    fullOutputCodec.width = 25704 := by
   rfl
 
 theorem fullOutputCodec_admissible
@@ -148,7 +148,7 @@ noncomputable def runningCodec : Codec SelectedRunning :=
           (Codec.finFunction shape.runningCount evaluationCodec))))
     runningData runningData_injective
 
-@[simp] theorem runningCodec_width : runningCodec.width = 38604 := by
+@[simp] theorem runningCodec_width : runningCodec.width = 44112 := by
   rfl
 
 theorem runningCodec_admissible (value : SelectedRunning) :
@@ -190,7 +190,7 @@ noncomputable def publicClaimsCodec :
   Codec.product runningCodec freshCodec
 
 @[simp] theorem publicClaimsCodec_width :
-    publicClaimsCodec.width = 39846 := by
+    publicClaimsCodec.width = 45354 := by
   rfl
 
 theorem publicClaimsCodec_admissible
@@ -223,7 +223,7 @@ noncomputable def proofCodec : Codec SelectedProof :=
           (Codec.finFunction shape.runningCount evaluationCodec))))
     proofData proofData_injective
 
-@[simp] theorem proofCodec_width : proofCodec.width = 57936 := by
+@[simp] theorem proofCodec_width : proofCodec.width = 65928 := by
   rfl
 
 theorem proofCodec_admissible (value : SelectedProof) :
@@ -268,11 +268,11 @@ noncomputable def proofWireFields (value : SelectedProof) : List F :=
 
 @[simp] theorem publicWireFields_length
     (value : SelectedRunning × SelectedFresh) :
-    (publicWireFields value).length = 39857 := by
+    (publicWireFields value).length = 45365 := by
   simp [publicWireFields, publicClaimsCodec.encode_length]
 
 @[simp] theorem proofWireFields_length (value : SelectedProof) :
-    (proofWireFields value).length = 57947 := by
+    (proofWireFields value).length = 65939 := by
   simp [proofWireFields, proofCodec.encode_length]
 
 theorem publicWireFields_injective_on_admissible

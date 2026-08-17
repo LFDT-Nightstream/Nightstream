@@ -6,7 +6,7 @@ Contract: exponent-indexed full-claim carrier to the exact paper-NIFS public
 input.
 
 The first seventeen fields are verifier-owned constants. The following
-running window has `83160 + 2 * rowVariables` direct field columns. The
+running window has `95040 + 2 * rowVariables` direct field columns. The
 mandatory bundle and CCS public value also use direct columns. The theorem
 derives public serialization from one physical carrier placement.
 

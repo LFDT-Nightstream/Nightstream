@@ -8,10 +8,11 @@ Contract: independent validation of the compact production PiRLC carry
 retained-row scan receipt.
 
 Assurance tier: Rust-conformant for property
-`FPRIME-PIRLC-FAMILY-BODY-CARRY-RETAINED-PORT-IMAGE`.
+`FPRIME-PIRLC-FAMILY-BODY-CARRY-RETAINED-PORT-IMAGE` under the supported
+Goldilocks `b = 2`, `k_rho = 16` profile.
 
-Owns agreement with the 1,621-row carry interval in both parity arms, the
-direct radix-seven decoder slots, and independent source and final nonzero
+Owns agreement with the 1,837-row carry interval in both parity arms, the
+direct radix-three decoder slots, and independent source and final nonzero
 censuses.
 
 Does not own matrix authority in Lean, assignment values, row satisfaction,
@@ -43,31 +44,32 @@ abbrev evenDecoder :=
 abbrev oddDecoder :=
   Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyDecoder.oddArm
 
-def directCarryRun : RawStridedRun :=
-  { sourceStart := 144916
-    count := 1964
-    sourceStride := 1
-    resolution := .direct 1076045 23 23 false }
+def directCarryBatch : RawResidualBatch :=
+  { sourceStart := 164140
+    instanceCount := 1
+    instanceStride := 0
+    width := 2180
+    resolution := .direct 2129045 41 41 false }
 
 def sourceNnzExpected : List Nat :=
-  [810 * 3 + 810 * 2 + 3, 1621, 0]
+  [918 * 3 + 918 * 2 + 3, 1837, 0]
 
 def finalPortNnzExpected : List Nat :=
   let arms := 2
-  let width := 23
-  let rows := 1621
+  let width := 41
+  let rows := 1837
   [0,
     arms * rows,
-    arms * (810 * (2 * width + 1) + 810 * (2 * width) +
+    arms * (918 * (2 * width + 1) + 918 * (2 * width) +
       (2 * width + 1)),
     arms * rows,
     0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 def retainedIntervalsExpected : List RawRetainedRun :=
-  [ { arm := 0, sourceStart := 144385, length := 1621,
-      emittedStart := 78113 }
-  , { arm := 1, sourceStart := 144385, length := 1621,
-      emittedStart := 200471 }
+  [ { arm := 0, sourceStart := 163609, length := 1837,
+      emittedStart := 69607 }
+  , { arm := 1, sourceStart := 163609, length := 1837,
+      emittedStart := 305118 }
   ]
 
 def carryRetainedIntervals :=
@@ -78,36 +80,36 @@ def carryRetainedIntervals :=
 def exactShape : Prop :=
   audit.schemaVersion =
       Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyCarryRetainedSchema.supportedSchemaVersion /\
-    audit.sourceRowStart = 144385 /\
-    audit.sourceRows = 1621 /\
-    audit.localColumns = 146224 /\
+    audit.sourceRowStart = 163609 /\
+    audit.sourceRows = 1837 /\
+    audit.localColumns = 165664 /\
     audit.sourceColumnShift = 640 /\
-    audit.finalRows = 279089 /\
-    audit.finalColumns = 2484972 /\
+    audit.finalRows = 491046 /\
+    audit.finalColumns = 8858862 /\
     audit.selectorColumns = [648, 649] /\
-    audit.emittedStarts = [78113, 200471] /\
-    audit.sourceStarts = [641, 145242, 146052, 146862, 146863] /\
-    audit.finalStarts = [702, 1083543, 1102173, 1120803, 1120826] /\
-    audit.widths = [23, 23, 23, 23, 23] /\
+    audit.emittedStarts = [69607, 305118] /\
+    audit.sourceStarts = [641, 164466, 165384, 166302, 166303] /\
+    audit.finalStarts = [702, 2142411, 2180049, 2217687, 2217728] /\
+    audit.widths = [41, 41, 41, 41, 41] /\
     audit.radices = audit.widths.map (fun width => (slotRadix width).val) /\
     audit.sourceNnz = sourceNnzExpected /\
     audit.finalPortNnz = finalPortNnzExpected
 
 def decoderCoherent : Prop :=
-  (evenDecoder.residualRuns.drop 5).head? = some directCarryRun /\
-    (oddDecoder.residualRuns.drop 5).head? = some directCarryRun /\
+  (evenDecoder.residualBatches.drop 3).head? = some directCarryBatch /\
+    (oddDecoder.residualBatches.drop 3).head? = some directCarryBatch /\
     audit.finalStarts =
       [702,
-        1076045 + (145242 - 144916) * 23,
-        1076045 + (146052 - 144916) * 23,
-        1076045 + (146862 - 144916) * 23,
-        1076045 + (146863 - 144916) * 23] /\
-    1076045 + 1964 * 23 <= audit.finalColumns
+        2129045 + (164466 - 164140) * 41,
+        2129045 + (165384 - 164140) * 41,
+        2129045 + (166302 - 164140) * 41,
+        2129045 + (166303 - 164140) * 41] /\
+    2129045 + 2180 * 41 <= audit.finalColumns
 
 def rowLedgerCoherent : Prop :=
   carryRetainedIntervals = retainedIntervalsExpected /\
     audit.emittedStarts.map (fun start => start + audit.sourceRows) =
-      [79734, 202092] /\
+      [71444, 306955] /\
     (audit.emittedStarts.all fun start =>
       decide (start + audit.sourceRows <= audit.finalRows)) = true
 
@@ -119,24 +121,29 @@ row shapes and the 23-coordinate source images. -/
 theorem nonzero_census_exact :
     audit.sourceNnz = sourceNnzExpected /\
       audit.finalPortNnz = finalPortNnzExpected := by
-  native_decide
+  exact ⟨rfl, rfl⟩
 
-/-- Both parity decoders use the same direct radix-seven run for every carry
+/-- Both parity decoders use the same direct radix-three batch for every carry
 field referenced by the retained block. -/
 theorem decoder_run_exact : decoderCoherent := by
-  unfold decoderCoherent
-  native_decide
+  unfold decoderCoherent directCarryBatch
+  exact ⟨rfl, rfl, rfl, by decide⟩
 
-/-- The row ledger maps the same 1,621 source rows to the two exact emitted
+/-- The row ledger maps the same 1,837 source rows to the two exact emitted
 intervals scanned by Rust. -/
 theorem retained_intervals_exact : rowLedgerCoherent := by
-  unfold rowLedgerCoherent
-  native_decide
+  unfold rowLedgerCoherent carryRetainedIntervals retainedIntervalsExpected
+  exact ⟨rfl, rfl, rfl⟩
+
+private theorem shape_exact : exactShape := by
+  unfold exactShape
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    by decide, nonzero_census_exact.1, nonzero_census_exact.2⟩
 
 /-- The generated receipt agrees with the decoder, row ledger, and
 independently recomputed nonzero census. -/
 theorem audit_valid : AuditValid := by
-  unfold AuditValid exactShape decoderCoherent rowLedgerCoherent
-  native_decide
+  unfold AuditValid
+  exact ⟨shape_exact, decoder_run_exact, retained_intervals_exact⟩
 
 end Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyCarryRetained

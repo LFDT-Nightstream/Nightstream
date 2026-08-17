@@ -9,7 +9,7 @@ Contract: exact executable paper-NIFS key for Nebula-on-SuperNeo V2.
 Assurance tier: concrete verifier model.
 
 Owns the exact 25-variable product-commitment relation, one-fresh and
-fourteen-running arity, degree-nine paper verifier, complete Poseidon2
+sixteen-running arity, degree-nine paper verifier, complete Poseidon2
 transcript, bounded PiRLC response, and all PiRLC/PiDEC algebra fields.
 
 The generated relation artifact must prove three directly checkable facts:
@@ -303,7 +303,7 @@ noncomputable def key
     (config : ProductPaperAlgebra.Config logicalWidth publicFits
       operationsShape snapshotShape)
     (artifact : RelationArtifact logicalWidth publicFits) :
-    (key statementId config artifact).arity.total = 15 := by
+    (key statementId config artifact).arity.total = 17 := by
   rfl
 
 theorem key_initialTranscriptState

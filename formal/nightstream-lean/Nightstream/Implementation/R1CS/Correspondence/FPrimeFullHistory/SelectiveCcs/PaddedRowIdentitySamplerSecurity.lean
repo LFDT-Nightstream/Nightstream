@@ -8,12 +8,12 @@ Contract: finite failure bound for the selected bounded full-field `Pi_RLC`
 sampler.
 
 Owns:
-- the exact 15-source, 54-coefficient, three-attempt parameter tuple;
+- the exact 17-source, 54-coefficient, three-attempt parameter tuple;
 - the equivalence between one coefficient failure and three rejections;
 - the finite ideal experiment for three independent uniform Goldilocks
   candidates;
 - the exact `1/q^3` ideal exhaustion probability;
-- the exact `810/q^3` per-fold exhaustion expression; and
+- the exact `918/q^3` per-fold exhaustion expression; and
 - the finite union bound and proved 182-bit rational upper bound.
 
 Does not own: a proof that each concrete Poseidon2 candidate triple has the
@@ -79,7 +79,7 @@ def singleCandidateRejectionProbability : Rat :=
 def singleCoefficientExhaustionBound : Rat :=
   (1 : Rat) / ((goldilocksModulus ^ samplerAttemptCount : Nat) : Rat)
 
-/-- There are exactly `15 * 54 = 810` sampled coefficients per fold. -/
+/-- There are exactly `17 * 54 = 918` sampled coefficients per fold. -/
 def sampledCoefficientCount : Nat :=
   PaperProfile.arity.total * samplerCoefficientCount
 
@@ -92,10 +92,10 @@ def samplerSecurityTarget : Rat :=
   (1 : Rat) / (((2 : Nat) ^ 182 : Nat) : Rat)
 
 theorem selected_sampler_parameters :
-    PaperProfile.arity.total = 15 /\
+    PaperProfile.arity.total = 17 /\
     samplerCoefficientCount = 54 /\
     samplerAttemptCount = 3 /\
-    sampledCoefficientCount = 810 := by
+    sampledCoefficientCount = 918 := by
   decide
 
 /-- The exact accepted-domain size is divisible by five. This is the

@@ -6,7 +6,6 @@ import tests.Axioms.Support
 open Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyBodyOverlayRows
 
 /-- info: 'Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyBodyOverlayRows.bodyRowsForParity_length' depends on axioms: [propext,
- Lean.trustCompiler,
  Quot.sound] -/
 #guard_msgs in
 #audit_axioms bodyRowsForParity_length

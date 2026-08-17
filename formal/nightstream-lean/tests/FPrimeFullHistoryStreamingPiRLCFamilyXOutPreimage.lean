@@ -9,7 +9,8 @@ namespace tests.FPrimeFullHistoryStreamingPiRLCFamilyXOutPreimage
 open Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyXOutPreimage
 
 #check artifactLinearRow
-#check structuralRows
+#check rawStructuralRows
+#check structural_rows_exact
 #check PreimageBinding
 #check x_out_preimage_refines
 

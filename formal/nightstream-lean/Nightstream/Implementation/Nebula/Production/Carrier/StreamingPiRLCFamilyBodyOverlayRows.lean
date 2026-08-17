@@ -13,7 +13,7 @@ family-dependent seeded Phi81 rows. Both row sets use one linked assignment.
 Does not own normalized low-norm link rows, the 400-arm selector, recursive
 lifecycle integration, or the terminal zero-residual check.
 
-Emits constraints: 275,006 body rows for even families, 276,206 body rows for
+Emits constraints: 310,646 body rows for even families, 311,846 body rows for
 odd families, and 108 overlay rows for each exact family.
 -/
 
@@ -54,7 +54,7 @@ def sourceBodyRows : List Row :=
             (Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilySourceRows.carryLayout
               layout))))
 
-theorem sourceBodyRows_length : sourceBodyRows.length = 146006 := by
+theorem sourceBodyRows_length : sourceBodyRows.length = 165446 := by
   simp only [sourceBodyRows, List.length_append,
     ProductPiRlcRingCombinationRows.rows_length,
     Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputPhaseRows.sourceRows_length,
@@ -69,14 +69,14 @@ theorem replayRowsFor_length :
     ∀ parity : CursorParity,
       (replayRowsFor parity).length =
         match parity with
-        | .even => 129000
-        | .odd => 130200 := by
+        | .even => 145200
+        | .odd => 146400 := by
   intro parity
   change
     ((arm parity).poseidon2Calls.flatMap Poseidon2Call.Call.rows).length =
       match parity with
-      | .even => 129000
-      | .odd => 130200
+      | .even => 145200
+      | .odd => 146400
   exact
     Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilyCompleteRows.replayRows_length
       parity
@@ -89,8 +89,8 @@ theorem bodyRowsForParity_length :
     ∀ parity : CursorParity,
       (bodyRowsForParity parity).length =
         match parity with
-        | .even => 275006
-        | .odd => 276206 := by
+        | .even => 310646
+        | .odd => 311846 := by
   intro parity
   rw [bodyRowsForParity, List.length_append, sourceBodyRows_length,
     replayRowsFor_length]

@@ -682,11 +682,11 @@ theorem decoded_stateAt
           valueStateAt constants
             (decodedBuilder assignment initial) (coordinate + 1) := rfl
 
-/-- The selected fixed-active profile derives exactly fifteen scalar sources.
+/-- The selected fixed-active profile derives exactly seventeen scalar sources.
 This theorem states the typed count; it does not claim that chunk selection
 rows have already been emitted. -/
 theorem fixedActive_challengeCount :
-    Nightstream.SuperNeo.Folding.Nifs.PaperProfile.arity.total = 15 :=
+    Nightstream.SuperNeo.Folding.Nifs.PaperProfile.arity.total = 17 :=
   Nightstream.SuperNeo.Folding.Nifs.PaperProfile.arity_total
 
 end Nightstream.Implementation.R1CS.Canonical.PiRlcCanonicalSymbolicMachine

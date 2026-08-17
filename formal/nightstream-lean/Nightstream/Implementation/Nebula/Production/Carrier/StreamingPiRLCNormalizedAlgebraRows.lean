@@ -1,4 +1,5 @@
 import Nightstream.Implementation.Nebula.Production.Carrier.StreamingPiRLCArtifact
+import Nightstream.Implementation.R1CS.Correspondence.FPrimeFullHistory.StreamingPiRLCFamilyBodyAlgebraRetained
 import Nightstream.Implementation.R1CS.Correspondence.SelectiveCcs.Rewrite.Artifact.SourceImage
 
 /-!
@@ -7,9 +8,9 @@ rows.
 
 Assurance tier: model-level.
 
-Owns the 45,415-to-2,484,972 source-column substitution, the two parity-arm
+Owns the 51,463-to-8,858,862 source-column substitution, the two parity-arm
 selector coordinates, the exact thirteen-port product-row acceptance
-predicate, and the same-assignment implication from all 43,794 normalized
+predicate, and the same-assignment implication from all 49,626 normalized
 rows to `FamilyPhaseRelation`.
 
 Does not own low-norm digit range rows, the Rust matrix scan, the remaining
@@ -40,9 +41,9 @@ open Nightstream.SuperNeo.Concrete
 
 namespace Normalized
 
-def localColumns : Nat := 45415
+def localColumns : Nat := 51463
 
-def finalColumns : Nat := 2484972
+def finalColumns : Nat := 8858862
 
 theorem localColumns_positive : 0 < localColumns := by
   decide
@@ -73,37 +74,62 @@ def selectorColumn : Arm → Fin finalColumns
     (selectorColumn .odd).val = 649 := by
   rfl
 
-/-- Exact low-norm slot for each nonconstant local algebra column. Challenge,
-output, and product fields use 23 radix-seven coordinates. Input fields use
-41 radix-three coordinates. -/
+/-- The model geometry is the exact geometry scanned in both Rust retained
+algebra intervals. This is a constant-size receipt check; it does not evaluate
+the generated row set. -/
+theorem retained_audit_geometry :
+    Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyAlgebraRetained.audit.sourceRows =
+        49626 /\
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyAlgebraRetained.audit.localColumns =
+        localColumns /\
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyAlgebraRetained.audit.finalColumns =
+        finalColumns /\
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyAlgebraRetained.audit.selectorColumns =
+        [(selectorColumn .even).val, (selectorColumn .odd).val] /\
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyAlgebraRetained.audit.widths =
+        [41, 41, 41, 41] /\
+      Nightstream.Implementation.R1CS.FPrimeFullHistoryStreamingPiRLCFamilyBodyAlgebraRetained.audit.radices =
+        [3, 3, 3, 3] := by
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- Exact radix-three low-norm slot for each nonconstant local algebra
+column. The four intervals are challenges, inputs, outputs, and products. -/
 def localSlot (column : Fin localColumns) (nonzero : column.val ≠ 0) :
     DecodedSourceSlot localColumns finalColumns :=
-  if challenge : column.val < 811 then
+  if challenge : column.val < 919 then
     { column := column
-      start := 702 + (column.val - 1) * 23
-      width := 23
-      widthPositive := by decide
-      columnsFit := by
-        have lower : 1 ≤ column.val := Nat.one_le_iff_ne_zero.mpr nonzero
-        change 702 + (column.val - 1) * 23 + 23 ≤ 2484972
-        omega }
-  else if input : column.val < 1621 then
-    { column := column
-      start := 19332 + (column.val - 811) * 41
+      start := 702 + (column.val - 1) * 41
       width := 41
       widthPositive := by decide
       columnsFit := by
-        change 19332 + (column.val - 811) * 41 + 41 ≤ 2484972
+        have lower : 1 ≤ column.val := Nat.one_le_iff_ne_zero.mpr nonzero
+        change 702 + (column.val - 1) * 41 + 41 ≤ 8858862
+        omega }
+  else if input : column.val < 1837 then
+    { column := column
+      start := 38340 + (column.val - 919) * 41
+      width := 41
+      widthPositive := by decide
+      columnsFit := by
+        change 38340 + (column.val - 919) * 41 + 41 ≤ 8858862
+        omega }
+  else if output : column.val < 1891 then
+    { column := column
+      start := 75978 + (column.val - 1837) * 41
+      width := 41
+      widthPositive := by decide
+      columnsFit := by
+        change 75978 + (column.val - 1837) * 41 + 41 ≤ 8858862
         omega }
   else
     { column := column
-      start := 52542 + (column.val - 1621) * 23
-      width := 23
+      start := 78192 + (column.val - 1891) * 41
+      width := 41
       widthPositive := by decide
       columnsFit := by
         have upper := column.isLt
         unfold localColumns at upper
-        change 52542 + (column.val - 1621) * 23 + 23 ≤ 2484972
+        change 78192 + (column.val - 1891) * 41 + 41 ≤ 8858862
         omega }
 
 def localColumnForm (column : Fin localColumns) : Form finalColumns :=
@@ -298,10 +324,10 @@ theorem satisfies_iff_typed
 def productionRows : List OwnedRow :=
   NumericBridge.ownedRows Generated.sourceRows
 
-@[simp] theorem productionRows_length : productionRows.length = 43794 := by
+@[simp] theorem productionRows_length : productionRows.length = 49626 := by
   change
     (ownedRowsFrom .prelude 0 NumericBridge.sourceColumn
-      Generated.sourceRows).length = 43794
+      Generated.sourceRows).length = 49626
   rw [ownedRowsFrom_length, Generated.sourceRows_length]
 
 def ProductionAccepted

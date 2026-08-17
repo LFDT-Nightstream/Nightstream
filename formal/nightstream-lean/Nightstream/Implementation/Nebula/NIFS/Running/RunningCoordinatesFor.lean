@@ -4,7 +4,7 @@ import Nightstream.Implementation.Nebula.NIFS.Running.RunningParser
 Contract: exponent-indexed coordinates of the canonical paper-NIFS running
 codec.
 
-The point, fourteen commitment bundles, fourteen public inputs, and fourteen
+The point, sixteen commitment bundles, sixteen public inputs, and sixteen
 complete evaluation families have one exact order. All offsets depend on the
 selected row exponent where required. The main selectors prove that each
 coordinate of `runningCodecFor` is the corresponding typed running value.
@@ -30,10 +30,10 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 open Nightstream.Protocol.Nebula.CommitmentBundle
 
 def pointFieldCount (rowVariables : Nat) : Nat := rowVariables * 2
-def commitmentsFieldCount : Nat := 14 * 3888
+def commitmentsFieldCount : Nat := 16 * 3888
 def publicInputsFieldCount (fullShape : Phi81Relation.Shape) : Nat :=
-  14 * fullShape.publicWidth
-def evaluationsFieldCount : Nat := 14 * 1512
+  16 * fullShape.publicWidth
+def evaluationsFieldCount : Nat := 16 * 1512
 
 def pointOffset : Nat := 0
 def commitmentsOffset (rowVariables : Nat) : Nat :=
@@ -60,7 +60,7 @@ def pointCoordinateIndex {rowVariables : Nat}
   pointOffset + coordinate.val * 2 + limb.val
 
 def commitmentCoordinateIndex
-    {rowVariables : Nat} (child : Fin 14) (component : Component)
+    {rowVariables : Nat} (child : Fin 16) (component : Component)
     (row : Fin ProductCommitmentAlgebra.Rank) (lane : Fin ringDegree) : Nat :=
   commitmentsOffset rowVariables + child.val * 3888 +
     ProductNifsRunningParser.componentIndex component * 972 +
@@ -68,13 +68,13 @@ def commitmentCoordinateIndex
 
 def publicInputCoordinateIndex
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
-    (child : Fin 14) (column : Fin fullShape.publicWidth) : Nat :=
+    (child : Fin 16) (column : Fin fullShape.publicWidth) : Nat :=
   publicInputsOffset rowVariables +
     child.val * fullShape.publicWidth + column.val
 
 def evaluationCoordinateIndex
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
-    (child : Fin 14) (matrix : Fin 14)
+    (child : Fin 16) (matrix : Fin 14)
     (lane : Fin ringDegree) (limb : Fin 2) : Nat :=
   evaluationsOffset rowVariables fullShape + child.val * 1512 +
     matrix.val * (ringDegree * 2) + lane.val * 2 + limb.val
@@ -88,7 +88,7 @@ theorem point_coordinate_bound
   omega
 
 theorem commitment_coordinate_bound
-    {rowVariables : Nat} (child : Fin 14) (component : Component)
+    {rowVariables : Nat} (child : Fin 16) (component : Component)
     (row : Fin ProductCommitmentAlgebra.Rank) (lane : Fin ringDegree) :
     commitmentCoordinateIndex (rowVariables := rowVariables) child component
         row lane < runningFieldCountFor rowVariables := by
@@ -106,7 +106,7 @@ theorem commitment_coordinate_bound
 theorem public_input_coordinate_bound
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
     (contract : FullShapeContractFor rowVariables fullShape)
-    (child : Fin 14) (column : Fin fullShape.publicWidth) :
+    (child : Fin 16) (column : Fin fullShape.publicWidth) :
     publicInputCoordinateIndex (rowVariables := rowVariables) child column <
       runningFieldCountFor rowVariables := by
   have childLt := child.isLt
@@ -123,7 +123,8 @@ theorem public_input_coordinate_bound
 theorem evaluation_coordinate_bound
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
     (contract : FullShapeContractFor rowVariables fullShape)
-    (child matrix : Fin 14) (lane : Fin ringDegree) (limb : Fin 2) :
+    (child : Fin 16) (matrix : Fin 14)
+    (lane : Fin ringDegree) (limb : Fin 2) :
     evaluationCoordinateIndex (rowVariables := rowVariables)
         (fullShape := fullShape) child matrix lane limb <
       runningFieldCountFor rowVariables := by
@@ -152,10 +153,10 @@ def componentAt : Fin 4 -> Component :=
 /-- Every field of the running carrier has one typed coordinate. -/
 inductive RunningCoordinate (rowVariables : Nat) where
   | point (coordinate : Fin rowVariables) (limb : Fin 2)
-  | commitment (child : Fin 14) (component : Fin 4)
+  | commitment (child : Fin 16) (component : Fin 4)
       (row : Fin ProductCommitmentAlgebra.Rank) (lane : Fin ringDegree)
-  | publicInput (child : Fin 14) (column : Fin 540)
-  | evaluation (child : Fin 14) (matrix : Fin 14)
+  | publicInput (child : Fin 16) (column : Fin 540)
+  | evaluation (child : Fin 16) (matrix : Fin 14)
       (lane : Fin ringDegree) (limb : Fin 2)
 
 /-- Canonical flat index of one typed running coordinate. -/
@@ -168,7 +169,7 @@ def RunningCoordinate.indexNat {rowVariables : Nat} :
   | .publicInput child column =>
       publicInputsOffset rowVariables + child.val * 540 + column.val
   | .evaluation child matrix lane limb =>
-      publicInputsOffset rowVariables + 14 * 540 + child.val * 1512 +
+      publicInputsOffset rowVariables + 16 * 540 + child.val * 1512 +
         matrix.val * (ringDegree * 2) + lane.val * 2 + limb.val
 
 theorem RunningCoordinate.indexNat_lt
@@ -231,13 +232,13 @@ theorem runningCoordinate_surjective
       coordinate, limb]
     omega
   by_cases inCommitment :
-      index.val < rowVariables * 2 + 14 * 3888
+      index.val < rowVariables * 2 + 16 * 3888
   · have afterPoint : rowVariables * 2 <= index.val := by omega
     let localIndex := index.val - rowVariables * 2
     have localOrigin : rowVariables * 2 + localIndex = index.val := by
       exact Nat.add_sub_of_le afterPoint
-    have localLt : localIndex < 14 * 3888 := by omega
-    let child : Fin 14 := ⟨localIndex / 3888, by omega⟩
+    have localLt : localIndex < 16 * 3888 := by omega
+    let child : Fin 16 := ⟨localIndex / 3888, by omega⟩
     let childLocal := localIndex % 3888
     let component : Fin 4 := ⟨childLocal / 972, by
       have childLocalLt := Nat.mod_lt localIndex (by decide : 0 < 3888)
@@ -266,15 +267,15 @@ theorem runningCoordinate_surjective
       commitmentsOffset, pointOffset, pointFieldCount]
     omega
   by_cases inPublic :
-      index.val < rowVariables * 2 + 14 * 3888 + 14 * 540
+      index.val < rowVariables * 2 + 16 * 3888 + 16 * 540
   · have afterCommitment :
-        rowVariables * 2 + 14 * 3888 <= index.val := by omega
-    let localIndex := index.val - (rowVariables * 2 + 14 * 3888)
+        rowVariables * 2 + 16 * 3888 <= index.val := by omega
+    let localIndex := index.val - (rowVariables * 2 + 16 * 3888)
     have localOrigin :
-        rowVariables * 2 + 14 * 3888 + localIndex = index.val := by
+        rowVariables * 2 + 16 * 3888 + localIndex = index.val := by
       omega
-    have localLt : localIndex < 14 * 540 := by omega
-    let child : Fin 14 := ⟨localIndex / 540, by omega⟩
+    have localLt : localIndex < 16 * 540 := by omega
+    let child : Fin 16 := ⟨localIndex / 540, by omega⟩
     let column : Fin 540 :=
       ⟨localIndex % 540, Nat.mod_lt _ (by decide)⟩
     refine ⟨.publicInput child column, ?_⟩
@@ -289,17 +290,17 @@ theorem runningCoordinate_surjective
     norm_num [commitmentsFieldCount, runningFieldCountFor] at *
     omega
   · have afterPublic :
-        rowVariables * 2 + 14 * 3888 + 14 * 540 <= index.val := by omega
+        rowVariables * 2 + 16 * 3888 + 16 * 540 <= index.val := by omega
     let localIndex := index.val -
-      (rowVariables * 2 + 14 * 3888 + 14 * 540)
+      (rowVariables * 2 + 16 * 3888 + 16 * 540)
     have localOrigin :
-        rowVariables * 2 + 14 * 3888 + 14 * 540 + localIndex = index.val := by
+        rowVariables * 2 + 16 * 3888 + 16 * 540 + localIndex = index.val := by
       omega
-    have localLt : localIndex < 14 * 1512 := by
-      have indexLt : index.val < 83160 + 2 * rowVariables := by
+    have localLt : localIndex < 16 * 1512 := by
+      have indexLt : index.val < 95040 + 2 * rowVariables := by
         simpa [runningFieldCountFor] using index.isLt
       omega
-    let child : Fin 14 := ⟨localIndex / 1512, by omega⟩
+    let child : Fin 16 := ⟨localIndex / 1512, by omega⟩
     let childLocal := localIndex % 1512
     let matrix : Fin 14 := ⟨childLocal / 108, by
       have childLocalLt := Nat.mod_lt localIndex (by decide : 0 < 1512)
@@ -414,18 +415,18 @@ theorem evaluationCodecFor_getD
 
 theorem publicInputsSection_getD
     {fullShape : Phi81Relation.Shape}
-    (values : Fin 14 -> PublicInput fullShape)
-    (child : Fin 14) (column : Fin fullShape.publicWidth) :
-    (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 14 values).getD
+    (values : Fin 16 -> PublicInput fullShape)
+    (child : Fin 16) (column : Fin fullShape.publicWidth) :
+    (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 16 values).getD
         (child.val * fullShape.publicWidth + column.val) 0 =
       values child column := by
   let localCoordinate : Fin (publicInputCodec fullShape.publicWidth).width :=
     ⟨column.val, by simp⟩
   have selected := Codec.encodeFin_getD
-    (publicInputCodec fullShape.publicWidth) 14 values child
+    (publicInputCodec fullShape.publicWidth) 16 values child
       localCoordinate 0
   calc
-    (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 14 values).getD
+    (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 16 values).getD
           (child.val * fullShape.publicWidth + column.val) 0 =
         ((publicInputCodec fullShape.publicWidth).encode
           (values child)).getD column.val 0 := by
@@ -435,9 +436,10 @@ theorem publicInputsSection_getD
 
 theorem evaluationsSection_getD
     {rowVariables : Nat}
-    (values : Fin 14 -> EvaluationFor rowVariables)
-    (child matrix : Fin 14) (lane : Fin ringDegree) (limb : Fin 2) :
-    (Codec.encodeFin (evaluationCodecFor rowVariables) 14 values).getD
+    (values : Fin 16 -> EvaluationFor rowVariables)
+    (child : Fin 16) (matrix : Fin 14)
+    (lane : Fin ringDegree) (limb : Fin 2) :
+    (Codec.encodeFin (evaluationCodecFor rowVariables) 16 values).getD
         (child.val * 1512 + matrix.val * (ringDegree * 2) +
           lane.val * 2 + limb.val) 0 =
       if limb.val = 0 then (values child matrix lane).c0
@@ -453,9 +455,9 @@ theorem evaluationsSection_getD
       change matrix.val * (54 * 2) + lane.val * 2 + limb.val < 1512
       omega⟩
   have selected := Codec.encodeFin_getD (evaluationCodecFor rowVariables)
-    14 values child localCoordinate 0
+    16 values child localCoordinate 0
   calc
-    (Codec.encodeFin (evaluationCodecFor rowVariables) 14 values).getD
+    (Codec.encodeFin (evaluationCodecFor rowVariables) 16 values).getD
           (child.val * 1512 + matrix.val * (ringDegree * 2) +
             lane.val * 2 + limb.val) 0 =
         ((evaluationCodecFor rowVariables).encode (values child)).getD
@@ -472,10 +474,10 @@ theorem runningCodecFor_sections
     (value : RunningFor rowVariables fullShape) :
     (runningCodecFor rowVariables fullShape).encode value =
       (pointCodec rowVariables).encode value.point ++
-      (Codec.encodeFin bundleCodec 14 value.commitments ++
-        (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 14
+      (Codec.encodeFin bundleCodec 16 value.commitments ++
+        (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 16
             value.publicInputs ++
-          Codec.encodeFin (evaluationCodecFor rowVariables) 14
+          Codec.encodeFin (evaluationCodecFor rowVariables) 16
             value.evaluations)) := by
   rfl
 
@@ -485,16 +487,16 @@ theorem point_encoded_length
   rw [(pointCodec rowVariables).encode_length, pointCodec_width]
 
 theorem commitments_section_length
-    (values : Fin 14 -> ProductCommitmentAlgebra.BundleValue) :
-    (Codec.encodeFin bundleCodec 14 values).length = commitmentsFieldCount := by
+    (values : Fin 16 -> ProductCommitmentAlgebra.BundleValue) :
+    (Codec.encodeFin bundleCodec 16 values).length = commitmentsFieldCount := by
   rw [Codec.encodeFin_length, bundleCodec_width]
   rfl
 
 theorem commitmentsSectionFor_getD
-    (values : Fin 14 -> ProductCommitmentAlgebra.BundleValue)
-    (child : Fin 14) (component : Component)
+    (values : Fin 16 -> ProductCommitmentAlgebra.BundleValue)
+    (child : Fin 16) (component : Component)
     (row : Fin ProductCommitmentAlgebra.Rank) (lane : Fin ringDegree) :
-    (Codec.encodeFin bundleCodec 14 values).getD
+    (Codec.encodeFin bundleCodec 16 values).getD
         (child.val * 3888 +
           ProductNifsRunningParser.componentIndex component * 972 +
             row.val * ringDegree + lane.val) 0 =
@@ -504,10 +506,10 @@ theorem commitmentsSectionFor_getD
         row.val * ringDegree + lane.val, by
       simpa only [bundleCodec_width] using
         ProductNifsRunningParser.bundle_local_bound component row lane⟩
-  have selected := Codec.encodeFin_getD bundleCodec 14 values child
+  have selected := Codec.encodeFin_getD bundleCodec 16 values child
     localCoordinate 0
   calc
-    (Codec.encodeFin bundleCodec 14 values).getD
+    (Codec.encodeFin bundleCodec 16 values).getD
           (child.val * 3888 +
             ProductNifsRunningParser.componentIndex component * 972 +
               row.val * ringDegree + lane.val) 0 =
@@ -521,8 +523,8 @@ theorem commitmentsSectionFor_getD
 
 theorem public_inputs_section_length
     {fullShape : Phi81Relation.Shape}
-    (values : Fin 14 -> PublicInput fullShape) :
-    (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 14 values).length =
+    (values : Fin 16 -> PublicInput fullShape) :
+    (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 16 values).length =
       publicInputsFieldCount fullShape := by
   rw [Codec.encodeFin_length, publicInputCodec_width]
   rfl
@@ -548,7 +550,7 @@ theorem runningCodecFor_point_getD
 theorem runningCodecFor_commitment_getD
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
     (value : RunningFor rowVariables fullShape)
-    (child : Fin 14) (component : Component)
+    (child : Fin 16) (component : Component)
     (row : Fin ProductCommitmentAlgebra.Rank) (lane : Fin ringDegree) :
     ((runningCodecFor rowVariables fullShape).encode value).getD
         (commitmentCoordinateIndex (rowVariables := rowVariables) child
@@ -572,7 +574,7 @@ theorem runningCodecFor_commitment_getD
     omega
   rw [indexShape, getD_append_right]
   have localBound : localIndex <
-      (Codec.encodeFin bundleCodec 14 value.commitments).length := by
+      (Codec.encodeFin bundleCodec 16 value.commitments).length := by
     rw [commitments_section_length]
     have childLt := child.isLt
     have bundleLt :=
@@ -586,7 +588,7 @@ theorem runningCodecFor_commitment_getD
 theorem runningCodecFor_publicInput_getD
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
     (value : RunningFor rowVariables fullShape)
-    (child : Fin 14) (column : Fin fullShape.publicWidth) :
+    (child : Fin 16) (column : Fin fullShape.publicWidth) :
     ((runningCodecFor rowVariables fullShape).encode value).getD
         (publicInputCoordinateIndex (rowVariables := rowVariables)
           child column) 0 = value.publicInputs child column := by
@@ -600,7 +602,7 @@ theorem runningCodecFor_publicInput_getD
   have indexShape :
       publicInputCoordinateIndex (rowVariables := rowVariables) child column =
         ((pointCodec rowVariables).encode value.point).length +
-          ((Codec.encodeFin bundleCodec 14 value.commitments).length +
+          ((Codec.encodeFin bundleCodec 16 value.commitments).length +
             localIndex) := by
     rw [pointLength, commitmentsLength]
     simp [publicInputCoordinateIndex, publicInputsOffset,
@@ -608,18 +610,18 @@ theorem runningCodecFor_publicInput_getD
     omega
   rw [indexShape, getD_append_right, getD_append_right]
   have localBound : localIndex <
-      (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 14
+      (Codec.encodeFin (publicInputCodec fullShape.publicWidth) 16
         value.publicInputs).length := by
     rw [public_inputs_section_length]
     change child.val * fullShape.publicWidth + column.val <
-      14 * fullShape.publicWidth
+      16 * fullShape.publicWidth
     calc
       child.val * fullShape.publicWidth + column.val <
           child.val * fullShape.publicWidth + fullShape.publicWidth :=
         Nat.add_lt_add_left column.isLt _
       _ = (child.val + 1) * fullShape.publicWidth := by
         simp [Nat.add_mul]
-      _ ≤ 14 * fullShape.publicWidth :=
+      _ ≤ 16 * fullShape.publicWidth :=
         Nat.mul_le_mul_right fullShape.publicWidth
           (Nat.succ_le_iff.mpr child.isLt)
   rw [getD_append_left]
@@ -629,7 +631,8 @@ theorem runningCodecFor_publicInput_getD
 theorem runningCodecFor_evaluation_getD
     {rowVariables : Nat} {fullShape : Phi81Relation.Shape}
     (value : RunningFor rowVariables fullShape)
-    (child matrix : Fin 14) (lane : Fin ringDegree) (limb : Fin 2) :
+    (child : Fin 16) (matrix : Fin 14)
+    (lane : Fin ringDegree) (limb : Fin 2) :
     ((runningCodecFor rowVariables fullShape).encode value).getD
         (evaluationCoordinateIndex (rowVariables := rowVariables)
           (fullShape := fullShape) child matrix lane limb) 0 =
@@ -648,8 +651,8 @@ theorem runningCodecFor_evaluation_getD
       evaluationCoordinateIndex (rowVariables := rowVariables)
           (fullShape := fullShape) child matrix lane limb =
         ((pointCodec rowVariables).encode value.point).length +
-          ((Codec.encodeFin bundleCodec 14 value.commitments).length +
-            ((Codec.encodeFin (publicInputCodec fullShape.publicWidth) 14
+          ((Codec.encodeFin bundleCodec 16 value.commitments).length +
+            ((Codec.encodeFin (publicInputCodec fullShape.publicWidth) 16
               value.publicInputs).length + localIndex)) := by
     rw [pointLength, commitmentsLength, publicLength]
     simp [evaluationCoordinateIndex, evaluationsOffset, publicInputsOffset,

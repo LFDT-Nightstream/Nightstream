@@ -289,15 +289,15 @@ def RawArtifact.Valid (artifact : RawArtifact) : Prop :=
     hashInputFields = 2184 ∧ absorbRounds = 546 ∧
     hashTraceRows = 330386 ∧ hashTotalRows = 330397 ∧ phaseRows = 662971 ∧
     artifact.even.sourceIdentity = "rust:pi-rlc-family-even/body-v3" ∧
-    artifact.even.bodyRows = 1232857 ∧
-    artifact.even.bodyColumns = 1233086 ∧
-    artifact.even.phaseRowStart = 558380 ∧
-    artifact.even.phaseRowEnd = 1221351 ∧
+    artifact.even.bodyRows = 1300897 ∧
+    artifact.even.bodyColumns = 1301126 ∧
+    artifact.even.phaseRowStart = 626420 ∧
+    artifact.even.phaseRowEnd = 1289391 ∧
     artifact.odd.sourceIdentity = "rust:pi-rlc-family-odd/body-v3" ∧
-    artifact.odd.bodyRows = 1234057 ∧
-    artifact.odd.bodyColumns = 1234286 ∧
-    artifact.odd.phaseRowStart = 559580 ∧
-    artifact.odd.phaseRowEnd = 1222551 ∧
+    artifact.odd.bodyRows = 1302097 ∧
+    artifact.odd.bodyColumns = 1302326 ∧
+    artifact.odd.phaseRowStart = 627620 ∧
+    artifact.odd.phaseRowEnd = 1290591 ∧
     artifact.even.Valid artifact.constantValues ∧
     artifact.odd.Valid artifact.constantValues
 

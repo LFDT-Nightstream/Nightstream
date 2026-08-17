@@ -102,7 +102,7 @@ theorem runningNativeFields_length
     {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (running : ProductionFieldNativeFullClaim.Running fullShape) :
-    (runningNativeFields running).length = 83210 := by
+    (runningNativeFields running).length = 95090 := by
   rw [runningNativeFields_lengthFor contract.toSelected,
     contract.rowVariables]
   decide
@@ -230,7 +230,7 @@ theorem successorBlocks_lengths
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (value : Value candidate fullShape) :
     (successorBlocks value).map List.length =
-      [2, 4, 2, 85, 85, 83210, 59, 59] := by
+      [2, 4, 2, 85, 85, 95090, 59, 59] := by
   simp [successorBlocks,
     ProductionMemoryTranscriptHashFrame.profileFields_length,
     ProductionWasmStateFields.encode_length,
@@ -280,7 +280,7 @@ theorem successorFrame_length
     {candidate : Id} {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (value : Value candidate fullShape) :
-    (successorFrame value).length = 83506 := by
+    (successorFrame value).length = 95386 := by
   rw [successorFrame, List.length_flatten,
     successorBlocks_lengths contract]
   decide
@@ -450,7 +450,7 @@ theorem stateBlocks_lengths
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (statementId : StatementId)
     (successor : Value candidate fullShape) :
-    (stateBlocks statementId successor).map List.length = [366, 83506] := by
+    (stateBlocks statementId successor).map List.length = [366, 95386] := by
   simp [stateBlocks, ProductPoseidon2.statementIdentifierFields,
     ProductPoseidon2.proofPrefixFields_length,
     successorFrame_length contract]
@@ -479,7 +479,7 @@ theorem stateFrame_length
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (statementId : StatementId)
     (successor : Value candidate fullShape) :
-    (stateFrame statementId successor).length = 83872 := by
+    (stateFrame statementId successor).length = 95752 := by
   rw [stateFrame, List.length_flatten,
     stateBlocks_lengths contract]
   decide

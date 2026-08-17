@@ -5,7 +5,7 @@ import Nightstream.SuperNeo.Concrete.Phi81Relation.PiRLCAlgebra.Norm.Centered
 /-!
 Canonical production radix decomposition for the typed Phi81 `PiDEC` algebra.
 
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 14`.
+Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
 Phase: complete-assignment split and recomposition.
 Constraint family: semantic digit and norm obligations only; this file emits no
 rows.
@@ -13,7 +13,7 @@ rows.
 Owns: a deterministic signed-binary split inside the strict combined bound; a
 total exact fallback outside that precondition; coordinate and assignment
 recomposition; fresh-child norm preservation; and the reverse norm bound for
-arbitrary fourteen-child recompositions.
+arbitrary sixteen-child recompositions.
 
 Does not own: commitment, public-input, or evaluation homomorphisms; child CE
 membership; transcript or NIFS acceptance; Rust/R1CS refinement; row removal;
@@ -23,19 +23,19 @@ Emits constraints: no.
 
 Authority boundary: `PiDEC.Algebra.split_recompose` is unconditional, while
 `split_norm` assumes a strictly `B`-bounded parent. The bounded branch is the
-canonical fourteen-position signed binary expansion. Outside that assumption,
+canonical sixteen-position signed binary expansion. Outside that assumption,
 child zero retains the original coefficient and the other children are zero.
 That fallback is exact but deliberately carries no shortness claim.
 
 | Stage path | Mathematical obligation | Authority class | Lean owner |
 |---|---|---|---|
-| `nifs.pi_dec.verify.radix.parameters` | radix two, fourteen children, `B = 16384` | verifier fixed | `production_parameters` |
+| `nifs.pi_dec.verify.radix.parameters` | radix two, sixteen children, `B = 65536` | verifier fixed | `production_parameters` |
 | `nifs.pi_dec.verify.radix.scalar.digits` | digit `i` is `(magnitude / 2^i) mod 2` | computed | `magnitudeDigit`, `magnitudeDigit_lt_two` |
 | `nifs.pi_dec.verify.radix.scalar.sign` | both centered signs use the same magnitude digits | computed | `boundedDigit` |
 | `nifs.pi_dec.verify.radix.scalar.total` | unbounded values retain an exact first-child fallback | computed | `splitScalar` |
 | `nifs.pi_dec.verify.radix.recompose` | every field value and complete assignment recomposes exactly | derived | `splitScalar_recompose`, `split_recompose` |
 | `nifs.pi_dec.verify.radix.split_norm` | a strict-`B` parent produces strict-`2` children | derived | `split_norm` |
-| `nifs.pi_dec.verify.radix.recompose_norm` | fourteen strict-`2` children recompose below `B` | derived | `recompose_norm` |
+| `nifs.pi_dec.verify.radix.recompose_norm` | sixteen strict-`2` children recompose below `B` | derived | `recompose_norm` |
 -/
 
 namespace Nightstream.SuperNeo.Concrete.Phi81Relation.PiDECAlgebra.Radix
@@ -51,13 +51,13 @@ open Nightstream.SuperNeo.Folding.PiCCS.PaperJoint
 
 abbrev ChildIndex := Fin productionGlobalParams.k
 
-/-- The production combined-witness bound `B = 2^14`. -/
+/-- The production combined-witness bound `B = 2^16`. -/
 def combinedBound : Nat := productionGlobalParams.bigB
 
 theorem production_parameters :
-    productionGlobalParams.b = 2 /\
-      productionGlobalParams.k = 14 /\
-      combinedBound = 16384 := by
+      productionGlobalParams.b = 2 /\
+      productionGlobalParams.k = 16 /\
+      combinedBound = 65536 := by
   decide
 
 /-! ## Local natural and field arithmetic -/
@@ -439,7 +439,7 @@ private theorem fallbackDigit_recompose (value : F) :
     combineScalars EvaluationHomomorphism.PiDEC.radixWeight
         (fallbackDigit value) = value := by
   change combineScalars
-      (count := 13 + 1)
+      (count := 15 + 1)
       EvaluationHomomorphism.PiDEC.radixWeight
       (fallbackDigit value) = value
   rw [combineScalars_head_only
@@ -454,7 +454,7 @@ def recomposeScalar (values : ChildIndex -> F) : F :=
   combineScalars EvaluationHomomorphism.PiDEC.radixWeight values
 
 /-- A common-sign binary digit vector recomposes to the signed natural value
-of its fourteen little-endian bits. -/
+of its sixteen little-endian bits. -/
 theorem recomposeScalar_signedBinary
     (negative : Bool) (digits : ChildIndex -> Nat) :
     recomposeScalar (fun index => signedBinaryDigit negative (digits index)) =
@@ -547,7 +547,7 @@ theorem splitScalar_norm (value : F)
     centeredMagnitude (splitScalar value index) < productionGlobalParams.b := by
   simpa [splitScalar, bounded] using boundedDigit_norm value index
 
-/-- A strictly combined-bounded complete assignment splits into fourteen
+/-- A strictly combined-bounded complete assignment splits into sixteen
 strictly fresh-bounded assignments. -/
 theorem split_norm {shape : Shape} (assignment : Assignment shape)
     (bounded : assignmentNormBounded productionGlobalParams.bigB assignment) :
@@ -800,7 +800,7 @@ theorem splitScalar_eq_signedBinary_of_recompose
             magnitudePositive magnitudeBound
         simp [boundedDigit, signedBinaryDigit, negativeValue, digitExact]
 
-/-- Any fourteen strict-`2` assignments recompose to a strict-`16384`
+/-- Any sixteen strict-`2` assignments recompose to a strict-`65536`
 assignment, independently of whether they came from `splitAssignment`. -/
 theorem recompose_norm {shape : Shape}
     (assignments : ChildIndex -> Assignment shape)

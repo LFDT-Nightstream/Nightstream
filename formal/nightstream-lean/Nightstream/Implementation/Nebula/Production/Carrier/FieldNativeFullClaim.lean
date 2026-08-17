@@ -6,7 +6,7 @@ import Nightstream.Implementation.Nebula.Production.Memory.SuffixCarrier
 Contract: exact typed full claim for one field-native production candidate.
 
 The claim carries the 540-coordinate CCS public input, one mandatory
-four-component commitment bundle, the complete fourteen-running paper-NIFS
+four-component commitment bundle, the complete sixteen-running paper-NIFS
 state, and one ordered `E`-suffix memory batch. Its mixed authority image has
 no bit-serial running, bundle, challenge, product, or root bridge.
 
@@ -110,7 +110,7 @@ theorem runningFields_length
     {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (running : Running fullShape) :
-    (runningFields running).length = 83210 := by
+    (runningFields running).length = 95090 := by
   rw [runningFields_lengthFor contract.toSelected, contract.rowVariables]
   exact ProductNifsCodec.runningFieldCountFor_25
 
@@ -118,7 +118,7 @@ theorem runningNativeValues_length
     {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (running : Running fullShape) :
-    (runningNativeValues running).length = 83210 := by
+    (runningNativeValues running).length = 95090 := by
   rw [runningNativeValues, List.length_map,
     runningFields_length contract]
 

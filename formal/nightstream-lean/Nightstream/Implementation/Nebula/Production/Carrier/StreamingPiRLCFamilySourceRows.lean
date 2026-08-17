@@ -8,12 +8,12 @@ Assurance tier: generated source-row soundness.
 Owns one assignment across PiRLC arithmetic, the exact family input
 commitment and residual update, centered challenge decoding and carry, and the
 family cursor increment. The carry decoder reuses the arithmetic layout, so
-the same 810 symbols drive both the ring combination and the carried fields.
+the same 918 symbols drive both the ring combination and the carried fields.
 
 Does not own either Poseidon2 replay, normalized selective-CCS slots, generated
 artifact rows, or Rust assignment conformance.
 
-Emits constraints: 146,114 R1CS rows.
+Emits constraints: 165,554 R1CS rows.
 -/
 
 set_option autoImplicit false
@@ -64,7 +64,7 @@ def rows
 
 theorem rows_length
     (setup : InputBindingSetup) (layout : Layout) (family : Family) :
-    (rows setup layout family).length = 146114 := by
+    (rows setup layout family).length = 165554 := by
   simp only [rows, List.length_append,
     ProductPiRlcRingCombinationRows.rows_length,
     Nightstream.Implementation.Nebula.ProductionStreamingPiRlcInputFamilyRows.rows_length,

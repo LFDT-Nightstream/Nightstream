@@ -168,11 +168,11 @@ def narrowCoordinates (candidate : Id) : Nat :=
     checkedStepsPerFreshClaim candidate *
       memoryCounterCoordinatesPerCheckedStep
 
-/-- Complete fourteen-running paper carrier at one augmented-relation
+/-- Complete sixteen-running paper carrier at one augmented-relation
 exponent. Each additional cube variable adds one extension-field coordinate,
 which is two Goldilocks coordinates. -/
 def runningFieldCoordinatesFor (rowVariables : Nat) : Nat :=
-  83160 + 2 * rowVariables
+  95040 + 2 * rowVariables
 
 /-- Fixed-25 reference value. Production artifacts use
 `runningFieldCoordinatesFor` with their selected exponent. -/
@@ -198,23 +198,23 @@ def fieldNativeEnvelopeCoordinatesFor
   narrowCoordinates candidate + runningFieldCoordinatesFor rowVariables +
     bundleFieldCoordinates + memoryFieldCoordinates candidate
 
-def bitSerialReferenceEnvelopeBits : Nat := 5587724
-def bitSerialReferenceRunningBridgeRows : Nat := 11066930
+def bitSerialReferenceEnvelopeBits : Nat := 6348044
+def bitSerialReferenceRunningBridgeRows : Nat := 12646970
 
 theorem fixedNarrowCoordinates_exact : fixedNarrowCoordinates = 540 := by decide
 
 theorem fieldNativeEnvelopeCoordinate_table :
-    fieldNativeEnvelopeCoordinates .e1 = 87830 /\
-      fieldNativeEnvelopeCoordinates .e4 = 88406 /\
-      fieldNativeEnvelopeCoordinates .e8 = 89174 /\
-      fieldNativeEnvelopeCoordinates .e16 = 90710 := by
+    fieldNativeEnvelopeCoordinates .e1 = 99710 /\
+      fieldNativeEnvelopeCoordinates .e4 = 100286 /\
+      fieldNativeEnvelopeCoordinates .e8 = 101054 /\
+      fieldNativeEnvelopeCoordinates .e16 = 102590 := by
   decide
 
 theorem fieldNativeEnvelopeCoordinate_table_at_26 :
-    fieldNativeEnvelopeCoordinatesFor .e1 26 = 87832 /\
-      fieldNativeEnvelopeCoordinatesFor .e4 26 = 88408 /\
-      fieldNativeEnvelopeCoordinatesFor .e8 26 = 89176 /\
-      fieldNativeEnvelopeCoordinatesFor .e16 26 = 90712 := by
+    fieldNativeEnvelopeCoordinatesFor .e1 26 = 99712 /\
+      fieldNativeEnvelopeCoordinatesFor .e4 26 = 100288 /\
+      fieldNativeEnvelopeCoordinatesFor .e8 26 = 101056 /\
+      fieldNativeEnvelopeCoordinatesFor .e16 26 = 102592 := by
   decide
 
 theorem fieldNative_envelope_is_smaller_than_reference_bit_image :

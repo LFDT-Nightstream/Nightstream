@@ -4,7 +4,7 @@ import Nightstream.Implementation.R1CS.Canonical.LinCombNormal
 /-!
 Contract: exact sparse rows for one V2 PiRLC ring-valued output.
 
-One occurrence combines 15 source rings with the 15 transcript-derived
+One occurrence combines 17 source rings with the 17 transcript-derived
 challenge rings. It computes each distinct schoolbook product once and uses
 linear rows for the exact reduction by `X^54 + X^27 + 1` and source sum.
 
@@ -29,7 +29,7 @@ open Nightstream.Implementation.R1CS.Canonical.LinCombNormal
 def sourceCount : Nat := ProductPiRlcFirstAcceptedBatchRows.sourceCount
 def laneCount : Nat := 54
 
-theorem sourceCount_eq : sourceCount = 15 := by decide
+theorem sourceCount_eq : sourceCount = 17 := by decide
 theorem laneCount_eq : laneCount = 54 := rfl
 
 abbrev Source := Fin sourceCount
@@ -46,7 +46,7 @@ structure Layout where
 def productCount : Nat := sourceCount * laneCount * laneCount
 def auxiliaryCount : Nat := productCount
 
-theorem productCount_eq : productCount = 43740 := by decide
+theorem productCount_eq : productCount = 49572 := by decide
 
 def productOffset (source : Source) (left right : Lane) : Nat :=
   (source.val * laneCount + left.val) * laneCount + right.val
@@ -60,10 +60,10 @@ theorem productOffset_lt (source : Source) (left right : Lane) :
   have sourceLt := source.isLt
   have leftLt := left.isLt
   have rightLt := right.isLt
-  change source.val < 15 at sourceLt
+  change source.val < 17 at sourceLt
   change left.val < 54 at leftLt
   change right.val < 54 at rightLt
-  change (source.val * 54 + left.val) * 54 + right.val < 15 * 54 * 54
+  change (source.val * 54 + left.val) * 54 + right.val < 17 * 54 * 54
   omega
 
 /-- Symbol `2` is centered zero. This linear form is `symbol - 2` in the
@@ -162,7 +162,7 @@ def rows (layout : Layout) : List Row :=
   productRows layout ++ outputRows layout
 
 theorem rows_length (layout : Layout) :
-    (rows layout).length = 43794 := by
+    (rows layout).length = 49626 := by
   rw [rows, List.length_append, productRows_length, outputRows_length]
   decide
 

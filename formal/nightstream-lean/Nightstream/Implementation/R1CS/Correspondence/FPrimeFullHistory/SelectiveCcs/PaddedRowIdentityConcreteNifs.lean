@@ -186,7 +186,7 @@ noncomputable def compactKey (statementId : StatementId) :=
 @[simp] theorem key_arity_total
     (statementId : StatementId) (ajtaiKey : Algebra.AjtaiKey)
     (matrices : ApplicationMatrices) :
-    (key statementId ajtaiKey matrices).arity.total = 15 := by
+    (key statementId ajtaiKey matrices).arity.total = 17 := by
   rfl
 
 theorem key_initialTranscriptState

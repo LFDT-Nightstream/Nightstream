@@ -122,12 +122,12 @@ theorem pointFields_length
 theorem statementFields_length
     {rowVariables : Nat} (input : Input rowVariables)
     (termCount : input.constraintPolynomial.terms.length = 74) :
-    (statementFields input).length = 22362 + 2 * rowVariables := by
+    (statementFields input).length = 25386 + 2 * rowVariables := by
   have polynomialLength := polynomialFields_length input.constraintPolynomial
   have carriedLength :
       ((canonicalCarriedCoordinates (Shape rowVariables)).flatMap
         fun coordinate => carriedFields (input.claimedCoefficient coordinate)
-      ).length = 21168 := by
+      ).length = 24192 := by
     rw [length_flatMap_uniform _ _ 2 (fun _ => rfl),
       canonicalCarriedCoordinates_length]
     rfl
@@ -172,7 +172,7 @@ def publicControl (rowVariables : Nat) : SymbolicDuplexCount.Control :=
     initialControl
 
 def statementControl (rowVariables : Nat) : SymbolicDuplexCount.Control :=
-  SymbolicDuplexCount.absorbManyFast (22362 + 2 * rowVariables)
+  SymbolicDuplexCount.absorbManyFast (25386 + 2 * rowVariables)
     (publicControl rowVariables)
 
 private def alphaControlGo : Nat -> SymbolicDuplexCount.Control ->
@@ -203,7 +203,7 @@ def roundsControl (rowVariables : Nat) : SymbolicDuplexCount.Control :=
   roundControlGo rowVariables (gammaControl rowVariables)
 
 def finalControl (rowVariables : Nat) : SymbolicDuplexCount.Control :=
-  SymbolicDuplexCount.absorbManyFast 22700 (roundsControl rowVariables)
+  SymbolicDuplexCount.absorbManyFast 25724 (roundsControl rowVariables)
 
 private theorem deriveAlphaGo_control
     {rowVariables : Nat} (input : Input rowVariables)

@@ -3,11 +3,11 @@ import Nightstream.Implementation.R1CS.Core.SeededAjtai
 import Nightstream.Implementation.R1CS.Core.SeededPhi81
 
 /-!
-Contract: verifier-owned geometry for the two PiCCS metadata coordinate maps.
+Contract: verifier-owned geometry for the three PiCCS metadata coordinate maps.
 
 Assurance tier: model-level serialization and setup profile.
 
-Owns the two field counts, frame-position maps, claim-chunk partitions,
+Owns the three field counts, frame-position maps, claim-chunk partitions,
 rank-two message widths, fixed Rust seeds, and domain identifiers. Together,
 the maps bind the statement, fresh instance, running commitments, running
 public inputs, prior point, and running evaluations.
@@ -28,26 +28,30 @@ open Nightstream.Protocol.Nebula.ShiftedTernary41V1
 
 inductive MapKind where
   | statementFresh
-  | runningMetadata
+  | runningCommitments
+  | runningPublic
 deriving DecidableEq, Inhabited, Repr
 
 def MapKind.fieldCount : MapKind → Nat
-  | .statementFresh => 25_648
-  | .runningMetadata => 61_992
+  | .statementFresh => 28_672
+  | .runningCommitments => 62_208
+  | .runningPublic => 8_640
 
 def MapKind.messageColumnCount (kind : MapKind) : Nat :=
   (kind.fieldCount * digitCount + 54 - 1) / 54
 
 def MapKind.seedByte : MapKind → Nat
   | .statementFresh => 0xC8
-  | .runningMetadata => 0xCA
+  | .runningCommitments => 0xCA
+  | .runningPublic => 0xCB
 
 def MapKind.rustSeedBytes (kind : MapKind) : List Nat :=
   List.replicate 32 kind.seedByte
 
 def MapKind.rustDomain : MapKind → Nat
   | .statementFresh => 0x5049_4356_4152_4244
-  | .runningMetadata => 0x5049_4352_554E_4D44
+  | .runningCommitments => 0x5049_4352_554E_434D
+  | .runningPublic => 0x5049_4352_554E_5055
 
 def MapKind.expectedSchedule (kind : MapKind) : SeededPhi81.SeedSchedule :=
   SeededAjtai.schedule kind.rustSeedBytes 2 kind.messageColumnCount 16
@@ -75,24 +79,30 @@ theorem MapKind.certificateBlock_exact_geometry (kind : MapKind) :
   simp [MapKind.certificateBlock, digitCount]
 
 theorem exact_map_geometry :
-    MapKind.statementFresh.fieldCount = 25_648 /\
-      MapKind.statementFresh.messageColumnCount = 19_474 /\
-      MapKind.runningMetadata.fieldCount = 61_992 /\
-      MapKind.runningMetadata.messageColumnCount = 47_068 /\
+    MapKind.statementFresh.fieldCount = 28_672 /\
+      MapKind.statementFresh.messageColumnCount = 21_770 /\
+      MapKind.runningCommitments.fieldCount = 62_208 /\
+      MapKind.runningCommitments.messageColumnCount = 47_232 /\
+      MapKind.runningPublic.fieldCount = 8_640 /\
+      MapKind.runningPublic.messageColumnCount = 6_560 /\
       MapKind.statementFresh.fieldCount +
-        MapKind.runningMetadata.fieldCount = 87_640 /\
+        MapKind.runningCommitments.fieldCount +
+        MapKind.runningPublic.fieldCount = 99_520 /\
       MapKind.statementFresh.messageColumnCount ≤ 50_371 /\
-      MapKind.runningMetadata.messageColumnCount ≤ 50_371 := by
+      MapKind.runningCommitments.messageColumnCount ≤ 50_371 /\
+      MapKind.runningPublic.messageColumnCount ≤ 50_371 := by
   decide
 
 theorem exact_rust_identities :
     MapKind.statementFresh.rustSeedBytes = List.replicate 32 200 /\
       MapKind.statementFresh.rustDomain = 5785229234076271172 /\
-      MapKind.runningMetadata.rustSeedBytes = List.replicate 32 202 /\
-      MapKind.runningMetadata.rustDomain = 5785229217231686980 := by
+      MapKind.runningCommitments.rustSeedBytes = List.replicate 32 202 /\
+      MapKind.runningCommitments.rustDomain = 5785229217231684429 /\
+      MapKind.runningPublic.rustSeedBytes = List.replicate 32 203 /\
+      MapKind.runningPublic.rustDomain = 5785229217231687765 := by
   decide
 
-/-- Position of one map field in the authoritative 88,023-field claim
+/-- Position of one map field in the authoritative 99,903-field claim
 frame. The order within each map is the fixed coordinate order used by the
 seeded rank-two binding. -/
 def MapKind.framePosition :
@@ -100,17 +110,14 @@ def MapKind.framePosition :
   | .statementFresh, field =>
       if field.val < 52 then
         383 + field.val
-      else if field.val < 21_220 then
-        62_427 + (field.val - 52)
-      else if field.val < 25_108 then
-        83_595 + (field.val - 21_220)
+      else if field.val < 24_244 then
+        71_283 + (field.val - 52)
+      else if field.val < 28_132 then
+        95_475 + (field.val - 24_244)
       else
-        87_483 + (field.val - 25_108)
-  | .runningMetadata, field =>
-      if field.val < 54_432 then
-        435 + field.val
-      else
-        54_867 + (field.val - 54_432)
+        99_363 + (field.val - 28_132)
+  | .runningCommitments, field => 435 + field.val
+  | .runningPublic, field => 62_643 + field.val
 
 theorem MapKind.framePosition_lt
     (kind : MapKind) (field : Fin kind.fieldCount) :
@@ -118,7 +125,7 @@ theorem MapKind.framePosition_lt
   cases kind with
   | statementFresh =>
       have bound := field.isLt
-      change field.val < 25_648 at bound
+      change field.val < 28_672 at bound
       simp only [MapKind.framePosition]
       unfold claimFrameLength
       split
@@ -126,12 +133,18 @@ theorem MapKind.framePosition_lt
       · split
         · omega
         · split <;> omega
-  | runningMetadata =>
+  | runningCommitments =>
       have bound := field.isLt
-      change field.val < 61_992 at bound
+      change field.val < 62_208 at bound
       simp only [MapKind.framePosition]
       unfold claimFrameLength
-      split <;> omega
+      omega
+  | runningPublic =>
+      have bound := field.isLt
+      change field.val < 8_640 at bound
+      simp only [MapKind.framePosition]
+      unfold claimFrameLength
+      omega
 
 def MapKind.claimChunk
     (kind : MapKind) (field : Fin kind.fieldCount) : Fin claimChunkCount :=
@@ -172,7 +185,7 @@ theorem MapKind.activeFields_nodup
   simp [MapKind.activeFields]
 
 def claimChunkFieldCount (chunk : Fin claimChunkCount) : Nat :=
-  if chunk.val = 85 then 983 else 1024
+  if chunk.val = 97 then 575 else 1024
 
 theorem claimChunkFieldCount_le (chunk : Fin claimChunkCount) :
     claimChunkFieldCount chunk ≤ claimChunkWidth := by

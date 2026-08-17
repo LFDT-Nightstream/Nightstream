@@ -105,9 +105,9 @@ theorem production_total_bound {count : Nat}
     (totalBound : count <=
       productionGlobalParams.maxFresh + productionGlobalParams.k) :
     count * 216 < productionGlobalParams.bigB := by
-  have countLe : count <= 75 := by
+  have countLe : count <= 303 := by
     simpa [productionGlobalParams] using totalBound
-  change count * 216 < 16384
+  change count * 216 < 65536
   omega
 
 /-- Exact theorem supplied to the production `PiRLC.Algebra.norm_growth`

@@ -10,7 +10,7 @@ Contract: authoritative family-major input replay for production PiRLC.
 Assurance tier: model-level exact refinement and cryptographic-reduction
 boundary.
 
-Owns the canonical 15-source serialization used by every one of the 110
+Owns the canonical 17-source serialization used by every one of the 110
 PiRLC family phases, its exact order and size, the direct projection from
 `Key.piCcsOutputs`, one fused replay-and-algebra phase, and exact equality
 between the complete authoritative family result and the monolithic paper
@@ -71,29 +71,39 @@ theorem ringFields_injective : Function.Injective ringFields := by
   apply Fin.ext
   exact congrFun valuesEqual lane
 
-/-- Verifier-owned source order `0, ..., 14`. -/
-def sourceSchedule : List Source := canonicalFinIndices 15
+/-- Verifier-owned source order `0, ..., 16`. -/
+def sourceSchedule : List Source := canonicalFinIndices 17
 
-@[simp] theorem sourceSchedule_length : sourceSchedule.length = 15 := by
-  simpa [sourceSchedule] using canonicalFinIndices_length 15
+@[simp] theorem sourceSchedule_length : sourceSchedule.length = 17 := by
+  simpa [sourceSchedule] using canonicalFinIndices_length 17
 
-theorem sourceSchedule_values : sourceSchedule.map Fin.val = List.range 15 := by
-  exact canonicalFinIndices_values 15
+theorem sourceSchedule_values : sourceSchedule.map Fin.val = List.range 17 := by
+  exact canonicalFinIndices_values 17
 
-/-- Fifteen equal-width ring blocks for one family. -/
+/-- Seventeen equal-width ring blocks for one family. -/
 def sourceBlocks (inputs : Source -> RingF) : List (List Nat) :=
   List.ofFn fun source => ringFields (inputs source)
 
 theorem sourceBlocks_lengths (inputs : Source -> RingF) :
-    (sourceBlocks inputs).map List.length = List.replicate 15 54 := by
-  simp [sourceBlocks, ringFields, ringDegree]
+    (sourceBlocks inputs).map List.length = List.replicate 17 54 := by
+  calc
+    (sourceBlocks inputs).map List.length =
+        List.ofFn (fun _ : Source => 54) := by
+      rw [sourceBlocks, List.map_ofFn]
+      apply congrArg List.ofFn
+      funext source
+      exact ringFields_length (inputs source)
+    _ = List.replicate ProductPiRlcRingCombinationRows.sourceCount 54 := by
+      exact List.ofFn_const _ _
+    _ = List.replicate 17 54 := by
+      rw [ProductPiRlcRingCombinationRows.sourceCount_eq]
 
-/-- One family phase reads all fifteen sources in source-major order. -/
+/-- One family phase reads all seventeen sources in source-major order. -/
 def phaseFields (inputs : Source -> RingF) : List Nat :=
   (sourceBlocks inputs).flatten
 
 @[simp] theorem phaseFields_length (inputs : Source -> RingF) :
-    (phaseFields inputs).length = 810 := by
+    (phaseFields inputs).length = 918 := by
   rw [phaseFields, List.length_flatten, sourceBlocks_lengths]
   decide
 
@@ -118,7 +128,7 @@ def familyInputFields (inputs : InputRings) (family : Family) : List Nat :=
 
 @[simp] theorem familyInputFields_length
     (inputs : InputRings) (family : Family) :
-    (familyInputFields inputs family).length = 810 := by
+    (familyInputFields inputs family).length = 918 := by
   exact phaseFields_length _
 
 /-- One exact input chunk per verifier-owned family. -/
@@ -136,20 +146,20 @@ private theorem map_lengths_of_uniform
       simp [uniform, inductionHypothesis, List.replicate_succ]
 
 theorem inputChunks_lengths (inputs : InputRings) :
-    (inputChunks inputs).map List.length = List.replicate 110 810 := by
+    (inputChunks inputs).map List.length = List.replicate 110 918 := by
   calc
     (inputChunks inputs).map List.length =
-        List.replicate familySchedule.length 810 := by
+        List.replicate familySchedule.length 918 := by
       exact map_lengths_of_uniform familySchedule (familyInputFields inputs)
-        810 (familyInputFields_length inputs)
-    _ = List.replicate 110 810 := by rw [familySchedule_length]
+        918 (familyInputFields_length inputs)
+    _ = List.replicate 110 918 := by rw [familySchedule_length]
 
 /-- Complete semantic PiRLC input stream. It is not carried between phases. -/
 def inputFrame (inputs : InputRings) : List Nat :=
   (inputChunks inputs).flatten
 
 @[simp] theorem inputFrame_length (inputs : InputRings) :
-    (inputFrame inputs).length = 89100 := by
+    (inputFrame inputs).length = 100980 := by
   rw [inputFrame, List.length_flatten, inputChunks_lengths]
   decide
 
@@ -189,7 +199,7 @@ noncomputable def authoritativeInputs
       artifact).piCcsOutputs running fresh proof source).evaluations.getD 0
         (ProductPaperAlgebraFor.evaluationZero rowVariables)
 
-/-- Exact 15-by-110 ring projection of the typed PiCCS output. This is the
+/-- Exact 17-by-110 ring projection of the typed PiCCS output. This is the
 ordered value bound by the PiRLC input residual. -/
 noncomputable def authoritativeInputRings
     (candidate : Id)
@@ -296,7 +306,7 @@ theorem complete_family_run_eq_parent
 
 /-! ## One fused family phase -/
 
-/-- A proof-only collector for one bounded 810-field phase. It is not a
+/-- A proof-only collector for one bounded 918-field phase. It is not a
 persistent circuit carrier. -/
 def collectField (fields : List Nat) (value : Nat) : List Nat :=
   fields ++ [value]
@@ -324,10 +334,10 @@ structure InputReplayCollision
   frameCollision : ProductionStreamingFusedPass.FrameReplayCollisionAt prior
     (phaseFields authoritative)
 
-/-- A deterministic 810-field schedule has exactly one phase chunk. -/
+/-- A deterministic 918-field schedule has exactly one phase chunk. -/
 theorem phase_chunk_count_exact
     {inputs : Source -> RingF} {chunks : List (List Nat)}
-    (schedule : ProductionFullClaimStreaming.ChunkSchedule 810
+    (schedule : ProductionFullClaimStreaming.ChunkSchedule 918
       (phaseFields inputs) chunks) :
     chunks.length = 1 := by
   have lower := schedule.values_length_le_chunk_capacity
@@ -341,7 +351,7 @@ theorem fused_phase_recovers_inputs_or_collision
     (prior : BindingState) (family : Family)
     (authoritative supplied : Source -> RingF)
     (chunks : List (List Nat))
-    (schedule : ProductionFullClaimStreaming.ChunkSchedule 810
+    (schedule : ProductionFullClaimStreaming.ChunkSchedule 918
       (phaseFields supplied) chunks)
     (normalized : prior.absorbed < Poseidon2Sponge.rate)
     (transcriptExact :
@@ -377,7 +387,7 @@ theorem accepted_different_phase_implies_collision
     (authoritative supplied : Source -> RingF)
     (different : supplied ≠ authoritative)
     (chunks : List (List Nat))
-    (schedule : ProductionFullClaimStreaming.ChunkSchedule 810
+    (schedule : ProductionFullClaimStreaming.ChunkSchedule 918
       (phaseFields supplied) chunks)
     (normalized : prior.absorbed < Poseidon2Sponge.rate)
     (transcriptExact :
@@ -395,9 +405,9 @@ theorem accepted_different_phase_implies_collision
 
 /-- Complete persistent state for the 110 family phases.
 
-The rank-two residual is the algebraic authority for the 89,100 PiCCS-derived
+The rank-two residual is the algebraic authority for the 100,980 PiCCS-derived
 input fields. The input and output duplex states are checked compression and
-collision boundaries only. The exact 810 challenge coefficients are carried
+collision boundaries only. The exact 918 challenge coefficients are carried
 as values because a digest cannot authorize them. -/
 structure FamilyState where
   inputReplay : BindingState
@@ -470,7 +480,7 @@ def familyStateFields (state : FamilyState) : List Nat :=
         phaseFields state.challenges ++ [state.familyCursor]
 
 @[simp] theorem familyStateFields_length (state : FamilyState) :
-    (familyStateFields state).length = 937 := by
+    (familyStateFields state).length = 1045 := by
   simp [familyStateFields]
 
 private theorem bindingFields_injective : Function.Injective bindingFields := by
@@ -503,7 +513,7 @@ private theorem inputResidualFields_injective :
   apply Fin.ext
   exact congrFun valuesEqual output
 
-/-- The complete 937-field continuation encoding has no serialization
+/-- The complete 1,045-field continuation encoding has no serialization
 ambiguity. Any two different family states have different field lists. -/
 theorem familyStateFields_injective : Function.Injective familyStateFields := by
   intro left right equal
@@ -519,7 +529,7 @@ theorem familyStateFields_injective : Function.Injective familyStateFields := by
          phaseFields right.challenges,
          [right.familyCursor]] := by
     apply WasmResultCodec.flatten_injective_of_lengths
-        (widths := [9, 108, 9, 810, 1])
+        (widths := [9, 108, 9, 918, 1])
     · simp
     · simp
     · simpa [familyStateFields] using equal
@@ -561,7 +571,7 @@ structure FamilyTransition
   cursor : after.familyCursor = before.familyCursor + 1
 
 /-- One concrete phase reads the carried verifier-derived challenges, replays
-the same fifteen input rings used by the algebra, and binds the output ring. -/
+the same seventeen input rings used by the algebra, and binds the output ring. -/
 def FamilyPhaseRelation
     (setup : InputBindingSetup) (before after : FamilyState) (family : Family)
     (inputs : Source -> RingF) (output : RingF) : Prop :=
@@ -643,7 +653,7 @@ theorem local_rows_imply_concrete_phase
   exact local_rows_imply_combineOne canonical one range satisfied
 
 /-- The arithmetic rows and the exact family input rows use one assignment.
-The family input rows derive the residual transition from the same 810 input
+The family input rows derive the residual transition from the same 918 input
 fields used by `combineOne`. Only the four non-residual state links remain as
 explicit glue facts. -/
 theorem local_rows_imply_concrete_phase_from_input_rows
@@ -706,7 +716,7 @@ theorem local_rows_imply_concrete_phase_from_input_rows
 /-! ## Row-derived start authority -/
 
 /-- The existing post-PiCCS transcript, candidate-classification, and
-first-accepted rows derive all 810 challenge coefficients placed by
+first-accepted rows derive all 918 challenge coefficients placed by
 `piRlcStart`. Generated start glue still has to prove
 `FamilyStartTransition` on the same assignment. -/
 theorem sampler_rows_imply_authoritative_start

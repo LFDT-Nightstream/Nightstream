@@ -25,17 +25,17 @@ open Nightstream.SuperNeo.Concrete.Radix4Candidate
 #guard_msgs in
 #audit_axioms oneFresh_rlc_bound
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Radix4Candidate.msisNormBound_eq_production' does not depend on any axioms -/
+/-- info: 'Nightstream.SuperNeo.Concrete.Radix4Candidate.msisNormBound_lt_production' does not depend on any axioms -/
 #guard_msgs in
-#audit_axioms msisNormBound_eq_production
+#audit_axioms msisNormBound_lt_production
 
 /-- info: 'Nightstream.SuperNeo.Concrete.Radix4Candidate.degreeEight_verifierDegree_eq_production' does not depend on any axioms -/
 #guard_msgs in
 #audit_axioms degreeEight_verifierDegree_eq_production
 
-/-- info: 'Nightstream.SuperNeo.Concrete.Radix4Candidate.runningSourceCount_halved' does not depend on any axioms -/
+/-- info: 'Nightstream.SuperNeo.Concrete.Radix4Candidate.runningSourceCount_lt_production' does not depend on any axioms -/
 #guard_msgs in
-#audit_axioms runningSourceCount_halved
+#audit_axioms runningSourceCount_lt_production
 
 /-! The candidate split and norm laws use only Lean's standard proposition,
 choice, and quotient soundness axioms. They remain model-level until a circuit

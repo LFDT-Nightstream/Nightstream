@@ -2,9 +2,10 @@ import Nightstream.SuperNeo.Relations
 import Nightstream.SuperNeo.Concrete.Algebra
 
 /-!
-Verifier-owned production parameter instantiation for SuperNeo Appendix B.2.
+Verifier-owned production parameter instantiation for the frozen Nightstream
+Goldilocks profile.
 
-The values mirror `neo_params::goldilocks_paper_b2` and
+The values mirror `neo_params::nightstream_goldilocks_k16` and
 `paper::params::Params::production`. The Definition-14 inequality is carried
 as proof data and inherited by every permitted smaller batch arity.
 -/
@@ -30,8 +31,8 @@ namespace Concrete
 def productionGlobalParams : GlobalParams where
   q := goldilocksModulus
   b := 2
-  k := 14
-  maxFresh := 61
+  k := 16
+  maxFresh := 287
   expansionT := 216
   rlc_bound := by decide
 
@@ -56,10 +57,10 @@ def productionProfile : ProductionProfile where
 theorem production_parameter_values :
     productionProfile.global.q = 18446744069414584321 ∧
     productionProfile.global.b = 2 ∧
-    productionProfile.global.k = 14 ∧
-    productionProfile.global.maxFresh = 61 ∧
+    productionProfile.global.k = 16 ∧
+    productionProfile.global.maxFresh = 287 ∧
     productionProfile.global.expansionT = 216 ∧
-    productionProfile.global.bigB = 16384 ∧
+    productionProfile.global.bigB = 65536 ∧
     productionProfile.eta = 81 ∧
     productionProfile.ringDegree = 54 ∧
     productionProfile.commitmentWidth = 18 ∧
@@ -69,32 +70,29 @@ theorem production_parameter_values :
 
 theorem production_norm_stages :
     NormStage.bound productionGlobalParams .fresh = 2 ∧
-    NormStage.bound productionGlobalParams .combined = 16384 ∧
+    NormStage.bound productionGlobalParams .combined = 65536 ∧
     NormStage.bound productionGlobalParams .ambient = 9223372034707292161 := by
   decide
 
 theorem production_msis_norm_bound :
-    productionGlobalParams.msisNormBound = 28311552 := by
+    productionGlobalParams.msisNormBound = 113246208 := by
   decide
 
 theorem production_allows_every_advertised_batch {fresh : Nat}
-    (hFresh : fresh ≤ 61) :
-    (fresh + 14) * 216 < 16384 := by
+    (hFresh : fresh ≤ 287) :
+    (fresh + 16) * 216 < 65536 := by
   simpa [productionGlobalParams, GlobalParams.bigB] using
     productionGlobalParams.rlc_bound_for hFresh
 
-/-! ## Radix-four width candidate
+/-! ## Unsupported radix-four reference
 
-This candidate changes only the decomposition radix and source count. It is
-not a production profile. In particular, these arithmetic facts do not supply
-the canonical radix-four PiDEC implementation, its circuit refinement, or a
-concrete Module-SIS estimator receipt.
+This namespace remains only for isolated proof-model comparisons. It is not
+an allowed Nightstream profile and must not be used by generated artifacts,
+the production relation, or lifecycle verification.
 -/
 
 namespace Radix4Candidate
 
-/-- Width-reduction candidate with the same combined norm bound as the active
-radix-two profile. -/
 def globalParams : GlobalParams where
   q := goldilocksModulus
   b := 4
@@ -112,8 +110,6 @@ theorem parameter_values :
       globalParams.bigB = 16384 := by
   decide
 
-/-- Eighteen is the largest fresh arity permitted by Definition 14 for this
-candidate. Nebula needs only one fresh source. -/
 theorem maxFresh_exact :
     (18 + 7) * 216 * (4 - 1) < 16384 ∧
       ¬((19 + 7) * 216 * (4 - 1) < 16384) := by
@@ -124,21 +120,17 @@ theorem oneFresh_rlc_bound :
         (globalParams.b - 1) < globalParams.bigB := by
   decide
 
-/-- The relaxed-binding Module-SIS norm parameter is unchanged because it
-depends on `T * B`, not on the selected radix separately. -/
-theorem msisNormBound_eq_production :
-    globalParams.msisNormBound = productionGlobalParams.msisNormBound := by
+theorem msisNormBound_lt_production :
+    globalParams.msisNormBound < productionGlobalParams.msisNormBound := by
   decide
 
-/-- For a degree-eight CCS relation, radix four does not increase the joint
-PiCCS verifier degree: both profiles use degree nine. -/
 theorem degreeEight_verifierDegree_eq_production :
     max (8 + 1) (2 * globalParams.b) =
       max (8 + 1) (2 * productionGlobalParams.b) := by
   decide
 
-theorem runningSourceCount_halved :
-    2 * globalParams.k = productionGlobalParams.k := by
+theorem runningSourceCount_lt_production :
+    2 * globalParams.k < productionGlobalParams.k := by
   decide
 
 end Radix4Candidate

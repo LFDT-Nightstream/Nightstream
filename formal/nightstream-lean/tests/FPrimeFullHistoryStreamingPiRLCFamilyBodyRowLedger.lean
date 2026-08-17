@@ -10,19 +10,19 @@ example : LedgerValid := ledger_valid
 
 example :
     Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyRowLedger.ledger.rows =
-      279089 :=
+      491046 :=
   dimensions_exact.2.2.2.1
 
 example :
     rewriteInstanceCount
         Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyRowLedger.ledger
-        .poseidon2 = 1376 := by
-  native_decide
+        .poseidon2 = 3762 := by
+  decide
 
 example :
     rewriteEmittedRowCount
         Nightstream.Implementation.R1CS.Artifacts.FPrimeFullHistory.StreamingPiRLCFamilyBodyRowLedger.ledger
-        .poseidon2 = 118352 := by
-  native_decide
+        .poseidon2 = 323548 := by
+  decide
 
 end tests.FPrimeFullHistoryStreamingPiRLCFamilyBodyRowLedger

@@ -6,7 +6,7 @@ Contract: independent V2 terminal semantics.
 Assurance tier: protocol model and implementation boundary.
 
 Owns the exact trailing verified full claim, its delayed consumption directly
-to a closed carry, one final fold, all fourteen post-PiDEC folded children,
+to a closed carry, one final fold, all sixteen post-PiDEC folded children,
 one bounded assignment per child that both opens that child's complete
 four-component bundle and participates in the terminal relation, and the
 external result check. The structure has no next fresh claim and no segment
@@ -28,13 +28,13 @@ open Nightstream.Protocol.Nebula.CommitmentBundle
 open Nightstream.Protocol.Nebula.FPrime
 open Nightstream.Protocol.Nebula.FullClaim
 
-/-- SuperNeo's selected `b = 2`, `k = 14` profile exposes fourteen folded CE
+/-- Nightstream's selected `b = 2`, `k_rho = 16` profile exposes sixteen folded CE
 children after PiDEC. Terminal verification must check every child. -/
-def foldedChildCount : Nat := 14
+def foldedChildCount : Nat := 16
 
 abbrev FoldedChild := Fin foldedChildCount
 
-theorem foldedChildCount_exact : foldedChildCount = 14 := rfl
+theorem foldedChildCount_exact : foldedChildCount = 16 := rfl
 
 /-- Weak, invalid alternative: each component can use a different witness. -/
 def OpensSeparately
@@ -70,7 +70,7 @@ structure FinalFold
   accepted : folds running verified.claim proof folded
 
 /-- Exact V2 terminal acceptance. `terminalRelation` and `bundleOf` both read
-the same fourteen-child assignment family. For each child, all four bundle
+the same sixteen-child assignment family. For each child, all four bundle
 components use that child's one assignment. This rules out an unchecked
 PiDEC child, four unrelated lane witnesses, and a terminal relation that reads
 another witness family.

@@ -66,7 +66,7 @@ theorem authoritativeFrame_length
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (statementId : StatementId) (degreeBound : Nat)
     (value : Value candidate fullShape) :
-    (authoritativeFrame statementId degreeBound value).length = 88021 := by
+    (authoritativeFrame statementId degreeBound value).length = 99901 := by
   rw [authoritativeFrame_lengthFor contract.toSelected statementId degreeBound
     value, contract.rowVariables]
   decide

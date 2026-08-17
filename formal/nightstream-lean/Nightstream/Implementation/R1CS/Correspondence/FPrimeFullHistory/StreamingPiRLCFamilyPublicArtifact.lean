@@ -7,10 +7,10 @@ import Nightstream.Implementation.R1CS.Core.Poseidon2Call
 Contract: exact Rust artifact boundary for the PiRLC family public suffix.
 
 Assurance tier: Rust-conformant for property
-`FPRIME-STREAMING-PIRLC-FAMILY-FULL-XOUT-ROWS-V2`.
+`FPRIME-STREAMING-PIRLC-FAMILY-FULL-XOUT-ROWS-V3`.
 
 Owns both parity shapes, the exact suffix boundary outside one delegated
-phase-envelope range, the 937-field local states, both 32-field full XOut
+phase-envelope range, the 1045-field local states, both 32-field full XOut
 preimages and four-field outputs, and transport of every owned canonical-u64
 and Poseidon2 leaf to its Lean soundness theorem.
 
@@ -47,22 +47,22 @@ theorem artifact_valid : rawArtifact.Valid :=
   rawArtifact_valid
 
 theorem exact_shape :
-    rawArtifact.even.sourceRowCount = 275006 /\
-      rawArtifact.even.rowCount = 1232857 /\
-      rawArtifact.even.columnCount = 1233086 /\
-      rawArtifact.odd.sourceRowCount = 276206 /\
-      rawArtifact.odd.rowCount = 1234057 /\
-      rawArtifact.odd.columnCount = 1234286 /\
-      rawArtifact.lowNormRows = 474966 /\
-      rawArtifact.lowNormColumns = 4687416 /\
+    rawArtifact.even.sourceRowCount = 310646 /\
+      rawArtifact.even.rowCount = 1300897 /\
+      rawArtifact.even.columnCount = 1301126 /\
+      rawArtifact.odd.sourceRowCount = 311846 /\
+      rawArtifact.odd.rowCount = 1302097 /\
+      rawArtifact.odd.columnCount = 1302326 /\
+      rawArtifact.lowNormRows = 491046 /\
+      rawArtifact.lowNormColumns = 8858862 /\
       rawArtifact.lowNormPublicColumns = 648 := by
   exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem exact_leaf_counts :
     rawArtifact.even.canonicalCalls.length = 11 /\
       rawArtifact.odd.canonicalCalls.length = 11 /\
-      rawArtifact.even.poseidon2Calls.length = 490 /\
-      rawArtifact.odd.poseidon2Calls.length = 490 /\
+      rawArtifact.even.poseidon2Calls.length = 544 /\
+      rawArtifact.odd.poseidon2Calls.length = 544 /\
       rawArtifact.even.glueRows.length = 121 /\
       rawArtifact.odd.glueRows.length = 121 := by
   exact
@@ -88,10 +88,10 @@ theorem exact_leaf_counts :
 /-- The public-state artifact delegates one exact contiguous range per parity
 arm to the phase-envelope artifact. -/
 theorem exact_phase_envelope_ranges :
-    rawArtifact.even.phaseEnvelopeRowStart = 558380 /\
-      rawArtifact.even.phaseEnvelopeRowEnd = 1221351 /\
-      rawArtifact.odd.phaseEnvelopeRowStart = 559580 /\
-      rawArtifact.odd.phaseEnvelopeRowEnd = 1222551 := by
+    rawArtifact.even.phaseEnvelopeRowStart = 626420 /\
+      rawArtifact.even.phaseEnvelopeRowEnd = 1289391 /\
+      rawArtifact.odd.phaseEnvelopeRowStart = 627620 /\
+      rawArtifact.odd.phaseEnvelopeRowEnd = 1290591 := by
   exact ⟨rfl, rfl, rfl, rfl⟩
 
 /-- The shared public prefix is the after full XOut digest, the before full
@@ -106,14 +106,14 @@ theorem exact_public_word_layout :
       rawArtifact.lowNormPublicColumns = 648 := by
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
-/-- Each serialized side has exactly the complete 937-field `FamilyState`.
+/-- Each serialized side has exactly the complete 1045-field `FamilyState`.
 Its last source column is the family cursor carried by the source rows. -/
 theorem exact_state_column_shape (kind : ArmKind) :
-    (armFor kind).beforeStateColumns.length = 937 /\
-      (armFor kind).afterStateColumns.length = 937 /\
-      (armFor kind).beforeStateColumns.getD 936 0 =
+    (armFor kind).beforeStateColumns.length = 1045 /\
+      (armFor kind).afterStateColumns.length = 1045 /\
+      (armFor kind).beforeStateColumns.getD 1044 0 =
       (armFor kind).beforeFamilyCursorColumn /\
-      (armFor kind).afterStateColumns.getD 936 0 =
+      (armFor kind).afterStateColumns.getD 1044 0 =
         (armFor kind).afterFamilyCursorColumn := by
   cases kind with
   | even =>

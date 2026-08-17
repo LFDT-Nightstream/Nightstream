@@ -7,7 +7,7 @@ Contract: complete source relation for one production PiRLC family phase.
 
 Assurance tier: generated-source and Rust-replay correspondence.
 
-Owns the fixed 146,224-column layout, all 146,114 algebraic source rows, the
+Owns the fixed 165,664-column layout, all 165,554 algebraic source rows, the
 cursor-parity Poseidon2 replay rows, and the implication from their joint
 satisfaction to `FamilyPhaseRelation`.
 
@@ -15,7 +15,7 @@ Does not own normalized selective lowering, the Rust witness encoder, the
 110-family sequence, recursive lifecycle integration, or the terminal zero
 residual check.
 
-Emits constraints: 275,114 rows for an even family and 276,314 rows for an
+Emits constraints: 310,754 rows for an even family and 311,954 rows for an
 odd family.
 -/
 
@@ -47,23 +47,23 @@ private abbrev sourceRows :=
 private abbrev replayRowsFor (parity : CursorParity) : List Row :=
   (arm parity).poseidon2Calls.flatMap Poseidon2Call.Call.rows
 
-/-- The 810 input openings reuse the exact arithmetic input columns. -/
+/-- The 918 input openings reuse the exact arithmetic input columns. -/
 def inputPhaseLayout : InputPhaseLayout where
   inputColumn :=
     Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout.input
   digitStart := fun source lane =>
-    45456 + (source.val * 54 + lane.val) * 122
-  zeroDigitStart := 45415
-  dColumn := 144276
-  kappaColumn := 144277
-  outputColumn := fun output => 144278 + output.val
-  seededRowStart := 144277
+    51504 + (source.val * 54 + lane.val) * 122
+  zeroDigitStart := 51463
+  dColumn := 163500
+  kappaColumn := 163501
+  outputColumn := fun output => 163502 + output.val
+  seededRowStart := 163501
 
 /-- The local commitment outputs feed the residual equations directly. -/
 def inputFamilyLayout : InputFamilyLayout where
   phase := inputPhaseLayout
-  beforeResidual := fun output => 144386 + output.val
-  afterResidual := fun output => 144494 + output.val
+  beforeResidual := fun output => 163610 + output.val
+  afterResidual := fun output => 163718 + output.val
 
 /-- One fixed production layout for every source-row family. -/
 def layout : SourceLayout where
@@ -71,27 +71,29 @@ def layout : SourceLayout where
     Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout
   input := inputFamilyLayout
   beforeChallenge := fun source lane =>
-    144602 + source.val * 54 + lane.val
+    163826 + source.val * 54 + lane.val
   afterChallenge := fun source lane =>
-    145412 + source.val * 54 + lane.val
-  beforeCursor := 146222
-  afterCursor := 146223
+    164744 + source.val * 54 + lane.val
+  beforeCursor := 165662
+  afterCursor := 165663
 
 theorem exact_layout :
-    layout.algebra.base = 1675 /\
-      layout.input.phase.zeroDigitStart = 45415 /\
-      layout.input.phase.dColumn = 144276 /\
-      layout.input.phase.kappaColumn = 144277 /\
-      layout.input.phase.seededRowStart = 144277 /\
-      layout.input.beforeResidual ⟨0, by decide⟩ = 144386 /\
-      layout.input.afterResidual ⟨0, by decide⟩ = 144494 /\
-      layout.beforeChallenge ⟨0, by decide⟩ ⟨0, by decide⟩ = 144602 /\
-      layout.afterChallenge ⟨0, by decide⟩ ⟨0, by decide⟩ = 145412 /\
-      layout.beforeCursor = 146222 /\
-      layout.afterCursor = 146223 := by
-  native_decide
+    layout.algebra.base = 1891 /\
+      layout.input.phase.zeroDigitStart = 51463 /\
+      layout.input.phase.dColumn = 163500 /\
+      layout.input.phase.kappaColumn = 163501 /\
+      layout.input.phase.seededRowStart = 163501 /\
+      layout.input.beforeResidual ⟨0, by decide⟩ = 163610 /\
+      layout.input.afterResidual ⟨0, by decide⟩ = 163718 /\
+      layout.beforeChallenge ⟨0, by decide⟩ ⟨0, by decide⟩ = 163826 /\
+      layout.afterChallenge ⟨0, by decide⟩ ⟨0, by decide⟩ = 164744 /\
+      layout.beforeCursor = 165662 /\
+      layout.afterCursor = 165663 := by
+  refine ⟨?_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+  exact
+    Nightstream.Implementation.Nebula.ProductionStreamingPiRlcArtifact.Generated.layout_base
 
-/-- Family zero starts with cursor zero. Every 810-field input replay and
+/-- Family zero starts with cursor zero. Every 918-field input replay and
 54-field output replay advances the cursor by two, so family parity selects
 the physical cursor shape. -/
 def parityFor (family : Family) : CursorParity :=
@@ -118,11 +120,12 @@ theorem replayRows_length :
     ∀ parity : CursorParity,
       (replayRowsFor parity).length =
         match parity with
-        | .even => 129000
-        | .odd => 130200 := by
+        | .even => 145200
+        | .odd => 146400 := by
   intro parity
   rw [callsRows_length]
-  cases parity <;> native_decide
+  rw [poseidon2Calls_length]
+  cases parity <;> norm_num
 
 /-- Exact joint row order: algebraic source rows, then the complete input and
 output Poseidon2 call rows for the selected cursor parity. -/
@@ -134,30 +137,30 @@ theorem rows_length
     (setup : InputBindingSetup) (family : Family) :
     (rows setup family).length =
       if ProductPiRlcAlgebraRows.familyOrdinal family % 2 = 0 then
-        275114
+        310754
       else
-        276314 := by
+        311954 := by
   by_cases even : ProductPiRlcAlgebraRows.familyOrdinal family % 2 = 0
   · calc
       (rows setup family).length =
-          146114 + (replayRowsFor (parityFor family)).length := by
+          165554 + (replayRowsFor (parityFor family)).length := by
         rw [rows, List.length_append,
           Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilySourceRows.rows_length]
-      _ = 146114 + (replayRowsFor .even).length := by
+      _ = 165554 + (replayRowsFor .even).length := by
         rw [parityFor, if_pos even]
-      _ = 275114 := by rw [replayRows_length]; norm_num
+      _ = 310754 := by rw [replayRows_length]; norm_num
       _ = if ProductPiRlcAlgebraRows.familyOrdinal family % 2 = 0 then
-            275114 else 276314 := by rw [if_pos even]
+            310754 else 311954 := by rw [if_pos even]
   · calc
       (rows setup family).length =
-          146114 + (replayRowsFor (parityFor family)).length := by
+          165554 + (replayRowsFor (parityFor family)).length := by
         rw [rows, List.length_append,
           Nightstream.Implementation.Nebula.ProductionStreamingPiRlcFamilySourceRows.rows_length]
-      _ = 146114 + (replayRowsFor .odd).length := by
+      _ = 165554 + (replayRowsFor .odd).length := by
         rw [parityFor, if_neg even]
-      _ = 276314 := by rw [replayRows_length]; norm_num
+      _ = 311954 := by rw [replayRows_length]; norm_num
       _ = if ProductPiRlcAlgebraRows.familyOrdinal family % 2 = 0 then
-            275114 else 276314 := by rw [if_neg even]
+            310754 else 311954 := by rw [if_neg even]
 
 /-- The fixed input columns decode to the exact source rings used by the
 PiRLC arithmetic. -/
@@ -177,13 +180,21 @@ private def semanticInputColumns : List Nat :=
 private def semanticOutputColumns : List Nat :=
   List.ofFn layout.algebra.output
 
+private theorem semanticInputColumns_exact :
+    semanticInputColumns = List.range' 919 918 := by
+  rfl
+
+private theorem semanticOutputColumns_exact :
+    semanticOutputColumns = List.range' 1837 54 := by
+  rfl
+
 private theorem replay_input_columns (parity : CursorParity) :
     replayColumns parity .input = semanticInputColumns := by
-  cases parity <;> native_decide
+  rw [replayColumns_input_exact, semanticInputColumns_exact]
 
 private theorem replay_output_columns (parity : CursorParity) :
     replayColumns parity .output = semanticOutputColumns := by
-  cases parity <;> native_decide
+  rw [replayColumns_output_exact, semanticOutputColumns_exact]
 
 /-- Both generated replay traces read the exact algebra columns, without a
 copy row or digest indirection. -/

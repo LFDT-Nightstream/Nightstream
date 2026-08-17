@@ -110,7 +110,7 @@ def matrixSource
     (system : Phi81Relation.Structure
       (FullShape rowVariables logicalWidth publicFits)) :
     Structure rowVariables logicalWidth :=
-  Phi81MatrixSource.source rowVariables 1 14 14 logicalWidth system.matrices
+  Phi81MatrixSource.source rowVariables 1 16 14 logicalWidth system.matrices
     system.constraintPolynomial
 
 def canonicalStructure
@@ -136,7 +136,7 @@ theorem canonicalStructure_matrixSource
           (FullShape rowVariables logicalWidth publicFits))
       · funext matrix vertex column
         exact Phi81MatrixSource.source_matrix_embedLogical
-          rowVariables 1 14 14 logicalWidth matrices polynomial matrix vertex
+          rowVariables 1 16 14 logicalWidth matrices polynomial matrix vertex
             column
       · rfl
 
@@ -442,10 +442,11 @@ theorem evaluations_recompose
       recomposeEvaluations fun child =>
         (semantics config).evaluations source (assignments child) point := by
   apply Array.ext
-  · rfl
+  · rw [semantics_evaluations_size]
+    rfl
   · intro index leftLt rightLt
     have indexLt : index < 1 := by
-      simpa [semantics] using leftLt
+      simpa only [semantics_evaluations_size] using leftLt
     have indexZero : index = 0 := by omega
     subst index
     change

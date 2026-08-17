@@ -217,7 +217,7 @@ theorem output_replay_exact
           before.outputReplay := by rw [states.outputBefore]
 
 /-- Both accepted replay traces give the two exact semantic equalities that
-remain outside the 146,114 PiRLC source rows. -/
+remain outside the 165,554 PiRLC source rows. -/
 theorem family_replays_exact
     (parity : CursorParity) (assignment : Nat → Nat)
     (canonical : ∀ column, assignment column < goldilocksP)
@@ -242,14 +242,39 @@ theorem family_replays_exact
 
 theorem artifact_valid : rawArtifact.Valid := rawArtifact_valid
 
+/-- Both parity arms read the same exact contiguous PiRLC input columns. -/
+theorem replayColumns_input_exact (parity : CursorParity) :
+    replayColumns parity .input = List.range' 919 918 := by
+  cases parity with
+  | even => exact evenArm_inputColumns_exact
+  | odd => exact oddArm_inputColumns_exact
+
+/-- Both parity arms read the same exact contiguous PiRLC output columns. -/
+theorem replayColumns_output_exact (parity : CursorParity) :
+    replayColumns parity .output = List.range' 1837 54 := by
+  cases parity with
+  | even => exact evenArm_outputColumns_exact
+  | odd => exact oddArm_outputColumns_exact
+
+/-- The generated replay call counts are certified by bounded structural
+leaves and their list decomposition. -/
+theorem poseidon2Calls_length (parity : CursorParity) :
+    (arm parity).poseidon2Calls.length =
+      match parity with
+      | .even => 242
+      | .odd => 244 := by
+  cases parity with
+  | even => exact evenArm_poseidon2Calls_length
+  | odd => exact oddArm_poseidon2Calls_length
+
 theorem exact_shape :
-    rawArtifact.sourceColumns = 146224 /\
-      rawArtifact.even.rowCount = 129000 /\
-      rawArtifact.even.columnCount = 275240 /\
-      rawArtifact.odd.rowCount = 130200 /\
-      rawArtifact.odd.columnCount = 276440 /\
-      rawArtifact.even.poseidon2Calls.length = 215 /\
-      rawArtifact.odd.poseidon2Calls.length = 217 := by
+    rawArtifact.sourceColumns = 165664 /\
+      rawArtifact.even.rowCount = 145200 /\
+      rawArtifact.even.columnCount = 310880 /\
+      rawArtifact.odd.rowCount = 146400 /\
+      rawArtifact.odd.columnCount = 312080 /\
+      rawArtifact.even.poseidon2Calls.length = 242 /\
+      rawArtifact.odd.poseidon2Calls.length = 244 := by
   refine ⟨rfl, rfl, rfl, rfl, rfl, ?_, ?_⟩
   · exact evenArm_poseidon2Calls_length
   · exact oddArm_poseidon2Calls_length

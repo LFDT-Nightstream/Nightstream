@@ -6,7 +6,7 @@ import Nightstream.Implementation.Nebula.NIFS.Running.RunningParser
 Contract: candidate-specific public-input transcript for field-native paper
 NIFS.
 
-The transcript absorbs the complete fourteen-running state, mandatory fresh
+The transcript absorbs the complete sixteen-running state, mandatory fresh
 bundle, and 540-coordinate CCS public input once. Its resulting duplex state
 can be reused by the outer F-prime state binding. The prefix fixes the
 successor profile version and checked-step factor.
@@ -133,7 +133,7 @@ theorem publicNifsFields_length
     (degreeBound : Nat)
     (running : Running fullShape)
     (fresh : Fresh fullShape) :
-    (publicNifsFields candidate degreeBound running fresh).length = 87655 := by
+    (publicNifsFields candidate degreeBound running fresh).length = 99535 := by
   rw [publicNifsFields_lengthFor candidate contract.toSelected,
     contract.rowVariables]
   decide
@@ -152,7 +152,7 @@ theorem blocks_lengths
     {candidate : Id} {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (degreeBound : Nat) (value : Value candidate fullShape) :
-    (blocks degreeBound value).map List.length = [17, 83210, 3888, 540] := by
+    (blocks degreeBound value).map List.length = [17, 95090, 3888, 540] := by
   simpa [contract.rowVariables, ProductNifsCodec.runningFieldCountFor] using
     (show (blocks degreeBound value).map List.length =
         [17, ProductNifsCodec.runningFieldCountFor fullShape.rowVariables,
@@ -291,7 +291,7 @@ theorem frame_length
     {candidate : Id} {fullShape : Phi81Relation.Shape}
     (contract : ProductNifsCodec.FullShapeContract fullShape)
     (degreeBound : Nat) (value : Value candidate fullShape) :
-    (frame degreeBound value).length = 87655 := by
+    (frame degreeBound value).length = 99535 := by
   rw [frame, List.length_flatten, blocks_lengths contract]
   decide
 

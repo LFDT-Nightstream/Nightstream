@@ -199,9 +199,26 @@ with one whole-artifact native_decide, which the proof-architecture
 directive forbids. The replacement keeps all evaluation in bounded
 leaves and all aggregation structural:
 
-- Core extension (one batch, applied only after the census modules
-  build, because touching `CompactSourceArtifact.lean` or
-  `ConstraintMinimization.lean` invalidates every Generated olean):
+- Status 2026-08-16: the core extension landed in the NEW module
+  `Nightstream/Assurance/ChunkedRedundancy.lean` (a new file imports
+  the old ones and invalidates nothing, so no rebuild window exists).
+  It compiles clean. Two findings while writing it: (a) the committed
+  monolith `RecursiveNifsPiRlcVerifyPaddingYRingRedundancy.lean` can
+  never elaborate — `ScalarCertificate.Valid` is an equality of
+  noncomputable `MvPolynomial` values, so its whole-artifact
+  native_decide fails Decidable synthesis; it was committed but never
+  Lean-built, and it counts as no evidence. (b) The campaign's y_ring
+  certificates are all single-support coefficient-one duplicates, so
+  scalar validity is certified by the decidable structural predicate
+  `duplicateOk` plus the lemma `valid_of_duplicateOk`; no polynomial
+  evaluation is needed anywhere.
+- Core lemmas (all proved): `filter_artifactRows`,
+  `mem_artifactRows_of_mem_chunk`, `supportOk` /
+  `support_facts_of_supportOk`, `duplicateOk` /
+  `valid_of_duplicateOk`, and
+  `familyCertificate_valid_of_chunk_parts` (scalar leaves carry
+  `duplicateOk scalar && supports.all (supportOk wire plan family)`).
+- Original sketch (superseded by the above):
   1. `filter_artifactRows`: filtering chunked rows equals the flatMap
      of per-chunk filters.
   2. `mem_artifactRows_of_mem_chunk`: chunk membership lifts to
